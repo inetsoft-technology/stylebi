@@ -15,9 +15,8 @@
   ~ You should have received a copy of the GNU Affero General Public License
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
-<script src="auto-drill-dialog/data-auto-drill-dialog.component.ts"></script>
-<form [formGroup]="form">
-  <div class="form-group content-spacing form-floating">
+<form [formGroup]="form" class="logical-model-attribute-editor">
+  <div class="form-group form-floating logical-model-attribute-editor__first-field">
     <input type="text" class="form-control"
            formControlName="name"
            [class.is-invalid]="nameControl.invalid">
@@ -91,20 +90,22 @@
       _#(data.logicalmodel.attribute.referenceTypeRequired)
     </span>
     <div ngbDropdownMenu class="tree-dropdown-menu">
-      <div class="ps-2 font-weight-bold">_#(Measure)</div>
+      <div class="logical-model-attribute-editor__reference-group-label">_#(Measure)</div>
       <ng-container *ngFor="let ref of currentFormulas">
-        <div class="ps-4" (click)="selectFormula(ref, dropdown)"
+        <div class="logical-model-attribute-editor__reference-option logical-model-attribute-editor__reference-option--nested"
+             (click)="selectFormula(ref, dropdown)"
              [class.selected]="isSelected(ref)">{{ ref.label }}</div>
       </ng-container>
       <ng-container *ngFor="let ref of defaultRefTypes">
-        <div class="ps-2" (click)="selectFormula(ref, dropdown)"
+        <div class="logical-model-attribute-editor__reference-option"
+             (click)="selectFormula(ref, dropdown)"
              [class.selected]="isSelected(ref)">{{ ref.label }}</div>
       </ng-container>
     </div>
   </div>
   <div class="form-group">
-    <div class="checkbox col-6 select-option">
-      <label class="control-label">
+    <div class="logical-model-attribute-editor__checkbox-row">
+      <label class="logical-model-attribute-editor__checkbox-label">
         <input type="checkbox" [(ngModel)]="attribute.browseData" [ngModelOptions]="{standalone: true}"
                [disabled]="!editable"/>
         <span>_#(Browse Data)</span>
@@ -112,8 +113,8 @@
     </div>
   </div>
   <div class="form-group" *ngIf="logicalModelParent">
-    <div class="checkbox col-6 select-option">
-      <label class="control-label">
+    <div class="logical-model-attribute-editor__checkbox-row">
+      <label class="logical-model-attribute-editor__checkbox-label">
         <input type="checkbox" [(ngModel)]="attribute.visible" [ngModelOptions]="{standalone: true}"/>
         <span>_#(Visible)</span>
       </label>

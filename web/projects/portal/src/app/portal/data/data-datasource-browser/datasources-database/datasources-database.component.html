@@ -17,11 +17,54 @@
   -->
 <div *ngIf="database" [style.position]="additionalVisible ? 'absolute' : 'relative'"
      class="editor-container">
-  <div class="container-fluid h-100 flex-fixed-container">
-    <div class="row flex-fixed-content content-spacing">
-      <div [ngClass]="additionalVisible ? 'col-10' : 'col-12'">
+  <div class="editor-content" [class.editor-content--expanded]="additionalVisible">
+        <div class="editor-query-strip" *ngIf="database">
+          <div class="editor-query-strip__status">
+            <div class="editor-query-strip__label">_#(Status)</div>
+            <div class="editor-query-strip__badge"
+                 [class.is-ready]="dataSourceConnected === true"
+                 [class.is-unavailable]="dataSourceConnected === false">
+              <i class="editor-query-strip__status-icon" [ngClass]="queryStatusIconClass"></i>
+              {{queryStatusLabel}}
+            </div>
+          </div>
+          <div class="editor-query-strip__content">
+            <div class="editor-query-strip__message">{{queryStatusMessage}}</div>
+            <div class="editor-query-strip__actions">
+              <button type="button" class="btn btn-primary"
+                      [disabled]="!canCreateQuery"
+                      (click)="createQuery()">
+                _#(New Query)
+              </button>
+              <button type="button" class="btn btn-secondary"
+                      [disabled]="loadingDataSourceStatus || !currentDataSourcePath"
+                      (click)="refreshDataSourceStatus()">
+                _#(Refresh Status)
+              </button>
+              <button type="button" class="btn btn-secondary"
+                      [disabled]="!currentDataSourcePath"
+                      (click)="createPhysicalView()">
+                _#(New Data Model)
+              </button>
+              <div class="btn-toolbar toolbar-ghost-actions editor-query-strip__toolbar" role="toolbar">
+                <div class="btn-group" role="group">
+                  <i role="button" class="btn py-1 folder-move-icon"
+                     title="_#(Move)"
+                     [class.disabled]="!currentDataSourceInfo?.deletable"
+                     (click)="moveDataSource()">
+                  </i>
+                  <i role="button" class="btn py-1 trash-icon"
+                     title="_#(Delete)"
+                     [class.disabled]="!currentDataSourceInfo?.deletable"
+                     (click)="deleteDataSource()">
+                  </i>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
         <form #databaseForm="ngForm">
-          <div class="form-group mt-2 form-floating">
+          <div class="form-group form-floating editor-form-group editor-form-group--first">
             <input #input type="text" #nameCtrl="ngModel"
                    name="name"
                    class="form-control"
@@ -104,6 +147,19 @@
                 <span class="invalid-feedback" *ngIf="driverClassCtrl.valid && !driverAvailable">_#(data.databases.invalidDriver)</span>
               </div>
           </ng-container>
+          <ng-container *ngIf="!driverAvailable">
+            <label class="editor-help-label" *ngIf="!uploadEnabled">_#(data.databases.driverAdminInstall)</label>
+            <ng-container *ngIf="uploadEnabled">
+              <label *ngIf="uploadEnabled" class="editor-help-label"
+                     [innerHTML]="'_#(data.databases.driverAdminUpload)'">
+              </label>
+              <div class="editor-driver-actions">
+                <button type="button" class="btn btn-secondary buttonSize" (click)="createDriver()">
+                  _#(em.data.databases.createDriver)
+                </button>
+              </div>
+            </ng-container>
+          </ng-container>
           <div class="form-group form-floating" *ngIf="databaseInfo.customEditMode">
             <input type="text" name="customUrl" class="form-control" #customUrlCtrl="ngModel"
                    [class.is-invalid]="customUrlCtrl.invalid"
@@ -130,7 +186,7 @@
                    (ngModelChange)="setTestQuery($event)"
                    [ngModel]="testQuery">
             <label><span>_#(data.databases.testQuery)</span></label>
-            <div class="alert alert-info p-2" *ngIf="!customInfo.testQuery">
+            <div class="alert alert-info editor-inline-info" *ngIf="!customInfo.testQuery">
               _#(data.databases.customTestQueryMessage)
             </div>
           </div>
@@ -206,7 +262,7 @@
                        (ngModelChange)="setTestQuery($event)"
                        [ngModel]="testQuery">
                 <label><span>_#(data.databases.testQuery)</span></label>
-                <div class="alert alert-info p-2" *ngIf="!odbcInfo.testQuery">
+                <div class="alert alert-info editor-inline-info" *ngIf="!odbcInfo.testQuery">
                   _#(data.databases.customTestQueryMessage)
                 </div>
               </div>
@@ -297,36 +353,21 @@
               </ng-container>
             </fieldset>
           </ng-container>
-          <ng-container *ngIf="!driverAvailable">
-            <label class="font-weight-bold" *ngIf="!uploadEnabled">_#(data.databases.driverAdminInstall)</label>
-            <ng-container *ngIf="uploadEnabled">
-              <label *ngIf="uploadEnabled" class="font-weight-bold"
-                     [innerHTML]="'_#(data.databases.driverAdminUpload)'">
-              </label>
-              <div class="mb-2">
-                <button type="button" class="btn btn-default buttonSize" (click)="createDriver()">
-                  _#(em.data.databases.createDriver)
-                </button>
-              </div>
-            </ng-container>
-          </ng-container>
           <ng-container>
-            <div class="testDiv">
-              <button class="btn btn-default buttonSize" type="button"
+            <div class="editor-test-actions">
+              <button class="btn btn-secondary buttonSize" type="button"
                       (click)="testDatabase()">_#(Test Connection)
               </button>
-               <button class="btn btn-default buttonMargin" type="button"
+               <button class="btn btn-secondary buttonMargin" type="button"
                       (click)="refreshMetadata()">_#(Refresh Metadata)
                </button>
             </div>
           </ng-container>
-          <div class="row">
-            <div class="col">
-              <label class="addition-label">_#(Option) :</label>
-            </div>
+          <div class="editor-section editor-section--compact">
+            <label class="addition-label">_#(Option) :</label>
           </div>
-          <div class="row form-check form-group">
-            <div class="col-auto">
+          <div class="editor-option-row form-check form-group">
+            <div class="editor-option-row__toggle">
               <label class="form-check-label">
                 <input type="checkbox"
                        name="changeDefaultDB"
@@ -336,7 +377,7 @@
                 _#(Change Default DB)
               </label>
             </div>
-            <div class="col form-floating">
+            <div class="form-floating editor-option-row__input">
               <input type="text" name="editDefaultDB" class="form-control"
                      [disabled]="!database.changeDefaultDB"
                      [(ngModel)]="database.defaultDatabase">
@@ -373,14 +414,12 @@
             <label><span>_#(Table Name)</span></label>
           </div>
           <ng-container *ngIf="additionalVisible && enterprise">
-            <div class="row">
-              <div class="col">
-                <label class="addition-label">_#(Additional Connections) :</label>
-              </div>
+            <div class="editor-section">
+              <label class="addition-label">_#(Additional Connections) :</label>
             </div>
-            <div class="row">
-              <div class="col-10 additional-datasource">
-                <div class="bordered-box bd-gray h-100">
+            <div class="editor-side-layout">
+              <div class="additional-datasource">
+                <div class="bordered-box additional-datasource__list">
                   <div *ngFor="let additional of additionalList; let i = index;"
                        class="unhighlightable" [class.selected]="additionalSelected(i)"
                        (click)="selectAdditional($event, i)">
@@ -389,7 +428,7 @@
                   </div>
                 </div>
               </div>
-              <div class="col-2 btn-container-vertical">
+              <div class="editor-side-actions btn-container-vertical">
                 <button type="button" class="btn btn-default" (click)="newAdditional()">_#(New)</button>
                 <button type="button" class="btn btn-default"
                         [disabled]="selectedAdditionalIndex.length == 0"
@@ -402,37 +441,34 @@
                         (click)="renameAdditional()">_#(Rename)</button>
               </div>
             </div>
-            <div class="row">
-              <div class="col">
-                <div class="form-check form-group">
-                  <label class="form-check-label pt-2">
-                    <input type="checkbox"
-                           name="unasgn"
-                           class="form-check-input"
-                           [(ngModel)]="database.unasgn"/>_#(Disable Default Connection)
-                  </label>
-                </div>
+            <div class="editor-section">
+              <div class="form-check form-group">
+                <label class="form-check-label pt-2">
+                  <input type="checkbox"
+                         name="unasgn"
+                         class="form-check-input"
+                         [(ngModel)]="database.unasgn"/>_#(Disable Default Connection)
+                </label>
               </div>
             </div>
           </ng-container>
-          <div class="row">
-            <div class="col">
-              <label class="addition-label">_#(Connection Pool Properties) :</label>
-            </div>
+          <div class="editor-section">
+            <label class="addition-label">_#(Connection Pool Properties) :</label>
           </div>
-          <div class="row">
-            <div class="col-10 additional-datasource">
+          <div class="editor-side-layout">
+            <div class="additional-datasource">
               <div class="pool-property-content">
                 <div class="pool-property-table">
-                  <table class="table table-bordered table-sm" wScrollableFlexTable [wScrollableSetBodyWidths]="true">
-                    <thead class="thead-light">
+                  <table class="table table-bordered pool-property-table__grid"
+                         wScrollableFlexTable [wScrollableSetBodyWidths]="true">
+                    <thead class="pool-property-table__head">
                       <tr class="pool-property-row">
                         <th class="pool-property-container">_#(Property)</th>
                         <th class="pool-property-container">_#(Value)</th>
                       </tr>
                     </thead>
                     <tbody>
-                      <tr class="pool-property-row row" *ngFor="let properties of database.info.poolProperties | keyvalue"
+                      <tr class="pool-property-row" *ngFor="let properties of database.info.poolProperties | keyvalue"
                           (mousedown)="selectProperty($event, properties)"
                           [class.selected]="isSelectedProperty(properties)">
                         <td class="pool-property-container">{{ properties.key }}</td>
@@ -443,8 +479,8 @@
                 </div>
               </div>
             </div>
-            <div class="col-2 btn-container-vertical">
-              <button type="button" class="btn btn-default" (click)="newProperty()">_#(New)</button>
+            <div class="editor-side-actions btn-container-vertical">
+              <button type="button" class="btn btn-secondary" (click)="newProperty()">_#(New)</button>
               <button type="button" class="btn btn-default"
                       [disabled]="selectedProperty.length == 0"
                       (click)="deleteProperty()">_#(Delete)</button>
@@ -453,8 +489,8 @@
                       (click)="editProperty()">_#(Edit)</button>
             </div>
           </div>
-          <div *ngIf="additionalVisible" class="form-group text-right">
-            <button type="button" class="btn btn-primary me-2"
+          <div *ngIf="additionalVisible" class="bottom-button-container">
+            <button type="button" class="btn btn-primary bottom-button-container__primary"
                     [disabled]="databaseForm.invalid"
                     (click)="saveDatabase()">_#(OK)
             </button>
@@ -463,8 +499,6 @@
             </button>
           </div>
         </form>
-      </div>
-    </div>
   </div>
   <data-notifications #dataNotifications></data-notifications>
 </div>

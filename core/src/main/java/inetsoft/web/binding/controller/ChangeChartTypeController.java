@@ -205,20 +205,7 @@ public class ChangeChartTypeController {
          plotDesc.setValuesVisible(false);
       }
 
-      // Default smoothLines on first transition into a (non-step) Area type so newly-created
-      // area charts use smooth curves; user can still explicitly turn it off via Plot Options.
-      // On the reverse transition (Area → non-step Line) we clear the flag so a Line chart
-      // created from a previously-smooth Area chart does not silently inherit curves.
-      boolean newIsArea = newType == GraphTypes.CHART_AREA || newType == GraphTypes.CHART_AREA_STACK;
-      boolean oldIsArea = oldType == GraphTypes.CHART_AREA || oldType == GraphTypes.CHART_AREA_STACK;
-      boolean newIsLine = newType == GraphTypes.CHART_LINE || newType == GraphTypes.CHART_LINE_STACK;
-
-      if(newIsArea && !oldIsArea) {
-         plotDesc.setSmoothLines(true);
-      }
-      else if(newIsLine && oldIsArea) {
-         plotDesc.setSmoothLines(false);
-      }
+      applySmoothLinesTransition(oldType, newType, plotDesc);
 
       if(!DateComparisonUtil.isDateComparisonChartTypeChanged(ninfo, oinfo)) {
          Catalog catalog = Catalog.getCatalog();
@@ -319,6 +306,30 @@ public class ChangeChartTypeController {
       }
 
       return gflds.length > 0;
+   }
+
+   /**
+    * Default smoothLines on first transition into a (non-step) Area or Circular type so newly-
+    * created charts use smooth curves; user can still turn it off via Plot Options. On the
+    * reverse transition (Area/Circular → Line) clear the flag so the Line chart does not
+    * silently inherit curves from the previously-smooth source type.
+    *
+    * <p>Package-private and pure (no Spring/runtime state) so the transition matrix is unit-
+    * testable without standing up the WebSocket controller.
+    */
+   static void applySmoothLinesTransition(int oldType, int newType, PlotDescriptor plotDesc) {
+      boolean newIsArea = newType == GraphTypes.CHART_AREA || newType == GraphTypes.CHART_AREA_STACK;
+      boolean oldIsArea = oldType == GraphTypes.CHART_AREA || oldType == GraphTypes.CHART_AREA_STACK;
+      boolean newIsLine = newType == GraphTypes.CHART_LINE || newType == GraphTypes.CHART_LINE_STACK;
+      boolean newIsCircular = newType == GraphTypes.CHART_CIRCULAR;
+      boolean oldIsCircular = oldType == GraphTypes.CHART_CIRCULAR;
+
+      if((newIsArea && !oldIsArea) || (newIsCircular && !oldIsCircular)) {
+         plotDesc.setSmoothLines(true);
+      }
+      else if(newIsLine && (oldIsArea || oldIsCircular)) {
+         plotDesc.setSmoothLines(false);
+      }
    }
 
    private final VSBindingService bindingFactory;

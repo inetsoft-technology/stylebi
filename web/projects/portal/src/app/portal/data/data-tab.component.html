@@ -28,7 +28,32 @@
              [class.chevron-circle-arrow-right-icon]="treePaneCollapsed"></i>
         </span>
   </div>
-  <div class="pane data-pane bg-white1">
-    <router-outlet></router-outlet>
+  <div class="pane data-pane">
+    <div class="data-content-shell">
+      <div class="data-main-pane" [hidden]="!showMainPane">
+        <router-outlet></router-outlet>
+      </div>
+      <div class="data-empty-state" *ngIf="showEmptyState">
+        <div class="data-empty-state__eyebrow">_#(js:Data workspace)</div>
+        <div class="data-empty-state__title">_#(js:Choose a worksheet or data source to see its details)</div>
+        <div class="data-empty-state__body">
+          _#(js:Browse the tree on the left to review worksheets, folders, and data sources, or use search to jump straight to the item you need.)
+        </div>
+        <div class="data-empty-state__guide">
+          <div class="data-empty-state__guide-item">
+            <div class="data-empty-state__guide-title">_#(js:Explore data sources)</div>
+            <div class="data-empty-state__guide-copy">_#(js:Open a database or file-based source to inspect connections, queries, and related assets, or use the root folder menu to create a new data source.)</div>
+          </div>
+          <div class="data-empty-state__guide-item">
+            <div class="data-empty-state__guide-title">_#(js:Review worksheets)</div>
+            <div class="data-empty-state__guide-copy">_#(js:Switch to Worksheets to browse folders, open worksheet details, or use the root folder menu to create a new worksheet.)</div>
+          </div>
+          <div class="data-empty-state__guide-item">
+            <div class="data-empty-state__guide-title">_#(js:Move faster with search)</div>
+            <div class="data-empty-state__guide-copy">_#(js:Search is the quickest way to find a specific worksheet or source when the tree gets large.)</div>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </split-pane>

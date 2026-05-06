@@ -15,13 +15,13 @@
   ~ You should have received a copy of the GNU Affero General Public License
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
-<div class="edit-column-container">
-  <div class="data-model-header-pane truncate-parent justify-content-between align-items-center edit-column-header">
-    <span class="truncate-text font-weight-bold">
+<div class="logical-model-column-editor">
+  <div class="data-model-header-pane logical-model-column-editor__header truncate-parent justify-content-between align-items-center">
+    <span class="logical-model-column-editor__title truncate-text">
       _#(data.logicalmodel.attribute.columnProperties)
     </span>
   </div>
-  <div class="flex-fixed-content content-overflow-all p-2 edit-column-content">
+  <div class="logical-model-column-editor__content flex-fixed-content content-overflow-all">
     <logical-model-attribute-editor [form]="form"
                                     [databaseName]="databaseName"
                                     [physicalModelName]="physicalModelName"

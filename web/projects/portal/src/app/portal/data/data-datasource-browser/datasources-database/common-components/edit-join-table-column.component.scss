@@ -15,10 +15,41 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+:host {
+   display: block;
+   width: 100%;
+   background: transparent;
+}
+
 .physical-graph-column-header {
    text-align: left;
    white-space: nowrap;
    overflow: hidden;
    text-overflow: ellipsis;
-   padding: 5px 2px;
+   padding: 7px 8px;
+   background: var(--inet-main-panel-bg-color);
+   color: var(--inet-text-color);
+}
+
+:host(.jtk-connected) .physical-graph-column-header {
+   background: var(--inet-fourth-soft-color);
+   color: var(--inet-fourth-text-color);
+}
+
+:host(.schema-column-compatible) .physical-graph-column-header {
+   background: var(--inet-secondary-soft-color);
+   color: var(--inet-secondary-text-color);
+}
+
+:host(.schema-column-incompatible) .physical-graph-column-header {
+   background: var(--inet-danger-color-light);
+   color: var(--inet-danger-color-dark);
+}
+
+:host(.schema-column-highlight) .physical-graph-column-header {
+   box-shadow: inset 0 0 0 1px var(--inet-default-border-color);
+}
+
+:host(.schema-column-ignore) {
+   opacity: 0.55;
 }

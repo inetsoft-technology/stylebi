@@ -19,6 +19,22 @@
   display: block;
 }
 
+.datasource-search-field {
+  position: relative;
+  display: block;
+}
+
+.datasource-search-field__icon {
+  position: absolute;
+  top: 50%;
+  left: var(--inet-space-3);
+  transform: translateY(-50%);
+  color: var(--inet-text-muted-color);
+  pointer-events: none;
+}
+
 .search-input {
   min-width: 185px;
+  padding-left: calc(var(--inet-space-6) + var(--inet-space-2));
+  border-radius: var(--inet-radius-md);
 }

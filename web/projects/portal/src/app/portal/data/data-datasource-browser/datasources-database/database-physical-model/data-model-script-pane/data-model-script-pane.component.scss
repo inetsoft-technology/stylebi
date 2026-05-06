@@ -15,6 +15,20 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+.data-model-script-pane {
+  width: 100%;
+  min-width: 0;
+}
+
+.data-model-script-pane__content {
+  position: relative;
+  min-width: 0;
+}
+
+.data-model-script-pane__editor {
+  width: 100%;
+}
+
 .full-height-container {
   height: 100%;
 

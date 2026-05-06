@@ -26,12 +26,22 @@ public class GraphPaintContextImpl implements GraphPaintContext {
    public GraphPaintContextImpl(boolean paintLegends,
                                 boolean paintTitles,
                                 boolean paintAxes,
-                                boolean paintVOVisuals)
+                                boolean paintVOVisuals,
+                                boolean paintBackground)
    {
       this.paintLegends = paintLegends;
       this.paintTitles = paintTitles;
       this.paintAxes = paintAxes;
       this.paintVOVisuals = paintVOVisuals;
+      this.paintBackground = paintBackground;
+   }
+
+   /**
+    * @inheritDoc
+    */
+   @Override
+   public boolean paintBackground() {
+      return paintBackground;
    }
 
    /**
@@ -61,11 +71,22 @@ public class GraphPaintContextImpl implements GraphPaintContext {
       else if(visual instanceof Axis) {
          return paintAxes;
       }
-      else if(!paintVOVisuals && !(visual instanceof FormVO && !((FormVO) visual).isInPlot()) &&
-              (visual instanceof VisualObject || visual instanceof VOText ||
-               visual instanceof VMeasureTitle))
-      {
-         return false;
+      else if(!paintVOVisuals) {
+         // GraphVO is a facet sub-graph container — allow it so axis tiles can show
+         // sub-graph axis labels and backgrounds.
+         if(visual instanceof ElementVO && !(visual instanceof GraphVO)) {
+            return false;
+         }
+         // Data labels and measure titles can sit at the plot boundary and bleed into
+         // adjacent axis tiles via sub-pixel antialiasing.
+         if(visual instanceof VOText || visual instanceof VMeasureTitle) {
+            return false;
+         }
+         // In-plot forms (reference lines, bands) can also overlap the boundary.
+         // Out-of-plot forms live in the axis/title area and must be allowed through.
+         if(visual instanceof FormVO && ((FormVO) visual).isInPlot()) {
+            return false;
+         }
       }
 
       return true;
@@ -92,19 +113,26 @@ public class GraphPaintContextImpl implements GraphPaintContext {
          return this;
       }
 
+      public Builder paintBackground(boolean paintBackground) {
+         this.paintBackground = paintBackground;
+         return this;
+      }
+
       public GraphPaintContextImpl build() {
          return new GraphPaintContextImpl(paintLegends, paintTitles, paintAxes,
-                                          paintVOVisuals);
+                                          paintVOVisuals, paintBackground);
       }
 
       private boolean paintLegends = true;
       private boolean paintTitles = true;
       private boolean paintAxes = true;
       private boolean paintVOVisuals = true;
+      private boolean paintBackground = true;
    }
 
    private final boolean paintLegends;
    private final boolean paintTitles;
    private final boolean paintAxes;
    private final boolean paintVOVisuals;
+   private final boolean paintBackground;
 }

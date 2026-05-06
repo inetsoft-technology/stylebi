@@ -18,19 +18,115 @@
 :host {
   .modal-body {
     min-height: 75vh;
-
-    .upload-files {
-      max-height: 50vh;
-      overflow-y: auto;
-    }
+    padding: var(--inet-space-5);
   }
 
-  .row.plugin-settings {
-    margin-bottom: 1.5rem;
-    .plugin-settings-hint {
-      font-size: 85%;
-      display: block;
-      margin-top: 0.5rem;
+  .driver-wizard {
+    display: flex;
+    flex-direction: column;
+    gap: var(--inet-space-3);
+  }
+
+  .driver-wizard__section {
+    min-width: 0;
+  }
+
+  .driver-wizard__choice-row {
+    display: flex;
+    align-items: center;
+    gap: var(--inet-space-4);
+    min-width: 0;
+  }
+
+  .driver-wizard__choice-toggle {
+    flex: 0 0 112px;
+    min-height: var(--inet-control-height-md);
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .driver-wizard__divider {
+    height: 1px;
+    background: var(--inet-default-border-color);
+    margin: var(--inet-space-1) 0;
+  }
+
+  .upload-files {
+    flex: 1 1 auto;
+    min-width: 0;
+    max-height: none;
+    overflow-y: visible;
+  }
+
+  .upload-files .list-group {
+    min-height: var(--inet-control-height-md);
+    max-height: 120px;
+    overflow-y: auto;
+    border: 1px solid var(--inet-default-border-color);
+    border-radius: var(--inet-radius-md);
+    background: var(--inet-shell-surface-default);
+  }
+
+  .driver-wizard__side-actions {
+    width: auto;
+    flex: 0 0 auto;
+  }
+
+  .driver-wizard__upload-actions {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: var(--inet-space-2);
+  }
+
+  .driver-wizard__field {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .driver-wizard__field--plugin,
+  .driver-wizard__plugin-copy {
+    margin-bottom: var(--inet-space-4);
+  }
+
+  .driver-wizard__validation .invalid-feedback {
+    display: block;
+  }
+
+  .driver-wizard__hint {
+    padding-left: calc(112px + var(--inet-space-4));
+    font-size: 85%;
+    color: var(--inet-text-muted-color);
+  }
+
+  .plugin-settings-hint {
+    font-size: 85%;
+    display: block;
+    margin-top: 0.5rem;
+  }
+
+  @media (max-width: 768px) {
+    .driver-wizard__choice-row {
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    .driver-wizard__choice-toggle {
+      flex-basis: auto;
+      min-height: auto;
+    }
+
+    .driver-wizard__upload-actions {
+      width: 100%;
+      justify-content: flex-start;
+    }
+
+    .driver-wizard__side-actions {
+      width: 100%;
+    }
+
+    .driver-wizard__hint {
+      padding-left: 0;
     }
   }
 }

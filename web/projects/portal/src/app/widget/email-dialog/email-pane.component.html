@@ -19,7 +19,7 @@
   <fieldset>
     <div class="row form-row-float-label">
       <div class="col form-floating" [class.pr-0]="securityEnabled">
-          <input type="text" class="form-control border-primary" formControlName="toAddress"
+          <input type="text" class="form-control" formControlName="toAddress"
                  placeholder="_#(To)" [class.is-invalid]="!form.controls['toAddress'].valid"
                  [ngbTypeahead]="addressSearch"
                  defaultFocus [autoSelect]="false"/>

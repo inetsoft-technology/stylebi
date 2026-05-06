@@ -17,14 +17,14 @@
   -->
 <modal-header [title]="'_#(Query Selection)'" [cshid]="'AutoDrill'" (onCancel)="cancel()">
 </modal-header>
-<div class="modal-body" enterSubmit (onEnter)="ok()" (onEsc)="cancel()">
-  <fieldset>
+<div class="modal-body select-worksheet-dialog" enterSubmit (onEnter)="ok()" (onEsc)="cancel()">
+  <fieldset class="select-worksheet-dialog__section">
     <legend>
       <div class="select-worksheet-legend">
         _#(Select a Worksheet)
       </div>
     </legend>
-    <div class="bordered-box bd-gray tree-container">
+    <div class="select-worksheet-dialog__tree-shell bordered-box bd-gray tree-container">
       <asset-tree [datasources]="false" [columns]="false" [viewsheets]="false"
                   [readOnly]="true"
                   [dataSourcePath]="selectedEntry?.path"
@@ -33,19 +33,19 @@
       </asset-tree>
     </div>
   </fieldset>
-  <fieldset *ngIf="queryParams != null && queryParams.length != 0" class="parameter-container">
+  <fieldset *ngIf="queryParams != null && queryParams.length != 0" class="select-worksheet-dialog__section parameter-container">
     <legend>
       <div class="new-viewsheet-legend">
         _#(Values for Query Parameters)
       </div>
     </legend>
-    <div class="parameter-content pt-2">
+    <div class="parameter-content select-worksheet-dialog__parameter-content">
       <ng-container *ngFor="let param of queryParams; let i = index;">
         <div #dropdownBody class="field-combo" [class.form-group]="i != queryParams.length - 1">
           <div #dropDownToggle class="field-combo-toggle form-floating form-control dropdown-toggle bd-gray"
                [fixedDropdown]="dropdownMenu" [autoClose]="closeMenu"
                dropdownPlacement="bottom">
-            <div class="field-combo-text ps-1">
+            <div class="field-combo-text select-worksheet-dialog__field-text">
               {{getSelectedParamVal(param)}}&nbsp;
             </div>
             <label class="base-font-size"><span>{{param}}</span></label>
@@ -68,5 +68,5 @@
 <div class="modal-footer">
   <button type="button" class="btn btn-primary" (click)="ok()" [disabled]="okDisabled()">_#(OK)</button>
   <button type="button" class="btn btn-secondary" data-dismiss="modal" (click)="cancel()">_#(Cancel)</button>
-  <button type="button" class="btn btn-primary" (click)="clear()">_#(Clear)</button>
+  <button type="button" class="btn btn-default" (click)="clear()">_#(Clear)</button>
 </div>

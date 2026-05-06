@@ -185,14 +185,18 @@ public class PortalIntegrationViewSettingsService {
             if(!tab.isEditable()) {
                int index = 0;
 
+               // Default ordering is intentional:
+               // Report and Schedule are always available user functions, so they lead the left
+               // group. Dashboard depends on security being enabled and is frequently hidden by
+               // customers, so its reset position is after those tabs.
                switch(tab.getName()) {
-               case "Dashboard":
+               case "Report":
                   index = 0;
                   break;
-               case "Report":
+               case "Schedule":
                   index = 1;
                   break;
-               case "Schedule":
+               case "Dashboard":
                   index = 2;
                   break;
                case "Data":

@@ -15,6 +15,19 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+.script-pane {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.script-pane__layout {
+  display: flex;
+  flex-direction: column;
+  gap: var(--inet-space-3);
+  min-width: 0;
+}
+
 .flex-col-container {
   display: flex;
   flex-direction: column;
@@ -31,6 +44,39 @@
       overflow: hidden;
     }
   }
+}
+
+.script-pane__trees {
+  display: flex;
+  gap: var(--inet-space-2);
+  min-width: 0;
+}
+
+.script-pane__tree-pane {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.script-pane__tree-pane--column:not(.script-pane__tree-pane--split),
+.script-pane__tree-pane--function:not(.script-pane__tree-pane--split) {
+  flex-basis: 100%;
+}
+
+.script-pane__hint {
+  min-width: 0;
+}
+
+.script-pane__hint--inline {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.script-pane__editor-shell {
+  min-width: 0;
+}
+
+.script-pane__editor {
+  width: 100%;
 }
 
 .column-tree, .function-tree {

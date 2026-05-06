@@ -28,7 +28,7 @@
       <div class="btn-group mini-toolbar-button-group" role="group" *ngIf="group.visible">
         <ng-template ngFor let-action [ngForOf]="group.actions" let-j="index">
           <button *ngIf="action.visible()" type="button" role="button"
-                  class="btn icon-hover-bg btn-sm bg-white2 bd-gray"
+                  class="btn icon-hover-bg btn-sm"
                   [class.bd-selected-cell]="isFocused(i, j)"
                   [disabled]="!action.enabled()" (click)="doAction(action, $event)"
                   title="{{action.label()}}">

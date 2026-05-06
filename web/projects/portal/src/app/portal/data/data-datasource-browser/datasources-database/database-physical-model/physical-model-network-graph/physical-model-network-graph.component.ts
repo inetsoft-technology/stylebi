@@ -44,6 +44,8 @@ import { GraphViewModel } from "../../../../model/datasources/database/physical-
 import { GraphModel } from "../../../../model/datasources/database/physical-model/graph/graph-model";
 import { GraphNodeModel } from "../../../../model/datasources/database/physical-model/graph/graph-node-model";
 import { NodeConnectionInfo } from "../../../../model/datasources/database/physical-model/graph/node-connection-info";
+import { Cardinality } from "../../../../model/datasources/database/physical-model/cardinality.enum";
+import { JoinModel } from "../../../../model/datasources/database/physical-model/join-model";
 import { joinMap } from "../../../../model/datasources/database/physical-model/join-type.config";
 import {
    JOIN,
@@ -855,13 +857,14 @@ export class PhysicalModelNetworkGraphComponent implements OnInit, OnChanges, Af
          return;
       }
 
+      const sourceNode = this.nodes[sourceId];
+      const targetNode = this.nodes[targetId];
       const tooltip = this.getJoinTooltip(sourceId, targetId);
 
       const overlays = [[
          "Label", {
             // label becomes innerhtml of overlay
-            label: `<div class="join-icon cursor-pointer icon-size-medium"
-                      title="${tooltip}"></div>`,
+            label: this.getJoinOverlayLabel(sourceNode, targetNode, tooltip),
             id: DEPENDENCY_TYPE_OVERLAY_ID,
             cssClass: "physical-graph-type-overlay-container"
          }
@@ -873,9 +876,6 @@ export class PhysicalModelNetworkGraphComponent implements OnInit, OnChanges, Af
          type: TYPE_PHYSICAL_GRAPH_CONNECTION,
          overlays
       };
-
-      const sourceNode = this.nodes[sourceId];
-      const targetNode = this.nodes[targetId];
 
       // Highlight Join Connection
       if(this.isHighlight(this.highlightConnections, sourceNode, targetNode)) {
@@ -991,6 +991,60 @@ export class PhysicalModelNetworkGraphComponent implements OnInit, OnChanges, Af
       }
 
       return tooltip;
+   }
+
+   private getJoinOverlayLabel(sourceNode: GraphModel, targetNode: GraphModel, tooltip: string): string {
+      const cardinalityLabel = this.getJoinCardinalityLabel(sourceNode, targetNode);
+      const titleAttr = !!tooltip ? ` title="${tooltip}"` : "";
+      const cardinalityHtml = !!cardinalityLabel
+         ? `<span class="join-cardinality-label">${cardinalityLabel}</span>`
+         : "";
+
+      return `<div class="join-overlay-label"${titleAttr}>
+         <div class="join-icon cursor-pointer icon-size-medium"></div>
+         ${cardinalityHtml}
+      </div>`;
+   }
+
+   private getJoinCardinalityLabel(sourceNode: GraphModel, targetNode: GraphModel): string {
+      const joinModels = this.getJoinModelsBetweenTables(sourceNode, targetNode);
+
+      if(joinModels.length === 0) {
+         return "";
+      }
+
+      const firstCardinality = joinModels[0].cardinality;
+
+      if(joinModels.some(join => join.cardinality !== firstCardinality)) {
+         return "";
+      }
+
+      switch(firstCardinality) {
+         case Cardinality.ONE_TO_ONE:
+            return "1:1";
+         case Cardinality.ONE_TO_MANY:
+            return "1:N";
+         case Cardinality.MANY_TO_ONE:
+            return "N:1";
+         case Cardinality.MANY_TO_MANY:
+            return "N:N";
+         default:
+            return "";
+      }
+   }
+
+   private getJoinModelsBetweenTables(sourceNode: GraphModel, targetNode: GraphModel): JoinModel[] {
+      const sourceTableName = sourceNode.node.name;
+      const targetTableName = targetNode.node.name;
+
+      return [
+         ...sourceNode.edge.output
+            .filter(joinInfo => joinInfo.joinModel.foreignTable === targetTableName)
+            .map(joinInfo => joinInfo.joinModel),
+         ...targetNode.edge.output
+            .filter(joinInfo => joinInfo.joinModel.foreignTable === sourceTableName)
+            .map(joinInfo => joinInfo.joinModel)
+      ];
    }
 
    /**

@@ -16,14 +16,20 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 @mixin preview-btn {
-  background-color: Transparent;
-  background-repeat:no-repeat;
+  background-color: transparent;
+  background-repeat: no-repeat;
   border: none;
-  cursor:pointer;
+  border-radius: var(--inet-radius-sm);
+  color: var(--inet-text-primary-color);
+  cursor: pointer;
   overflow: hidden;
-  outline:none;
-  height: 32px;
-  width: 32px;
+  height: var(--inet-control-height-md);
+  width: var(--inet-control-height-md);
+
+  &:focus-visible {
+    box-shadow: var(--inet-focus-ring);
+    outline: var(--inet-focus-ring-outline);
+  }
 }
 
 .modal-header {
@@ -39,8 +45,10 @@
 }
 
 .btn-close {
-  outline: none;
-  box-shadow: none;
+  &:focus-visible {
+    box-shadow: var(--inet-focus-ring);
+    outline: var(--inet-focus-ring-outline);
+  }
 }
 
 button.btn.ai-assistant-icon {

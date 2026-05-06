@@ -26,12 +26,15 @@ w-standard-dialog {
 
   > .modal-body {
     flex-grow: 1;
-    display: block;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
 
     > div {
       display: block;
+      flex-grow: 1;
+      min-height: 0;
       overflow-y: auto;
-      max-height: calc(90vh - 10.6rem);
     }
   }
 

@@ -22,7 +22,6 @@ import inetsoft.graph.aesthetic.VisualFrame;
 import inetsoft.graph.internal.GTool;
 
 import java.awt.*;
-import java.awt.geom.Rectangle2D;
 
 /**
  * This class renders a size legend item.
@@ -62,14 +61,16 @@ public class SizeLegendItem extends LegendItem {
       g2.setColor(getSymbolColor());
       g2.setRenderingHint(RenderingHints.KEY_STROKE_CONTROL, RenderingHints.VALUE_STROKE_PURE);
       g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-      g2.fill(new Rectangle2D.Double(x0, y, r, symbolSz));
+      // skip rounding the inner bar when it's narrower than the corner arc
+      double minRoundWidth = symbolSz * SYMBOL_CORNER_RADIUS_RATIO * 2;
+      g2.fill(createSymbolRect(x0, y, r, symbolSz, r >= minRoundWidth));
       g2.setColor(SYMBOL_BORDER);
 
-      if(!GTool.isVectorGraphics(g2)) {
+      if(!GTool.isVectorGraphics(g2) && !frame.getLegendSpec().isSymbolRoundCorners()) {
          g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_OFF);
       }
 
-      g2.draw(new Rectangle2D.Double(x, y, symbolSz, symbolSz));
+      g2.draw(createSymbolRect(x, y, symbolSz, symbolSz));
       g2.dispose();
    }
 }

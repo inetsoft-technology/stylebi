@@ -17,33 +17,32 @@
   -->
 <div class="action-color physical-model-table-tree-node {{node.cssClass}}" *ngIf="showRoot"
      [style.padding-left.px]="indentLevel * INDENT_SIZE">
-  <div class="truncate-parent justify-content-between w-100">
-    <div class="truncate-text align-items-center w-100 cursor-pointer hover-bg-primary"
+  <div class="physical-model-table-tree-node__shell truncate-parent justify-content-between w-100">
+    <div class="physical-model-table-tree-node__row truncate-text align-items-center w-100 cursor-pointer hover-bg-primary"
          [class.bg-selected]="isSelected()"
          [class.disabled]="disabled"
-         [class.form-check]="node.leaf"
+         [class.physical-model-table-tree-node__row--leaf]="node.leaf"
          (click)="selectNode($event)"
          (dblclick)="hasChildren() ? toggleNode() : null">
       <span *ngIf="hasChildren()"
             [class.disabled]="disabled"
-            class="{{getToggleIcon()}} tree-node-toggle cursor-pointer truncate-addon"
+            class="{{getToggleIcon()}} physical-model-table-tree-node__toggle tree-node-toggle cursor-pointer truncate-addon"
             (click)="toggleNode(); $event.stopPropagation()"
             (dblclick)="$event.stopPropagation()">
       </span>
       <input *ngIf="node.leaf" #nodeCheckbox
-             class="form-check-input form-check-top"
+             class="physical-model-table-tree-node__checkbox"
              type="checkbox" [disabled]="disabled || node.data.baseTable"
              (click)="$event.stopPropagation();"
              [(ngModel)]="node.data.selected"
              (ngModelChange)="nodeCheckbox.blur(); checkboxToggledNode()"/>
-      <span class="truncate-text px-1"
+      <span class="physical-model-table-tree-node__label truncate-text"
             [class.disabled]="disabled"
-            [class.form-check-label]="node.leaf"
             [attr.title]="node.label">
         {{node ? node.label : ""}}
       </span>
     </div>
-    <span *ngIf="node?.leaf" class="menu-horizontal-icon tree-node-toggle truncate-addon cursor-pointer"
+    <span *ngIf="node?.leaf" class="physical-model-table-tree-node__menu menu-horizontal-icon tree-node-toggle truncate-addon cursor-pointer"
          [attr.title]="'_#(Actions)'" (click)="this.onNodeContextMenu.emit({node: node, event: $event})"></span>
   </div>
 </div>

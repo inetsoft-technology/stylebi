@@ -33,7 +33,7 @@ const FIELDS_URI: string = "../api/data/logicalModel/tables/nodes";
 @Component({
    selector: "logical-model-expression-editor",
    templateUrl: "logical-model-expression-editor.component.html",
-   styleUrls: ["logical-model-expression-editor.component.scss"]
+   styleUrls: ["../../database-model-pane.scss", "logical-model-expression-editor.component.scss"]
 })
 export class LogicalModelExpressionEditor implements OnInit {
    @Input() databaseName: string;

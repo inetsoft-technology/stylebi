@@ -100,6 +100,22 @@ public class LegendFormatGeneralPaneModel {
       this.roundCorners = roundCorners;
    }
 
+   public boolean isSymbolRoundCorners() {
+      return symbolRoundCorners;
+   }
+
+   public void setSymbolRoundCorners(boolean symbolRoundCorners) {
+      this.symbolRoundCorners = symbolRoundCorners;
+   }
+
+   public boolean isSymbolRoundCornersVisible() {
+      return symbolRoundCornersVisible;
+   }
+
+   public void setSymbolRoundCornersVisible(boolean symbolRoundCornersVisible) {
+      this.symbolRoundCornersVisible = symbolRoundCornersVisible;
+   }
+
    // title dvalue
    private String title;
    // title rvalue
@@ -112,4 +128,6 @@ public class LegendFormatGeneralPaneModel {
    private boolean notShowNullVisible;
    private int symbolSize = LegendItem.DEFAULT_SYMBOL_SIZE;
    private boolean roundCorners;
+   private boolean symbolRoundCorners;
+   private boolean symbolRoundCornersVisible;
 }

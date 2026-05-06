@@ -1,0 +1,77 @@
+/*!
+ * This file is part of StyleBI.
+ * Copyright (C) 2024  InetSoft Technology
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
+.new-data-model-dialog__intro {
+   margin-bottom: 16px;
+   color: var(--inet-text-muted-color);
+   line-height: 1.55;
+}
+
+.new-data-model-dialog__options {
+   display: grid;
+   gap: 12px;
+}
+
+.new-data-model-dialog__option {
+   width: 100%;
+   padding: 16px;
+   text-align: left;
+   background: var(--inet-main-panel-bg-color);
+   border: 1px solid var(--inet-default-border-color);
+   border-radius: var(--inet-radius-lg);
+   transition: border-color 120ms ease, background-color 120ms ease;
+}
+
+.new-data-model-dialog__option:hover:not(:disabled) {
+   background: var(--inet-ui-neutral-hover-bg-color);
+}
+
+.new-data-model-dialog__option--primary {
+   border-color: var(--inet-primary-color-light);
+}
+
+.new-data-model-dialog__option-title {
+   margin-bottom: 6px;
+   font-size: 18px;
+   font-weight: 600;
+   color: var(--inet-text-strong-color);
+}
+
+.new-data-model-dialog__option-copy {
+   color: var(--inet-text-muted-color);
+   line-height: 1.5;
+}
+
+.new-data-model-dialog__option-action {
+   margin-top: 12px;
+   font-weight: 600;
+   color: var(--inet-text-strong-color);
+}
+
+.new-data-model-dialog__option.disabled,
+.new-data-model-dialog__option:disabled {
+   background: var(--inet-input-disabled-bg-color);
+   border-color: var(--inet-default-border-color);
+   cursor: not-allowed;
+   opacity: 1;
+}
+
+.new-data-model-dialog__option.disabled .new-data-model-dialog__option-action,
+.new-data-model-dialog__option:disabled .new-data-model-dialog__option-action {
+   color: var(--inet-text-subtle-color);
+}

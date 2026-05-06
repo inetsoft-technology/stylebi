@@ -23,8 +23,10 @@
   overflow: hidden;
 }
 
-.nav {
-  overflow: hidden;
+.portal-sub-navbar .nav {
+  overflow-x: auto;
+  overflow-y: hidden;
+  flex-wrap: nowrap;
 }
 
 .full-height {

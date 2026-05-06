@@ -22,7 +22,7 @@
 
 .tree-node {
   white-space: nowrap;
-  padding: 6px;
+  padding: 7px 6px;
   display: flex;
   align-items: center;
   align-content: center;
@@ -99,6 +99,17 @@
     .tree-node-label {
       cursor:pointer;
     }
+  }
+}
+
+.repository-tree, .portal-data-source-tree {
+  .tree-node-label-container {
+    min-width: 0;
+  }
+
+  label.tree-node-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 }
 

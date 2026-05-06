@@ -17,11 +17,11 @@
   -->
 <modal-header [title]="'_#(Auto Drill)'" [cshid]="'AutoDrillPortal'" (onCancel)="cancel()">
 </modal-header>
-<div class="modal-body">
-  <div class="row">
-    <div class="col-4 px-1">
-      <div class="card min-height">
-        <div class="card-header d-flex justify-content-between align-items-center">
+<div class="modal-body auto-drill-dialog">
+  <div class="auto-drill-dialog__layout">
+    <section class="auto-drill-panel auto-drill-panel--list">
+      <div class="auto-drill-panel__header">
+        <div class="auto-drill-panel__header-content">
           <span class="truncate-text">_#(Auto Drills)</span>
           <div class="toolbar-button-group">
             <button #btnFocus type="button" class="btn btn-sm btn-light-no-bg add-icon"
@@ -33,10 +33,12 @@
                     (click)="deleteDrill(true)"></button>
           </div>
         </div>
-        <ul class="list-group list-group-flush auto-overflow">
+      </div>
+        <ul class="list-group list-group-flush auto-overflow auto-drill-panel__list">
           <li *ngFor="let drill of autoDrillModel.paths; let i = index"
               (click)="selectDrill($event, i)"
-              class="list-group-item d-flex justify-content-between align-items-center no-shrink">
+              class="list-group-item auto-drill-panel__list-item no-shrink">
+            <div class="auto-drill-panel__list-item-content">
             <span>{{ drill.name }}</span>
             <div class="toolbar-button-group">
               <button type="button" class="btn btn-sm btn-light-no-bg chevron-circle-arrow-up-icon"
@@ -52,16 +54,17 @@
                       [attr.title]="'_#(Remove Drill)'"
                       (click)="deleteDrill()"></button>
             </div>
+            </div>
           </li>
         </ul>
-      </div>
-    </div>
-    <div class="col-8 px-1">
-      <div class="card min-height">
-        <div class="card-header d-flex justify-content-between align-items-center">
+    </section>
+    <section class="auto-drill-panel auto-drill-panel--detail">
+      <div class="auto-drill-panel__header">
+        <div class="auto-drill-panel__header-content">
           <span class="truncate-text">_#(Auto Drill Info)</span>
         </div>
-        <div class="card-body">
+      </div>
+        <div class="auto-drill-panel__body">
           <form [formGroup]="form" *ngIf="!!editDrill">
             <div class="form-group form-floating">
               <input type="text" class="form-control" formControlName="name"
@@ -179,8 +182,8 @@
               </div>
             </div>
             <div class="form-group">
-              <div class="card parameter-list">
-                <div class="card-header d-flex justify-content-between align-items-center">
+              <div class="auto-drill-parameter-panel parameter-list">
+                <div class="auto-drill-parameter-panel__header">
                   <span>_#(Parameters)</span>
                   <span>
                     <button type="button"
@@ -196,9 +199,10 @@
                     </button>
                   </span>
                 </div>
-                <ul class="list-group list-group-flush param-card-body auto-overflow">
+                <ul class="list-group list-group-flush param-card-body auto-overflow auto-drill-parameter-panel__list">
                   <li *ngFor="let param of editDrill.params; let i = index"
-                      class="list-group-item d-flex justify-content-between align-items-center">
+                      class="list-group-item auto-drill-parameter-panel__item">
+                    <div class="auto-drill-parameter-panel__item-content">
                     <span class="parameter-label">{{ getDisplayParam(param) }}</span>
                     <span class="btn-group">
                       <button type="button" (click)="editParameter(i)"
@@ -208,14 +212,14 @@
                               [attr.title]="'_#(data.logicalmodel.drillDeleteParameter)'"
                               class="btn btn-light-no-bg trash-icon"></button>
                     </span>
+                    </div>
                   </li>
                 </ul>
               </div>
             </div>
           </form>
         </div>
-      </div>
-    </div>
+    </section>
   </div>
 </div>
 <div class="modal-footer">

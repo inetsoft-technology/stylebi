@@ -82,6 +82,7 @@ export class LogicalModelComponent implements OnInit, DoCheck, OnDestroy {
    private dataModelNameChangeSubscription: Subscription;
    form: UntypedFormGroup = new UntypedFormGroup({});
    private subscription: Subscription;
+   private bypassLeaveConfirm = false;
 
    constructor(private dataModelNameChangeService: DataModelNameChangeService,
                private logicalModelService: LogicalModelService,
@@ -299,6 +300,17 @@ export class LogicalModelComponent implements OnInit, DoCheck, OnDestroy {
          );
    }
 
+   close(): void {
+      Promise.resolve(this.confirmLeaveEditor()).then(confirmed => {
+         if(confirmed) {
+            this.bypassLeaveConfirm = true;
+            this.router.navigate(["/portal/tab/data/datasources/databaseModels"], {
+               queryParams: { databaseName: this.databaseName }
+            });
+         }
+      });
+   }
+
    /**
     * Check to make sure the model was modified.
     */
@@ -316,18 +328,26 @@ export class LogicalModelComponent implements OnInit, DoCheck, OnDestroy {
     * Check if any changes were made and unsaved, then confirm user navigation away without saving.
     */
    canDeactivate(): Promise<boolean> | boolean {
+      if(this.bypassLeaveConfirm) {
+         this.bypassLeaveConfirm = false;
+         return true;
+      }
+
+      return this.confirmLeaveEditor();
+   }
+
+   private confirmLeaveEditor(): Promise<boolean> | boolean {
       if(!this.isModified) {
          return true;
       }
-      else {
-         let msg: string = !!this.parent ? "_#(js:data.extended.logicalmodel.confirmLeaving)"
-            : "_#(js:data.logicalmodel.confirmLeaving)";
-         return ComponentTool.showConfirmDialog(this.modalService, "_#(js:dialog.changedTitle)", msg)
-            .then(
-               (result) => result === "ok",
-               () => false
-            );
-      }
+
+      let msg: string = !!this.parent ? "_#(js:data.extended.logicalmodel.confirmLeaving)"
+         : "_#(js:data.logicalmodel.confirmLeaving)";
+      return ComponentTool.showConfirmDialog(this.modalService, "_#(js:dialog.changedTitle)", msg)
+         .then(
+            (result) => result === "ok",
+            () => false
+         );
    }
 
    /**

@@ -26,9 +26,24 @@
     display: flex;
     justify-content: flex-end;
     flex-wrap: nowrap;
+    width: fit-content !important;
+    min-width: unset !important;
+    background-color: var(--inet-shell-surface-default);
+    border: 1px solid var(--inet-default-border-color);
+    border-radius: var(--inet-radius-xl);
+    overflow: hidden;
 
     button {
-      min-width: 36px; // required for IE
+      min-width: var(--inet-control-height-md);
+      border: none !important;
+      border-radius: 0 !important;
+      background-color: transparent !important;
+      margin-left: 0 !important;
+
+      &:focus-visible {
+        box-shadow: inset 0 0 0 1px var(--inet-primary-color), var(--inet-focus-ring) !important;
+        outline: var(--inet-focus-ring-outline);
+      }
 
       i {
         padding-left: 2px;
@@ -57,4 +72,8 @@
 
 .mini-toolbar-button-group {
   pointer-events: all;
+
+  & + .mini-toolbar-button-group {
+    border-left: 1px solid var(--inet-default-border-color);
+  }
 }

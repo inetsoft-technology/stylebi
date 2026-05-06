@@ -89,6 +89,7 @@ export class ScriptPane implements AfterViewInit, AfterViewChecked, OnInit, OnDe
    private _operatorTreeRoot: TreeNodeModel;
    private _analysisResults: AnalysisResult[] = [];
    private cursorTop: boolean = false;
+   @Input() showHelp: boolean = true;
    helpURL = "";
    needUseVirtualScroll: boolean = true;
 
@@ -208,7 +209,9 @@ export class ScriptPane implements AfterViewInit, AfterViewChecked, OnInit, OnDe
    }
 
    ngOnInit(): void {
-      this.helpService.getScriptHelpUrl().subscribe((url) => this.helpURL = url);
+      if(this.showHelp) {
+         this.helpService.getScriptHelpUrl().subscribe((url) => this.helpURL = url);
+      }
       this.scriptSettingsService.isCursorTop().subscribe((val) => {
          this.cursorTop = val;
 

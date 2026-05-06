@@ -1,0 +1,15 @@
+:host {
+  display: block;
+}
+
+.move-datasource-dialog__body {
+  padding: var(--inet-space-5);
+}
+
+.move-datasource-dialog__browser {
+  min-height: 320px;
+}
+
+.move-datasource-dialog__error {
+  margin-top: var(--inet-space-4);
+}

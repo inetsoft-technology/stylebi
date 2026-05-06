@@ -15,8 +15,9 @@
   ~ You should have received a copy of the GNU Affero General Public License
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
-<div class="card p-1">
-  <nav aria-label="breadcrumb" role="navigation"
+<div class="task-folder-browser">
+  <nav class="task-folder-browser__breadcrumb"
+       aria-label="breadcrumb" role="navigation"
        [ngbTooltip]="breadcrumbTooltip"
        triggers="mouseenter:mouseleave" placement="right">
     <ol class="breadcrumb mb-0">
@@ -34,20 +35,20 @@
       </ng-container>
     </ol>
   </nav>
-  <div class="list-group list-group-flush files-browser my-1" *ngIf="!!browserView">
+  <div class="files-browser" *ngIf="!!browserView">
     <div *ngIf="!browserView.root"
-         class="list-group-item list-group-item-action px-1"
+         class="files-browser__item files-browser__item--parent"
          (click)="openParentFolder()">
       <span class="cursor-pointer text-nowrap">
         <i class="upward-icon"></i>
         {{currentFolderName()}}
       </span>
     </div>
-    <div class="list-group-item list-group-item-action px-1" *ngFor="let folder of browserView.folderList"
-         [class.active]="!multiSelect && isItemSelected(folder)"
+    <div class="files-browser__item" *ngFor="let folder of browserView.folderList"
+         [class.files-browser__item--selected]="!multiSelect && isItemSelected(folder)"
          (dblclick)="openFolder(folder.data.path)"
          (click)="selectFolder(folder)">
-      <div class="truncate-parent justify-content-between">
+      <div class="truncate-parent justify-content-between files-browser__row">
         <div class="truncate-text d-flex align-items-center">
           <input type="checkbox" class="truncate-addon"
                  *ngIf="multiSelect && folderSelectable"

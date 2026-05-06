@@ -19,8 +19,8 @@
               [cshid]="'AutoDrillPortal'"
               (onCancel)="close()">
 </modal-header>
-<div class="modal-body" *ngIf="model && form">
-  <form [formGroup]="form">
+<div class="modal-body parameter-dialog" *ngIf="model && form">
+  <form [formGroup]="form" class="parameter-dialog__form">
     <div class="form-group form-floating">
       <input #inputFocus class="form-control" type="text" formControlName="name"
       [class.is-invalid]="!nameControl.valid"
@@ -35,7 +35,7 @@
         {{getFirstErrorMessage(nameControl)}}
       </span>
     </div>
-    <div class="form-group">
+    <div class="form-group parameter-dialog__source-row">
       <div class="form-check form-check-inline">
         <input class="form-check-input" type="radio"
                [ngModel]="source"
@@ -118,7 +118,7 @@
           _#(data.logicalmodel.drillParameterFieldMaxLength)
         </div>
       </div>
-      <div class="alert alert-danger" *ngIf="!valueControl.getError('required')
+      <div class="alert alert-danger parameter-dialog__inline-alert" *ngIf="!valueControl.getError('required')
            && !isInValidTypeRange() && !valueControl.getError('maxLength')
            && !isValidDataTypeValue(model.field, model.type)">
         _#(data.logicalmodel.drillParameterNumberInvalid)</div>
@@ -127,5 +127,5 @@
 </div>
 <div class="modal-footer">
   <button type="button" class="btn btn-primary" (click)="ok()" [disabled]="okDisabled()">_#(OK)</button>
-  <button type="button" class="btn btn-default" data-dismiss="modal" (click)="close()">_#(Cancel)</button>
+  <button type="button" class="btn btn-secondary" data-dismiss="modal" (click)="close()">_#(Cancel)</button>
 </div>

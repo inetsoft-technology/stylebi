@@ -607,7 +607,7 @@ export class LogicalModelPropertyPane implements OnInit {
             this.entity = -1;
             this.newEntity = false;
          },
-         {},
+         { size: "lg" },
          () => {
             this.newEntity = false;
          });

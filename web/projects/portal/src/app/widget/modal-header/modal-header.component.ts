@@ -26,6 +26,7 @@ import { AiAssistantDialogService } from "../../common/services/ai-assistant-dia
 export class ModalHeaderComponent {
    @Input() title: string = "";
    @Input() cshid: string = "";
+   @Input() helpURL: string = "";
    @Input() isShowAiAssistant: boolean = false;
    @Input() isShow: boolean = false;
    @Input() isDataTip: boolean = false;
@@ -37,10 +38,16 @@ export class ModalHeaderComponent {
    }
 
    get showHelpLink(): boolean {
-      return !!this.cshid && this.cshid.length > 0;
+      return (!!this.cshid && this.cshid.length > 0) || (!!this.helpURL && this.helpURL.length > 0);
    }
 
    get showAssistant(): boolean {
       return !!this.isShowAiAssistant;
+   }
+
+   openHelpURL(): void {
+      if(this.helpURL) {
+         window.open(this.helpURL);
+      }
    }
 }

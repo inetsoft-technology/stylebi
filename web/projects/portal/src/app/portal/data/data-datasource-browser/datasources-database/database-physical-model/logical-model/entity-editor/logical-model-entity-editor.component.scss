@@ -15,3 +15,25 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+.logical-model-entity-editor {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.logical-model-entity-editor__header {
+  flex-grow: 0;
+  flex-shrink: 0;
+}
+
+.logical-model-entity-editor__title {
+  font-size: var(--inet-font-size-md, 14px);
+  font-weight: 600;
+}
+
+.logical-model-entity-editor__content {
+  flex: 1 1 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: var(--inet-space-4);
+}

@@ -83,6 +83,16 @@
           _#(viewer.viewsheet.chart.legend.symbolSize.rangeWarning)
         </div>
       </div>
+      <div class="checkbox col-auto" *ngIf="model.symbolRoundCornersVisible">
+        <div class="form-check">
+          <input type="checkbox" class="form-check-input" id="symbolRoundCorners"
+                 [ngModelOptions]="{standalone: true}"
+                 [(ngModel)]="model.symbolRoundCorners">
+          <label class="form-check-label" for="symbolRoundCorners">
+            _#(Round Symbol Corner)
+          </label>
+        </div>
+      </div>
     </div>
   </fieldset>
   <fieldset *ngIf="model.notShowNullVisible">

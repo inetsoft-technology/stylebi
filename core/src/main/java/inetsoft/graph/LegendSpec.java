@@ -204,6 +204,14 @@ public class LegendSpec implements Cloneable, Serializable {
       this.roundCorners = roundCorners;
    }
 
+   public boolean isSymbolRoundCorners() {
+      return symbolRoundCorners;
+   }
+
+   public void setSymbolRoundCorners(boolean symbolRoundCorners) {
+      this.symbolRoundCorners = symbolRoundCorners;
+   }
+
    /**
     * Get the legend title text attributes.
     */
@@ -389,6 +397,7 @@ public class LegendSpec implements Cloneable, Serializable {
       return visible == that.visible && border == that.border &&
          titleVisible == that.titleVisible && partial == that.partial && topY == that.topY &&
          gap == that.gap && symbolSize == that.symbolSize && roundCorners == that.roundCorners &&
+         symbolRoundCorners == that.symbolRoundCorners &&
          Objects.equals(borderColor, that.borderColor) &&
          Objects.equals(bg, that.bg) && Objects.equals(title, that.title) &&
          Objects.equals(titleSpec, that.titleSpec) && Objects.equals(textFrame, that.textFrame) &&
@@ -401,7 +410,7 @@ public class LegendSpec implements Cloneable, Serializable {
    public int hashCode() {
       return Objects.hash(visible, border, borderColor, bg, title, titleVisible, titleSpec,
                           textFrame, textSpec, partial, position, epos, preferredSize, topY, gap,
-                          padding, hiddenItems, symbolSize, roundCorners);
+                          padding, hiddenItems, symbolSize, roundCorners, symbolRoundCorners);
    }
 
    private int border = GraphConstants.THIN_LINE;
@@ -422,6 +431,7 @@ public class LegendSpec implements Cloneable, Serializable {
    private Set hiddenItems = new HashSet();
    private int symbolSize = LegendItem.DEFAULT_SYMBOL_SIZE;
    private boolean roundCorners = false;
+   private boolean symbolRoundCorners = false;
 
    private static final long serialVersionUID = 1L;
    private static final Logger LOG = LoggerFactory.getLogger(LegendSpec.class);

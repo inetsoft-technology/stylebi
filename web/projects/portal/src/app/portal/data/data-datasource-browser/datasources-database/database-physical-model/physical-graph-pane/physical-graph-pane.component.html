@@ -15,26 +15,26 @@
   ~ You should have received a copy of the GNU Affero General Public License
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
-<div class="w-100 h-100 physical-pane-container" *ngIf="!!physicalGraph">
+<div class="physical-pane-container" *ngIf="!!physicalGraph">
 
-  <div class="physical-fullscreen-btn physical-graph-toolbar w-100 px-2 py-1 bb-gray">
+  <div class="physical-fullscreen-btn physical-graph-toolbar bb-gray">
     <ng-container *ngIf="!physicalGraph.joinEdit">
-      <button class="btn btn-light-no-bg btn-sm" [fixedDropdown]="dropdownMenu"
+      <button class="physical-graph-toolbar__button btn btn-light-no-bg btn-sm" [fixedDropdown]="dropdownMenu"
               title="_#(viewer.help.report.zoom)" [dropdownPlacement]="'bottom'">
         <i class="zoom-in-icon icon-size-small"></i>
       </button>
 
-      <button class="btn btn-light-no-bg btn-sm" title="_#(Auto Layout)"
+      <button class="physical-graph-toolbar__button btn btn-light-no-bg btn-sm" title="_#(Auto Layout)"
               [fixedDropdown]="autoLayoutDropdownMenu" [dropdownPlacement]="'bottom'">
         <i class="layout-icon icon-size-small"></i>
       </button>
 
-      <button class="btn btn-light-no-bg btn-sm"
+      <button class="physical-graph-toolbar__button btn btn-light-no-bg btn-sm"
               [title]="fullScreenTooltip"
               (click)="toggleFullScreen()">
         <i class="icon-size-small"
-           [class.maximize-icon]="!fullScreenView"
-           [class.collapse-icon]="fullScreenView">
+           [class.expand-icon]="!fullScreenView"
+           [class.contract-icon]="fullScreenView">
         </i>
       </button>
 
@@ -95,17 +95,17 @@
 
     <ng-container *ngIf="physicalGraph.joinEdit">
       <div class="join-edit-button-container">
-        <button type="button" class="btn btn-primary btn-sm" (click)="closeJoinEditPane(false)">
-          _#(Cancel)
-        </button>
         <button type="button" class="btn btn-primary btn-sm" (click)="closeJoinEditPane(true)">
           _#(Done)
+        </button>
+        <button type="button" class="btn btn-secondary btn-sm" (click)="closeJoinEditPane(false)">
+          _#(Cancel)
         </button>
       </div>
     </ng-container>
   </div>
 
-  <div class="physical-graph-container w-100" #graphContainer>
+  <div class="physical-graph-container" #graphContainer>
     <physical-model-network-graph *ngIf="!!!physicalGraph.joinEdit"
                                   [graphViewModel]="physicalGraph.graphViewModel"
                                   [runtimeId]="runtimeId"

@@ -1662,7 +1662,7 @@ public class VGraphPair {
       final VGraph vgraph = getExpandedVGraph();
       final GraphBounds gbounds = new GraphBounds(vgraph, getRealSizeVGraph(), cinfo);
       return getFlipYSubimage(vgraph, gbounds.getPlotBounds(), row, col, true,
-         getEVGraphContext(true));
+         getEVGraphContext(true, true));
    }
 
    /**
@@ -2014,7 +2014,7 @@ public class VGraphPair {
    public Graphics2D getPlotGraphic(int row, int col) {
       final VGraph vgraph = getExpandedVGraph();
       final GraphBounds gbounds = new GraphBounds(vgraph, getRealSizeVGraph(), cinfo);
-      return getFlipYSubGraphic(vgraph, gbounds.getPlotBounds(), row, col, true, getEVGraphContext(true), true);
+      return getFlipYSubGraphic(vgraph, gbounds.getPlotBounds(), row, col, true, getEVGraphContext(true, true), true);
    }
 
    /**
@@ -2714,15 +2714,31 @@ public class VGraphPair {
    }
 
    private GraphPaintContext getEVGraphContext(boolean axes) {
+      return getEVGraphContext(axes, false);
+   }
+
+   private GraphPaintContext getEVGraphContext(boolean axes, boolean paintVOVisuals) {
       if(evgraph != null) {
+         // paintBackground mirrors paintVOVisuals: plot tiles need both; axis tiles
+         // need neither (suppressing the background prevents plot fill from bleeding
+         // into the axis tile image).
          return new GraphPaintContextImpl.Builder()
             .paintLegends(false)
             .paintTitles(false)
             .paintAxes(axes)
+            .paintVOVisuals(paintVOVisuals)
+            .paintBackground(paintVOVisuals)
             .build();
       }
       else {
-         return getVGraphContext();
+         // Non-scrollable chart: vgraph has everything. Suppress data visuals in axis
+         // tiles to prevent boundary bleed, but keep paintBackground=true (default) so
+         // facet chart header backgrounds and labels still render.
+         return new GraphPaintContextImpl.Builder()
+            .paintLegends(false)
+            .paintAxes(axes)
+            .paintVOVisuals(paintVOVisuals)
+            .build();
       }
    }
 

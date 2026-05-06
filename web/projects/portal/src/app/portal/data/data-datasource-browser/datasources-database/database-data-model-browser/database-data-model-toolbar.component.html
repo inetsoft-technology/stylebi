@@ -15,21 +15,8 @@
   ~ You should have received a copy of the GNU Affero General Public License
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
-<div class="btn-toolbar justify-content-end bb-gray bg-white2 flex-grow-0 flex-shrink-0" role="toolbar">
+<div class="btn-toolbar toolbar-ghost-actions model-toolbar flex-grow-0 flex-shrink-0" role="toolbar">
    <div class="btn-group model-btn-group" role="group">
-      <div *ngIf="searchVisible" class="search-input">
-         <input type="text" #searchInput
-                [(ngModel)]="searchQuery"
-                [ngbTypeahead]="searchFunc"
-                [focusFirst]="false"
-                (keyup.enter)="search()"
-                (selectItem)="search($event.item)"
-                [placeholder]="'_#(data.datasets.searchWithinFolder)'"/>
-      </div>
-      <i role="button" class="btn py-1 search-icon"
-         title="_#(data.datasets.searchWithinFolder)"
-         (click)="toggleSearch($event)">
-      </i>
       <i *ngIf="!selectionOn && !isvpm" class="btn py-1 new-partition-icon" placement="left"
          [class.disabled]="!editable" title="_#(data.datasources.newPhysicalView)"
          (click)="addPhysicalView()">
@@ -47,6 +34,8 @@
          [attr.title]="addButtonTooltip" placement="left"
          (click)="addVPMModel()">
       </i>
+   </div>
+   <div class="btn-group model-btn-group" role="group">
       <i role="button" class="btn py-1 folder-move-icon"
          *ngIf="selectionOn && !isvpm"
          [class.disabled]="moveDisable"
@@ -58,12 +47,6 @@
          [class.disabled]="selectedItems.length === 0 || !selectionDeletable"
          (click)="deleteSelected()"
          title="_#(data.datasets.deleteSelected)">
-      </i>
-      <i role="button" class="btn py-1"
-         [class.selected-icon]="selectionOn"
-         [class.select-empty-icon]="!selectionOn"
-         [title]="toggleSelectTooltip"
-         (click)="toggleSelectionState()">
       </i>
    </div>
 </div>
