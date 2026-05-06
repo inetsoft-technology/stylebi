@@ -429,6 +429,10 @@ public class RelationElement extends GraphElement {
       for(RelationEdgeGeometry edge : edges) {
          mxGeometry geo = edge.getEdge().getGeometry();
 
+         // The edge's visible path is determined by its endpoint nodes and the
+         // waypoints below; the geometry's own x/y is not a bounding-box corner,
+         // so no width/height compensation is needed here. Mirrors the existing
+         // flipY(), which transforms edge geometries the same way.
          if(horizontal) {
             geo.setX(bound - geo.getX());
          }

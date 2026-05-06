@@ -195,6 +195,8 @@ public class ChartPlotOptionsPaneModel {
       plotDesc.setFillZero(fillZero);
       plotDesc.setFillGapWithDash(fillGapWithDash);
       plotDesc.setSmoothLines(smoothLines);
+      // applied for all chart types so the value survives a chart-type switch;
+      // GraphGenerator only reads it for CHART_TREE.
       plotDesc.setTreeLayout(treeLayout);
       color = Tool.getColorFromHexString(backgroundColor);
       plotDesc.setBackground(color, false);

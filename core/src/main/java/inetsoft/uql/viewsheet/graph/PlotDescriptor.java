@@ -647,10 +647,20 @@ public class PlotDescriptor implements AssetObject, ContentObject {
    }
 
    /**
-    * Set the tree chart layout direction.
+    * Set the tree chart layout direction. Unknown values fall back to
+    * {@link #TREE_LAYOUT_TOP_BOTTOM} so callers (REST clients, hand-edited
+    * XML) can't inject arbitrary strings into the serialized form.
     */
    public void setTreeLayout(String treeLayout) {
-      this.treeLayout = treeLayout != null ? treeLayout : TREE_LAYOUT_TOP_BOTTOM;
+      if(TREE_LAYOUT_BOTTOM_TOP.equals(treeLayout) ||
+         TREE_LAYOUT_LEFT_RIGHT.equals(treeLayout) ||
+         TREE_LAYOUT_RIGHT_LEFT.equals(treeLayout))
+      {
+         this.treeLayout = treeLayout;
+      }
+      else {
+         this.treeLayout = TREE_LAYOUT_TOP_BOTTOM;
+      }
    }
 
    /**
@@ -1478,7 +1488,7 @@ public class PlotDescriptor implements AssetObject, ContentObject {
       String treeLayoutAttr = Tool.getAttribute(node, "treeLayout");
 
       if(treeLayoutAttr != null) {
-         treeLayout = treeLayoutAttr;
+         setTreeLayout(treeLayoutAttr);
       }
 
       oneLine = "true".equals(Tool.getAttribute(node, "oneLine"));
@@ -1654,7 +1664,11 @@ public class PlotDescriptor implements AssetObject, ContentObject {
       writer.print(" fillZero=\"" + fillZero + "\" ");
       writer.print(" fillGapWithDash=\"" + fillGapWithDash + "\" ");
       writer.print(" smoothLines=\"" + smoothLines + "\" ");
-      writer.print(" treeLayout=\"" + treeLayout + "\" ");
+
+      if(!TREE_LAYOUT_TOP_BOTTOM.equals(treeLayout)) {
+         writer.print(" treeLayout=\"" + treeLayout + "\" ");
+      }
+
       writer.print(" xBandSize=\"" + xBandSize + "\" ");
       writer.print(" yBandSize=\"" + yBandSize + "\" ");
       writer.print(" zoom=\"" + zoom + "\" ");
