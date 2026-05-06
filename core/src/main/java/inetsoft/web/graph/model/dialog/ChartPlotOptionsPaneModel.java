@@ -147,10 +147,11 @@ public class ChartPlotOptionsPaneModel {
 
    public static boolean isSmoothLinesVisible(ChartInfo info) {
       return GraphTypeUtil.isChartType(info, true, ctype ->
-         (GraphTypes.isLine(ctype) || GraphTypes.isArea(ctype)) &&
-         ctype != GraphTypes.CHART_STEP && ctype != GraphTypes.CHART_STEP_STACK &&
-         ctype != GraphTypes.CHART_JUMP &&
-         ctype != GraphTypes.CHART_STEP_AREA && ctype != GraphTypes.CHART_STEP_AREA_STACK);
+         ((GraphTypes.isLine(ctype) || GraphTypes.isArea(ctype)) &&
+            ctype != GraphTypes.CHART_STEP && ctype != GraphTypes.CHART_STEP_STACK &&
+            ctype != GraphTypes.CHART_JUMP &&
+            ctype != GraphTypes.CHART_STEP_AREA && ctype != GraphTypes.CHART_STEP_AREA_STACK)
+         || ctype == GraphTypes.CHART_CIRCULAR);
    }
 
    public static boolean isBorderColorVisible(ChartInfo info) {

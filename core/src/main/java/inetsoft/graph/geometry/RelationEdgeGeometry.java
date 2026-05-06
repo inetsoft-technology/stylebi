@@ -22,6 +22,7 @@ import inetsoft.graph.aesthetic.VisualModel;
 import inetsoft.graph.coord.Coordinate;
 import inetsoft.graph.data.DataSet;
 import inetsoft.graph.element.GraphElement;
+import inetsoft.graph.element.RelationElement;
 import inetsoft.graph.internal.GTool;
 import inetsoft.graph.mxgraph.model.mxCell;
 import inetsoft.graph.mxgraph.util.mxPoint;
@@ -88,13 +89,21 @@ public class RelationEdgeGeometry extends ElementGeometry {
       List<Shape> edges = new ArrayList<>();
       mxCell e = getEdge();
       List<mxPoint> pts = e.getGeometry().getPoints();
+      RelationElement elem = (RelationElement) getElement();
+      boolean smooth = elem.isSmoothEdges()
+         && elem.getAlgorithm() == RelationElement.Algorithm.CIRCLE
+         && elem.getLayoutCenter() != null;
 
       // in case lines are not created by layout, draw a straight line from the target to source.
       if(pts == null || pts.isEmpty()) {
          Line2D line = e.getSource().getGeometry().getConnector(e.getTarget().getGeometry());
 
          if(line != null) {
-            edges.add(line);
+            edges.add(smooth
+               ? GTool.computeCenterPullCurve(line.getP1(), line.getP2(),
+                                              elem.getLayoutCenter(),
+                                              GTool.CIRCULAR_EDGE_SMOOTHING)
+               : line);
          }
       }
       else {

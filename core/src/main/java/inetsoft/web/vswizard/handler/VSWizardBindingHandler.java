@@ -858,12 +858,14 @@ public class VSWizardBindingHandler {
          VSUtil.setDefaultGeoColumns(chartInfo, rvs, source.getSource());
       }
 
-      // Default smoothLines on for wizard-recommended (non-step) Area charts, matching the
-      // default applied when a user picks Area via the chart-type chooser.
+      // Default smoothLines on for wizard-recommended (non-step) Area and Circular charts,
+      // matching the default applied when a user picks the type via the chart-type chooser.
       if(chartInfo != null) {
          int ctype = chartInfo.getChartType();
 
-         if(ctype == GraphTypes.CHART_AREA || ctype == GraphTypes.CHART_AREA_STACK) {
+         if(ctype == GraphTypes.CHART_AREA || ctype == GraphTypes.CHART_AREA_STACK
+            || ctype == GraphTypes.CHART_CIRCULAR)
+         {
             chartDescriptor.getPlotDescriptor().setSmoothLines(true);
          }
       }
