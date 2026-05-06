@@ -132,8 +132,8 @@ public class IntegrationTestConfiguration {
    }
 
    @Bean
-   public RuntimeViewsheetManager runtimeViewsheetManager(ViewsheetService viewsheetService) {
-      return new RuntimeViewsheetManager(viewsheetService, Cluster.getInstance());
+   public RuntimeViewsheetManager runtimeViewsheetManager(ViewsheetService viewsheetService, Cluster cluster) {
+      return new RuntimeViewsheetManager(viewsheetService, cluster);
    }
 
    @Bean
@@ -488,6 +488,7 @@ public class IntegrationTestConfiguration {
    }
 
    @Bean
+   @ConditionalOnMissingBean(ConnectionPoolFactory.class)
    public ConnectionPoolFactory connectionPoolFactory() {
       return mock(ConnectionPoolFactory.class);
    }

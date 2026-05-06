@@ -22,6 +22,7 @@ import inetsoft.sree.security.*;
 import inetsoft.uql.util.Identity;
 import inetsoft.uql.util.XSessionService;
 import inetsoft.util.Catalog;
+import inetsoft.util.ConfigurationContext;
 import inetsoft.util.Tool;
 import inetsoft.util.script.JavaScriptEngine;
 import org.slf4j.Logger;
@@ -92,9 +93,12 @@ public class XPrincipal implements Principal, Serializable, Cloneable {
          this.orgId = orgId;
       }
 
-      this.sessionID =
-         XSessionService.getService().createSessionID(XSessionService.USER,
-                                         identityID != null ? identityID.convertToKey() : null);
+      XSessionService sessionService =
+         ConfigurationContext.getContext().getOptionalSpringBean(XSessionService.class);
+      this.sessionID = sessionService != null
+         ? sessionService.createSessionID(XSessionService.USER,
+                                          identityID != null ? identityID.convertToKey() : null)
+         : String.valueOf(Tool.getSecureRandom().nextLong());
       this.prop = new ConcurrentHashMap<>();
       this.params = new ConcurrentHashMap<>();
    }

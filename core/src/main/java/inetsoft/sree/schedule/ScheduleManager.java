@@ -133,6 +133,11 @@ public class ScheduleManager {
     */
    public void initMap() {
       SecurityProvider provider = securityEngine.getSecurityProvider();
+
+      if(provider == null) {
+         return;
+      }
+
       for(String org : provider.getOrganizationIDs())
       {
          taskMap.put(org, new ScheduleTaskMap(org));
