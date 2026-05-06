@@ -2748,13 +2748,10 @@ public class VGraphPair {
          // paintBackground mirrors paintVOVisuals: plot tiles need both; axis tiles
          // need neither (suppressing the background prevents plot fill from bleeding
          // into the axis tile image).
-         // paintGridLines is always true: axis-attached gridlines must appear in plot
-         // tiles even when paintAxes=false (which suppresses axis labels/ticks only).
          return new GraphPaintContextImpl.Builder()
             .paintLegends(false)
             .paintTitles(false)
             .paintAxes(axes)
-            .paintGridLines(true)
             .paintVOVisuals(paintVOVisuals)
             .paintBackground(paintVOVisuals)
             .build();
@@ -2766,7 +2763,6 @@ public class VGraphPair {
          return new GraphPaintContextImpl.Builder()
             .paintLegends(false)
             .paintAxes(axes)
-            .paintGridLines(true)
             .paintVOVisuals(paintVOVisuals)
             .build();
       }

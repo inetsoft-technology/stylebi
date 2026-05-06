@@ -13,27 +13,24 @@
  * GNU Affero General Public License for more details.
  *
  * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ * along with this program.
  */
 package inetsoft.graph;
 
 import inetsoft.graph.guide.VMeasureTitle;
 import inetsoft.graph.guide.axis.Axis;
-import inetsoft.graph.guide.axis.GridLine;
 import inetsoft.graph.visual.*;
 
 public class GraphPaintContextImpl implements GraphPaintContext {
    public GraphPaintContextImpl(boolean paintLegends,
                                 boolean paintTitles,
                                 boolean paintAxes,
-                                boolean paintGridLines,
                                 boolean paintVOVisuals,
                                 boolean paintBackground)
    {
       this.paintLegends = paintLegends;
       this.paintTitles = paintTitles;
       this.paintAxes = paintAxes;
-      this.paintGridLines = paintGridLines;
       this.paintVOVisuals = paintVOVisuals;
       this.paintBackground = paintBackground;
    }
@@ -67,10 +64,7 @@ public class GraphPaintContextImpl implements GraphPaintContext {
     */
    @Override
    public boolean paintVisual(Visualizable visual) {
-      if(visual instanceof GridLine) {
-         return paintGridLines || ((GridLine) visual).getAxis() == null;
-      }
-      else if(visual instanceof Axis) {
+      if(visual instanceof Axis) {
          return paintAxes;
       }
       else if(!paintVOVisuals) {
@@ -115,11 +109,6 @@ public class GraphPaintContextImpl implements GraphPaintContext {
          return this;
       }
 
-      public Builder paintGridLines(boolean paintGridLines) {
-         this.paintGridLines = paintGridLines;
-         return this;
-      }
-
       public Builder paintBackground(boolean paintBackground) {
          this.paintBackground = paintBackground;
          return this;
@@ -127,13 +116,12 @@ public class GraphPaintContextImpl implements GraphPaintContext {
 
       public GraphPaintContextImpl build() {
          return new GraphPaintContextImpl(paintLegends, paintTitles, paintAxes,
-                                          paintGridLines, paintVOVisuals, paintBackground);
+                                          paintVOVisuals, paintBackground);
       }
 
       private boolean paintLegends = true;
       private boolean paintTitles = true;
       private boolean paintAxes = true;
-      private boolean paintGridLines = true;
       private boolean paintVOVisuals = true;
       private boolean paintBackground = true;
    }
@@ -141,7 +129,6 @@ public class GraphPaintContextImpl implements GraphPaintContext {
    private final boolean paintLegends;
    private final boolean paintTitles;
    private final boolean paintAxes;
-   private final boolean paintGridLines;
    private final boolean paintVOVisuals;
    private final boolean paintBackground;
 }
