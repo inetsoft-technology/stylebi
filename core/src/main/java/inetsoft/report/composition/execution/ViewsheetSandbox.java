@@ -3241,6 +3241,10 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          // @by davidd, If the from and to assemblies come from different
          // viewsheets, then we force processing. Otherwise the
          // clist.selectionList would have entries of other viewsheets.
+         // Note: when fassembly is dispatched to a remote cluster node via Ignite,
+         // VSAssemblyInfo.vs is transient and getViewsheet() returns null. The null
+         // comparison (null != tassembly.getViewsheet()) is always true, which is the
+         // correct behavior — cross-viewsheet filters always require forced processing.
          if(fassembly.getViewsheet() != tassembly.getViewsheet()) {
             processChange = true;
          }

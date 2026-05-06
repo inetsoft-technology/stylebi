@@ -902,6 +902,10 @@ public final class VSUtil {
          return list;
       }
 
+      // VSAssemblyInfo.vs is transient: when fassembly is deserialized on a remote cluster
+      // node, getViewsheet() returns null. The self-exclusion guard (tvs == fvs) therefore
+      // never fires on remote nodes, which is safe — a remote node's tvs is never the same
+      // object as null, so no assembly is incorrectly skipped.
       Viewsheet fvs = fassembly.getViewsheet();
       String fname = fassembly.getName();
       ViewsheetInfo tvinfo = tvs.getViewsheetInfo();

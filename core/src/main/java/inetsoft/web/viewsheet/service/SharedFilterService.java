@@ -24,6 +24,7 @@ import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.uql.asset.ConfirmDataException;
 import inetsoft.uql.asset.ConfirmException;
 import inetsoft.uql.viewsheet.VSAssembly;
+import inetsoft.util.GroupedThread;
 import inetsoft.web.viewsheet.command.UpdateSharedFiltersCommand;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -34,7 +35,7 @@ import org.springframework.stereotype.Service;
 import java.io.Serializable;
 import java.security.Principal;
 import java.util.*;
-import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.*;
 
 @Service
 public class SharedFilterService {
@@ -70,17 +71,14 @@ public class SharedFilterService {
 
       // skip cluster broadcast if the user has fewer than 2 viewsheets open across
       // all cluster nodes — there's nothing to synchronize
-      if(viewsheetService.getRuntimeViewsheetCount(principal) < 2) {
+      if(!viewsheetService.hasAtLeastRuntimeViewsheets(principal, 2)) {
          return false;
       }
 
-      // for shared selection, refresh vsobject command should specified
-      // process, add "SHARED_HINT" to make the RefreshVSObjectCommand not
-      // equals the original RefreshVSObjectCommand, see bug1247647231402
-      final String sharedHint = assembly.getAbsoluteName();
       final String userName = dispatcher.getUserName();
-      dispatcher.setSharedHint(sharedHint);
 
+      // Use a dedicated executor — invokeOnAll blocks for up to 5 minutes waiting on
+      // remote nodes and must not run on the common ForkJoinPool.
       CompletableFuture.runAsync(() -> {
          List<ChangedViewsheet> changed = viewsheetService.invokeOnAll(
                new ApplyFiltersTask(vs.getID(), assembly, filterId, principal))
@@ -110,15 +108,16 @@ public class SharedFilterService {
                LOG.warn("Failed to send shared filter notification for viewsheet {}", rvs.getId(), ex);
             }
          }
-      });
+      }, SHARED_FILTER_EXECUTOR);
 
-      dispatcher.setSharedHint(null);
       return false;
    }
 
    private final CommandDispatcherService commandDispatcherService;
    private final ViewsheetService viewsheetService;
    private static final Logger LOG = LoggerFactory.getLogger(SharedFilterService.class);
+   private static final Executor SHARED_FILTER_EXECUTOR =
+      Executors.newFixedThreadPool(5, r -> new GroupedThread(r, "SharedFilter"));
 
    private static final class ChangedViewsheet implements Serializable {
       public ChangedViewsheet(RuntimeViewsheet rvs) {

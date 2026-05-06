@@ -646,6 +646,53 @@ public class RuntimeSheetCache
       return List.copyOf(ids);
    }
 
+   /**
+    * Returns true if the user has at least {@code n} open sheets of the given type across all
+    * cluster nodes, short-circuiting the cache scan as soon as the threshold is reached.
+    */
+   public boolean hasAtLeast(Principal user, CompressedSheetState.SheetType type, int n) {
+      int count = 0;
+      Iterator<Cache.Entry<AffinityKey<String>, CompressedSheetState>> iter = cache.iterator();
+
+      try {
+         while(iter.hasNext()) {
+            Cache.Entry<AffinityKey<String>, CompressedSheetState> e = iter.next();
+
+            if(type != null && e.getValue().getType() != type) {
+               continue;
+            }
+
+            if(user == null) {
+               if(++count >= n) {
+                  return true;
+               }
+            }
+            else if(e.getValue().getUser() != null) {
+               try {
+                  Document document = Tool.parseXML(new StringReader(e.getValue().getUser()));
+                  SRPrincipal principal = new SRPrincipal();
+                  principal.parseXML(document.getDocumentElement());
+
+                  if(Objects.equals(principal, user) && ++count >= n) {
+                     return true;
+                  }
+               }
+               catch(Exception ex) {
+                  LOG.error("Failed to parse principal", ex);
+               }
+            }
+         }
+      }
+      catch(NoSuchElementException e) {
+         LOG.warn("Cache iterator closed during hasAtLeast scan, returning partial results", e);
+      }
+      finally {
+         Tool.closeIterator(iter);
+      }
+
+      return count >= n;
+   }
+
    public boolean isLocal(String id) {
       if(cluster.isLocalCall()) {
          return true;

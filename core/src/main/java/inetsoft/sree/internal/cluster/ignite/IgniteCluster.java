@@ -1128,6 +1128,7 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       }
 
       List<CompletableFuture<T>> futures = new ArrayList<>(nodes.size());
+      List<String> futureIds = new ArrayList<>(nodes.size());
       List<T> results = new ArrayList<>();
 
       for(ClusterNode node : nodes) {
@@ -1146,6 +1147,7 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
             CompletableFuture<T> future = new CompletableFuture<>();
             affinityFutures.put(id, future);
             futures.add(future);
+            futureIds.add(id);
             ignite.message(ignite.cluster().forServers()).sendOrdered(AFFINITY_TOPIC, request, 0);
          }
       }
@@ -1155,12 +1157,15 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
             results.add(future.get(5L, TimeUnit.MINUTES));
          }
          catch(RuntimeException ex) {
+            futureIds.forEach(affinityFutures::remove);
             throw ex;
          }
          catch(ExecutionException ex) {
+            futureIds.forEach(affinityFutures::remove);
             throw new RuntimeException(ex);
          }
          catch(Exception e) {
+            futureIds.forEach(affinityFutures::remove);
             throw new RuntimeException(e);
          }
       }
