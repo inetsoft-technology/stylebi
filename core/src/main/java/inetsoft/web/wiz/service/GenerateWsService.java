@@ -683,7 +683,7 @@ public class GenerateWsService {
          if(boundTable) {
             if(metaData != null && metaData.getFields() != null) {
                Optional<OsiField> osiField = metaData.getFields().stream()
-                  .filter(f -> Tool.equals(f.getName(), field.getFieldName()))
+                  .filter(f -> Tool.equals(f.getName(), field.getUnqualifiedFieldName()))
                   .findFirst();
 
                if(osiField.isPresent()) {
