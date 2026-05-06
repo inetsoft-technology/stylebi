@@ -22,6 +22,13 @@ package inetsoft.graph;
  */
 public interface GraphPaintContext {
    /**
+    * @return true if the plot background (color, image, banding) should be painted.
+    */
+   default boolean paintBackground() {
+      return true;
+   }
+
+   /**
     * @return true if legends should be painted, false otherwise.
     */
    boolean paintLegends();

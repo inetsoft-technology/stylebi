@@ -957,7 +957,9 @@ public class VGraph extends BoundedContainer {
          }
       }
 
-      paintPlotBackground(g, coord.getPlotSpec());
+      if(ctx.paintBackground()) {
+         paintPlotBackground(g, coord.getPlotSpec());
+      }
 
       // sort visuals
       List<Visualizable> all = new ObjectArrayList<>(visuals);
