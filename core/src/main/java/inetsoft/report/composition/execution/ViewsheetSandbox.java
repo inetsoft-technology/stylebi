@@ -5003,6 +5003,11 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          return;
       }
 
+            // Use identity hash to identify the source viewsheet and skip it in the task.
+      // A runtime ID lookup is not safe here because applyShareFilter is called during
+      // viewsheet open (openVS=true) before the RuntimeViewsheet may be registered in
+      // the cache. identityHashCode collisions are theoretically possible but extremely
+      // rare; on remote nodes the source viewsheet is never present so no skip is needed.
       final int viewsheetIdentity = System.identityHashCode(getViewsheet());
       final Principal user = getUser();
 
@@ -5025,8 +5030,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
 
       @Override
       public String apply(ViewsheetService service) throws Exception {
-         RuntimeViewsheet[] arr = ViewsheetEngine.getViewsheetEngine().
-            getRuntimeViewsheets(user);
+         RuntimeViewsheet[] arr = service.getRuntimeViewsheets(user);
 
          for(RuntimeViewsheet rvs : arr) {
             if(rvs == null || System.identityHashCode(rvs.getViewsheet()) == viewsheetIdentity) {

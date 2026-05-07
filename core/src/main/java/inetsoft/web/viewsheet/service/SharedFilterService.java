@@ -117,11 +117,14 @@ public class SharedFilterService {
    private final ViewsheetService viewsheetService;
    private static final Logger LOG = LoggerFactory.getLogger(SharedFilterService.class);
    public static final Executor SHARED_FILTER_EXECUTOR =
-      Executors.newCachedThreadPool(r -> {
-         GroupedThread t = new GroupedThread(r, "SharedFilter");
-         t.setDaemon(true);
-         return t;
-      });
+      new ThreadPoolExecutor(0, 16, 60L, TimeUnit.SECONDS,
+         new SynchronousQueue<>(),
+         r -> {
+            GroupedThread t = new GroupedThread(r, "SharedFilter");
+            t.setDaemon(true);
+            return t;
+         },
+         new ThreadPoolExecutor.CallerRunsPolicy());
 
    private static final class ChangedViewsheet implements Serializable {
       public ChangedViewsheet(RuntimeViewsheet rvs) {
