@@ -44,6 +44,9 @@
         <schema>SYS</schema>
         <schema>SYSTEM</schema>
         <schema>XDB</schema>
+        <!-- APEX_xxxxxx and FLOWS_xxxxxx are versioned Oracle Application Express schemas -->
+        <schema>APEX_*</schema>
+        <schema>FLOWS_*</schema>
     </database>
     
     <!-- Sybase -->
