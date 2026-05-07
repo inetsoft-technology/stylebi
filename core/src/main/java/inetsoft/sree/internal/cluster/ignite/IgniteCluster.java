@@ -1281,7 +1281,7 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
    private <T> Future<T> submit0(int level, Callable<T> task, boolean scheduler) {
       // Do not use lambda expression to submit the task to ignite, it can not run with JDK21.
       ClusterGroup clusterGroup = scheduler ? ignite.cluster().forPredicate(SCHEDULE_SELECTOR) :
-         ignite.cluster().forServers();
+         ignite.cluster().forServers().forPredicate(WEB_SERVER_NODE_FILTER);
       IgniteTaskCallable<T> igniteTask = new IgniteTaskCallable<>(task, level);
       return new IgniteFutureWrapper<>(getIgniteCompute(ignite, clusterGroup, level).callAsync(igniteTask));
    }
@@ -1868,6 +1868,8 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
 
       return Boolean.TRUE.equals(node.attribute("scheduler"));
    };
+   private static final IgnitePredicate<ClusterNode> WEB_SERVER_NODE_FILTER =
+      node -> !Boolean.TRUE.equals(node.attribute("scheduler"));
    private static final IgnitePredicate<ClusterNode> SPRING_PROXY_NODE_FILTER = new SpringProxyNodeFilter();
    private static final ThreadLocal<Integer> TASK_EXECUTE_LEVEL = new ThreadLocal<>();
    private static final String IGNITE_EXECUTE_POOL = "IGNITE_EXECUTE_POOL";
@@ -2259,8 +2261,7 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
    private static final class SpringProxyNodeFilter implements IgnitePredicate<ClusterNode> {
       @Override
       public boolean apply(ClusterNode node) {
-         Boolean isScheduler = node.attribute("scheduler");
-         return isScheduler == null || !isScheduler;
+         return WEB_SERVER_NODE_FILTER.apply(node);
       }
    }
 
