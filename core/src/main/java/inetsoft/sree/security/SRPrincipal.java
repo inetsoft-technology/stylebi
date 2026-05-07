@@ -50,7 +50,6 @@ public class SRPrincipal extends XPrincipal implements Serializable, Externaliza
     * exchange — causing a circular deadlock. All fields are populated by readExternal().
     */
    public SRPrincipal() {
-      prop = new ConcurrentHashMap<>();
       age = new Date();
       client = new ClientInfo();
    }
