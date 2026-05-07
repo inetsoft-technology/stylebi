@@ -35,10 +35,12 @@ import java.security.Principal;
 public class ResourcePermissionController {
    @Autowired
    public ResourcePermissionController(ResourcePermissionService service,
-                                       SecurityEngine securityEngine)
+                                       SecurityEngine securityEngine,
+                                       ScheduleManager scheduleManager)
    {
       this.resourcePermissionService = service;
       this.securityEngine = securityEngine;
+      this.scheduleManager = scheduleManager;
    }
 
    @Secured(
@@ -97,12 +99,12 @@ public class ResourcePermissionController {
       boolean allowed;
 
       if(resource.getType() == ResourceType.SCHEDULE_TASK) {
-         ScheduleTask task = ScheduleManager.getScheduleManager().getScheduleTask(path);
+         ScheduleTask task = scheduleManager.getScheduleTask(path);
          allowed = task != null &&
             ScheduleManager.hasTaskPermission(task.getOwner(), principal, scheduleTaskAction);
       }
       else {
-         allowed = SecurityEngine.getSecurity().checkPermission(
+         allowed = securityEngine.checkPermission(
             principal, resource.getType(), resource.getPath(), ResourceAction.ADMIN);
       }
 
@@ -114,4 +116,5 @@ public class ResourcePermissionController {
 
    private final ResourcePermissionService resourcePermissionService;
    private final SecurityEngine securityEngine;
+   private final ScheduleManager scheduleManager;
 }
