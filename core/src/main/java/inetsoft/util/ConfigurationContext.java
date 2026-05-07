@@ -197,7 +197,8 @@ public class ConfigurationContext implements AutoCloseable {
       }
 
       if(IN_CACHE_LOAD.get()) {
-         return applicationContext.getBean(type);
+         Object cached = beanCache.getIfPresent(type);
+         return cached != null ? type.cast(cached) : applicationContext.getBean(type);
       }
 
       return type.cast(beanCache.get(type, t -> {
@@ -223,6 +224,12 @@ public class ConfigurationContext implements AutoCloseable {
       }
 
       if(IN_CACHE_LOAD.get()) {
+         Object cached = beanCache.getIfPresent(type);
+
+         if(cached != null) {
+            return cached == MISSING_BEAN ? null : type.cast(cached);
+         }
+
          try {
             return applicationContext.getBean(type);
          }
@@ -292,6 +299,8 @@ public class ConfigurationContext implements AutoCloseable {
    private final CompletableFuture<Void> springContextReady = new CompletableFuture<>();
    private static volatile ConfigurationContext INSTANCE;
    private static final Object MISSING_BEAN = new Object();
+   // Prevents ConcurrentHashMap recursive update when Spring bean initialization
+   // triggers a nested getSpringBean/getOptionalSpringBean call on the same thread.
    private static final ThreadLocal<Boolean> IN_CACHE_LOAD = ThreadLocal.withInitial(() -> false);
    private static final Logger LOG = LoggerFactory.getLogger(ConfigurationContext.class);
 }
