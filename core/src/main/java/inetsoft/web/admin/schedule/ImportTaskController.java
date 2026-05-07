@@ -17,7 +17,7 @@
  */
 package inetsoft.web.admin.schedule;
 
-import inetsoft.sree.RepletRepository;
+import inetsoft.sree.AnalyticRepository;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.schedule.*;
 import inetsoft.sree.security.ResourceAction;
@@ -42,9 +42,12 @@ import java.util.*;
 
 @RestController
 public class ImportTaskController {
-   public ImportTaskController(ScheduleManager scheduleManager, ScheduleTaskFolderService scheduleTaskFolderService) {
+   public ImportTaskController(ScheduleManager scheduleManager,
+                               ScheduleTaskFolderService scheduleTaskFolderService,
+                               AnalyticRepository analyticRepository) {
       this.scheduleManager = scheduleManager;
       this.scheduleTaskFolderService = scheduleTaskFolderService;
+      this.analyticRepository = analyticRepository;
    }
 
    @Secured(
@@ -122,7 +125,6 @@ public class ImportTaskController {
                                                 Principal principal) throws Exception
    {
       HttpSession session = request.getSession(true);
-      RepletRepository engine = SUtil.getRepletRepository();
       List<String> failedList = new ArrayList<>();
 
       List<ScheduleTask> tasklist = (ArrayList<ScheduleTask>)session.getAttribute(INFO_ATTR);
@@ -137,7 +139,7 @@ public class ImportTaskController {
          Boolean taskExists = oldTask != null;
 
          if(taskExists && overwriting && oldTask.isEditable() &&
-            !engine.checkPermission(principal, ResourceType.SCHEDULER, taskId, ResourceAction.ACCESS))
+            !analyticRepository.checkPermission(principal, ResourceType.SCHEDULER, taskId, ResourceAction.ACCESS))
          {
             failedList.add(taskId);
             continue;
@@ -208,5 +210,6 @@ public class ImportTaskController {
 
    private final ScheduleManager scheduleManager;
    private final ScheduleTaskFolderService scheduleTaskFolderService;
+   private final AnalyticRepository analyticRepository;
    private static final String INFO_ATTR = "__private_scheduleXmlInfo";
 }
