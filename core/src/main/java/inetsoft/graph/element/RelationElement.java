@@ -761,6 +761,21 @@ public class RelationElement extends GraphElement {
       this.applyAestheticsToSource = applyAestheticsToSource;
    }
 
+   /**
+    * Get the corner radius fraction for node rounding (0 = sharp, 0.5 = pill).
+    */
+   public double getNodeCornerRadius() {
+      return nodeCornerRadius;
+   }
+
+   /**
+    * Set the corner radius fraction for node rounding.
+    * @param nodeCornerRadius fraction in [0, 0.5]; 0 disables rounding.
+    */
+   public void setNodeCornerRadius(double nodeCornerRadius) {
+      this.nodeCornerRadius = Math.max(0, Math.min(0.5, nodeCornerRadius));
+   }
+
    @Override
    public boolean equalsContent(Object obj) {
       if(!super.equalsContent(obj)) {
@@ -773,6 +788,7 @@ public class RelationElement extends GraphElement {
             this.algorithm == elem.algorithm && widthRatio == elem.widthRatio &&
             heightRatio == elem.heightRatio &&
             applyAestheticsToSource == elem.applyAestheticsToSource &&
+            nodeCornerRadius == elem.nodeCornerRadius &&
             smoothEdges == elem.smoothEdges &&
             Objects.equals(nodeColors, elem.nodeColors) &&
             Objects.equals(nodeSizes, elem.nodeSizes) &&
@@ -804,6 +820,7 @@ public class RelationElement extends GraphElement {
    private Dimension layoutSize = new Dimension(200, 200);
    private Color fillColor;
    private boolean applyAestheticsToSource = false;
+   private double nodeCornerRadius = 0;
    private boolean smoothEdges = false;
    // derived; populated by mxLayout, not part of element identity
    private transient Point2D layoutCenter;

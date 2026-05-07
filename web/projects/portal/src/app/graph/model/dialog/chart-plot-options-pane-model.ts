@@ -87,4 +87,6 @@ export interface ChartPlotOptionsPaneModel {
    barCornerRadiusVisible?: boolean;
    barRoundAllCorners?: boolean;
    barRoundAllCornersVisible?: boolean;
+   nodeCornerRadius?: number;
+   nodeCornerRadiusVisible?: boolean;
 }

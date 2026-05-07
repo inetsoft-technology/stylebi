@@ -33,6 +33,7 @@ import org.slf4j.LoggerFactory;
 import java.awt.*;
 import java.awt.geom.Point2D;
 import java.awt.geom.Rectangle2D;
+import java.awt.geom.RoundRectangle2D;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -113,6 +114,17 @@ public class RelationVO extends ElementVO {
          GTool.setRenderingHint(g2, false);
 
          Shape shape = getScreenTransform().createTransformedShape(this.shape);
+         double r = elem.getNodeCornerRadius();
+
+         if(r > 0) {
+            Rectangle2D b = shape.getBounds2D();
+            double shortDim = Math.min(b.getWidth(), b.getHeight());
+            // r is in [0, 0.5]; arc is the corner ellipse diameter
+            double arc = r * shortDim * 2;
+            shape = new RoundRectangle2D.Double(b.getX(), b.getY(),
+                                                b.getWidth(), b.getHeight(), arc, arc);
+         }
+
          Color borderColor = elem.getBorderColor();
          GTexture texture = gobj.getTexture(0);
          Color color = gobj.getColor();
