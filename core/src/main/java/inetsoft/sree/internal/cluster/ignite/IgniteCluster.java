@@ -1281,7 +1281,7 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
    private <T> Future<T> submit0(int level, Callable<T> task, boolean scheduler) {
       // Do not use lambda expression to submit the task to ignite, it can not run with JDK21.
       ClusterGroup clusterGroup = scheduler ? ignite.cluster().forPredicate(SCHEDULE_SELECTOR) :
-         ignite.cluster().forServers();
+         ignite.cluster().forServers().forPredicate(SPRING_PROXY_NODE_FILTER);
       IgniteTaskCallable<T> igniteTask = new IgniteTaskCallable<>(task, level);
       return new IgniteFutureWrapper<>(getIgniteCompute(ignite, clusterGroup, level).callAsync(igniteTask));
    }
