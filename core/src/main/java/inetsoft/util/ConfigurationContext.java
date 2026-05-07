@@ -235,12 +235,10 @@ public class ConfigurationContext implements AutoCloseable {
          IN_CACHE_LOAD.set(true);
 
          try {
-            try {
-               return applicationContext.getBean(t);
-            }
-            catch(NoSuchBeanDefinitionException e) {
-               return MISSING_BEAN;
-            }
+            return applicationContext.getBean(t);
+         }
+         catch(NoSuchBeanDefinitionException e) {
+            return MISSING_BEAN;
          }
          finally {
             IN_CACHE_LOAD.remove();
