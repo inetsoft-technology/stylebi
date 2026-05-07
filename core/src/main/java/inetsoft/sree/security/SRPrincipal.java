@@ -42,10 +42,17 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public class SRPrincipal extends XPrincipal implements Serializable, Externalizable, LogPrincipal {
    /**
-    * Construct a <code>SRPrincipal</code> instance
+    * No-arg constructor required for Externalizable deserialization.
+    * Does not chain to the parameterized constructor to avoid calling
+    * XSessionService.getService(), which acquires Spring's singleton creation lock.
+    * If Ignite deserializes an SRPrincipal on a stripe worker while Spring is still
+    * initializing, that lock is held by the main thread waiting for Ignite's partition
+    * exchange — causing a circular deadlock. All fields are populated by readExternal().
     */
    public SRPrincipal() {
-      this(new ClientInfo(), new IdentityID[0], new String[0], null, 0);
+      prop = new ConcurrentHashMap<>();
+      age = new Date();
+      client = new ClientInfo();
    }
 
    /**

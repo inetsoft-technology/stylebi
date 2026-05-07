@@ -66,6 +66,21 @@ public class XPrincipal implements Principal, Serializable, Cloneable {
    public static final String SYSTEM = "INETSOFT_SYSTEM";
 
    /**
+    * No-arg constructor for Externalizable deserialization only.
+    * Does not call XSessionService to prevent a deadlock when Ignite deserializes
+    * an SRPrincipal on a stripe worker while Spring is still initializing: the
+    * XSessionService lookup acquires Spring's singleton creation lock, which is held
+    * by the main thread waiting for Ignite's partition exchange to complete, causing
+    * a circular deadlock. All fields are populated by the subclass readExternal().
+    */
+   protected XPrincipal() {
+      this.roles = new IdentityID[0];
+      this.groups = new String[0];
+      this.prop = new ConcurrentHashMap<>();
+      this.params = new ConcurrentHashMap<>();
+   }
+
+   /**
     * Creates a new instance of XPrincipal.
     *
     * @param identityID the name of the user.
