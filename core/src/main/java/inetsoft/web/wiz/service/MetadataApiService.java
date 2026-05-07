@@ -767,7 +767,24 @@ public class MetadataApiService {
    }
 
    private boolean matchesSystemName(String name, Set<String> systemNames) {
-      return !Tool.isEmptyString(name) && systemNames.contains(name.toUpperCase(Locale.ROOT));
+      if(Tool.isEmptyString(name)) {
+         return false;
+      }
+
+      String upper = name.toUpperCase(Locale.ROOT);
+
+      for(String pattern : systemNames) {
+         if(pattern.endsWith("*")) {
+            if(upper.startsWith(pattern.substring(0, pattern.length() - 1))) {
+               return true;
+            }
+         }
+         else if(upper.equals(pattern)) {
+            return true;
+         }
+      }
+
+      return false;
    }
 
    private SystemFilter getSystemFilter(String dsName, Map<String, SystemFilter> filterCache) {
