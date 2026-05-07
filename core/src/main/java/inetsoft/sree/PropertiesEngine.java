@@ -423,6 +423,9 @@ public class PropertiesEngine {
       }
 
       propertiesLock.lock();
+      // Capture the loaded properties inside the lock so initLogging() uses a stable snapshot
+      // even if another thread calls clear() after the lock is released.
+      Properties loadedProperties = null;
 
       try {
          if(fromChange) {
@@ -460,19 +463,23 @@ public class PropertiesEngine {
          prop.setProperty("sree.home", home);
 
          internalProperties = new DefaultProperties(prop, getDefaultProperties());
+         loadedProperties = internalProperties;
       }
       catch(Exception ex) {
          LOG.error("Failed to initialize SreeEnv: {}", ex, ex);
          Properties prop = getDefaultProperties();
          internalProperties = new DefaultProperties(prop, prop);
+         loadedProperties = internalProperties;
       }
       finally {
          propertiesLock.unlock();
       }
 
-      initLogging();
-      initFonts();
-      LOG.info("InetSoft {} build {} started", Tool.getReportVersion(), Tool.getBuildNumber());
+      if(loadedProperties != null) {
+         initLogging(loadedProperties);
+         initFonts();
+         LOG.info("InetSoft {} build {} started", Tool.getReportVersion(), Tool.getBuildNumber());
+      }
    }
 
    /**
@@ -590,7 +597,7 @@ public class PropertiesEngine {
    /**
     * Initializes logging.
     */
-   private void initLogging() {
+   private void initLogging(Properties props) {
       logManagerProvider.ifAvailable(lm -> {
          lm.setLevel("inetsoft.scheduler_test", LogLevel.OFF);
          lm.setLevel("inetsoft.mv_debug", LogLevel.OFF);
@@ -603,8 +610,6 @@ public class PropertiesEngine {
       });
 
       reloadLoggingFramework();
-
-      Properties props = getInternalProperties();
 
       for(Enumeration<?> e = props.propertyNames(); e.hasMoreElements();) {
          applyLogProperty((String) e.nextElement());
