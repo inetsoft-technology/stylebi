@@ -840,6 +840,14 @@ public class RuntimeViewsheet extends RuntimeSheet {
          if(rvsLayout != null) {
             processedViewsheet = rvsLayout.apply(processedViewsheet);
          }
+         else {
+            // Clear any stale layout state (layoutPosition/layoutSize/layoutVisible) that
+            // CalcTableVSAssembly.parseStateContent() may have restored from the bookmark.
+            // rvsLayout.apply() normally does this via clearLayoutState() before applying new
+            // positions, but when no layout is active that call is skipped entirely, leaving
+            // stale (0,0) layout coordinates from a prior layout application in the bookmark.
+            processedViewsheet.clearLayoutState();
+         }
 
          setOpenedBookmark(bookmark == null ? null : bookmark.getBookmarkInfo(name));
 
