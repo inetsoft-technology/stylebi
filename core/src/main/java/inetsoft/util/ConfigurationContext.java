@@ -198,7 +198,12 @@ public class ConfigurationContext implements AutoCloseable {
 
       if(IN_CACHE_LOAD.get()) {
          Object cached = beanCache.getIfPresent(type);
-         return cached != null ? type.cast(cached) : applicationContext.getBean(type);
+
+         if(cached != null && cached != MISSING_BEAN) {
+            return type.cast(cached);
+         }
+
+         return applicationContext.getBean(type);
       }
 
       return type.cast(beanCache.get(type, t -> {
