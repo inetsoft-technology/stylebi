@@ -124,7 +124,9 @@ public class SharedFilterService {
             t.setDaemon(true);
             return t;
          },
-         new ThreadPoolExecutor.CallerRunsPolicy());
+         (r, executor) -> LOG.warn(
+            "SharedFilter executor saturated (all 16 threads busy), " +
+            "dropping shared filter notification — client will re-sync on next interaction"));
 
    private static final class ChangedViewsheet implements Serializable {
       public ChangedViewsheet(RuntimeViewsheet rvs) {

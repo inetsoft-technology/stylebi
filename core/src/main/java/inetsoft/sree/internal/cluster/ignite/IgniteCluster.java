@@ -1135,25 +1135,26 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       List<String> futureIds = new ArrayList<>(nodes.size());
       List<T> results = new ArrayList<>();
 
-      for(ClusterNode node : nodes) {
-         if(Objects.equals(ignite.cluster().localNode(), node)) {
-            try {
+      try {
+         for(ClusterNode node : nodes) {
+            if(Objects.equals(ignite.cluster().localNode(), node)) {
                results.add(job.call());
             }
-            catch(Exception e) {
-               throw new RuntimeException(e);
+            else if(!node.isClient()) {
+               String id = UUID.randomUUID().toString();
+               AffinityCallRequest<T> request = new AffinityCallRequest<>(
+                  id, getNodeName(ignite.cluster().localNode()), getNodeName(node), job);
+               CompletableFuture<T> future = new CompletableFuture<>();
+               affinityFutures.put(id, future);
+               futures.add(future);
+               futureIds.add(id);
+               ignite.message(ignite.cluster().forServers()).sendOrdered(AFFINITY_TOPIC, request, 0);
             }
          }
-         else if(!node.isClient()) {
-            String id = UUID.randomUUID().toString();
-            AffinityCallRequest<T> request = new AffinityCallRequest<>(
-               id, getNodeName(ignite.cluster().localNode()), getNodeName(node), job);
-            CompletableFuture<T> future = new CompletableFuture<>();
-            affinityFutures.put(id, future);
-            futures.add(future);
-            futureIds.add(id);
-            ignite.message(ignite.cluster().forServers()).sendOrdered(AFFINITY_TOPIC, request, 0);
-         }
+      }
+      catch(Exception e) {
+         futureIds.forEach(affinityFutures::remove);
+         throw new RuntimeException(e);
       }
 
       // Wait for all remote futures under a single shared timeout so that N failed
