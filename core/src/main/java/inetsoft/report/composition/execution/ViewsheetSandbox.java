@@ -50,6 +50,7 @@ import inetsoft.util.audit.ExecutionBreakDownRecord;
 import inetsoft.util.log.LogContext;
 import inetsoft.util.profile.ProfileUtils;
 import inetsoft.util.script.*;
+import inetsoft.web.viewsheet.service.SharedFilterService;
 import inetsoft.web.vswizard.model.VSWizardConstants;
 import inetsoft.web.vswizard.recommender.WizardRecommenderUtil;
 import org.slf4j.Logger;
@@ -62,8 +63,7 @@ import java.lang.reflect.Array;
 import java.security.Principal;
 import java.util.*;
 import java.util.List;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Supplier;
@@ -4988,7 +4988,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       }
    }
 
-   private void applyShareFilter(VSAssembly assembly) throws Exception {
+   private void applyShareFilter(VSAssembly assembly) {
       // Resolve filterId on the source node while getViewsheet() is available.
       // VSAssemblyInfo.vs is transient and returns null on remote cluster nodes.
       final String filterId = getViewsheet().getViewsheetInfo().getFilterID(assembly.getName());
@@ -5003,8 +5003,14 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          return;
       }
 
-      engine.invokeOnAll(new ApplyShareFilterTask(
-         assembly, filterId, System.identityHashCode(getViewsheet()), getUser()));
+      final int viewsheetIdentity = System.identityHashCode(getViewsheet());
+      final Principal user = getUser();
+
+      // Fire-and-forget — invokeOnAll may block up to 5 minutes waiting on remote nodes
+      // and must not block sandbox execution.
+      CompletableFuture.runAsync(
+         () -> engine.invokeOnAll(new ApplyShareFilterTask(assembly, filterId, viewsheetIdentity, user)),
+         SharedFilterService.SHARED_FILTER_EXECUTOR);
    }
 
    private static final class ApplyShareFilterTask implements ViewsheetService.Task<String> {

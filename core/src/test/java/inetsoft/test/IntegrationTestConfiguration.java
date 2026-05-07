@@ -79,8 +79,6 @@ import static org.mockito.Mockito.mock;
 import java.util.Arrays;
 import java.util.List;
 
-import static org.mockito.Mockito.mock;
-
 /**
  * Spring test configuration providing all viewsheet controller and service beans needed by
  * integration tests that open and interact with runtime viewsheets.

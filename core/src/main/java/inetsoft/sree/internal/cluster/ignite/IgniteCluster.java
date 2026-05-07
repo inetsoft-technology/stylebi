@@ -1061,9 +1061,12 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
          return future.get(5L, TimeUnit.MINUTES);
       }
       catch(RuntimeException ex) {
+         affinityFutures.remove(id);
          throw ex;
       }
       catch(ExecutionException ex) {
+         affinityFutures.remove(id);
+
          switch(ex.getCause()) {
          case ExpiredSheetException ese -> throw ese;
          case MessageException me -> throw me;
@@ -1072,6 +1075,7 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
          }
       }
       catch(Exception e) {
+         affinityFutures.remove(id);
          throw new RuntimeException(e);
       }
       finally {

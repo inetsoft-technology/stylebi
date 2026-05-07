@@ -116,8 +116,12 @@ public class SharedFilterService {
    private final CommandDispatcherService commandDispatcherService;
    private final ViewsheetService viewsheetService;
    private static final Logger LOG = LoggerFactory.getLogger(SharedFilterService.class);
-   private static final Executor SHARED_FILTER_EXECUTOR =
-      Executors.newFixedThreadPool(5, r -> new GroupedThread(r, "SharedFilter"));
+   public static final Executor SHARED_FILTER_EXECUTOR =
+      Executors.newCachedThreadPool(r -> {
+         GroupedThread t = new GroupedThread(r, "SharedFilter");
+         t.setDaemon(true);
+         return t;
+      });
 
    private static final class ChangedViewsheet implements Serializable {
       public ChangedViewsheet(RuntimeViewsheet rvs) {

@@ -25,6 +25,7 @@ import com.fasterxml.jackson.datatype.guava.GuavaModule;
 import com.fasterxml.jackson.datatype.jdk8.Jdk8Module;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import inetsoft.analytic.composition.ViewsheetEngine;
+import inetsoft.sree.ClientInfo;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.SRPrincipal;
@@ -652,6 +653,35 @@ public class RuntimeSheetCache
     */
    public boolean hasAtLeast(Principal user, CompressedSheetState.SheetType type, int n) {
       int count = 0;
+
+      // Build cheap pre-filter strings from the incoming principal to avoid XML parsing
+      // on every cache entry. ClientInfo.writeXML writes session as a plain CDATA value
+      // and name as Tool.byteEncode(userID.convertToKey()). Both must match to count the
+      // entry. secureID can be 0 in some cases so it is not used.
+      String sessionTag = null;
+      String nameTag = null;
+
+      if(user instanceof SRPrincipal srp) {
+         ClientInfo clientInfo = srp.getUser();
+
+         if(clientInfo != null) {
+            String session = clientInfo.getSession();
+            String name = clientInfo.getUserIdentity() != null
+               ? clientInfo.getUserIdentity().convertToKey() : null;
+
+            if(session != null && !session.isEmpty()) {
+               sessionTag = "<session><![CDATA[" + session + "]]></session>";
+            }
+
+            if(name != null) {
+               nameTag = "<user><![CDATA[" + Tool.byteEncode(name) + "]]></user>";
+            }
+         }
+      }
+
+      final String fastSessionTag = sessionTag;
+      final String fastNameTag = nameTag;
+
       Iterator<Cache.Entry<AffinityKey<String>, CompressedSheetState>> iter = cache.iterator();
 
       try {
@@ -668,17 +698,29 @@ public class RuntimeSheetCache
                }
             }
             else if(e.getValue().getUser() != null) {
-               try {
-                  Document document = Tool.parseXML(new StringReader(e.getValue().getUser()));
-                  SRPrincipal principal = new SRPrincipal();
-                  principal.parseXML(document.getDocumentElement());
+               final String userXml = e.getValue().getUser();
 
-                  if(Objects.equals(principal, user) && ++count >= n) {
+               if(fastSessionTag != null && fastNameTag != null) {
+                  // Fast path: session + name match avoids full XML parse
+                  if(userXml.contains(fastSessionTag) && userXml.contains(fastNameTag) &&
+                     ++count >= n)
+                  {
                      return true;
                   }
                }
-               catch(Exception ex) {
-                  LOG.error("Failed to parse principal", ex);
+               else {
+                  try {
+                     Document document = Tool.parseXML(new StringReader(userXml));
+                     SRPrincipal principal = new SRPrincipal();
+                     principal.parseXML(document.getDocumentElement());
+
+                     if(Objects.equals(principal, user) && ++count >= n) {
+                        return true;
+                     }
+                  }
+                  catch(Exception ex) {
+                     LOG.error("Failed to parse principal", ex);
+                  }
                }
             }
          }
