@@ -1067,7 +1067,6 @@ public class DefaultAxis extends Axis {
       }
 
       Scale scale = getScale();
-      double[] ticks = scale.getTicks();
       double weightSum = 0;
       double wwidth = 0;
       double wheight = 0;
