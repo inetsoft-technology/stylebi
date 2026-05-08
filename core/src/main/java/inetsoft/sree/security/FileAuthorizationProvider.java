@@ -40,7 +40,7 @@ public class FileAuthorizationProvider extends AbstractAuthorizationProvider {
     * Initializes this module.
     */
    private synchronized void init() {
-      if(storage != null) {
+      if(storage != null && !storage.isClosed()) {
          return;
       }
 
