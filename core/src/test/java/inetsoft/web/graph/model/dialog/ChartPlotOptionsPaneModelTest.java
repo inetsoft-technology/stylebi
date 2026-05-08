@@ -65,6 +65,11 @@ class ChartPlotOptionsPaneModelTest {
       assertTrue(modelFor(GraphTypes.CHART_WATERFALL).isBarCornerRadiusVisible());
    }
 
+   @Test
+   void barCornerRadiusVisible_ganttChart() {
+      assertTrue(modelFor(GraphTypes.CHART_GANTT).isBarCornerRadiusVisible());
+   }
+
    // --- barRoundAllCornersVisible ---
 
    @Test
@@ -94,6 +99,13 @@ class ChartPlotOptionsPaneModelTest {
       // Waterfall always rounds all corners (each segment floats with no zero baseline);
       // the checkbox is hidden, same pattern as interval.
       assertFalse(modelFor(GraphTypes.CHART_WATERFALL).isBarRoundAllCornersVisible());
+   }
+
+   @Test
+   void barRoundAllCornersVisible_ganttChart() {
+      // Gantt bars span between start/end with no zero baseline; rounding is always all-corners
+      // and the checkbox is hidden, same pattern as interval and waterfall.
+      assertFalse(modelFor(GraphTypes.CHART_GANTT).isBarRoundAllCornersVisible());
    }
 
    // --- updateChartPlotOptionsPaneModel: barRoundAllCorners save guard ---
@@ -190,6 +202,22 @@ class ChartPlotOptionsPaneModelTest {
 
       assertTrue(plotDesc.isBarRoundAllCorners(),
          "barRoundAllCorners should be forced true for waterfall charts to match GraphGenerator");
+   }
+
+   @Test
+   void updateModel_setsBarRoundAllCornersTrueForGanttChart() {
+      VSChartInfo info = new VSChartInfo();
+      info.setChartType(GraphTypes.CHART_GANTT);
+      PlotDescriptor plotDesc = new PlotDescriptor();
+      plotDesc.setBarRoundAllCorners(false);
+
+      ChartPlotOptionsPaneModel model = new ChartPlotOptionsPaneModel(info, plotDesc);
+      // Frontend sends barRoundAllCorners=false because the checkbox is hidden
+      model.setBarRoundAllCorners(false);
+      model.updateChartPlotOptionsPaneModel(info, plotDesc);
+
+      assertTrue(plotDesc.isBarRoundAllCorners(),
+         "barRoundAllCorners should be forced true for gantt charts to match GraphGenerator");
    }
 
    @Test

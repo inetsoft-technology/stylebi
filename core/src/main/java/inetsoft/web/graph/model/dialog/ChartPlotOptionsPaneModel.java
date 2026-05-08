@@ -118,7 +118,8 @@ public class ChartPlotOptionsPaneModel {
          ? plotDesc.getBarCornerRadius() : null;
       this.barCornerRadiusVisible = GraphTypeUtil.checkType(info, ctype ->
          (GraphTypes.isBar(ctype) || GraphTypes.isInterval(ctype) ||
-          GraphTypes.isPareto(ctype) || GraphTypes.isWaterfall(ctype)) &&
+          GraphTypes.isPareto(ctype) || GraphTypes.isWaterfall(ctype) ||
+          GraphTypes.isGantt(ctype)) &&
          !GraphTypes.is3DBar(ctype) && !GraphTypes.isFunnel(ctype));
       // "Round All Corners" hidden for interval and waterfall — both always round all corners
       this.barRoundAllCornersVisible = GraphTypeUtil.checkType(info, ctype ->
@@ -220,9 +221,11 @@ public class ChartPlotOptionsPaneModel {
          plotDesc.setBarRoundAllCorners(barRoundAllCorners);
       }
       else if(GraphTypeUtil.checkType(info,
-                  c -> GraphTypes.isInterval(c) || GraphTypes.isWaterfall(c)))
+                  c -> GraphTypes.isInterval(c) || GraphTypes.isWaterfall(c) ||
+                       GraphTypes.isGantt(c)))
       {
-         // Interval and waterfall always round all corners in GraphGenerator; persist the invariant.
+         // Interval, waterfall, and gantt always round all corners in GraphGenerator;
+         // persist the invariant.
          plotDesc.setBarRoundAllCorners(true);
       }
       else {
