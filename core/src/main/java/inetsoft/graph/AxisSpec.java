@@ -421,6 +421,24 @@ public class AxisSpec implements Cloneable, Serializable {
    }
 
    /**
+    * Check if axis labels should be centered between ticks (one label per interval).
+    * When true, N ticks produce N-1 labels, each positioned at the midpoint of the
+    * interval between adjacent ticks.
+    */
+   @TernMethod
+   public boolean isLabelBetween() {
+      return labelBetween;
+   }
+
+   /**
+    * Set if axis labels should be centered between ticks (one label per interval).
+    */
+   @TernMethod
+   public void setLabelBetween(boolean between) {
+      this.labelBetween = between;
+   }
+
+   /**
     * Check if the grid should extend across labels (as a facet table).
     */
    @TernMethod
@@ -585,7 +603,7 @@ public class AxisSpec implements Cloneable, Serializable {
          inPlot == axisSpec.inPlot && lastOrAll == axisSpec.lastOrAll &&
          gridStyle == axisSpec.gridStyle && gridAsShape == axisSpec.gridAsShape &&
          gridOnTop == axisSpec.gridOnTop && gridBetween == axisSpec.gridBetween &&
-         facetGrid == axisSpec.facetGrid &&
+         labelBetween == axisSpec.labelBetween && facetGrid == axisSpec.facetGrid &&
          labelOnSecondaryAxis == axisSpec.labelOnSecondaryAxis &&
          Double.compare(asize, axisSpec.asize) == 0 && minPadding == axisSpec.minPadding &&
          maxPadding == axisSpec.maxPadding && maxLabelSpacing == axisSpec.maxLabelSpacing &&
@@ -603,7 +621,7 @@ public class AxisSpec implements Cloneable, Serializable {
       return Objects.hash(style, tickVisible, labelVisible, lineVisible, lineColor, line2Color,
                           labelGap, textFrame, colorFrame, fontFrame, textSpec, abbreviate,
                           allTick, truncate, inPlot, lastOrAll, gridColor, gridStyle, gridAsShape,
-                          gridOnTop, gridBetween, facetGrid, labelOnSecondaryAxis, asize,
+                          gridOnTop, gridBetween, labelBetween, facetGrid, labelOnSecondaryAxis, asize,
                           minPadding, maxPadding, maxLabelSpacing);
    }
 
@@ -664,6 +682,7 @@ public class AxisSpec implements Cloneable, Serializable {
    private boolean gridAsShape = true;
    private boolean gridOnTop = false;
    private boolean gridBetween = false;
+   private boolean labelBetween = false;
    private boolean facetGrid = false;
    private double asize = 0; // fixed size of the axis (width or height)
    private int minPadding = 0;

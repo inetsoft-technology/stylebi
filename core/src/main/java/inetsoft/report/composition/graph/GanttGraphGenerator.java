@@ -23,7 +23,6 @@ import inetsoft.graph.data.DataSet;
 import inetsoft.graph.scale.Scale;
 import inetsoft.graph.scale.TimeScale;
 import inetsoft.uql.VariableTable;
-import inetsoft.uql.XCube;
 import inetsoft.uql.asset.DateRangeRef;
 import inetsoft.uql.util.XUtil;
 import inetsoft.uql.viewsheet.graph.*;
@@ -113,9 +112,6 @@ public class GanttGraphGenerator extends MergedGraphGenerator {
          }
 
          String name = GraphUtil.getName(ref);
-         String label = XCube.SQLSERVER.equals(cubeType) ? name : GraphUtil.getCaption(ref);
-         label = Tool.localize(label);
-
          int index2 = data.indexOfHeader(name);
 
          if(index2 < 0) {
@@ -129,9 +125,10 @@ public class GanttGraphGenerator extends MergedGraphGenerator {
       String[] ganttFields = getGanttFields();
 
       if(ganttFields.length > 0) {
-         Scale scale = new TimeScale(ganttFields);
+         TimeScale scale = new TimeScale(ganttFields);
          scale.setScaleOption(scale.getScaleOption() | Scale.NO_NULL);
          scale.getAxisSpec().setAbbreviate(true);
+         scale.setFill(true);
          scales.put(ganttFields[0], scale);
          fixMScale(ganttFields[0], info.getChartType());
       }
@@ -141,49 +138,18 @@ public class GanttGraphGenerator extends MergedGraphGenerator {
     * Set coordinate properties.
     */
    private void fixGanttCoord(RectCoord coord) {
-      /*
-      AxisDescriptor xdesc = null;
-      AxisSpec spec = new AxisSpec();
-      Scale scale = coord.getAxisLabelScale();
-      String[] flds = scale == null ? null : scale.getFields();
-      Format fmt = getDefaultFormat(flds);
-      CompositeTextFormat format = null;
+      // fixCoordProperties() replaced the AxisSpec on the timescale, so reapply
+      // labelBetween here so month labels appear centred between tick boundaries.
+      Scale yscale = coord.getYScale();
 
-      if(GraphTypes.isGanttN(info)) {
-         xdesc = ((GanttChartInfo) info).getLabelAxisDescriptor();
-         format = xdesc.getColumnLabelTextFormat("_Parallel_Label_");
-      }
-      else {
-         ChartRef[] grefs = info.getRTGroupFields();
-
-         if(grefs.length > 0) {
-            xdesc = grefs[0].getAxisDescriptor();
-         }
-
-         if(flds != null) {
-            ChartRef dim = info.getFieldByName(flds[0], true);
-
-            if(dim != null) {
-               format = dim.getAxisDescriptor().getColumnLabelTextFormat(flds[0]);
-            }
-
-            addHighlightToAxis(spec, flds);
-         }
+      if(yscale != null) {
+         yscale.getAxisSpec().setLabelBetween(true);
       }
 
-      if(format == null) {
-         format = xdesc.getAxisLabelTextFormat();
+      Scale xScale = coord.getXScale();
+      if(xScale != null) {
+         xScale.getAxisSpec().setGridBetween(true);
       }
-
-      spec.setLineColor(xdesc.getLineColor());
-      spec.setLineVisible(!maxMode && xdesc.isLineVisible() || maxMode && xdesc.isMaxModeVisible());
-      spec.setTickVisible(xdesc.isTicksVisible());
-      spec.setTextSpec(GraphUtil.getTextSpec(format, fmt, null));
-      spec.setLabelVisible(!maxMode && xdesc.isLabelVisible() || maxMode && xdesc.isMaxModeVisible());
-      spec.setTextFrame(xdesc.getTextFrame());
-      spec.setTruncate(xdesc.isTruncate());
-      coord.getAxisLabelScale().setAxisSpec(spec);
-       */
    }
 
    @Override
@@ -211,11 +177,11 @@ public class GanttGraphGenerator extends MergedGraphGenerator {
          ChartRef[] grefs = { ginfo.getRTStartField(), ginfo.getRTEndField(),
                              ginfo.getRTMilestoneField() };
 
-         for(int i = 0; i < grefs.length; i++) {
-            if(grefs[i] != null && (fullname && GraphUtil.equalsName(grefs[i], fld) ||
-               !fullname && fld.equals(grefs[i].getName())))
+         for(ChartRef gref : grefs) {
+            if(gref != null && (fullname && GraphUtil.equalsName(gref, fld) ||
+               !fullname && fld.equals(gref.getName())))
             {
-               return grefs[i];
+               return gref;
             }
          }
       }
@@ -238,8 +204,8 @@ public class GanttGraphGenerator extends MergedGraphGenerator {
 
    // get non-null gantt fields.
    private String[] getGanttFields() {
-      return ganttFields.stream().filter(a -> a != null).toArray(String[]::new);
+      return ganttFields.stream().filter(Objects::nonNull).toArray(String[]::new);
    }
 
-   private List<String> ganttFields = new ArrayList<>();
+   private final List<String> ganttFields = new ArrayList<>();
 }
