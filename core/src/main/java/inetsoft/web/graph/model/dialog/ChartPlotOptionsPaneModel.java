@@ -121,7 +121,7 @@ public class ChartPlotOptionsPaneModel {
           GraphTypes.isPareto(ctype) || GraphTypes.isWaterfall(ctype) ||
           GraphTypes.isGantt(ctype)) &&
          !GraphTypes.is3DBar(ctype) && !GraphTypes.isFunnel(ctype));
-      // "Round All Corners" hidden for interval and waterfall — both always round all corners
+      // "Round All Corners" hidden for interval, waterfall, and gantt — all always round all corners
       this.barRoundAllCornersVisible = GraphTypeUtil.checkType(info, ctype ->
          (GraphTypes.isBar(ctype) || GraphTypes.isPareto(ctype)) &&
          !GraphTypes.is3DBar(ctype) && !GraphTypes.isFunnel(ctype));
