@@ -140,10 +140,10 @@ public class GanttGraphGenerator extends MergedGraphGenerator {
    private void fixGanttCoord(RectCoord coord) {
       // fixCoordProperties() replaced the AxisSpec on the timescale, so reapply
       // labelBetween here so month labels appear centred between tick boundaries.
-      Scale yscale = coord.getYScale();
+      Scale yScale = coord.getYScale();
 
-      if(yscale != null) {
-         yscale.getAxisSpec().setLabelBetween(true);
+      if(yScale != null) {
+         yScale.getAxisSpec().setLabelBetween(true);
       }
 
       Scale xScale = coord.getXScale();

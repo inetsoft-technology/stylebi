@@ -422,8 +422,8 @@ public class AxisSpec implements Cloneable, Serializable {
 
    /**
     * Check if axis labels should be centered between ticks (one label per interval).
-    * When true, N ticks produce N-1 labels, each positioned at the midpoint of the
-    * interval between adjacent ticks.
+    * When true, N ticks produce N labels, each centered in the interval from tick[i]
+    * to tick[i+1]. The last label's interval extends from the final tick to the axis end.
     */
    @TernMethod
    public boolean isLabelBetween() {

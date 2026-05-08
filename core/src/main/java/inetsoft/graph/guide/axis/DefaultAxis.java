@@ -1089,8 +1089,9 @@ public class DefaultAxis extends Axis {
          wwidth = hor ? width / weightSum : width;
       }
       else {
-         // when labelBetween, each label spans one interval between adjacent ticks
-         int tickCount = scale.getAxisSpec().isLabelBetween() && vlabels.length > 0
+         // when labelBetween and counts match, each label spans one interval between ticks
+         int tickCount = scale.getAxisSpec().isLabelBetween()
+            && vlabels.length > 0 && vlabels.length == ticks.length
             ? vlabels.length : ticks.length;
          wheight = hor ? height : height / tickCount;
          wwidth = hor ? width / tickCount : width;
