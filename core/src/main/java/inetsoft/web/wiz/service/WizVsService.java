@@ -1433,7 +1433,7 @@ public class WizVsService {
          Ranking ranking = dim.getRanking();
          ref.setRankingN(ranking.getRankingN());
          ref.setRankingCol(ranking.getRankingCol());
-         ref.setOrder(ranking.getOptionValue());
+         ref.setRankingOptionValue(String.valueOf(ranking.getOptionValue()));
       }
 
       return ref;
@@ -1455,7 +1455,7 @@ public class WizVsService {
          Ranking ranking = field.getRanking();
          ref.setRankingN(ranking.getRankingN());
          ref.setRankingCol(ranking.getRankingCol());
-         ref.setOrder(ranking.getOptionValue());
+         ref.setRankingOptionValue(String.valueOf(ranking.getOptionValue()));
       }
 
       return ref;
