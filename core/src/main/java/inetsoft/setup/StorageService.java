@@ -203,7 +203,7 @@ public class StorageService extends AbstractStorageService {
     *
     * @throws IOException if an I/O error occurs.
     */
-   public void installPlugin(File file) throws IOException {
+   public boolean installPlugin(File file) throws IOException {
       Plugin.Descriptor descriptor = new Plugin.Descriptor(file);
       String message = "Installed plugin ";
 
@@ -215,7 +215,7 @@ public class StorageService extends AbstractStorageService {
          if(newVersion.isLowerThanOrEquivalentTo(oldVersion)) {
             System.out.println(
                "Plugin is up to date " + descriptor.getId() + ":" + descriptor.getVersion());
-            return;
+            return false;
          }
 
          try {
@@ -235,6 +235,8 @@ public class StorageService extends AbstractStorageService {
       keyValueEngine.put("plugins", descriptor.getId(), blob);
 
       System.out.println(message + descriptor.getId() + ":" + descriptor.getVersion());
+
+      return true;
    }
 
    /**
