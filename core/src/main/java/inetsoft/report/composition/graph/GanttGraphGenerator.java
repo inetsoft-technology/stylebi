@@ -138,16 +138,19 @@ public class GanttGraphGenerator extends MergedGraphGenerator {
     * Set coordinate properties.
     */
    private void fixGanttCoord(RectCoord coord) {
-      // fixCoordProperties() replaced the AxisSpec on the timescale, so reapply
-      // labelBetween here so month labels appear centred between tick boundaries.
+      // fixCoordProperties() replaces the AxisSpec on both the time scale (Y) and
+      // the categorical scale (X), so any custom AxisSpec settings must be re-applied
+      // here, after fixCoordProperties() has run.
       Scale yScale = coord.getYScale();
 
       if(yScale != null) {
+         // centre month labels between their boundary ticks on the time axis.
          yScale.getAxisSpec().setLabelBetween(true);
       }
 
       Scale xScale = coord.getXScale();
       if(xScale != null) {
+         // draw grid lines between task rows rather than through the labels.
          xScale.getAxisSpec().setGridBetween(true);
       }
    }

@@ -1074,6 +1074,8 @@ public class DefaultAxis extends Axis {
       CategoricalScale cscale = (scale instanceof CategoricalScale)
          ? (CategoricalScale) scale : null;
 
+      double[] tlocs = getTickLocations(null);
+
       if(cscale != null) {
          for(int i = 0; i < vlabels.length; i++) {
             weightSum += cscale.getWeight(vlabels[i].getValue());
@@ -1091,15 +1093,14 @@ public class DefaultAxis extends Axis {
       else {
          // when labelBetween and counts match, each label spans one interval between ticks
          int tickCount = scale.getAxisSpec().isLabelBetween()
-            && vlabels.length > 0 && vlabels.length == ticks.length
-            ? vlabels.length : ticks.length;
+            && vlabels.length > 0 && vlabels.length == tlocs.length
+            ? vlabels.length : tlocs.length;
          wheight = hor ? height : height / tickCount;
          wwidth = hor ? width / tickCount : width;
       }
 
       double lx = 0;
       double ly = 0;
-      double[] tlocs = getTickLocations(null);
 
       // when labelBetween, position each label at the midpoint between adjacent ticks;
       // for the last label, the axis end (length) acts as the phantom boundary tick.
