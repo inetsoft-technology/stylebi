@@ -750,6 +750,8 @@ public class SQLHelper implements KeywordProvider {
     * @return SQL statement.
     */
    public final String generateSentence() {
+      vJoin = null;
+
       // make sure the table aliases don't exceed database limit
       fixTableAliases();
 
