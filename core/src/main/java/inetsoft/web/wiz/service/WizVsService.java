@@ -1421,6 +1421,10 @@ public class WizVsService {
       VSChartDimensionRef ref = new VSChartDimensionRef();
       ref.setGroupColumnValue(base.getField());
 
+      if(base.getOrder() != null) {
+         ref.setOrder(base.getOrder());
+      }
+
       if(dim != null && dim.getDateGroupLevel() != null) {
          ref.setDateLevelValue(String.valueOf(getDateGroupLevel(dim.getDateGroupLevel())));
       }
@@ -1438,6 +1442,10 @@ public class WizVsService {
    private VSDimensionRef createVSDimensionRef(DimensionFieldInfo field) {
       VSDimensionRef ref = new VSDimensionRef();
       ref.setGroupColumnValue(field.getField());
+
+      if(field.getOrder() != null) {
+         ref.setOrder(field.getOrder());
+      }
 
       if(field.getDateGroupLevel() != null) {
          ref.setDateLevelValue(String.valueOf(getDateGroupLevel(field.getDateGroupLevel())));
