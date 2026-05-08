@@ -201,6 +201,8 @@ public class StorageService extends AbstractStorageService {
     *
     * @param file the plugin ZIP file to install.
     *
+    * @return {@code true} if the plugin was installed or upgraded;
+    *         {@code false} if the existing installed version is already up to date.
     * @throws IOException if an I/O error occurs.
     */
    public boolean installPlugin(File file) throws IOException {
