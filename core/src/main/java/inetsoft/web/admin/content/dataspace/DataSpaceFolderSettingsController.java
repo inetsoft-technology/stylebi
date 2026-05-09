@@ -135,7 +135,6 @@ public class DataSpaceFolderSettingsController {
                }
             }
             else {
-               // sync metadata (e.g. theme jarPath) that references the old folder path
                dataSpaceContentSettingsService.onFileRenamed(model.path(), newPath);
             }
          }

@@ -122,7 +122,13 @@ public class CustomThemesManager implements XMLSerializable, AutoCloseable {
     * file location after a file or folder rename in the DataSpace.
     */
    public void renameThemeJar(String oldPath, String newPath) {
-      Set<CustomTheme> themes = new HashSet<>(getCustomThemes());
+      Set<CustomTheme> allThemes = getCustomThemes();
+
+      if(allThemes == null || allThemes.isEmpty()) {
+         return;
+      }
+
+      Set<CustomTheme> themes = new HashSet<>(allThemes);
       boolean changed = false;
 
       for(CustomTheme theme : new ArrayList<>(themes)) {
@@ -146,7 +152,6 @@ public class CustomThemesManager implements XMLSerializable, AutoCloseable {
             theme.setJarPath(updatedPath);
             themes.add(theme);
             changed = true;
-            break;
          }
       }
 
