@@ -240,8 +240,10 @@ public class DataSpaceContentSettingsService {
       Audit.getInstance().auditAction(actionRecord, principal);
    }
 
-   // Notifies dependent managers when a DataSpace file is renamed, so that
-   // any metadata referencing the old path can be updated to the new path.
+   /**
+    * Notifies dependent managers when a DataSpace file or folder is renamed, so that
+    * any metadata referencing the old path can be updated to the new path.
+    */
    public void onFileRenamed(String oldPath, String newPath) {
       customThemesManager.renameThemeJar(oldPath, newPath);
    }

@@ -134,6 +134,10 @@ public class DataSpaceFolderSettingsController {
                      "adm.dataspace.rename", model.name(), model.newName()));
                }
             }
+            else {
+               // sync metadata (e.g. theme jarPath) that references the old folder path
+               dataSpaceContentSettingsService.onFileRenamed(model.path(), newPath);
+            }
          }
       }
 
