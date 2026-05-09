@@ -171,8 +171,9 @@ public class DataSpaceFileSettingsController {
             }
             else {
                actionRecord.setActionName(ActionRecord.ACTION_NAME_EDIT);
+               // sync metadata (e.g. theme jarPath) that references the old file path
+               dataSpaceContentSettingsService.onFileRenamed(path, npath);
                path = npath;
-
             }
          }
       }

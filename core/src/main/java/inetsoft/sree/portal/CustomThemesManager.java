@@ -116,6 +116,25 @@ public class CustomThemesManager implements XMLSerializable, AutoCloseable {
       return impl.getSelectedTheme(user, this);
    }
 
+   // Updates the jarPath of the theme whose JAR was renamed in the DataSpace,
+   // keeping KV store metadata in sync with the physical file location.
+   public void renameThemeJar(String oldPath, String newPath) {
+      Set<CustomTheme> themes = new HashSet<>(getCustomThemes());
+      boolean changed = false;
+
+      for(CustomTheme theme : themes) {
+         if(oldPath.equals(theme.getJarPath())) {
+            theme.setJarPath(newPath);
+            changed = true;
+            break;
+         }
+      }
+
+      if(changed) {
+         setCustomThemes(themes);
+      }
+   }
+
    public void reloadThemes(String path) {
       Set<CustomTheme> themes = getCustomThemes();
 
