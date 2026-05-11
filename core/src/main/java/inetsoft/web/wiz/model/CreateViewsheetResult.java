@@ -101,6 +101,14 @@ public class CreateViewsheetResult {
       this.viewsheetIdentifier = viewsheetIdentifier;
    }
 
+   public Boolean getHasData() {
+      return hasData;
+   }
+
+   public void setHasData(Boolean hasData) {
+      this.hasData = hasData;
+   }
+
    private List<String> headers;
    private List<Map<String, Object>> rows;
    private FlatBinding binding;
@@ -108,6 +116,7 @@ public class CreateViewsheetResult {
    private String runtimeId;
    private String assemblyName;
    private String viewsheetIdentifier;
+   private Boolean hasData;
 
    // -------------------------------------------------------------------------
    // Nested model
