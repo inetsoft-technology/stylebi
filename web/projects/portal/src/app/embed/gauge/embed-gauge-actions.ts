@@ -25,9 +25,9 @@ import { PopComponentService } from "../../vsobjects/objects/data-tip/pop-compon
 import { MiniToolbarService } from "../../vsobjects/objects/mini-toolbar/mini-toolbar.service";
 
 export class EmbedGaugeActions extends GaugeActions {
-   constructor(model: VSGaugeModel, popService: PopComponentService,
-               contextProvider: ContextProvider, securityEnabled: boolean,
-               stateProvider: ActionStateProvider, dataTipService: DataTipService,
+   constructor(model: VSGaugeModel, contextProvider: ContextProvider,
+               securityEnabled: boolean, stateProvider: ActionStateProvider,
+               dataTipService: DataTipService, popService: PopComponentService,
                miniToolbarService: MiniToolbarService)
    {
       super(model, contextProvider, securityEnabled, stateProvider,

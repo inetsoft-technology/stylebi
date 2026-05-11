@@ -159,7 +159,6 @@ export class EmbedChartComponent extends CommandProcessor implements OnInit, OnD
    }
 
    ngOnInit(): void {
-      console.log("============chart url ", this.url);
       // custom element url
       if(this.url) {
          const tree = this.router.parseUrl(this.url);
@@ -169,27 +168,29 @@ export class EmbedChartComponent extends CommandProcessor implements OnInit, OnD
          this.inputRuntimeId = result.posParams?.runtimeId?.path;
          this.queryParams = tree.queryParams;
 
-         (window.inetsoftConnected as BehaviorSubject<boolean>).subscribe((connected) => {
-            if(!this.connected && connected) {
-               this.connected = true;
+         this.subscriptions.add(
+            (window.inetsoftConnected as BehaviorSubject<boolean>).subscribe((connected) => {
+               if(!this.connected && connected) {
+                  this.connected = true;
 
-               if(!!this.errorTimeout) {
-                  clearTimeout(this.errorTimeout);
+                  if(!!this.errorTimeout) {
+                     clearTimeout(this.errorTimeout);
+                  }
+
+                  this.showError = false;
+                  this.openViewsheet();
+                  this.cdRef.detectChanges();
                }
 
-               this.showError = false;
-               this.openViewsheet();
-               this.cdRef.detectChanges();
-            }
-
-            if(!this.connected && !connected) {
-               this.errorTimeout = setTimeout(() => {
-                  this.showError = true;
-                  console.error("InetSoft client not connected. Please make sure to login first.");
-                  this.cdRef.detectChanges();
-               }, 1000);
-            }
-         });
+               if(!this.connected && !connected) {
+                  this.errorTimeout = setTimeout(() => {
+                     this.showError = true;
+                     console.error("InetSoft client not connected. Please make sure to login first.");
+                     this.cdRef.detectChanges();
+                  }, 1000);
+               }
+            })
+         );
       }
       else {
          if(document.body.className.indexOf("app-loaded") == -1) {
@@ -289,10 +290,8 @@ export class EmbedChartComponent extends CommandProcessor implements OnInit, OnD
       this.vsObject.active = true;
       this.updateVSInfo();
 
-      if(this.vsObject) {
-         this.vsObjectActions = new EmbedChartActions(this.vsObject, null,
-            this.contextProvider, false, null, null, this.miniToolbarService);
-      }
+      this.vsObjectActions = new EmbedChartActions(this.vsObject, null,
+         this.contextProvider, false, null, null, this.miniToolbarService);
    }
 
    // noinspection JSUnusedGlobalSymbols
@@ -482,6 +481,10 @@ export class EmbedChartComponent extends CommandProcessor implements OnInit, OnD
    }
 
    onOpenContextMenu(event: MouseEvent) {
+      if(!this.vsObjectActions) {
+         return;
+      }
+
       let actions: AssemblyActionGroup[];
 
       if(event.type === "click") {

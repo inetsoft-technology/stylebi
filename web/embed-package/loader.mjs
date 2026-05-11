@@ -72,6 +72,8 @@ export function assetUrl(relativePath) {
 
 export async function loadBundle(scriptPath, stylesheetPath) {
    ensureBrowser();
-   await loadStylesheet(stylesheetPath);
-   await loadScript(scriptPath);
+   await Promise.all([
+      loadStylesheet(stylesheetPath),
+      loadScript(scriptPath)
+   ]);
 }

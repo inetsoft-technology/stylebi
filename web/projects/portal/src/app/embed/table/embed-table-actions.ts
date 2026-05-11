@@ -25,9 +25,9 @@ import { DataTipService } from "../../vsobjects/objects/data-tip/data-tip.servic
 import { MiniToolbarService } from "../../vsobjects/objects/mini-toolbar/mini-toolbar.service";
 
 export class EmbedTableActions extends TableActions {
-   constructor(model: VSTableModel, popService: PopComponentService,
-               contextProvider: ContextProvider, securityEnabled: boolean,
-               stateProvider: ActionStateProvider, dataTipService: DataTipService,
+   constructor(model: VSTableModel, contextProvider: ContextProvider,
+               securityEnabled: boolean, stateProvider: ActionStateProvider,
+               dataTipService: DataTipService, popService: PopComponentService,
                miniToolbarService: MiniToolbarService)
    {
       super(model, contextProvider, securityEnabled, stateProvider,

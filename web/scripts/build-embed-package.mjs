@@ -237,7 +237,7 @@ function copyDir(sourceDir, targetDir) {
       fs.cpSync(sourceDir, targetDir, { recursive: true });
    }
    catch(error) {
-      throw new Error(`Failed to copy directory ${sourceDir} to ${targetDir}: ${error.message}`);
+      throw new Error(`Failed to copy directory ${sourceDir} to ${targetDir}: ${error.message}`, { cause: error });
    }
 }
 
