@@ -2675,7 +2675,14 @@ public class SVGAnimationDOMInjector {
          // Per-series point dimming is injected in injectRadarAnimation() once N is known.
          ".inetsoft-radar{pointer-events:all}" +
          "svg.ready:has(.inetsoft-radar:hover) .inetsoft-radar:not(:hover)" +
-         "{opacity:" + dim + "!important}");
+         "{opacity:" + dim + "!important}" +
+         // Line chart hover is handled via JS mouseenter/mouseleave in ChartInlineSvgDirective
+         // because lines and their endpoint markers (inetsoft-point) are separate sibling groups
+         // that must be dimmed together as a series — CSS :has() cannot correlate attribute
+         // values across siblings without knowing them at CSS-generation time.
+         // pointer-events:all makes the full bounding box a hit area so narrow jump/step
+         // segments activate without requiring precise hover over the stroke pixels.
+         ".inetsoft-line{pointer-events:all;transition:" + tr + "}");
    }
 
    // -------------------------------------------------------------------------

@@ -86,6 +86,10 @@ export class ChartInlineSvgDirective implements OnDestroy {
    private areaHoverSvgEl: SVGSVGElement | null = null;
    private areaMouseMoveHandler: ((e: MouseEvent) => void) | null = null;
    private areaMouseLeaveHandler: (() => void) | null = null;
+   /** AbortController that cancels all mouseenter/mouseleave listeners added by setupLineSeriesHover. */
+   private lineSeriesAbortController: AbortController | null = null;
+   /** Debounce timer for clearing line-series dim, so moving between elements of one series is flicker-free. */
+   private lineSeriesClearTimer: ReturnType<typeof setTimeout> | null = null;
    private static readonly CLEAR_DELAY_MS = 120;
    /** Milliseconds after SVG load before the .ready class is added (gates A1 hover CSS). */
    private static readonly READY_MS = 900;
@@ -114,6 +118,7 @@ export class ChartInlineSvgDirective implements OnDestroy {
       }
 
       this.teardownAreaHover();
+      this.teardownLineSeriesHover();
    }
 
    private loadSvg(reloading = false): void {
@@ -303,6 +308,7 @@ export class ChartInlineSvgDirective implements OnDestroy {
       }
 
       this.teardownAreaHover();
+      this.teardownLineSeriesHover();
       this.areaSeries = [];
       this.activeSeriesIdx = -1;
 
@@ -355,8 +361,23 @@ export class ChartInlineSvgDirective implements OnDestroy {
          this.setupAreaHover(areaFillGroups);
       }
       else {
-         // Non-radar, non-area chart — reset in case SVG was replaced after one of those.
-         this.element.nativeElement.style.zIndex = "";
+         const lineOnlyGroups = Array.from(
+            this.element.nativeElement.querySelectorAll(".inetsoft-line") as NodeListOf<Element>);
+
+         if(lineOnlyGroups.length > 0) {
+            // Pure line chart (step/jump/regular, no area fills).
+            // Raise SVG above canvas overlay so pointer events reach SVG elements.
+            // Clear elementGroupMap so canvas-driven highlightElement() is a no-op —
+            // the inetsoft-active CSS dims by individual point and would fight the
+            // series-level JS hover (same pattern as radar charts).
+            this.elementGroupMap.clear();
+            this.element.nativeElement.style.zIndex = "1";
+            this.setupLineSeriesHover(lineOnlyGroups);
+         }
+         else {
+            // Non-radar, non-area, non-line chart — reset in case SVG was replaced.
+            this.element.nativeElement.style.zIndex = "";
+         }
       }
 
       // Build relation connectivity maps so activateKey can highlight connected edges/neighbors.
@@ -476,6 +497,104 @@ export class ChartInlineSvgDirective implements OnDestroy {
       this.areaMouseMoveHandler = null;
       this.areaMouseLeaveHandler = null;
       this.areaSeriesCache = [];
+   }
+
+   /**
+    * Wire series-level mouseenter/mouseleave on all line and point groups for a pure line chart.
+    *
+    * Each inetsoft-line group is one series. Series are keyed by their DOM order (0, 1, 2 ...)
+    * which is guaranteed unique and independent of any color or measure binding.
+    * Point groups are matched to their series via data-color (each series has a distinct color
+    * whether or not an explicit color binding is configured, because the palette assigns one).
+    *
+    * The 120 ms CLEAR_DELAY_MS debounce prevents flicker when moving between the line group
+    * and its point markers (separate sibling groups with a potential gap in hit area).
+    */
+   private setupLineSeriesHover(lineGroups: Element[]): void {
+      const allPoints = Array.from(
+         this.element.nativeElement.querySelectorAll(".inetsoft-point") as NodeListOf<Element>);
+
+      type LineSeries = { line: Element; points: Element[] };
+      const seriesMap = new Map<string, LineSeries>();
+      // Reverse map: data-color value → series key (DOM index string).
+      const colorToKey = new Map<string, string>();
+
+      for(let i = 0; i < lineGroups.length; i++) {
+         const key = String(i);
+         seriesMap.set(key, { line: lineGroups[i], points: [] });
+         const color = lineGroups[i].getAttribute("data-color");
+         if(color) colorToKey.set(color, key);
+      }
+
+      // Match each point to its series via data-color (same color = same series).
+      for(const point of allPoints) {
+         const color = point.getAttribute("data-color");
+         if(color) {
+            const key = colorToKey.get(color);
+            if(key != null) seriesMap.get(key)?.points.push(point);
+         }
+      }
+
+      if(seriesMap.size === 0) return;
+
+      const allElems: Element[] = [...lineGroups, ...allPoints];
+
+      // pointer-events:all already set via CSS on .inetsoft-line; add it to points here
+      for(const point of allPoints) {
+         (point as HTMLElement).style.pointerEvents = "all";
+      }
+
+      const ac = new AbortController();
+      this.lineSeriesAbortController = ac;
+
+      const clearDim = () => {
+         this.lineSeriesClearTimer = null;
+         for(const elem of allElems) {
+            (elem as HTMLElement).style.removeProperty("opacity");
+         }
+      };
+
+      for(const [, series] of seriesMap) {
+         const seriesSet = new Set<Element>([series.line, ...series.points]);
+
+         const enterHandler = () => {
+            if(this.lineSeriesClearTimer !== null) {
+               clearTimeout(this.lineSeriesClearTimer);
+               this.lineSeriesClearTimer = null;
+            }
+            for(const elem of allElems) {
+               if(!seriesSet.has(elem)) {
+                  // Use setProperty with "important" so the value overrides
+                  // animation fill-mode (which holds opacity:1 after inetsoft-line-fade
+                  // completes and sits above normal inline styles in the CSS cascade).
+                  (elem as HTMLElement).style.setProperty("opacity", "0.2", "important");
+               }
+            }
+         };
+
+         const leaveHandler = () => {
+            if(this.lineSeriesClearTimer !== null) {
+               clearTimeout(this.lineSeriesClearTimer);
+            }
+            this.lineSeriesClearTimer = setTimeout(clearDim, ChartInlineSvgDirective.CLEAR_DELAY_MS);
+         };
+
+         for(const elem of seriesSet) {
+            elem.addEventListener("mouseenter", enterHandler, { signal: ac.signal } as AddEventListenerOptions);
+            elem.addEventListener("mouseleave", leaveHandler, { signal: ac.signal } as AddEventListenerOptions);
+         }
+      }
+   }
+
+   private teardownLineSeriesHover(): void {
+      if(this.lineSeriesAbortController) {
+         this.lineSeriesAbortController.abort();
+         this.lineSeriesAbortController = null;
+      }
+      if(this.lineSeriesClearTimer !== null) {
+         clearTimeout(this.lineSeriesClearTimer);
+         this.lineSeriesClearTimer = null;
+      }
    }
 
    private onAreaMouseMove(e: MouseEvent): void {

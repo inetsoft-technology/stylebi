@@ -149,11 +149,16 @@ public class PointVO extends ElementVO {
          ? SVGSupport.getInstance() : null;
 
       if(svg != null) {
-         svg.beginAnnotationGroup(g, SVGSupport.ANNOTATION_POINT, Map.of(
-            SVGSupport.ATTR_COL,  String.valueOf(getColIndex()),
-            SVGSupport.ATTR_ROW,  String.valueOf(getRowIndex()),
-            SVGSupport.ATTR_SIZE, String.valueOf(radius)
-         ));
+         Color pointColor = gobj.getColor(0);
+         Map<String, String> annotAttrs = new java.util.HashMap<>();
+         annotAttrs.put(SVGSupport.ATTR_COL,   String.valueOf(getColIndex()));
+         annotAttrs.put(SVGSupport.ATTR_ROW,   String.valueOf(getRowIndex()));
+         annotAttrs.put(SVGSupport.ATTR_SIZE,  String.valueOf(radius));
+         if(pointColor != null) {
+            annotAttrs.put(SVGSupport.ATTR_COLOR,
+               pointColor.getRed() + "," + pointColor.getGreen() + "," + pointColor.getBlue());
+         }
+         svg.beginAnnotationGroup(g, SVGSupport.ANNOTATION_POINT, annotAttrs);
       }
 
       try {
