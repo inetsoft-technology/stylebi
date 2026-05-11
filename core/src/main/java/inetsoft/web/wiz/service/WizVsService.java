@@ -1372,12 +1372,18 @@ public class WizVsService {
 
    private GaugeVSAssembly createGaugeAssembly(Viewsheet vs, String name)
    {
-      return new GaugeVSAssembly(vs, name);
+      GaugeVSAssembly gauge = new GaugeVSAssembly(vs, name);
+      gauge.setScalarBindingInfo(new ScalarBindingInfo());
+
+      return gauge;
    }
 
    private TextVSAssembly createTextAssembly(Viewsheet vs, String name)
    {
-      return new TextVSAssembly(vs, name);
+      TextVSAssembly text = new TextVSAssembly(vs, name);
+      text.setScalarBindingInfo(new ScalarBindingInfo());
+
+      return text;
    }
 
    private ImageVSAssembly createImageAssembly(Viewsheet vs, String name,
