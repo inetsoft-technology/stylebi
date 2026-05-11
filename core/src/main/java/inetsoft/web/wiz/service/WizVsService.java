@@ -905,6 +905,12 @@ public class WizVsService {
       }
       else if(vsAssembly instanceof OutputVSAssembly outputVSAssembly && config.getBindingInfo() instanceof OutputBinding outputBinding) {
          ScalarBindingInfo sbinfo = outputVSAssembly.getScalarBindingInfo();
+
+         if(sbinfo == null) {
+            sbinfo = new ScalarBindingInfo();
+            outputVSAssembly.setScalarBindingInfo(sbinfo);
+         }
+
          sbinfo.setTableName(tname);
 
          if(outputBinding.getField() != null) {
