@@ -162,27 +162,29 @@ export class EmbedGaugeComponent extends CommandProcessor implements OnInit, OnD
          this.inputRuntimeId = result.posParams?.runtimeId?.path;
          this.queryParams = tree.queryParams;
 
-         (window.inetsoftConnected as BehaviorSubject<boolean>).subscribe((connected) => {
-            if(!this.connected && connected) {
-               this.connected = true;
+         this.subscriptions.add(
+            (window.inetsoftConnected as BehaviorSubject<boolean>).subscribe((connected) => {
+               if(!this.connected && connected) {
+                  this.connected = true;
 
-               if(!!this.errorTimeout) {
-                  clearTimeout(this.errorTimeout);
+                  if(!!this.errorTimeout) {
+                     clearTimeout(this.errorTimeout);
+                  }
+
+                  this.showError = false;
+                  this.openViewsheet();
+                  this.cdRef.detectChanges();
                }
 
-               this.showError = false;
-               this.openViewsheet();
-               this.cdRef.detectChanges();
-            }
-
-            if(!this.connected && !connected) {
-               this.errorTimeout = setTimeout(() => {
-                  this.showError = true;
-                  console.error("InetSoft client not connected. Please make sure to login first.");
-                  this.cdRef.detectChanges();
-               }, 1000);
-            }
-         });
+               if(!this.connected && !connected) {
+                  this.errorTimeout = setTimeout(() => {
+                     this.showError = true;
+                     console.error("InetSoft client not connected. Please make sure to login first.");
+                     this.cdRef.detectChanges();
+                  }, 1000);
+               }
+            })
+         );
       }
       else {
          if(document.body.className.indexOf("app-loaded") == -1) {
@@ -264,10 +266,8 @@ export class EmbedGaugeComponent extends CommandProcessor implements OnInit, OnD
       this.vsObject.active = true;
       this.updateVSInfo();
 
-      if(this.vsObject) {
-         this.vsObjectActions = new EmbedGaugeActions(this.vsObject, null,
-            this.contextProvider, false, null, null, this.miniToolbarService);
-      }
+      this.vsObjectActions = new EmbedGaugeActions(this.vsObject, this.contextProvider,
+         false, null, null, null, this.miniToolbarService);
    }
 
    processRefreshVSObjectCommand(command: RefreshVSObjectCommand): void {
@@ -283,8 +283,8 @@ export class EmbedGaugeComponent extends CommandProcessor implements OnInit, OnD
       }
 
       this.vsObject.active = true;
-      this.vsObjectActions = new EmbedGaugeActions(this.vsObject, null,
-         this.contextProvider, false, null, null, this.miniToolbarService);
+      this.vsObjectActions = new EmbedGaugeActions(this.vsObject, this.contextProvider,
+         false, null, null, null, this.miniToolbarService);
    }
 
    processCollectParametersCommand(command: CollectParametersCommand): void {
@@ -420,6 +420,10 @@ export class EmbedGaugeComponent extends CommandProcessor implements OnInit, OnD
    }
 
    onOpenContextMenu(event: MouseEvent) {
+      if(!this.vsObjectActions) {
+         return;
+      }
+
       let actions: AssemblyActionGroup[];
 
       if(event.type === "click") {
