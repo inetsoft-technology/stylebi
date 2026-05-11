@@ -3336,6 +3336,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
          }
 
          obj.hints = new HashMap<>(hints);
+         obj.cachedSQLHelper = null;
          return obj;
       }
       catch(Exception ex) {
