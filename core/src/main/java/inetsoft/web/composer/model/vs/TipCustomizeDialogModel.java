@@ -18,11 +18,11 @@
 package inetsoft.web.composer.model.vs;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import inetsoft.uql.viewsheet.graph.ChartInfo;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class TipCustomizeDialogModel {
    public enum TipFormat { DEFAULT, CUSTOM, NONE };
-   public enum TooltipStyle { DEFAULT, CARD };
 
    public boolean isChart() {
       return chart;
@@ -80,11 +80,11 @@ public class TipCustomizeDialogModel {
       this.availableTipValues = availableTipValues;
    }
 
-   public TooltipStyle getTooltipStyle() {
+   public ChartInfo.TooltipStyle getTooltipStyle() {
       return tooltipStyle;
    }
 
-   public void setTooltipStyle(TooltipStyle tooltipStyle) {
+   public void setTooltipStyle(ChartInfo.TooltipStyle tooltipStyle) {
       this.tooltipStyle = tooltipStyle;
    }
 
@@ -95,5 +95,5 @@ public class TipCustomizeDialogModel {
    private String customTip;
    private String[] dataRefList;
    private String[] availableTipValues;
-   private TooltipStyle tooltipStyle = TooltipStyle.DEFAULT;
+   private ChartInfo.TooltipStyle tooltipStyle = ChartInfo.TooltipStyle.DEFAULT;
 }

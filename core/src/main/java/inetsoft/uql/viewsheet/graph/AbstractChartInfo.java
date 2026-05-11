@@ -2414,7 +2414,8 @@ public abstract class AbstractChartInfo implements ChartInfo, AssetObject {
          return false;
       }
 
-      return tooltipVisible == chartInfo.tooltipVisible;
+      return tooltipVisible == chartInfo.tooltipVisible
+         && tooltipStyle == chartInfo.tooltipStyle;
    }
 
    /**

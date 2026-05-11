@@ -324,6 +324,11 @@ export class ChartArea implements OnInit, OnChanges, OnDestroy {
             }
          });
       }
+
+      if(changes["model"] || changes["modelTS"]) {
+         this.tooltipCSS = this.model && this.model.tooltipStyle === "CARD"
+            ? "widget__card-tooltip" : "widget__default-tooltip";
+      }
    }
 
    ngOnInit() {
@@ -612,8 +617,6 @@ export class ChartArea implements OnInit, OnChanges, OnDestroy {
 
       if(tooltipString != this.tooltipString) {
          this.tooltipString = tooltipString;
-         this.tooltipCSS = this.model && this.model.tooltipStyle === "CARD"
-            ? "widget__card-tooltip" : "widget__default-tooltip";
          this.detectChanges();
       }
    }
