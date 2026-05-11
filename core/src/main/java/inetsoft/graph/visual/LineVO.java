@@ -162,6 +162,10 @@ public class LineVO extends ElementVO {
             annotAttrs.put(SVGSupport.ATTR_STEP, "true");
          }
 
+         if("true".equals(elem.getHint("_pareto_"))) {
+            annotAttrs.put(SVGSupport.ATTR_PARETO, "true");
+         }
+
          svg.beginAnnotationGroup(g, SVGSupport.ANNOTATION_LINE, annotAttrs);
       }
 

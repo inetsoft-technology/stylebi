@@ -116,8 +116,20 @@ public class SVGAnimationDOMInjector {
       else {
          boolean fadeOnly = SVGSupport.ANIMATION_FADE.equals(base);
          List<Element> annotBars = collectAnnotationGroups(svgRoot, SVGSupport.ANNOTATION_BAR);
-         injectBarAnimationFromAnnotations(annotBars, svgRoot, doc, fadeOnly);
+         double lastBarDelay = injectBarAnimationFromAnnotations(annotBars, svgRoot, doc, fadeOnly);
          animated = true;
+
+         // Pareto charts have both bars and a cumulative-% line.  Animate the line after the
+         // last bar finishes (no ghost fill, no stagger — there is always exactly one line).
+         List<Element> annotLines = collectAnnotationGroups(svgRoot, SVGSupport.ANNOTATION_LINE);
+         List<Element> paretoLines = annotLines.stream()
+            .filter(g -> "true".equals(g.getAttribute("data-" + SVGSupport.ATTR_PARETO)))
+            .toList();
+
+         if(!paretoLines.isEmpty()) {
+            double lineDelay = lastBarDelay + AnimationConstants.DURATION + AnimationConstants.READY_BUFFER;
+            injectParetoLineAnimation(paretoLines, svgRoot, doc, lineDelay);
+         }
       }
 
       // Signal to the Angular directive that animation was injected so it can schedule .ready.
@@ -165,9 +177,9 @@ public class SVGAnimationDOMInjector {
     * in opacity-only per the design spec.  Set it to {@code true} to restore the legacy
     * scaleY/scaleX spring-from-baseline grow animation.
     */
-   private static void injectBarAnimationFromAnnotations(List<Element> annotBars,
-                                                           Element svgRoot, Document doc,
-                                                           boolean fadeOnly)
+   private static double injectBarAnimationFromAnnotations(List<Element> annotBars,
+                                                             Element svgRoot, Document doc,
+                                                             boolean fadeOnly)
    {
       appendStyle(svgRoot, doc,
          "@keyframes inetsoft-bar-grow-y{from{transform:scaleY(0)}to{transform:scaleY(1)}}" +
@@ -264,6 +276,7 @@ public class SVGAnimationDOMInjector {
          applyAnimStyleToChildren(labelG, labelAnimStyle);
       }
 
+      return lastBarDelay;
    }
 
    /**
@@ -730,6 +743,50 @@ public class SVGAnimationDOMInjector {
    // -------------------------------------------------------------------------
    // Line animation
    // -------------------------------------------------------------------------
+
+   /**
+    * Animate the Pareto cumulative-% line using a stroke-dashoffset draw-on effect.
+    * Called from the bar-animation branch so bars animate first; the line begins drawing
+    * only after the last bar has finished.  Ghost fill is intentionally omitted — the Pareto
+    * line reads as a reference curve, not a data series.
+    */
+   private static void injectParetoLineAnimation(List<Element> paretoLines,
+                                                  Element svgRoot, Document doc,
+                                                  double lineDelay)
+   {
+      appendStyle(svgRoot, doc,
+         "@keyframes inetsoft-line-draw{from{stroke-dashoffset:var(--len,2000)}to{stroke-dashoffset:0}}" +
+         "@keyframes inetsoft-line-wipe{from{clip-path:inset(0 100% 0 0)}to{clip-path:inset(0 0% 0 0)}}");
+
+      for(Element g : paretoLines) {
+         Element path = firstDescendantPath(g);
+
+         if(path == null) {
+            continue;
+         }
+
+         boolean isDashed = "true".equals(g.getAttribute("data-" + SVGSupport.ATTR_DASHED));
+
+         if(isDashed) {
+            mergeStyle(path, String.format(java.util.Locale.US,
+               "clip-path:inset(0 100%% 0 0);animation:inetsoft-line-wipe %.2fs cubic-bezier(0.4,0,0.2,1) %.2fs both",
+               AnimationConstants.DURATION, lineDelay));
+         }
+         else {
+            long len = (long) Math.ceil(SVGAnimationInjector.computePathLength(path.getAttribute("d"))) + 2;
+            path.setAttribute("stroke-dasharray", len + " " + len);
+            path.setAttribute("stroke-dashoffset", String.valueOf(len));
+            mergeStyle(path, String.format(java.util.Locale.US,
+               "stroke-dashoffset:%d;--len:%d;animation:inetsoft-line-draw %.2fs cubic-bezier(0.4,0,0.2,1) %.2fs both",
+               len, len, AnimationConstants.DURATION, lineDelay));
+         }
+
+         // Endpoint anchor circles (Batik artifact for dashed lines) — hide permanently.
+         for(Element circle : descendantCircles(g)) {
+            mergeStyle(circle, "opacity:0");
+         }
+      }
+   }
 
    private static void injectLineAnimation(Element svgRoot, Document doc) {
       List<Element> annotLines = collectAnnotationGroups(svgRoot, SVGSupport.ANNOTATION_LINE);

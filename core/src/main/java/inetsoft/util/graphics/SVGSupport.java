@@ -156,6 +156,8 @@ public interface SVGSupport {
    String ATTR_SOURCE = "source";
    /** {@code data-target} — target node's mxCell ID for relation/tree chart edges. */
    String ATTR_TARGET = "target";
+   /** {@code data-pareto} — {@code "true"} on the cumulative-% line in a Pareto chart. */
+   String ATTR_PARETO = "pareto";
 
    /**
     * Redirect all subsequent SVG drawing into a new {@code <g class="cssClass" data-*="...">}
