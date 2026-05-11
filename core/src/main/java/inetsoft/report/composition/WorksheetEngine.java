@@ -51,7 +51,7 @@ import java.util.concurrent.*;
  * @version 8.0
  * @author InetSoft Technology Corp
  */
-public class WorksheetEngine extends SheetLibraryEngine implements WorksheetService {
+public abstract class WorksheetEngine extends SheetLibraryEngine implements WorksheetService {
    /**
     * Constructor.
     * throws RemoteException

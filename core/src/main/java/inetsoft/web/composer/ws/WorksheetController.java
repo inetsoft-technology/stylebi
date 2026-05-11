@@ -41,11 +41,6 @@ import java.util.Arrays;
 
 @Controller
 public class WorksheetController {
-//   protected RuntimeWorksheet getRuntimeWorksheet(Principal principal) throws Exception {
-//      WorksheetService engine = getWorksheetEngine();
-//      return engine.getWorksheet(getRuntimeId(), principal);
-//   }
-
    protected WorksheetService getWorksheetEngine() {
       return wsEngine;
    }

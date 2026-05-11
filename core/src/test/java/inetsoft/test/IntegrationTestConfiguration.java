@@ -22,7 +22,6 @@ import inetsoft.analytic.composition.ViewsheetEngine;
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.mv.MVManager;
 import inetsoft.report.LibManagerProvider;
-import inetsoft.report.composition.WorksheetEngine;
 import inetsoft.report.composition.WorksheetService;
 import inetsoft.report.composition.execution.AssetDataCache;
 import inetsoft.report.composition.execution.DistributedTableCacheStore;
@@ -94,8 +93,8 @@ public class IntegrationTestConfiguration {
 
    @Bean("worksheetService")
    @Primary
-   public WorksheetService worksheetService(AnalyticRepository engine, Cluster cluster) throws Exception {
-      return new WorksheetEngine(engine.unwrap(AssetRepository.class), cluster);
+   public WorksheetService worksheetService(ViewsheetService viewsheetService) {
+      return viewsheetService;
    }
 
    @Bean

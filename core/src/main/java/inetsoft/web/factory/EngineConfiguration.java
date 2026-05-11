@@ -25,7 +25,6 @@ import inetsoft.mv.data.MVStorage;
 import inetsoft.mv.fs.internal.BlockFileStorage;
 import inetsoft.report.LibManagerProvider;
 import inetsoft.report.XSessionManager;
-import inetsoft.report.composition.WorksheetEngine;
 import inetsoft.report.composition.WorksheetService;
 import inetsoft.report.composition.execution.AssetDataCache;
 import inetsoft.report.composition.execution.DistributedTableCacheStore;
@@ -141,18 +140,13 @@ public class EngineConfiguration {
    }
 
    /**
-    * Worksheet composition engine. Depends on AnalyticRepository for its asset store.
+    * Worksheet composition engine. Returns the same ViewsheetEngine instance so that all
+    * runtime worksheet/viewsheet sessions share one local cache and one distributed map entry.
     */
    @Bean("worksheetService")
-   @Lazy
    @Primary
-   public WorksheetService worksheetService(@Lazy AnalyticRepository analyticRepository, @Lazy Cluster cluster) {
-      try {
-         return new WorksheetEngine(analyticRepository.unwrap(AssetRepository.class), cluster);
-      }
-      catch(RemoteException e) {
-         throw new BeanCreationException("worksheetService", "Failed to create WorksheetEngine", e);
-      }
+   public WorksheetService worksheetService(ViewsheetService viewsheetService) {
+      return viewsheetService;
    }
 
    /**
