@@ -138,6 +138,8 @@ public class WizVsService {
             CreateViewsheetResult result = executeAndExtract(rvs, assembly);
             result.setBinding(collectFlatBinding(assembly));
             result.setAssemblyName(assembly.getName());
+            boolean metadataMode = rvs.getViewsheet().getViewsheetInfo().isMetadata();
+            result.setHasData(!metadataMode && result.getRows() != null && !result.getRows().isEmpty());
 
             if(createdRuntimeId) {
                result.setRuntimeId(runtimeId);
