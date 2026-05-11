@@ -3603,6 +3603,7 @@ public abstract class GraphGenerator {
       else if(GraphTypes.isBoxplot(chartType)) {
          PointElement outlier = new PointElement();
          outlier.setSizeFrame(new StaticSizeFrame(1));
+         outlier.setShapeFrame(new StaticShapeFrame(GShape.FILLED_CIRCLE));
 
          elements.add(new SchemaElement(new BoxPainter()));
          elements.add(outlier);
