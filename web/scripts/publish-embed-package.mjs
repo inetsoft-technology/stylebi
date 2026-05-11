@@ -86,7 +86,7 @@ function publish(packageDir, args) {
    log(`Working directory: ${packageDir}`);
 
    if(isDryRun) {
-      process.stdout.write("[dry-run] Would publish package\n");
+      process.stdout.write("[dry-run] Running npm publish in dry-run mode (no actual publish)\n");
    }
 
    const result = spawnSync("npm", npmArgs, {

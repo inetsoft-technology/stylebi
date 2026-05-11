@@ -52,7 +52,6 @@ import {
 import { MiniToolbarModule } from "../../vsobjects/objects/mini-toolbar/mini-toolbar.module";
 import { createCustomElement } from "@angular/elements";
 import { InteractModule } from "../../widget/interact/interact.module";
-import { AdhocFilterService } from "../../vsobjects/objects/data-tip/adhoc-filter.service";
 import { VSObjectModule } from "../../vsobjects/vs-object.module";
 
 
@@ -78,7 +77,6 @@ import { VSObjectModule } from "../../vsobjects/vs-object.module";
       VSTabService,
       RichTextService,
       FullScreenService,
-      AdhocFilterService,
       {
          provide: DialogService,
          useFactory: ViewerDialogServiceFactory,

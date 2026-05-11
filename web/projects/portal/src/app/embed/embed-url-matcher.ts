@@ -72,7 +72,7 @@ export function createEmbedUrlMatcher(url: UrlSegment[]): UrlMatchResult {
          }
          else {
             assetId = url.slice(0, url.length - 1).map((s) => s.path).join("/");
-            const match = /^([14])+\^128\^([^^]+)\^(.+)$/.exec(assetId);
+            const match = /^([14])\^128\^([^^]+)\^(.+)$/.exec(assetId);
 
             if(match) {
                if(match[1] == "1") {
