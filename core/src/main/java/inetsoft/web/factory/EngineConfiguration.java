@@ -144,6 +144,7 @@ public class EngineConfiguration {
     * runtime worksheet/viewsheet sessions share one local cache and one distributed map entry.
     */
    @Bean("worksheetService")
+   @Lazy
    @Primary
    public WorksheetService worksheetService(ViewsheetService viewsheetService) {
       return viewsheetService;
