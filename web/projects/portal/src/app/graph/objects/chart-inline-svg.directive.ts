@@ -504,8 +504,17 @@ export class ChartInlineSvgDirective implements OnDestroy {
     *
     * Each inetsoft-line group is one series. Series are keyed by their DOM order (0, 1, 2 ...)
     * which is guaranteed unique and independent of any color or measure binding.
-    * Point groups are matched to their series via data-color (each series has a distinct color
-    * whether or not an explicit color binding is configured, because the palette assigns one).
+    * Point groups are matched to their series via data-color, scoped per parent element so that
+    * faceted (multi-panel) charts — which repeat the same palette in each panel — do not map
+    * same-color points from different panels to the same series.
+    *
+    * Within a single panel, two matching strategies are used depending on the chart structure:
+    * - If all lines in the panel have unique data-series values (distinct colIndex = multi-measure
+    *   chart), points are matched by data-col (= getColIndex()) for robustness against
+    *   user-configured same-color series.
+    * - If data-series values are not unique (multi-group single-measure chart, where all groups
+    *   share the same colIndex), color-based matching is used instead, since each group's palette
+    *   color is distinct by construction.
     *
     * The 120 ms CLEAR_DELAY_MS debounce prevents flicker when moving between the line group
     * and its point markers (separate sibling groups with a potential gap in hit area).
@@ -515,9 +524,9 @@ export class ChartInlineSvgDirective implements OnDestroy {
       const seriesMap = new Map<string, LineSeries>();
 
       // Group line groups by their parent element so each facet panel gets its own
-      // colorToKey map. Faceted charts repeat the same palette in each panel, so a
-      // flat colorToKey would overwrite earlier entries and attach all same-color
-      // point groups to the last panel's line — causing cross-panel dimming.
+      // matching scope. Faceted charts repeat the same palette in each panel, so a
+      // flat map would overwrite earlier entries and attach same-color points from
+      // different panels to the same series — causing cross-panel dimming.
       const linesByParent = new Map<Element, Element[]>();
       for(const line of lineGroups) {
          const parent = line.parentElement!;
@@ -527,27 +536,51 @@ export class ChartInlineSvgDirective implements OnDestroy {
 
       let globalIdx = 0;
       for(const [parent, parentLines] of linesByParent) {
-         // Collect only the point groups within this panel so color matching is scoped
+         // Collect only the point groups within this panel so matching is scoped
          // to the same facet cell rather than the whole SVG.
          const parentPoints = Array.from(
             parent.querySelectorAll(".inetsoft-point") as NodeListOf<Element>);
 
-         // Build a color → key map scoped to this panel.
+         // Choose matching strategy based on whether data-series (colIndex) is unique
+         // across all lines in this panel.
+         // - Unique → multi-measure chart: use data-col (= colIndex) for robustness.
+         //   Two measures can be assigned the same explicit color; colIndex never collides.
+         // - Not unique → multi-group single-measure chart: all lines share the same colIndex
+         //   (e.g. jumpLine.svg has 7 groups all with data-series="2"). Use data-color instead;
+         //   each group's palette color is distinct so color-based matching is safe.
+         const seriesAttrValues = parentLines
+            .map(l => l.getAttribute("data-series"))
+            .filter((v): v is string => v != null);
+         const useIndexMatching = seriesAttrValues.length === parentLines.length &&
+            new Set(seriesAttrValues).size === parentLines.length;
+
          const colorToKey = new Map<string, string>();
+         const seriesToKey = new Map<string, string>();
          for(const line of parentLines) {
             const key = String(globalIdx++);
             seriesMap.set(key, { line, points: [] });
-            const color = line.getAttribute("data-color");
-            if(color) colorToKey.set(color, key);
+            if(useIndexMatching) {
+               const seriesAttr = line.getAttribute("data-series");
+               if(seriesAttr) seriesToKey.set(seriesAttr, key);
+            }
+            else {
+               const color = line.getAttribute("data-color");
+               if(color) colorToKey.set(color, key);
+            }
          }
 
-         // Match each point in this panel to its series via data-color.
+         // Match each point in this panel to its series.
          for(const point of parentPoints) {
-            const color = point.getAttribute("data-color");
-            if(color) {
-               const key = colorToKey.get(color);
-               if(key != null) seriesMap.get(key)?.points.push(point);
+            let key: string | undefined;
+            if(useIndexMatching) {
+               const col = point.getAttribute("data-col");
+               if(col) key = seriesToKey.get(col);
             }
+            else {
+               const color = point.getAttribute("data-color");
+               if(color) key = colorToKey.get(color);
+            }
+            if(key != null) seriesMap.get(key)?.points.push(point);
          }
       }
 
