@@ -24,7 +24,19 @@ then
     JAVA_OPTS=$(echo "$JAVA_OPTS" | envsubst)
 fi
 
-JAVA_CP="/usr/local/inetsoft/classes:/usr/local/inetsoft/libs/*"
+# Exclude inetsoft-schedule-server from the classpath.
+# Spring AOT generates __BeanDefinitions classes whose method signatures differ per
+# application context. When that JAR shares a flat classpath with inetsoft-server or
+# inetsoft-enterprise-server, the JVM may load the wrong version of these classes,
+# causing NoSuchMethodError at startup.
+# inetsoft-schedule-server is the scheduler app with no role in server execution.
+JAVA_CP="/usr/local/inetsoft/classes"
+for jar in /usr/local/inetsoft/libs/*.jar; do
+    case "$(basename "$jar")" in
+        inetsoft-schedule-server-*.jar) ;;
+        *) JAVA_CP="$JAVA_CP:$jar" ;;
+    esac
+done
 JAVA_OPTS="$JAVA_OPTS \
 -Dlocal.ip.addr=$(hostname -i) \
 -Drmi.localhost.ip=$(hostname -i) \
