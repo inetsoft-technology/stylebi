@@ -35,9 +35,6 @@ import inetsoft.uql.util.XSourceInfo;
 import inetsoft.util.Tool;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.sql.Connection;
-import java.sql.DatabaseMetaData;
 import org.springframework.stereotype.Service;
 
 import java.io.*;
@@ -132,7 +129,7 @@ public class RawDataService {
       String name = table.getProperty("source_with_no_quote");
       String catalog = table.getProperty(XSourceInfo.CATALOG);
       String schema = table.getProperty(XSourceInfo.SCHEMA);
-      name = buildQualifiedTableName(name, catalog, schema, dataSource, principal);
+      name = buildQualifiedTableName(name, catalog, schema, table);
       SelectTable selectTable = sql.addTable(name);
       selectTable.setCatalog(catalog);
       selectTable.setSchema(schema);
@@ -141,28 +138,33 @@ public class RawDataService {
    }
 
    private String buildQualifiedTableName(String name, String catalog, String schema,
-                                          JDBCDataSource dataSource, XPrincipal principal)
+                                          AssetEntry tableEntry)
    {
-      try(Connection conn = new JDBCHandler().getConnection(dataSource, principal)) {
-         DatabaseMetaData meta = conn.getMetaData();
-         StringBuilder qualified = new StringBuilder();
+      // Capability flags are set on the entry by MetadataApiService.buildTableAssetEntry().
+      // For databases with neither catalog nor schema (SQLite, MS Access, etc.) the
+      // catalog/schema strings on the entry are empty, so the Tool.isEmptyString() guards
+      // below are sufficient without consulting the database.
+      boolean supportsCatalog = "true".equals(tableEntry.getProperty("supportCatalog"));
+      boolean supportsSchema = "true".equals(tableEntry.getProperty("hasSchema"));
 
-         if(meta.supportsCatalogsInDataManipulation() && !Tool.isEmptyString(catalog)) {
-            qualified.append(catalog).append(".");
-         }
+      // Strip the catalog prefix already present in name before checking the schema prefix,
+      // so that "mydb.dbo.mytable" does not get a redundant "dbo." prepended.
+      String nameWithoutCatalog = !Tool.isEmptyString(catalog) && name.startsWith(catalog + ".")
+         ? name.substring(catalog.length() + 1)
+         : name;
 
-         if(meta.supportsSchemasInDataManipulation() && !Tool.isEmptyString(schema)) {
-            qualified.append(schema).append(".");
-         }
+      StringBuilder qualified = new StringBuilder();
 
-         qualified.append(name);
-
-         return qualified.toString();
+      if(supportsCatalog && !Tool.isEmptyString(catalog) && !name.startsWith(catalog + ".")) {
+         qualified.append(catalog).append(".");
       }
-      catch(Exception e) {
-         LOG.warn("Failed to build qualified table name for {}, using unqualified name", name, e);
-         return name;
+
+      if(supportsSchema && !Tool.isEmptyString(schema) && !nameWithoutCatalog.startsWith(schema + ".")) {
+         qualified.append(schema).append(".");
       }
+
+      qualified.append(name);
+      return qualified.toString();
    }
 
    private void setupColumns(JDBCQuery query, AssetEntry[] entries) {
