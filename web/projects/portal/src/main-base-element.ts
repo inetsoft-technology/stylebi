@@ -29,6 +29,8 @@ if(environment.production) {
 window.inetsoftConnected = new BehaviorSubject(false);
 
 window.inetsoftLogin = function inetsoftLogin(userName: string, password: string): void {
+   console.log("============inetsoftLogin ", userName, password);
+
    fetch(getInetsoftBase(), {
       "headers": {
          "X-Requested-With": "XMLHttpRequest",

@@ -19,13 +19,23 @@
 import { ApplicationRef, DoBootstrap, NgModule } from "@angular/core";
 import { AppRoutingModule } from "../app-routing.module";
 import { EmbedChartModule } from "./chart/embed-chart.module";
+import { EmbedCrosstabModule } from "./crosstab/embed-crosstab.module";
+import { EmbedTableModule } from "./table/embed-table.module";
+import { EmbedGaugeModule } from "./gauge/embed-gauge.module";
+import { EmbedImageModule } from "./image/embed-image.module";
+import { EmbedTextModule } from "./text/embed-text.module";
 import { AppBaseElementModule } from "./app-base-element.module";
 
 @NgModule({
    imports: [
       AppBaseElementModule,
       AppRoutingModule,
-      EmbedChartModule
+      EmbedChartModule,
+      EmbedCrosstabModule,
+      EmbedTableModule,
+      EmbedGaugeModule,
+      EmbedImageModule,
+      EmbedTextModule
    ],
    providers: [],
 })
