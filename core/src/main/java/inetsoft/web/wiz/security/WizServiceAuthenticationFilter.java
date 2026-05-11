@@ -166,6 +166,10 @@ public class WizServiceAuthenticationFilter extends AbstractSecurityFilter {
          // @PostConstruct may have run before SreeEnv was ready; retry loading lazily.
          try {
             ssoKeyPair = PasswordEncryption.newInstance().getSSOKeyPair();
+
+            if(ssoKeyPair == null) {
+               throw new WizAuthenticationException("SSO key pair not initialized");
+            }
          }
          catch(IOException e) {
             LOG.error("Failed to lazily load SSO key pair for WIZ service authentication", e);
@@ -385,7 +389,7 @@ public class WizServiceAuthenticationFilter extends AbstractSecurityFilter {
       response.getWriter().write("{\"error\":\"" + escaped + "\"}");
    }
 
-   private KeyPair ssoKeyPair;
+   private volatile KeyPair ssoKeyPair;
 
    private static final String AUTHORIZATION_HEADER = "Authorization";
    private static final String BEARER_PREFIX = "Bearer ";
