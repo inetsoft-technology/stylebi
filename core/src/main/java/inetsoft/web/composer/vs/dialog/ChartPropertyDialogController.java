@@ -248,6 +248,11 @@ public class ChartPropertyDialogController {
          tipCustomizeDialogModel.setCombinedTip(true);
       }
 
+      tipCustomizeDialogModel.setTooltipStyle(
+         vsChartInfo.getTooltipStyle() == ChartInfo.TooltipStyle.CARD
+            ? TipCustomizeDialogModel.TooltipStyle.CARD
+            : TipCustomizeDialogModel.TooltipStyle.DEFAULT);
+
       int chartStyle = vsChartInfo.getChartStyle();
 
       tipCustomizeDialogModel.setLineChart(!vsChartInfo.isMultiStyles() &&
@@ -477,6 +482,11 @@ public class ChartPropertyDialogController {
          vsChartInfo.setToolTipValue(null);
          vsChartInfo.setCombinedToolTipValue(tipModel.isCombinedTip());
       }
+
+      vsChartInfo.setTooltipStyle(
+         tipModel.getTooltipStyle() == TipCustomizeDialogModel.TooltipStyle.CARD
+            ? ChartInfo.TooltipStyle.CARD
+            : ChartInfo.TooltipStyle.DEFAULT);
 
       ChartAdvancedPaneModel advancePane = value.getChartAdvancedPaneModel();
 

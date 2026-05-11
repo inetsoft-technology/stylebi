@@ -828,6 +828,21 @@ public interface ChartInfo extends AssetObject, ChartBindable {
    void setTooltipVisible(boolean tooltipVisible);
 
    /**
+    * Visual style for chart tooltips.
+    */
+   enum TooltipStyle { DEFAULT, CARD }
+
+   /**
+    * Get the tooltip visual style.
+    */
+   TooltipStyle getTooltipStyle();
+
+   /**
+    * Set the tooltip visual style.
+    */
+   void setTooltipStyle(TooltipStyle tooltipStyle);
+
+   /**
     * Get runtime field by a full name.
     * @param name the specified field full name or name.
     * @return the runtime field.

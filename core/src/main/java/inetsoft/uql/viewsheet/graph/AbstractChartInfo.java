@@ -2449,6 +2449,7 @@ public abstract class AbstractChartInfo implements ChartInfo, AssetObject {
       writer.print(" heightResized=\"" + isHeightResized() + "\"");
       writer.print(" donut=\"" + donut + "\" ");
       writer.print(" tooltipVisible=\"" + tooltipVisible + "\" ");
+      writer.print(" tooltipStyle=\"" + tooltipStyle.name() + "\" ");
 
       if(mapType != null && !"null".equals(mapType)) {
          writer.print(" mapType=\"" + mapType + "\" ");
@@ -2709,6 +2710,20 @@ public abstract class AbstractChartInfo implements ChartInfo, AssetObject {
       mapType = Tool.getAttribute(elem, "mapType");
       donut = "true".equals(Tool.getAttribute(elem, "donut"));
       tooltipVisible = !"false".equals(Tool.getAttribute(elem, "tooltipVisible"));
+      // Legacy charts (attribute absent) keep the original tooltip look. A chart
+      // round-tripped through an older server will also lose its CARD setting,
+      // since the older writer strips the unknown attribute.
+      String tooltipStyleAttr = Tool.getAttribute(elem, "tooltipStyle");
+      tooltipStyle = TooltipStyle.DEFAULT;
+
+      if(tooltipStyleAttr != null) {
+         try {
+            tooltipStyle = TooltipStyle.valueOf(tooltipStyleAttr);
+         }
+         catch(IllegalArgumentException ignore) {
+            // Unknown value from a future version: fall back to DEFAULT.
+         }
+      }
    }
 
    /**
@@ -3577,6 +3592,16 @@ public abstract class AbstractChartInfo implements ChartInfo, AssetObject {
       this.tooltipVisible = tooltipVisible;
    }
 
+   @Override
+   public TooltipStyle getTooltipStyle() {
+      return tooltipStyle;
+   }
+
+   @Override
+   public void setTooltipStyle(TooltipStyle tooltipStyle) {
+      this.tooltipStyle = tooltipStyle == null ? TooltipStyle.DEFAULT : tooltipStyle;
+   }
+
    /**
     * Judge whether the date type dimension is an outer dimension.
     */
@@ -3859,6 +3884,7 @@ public abstract class AbstractChartInfo implements ChartInfo, AssetObject {
    private transient ChartDescriptor chartDescriptor;
    private String customTooltip;
    private boolean tooltipVisible = true;
+   private TooltipStyle tooltipStyle = TooltipStyle.CARD;
    private HighlightGroup highlightGroup;
    private HighlightGroup textHL;
 

@@ -22,6 +22,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class TipCustomizeDialogModel {
    public enum TipFormat { DEFAULT, CUSTOM, NONE };
+   public enum TooltipStyle { DEFAULT, CARD };
 
    public boolean isChart() {
       return chart;
@@ -79,6 +80,14 @@ public class TipCustomizeDialogModel {
       this.availableTipValues = availableTipValues;
    }
 
+   public TooltipStyle getTooltipStyle() {
+      return tooltipStyle;
+   }
+
+   public void setTooltipStyle(TooltipStyle tooltipStyle) {
+      this.tooltipStyle = tooltipStyle;
+   }
+
    private TipFormat customRB;
    private boolean combinedTip;
    private boolean lineChart;
@@ -86,4 +95,5 @@ public class TipCustomizeDialogModel {
    private String customTip;
    private String[] dataRefList;
    private String[] availableTipValues;
+   private TooltipStyle tooltipStyle = TooltipStyle.DEFAULT;
 }

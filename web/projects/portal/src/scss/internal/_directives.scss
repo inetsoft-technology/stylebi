@@ -216,6 +216,25 @@ table.scrollable-table {
   //flex-direction: column;
 }
 
+.widget__card-tooltip {
+  max-width: 40vw;
+  max-height: 40vh;
+  overflow: hidden;
+  text-align: center;
+
+  color: var(--inet-text-color);
+  background-color: var(--inet-dialog-bg-color);
+  border: 1px solid var(--inet-default-border-color);
+  border-radius: 8px;
+  box-shadow: var(--inet-shadow-low);
+  padding: 12px 16px;
+  margin: 3px;
+
+  .tt-tier-1 { font-size: 16px; font-weight: 600; line-height: 1.2; }
+  .tt-tier-2 { font-size: 13px; margin-top: 6px; opacity: 0.9; }
+  .tt-tier-3 { font-size: 11px; margin-top: 4px; opacity: 0.7; }
+}
+
 .hidden__annotation-tooltip {
   overflow: hidden;
   white-space: pre-wrap;
