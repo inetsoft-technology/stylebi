@@ -120,7 +120,7 @@ public class SVGAnimationDOMInjector {
          animated = true;
 
          // Pareto charts have both bars and a cumulative-% line.  Animate the line after the
-         // last bar finishes (no ghost fill, no stagger — there is always exactly one line).
+         // last bar finishes (no ghost fill, no stagger — typically exactly one line).
          List<Element> annotLines = collectAnnotationGroups(svgRoot, SVGSupport.ANNOTATION_LINE);
          List<Element> paretoLines = annotLines.stream()
             .filter(g -> "true".equals(g.getAttribute("data-" + SVGSupport.ATTR_PARETO)))
@@ -745,6 +745,49 @@ public class SVGAnimationDOMInjector {
    // -------------------------------------------------------------------------
 
    /**
+    * Apply the draw-on animation to a single line path and hide any Batik endpoint circles.
+    *
+    * <p>Solid lines use a {@code stroke-dashoffset} draw-on; dashed lines use a
+    * {@code clip-path:inset} left-to-right wipe that preserves the dash pattern.
+    * Endpoint circles emitted by Batik as dashed-line anchors are hidden unconditionally
+    * (they are visual artifacts regardless of dash state).
+    *
+    * <p>This helper is shared by {@link #injectLineAnimationFromAnnotations} (line/area charts)
+    * and {@link #injectParetoLineAnimation} (Pareto overlay line) so timing constants and
+    * keyframe names stay in one place.
+    */
+   private static void applyLineDrawAnimation(Element g, Element path, double delay) {
+      boolean isDashed = "true".equals(g.getAttribute("data-" + SVGSupport.ATTR_DASHED));
+
+      if(isDashed) {
+         // Clip-path wipe — leaves stroke-dasharray pattern intact.
+         // clip-path:inset(0 100% 0 0) mirrors the from-keyframe to prevent a flash on
+         // the first paint frame before fill-mode takes effect.
+         // Keeps cubic-bezier easing (ease-in-out) which is correct for a left-to-right reveal.
+         mergeStyle(path, String.format(java.util.Locale.US,
+            "clip-path:inset(0 100%% 0 0);animation:inetsoft-line-wipe %.2fs cubic-bezier(0.4,0,0.2,1) %.2fs both",
+            AnimationConstants.DURATION, delay));
+      }
+      else {
+         // Stroke-dashoffset draw-on.
+         // Add 2 to the ceiling so the dasharray is always strictly longer than the actual path.
+         // Keeps cubic-bezier easing (ease-in-out) which is correct for a progressive draw-on.
+         long len = (long) Math.ceil(SVGAnimationInjector.computePathLength(path.getAttribute("d"))) + 2;
+         path.setAttribute("stroke-dasharray", len + " " + len);
+         path.setAttribute("stroke-dashoffset", String.valueOf(len));
+         mergeStyle(path, String.format(java.util.Locale.US,
+            "stroke-dashoffset:%d;--len:%d;animation:inetsoft-line-draw %.2fs cubic-bezier(0.4,0,0.2,1) %.2fs both",
+            len, len, AnimationConstants.DURATION, delay));
+      }
+
+      // Batik renders small circles as visual endpoint anchors for dashed lines; they are
+      // artifacts in animated SVG and must be hidden regardless of dash state.
+      for(Element circle : descendantCircles(g)) {
+         mergeStyle(circle, "opacity:0");
+      }
+   }
+
+   /**
     * Animate the Pareto cumulative-% line using a stroke-dashoffset draw-on effect.
     * Called from the bar-animation branch so bars animate first; the line begins drawing
     * only after the last bar has finished.  Ghost fill is intentionally omitted — the Pareto
@@ -765,26 +808,7 @@ public class SVGAnimationDOMInjector {
             continue;
          }
 
-         boolean isDashed = "true".equals(g.getAttribute("data-" + SVGSupport.ATTR_DASHED));
-
-         if(isDashed) {
-            mergeStyle(path, String.format(java.util.Locale.US,
-               "clip-path:inset(0 100%% 0 0);animation:inetsoft-line-wipe %.2fs cubic-bezier(0.4,0,0.2,1) %.2fs both",
-               AnimationConstants.DURATION, lineDelay));
-         }
-         else {
-            long len = (long) Math.ceil(SVGAnimationInjector.computePathLength(path.getAttribute("d"))) + 2;
-            path.setAttribute("stroke-dasharray", len + " " + len);
-            path.setAttribute("stroke-dashoffset", String.valueOf(len));
-            mergeStyle(path, String.format(java.util.Locale.US,
-               "stroke-dashoffset:%d;--len:%d;animation:inetsoft-line-draw %.2fs cubic-bezier(0.4,0,0.2,1) %.2fs both",
-               len, len, AnimationConstants.DURATION, lineDelay));
-         }
-
-         // Endpoint anchor circles (Batik artifact for dashed lines) — hide permanently.
-         for(Element circle : descendantCircles(g)) {
-            mergeStyle(circle, "opacity:0");
-         }
+         applyLineDrawAnimation(g, path, lineDelay);
       }
    }
 
@@ -875,29 +899,7 @@ public class SVGAnimationDOMInjector {
             seriesIdx = lineSeriesRank.getOrDefault(col, 0);
          }
 
-         double delay     = AnimationConstants.staggerDelay(seriesIdx, numSeries);
-         boolean isDashed = "true".equals(g.getAttribute("data-" + SVGSupport.ATTR_DASHED));
-
-         if(isDashed) {
-            // Clip-path wipe — leaves stroke-dasharray pattern intact.
-            // clip-path:inset(0 100% 0 0) mirrors the from-keyframe to prevent a flash on
-            // the first paint frame before fill-mode takes effect.
-            // Keeps cubic-bezier easing (ease-in-out) which is correct for a left-to-right reveal.
-            mergeStyle(path, String.format(
-               "clip-path:inset(0 100%% 0 0);animation:inetsoft-line-wipe %.2fs cubic-bezier(0.4,0,0.2,1) %.2fs both",
-               AnimationConstants.DURATION, delay));
-         }
-         else {
-            // Stroke-dashoffset draw-on.
-            // Add 2 to the ceiling so the dasharray is always strictly longer than the actual path.
-            // Keeps cubic-bezier easing (ease-in-out) which is correct for a progressive draw-on.
-            long len = (long) Math.ceil(SVGAnimationInjector.computePathLength(path.getAttribute("d"))) + 2;
-            path.setAttribute("stroke-dasharray", len + " " + len);
-            path.setAttribute("stroke-dashoffset", String.valueOf(len));
-            mergeStyle(path, String.format(
-               "stroke-dashoffset:%d;--len:%d;animation:inetsoft-line-draw %.2fs cubic-bezier(0.4,0,0.2,1) %.2fs both",
-               len, len, AnimationConstants.DURATION, delay));
-         }
+         double delay = AnimationConstants.staggerDelay(seriesIdx, numSeries);
 
          // Ghost fill — color comes from data-color annotation, not from SVG stroke parsing.
          // The transform lives on Batik's inner style group (path's parent), not on the annotation
@@ -925,11 +927,7 @@ public class SVGAnimationDOMInjector {
             }
          }
 
-         // Endpoint marker circles inside the annotation group (rendered by Batik for dashed lines
-         // as visual endpoint anchors). These are artifacts in animated SVG — hide them permanently.
-         for(Element circle : descendantCircles(g)) {
-            mergeStyle(circle, "opacity:0");
-         }
+         applyLineDrawAnimation(g, path, delay);
       }
 
       // Area fill groups — wipe left-to-right; reshape into non-overlapping bands.
