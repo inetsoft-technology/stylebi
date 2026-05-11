@@ -150,7 +150,7 @@ public class PointVO extends ElementVO {
 
       if(svg != null) {
          Color pointColor = gobj.getColor(0);
-         Map<String, String> annotAttrs = new java.util.HashMap<>();
+         Map<String, String> annotAttrs = new HashMap<>();
          annotAttrs.put(SVGSupport.ATTR_COL,   String.valueOf(getColIndex()));
          annotAttrs.put(SVGSupport.ATTR_ROW,   String.valueOf(getRowIndex()));
          annotAttrs.put(SVGSupport.ATTR_SIZE,  String.valueOf(radius));

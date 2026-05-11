@@ -2682,6 +2682,9 @@ public class SVGAnimationDOMInjector {
          // values across siblings without knowing them at CSS-generation time.
          // pointer-events:all makes the full bounding box a hit area so narrow jump/step
          // segments activate without requiring precise hover over the stroke pixels.
+         // Note: area charts also emit inetsoft-line groups for their upper edge, so this rule
+         // applies to area charts as well. That is intentional — the opacity transition gives
+         // area series a smooth fade-in/fade-out on hover, exactly as for pure line series.
          ".inetsoft-line{pointer-events:all;transition:" + tr + "}");
    }
 

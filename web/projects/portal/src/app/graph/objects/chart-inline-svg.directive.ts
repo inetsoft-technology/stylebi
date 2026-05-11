@@ -511,29 +511,48 @@ export class ChartInlineSvgDirective implements OnDestroy {
     * and its point markers (separate sibling groups with a potential gap in hit area).
     */
    private setupLineSeriesHover(lineGroups: Element[]): void {
-      const allPoints = Array.from(
-         this.element.nativeElement.querySelectorAll(".inetsoft-point") as NodeListOf<Element>);
-
       type LineSeries = { line: Element; points: Element[] };
       const seriesMap = new Map<string, LineSeries>();
-      // Reverse map: data-color value → series key (DOM index string).
-      const colorToKey = new Map<string, string>();
 
-      for(let i = 0; i < lineGroups.length; i++) {
-         const key = String(i);
-         seriesMap.set(key, { line: lineGroups[i], points: [] });
-         const color = lineGroups[i].getAttribute("data-color");
-         if(color) colorToKey.set(color, key);
+      // Group line groups by their parent element so each facet panel gets its own
+      // colorToKey map. Faceted charts repeat the same palette in each panel, so a
+      // flat colorToKey would overwrite earlier entries and attach all same-color
+      // point groups to the last panel's line — causing cross-panel dimming.
+      const linesByParent = new Map<Element, Element[]>();
+      for(const line of lineGroups) {
+         const parent = line.parentElement!;
+         if(!linesByParent.has(parent)) linesByParent.set(parent, []);
+         linesByParent.get(parent)!.push(line);
       }
 
-      // Match each point to its series via data-color (same color = same series).
-      for(const point of allPoints) {
-         const color = point.getAttribute("data-color");
-         if(color) {
-            const key = colorToKey.get(color);
-            if(key != null) seriesMap.get(key)?.points.push(point);
+      let globalIdx = 0;
+      for(const [parent, parentLines] of linesByParent) {
+         // Collect only the point groups within this panel so color matching is scoped
+         // to the same facet cell rather than the whole SVG.
+         const parentPoints = Array.from(
+            parent.querySelectorAll(".inetsoft-point") as NodeListOf<Element>);
+
+         // Build a color → key map scoped to this panel.
+         const colorToKey = new Map<string, string>();
+         for(const line of parentLines) {
+            const key = String(globalIdx++);
+            seriesMap.set(key, { line, points: [] });
+            const color = line.getAttribute("data-color");
+            if(color) colorToKey.set(color, key);
+         }
+
+         // Match each point in this panel to its series via data-color.
+         for(const point of parentPoints) {
+            const color = point.getAttribute("data-color");
+            if(color) {
+               const key = colorToKey.get(color);
+               if(key != null) seriesMap.get(key)?.points.push(point);
+            }
          }
       }
+
+      const allPoints = Array.from(
+         this.element.nativeElement.querySelectorAll(".inetsoft-point") as NodeListOf<Element>);
 
       if(seriesMap.size === 0) return;
 
@@ -595,6 +614,10 @@ export class ChartInlineSvgDirective implements OnDestroy {
          clearTimeout(this.lineSeriesClearTimer);
          this.lineSeriesClearTimer = null;
       }
+      // Note: the pointer-events inline style set on point groups in setupLineSeriesHover
+      // is intentionally NOT reset here. This method is always called from afterSvgInjected(),
+      // which replaces the entire innerHTML before teardown — the old elements are already
+      // detached from the DOM, so resetting their styles would be a no-op.
    }
 
    private onAreaMouseMove(e: MouseEvent): void {
