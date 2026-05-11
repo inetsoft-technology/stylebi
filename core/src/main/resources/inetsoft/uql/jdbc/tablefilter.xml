@@ -74,6 +74,8 @@
     <database type="7">
         <catalog>master</catalog>
         <catalog>msdb</catalog>
+        <schema>sys</schema>
+        <schema>INFORMATION_SCHEMA</schema>
     </database>
 </tablefilter>
 
