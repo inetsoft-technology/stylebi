@@ -905,6 +905,12 @@ public class WizVsService {
       }
       else if(vsAssembly instanceof OutputVSAssembly outputVSAssembly && config.getBindingInfo() instanceof OutputBinding outputBinding) {
          ScalarBindingInfo sbinfo = outputVSAssembly.getScalarBindingInfo();
+
+         if(sbinfo == null) {
+            sbinfo = new ScalarBindingInfo();
+            outputVSAssembly.setScalarBindingInfo(sbinfo);
+         }
+
          sbinfo.setTableName(tname);
 
          if(outputBinding.getField() != null) {
@@ -1374,16 +1380,20 @@ public class WizVsService {
 
    private GaugeVSAssembly createGaugeAssembly(Viewsheet vs, String name)
    {
-      GaugeVSAssembly assembly = new GaugeVSAssembly(vs, name);
-      assembly.initDefaultFormat();
-      return assembly;
+      GaugeVSAssembly gauge = new GaugeVSAssembly(vs, name);
+      gauge.initDefaultFormat();
+      gauge.setScalarBindingInfo(new ScalarBindingInfo());
+
+      return gauge;
    }
 
    private TextVSAssembly createTextAssembly(Viewsheet vs, String name)
    {
-      TextVSAssembly assembly = new TextVSAssembly(vs, name);
-      assembly.initDefaultFormat();
-      return assembly;
+      TextVSAssembly text = new TextVSAssembly(vs, name);
+      text.initDefaultFormat();
+      text.setScalarBindingInfo(new ScalarBindingInfo());
+
+      return text;
    }
 
    private ImageVSAssembly createImageAssembly(Viewsheet vs, String name,
@@ -1438,8 +1448,8 @@ public class WizVsService {
 
       if(dim != null && dim.getRanking() != null) {
          Ranking ranking = dim.getRanking();
-         ref.setRankingN(ranking.getRankingN());
-         ref.setRankingCol(ranking.getRankingCol());
+         ref.setRankingNValue(String.valueOf(ranking.getRankingN()));
+         ref.setRankingColValue(ranking.getRankingCol());
          ref.setRankingOptionValue(String.valueOf(ranking.getOptionValue()));
       }
 
@@ -1460,8 +1470,8 @@ public class WizVsService {
 
       if(field.getRanking() != null) {
          Ranking ranking = field.getRanking();
-         ref.setRankingN(ranking.getRankingN());
-         ref.setRankingCol(ranking.getRankingCol());
+         ref.setRankingNValue(String.valueOf(ranking.getRankingN()));
+         ref.setRankingColValue(ranking.getRankingCol());
          ref.setRankingOptionValue(String.valueOf(ranking.getOptionValue()));
       }
 
