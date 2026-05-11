@@ -964,6 +964,7 @@ public class WizVsService {
                                                VisualizationConfig config)
    {
       ChartVSAssembly chart = new ChartVSAssembly(vs, name);
+      chart.initDefaultFormat();
       VSChartInfo chartInfo = createVSChartInfo(chartType);
       chartInfo.setChartType(chartType);
       chart.setVSChartInfo(chartInfo);
@@ -1313,6 +1314,7 @@ public class WizVsService {
                                                VisualizationConfig config)
    {
       TableVSAssembly table = new TableVSAssembly(vs, name);
+      table.initDefaultFormat();
 
       if(config != null && config.getBindingInfo() instanceof TableBinding binding
          && binding.getDetails() != null)
@@ -1372,18 +1374,23 @@ public class WizVsService {
 
    private GaugeVSAssembly createGaugeAssembly(Viewsheet vs, String name)
    {
-      return new GaugeVSAssembly(vs, name);
+      GaugeVSAssembly assembly = new GaugeVSAssembly(vs, name);
+      assembly.initDefaultFormat();
+      return assembly;
    }
 
    private TextVSAssembly createTextAssembly(Viewsheet vs, String name)
    {
-      return new TextVSAssembly(vs, name);
+      TextVSAssembly assembly = new TextVSAssembly(vs, name);
+      assembly.initDefaultFormat();
+      return assembly;
    }
 
    private ImageVSAssembly createImageAssembly(Viewsheet vs, String name,
                                                VisualizationConfig config)
    {
       ImageVSAssembly image = new ImageVSAssembly(vs, name);
+      image.initDefaultFormat();
 
       if(config != null && config.getBindingInfo() instanceof ImageBinding binding
          && binding.getImage() != null)

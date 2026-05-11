@@ -49,8 +49,8 @@ import { ComponentTool } from "../../common/util/component-tool";
 import { NgbModal, NgbModalConfig } from "@ng-bootstrap/ng-bootstrap";
 import { MiniToolbarService } from "../../vsobjects/objects/mini-toolbar/mini-toolbar.service";
 import { ScaleService } from "../../widget/services/scale/scale-service";
-import { VSChartModel } from "../../vsobjects/model/vs-chart-model";
-import { EmbedChartActions } from "./embed-chart-actions";
+import { VSTableModel } from "../../vsobjects/model/vs-table-model";
+import { EmbedTableActions } from "./embed-table-actions";
 import { ContextProvider } from "../../vsobjects/context-provider.service";
 import { AssemblyActionGroup } from "../../common/action/assembly-action-group";
 import { DropdownRef } from "../../widget/fixed-dropdown/fixed-dropdown-ref";
@@ -59,7 +59,7 @@ import {
    ActionsContextmenuComponent
 } from "../../widget/fixed-dropdown/actions-contextmenu.component";
 import { FixedDropdownService } from "../../widget/fixed-dropdown/fixed-dropdown.service";
-import { EMBED_CHART_URL_MATCHER } from "./app-routing.module";
+import { EMBED_TABLE_URL_MATCHER } from "./app-routing.module";
 import { DownloadService } from "../../../../../shared/download/download.service";
 import { TooltipService } from "../../widget/tooltip/tooltip.service";
 import { ShadowDomService } from "../shadow-dom.service";
@@ -81,9 +81,9 @@ const COLLECT_PARAMS_URI: string = "/events/vs/collectParameters";
 declare const window: any;
 
 @Component({
-   selector: "embed-chart",
-   templateUrl: "./embed-chart.component.html",
-   styleUrls: ["./embed-chart.component.scss"],
+   selector: "embed-table",
+   templateUrl: "./embed-table.component.html",
+   styleUrls: ["./embed-table.component.scss"],
    providers: [
       ViewsheetClientService,
       DownloadService,
@@ -96,12 +96,12 @@ declare const window: any;
       AdhocFilterService
    ]
 })
-export class EmbedChartComponent extends CommandProcessor implements OnInit, OnDestroy, AfterViewInit {
+export class EmbedTableComponent extends CommandProcessor implements OnInit, OnDestroy, AfterViewInit {
    @Input() url: string;
    appSize: Dimension;
    assemblySize: Dimension;
    vsInfo: ViewsheetInfo;
-   vsObject: VSChartModel;
+   vsObject: VSTableModel;
    vsObjectActions: AbstractVSActions<any>;
    assetId: string;
    assemblyName: string;
@@ -159,11 +159,10 @@ export class EmbedChartComponent extends CommandProcessor implements OnInit, OnD
    }
 
    ngOnInit(): void {
-      console.log("============chart url ", this.url);
       // custom element url
       if(this.url) {
          const tree = this.router.parseUrl(this.url);
-         const result = EMBED_CHART_URL_MATCHER(tree.root?.children?.primary?.segments);
+         const result = EMBED_TABLE_URL_MATCHER(tree.root?.children?.primary?.segments);
          this.assetId = result.posParams?.assetId?.path;
          this.assemblyName = result.posParams?.assemblyName?.path;
          this.inputRuntimeId = result.posParams?.runtimeId?.path;
@@ -223,7 +222,7 @@ export class EmbedChartComponent extends CommandProcessor implements OnInit, OnD
       this.tooltipService.container = this.viewerRoot.nativeElement;
       this.modalConfig.container = this.viewerRoot.nativeElement;
       this.dropdownService.container = this.viewerRoot.nativeElement;
-      // handle dropdown in a dialog outside the bounds of the chart element
+      // handle dropdown in a dialog outside the bounds of the table element
       this.dropdownService.allowPositionOutsideContainer = true;
       this.dialogService.container = this.viewerRoot.nativeElement;
    }
@@ -280,17 +279,17 @@ export class EmbedChartComponent extends CommandProcessor implements OnInit, OnD
       }
 
       if(this.vsObject) {
-         this.vsObject = <VSChartModel>VSUtil.replaceObject(Tool.clone(this.vsObject), command.model);
+         this.vsObject = <VSTableModel>VSUtil.replaceObject(Tool.clone(this.vsObject), command.model);
       }
       else {
-         this.vsObject = <VSChartModel>command.model;
+         this.vsObject = <VSTableModel>command.model;
       }
 
       this.vsObject.active = true;
       this.updateVSInfo();
 
       if(this.vsObject) {
-         this.vsObjectActions = new EmbedChartActions(this.vsObject, null,
+         this.vsObjectActions = new EmbedTableActions(this.vsObject, null,
             this.contextProvider, false, null, null, this.miniToolbarService);
       }
    }
@@ -302,14 +301,14 @@ export class EmbedChartComponent extends CommandProcessor implements OnInit, OnD
       }
 
       if(!this.vsObject) {
-         this.vsObject = <VSChartModel> command.info;
+         this.vsObject = <VSTableModel> command.info;
       }
       else {
-         this.vsObject = <VSChartModel>VSUtil.replaceObject(Tool.clone(this.vsObject), command.info);
+         this.vsObject = <VSTableModel>VSUtil.replaceObject(Tool.clone(this.vsObject), command.info);
       }
 
       this.vsObject.active = true;
-      this.vsObjectActions = new EmbedChartActions(this.vsObject, null,
+      this.vsObjectActions = new EmbedTableActions(this.vsObject, null,
          this.contextProvider, false, null, null, this.miniToolbarService);
    }
 
@@ -339,12 +338,6 @@ export class EmbedChartComponent extends CommandProcessor implements OnInit, OnD
          return false;
       }
 
-      if(this.vsObject.objectType == "VSChart" && (<any>this.vsObject).showPlotResizers &&
-         (<any>this.vsObject).horizontallyResizable)
-      {
-         return false;
-      }
-
       return true;
    }
 
@@ -355,8 +348,6 @@ export class EmbedChartComponent extends CommandProcessor implements OnInit, OnD
    public getToolbarLeft(object: VSObjectModel): number {
       let left: number;
 
-      // 1. the left property of max mode has setting to 0 in server
-      // 2. some max mode assembly has not start from 0. e.g. selection list.
       left = object.objectFormat.left;
       const containerBounds = this.viewerRoot.nativeElement.getBoundingClientRect();
 
@@ -567,7 +558,7 @@ export class EmbedChartComponent extends CommandProcessor implements OnInit, OnD
          return;
       }
 
-      this.debounceService.debounce("embed-chart-vs-resize" + this.runtimeId, () => {
+      this.debounceService.debounce("embed-table-vs-resize" + this.runtimeId, () => {
          if(this.inputRuntimeId) {
             const refreshEvent: RefreshVsAssemblyEvent = {
                vsRuntimeId: this.runtimeId,
@@ -585,4 +576,3 @@ export class EmbedChartComponent extends CommandProcessor implements OnInit, OnD
       }, 100, []);
    }
 }
-
