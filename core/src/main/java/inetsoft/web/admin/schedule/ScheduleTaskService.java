@@ -650,8 +650,8 @@ public class ScheduleTaskService {
       }
    }
 
-   void sanitizeConditions(ScheduleTask task, ScheduleTask originalTask,
-                           Principal principal)
+   public void sanitizeConditions(ScheduleTask task, ScheduleTask originalTask,
+                                  Principal principal)
    {
       boolean canSetStartTime = scheduleService.checkPermission(
          principal, ResourceType.SCHEDULE_OPTION, "startTime");
@@ -709,8 +709,8 @@ public class ScheduleTaskService {
       }
    }
 
-   void sanitizeAction(ScheduleAction action, ScheduleAction originalAction,
-                       Principal principal)
+   public void sanitizeAction(ScheduleAction action, ScheduleAction originalAction,
+                              Principal principal)
    {
       if(!(action instanceof ViewsheetAction vsa)) {
          return;
