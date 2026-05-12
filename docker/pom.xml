@@ -363,8 +363,8 @@
           <to>
             <image>${inetsoft.docker.repository}/stylebi-community</image>
             <tags>
-              <tag>0.1</tag>
-              <tag>0.1.${docker.build.version}</tag>
+              <tag>1.2</tag>
+              <tag>1.2.${docker.build.version}</tag>
             </tags>
           </to>
           <container>
