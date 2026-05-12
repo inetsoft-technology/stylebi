@@ -18,7 +18,9 @@
 
 package inetsoft.web.wiz.model;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 import java.util.List;
 import java.util.Objects;
@@ -32,6 +34,12 @@ public class WorksheetConstructionModel {
    private List<TableSetOperation> tableSetOperations;
    private List<Condition> filters;
    private List<OrderByInfo> orderBy;
+   @JsonProperty("groupBy")
+   private List<GroupByField> groupBy;
+   private List<AggregateField> aggregates;
+   private List<HavingCondition> having;
+   @JsonProperty("isPreAggregated")
+   private Boolean isPreAggregated;
 
    public String getName() {
       return name;
@@ -87,6 +95,48 @@ public class WorksheetConstructionModel {
 
    public void setOrderBy(List<OrderByInfo> orderBy) {
       this.orderBy = orderBy;
+   }
+
+   public List<GroupByField> getGroupBy() {
+      return groupBy;
+   }
+
+   public void setGroupBy(List<GroupByField> groupBy) {
+      this.groupBy = groupBy;
+   }
+
+   public List<AggregateField> getAggregates() {
+      return aggregates;
+   }
+
+   public void setAggregates(List<AggregateField> aggregates) {
+      this.aggregates = aggregates;
+   }
+
+   public List<HavingCondition> getHaving() {
+      return having;
+   }
+
+   public void setHaving(List<HavingCondition> having) {
+      this.having = having;
+   }
+
+   public Boolean getIsPreAggregated() {
+      return isPreAggregated;
+   }
+
+   public void setIsPreAggregated(Boolean isPreAggregated) {
+      this.isPreAggregated = isPreAggregated;
+   }
+
+   // Alias setter for snake_case from TypeScript
+   public void setGroupBySnakeCase(List<GroupByField> groupBy) {
+      this.groupBy = groupBy;
+   }
+
+   // Alias setter for snake_case from TypeScript
+   public void setIsPreAggregatedSnakeCase(Boolean isPreAggregated) {
+      this.isPreAggregated = isPreAggregated;
    }
 
    @JsonIgnoreProperties(ignoreUnknown = true)
@@ -375,6 +425,193 @@ public class WorksheetConstructionModel {
 
    public static enum Direction {
       ASC, DESC
+   }
+
+   /**
+    * Represents a field to group by for aggregate queries.
+    */
+   @JsonIgnoreProperties(ignoreUnknown = true)
+   public static class GroupByField {
+      private String fieldName;
+      private TableInfo table;
+
+      public String getFieldName() {
+         return fieldName;
+      }
+
+      public void setFieldName(String fieldName) {
+         this.fieldName = fieldName;
+      }
+
+      public TableInfo getTable() {
+         return table;
+      }
+
+      public void setTable(TableInfo table) {
+         this.table = table;
+      }
+   }
+
+   /**
+    * Represents an aggregate field in the SELECT clause.
+    * e.g., SUM(amount), MAX(price), AVG(price)
+    */
+   @JsonIgnoreProperties(ignoreUnknown = true)
+   public static class AggregateField {
+      private String fieldName;           // The field being aggregated (e.g., "price")
+      private String formula;             // The aggregate formula (e.g., "Sum", "Max", "Average")
+      private String alias;               // Optional alias (e.g., "max_price")
+      private TableInfo table;            // The table containing the field
+      private String secondaryField;      // For two-column formulas (e.g., WeightedAverage)
+      private Integer n;                  // For Nth formulas (e.g., NthLargest)
+
+      public String getFieldName() {
+         return fieldName;
+      }
+
+      public void setFieldName(String fieldName) {
+         this.fieldName = fieldName;
+      }
+
+      public String getFormula() {
+         return formula;
+      }
+
+      public void setFormula(String formula) {
+         this.formula = formula;
+      }
+
+      public String getAlias() {
+         return alias;
+      }
+
+      public void setAlias(String alias) {
+         this.alias = alias;
+      }
+
+      public TableInfo getTable() {
+         return table;
+      }
+
+      public void setTable(TableInfo table) {
+         this.table = table;
+      }
+
+      public String getSecondaryField() {
+         return secondaryField;
+      }
+
+      public void setSecondaryField(String secondaryField) {
+         this.secondaryField = secondaryField;
+      }
+
+      public Integer getN() {
+         return n;
+      }
+
+      public void setN(Integer n) {
+         this.n = n;
+      }
+   }
+
+   /**
+    * Represents a HAVING condition that filters on aggregated values.
+    */
+   @JsonIgnoreProperties(ignoreUnknown = true)
+   public static class HavingCondition {
+      private String field;                    // The field being aggregated
+      private String aggregateFormula;         // e.g., "Sum", "Count", "Average"
+      private HavingOperator operator;         // e.g., ">", "<", "="
+      private Object value;                    // The value to compare against
+      private Integer n;                       // For NthLargest, NthSmallest, etc.
+      private String secondaryField;           // For WeightedAverage, Correlation, etc.
+
+      public String getField() {
+         return field;
+      }
+
+      public void setField(String field) {
+         this.field = field;
+      }
+
+      public String getAggregateFormula() {
+         return aggregateFormula;
+      }
+
+      public void setAggregateFormula(String aggregateFormula) {
+         this.aggregateFormula = aggregateFormula;
+      }
+
+      public HavingOperator getOperator() {
+         return operator;
+      }
+
+      public void setOperator(HavingOperator operator) {
+         this.operator = operator;
+      }
+
+      public Object getValue() {
+         return value;
+      }
+
+      public void setValue(Object value) {
+         this.value = value;
+      }
+
+      public Integer getN() {
+         return n;
+      }
+
+      public void setN(Integer n) {
+         this.n = n;
+      }
+
+      public String getSecondaryField() {
+         return secondaryField;
+      }
+
+      public void setSecondaryField(String secondaryField) {
+         this.secondaryField = secondaryField;
+      }
+   }
+
+   public static enum HavingOperator {
+      GT(">"), LT("<"), EQ("="), GE(">="), LE("<="), NE("<>");
+
+      private final String symbol;
+
+      HavingOperator(String symbol) {
+         this.symbol = symbol;
+      }
+
+      public String getSymbol() {
+         return symbol;
+      }
+
+      /**
+       * Deserialize from symbol string (e.g., ">", "<", "=") or enum name (e.g., "GT", "LT", "EQ")
+       */
+      @JsonCreator
+      public static HavingOperator fromValue(String value) {
+         if(value == null) {
+            return null;
+         }
+
+         // First try to match by symbol
+         for(HavingOperator op : values()) {
+            if(op.symbol.equals(value)) {
+               return op;
+            }
+         }
+
+         // Then try to match by enum name
+         try {
+            return valueOf(value);
+         }
+         catch(IllegalArgumentException e) {
+            return null;
+         }
+      }
    }
 
    public static class TableInfo {
