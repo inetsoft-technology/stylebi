@@ -86,6 +86,10 @@ export class ChartInlineSvgDirective implements OnDestroy {
    private areaHoverSvgEl: SVGSVGElement | null = null;
    private areaMouseMoveHandler: ((e: MouseEvent) => void) | null = null;
    private areaMouseLeaveHandler: (() => void) | null = null;
+   /** AbortController that cancels all mouseenter/mouseleave listeners added by setupLineSeriesHover. */
+   private lineSeriesAbortController: AbortController | null = null;
+   /** Debounce timer for clearing line-series dim, so moving between elements of one series is flicker-free. */
+   private lineSeriesClearTimer: ReturnType<typeof setTimeout> | null = null;
    private static readonly CLEAR_DELAY_MS = 120;
    /** Milliseconds after SVG load before the .ready class is added (gates A1 hover CSS). */
    private static readonly READY_MS = 900;
@@ -114,6 +118,7 @@ export class ChartInlineSvgDirective implements OnDestroy {
       }
 
       this.teardownAreaHover();
+      this.teardownLineSeriesHover();
    }
 
    private loadSvg(reloading = false): void {
@@ -303,6 +308,7 @@ export class ChartInlineSvgDirective implements OnDestroy {
       }
 
       this.teardownAreaHover();
+      this.teardownLineSeriesHover();
       this.areaSeries = [];
       this.activeSeriesIdx = -1;
 
@@ -355,8 +361,23 @@ export class ChartInlineSvgDirective implements OnDestroy {
          this.setupAreaHover(areaFillGroups);
       }
       else {
-         // Non-radar, non-area chart — reset in case SVG was replaced after one of those.
-         this.element.nativeElement.style.zIndex = "";
+         const lineOnlyGroups = Array.from(
+            this.element.nativeElement.querySelectorAll(".inetsoft-line") as NodeListOf<Element>);
+
+         if(lineOnlyGroups.length > 0) {
+            // Pure line chart (step/jump/regular, no area fills).
+            // Raise SVG above canvas overlay so pointer events reach SVG elements.
+            // Clear elementGroupMap so canvas-driven highlightElement() is a no-op —
+            // the inetsoft-active CSS dims by individual point and would fight the
+            // series-level JS hover (same pattern as radar charts).
+            this.elementGroupMap.clear();
+            this.element.nativeElement.style.zIndex = "1";
+            this.setupLineSeriesHover(lineOnlyGroups);
+         }
+         else {
+            // Non-radar, non-area, non-line chart — reset in case SVG was replaced.
+            this.element.nativeElement.style.zIndex = "";
+         }
       }
 
       // Build relation connectivity maps so activateKey can highlight connected edges/neighbors.
@@ -476,6 +497,185 @@ export class ChartInlineSvgDirective implements OnDestroy {
       this.areaMouseMoveHandler = null;
       this.areaMouseLeaveHandler = null;
       this.areaSeriesCache = [];
+   }
+
+   /**
+    * Wire series-level mouseenter/mouseleave on all line and point groups for a pure line chart.
+    *
+    * Each inetsoft-line group is one series. Series are keyed by their DOM order (0, 1, 2 ...)
+    * which is guaranteed unique and independent of any color or measure binding.
+    * Point groups are matched to their series via data-color, scoped per parent element so that
+    * faceted (multi-panel) charts — which repeat the same palette in each panel — do not map
+    * same-color points from different panels to the same series.
+    *
+    * Within a single panel, two matching strategies are used depending on the chart structure:
+    * - If all lines in the panel have unique data-series values (distinct colIndex = multi-measure
+    *   chart), points are matched by data-col (= getColIndex()) for robustness against
+    *   user-configured same-color series.
+    * - If data-series values are not unique (multi-group single-measure chart, where all groups
+    *   share the same colIndex), color-based matching is used instead, since each group's palette
+    *   color is distinct by construction.
+    *
+    * The 120 ms CLEAR_DELAY_MS debounce prevents flicker when moving between the line group
+    * and its point markers (separate sibling groups with a potential gap in hit area).
+    */
+   private setupLineSeriesHover(lineGroups: Element[]): void {
+      interface LineSeries { lines: Element[]; points: Element[] }
+      const seriesMap = new Map<string, LineSeries>();
+
+      // Group line groups by their parent element so each facet panel gets its own
+      // matching scope. Faceted charts repeat the same palette in each panel, so a
+      // flat map would overwrite earlier entries and attach same-color points from
+      // different panels to the same series — causing cross-panel dimming.
+      const linesByParent = new Map<Element, Element[]>();
+      for(const line of lineGroups) {
+         const parent = line.parentElement;
+         if(!parent) continue;
+         if(!linesByParent.has(parent)) linesByParent.set(parent, []);
+         (linesByParent.get(parent) as Element[]).push(line);
+      }
+
+      let globalIdx = 0;
+      for(const [parent, parentLines] of linesByParent) {
+         // Collect only the point groups within this panel so matching is scoped
+         // to the same facet cell rather than the whole SVG.
+         const parentPoints = Array.from(
+            parent.querySelectorAll(".inetsoft-point") as NodeListOf<Element>);
+
+         // Choose matching strategy based on whether data-series (colIndex) is unique
+         // across all lines in this panel.
+         // - Unique → multi-measure chart: use data-col (= colIndex) for robustness.
+         //   Two measures can be assigned the same explicit color; colIndex never collides.
+         // - Not unique → multi-group single-measure chart: all lines share the same colIndex
+         //   (e.g. jumpLine.svg has 7 groups all with data-series="2"). Use data-color instead;
+         //   each group's palette color is distinct so color-based matching is safe.
+         const seriesAttrValues = parentLines
+            .map(l => l.getAttribute("data-series"))
+            .filter((v): v is string => v != null);
+         // Both conditions are required:
+         //   (1) Every line must carry data-series (backward compat: older cached SVGs may not).
+         //   (2) Values must be distinct (multi-group single-measure: all share the same colIndex).
+         const useIndexMatching = seriesAttrValues.length === parentLines.length &&
+            new Set(seriesAttrValues).size === parentLines.length;
+
+         const colorToKey = new Map<string, string>();
+         const seriesToKey = new Map<string, string>();
+         for(const line of parentLines) {
+            if(useIndexMatching) {
+               const seriesAttr = line.getAttribute("data-series");
+               if(seriesAttr && seriesToKey.has(seriesAttr)) {
+                  // Same colIndex already registered (shouldn't happen in index mode,
+                  // but guard defensively): merge into existing series.
+                  (seriesMap.get(seriesToKey.get(seriesAttr) as string) as LineSeries).lines.push(line);
+               }
+               else {
+                  const key = String(globalIdx++);
+                  seriesMap.set(key, { lines: [line], points: [] });
+                  if(seriesAttr) seriesToKey.set(seriesAttr, key);
+               }
+            }
+            else {
+               const color = line.getAttribute("data-color");
+               if(color && colorToKey.has(color)) {
+                  // Same color seen before (e.g. stacked line facet: both panels share
+                  // the same palette, all under one DOM parent). Merge into existing
+                  // series so the hover set spans all same-colored lines.
+                  (seriesMap.get(colorToKey.get(color) as string) as LineSeries).lines.push(line);
+               }
+               else {
+                  const key = String(globalIdx++);
+                  seriesMap.set(key, { lines: [line], points: [] });
+                  if(color) colorToKey.set(color, key);
+               }
+            }
+         }
+
+         // Match each point in this panel to its series.
+         for(const point of parentPoints) {
+            let key: string | undefined;
+            if(useIndexMatching) {
+               const col = point.getAttribute("data-col");
+               if(col) key = seriesToKey.get(col);
+            }
+            else {
+               const color = point.getAttribute("data-color");
+               if(color) key = colorToKey.get(color);
+            }
+            if(key != null) seriesMap.get(key)?.points.push(point);
+         }
+      }
+
+      const allPoints = Array.from(
+         this.element.nativeElement.querySelectorAll(".inetsoft-point") as NodeListOf<Element>);
+
+      if(seriesMap.size === 0) return;
+
+      // allElems intentionally spans the entire SVG (all panels). Hovering a series dims
+      // every element outside that series, including sibling panels in a faceted chart.
+      // This is deliberate: cross-panel dimming focuses attention on the hovered panel.
+      const allElems: Element[] = [...lineGroups, ...allPoints];
+
+      // pointer-events:all already set via CSS on .inetsoft-line; add it to points here
+      for(const point of allPoints) {
+         (point as HTMLElement).style.pointerEvents = "all";
+      }
+
+      const ac = new AbortController();
+      this.lineSeriesAbortController = ac;
+
+      const clearDim = () => {
+         this.lineSeriesClearTimer = null;
+         for(const elem of allElems) {
+            (elem as HTMLElement).style.removeProperty("opacity");
+         }
+      };
+
+      for(const [, series] of seriesMap) {
+         const seriesSet = new Set<Element>([...series.lines, ...series.points]);
+
+         const enterHandler = () => {
+            if(this.lineSeriesClearTimer !== null) {
+               clearTimeout(this.lineSeriesClearTimer);
+               this.lineSeriesClearTimer = null;
+            }
+            for(const elem of allElems) {
+               if(!seriesSet.has(elem)) {
+                  // Use setProperty with "important" so the value overrides
+                  // animation fill-mode (which holds opacity:1 after inetsoft-line-fade
+                  // completes and sits above normal inline styles in the CSS cascade).
+                  (elem as HTMLElement).style.setProperty("opacity", "0.2", "important");
+               }
+            }
+         };
+
+         const leaveHandler = () => {
+            if(this.lineSeriesClearTimer !== null) {
+               clearTimeout(this.lineSeriesClearTimer);
+            }
+            this.lineSeriesClearTimer = setTimeout(clearDim, ChartInlineSvgDirective.CLEAR_DELAY_MS);
+         };
+
+         for(const elem of seriesSet) {
+            elem.addEventListener("mouseenter", enterHandler, { signal: ac.signal } as AddEventListenerOptions);
+            elem.addEventListener("mouseleave", leaveHandler, { signal: ac.signal } as AddEventListenerOptions);
+         }
+      }
+   }
+
+   private teardownLineSeriesHover(): void {
+      if(this.lineSeriesAbortController) {
+         this.lineSeriesAbortController.abort();
+         this.lineSeriesAbortController = null;
+      }
+      if(this.lineSeriesClearTimer !== null) {
+         clearTimeout(this.lineSeriesClearTimer);
+         this.lineSeriesClearTimer = null;
+      }
+      // Note: the pointer-events inline style set on point groups in setupLineSeriesHover
+      // is intentionally NOT reset here. In the afterSvgInjected() call path, innerHTML is
+      // replaced before this method runs, so the old elements are already detached from the
+      // DOM. In the ngOnDestroy() call path, Angular is about to remove the host element
+      // entirely. In both cases, resetting the style would be a no-op.
    }
 
    private onAreaMouseMove(e: MouseEvent): void {
