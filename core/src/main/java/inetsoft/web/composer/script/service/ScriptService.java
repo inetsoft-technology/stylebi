@@ -25,6 +25,7 @@ import inetsoft.analytic.web.adhoc.AdHocQueryHandler;
 import inetsoft.report.internal.graph.MapData;
 import inetsoft.uql.asset.*;
 import inetsoft.util.Catalog;
+import inetsoft.util.InetsoftUserDocumentation;
 import inetsoft.util.ItemMap;
 import inetsoft.web.admin.content.repository.ResourcePermissionService;
 import inetsoft.web.binding.model.ScriptTreeNodeData;
@@ -191,6 +192,7 @@ public class ScriptService {
       }
 
       library.setAll(functions);
+      InetsoftUserDocumentation.rewriteScriptApiDocUrls(library);
 
       ObjectNode chartConstants = (ObjectNode) library.get("Chart");
 
@@ -234,8 +236,7 @@ public class ScriptService {
          return null;
       }
 
-      return "https://www.inetsoft.com/docs/stylebi/index.html#cshid=" +
-         FUNCTION_CSHIDS.get(funcName);
+      return InetsoftUserDocumentation.contextSensitiveHelpUrl(FUNCTION_CSHIDS.get(funcName));
    }
 
    public static final Set sreeOnly = new HashSet();

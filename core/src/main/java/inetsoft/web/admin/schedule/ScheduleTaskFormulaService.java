@@ -99,6 +99,7 @@ public class ScheduleTaskFormulaService {
       ObjectNode functions = (ObjectNode) mapper.readTree(
          getClass().getResource("/inetsoft/web/binding/js-functions.json"));
       library.setAll(functions);
+      InetsoftUserDocumentation.rewriteScriptApiDocUrls(library);
    }
 
    /**
