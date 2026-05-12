@@ -48,7 +48,9 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
    @SuppressWarnings("unchecked")
    private void init() {
       synchronized(this) {
-         if(userStorage != null && groupStorage != null && roleStorage != null && organizationStorage != null) {
+         if(isStorageOpen(userStorage) && isStorageOpen(groupStorage) &&
+            isStorageOpen(roleStorage) && isStorageOpen(organizationStorage))
+         {
             return;
          }
 
@@ -61,6 +63,10 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
             "defaultSecurityOrganizations",
             new LoadOrganizationsTask("defaultSecurityOrganizations"));
       }
+   }
+
+   private static boolean isStorageOpen(KeyValueStorage<?> storage) {
+      return storage != null && !storage.isClosed();
    }
 
    /**
