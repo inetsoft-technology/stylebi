@@ -520,7 +520,7 @@ export class ChartInlineSvgDirective implements OnDestroy {
     * and its point markers (separate sibling groups with a potential gap in hit area).
     */
    private setupLineSeriesHover(lineGroups: Element[]): void {
-      type LineSeries = { line: Element; points: Element[] };
+      interface LineSeries { lines: Element[]; points: Element[] }
       const seriesMap = new Map<string, LineSeries>();
 
       // Group line groups by their parent element so each facet panel gets its own
@@ -529,9 +529,10 @@ export class ChartInlineSvgDirective implements OnDestroy {
       // different panels to the same series — causing cross-panel dimming.
       const linesByParent = new Map<Element, Element[]>();
       for(const line of lineGroups) {
-         const parent = line.parentElement!;
+         const parent = line.parentElement;
+         if(!parent) continue;
          if(!linesByParent.has(parent)) linesByParent.set(parent, []);
-         linesByParent.get(parent)!.push(line);
+         (linesByParent.get(parent) as Element[]).push(line);
       }
 
       let globalIdx = 0;
@@ -551,21 +552,41 @@ export class ChartInlineSvgDirective implements OnDestroy {
          const seriesAttrValues = parentLines
             .map(l => l.getAttribute("data-series"))
             .filter((v): v is string => v != null);
+         // Both conditions are required:
+         //   (1) Every line must carry data-series (backward compat: older cached SVGs may not).
+         //   (2) Values must be distinct (multi-group single-measure: all share the same colIndex).
          const useIndexMatching = seriesAttrValues.length === parentLines.length &&
             new Set(seriesAttrValues).size === parentLines.length;
 
          const colorToKey = new Map<string, string>();
          const seriesToKey = new Map<string, string>();
          for(const line of parentLines) {
-            const key = String(globalIdx++);
-            seriesMap.set(key, { line, points: [] });
             if(useIndexMatching) {
                const seriesAttr = line.getAttribute("data-series");
-               if(seriesAttr) seriesToKey.set(seriesAttr, key);
+               if(seriesAttr && seriesToKey.has(seriesAttr)) {
+                  // Same colIndex already registered (shouldn't happen in index mode,
+                  // but guard defensively): merge into existing series.
+                  (seriesMap.get(seriesToKey.get(seriesAttr) as string) as LineSeries).lines.push(line);
+               }
+               else {
+                  const key = String(globalIdx++);
+                  seriesMap.set(key, { lines: [line], points: [] });
+                  if(seriesAttr) seriesToKey.set(seriesAttr, key);
+               }
             }
             else {
                const color = line.getAttribute("data-color");
-               if(color) colorToKey.set(color, key);
+               if(color && colorToKey.has(color)) {
+                  // Same color seen before (e.g. stacked line facet: both panels share
+                  // the same palette, all under one DOM parent). Merge into existing
+                  // series so the hover set spans all same-colored lines.
+                  (seriesMap.get(colorToKey.get(color) as string) as LineSeries).lines.push(line);
+               }
+               else {
+                  const key = String(globalIdx++);
+                  seriesMap.set(key, { lines: [line], points: [] });
+                  if(color) colorToKey.set(color, key);
+               }
             }
          }
 
@@ -589,6 +610,9 @@ export class ChartInlineSvgDirective implements OnDestroy {
 
       if(seriesMap.size === 0) return;
 
+      // allElems intentionally spans the entire SVG (all panels). Hovering a series dims
+      // every element outside that series, including sibling panels in a faceted chart.
+      // This is deliberate: cross-panel dimming focuses attention on the hovered panel.
       const allElems: Element[] = [...lineGroups, ...allPoints];
 
       // pointer-events:all already set via CSS on .inetsoft-line; add it to points here
@@ -607,7 +631,7 @@ export class ChartInlineSvgDirective implements OnDestroy {
       };
 
       for(const [, series] of seriesMap) {
-         const seriesSet = new Set<Element>([series.line, ...series.points]);
+         const seriesSet = new Set<Element>([...series.lines, ...series.points]);
 
          const enterHandler = () => {
             if(this.lineSeriesClearTimer !== null) {
@@ -648,9 +672,10 @@ export class ChartInlineSvgDirective implements OnDestroy {
          this.lineSeriesClearTimer = null;
       }
       // Note: the pointer-events inline style set on point groups in setupLineSeriesHover
-      // is intentionally NOT reset here. This method is always called from afterSvgInjected(),
-      // which replaces the entire innerHTML before teardown — the old elements are already
-      // detached from the DOM, so resetting their styles would be a no-op.
+      // is intentionally NOT reset here. In the afterSvgInjected() call path, innerHTML is
+      // replaced before this method runs, so the old elements are already detached from the
+      // DOM. In the ngOnDestroy() call path, Angular is about to remove the host element
+      // entirely. In both cases, resetting the style would be a no-op.
    }
 
    private onAreaMouseMove(e: MouseEvent): void {
