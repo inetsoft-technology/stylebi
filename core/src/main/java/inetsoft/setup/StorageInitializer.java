@@ -23,18 +23,13 @@ import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.Appender;
 import ch.qos.logback.core.ConsoleAppender;
 import inetsoft.sree.internal.SUtil;
-import inetsoft.sree.internal.cluster.Cluster;
-import inetsoft.sree.internal.cluster.ignite.IgniteCluster;
 import inetsoft.sree.security.*;
-import inetsoft.storage.LoadKeyValueTask;
 import inetsoft.util.*;
 import inetsoft.util.config.InetsoftConfig;
 import inetsoft.util.config.SecretsConfig;
 import inetsoft.util.log.LogUtil;
 import inetsoft.util.log.logback.AuditLogFilter;
 import org.slf4j.LoggerFactory;
-import org.springframework.context.annotation.*;
-import org.springframework.context.support.AbstractApplicationContext;
 import picocli.CommandLine;
 
 import java.io.*;
@@ -122,7 +117,6 @@ public class StorageInitializer implements Callable<Integer> {
          context = configureSecurity(context, extensions);
          context = importFiles(context, extensions);
          context = importAssets(context, extensions);
-         reloadClusterPlugins(context);
       }
       finally {
          for(Object value : context.attributes().values()) {
@@ -388,41 +382,8 @@ public class StorageInitializer implements Callable<Integer> {
       return appender;
    }
 
-   private void reloadClusterPlugins(SetupExtension.Context context) {
-      if(Boolean.TRUE.equals(context.attributes().get("pluginsInstalled"))) {
-         // send a message to reload the plugins from the kv store
-         String home = context.configDirectory().getAbsolutePath();
-         System.setProperty("sree.home", home);
-         ConfigurationContext configContext = ConfigurationContext.getContext();
-         configContext.setHome(home);
-
-         try {
-            InetsoftConfig.bootstrap();
-
-            try(AbstractApplicationContext applicationContext = new AnnotationConfigApplicationContext(ClusterConfig.class)) {
-               configContext.setApplicationContext(applicationContext);
-               Cluster.getInstance().submit("plugins", new LoadKeyValueTask<>("plugins", true));
-               context.attributes().put("pluginsInstalled", false);
-            }
-         }
-         finally {
-            configContext.setApplicationContext(null);
-            InetsoftConfig.BOOTSTRAP_INSTANCE = null;
-         }
-      }
-   }
-
-   @Configuration
-   private static class ClusterConfig {
-      @Bean
-      public InetsoftConfig inetsoftConfig() {
-         return InetsoftConfig.BOOTSTRAP_INSTANCE;
-      }
-
-      @Bean
-      public Cluster cluster(InetsoftConfig config) {
-         // todo use client mode
-         return new IgniteCluster();
-      }
-   }
+   // Plugin reload is handled by:
+   // 1. Enterprise ImportAssetsExtension during INSTALL_ASSETS phase (uses ClientFactory with full Spring context)
+   // 2. Server startup automatically loads plugins from KV store
+   // No need to send cluster messages during init - no other servers are running at that point.
 }
