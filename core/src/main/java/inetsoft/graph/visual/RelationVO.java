@@ -114,15 +114,27 @@ public class RelationVO extends ElementVO {
          GTool.setRenderingHint(g2, false);
 
          Shape shape = getScreenTransform().createTransformedShape(this.shape);
-         double r = elem.getNodeCornerRadius();
+         GShape nodeShape = elem.getNodeShape();
 
-         if(r > 0) {
+         if(nodeShape != null) {
             Rectangle2D b = shape.getBounds2D();
-            double shortDim = Math.min(b.getWidth(), b.getHeight());
-            // r is in [0, 0.5]; arc is the corner ellipse diameter
-            double arc = r * shortDim * 2;
-            shape = new RoundRectangle2D.Double(b.getX(), b.getY(),
-                                                b.getWidth(), b.getHeight(), arc, arc);
+            Shape s = nodeShape.getShape(b.getX(), b.getY(), b.getWidth(), b.getHeight());
+
+            if(s != null) {
+               shape = s;
+            }
+         }
+         else {
+            double r = elem.getNodeCornerRadius();
+
+            if(r > 0) {
+               Rectangle2D b = shape.getBounds2D();
+               double shortDim = Math.min(b.getWidth(), b.getHeight());
+               // r is in [0, 0.5]; arc is the corner ellipse diameter
+               double arc = r * shortDim * 2;
+               shape = new RoundRectangle2D.Double(b.getX(), b.getY(),
+                                                   b.getWidth(), b.getHeight(), arc, arc);
+            }
          }
 
          Color borderColor = elem.getBorderColor();

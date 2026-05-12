@@ -910,6 +910,21 @@ public class RelationElement extends GraphElement {
       this.flipped = flipped;
    }
 
+   /**
+    * Get the GShape used to render nodes. When null the default oval/rectangle is used.
+    */
+   public GShape getNodeShape() {
+      return nodeShape;
+   }
+
+   /**
+    * Set the GShape used to render nodes. When set, overrides the default oval rendering.
+    * @param nodeShape the shape to use, or null to restore default behaviour.
+    */
+   public void setNodeShape(GShape nodeShape) {
+      this.nodeShape = nodeShape;
+   }
+
    @Override
    public boolean equalsContent(Object obj) {
       if(!super.equalsContent(obj)) {
@@ -926,6 +941,7 @@ public class RelationElement extends GraphElement {
             smoothEdges == elem.smoothEdges &&
             horizontal == elem.horizontal &&
             flipped == elem.flipped &&
+            Objects.equals(nodeShape, elem.nodeShape) &&
             Objects.equals(nodeColors, elem.nodeColors) &&
             Objects.equals(nodeSizes, elem.nodeSizes) &&
             Objects.equals(layoutSize, elem.layoutSize) &&
@@ -964,6 +980,7 @@ public class RelationElement extends GraphElement {
    private GShape shapeBorderShape;
    private Color shapeBorderColor;
    private GLine shapeBorderLine;
+   private GShape nodeShape;
    // derived; populated by mxLayout, not part of element identity
    private transient Point2D layoutCenter;
    private transient double layoutRadius;
