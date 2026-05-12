@@ -44,6 +44,7 @@ package inetsoft.web.admin.content.repository;
 
 import inetsoft.sree.RepositoryEntry;
 import inetsoft.sree.schedule.ScheduleManager;
+import inetsoft.sree.schedule.ScheduleTask;
 import inetsoft.sree.security.*;
 import inetsoft.util.Catalog;
 import inetsoft.util.InvalidOrgException;
@@ -177,5 +178,65 @@ class ResourcePermissionControllerTest {
 
       verify(resourcePermissionService, never()).setResourcePermissions(
          anyString(), any(), anyString(), any(), any(Principal.class), anyBoolean());
+   }
+
+   // -------------------------------------------------------------------------
+   // checkPermission() — SCHEDULE_TASK branch
+   // -------------------------------------------------------------------------
+
+   // [task not found] getScheduleTask returns null → allowed=false → MessageException
+   @Test
+   void getPermissions_scheduleTask_taskNotFound_throwsMessageException() throws Exception {
+      Resource resource = new Resource(ResourceType.SCHEDULE_TASK, "myTask");
+      when(resourcePermissionService.getRepositoryResourceType(RepositoryEntry.VIEWSHEET, "myTask"))
+         .thenReturn(resource);
+      when(scheduleManager.getScheduleTask("myTask")).thenReturn(null);
+
+      assertThrows(MessageException.class,
+         () -> controller.getRepositoryEntryPermissions(
+            "myTask", RepositoryEntry.VIEWSHEET, principal));
+   }
+
+   // [task found, no permission] hasTaskPermission returns false → MessageException
+   @Test
+   void getPermissions_scheduleTask_noPermission_throwsMessageException() throws Exception {
+      ScheduleTask task = mock(ScheduleTask.class);
+      Resource resource = new Resource(ResourceType.SCHEDULE_TASK, "myTask");
+      when(resourcePermissionService.getRepositoryResourceType(RepositoryEntry.VIEWSHEET, "myTask"))
+         .thenReturn(resource);
+      when(scheduleManager.getScheduleTask("myTask")).thenReturn(task);
+
+      try(MockedStatic<ScheduleManager> smStatic = mockStatic(ScheduleManager.class)) {
+         smStatic.when(() -> ScheduleManager.hasTaskPermission(any(), eq(principal), any()))
+            .thenReturn(false);
+
+         assertThrows(MessageException.class,
+            () -> controller.getRepositoryEntryPermissions(
+               "myTask", RepositoryEntry.VIEWSHEET, principal));
+      }
+   }
+
+   // [task found, permission granted] hasTaskPermission returns true → model returned
+   @Test
+   void getPermissions_scheduleTask_permissionGranted_returnsModel() throws Exception {
+      ScheduleTask task = mock(ScheduleTask.class);
+      Resource resource = new Resource(ResourceType.SCHEDULE_TASK, "myTask");
+      when(resourcePermissionService.getRepositoryResourceType(RepositoryEntry.VIEWSHEET, "myTask"))
+         .thenReturn(resource);
+      when(scheduleManager.getScheduleTask("myTask")).thenReturn(task);
+      when(resourcePermissionService.getTableModel(
+         "myTask", ResourceType.SCHEDULE_TASK,
+         ResourcePermissionService.ADMIN_ACTIONS, principal, false))
+         .thenReturn(permissionModel);
+
+      try(MockedStatic<ScheduleManager> smStatic = mockStatic(ScheduleManager.class)) {
+         smStatic.when(() -> ScheduleManager.hasTaskPermission(any(), eq(principal), any()))
+            .thenReturn(true);
+
+         ResourcePermissionModel result =
+            controller.getRepositoryEntryPermissions("myTask", RepositoryEntry.VIEWSHEET, principal);
+
+         assertSame(permissionModel, result);
+      }
    }
 }

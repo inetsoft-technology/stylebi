@@ -40,6 +40,7 @@ package inetsoft.web.admin.schedule;
 
 import inetsoft.sree.AnalyticRepository;
 import inetsoft.sree.schedule.*;
+import static inetsoft.web.admin.schedule.ImportTaskController.INFO_ATTR;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
 import inetsoft.web.admin.schedule.model.ImportTaskResponse;
@@ -71,8 +72,6 @@ class ImportTaskControllerTest {
    @Mock private HttpSession session;
    @Mock private Principal principal;
 
-   private static final String SESSION_ATTR = "__private_scheduleXmlInfo";
-
    private ImportTaskController controller;
 
    @BeforeEach
@@ -90,7 +89,7 @@ class ImportTaskControllerTest {
    // [permission denied] task exists + overwriting + editable + no permission → failedList; no import
    @Test
    void importScheduleTask_permissionDenied_addedToFailedList() throws Exception {
-      when(session.getAttribute(SESSION_ATTR)).thenReturn(new ArrayList<>(List.of(incomingTask)));
+      when(session.getAttribute(INFO_ATTR)).thenReturn(new ArrayList<>(List.of(incomingTask)));
       when(scheduleManager.getScheduleTask("myTask")).thenReturn(existingTask);
       when(existingTask.isEditable()).thenReturn(true);
       when(analyticRepository.checkPermission(
@@ -107,7 +106,7 @@ class ImportTaskControllerTest {
    // [new task imported] task does not exist + selected → setScheduleTask called
    @Test
    void importScheduleTask_newTask_isImported() throws Exception {
-      when(session.getAttribute(SESSION_ATTR)).thenReturn(new ArrayList<>(List.of(incomingTask)));
+      when(session.getAttribute(INFO_ATTR)).thenReturn(new ArrayList<>(List.of(incomingTask)));
       when(scheduleManager.getScheduleTask("myTask")).thenReturn(null); // task does not exist
       when(incomingTask.getActionStream()).thenReturn(Stream.empty()); // updateTaskInfo needs a stream
 
@@ -121,7 +120,7 @@ class ImportTaskControllerTest {
    // [not overwriting] task exists + overwriting=false → setScheduleTask never called
    @Test
    void importScheduleTask_existingTaskNotOverwriting_skipped() throws Exception {
-      when(session.getAttribute(SESSION_ATTR)).thenReturn(new ArrayList<>(List.of(incomingTask)));
+      when(session.getAttribute(INFO_ATTR)).thenReturn(new ArrayList<>(List.of(incomingTask)));
       when(scheduleManager.getScheduleTask("myTask")).thenReturn(existingTask);
 
       ImportTaskResponse result = controller.importScheduleTask(

@@ -63,6 +63,8 @@ import java.security.Principal;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 
+import static inetsoft.web.admin.content.repository.ExportAssetController.DEPS_ATTR;
+import static inetsoft.web.admin.content.repository.ExportAssetController.PERM_ATTR;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
@@ -82,12 +84,6 @@ class ExportAssetControllerTest {
    @Mock private HttpServletResponse response;
    @Mock private HttpSession session;
    @Mock private Principal principal;
-
-   // Matches the private constant in ExportAssetController
-   private static final String PERM_ATTR =
-      ExportAssetController.class.getName() + ".deployPermissions";
-   private static final String DEPS_ATTR =
-      ExportAssetController.class.getName() + ".deployDependencies";
 
    private ExportAssetController controller;
 

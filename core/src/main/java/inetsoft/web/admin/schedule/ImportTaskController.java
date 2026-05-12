@@ -150,9 +150,6 @@ public class ImportTaskController {
             scheduleManager.setScheduleTask(taskId, task, principal);
          }
 
-         AssetEntry parentEntry = new AssetEntry(
-            AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.SCHEDULE_TASK_FOLDER, path, null);
-
          if(path != null &&
             scheduleTaskFolderService.checkFolderExists(path))
          {
@@ -211,5 +208,5 @@ public class ImportTaskController {
    private final ScheduleManager scheduleManager;
    private final ScheduleTaskFolderService scheduleTaskFolderService;
    private final AnalyticRepository analyticRepository;
-   private static final String INFO_ATTR = "__private_scheduleXmlInfo";
+   static final String INFO_ATTR = "__private_scheduleXmlInfo";
 }
