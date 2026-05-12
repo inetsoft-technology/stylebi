@@ -376,6 +376,45 @@ public class IgniteSessionRepository
       return result;
    }
 
+   public void updatePrincipalRolesAndGroups(IdentityID userID, IdentityID[] newRoles,
+                                             String[] newGroups, AuthenticationProvider provider)
+   {
+      Iterator<Cache.Entry<String, MapSession>> iter = sessions.iterator();
+
+      try {
+         while(iter.hasNext()) {
+            Cache.Entry<String, MapSession> entry = iter.next();
+            IgniteSession igniteSession = findById(entry.getValue().getId());
+
+            if(igniteSession != null) {
+               updatePrincipalInSession(
+                  igniteSession, RepletRepository.PRINCIPAL_COOKIE, userID, newRoles, newGroups,
+                  provider);
+               updatePrincipalInSession(
+                  igniteSession, RepletRepository.EM_PRINCIPAL_COOKIE, userID, newRoles, newGroups,
+                  provider);
+            }
+         }
+      }
+      finally {
+         Tool.closeIterator(iter);
+      }
+   }
+
+   private void updatePrincipalInSession(IgniteSession session, String cookieKey,
+                                         IdentityID userID, IdentityID[] newRoles,
+                                         String[] newGroups, AuthenticationProvider provider)
+   {
+      SRPrincipal principal = session.getAttribute(cookieKey);
+
+      if(principal != null && Tool.equals(principal.getIdentityID(), userID)) {
+         principal.setRoles(newRoles);
+         principal.setGroups(newGroups);
+         principal.updateRoles(provider);
+         session.setAttribute(cookieKey, principal);
+      }
+   }
+
    public void invalidateSession(String id) {
       final IgniteSession session = this.findById(id);
 
