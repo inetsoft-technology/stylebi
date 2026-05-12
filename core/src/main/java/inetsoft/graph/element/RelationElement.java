@@ -872,6 +872,7 @@ public class RelationElement extends GraphElement {
    /**
     * Get the corner radius fraction for node rounding (0 = sharp, 0.5 = pill).
     */
+   @TernMethod
    public double getNodeCornerRadius() {
       return nodeCornerRadius;
    }
@@ -880,6 +881,7 @@ public class RelationElement extends GraphElement {
     * Set the corner radius fraction for node rounding.
     * @param nodeCornerRadius fraction in [0, 0.5]; 0 disables rounding.
     */
+   @TernMethod
    public void setNodeCornerRadius(double nodeCornerRadius) {
       this.nodeCornerRadius = Math.max(0, Math.min(0.5, nodeCornerRadius));
    }
@@ -914,7 +916,7 @@ public class RelationElement extends GraphElement {
    }
 
    /**
-    * Get the GShape used to render nodes. When null the default oval/rectangle is used.
+    * Get the GShape used to render nodes. When null the default rectangular rendering is used.
     */
    @TernMethod
    public GShape getNodeShape() {
@@ -922,8 +924,8 @@ public class RelationElement extends GraphElement {
    }
 
    /**
-    * Set the GShape used to render nodes. When set, overrides the default oval rendering
-    * and the nodeCornerRadius setting is ignored.
+    * Set the GShape used to render nodes. When set, overrides the default rectangular
+    * rendering and the nodeCornerRadius setting is ignored.
     * @param nodeShape the shape to use, or null to restore default behaviour.
     */
    @TernMethod

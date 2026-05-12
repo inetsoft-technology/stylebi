@@ -310,6 +310,9 @@ public class RelationVO extends ElementVO {
 
    /**
     * Get linkable shapes.
+    * Note: always returns the bounding rectangle regardless of any custom nodeShape set on the
+    * element. For non-convex shapes (e.g. CROSS, XSHAPE) this means click/tooltip events will
+    * also fire in the empty corners — an acceptable bounding-box trade-off.
     */
    @Override
    public Shape[] getShapes() {
