@@ -65,7 +65,7 @@
     <dependency>
       <groupId>org.apache.drill.exec</groupId>
       <artifactId>drill-jdbc</artifactId>
-      <version>1.21.2</version>
+      <version>1.22.0</version>
       <scope>compile</scope>
       <exclusions>
         <exclusion>
@@ -83,6 +83,10 @@
         <exclusion>
           <groupId>org.slf4j</groupId>
           <artifactId>slf4j-api</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>junit</groupId>
+          <artifactId>junit</artifactId>
         </exclusion>
       </exclusions>
     </dependency>

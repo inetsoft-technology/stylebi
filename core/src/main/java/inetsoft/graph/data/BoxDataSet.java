@@ -96,6 +96,7 @@ public class BoxDataSet extends AbstractDataSet {
       synchronized(this) {
          this.rows = new ArrayList<>();
          inited1 = inited2 = false;
+         invalidateCachedColCount();
       }
    }
 
@@ -117,6 +118,7 @@ public class BoxDataSet extends AbstractDataSet {
       synchronized(this) {
          this.rows = new ArrayList<>();
          inited1 = inited2 = false;
+         invalidateCachedColCount();
       }
    }
 
