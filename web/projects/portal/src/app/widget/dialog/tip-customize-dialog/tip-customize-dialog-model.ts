@@ -23,4 +23,5 @@ export interface TipCustomizeDialogModel {
    dataRefList: String[];
    availableTipValues: String[];
    chart?: boolean;
+   tooltipStyle?: "DEFAULT"|"CARD";
 }

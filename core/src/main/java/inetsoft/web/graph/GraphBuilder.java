@@ -145,6 +145,7 @@ public class GraphBuilder {
       this.model.setGenTime(System.currentTimeMillis());
       this.model.setMultiStyles(cinfo.isMultiStyles());
       this.model.setShowValues(isShowValues());
+      this.model.setTooltipStyle(cinfo.getTooltipStyle().name());
 
       int chartType = cinfo.getChartType();
 

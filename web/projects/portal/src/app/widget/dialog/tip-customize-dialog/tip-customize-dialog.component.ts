@@ -52,6 +52,7 @@ export class TipCustomizeDialog implements OnChanges {
          combinedTip: new UntypedFormControl({
             value: this.model.combinedTip && this.model.customRB != "CUSTOM" && this.model.customRB != "NONE",
             disabled: this.model.customRB == "CUSTOM" || this.model.customRB == "NONE" || !this.model.lineChart}),
+         tooltipStyle: new UntypedFormControl(this.model.tooltipStyle || "DEFAULT"),
       });
 
       this.form.get("customRB").valueChanges.subscribe(custom => {
@@ -79,6 +80,7 @@ export class TipCustomizeDialog implements OnChanges {
          this.model.customRB = value["customRB"];
          this.model.customTip = value["customTip"];
          this.model.combinedTip = value["combinedTip"];
+         this.model.tooltipStyle = value["tooltipStyle"];
       });
    }
 

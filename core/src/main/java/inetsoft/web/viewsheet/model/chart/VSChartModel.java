@@ -233,6 +233,16 @@ public class VSChartModel extends VSObjectModel<ChartVSAssembly> implements Char
    }
 
    @Override
+   public String getTooltipStyle() {
+      return tooltipStyle;
+   }
+
+   @Override
+   public void setTooltipStyle(String tooltipStyle) {
+      this.tooltipStyle = tooltipStyle;
+   }
+
+   @Override
    public RectangularShape getLegendsBounds() {
       return this.legendsBounds;
    }
@@ -602,6 +612,7 @@ public class VSChartModel extends VSObjectModel<ChartVSAssembly> implements Char
    private int legendOption = LegendsDescriptor.NO_LEGEND;
    private boolean maxMode = false;
    private boolean showValues = false;
+   private String tooltipStyle;
    private boolean brushed = false;
    private boolean zoomed = false;
    private boolean hasFlyovers = false;

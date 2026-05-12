@@ -65,4 +65,5 @@ export interface ChartModel {
    noData?: boolean;
    errorFormat?: FormatInfoModel;
    readonly mapInfo?: boolean;
+   tooltipStyle?: "DEFAULT" | "CARD";
 }

@@ -18,6 +18,7 @@
 package inetsoft.web.composer.model.vs;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import inetsoft.uql.viewsheet.graph.ChartInfo;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class TipCustomizeDialogModel {
@@ -79,6 +80,14 @@ public class TipCustomizeDialogModel {
       this.availableTipValues = availableTipValues;
    }
 
+   public ChartInfo.TooltipStyle getTooltipStyle() {
+      return tooltipStyle;
+   }
+
+   public void setTooltipStyle(ChartInfo.TooltipStyle tooltipStyle) {
+      this.tooltipStyle = tooltipStyle;
+   }
+
    private TipFormat customRB;
    private boolean combinedTip;
    private boolean lineChart;
@@ -86,4 +95,5 @@ public class TipCustomizeDialogModel {
    private String customTip;
    private String[] dataRefList;
    private String[] availableTipValues;
+   private ChartInfo.TooltipStyle tooltipStyle = ChartInfo.TooltipStyle.DEFAULT;
 }

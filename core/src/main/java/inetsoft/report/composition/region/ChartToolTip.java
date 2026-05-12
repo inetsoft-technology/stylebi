@@ -17,6 +17,7 @@
  */
 package inetsoft.report.composition.region;
 
+import inetsoft.uql.viewsheet.graph.ChartInfo;
 import inetsoft.util.DataSerializable;
 
 import java.io.*;
@@ -50,6 +51,10 @@ public class ChartToolTip implements DataSerializable {
     * Generator tooltip with special palette.
     */
    public String getTooltip(IndexedSet<String> palette) {
+      if(style == ChartInfo.TooltipStyle.CARD) {
+         return renderCard(palette);
+      }
+
       StringBuilder buffer = new StringBuilder();
 
       if(customToolTip != null && customToolTip.length() > 0) {
@@ -77,6 +82,50 @@ public class ChartToolTip implements DataSerializable {
       }
 
       return buffer.toString();
+   }
+
+   // Card style: render the tooltip as a sequence of tier divs (primary/secondary/tertiary).
+   // Each "line" (custom template line, or key-value pair) becomes one tier; tiers cap at 3.
+   private String renderCard(IndexedSet<String> palette) {
+      StringBuilder buffer = new StringBuilder();
+      int tier = 1;
+
+      if(customToolTip != null && customToolTip.length() > 0) {
+         // A custom template may itself contain multiple lines; each one is its own tier.
+         String[] lines = customToolTip.split(ChartToolTip.ENTER + "|\\r|\\n");
+
+         for(String line : lines) {
+            if(line.isEmpty()) {
+               continue;
+            }
+
+            appendTier(buffer, tier, line);
+            tier++;
+         }
+      }
+
+      for(int i = 0; i < tooltips.size(); i += 2) {
+         int keyIdx = tooltips.get(i);
+
+         // Skip the (-1, -1) separator markers used between appended tooltips.
+         if(keyIdx == -1) {
+            continue;
+         }
+
+         String label = palette.get(keyIdx);
+         String value = (i + 1) < tooltips.size() ? palette.get(tooltips.get(i + 1)) : "";
+         appendTier(buffer, tier, label + ChartToolTip.COLON + value);
+         tier++;
+      }
+
+      return buffer.toString();
+   }
+
+   private void appendTier(StringBuilder buffer, int tier, String content) {
+      int t = Math.min(tier, 3);
+      buffer.append("<div class=\"tt-tier-").append(t).append("\">")
+            .append(content)
+            .append("</div>");
    }
 
    public List<Integer> getTooltipList() {
@@ -191,6 +240,14 @@ public class ChartToolTip implements DataSerializable {
       this.stackTotalName = stackTotalName;
    }
 
+   public ChartInfo.TooltipStyle getStyle() {
+      return style;
+   }
+
+   public void setStyle(ChartInfo.TooltipStyle style) {
+      this.style = style == null ? ChartInfo.TooltipStyle.DEFAULT : style;
+   }
+
    /**
     * Clear chart tooltip.
     */
@@ -238,4 +295,5 @@ public class ChartToolTip implements DataSerializable {
    private final List<Integer> tooltips;
    private String stackTotalName = null;
    private String customToolTip;
+   private ChartInfo.TooltipStyle style = ChartInfo.TooltipStyle.DEFAULT;
 }

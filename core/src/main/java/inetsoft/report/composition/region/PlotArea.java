@@ -870,6 +870,7 @@ public class PlotArea extends GridContainerArea implements GraphComponentArea, R
                                    boolean isText, VOText vtext, boolean showFullTotalName)
    {
       ChartToolTip tooltip = new ChartToolTip();
+      tooltip.setStyle(chartInfo.getTooltipStyle());
 
       if(evo == null || !(vobj instanceof VGraph) || isLightWeight() ||
          !chartInfo.isTooltipVisible() ||
@@ -1415,7 +1416,11 @@ public class PlotArea extends GridContainerArea implements GraphComponentArea, R
          }
       }
       else {
-         String[][] cols = new String[][] {dims, measures, others};
+         // Card style promotes the measure(s) to the first tooltip line so the value
+         // appears at the largest font tier; default style keeps the legacy order.
+         String[][] cols = chartInfo.getTooltipStyle() == ChartInfo.TooltipStyle.CARD
+            ? new String[][] {measures, dims, others}
+            : new String[][] {dims, measures, others};
          HashSet<String> added = new HashSet<>();
          Object[] arr = new Object[list.size()];
 
@@ -1448,7 +1453,7 @@ public class PlotArea extends GridContainerArea implements GraphComponentArea, R
                }
 
                // for radar, only include dimension value for this point.
-               if(k == 0 && evo instanceof ShapeElementVO) {
+               if(cols[k] == dims && evo instanceof ShapeElementVO) {
                   if(((ShapeElementVO) evo).isIgnoredDim(name)) {
                      continue;
                   }

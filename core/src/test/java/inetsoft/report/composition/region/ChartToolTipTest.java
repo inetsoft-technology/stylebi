@@ -1,0 +1,104 @@
+/*
+ * This file is part of StyleBI.
+ * Copyright (C) 2026  InetSoft Technology
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+package inetsoft.report.composition.region;
+
+import inetsoft.uql.viewsheet.graph.ChartInfo;
+import org.junit.jupiter.api.Test;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+class ChartToolTipTest {
+   @Test
+   void defaultStyleRendersLegacyFormat() {
+      IndexedSet<String> palette = new IndexedSet<>();
+      ChartToolTip tip = new ChartToolTip();
+      tip.addTooltip(palette.put("Month"), palette.put("2026 May"));
+      tip.addTooltip(palette.put("Sales"), palette.put("2.5%"));
+
+      String out = tip.getTooltip(palette);
+
+      assertFalse(out.contains("tt-tier-"), "Default style must not emit tier divs");
+      assertTrue(out.contains("Month" + ChartToolTip.COLON + "2026 May"));
+      assertTrue(out.contains(ChartToolTip.ENTER));
+   }
+
+   @Test
+   void cardStyleEmitsTierDivsCappedAtThree() {
+      IndexedSet<String> palette = new IndexedSet<>();
+      ChartToolTip tip = new ChartToolTip();
+      tip.setStyle(ChartInfo.TooltipStyle.CARD);
+      tip.addTooltip(palette.put("Sales"), palette.put("2.5%"));
+      tip.addTooltip(palette.put("Year"), palette.put("2018 - Peak"));
+      tip.addTooltip(palette.put("Series"), palette.put("2015-20 Cycle"));
+      tip.addTooltip(palette.put("Region"), palette.put("West"));
+
+      String out = tip.getTooltip(palette);
+
+      assertTrue(out.contains("<div class=\"tt-tier-1\">Sales"));
+      assertTrue(out.contains("<div class=\"tt-tier-2\">Year"));
+      assertTrue(out.contains("<div class=\"tt-tier-3\">Series"));
+      // The 4th pair must reuse tier 3 (cap), not produce a tier-4 class.
+      assertTrue(out.contains("<div class=\"tt-tier-3\">Region"));
+      assertFalse(out.contains("tt-tier-4"), "Tiers must cap at 3");
+   }
+
+   @Test
+   void cardStyleSkipsSeparatorMarkers() {
+      IndexedSet<String> palette = new IndexedSet<>();
+      ChartToolTip first = new ChartToolTip();
+      first.setStyle(ChartInfo.TooltipStyle.CARD);
+      first.addTooltip(palette.put("Sales"), palette.put("2.5%"));
+
+      ChartToolTip second = new ChartToolTip();
+      second.addTooltip(palette.put("Year"), palette.put("2018"));
+      first.appendTooltips(second);
+
+      String out = first.getTooltip(palette);
+
+      // The (-1, -1) separator pair injected by appendTooltips must not
+      // produce a stray tier div. Exactly two tier divs are expected (one
+      // per real pair); a leaked separator would produce a third with
+      // "null:&nbsp;null" content (since palette.get(-1) returns null).
+      int tierCount = out.split("<div class=\"tt-tier-", -1).length - 1;
+      assertEquals(2, tierCount, "Separator must not produce a stray tier div");
+      assertFalse(out.contains("null"), "Separator must not leak null content");
+      assertTrue(out.contains("<div class=\"tt-tier-1\">Sales"));
+      assertTrue(out.contains("<div class=\"tt-tier-2\">Year"));
+   }
+
+   @Test
+   void cardStyleSplitsCustomTooltipLinesIntoTiers() {
+      IndexedSet<String> palette = new IndexedSet<>();
+      ChartToolTip tip = new ChartToolTip();
+      tip.setStyle(ChartInfo.TooltipStyle.CARD);
+      tip.setCustomToolTip("2.5%" + ChartToolTip.ENTER + "2018 - Peak" + ChartToolTip.ENTER + "2015-20 Cycle");
+
+      String out = tip.getTooltip(palette);
+
+      assertTrue(out.contains("<div class=\"tt-tier-1\">2.5%"));
+      assertTrue(out.contains("<div class=\"tt-tier-2\">2018 - Peak"));
+      assertTrue(out.contains("<div class=\"tt-tier-3\">2015-20 Cycle"));
+   }
+
+   @Test
+   void setStyleNullDefaultsToLegacyStyle() {
+      ChartToolTip tip = new ChartToolTip();
+      tip.setStyle(null);
+      assertEquals(ChartInfo.TooltipStyle.DEFAULT, tip.getStyle());
+   }
+}

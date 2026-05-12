@@ -80,4 +80,6 @@ public interface ChartModel {
    public void setNoData(boolean noData);
    public FormatInfoModel getErrorFormat();
    public void setErrorFormat(FormatInfoModel errorFormat);
+   public String getTooltipStyle();
+   public void setTooltipStyle(String tooltipStyle);
 }

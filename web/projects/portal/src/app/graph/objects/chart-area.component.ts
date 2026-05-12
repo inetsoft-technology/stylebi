@@ -265,6 +265,7 @@ export class ChartArea implements OnInit, OnChanges, OnDestroy {
 
    // Tooltip Handling
    tooltipString: string = null;
+   tooltipCSS: string = "widget__default-tooltip";
    tooltipTop: number = 0;
    tooltipLeft: number = 0;
 
@@ -322,6 +323,11 @@ export class ChartArea implements OnInit, OnChanges, OnDestroy {
                this.scrollTop += 0.00000001;
             }
          });
+      }
+
+      if(changes["model"] || changes["modelTS"]) {
+         this.tooltipCSS = this.model && this.model.tooltipStyle === "CARD"
+            ? "widget__card-tooltip" : "widget__default-tooltip";
       }
    }
 
