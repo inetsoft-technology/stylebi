@@ -892,17 +892,22 @@ public class GenerateWsService {
       // Add group by fields
       if(groupBy != null) {
          for(WorksheetConstructionModel.GroupByField groupField : groupBy) {
-            DataRef column = columnSelection.getAttribute(groupField.getFieldName());
+            DataRef ref = columnSelection.getAttribute(groupField.getFieldName());
 
-            if(column == null) {
+            if(ref == null) {
                continue;
             }
 
+            ColumnRef column = (ColumnRef) ref;
             GroupRef groupRef = new GroupRef(column);
             aggregateInfo.addGroup(groupRef);
 
             if(groupField.getDateGroupLevel() != null) {
-               groupRef.setDateGroup(getDateGroupLevel(groupField.getDateGroupLevel()));
+               String colName = column.getName();
+               int dgroup = getDateGroupLevel(groupField.getDateGroupLevel());
+               String name = DateRangeRef.getName(colName, dgroup);
+               DateRangeRef rangeRef = new DateRangeRef(name, column.getDataRef(), dgroup);
+               column.setDataRef(rangeRef);
             }
          }
       }

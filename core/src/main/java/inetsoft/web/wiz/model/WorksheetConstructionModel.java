@@ -20,7 +20,6 @@ package inetsoft.web.wiz.model;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.annotation.JsonProperty;
 
 import java.util.List;
 import java.util.Objects;
@@ -34,12 +33,9 @@ public class WorksheetConstructionModel {
    private List<TableSetOperation> tableSetOperations;
    private List<Condition> filters;
    private List<OrderByInfo> orderBy;
-   @JsonProperty("groupBy")
    private List<GroupByField> groupBy;
    private List<AggregateField> aggregates;
    private List<HavingCondition> having;
-   @JsonProperty("isPreAggregated")
-   private Boolean isPreAggregated;
 
    public String getName() {
       return name;
@@ -119,14 +115,6 @@ public class WorksheetConstructionModel {
 
    public void setHaving(List<HavingCondition> having) {
       this.having = having;
-   }
-
-   public void setPreAggregated(Boolean isPreAggregated) {
-      this.isPreAggregated = isPreAggregated;
-   }
-
-   public boolean isPreAggregated() {
-      return isPreAggregated;
    }
 
    @JsonIgnoreProperties(ignoreUnknown = true)
