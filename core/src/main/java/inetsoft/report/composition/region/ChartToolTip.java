@@ -126,13 +126,9 @@ public class ChartToolTip implements DataSerializable {
    }
 
    private boolean isMultiSection() {
-      for(int i = 0; i < tooltips.size(); i += 2) {
-         if(tooltips.get(i) == -1) {
-            return true;
-         }
-      }
-
-      return false;
+      // -1 is never a valid palette index, so any occurrence is a separator
+      // injected by appendTooltips between sub-tooltips.
+      return tooltips.contains(-1);
    }
 
    // Header (shared X-dim) + per-series .tt-section blocks for CSS spacing
@@ -152,6 +148,13 @@ public class ChartToolTip implements DataSerializable {
 
       for(int s = 0; s < sections.size(); s++) {
          int[] section = sections.get(s);
+
+         // splitSections already filters empties; this guard keeps the
+         // positional header contract intact if that invariant ever drifts.
+         if(section.length == 0) {
+            continue;
+         }
+
          boolean isStackTotal = hasStackTotal && s == lastIndex;
 
          if(isStackTotal) {

@@ -276,9 +276,12 @@ export class ChartPlotArea extends ChartObjectAreaBase<Plot> implements OnChange
       const seg = region.segTypes && region.segTypes[0] ? region.segTypes[0][0] : -1;
 
       if((seg === 8 || seg === 9) && pts[0] && pts[0][0] && pts[0][0].length === 2) {
-         const x = pts[0][0][0][0];
-         const w = pts[0][0][1][0];
-         return { centerX: x + w / 2, width: w };
+         const origin = pts[0][0][0];
+         const size = pts[0][0][1];
+
+         if(origin && size) {
+            return { centerX: origin[0] + size[0] / 2, width: size[0] };
+         }
       }
 
       // General path: scan all x coordinates for bbox.
