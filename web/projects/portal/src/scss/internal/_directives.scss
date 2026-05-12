@@ -233,6 +233,19 @@ table.scrollable-table {
   .tt-tier-1 { font-size: 16px; font-weight: 600; line-height: 1.2; }
   .tt-tier-2 { font-size: 13px; margin-top: 6px; opacity: 0.9; }
   .tt-tier-3 { font-size: 11px; margin-top: 4px; opacity: 0.7; }
+
+  // Combined card: each .tt-section groups one series' rows so adjacent
+  // series read as distinct blocks (mirrors the default tooltip's blank-line
+  // separators between sub-tooltips).
+  .tt-section {
+    margin-top: 10px;
+
+    .tt-tier-2 { margin-top: 1px; }
+    .tt-tier-2:first-child { margin-top: 0; }
+  }
+
+  .tt-section:first-of-type { margin-top: 8px; }
+  .tt-tier-1:not(:first-child) { margin-top: 10px; }
 }
 
 .hidden__annotation-tooltip {

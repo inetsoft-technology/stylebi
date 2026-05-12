@@ -1416,9 +1416,11 @@ public class PlotArea extends GridContainerArea implements GraphComponentArea, R
          }
       }
       else {
-         // Card style promotes the measure(s) to the first tooltip line so the value
-         // appears at the largest font tier; default style keeps the legacy order.
-         String[][] cols = chartInfo.getTooltipStyle() == ChartInfo.TooltipStyle.CARD
+         // Card solo: measures first (primary tier). Combined/Default: dims
+         // first so the shared X-dim becomes the combined-card header.
+         boolean cardSolo = chartInfo.getTooltipStyle() == ChartInfo.TooltipStyle.CARD
+            && !chartInfo.isCombinedToolTip();
+         String[][] cols = cardSolo
             ? new String[][] {measures, dims, others}
             : new String[][] {dims, measures, others};
          HashSet<String> added = new HashSet<>();
@@ -1716,7 +1718,7 @@ public class PlotArea extends GridContainerArea implements GraphComponentArea, R
          ChartToolTip tempTip;
 
          for(Integer pidx : pidxs) {
-            ShapeElementVO vo = (ShapeElementVO) vos.get(pidx);
+            ElementVO vo = (ElementVO) vos.get(pidx);
 
             if(vo.getColIndex() == evo.getColIndex() && vo.getRowIndex() == evo.getRowIndex()) {
                continue;
@@ -1839,14 +1841,19 @@ public class PlotArea extends GridContainerArea implements GraphComponentArea, R
       for(int i = 0; i < vos.size(); i ++) {
          VisualObject vo = vos.get(i);
 
-         if(!(vo instanceof ShapeElementVO)) {
+         // Mirror the main loop's exclusion: line segments span multiple rows
+         // and sub-section VOs aren't useful here.
+         if(!(vo instanceof ElementVO) || vo instanceof LineVO
+            || GraphUtil.supportSubSection(vo))
+         {
             continue;
          }
 
-         ElementGeometry egeom = (ElementGeometry)((ShapeElementVO)vo).getGeometry();
+         ElementVO evo = (ElementVO) vo;
+         ElementGeometry egeom = (ElementGeometry) evo.getGeometry();
          GraphElement element = egeom.getElement();
          String[] dims = element.getDims();
-         int ridx = ((ShapeElementVO) vo).getRowIndex();
+         int ridx = evo.getRowIndex();
          String xValue = getRowValueString(dims, ridx);
 
          if(rowIndexMap.containsKey(xValue)) {

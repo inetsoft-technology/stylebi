@@ -48,12 +48,12 @@ public class TipCustomizeDialogModel {
       this.combinedTip = combinedTip;
    }
 
-   public boolean isLineChart() {
-      return lineChart;
+   public boolean isCombinedSupported() {
+      return combinedSupported;
    }
 
-   public void setLineChart(boolean lineChart) {
-      this.lineChart = lineChart;
+   public void setCombinedSupported(boolean combinedSupported) {
+      this.combinedSupported = combinedSupported;
    }
 
    public String getCustomTip() {
@@ -88,12 +88,30 @@ public class TipCustomizeDialogModel {
       this.tooltipStyle = tooltipStyle;
    }
 
+   public boolean isSnapTooltip() {
+      return snapTooltip;
+   }
+
+   public void setSnapTooltip(boolean snapTooltip) {
+      this.snapTooltip = snapTooltip;
+   }
+
+   public boolean isSnapSupported() {
+      return snapSupported;
+   }
+
+   public void setSnapSupported(boolean snapSupported) {
+      this.snapSupported = snapSupported;
+   }
+
    private TipFormat customRB;
    private boolean combinedTip;
-   private boolean lineChart;
+   private boolean combinedSupported;
    private boolean chart;
    private String customTip;
    private String[] dataRefList;
    private String[] availableTipValues;
    private ChartInfo.TooltipStyle tooltipStyle = ChartInfo.TooltipStyle.DEFAULT;
+   private boolean snapTooltip;
+   private boolean snapSupported;
 }

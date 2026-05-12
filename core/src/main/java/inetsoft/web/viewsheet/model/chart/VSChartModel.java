@@ -243,6 +243,16 @@ public class VSChartModel extends VSObjectModel<ChartVSAssembly> implements Char
    }
 
    @Override
+   public boolean isSnapTooltip() {
+      return snapTooltip;
+   }
+
+   @Override
+   public void setSnapTooltip(boolean snapTooltip) {
+      this.snapTooltip = snapTooltip;
+   }
+
+   @Override
    public RectangularShape getLegendsBounds() {
       return this.legendsBounds;
    }
@@ -613,6 +623,7 @@ public class VSChartModel extends VSObjectModel<ChartVSAssembly> implements Char
    private boolean maxMode = false;
    private boolean showValues = false;
    private String tooltipStyle;
+   private boolean snapTooltip = false;
    private boolean brushed = false;
    private boolean zoomed = false;
    private boolean hasFlyovers = false;

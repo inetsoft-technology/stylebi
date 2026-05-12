@@ -53,13 +53,20 @@
           </div>
         </div>
       </div>
-      <div class="row form-row-checkbox" *ngIf="model.lineChart">
+      <div class="row form-row-checkbox" *ngIf="model.combinedSupported">
         <div class="col">
           <div class="form-check">
             <input type="checkbox" class="form-check-input" id="combinedTooltip"
                    formControlName="combinedTip" [value]="false">
             <label class="form-check-label" for="combinedTooltip">
               _#(viewer.viewsheet.chart.tooltip.combine)
+            </label>
+          </div>
+          <div class="form-check" *ngIf="model.snapSupported">
+            <input type="checkbox" class="form-check-input" id="snapTooltip"
+                   formControlName="snapTooltip" [value]="false">
+            <label class="form-check-label" for="snapTooltip">
+              _#(viewer.viewsheet.chart.tooltip.snap)
             </label>
           </div>
         </div>

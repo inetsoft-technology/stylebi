@@ -52,7 +52,7 @@ let createModel: () => TipPaneModel = () => {
          lineChat: false,
          customTip: "",
          dataRefList: [],
-         lineChart: false,
+         combinedSupported: false,
          availableTipValues: []
       }
    };
