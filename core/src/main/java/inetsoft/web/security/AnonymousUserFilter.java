@@ -79,7 +79,7 @@ public class AnonymousUserFilter extends AbstractSecurityFilter {
                      ObjectMapper mapper = new ObjectMapper();
                      ObjectNode body = mapper.createObjectNode();
                      body.put("error", e.getReason().name());
-                     body.put("message", e.getCause().getMessage());
+                     body.put("message", e.getCause() != null ? e.getCause().getMessage() : e.getMessage());
 
                      try(PrintWriter writer = httpResponse.getWriter()) {
                         mapper.writeValue(writer, body);
