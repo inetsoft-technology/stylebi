@@ -3724,6 +3724,9 @@ public abstract class GraphGenerator {
       else if(GraphTypes.isGantt(chartType)) {
          IntervalElement elem = new IntervalElement();
          elem.setLabelPlacement(GraphConstants.CENTER);
+         elem.setCornerRadius(desc.getPlotDescriptor().getBarCornerRadius());
+         // Gantt bars span between two value endpoints (start/end), so always round all corners.
+         elem.setRoundAllCorners(true);
          elements.add(elem);
 
          if(((GanttChartInfo) info).getRTMilestoneField() instanceof ChartAggregateRef) {
