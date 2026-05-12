@@ -1067,12 +1067,13 @@ public class DefaultAxis extends Axis {
       }
 
       Scale scale = getScale();
-      double[] ticks = scale.getTicks();
       double weightSum = 0;
       double wwidth = 0;
       double wheight = 0;
       CategoricalScale cscale = (scale instanceof CategoricalScale)
          ? (CategoricalScale) scale : null;
+
+      double[] tlocs = getTickLocations(null);
 
       if(cscale != null) {
          for(int i = 0; i < vlabels.length; i++) {
@@ -1089,13 +1090,29 @@ public class DefaultAxis extends Axis {
          wwidth = hor ? width / weightSum : width;
       }
       else {
-         wheight = hor ? height : height / ticks.length;
-         wwidth = hor ? width / ticks.length : width;
+         // when labelBetween and counts match, each label spans one interval between ticks
+         int tickCount = scale.getAxisSpec().isLabelBetween()
+            && vlabels.length > 0 && vlabels.length == tlocs.length
+            ? vlabels.length : tlocs.length;
+         wheight = hor ? height : height / tickCount;
+         wwidth = hor ? width / tickCount : width;
       }
 
       double lx = 0;
       double ly = 0;
-      double[] tlocs = getTickLocations(null);
+
+      // when labelBetween, position each label at the midpoint between adjacent ticks;
+      // for the last label, the axis end (length) acts as the phantom boundary tick.
+      if(scale.getAxisSpec().isLabelBetween() && tlocs.length >= 1
+         && vlabels.length == tlocs.length)
+      {
+         double[] midTlocs = new double[vlabels.length];
+         for(int i = 0; i < midTlocs.length - 1; i++) {
+            midTlocs[i] = (tlocs[i] + tlocs[i + 1]) / 2.0;
+         }
+         midTlocs[midTlocs.length - 1] = (tlocs[tlocs.length - 1] + length) / 2.0;
+         tlocs = midTlocs;
+      }
       int skip = 0;
 
       // optimization, avoid layout large number of labels
