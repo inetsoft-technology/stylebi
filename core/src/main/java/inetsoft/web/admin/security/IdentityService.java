@@ -1715,7 +1715,13 @@ public class IdentityService {
       }
 
       syncIdentity(eprovider, user, oIdentity);
-      sessionRepository.updatePrincipalRolesAndGroups(oIdentity, user.getRoles(), user.getGroups(), eprovider);
+
+      try {
+         sessionRepository.updatePrincipalRolesAndGroups(oIdentity, user.getRoles(), user.getGroups(), eprovider);
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to update live session principals for user {}", oIdentity, e);
+      }
 
       return user;
    }
