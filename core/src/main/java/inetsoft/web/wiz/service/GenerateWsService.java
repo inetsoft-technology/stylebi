@@ -42,6 +42,8 @@ import org.springframework.stereotype.Service;
 import java.security.Principal;
 import java.util.*;
 
+import static inetsoft.web.wiz.service.WizVsService.getDateGroupLevel;
+
 @Service
 public class GenerateWsService {
    public GenerateWsService(ViewsheetService viewsheetService, MetadataApiService metadataApiService,
@@ -260,12 +262,9 @@ public class GenerateWsService {
       }
 
       // Apply GROUP BY and aggregate info
-      if(model.getGroupBy() != null || model.getAggregates() != null || model.getHaving() != null) {
-         applyAggregateInfo(table, model.getGroupBy(), model.getAggregates(), model.getHaving());
-      }
-
       // Apply HAVING conditions (stored in postconds)
-      if(model.getHaving() != null) {
+      if(model.getAggregates() != null && model.getHaving() != null) {
+         applyAggregateInfo(table, model.getGroupBy(), model.getAggregates(), model.getHaving());
          applyHavingCondition(table, model.getHaving());
       }
 
@@ -901,6 +900,10 @@ public class GenerateWsService {
 
             GroupRef groupRef = new GroupRef(column);
             aggregateInfo.addGroup(groupRef);
+
+            if(groupField.getDateGroupLevel() != null) {
+               groupRef.setDateGroup(getDateGroupLevel(groupField.getDateGroupLevel()));
+            }
          }
       }
 
@@ -966,8 +969,19 @@ public class GenerateWsService {
                aggregateRef.setN(havingCond.getN());
             }
 
-            // Only add if not already present from aggregates list
-            if(!aggregateInfo.containsAggregate(aggregateRef)) {
+            // Only add if not already present from aggregates list.
+            // Use equalsAggregate() to properly compare AggregateRefs and avoid
+            // ClassCastException when CompositeAggregateRef is present.
+            boolean aggregateExists = false;
+
+            for(int i = 0; i < aggregateInfo.getAggregateCount(); i++) {
+               if(aggregateRef.equalsAggregate(aggregateInfo.getAggregate(i))) {
+                  aggregateExists = true;
+                  break;
+               }
+            }
+
+            if(!aggregateExists) {
                aggregateInfo.addAggregate(aggregateRef);
             }
          }
@@ -1023,10 +1037,9 @@ public class GenerateWsService {
             aggregateRef.setN(havingCond.getN());
          }
 
-         // Create the condition
-         AssetCondition assetCondition = new AssetCondition();
-         assetCondition.addValue(havingCond.getValue());
-         assetCondition.setOperation(getHavingConditionOperator(havingCond.getOperator()));
+         // Get list of operations (GE/LE require two separate conditions)
+         WorksheetConstructionModel.HavingOperator operator = havingCond.getOperator();
+         List<Integer> conditionOperators = getHavingConditionOperator(operator);
 
          // Determine the data type based on the formula result type
          String dataType = formula.getDataType();
@@ -1039,10 +1052,20 @@ public class GenerateWsService {
             dataType = XSchema.DOUBLE;
          }
 
-         assetCondition.setType(dataType);
+         // Create condition(s) for each operator
+         for(Integer op : conditionOperators) {
+            AssetCondition assetCondition = new AssetCondition();
+            assetCondition.addValue(havingCond.getValue());
+            assetCondition.setOperation(op);
+            assetCondition.setType(dataType);
 
-         // Add condition to the list
-         conditionList.append(new ConditionItem(aggregateRef, assetCondition, 0));
+            // Set negation for NE operator
+            if(operator == WorksheetConstructionModel.HavingOperator.NE) {
+               assetCondition.setNegated(true);
+            }
+
+            conditionList.append(new ConditionItem(aggregateRef, assetCondition, 0));
+         }
       }
 
       if(!conditionList.isEmpty()) {
@@ -1051,21 +1074,33 @@ public class GenerateWsService {
    }
 
    /**
-    * Convert HavingOperator to XCondition operation code.
+    * Convert HavingOperator to XCondition operation codes.
+    * Returns a list because GE and LE require two separate conditions.
     */
-   private int getHavingConditionOperator(WorksheetConstructionModel.HavingOperator operator) {
+   private List<Integer> getHavingConditionOperator(WorksheetConstructionModel.HavingOperator operator) {
+      List<Integer> ops = new ArrayList<>();
+
       if(operator == null) {
-         return XCondition.EQUAL_TO;
+         ops.add(XCondition.EQUAL_TO);
+         return ops;
       }
 
-      return switch(operator) {
-         case GT -> XCondition.GREATER_THAN;
-         case LT -> XCondition.LESS_THAN;
-         case GE -> XCondition.GREATER_THAN; // Will be combined with EQUAL_TO if needed
-         case LE -> XCondition.LESS_THAN;    // Will be combined with EQUAL_TO if needed
-         case NE -> XCondition.EQUAL_TO;     // With negation
-         case EQ -> XCondition.EQUAL_TO;
-      };
+      switch(operator) {
+         case GT -> ops.add(XCondition.GREATER_THAN);
+         case LT -> ops.add(XCondition.LESS_THAN);
+         case GE -> {
+            ops.add(XCondition.EQUAL_TO);
+            ops.add(XCondition.GREATER_THAN);
+         }
+         case LE -> {
+            ops.add(XCondition.EQUAL_TO);
+            ops.add(XCondition.LESS_THAN);
+         }
+         case NE -> ops.add(XCondition.EQUAL_TO);
+         case EQ -> ops.add(XCondition.EQUAL_TO);
+      }
+
+      return ops;
    }
 
    /**

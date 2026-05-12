@@ -1487,7 +1487,7 @@ public class WizVsService {
       return ref;
    }
 
-   private int getDateGroupLevel(String level) {
+   public static int getDateGroupLevel(String level) {
       if(level == null) {
          return XConstants.NONE_DATE_GROUP;
       }

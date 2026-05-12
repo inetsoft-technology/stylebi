@@ -121,22 +121,12 @@ public class WorksheetConstructionModel {
       this.having = having;
    }
 
-   public Boolean getIsPreAggregated() {
+   public void setPreAggregated(Boolean isPreAggregated) {
+      this.isPreAggregated = isPreAggregated;
+   }
+
+   public boolean isPreAggregated() {
       return isPreAggregated;
-   }
-
-   public void setIsPreAggregated(Boolean isPreAggregated) {
-      this.isPreAggregated = isPreAggregated;
-   }
-
-   // Alias setter for snake_case from TypeScript
-   public void setGroupBySnakeCase(List<GroupByField> groupBy) {
-      this.groupBy = groupBy;
-   }
-
-   // Alias setter for snake_case from TypeScript
-   public void setIsPreAggregatedSnakeCase(Boolean isPreAggregated) {
-      this.isPreAggregated = isPreAggregated;
    }
 
    @JsonIgnoreProperties(ignoreUnknown = true)
@@ -434,6 +424,7 @@ public class WorksheetConstructionModel {
    public static class GroupByField {
       private String fieldName;
       private TableInfo table;
+      private String dateGroupLevel;  // For date fields: Year, Quarter, Month, Day, etc.
 
       public String getFieldName() {
          return fieldName;
@@ -450,6 +441,14 @@ public class WorksheetConstructionModel {
       public void setTable(TableInfo table) {
          this.table = table;
       }
+
+      public String getDateGroupLevel() {
+         return dateGroupLevel;
+      }
+
+      public void setDateGroupLevel(String dateGroupLevel) {
+         this.dateGroupLevel = dateGroupLevel;
+      }
    }
 
    /**
@@ -460,7 +459,6 @@ public class WorksheetConstructionModel {
    public static class AggregateField {
       private String fieldName;           // The field being aggregated (e.g., "price")
       private String formula;             // The aggregate formula (e.g., "Sum", "Max", "Average")
-      private String alias;               // Optional alias (e.g., "max_price")
       private TableInfo table;            // The table containing the field
       private String secondaryField;      // For two-column formulas (e.g., WeightedAverage)
       private Integer n;                  // For Nth formulas (e.g., NthLargest)
@@ -479,14 +477,6 @@ public class WorksheetConstructionModel {
 
       public void setFormula(String formula) {
          this.formula = formula;
-      }
-
-      public String getAlias() {
-         return alias;
-      }
-
-      public void setAlias(String alias) {
-         this.alias = alias;
       }
 
       public TableInfo getTable() {
