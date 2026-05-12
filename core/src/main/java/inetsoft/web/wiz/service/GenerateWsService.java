@@ -781,16 +781,7 @@ public class GenerateWsService {
 
          for(Integer op : conditionOperator) {
             AssetCondition assetCondition = new AssetCondition();
-
-            if(filter.getValue() instanceof List list) {
-               for(Object v : list) {
-                  assetCondition.addValue(v);
-               }
-            }
-            else {
-               assetCondition.addValue(filter.getValue());
-            }
-
+            addConditionValue(assetCondition, filter.getValue());
             assetCondition.setNegated(filter.isNegated());
             assetCondition.setOperation(op);
             assetCondition.setType(attributeRef.getDataType());
@@ -894,21 +885,22 @@ public class GenerateWsService {
          for(WorksheetConstructionModel.GroupByField groupField : groupBy) {
             DataRef ref = columnSelection.getAttribute(groupField.getFieldName());
 
-            if(ref == null) {
+            if(!(ref instanceof ColumnRef column)) {
                continue;
             }
-
-            ColumnRef column = (ColumnRef) ref;
-            GroupRef groupRef = new GroupRef(column);
-            aggregateInfo.addGroup(groupRef);
 
             if(groupField.getDateGroupLevel() != null) {
                String colName = column.getName();
                int dgroup = getDateGroupLevel(groupField.getDateGroupLevel());
                String name = DateRangeRef.getName(colName, dgroup);
                DateRangeRef rangeRef = new DateRangeRef(name, column.getDataRef(), dgroup);
-               column.setDataRef(rangeRef);
+               columnSelection.removeAttribute(column);
+               column = new ColumnRef(rangeRef);
+               columnSelection.addAttribute(column);
             }
+
+            GroupRef groupRef = new GroupRef(column);
+            aggregateInfo.addGroup(groupRef);
          }
       }
 
@@ -1060,7 +1052,7 @@ public class GenerateWsService {
          // Create condition(s) for each operator
          for(Integer op : conditionOperators) {
             AssetCondition assetCondition = new AssetCondition();
-            assetCondition.addValue(havingCond.getValue());
+            addConditionValue(assetCondition, havingCond.getValue());
             assetCondition.setOperation(op);
             assetCondition.setType(dataType);
 
@@ -1075,6 +1067,17 @@ public class GenerateWsService {
 
       if(!conditionList.isEmpty()) {
          table.setPostConditionList(conditionList);
+      }
+   }
+
+   private void addConditionValue(AssetCondition condition, Object value) {
+      if(value instanceof List list) {
+         for(Object v : list) {
+            condition.addValue(v);
+         }
+      }
+      else {
+         condition.addValue(value);
       }
    }
 
