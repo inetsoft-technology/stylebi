@@ -553,7 +553,7 @@ public class WorksheetConstructionModel {
       }
    }
 
-   public static enum HavingOperator {
+   public enum HavingOperator {
       GT(">"), LT("<"), EQ("="), GE(">="), LE("<="), NE("<>");
 
       private final String symbol;
