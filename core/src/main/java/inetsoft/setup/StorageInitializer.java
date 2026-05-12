@@ -204,11 +204,11 @@ public class StorageInitializer implements Callable<Integer> {
       if(files != null && files.length > 0) {
          try(StorageService service = new StorageService(configDirectory.getAbsolutePath())) {
             for(File file : files) {
-               service.installPlugin(file);
+               if(service.installPlugin(file)) {
+                  context.attributes().put("pluginsInstalled", true);
+               }
             }
          }
-
-         context.attributes().put("pluginsInstalled", true);
       }
    }
 
@@ -412,7 +412,7 @@ public class StorageInitializer implements Callable<Integer> {
       }
    }
 
-   @Configuration
+   @Configuration(proxyBeanMethods = false)
    private static class ClusterConfig {
       @Bean
       public InetsoftConfig inetsoftConfig() {
