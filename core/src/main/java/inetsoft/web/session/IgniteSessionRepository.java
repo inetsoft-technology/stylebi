@@ -275,7 +275,7 @@ public class IgniteSessionRepository
 
    @Override
    public void entryRemoved(EntryEvent<String, MapSession> event) {
-      MapSession session = event.getValue();
+      MapSession session = event.getOldValue();
 
       if(session != null) {
          if(session.isExpired()) {
@@ -285,7 +285,7 @@ public class IgniteSessionRepository
             LOG.debug("Session deleted with ID: {}", session.getId());
             sendApplicationEvent(new SessionDeletedEvent(this.getClass().getName(), session));
             logout(session, "");
-            destroySessionAttributeMap(event.getOldValue().getId());
+            destroySessionAttributeMap(session.getId());
          }
       }
    }

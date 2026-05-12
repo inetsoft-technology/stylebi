@@ -392,7 +392,12 @@ public class UserService
       }
 
       for(String sessionId : sessionIds) {
-         logout(sessionId);
+         try {
+            logout(sessionId);
+         }
+         catch(Exception e) {
+            LOG.warn("Failed to logout session: {}", sessionId, e);
+         }
       }
    }
 
