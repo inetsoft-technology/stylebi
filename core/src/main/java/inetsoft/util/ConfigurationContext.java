@@ -196,7 +196,26 @@ public class ConfigurationContext implements AutoCloseable {
          throw new ShutdownException();
       }
 
-      return type.cast(beanCache.get(type, t -> applicationContext.getBean(t)));
+      if(IN_CACHE_LOAD.get()) {
+         Object cached = beanCache.getIfPresent(type);
+
+         if(cached != null && cached != MISSING_BEAN) {
+            return type.cast(cached);
+         }
+
+         return applicationContext.getBean(type);
+      }
+
+      return type.cast(beanCache.get(type, t -> {
+         IN_CACHE_LOAD.set(true);
+
+         try {
+            return applicationContext.getBean(t);
+         }
+         finally {
+            IN_CACHE_LOAD.remove();
+         }
+      }));
    }
 
    /**
@@ -209,12 +228,32 @@ public class ConfigurationContext implements AutoCloseable {
          return null;
       }
 
+      if(IN_CACHE_LOAD.get()) {
+         Object cached = beanCache.getIfPresent(type);
+
+         if(cached != null) {
+            return cached == MISSING_BEAN ? null : type.cast(cached);
+         }
+
+         try {
+            return applicationContext.getBean(type);
+         }
+         catch(NoSuchBeanDefinitionException e) {
+            return null;
+         }
+      }
+
       Object cached = beanCache.get(type, t -> {
+         IN_CACHE_LOAD.set(true);
+
          try {
             return applicationContext.getBean(t);
          }
          catch(NoSuchBeanDefinitionException e) {
             return MISSING_BEAN;
+         }
+         finally {
+            IN_CACHE_LOAD.remove();
          }
       });
 
@@ -265,5 +304,8 @@ public class ConfigurationContext implements AutoCloseable {
    private final CompletableFuture<Void> springContextReady = new CompletableFuture<>();
    private static volatile ConfigurationContext INSTANCE;
    private static final Object MISSING_BEAN = new Object();
+   // Prevents ConcurrentHashMap recursive update when Spring bean initialization
+   // triggers a nested getSpringBean/getOptionalSpringBean call on the same thread.
+   private static final ThreadLocal<Boolean> IN_CACHE_LOAD = ThreadLocal.withInitial(() -> false);
    private static final Logger LOG = LoggerFactory.getLogger(ConfigurationContext.class);
 }
