@@ -305,9 +305,9 @@ public class ExportAssetController {
    private final DeployService deployService;
    private final IgniteSessionRepository igniteSessionRepository;
    private final Cluster cluster;
-   private static final String PERM_ATTR =
+   static final String PERM_ATTR =
       ExportAssetController.class.getName() + ".deployPermissions";
-   private static final String DEPS_ATTR =
+   static final String DEPS_ATTR =
       ExportAssetController.class.getName() + ".deployDependencies";
    private static final String PROPS_ATTR =
       ExportAssetController.class.getName() + ".deployJarProperties";
