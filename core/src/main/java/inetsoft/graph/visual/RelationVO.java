@@ -114,10 +114,10 @@ public class RelationVO extends ElementVO {
          GTool.setRenderingHint(g2, false);
 
          Shape shape = getScreenTransform().createTransformedShape(this.shape);
+         Rectangle2D b = shape.getBounds2D();
          GShape nodeShape = elem.getNodeShape();
 
          if(nodeShape != null) {
-            Rectangle2D b = shape.getBounds2D();
             Shape s = nodeShape.getShape(b.getX(), b.getY(), b.getWidth(), b.getHeight());
 
             if(s != null) {
@@ -128,7 +128,6 @@ public class RelationVO extends ElementVO {
             double r = elem.getNodeCornerRadius();
 
             if(r > 0) {
-               Rectangle2D b = shape.getBounds2D();
                double shortDim = Math.min(b.getWidth(), b.getHeight());
                // r is in [0, 0.5]; arc is the corner ellipse diameter
                double arc = r * shortDim * 2;

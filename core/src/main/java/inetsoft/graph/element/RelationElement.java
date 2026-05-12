@@ -18,6 +18,9 @@
 package inetsoft.graph.element;
 
 import inetsoft.graph.*;
+import com.inetsoft.build.tern.TernMethod;
+import inetsoft.graph.GGraph;
+import inetsoft.graph.GraphConstants;
 import inetsoft.graph.aesthetic.*;
 import inetsoft.graph.coord.Coordinate;
 import inetsoft.graph.data.*;
@@ -913,14 +916,17 @@ public class RelationElement extends GraphElement {
    /**
     * Get the GShape used to render nodes. When null the default oval/rectangle is used.
     */
+   @TernMethod
    public GShape getNodeShape() {
       return nodeShape;
    }
 
    /**
-    * Set the GShape used to render nodes. When set, overrides the default oval rendering.
+    * Set the GShape used to render nodes. When set, overrides the default oval rendering
+    * and the nodeCornerRadius setting is ignored.
     * @param nodeShape the shape to use, or null to restore default behaviour.
     */
+   @TernMethod
    public void setNodeShape(GShape nodeShape) {
       this.nodeShape = nodeShape;
    }
