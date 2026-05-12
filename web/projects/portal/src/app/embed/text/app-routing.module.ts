@@ -18,16 +18,16 @@
 import { NgModule } from "@angular/core";
 import { RouterModule, Routes } from "@angular/router";
 import { canDeactivateGuard } from "../../common/services/can-deactivate-guard.service";
-import { EmbedChartComponent } from "./embed-chart.component";
+import { EmbedTextComponent } from "./embed-text.component";
 import { createEmbedUrlMatcher } from "../embed-url-matcher";
 
-export const EMBED_CHART_URL_MATCHER = createEmbedUrlMatcher;
+export const EMBED_TEXT_URL_MATCHER = createEmbedUrlMatcher;
 
 const routes: Routes = [
    {
-      component: EmbedChartComponent,
+      component: EmbedTextComponent,
       canDeactivate: [canDeactivateGuard],
-      matcher: EMBED_CHART_URL_MATCHER
+      matcher: EMBED_TEXT_URL_MATCHER
    }
 ];
 
@@ -35,5 +35,5 @@ const routes: Routes = [
    imports: [RouterModule.forChild(routes)],
    exports: [RouterModule]
 })
-export class EmbedChartRoutingModule {
+export class EmbedTextRoutingModule {
 }

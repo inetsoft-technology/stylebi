@@ -361,10 +361,10 @@
             <image>ghcr.io/inetsoft-technology/java:21.0.8_9</image>
           </from>
           <to>
-            <image>${inetsoft.docker.repository}/stylebi-community</image>
+            <image>${inetsoft.docker.repository}/stylebi-community-wiz</image>
             <tags>
-              <tag>1.2</tag>
-              <tag>1.2.${docker.build.version}</tag>
+              <tag>0.1</tag>
+              <tag>0.1.${docker.build.version}</tag>
             </tags>
           </to>
           <container>

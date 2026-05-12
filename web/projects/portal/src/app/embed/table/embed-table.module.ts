@@ -25,15 +25,12 @@ import { VSDndService } from "../../common/dnd/vs-dnd.service";
 import { FullScreenService } from "../../common/services/full-screen.service";
 import { UIContextService } from "../../common/services/ui-context.service";
 import { ViewsheetClientService } from "../../common/viewsheet-client";
-import { ChartService } from "../../graph/services/chart.service";
 import {
    ComposerToken,
    ContextProvider,
    EmbedAssemblyContextProviderFactory
 } from "../../vsobjects/context-provider.service";
 import { RichTextService } from "../../vsobjects/dialog/rich-text-dialog/rich-text.service";
-import { VSChartService } from "../../vsobjects/objects/chart/services/vs-chart.service";
-import { VSChartModule } from "../../vsobjects/objects/chart/vs-chart.module";
 import { DataTipService } from "../../vsobjects/objects/data-tip/data-tip.service";
 import { PopComponentService } from "../../vsobjects/objects/data-tip/pop-component.service";
 import { MiniToolbarService } from "../../vsobjects/objects/mini-toolbar/mini-toolbar.service";
@@ -48,33 +45,33 @@ import {
    ViewerDialogServiceFactory
 } from "../../widget/slide-out/dialog-service.service";
 import { SlideOutService } from "../../widget/slide-out/slide-out.service";
-import { EmbedChartRoutingModule } from "./app-routing.module";
-import { EmbedChartComponent } from "./embed-chart.component";
+import { EmbedTableRoutingModule } from "./app-routing.module";
+import { EmbedTableComponent } from "./embed-table.component";
 import {
    DataTipDirectivesModule
 } from "../../vsobjects/objects/data-tip/data-tip-directives.module";
 import { MiniToolbarModule } from "../../vsobjects/objects/mini-toolbar/mini-toolbar.module";
 import { createCustomElement } from "@angular/elements";
 import { InteractModule } from "../../widget/interact/interact.module";
+import { VSObjectModule } from "../../vsobjects/vs-object.module";
 
 
 @NgModule({
    imports: [
       CommonModule,
       DownloadModule,
-      EmbedChartRoutingModule,
-      VSChartModule,
+      EmbedTableRoutingModule,
+      VSObjectModule,
       DataTipDirectivesModule,
       MiniToolbarModule,
       AngularResizeEventModule,
       InteractModule,
    ],
-   declarations: [EmbedChartComponent],
+   declarations: [EmbedTableComponent],
    providers: [
       DataTipService,
       PopComponentService,
       MiniToolbarService,
-      VSChartService,
       SlideOutService,
       UIContextService,
       CheckFormDataService,
@@ -101,18 +98,14 @@ import { InteractModule } from "../../widget/interact/interact.module";
          useFactory: EmbedAssemblyContextProviderFactory,
          deps: [[new Optional(), ComposerToken]]
       },
-      {
-         provide: ChartService,
-         useExisting: VSChartService
-      },
       NgbModal
    ],
-   bootstrap: [EmbedChartComponent]
+   bootstrap: [EmbedTableComponent]
 })
-export class EmbedChartModule {
+export class EmbedTableModule {
    constructor(public injector: Injector) {
-      const embedChart = createCustomElement(EmbedChartComponent,
+      const embedTable = createCustomElement(EmbedTableComponent,
          {injector});
-      customElements.define("inetsoft-chart", embedChart);
+      customElements.define("inetsoft-table", embedTable);
    }
 }

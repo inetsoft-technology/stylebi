@@ -32,6 +32,7 @@ import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.erm.*;
 import inetsoft.uql.jdbc.JDBCDataSource;
 import inetsoft.uql.jdbc.util.SQLTypes;
+import inetsoft.uql.schema.XSchema;
 import inetsoft.util.Tool;
 import inetsoft.web.composer.ws.LayoutGraphService;
 import inetsoft.web.composer.ws.event.WSLayoutGraphEvent;
@@ -40,6 +41,8 @@ import org.springframework.stereotype.Service;
 
 import java.security.Principal;
 import java.util.*;
+
+import static inetsoft.web.wiz.service.WizVsService.getDateGroupLevel;
 
 @Service
 public class GenerateWsService {
@@ -256,6 +259,13 @@ public class GenerateWsService {
 
       if(model.getOrderBy() != null) {
          applyOrderBy(table, model.getOrderBy());
+      }
+
+      // Apply GROUP BY and aggregate info
+      // Apply HAVING conditions (stored in postconds)
+      if(model.getAggregates() != null && model.getHaving() != null) {
+         applyAggregateInfo(table, model.getGroupBy(), model.getAggregates(), model.getHaving());
+         applyHavingCondition(table, model.getHaving());
       }
 
       return new WorksheetBuildResult(worksheet, table);
@@ -771,16 +781,7 @@ public class GenerateWsService {
 
          for(Integer op : conditionOperator) {
             AssetCondition assetCondition = new AssetCondition();
-
-            if(filter.getValue() instanceof List list) {
-               for(Object v : list) {
-                  assetCondition.addValue(v);
-               }
-            }
-            else {
-               assetCondition.addValue(filter.getValue());
-            }
-
+            addConditionValue(assetCondition, filter.getValue());
             assetCondition.setNegated(filter.isNegated());
             assetCondition.setOperation(op);
             assetCondition.setType(attributeRef.getDataType());
@@ -855,6 +856,260 @@ public class GenerateWsService {
       };
    }
 
+   /**
+    * Apply aggregate info (GROUP BY and AGGREGATES) to the table assembly.
+    * This sets up the grouping fields and aggregate fields in the AggregateInfo.
+    *
+    * @param table      the table assembly to apply aggregate info to
+    * @param groupBy    the list of group by fields
+    * @param aggregates the list of aggregate fields for SELECT clause (e.g., MAX(price), AVG(price))
+    * @param having     the list of having conditions (used to determine aggregate fields for filtering)
+    */
+   private void applyAggregateInfo(AbstractTableAssembly table,
+                                   List<WorksheetConstructionModel.GroupByField> groupBy,
+                                   List<WorksheetConstructionModel.AggregateField> aggregates,
+                                   List<WorksheetConstructionModel.HavingCondition> having)
+   {
+      if((groupBy == null || groupBy.isEmpty()) &&
+         (aggregates == null || aggregates.isEmpty()) &&
+         (having == null || having.isEmpty()))
+      {
+         return;
+      }
+
+      AggregateInfo aggregateInfo = new AggregateInfo();
+      ColumnSelection columnSelection = table.getColumnSelection();
+
+      // Add group by fields
+      if(groupBy != null) {
+         for(WorksheetConstructionModel.GroupByField groupField : groupBy) {
+            DataRef ref = columnSelection.getAttribute(groupField.getFieldName());
+
+            if(!(ref instanceof ColumnRef column)) {
+               continue;
+            }
+
+            if(groupField.getDateGroupLevel() != null) {
+               String colName = column.getName();
+               int dgroup = getDateGroupLevel(groupField.getDateGroupLevel());
+               String name = DateRangeRef.getName(colName, dgroup);
+               DateRangeRef rangeRef = new DateRangeRef(name, column.getDataRef(), dgroup);
+               columnSelection.removeAttribute(column);
+               column = new ColumnRef(rangeRef);
+               columnSelection.addAttribute(column);
+            }
+
+            GroupRef groupRef = new GroupRef(column);
+            aggregateInfo.addGroup(groupRef);
+         }
+      }
+
+      // Add aggregate fields from the aggregates list (SELECT clause aggregations)
+      if(aggregates != null) {
+         for(WorksheetConstructionModel.AggregateField aggField : aggregates) {
+            DataRef column = columnSelection.getAttribute(aggField.getFieldName());
+
+            if(column == null) {
+               continue;
+            }
+
+            AggregateFormula formula = AggregateFormula.getFormula(aggField.getFormula());
+
+            if(formula == null) {
+               formula = AggregateFormula.SUM;
+            }
+
+            // Handle secondary field for two-column formulas (e.g., Correlation, WeightedAverage)
+            DataRef secondaryColumn = null;
+
+            if(aggField.getSecondaryField() != null && formula.isTwoColumns()) {
+               secondaryColumn = columnSelection.getAttribute(aggField.getSecondaryField());
+            }
+
+            AggregateRef aggregateRef = new AggregateRef(column, secondaryColumn, formula);
+
+            // Handle N parameter for Nth formulas (setN is on AggregateRef)
+            if(aggField.getN() != null && formula.hasN()) {
+               aggregateRef.setN(aggField.getN());
+            }
+
+            aggregateInfo.addAggregate(aggregateRef);
+         }
+      }
+
+      // Add aggregate fields from having conditions (if not already added via aggregates)
+      if(having != null) {
+         for(WorksheetConstructionModel.HavingCondition havingCond : having) {
+            DataRef column = columnSelection.getAttribute(havingCond.getField());
+
+            if(column == null) {
+               continue;
+            }
+
+            AggregateFormula formula = AggregateFormula.getFormula(havingCond.getAggregateFormula());
+
+            if(formula == null) {
+               formula = AggregateFormula.COUNT_ALL;
+            }
+
+            // Handle secondary field for two-column formulas (e.g., Correlation, WeightedAverage)
+            DataRef secondaryColumn = null;
+
+            if(havingCond.getSecondaryField() != null && formula.isTwoColumns()) {
+               secondaryColumn = columnSelection.getAttribute(havingCond.getSecondaryField());
+            }
+
+            AggregateRef aggregateRef = new AggregateRef(column, secondaryColumn, formula);
+
+            // Handle N parameter for Nth formulas (setN is on AggregateRef)
+            if(havingCond.getN() != null && formula.hasN()) {
+               aggregateRef.setN(havingCond.getN());
+            }
+
+            // Only add if not already present from aggregates list.
+            // Use equalsAggregate() to properly compare AggregateRefs and avoid
+            // ClassCastException when CompositeAggregateRef is present.
+            boolean aggregateExists = false;
+
+            for(int i = 0; i < aggregateInfo.getAggregateCount(); i++) {
+               if(aggregateRef.equalsAggregate(aggregateInfo.getAggregate(i))) {
+                  aggregateExists = true;
+                  break;
+               }
+            }
+
+            if(!aggregateExists) {
+               aggregateInfo.addAggregate(aggregateRef);
+            }
+         }
+      }
+
+      if(!aggregateInfo.isEmpty()) {
+         table.setAggregateInfo(aggregateInfo);
+      }
+   }
+
+   /**
+    * Apply HAVING conditions to the table assembly.
+    * HAVING conditions are stored in the post condition list (postconds).
+    *
+    * @param table  the table assembly to apply having conditions to
+    * @param having the list of having conditions
+    */
+   private void applyHavingCondition(AbstractTableAssembly table,
+                                     List<WorksheetConstructionModel.HavingCondition> having)
+   {
+      if(having == null || having.isEmpty()) {
+         return;
+      }
+
+      ConditionList conditionList = new ConditionList();
+      ColumnSelection columnSelection = table.getColumnSelection();
+
+      for(WorksheetConstructionModel.HavingCondition havingCond : having) {
+         DataRef column = columnSelection.getAttribute(havingCond.getField());
+
+         if(column == null) {
+            continue;
+         }
+
+         AggregateFormula formula = AggregateFormula.getFormula(havingCond.getAggregateFormula());
+
+         if(formula == null) {
+            formula = AggregateFormula.COUNT_ALL;
+         }
+
+         // Handle secondary field for two-column formulas
+         DataRef secondaryColumn = null;
+
+         if(havingCond.getSecondaryField() != null && formula.isTwoColumns()) {
+            secondaryColumn = columnSelection.getAttribute(havingCond.getSecondaryField());
+         }
+
+         // Create aggregate ref for the condition
+         AggregateRef aggregateRef = new AggregateRef(column, secondaryColumn, formula);
+
+         // Handle N parameter for Nth formulas (setN is on AggregateRef)
+         if(havingCond.getN() != null && formula.hasN()) {
+            aggregateRef.setN(havingCond.getN());
+         }
+
+         // Get list of operations (GE/LE require two separate conditions)
+         WorksheetConstructionModel.HavingOperator operator = havingCond.getOperator();
+         List<Integer> conditionOperators = getHavingConditionOperator(operator);
+
+         // Determine the data type based on the formula result type
+         String dataType = formula.getDataType();
+
+         if(dataType == null) {
+            dataType = column.getDataType();
+         }
+
+         if(dataType == null) {
+            dataType = XSchema.DOUBLE;
+         }
+
+         // Create condition(s) for each operator
+         for(Integer op : conditionOperators) {
+            AssetCondition assetCondition = new AssetCondition();
+            addConditionValue(assetCondition, havingCond.getValue());
+            assetCondition.setOperation(op);
+            assetCondition.setType(dataType);
+
+            // Set negation for NE operator
+            if(operator == WorksheetConstructionModel.HavingOperator.NE) {
+               assetCondition.setNegated(true);
+            }
+
+            conditionList.append(new ConditionItem(aggregateRef, assetCondition, 0));
+         }
+      }
+
+      if(!conditionList.isEmpty()) {
+         table.setPostConditionList(conditionList);
+      }
+   }
+
+   private void addConditionValue(AssetCondition condition, Object value) {
+      if(value instanceof List list) {
+         for(Object v : list) {
+            condition.addValue(v);
+         }
+      }
+      else {
+         condition.addValue(value);
+      }
+   }
+
+   /**
+    * Convert HavingOperator to XCondition operation codes.
+    * Returns a list because GE and LE require two separate conditions.
+    */
+   private List<Integer> getHavingConditionOperator(WorksheetConstructionModel.HavingOperator operator) {
+      List<Integer> ops = new ArrayList<>();
+
+      if(operator == null) {
+         ops.add(XCondition.EQUAL_TO);
+         return ops;
+      }
+
+      switch(operator) {
+         case GT -> ops.add(XCondition.GREATER_THAN);
+         case LT -> ops.add(XCondition.LESS_THAN);
+         case GE -> {
+            ops.add(XCondition.EQUAL_TO);
+            ops.add(XCondition.GREATER_THAN);
+         }
+         case LE -> {
+            ops.add(XCondition.EQUAL_TO);
+            ops.add(XCondition.LESS_THAN);
+         }
+         case NE -> ops.add(XCondition.EQUAL_TO);
+         case EQ -> ops.add(XCondition.EQUAL_TO);
+      }
+
+      return ops;
+   }
 
    /**
     * Extracts the column type string from an OsiField's custom extension JSON.
