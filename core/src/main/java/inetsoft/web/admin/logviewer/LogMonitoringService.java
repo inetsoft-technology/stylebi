@@ -64,12 +64,10 @@ public class LogMonitoringService implements MessageListener {
    private static final long LOG_LIST_TIMEOUT_SECONDS = 10L;
 
    @Autowired
-   public LogMonitoringService(LogManager logManager, Cluster cluster,
-                               LicenseManager licenseManager)
+   public LogMonitoringService(LogManager logManager, Cluster cluster)
    {
       this.logManager = logManager;
       this.cluster = cluster;
-      this.licenseManager = licenseManager;
    }
 
    @PostConstruct
@@ -167,7 +165,7 @@ public class LogMonitoringService implements MessageListener {
                      clusterNode, new GetLogFilesRequest(), GetLogFilesResponse.class,
                      LOG_LIST_TIMEOUT_SECONDS, TimeUnit.SECONDS);
 
-                  if(licenseManager.isEnterprise()) {
+                  if(LicenseManager.isEnterprise()) {
                      return response.getLogFiles();
                   }
                }
@@ -394,7 +392,6 @@ public class LogMonitoringService implements MessageListener {
 
    private final LogManager logManager;
    private final Cluster cluster;
-   private final LicenseManager licenseManager;
    // CachedThreadPool allows all cluster nodes to be queried concurrently regardless of cluster
    // size. The thread count is bounded by the number of cluster nodes per request (a small,
    // operator-controlled value), so there is no unbounded thread growth risk.

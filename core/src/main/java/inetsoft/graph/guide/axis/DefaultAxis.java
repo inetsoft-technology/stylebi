@@ -1014,6 +1014,14 @@ public class DefaultAxis extends Axis {
       line.setHeight(Math.min(getAxisSize(), line.getMinHeight0()));
 
       if(vlabels == null || vlabels.length == 0) {
+         // Secondary axes have no labels but hold the grid lines. Extend them here
+         // since the primary axis (which has labels) has no grid lines to extend.
+         if(getScale().getAxisSpec().isFacetGrid() && getGridLineCount() > 0 &&
+            getPrimaryAxis() instanceof DefaultAxis)
+         {
+            extendGridLines(((DefaultAxis) getPrimaryAxis()).getAxisSize(), hor);
+         }
+
          return;
       }
 
@@ -1227,18 +1235,23 @@ public class DefaultAxis extends Axis {
    private void extendGridLines(double labelSize, boolean hor) {
       for(int k = 0; k < getGridLineCount(); k++) {
          GridLine gridLine = getGridLine(k);
+
+         // createGridLines() always recreates GridLine instances (via removeAllGridLines) before
+         // layout() is called, so facetGrid is false on the first pass. This guard is a safety net
+         // against a hypothetical double-layout() call without an intervening createGridLines().
+         if(gridLine.isFacetGrid()) {
+            continue;
+         }
+
          Shape lineShape = gridLine.getShape();
 
          if(lineShape instanceof Line2D) {
             Line2D line = (Line2D) lineShape;
             Line2D line2;
 
-            if(isLabelAbove() && hor) {
-               line2 = new Line2D.Double(
-                  line.getX1(), Math.max(line.getY1(), line.getY2()) + labelSize,
-                  line.getX2(), Math.min(line.getY1(), line.getY2()));
-            }
-            else if(hor) {
+            if(hor) {
+               // In VGraph Y-up coordinates the label area is always at smaller Y than the plot,
+               // regardless of which side the labels appear on in screen space.
                line2 = new Line2D.Double(
                   line.getX1(), Math.min(line.getY1(), line.getY2()) - labelSize,
                   line.getX2(), Math.max(line.getY1(), line.getY2()));
@@ -1255,6 +1268,7 @@ public class DefaultAxis extends Axis {
             }
 
             gridLine.setShape(line2);
+            gridLine.setFacetGrid(true);
          }
       }
    }

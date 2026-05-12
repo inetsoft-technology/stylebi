@@ -1002,34 +1002,6 @@ public class XEngine implements XRepository, XQueryRepository {
       return dx.getParameters();
    }
 
-   private void closeInvalidConnection(Object session, XQuery xquery) throws RemoteException {
-      if(xquery == null) {
-         throw new RemoteException("Query not found!");
-      }
-
-      XDataSource dx = xquery.getDataSource();
-
-      dx = ConnectionProcessor.getInstance().getAdditionalConnection(dx);
-
-      Pair pair = new Pair(session, dx);
-      XHandler handler = sessionrun.get(pair);
-
-      if(handler instanceof JDBCHandler) {
-         JDBCDataSource connectionDx = ((JDBCHandler) handler).getDataSource();
-
-         if(connectionDx != null && connectionDx.isRequireLogin() && connectionDx.getUser() == null) {
-            try {
-               handler.close();
-            }
-            catch(Exception ex) {
-               LOG.error("Failed to close handler for {}", pair, ex);
-            }
-
-            this.sessionrun.remove(pair);
-         }
-      }
-   }
-
    /**
     * Get the parameters for a query. The parameters should be filled in
     * and passed to execute().
@@ -1058,7 +1030,6 @@ public class XEngine implements XRepository, XQueryRepository {
    private void populateVariables(Object session, XQuery xquery, List<UserVariable> vars,
                                   boolean promptOnly) throws RemoteException
    {
-      closeInvalidConnection(session, xquery);
       appendArrayToVector(vars, getConnectionParameters(session, xquery));
       appendArrayToVector(vars, VpmProcessor.getInstance().getVPMParameters(xquery, ThreadContext.getContextPrincipal(), promptOnly));
 
@@ -1740,12 +1711,6 @@ public class XEngine implements XRepository, XQueryRepository {
          if(getConnectionParameters(session, dx) != null) {
             vars = new VariableTable();
             Principal principal = ThreadContext.getContextPrincipal();
-            boolean resetParameters = dx instanceof JDBCDataSource &&
-               ((JDBCDataSource) dx).isRequireLogin() && !((JDBCDataSource) dx).isRequireSave();
-
-            if(resetParameters) {
-               ((JDBCDataSource) dx).setUser(null);
-            }
 
             if(principal instanceof XPrincipal) {
                Object username = ((XPrincipal) principal).getParameter(

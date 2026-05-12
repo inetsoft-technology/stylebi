@@ -82,12 +82,10 @@ import java.util.stream.Collectors;
 @RestController
 public class SearchController {
    @Autowired
-   public SearchController(LocalizationService localizationService, SecurityEngine securityEngine,
-                           LicenseManager licenseManager)
+   public SearchController(LocalizationService localizationService, SecurityEngine securityEngine)
    {
       this.localizationService = localizationService;
       this.securityEngine = securityEngine;
-      this.licenseManager = licenseManager;
       boosts.put("keyword", 10F);
       boosts.put("title", 5F);
       boosts.put("content", 1F);
@@ -148,7 +146,7 @@ public class SearchController {
 
             String resourceRoute = route.indexOf("/") == 0 ? route.substring(1) : route;
 
-            if(!licenseManager.isEnterprise()) {
+            if(!LicenseManager.isEnterprise()) {
                if(resourceRoute.startsWith("audit") || document.get("title").equals("License Keys")) {
                   continue;
                }
@@ -343,7 +341,6 @@ public class SearchController {
 
    private final LocalizationService localizationService;
    private final SecurityEngine securityEngine;
-   private final LicenseManager licenseManager;
    private final Map<Locale, Analyzer> analyzers = new ConcurrentHashMap<>();
    private final Map<Locale, Directory> directories = new HashMap<>();
    private final String[] queryFields = { "keyword", "title", "content" };

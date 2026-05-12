@@ -297,13 +297,13 @@ describe("Selection List Cell Test", () => {
          expect(selectionListCell.quickSwitchAllowed).toBe(false);
       });
 
-      it("should set quickSwitchAllowed to false on mobile even in viewer context", () => {
+      it("should set quickSwitchAllowed to true on mobile in viewer context", () => {
          vsSelectionComponent.model.quickSwitchAllowed = true;
          selectionListCell.contextProvider = viewerContext();
          selectionListCell.mobile = true;
          selectionListCell.ngOnInit();
 
-         expect(selectionListCell.quickSwitchAllowed).toBe(false);
+         expect(selectionListCell.quickSwitchAllowed).toBe(true);
       });
 
       // Long-press timer cancellation

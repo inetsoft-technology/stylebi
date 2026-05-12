@@ -39,12 +39,10 @@ import java.util.stream.Collectors;
 @Service
 public class LogSettingService {
    @Autowired
-   public LogSettingService(SecurityEngine securityEngine, LogManager logManager,
-                            LicenseManager licenseManager)
+   public LogSettingService(SecurityEngine securityEngine, LogManager logManager)
    {
       this.securityEngine = securityEngine;
       this.logManager = logManager;
-      this.licenseManager = licenseManager;
    }
 
    public LogSettingsModel getConfiguration() {
@@ -58,7 +56,7 @@ public class LogSettingService {
 
          boolean outputToStd = "true".equals(SreeEnv.getProperty("log.output.stderr"));
          String str = SreeEnv.getProperty("log.detail.level");
-         String detailLevel = logManager.parseLevel(str).level();
+         String detailLevel = LogManager.parseLevel(str).level();
 
          List<LogLevelDTO> logLevelDTOList = logManager.getContextLevels().stream()
             .sorted()
@@ -154,7 +152,7 @@ public class LogSettingService {
 
          String detailLevel = model.detailLevel();
          SreeEnv.setProperty("log.detail.level", detailLevel);
-         logManager.setLevel(logManager.parseLevel(detailLevel));
+         logManager.setLevel(LogManager.parseLevel(detailLevel));
 
          LogbackUtil.resetLog();
 
@@ -191,7 +189,7 @@ public class LogSettingService {
                LogContext context = LogContext.valueOf(logLevel.context());
                String name = fixLogName(logLevel.name(), logLevel.orgName(),
                                         LogContext.valueOf(logLevel.context()), securityProvider);
-               LogLevel level = logManager.parseLevel(logLevel.level());
+               LogLevel level = LogManager.parseLevel(logLevel.level());
                SreeEnv.setLogLevel(context, name, level);
             }
          }
@@ -210,7 +208,7 @@ public class LogSettingService {
    }
 
    private String fixLogName(String name, String orgName, LogContext context, SecurityProvider provider) {
-      if(!licenseManager.isEnterprise()) {
+      if(!LicenseManager.isEnterprise()) {
          return name;
       }
 
@@ -304,6 +302,5 @@ public class LogSettingService {
 
    private final SecurityEngine securityEngine;
    private final LogManager logManager;
-   private final LicenseManager licenseManager;
    private static final Logger LOG = LoggerFactory.getLogger(LogSettingService.class);
 }

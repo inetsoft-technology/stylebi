@@ -26,7 +26,7 @@
      [style.display]="getVisible() ? null : 'none'"
      [class.fade-assembly]="!viewer && !model.visible"
      [style.top.px]="(viewer || embeddedVS) && !model.maxMode && !isBinding ?
-     model.objectFormat.top : null"
+     getObjectTop() : null"
      [style.left.px]="(viewer || embeddedVS) && !model.maxMode && !isBinding ? model.objectFormat.left : null"
      [style.position]="viewer || embeddedVS ? 'absolute' : 'relative'"
      [style.width.px]="getObjectWidth()"

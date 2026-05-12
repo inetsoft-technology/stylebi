@@ -51,7 +51,7 @@ public class EmNavBarController {
    @GetMapping("/api/em/navbar/get-navbar-model")
    public EmNavBarModel getNavBarModel(Principal principal) throws Exception {
       String logoutUri = SreeEnv.getProperty("sso.logout.url");
-      boolean enterprise = licenseManager.isEnterprise();
+      boolean enterprise = LicenseManager.isEnterprise();
 
       if(!SSOType.NONE.getName().equals(SreeEnv.getProperty("sso.protocol.type")) &&
          !StringUtils.isEmpty(logoutUri))

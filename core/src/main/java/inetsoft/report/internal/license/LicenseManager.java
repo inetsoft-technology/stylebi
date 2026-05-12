@@ -17,6 +17,7 @@
  */
 package inetsoft.report.internal.license;
 
+import com.google.common.base.Suppliers;
 import inetsoft.sree.ApplicationPropertiesChangedEvent;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.cluster.MessageEvent;
@@ -28,6 +29,7 @@ import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.event.EventListener;
 
 import java.util.*;
+import java.util.function.Supplier;
 
 /**
  * {@code LicenseManager} manages the installed license keys and provides information about them.
@@ -122,20 +124,8 @@ public class LicenseManager implements AutoCloseable, MessageListener {
    /**
     * Check if the enterprise features are included.
     */
-   public boolean isEnterprise() {
-      if(enterprise != null) {
-         return enterprise;
-      }
-
-      try {
-         Class.forName("inetsoft.enterprise.EnterpriseConfig");
-         enterprise = true;
-         return true;
-      }
-      catch(Exception ex) {
-         enterprise = false;
-         return false;
-      }
+   public static boolean isEnterprise() {
+      return enterprise.get();
    }
 
    /**
@@ -463,5 +453,13 @@ public class LicenseManager implements AutoCloseable, MessageListener {
    }
 
    private LicenseStrategy strategy;
-   private Boolean enterprise;
+   private static final Supplier<Boolean> enterprise = Suppliers.memoize(() -> {
+      try {
+         Class.forName("inetsoft.enterprise.EnterpriseConfig");
+         return true;
+      }
+      catch(Exception ignore) {
+         return false;
+      }
+   });
 }

@@ -100,8 +100,16 @@ public abstract class XSwappable implements Serializable {
       initPrefix();
    }
 
+   protected XSwapper getSwapper() {
+      if(swapper == null) {
+         swapper = XSwapper.getSwapper();
+      }
+
+      return swapper;
+   }
+
    private void initPrefix() {
-      this.prefix = XSwapper.getSwapper().getPrefix();
+      this.prefix = getSwapper().getPrefix();
    }
 
    /**
@@ -143,7 +151,7 @@ public abstract class XSwappable implements Serializable {
     * This method should be called when the object is ready to be swapped.
     */
    public void complete() {
-      XSwapper.getSwapper().register(this);
+      getSwapper().register(this);
    }
 
    @Override
@@ -193,6 +201,7 @@ public abstract class XSwappable implements Serializable {
    protected static final int alive =
       Integer.parseInt(SreeEnv.getProperty("swappable.alive.period", "1500"));
    protected String prefix;
+   protected transient XSwapper swapper;
    private transient double priority;
    private transient Comparator comp;
 }

@@ -2004,7 +2004,7 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
             if(close) {
                this.closeLibTab(script);
             }
-         });
+         }).catch(() => {});
 
    }
 

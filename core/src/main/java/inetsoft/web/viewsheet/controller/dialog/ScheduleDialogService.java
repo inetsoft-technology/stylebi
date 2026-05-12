@@ -340,6 +340,13 @@ public class ScheduleDialogService {
          return null;
       }
 
+      boolean canDeliverEmail = securityEngine.checkPermission(
+         principal, ResourceType.SCHEDULE_OPTION, "emailDelivery", ResourceAction.READ);
+      boolean canSetStartTime = securityEngine.checkPermission(
+         principal, ResourceType.SCHEDULE_OPTION, "startTime", ResourceAction.READ);
+      boolean canUseTimeRange = securityEngine.checkPermission(
+         principal, ResourceType.SCHEDULE_OPTION, "timeRange", ResourceAction.READ);
+
       ViewsheetAction action = new ViewsheetAction();
 
       action.setBookmarks(new String[]{Optional.ofNullable(viewsheetActionModel.bookmarkName()).orElse("")});
@@ -349,39 +356,54 @@ public class ScheduleDialogService {
       action.setViewsheet(
          Optional.ofNullable(viewsheetActionModel.viewsheet()).orElse(entry.toIdentifier()));
 
-      action.setFileFormat(getEmailFormat(emailInfoModel.formatType()));
-      action.setEmailCSVConfig(new CSVConfig(emailInfoModel.csvConfigModel()));
-      action.setEmails(Optional.ofNullable(emailInfoModel.emails()).orElse(""));
-      action.setFrom(Optional.ofNullable(emailInfoModel.fromAddress())
-                        .orElse(SreeEnv.getProperty("mail.from.address")));
-      action.setAttachmentName(
-         Optional.ofNullable(emailInfoModel.attachmentName()).orElse(entry.getName()));
-      action.setSubject(
-         Optional.ofNullable(emailInfoModel.subject()).orElse(getEntryMessage(entry)));
-      action.setMessage(
-         Optional.ofNullable(emailInfoModel.message()).orElse(getEntryMessage(entry)));
-      action.setMatchLayout(emailInfoModel.matchLayout());
-      action.setExpandSelections(emailInfoModel.expandSelections());
-      action.setOnlyDataComponents(emailInfoModel.onlyDataComponents());
-      action.setCCAddresses(emailInfoModel.ccAddresses());
-      action.setBCCAddresses(emailInfoModel.bccAddresses());
-      action.setExportAllTabbedTables(emailInfoModel.exportAllTabbedTables());
+      if(canDeliverEmail) {
+         action.setFileFormat(getEmailFormat(emailInfoModel.formatType()));
+         action.setEmailCSVConfig(new CSVConfig(emailInfoModel.csvConfigModel()));
+         action.setEmails(Optional.ofNullable(emailInfoModel.emails()).orElse(""));
+         action.setFrom(Optional.ofNullable(emailInfoModel.fromAddress())
+                           .orElse(SreeEnv.getProperty("mail.from.address")));
+         action.setAttachmentName(
+            Optional.ofNullable(emailInfoModel.attachmentName()).orElse(entry.getName()));
+         action.setSubject(
+            Optional.ofNullable(emailInfoModel.subject()).orElse(getEntryMessage(entry)));
+         action.setMessage(
+            Optional.ofNullable(emailInfoModel.message()).orElse(getEntryMessage(entry)));
+         action.setMatchLayout(emailInfoModel.matchLayout());
+         action.setExpandSelections(emailInfoModel.expandSelections());
+         action.setOnlyDataComponents(emailInfoModel.onlyDataComponents());
+         action.setCCAddresses(emailInfoModel.ccAddresses());
+         action.setBCCAddresses(emailInfoModel.bccAddresses());
+         action.setExportAllTabbedTables(emailInfoModel.exportAllTabbedTables());
 
-      if(emailInfoModel.formatType() == FileFormatInfo.EXPORT_TYPE_CSV) {
-         action.setCompressFile(true);
+         if(emailInfoModel.formatType() == FileFormatInfo.EXPORT_TYPE_CSV) {
+            action.setCompressFile(true);
+         }
       }
 
       TimeCondition condition = new TimeCondition();
-      condition.setHour(Optional.ofNullable(timeConditionModel.hour())
-                           .filter(h -> h > 0)
-                           .orElse(1));
-      condition.setMinute(Optional.ofNullable(timeConditionModel.minute())
-                             .filter(h -> h > 0)
-                             .orElse(30));
-      condition.setSecond(Optional.ofNullable(timeConditionModel.second())
-                             .filter(h -> h > 0)
-                             .orElse(0));
-      condition.setType(timeConditionModel.type());
+
+      if(canSetStartTime) {
+         condition.setHour(Optional.ofNullable(timeConditionModel.hour())
+                              .filter(h -> h > 0)
+                              .orElse(1));
+         condition.setMinute(Optional.ofNullable(timeConditionModel.minute())
+                                .filter(h -> h > 0)
+                                .orElse(30));
+         condition.setSecond(Optional.ofNullable(timeConditionModel.second())
+                                .filter(h -> h > 0)
+                                .orElse(0));
+         condition.setType(timeConditionModel.type());
+      }
+      else {
+         // Principal cannot set the scheduled time: use system defaults and
+         // fall back to EVERY_DAY if the submitted type was AT or EVERY_HOUR.
+         condition.setHour(1);
+         condition.setMinute(30);
+         condition.setSecond(0);
+         int type = timeConditionModel.type();
+         condition.setType(type == TimeCondition.AT || type == TimeCondition.EVERY_HOUR
+                              ? TimeCondition.EVERY_DAY : type);
+      }
 
       if(condition.getType() == TimeCondition.EVERY_DAY) {
          condition.setWeekdayOnly(timeConditionModel.weekdayOnly());
@@ -411,7 +433,7 @@ public class ScheduleDialogService {
          }
       }
 
-      if(timeConditionModel.timeRange() != null) {
+      if(timeConditionModel.timeRange() != null && canUseTimeRange) {
          TimeRangeModel range = timeConditionModel.timeRange();
          condition.setTimeRange(new TimeRange(
             range.name(), range.startTime(), range.endTime(), range.defaultRange()));

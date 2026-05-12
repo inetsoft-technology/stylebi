@@ -42,6 +42,8 @@ import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.util.*;
 import inetsoft.util.log.LogLevel;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.awt.*;
 import java.awt.geom.Rectangle2D;
@@ -975,10 +977,32 @@ public class MapGenerator extends MergedGraphGenerator {
          }
 
          names[i] = GraphUtil.MAPPED_HEADER_PREFIX + ref.getName();
-         matchers[i] = new CombinedNameMatcher(matchers0, refName);
+         Collection<String> validIds = getValidShapeIds(type, layer);
+         matchers[i] = new CombinedNameMatcher(matchers0, refName, validIds);
       }
 
       return new MappedDataSet(data, names, matchers);
+   }
+
+   /**
+    * Returns the set of shape IDs available in the GeoMap for the given type
+    * and layer, used to validate matcher results before accepting them.
+    * Returns null when no area map is defined (e.g. point-only layers).
+    */
+   private Collection<String> getValidShapeIds(String type, int layer) {
+      if(MapData.isPointLayer(layer)) {
+         return null;
+      }
+
+      try {
+         GeoMap geoMap = MapData.getGeoMap(type, layer, false);
+         // HashSet for O(1) lookup in getFeatureId hot path
+         return geoMap != null ? new HashSet<>(geoMap.getNames()) : null;
+      }
+      catch(Exception ex) {
+         LOG.debug("Failed to load shape IDs for type={} layer={}, skipping ID validation", type, layer, ex);
+         return null;
+      }
    }
 
    /**
@@ -1472,4 +1496,6 @@ public class MapGenerator extends MergedGraphGenerator {
    private ColorFrame apocolor;               // all polygon color frame
    private boolean checked = false;
    private MapInfo oinfo;
+
+   private static final Logger LOG = LoggerFactory.getLogger(MapGenerator.class);
 }

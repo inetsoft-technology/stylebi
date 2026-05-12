@@ -828,6 +828,9 @@ public class ScheduleManager {
             getOrgTaskMap(orgID).remove(getTaskIdentifier(task.getTaskId(), orgID));
             dependencyHandler.updateTaskDependencies(task, false);
          }
+         else {
+            getOrgTaskMap(orgID).remove(getTaskIdentifier(taskName, orgID));
+         }
 
          scheduleClient.taskRemoved(taskName);
          ScheduleTaskMessage message = new ScheduleTaskMessage();
@@ -1159,7 +1162,13 @@ public class ScheduleManager {
             if(condition instanceof CompletionCondition) {
                CompletionCondition completeCondition = (CompletionCondition) condition;
                String taskName = completeCondition.getTaskName();
-               String userName = taskName.substring(0,taskName.indexOf(":"));
+               int colonIdx = taskName == null ? -1 : taskName.indexOf(":");
+
+               if(colonIdx < 0) {
+                  continue;
+               }
+
+               String userName = taskName.substring(0, colonIdx);
 
                if(Tool.equals(userName, oname.getName()) ||
                   Tool.equals(IdentityID.getIdentityIDFromKey(userName).name, oname.getName()))
@@ -1174,7 +1183,13 @@ public class ScheduleManager {
 
          while(taskDependencies.hasMoreElements()) {
             String taskDep = taskDependencies.nextElement();
-            String userName = taskDep.substring(0, taskDep.indexOf(":"));
+            int colonIdx = taskDep == null ? -1 : taskDep.indexOf(":");
+
+            if(colonIdx < 0) {
+               continue;
+            }
+
+            String userName = taskDep.substring(0, colonIdx);
 
             if(Tool.equals(userName, oname.getName()) ||
                Tool.equals(IdentityID.getIdentityIDFromKey(userName).name, oname.getName()))

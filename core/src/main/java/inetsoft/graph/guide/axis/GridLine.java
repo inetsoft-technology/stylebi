@@ -76,11 +76,20 @@ public class GridLine extends Visualizable {
       Rectangle2D rect = shp.getBounds2D();
 
       // GridLine always returns null for bounds since the bounds is not known until paint().
-      // we check the bounds here (instead of VGraph) to avoid unnecessary painting
-      if(clip != null && !clip.intersects(rect.getMinX() - 1, rect.getMinY() - 1,
-                                          rect.getWidth() + 2, rect.getHeight() + 2))
+      // we check the bounds here (instead of VGraph) to avoid unnecessary painting.
+      // Facet grid lines extend into the axis label area outside the plot clip, so skip the
+      // check for them to avoid culling the extended portion before it renders.
+      if(!facetGrid && clip != null && !clip.intersects(rect.getMinX() - 1, rect.getMinY() - 1,
+                                                        rect.getWidth() + 2, rect.getHeight() + 2))
       {
          return;
+      }
+
+      // Facet grid lines must be drawn outside the current plot clip region.
+      final Shape savedClip = facetGrid ? g.getClip() : null;
+
+      if(facetGrid) {
+         g.setClip(null);
       }
 
       // @by larryl, in jdk 1.6, a Path2D at the exact same position may be
@@ -107,6 +116,10 @@ public class GridLine extends Visualizable {
       GTool.drawLine(g, shp);
       g.setStroke(ostroke);
       g.setColor(ocolor);
+
+      if(facetGrid) {
+         g.setClip(savedClip);
+      }
    }
 
    /**
@@ -213,6 +226,22 @@ public class GridLine extends Visualizable {
    }
 
    /**
+    * Check whether this grid line extends into the axis label area (facet grid).
+    */
+   public boolean isFacetGrid() {
+      return facetGrid;
+   }
+
+   /**
+    * Set whether this grid line extends into the axis label area (facet grid).
+    * When true, the line is drawn outside the current plot clip region so the
+    * extended portion is not clipped away.
+    */
+   public void setFacetGrid(boolean facetGrid) {
+      this.facetGrid = facetGrid;
+   }
+
+   /**
     * Returns the distance from one grid line left top corner to another.
     */
    double distance(GridLine line) {
@@ -229,4 +258,5 @@ public class GridLine extends Visualizable {
    private Color color;
    private int style;
    private boolean isGrid;
+   private boolean facetGrid;
 }

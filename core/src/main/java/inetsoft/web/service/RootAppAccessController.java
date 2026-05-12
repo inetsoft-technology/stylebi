@@ -54,7 +54,7 @@ public class RootAppAccessController {
 
    @GetMapping("/api/enterprise")
    public boolean isEnterprise(@SuppressWarnings("unused") Principal principal) {
-      return licenseManager.isEnterprise();
+      return LicenseManager.isEnterprise();
    }
 
    @GetMapping("/api/org/info")

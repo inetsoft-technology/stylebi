@@ -21,11 +21,15 @@ import inetsoft.sree.UserEnv;
 import inetsoft.util.*;
 import inetsoft.util.config.InetsoftConfig;
 import inetsoft.util.log.LogManager;
+import inetsoft.web.composer.vs.controller.VSLayoutService;
+import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import org.apache.commons.lang3.SystemUtils;
 import org.springframework.beans.factory.config.YamlPropertiesFactoryBean;
 import org.springframework.boot.*;
+import org.springframework.boot.autoconfigure.AutoConfigurationExcludeFilter;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.springframework.context.annotation.Import;
+import org.springframework.boot.context.TypeExcludeFilter;
+import org.springframework.context.annotation.*;
 import org.springframework.core.io.ClassPathResource;
 
 import java.io.File;
@@ -42,14 +46,27 @@ import java.util.*;
  * here before the application context is started. RMI binding and scheduler startup
  * are handled by {@link ScheduleServerContext}.
  */
-@SpringBootApplication(scanBasePackages = {
-   "inetsoft.sree.schedule",
-   "inetsoft.util",
-   "inetsoft.sree",
-   "inetsoft.storage",
-   "inetsoft.web.factory"
-})
-@Import(ScheduleServerContext.class)
+@SpringBootApplication
+@ComponentScan(
+   basePackages = {
+      "inetsoft.sree.schedule",
+      "inetsoft.util",
+      "inetsoft.sree",
+      "inetsoft.storage",
+      "inetsoft.web.factory",
+      "inetsoft.web.viewsheet.service",
+      "inetsoft.web.viewsheet.model",
+      "inetsoft.web.binding.service",
+      "inetsoft.web.binding.drm",
+      "inetsoft.web.binding.model"
+   },
+   excludeFilters = {
+      @ComponentScan.Filter(type = FilterType.CUSTOM, classes = TypeExcludeFilter.class),
+      @ComponentScan.Filter(type = FilterType.CUSTOM, classes = AutoConfigurationExcludeFilter.class),
+      @ComponentScan.Filter(type = FilterType.ASSIGNABLE_TYPE, classes = RuntimeViewsheetRef.class)
+   }
+)
+@Import({ ScheduleServerContext.class, VSLayoutService.class })
 public class ScheduleServerApplication {
    public static void main(String[] args) {
       ApplicationArguments appArguments = new DefaultApplicationArguments(args);

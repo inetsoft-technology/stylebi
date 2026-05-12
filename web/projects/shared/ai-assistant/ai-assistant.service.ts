@@ -64,7 +64,14 @@ export class AiAssistantService {
    private _contextChange$ = new Subject<void>();
    readonly contextChange$ = this._contextChange$.asObservable();
    get panelOpen(): boolean { return this._panelOpen$.value; }
-   set panelOpen(v: boolean) { this._panelOpen$.next(v); }
+   set panelOpen(v: boolean) {
+      if(v) {
+         this.panelCollapsed = false;
+      }
+
+      this._panelOpen$.next(v);
+   }
+   panelCollapsed: boolean = false;
    aiAssistantVisible: boolean = false;
    userId: string = "";
    email: string = "";

@@ -3129,6 +3129,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
    public synchronized void setDataSource(JDBCDataSource dataSource) {
       if(!Tool.equals(this.dataSource, dataSource)) {
          clearCachedString();
+         cachedSQLHelper = null;
       }
 
       this.dataSource = dataSource;
@@ -3335,6 +3336,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
          }
 
          obj.hints = new HashMap<>(hints);
+         obj.cachedSQLHelper = null;
          return obj;
       }
       catch(Exception ex) {
@@ -3609,15 +3611,17 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
    }
 
    public SQLHelper getSQLHelper() {
-      if(vpmUser != null) {
-         return SQLHelper.getSQLHelper(this, vpmUser);
+      if(cachedSQLHelper == null) {
+         cachedSQLHelper = vpmUser != null ?
+            SQLHelper.getSQLHelper(this, vpmUser) : SQLHelper.getSQLHelper(this);
       }
 
-      return SQLHelper.getSQLHelper(this);
+      return cachedSQLHelper;
    }
 
    public void setVpmUser(Principal user) {
       this.vpmUser = user;
+      cachedSQLHelper = null;
    }
 
    /**
@@ -3716,6 +3720,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
    private Set<String> aliasflags = new HashSet<>();
    private Collection<XJoin> ojoins; // original joins before being transformed
    private transient Principal vpmUser; // vpm user apply for studio worksheet.
+   private transient volatile SQLHelper cachedSQLHelper;
    private Boolean lossy = null;
 
    private static final Logger LOG = LoggerFactory.getLogger(UniformSQL.class);

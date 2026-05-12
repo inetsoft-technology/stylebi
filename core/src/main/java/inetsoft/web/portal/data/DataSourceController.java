@@ -22,7 +22,6 @@ import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.sree.RepositoryEntry;
 import inetsoft.sree.security.SecurityException;
 import inetsoft.sree.security.*;
-import inetsoft.uql.XPrincipal;
 import inetsoft.uql.tabular.TabularUtil;
 import inetsoft.uql.tabular.oauth.AuthorizationClient;
 import inetsoft.uql.tabular.oauth.Tokens;
@@ -63,7 +62,6 @@ public class DataSourceController {
                                DatabaseDatasourcesService databaseDatasourcesService,
                                SecurityEngine securityEngine,
                                DataSourceStatusService dataSourceStatusService,
-                               LicenseManager licenseManager,
                                FileSystemService fileSystemService)
    {
       this.datasourcesService = datasourcesService;
@@ -71,7 +69,6 @@ public class DataSourceController {
       this.databaseDatasourcesService = databaseDatasourcesService;
       this.securityEngine = securityEngine;
       this.dataSourceStatusService = dataSourceStatusService;
-      this.licenseManager = licenseManager;
       this.fileSystemService = fileSystemService;
    }
 
@@ -239,7 +236,7 @@ public class DataSourceController {
 
       boolean isSelfOrg =
          principal instanceof SRPrincipal && ((SRPrincipal) principal).isSelfOrganization();
-      boolean enterprise = licenseManager.isEnterprise();
+      boolean enterprise = LicenseManager.isEnterprise();
 
       return DataSourceBrowserModel.builder()
          .dataSourceList(dataSourceBrowserService.getDataSources(path, root, movingFolders, principal))
@@ -735,7 +732,6 @@ public class DataSourceController {
    private final DatabaseDatasourcesService databaseDatasourcesService;
    private final SecurityEngine securityEngine;
    private final DataSourceStatusService dataSourceStatusService;
-   private final LicenseManager licenseManager;
    private final FileSystemService fileSystemService;
 
    @Autowired

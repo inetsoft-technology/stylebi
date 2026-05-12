@@ -608,9 +608,13 @@ export namespace VSUtil {
     * objectFormat.top, which may be stale when bottomTabs is toggled via script
     * (child pixelOffset refreshes aren't guaranteed to reach the client).
     *
-    * - collapsed (expanded=false): title sits directly above the tab bar; this
-    *   branch also covers the script-stale case, anchoring the title correctly
-    *   regardless of the selection's own (possibly stale) objectFormat.top.
+    * The search bar renders via [hidden] (not *ngIf), so it occupies space whenever
+    * searchDisplayed is true — including when the dropdown is collapsed. Account
+    * for it in both states so it never overlaps the tab strip.
+    *
+    * - collapsed: title sits above the tab bar; if the search bar is shown, the
+    *   wrapper shifts up an additional titleHeight so the search bar also clears
+    *   the tab bar.
     * - expanded: wrapper shifts further up by bodyHeight (+ searchBarHeight) so the
     *   body pops above the title.
     */
@@ -619,7 +623,7 @@ export namespace VSUtil {
                                                 searchDisplayed: boolean): number {
       const body = expanded ? bodyHeight : 0;
       // selection's search bar height matches the title bar height
-      const searchBar = expanded && searchDisplayed ? titleHeight : 0;
+      const searchBar = searchDisplayed ? titleHeight : 0;
       return tabTop - titleHeight - body - searchBar;
    }
 }

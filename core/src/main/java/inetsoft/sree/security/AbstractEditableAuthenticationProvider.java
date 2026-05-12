@@ -144,7 +144,7 @@ public abstract class AbstractEditableAuthenticationProvider
       String fromOrgId = fromOrganization.getId();
       copyScopedProperties(fromOrgId, newOrgID, replace);
       copyDataSpace(fromOrganization, newOrg, replace);
-      copyThemes(fromOrgId, newOrgID, replace);
+      String newOrgThemeId = copyThemes(fromOrgId, newOrgID, replace);
 
       if(replace) {
          clearScopedProperties(fromOrgId);
@@ -248,7 +248,7 @@ public abstract class AbstractEditableAuthenticationProvider
       else {
          newOrg.setMembers(addedMembers.stream().map(id -> id.name).toArray(String[]::new));
          newOrg.setLocale(fromOrganization.getLocale());
-         newOrg.setTheme(fromOrganization.getTheme());
+         newOrg.setTheme(newOrgThemeId);
       }
 
       addOrganization(newOrg);
@@ -301,16 +301,25 @@ public abstract class AbstractEditableAuthenticationProvider
       }
    }
 
-   private void copyThemes(String fromOrgId, String toOrgId, boolean replace) {
+   private String copyThemes(String fromOrgId, String toOrgId, boolean replace) {
       if(Tool.isEmptyString(fromOrgId)) {
-         return;
+         return null;
       }
 
       DataSpace dataSpace = DataSpace.getDataSpace();
       CustomThemesManager manager = CustomThemesManager.getManager();
       manager.loadThemes();
       Set<CustomTheme> themes = new HashSet<>(manager.getCustomThemes());
-      List<CustomTheme> sourceThemes = new ArrayList<>(themes);
+      List<CustomTheme> sourceThemes = new ArrayList<>();
+
+      for(CustomTheme t : themes) {
+         try {
+            sourceThemes.add((CustomTheme) t.clone());
+         }
+         catch(Exception ex) {
+            sourceThemes.add(t);
+         }
+      }
 
       if(replace) {
          themes.removeIf(t -> Tool.equals(t.getOrgID(), fromOrgId));
@@ -324,11 +333,11 @@ public abstract class AbstractEditableAuthenticationProvider
          }
       }
 
+      String newOrgThemeId = null;
+
       for(CustomTheme theme : sourceThemes) {
          try {
-            if(Tool.equals(theme.getOrgID(), fromOrgId) ||
-               (Tool.isEmptyString(theme.getOrgID()) && Tool.equals(fromOrgId, Organization.getDefaultOrganizationID())))
-            {
+            if(Tool.equals(theme.getOrgID(), fromOrgId)) {
                CustomTheme clone = (CustomTheme) theme.clone();
                clone.setOrgID(toOrgId);
                clone.setId(UUID.randomUUID().toString().replace("-", ""));
@@ -359,15 +368,14 @@ public abstract class AbstractEditableAuthenticationProvider
                   clone.setOrganizations(newOrgs);
 
                   manager.setOrgSelectedTheme(clone.getId(), toOrgId);
+                  newOrgThemeId = clone.getId();
                }
 
-               //if copying a global theme, need to actually copy the dataspace jar
-               //since this is usually wrapped into copying the dataspace
                if(!Tool.isEmptyString(clone.getJarPath())) {
-                  String oldJarPath = clone.getJarPath();
-                  String newJarPath = clone.getJarPath().replace("portal/theme", "portal/" + toOrgId + "/theme");
+                  if(Tool.isEmptyString(theme.getOrgID())) {
+                     String oldJarPath = clone.getJarPath();
+                     String newJarPath = clone.getJarPath().replace("portal/theme", "portal/" + toOrgId + "/theme");
 
-                  if(Tool.isEmptyString(theme.getOrgID()) || Tool.equals(fromOrgId, Organization.getDefaultOrganizationID())) {
                      if(dataSpace.exists(null, clone.getJarPath())) {
                         try(InputStream in = dataSpace.getInputStream(null, oldJarPath)) {
                            int index = newJarPath.lastIndexOf('/');
@@ -387,6 +395,24 @@ public abstract class AbstractEditableAuthenticationProvider
 
                themes.add(clone);
             }
+            else if(Tool.isEmptyString(theme.getOrgID())
+               && theme.getOrganizations() != null
+               && theme.getOrganizations().contains(fromOrgId))
+            {
+               // Global themes are shared; propagate selection pointer only, no clone.
+               // Mutate the live entry in `themes` (not the sourceThemes copy) so the
+               // change is visible when setCustomThemes is called below.
+               themes.stream()
+                  .filter(t -> t.getId().equals(theme.getId()))
+                  .findFirst()
+                  .ifPresent(original -> {
+                     if(!original.getOrganizations().contains(toOrgId)) {
+                        original.getOrganizations().add(toOrgId);
+                     }
+
+                     manager.setOrgSelectedTheme(theme.getId(), toOrgId);
+                  });
+            }
          }
          catch(Exception ex) {
             LOG.error("Failed to clone custom theme", ex);
@@ -398,17 +424,18 @@ public abstract class AbstractEditableAuthenticationProvider
       }
 
       manager.setCustomThemes(themes);
+      return newOrgThemeId;
    }
 
    protected void clearScopedProperties(String oldOrgId) {
       //loop through properties, delete any containing .thisOrg.
       Properties properties = SreeEnv.getProperties();
-      String oldOrgIdentifier = "inetsoft.org." + oldOrgId;
+      String oldOrgIdentifier = "inetsoft.org." + oldOrgId.toLowerCase(Locale.ROOT);
 
       for(Enumeration<?> e = properties.propertyNames(); e.hasMoreElements();) {
          String pName = (String) e.nextElement();
 
-         if (pName.startsWith(oldOrgIdentifier)) {
+         if(pName.toLowerCase(Locale.ROOT).startsWith(oldOrgIdentifier)) {
             SreeEnv.remove(pName);
          }
       }
@@ -465,27 +492,20 @@ public abstract class AbstractEditableAuthenticationProvider
 
    private void copyScopedProperties(String fromOrgId, String newOrgId, boolean replace) {
       Properties properties = SreeEnv.getProperties();
-      String oldOrgIdentifier = "inetsoft.org." + fromOrgId.toLowerCase();
-      String newOrgPrefix = "inetsoft.org." + newOrgId.toLowerCase();
+      String oldOrgIdentifier = "inetsoft.org." + fromOrgId.toLowerCase(Locale.ROOT);
+      String newOrgPrefix = "inetsoft.org." + newOrgId.toLowerCase(Locale.ROOT);
       Enumeration<?> enumeration = properties.propertyNames();
 
       while(enumeration.hasMoreElements()) {
          String pName = (String) enumeration.nextElement();
 
-         if(pName.startsWith(oldOrgIdentifier)) {
+         if(pName.toLowerCase(Locale.ROOT).startsWith(oldOrgIdentifier)) {
             String baseName = pName.substring(oldOrgIdentifier.length());
             String updatedName = newOrgPrefix + baseName;
             SreeEnv.setProperty(updatedName, properties.getProperty(pName));
 
             if(replace) {
                SreeEnv.remove(pName);
-            }
-
-            try {
-               SreeEnv.save();
-            }
-            catch(IOException e) {
-               LOG.error("Unable to save properties to new organization", e);
             }
          }
       }
@@ -547,7 +567,12 @@ public abstract class AbstractEditableAuthenticationProvider
    }
 
    public List<IdentityModel> copyPermittedIDs(List<IdentityModel> fromIDs, String fromOrgId, String newOrgId ) {
+      if(fromIDs == null) {
+         return new ArrayList<>();
+      }
+
       List<IdentityModel> updatedPIds = new ArrayList<>();
+
       for(IdentityModel id : fromIDs) {
          switch(id.type()) {
          case Identity.USER:
@@ -568,8 +593,15 @@ public abstract class AbstractEditableAuthenticationProvider
                updatedPIds.add(IdentityModel.builder().identityID(newName).type(Identity.ROLE).build());
             }
             break;
+         case Identity.ORGANIZATION:
+            if(fromOrgId.equals(id.identityID().orgID)) {
+               IdentityID newName = new IdentityID(id.identityID().name, newOrgId);
+               updatedPIds.add(IdentityModel.builder().identityID(newName).type(Identity.ORGANIZATION).build());
+            }
+            break;
          }
       }
+
       return updatedPIds;
    }
 
@@ -632,10 +664,14 @@ public abstract class AbstractEditableAuthenticationProvider
 
          return newID;
       }
-      else
-      {
-         addUser(new FSUser(memberID));
-         return memberID;
+      else {
+         IdentityID newMemberID = new IdentityID(memberID.name, orgID);
+
+         if(getUser(newMemberID) == null) {
+            addUser(new FSUser(newMemberID));
+         }
+
+         return newMemberID;
       }
    }
 
@@ -665,6 +701,9 @@ public abstract class AbstractEditableAuthenticationProvider
       ResourceType rType;
 
       switch(type) {
+      case Identity.USER:
+         rType = ResourceType.SECURITY_USER;
+         break;
       case Identity.GROUP:
          rType = ResourceType.SECURITY_GROUP;
          break;
@@ -675,7 +714,8 @@ public abstract class AbstractEditableAuthenticationProvider
          rType = ResourceType.SECURITY_ORGANIZATION;
          break;
       default:
-         rType = ResourceType.SECURITY_USER;
+         LOG.warn("Unknown identity type {} for identity {}, skipping permission update", type, fromIdentity);
+         return;
       }
       List<IdentityModel> uPermIds = identityService.getPermission(fromIdentity, rType, fromOrgID, principal);
       List<IdentityModel> updatedUPermIds = copyPermittedIDs(uPermIds, fromIdentity.orgID, toIdentity.orgID);
@@ -837,7 +877,12 @@ public abstract class AbstractEditableAuthenticationProvider
                                                 removed);
          }
 
-         listener.authenticationChanged(evt);
+         try {
+            listener.authenticationChanged(evt);
+         }
+         catch(Exception e) {
+            LOG.error("Error dispatching authentication change event to listener {}", listener, e);
+         }
       }
    }
 

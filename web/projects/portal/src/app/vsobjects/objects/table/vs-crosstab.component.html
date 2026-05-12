@@ -30,7 +30,7 @@
      [class.fade-assembly]="!viewer && !model.visible"
      [class.disable-actions-fade]="!model.enabled"
      [style.top.px]="(viewer || embeddedVS) && !model.maxMode && !isBinding ?
-     model.objectFormat.top : null"
+     getObjectTop() : null"
      [style.left.px]="(viewer || embeddedVS) && !model.maxMode && !isBinding ? model.objectFormat.left : null"
      [style.position]="viewer || embeddedVS || isBinding ? 'absolute' : 'relative'"
      [style.width.px]="getObjectWidth()"

@@ -25,6 +25,8 @@ import inetsoft.report.style.XTableStyle;
 import inetsoft.sree.*;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
+import inetsoft.sree.web.dashboard.DashboardRegistry;
+import inetsoft.sree.web.dashboard.DashboardRegistryManager;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
@@ -70,7 +72,8 @@ public class RepositoryObjectService {
                                   RecycleBin recycleBin,
                                   DependencyHandler dependencyHandler,
                                   RenameTransformHandler renameTransformHandler,
-                                  RepletRegistryManager repletRegistryManager)
+                                  RepletRegistryManager repletRegistryManager,
+                                  DashboardRegistryManager dashboardRegistryManager)
    {
       this.registryManager = registryManager;
       this.treeService = treeService;
@@ -85,6 +88,7 @@ public class RepositoryObjectService {
       this.dependencyHandler = dependencyHandler;
       this.renameTransformHandler = renameTransformHandler;
       this.repletRegistryManager = repletRegistryManager;
+      this.dashboardRegistryManager = dashboardRegistryManager;
    }
 
    public ConnectionStatus deleteNodes(TreeNodeInfo[] nodes, Principal principal, boolean force,
@@ -1219,8 +1223,14 @@ public class RepositoryObjectService {
             actions, true, principal);
       }
       else if(type == RepositoryEntry.DASHBOARD) {
-         if(!securityProvider.checkPermission(
-            principal, resource.getType(), resource.getPath(), ResourceAction.ADMIN))
+         IdentityID principalID = IdentityID.getIdentityIDFromKey(principal.getName());
+         String dashboardName = SUtil.isMyDashboard(src) ? SUtil.getUnscopedPath(src) : src;
+         DashboardRegistry userRegistry = dashboardRegistryManager.getRegistry(principalID);
+         boolean isOwnDashboard = SUtil.isMyDashboard(src) && userRegistry.getDashboard(dashboardName) != null;
+
+         if(!isOwnDashboard &&
+            !securityProvider.checkPermission(
+               principal, resource.getType(), resource.getPath(), ResourceAction.ADMIN))
          {
             throw new MessageException(Catalog.getCatalog().getString(
                "em.common.security.no.permission", src));
@@ -1302,4 +1312,5 @@ public class RepositoryObjectService {
    private final DependencyHandler dependencyHandler;
    private final RenameTransformHandler renameTransformHandler;
    private final RepletRegistryManager repletRegistryManager;
+   private final DashboardRegistryManager dashboardRegistryManager;
 }

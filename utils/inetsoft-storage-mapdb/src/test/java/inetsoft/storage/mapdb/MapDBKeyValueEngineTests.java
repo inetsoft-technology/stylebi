@@ -130,6 +130,13 @@ public class MapDBKeyValueEngineTests {
    }
 
    @Test
+   void sizeShouldReturnCount() {
+      long expected = expectedUsers.size();
+      long actual = engine.size("users");
+      assertEquals(expected, actual);
+   }
+
+   @Test
    void streamShouldReturnValues() {
       Map<String, TestData> actualUsers = new HashMap<>();
       engine.<TestData>stream("users").forEach(p -> actualUsers.put(p.getKey(), p.getValue()));

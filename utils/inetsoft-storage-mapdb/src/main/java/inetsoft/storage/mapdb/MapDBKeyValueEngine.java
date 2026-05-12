@@ -139,6 +139,11 @@ public class MapDBKeyValueEngine implements KeyValueEngine {
    }
 
    @Override
+   public long size(String id) {
+      return read(id, map -> (long) map.size());
+   }
+
+   @Override
    public <T> Stream<KeyValuePair<T>> stream(String id) {
       return read(id, (ConcurrentMap<String, T> map) -> map.entrySet()
          .stream()

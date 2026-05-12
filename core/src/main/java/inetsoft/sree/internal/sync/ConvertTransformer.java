@@ -204,6 +204,7 @@ public interface ConvertTransformer extends Transformer {
       xmlString = String.format(xmlString, pixelOffX, pixelOffY, assemblyName,
          getVariableMessage(assemblyName, style));
       DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+      factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
       DocumentBuilder docBuilder = factory.newDocumentBuilder();
       Document newDocument = docBuilder.parse(new InputSource(new StringReader(xmlString)));
       return newDocument.getDocumentElement();

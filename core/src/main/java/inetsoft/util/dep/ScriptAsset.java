@@ -53,7 +53,6 @@ public class ScriptAsset extends AbstractXAsset {
     */
    public ScriptAsset() {
       super();
-      libManagerProvider = LibManagerProvider.getInstance();
    }
 
    /**
@@ -61,7 +60,6 @@ public class ScriptAsset extends AbstractXAsset {
     * @param script the specified script function name.
     */
    public ScriptAsset(String script) {
-      this();
       this.script = script;
    }
 
@@ -72,7 +70,7 @@ public class ScriptAsset extends AbstractXAsset {
    @Override
    public XAssetDependency[] getDependencies(List<XAssetDependency> list) {
       List<XAssetDependency> deps = new ArrayList<>();
-      final LibManager manager = libManagerProvider.getManager();
+      final LibManager manager = LibManagerProvider.getInstance().getManager();
 
       if(manager.findScriptName(script) != null) {
          String check = manager.getScript(script);
@@ -260,7 +258,7 @@ public class ScriptAsset extends AbstractXAsset {
          return;
       }
 
-      LibManager manager = libManagerProvider.getManager();
+      LibManager manager = LibManagerProvider.getInstance().getManager();
       boolean overwriting = config != null && config.isOverwriting();
 
       if(manager.findScriptName(script) != null && !overwriting) {
@@ -302,7 +300,7 @@ public class ScriptAsset extends AbstractXAsset {
     */
    @Override
    public synchronized boolean writeContent(OutputStream output) throws Exception {
-      LibManager manager = libManagerProvider.getManager();
+      LibManager manager = LibManagerProvider.getInstance().getManager();
       String body = manager.getScript(script);
 
       if(body == null) {
@@ -351,12 +349,12 @@ public class ScriptAsset extends AbstractXAsset {
    }
 
    public LogicalLibraryEntry getLogicalLibraryEntry() {
-      return libManagerProvider.getManager().getLogicalLibraryEntry(script);
+      return LibManagerProvider.getInstance().getManager().getLogicalLibraryEntry(script);
    }
 
    @Override
    public boolean exists() {
-      return libManagerProvider.getManager().findScriptName(script) != null;
+      return LibManagerProvider.getInstance().getManager().findScriptName(script) != null;
    }
 
    @Override
@@ -375,7 +373,6 @@ public class ScriptAsset extends AbstractXAsset {
    }
 
    private String script;
-   private final LibManagerProvider libManagerProvider;
    private static final String COMMENT = "__COMMENT__";
    private static final String FILE_INFO="__FILEINFO__";
 }

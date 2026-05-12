@@ -566,7 +566,7 @@ public class Scheduler {
             }
 
             listeners.add(new ServerServiceMessageListener(cluster));
-            listeners.add(new LogMonitoringService(LogManager.getInstance(), cluster, LicenseManager.getInstance()));
+            listeners.add(new LogMonitoringService(LogManager.getInstance(), cluster));
             listeners.forEach(cluster::addMessageListener);
          }
       }

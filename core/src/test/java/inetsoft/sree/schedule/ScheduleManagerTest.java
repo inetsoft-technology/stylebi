@@ -344,6 +344,32 @@ public class ScheduleManagerTest {
       assertEquals("tuser0_1~;~host-org:user_tk2",  completionCondition.getTaskName());
    }
 
+   /**
+    * Regression test for Bug #74651: identityRenamed() must not throw
+    * StringIndexOutOfBoundsException when a CompletionCondition or dependency
+    * references a system/internal task name that has no owner prefix (no colon).
+    */
+   @Test
+   void checkIdentityRenamedWithSystemTaskCondition() throws Exception {
+      CompletionCondition systemCondition = spy(CompletionCondition.class);
+      systemCondition.setTaskName("__balance tasks__");
+
+      ScheduleTask userTask = new ScheduleTask("user_tk_sys");
+      userTask.setOwner(new IdentityID("tuser0", "host-org"));
+      userTask.addCondition(systemCondition);
+      userTask.setCondition(0, systemCondition);
+      userTask.setIdentity(new User(identityID_tuser0));
+
+      scheduleManager.setScheduleTask("tuser0~;~host-org:user_tk_sys", userTask, admin);
+
+      User tuser0_1 = new User(new IdentityID("tuser0_1", "host-org"));
+      assertDoesNotThrow(() -> scheduleManager.identityRenamed(identityID_tuser0, tuser0_1));
+
+      CompletionCondition cond = (CompletionCondition)
+         scheduleManager.getScheduleTask("tuser0_1~;~host-org:user_tk_sys").getCondition(0);
+      assertEquals("__balance tasks__", cond.getTaskName());
+   }
+
    private ScheduleTask createScheduleTask(String taskName) {
       ViewsheetAction spyVSAction = spy(ViewsheetAction.class);
       spyVSAction.setViewsheet("1^128^__NULL__^f1/vs1^host-org");

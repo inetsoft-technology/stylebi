@@ -25,6 +25,7 @@ import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.*;
 import inetsoft.sree.security.*;
 import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
 import inetsoft.sree.security.db.DatabaseAuthenticationProvider;
 import inetsoft.sree.security.ldap.*;
 import inetsoft.uql.XPrincipal;
@@ -37,7 +38,6 @@ import inetsoft.web.viewsheet.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.EnableAspectJAutoProxy;
 import org.springframework.context.event.EventListener;
 import org.springframework.messaging.MessageHeaders;
 import org.springframework.messaging.handler.DestinationPatternsMessageCondition;
@@ -54,24 +54,29 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Service
-@EnableAspectJAutoProxy(proxyTargetClass = true)
-public class AuthenticationProviderService extends BaseSubscribeChangeHandler implements MessageListener {
+public class AuthenticationProviderService extends BaseSubscribeChangeHandler {
    @Autowired
    public AuthenticationProviderService(SecurityEngine securityEngine, ObjectMapper objectMapper,
                                         SimpMessagingTemplate messageTemplate,
-                                        Cluster cluster,
-                                        LicenseManager licenseManager)
+                                        Cluster cluster)
    {
       super(messageTemplate);
       this.securityEngine = securityEngine;
       this.objectMapper = objectMapper;
       this.cluster = cluster;
-      this.licenseManager = licenseManager;
    }
 
    @PostConstruct
    public void init() {
-      cluster.addMessageListener(this);
+      messageListener = this::messageReceived;
+      cluster.addMessageListener(messageListener);
+   }
+
+   @PreDestroy
+   public void destroy() {
+      if(messageListener != null) {
+         cluster.removeMessageListener(messageListener);
+      }
    }
 
    @EventListener(SessionDisconnectEvent.class)
@@ -101,7 +106,7 @@ public class AuthenticationProviderService extends BaseSubscribeChangeHandler im
    }
 
    public AuthenticationProviderModel getAuthenticationProvider(String name) {
-      boolean enterprise = licenseManager.isEnterprise();
+      boolean enterprise = LicenseManager.isEnterprise();
       AuthenticationProvider selectedProvider = getProviderByName(name);
       AuthenticationProviderModel.Builder builder = AuthenticationProviderModel.builder()
          .providerName(name)
@@ -867,7 +872,6 @@ public class AuthenticationProviderService extends BaseSubscribeChangeHandler im
       }
    }
 
-   @Override
    public void messageReceived(MessageEvent event) {
       if(event.getMessage() instanceof AuthenticationProvidersChanged) {
          getSubscribers().stream()
@@ -904,7 +908,7 @@ public class AuthenticationProviderService extends BaseSubscribeChangeHandler im
    private final SecurityEngine securityEngine;
    private final ObjectMapper objectMapper;
    private final Cluster cluster;
-   private final LicenseManager licenseManager;
    private final DefaultDebouncer<String> debouncer = new DefaultDebouncer<>();
-   private final Logger LOG = LoggerFactory.getLogger(AuthenticationProviderService.class);
+   private MessageListener messageListener;
+   private static final Logger LOG = LoggerFactory.getLogger(AuthenticationProviderService.class);
 }

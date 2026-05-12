@@ -368,7 +368,9 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
     */
    @Override
    public void tearDown() {
-      if(userStorage != null || groupStorage != null || roleStorage != null) {
+      if(userStorage != null || groupStorage != null || roleStorage != null ||
+         organizationStorage != null)
+      {
          synchronized(this) {
             if(userStorage != null) {
                try {
@@ -401,6 +403,17 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
                }
 
                roleStorage = null;
+            }
+
+            if(organizationStorage != null) {
+               try {
+                  organizationStorage.close();
+               }
+               catch(Exception e) {
+                  LOG.warn("Failed to close organization storage", e);
+               }
+
+               organizationStorage = null;
             }
          }
       }
@@ -708,13 +721,13 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
 
          if(type == Identity.USER) {
 
-            if(removed && getUser(oldID) !=null) {
+            if(removed) {
                removeOrganizationMember(oldID);
             }
          }
          else if(type == Identity.GROUP) {
 
-            if(removed && getGroup(oldID) !=null) {
+            if(removed) {
                removeOrganizationMember(oldID);
             }
 
@@ -736,7 +749,7 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
                else {
                   int index = Arrays.asList(groups).indexOf(oldID.name);
 
-                  if(index >= 0) {
+                  if(index >= 0 && newID != null) {
                      groups[index] = newID.name;
                      userStorage.put(user.getIdentityID().convertToKey(), user)
                         .get(10L, TimeUnit.SECONDS);
@@ -771,7 +784,7 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
          }
          else if(type == Identity.ROLE) {
 
-            if(removed && getRole(oldID) !=null) {
+            if(removed) {
                removeOrganizationMember(oldID);
             }
 
@@ -929,10 +942,15 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
 
    private void removeOrganizationMember(IdentityID oldIdentity) {
       Organization org = getOrganization(oldIdentity.orgID);
+
+      if(org == null) {
+         return;
+      }
+
       List<String> members = new ArrayList<>(Arrays.asList(org.getMembers()));
-      members.remove(oldIdentity.orgID);
+      members.remove(oldIdentity.name);
       org.setMembers(members.toArray(new String[0]));
-      setOrganization(oldIdentity.orgID,org);
+      setOrganization(oldIdentity.orgID, org);
    }
 
    private KeyValueStorage<FSUser> userStorage;

@@ -112,7 +112,17 @@ public class ComposerAdhocFilterService {
          }
 
          VSTableLens lens = box.get().getVSTableLens(oname, detail);
+
+         if(lens == null) {
+            return null;
+         }
+
          TableDataPath tpath = lens.getTableDataPath(event.getRow(), event.getCol());
+
+         if(tpath == null) {
+            return null;
+         }
+
          String[] path = tpath.getPath();
 
          if(path != null) {
@@ -301,6 +311,11 @@ public class ComposerAdhocFilterService {
       }
 
       VSTableLens lens = box.get().getVSTableLens(oname, detail);
+
+      if(lens == null) {
+         return null;
+      }
+
       TableDataPath tpath = lens.getTableDataPath(row, col);
 
       return VSTableService.getCrosstabCellDataRef(table.getVSCrosstabInfo(), tpath, row,

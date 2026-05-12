@@ -63,7 +63,7 @@ import java.util.*;
  * @since 12.3
  */
 @EnableWebMvc
-@EnableAspectJAutoProxy
+@EnableAspectJAutoProxy(proxyTargetClass = true)
 @EnableMBeanExport
 @EnableScheduling
 @Configuration

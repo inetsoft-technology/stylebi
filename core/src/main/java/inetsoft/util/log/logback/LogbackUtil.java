@@ -79,7 +79,7 @@ public class LogbackUtil {
    }
 
    public static void resetLog() throws Exception {
-      if(!LicenseManager.getInstance().isEnterprise()) {
+      if(!LicenseManager.isEnterprise()) {
          return;
       }
 

@@ -49,8 +49,9 @@ public final class XObjectFragment<T> extends XSwappable {
       this.size = size;
       this.pos = 0;
       this.arr = new Object[isize];
-      XSwapper.getSwapper().cur = System.currentTimeMillis();
-      this.iaccessed = XSwapper.getSwapper().cur;
+      XSwapper s = getSwapper();
+      s.cur = System.currentTimeMillis();
+      this.iaccessed = s.cur;
       this.valid = true;
 
       if(getMonitor() != null) {
@@ -64,7 +65,7 @@ public final class XObjectFragment<T> extends XSwappable {
     */
    public final Object[] access() {
       Object[] arr = this.arr;
-      iaccessed = XSwapper.getSwapper().cur;
+      iaccessed = getSwapper().cur;
 
       if(isCountHM) {
          if(valid && !lastValid) {
@@ -80,7 +81,7 @@ public final class XObjectFragment<T> extends XSwappable {
       if(!valid || arr == null) {
          DEBUG_LOG.debug("Validate swapped data: %s", this);
 
-         XSwapper.getSwapper().waitForMemory();
+         getSwapper().waitForMemory();
 
          synchronized(this) {
             if(!valid || arr == null) {
@@ -98,7 +99,7 @@ public final class XObjectFragment<T> extends XSwappable {
          return 0;
       }
 
-      return getAgePriority(XSwapper.getSwapper().cur - iaccessed, alive);
+      return getAgePriority(getSwapper().cur - iaccessed, alive);
    }
 
    /**
@@ -283,7 +284,7 @@ public final class XObjectFragment<T> extends XSwappable {
       File file = getFile(prefix + "_0.tdat");
 
       if(length() != 0 && !file.exists()) {
-         XSwapper.getSwapper().waitForMemory();
+         getSwapper().waitForMemory();
       }
 
       synchronized(this) {
@@ -532,7 +533,7 @@ public final class XObjectFragment<T> extends XSwappable {
       }
 
       if(!valid) {
-         XSwapper.getSwapper().waitForMemory();
+         getSwapper().waitForMemory();
 
          synchronized(this) {
             if(!valid) {
@@ -720,7 +721,7 @@ public final class XObjectFragment<T> extends XSwappable {
          // @by jasons, monitor is now transient, so we need to look it up on
          // demand so a deserialized version works.
          if(monitor == null) {
-            monitor = XSwapper.getSwapper().getMonitor();
+            monitor = getSwapper().getMonitor();
          }
       }
 

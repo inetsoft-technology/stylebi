@@ -268,6 +268,13 @@ public class DataCycleManager
             return;
          }
 
+         // cloud-runner nodes are short-lived task executors; they don't maintain
+         // pregenerated tasks and their Ignite client may be shutting down when this
+         // is triggered by an MVChangedMessage after task completion
+         if(System.getProperty("ScheduleTaskRunner") != null) {
+            return;
+         }
+
       IndexedStorage storage = getIndexedStorage();
       List<ScheduleTask> tasks = new ArrayList<>();
 

@@ -73,9 +73,11 @@ public final class DefaultTableBlock implements XTableBlock, Cloneable {
       this.file = new CacheBlockFile("mvcolswap", "dat");
       isTemp = true;
 
+      XSwapper swapper = XSwapper.getSwapper();
+
       for(int i = 0; i < dcnt; i++) {
          XDimDictionary dict = cinfos[i].getDictionary();
-         XSwapper.getSwapper().waitForMemory();
+         swapper.waitForMemory();
          dcols[i] = new MVDimColumn(dict.size(), rcnt, true);
          dcols[i].setRangeMin(dict.getRangeMin());
          dcols[i].setContainsNull(dict.containsNull());
@@ -84,7 +86,7 @@ public final class DefaultTableBlock implements XTableBlock, Cloneable {
       long[] pos = {0};
 
       for(int i = 0; i < mcnt; i++) {
-         XSwapper.getSwapper().waitForMemory();
+         swapper.waitForMemory();
          mcols[i] = createMeasureColumn(types[i + dcnt], mvcols[i + dcnt],
             columnNames, cinfos[i + dcnt].getMin(), cinfos[i + dcnt].getMax(), pos);
       }

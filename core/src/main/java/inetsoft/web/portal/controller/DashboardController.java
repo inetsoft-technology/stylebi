@@ -140,8 +140,9 @@ public class DashboardController {
    {
       try {
          Catalog catalog = Catalog.getCatalog(principal, Catalog.REPORT);
-         IdentityID user = principal != null ? IdentityID.getIdentityIDFromKey(principal.getName()) :
-            new IdentityID(XPrincipal.ANONYMOUS, Organization.getDefaultOrganizationID());
+         IdentityID user = principal != null
+            ? getIdentity((XPrincipal) principal).getIdentityID()
+            : new IdentityID(XPrincipal.ANONYMOUS, Organization.getDefaultOrganizationID());
          DashboardRegistry uregistry = dashboardRegistryManager.getRegistry(user);
          DashboardRegistry registry = dashboardRegistryManager.getRegistry();
          Dashboard dashboard;
@@ -253,8 +254,9 @@ public class DashboardController {
       String type;
       boolean composedDashboard = false;
 
-      IdentityID user = principal != null ? IdentityID.getIdentityIDFromKey(principal.getName()) :
-         new IdentityID(XPrincipal.ANONYMOUS, Organization.getDefaultOrganizationID());
+      IdentityID user = principal != null
+         ? getIdentity((XPrincipal) principal).getIdentityID()
+         : new IdentityID(XPrincipal.ANONYMOUS, Organization.getDefaultOrganizationID());
       DashboardRegistry registry = dashboardRegistryManager.getRegistry(user);
       // log create dashboard action
       String actionName = ActionRecord.ACTION_NAME_CREATE;
@@ -264,7 +266,6 @@ public class DashboardController {
       ActionRecord actionRecord = new ActionRecord(SUtil.getUserName(principal),
                                                    actionName, objectName, objectType, actionTimestamp,
                                                    ActionRecord.ACTION_STATUS_FAILURE, null);
-      Identity identity = getIdentity((XPrincipal) principal);
 
       try {
          actionRecord.setObjectName(dashboardModel.name());
@@ -276,7 +277,7 @@ public class DashboardController {
          AssetEntry entry;
 
          if(identifier == null) {
-            owner = identity.getIdentityID();
+            owner = user;
             AssetRepository engine = AssetUtil.getAssetRepository(false);
             entry = new AssetEntry(AssetRepository.USER_SCOPE,
                AssetEntry.Type.VIEWSHEET, dashboardModel.name(), owner);
@@ -366,8 +367,9 @@ public class DashboardController {
       boolean composedDashboard = false;
 
       ActionRecord actionRecord = null;
-      IdentityID user = principal != null ? IdentityID.getIdentityIDFromKey(principal.getName()) :
-         new IdentityID(XPrincipal.ANONYMOUS, Organization.getDefaultOrganizationID());
+      IdentityID user = principal != null
+         ? getIdentity((XPrincipal) principal).getIdentityID()
+         : new IdentityID(XPrincipal.ANONYMOUS, Organization.getDefaultOrganizationID());
       DashboardRegistry registry = dashboardRegistryManager.getRegistry(user);
       Catalog catalog = Catalog.getCatalog();
 
@@ -404,7 +406,7 @@ public class DashboardController {
          AssetEntry entry;
 
          if(identifier == null) {
-            owner = principal == null ? null : IdentityID.getIdentityIDFromKey(principal.getName());
+            owner = user;
             AssetRepository engine = viewsheetService.getAssetRepository();
             entry = new AssetEntry(AssetRepository.USER_SCOPE,
                AssetEntry.Type.VIEWSHEET, dashboardModel.name(), owner);
@@ -561,8 +563,9 @@ public class DashboardController {
             Catalog.getCatalog().getString("dashboard.globalCopyLabel"));
          actionRecord.setObjectName(historyName);
 
-         IdentityID user = principal != null ? IdentityID.getIdentityIDFromKey(principal.getName()) :
-            new IdentityID(XPrincipal.ANONYMOUS, Organization.getDefaultOrganizationID());
+         IdentityID user = principal != null
+            ? getIdentity((XPrincipal) principal).getIdentityID()
+            : new IdentityID(XPrincipal.ANONYMOUS, Organization.getDefaultOrganizationID());
          DashboardRegistry registry;
 
          if(dashboardName.endsWith("__GLOBAL")) {

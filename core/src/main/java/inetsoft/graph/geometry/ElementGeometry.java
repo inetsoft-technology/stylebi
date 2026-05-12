@@ -186,6 +186,13 @@ public abstract class ElementGeometry extends Geometry {
          }
       }
 
+      boolean allDimsNull = false;
+      boolean processedAnyDim = false;
+
+      if(ridx >= 0 && ridx < data.getRowCount()) {
+         allDimsNull = true;
+      }
+
       for(int i = 0; i < data.getColCount(); i++) {
          String dim = data.getHeader(i);
 
@@ -194,11 +201,18 @@ public abstract class ElementGeometry extends Geometry {
                continue;
             }
 
+            processedAnyDim = true;
+
             if(sb.length() > 0) {
                sb.append(',');
             }
 
             Object obj = data.getData(dim, ridx);
+
+            if(obj != null) {
+               allDimsNull = false;
+            }
+
             sb.append(CoreTool.toString(obj));
          }
       }
@@ -215,6 +229,17 @@ public abstract class ElementGeometry extends Geometry {
          }
       }
 
+      boolean hasOverlay = elem.getHint("overlay") != null;
+
+      // For brush VOs (hasOverlay) in multi-VS brush, a synthetic "grand total" row is added
+      // whose dimension values are all null (State=null etc). This row has no valid angular
+      // position in a polar/donut chart and must not be matched to any base VO.
+      // Return empty string so VGraph.getOverlayVO() can skip it.
+      // Guard processedAnyDim to avoid a false positive when the dataset has no dimension
+      // columns at all (allDimsNull would stay true but no synthetic row is implied).
+      if(hasOverlay && processedAnyDim && allDimsNull) {
+         return "";
+      }
       return sb.toString();
    }
 

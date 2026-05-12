@@ -215,12 +215,6 @@ public abstract class AbstractDataRef implements DataRef {
     * @param writer the output stream to which to write the XML data.
     */
    protected void writeContents(PrintWriter writer) {
-      // for flash side
-      if(!Tool.isCompact()) {
-         writer.print("<view>");
-         writer.print("<![CDATA[" + Encode.forCDATA(toView()) + "]]>");
-         writer.println("</view>");
-      }
    }
 
    /**
@@ -228,13 +222,6 @@ public abstract class AbstractDataRef implements DataRef {
     * @param dos the output stream to which to write the OutputStream data.
     */
    protected void writeContents2(DataOutputStream dos) {
-      // for flash side
-      try {
-         dos.writeUTF(toView());
-      }
-      catch (IOException e) {
-         // ignore
-      }
    }
 
    /**

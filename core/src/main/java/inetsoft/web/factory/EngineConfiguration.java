@@ -444,7 +444,7 @@ public class EngineConfiguration {
     */
    @Bean
    @Lazy
-   public DesignSession designSession(@Lazy XDataService dataService, @Lazy XSessionService sessionService, @Lazy DataSourceRegistry dataSourceRegistry) throws RemoteException {
+   public DesignSession designSession(@Lazy XRepository dataService, @Lazy XSessionService sessionService, @Lazy DataSourceRegistry dataSourceRegistry) throws RemoteException {
       return new DesignSession(dataService, sessionService, dataSourceRegistry);
    }
 

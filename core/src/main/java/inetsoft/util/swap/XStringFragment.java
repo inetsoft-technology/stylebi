@@ -42,12 +42,13 @@ public final class XStringFragment extends XSwappable {
    public XStringFragment(String val, long interval) {
       super();
       this.interval = interval;
-      XSwapper.getSwapper().cur = System.currentTimeMillis();
-      this.iaccessed = XSwapper.getSwapper().cur;
+      XSwapper s = getSwapper();
+      s.cur = System.currentTimeMillis();
+      this.iaccessed = s.cur;
       value = val;
       len = value == null ? 0 : value.length();
       this.valid = true;
-      this.monitor = XSwapper.getSwapper().getMonitor();
+      this.monitor = s.getMonitor();
 
       if(monitor != null) {
          isCountHM = monitor.isLevelQualified(XSwappableMonitor.HITS);
@@ -106,7 +107,7 @@ public final class XStringFragment extends XSwappable {
     * Access the int fragment.
     */
    public final void access() {
-      iaccessed = XSwapper.getSwapper().cur;
+      iaccessed = getSwapper().cur;
 
       if(isCountHM) {
          if(valid && !lastValid) {
@@ -121,7 +122,7 @@ public final class XStringFragment extends XSwappable {
 
       if(!valid) {
          DEBUG_LOG.debug("Validate swapped data: %s", this);
-         XSwapper.getSwapper().waitForMemory();
+         getSwapper().waitForMemory();
 
          synchronized(this) {
             if(!valid) {
@@ -155,7 +156,7 @@ public final class XStringFragment extends XSwappable {
          return;
       }
 
-      XSwapper.getSwapper().deregister(this);
+      getSwapper().deregister(this);
       disposed = true;
       value = null;
       File file = getFile(prefix + ".tdat");
@@ -188,7 +189,7 @@ public final class XStringFragment extends XSwappable {
          return 0;
       }
 
-      return getAgePriority(XSwapper.getSwapper().cur - iaccessed, interval);
+      return getAgePriority(getSwapper().cur - iaccessed, interval);
    }
 
    /**
@@ -279,7 +280,7 @@ public final class XStringFragment extends XSwappable {
          int len = 0;
 
          if(fout != null) {
-	    XSwapper.getSwapper().waitForMemory();
+	    getSwapper().waitForMemory();
             byte[] buf = value.getBytes("UTF-8");
             len = buf.length;
             fout.write(buf);

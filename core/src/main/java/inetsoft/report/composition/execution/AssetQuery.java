@@ -2546,6 +2546,14 @@ public abstract class AssetQuery extends PreAssetQuery {
          AggregateRef aggregate = ginfo.getAggregate(sort);
 
          if(group != null) {
+            // if the group uses sort-by-value, the ordering is already applied
+            // by SummaryFilter via setSortByValInfo — do not re-sort here
+            OrderInfo oinfo = group.getOrderInfo();
+
+            if(oinfo != null && oinfo.isSortByVal()) {
+               continue;
+            }
+
             SortOrder comp = createDateSortOrder(group, order, false);
             cols.add(col);
             comps.add(comp);

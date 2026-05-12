@@ -2129,7 +2129,7 @@ public class AssetUtil {
       boolean view, boolean out)
    {
       List<Assembly> assemblies = new ArrayList<>();
-      getDependedAssemblies0(sheet, assembly, assemblies, included, view, out);
+      getDependedAssemblies0(sheet, assembly, assemblies, new HashSet<>(), included, view, out);
       Assembly[] arr = new Assembly[assemblies.size()];
       assemblies.toArray(arr);
 
@@ -2142,14 +2142,15 @@ public class AssetUtil {
     * @param sheet      the specified sheet container.
     * @param assembly   the specified assembly.
     * @param assemblies the assembly container.
+    * @param visited    tracks visited assemblies for O(1) cycle detection.
     * @param included   <tt>true</tt> to include itself, <tt>false</tt> otherwise.
     * @return all the assemblies depended on.
     */
    private static void getDependedAssemblies0(
       AbstractSheet sheet, Assembly assembly, List<Assembly> assemblies,
-      boolean included, boolean view, boolean out)
+      Set<Assembly> visited, boolean included, boolean view, boolean out)
    {
-      if(assemblies.contains(assembly)) {
+      if(!visited.add(assembly)) {
          return;
       }
 
@@ -2176,7 +2177,7 @@ public class AssetUtil {
             continue;
          }
 
-         getDependedAssemblies0(sheet, assembly2, assemblies, true, view, out);
+         getDependedAssemblies0(sheet, assembly2, assemblies, visited, true, view, out);
       }
    }
 

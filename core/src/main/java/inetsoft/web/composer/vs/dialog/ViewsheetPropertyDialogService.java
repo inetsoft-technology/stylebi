@@ -72,7 +72,7 @@ public class ViewsheetPropertyDialogService {
                                          VSAssemblyInfoHandler vsAssemblyInfoHandler,
                                          SecurityEngine securityEngine,
                                          MVManager mvManager,
-                                         LicenseManager licenseManager, DeviceRegistry deviceRegistry)
+                                         DeviceRegistry deviceRegistry)
    {
       this.coreLifecycleService = coreLifecycleService;
       this.viewsheetService = viewsheetService;
@@ -81,7 +81,6 @@ public class ViewsheetPropertyDialogService {
       this.vsAssemblyInfoHandler = vsAssemblyInfoHandler;
       this.securityEngine = securityEngine;
       this.mvManager = mvManager;
-      this.licenseManager = licenseManager;
       this.deviceRegistry = deviceRegistry;
    }
 
@@ -171,7 +170,7 @@ public class ViewsheetPropertyDialogService {
       screensPane.setBalancePadding(info.isBalancePadding());
 
       AssetRepository assetRepository = viewsheetService.getAssetRepository();
-      boolean enterprise = licenseManager.isEnterprise();
+      boolean enterprise = LicenseManager.isEnterprise();
       screensPane.setEditDevicesAllowed((!enterprise || OrganizationManager.getInstance().isSiteAdmin(principal) ||
          OrganizationManager.getInstance().getCurrentOrgID().equals(Organization.getDefaultOrganizationID()))
                                            && assetRepository.checkPermission(
@@ -1564,7 +1563,6 @@ public class ViewsheetPropertyDialogService {
    private final VSAssemblyInfoHandler vsAssemblyInfoHandler;
    private final SecurityEngine securityEngine;
    private final MVManager mvManager;
-   private final LicenseManager licenseManager;
    private final DeviceRegistry deviceRegistry;
 
    private static final double RATIO_INCH_MM = 25.4;

@@ -24,8 +24,6 @@ import inetsoft.sree.internal.HTMLUtil;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.portal.CustomThemesManager;
 import inetsoft.sree.security.*;
-import inetsoft.uql.XPrincipal;
-import inetsoft.uql.util.XSessionService;
 import inetsoft.uql.viewsheet.graph.aesthetic.ImageShapes;
 import inetsoft.util.*;
 import inetsoft.util.audit.ActionRecord;
@@ -51,10 +49,9 @@ import java.util.*;
 @Service
 public class DataSpaceContentSettingsService {
    @Autowired
-   public DataSpaceContentSettingsService(LicenseManager licenseManager, CustomThemesManager customThemesManager,
+   public DataSpaceContentSettingsService(CustomThemesManager customThemesManager,
                                           DataSpace dataSpace)
    {
-      this.licenseManager = licenseManager;
       this.customThemesManager = customThemesManager;
       this.dataSpace = dataSpace;
    }
@@ -410,7 +407,7 @@ public class DataSpaceContentSettingsService {
    }
 
    public String getDisplayName(String fullName) {
-      if(licenseManager.isEnterprise()) {
+      if(LicenseManager.isEnterprise()) {
          return fullName;
       }
 
@@ -439,7 +436,7 @@ public class DataSpaceContentSettingsService {
    public String getNewPath(String oldPath, String oldName, String newName) {
       String oldPrefix = oldPath.substring(0, oldPath.lastIndexOf(oldName));
 
-      if(licenseManager.isEnterprise() || newName == null) {
+      if(LicenseManager.isEnterprise() || newName == null) {
          return oldPrefix + newName;
       }
 
@@ -460,7 +457,7 @@ public class DataSpaceContentSettingsService {
    }
 
    public String getDisplayPath(String path, String originalName, String displayName) {
-      if(licenseManager.isEnterprise() || path == null) {
+      if(LicenseManager.isEnterprise() || path == null) {
          return path;
       }
 
@@ -503,7 +500,6 @@ public class DataSpaceContentSettingsService {
       }
    }
 
-   private final LicenseManager licenseManager;
    private final CustomThemesManager customThemesManager;
    private final DataSpace dataSpace;
    private static final String DEFAULT_ORG_FOLDER = "portal/" + Organization.getDefaultOrganizationID();

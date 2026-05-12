@@ -125,7 +125,11 @@ public class RepositoryDashboardService {
          return null;
       }
 
-      if(!securityProvider.checkPermission(principal, ResourceType.DASHBOARD, model.oname(), ResourceAction.ADMIN)) {
+      IdentityID principalID = IdentityID.getIdentityIDFromKey(principal.getName());
+
+      if((owner == null || !owner.equals(principalID)) &&
+         !securityProvider.checkPermission(principal, ResourceType.DASHBOARD, model.oname(), ResourceAction.ADMIN))
+      {
          throw new MessageException(Catalog.getCatalog().getString(
             "em.common.security.no.permission", model.oname()));
       }

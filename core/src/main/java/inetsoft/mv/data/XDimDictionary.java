@@ -102,8 +102,9 @@ public class XDimDictionary extends XSwappable implements Cloneable {
       valid = true;
       completed = false;
       disposed = false;
-      XSwapper.getSwapper().cur = System.currentTimeMillis();
-      accessed = XSwapper.getSwapper().cur;
+      XSwapper s = getSwapper();
+      s.cur = System.currentTimeMillis();
+      accessed = s.cur;
    }
 
    /**
@@ -375,7 +376,7 @@ public class XDimDictionary extends XSwappable implements Cloneable {
     * Access this dim dictionary.
     */
    private final Object[] access() {
-      accessed = XSwapper.getSwapper().cur;
+      accessed = getSwapper().cur;
       Object[] values = this.values;
 
       if(values != null) {
@@ -669,7 +670,7 @@ public class XDimDictionary extends XSwappable implements Cloneable {
     * Load from binary storage.
     */
    private void read0(ReadableByteChannel channel) throws IOException {
-      XSwapper.getSwapper().waitForMemory();
+      getSwapper().waitForMemory();
 
       ByteBuffer buf = ByteBuffer.allocate(28);
       channel.read(buf);
@@ -774,7 +775,7 @@ public class XDimDictionary extends XSwappable implements Cloneable {
          return 0;
       }
 
-      return getAgePriority(XSwapper.getSwapper().cur - accessed, alive * 2L);
+      return getAgePriority(getSwapper().cur - accessed, alive * 2L);
    }
 
    /**
@@ -1112,8 +1113,9 @@ public class XDimDictionary extends XSwappable implements Cloneable {
          dict.completed = false;
          dict.disposed = false;
          dict.hashCode = 0;
-         XSwapper.getSwapper().cur = System.currentTimeMillis();
-         dict.accessed = XSwapper.getSwapper().cur;
+         XSwapper s = dict.getSwapper();
+         s.cur = System.currentTimeMillis();
+         dict.accessed = s.cur;
          return dict;
       }
       catch(Exception ex) {

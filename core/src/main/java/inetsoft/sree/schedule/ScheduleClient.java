@@ -338,7 +338,7 @@ public class ScheduleClient {
 
       if(server != null && isReady(server)) {
          String taskName =
-            LicenseManager.getInstance().isEnterprise() ? task : SUtil.getTaskNameWithoutOrg(task);
+            LicenseManager.isEnterprise() ? task : SUtil.getTaskNameWithoutOrg(task);
          LOG.debug("Send start task request [" + taskName + "] from " + Tool.getIP() +
             " to " + server + " with config directory " +
             ConfigurationContext.getContext().getHome());

@@ -20,6 +20,8 @@ package inetsoft.graph.geo.solver;
 import inetsoft.graph.data.DataSet;
 import inetsoft.graph.geo.NameMatcher;
 
+import java.util.Collection;
+
 /**
  * <tt>CombinedNameMatcher</tt> finds the first NameMatcher that can map feature
  * in the NameMatcher array to map input data to a specific map feature ID. If
@@ -36,8 +38,27 @@ public class CombinedNameMatcher implements NameMatcher {
     * is found.
     */
    public CombinedNameMatcher(NameMatcher[] matchers, String col) {
+      this(matchers, col, null);
+   }
+
+   /**
+    * Creates a new instance of <tt>CombinedNameMatcher</tt> with a set of
+    * valid feature IDs. When provided, a matcher result that is not in the
+    * valid set is skipped so the next matcher can try a different column
+    * (e.g. ISO2 instead of FIPS when both share the same code).
+    *
+    * @param matchers  combined name matchers.
+    * @param col       if not null, the raw column value is returned as a
+    *                  last resort when no matcher succeeds.
+    * @param validIds  the feature IDs present in the target GeoMap, or null
+    *                  to disable validation (legacy behaviour).
+    */
+   public CombinedNameMatcher(NameMatcher[] matchers, String col,
+                               Collection<String> validIds)
+   {
       this.matchers = matchers;
       this.col = col;
+      this.validIds = validIds;
    }
 
    /**
@@ -48,12 +69,26 @@ public class CombinedNameMatcher implements NameMatcher {
     */
    @Override
    public String getFeatureId(DataSet input, int row) {
+      String firstMatch = null;
+
       for(int i = 0; i < matchers.length; i++) {
          String id = matchers[i].getFeatureId(input, row);
 
          if(id != null) {
-            return id;
+            if(validIds == null || validIds.contains(id)) {
+               return id;
+            }
+
+            // keep the first match as a fallback in case no matcher produces
+            // a valid-map result (preserves pre-existing behaviour)
+            if(firstMatch == null) {
+               firstMatch = id;
+            }
          }
+      }
+
+      if(firstMatch != null) {
+         return firstMatch;
       }
 
       Object val = (col == null) ? null : input.getData(col, row);
@@ -62,4 +97,5 @@ public class CombinedNameMatcher implements NameMatcher {
 
    private NameMatcher[] matchers;
    private String col;
+   private Collection<String> validIds;
 }
