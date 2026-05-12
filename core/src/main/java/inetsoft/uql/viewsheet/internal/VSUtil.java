@@ -890,12 +890,24 @@ public final class VSUtil {
       ViewsheetInfo fvinfo = fvs != null ? fvs.getViewsheetInfo() : tvs.getViewsheetInfo();
       String fname = fassembly.getName();
       String fid = fvinfo.getFilterID(fname);
+      return getSharedVSAssemblies(tvs, fassembly, fid);
+   }
+
+   public static List<VSAssembly> getSharedVSAssemblies(Viewsheet tvs, VSAssembly fassembly,
+                                                         String fid)
+   {
       List<VSAssembly> list = new ArrayList<>();
 
       if(fid == null) {
          return list;
       }
 
+      // VSAssemblyInfo.vs is transient: when fassembly is deserialized on a remote cluster
+      // node, getViewsheet() returns null. The self-exclusion guard (tvs == fvs) therefore
+      // never fires on remote nodes, which is safe — a remote node's tvs is never the same
+      // object as null, so no assembly is incorrectly skipped.
+      Viewsheet fvs = fassembly.getViewsheet();
+      String fname = fassembly.getName();
       ViewsheetInfo tvinfo = tvs.getViewsheetInfo();
       List<String> tnames = tvinfo.getFilterColumns(fid);
 
@@ -903,7 +915,6 @@ public final class VSUtil {
          Assembly tassembly = tvs.getAssembly(tname);
 
          // ignore self
-
          if(tvs == fvs && tname.equals(fname)) {
             continue;
          }

@@ -50,6 +50,7 @@ import inetsoft.util.audit.ExecutionBreakDownRecord;
 import inetsoft.util.log.LogContext;
 import inetsoft.util.profile.ProfileUtils;
 import inetsoft.util.script.*;
+import inetsoft.web.viewsheet.service.SharedFilterService;
 import inetsoft.web.vswizard.model.VSWizardConstants;
 import inetsoft.web.vswizard.recommender.WizardRecommenderUtil;
 import org.slf4j.Logger;
@@ -62,8 +63,7 @@ import java.lang.reflect.Array;
 import java.security.Principal;
 import java.util.*;
 import java.util.List;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Supplier;
@@ -3163,7 +3163,15 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
    {
       // @davidd, Method moved from RuntimeViewsheet in v11.4b r39236.
       String filterId = vs.getViewsheetInfo().getFilterID(fassembly.getName());
+      return processSharedFilters(fassembly, filterId, clist, processChange);
+   }
 
+   public boolean processSharedFilters(VSAssembly fassembly,
+                                       String filterId,
+                                       ChangedAssemblyList clist,
+                                       boolean processChange)
+      throws Exception
+   {
       // Check whether this filter has already been processed
       if(filterId != null && clist != null && clist.isShareFilterProcessed(filterId)) {
          return false;
@@ -3180,7 +3188,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       boolean result = false;
 
       for(ViewsheetSandbox box : boxes) {
-         result |= box.applySharedFilters(fassembly, clist, processChange);
+         result |= box.applySharedFilters(fassembly, filterId, clist, processChange);
       }
 
       return result;
@@ -3198,6 +3206,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
     * @return <tt>true</tt> if assemblies are changed
     */
    private boolean applySharedFilters(VSAssembly fassembly,
+                                      String filterId,
                                       ChangedAssemblyList clist,
                                       boolean processChange)
       throws Exception
@@ -3205,7 +3214,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       boolean result = false;
 
       List<VSAssembly> tassemblies =
-         VSUtil.getSharedVSAssemblies(getViewsheet(), fassembly);
+         VSUtil.getSharedVSAssemblies(getViewsheet(), fassembly, filterId);
 
       for(VSAssembly tassembly : tassemblies) {
          int hint = VSAssembly.NONE_CHANGED;
@@ -3232,6 +3241,10 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          // @by davidd, If the from and to assemblies come from different
          // viewsheets, then we force processing. Otherwise the
          // clist.selectionList would have entries of other viewsheets.
+         // Note: when fassembly is dispatched to a remote cluster node via Ignite,
+         // VSAssemblyInfo.vs is transient and getViewsheet() returns null. The null
+         // comparison (null != tassembly.getViewsheet()) is always true, which is the
+         // correct behavior — cross-viewsheet filters always require forced processing.
          if(fassembly.getViewsheet() != tassembly.getViewsheet()) {
             processChange = true;
          }
@@ -4975,22 +4988,49 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       }
    }
 
-   private void applyShareFilter(VSAssembly assembly) throws Exception {
-      ViewsheetEngine.getViewsheetEngine().invokeOnAll(new ApplyShareFilterTask(
-         assembly, System.identityHashCode(getViewsheet()), getUser()));
+   private void applyShareFilter(VSAssembly assembly) {
+      // Resolve filterId on the source node while getViewsheet() is available.
+      // VSAssemblyInfo.vs is transient and returns null on remote cluster nodes.
+      final String filterId = getViewsheet().getViewsheetInfo().getFilterID(assembly.getName());
+
+      if(filterId == null) {
+         return;
+      }
+
+      ViewsheetService engine = ViewsheetEngine.getViewsheetEngine();
+
+      if(!engine.hasAtLeastRuntimeViewsheets(getUser(), 2)) {
+         return;
+      }
+
+            // Use identity hash to identify the source viewsheet and skip it in the task.
+      // A runtime ID lookup is not safe here because applyShareFilter is called during
+      // viewsheet open (openVS=true) before the RuntimeViewsheet may be registered in
+      // the cache. identityHashCode collisions are theoretically possible but extremely
+      // rare; on remote nodes the source viewsheet is never present so no skip is needed.
+      final int viewsheetIdentity = System.identityHashCode(getViewsheet());
+      final Principal user = getUser();
+
+      // Fire-and-forget — invokeOnAll may block up to 5 minutes waiting on remote nodes
+      // and must not block sandbox execution.
+      CompletableFuture.runAsync(
+         () -> engine.invokeOnAll(new ApplyShareFilterTask(assembly, filterId, viewsheetIdentity, user)),
+         SharedFilterService.SHARED_FILTER_EXECUTOR);
    }
 
    private static final class ApplyShareFilterTask implements ViewsheetService.Task<String> {
-      public ApplyShareFilterTask(VSAssembly assembly, int viewsheetIdentity, Principal user) {
+      public ApplyShareFilterTask(VSAssembly assembly, String filterId,
+                                  int viewsheetIdentity, Principal user)
+      {
          this.assembly = assembly;
+         this.filterId = filterId;
          this.viewsheetIdentity = viewsheetIdentity;
          this.user = user;
       }
 
       @Override
       public String apply(ViewsheetService service) throws Exception {
-         RuntimeViewsheet[] arr = ViewsheetEngine.getViewsheetEngine().
-            getRuntimeViewsheets(user);
+         RuntimeViewsheet[] arr = service.getRuntimeViewsheets(user);
 
          for(RuntimeViewsheet rvs : arr) {
             if(rvs == null || System.identityHashCode(rvs.getViewsheet()) == viewsheetIdentity) {
@@ -5000,7 +5040,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
             Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
             if(box.isPresent()) {
-               box.get().processSharedFilters(assembly, null, true);
+               box.get().processSharedFilters(assembly, filterId, null, true);
             }
          }
 
@@ -5008,6 +5048,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       }
 
       private final VSAssembly assembly;
+      private final String filterId;
       private final int viewsheetIdentity;
       private final Principal user;
    }

@@ -71,14 +71,12 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.*;
 import org.springframework.messaging.Message;
-import org.springframework.messaging.MessageChannel;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.messaging.support.GenericMessage;
+
+import static org.mockito.Mockito.mock;
 
 import java.util.Arrays;
 import java.util.List;
-
-import static org.mockito.Mockito.mock;
 
 /**
  * Spring test configuration providing all viewsheet controller and service beans needed by
@@ -300,19 +298,15 @@ public class IntegrationTestConfiguration {
    }
 
    @Bean
-   public SharedFilterService sharedFilterService(ViewsheetService viewsheetService) {
-      SimpMessagingTemplate messagingTemplate = new SimpMessagingTemplate(new MessageChannel() {
-         @Override
-         public boolean send(Message<?> message) {
-            return true;
-         }
+   public CommandDispatcherService commandDispatcherService() {
+      return mock(CommandDispatcherService.class);
+   }
 
-         @Override
-         public boolean send(Message<?> message, long timeout) {
-            return true;
-         }
-      });
-      return new SharedFilterService(messagingTemplate, viewsheetService);
+   @Bean
+   public SharedFilterService sharedFilterService(CommandDispatcherService commandDispatcherService,
+                                                   ViewsheetService viewsheetService)
+   {
+      return new SharedFilterService(commandDispatcherService, viewsheetService);
    }
 
    @Bean

@@ -1061,9 +1061,12 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
          return future.get(5L, TimeUnit.MINUTES);
       }
       catch(RuntimeException ex) {
+         affinityFutures.remove(id);
          throw ex;
       }
       catch(ExecutionException ex) {
+         affinityFutures.remove(id);
+
          switch(ex.getCause()) {
          case ExpiredSheetException ese -> throw ese;
          case MessageException me -> throw me;
@@ -1072,6 +1075,7 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
          }
       }
       catch(Exception e) {
+         affinityFutures.remove(id);
          throw new RuntimeException(e);
       }
       finally {
@@ -1128,35 +1132,52 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       }
 
       List<CompletableFuture<T>> futures = new ArrayList<>(nodes.size());
+      List<String> futureIds = new ArrayList<>(nodes.size());
       List<T> results = new ArrayList<>();
 
-      for(ClusterNode node : nodes) {
-         if(Objects.equals(ignite.cluster().localNode(), node)) {
-            try {
+      try {
+         for(ClusterNode node : nodes) {
+            if(Objects.equals(ignite.cluster().localNode(), node)) {
                results.add(job.call());
             }
-            catch(Exception e) {
-               throw new RuntimeException(e);
+            else if(!node.isClient()) {
+               String id = UUID.randomUUID().toString();
+               AffinityCallRequest<T> request = new AffinityCallRequest<>(
+                  id, getNodeName(ignite.cluster().localNode()), getNodeName(node), job);
+               CompletableFuture<T> future = new CompletableFuture<>();
+               affinityFutures.put(id, future);
+               futures.add(future);
+               futureIds.add(id);
+               ignite.message(ignite.cluster().forServers()).sendOrdered(AFFINITY_TOPIC, request, 0);
             }
          }
-         else if(!node.isClient()) {
-            String id = UUID.randomUUID().toString();
-            AffinityCallRequest<T> request = new AffinityCallRequest<>(
-               id, getNodeName(ignite.cluster().localNode()), getNodeName(node), job);
-            CompletableFuture<T> future = new CompletableFuture<>();
-            affinityFutures.put(id, future);
-            futures.add(future);
-            ignite.message(ignite.cluster().forServers()).sendOrdered(AFFINITY_TOPIC, request, 0);
-         }
+      }
+      catch(Exception e) {
+         futureIds.forEach(affinityFutures::remove);
+         throw new RuntimeException(e);
+      }
+
+      // Wait for all remote futures under a single shared timeout so that N failed
+      // nodes cost at most 5 minutes total rather than N × 5 minutes.
+      try {
+         CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]))
+            .get(5L, TimeUnit.MINUTES);
+      }
+      catch(RuntimeException ex) {
+         futureIds.forEach(affinityFutures::remove);
+         throw ex;
+      }
+      catch(ExecutionException ex) {
+         futureIds.forEach(affinityFutures::remove);
+         throw new RuntimeException(ex);
+      }
+      catch(Exception e) {
+         futureIds.forEach(affinityFutures::remove);
+         throw new RuntimeException(e);
       }
 
       for(CompletableFuture<T> future : futures) {
-         try {
-            results.add(future.get());
-         }
-         catch(Exception e) {
-            throw new RuntimeException(e);
-         }
+         results.add(future.getNow(null));
       }
 
       return results;

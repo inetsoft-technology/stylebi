@@ -185,6 +185,13 @@ public interface ViewsheetService extends WorksheetService {
     */
    RuntimeViewsheet[] getRuntimeViewsheets(Principal user);
 
+   /**
+    * Returns true if the user has at least {@code n} viewsheets open across all cluster nodes.
+    * Scans the distributed cache but short-circuits as soon as the threshold is reached,
+    * avoiding a full scan when used as a cheap guard (e.g. n=2 before a cluster broadcast).
+    */
+   boolean hasAtLeastRuntimeViewsheets(Principal user, int n);
+
    <T extends Serializable> List<T> invokeOnAll(Task<T> task);
 
    /**
