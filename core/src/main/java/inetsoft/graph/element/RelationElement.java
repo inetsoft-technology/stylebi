@@ -925,7 +925,12 @@ public class RelationElement extends GraphElement {
 
    /**
     * Set the GShape used to render nodes. When set, overrides the default rectangular
-    * rendering and the nodeCornerRadius setting is ignored.
+    * rendering and the nodeCornerRadius setting is ignored. Only the geometric outline
+    * from {@link GShape#getShape} is used; GShape fill/line-colour properties (fillcolor,
+    * linecolor, lineStyle, fill flag) are ignored — node colours are controlled by the
+    * element's fill colour, border colour, and colour frame. Shapes with custom paint
+    * logic (e.g. ImageShape) will not render their image. Note: GShape.NIL returns null
+    * from getShape() and will fall back to the default rectangular rendering.
     * @param nodeShape the shape to use, or null to restore default behaviour.
     */
    @TernMethod

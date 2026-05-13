@@ -120,7 +120,10 @@ public class RelationVO extends ElementVO {
          if(nodeShape != null) {
             Shape s = nodeShape.getShape(b.getX(), b.getY(), b.getWidth(), b.getHeight());
 
+            // GShape.NIL returns null, so the node falls back to the default rectangle.
             if(s != null) {
+               // Custom shapes may be curved; enable anti-aliasing for smooth rendering.
+               GTool.setRenderingHint(g2, true);
                shape = s;
             }
          }
