@@ -701,10 +701,10 @@ public class GenerateWsService {
                   colType = extractFieldType(osiField.get());
                }
             }
+         }
 
-            if(colType == null) {
-               colType = field.getType();
-            }
+         if(colType == null) {
+            colType = field.getType();
          }
 
          String attr = fieldName;
@@ -901,9 +901,7 @@ public class GenerateWsService {
                rangeRef.setOriginalType(column.getDataType());
                String dtype = rangeRef.getDataType();
 
-               if(XSchema.TIME.equals(rangeRef.getOriginalType()) &&
-                  rangeRef.getDateOption() != DateRangeRef.HOUR_OF_DAY_DATE_GROUP)
-               {
+               if(XSchema.TIME.equals(rangeRef.getOriginalType()) && !XSchema.INTEGER.equals(dtype)) {
                   dtype = rangeRef.getOriginalType();
                }
 
