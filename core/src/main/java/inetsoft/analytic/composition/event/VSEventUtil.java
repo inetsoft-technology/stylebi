@@ -1279,44 +1279,18 @@ public final class VSEventUtil {
       Dimension tabLayoutSize = tabInfo.getLayoutSize(false);
 
       if(tabLayoutPos != null && tabLayoutSize != null) {
-         int maxChildBottom = Integer.MIN_VALUE;
-         int minChildTop = Integer.MAX_VALUE;
-         boolean hasValidChild = false;
+         TabVSAssemblyInfo.ChildExtent extent = TabVSAssemblyInfo.scanChildExtent(
+            assemblies, viewsheet,
+            c -> c.getVSAssemblyInfo().getLayoutPosition(false),
+            c -> c.getVSAssemblyInfo().getLayoutSize(false));
 
-         for(String name : assemblies) {
-            VSAssembly child = viewsheet.getAssembly(name);
-
-            if(child == null) {
-               continue;
-            }
-
-            VSAssemblyInfo cInfo = child.getVSAssemblyInfo();
-            Point cp = cInfo.getLayoutPosition(false);
-            Dimension cs = cInfo.getLayoutSize(false);
-
-            if(cp != null && cs != null) {
-               int ch = TabVSAssemblyInfo.getBottomTabChildHeight(cInfo, cs);
-
-               if(ch == 0) {
-                  continue;
-               }
-
-               maxChildBottom = Math.max(maxChildBottom, cp.y + ch);
-               minChildTop = Math.min(minChildTop, cp.y);
-               hasValidChild = true;
-            }
-         }
-
-         if(hasValidChild) {
+         if(extent != null) {
             int newTabLayoutY = bottomTabs
-               ? maxChildBottom
-               : Math.max(0, minChildTop - tabLayoutSize.height);
+               ? extent.maxBottom()
+               : Math.max(0, extent.minTop() - tabLayoutSize.height);
+            int newTabScaledX = (int) Math.floor(tabLayoutPos.x * scaleRatio.x);
             int newTabScaledY = (int) Math.floor(newTabLayoutY * scaleRatio.y);
-            Point curScaled = tabInfo.getLayoutPosition(true);
-            int x = curScaled != null
-               ? curScaled.x
-               : (int) Math.floor(tabLayoutPos.x * scaleRatio.x);
-            tabInfo.setScaledPosition(new Point(x, newTabScaledY));
+            tabInfo.setScaledPosition(new Point(newTabScaledX, newTabScaledY));
          }
       }
 

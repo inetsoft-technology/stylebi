@@ -115,10 +115,37 @@ class TabVSAssemblyInfoTest {
       tabInfo.setPixelOffset(new Point(50, 0));
       tabInfo.setPixelSize(new Dimension(200, 24));
 
+      Point pixelBefore = new Point(tabInfo.getPixelOffset());
       TabVSAssemblyInfo.repositionForBottomTabsInScaledSpace(tabInfo, vs, true);
 
-      // no scaledPosition was set; helper must not introduce one
+      // helper must not introduce a scaled position when none was present
       assertNull(tabInfo.getLayoutPosition(true));
+      // master pixelOffset must be unchanged
+      assertEquals(pixelBefore, tabInfo.getPixelOffset());
+   }
+
+   @Test
+   void repositionForBottomTabsInScaledSpaceUsesLayoutSizeWhenScaledSizeAbsent() {
+      Viewsheet vs = Mockito.mock(Viewsheet.class);
+
+      SelectionListVSAssemblyInfo childInfo = new SelectionListVSAssemblyInfo();
+      childInfo.setShowTypeValue(SelectionVSAssemblyInfo.LIST_SHOW_TYPE);
+      childInfo.setScaledPosition(new Point(50, 24));
+      // no setScaledSize call — helper must fall back to layoutSize(false)
+      childInfo.setLayoutSize(new Dimension(200, 200));
+      VSAssembly child = Mockito.mock(VSAssembly.class);
+      when(child.getVSAssemblyInfo()).thenReturn(childInfo);
+      when(vs.getAssembly("Child1")).thenReturn(child);
+
+      TabVSAssemblyInfo tabInfo = new TabVSAssemblyInfo();
+      tabInfo.setAssemblies(new String[]{"Child1"});
+      tabInfo.setScaledPosition(new Point(50, 0));
+      tabInfo.setLayoutSize(new Dimension(200, 24));
+
+      TabVSAssemblyInfo.repositionForBottomTabsInScaledSpace(tabInfo, vs, true);
+
+      // maxChildBottom using layoutSize fallback = 24 + 200 = 224
+      assertEquals(224, tabInfo.getLayoutPosition(true).y);
    }
 
    @Test

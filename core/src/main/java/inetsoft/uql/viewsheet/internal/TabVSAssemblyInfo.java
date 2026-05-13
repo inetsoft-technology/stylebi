@@ -32,6 +32,7 @@ import org.w3c.dom.NodeList;
 import java.awt.*;
 import java.awt.geom.Point2D;
 import java.io.PrintWriter;
+import java.util.function.Function;
 
 /**
  * TabVSAssemblyInfo stores basic tab assembly information.
@@ -379,39 +380,18 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
       }
 
       int tabHeight = tabDim.height;
+      // VSAssembly::getPixelSize applies the assembly's minimum-size floor
+      // (e.g. TableVSAssembly's 20x60); info.getPixelSize() would not.
+      ChildExtent extent = scanChildExtent(children, vs,
+         VSAssembly::getPixelOffset, VSAssembly::getPixelSize);
 
-      // find the child extent needed to position the tab bar
-      int maxChildBottom = Integer.MIN_VALUE;
-      int minChildTop = Integer.MAX_VALUE;
-      boolean hasValidChild = false;
-
-      for(String childName : children) {
-         VSAssembly child = (VSAssembly) vs.getAssembly(childName);
-
-         if(child == null) {
-            continue;
-         }
-
-         Point childPos = child.getPixelOffset();
-         int childHeight = getBottomTabChildHeight(child.getVSAssemblyInfo(), child.getPixelSize());
-
-         if(childPos == null || childHeight == 0) {
-            continue;
-         }
-
-         maxChildBottom = Math.max(maxChildBottom, childPos.y + childHeight);
-         minChildTop = Math.min(minChildTop, childPos.y);
-         hasValidChild = true;
-      }
-
-      if(!hasValidChild) {
+      if(extent == null) {
          return;
       }
 
-      // move the tab bar
       int newTabY = toBottomTabs
-         ? maxChildBottom
-         : Math.max(0, minChildTop - tabHeight);
+         ? extent.maxBottom()
+         : Math.max(0, extent.minTop() - tabHeight);
 
       tabInfo.setPixelOffset(new Point(tabPos.x, newTabY));
 
@@ -458,6 +438,8 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
 
       Point tabScaledPos = tabInfo.getLayoutPosition(true);
 
+      // scaledPosition unset → both overloads return the same layoutPosition object;
+      // reference compare detects that case without exposing scaledPosition publicly.
       if(tabScaledPos == null || tabScaledPos == tabInfo.getLayoutPosition(false)) {
          return;
       }
@@ -473,9 +455,42 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
       }
 
       int tabHeight = tabSize.height;
-      int maxChildBottom = Integer.MIN_VALUE;
-      int minChildTop = Integer.MAX_VALUE;
-      boolean hasValidChild = false;
+      ChildExtent extent = scanChildExtent(children, vs,
+         c -> c.getVSAssemblyInfo().getLayoutPosition(true),
+         c -> c.getVSAssemblyInfo().getLayoutSize(true));
+
+      if(extent == null) {
+         return;
+      }
+
+      int newTabY = toBottomTabs
+         ? extent.maxBottom()
+         : Math.max(0, extent.minTop() - tabHeight);
+
+      if(newTabY != tabScaledPos.y) {
+         tabInfo.setScaledPosition(new Point(tabScaledPos.x, newTabY));
+      }
+   }
+
+   /**
+    * Tab children's vertical extent in some coordinate space.
+    */
+   public record ChildExtent(int minTop, int maxBottom) {}
+
+   /**
+    * Scan tab children for the bounding-box top/bottom in the coordinate space
+    * defined by the accessors. Returns null when no child contributes a valid
+    * extent. Shared by master-pixel, layout, and scaled-space anchor logic.
+    * Accessors take VSAssembly (not VSAssemblyInfo) so callers can pick
+    * floored sizes (e.g. {@link VSAssembly#getPixelSize}) when needed.
+    */
+   public static ChildExtent scanChildExtent(String[] children, Viewsheet vs,
+                                             Function<VSAssembly, Point> posGetter,
+                                             Function<VSAssembly, Dimension> sizeGetter)
+   {
+      int maxBottom = Integer.MIN_VALUE;
+      int minTop = Integer.MAX_VALUE;
+      boolean hasValid = false;
 
       for(String childName : children) {
          VSAssembly child = (VSAssembly) vs.getAssembly(childName);
@@ -484,36 +499,25 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
             continue;
          }
 
-         VSAssemblyInfo childInfo = child.getVSAssemblyInfo();
-         Point childPos = childInfo.getLayoutPosition(true);
-         Dimension childSize = childInfo.getLayoutSize(true);
+         Point pos = posGetter.apply(child);
+         Dimension size = sizeGetter.apply(child);
 
-         if(childPos == null || childSize == null) {
+         if(pos == null || size == null) {
             continue;
          }
 
-         int childHeight = getBottomTabChildHeight(childInfo, childSize);
+         int height = getBottomTabChildHeight(child.getVSAssemblyInfo(), size);
 
-         if(childHeight == 0) {
+         if(height == 0) {
             continue;
          }
 
-         maxChildBottom = Math.max(maxChildBottom, childPos.y + childHeight);
-         minChildTop = Math.min(minChildTop, childPos.y);
-         hasValidChild = true;
+         maxBottom = Math.max(maxBottom, pos.y + height);
+         minTop = Math.min(minTop, pos.y);
+         hasValid = true;
       }
 
-      if(!hasValidChild) {
-         return;
-      }
-
-      int newTabY = toBottomTabs
-         ? maxChildBottom
-         : Math.max(0, minChildTop - tabHeight);
-
-      if(newTabY != tabScaledPos.y) {
-         tabInfo.setScaledPosition(new Point(tabScaledPos.x, newTabY));
-      }
+      return hasValid ? new ChildExtent(minTop, maxBottom) : null;
    }
 
    /**
