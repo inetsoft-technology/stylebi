@@ -396,7 +396,9 @@ public class RelationElement extends GraphElement {
          layoutCenter = nodeCount > 0
             ? new Point2D.Double(sumCx / nodeCount, sumCy / nodeCount) : null;
 
-         // radius = distance from centroid to any node centre (all equidistant on CIRCLE layout)
+         // radius = distance from centroid to any node centre (all equidistant on CIRCLE layout).
+         // The ring intentionally passes through node centers rather than their outer edges,
+         // so it visually connects node centers without adding extra padding around each node.
          if(layoutCenter != null && nodeCount > 0) {
             mxGeometry g = nodes.values().iterator().next().getMxCell().getGeometry();
             layoutRadius = layoutCenter.distance(g.getX() + g.getWidth() / 2.0,
@@ -693,6 +695,10 @@ public class RelationElement extends GraphElement {
     * with the chart. Pass {@code null} for {@code gshape} to remove a previously-set border;
     * {@code null} color falls back to the default line color, {@code null} line falls back to
     * {@link inetsoft.graph.GraphConstants#THIN_LINE}.
+    * <p>
+    * Only symmetric shapes (e.g. {@link GShape#CIRCLE}) are visually meaningful here; a
+    * non-symmetric shape is centered on the layout centroid but will not follow the node
+    * positions.
     */
    public void addShapeBorder(GShape gshape, Color color, GLine line) {
       this.shapeBorderShape = gshape;
@@ -923,7 +929,10 @@ public class RelationElement extends GraphElement {
             Objects.equals(nodeColors, elem.nodeColors) &&
             Objects.equals(nodeSizes, elem.nodeSizes) &&
             Objects.equals(layoutSize, elem.layoutSize) &&
-            Objects.equals(fillColor, elem.fillColor);
+            Objects.equals(fillColor, elem.fillColor) &&
+            Objects.equals(shapeBorderShape, elem.shapeBorderShape) &&
+            Objects.equals(shapeBorderColor, elem.shapeBorderColor) &&
+            Objects.equals(shapeBorderLine, elem.shapeBorderLine);
       }
 
       return false;
@@ -961,7 +970,8 @@ public class RelationElement extends GraphElement {
    private boolean horizontal = false;
    private boolean flipped = false;
 
-   private static final long serialVersionUID = 1L;
+   // Bumped to 2L when shapeBorderShape/Color/Line were added; null on deserialization = no border (safe).
+   private static final long serialVersionUID = 2L;
 
    /**
     * Renders the configured shape border around the circular layout. The shape is created in
@@ -976,7 +986,7 @@ public class RelationElement extends GraphElement {
       }
 
       @Override
-      public Visualizable createVisual(Coordinate coord) { // coord unused; FormVO.transform applies it later
+      public Visualizable createVisual(Coordinate coord) { // coord not used here; the renderer calls FormVO.transform() to apply the coordinate transform
          Point2D center = elem.getLayoutCenter();
          double radius = elem.getLayoutRadius();
 

@@ -19,6 +19,8 @@ package inetsoft.graph.element;
 
 import inetsoft.graph.EGraph;
 import inetsoft.graph.GGraph;
+import inetsoft.graph.aesthetic.GLine;
+import inetsoft.graph.aesthetic.GShape;
 import inetsoft.graph.aesthetic.StaticSizeFrame;
 import inetsoft.graph.coord.RelationCoord;
 import inetsoft.graph.data.DefaultDataSet;
@@ -27,6 +29,7 @@ import inetsoft.graph.mxgraph.model.mxGeometry;
 import inetsoft.test.SreeHome;
 import org.junit.jupiter.api.Test;
 
+import java.awt.Color;
 import java.awt.geom.Point2D;
 import java.util.ArrayList;
 import java.util.List;
@@ -104,6 +107,90 @@ class RelationElementLayoutCenterTest {
       RelationElement element = new RelationElement("From", "To");
       assertNull(element.getLayoutCenter(),
          "layoutCenter must be null until mxLayout runs so consumers gate on it");
+   }
+
+   @Test
+   void mxLayoutPopulatesLayoutRadiusAsDistanceToNodeCenter_circular() {
+      DefaultDataSet data = new DefaultDataSet(new Object[][]{
+         { "From", "To" },
+         { "A",    "B"  },
+         { "B",    "C"  },
+         { "C",    "A"  },
+      });
+
+      RelationElement element = new RelationElement("From", "To");
+      element.setAlgorithm(RelationElement.Algorithm.CIRCLE);
+      element.setSizeFrame(new StaticSizeFrame(5));
+      element.setNodeSizeFrame(new StaticSizeFrame(5));
+
+      EGraph egraph = new EGraph();
+      egraph.addElement(element);
+      RelationCoord coord = new RelationCoord();
+      egraph.setCoordinate(coord);
+      GGraph ggraph = egraph.createGGraph(coord, data);
+
+      for(int i = 0; i < ggraph.getGeometryCount(); i++) {
+         ggraph.getGeometry(i);
+      }
+
+      assertTrue(element.getLayoutRadius() > 0,
+         "layoutRadius must be positive after a circular layout with multiple nodes");
+   }
+
+   @Test
+   void singleNodeCircularLayoutProducesZeroRadius() {
+      // A single node means layoutCenter == node center, so distance is 0 and no ring is drawn.
+      DefaultDataSet data = new DefaultDataSet(new Object[][]{
+         { "From", "To" },
+         { "A",    "A"  },
+      });
+
+      RelationElement element = new RelationElement("From", "To");
+      element.setAlgorithm(RelationElement.Algorithm.CIRCLE);
+      element.setSizeFrame(new StaticSizeFrame(5));
+      element.setNodeSizeFrame(new StaticSizeFrame(5));
+
+      EGraph egraph = new EGraph();
+      egraph.addElement(element);
+      RelationCoord coord = new RelationCoord();
+      egraph.setCoordinate(coord);
+      GGraph ggraph = egraph.createGGraph(coord, data);
+
+      for(int i = 0; i < ggraph.getGeometryCount(); i++) {
+         ggraph.getGeometry(i);
+      }
+
+      assertEquals(0.0, element.getLayoutRadius(), 1e-6,
+         "single-node circular layout must produce layoutRadius == 0 so no ring is added");
+   }
+
+   @Test
+   void addShapeBorderRegistersFormInEGraphAfterLayout() {
+      DefaultDataSet data = new DefaultDataSet(new Object[][]{
+         { "From", "To" },
+         { "A",    "B"  },
+         { "B",    "C"  },
+         { "C",    "A"  },
+      });
+
+      RelationElement element = new RelationElement("From", "To");
+      element.setAlgorithm(RelationElement.Algorithm.CIRCLE);
+      element.setSizeFrame(new StaticSizeFrame(5));
+      element.setNodeSizeFrame(new StaticSizeFrame(5));
+      element.addShapeBorder(GShape.CIRCLE, Color.GRAY, GLine.MEDIUM_DASH);
+
+      EGraph egraph = new EGraph();
+      egraph.addElement(element);
+      RelationCoord coord = new RelationCoord();
+      egraph.setCoordinate(coord);
+      GGraph ggraph = egraph.createGGraph(coord, data);
+
+      for(int i = 0; i < ggraph.getGeometryCount(); i++) {
+         ggraph.getGeometry(i);
+      }
+
+      assertEquals(1, ggraph.getEGraph().getFormCount(),
+         "addShapeBorder must register exactly one BorderForm in the EGraph after layout");
    }
 
    @Test
