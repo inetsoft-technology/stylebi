@@ -711,17 +711,15 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
 
    @Override
    public Lock getLock(String name) {
-      DistributedLockProxy wrapper = new DistributedLockProxy(name);
-      wrapper.setRealLock(ignite.reentrantLock(name, true, false, true));
-      return wrapper;
+      return new DistributedLockProxy(name, ignite.reentrantLock(name, true, false, true));
    }
 
    @Override
    public void destroyLock(String name) {
-      try(IgniteLock lock = ignite.reentrantLock(name, true, false, false)) {
-         if(lock != null) {
-            lock.unlock();
-         }
+      IgniteLock lock = ignite.reentrantLock(name, true, false, false);
+
+      if(lock != null) {
+         lock.close();
       }
    }
 

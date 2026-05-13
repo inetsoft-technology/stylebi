@@ -168,6 +168,7 @@ public class DistributedTableCacheStore {
 
       try {
          storage.delete(key);
+         storage.destroyPathLock(key);
       }
       catch(IOException e) {
          LOG.warn("Failed to remove data from cache: {}", key, e);

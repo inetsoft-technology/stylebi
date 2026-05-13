@@ -589,6 +589,10 @@ public abstract class BlobStorage<T extends Serializable> implements AutoCloseab
       return new BlobLock(cluster, lockName, readOnly);
    }
 
+   public final void destroyPathLock(String path) {
+      cluster.destroyLock("write." + lockHost + ":" + id + ":" + path);
+   }
+
    protected final Cluster getCluster() {
       return cluster;
    }
