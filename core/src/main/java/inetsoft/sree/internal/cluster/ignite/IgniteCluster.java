@@ -711,14 +711,9 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
 
    @Override
    public Lock getLock(String name) {
-      return DISTRIBUTED_LOCK_MAP.compute(name, (k, existingProxy) -> {
-         DistributedLockProxy wrapper = (existingProxy != null) ? existingProxy :
-            new DistributedLockProxy(name);
-
-         Lock lock = ignite.reentrantLock(name, true, false, true);
-         wrapper.setRealLock(lock);
-         return wrapper;
-      });
+      DistributedLockProxy wrapper = new DistributedLockProxy(name);
+      wrapper.setRealLock(ignite.reentrantLock(name, true, false, true));
+      return wrapper;
    }
 
    @Override
@@ -1896,8 +1891,6 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
    private static final String IGNITE_EXECUTE_POOL = "IGNITE_EXECUTE_POOL";
    private static final int IGNITE_EXECUTE_POOL_COUNT = 2;
    private static final long SERVICE_TASK_TIMEOUT_MINUTES = 5;
-   private static final Map<String, DistributedLockProxy> DISTRIBUTED_LOCK_MAP = new ConcurrentHashMap<>();
-
    private static final Logger LOG = LoggerFactory.getLogger(IgniteCluster.class);
 
    private static final Set<String> SPRING_PROXY_PARTITIONED_CACHES = Collections.synchronizedSet(new HashSet<>());
