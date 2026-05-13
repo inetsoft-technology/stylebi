@@ -690,7 +690,9 @@ public class RelationElement extends GraphElement {
    /**
     * Configure a shape to be drawn as a border ring around the layout. The shape is drawn in
     * graph coordinates using {@code gshape.getShape(cx-r, cy-r, 2r, 2r)} and scales correctly
-    * with the chart. Pass {@code null} for any argument to remove a previously-set border.
+    * with the chart. Pass {@code null} for {@code gshape} to remove a previously-set border;
+    * {@code null} color falls back to the default line color, {@code null} line falls back to
+    * {@link inetsoft.graph.GraphConstants#THIN_LINE}.
     */
    public void addShapeBorder(GShape gshape, Color color, GLine line) {
       this.shapeBorderShape = gshape;
@@ -974,7 +976,7 @@ public class RelationElement extends GraphElement {
       }
 
       @Override
-      public Visualizable createVisual(Coordinate coord) {
+      public Visualizable createVisual(Coordinate coord) { // coord unused; FormVO.transform applies it later
          Point2D center = elem.getLayoutCenter();
          double radius = elem.getLayoutRadius();
 
