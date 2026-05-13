@@ -355,4 +355,59 @@ class ChartPlotOptionsPaneModelTest {
       assertTrue(plotDesc.isSmoothLines(),
          "smoothLines should round-trip through the model for circular charts");
    }
+
+   // --- treeLayoutVisible ---
+
+   @Test
+   void treeLayoutVisible_treeChart() {
+      assertTrue(modelFor(GraphTypes.CHART_TREE).isTreeLayoutVisible());
+   }
+
+   @Test
+   void treeLayoutVisible_networkChartHidden() {
+      // Network charts use ORGANIC layout; orientation is not a meaningful concept.
+      assertFalse(modelFor(GraphTypes.CHART_NETWORK).isTreeLayoutVisible());
+   }
+
+   @Test
+   void treeLayoutVisible_circularChartHidden() {
+      // Circular charts use CIRCLE layout; orientation is not a meaningful concept.
+      assertFalse(modelFor(GraphTypes.CHART_CIRCULAR).isTreeLayoutVisible());
+   }
+
+   @Test
+   void treeLayoutVisible_barChartHidden() {
+      assertFalse(modelFor(GraphTypes.CHART_BAR).isTreeLayoutVisible());
+   }
+
+   @Test
+   void treeLayout_defaultsToTopBottom() {
+      ChartPlotOptionsPaneModel model = modelFor(GraphTypes.CHART_TREE);
+      assertEquals(PlotDescriptor.TREE_LAYOUT_TOP_BOTTOM, model.getTreeLayout());
+   }
+
+   @Test
+   void treeLayout_roundTripsThroughDescriptor() {
+      String[] values = {
+         PlotDescriptor.TREE_LAYOUT_TOP_BOTTOM,
+         PlotDescriptor.TREE_LAYOUT_BOTTOM_TOP,
+         PlotDescriptor.TREE_LAYOUT_LEFT_RIGHT,
+         PlotDescriptor.TREE_LAYOUT_RIGHT_LEFT
+      };
+
+      for(String value : values) {
+         VSChartInfo info = new VSChartInfo();
+         info.setChartType(GraphTypes.CHART_TREE);
+         PlotDescriptor plotDesc = new PlotDescriptor();
+         plotDesc.setTreeLayout(value);
+
+         ChartPlotOptionsPaneModel model = new ChartPlotOptionsPaneModel(info, plotDesc);
+         assertEquals(value, model.getTreeLayout(), "model should reflect descriptor value");
+
+         PlotDescriptor target = new PlotDescriptor();
+         model.updateChartPlotOptionsPaneModel(info, target);
+         assertEquals(value, target.getTreeLayout(),
+            "updateChartPlotOptionsPaneModel should write the model value back");
+      }
+   }
 }

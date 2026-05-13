@@ -1334,6 +1334,13 @@ public abstract class GraphGenerator {
 
       if(info.getChartType() == CHART_TREE) {
          elem.setNodeCornerRadius(plotdesc.getNodeCornerRadius());
+         String layout = plotdesc.getTreeLayout();
+         boolean horizontal = PlotDescriptor.TREE_LAYOUT_LEFT_RIGHT.equals(layout) ||
+            PlotDescriptor.TREE_LAYOUT_RIGHT_LEFT.equals(layout);
+         boolean flipped = PlotDescriptor.TREE_LAYOUT_BOTTOM_TOP.equals(layout) ||
+            PlotDescriptor.TREE_LAYOUT_RIGHT_LEFT.equals(layout);
+         elem.setHorizontal(horizontal);
+         elem.setFlipped(flipped);
       }
 
       // set target format

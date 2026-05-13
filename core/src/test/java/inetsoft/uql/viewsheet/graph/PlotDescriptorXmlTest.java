@@ -73,6 +73,38 @@ class PlotDescriptorXmlTest {
       assertEquals(0.5, pd.getNodeCornerRadius(), 1e-9);
    }
 
+   @Test
+   void treeLayout_roundTripsAllValues() throws Exception {
+      String[] layouts = {
+         PlotDescriptor.TREE_LAYOUT_TOP_BOTTOM,
+         PlotDescriptor.TREE_LAYOUT_BOTTOM_TOP,
+         PlotDescriptor.TREE_LAYOUT_LEFT_RIGHT,
+         PlotDescriptor.TREE_LAYOUT_RIGHT_LEFT
+      };
+
+      for(String layout : layouts) {
+         PlotDescriptor written = new PlotDescriptor();
+         written.setTreeLayout(layout);
+         assertEquals(layout, roundTrip(written).getTreeLayout());
+      }
+   }
+
+   @Test
+   void treeLayout_legacyXmlWithoutAttributeDefaultsToTopBottom() throws Exception {
+      Document doc = Tool.parseXML(new StringReader("<plotDescriptor/>"));
+      PlotDescriptor parsed = new PlotDescriptor();
+      parsed.parseXML(doc.getDocumentElement());
+
+      assertEquals(PlotDescriptor.TREE_LAYOUT_TOP_BOTTOM, parsed.getTreeLayout());
+   }
+
+   @Test
+   void setTreeLayout_unknownValueFallsBackToTopBottom() {
+      PlotDescriptor pd = new PlotDescriptor();
+      pd.setTreeLayout("BOGUS");
+      assertEquals(PlotDescriptor.TREE_LAYOUT_TOP_BOTTOM, pd.getTreeLayout());
+   }
+
    private static PlotDescriptor roundTrip(PlotDescriptor source) throws Exception {
       StringWriter sw = new StringWriter();
       try(PrintWriter pw = new PrintWriter(sw)) {

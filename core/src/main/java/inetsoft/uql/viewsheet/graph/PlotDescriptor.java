@@ -48,6 +48,12 @@ import java.util.*;
  * @author InetSoft Technology Corp.
  */
 public class PlotDescriptor implements AssetObject, ContentObject {
+   /** Tree chart layout direction values for {@link #setTreeLayout(String)}. */
+   public static final String TREE_LAYOUT_TOP_BOTTOM = "TOP_BOTTOM";
+   public static final String TREE_LAYOUT_BOTTOM_TOP = "BOTTOM_TOP";
+   public static final String TREE_LAYOUT_LEFT_RIGHT = "LEFT_RIGHT";
+   public static final String TREE_LAYOUT_RIGHT_LEFT = "RIGHT_LEFT";
+
    /**
     * Create a PlotDescriptor.
     */
@@ -629,6 +635,32 @@ public class PlotDescriptor implements AssetObject, ContentObject {
     */
    public void setSmoothLines(boolean smoothLines) {
       this.smoothLines = smoothLines;
+   }
+
+   /**
+    * Get the tree chart layout direction. One of {@link #TREE_LAYOUT_TOP_BOTTOM},
+    * {@link #TREE_LAYOUT_BOTTOM_TOP}, {@link #TREE_LAYOUT_LEFT_RIGHT},
+    * {@link #TREE_LAYOUT_RIGHT_LEFT}. Only meaningful for CHART_TREE.
+    */
+   public String getTreeLayout() {
+      return treeLayout;
+   }
+
+   /**
+    * Set the tree chart layout direction. Unknown values fall back to
+    * {@link #TREE_LAYOUT_TOP_BOTTOM} so callers (REST clients, hand-edited
+    * XML) can't inject arbitrary strings into the serialized form.
+    */
+   public void setTreeLayout(String treeLayout) {
+      if(TREE_LAYOUT_BOTTOM_TOP.equals(treeLayout) ||
+         TREE_LAYOUT_LEFT_RIGHT.equals(treeLayout) ||
+         TREE_LAYOUT_RIGHT_LEFT.equals(treeLayout))
+      {
+         this.treeLayout = treeLayout;
+      }
+      else {
+         this.treeLayout = TREE_LAYOUT_TOP_BOTTOM;
+      }
    }
 
    /**
@@ -1453,6 +1485,12 @@ public class PlotDescriptor implements AssetObject, ContentObject {
       fillZero = "true".equals(Tool.getAttribute(node, "fillZero"));
       fillGapWithDash = "true".equals(Tool.getAttribute(node, "fillGapWithDash"));
       smoothLines = "true".equals(Tool.getAttribute(node, "smoothLines"));
+      String treeLayoutAttr = Tool.getAttribute(node, "treeLayout");
+
+      if(treeLayoutAttr != null) {
+         setTreeLayout(treeLayoutAttr);
+      }
+
       oneLine = "true".equals(Tool.getAttribute(node, "oneLine"));
 
       if((val = Tool.getAttribute(node, "zoom")) != null) {
@@ -1626,6 +1664,11 @@ public class PlotDescriptor implements AssetObject, ContentObject {
       writer.print(" fillZero=\"" + fillZero + "\" ");
       writer.print(" fillGapWithDash=\"" + fillGapWithDash + "\" ");
       writer.print(" smoothLines=\"" + smoothLines + "\" ");
+
+      if(!TREE_LAYOUT_TOP_BOTTOM.equals(treeLayout)) {
+         writer.print(" treeLayout=\"" + treeLayout + "\" ");
+      }
+
       writer.print(" xBandSize=\"" + xBandSize + "\" ");
       writer.print(" yBandSize=\"" + yBandSize + "\" ");
       writer.print(" zoom=\"" + zoom + "\" ");
@@ -1769,6 +1812,7 @@ public class PlotDescriptor implements AssetObject, ContentObject {
          fillZero == desc.fillZero &&
          fillGapWithDash == desc.fillGapWithDash &&
          smoothLines == desc.smoothLines &&
+         Tool.equals(treeLayout, desc.treeLayout) &&
          Tool.equals(alpha, desc.alpha) &&
          rLineVisible == desc.rLineVisible &&
          valuesVisible == desc.valuesVisible &&
@@ -1885,6 +1929,7 @@ public class PlotDescriptor implements AssetObject, ContentObject {
    // Default false so saved viewsheets without the smoothLines XML attribute keep their original
    // straight-line look. New area charts get smooth=true via the chart-type chooser/wizard hook.
    private boolean smoothLines = false;
+   private String treeLayout = TREE_LAYOUT_TOP_BOTTOM;
    private CompositeTextFormat errorFormat;
    private double pieRatio = 0;
    // By design, new bar charts default to rounded corners; parseXML overrides to 0 for saved charts.
