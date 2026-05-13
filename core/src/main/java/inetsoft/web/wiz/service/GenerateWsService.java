@@ -703,6 +703,10 @@ public class GenerateWsService {
             }
          }
 
+         if(colType == null) {
+            colType = field.getType();
+         }
+
          String attr = fieldName;
 
          if(attr == null) {
@@ -894,8 +898,11 @@ public class GenerateWsService {
                int dgroup = getDateGroupLevel(groupField.getDateGroupLevel());
                String name = DateRangeRef.getName(colName, dgroup);
                DateRangeRef rangeRef = new DateRangeRef(name, column.getDataRef(), dgroup);
+               rangeRef.setOriginalType(column.getDataType());
+               String dtype = rangeRef.getDataType();
                columnSelection.removeAttribute(column);
                column = new ColumnRef(rangeRef);
+               column.setDataType(dtype);
                columnSelection.addAttribute(column);
             }
 
