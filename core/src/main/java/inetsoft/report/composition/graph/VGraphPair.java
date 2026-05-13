@@ -2451,13 +2451,12 @@ public class VGraphPair {
          g.setRenderingHint(SVGSupport.ANIMATION_KEY, SVGSupport.ANIMATION_RELATION);
       }
       else if(hasBarVO(graph)) {
-         String hint = SVGSupport.ANIMATION_GROW;
-         // Append sub-type flags for future differentiated animation behaviour.
-         // SVGAnimationDOMInjector currently handles stacked and 3D bars via the same
-         // annotation-group path, so these flags are not yet acted upon by the injector.
-         if(has3DBarVO(graph))           hint += ":" + SVGSupport.ANIMATION_FLAG_3D;
-         else if(hasStackedBarVO(graph)) hint += ":" + SVGSupport.ANIMATION_FLAG_STACKED;
-         g.setRenderingHint(SVGSupport.ANIMATION_KEY, hint);
+         // 3D bar is deprecated — skip animation and hover entirely.
+         if(!has3DBarVO(graph)) {
+            String hint = SVGSupport.ANIMATION_GROW;
+            if(hasStackedBarVO(graph)) hint += ":" + SVGSupport.ANIMATION_FLAG_STACKED;
+            g.setRenderingHint(SVGSupport.ANIMATION_KEY, hint);
+         }
       }
       else if(hasLineVO(graph)) {
          g.setRenderingHint(SVGSupport.ANIMATION_KEY, SVGSupport.ANIMATION_LINE);
@@ -2541,8 +2540,9 @@ public class VGraphPair {
       for(int i = 0; i < graph.getVisualCount(); i++) {
          Visualizable v = graph.getVisual(i);
 
+         // 3D pie is deprecated — skip animation and hover entirely.
          if(v instanceof Pie3DVO) {
-            return true;
+            continue;
          }
 
          // Facet charts: recurse into nested VGraphs.
