@@ -94,7 +94,7 @@ public class DistributedLockProxy implements Lock {
    }
 
    private final Lock realLock;
-   private String lockName;
+   private final String lockName;
    private static final int MAX_TRY_COUNT = 10;
    private static final int LOCK_TIMEOUT_SECONDS = 3;
    private static final int RETRY_DELAY_MS = 3_000;

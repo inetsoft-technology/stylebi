@@ -131,11 +131,7 @@ public class MockCluster implements Cluster {
 
    @Override
    public void destroyLock(String name) {
-      Lock lock = locks.get(name);
-
-      if(lock != null) {
-         lock.unlock();
-      }
+      locks.remove(name);
    }
 
    @SuppressWarnings("ResultOfMethodCallIgnored")
