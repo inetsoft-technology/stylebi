@@ -19,6 +19,8 @@ package inetsoft.util;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Iterator;
 
@@ -26,6 +28,8 @@ import java.util.Iterator;
  * User documentation index URL for context-sensitive script help.
  */
 public final class InetsoftUserDocumentation {
+   private static final Logger LOG = LoggerFactory.getLogger(InetsoftUserDocumentation.class);
+
    private InetsoftUserDocumentation() {
    }
 
@@ -133,10 +137,12 @@ public final class InetsoftUserDocumentation {
          String ver = pkg.getSpecificationVersion();
 
          if(ver != null && !ver.isBlank()) {
-            return indexBaseForDocVersion(stripSnapshotSuffix(ver.trim()));
+            return indexBaseForDocVersion(stripPreReleaseSuffix(ver.trim()));
          }
       }
 
+      LOG.warn("Could not determine Specification-Version from package manifest; " +
+               "falling back to hardcoded doc version 1.1.0");
       return indexBaseForDocVersion("1.1.0");
    }
 
@@ -144,11 +150,12 @@ public final class InetsoftUserDocumentation {
       return DOC_INDEX_PREFIX + docVersion + DOC_INDEX_SUFFIX;
    }
 
-   private static String stripSnapshotSuffix(String version) {
-      if(version.endsWith("-SNAPSHOT")) {
-         return version.substring(0, version.length() - "-SNAPSHOT".length());
+   private static String stripPreReleaseSuffix(String version) {
+      if(version.startsWith("v") || version.startsWith("V")) {
+         version = version.substring(1);
       }
 
-      return version;
+      int dash = version.indexOf('-');
+      return dash < 0 ? version : version.substring(0, dash);
    }
 }
