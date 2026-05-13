@@ -137,6 +137,117 @@ class CustomThemesManagerTest {
       verify(manager, never()).setCustomThemes(any());
    }
 
+   // =========================================================================
+   // renameThemeJar tests
+   // =========================================================================
+
+   // exact file rename — only the matched theme's jarPath is updated
+   @Test
+   void renameThemeJar_exactPath_updatesJarPath() {
+      CustomTheme target = theme("target", "portal/theme/target.jar");
+      CustomTheme other  = theme("other",  "portal/theme/other.jar");
+
+      CustomThemesManager manager = managerWithThemes(target, other);
+
+      manager.renameThemeJar("portal/theme/target.jar", "portal/theme/renamed.jar");
+
+      Set<CustomTheme> saved = captureSetCustomThemes(manager);
+      assertEquals(2, saved.size());
+      CustomTheme updatedTarget = saved.stream()
+         .filter(t -> "target".equals(t.getId()))
+         .findFirst().orElseThrow();
+      assertEquals("portal/theme/renamed.jar", updatedTarget.getJarPath());
+      CustomTheme untouchedOther = saved.stream()
+         .filter(t -> "other".equals(t.getId()))
+         .findFirst().orElseThrow();
+      assertEquals("portal/theme/other.jar", untouchedOther.getJarPath());
+   }
+
+   // folder rename — all themes under the renamed directory are updated; outside themes are not
+   @Test
+   void renameThemeJar_folderPath_updatesAllThemesUnderThatFolder() {
+      CustomTheme inDir1  = theme("t1", "portal/theme/t1.jar");
+      CustomTheme inDir2  = theme("t2", "portal/theme/t2.jar");
+      CustomTheme outside = theme("t3", "portal/other/t3.jar");
+
+      CustomThemesManager manager = managerWithThemes(inDir1, inDir2, outside);
+
+      manager.renameThemeJar("portal/theme", "portal/newtheme");
+
+      Set<CustomTheme> saved = captureSetCustomThemes(manager);
+      assertEquals(3, saved.size());
+      saved.stream()
+         .filter(t -> "t1".equals(t.getId()) || "t2".equals(t.getId()))
+         .forEach(t -> assertTrue(t.getJarPath().startsWith("portal/newtheme/")));
+      CustomTheme untouched = saved.stream()
+         .filter(t -> "t3".equals(t.getId()))
+         .findFirst().orElseThrow();
+      assertEquals("portal/other/t3.jar", untouched.getJarPath());
+   }
+
+   // no match — no theme has the old path, so setCustomThemes must not be called
+   @Test
+   void renameThemeJar_noMatchingPath_setCustomThemesNotCalled() {
+      CustomTheme t1 = theme("t1", "portal/theme/t1.jar");
+      CustomTheme t2 = theme("t2", "portal/theme/t2.jar");
+
+      CustomThemesManager manager = managerWithThemes(t1, t2);
+
+      manager.renameThemeJar("portal/theme/nonexistent.jar", "portal/theme/new.jar");
+
+      verify(manager, never()).setCustomThemes(any());
+   }
+
+   // null jarPath — themes without a JAR are passed through unchanged
+   @Test
+   void renameThemeJar_themeWithNullJarPath_isPreserved() {
+      CustomTheme withJar    = theme("with-jar", "portal/theme/target.jar");
+      CustomTheme withoutJar = theme("no-jar", null);
+
+      CustomThemesManager manager = managerWithThemes(withJar, withoutJar);
+
+      manager.renameThemeJar("portal/theme/target.jar", "portal/theme/renamed.jar");
+
+      Set<CustomTheme> saved = captureSetCustomThemes(manager);
+      assertEquals(2, saved.size());
+      CustomTheme nullJarTheme = saved.stream()
+         .filter(t -> "no-jar".equals(t.getId()))
+         .findFirst().orElseThrow();
+      assertNull(nullJarTheme.getJarPath());
+   }
+
+   // path-separator boundary — "portal/themes/" must not be renamed when the old path is "portal/theme"
+   @Test
+   void renameThemeJar_pathSharesPrefixButDifferentDirectory_notRenamed() {
+      CustomTheme inSimilarDir = theme("t1", "portal/themes/t1.jar");
+      CustomTheme inExactDir   = theme("t2", "portal/theme/t2.jar");
+
+      CustomThemesManager manager = managerWithThemes(inSimilarDir, inExactDir);
+
+      manager.renameThemeJar("portal/theme", "portal/newtheme");
+
+      Set<CustomTheme> saved = captureSetCustomThemes(manager);
+      assertEquals(2, saved.size());
+      CustomTheme untouched = saved.stream()
+         .filter(t -> "t1".equals(t.getId()))
+         .findFirst().orElseThrow();
+      assertEquals("portal/themes/t1.jar", untouched.getJarPath());
+      CustomTheme renamed = saved.stream()
+         .filter(t -> "t2".equals(t.getId()))
+         .findFirst().orElseThrow();
+      assertEquals("portal/newtheme/t2.jar", renamed.getJarPath());
+   }
+
+   // empty theme set — early exit; setCustomThemes is never invoked
+   @Test
+   void renameThemeJar_emptyThemeSet_doesNotCallSetCustomThemes() {
+      CustomThemesManager manager = managerWithThemes();
+
+      manager.renameThemeJar("portal/theme/any.jar", "portal/theme/new.jar");
+
+      verify(manager, never()).setCustomThemes(any());
+   }
+
    // -------------------------------------------------------------------------
    // helpers
    // -------------------------------------------------------------------------
