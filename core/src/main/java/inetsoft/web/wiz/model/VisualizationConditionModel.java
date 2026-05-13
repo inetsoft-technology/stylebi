@@ -18,31 +18,49 @@
 
 package inetsoft.web.wiz.model;
 
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.*;
 
 import java.util.List;
 
 /**
  * Transport model representing a condition/filter specification sent from the Wiz AI service.
  * Mirrors the TypeScript {@code ConditionModel} structure.
+ * Each entry in {@code conditions} is either a leaf ({@link ConditionLeaf}) or a
+ * parenthesized group ({@link ConditionGroup}), distinguished by the {@code type} field.
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class VisualizationConditionModel {
-   public List<Entry> getConditions() {
+   public List<ConditionNode> getConditions() {
       return conditions;
    }
 
-   public void setConditions(List<Entry> conditions) {
+   public void setConditions(List<ConditionNode> conditions) {
       this.conditions = conditions;
    }
 
-   private List<Entry> conditions;
+   private List<ConditionNode> conditions;
 
+   /**
+    * Polymorphic base for condition tree nodes.
+    * Deserialized based on the {@code type} JSON property.
+    */
+   @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "type", defaultImpl = ConditionLeaf.class)
+   @JsonSubTypes({
+      @JsonSubTypes.Type(value = ConditionLeaf.class,  name = "condition"),
+      @JsonSubTypes.Type(value = ConditionGroup.class, name = "group")
+   })
    @JsonIgnoreProperties(ignoreUnknown = true)
-   public static class Entry {
-      /**
-       * "and" | "or" — ignored for the first entry.
-       */
+   public interface ConditionNode {
+      /** "and" | "or" — the logical relationship with the previous sibling; null for the first. */
+      String getJunction();
+   }
+
+   /**
+    * Leaf node: a single filter condition.
+    */
+   @JsonIgnoreProperties(ignoreUnknown = true)
+   public static class ConditionLeaf implements ConditionNode {
+      @Override
       public String getJunction() {
          return junction;
       }
@@ -62,6 +80,34 @@ public class VisualizationConditionModel {
       private String junction;
       private ConditionSpec condition;
    }
+
+   /**
+    * Group node: parenthesizes its children (equivalent to brackets in logical expressions).
+    * Children may be leaves or nested groups.
+    */
+   @JsonIgnoreProperties(ignoreUnknown = true)
+   public static class ConditionGroup implements ConditionNode {
+      @Override
+      public String getJunction() {
+         return junction;
+      }
+
+      public void setJunction(String junction) {
+         this.junction = junction;
+      }
+
+      public List<ConditionNode> getItems() {
+         return items;
+      }
+
+      public void setItems(List<ConditionNode> items) {
+         this.items = items;
+      }
+
+      private String junction;
+      private List<ConditionNode> items;
+   }
+
 
    @JsonIgnoreProperties(ignoreUnknown = true)
    public static class ConditionSpec {
@@ -122,7 +168,7 @@ public class VisualizationConditionModel {
    @JsonIgnoreProperties(ignoreUnknown = true)
    public static class ValueSpec {
       /**
-       * VALUE | VARIABLE | EXPRESSION | FIELD | SESSION_DATA
+       * VALUE | EXPRESSION | FIELD | SESSION_DATA
        */
       public String getType() {
          return type;

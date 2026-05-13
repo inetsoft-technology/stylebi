@@ -1576,46 +1576,110 @@ public class WizVsService {
 
    /**
     * Converts a {@link VisualizationConditionModel} into a {@link ConditionList}.
-    * Junction operators are inserted between consecutive condition entries.
+    * Recursively traverses the node tree, assigning junction levels based on nesting depth.
+    * Items within a group at depth {@code d} receive level {@code d}, so the Java
+    * ConditionList evaluator groups them at higher precedence than items at outer depths.
     */
    private ConditionList buildConditionList(VisualizationConditionModel wizModel) {
       ConditionList conditionList = new ConditionList();
-      List<VisualizationConditionModel.Entry> entries = wizModel.getConditions();
 
-      for(VisualizationConditionModel.Entry entry : entries) {
-         VisualizationConditionModel.ConditionSpec spec = entry.getCondition();
-
-         if(spec == null || Tool.isEmptyString(spec.getField())) {
-            continue;
-         }
-
-         if(!conditionList.isEmpty()) {
-            int junctionType = "or".equalsIgnoreCase(entry.getJunction())
-               ? JunctionOperator.OR
-               : JunctionOperator.AND;
-            conditionList.append(new JunctionOperator(junctionType, 0));
-         }
-
-         AttributeRef attr = new AttributeRef(null, spec.getField());
-         Condition condition = new Condition();
-         condition.setOperation(mapConditionOperation(spec.getOperation()));
-         condition.setNegated(spec.isNegated());
-
-         if(spec.getEqual() != null) {
-            condition.setEqual(spec.getEqual());
-         }
-
-         if(spec.getValues() != null) {
-            for(VisualizationConditionModel.ValueSpec val : spec.getValues()) {
-               condition.addValue(convertConditionValue(val));
-            }
-         }
-
-         ConditionItem item = new ConditionItem(attr, condition, 0);
-         conditionList.append(item);
+      if(wizModel != null && wizModel.getConditions() != null) {
+         appendConditionNodes(wizModel.getConditions(), 0, conditionList, new boolean[]{true});
       }
 
       return conditionList;
+   }
+
+   /**
+    * Recursively appends condition nodes to {@code result}.
+    *
+    * @param nodes     the sibling nodes at the current level
+    * @param depth     current nesting depth (0 = top-level); controls junction/item level values
+    * @param result    the ConditionList being built
+    * @param isFirst   single-element boolean array used to track whether any item has been
+    *                  appended yet at the current level (avoids a leading junction)
+    */
+   private void appendConditionNodes(List<VisualizationConditionModel.ConditionNode> nodes,
+                                     int depth,
+                                     ConditionList result,
+                                     boolean[] isFirst)
+   {
+      for(VisualizationConditionModel.ConditionNode node : nodes) {
+         if(node == null) {
+            continue;
+         }
+
+         if(node instanceof VisualizationConditionModel.ConditionLeaf leaf) {
+            VisualizationConditionModel.ConditionSpec spec = leaf.getCondition();
+
+            if(spec == null || Tool.isEmptyString(spec.getField())) {
+               continue;
+            }
+
+            if(!isFirst[0]) {
+               result.append(new JunctionOperator(parseJunction(leaf.getJunction()), depth));
+            }
+
+            result.append(buildConditionItem(spec, depth));
+            isFirst[0] = false;
+         }
+         else if(node instanceof VisualizationConditionModel.ConditionGroup group) {
+            List<VisualizationConditionModel.ConditionNode> items = group.getItems();
+
+            if(items == null || items.isEmpty()) {
+               continue;
+            }
+
+            // Build the group's contents into a temporary list first so we can check
+            // whether it produced any valid items before committing a junction.
+            ConditionList groupContents = new ConditionList();
+            appendConditionNodes(items, depth + 1, groupContents, new boolean[]{true});
+
+            if(groupContents.isEmpty()) {
+               continue;
+            }
+
+            if(!isFirst[0]) {
+               result.append(new JunctionOperator(parseJunction(group.getJunction()), depth));
+            }
+
+            for(int i = 0; i < groupContents.getSize(); i++) {
+               if(i % 2 == 0) {
+                  result.append(groupContents.getConditionItem(i));
+               }
+               else {
+                  result.append(groupContents.getJunctionOperator(i));
+               }
+            }
+
+            isFirst[0] = false;
+         }
+      }
+   }
+
+   private ConditionItem buildConditionItem(VisualizationConditionModel.ConditionSpec spec,
+                                            int level)
+   {
+      AttributeRef attr = new AttributeRef(null, spec.getField());
+      Condition condition = new Condition();
+      condition.setOperation(mapConditionOperation(spec.getOperation()));
+      condition.setNegated(spec.isNegated());
+
+      if(spec.getEqual() != null) {
+         condition.setEqual(spec.getEqual());
+      }
+
+      if(spec.getValues() != null) {
+         for(VisualizationConditionModel.ValueSpec val : spec.getValues()) {
+            condition.addValue(convertConditionValue(val));
+         }
+      }
+
+      return new ConditionItem(attr, condition, level);
+   }
+
+   private int parseJunction(String junction) {
+      return "or".equalsIgnoreCase(junction) ? JunctionOperator.OR : JunctionOperator.AND;
    }
 
    private Object convertConditionValue(VisualizationConditionModel.ValueSpec val) {
