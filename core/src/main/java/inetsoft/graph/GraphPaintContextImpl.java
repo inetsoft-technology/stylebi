@@ -19,7 +19,6 @@ package inetsoft.graph;
 
 import inetsoft.graph.guide.VMeasureTitle;
 import inetsoft.graph.guide.axis.Axis;
-import inetsoft.graph.guide.axis.GridLine;
 import inetsoft.graph.visual.*;
 
 public class GraphPaintContextImpl implements GraphPaintContext {
@@ -65,10 +64,7 @@ public class GraphPaintContextImpl implements GraphPaintContext {
     */
    @Override
    public boolean paintVisual(Visualizable visual) {
-      if(visual instanceof GridLine) {
-         return paintAxes || ((GridLine) visual).getAxis() == null;
-      }
-      else if(visual instanceof Axis) {
+      if(visual instanceof Axis) {
          return paintAxes;
       }
       else if(!paintVOVisuals) {

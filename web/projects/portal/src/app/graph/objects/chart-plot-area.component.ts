@@ -689,16 +689,17 @@ export class ChartPlotArea extends ChartObjectAreaBase<Plot> implements OnChange
    }
 
    get scrollContainerWidth(): number {
-      return this.chartObject.layoutBounds.width +
+      // 1 pixel is added to account for 0.5 pixel border stroke that bleeds outside plot bounds. (57682)
+      return this.chartObject.layoutBounds.width + 1 +
          (this.chartObject.bounds.height > this.chartObject.layoutBounds.height
-          // 1 pixel is added to the image to account for 0.5 pixel border line. (57682)
-          ? this.scrollbarWidth + 1 : 0);
+          ? this.scrollbarWidth : 0);
    }
 
    get scrollContainerHeight(): number {
-      return this.chartObject.layoutBounds.height +
+      // 1 pixel is added to account for 0.5 pixel border stroke that bleeds outside plot bounds. (57682)
+      return this.chartObject.layoutBounds.height + 1 +
          (this.chartObject.bounds.width > this.chartObject.layoutBounds.width
-          ? this.scrollbarWidth + 1 : 0);
+          ? this.scrollbarWidth : 0);
    }
 
    isMaxModeHidden(): boolean {
