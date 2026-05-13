@@ -870,7 +870,7 @@
           <annotationProcessorPathsUseDepMgmt>true</annotationProcessorPathsUseDepMgmt>
           <proc>full</proc>
           <compilerArgs>
-            <arg>-Atern.baseUrl=https://www.inetsoft.com/docs/stylebi/InetSoftUserDocumentation/${project.version}/index.html</arg>
+            <arg>-Atern.baseUrl=https://www.inetsoft.com/docs/stylebi/index.html</arg>
             <arg>-Atern.outputFile=inetsoft/web/binding/js-functions.generated.json</arg>
             <arg>-parameters</arg>
           </compilerArgs>
