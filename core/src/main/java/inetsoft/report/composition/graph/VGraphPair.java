@@ -1661,8 +1661,10 @@ public class VGraphPair {
    public BufferedImage getPlotImage(int row, int col) {
       final VGraph vgraph = getExpandedVGraph();
       final GraphBounds gbounds = new GraphBounds(vgraph, getRealSizeVGraph(), cinfo);
+      // Radar charts render PolarAxis (spokes/rings) inside the plot tile, so paintAxes must
+      // be true for them. All other types suppress axes to prevent label bleed into plot tiles.
       return getFlipYSubimage(vgraph, gbounds.getPlotBounds(), row, col, true,
-         getEVGraphContext(false, true));
+         getEVGraphContext(hasRadarCoord(vgraph), true));
    }
 
    /**
@@ -2018,7 +2020,9 @@ public class VGraphPair {
    public Graphics2D getPlotGraphic(int row, int col) {
       final VGraph vgraph = getExpandedVGraph();
       final GraphBounds gbounds = new GraphBounds(vgraph, getRealSizeVGraph(), cinfo);
-      return getFlipYSubGraphic(vgraph, gbounds.getPlotBounds(), row, col, true, getEVGraphContext(false, true), true);
+      // Radar charts render PolarAxis (spokes/rings) inside the plot tile, so paintAxes must
+      // be true for them. All other types suppress axes to prevent label bleed into plot tiles.
+      return getFlipYSubGraphic(vgraph, gbounds.getPlotBounds(), row, col, true, getEVGraphContext(hasRadarCoord(vgraph), true), true);
    }
 
    /**
