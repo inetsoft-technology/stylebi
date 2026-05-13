@@ -284,6 +284,7 @@ public abstract class AbstractVSExporter implements VSExporter {
          }
       }
 
+      applyShrunkBottomTabsShift(assemblies, box);
       addTableMaxRowMessage(assemblies, box);
       TextVSAssembly warningText = viewsheet.getWarningTextAssembly(false);
 
@@ -301,6 +302,40 @@ public abstract class AbstractVSExporter implements VSExporter {
       }
 
       prepareAnnotation(box);
+   }
+
+   /**
+    * Keep shrunk tables in a bottom-tabs container flush with the tab strip,
+    * matching viewer {@code BaseTable.getObjectTop()}.
+    */
+   private void applyShrunkBottomTabsShift(Assembly[] assemblies, ViewsheetSandbox box) {
+      if(assemblies == null || box == null) {
+         return;
+      }
+
+      for(Assembly assembly : assemblies) {
+         if(!(assembly instanceof TableDataVSAssembly tableAssembly) ||
+            !needExport(tableAssembly))
+         {
+            continue;
+         }
+
+         try {
+            VSTableLens lens = box.getVSTableLens(
+               tableAssembly.getAbsoluteName(), false, 1);
+
+            if(lens == null) {
+               continue;
+            }
+
+            lens.initTableGrid((TableDataVSAssemblyInfo) tableAssembly.getVSAssemblyInfo());
+            VSTableDataHelper.applyShrunkBottomTabsShift(tableAssembly, lens);
+         }
+         catch(Exception ex) {
+            LOG.debug("Failed to apply bottom-tabs shrink shift for {}",
+               tableAssembly.getAbsoluteName(), ex);
+         }
+      }
    }
 
    private void addTableMaxRowMessage(Assembly[] assemblies, ViewsheetSandbox box)

@@ -291,6 +291,45 @@ class TabVSAssemblyInfoTest {
       assertEquals(170, childInfo.getPixelOffset().y);
    }
 
+   @Test
+   void isInBottomTabsTrueForBottomTabsContainer() {
+      TabVSAssemblyInfo tabInfo = new TabVSAssemblyInfo();
+      tabInfo.setBottomTabsValue(true);
+      TabVSAssembly tab = Mockito.mock(TabVSAssembly.class);
+      when(tab.getVSAssemblyInfo()).thenReturn(tabInfo);
+
+      VSAssembly child = Mockito.mock(VSAssembly.class);
+      when(child.getContainer()).thenReturn(tab);
+
+      assertEquals(true, TabVSAssemblyInfo.isInBottomTabs(child));
+   }
+
+   @Test
+   void isInBottomTabsFalseForTopTabsContainer() {
+      TabVSAssemblyInfo tabInfo = new TabVSAssemblyInfo();
+      tabInfo.setBottomTabsValue(false);
+      TabVSAssembly tab = Mockito.mock(TabVSAssembly.class);
+      when(tab.getVSAssemblyInfo()).thenReturn(tabInfo);
+
+      VSAssembly child = Mockito.mock(VSAssembly.class);
+      when(child.getContainer()).thenReturn(tab);
+
+      assertEquals(false, TabVSAssemblyInfo.isInBottomTabs(child));
+   }
+
+   @Test
+   void isInBottomTabsFalseWhenNotInTab() {
+      VSAssembly child = Mockito.mock(VSAssembly.class);
+      when(child.getContainer()).thenReturn(null);
+
+      assertEquals(false, TabVSAssemblyInfo.isInBottomTabs(child));
+   }
+
+   @Test
+   void isInBottomTabsFalseForNullAssembly() {
+      assertEquals(false, TabVSAssemblyInfo.isInBottomTabs(null));
+   }
+
    private VSAssembly mockChild(String name, SelectionBaseVSAssemblyInfo info,
                                 Point offset, Dimension size, int showType)
    {
