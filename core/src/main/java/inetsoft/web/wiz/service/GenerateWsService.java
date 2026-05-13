@@ -900,11 +900,6 @@ public class GenerateWsService {
                DateRangeRef rangeRef = new DateRangeRef(name, column.getDataRef(), dgroup);
                rangeRef.setOriginalType(column.getDataType());
                String dtype = rangeRef.getDataType();
-
-               if(XSchema.TIME.equals(rangeRef.getOriginalType()) && !XSchema.INTEGER.equals(dtype)) {
-                  dtype = rangeRef.getOriginalType();
-               }
-
                columnSelection.removeAttribute(column);
                column = new ColumnRef(rangeRef);
                column.setDataType(dtype);
