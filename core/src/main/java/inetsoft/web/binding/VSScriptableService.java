@@ -50,6 +50,7 @@ import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.AnnotationVSUtil;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.Catalog;
+import inetsoft.util.InetsoftUserDocumentation;
 import inetsoft.util.Tool;
 import inetsoft.util.script.JSObject;
 import inetsoft.util.script.TimeoutContext;
@@ -305,6 +306,7 @@ public class VSScriptableService {
       }
 
       library.setAll(functions);
+      InetsoftUserDocumentation.rewriteScriptApiDocUrls(library);
 
       ObjectNode chartConstants = (ObjectNode) library.get("Chart");
 
@@ -1682,8 +1684,7 @@ public class VSScriptableService {
          return null;
       }
 
-      return "https://www.inetsoft.com/docs/stylebi/index.html#cshid=" +
-         FUNCTION_CSHIDS.get(funcName);
+      return InetsoftUserDocumentation.contextSensitiveHelpUrl(FUNCTION_CSHIDS.get(funcName));
    }
 
    private static final Set sreeOnly = new HashSet();

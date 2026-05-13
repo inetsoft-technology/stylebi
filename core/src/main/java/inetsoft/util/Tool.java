@@ -4284,7 +4284,7 @@ public final class Tool extends CoreTool {
       String uri = SreeEnv.getProperty("help.url");
 
       if(uri == null || uri.equals("")) {
-         uri = "https://www.inetsoft.com/docs/stylebi/index.html";
+         uri = InetsoftUserDocumentation.getUserDocumentationIndexBaseUrl();
       }
 
       return uri;

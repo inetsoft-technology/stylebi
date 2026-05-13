@@ -20,6 +20,7 @@ package inetsoft.uql.tabular;
 import inetsoft.uql.XDataSource;
 import inetsoft.uql.XQuery;
 import inetsoft.uql.util.Config;
+import inetsoft.util.InetsoftUserDocumentation;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -305,6 +306,7 @@ public class LayoutCreator {
 
          if(bundle != null) {
             displayLabel = bundle.getString(displayLabel);
+            displayLabel = InetsoftUserDocumentation.normalizeStyleBiDocHtmlContent(displayLabel);
          }
       }
       catch(MissingResourceException ex) {
