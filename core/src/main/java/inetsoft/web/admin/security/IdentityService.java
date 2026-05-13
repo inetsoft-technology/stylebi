@@ -51,6 +51,7 @@ import inetsoft.util.audit.*;
 import inetsoft.util.css.CSSDictionary;
 import inetsoft.util.log.LogManager;
 import inetsoft.web.AutoSaveUtils;
+import inetsoft.web.session.IgniteSessionRepository;
 import inetsoft.web.RecycleBin;
 import inetsoft.web.admin.favorites.FavoriteList;
 import inetsoft.web.admin.security.user.*;
@@ -97,7 +98,8 @@ public class IdentityService {
                           DependencyStorageService dependencyStorageService,
                           ExternalStorageService externalStorageService,
                           XRepository xRepository,
-                          RepletRegistryManager repletRegistryManager)
+                          RepletRegistryManager repletRegistryManager,
+                          IgniteSessionRepository sessionRepository)
    {
       this.securityEngine = securityEngine;
       this.securityProvider = securityProvider;
@@ -127,6 +129,7 @@ public class IdentityService {
       this.externalStorageService = externalStorageService;
       this.xRepository = xRepository;
       this.repletRegistryManager = repletRegistryManager;
+      this.sessionRepository = sessionRepository;
    }
 
    private AuthenticationProvider getProvider(String providerName) {
@@ -1713,6 +1716,13 @@ public class IdentityService {
 
       syncIdentity(eprovider, user, oIdentity);
 
+      try {
+         sessionRepository.updatePrincipalRolesAndGroups(oIdentity, user.getRoles(), user.getGroups(), eprovider);
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to update live session principals for user {}", oIdentity, e);
+      }
+
       return user;
    }
 
@@ -2658,4 +2668,5 @@ public class IdentityService {
    private final ExternalStorageService externalStorageService;
    private final XRepository xRepository;
    private final RepletRegistryManager repletRegistryManager;
+   private final IgniteSessionRepository sessionRepository;
 }
