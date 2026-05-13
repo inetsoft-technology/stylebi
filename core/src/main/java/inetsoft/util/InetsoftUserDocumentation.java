@@ -43,6 +43,9 @@ public final class InetsoftUserDocumentation {
    private static final Pattern VERSIONED_DOC_URL_PATTERN = Pattern.compile(
       Pattern.quote(DOC_INDEX_PREFIX) + "[^/]+" + Pattern.quote(DOC_INDEX_SUFFIX));
 
+   // Cached once per JVM lifetime via double-checked locking. There is intentionally no reset
+   // mechanism; tests that need to exercise loadIndexBaseUrl() directly must clear this field
+   // via reflection in a @BeforeEach, as done in InetsoftUserDocumentationTest.
    private static volatile String indexBaseUrl;
 
    /**
@@ -69,6 +72,8 @@ public final class InetsoftUserDocumentation {
 
    /**
     * Full context-sensitive help URL for the given CSH id (anchor only, no encoding).
+    *
+    * @param cshid the context-sensitive help identifier; must not be null
     */
    public static String contextSensitiveHelpUrl(String cshid) {
       return getUserDocumentationIndexBaseUrl() + "#cshid=" + cshid;
@@ -93,6 +98,8 @@ public final class InetsoftUserDocumentation {
             String n = normalizeStyleBiScriptDocUrl(t);
 
             if(!n.equals(t)) {
+               // put() replaces an existing key in-place; no structural change to the map,
+               // so the fieldNames() iterator below remains valid.
                o.put("!url", n);
             }
          }
@@ -120,8 +127,8 @@ public final class InetsoftUserDocumentation {
       }
 
       String base = getUserDocumentationIndexBaseUrl();
-      String out = html.replace(STYLEBI_DOC_SITE + "index.html", base);
-      return VERSIONED_DOC_URL_PATTERN.matcher(out).replaceAll(Matcher.quoteReplacement(base));
+      String out = VERSIONED_DOC_URL_PATTERN.matcher(html).replaceAll(Matcher.quoteReplacement(base));
+      return out.replace(STYLEBI_DOC_SITE + "index.html", base);
    }
 
    static String normalizeStyleBiScriptDocUrl(String url) {
@@ -158,7 +165,7 @@ public final class InetsoftUserDocumentation {
       return DOC_INDEX_PREFIX + docVersion + DOC_INDEX_SUFFIX;
    }
 
-   private static String stripPreReleaseSuffix(String version) {
+   static String stripPreReleaseSuffix(String version) {
       if(version.startsWith("v") || version.startsWith("V")) {
          version = version.substring(1);
       }
