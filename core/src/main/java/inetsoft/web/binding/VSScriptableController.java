@@ -712,6 +712,7 @@ public class VSScriptableController {
       }
 
       library.setAll(functions);
+      InetsoftUserDocumentation.rewriteScriptApiDocUrls(library);
 
       ObjectNode chartConstants = (ObjectNode) library.get("Chart");
 
@@ -2405,8 +2406,7 @@ public class VSScriptableController {
          return null;
       }
 
-      return "https://www.inetsoft.com/docs/stylebi/index.html#cshid=" +
-         FUNCTION_CSHIDS.get(funcName);
+      return InetsoftUserDocumentation.contextSensitiveHelpUrl(FUNCTION_CSHIDS.get(funcName));
    }
 
    private static final Set sreeOnly = new HashSet();
