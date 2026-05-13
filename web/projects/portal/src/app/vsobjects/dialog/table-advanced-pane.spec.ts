@@ -55,7 +55,7 @@ let createModel: () => TableAdvancedPaneModel = () => {
          tipCustomizeDialogModel: {
             customRB: "DEFAULT",
             combinedTip: false,
-            lineChart: false,
+            combinedSupported: false,
             customTip: "",
             dataRefList: [],
             availableTipValues: []

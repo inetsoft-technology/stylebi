@@ -2415,7 +2415,8 @@ public abstract class AbstractChartInfo implements ChartInfo, AssetObject {
       }
 
       return tooltipVisible == chartInfo.tooltipVisible
-         && tooltipStyle == chartInfo.tooltipStyle;
+         && tooltipStyle == chartInfo.tooltipStyle
+         && snapTooltip == chartInfo.snapTooltip;
    }
 
    /**
@@ -2451,6 +2452,7 @@ public abstract class AbstractChartInfo implements ChartInfo, AssetObject {
       writer.print(" donut=\"" + donut + "\" ");
       writer.print(" tooltipVisible=\"" + tooltipVisible + "\" ");
       writer.print(" tooltipStyle=\"" + tooltipStyle.name() + "\" ");
+      writer.print(" snapTooltip=\"" + snapTooltip + "\" ");
 
       if(mapType != null && !"null".equals(mapType)) {
          writer.print(" mapType=\"" + mapType + "\" ");
@@ -2725,6 +2727,8 @@ public abstract class AbstractChartInfo implements ChartInfo, AssetObject {
             // Unknown value from a future version: fall back to DEFAULT.
          }
       }
+      // Absent attribute = off (legacy charts preserve no-snap behavior).
+      snapTooltip = "true".equals(Tool.getAttribute(elem, "snapTooltip"));
    }
 
    /**
@@ -3603,6 +3607,16 @@ public abstract class AbstractChartInfo implements ChartInfo, AssetObject {
       this.tooltipStyle = tooltipStyle == null ? TooltipStyle.DEFAULT : tooltipStyle;
    }
 
+   @Override
+   public boolean isSnapTooltip() {
+      return snapTooltip;
+   }
+
+   @Override
+   public void setSnapTooltip(boolean snapTooltip) {
+      this.snapTooltip = snapTooltip;
+   }
+
    /**
     * Judge whether the date type dimension is an outer dimension.
     */
@@ -3886,6 +3900,7 @@ public abstract class AbstractChartInfo implements ChartInfo, AssetObject {
    private String customTooltip;
    private boolean tooltipVisible = true;
    private TooltipStyle tooltipStyle = TooltipStyle.CARD;
+   private boolean snapTooltip = false;
    private HighlightGroup highlightGroup;
    private HighlightGroup textHL;
 

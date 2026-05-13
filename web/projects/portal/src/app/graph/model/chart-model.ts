@@ -66,4 +66,5 @@ export interface ChartModel {
    errorFormat?: FormatInfoModel;
    readonly mapInfo?: boolean;
    tooltipStyle?: "DEFAULT" | "CARD";
+   snapTooltip?: boolean;
 }

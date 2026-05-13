@@ -133,6 +133,10 @@ export class ChartPlotArea extends ChartObjectAreaBase<Plot> implements OnChange
 
    private readonly debounceKey: string = "chart_dataTipEvent";
 
+   // Snap: cached X ticks → region indices. Rebuilt on chartObject change.
+   private snapXTicks: Array<{ pixelX: number, regionIndices: number[] }> = [];
+   private snapXTicksFor: Plot = null;
+
    @HostBinding("style.cursor") hostCursor: string = "inherit";
    private cursorStyle: string = "inherit";
 
@@ -194,6 +198,164 @@ export class ChartPlotArea extends ChartObjectAreaBase<Plot> implements OnChange
       this.showTooltip.emit(tipInfo);
    }
 
+   // Group regions by rowIdx; pick the narrowest in each bucket as the snap-X
+   // representative so point markers beat wide area polygons.
+   private rebuildSnapIndex(): void {
+      this.snapXTicks = [];
+      this.snapXTicksFor = this.chartObject;
+
+      if(!this.chartObject || !this.chartObject.regions) {
+         return;
+      }
+
+      const buckets = new Map<number, { regionIndices: number[],
+                                        bestX: number, bestWidth: number }>();
+
+      this.chartObject.regions.forEach((r, i) => {
+         if(!r || r.tipIdx < 0 || r.rowIdx < 0) {
+            return;
+         }
+
+         const bounds = this.regionBoundsX(r);
+
+         if(!bounds) {
+            return;
+         }
+
+         const existing = buckets.get(r.rowIdx);
+
+         if(existing) {
+            existing.regionIndices.push(i);
+
+            if(bounds.width < existing.bestWidth) {
+               existing.bestWidth = bounds.width;
+               existing.bestX = bounds.centerX;
+            }
+         }
+         else {
+            buckets.set(r.rowIdx, {
+               regionIndices: [i],
+               bestX: bounds.centerX,
+               bestWidth: bounds.width
+            });
+         }
+      });
+
+      this.snapXTicks = Array.from(buckets.values())
+         .map(b => ({ pixelX: Math.round(b.bestX), regionIndices: b.regionIndices }))
+         .sort((a, b) => a.pixelX - b.pixelX);
+   }
+
+   // Prefer server centroid; fall back to pts-derived bbox.
+   private regionBoundsX(region: ChartRegion): { centerX: number, width: number } | null {
+      if(region.centroid) {
+         const pts = region.pts;
+
+         if(pts && pts.length > 0) {
+            const bbox = this.ptsBoundsX(region);
+
+            if(bbox) {
+               return { centerX: region.centroid.x, width: bbox.width };
+            }
+         }
+
+         return { centerX: region.centroid.x, width: 0 };
+      }
+
+      return this.ptsBoundsX(region);
+   }
+
+   private ptsBoundsX(region: ChartRegion): { centerX: number, width: number } | null {
+      const pts = region.pts;
+
+      if(!pts || pts.length === 0) {
+         return null;
+      }
+
+      // RECT_PATH(8) / ELLIPSE_PATH(9) store pts as [[x,y], [w,h]].
+      const seg = region.segTypes && region.segTypes[0] ? region.segTypes[0][0] : -1;
+
+      if((seg === 8 || seg === 9) && pts[0] && pts[0][0] && pts[0][0].length === 2) {
+         const origin = pts[0][0][0];
+         const size = pts[0][0][1];
+
+         if(origin && size) {
+            return { centerX: origin[0] + size[0] / 2, width: size[0] };
+         }
+      }
+
+      // General path: scan all x coordinates for bbox.
+      let minX = Infinity;
+      let maxX = -Infinity;
+
+      for(const polygon of pts) {
+         for(const sub of polygon) {
+            for(const pt of sub) {
+               if(pt[0] < minX) {
+                  minX = pt[0];
+               }
+
+               if(pt[0] > maxX) {
+                  maxX = pt[0];
+               }
+            }
+         }
+      }
+
+      if(minX === Infinity) {
+         return null;
+      }
+
+      return { centerX: (minX + maxX) / 2, width: maxX - minX };
+   }
+
+   private findNearestSnap(eventX: number): { pixelX: number, regionIndices: number[] } {
+      if(this.snapXTicks.length === 0) {
+         return null;
+      }
+
+      let nearest = this.snapXTicks[0];
+      let best = Math.abs(eventX - nearest.pixelX);
+
+      for(let i = 1; i < this.snapXTicks.length; i++) {
+         const d = Math.abs(eventX - this.snapXTicks[i].pixelX);
+
+         if(d < best) {
+            best = d;
+            nearest = this.snapXTicks[i];
+         }
+      }
+
+      return nearest;
+   }
+
+   private drawSnapGuideline(pixelX: number): void {
+      if(!this.referenceLineCanvas) {
+         return;
+      }
+
+      const canvas = this.referenceLineCanvas.nativeElement as HTMLCanvasElement;
+      const ctx = canvas.getContext("2d");
+      this.chartService.clearCanvas(ctx);
+      ctx.save();
+      ctx.setLineDash([4, 4]);
+      ctx.strokeStyle = "rgba(120, 120, 120, 0.7)";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      // +0.5 keeps the 1px line crisp on integer pixel grid.
+      ctx.moveTo(pixelX + 0.5, 0);
+      ctx.lineTo(pixelX + 0.5, canvas.height);
+      ctx.stroke();
+      ctx.restore();
+   }
+
+   private clearSnapGuideline(): void {
+      if(this.referenceLineCanvas) {
+         this.chartService.clearCanvas(
+            this.referenceLineCanvas.nativeElement.getContext("2d"));
+      }
+   }
+
    @HostListener("document:keydown.alt", ["$event"])
    onAltDown(event) {
       this.altDown = true;
@@ -241,6 +403,24 @@ export class ChartPlotArea extends ChartObjectAreaBase<Plot> implements OnChange
          let eventX = mevent.offsetX + this.scrollLeft;
          let eventY = mevent.offsetY + this.scrollTop;
          let regions: ChartRegion[] = this.getTreeRegions(eventX, eventY);
+
+         // Snap: replace hit-tested regions with the nearest X tick's set
+         // and draw a dashed vertical line there.
+         if(this.model && this.model.snapTooltip) {
+            if(this.snapXTicksFor !== this.chartObject) {
+               this.rebuildSnapIndex();
+            }
+
+            const snap = this.findNearestSnap(eventX);
+
+            if(snap) {
+               regions = snap.regionIndices.map(i => this.chartObject.regions[i]);
+               this.drawSnapGuideline(snap.pixelX);
+            }
+            else {
+               this.clearSnapGuideline();
+            }
+         }
 
          let chartSelection = {
             chartObject: this.chartObject,
@@ -292,7 +472,9 @@ export class ChartPlotArea extends ChartObjectAreaBase<Plot> implements OnChange
             }
          }
 
-         if(this.chartObject.showReferenceLine) {
+         // Snap owns the reference canvas while active; skip the per-region
+         // reference-line draw to avoid clobbering the snap guideline.
+         if(this.chartObject.showReferenceLine && !(this.model && this.model.snapTooltip)) {
             const context = this.referenceLineCanvas.nativeElement.getContext("2d");
             const region = regions.find((r) => r && ChartTool.refLine(this.model, r));
             this.chartService.clearCanvas(context);
@@ -477,6 +659,10 @@ export class ChartPlotArea extends ChartObjectAreaBase<Plot> implements OnChange
    onLeave(event: MouseEvent): void {
       this.debounceService.cancel(this.debounceKey);
       this.showTooltip.emit(null);
+
+      if(this.model && this.model.snapTooltip) {
+         this.clearSnapGuideline();
+      }
 
       if(this.dataTip && !this.mobile && !this.dataTipOnClick) {
          const cls = "current-datatip-" + this.dataTip.replace(/ /g, "_");

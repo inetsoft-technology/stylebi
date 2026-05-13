@@ -828,6 +828,16 @@ public interface ChartInfo extends AssetObject, ChartBindable {
    void setTooltipVisible(boolean tooltipVisible);
 
    /**
+    * Check if combined tooltip snaps to the nearest X tick on hover.
+    */
+   boolean isSnapTooltip();
+
+   /**
+    * Set if combined tooltip snaps to the nearest X tick on hover.
+    */
+   void setSnapTooltip(boolean snapTooltip);
+
+   /**
     * Visual style for chart tooltips.
     */
    enum TooltipStyle { DEFAULT, CARD }
@@ -960,6 +970,55 @@ public interface ChartInfo extends AssetObject, ChartBindable {
     * @param rt check runtime binding.
     */
    boolean canProjectForward(boolean rt);
+
+   /**
+    * Whether this chart supports the snap-to-nearest-data-point tooltip
+    * behavior: a line/area/bar chart whose X axis carries at least one
+    * dimension. Flipped charts (measure on X) opt out because snap is
+    * X-axis based.
+    */
+   default boolean supportsSnapTooltip() {
+      if(isMultiStyles()) {
+         return false;
+      }
+
+      int type = getChartType();
+
+      if(!GraphTypes.isLine(type) && !GraphTypes.isArea(type) && !GraphTypes.isBar(type)) {
+         return false;
+      }
+
+      ChartRef[] xrefs = getRTXFields();
+
+      if(xrefs == null || xrefs.length == 0) {
+         xrefs = getXFields();
+      }
+
+      if(xrefs == null) {
+         return false;
+      }
+
+      for(ChartRef ref : xrefs) {
+         if(ref instanceof ChartDimensionRef) {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   /**
+    * Whether this chart supports the Combined Tooltip option: a non-multi-style
+    * line/area/bar chart. Orientation-agnostic (works on flipped charts too).
+    */
+   default boolean supportsCombinedTooltip() {
+      if(isMultiStyles()) {
+         return false;
+      }
+
+      int type = getChartType();
+      return GraphTypes.isLine(type) || GraphTypes.isArea(type) || GraphTypes.isBar(type);
+   }
 
    default boolean shouldAggregate(ChartRef ref) {
       if(!GraphTypes.isBoxplot(getChartType()) ||

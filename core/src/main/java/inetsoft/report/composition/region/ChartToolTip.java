@@ -84,14 +84,18 @@ public class ChartToolTip implements DataSerializable {
       return buffer.toString();
    }
 
-   // Card style: render the tooltip as a sequence of tier divs (primary/secondary/tertiary).
-   // Each "line" (custom template line, or key-value pair) becomes one tier; tiers cap at 3.
+   // Single-section: 3-tier hierarchy (capped at tier-3).
+   // Multi-section (combined): header + uniform list + emphasized stack total.
    private String renderCard(IndexedSet<String> palette) {
+      if(isMultiSection()) {
+         return renderCombinedCard(palette);
+      }
+
       StringBuilder buffer = new StringBuilder();
       int tier = 1;
 
       if(customToolTip != null && customToolTip.length() > 0) {
-         // A custom template may itself contain multiple lines; each one is its own tier.
+         // Each line of a multi-line custom template becomes its own tier.
          String[] lines = customToolTip.split(ChartToolTip.ENTER + "|\\r|\\n");
 
          for(String line : lines) {
@@ -119,6 +123,113 @@ public class ChartToolTip implements DataSerializable {
       }
 
       return buffer.toString();
+   }
+
+   private boolean isMultiSection() {
+      // -1 is never a valid palette index, so any occurrence is a separator
+      // injected by appendTooltips between sub-tooltips.
+      return tooltips.contains(-1);
+   }
+
+   // Header (shared X-dim) + per-series .tt-section blocks for CSS spacing
+   // + emphasized stack-total row at the bottom.
+   private String renderCombinedCard(IndexedSet<String> palette) {
+      StringBuilder buffer = new StringBuilder();
+      List<int[]> sections = splitSections();
+
+      if(sections.isEmpty()) {
+         return "";
+      }
+
+      boolean hasStackTotal = stackTotalName != null && !stackTotalName.isEmpty()
+         && sections.size() > 1;
+      int lastIndex = sections.size() - 1;
+      boolean wroteHeader = false;
+
+      for(int s = 0; s < sections.size(); s++) {
+         int[] section = sections.get(s);
+
+         // splitSections already filters empties; this guard keeps the
+         // positional header contract intact if that invariant ever drifts.
+         if(section.length == 0) {
+            continue;
+         }
+
+         boolean isStackTotal = hasStackTotal && s == lastIndex;
+
+         if(isStackTotal) {
+            for(int i = 0; i < section.length; i += 2) {
+               String label = palette.get(section[i]);
+               String value = (i + 1) < section.length ? palette.get(section[i + 1]) : "";
+               appendTier(buffer, 1, label + ChartToolTip.COLON + value);
+            }
+
+            continue;
+         }
+
+         int start = 0;
+
+         // First pair → tier-1 header, outside any section wrapper.
+         if(!wroteHeader && section.length >= 2) {
+            String label = palette.get(section[0]);
+            String value = palette.get(section[1]);
+            appendTier(buffer, 1, label + ChartToolTip.COLON + value);
+            wroteHeader = true;
+            start = 2;
+         }
+
+         // Remaining pairs of this section render as one visual group.
+         if(start < section.length) {
+            buffer.append("<div class=\"tt-section\">");
+
+            for(int i = start; i < section.length; i += 2) {
+               String label = palette.get(section[i]);
+               String value = (i + 1) < section.length ? palette.get(section[i + 1]) : "";
+               appendTier(buffer, 2, label + ChartToolTip.COLON + value);
+            }
+
+            buffer.append("</div>");
+         }
+      }
+
+      return buffer.toString();
+   }
+
+   // Split the flat tooltips list into sections at each (-1, -1) marker.
+   private List<int[]> splitSections() {
+      List<int[]> sections = new ArrayList<>();
+      List<Integer> current = new ArrayList<>();
+
+      for(int i = 0; i < tooltips.size(); i += 2) {
+         int key = tooltips.get(i);
+
+         if(key == -1) {
+            if(!current.isEmpty()) {
+               sections.add(toIntArray(current));
+               current.clear();
+            }
+         }
+         else {
+            current.add(key);
+            current.add((i + 1) < tooltips.size() ? tooltips.get(i + 1) : -1);
+         }
+      }
+
+      if(!current.isEmpty()) {
+         sections.add(toIntArray(current));
+      }
+
+      return sections;
+   }
+
+   private int[] toIntArray(List<Integer> list) {
+      int[] arr = new int[list.size()];
+
+      for(int i = 0; i < list.size(); i++) {
+         arr[i] = list.get(i);
+      }
+
+      return arr;
    }
 
    private void appendTier(StringBuilder buffer, int tier, String content) {

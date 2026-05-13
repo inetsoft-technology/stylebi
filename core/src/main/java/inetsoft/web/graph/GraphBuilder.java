@@ -146,6 +146,10 @@ public class GraphBuilder {
       this.model.setMultiStyles(cinfo.isMultiStyles());
       this.model.setShowValues(isShowValues());
       this.model.setTooltipStyle(cinfo.getTooltipStyle().name());
+      // Catches snap=true persisted on a chart later switched to an
+      // unsupported shape without re-opening the dialog.
+      this.model.setSnapTooltip(cinfo.isSnapTooltip() && cinfo.isTooltipVisible()
+                                && cinfo.supportsSnapTooltip());
 
       int chartType = cinfo.getChartType();
 
@@ -1010,6 +1014,10 @@ public class GraphBuilder {
       Point centroid = new Point();
       boolean smallArea = false;
       boolean showReferenceLine = chartDesc.getPlotDescriptor().isReferenceLineVisible();
+      // Snap needs centroids on every region so the client can locate the
+      // nearest data point under the cursor.
+      boolean snapTooltip = cinfo.isSnapTooltip() && cinfo.isTooltipVisible()
+         && cinfo.supportsSnapTooltip();
       boolean hasCurve = false;
 
       for(int i = 0; i < shapes.size(); i++) {
@@ -1432,8 +1440,8 @@ public class GraphBuilder {
          .isAggr(isAggregate ? true : null)
          // appears not used in ts
          //.boundaryIdx(boundaryIndex)
-         // centroid only used if hasCurve or showing reference line on client
-         .centroid(hasCurve || showReferenceLine ? centroid : null)
+         // centroid only used if hasCurve, showing reference line, or snap on the client
+         .centroid(hasCurve || showReferenceLine || snapTooltip ? centroid : null)
          .parentVals(parentValues)
          .legendItemIdx(legendItemIndex < 0 ? null : legendItemIndex)
          .period(isPeriod ? true : null)

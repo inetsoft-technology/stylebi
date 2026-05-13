@@ -82,4 +82,6 @@ public interface ChartModel {
    public void setErrorFormat(FormatInfoModel errorFormat);
    public String getTooltipStyle();
    public void setTooltipStyle(String tooltipStyle);
+   public boolean isSnapTooltip();
+   public void setSnapTooltip(boolean snapTooltip);
 }

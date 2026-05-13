@@ -166,11 +166,11 @@ public class GaugePropertyDialogController {
       if(customTip != null && !customTip.isEmpty()) {
          tipCustomizeDialogModel.setCustomRB(TipCustomizeDialogModel.TipFormat.CUSTOM);
          tipCustomizeDialogModel.setCustomTip(customTip);
-         tipCustomizeDialogModel.setLineChart(false);
+         tipCustomizeDialogModel.setCombinedSupported(false);
       }
       else {
          tipCustomizeDialogModel.setCustomRB(TipCustomizeDialogModel.TipFormat.DEFAULT);
-         tipCustomizeDialogModel.setLineChart(false);
+         tipCustomizeDialogModel.setCombinedSupported(false);
       }
 
       paddingPaneModel.setTop(gaugeAssemblyInfo.getPadding().top);

@@ -250,18 +250,9 @@ public class ChartPropertyDialogController {
 
       tipCustomizeDialogModel.setTooltipStyle(vsChartInfo.getTooltipStyle());
 
-      int chartStyle = vsChartInfo.getChartStyle();
-
-      tipCustomizeDialogModel.setLineChart(!vsChartInfo.isMultiStyles() &&
-                                              (chartStyle == GraphTypes.CHART_LINE ||
-                                                 chartStyle == GraphTypes.CHART_LINE_STACK ||
-                                                 chartStyle == GraphTypes.CHART_STEP ||
-                                                 chartStyle == GraphTypes.CHART_STEP_STACK ||
-                                                 chartStyle == GraphTypes.CHART_JUMP ||
-                                                 chartStyle == GraphTypes.CHART_STEP_AREA ||
-                                                 chartStyle == GraphTypes.CHART_STEP_AREA_STACK ||
-                                                 chartStyle == GraphTypes.CHART_AREA ||
-                                                 chartStyle == GraphTypes.CHART_AREA_STACK));
+      tipCustomizeDialogModel.setSnapTooltip(vsChartInfo.isSnapTooltip());
+      tipCustomizeDialogModel.setSnapSupported(vsChartInfo.supportsSnapTooltip());
+      tipCustomizeDialogModel.setCombinedSupported(vsChartInfo.supportsCombinedTooltip());
 
       ChartAdvancedPaneModel chartAdvancedPaneModel = result.getChartAdvancedPaneModel();
 
@@ -481,6 +472,13 @@ public class ChartPropertyDialogController {
       }
 
       vsChartInfo.setTooltipStyle(tipModel.getTooltipStyle());
+
+      // Snap requires a tooltip and a supported chart shape; clamp to false
+      // otherwise so a stale flag isn't carried across re-binds.
+      vsChartInfo.setSnapTooltip(
+         tipModel.getCustomRB() != TipCustomizeDialogModel.TipFormat.NONE
+            && tipModel.isSnapTooltip()
+            && vsChartInfo.supportsSnapTooltip());
 
       ChartAdvancedPaneModel advancePane = value.getChartAdvancedPaneModel();
 
