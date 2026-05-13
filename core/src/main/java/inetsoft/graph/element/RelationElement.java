@@ -17,11 +17,12 @@
  */
 package inetsoft.graph.element;
 
-import inetsoft.graph.GGraph;
-import inetsoft.graph.GraphConstants;
+import inetsoft.graph.*;
 import inetsoft.graph.aesthetic.*;
+import inetsoft.graph.coord.Coordinate;
 import inetsoft.graph.data.*;
 import inetsoft.graph.geometry.*;
+import inetsoft.graph.guide.form.GraphForm;
 import inetsoft.graph.internal.GTool;
 import inetsoft.graph.mxgraph.layout.hierarchical.mxHierarchicalLayout;
 import inetsoft.graph.mxgraph.layout.*;
@@ -30,6 +31,7 @@ import inetsoft.graph.mxgraph.model.mxGeometry;
 import inetsoft.graph.mxgraph.util.mxPoint;
 import inetsoft.graph.mxgraph.view.mxGraph;
 import inetsoft.graph.visual.ElementVO;
+import inetsoft.graph.visual.FormVO;
 import inetsoft.graph.visual.VOText;
 import inetsoft.sree.SreeEnv;
 import inetsoft.util.CoreTool;
@@ -253,6 +255,10 @@ public class RelationElement extends GraphElement {
          }
 
          mxLayout(nodes, edges, mxgraph, mxroot, graph);
+
+         if(shapeBorderShape != null && layoutCenter != null && layoutRadius > 0) {
+            graph.getEGraph().addForm(new BorderForm(this));
+         }
       }
    }
 
@@ -389,9 +395,20 @@ public class RelationElement extends GraphElement {
          int nodeCount = nodes.size();
          layoutCenter = nodeCount > 0
             ? new Point2D.Double(sumCx / nodeCount, sumCy / nodeCount) : null;
+
+         // radius = distance from centroid to any node centre (all equidistant on CIRCLE layout)
+         if(layoutCenter != null && nodeCount > 0) {
+            mxGeometry g = nodes.values().iterator().next().getMxCell().getGeometry();
+            layoutRadius = layoutCenter.distance(g.getX() + g.getWidth() / 2.0,
+                                                 g.getY() + g.getHeight() / 2.0);
+         }
+         else {
+            layoutRadius = 0;
+         }
       }
       else {
          layoutCenter = null;
+         layoutRadius = 0;
       }
 
       if(flipped && algorithm == Algorithm.COMPACT_TREE) {
@@ -663,6 +680,25 @@ public class RelationElement extends GraphElement {
    }
 
    /**
+    * Radius of the node ring after circular layout, in graph coordinates. Populated by mxLayout()
+    * for Algorithm.CIRCLE only; 0 for all other algorithms.
+    */
+   public double getLayoutRadius() {
+      return layoutRadius;
+   }
+
+   /**
+    * Configure a shape to be drawn as a border ring around the layout. The shape is drawn in
+    * graph coordinates using {@code gshape.getShape(cx-r, cy-r, 2r, 2r)} and scales correctly
+    * with the chart. Pass {@code null} for any argument to remove a previously-set border.
+    */
+   public void addShapeBorder(GShape gshape, Color color, GLine line) {
+      this.shapeBorderShape = gshape;
+      this.shapeBorderColor = color;
+      this.shapeBorderLine = line;
+   }
+
+   /**
     * Set the color frame for getting the color aesthetic for nodes.
     */
    public void setNodeColorFrame(ColorFrame colors) {
@@ -914,10 +950,48 @@ public class RelationElement extends GraphElement {
    private boolean applyAestheticsToSource = false;
    private double nodeCornerRadius = 0;
    private boolean smoothEdges = false;
+   private GShape shapeBorderShape;
+   private Color shapeBorderColor;
+   private GLine shapeBorderLine;
    // derived; populated by mxLayout, not part of element identity
    private transient Point2D layoutCenter;
+   private transient double layoutRadius;
    private boolean horizontal = false;
    private boolean flipped = false;
 
    private static final long serialVersionUID = 1L;
+
+   /**
+    * Renders the configured shape border around the circular layout. The shape is created in
+    * mxGraph layout space so that RelationCoord's screen transform scales it correctly.
+    */
+   private static final class BorderForm extends GraphForm {
+      BorderForm(RelationElement elem) {
+         this.elem = elem;
+         setColor(elem.shapeBorderColor);
+         setLine(elem.shapeBorderLine != null
+            ? elem.shapeBorderLine.getStyle() : GraphConstants.THIN_LINE);
+      }
+
+      @Override
+      public Visualizable createVisual(Coordinate coord) {
+         Point2D center = elem.getLayoutCenter();
+         double radius = elem.getLayoutRadius();
+
+         if(center == null || radius <= 0) {
+            return null;
+         }
+
+         double cx = center.getX();
+         double cy = center.getY();
+         java.awt.Shape s = elem.shapeBorderShape.getShape(
+            cx - radius, cy - radius, 2 * radius, 2 * radius);
+         FormVO vo = new FormVO(this);
+         vo.setShape(s);
+         return vo;
+      }
+
+      private final RelationElement elem;
+      private static final long serialVersionUID = 1L;
+   }
 }
