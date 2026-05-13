@@ -99,6 +99,106 @@ class TabVSAssemblyInfoTest {
    }
 
    @Test
+   void repositionForBottomTabsInScaledSpaceNoopWhenNoScaledPosition() {
+      Viewsheet vs = Mockito.mock(Viewsheet.class);
+
+      SelectionListVSAssemblyInfo childInfo = new SelectionListVSAssemblyInfo();
+      childInfo.setShowTypeValue(SelectionVSAssemblyInfo.LIST_SHOW_TYPE);
+      childInfo.setPixelOffset(new Point(50, 24));
+      childInfo.setPixelSize(new Dimension(200, 200));
+      VSAssembly child = Mockito.mock(VSAssembly.class);
+      when(child.getVSAssemblyInfo()).thenReturn(childInfo);
+      when(vs.getAssembly("Child1")).thenReturn(child);
+
+      TabVSAssemblyInfo tabInfo = new TabVSAssemblyInfo();
+      tabInfo.setAssemblies(new String[]{"Child1"});
+      tabInfo.setPixelOffset(new Point(50, 0));
+      tabInfo.setPixelSize(new Dimension(200, 24));
+
+      TabVSAssemblyInfo.repositionForBottomTabsInScaledSpace(tabInfo, vs, true);
+
+      // no scaledPosition was set; helper must not introduce one
+      assertNull(tabInfo.getLayoutPosition(true));
+   }
+
+   @Test
+   void repositionForBottomTabsInScaledSpaceBottomTabsMovesTabToMaxChildBottom() {
+      Viewsheet vs = Mockito.mock(Viewsheet.class);
+
+      SelectionListVSAssemblyInfo childInfo = new SelectionListVSAssemblyInfo();
+      childInfo.setShowTypeValue(SelectionVSAssemblyInfo.LIST_SHOW_TYPE);
+      childInfo.setScaledPosition(new Point(50, 24));
+      childInfo.setScaledSize(new Dimension(200, 200));
+      VSAssembly child = Mockito.mock(VSAssembly.class);
+      when(child.getVSAssemblyInfo()).thenReturn(childInfo);
+      when(vs.getAssembly("Child1")).thenReturn(child);
+
+      TabVSAssemblyInfo tabInfo = new TabVSAssemblyInfo();
+      tabInfo.setAssemblies(new String[]{"Child1"});
+      tabInfo.setScaledPosition(new Point(50, 0));
+      tabInfo.setScaledSize(new Dimension(200, 24));
+
+      TabVSAssemblyInfo.repositionForBottomTabsInScaledSpace(tabInfo, vs, true);
+
+      // maxChildBottom = 24 + 200 = 224
+      assertEquals(224, tabInfo.getLayoutPosition(true).y);
+      // child unchanged (master semantics: only the tab moves)
+      assertEquals(24, childInfo.getLayoutPosition(true).y);
+   }
+
+   @Test
+   void repositionForBottomTabsInScaledSpaceTopTabsMovesTabAboveMinChildTop() {
+      Viewsheet vs = Mockito.mock(Viewsheet.class);
+
+      SelectionListVSAssemblyInfo childInfo = new SelectionListVSAssemblyInfo();
+      childInfo.setShowTypeValue(SelectionVSAssemblyInfo.LIST_SHOW_TYPE);
+      childInfo.setScaledPosition(new Point(50, 24));
+      childInfo.setScaledSize(new Dimension(200, 200));
+      VSAssembly child = Mockito.mock(VSAssembly.class);
+      when(child.getVSAssemblyInfo()).thenReturn(childInfo);
+      when(vs.getAssembly("Child1")).thenReturn(child);
+
+      TabVSAssemblyInfo tabInfo = new TabVSAssemblyInfo();
+      tabInfo.setAssemblies(new String[]{"Child1"});
+      tabInfo.setScaledPosition(new Point(50, 224));
+      tabInfo.setScaledSize(new Dimension(200, 24));
+
+      TabVSAssemblyInfo.repositionForBottomTabsInScaledSpace(tabInfo, vs, false);
+
+      // minChildTop - tabHeight = 24 - 24 = 0
+      assertEquals(0, tabInfo.getLayoutPosition(true).y);
+      assertEquals(24, childInfo.getLayoutPosition(true).y);
+   }
+
+   @Test
+   void repositionForBottomTabsInScaledSpaceDoesNotTouchPixelOffset() {
+      Viewsheet vs = Mockito.mock(Viewsheet.class);
+
+      SelectionListVSAssemblyInfo childInfo = new SelectionListVSAssemblyInfo();
+      childInfo.setShowTypeValue(SelectionVSAssemblyInfo.LIST_SHOW_TYPE);
+      childInfo.setPixelOffset(new Point(50, 124));
+      childInfo.setScaledPosition(new Point(50, 24));
+      childInfo.setScaledSize(new Dimension(200, 200));
+      VSAssembly child = Mockito.mock(VSAssembly.class);
+      when(child.getVSAssemblyInfo()).thenReturn(childInfo);
+      when(vs.getAssembly("Child1")).thenReturn(child);
+
+      TabVSAssemblyInfo tabInfo = new TabVSAssemblyInfo();
+      tabInfo.setAssemblies(new String[]{"Child1"});
+      tabInfo.setPixelOffset(new Point(50, 100));
+      tabInfo.setScaledPosition(new Point(50, 0));
+      tabInfo.setScaledSize(new Dimension(200, 24));
+
+      TabVSAssemblyInfo.repositionForBottomTabsInScaledSpace(tabInfo, vs, true);
+
+      // master pixelOffset must be untouched
+      assertEquals(100, tabInfo.getPixelOffset().y);
+      assertEquals(124, childInfo.getPixelOffset().y);
+      // scaled tab moved to maxChildBottom = 24 + 200 = 224
+      assertEquals(224, tabInfo.getLayoutPosition(true).y);
+   }
+
+   @Test
    void getBottomTabChildHeightReturnsPixelHeightForNonDropdown() {
       SelectionListVSAssemblyInfo info = new SelectionListVSAssemblyInfo();
       info.setShowTypeValue(SelectionVSAssemblyInfo.LIST_SHOW_TYPE);

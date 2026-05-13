@@ -413,12 +413,7 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
          ? maxChildBottom
          : Math.max(0, minChildTop - tabHeight);
 
-      int actualTabDy = newTabY - tabPos.y;
       tabInfo.setPixelOffset(new Point(tabPos.x, newTabY));
-
-      if(tabInfo.getLayoutPosition() != null) {
-         tabInfo.getLayoutPosition().translate(0, actualTabDy);
-      }
 
       // reposition children whose edges aren't flush with the tab bar
       for(String childName : children) {
@@ -441,13 +436,83 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
             : newTabY + tabHeight;    // top edge flush with tab bar bottom
 
          if(newChildY != childPos.y) {
-            int childDy = newChildY - childPos.y;
             childInfo.setPixelOffset(new Point(childPos.x, newChildY));
-
-            if(childInfo.getLayoutPosition() != null) {
-               childInfo.getLayoutPosition().translate(0, childDy);
-            }
          }
+      }
+   }
+
+   /**
+    * Scaled-space counterpart of {@link #repositionForBottomTabs}. Lets a
+    * runtime script toggle take effect immediately in layout previews. Tab
+    * moves; children stay. No-op in master view (no scaledPosition).
+    */
+   public static void repositionForBottomTabsInScaledSpace(TabVSAssemblyInfo tabInfo,
+                                                           Viewsheet vs,
+                                                           boolean toBottomTabs)
+   {
+      String[] children = tabInfo.getAssemblies();
+
+      if(children == null || children.length == 0 || vs == null) {
+         return;
+      }
+
+      Point tabScaledPos = tabInfo.getLayoutPosition(true);
+
+      if(tabScaledPos == null || tabScaledPos == tabInfo.getLayoutPosition(false)) {
+         return;
+      }
+
+      Dimension tabSize = tabInfo.getLayoutSize(true);
+
+      if(tabSize == null) {
+         tabSize = tabInfo.getLayoutSize(false);
+      }
+
+      if(tabSize == null || tabSize.height == 0) {
+         return;
+      }
+
+      int tabHeight = tabSize.height;
+      int maxChildBottom = Integer.MIN_VALUE;
+      int minChildTop = Integer.MAX_VALUE;
+      boolean hasValidChild = false;
+
+      for(String childName : children) {
+         VSAssembly child = (VSAssembly) vs.getAssembly(childName);
+
+         if(child == null) {
+            continue;
+         }
+
+         VSAssemblyInfo childInfo = child.getVSAssemblyInfo();
+         Point childPos = childInfo.getLayoutPosition(true);
+         Dimension childSize = childInfo.getLayoutSize(true);
+
+         if(childPos == null || childSize == null) {
+            continue;
+         }
+
+         int childHeight = getBottomTabChildHeight(childInfo, childSize);
+
+         if(childHeight == 0) {
+            continue;
+         }
+
+         maxChildBottom = Math.max(maxChildBottom, childPos.y + childHeight);
+         minChildTop = Math.min(minChildTop, childPos.y);
+         hasValidChild = true;
+      }
+
+      if(!hasValidChild) {
+         return;
+      }
+
+      int newTabY = toBottomTabs
+         ? maxChildBottom
+         : Math.max(0, minChildTop - tabHeight);
+
+      if(newTabY != tabScaledPos.y) {
+         tabInfo.setScaledPosition(new Point(tabScaledPos.x, newTabY));
       }
    }
 
