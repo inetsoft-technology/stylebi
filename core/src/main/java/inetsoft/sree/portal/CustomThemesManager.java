@@ -130,6 +130,7 @@ public class CustomThemesManager implements XMLSerializable, AutoCloseable {
 
       Set<CustomTheme> themes = new HashSet<>(allThemes);
       boolean changed = false;
+      String oldPathPrefix = oldPath + "/";
 
       for(CustomTheme theme : new ArrayList<>(themes)) {
          String jarPath = theme.getJarPath();
@@ -143,7 +144,7 @@ public class CustomThemesManager implements XMLSerializable, AutoCloseable {
          if(oldPath.equals(jarPath)) {
             updatedPath = newPath;
          }
-         else if(jarPath.startsWith(oldPath + "/")) {
+         else if(jarPath.startsWith(oldPathPrefix)) {
             updatedPath = newPath + jarPath.substring(oldPath.length());
          }
 
@@ -168,11 +169,12 @@ public class CustomThemesManager implements XMLSerializable, AutoCloseable {
       }
 
       Set<CustomTheme> newThemes = new HashSet<>();
+      String pathPrefix = path + "/";
 
       themes.forEach(theme -> {
          String jarPath = theme.getJarPath();
 
-         if(jarPath == null || (!jarPath.equals(path) && !jarPath.startsWith(path + "/"))) {
+         if(jarPath == null || (!jarPath.equals(path) && !jarPath.startsWith(pathPrefix))) {
             newThemes.add(theme);
          }
       });
