@@ -898,14 +898,16 @@ public abstract class VSTableDataHelper extends ExporterHelper {
    private static int computeShrunkRenderedHeight(TableDataVSAssemblyInfo info,
                                                   VSTableLens lens)
    {
-      int height = info.isTitleVisible() ? info.getTitleHeight() : 0;
       int rowCount = lens.getRowCount();
 
+      // rowCount < 0 means the lens hasn't fully loaded; that only happens
+      // with > initTableGrid's 10k row budget. Such a table can't be shrunk
+      // within the design box anyway — return the design height so shift = 0.
       if(rowCount < 0) {
-         lens.moreRows(Integer.MAX_VALUE);
-         rowCount = lens.getRowCount();
+         return info.getPixelSize().height;
       }
 
+      int height = info.isTitleVisible() ? info.getTitleHeight() : 0;
       int[] rowHeights = lens.getRowHeights();
 
       for(int i = 0; i < rowCount; i++) {

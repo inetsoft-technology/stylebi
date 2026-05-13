@@ -974,9 +974,17 @@ public class VsToReportConverter {
             continue;
          }
 
+         String name = tableAssembly.getAbsoluteName();
+         Viewsheet vs = tableAssembly.getViewsheet();
+
+         // skip assemblies the print layout won't render (matches the
+         // tip/pop check in convertVSAssembly).
+         if(VSUtil.isTipView(name, vs) || VSUtil.isPopComponent(name, vs)) {
+            continue;
+         }
+
          try {
-            VSTableLens lens = box.getVSTableLens(
-               tableAssembly.getAbsoluteName(), false, scalefont);
+            VSTableLens lens = box.getVSTableLens(name, false, scalefont);
 
             if(lens == null) {
                continue;
@@ -996,7 +1004,10 @@ public class VsToReportConverter {
 
             // Tighten layoutSize so addTable's bounds end at the tab top;
             // otherwise the renderer top-aligns inside the full design box.
-            if(info.isShrink() && actualHeight < designHeight &&
+            // Gated on the same conditions the helper uses so layoutSize and
+            // pixelOffset stay consistent.
+            if(info.isShrink() && info.getMaxSize() == null &&
+               actualHeight < designHeight &&
                info.getLayoutSize() != null &&
                TabVSAssemblyInfo.isInBottomTabs(tableAssembly))
             {
@@ -1005,8 +1016,7 @@ public class VsToReportConverter {
             }
          }
          catch(Exception ex) {
-            LOG.debug("Failed to apply bottom-tabs shrink shift for {}",
-               tableAssembly.getAbsoluteName(), ex);
+            LOG.debug("Failed to apply bottom-tabs shrink shift for {}", name, ex);
          }
       }
    }
