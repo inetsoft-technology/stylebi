@@ -177,8 +177,12 @@ public class TabVSAssembly extends AbstractContainerVSAssembly {
          writer.println("</state_selected>");
       }
 
-      // Always write bottomTabs so parseStateContent can distinguish an explicit script-set
-      // false from an absent element (old bookmarks without the element → backward-compat).
+      // Always write so parseStateContent can distinguish an explicit script-set false
+      // from an absent element (old bookmark — leave rValue alone for backward-compat).
+      // Note: writing the value here can set rValue on tabs that previously had rValue=null,
+      // but DynamicValue.getRValue() already auto-promotes dvalue → rvalue on first access,
+      // so this is the de-facto state by the time any layout/render runs; persisting it
+      // explicitly only mirrors that, with no behavioral consequence beyond the bookmark.
       writer.println("<state_bottomTabs>" + getTabInfo().isBottomTabs() + "</state_bottomTabs>");
    }
 
