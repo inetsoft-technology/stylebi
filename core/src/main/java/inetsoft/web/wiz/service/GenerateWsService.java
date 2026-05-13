@@ -701,6 +701,10 @@ public class GenerateWsService {
                   colType = extractFieldType(osiField.get());
                }
             }
+
+            if(colType == null) {
+               colType = field.getType();
+            }
          }
 
          String attr = fieldName;
@@ -894,8 +898,18 @@ public class GenerateWsService {
                int dgroup = getDateGroupLevel(groupField.getDateGroupLevel());
                String name = DateRangeRef.getName(colName, dgroup);
                DateRangeRef rangeRef = new DateRangeRef(name, column.getDataRef(), dgroup);
+               rangeRef.setOriginalType(column.getDataType());
+               String dtype = rangeRef.getDataType();
+
+               if(XSchema.TIME.equals(rangeRef.getOriginalType()) &&
+                  rangeRef.getDateOption() != DateRangeRef.HOUR_OF_DAY_DATE_GROUP)
+               {
+                  dtype = rangeRef.getOriginalType();
+               }
+
                columnSelection.removeAttribute(column);
                column = new ColumnRef(rangeRef);
+               column.setDataType(dtype);
                columnSelection.addAttribute(column);
             }
 

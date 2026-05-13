@@ -124,6 +124,7 @@ public class WorksheetConstructionModel {
       private TableInfo table;
       private String expression;
       private String description;
+      private String type;
 
       public QueryField() {
       }
@@ -171,6 +172,14 @@ public class WorksheetConstructionModel {
 
       public void setDescription(String description) {
          this.description = description;
+      }
+
+      public String getType() {
+         return type;
+      }
+
+      public void setType(String type) {
+         this.type = type;
       }
 
       public String getUnqualifiedFieldName() {
