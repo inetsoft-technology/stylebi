@@ -134,6 +134,9 @@ public class DataSpaceFolderSettingsController {
                      "adm.dataspace.rename", model.name(), model.newName()));
                }
             }
+            else {
+               dataSpaceContentSettingsService.onFileRenamed(model.path(), newPath);
+            }
          }
       }
 

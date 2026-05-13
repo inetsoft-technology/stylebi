@@ -171,8 +171,8 @@ public class DataSpaceFileSettingsController {
             }
             else {
                actionRecord.setActionName(ActionRecord.ACTION_NAME_EDIT);
+               dataSpaceContentSettingsService.onFileRenamed(path, npath);
                path = npath;
-
             }
          }
       }
