@@ -23,6 +23,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Iterator;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * User documentation index URL for context-sensitive script help.
@@ -37,6 +39,9 @@ public final class InetsoftUserDocumentation {
    private static final String DOC_INDEX_PREFIX =
       STYLEBI_DOC_SITE + "InetSoftUserDocumentation/";
    private static final String DOC_INDEX_SUFFIX = "/index.html";
+
+   private static final Pattern VERSIONED_DOC_URL_PATTERN = Pattern.compile(
+      Pattern.quote(DOC_INDEX_PREFIX) + "[^/]+" + Pattern.quote(DOC_INDEX_SUFFIX));
 
    private static volatile String indexBaseUrl;
 
@@ -104,16 +109,19 @@ public final class InetsoftUserDocumentation {
    }
 
    /**
-    * Rewrites any legacy unversioned StyleBI doc URL embedded inside an HTML string
-    * (e.g. a Bundle.properties label value that contains an {@code <a href='...'>} tag).
+    * Rewrites StyleBI user-documentation index URLs embedded in an HTML string (for example a
+    * {@code Bundle.properties} label containing an {@code <a href='...'>} tag) to the current
+    * versioned index base. Handles the legacy unversioned {@code .../stylebi/index.html} path and
+    * any stale {@code .../InetSoftUserDocumentation/&lt;version&gt;/index.html} URL.
     */
    public static String normalizeStyleBiDocHtmlContent(String html) {
       if(html == null || !html.contains(STYLEBI_DOC_SITE)) {
          return html;
       }
 
-      return html.replace(STYLEBI_DOC_SITE + "index.html",
-                          getUserDocumentationIndexBaseUrl());
+      String base = getUserDocumentationIndexBaseUrl();
+      String out = html.replace(STYLEBI_DOC_SITE + "index.html", base);
+      return VERSIONED_DOC_URL_PATTERN.matcher(out).replaceAll(Matcher.quoteReplacement(base));
    }
 
    static String normalizeStyleBiScriptDocUrl(String url) {
