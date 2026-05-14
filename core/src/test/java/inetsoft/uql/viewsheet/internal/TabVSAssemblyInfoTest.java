@@ -24,7 +24,9 @@ import org.mockito.Mockito;
 import java.awt.*;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.when;
 
 class TabVSAssemblyInfoTest {
@@ -416,6 +418,45 @@ class TabVSAssemblyInfoTest {
       // null size results in zero height, early return
       TabVSAssemblyInfo.repositionChildForBottomTabs(tabInfo, childInfo, null);
       assertEquals(170, childInfo.getPixelOffset().y);
+   }
+
+   @Test
+   void isInBottomTabsTrueForBottomTabsContainer() {
+      TabVSAssemblyInfo tabInfo = new TabVSAssemblyInfo();
+      tabInfo.setBottomTabsValue(true);
+      TabVSAssembly tab = Mockito.mock(TabVSAssembly.class);
+      when(tab.getVSAssemblyInfo()).thenReturn(tabInfo);
+
+      VSAssembly child = Mockito.mock(VSAssembly.class);
+      when(child.getContainer()).thenReturn(tab);
+
+      assertTrue(TabVSAssemblyInfo.isInBottomTabs(child));
+   }
+
+   @Test
+   void isInBottomTabsFalseForTopTabsContainer() {
+      TabVSAssemblyInfo tabInfo = new TabVSAssemblyInfo();
+      tabInfo.setBottomTabsValue(false);
+      TabVSAssembly tab = Mockito.mock(TabVSAssembly.class);
+      when(tab.getVSAssemblyInfo()).thenReturn(tabInfo);
+
+      VSAssembly child = Mockito.mock(VSAssembly.class);
+      when(child.getContainer()).thenReturn(tab);
+
+      assertFalse(TabVSAssemblyInfo.isInBottomTabs(child));
+   }
+
+   @Test
+   void isInBottomTabsFalseWhenNotInTab() {
+      VSAssembly child = Mockito.mock(VSAssembly.class);
+      when(child.getContainer()).thenReturn(null);
+
+      assertFalse(TabVSAssemblyInfo.isInBottomTabs(child));
+   }
+
+   @Test
+   void isInBottomTabsFalseForNullAssembly() {
+      assertFalse(TabVSAssemblyInfo.isInBottomTabs(null));
    }
 
    private VSAssembly mockChild(String name, SelectionBaseVSAssemblyInfo info,

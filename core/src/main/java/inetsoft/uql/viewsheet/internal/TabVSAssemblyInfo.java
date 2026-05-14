@@ -598,6 +598,22 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
    }
 
    /**
+    * True if {@code child}'s container is a tab in bottom-tabs mode. Used by
+    * exports to gate the flush-to-tab-bar shift for shrunk children.
+    */
+   public static boolean isInBottomTabs(VSAssembly child) {
+      if(child == null) {
+         return false;
+      }
+
+      VSAssembly container = child.getContainer();
+
+      return container instanceof TabVSAssembly tab &&
+         tab.getVSAssemblyInfo() instanceof TabVSAssemblyInfo tabInfo &&
+         tabInfo.isBottomTabs();
+   }
+
+   /**
     * Reset runtime values.
     */
    @Override
