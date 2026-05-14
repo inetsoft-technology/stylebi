@@ -242,6 +242,8 @@ public class ChartProcessor extends ScriptableObject {
 
       scriptable.addProperty("fillGapWithDash", "isFillGapWithDash",
                              "setFillGapWithDash", boolean.class, PlotDescriptor.class, plot);
+      scriptable.addProperty("smoothLines", "isSmoothLines",
+                             "setSmoothLines", boolean.class, PlotDescriptor.class, plot);
       scriptable.addProperty("pieRatio", "getPieRatio",
                              "setPieRatio", double.class, PlotDescriptor.class, plot);
       scriptable.addProperty("barCornerRadius", "getBarCornerRadius",
