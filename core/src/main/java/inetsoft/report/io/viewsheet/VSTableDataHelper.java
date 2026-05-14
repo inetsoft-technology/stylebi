@@ -831,6 +831,105 @@ public abstract class VSTableDataHelper extends ExporterHelper {
       return null;
    }
 
+   /**
+    * Shift a shrunk table so its rendered bottom stays flush with the
+    * bottom-tabs tab bar. Mirrors viewer {@code BaseTable.getObjectTop()}.
+    * Computes rendered height from padded row heights (PDF/PNG/HTML/Excel);
+    * print layout renders unpadded and must use the three-arg overload.
+    */
+   public static void applyShrunkBottomTabsShift(TableDataVSAssembly assembly,
+                                                 VSTableLens lens)
+   {
+      if(assembly == null || lens == null) {
+         return;
+      }
+
+      TableDataVSAssemblyInfo info = (TableDataVSAssemblyInfo) assembly.getVSAssemblyInfo();
+
+      if(info == null) {
+         return;
+      }
+
+      applyShrunkBottomTabsShift(
+         assembly, info.getPixelSize().height, computeShrunkRenderedHeight(info, lens));
+   }
+
+   /**
+    * Variant for pipelines that allocate the table from something other than
+    * {@code pixelSize.height} (e.g. print layout uses {@code layoutSize}).
+    */
+   public static void applyShrunkBottomTabsShift(TableDataVSAssembly assembly,
+                                                 int designHeight,
+                                                 int actualRenderedHeight)
+   {
+      if(assembly == null) {
+         return;
+      }
+
+      TableDataVSAssemblyInfo info = (TableDataVSAssemblyInfo) assembly.getVSAssemblyInfo();
+
+      if(info == null || !info.isShrink() || info.getMaxSize() != null) {
+         return;
+      }
+
+      if(!TabVSAssemblyInfo.isInBottomTabs(assembly)) {
+         return;
+      }
+
+      int shift = designHeight - actualRenderedHeight;
+
+      if(shift <= 0) {
+         return;
+      }
+
+      Point offset = info.getPixelOffset();
+
+      if(offset != null) {
+         info.setPixelOffset(new Point(offset.x, offset.y + shift));
+      }
+
+      Point layout = info.getLayoutPosition();
+
+      if(layout != null) {
+         info.setLayoutPosition(new Point(layout.x, layout.y + shift));
+      }
+   }
+
+   private static int computeShrunkRenderedHeight(TableDataVSAssemblyInfo info,
+                                                  VSTableLens lens)
+   {
+      int rowCount = lens.getRowCount();
+
+      // rowCount < 0 means the lens hasn't fully loaded; that only happens
+      // with > initTableGrid's 10k row budget. Such a table can't be shrunk
+      // within the design box anyway — return the design height so shift = 0.
+      if(rowCount < 0) {
+         return info.getPixelSize().height;
+      }
+
+      int height = info.isTitleVisible() ? info.getTitleHeight() : 0;
+      int[] rowHeights = lens.getRowHeights();
+
+      for(int i = 0; i < rowCount; i++) {
+         double rowH = AssetUtil.defh;
+
+         if(rowHeights != null && i < rowHeights.length) {
+            double wrappedH = lens.getWrappedHeight(i, true);
+
+            if(!Double.isNaN(wrappedH)) {
+               rowH = wrappedH;
+            }
+            else if(rowHeights[i] > 0) {
+               rowH = rowHeights[i];
+            }
+         }
+
+         height += (int) lens.getRowHeightWithPadding(rowH, i);
+      }
+
+      return Math.min(height, info.getPixelSize().height);
+   }
+
    private static final Logger LOG =
       LoggerFactory.getLogger(VSTableDataHelper.class);
    public static final int DEFAULT_COLWIDTH = ExcelVSUtil.DEFAULT_COLWIDTH;

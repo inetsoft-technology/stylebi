@@ -1279,12 +1279,34 @@ public final class VSEventUtil {
    {
       VSAssemblyInfo tabInfo = (VSAssemblyInfo) assembly.getInfo();
       boolean bottomTabs = ((TabVSAssemblyInfo) tabInfo).isBottomTabs();
+      String[] assemblies = assembly.getAssemblies();
+
+      // Re-anchor the tab for the current bottomTabs value. AbstractLayout.applyTab
+      // baked in the design-time value, so runtime toggles need this on every
+      // refresh/resize. Master-pixel-space semantics: tab moves, children stay.
+      Point tabLayoutPos = tabInfo.getLayoutPosition(false);
+      Dimension tabLayoutSize = tabInfo.getLayoutSize(false);
+
+      if(tabLayoutPos != null && tabLayoutSize != null) {
+         TabVSAssemblyInfo.ChildExtent extent = TabVSAssemblyInfo.scanChildExtent(
+            assemblies, viewsheet,
+            c -> c.getVSAssemblyInfo().getLayoutPosition(false),
+            c -> c.getVSAssemblyInfo().getLayoutSize(false));
+
+         if(extent != null) {
+            int newTabLayoutY = bottomTabs
+               ? extent.maxBottom()
+               : Math.max(0, extent.minTop() - tabLayoutSize.height);
+            int newTabScaledX = (int) Math.floor(tabLayoutPos.x * scaleRatio.x);
+            int newTabScaledY = (int) Math.floor(newTabLayoutY * scaleRatio.y);
+            tabInfo.setScaledPosition(new Point(newTabScaledX, newTabScaledY));
+         }
+      }
 
       // for bottom tabs, getLayoutPosition() returns the tab bar position
       // (set by AbstractLayout.applyTab as npos.y + contentHeight)
       Point tabPos = tabInfo.getLayoutPosition();
       Dimension tabSize = tabInfo.getLayoutSize();
-      String[] assemblies = assembly.getAssemblies();
       // when apply tab scale, the tab height is not scale, so it's children
       // scale size is (pixelsize * scaleRadio + repairH).
       double repairH = tabSize.height * scaleRatio.y - tabSize.height;

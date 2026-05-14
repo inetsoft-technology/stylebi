@@ -38,6 +38,7 @@ import inetsoft.report.internal.binding.BindingAttr;
 import inetsoft.report.internal.binding.ChartOption;
 import inetsoft.report.internal.table.PresenterRef;
 import inetsoft.report.internal.table.TableHighlightAttr.HighlightTableLens;
+import inetsoft.report.io.viewsheet.VSTableDataHelper;
 import inetsoft.report.lens.AttributeTableLens;
 import inetsoft.report.lens.DefaultTextLens;
 import inetsoft.report.painter.ImagePainter;
@@ -171,6 +172,7 @@ public class VsToReportConverter {
          }
       }
 
+      applyShrunkBottomTabsShift(allAssemblies);
       VSAssembly[] sorted = sortByPosition(allAssemblies.toArray(new Assembly[0]));
       createReportSections(sorted, sectionMap);
 
@@ -964,6 +966,99 @@ public class VsToReportConverter {
    }
 
    /**
+    * Keep shrunk tables in a bottom-tabs container flush with the tab strip.
+    * Uses an unpadded height calc because the print-layout cell renderer
+    * doesn't add the padding {@code lens.getRowHeightWithPadding} adds.
+    */
+   private void applyShrunkBottomTabsShift(List<Assembly> assemblies) {
+      if(assemblies == null) {
+         return;
+      }
+
+      for(Assembly assembly : assemblies) {
+         if(!(assembly instanceof TableDataVSAssembly tableAssembly)) {
+            continue;
+         }
+
+         String name = tableAssembly.getAbsoluteName();
+         Viewsheet vs = tableAssembly.getViewsheet();
+
+         // skip assemblies the print layout won't render (matches the
+         // tip/pop check in convertVSAssembly).
+         if(VSUtil.isTipView(name, vs) || VSUtil.isPopComponent(name, vs)) {
+            continue;
+         }
+
+         try {
+            VSTableLens lens = box.getVSTableLens(name, false, scalefont);
+
+            if(lens == null) {
+               continue;
+            }
+
+            TableDataVSAssemblyInfo info =
+               (TableDataVSAssemblyInfo) tableAssembly.getVSAssemblyInfo();
+            lens.initTableGrid(info);
+
+            int actualHeight = computePrintLayoutTableHeight(info, lens);
+            // print layout sizes the table from layoutSize, not pixelSize.
+            int designHeight = info.getLayoutSize() != null ?
+               info.getLayoutSize().height : info.getPixelSize().height;
+
+            VSTableDataHelper.applyShrunkBottomTabsShift(
+               tableAssembly, designHeight, actualHeight);
+
+            // Tighten layoutSize so addTable's bounds end at the tab top;
+            // otherwise the renderer top-aligns inside the full design box.
+            // Gated on the same conditions the helper uses so layoutSize and
+            // pixelOffset stay consistent.
+            if(info.isShrink() && info.getMaxSize() == null &&
+               actualHeight < designHeight &&
+               info.getLayoutSize() != null &&
+               TabVSAssemblyInfo.isInBottomTabs(tableAssembly))
+            {
+               Dimension oldSize = info.getLayoutSize();
+               info.setLayoutSize(new Dimension(oldSize.width, actualHeight));
+            }
+         }
+         catch(Exception ex) {
+            LOG.debug("Failed to apply bottom-tabs shrink shift for {}", name, ex);
+         }
+      }
+   }
+
+   /**
+    * Title + sum of cell heights the print layout will render, matching
+    * {@link #calculateRowHeights}. Wrap-marker {@code -1} rows fall back to
+    * the default row height so we don't undercount.
+    */
+   private int computePrintLayoutTableHeight(TableDataVSAssemblyInfo info, VSTableLens lens) {
+      int height = info.isTitleVisible() ? Math.round(info.getTitleHeight() * scalefont) : 0;
+      int[] rowHeights = calculateRowHeights(info, lens);
+
+      for(int h : rowHeights) {
+         height += h > 0 ? h : Math.round(AssetUtil.defh * scalefont);
+      }
+
+      return height;
+   }
+
+   /**
+    * Replace wrap-marker {@code -1} entries with the same default used in
+    * {@link #computePrintLayoutTableHeight} so the rendered height equals the
+    * predicted height after layoutSize is tightened.
+    */
+   private void forceFixedHeightsForShrunkTable(int[] rowHs) {
+      int defaultRowH = Math.round(AssetUtil.defh * scalefont);
+
+      for(int i = 0; i < rowHs.length; i++) {
+         if(rowHs[i] < 0) {
+            rowHs[i] = defaultRowH;
+         }
+      }
+   }
+
+   /**
     * Add reportelement to fixed position of the report section.
     */
    private void addElement(VSAssembly assembly, BaseElement elem, String sectionName) {
@@ -1053,7 +1148,14 @@ public class VsToReportConverter {
       // setted the fixed widths to report table, the column widths may not
       // be exactly same as the vs column width, and i think it's reasonable.
       tableelem.setFixedWidths(columnPixelW);
-      tableelem.setFixedHeights(calculateRowHeights(info, lens));
+
+      int[] rowHs = calculateRowHeights(info, lens);
+
+      if(info.isShrink() && TabVSAssemblyInfo.isInBottomTabs(assembly)) {
+         forceFixedHeightsForShrunkTable(rowHs);
+      }
+
+      tableelem.setFixedHeights(rowHs);
 
       tableelem.setZIndex(assembly.getZIndex());
       FormatInfo finfo = info.getFormatInfo();
