@@ -15,7 +15,7 @@
   ~ You should have received a copy of the GNU Affero General Public License
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
-<div class="query-condition-pane mt-4">
+<div class="query-condition-pane" [class.query-condition-pane--having]="havingCondition">
   <vpm-condition-pane #conditionPane [fields]="model.fields" [provider]="provider"
                       [conditionList]="model.conditions"
                       [havingCondition]="havingCondition"

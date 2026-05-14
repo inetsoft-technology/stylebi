@@ -2434,6 +2434,26 @@ public class QueryManagerService {
          .build();
    }
 
+   private int getPhysicalTableChildCount(AssetEntry folderEntry,
+                                          AssetRepository assetRepository,
+                                          Principal principal)
+      throws Exception
+   {
+      AssetEntry.Selector selector =
+         new AssetEntry.Selector(AssetEntry.Type.DATA, AssetEntry.Type.PHYSICAL);
+      AssetEntry[] entries = assetRepository.getEntries(folderEntry, principal, ResourceAction.READ,
+         selector);
+      int count = 0;
+
+      for(AssetEntry entry : entries) {
+         if(entry.getType() == AssetEntry.Type.PHYSICAL_TABLE) {
+            count++;
+         }
+      }
+
+      return count;
+   }
+
    public TreeNodeModel getDataSourceFieldsTreeNode(String runtimeId, boolean sort,
                                                     Principal principal)
    {
@@ -2518,11 +2538,24 @@ public class QueryManagerService {
 
          entry.setProperty("quoteTableName", expandedEntry.getProperty("quoteTableName"));
          entry.setProperty("quoteColumnName", XUtil.quoteNameSegment(entry.getName(), helper));
+         String label = entry.getName();
          TreeNodeModel.Builder child = TreeNodeModel.builder()
-            .label(entry.getName())
             .data(entry)
             .leaf(!columnLevel && entry.getType() == AssetEntry.Type.PHYSICAL_TABLE ||
                columnLevel && entry.isColumn());
+
+         if(entry.getType() == AssetEntry.Type.PHYSICAL_FOLDER &&
+            !StringUtils.isEmpty(entry.getProperty(XSourceInfo.SCHEMA)))
+         {
+            int tableCount = getPhysicalTableChildCount(entry, assetRepository, principal);
+
+            if(tableCount > 0) {
+               label += " (" + tableCount + ")";
+               child.tooltip(tableCount + " table" + (tableCount == 1 ? "" : "s"));
+            }
+         }
+
+         child.label(label);
 
          if(!entry.getType().isActualFolder()) {
             child.dragName(entry.getType().toString());

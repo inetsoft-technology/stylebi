@@ -41,8 +41,9 @@
                            (timeChange)="valueChange.emit($event)"
                            [format]="TIME_INSTANT_FORMAT">
 </time-instant-value-editor>
-<span *ngIf="enableBrowseData && type != XSchema.BOOLEAN">
-  <button class="btn btn-sm btn-light h-100"
+<span *ngIf="enableBrowseData && type != XSchema.BOOLEAN"
+      class="vpm-value-editor__browse-button-wrapper">
+  <button class="btn btn-light vpm-value-editor__browse-button"
           (click)="browseData()"
           title="_#(Browse Data)"
           [fixedDropdown]="dropdownMenu"
