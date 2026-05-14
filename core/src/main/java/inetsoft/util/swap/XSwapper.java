@@ -829,14 +829,7 @@ public final class XSwapper {
       // already inside a Caffeine/ConcurrentHashMap computeIfAbsent callback, causing
       // IllegalStateException: Recursive update. The swapper.free.ratio property is applied
       // in @PostConstruct once the Spring context is ready.
-      double ratio = XSwapUtil.isCmsGC() ? 0.10 : 0.20;
-      RATIOS[BAD_MEM] = ratio;
-      ratio += 0.05;
-      RATIOS[LOW_MEM] = ratio;
-      ratio += 0.1;
-      RATIOS[NORM_MEM] = ratio;
-      ratio += 0.1;
-      RATIOS[GOOD_MEM] = ratio;
+      applyRatio(XSwapUtil.isCmsGC() ? 0.10 : 0.20);
    }
 
    @PostConstruct
@@ -845,19 +838,22 @@ public final class XSwapper {
 
       if(str != null) {
          try {
-            double ratio = Double.parseDouble(str);
-            RATIOS[BAD_MEM] = ratio;
-            ratio += 0.05;
-            RATIOS[LOW_MEM] = ratio;
-            ratio += 0.1;
-            RATIOS[NORM_MEM] = ratio;
-            ratio += 0.1;
-            RATIOS[GOOD_MEM] = ratio;
+            applyRatio(Double.parseDouble(str));
          }
          catch(Exception ex) {
             LOG.warn("Invalid swapper free ratio: " + str, ex);
          }
       }
+   }
+
+   private static void applyRatio(double ratio) {
+      RATIOS[BAD_MEM] = ratio;
+      ratio += 0.05;
+      RATIOS[LOW_MEM] = ratio;
+      ratio += 0.1;
+      RATIOS[NORM_MEM] = ratio;
+      ratio += 0.1;
+      RATIOS[GOOD_MEM] = ratio;
    }
 
    private long cts = System.currentTimeMillis();
