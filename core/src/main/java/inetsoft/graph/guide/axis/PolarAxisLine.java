@@ -86,9 +86,18 @@ class PolarAxisLine extends AxisLine {
       g2.setColor(getAxis().getLineColor());
 
       if(getAxis().isLineVisible()) {
-         Ellipse2D oval = new Ellipse2D.Double(0, 0, width, height);
-         Shape path = getScreenTransform().createTransformedShape(oval);
+         Shape outline;
 
+         if(polygonSides >= 3) {
+            double[] angles = PolarUtil.getTickLocations(
+               getAxis().getScale(), getAxis().getScale().getTicks());
+            outline = createPolygon(angles, width, height);
+         }
+         else {
+            outline = new Ellipse2D.Double(0, 0, width, height);
+         }
+
+         Shape path = getScreenTransform().createTransformedShape(outline);
          g2.draw(path);
       }
 
@@ -165,6 +174,34 @@ class PolarAxisLine extends AxisLine {
       return new Rectangle2D.Double(pos1.getX(), pos1.getY(), width, height);
    }
 
+   public void setPolygonSides(int n) {
+      this.polygonSides = n;
+   }
+
+   private static Path2D createPolygon(double[] angles, double w, double h) {
+      double cx = w / 2;
+      double cy = h / 2;
+      double rx = w / 2;
+      double ry = h / 2;
+      Path2D path = new Path2D.Double();
+
+      for(int i = 0; i < angles.length; i++) {
+         double vx = cx + rx * Math.cos(angles[i]);
+         double vy = cy + ry * Math.sin(angles[i]);
+
+         if(i == 0) {
+            path.moveTo(vx, vy);
+         }
+         else {
+            path.lineTo(vx, vy);
+         }
+      }
+
+      path.closePath();
+      return path;
+   }
+
    private double width;
    private double height;
+   private int polygonSides = 0;
 }

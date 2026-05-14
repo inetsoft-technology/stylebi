@@ -273,12 +273,18 @@ public class PolarCoord extends Coordinate {
 
          return new Line2D.Double(p1, p2);
       }
-      // horizontal line into arc
+      // horizontal line into arc (or polygon segment when webGrid is on)
       else if(p1.getY() == p2.getY()) {
          double r = getR(p1.getY());
+         double yratio = getRatioY();
+         int n = webGrid ? getSidesCount() : 0;
+
+         if(n >= 3) {
+            return createPolygonRing(r, yratio, p1.getX() / GWIDTH, p2.getX() / GWIDTH);
+         }
+
          double start = p1.getX() * 360 / GWIDTH;
          double end = p2.getX() * 360 / GWIDTH;
-         double yratio = getRatioY();
 
          return new Arc2D.Double(-r, -r * yratio, 2 * r, 2 * r * yratio,
                                  -start, -(end - start), Arc2D.OPEN);
@@ -467,6 +473,14 @@ public class PolarCoord extends Coordinate {
             axis2.setZIndex(axis.getZIndex());
             axis2.setWidth(r);
             axis2.setHeight(r);
+
+            if(webGrid) {
+               int n = getSidesCount();
+
+               if(n >= 3) {
+                  axis2.setPolygonSides(n);
+               }
+            }
 
             vgraph.setAxis(i, axis2);
             axises.add(axis2);
@@ -1084,6 +1098,52 @@ public class PolarCoord extends Coordinate {
       return type == coord.type && holeRatio == coord.holeRatio && pieRatio == coord.pieRatio;
    }
 
+   /**
+    * Enable polygon (spider-web) grid rings instead of circular arcs.
+    * When enabled, concentric grid rings and the polar axis boundary are drawn
+    * as N-sided polygons where N equals the number of theta-axis categories.
+    */
+   public void setWebGrid(boolean webGrid) {
+      this.webGrid = webGrid;
+   }
+
+   public boolean isWebGrid() {
+      return webGrid;
+   }
+
+   private int getSidesCount() {
+      if(coord instanceof RectCoord) {
+         Scale xscale = ((RectCoord) coord).getXScale();
+
+         if(xscale != null) {
+            double[] ticks = xscale.getTicks();
+
+            if(ticks != null) {
+               return ticks.length;
+            }
+         }
+      }
+      else if(coord != null) {
+         int n = coord.getDimCount();
+
+         if(n > 0) {
+            return n;
+         }
+      }
+
+      return 0;
+   }
+
+   private static Shape createPolygonRing(double r, double yratio,
+                                          double startFrac, double endFrac)
+   {
+      double startAngle = startFrac * 2 * Math.PI;
+      double endAngle = endFrac * 2 * Math.PI;
+      return new Line2D.Double(
+         r * Math.cos(startAngle), r * yratio * Math.sin(startAngle),
+         r * Math.cos(endAngle), r * yratio * Math.sin(endAngle));
+   }
+
    private static final double MIN_RADIUS = 20;
    private static final double PREFERRED_RADIUS = 48;
    private static final long serialVersionUID = 1L;
@@ -1094,6 +1154,7 @@ public class PolarCoord extends Coordinate {
    private Double pradius = null; // polar radius
    private double holeRatio = 0.3;
    private double pieRatio = 0;
+   private boolean webGrid = false;
    private boolean minApplied;
    private transient double rx0 = Double.NaN; // cached radio ratio x
    private transient double rc0 = Double.NaN; // cached radio ratio c
