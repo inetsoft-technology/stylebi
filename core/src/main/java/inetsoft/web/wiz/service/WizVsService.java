@@ -68,10 +68,20 @@ public class WizVsService {
          }
 
          if(Tool.isEmptyString(runtimeId)) {
-            runtimeId = viewsheetService.openViewsheet(AssetEntry.createAssetEntry(model.getViewsheetIdentifier()), user, true);
+            String sourceRuntimeId = viewsheetService.openViewsheet(
+               AssetEntry.createAssetEntry(model.getViewsheetIdentifier()), user, true);
+
+            try {
+               cloneSource = getValidatedViewsheet(viewsheetService.getViewsheet(sourceRuntimeId, user));
+            }
+            finally {
+               viewsheetService.closeViewsheet(sourceRuntimeId, user);
+            }
+         }
+         else {
+            cloneSource = getValidatedViewsheet(viewsheetService.getViewsheet(runtimeId, user));
          }
 
-         cloneSource = getValidatedViewsheet(viewsheetService.getViewsheet(runtimeId, user));
          Viewsheet.WizInfo wizInfo = new Viewsheet.WizInfo(true, null, null);
          runtimeId = viewsheetService.openTemporaryViewsheet(null, null, user, wizInfo);
          createdRuntimeId = true;
