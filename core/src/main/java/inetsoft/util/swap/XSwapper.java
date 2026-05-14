@@ -21,6 +21,7 @@ import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.util.*;
 import inetsoft.util.ConfigurationContext;
+import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -823,22 +824,12 @@ public final class XSwapper {
    // In case the OOM still occurs, this property can be used to raise
    // the free ratio (e.g. 0.2) to avoid OOM.
    static {
-      String str = SreeEnv.getProperty("swapper.free.ratio");
-      double ratio = 0.20;
-
-      if(str != null) {
-         try {
-            ratio = Double.parseDouble(str);
-         }
-         catch(Exception ex) {
-            LOG.warn(
-                        "Invalid swapper free ratio: " + str, ex);
-         }
-      }
-      else if(XSwapUtil.isCmsGC()) {
-         ratio = 0.10;
-      }
-
+      // Avoid calling SreeEnv.getProperty() here: doing so during class loading can trigger
+      // recursive Spring bean initialization (via ConfigurationContext.getSpringBean) while
+      // already inside a Caffeine/ConcurrentHashMap computeIfAbsent callback, causing
+      // IllegalStateException: Recursive update. The swapper.free.ratio property is applied
+      // in @PostConstruct once the Spring context is ready.
+      double ratio = XSwapUtil.isCmsGC() ? 0.10 : 0.20;
       RATIOS[BAD_MEM] = ratio;
       ratio += 0.05;
       RATIOS[LOW_MEM] = ratio;
@@ -846,6 +837,27 @@ public final class XSwapper {
       RATIOS[NORM_MEM] = ratio;
       ratio += 0.1;
       RATIOS[GOOD_MEM] = ratio;
+   }
+
+   @PostConstruct
+   public void init() {
+      String str = SreeEnv.getProperty("swapper.free.ratio");
+
+      if(str != null) {
+         try {
+            double ratio = Double.parseDouble(str);
+            RATIOS[BAD_MEM] = ratio;
+            ratio += 0.05;
+            RATIOS[LOW_MEM] = ratio;
+            ratio += 0.1;
+            RATIOS[NORM_MEM] = ratio;
+            ratio += 0.1;
+            RATIOS[GOOD_MEM] = ratio;
+         }
+         catch(Exception ex) {
+            LOG.warn("Invalid swapper free ratio: " + str, ex);
+         }
+      }
    }
 
    private long cts = System.currentTimeMillis();
