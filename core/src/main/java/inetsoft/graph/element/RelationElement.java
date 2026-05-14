@@ -17,10 +17,8 @@
  */
 package inetsoft.graph.element;
 
-import inetsoft.graph.*;
 import com.inetsoft.build.tern.TernMethod;
-import inetsoft.graph.GGraph;
-import inetsoft.graph.GraphConstants;
+import inetsoft.graph.*;
 import inetsoft.graph.aesthetic.*;
 import inetsoft.graph.coord.Coordinate;
 import inetsoft.graph.data.*;
@@ -33,19 +31,15 @@ import inetsoft.graph.mxgraph.model.mxCell;
 import inetsoft.graph.mxgraph.model.mxGeometry;
 import inetsoft.graph.mxgraph.util.mxPoint;
 import inetsoft.graph.mxgraph.view.mxGraph;
-import inetsoft.graph.visual.ElementVO;
-import inetsoft.graph.visual.FormVO;
-import inetsoft.graph.visual.VOText;
+import inetsoft.graph.visual.*;
 import inetsoft.sree.SreeEnv;
 import inetsoft.util.CoreTool;
 
 import java.awt.*;
-import java.awt.geom.AffineTransform;
-import java.awt.geom.Point2D;
-import java.awt.geom.Rectangle2D;
+import java.awt.geom.*;
 import java.text.Format;
-import java.util.List;
 import java.util.*;
+import java.util.List;
 
 /**
  * This defines a relation chart element.
@@ -1000,7 +994,7 @@ public class RelationElement extends GraphElement {
    private boolean horizontal = false;
    private boolean flipped = false;
 
-   // Bumped to 2L when shapeBorderShape/Color/Line were added; null on deserialization = no border (safe).
+   // Bumped to 2L when shapeBorderShape/Color/Line nodeShape were added; null on deserialization = no border (safe).
    private static final long serialVersionUID = 2L;
 
    /**
