@@ -21,6 +21,7 @@ import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.util.*;
 import inetsoft.util.ConfigurationContext;
+import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -823,22 +824,29 @@ public final class XSwapper {
    // In case the OOM still occurs, this property can be used to raise
    // the free ratio (e.g. 0.2) to avoid OOM.
    static {
+      // Avoid calling SreeEnv.getProperty() here: doing so during class loading can trigger
+      // recursive Spring bean initialization (via ConfigurationContext.getSpringBean) while
+      // already inside a Caffeine/ConcurrentHashMap computeIfAbsent callback, causing
+      // IllegalStateException: Recursive update. The swapper.free.ratio property is applied
+      // in @PostConstruct once the Spring context is ready.
+      applyRatio(XSwapUtil.isCmsGC() ? 0.10 : 0.20);
+   }
+
+   @PostConstruct
+   public void init() {
       String str = SreeEnv.getProperty("swapper.free.ratio");
-      double ratio = 0.20;
 
       if(str != null) {
          try {
-            ratio = Double.parseDouble(str);
+            applyRatio(Double.parseDouble(str));
          }
          catch(Exception ex) {
-            LOG.warn(
-                        "Invalid swapper free ratio: " + str, ex);
+            LOG.warn("Invalid swapper free ratio: " + str, ex);
          }
       }
-      else if(XSwapUtil.isCmsGC()) {
-         ratio = 0.10;
-      }
+   }
 
+   private static void applyRatio(double ratio) {
       RATIOS[BAD_MEM] = ratio;
       ratio += 0.05;
       RATIOS[LOW_MEM] = ratio;
