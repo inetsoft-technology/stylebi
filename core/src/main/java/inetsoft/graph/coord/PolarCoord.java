@@ -474,12 +474,8 @@ public class PolarCoord extends Coordinate {
             axis2.setWidth(r);
             axis2.setHeight(r);
 
-            if(webGrid) {
-               int n = getSidesCount();
-
-               if(n >= 3) {
-                  axis2.setPolygonSides(n);
-               }
+            if(webGrid && getSidesCount() >= 3) {
+               axis2.setUsePolygon(true);
             }
 
             vgraph.setAxis(i, axis2);
@@ -1095,7 +1091,8 @@ public class PolarCoord extends Coordinate {
       }
 
       PolarCoord coord = (PolarCoord) obj;
-      return type == coord.type && holeRatio == coord.holeRatio && pieRatio == coord.pieRatio;
+      return type == coord.type && holeRatio == coord.holeRatio &&
+             pieRatio == coord.pieRatio && webGrid == coord.webGrid;
    }
 
    /**

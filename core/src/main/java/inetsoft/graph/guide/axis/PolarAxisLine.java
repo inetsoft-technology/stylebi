@@ -88,9 +88,10 @@ class PolarAxisLine extends AxisLine {
       if(getAxis().isLineVisible()) {
          Shape outline;
 
-         if(polygonSides >= 3) {
+         if(usePolygon) {
+            // clone to avoid mutating the scale's cached tick array a second time in paintTicks
             double[] angles = PolarUtil.getTickLocations(
-               getAxis().getScale(), getAxis().getScale().getTicks());
+               getAxis().getScale(), getAxis().getScale().getTicks().clone());
             outline = createPolygon(angles, width, height);
          }
          else {
@@ -174,15 +175,15 @@ class PolarAxisLine extends AxisLine {
       return new Rectangle2D.Double(pos1.getX(), pos1.getY(), width, height);
    }
 
-   public void setPolygonSides(int n) {
-      this.polygonSides = n;
+   public void setUsePolygon(boolean usePolygon) {
+      this.usePolygon = usePolygon;
    }
 
    private static Path2D createPolygon(double[] angles, double w, double h) {
-      double cx = w / 2;
-      double cy = h / 2;
-      double rx = w / 2;
-      double ry = h / 2;
+      double cx = w / 2; // center x
+      double cy = h / 2; // center y
+      double rx = w / 2; // radius x (half-width of bounding box)
+      double ry = h / 2; // radius y (half-height of bounding box)
       Path2D path = new Path2D.Double();
 
       for(int i = 0; i < angles.length; i++) {
@@ -203,5 +204,5 @@ class PolarAxisLine extends AxisLine {
 
    private double width;
    private double height;
-   private int polygonSides = 0;
+   private boolean usePolygon = false;
 }
