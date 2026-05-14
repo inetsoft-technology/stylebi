@@ -2454,28 +2454,6 @@ public class QueryManagerService {
       return count;
    }
 
-   private Integer getPhysicalTableChildCount(AssetEntry folderEntry,
-                                              AssetRepository assetRepository,
-                                              Principal principal,
-                                              Map<String, Integer> tableCountCache)
-   {
-      String folderPath = folderEntry.getPath();
-
-      if(tableCountCache.containsKey(folderPath)) {
-         return tableCountCache.get(folderPath);
-      }
-
-      try {
-         int tableCount = getPhysicalTableChildCount(folderEntry, assetRepository, principal);
-         tableCountCache.put(folderPath, tableCount);
-         return tableCount;
-      }
-      catch(Exception ex) {
-         LOG.warn("Failed to resolve physical table count for schema folder '{}'", folderPath, ex);
-         return null;
-      }
-   }
-
    public TreeNodeModel getDataSourceFieldsTreeNode(String runtimeId, boolean sort,
                                                     Principal principal)
    {
@@ -2562,6 +2540,7 @@ public class QueryManagerService {
          entry.setProperty("quoteTableName", expandedEntry.getProperty("quoteTableName"));
          entry.setProperty("quoteColumnName", XUtil.quoteNameSegment(entry.getName(), helper));
          String label = entry.getName();
+         String label = entry.getName();
          TreeNodeModel.Builder child = TreeNodeModel.builder()
             .data(entry)
             .leaf(!columnLevel && entry.getType() == AssetEntry.Type.PHYSICAL_TABLE ||
@@ -2570,10 +2549,9 @@ public class QueryManagerService {
          if(entry.getType() == AssetEntry.Type.PHYSICAL_FOLDER &&
             !StringUtils.isEmpty(entry.getProperty(XSourceInfo.SCHEMA)))
          {
-            Integer tableCount = getPhysicalTableChildCount(entry, assetRepository, principal,
-               tableCountCache);
+            int tableCount = getPhysicalTableChildCount(entry, assetRepository, principal);
 
-            if(tableCount != null && tableCount > 0) {
+            if(tableCount > 0) {
                label += " (" + tableCount + ")";
                child.tooltip(tableCount + " table" + (tableCount == 1 ? "" : "s"));
             }
