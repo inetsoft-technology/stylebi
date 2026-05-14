@@ -537,7 +537,8 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
 
       labelsValue.setRValue(null);
       selectedValue.setRValue(null);
-      bottomTabs.setRValue(null);
+      // Not cleared: onInit sets bottomTabs once; the run-once guard prevents re-application
+      // on refresh. rValue is reset by bookmark load (parseStateContent) or session restart.
    }
 
    /**

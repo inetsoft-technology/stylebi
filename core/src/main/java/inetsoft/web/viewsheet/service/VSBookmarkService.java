@@ -746,9 +746,14 @@ public class VSBookmarkService implements ApplicationListener<ProcessBookmarkEve
          }
       }
 
-      // to init vs to apply the shared filter when switch to home bookmark,
-      // because the home bookmark created before initViewsheet in the runtime viewsheet.
+      // Navigating to HOME resets assemblies to design-time state (the HOME bookmark was
+      // created before initViewsheet in the runtime viewsheet) and applies the shared
+      // filter. Clear the onInit guard first so processOnInit is allowed to re-run on the
+      // following refreshViewsheet(), restoring any rValues set by onInit (e.g. bottomTabs).
+      // Note: clearInit affects the whole sandbox — every onInit script in the viewsheet
+      // re-runs, which matches the semantics of "HOME = same as a fresh open".
       if(VSBookmark.HOME_BOOKMARK.equals(name)) {
+         rvs.getViewsheetSandbox().ifPresent(box -> box.clearInit());
          rvs.initViewsheet(rvs.getViewsheet(), false);
       }
 
