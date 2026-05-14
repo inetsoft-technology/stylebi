@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { HttpClient, HttpParams } from "@angular/common/http";
-import { Component, EventEmitter, Input, OnDestroy, OnInit, Output } from "@angular/core";
+import { Component, EventEmitter, Input, OnDestroy, OnInit, Output, ViewChild } from "@angular/core";
 import { Subscription } from "rxjs";
 import { Point } from "../../../../../../../../common/data/point";
 import {
@@ -29,6 +29,10 @@ import {
    TableJoinInfo
 } from "../../../../../../model/datasources/database/physical-model/graph/table-join-info";
 import { DataQueryModelService } from "../../../data-query-model.service";
+import { AssetEntry } from "../../../../../../../../../../../shared/data/asset-entry";
+import {
+   QueryNetworkGraphPaneComponent
+} from "../query-network-graph-pane/query-network-graph-pane.component";
 
 const CLOSE_JOIN_EDIT_PANE_URI = "../api/data/datasource/query/join-edit/close";
 const QUERY_GRAPH_PANE_MODEL_URI = "../api/data/datasource/query/graph";
@@ -45,6 +49,7 @@ export class QueryLinkGraphPaneComponent implements OnInit, OnDestroy {
    @Output() onNodeSelected: EventEmitter<string> = new EventEmitter<string>();
    @Output() onQueryPropertiesChanged: EventEmitter<void> = new EventEmitter<void>();
    @Output() editingJoinChanged = new EventEmitter<boolean>();
+   @ViewChild("networkGraphPane") networkGraphPane: QueryNetworkGraphPaneComponent;
 
    graphPaneModel: JoinGraphModel;
    loadingGraphPane: boolean = true;
@@ -165,5 +170,17 @@ export class QueryLinkGraphPaneComponent implements OnInit, OnDestroy {
       }
 
       return false;
+   }
+
+   addTablesAtViewportCenter(tables: AssetEntry[]): void {
+      this.networkGraphPane?.addTablesAtViewportCenter(tables);
+   }
+
+   removeSelectedTables(): void {
+      this.networkGraphPane?.removeSelectTables();
+   }
+
+   hasSelectedRemovableTables(): boolean {
+      return this.networkGraphPane?.hasSelectedRemovableTables() ?? false;
    }
 }
