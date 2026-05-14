@@ -154,10 +154,11 @@ public class RunningTotalColumn extends AbstractColumn {
       if(breakBy != null && !breakBy.isEmpty()) {
          DataSet baseData = data instanceof DataSetFilter ?
             ((DataSetFilter) data).getRootDataSet() : data;
+         int sortedRow = row;
          row = data instanceof DataSetFilter ? ((DataSetFilter) data).getRootRow(row) : row;
 
          Object firstBreakByVal = baseData.getData(breakBy, row);
-         long interval = getInterval(data, row);
+         long interval = getInterval(data, sortedRow);
 
          for(int i = row; i >= 0; i--) {
             Object breakByVal = baseData.getData(breakBy, i);
