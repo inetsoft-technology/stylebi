@@ -263,10 +263,8 @@ public class GenerateWsService {
 
       // Apply GROUP BY and aggregate info
       // Apply HAVING conditions (stored in postconds)
-      if(model.getAggregates() != null && model.getHaving() != null) {
-         applyAggregateInfo(table, model.getGroupBy(), model.getAggregates(), model.getHaving());
-         applyHavingCondition(table, model.getHaving());
-      }
+      applyAggregateInfo(table, model.getGroupBy(), model.getAggregates(), model.getHaving());
+      applyHavingCondition(table, model.getHaving());
 
       return new WorksheetBuildResult(worksheet, table);
    }
