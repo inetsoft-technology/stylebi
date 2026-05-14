@@ -108,6 +108,7 @@ public class DistributedTableCacheStore {
 
          try {
             storage.delete(key);
+            storage.destroyPathLock(key);
          }
          catch(IOException deleteEx) {
             LOG.debug("Failed to delete stale uncompressed entry {}", key, deleteEx);
@@ -168,6 +169,7 @@ public class DistributedTableCacheStore {
 
       try {
          storage.delete(key);
+         storage.destroyPathLock(key);
       }
       catch(IOException e) {
          LOG.warn("Failed to remove data from cache: {}", key, e);

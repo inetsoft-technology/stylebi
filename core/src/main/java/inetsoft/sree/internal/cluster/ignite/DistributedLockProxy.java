@@ -26,12 +26,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.*;
 
 public class DistributedLockProxy implements Lock {
-   public DistributedLockProxy(String lockName) {
+   public DistributedLockProxy(String lockName, Lock realLock) {
       this.lockName = lockName;
-   }
-
-   public void setRealLock(Lock lock) {
-      this.realLock = lock;
+      this.realLock = realLock;
    }
 
    @Override
@@ -96,8 +93,8 @@ public class DistributedLockProxy implements Lock {
       return realLock.newCondition();
    }
 
-   private Lock realLock;
-   private String lockName;
+   private final Lock realLock;
+   private final String lockName;
    private static final int MAX_TRY_COUNT = 10;
    private static final int LOCK_TIMEOUT_SECONDS = 3;
    private static final int RETRY_DELAY_MS = 3_000;

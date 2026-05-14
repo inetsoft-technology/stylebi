@@ -70,6 +70,7 @@ public class CleanupTableCacheTask implements Runnable, Serializable {
                LOG.info("CleanupTableCacheTask: deleting {} expired entr{} from store '{}'",
                         keysToRemove.size(), keysToRemove.size() == 1 ? "y" : "ies", storeId);
                storage.deleteAll(keysToRemove);
+               keysToRemove.forEach(storage::destroyPathLock);
             }
          }
       }
