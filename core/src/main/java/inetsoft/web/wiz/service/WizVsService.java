@@ -63,8 +63,12 @@ public class WizVsService {
       Viewsheet cloneSource = null;
 
       if(modificationOnly) {
+         if(Tool.isEmptyString(runtimeId) && Tool.isEmptyString(model.getViewsheetIdentifier())) {
+            throw new IllegalArgumentException("runtimeId or viewsheetIdentifier is required for condition-only modifications");
+         }
+
          if(Tool.isEmptyString(runtimeId)) {
-            throw new IllegalArgumentException("runtimeId is required for condition-only modifications");
+            runtimeId = viewsheetService.openViewsheet(AssetEntry.createAssetEntry(model.getViewsheetIdentifier()), user, true);
          }
 
          cloneSource = getValidatedViewsheet(viewsheetService.getViewsheet(runtimeId, user));
