@@ -162,7 +162,7 @@ public class RunningTotalColumn extends AbstractColumn {
 
          for(int i = row; i >= 0; i--) {
             Object breakByVal = baseData.getData(breakBy, i);
-            long intervali = getInterval(data, i);
+            long intervali = getInterval(baseData, i);
 
             if(interval != intervali) {
                continue;
