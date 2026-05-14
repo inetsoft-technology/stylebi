@@ -152,7 +152,10 @@ public class TabVSAScriptable extends VSAScriptable {
       info.setBottomTabs(bottomTabs);
 
       if(box.isRuntime() && bottomTabs != isCurrentlyAtBottom) {
-         TabVSAssemblyInfo.repositionForBottomTabs(info, box.getViewsheet(), bottomTabs);
+         Viewsheet vs = box.getViewsheet();
+         TabVSAssemblyInfo.repositionForBottomTabs(info, vs, bottomTabs);
+         // scaled space: makes the toggle visible immediately in layout previews
+         TabVSAssemblyInfo.repositionForBottomTabsInScaledSpace(info, vs, bottomTabs);
       }
    }
 
