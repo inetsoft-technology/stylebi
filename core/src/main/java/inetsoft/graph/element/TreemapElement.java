@@ -133,11 +133,24 @@ public class TreemapElement extends GraphElement {
       this.algorithm = algorithm;
    }
 
+   /**
+    * Get the treemap item anchor orientation. Defaults to {@link Orientation#TOP_LEFT}.
+    * Only meaningful for {@link Type#TREEMAP}; ignored by CIRCLE, SUNBURST, and ICICLE types.
+    */
    public Orientation getOrientation() {
       return orientation;
    }
 
+   /**
+    * Set the treemap item anchor orientation.
+    * Only meaningful for {@link Type#TREEMAP}; ignored by CIRCLE, SUNBURST, and ICICLE types.
+    * @param orientation non-null orientation value
+    */
    public void setOrientation(Orientation orientation) {
+      if(orientation == null) {
+         throw new IllegalArgumentException("orientation must not be null");
+      }
+
       this.orientation = orientation;
    }
 
@@ -570,7 +583,8 @@ public class TreemapElement extends GraphElement {
       TreemapElement elem = (TreemapElement) obj;
 
       return treeDims.equals(elem.treeDims) && algorithm.equals(elem.algorithm) &&
-         mapType.equals(elem.mapType) && backgrounds.equals(elem.backgrounds);
+         mapType.equals(elem.mapType) && backgrounds.equals(elem.backgrounds) &&
+         orientation.equals(elem.orientation);
    }
 
    @Override
