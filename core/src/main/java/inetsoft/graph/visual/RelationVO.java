@@ -285,6 +285,7 @@ public class RelationVO extends ElementVO {
             insetY = h * (1 - 1 / Math.sqrt(2)) / 2;
          }
          else if(s != null && !(s instanceof Rectangle2D)) {
+            // exact for diamond/triangle; over-shrinks open paths (CROSS, STAR) but stays safe
             insetX = w / 4;
             insetY = h / 4;
          }

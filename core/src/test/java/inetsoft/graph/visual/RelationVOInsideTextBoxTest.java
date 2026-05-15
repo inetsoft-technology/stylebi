@@ -93,7 +93,7 @@ class RelationVOInsideTextBoxTest {
    void customNodeShapeUsesEllipseInset() {
       Rectangle2D box = new Rectangle2D.Double(0, 0, 100, 60);
       RelationElement elem = new RelationElement("From", "To");
-      elem.setNodeShape(GShape.CIRCLE);   // any GShape triggers the ellipse-inscribed branch
+      elem.setNodeShape(GShape.CIRCLE);   // CIRCLE returns Ellipse2D -> ellipse branch
 
       Rectangle2D out = RelationVO.getInsideTextBox(box, elem);
       // inscribed rect for an ellipse with full dims (w,h): w/sqrt2 x h/sqrt2
