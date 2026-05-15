@@ -206,6 +206,8 @@ public class ChangeChartTypeController {
       }
 
       applySmoothLinesTransition(oldType, newType, plotDesc);
+      // drop the runtime clone so the next render sees the design-time mutations above
+      ninfo.setRTChartDescriptor(null);
 
       if(!DateComparisonUtil.isDateComparisonChartTypeChanged(ninfo, oinfo)) {
          Catalog catalog = Catalog.getCatalog();
