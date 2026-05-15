@@ -99,7 +99,6 @@ declare const window: any;
 export class EmbedChartComponent extends CommandProcessor implements OnInit, OnDestroy, AfterViewInit {
    @Input() url: string;
    appSize: Dimension;
-   assemblySize: Dimension;
    vsInfo: ViewsheetInfo;
    vsObject: VSChartModel;
    vsObjectActions: AbstractVSActions<any>;
@@ -477,10 +476,6 @@ export class EmbedChartComponent extends CommandProcessor implements OnInit, OnD
    setAppSize(): void {
       this.appSize = new Dimension(this.viewerRoot.nativeElement.offsetWidth,
          this.viewerRoot.nativeElement.offsetHeight);
-
-      const sbSize = GuiTool.measureScrollbars();
-      this.assemblySize = new Dimension(Math.max(0, this.appSize.width - sbSize),
-         Math.max(0, this.appSize.height - sbSize));
    }
 
    private fitChartToContainer(vsObject: VSChartModel): void {
@@ -574,7 +569,6 @@ export class EmbedChartComponent extends CommandProcessor implements OnInit, OnD
 
       const oldAppSize = new Dimension(this.appSize.width, this.appSize.height);
       this.setAppSize();
-      this.fitChartToContainer(this.vsObject);
 
       // no change or set to 0 then ignore
       if(this.appSize.width == 0 || this.appSize.height == 0 ||
@@ -582,6 +576,8 @@ export class EmbedChartComponent extends CommandProcessor implements OnInit, OnD
       {
          return;
       }
+
+      this.fitChartToContainer(this.vsObject);
 
       this.debounceService.debounce("embed-chart-vs-resize" + this.runtimeId, () => {
          if(this.inputRuntimeId) {
