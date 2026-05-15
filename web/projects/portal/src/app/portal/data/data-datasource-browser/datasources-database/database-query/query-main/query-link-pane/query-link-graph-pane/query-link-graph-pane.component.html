@@ -31,7 +31,6 @@
        [style.top.px]="toolbarHeight"
        [style.height]="graphContainerHeight">
     <query-network-graph-pane *ngIf="!graphPaneModel.joinEdit"
-                              #networkGraphPane
                               [graphViewModel]="graphPaneModel.graphViewModel"
                               [runtimeId]="runtimeId"
                               [scrollPoint]="scrollPoint"

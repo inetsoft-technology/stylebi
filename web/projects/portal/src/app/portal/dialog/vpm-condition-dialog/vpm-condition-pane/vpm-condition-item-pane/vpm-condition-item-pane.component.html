@@ -16,8 +16,8 @@
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
 <div class="item-pane">
-  <div class="item-pane__row">
-    <div class="item-pane__value item-pane__value--primary">
+  <div class="row align-items-start g-0">
+    <div class="col-auto value-editor-container">
       <one-of-vpm-condition-editor *ngIf="leftOneOf; else leftConditionEditor"
                                    [operation]="condition.operation"
                                    [fields]="fields"
@@ -46,27 +46,29 @@
         </vpm-condition-editor>
       </ng-template>
     </div>
-    <div class="item-pane__select">
+    <div class="col-auto">
       <select class="form-control isNot_check_id" [(ngModel)]="condition.negated" (ngModelChange)="conditionChange.emit(this.condition)">
         <option [ngValue]="false">_#(is)</option>
         <option [ngValue]="true">_#(is not)</option>
       </select>
     </div>
-    <div class="item-pane__select">
+    <div class="col-auto form-group-column">
       <select class="form-control operation_check_id" [(ngModel)]="optSymbol" (ngModelChange)="optionChange($event)">
         <option *ngFor="let opt of operations" [ngValue]="opt.symbol">
           {{opt.name}}
         </option>
       </select>
-      <div *ngIf="supportEqualsOperation()" class="item-pane__equals">
-        <input type="checkbox" class="form-check-input" [ngModel]="equalsOperation"
-               id="equal" (ngModelChange)="equalsChanged($event)">
-        <label class="form-check-label" for="equal">
-          _#(or equal to)
-        </label>
+      <div *ngIf="supportEqualsOperation()" class="checkbox">
+        <div class="form-check">
+          <input type="checkbox" class="form-check-input" [ngModel]="equalsOperation"
+                 id="equal" (ngModelChange)="equalsChanged($event)">
+          <label class="form-check-label" for="equal">
+            _#(or equal to)
+          </label>
+        </div>
       </div>
     </div>
-    <div class="item-pane__value" *ngIf="!isUnaryOperation"
+    <div class="col-auto form-group pt-0 value-editor-container" *ngIf="!isUnaryOperation"
          [ngSwitch]="condition.operation.symbol">
       <vpm-trinary-condition-editor *ngSwitchCase="ClauseOperationSymbols.BETWEEN"
                                     [operation]="condition.operation"

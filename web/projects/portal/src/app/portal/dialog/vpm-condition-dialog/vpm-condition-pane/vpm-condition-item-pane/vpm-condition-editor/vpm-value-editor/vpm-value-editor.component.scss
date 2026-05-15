@@ -25,17 +25,6 @@ time-instant-value-editor {
   flex-grow: 1;
 }
 
-.vpm-value-editor__browse-button {
-  min-width: var(--inet-control-height-md, 30px);
-  min-height: var(--inet-control-height-md, 30px);
-  padding-inline: var(--inet-space-3, 6px);
-}
-
-.vpm-value-editor__browse-button-wrapper {
-  display: inline-flex;
-  margin-left: var(--inet-space-2, 4px);
-}
-
 .browse-data-dropdown {
   max-height: 40vh;
   overflow-y: auto;

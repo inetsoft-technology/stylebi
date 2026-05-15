@@ -18,30 +18,17 @@
 .editor-container {
   display: flex;
   flex-wrap: nowrap;
-  gap: var(--inet-space-2, 4px);
   margin: 0;
+
+  > div > .form-group {
+    margin-bottom: 0;
+  }
 }
 
 vpm-value-editor {
   display: flex;
   align-items: flex-start;
   min-height: 40px;
-}
-
-.editor-container__value,
-.editor-container__field {
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
-.editor-container__type-picker {
-  display: flex;
-  align-items: flex-start;
-}
-
-.editor-container__type-button {
-  min-width: var(--inet-control-height-md, 30px);
-  padding-inline: var(--inet-space-3, 6px);
 }
 
 .primary-condition-editor {

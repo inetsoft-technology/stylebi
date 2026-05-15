@@ -1042,32 +1042,6 @@ export class QueryNetworkGraphPaneComponent implements OnInit, AfterViewInit,
       }
    }
 
-   addTablesAtViewportCenter(selectedNodesData: AssetEntry[]): void {
-      const container = this.jspContainerMain?.nativeElement;
-      const basePosition = container ? {
-         x: container.scrollLeft + Math.max(container.clientWidth / 2, 120),
-         y: container.scrollTop + Math.max(container.clientHeight / 2, 120)
-      } : {x: 200, y: 200};
-      const existingCount = this.graphViewModel?.graphs?.length ?? 0;
-      const offsetStep = 36;
-
-      (selectedNodesData || []).forEach((table, index) => {
-         const offsetIndex = existingCount + index;
-
-         this.addTables({
-            position: {
-               x: basePosition.x + offsetIndex * offsetStep,
-               y: basePosition.y + offsetIndex * offsetStep
-            },
-            data: [table]
-         });
-      });
-   }
-
-   hasSelectedRemovableTables(): boolean {
-      return this.dragNodes?.some(node => node && !node.baseTable) ?? false;
-   }
-
    isDuplicateTableAlias = (graphNode: GraphNodeModel, alias: string) => {
       if(!!this.graphViewModel && !!this.graphViewModel.graphs && !!graphNode) {
          return this.graphViewModel.graphs
