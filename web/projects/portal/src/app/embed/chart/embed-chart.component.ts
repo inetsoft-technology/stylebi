@@ -288,6 +288,7 @@ export class EmbedChartComponent extends CommandProcessor implements OnInit, OnD
       }
 
       this.vsObject.active = true;
+      this.fitChartToContainer(this.vsObject);
       this.updateVSInfo();
 
       this.vsObjectActions = new EmbedChartActions(this.vsObject, null,
@@ -308,6 +309,7 @@ export class EmbedChartComponent extends CommandProcessor implements OnInit, OnD
       }
 
       this.vsObject.active = true;
+      this.fitChartToContainer(this.vsObject);
       this.vsObjectActions = new EmbedChartActions(this.vsObject, null,
          this.contextProvider, false, null, null, this.miniToolbarService);
    }
@@ -415,7 +417,8 @@ export class EmbedChartComponent extends CommandProcessor implements OnInit, OnD
       const refreshEvent: RefreshVsAssemblyEvent = {
          vsRuntimeId: this.runtimeId,
          assemblyName: this.assemblyName,
-         embed: true
+         embed: true,
+         embedAssemblySize: this.appSize
       };
       this.viewsheetClient.sendEvent("/events/vs/refresh/assembly", refreshEvent);
    }
@@ -429,7 +432,7 @@ export class EmbedChartComponent extends CommandProcessor implements OnInit, OnD
          this.assetId, this.appSize.width, this.appSize.height, this.mobileDevice,
          window.navigator.userAgent);
       event.embedAssemblyName = this.assemblyName;
-      event.embedAssemblySize = this.assemblySize;
+      event.embedAssemblySize = this.appSize;
       event.disableParameterSheet = true;
 
       for(let param in this.queryParams) {
@@ -478,6 +481,15 @@ export class EmbedChartComponent extends CommandProcessor implements OnInit, OnD
       const sbSize = GuiTool.measureScrollbars();
       this.assemblySize = new Dimension(Math.max(0, this.appSize.width - sbSize),
          Math.max(0, this.appSize.height - sbSize));
+   }
+
+   private fitChartToContainer(vsObject: VSChartModel): void {
+      if(vsObject?.objectFormat && this.appSize?.width > 0 && this.appSize?.height > 0) {
+         vsObject.objectFormat.left = 0;
+         vsObject.objectFormat.top = 0;
+         vsObject.objectFormat.width = this.appSize.width;
+         vsObject.objectFormat.height = this.appSize.height;
+      }
    }
 
    onOpenContextMenu(event: MouseEvent) {
@@ -562,6 +574,7 @@ export class EmbedChartComponent extends CommandProcessor implements OnInit, OnD
 
       const oldAppSize = new Dimension(this.appSize.width, this.appSize.height);
       this.setAppSize();
+      this.fitChartToContainer(this.vsObject);
 
       // no change or set to 0 then ignore
       if(this.appSize.width == 0 || this.appSize.height == 0 ||
@@ -574,7 +587,8 @@ export class EmbedChartComponent extends CommandProcessor implements OnInit, OnD
          if(this.inputRuntimeId) {
             const refreshEvent: RefreshVsAssemblyEvent = {
                vsRuntimeId: this.runtimeId,
-               assemblyName: this.assemblyName
+               assemblyName: this.assemblyName,
+               embedAssemblySize: this.appSize
             };
             this.viewsheetClient.sendEvent("/events/vs/refresh/assembly", refreshEvent);
          }
@@ -582,7 +596,7 @@ export class EmbedChartComponent extends CommandProcessor implements OnInit, OnD
             const refreshEvent = new VSRefreshEvent();
             refreshEvent.setWidth(this.appSize.width);
             refreshEvent.setHeight(this.appSize.height);
-            refreshEvent.setEmbedAssemblySize(this.assemblySize);
+            refreshEvent.setEmbedAssemblySize(this.appSize);
             this.viewsheetClient.sendEvent("/events/vs/refresh", refreshEvent);
          }
       }, 100, []);
