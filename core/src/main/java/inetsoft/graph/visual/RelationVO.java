@@ -200,9 +200,11 @@ public class RelationVO extends ElementVO {
       RelationElement elem = (RelationElement) gobj.getElement();
 
       Rectangle2D box = getScreenTransform().createTransformedShape(shape).getBounds2D();
+      // inside labels: confine wrapping to inscribed rect so text stays within curved edges
+      Rectangle2D textBox = elem.isLabelInside() ? getInsideTextBox(box, elem) : box;
       double prefw = getVOTextWidth(vtext, vgraph, (ElementGeometry) getGeometry());
       double prefh = elem.isLabelInside()
-         ? vtext.getPreferredHeight(box.getWidth(), box.getHeight()) : vtext.getPreferredHeight();
+         ? vtext.getPreferredHeight(textBox.getWidth(), textBox.getHeight()) : vtext.getPreferredHeight();
 
       Rectangle2D vbounds = vgraph.getPlotBounds();
       int placement = gobj.getLabelPlacement();
@@ -243,10 +245,10 @@ public class RelationVO extends ElementVO {
       case GraphConstants.CENTER:
       default: // auto
          midx = box.getX() + box.getWidth() / 2;
-         tx = midx - Math.min(box.getWidth(), prefw) / 2;
+         tx = midx - Math.min(textBox.getWidth(), prefw) / 2;
 
          midy = box.getY() + box.getHeight() / 2;
-         ty = midy - Math.min(box.getHeight(), prefh) / 2;
+         ty = midy - Math.min(textBox.getHeight(), prefh) / 2;
 
          vtext.setAlignmentX(GraphConstants.LEFT_ALIGNMENT);
          vtext.setPlacement(placement);
@@ -256,8 +258,8 @@ public class RelationVO extends ElementVO {
       vtext.setPosition(new Point2D.Double(Math.max(tx, vbounds.getX()), ty));
 
       // if wider than area, reduce the width and use ...
-      if(prefw > box.getWidth() && elem.isLabelInside()) {
-         prefw = Math.max(10, box.getWidth());
+      if(prefw > textBox.getWidth() && elem.isLabelInside()) {
+         prefw = Math.max(10, textBox.getWidth());
       }
 
       vtext.setSize(new DimensionD(prefw, prefh));
@@ -265,6 +267,32 @@ public class RelationVO extends ElementVO {
       Point2D pt = new Point2D.Double(midx, midy);
       Point2D offset = vtext.getRotationOffset(pt, placement);
       vtext.setOffset(offset);
+   }
+
+   // 45deg inscribed rect for the rounded/ellipse node shape; inset = r*(1-1/sqrt2).
+   static Rectangle2D getInsideTextBox(Rectangle2D box, RelationElement elem) {
+      double insetX = 0, insetY = 0;
+      double w = box.getWidth(), h = box.getHeight();
+      GShape nodeShape = elem.getNodeShape();
+
+      if(nodeShape != null) {
+         insetX = w * (1 - 1 / Math.sqrt(2)) / 2;
+         insetY = h * (1 - 1 / Math.sqrt(2)) / 2;
+      }
+      else {
+         double r = elem.getNodeCornerRadius();
+
+         if(r > 0) {
+            double aRadius = r * Math.min(w, h);
+            insetX = insetY = aRadius * (1 - 1 / Math.sqrt(2));
+         }
+      }
+
+      double tw = Math.max(1, w - 2 * insetX);
+      double th = Math.max(1, h - 2 * insetY);
+      return new Rectangle2D.Double(box.getX() + (w - tw) / 2,
+                                    box.getY() + (h - th) / 2,
+                                    tw, th);
    }
 
    @Override
