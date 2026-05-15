@@ -2533,6 +2533,21 @@ public abstract class AssetQuery extends PreAssetQuery {
       ColumnIndexMap columnIndexMap = new ColumnIndexMap(base);
       boolean saggregated = false;
 
+      boolean hasSortByValGroup = false;
+
+      for(SortRef s : sorts) {
+         GroupRef g = ginfo.getGroup(s);
+
+         if(g != null) {
+            OrderInfo o = g.getOrderInfo();
+
+            if(o != null && o.isSortByVal()) {
+               hasSortByValGroup = true;
+               break;
+            }
+         }
+      }
+
       for(SortRef sort : sorts) {
          DataRef attr = sort.getDataRef();
          int col = AssetUtil.findColumn(base, attr, columnIndexMap);
@@ -2546,11 +2561,9 @@ public abstract class AssetQuery extends PreAssetQuery {
          AggregateRef aggregate = ginfo.getAggregate(sort);
 
          if(group != null) {
-            // if the group uses sort-by-value, the ordering is already applied
-            // by SummaryFilter via setSortByValInfo — do not re-sort here
-            OrderInfo oinfo = group.getOrderInfo();
-
-            if(oinfo != null && oinfo.isSortByVal()) {
+            // if any sort-by-value group is present, SummaryFilter owns all group
+            // ordering — applying any group sort here would interleave groups
+            if(hasSortByValGroup) {
                continue;
             }
 
