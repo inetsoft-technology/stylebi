@@ -233,6 +233,9 @@ public class IntervalElement extends StackableElement {
                   Scale yscale = graph.getScale(vname0);
 
                   if(xscale != null && yscale != null && data.getData(vname0, i) == null) {
+                     // xscale.map() is used instead of coord.getValue(tuple, 0) because
+                     // tuple is null in this branch (that is why we are here); they produce
+                     // the same scaled value in practice.
                      double sumX = xscale.map(xVal);
                      double bridgeY = getBase(yscale, top);
                      double step = sumX - prevBridgeX[v];
@@ -366,21 +369,24 @@ public class IntervalElement extends StackableElement {
 
                if(prevBridgeX != null && !Double.isNaN(prevBridgeX[v])) {
                   double step = vtuple[0] - prevBridgeX[v];
-                  // halfWidth controls how far from each bar's center the bridge endpoint sits.
-                  // Larger halfWidth → shorter bridge. At r=0.3 (default) this equals 0.25*step
-                  // (geometric bar edge). Higher radius shrinks halfWidth so the bridge grows
-                  // longer to visually cover the rounded corner gap; lower radius extends it
-                  // so the bridge doesn't over-run a sharp-cornered bar.
-                  double halfWidth = step * (0.40 - 0.5 * cornerRadius);
-                  double bridgeY = vtuple[1];
-                  LineForm bridge = new LineForm(
-                     new double[]{prevBridgeX[v] + halfWidth, bridgeY},
-                     new double[]{vtuple[0] - halfWidth, bridgeY});
-                  bridge.setColor(bridgeLineColor != null ? bridgeLineColor : GDefaults.DEFAULT_LINE_COLOR);
-                  bridge.setLine(bridgeLineStyle.getStyle());
-                  bridge.setZIndex(GDefaults.GRIDLINE_Z_INDEX + 1);
-                  bridge.setInPlot(true);
-                  graph.getEGraph().addForm(bridge);
+
+                  if(step > 0) {
+                     // halfWidth controls how far from each bar's center the bridge endpoint sits.
+                     // Larger halfWidth → shorter bridge. At r=0.3 (default) this equals 0.25*step
+                     // (geometric bar edge). Higher radius shrinks halfWidth so the bridge grows
+                     // longer to visually cover the rounded corner gap; lower radius extends it
+                     // so the bridge doesn't over-run a sharp-cornered bar.
+                     double halfWidth = step * (0.40 - 0.5 * cornerRadius);
+                     double bridgeY = vtuple[1];
+                     LineForm bridge = new LineForm(
+                        new double[]{prevBridgeX[v] + halfWidth, bridgeY},
+                        new double[]{vtuple[0] - halfWidth, bridgeY});
+                     bridge.setColor(bridgeLineColor != null ? bridgeLineColor : GDefaults.DEFAULT_LINE_COLOR);
+                     bridge.setLine(bridgeLineStyle.getStyle());
+                     bridge.setZIndex(GDefaults.GRIDLINE_Z_INDEX + 1);
+                     bridge.setInPlot(true);
+                     graph.getEGraph().addForm(bridge);
+                  }
                }
 
                if(prevBridgeX != null) {
@@ -779,18 +785,37 @@ public class IntervalElement extends StackableElement {
          IntervalElement elem = (IntervalElement) obj;
          return bases.equals(elem.bases) && zeroHeight == elem.zeroHeight &&
             Objects.equals(visualStacked, elem.visualStacked) &&
-            cornerRadius == elem.cornerRadius && roundAllCorners == elem.roundAllCorners;
+            cornerRadius == elem.cornerRadius && roundAllCorners == elem.roundAllCorners &&
+            Objects.equals(bridgeLineColor, elem.bridgeLineColor) &&
+            Objects.equals(bridgeLineStyle, elem.bridgeLineStyle);
       }
 
       return false;
    }
 
    /**
-    * Enable bridge connector lines between adjacent waterfall bars.
-    * @param lineColor line color, or null to use the default line color.
-    * @param lineStyle line style.
+    * Get the bridge connector line color, or {@code null} if using the default color.
     */
-   public void addBridgeLine(Color lineColor, GLine lineStyle) {
+   @TernMethod
+   public Color getBridgeLineColor() {
+      return bridgeLineColor;
+   }
+
+   /**
+    * Get the bridge connector line style, or {@code null} if bridge lines are disabled.
+    */
+   @TernMethod
+   public GLine getBridgeLineStyle() {
+      return bridgeLineStyle;
+   }
+
+   /**
+    * Set bridge connector lines between adjacent waterfall bars.
+    * @param lineColor line color, or {@code null} to use the default line color.
+    * @param lineStyle line style, or {@code null} to disable bridge lines.
+    */
+   @TernMethod
+   public void setBridgeLine(Color lineColor, GLine lineStyle) {
       this.bridgeLineColor = lineColor;
       this.bridgeLineStyle = lineStyle;
    }
