@@ -16,12 +16,20 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 :host {
+  display: block;
   height: 100%;
+  width: 100%;
+  min-width: 0;
 }
 
 :host ::ng-deep table {
   border-spacing: 0;
   border-collapse: collapse;
+}
+
+:host > div {
+  width: 100%;
+  min-width: 0;
 }
 
 .ws-graph-pane-container {
