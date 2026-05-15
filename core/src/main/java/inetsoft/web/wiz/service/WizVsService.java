@@ -117,12 +117,13 @@ public class WizVsService {
                throw new IllegalArgumentException("Unsupported visualization type: " + model.getVisualizationType());
             }
 
-            // Clear old primary before adding the new assembly.
+            // Clear old primary before adding the new assembly; capture it for rollback.
             Assembly[] existingAssemblies = targetVs.getAssemblies();
 
             if(existingAssemblies != null) {
                for(Assembly a : existingAssemblies) {
                   if(a instanceof VSAssembly va && va.isPrimary()) {
+                     previousPrimaryAssembly = va;
                      va.setPrimary(false);
                   }
                }
@@ -163,12 +164,11 @@ public class WizVsService {
                // restore any displaced primary to leave the viewsheet in its pre-call state.
                previousVs.removeAssembly(assembly.getName());
 
-               if(modificationOnly) {
-                  if(previousPrimaryAssembly != null) {
-                     previousPrimaryAssembly.setPrimary(true);
-                  }
+               if(previousPrimaryAssembly != null) {
+                  previousPrimaryAssembly.setPrimary(true);
                }
-               else {
+
+               if(!modificationOnly) {
                   previousVs.setBaseEntry(previousBaseEntry);
                }
             }
