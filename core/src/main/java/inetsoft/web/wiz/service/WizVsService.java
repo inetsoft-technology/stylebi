@@ -1807,8 +1807,8 @@ public class WizVsService {
          }
       }
       catch(Exception e) {
-         LOG.warn("Failed to retrieve source worksheet entry for viewsheet [{}]: {}",
-                  identifier, e.getMessage());
+         LOG.warn("Failed to retrieve source worksheet entry for viewsheet [{}]",
+                  identifier, e);
       }
 
       engine.removeSheet(entry, user, true);
@@ -1820,8 +1820,8 @@ public class WizVsService {
             engine.removeSheet(wsEntry, user, true);
          }
          catch(Exception e) {
-            LOG.warn("Failed to delete source worksheet [{}] for viewsheet [{}]: {}",
-                     wsEntry.toIdentifier(), identifier, e.getMessage());
+            LOG.warn("Failed to delete source worksheet [{}] for viewsheet [{}]",
+                     wsEntry.toIdentifier(), identifier, e);
          }
       }
    }
