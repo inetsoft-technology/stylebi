@@ -86,9 +86,19 @@ class PolarAxisLine extends AxisLine {
       g2.setColor(getAxis().getLineColor());
 
       if(getAxis().isLineVisible()) {
-         Ellipse2D oval = new Ellipse2D.Double(0, 0, width, height);
-         Shape path = getScreenTransform().createTransformedShape(oval);
+         Shape outline;
 
+         if(usePolygon) {
+            // clone to avoid mutating the scale's cached tick array a second time in paintTicks
+            double[] angles = PolarUtil.getTickLocations(
+               getAxis().getScale(), getAxis().getScale().getTicks().clone());
+            outline = createPolygon(angles, width, height);
+         }
+         else {
+            outline = new Ellipse2D.Double(0, 0, width, height);
+         }
+
+         Shape path = getScreenTransform().createTransformedShape(outline);
          g2.draw(path);
       }
 
@@ -165,6 +175,34 @@ class PolarAxisLine extends AxisLine {
       return new Rectangle2D.Double(pos1.getX(), pos1.getY(), width, height);
    }
 
+   public void setUsePolygon(boolean usePolygon) {
+      this.usePolygon = usePolygon;
+   }
+
+   private static Path2D createPolygon(double[] angles, double w, double h) {
+      double cx = w / 2; // center x
+      double cy = h / 2; // center y
+      double rx = w / 2; // radius x (half-width of bounding box)
+      double ry = h / 2; // radius y (half-height of bounding box)
+      Path2D path = new Path2D.Double();
+
+      for(int i = 0; i < angles.length; i++) {
+         double vx = cx + rx * Math.cos(angles[i]);
+         double vy = cy + ry * Math.sin(angles[i]);
+
+         if(i == 0) {
+            path.moveTo(vx, vy);
+         }
+         else {
+            path.lineTo(vx, vy);
+         }
+      }
+
+      path.closePath();
+      return path;
+   }
+
    private double width;
    private double height;
+   private boolean usePolygon = false;
 }

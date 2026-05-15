@@ -186,6 +186,7 @@ public class PolarAxis extends Axis {
 
       vlabels = new VLabel[0];
       line = new PolarAxisLine(this);
+      line.setUsePolygon(usePolygon);
       addVisual(line);
 
       if(isLabelVisible()) {
@@ -387,9 +388,18 @@ public class PolarAxis extends Axis {
       return new Rectangle2D.Double(x, y, w, h);
    }
 
+   public void setUsePolygon(boolean usePolygon) {
+      this.usePolygon = usePolygon;
+
+      if(line != null) {
+         line.setUsePolygon(usePolygon);
+      }
+   }
+
    private static final int TICK_SIZE = 3; // tick line length
    private double width; // width of the axis (oval) in pixels
    private double height; // width of the axis (oval) in pixels
+   private boolean usePolygon = false;
    private PolarAxisLine line;
    private VLabel[] vlabels;
    private String[] measures = null;
