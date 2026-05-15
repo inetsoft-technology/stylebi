@@ -55,6 +55,7 @@ import static org.mockito.Mockito.*;
  */
 @SreeHome
 @ExtendWith(MockitoExtension.class)
+// LENIENT: shared @BeforeEach stubs are not all exercised by every test path
 @MockitoSettings(strictness = Strictness.LENIENT)
 class ChangeChartTypeControllerTest {
 
@@ -122,6 +123,7 @@ class ChangeChartTypeControllerTest {
 
       ChartVSAssemblyInfo ainfo = (ChartVSAssemblyInfo) chart.getVSAssemblyInfo();
       ainfo.setRTChartDescriptor(new ChartDescriptor());
+      assertNotNull(ainfo.getRTChartDescriptor(), "precondition: RT descriptor is populated");
 
       ChangeChartTypeEvent event = new ChangeChartTypeEvent();
       event.setName("Chart1");
