@@ -54,6 +54,13 @@ public class TreemapElement extends GraphElement {
    public enum Algorithm { SLICE, BINARY, SQUARIFIED }
 
    /**
+    * Treemap item anchor orientation — controls which corner the largest item appears in.
+    * VGraph applies a global y-flip (y=0 at bottom), so TOP_LEFT requires a pre-flip of y
+    * coordinates after layout.
+    */
+   public enum Orientation { TOP_LEFT, BOTTOM_LEFT, TOP_RIGHT, BOTTOM_RIGHT }
+
+   /**
     * Types of tree visualization.
     * TREEMAP - default rectangular treemap.
     * CICLEMAP - circle packing tree presentation.
@@ -124,6 +131,14 @@ public class TreemapElement extends GraphElement {
     */
    public void setAlgorithm(Algorithm algorithm) {
       this.algorithm = algorithm;
+   }
+
+   public Orientation getOrientation() {
+      return orientation;
+   }
+
+   public void setOrientation(Orientation orientation) {
+      this.orientation = orientation;
    }
 
    /**
@@ -318,6 +333,7 @@ public class TreemapElement extends GraphElement {
          switch(mapType) {
          case TREEMAP:
             root.layout(createMapLayout(), new Rect(0, 0, Coordinate.GWIDTH, Coordinate.GHEIGHT));
+            applyOrientation(root);
             break;
          case CIRCLE:
             layoutCirclemap(root);
@@ -508,6 +524,38 @@ public class TreemapElement extends GraphElement {
       return new SliceLayout();
    }
 
+   // Apply orientation after layout by flipping coordinates.
+   // VGraph.paintGraph() applies a global y-inversion (y=0 at visual bottom),
+   // so TOP_LEFT/TOP_RIGHT require a pre-flip so the largest item lands at the visual top.
+   private void applyOrientation(TreeModel node) {
+      boolean flipY = orientation == Orientation.TOP_LEFT || orientation == Orientation.TOP_RIGHT;
+      boolean flipX = orientation == Orientation.TOP_RIGHT || orientation == Orientation.BOTTOM_RIGHT;
+
+      if(flipY || flipX) {
+         applyFlip(node, flipX, flipY);
+      }
+   }
+
+   private void applyFlip(TreeModel node, boolean flipX, boolean flipY) {
+      Mappable item = node.getMapItem();
+
+      if(item != null) {
+         Rect r = item.getBounds();
+
+         if(flipY) {
+            r.y = Coordinate.GHEIGHT - r.y - r.h;
+         }
+
+         if(flipX) {
+            r.x = Coordinate.GWIDTH - r.x - r.w;
+         }
+      }
+
+      for(int i = 0; i < node.childCount(); i++) {
+         applyFlip(node.getChild(i), flipX, flipY);
+      }
+   }
+
    @Override
    public boolean supportsOverlay() {
       return true;
@@ -538,6 +586,7 @@ public class TreemapElement extends GraphElement {
 
    private List<String> treeDims = new ArrayList<>();
    private Algorithm algorithm = Algorithm.SQUARIFIED;
+   private Orientation orientation = Orientation.TOP_LEFT;
    private Type mapType = Type.TREEMAP;
    private IntSet radialLevels = new IntArraySet();
    private Map<Integer, Color> backgrounds = new HashMap<>();
