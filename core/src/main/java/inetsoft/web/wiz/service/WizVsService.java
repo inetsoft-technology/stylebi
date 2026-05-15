@@ -1785,7 +1785,37 @@ public class WizVsService {
             "Viewsheet is not in the managed visualizations folder and cannot be deleted: " + path);
       }
 
+      AssetEntry wsEntry = null;
+
+      try {
+         AbstractSheet sheet = engine.getSheet(entry, user, true, AssetContent.NO_DATA);
+
+         if(sheet instanceof Viewsheet vs) {
+            AssetEntry baseEntry = vs.getBaseEntry();
+
+            if(baseEntry != null && baseEntry.getPath() != null &&
+               baseEntry.getPath().startsWith(GenerateWsService.WORKSHEET_ROOT_FOLDER_PATH + "/"))
+            {
+               wsEntry = baseEntry;
+            }
+         }
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to retrieve source worksheet entry for viewsheet [{}]: {}",
+                  identifier, e.getMessage());
+      }
+
       engine.removeSheet(entry, user, true);
+
+      if(wsEntry != null) {
+         try {
+            engine.removeSheet(wsEntry, user, true);
+         }
+         catch(Exception e) {
+            LOG.warn("Failed to delete source worksheet [{}] for viewsheet [{}]: {}",
+                     wsEntry.toIdentifier(), identifier, e.getMessage());
+         }
+      }
    }
 
    private final ViewsheetService viewsheetService;
