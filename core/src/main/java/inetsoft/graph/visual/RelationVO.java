@@ -114,15 +114,29 @@ public class RelationVO extends ElementVO {
          GTool.setRenderingHint(g2, false);
 
          Shape shape = getScreenTransform().createTransformedShape(this.shape);
-         double r = elem.getNodeCornerRadius();
+         Rectangle2D b = shape.getBounds2D();
+         GShape nodeShape = elem.getNodeShape();
 
-         if(r > 0) {
-            Rectangle2D b = shape.getBounds2D();
-            double shortDim = Math.min(b.getWidth(), b.getHeight());
-            // r is in [0, 0.5]; arc is the corner ellipse diameter
-            double arc = r * shortDim * 2;
-            shape = new RoundRectangle2D.Double(b.getX(), b.getY(),
-                                                b.getWidth(), b.getHeight(), arc, arc);
+         if(nodeShape != null) {
+            Shape s = nodeShape.getShape(b.getX(), b.getY(), b.getWidth(), b.getHeight());
+
+            // GShape.NIL returns null, so the node falls back to the default rectangle.
+            if(s != null) {
+               // Custom shapes may be curved; enable anti-aliasing for smooth rendering.
+               GTool.setRenderingHint(g2, true);
+               shape = s;
+            }
+         }
+         else {
+            double r = elem.getNodeCornerRadius();
+
+            if(r > 0) {
+               double shortDim = Math.min(b.getWidth(), b.getHeight());
+               // r is in [0, 0.5]; arc is the corner ellipse diameter
+               double arc = r * shortDim * 2;
+               shape = new RoundRectangle2D.Double(b.getX(), b.getY(),
+                                                   b.getWidth(), b.getHeight(), arc, arc);
+            }
          }
 
          Color borderColor = elem.getBorderColor();
@@ -299,6 +313,9 @@ public class RelationVO extends ElementVO {
 
    /**
     * Get linkable shapes.
+    * Note: always returns the bounding rectangle regardless of any custom nodeShape set on the
+    * element. For non-convex shapes (e.g. CROSS, XSHAPE) this means click/tooltip events will
+    * also fire in the empty corners — an acceptable bounding-box trade-off.
     */
    @Override
    public Shape[] getShapes() {
