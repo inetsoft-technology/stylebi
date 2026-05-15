@@ -20,6 +20,7 @@ package inetsoft.graph.coord;
 import inetsoft.graph.*;
 import inetsoft.graph.data.DataSet;
 import inetsoft.graph.data.DataSetIndex;
+import inetsoft.graph.element.RelationElement;
 import inetsoft.graph.guide.axis.Axis;
 import inetsoft.graph.scale.Scale;
 
@@ -184,9 +185,17 @@ public class RelationCoord extends Coordinate {
    @Override
    public double getUnitMinWidth() {
       Rectangle2D box = getVisualObjectBounds();
-      // preferred size should be unscaled size
-      double scaleX = Math.abs(getVGraph().getScreenTransform().getScaleX());
-      return box != null ? (box.getMaxX() - box.getX()) / scaleX + GAP * 2 : 100;
+
+      if(box == null) {
+         return 100;
+      }
+
+      double width = box.getMaxX() - box.getX();
+      // Skip back-divide in horizontal mode: X is depth there, and fit()'s uniform scale is
+      // driven by Y, so dividing by scaleX inflates X spuriously and widens the chart canvas.
+      return isFirstElementHorizontal()
+         ? width + GAP * 2
+         : width / Math.abs(getVGraph().getScreenTransform().getScaleX()) + GAP * 2;
    }
 
    /**
@@ -220,6 +229,14 @@ public class RelationCoord extends Coordinate {
    @Override
    public Object clone(boolean srange) {
       return clone();
+   }
+
+   private boolean isFirstElementHorizontal() {
+      VGraph vg = getVGraph();
+      EGraph eg = vg != null ? vg.getEGraph() : null;
+      return eg != null && eg.getElementCount() > 0
+         && eg.getElement(0) instanceof RelationElement re
+         && re.isHorizontal();
    }
 
    private static final int GAP = 4;
