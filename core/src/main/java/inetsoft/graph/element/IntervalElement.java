@@ -19,15 +19,19 @@ package inetsoft.graph.element;
 
 import com.inetsoft.build.tern.*;
 import inetsoft.graph.GGraph;
+import inetsoft.graph.aesthetic.GLine;
 import inetsoft.graph.aesthetic.VisualModel;
 import inetsoft.graph.coord.*;
 import inetsoft.graph.data.DataSet;
 import inetsoft.graph.data.SortedDataSet;
 import inetsoft.graph.geometry.IntervalGeometry;
 import inetsoft.graph.geometry.Pie3DGeometry;
+import inetsoft.graph.guide.form.LineForm;
+import inetsoft.graph.internal.GDefaults;
 import inetsoft.graph.scale.LinearScale;
 import inetsoft.graph.scale.Scale;
 
+import java.awt.Color;
 import java.util.*;
 
 /**
@@ -200,8 +204,13 @@ public class IntervalElement extends StackableElement {
       IntervalGeometry firstNegative = null; // first negative segment added to the current bar's stack
       double posIntervalSum = 0; // cumulative interval for positive stack
       double negIntervalSum = 0; // cumulative interval for negative stack
+      double[] prevBridgeX = (bridgeLineStyle != null) ? new double[getVarCount()] : null;
       List<IntervalGeometry> posStackGeoms = new ArrayList<>();
       List<IntervalGeometry> negStackGeoms = new ArrayList<>();
+
+      if(prevBridgeX != null) {
+         Arrays.fill(prevBridgeX, Double.NaN);
+      }
 
       for(int i = getStartRow(data); i < max; i++) {
          if(!isAccepted(data, i)) {
@@ -212,6 +221,32 @@ public class IntervalElement extends StackableElement {
             double[] tuple = scale(data, i, v, graph);
 
             if(tuple == null) {
+               // scale() returns null when the measure value is null. For waterfall charts
+               // the sum (total) row has a null regular measure, so draw the bridge to it
+               // here before skipping.
+               if(prevBridgeX != null && !Double.isNaN(prevBridgeX[v]) &&
+                  !Double.isNaN(top) && getDimCount() > 0)
+               {
+                  String vname0 = getVar(v);
+                  Object xVal = data.getData(getDim(0), i);
+                  Scale xscale = graph.getScale(getDim(0));
+                  Scale yscale = graph.getScale(vname0);
+
+                  if(xVal != null && xscale != null && yscale != null && data.getData(vname0, i) == null) {
+                     // xscale.map() is used instead of coord.getValue(tuple, 0) because
+                     // tuple is null in this branch (that is why we are here); they produce
+                     // the same scaled value in practice.
+                     double sumX = xscale.map(xVal);
+                     double bridgeY = getBase(yscale, top);
+                     double step = sumX - prevBridgeX[v];
+
+                     if(step > 0) {
+                        addBridgeForm(graph, prevBridgeX[v], sumX, bridgeY, step);
+                     }
+                     // NaN suppresses any bridge drawn from the total bar to subsequent bars.
+                     prevBridgeX[v] = Double.NaN;
+                  }
+               }
                continue;
             }
 
@@ -253,6 +288,10 @@ public class IntervalElement extends StackableElement {
                }
 
                addGeometries(graph, geoms);
+
+               if(prevBridgeX != null) {
+                  Arrays.fill(prevBridgeX, Double.NaN);
+               }
             }
 
             double interval2;
@@ -296,6 +335,11 @@ public class IntervalElement extends StackableElement {
                   }
 
                   addGeometries(graph, geoms);
+
+                  if(prevBridgeX != null) {
+                     Arrays.fill(prevBridgeX, Double.NaN);
+                  }
+
                   groupIdx = coord.getValue(tuple, 0);
                   first = true;
                }
@@ -316,6 +360,19 @@ public class IntervalElement extends StackableElement {
                interval = coord.getValue(tuple, 1);
                from = (interval < base && negGrp) ? negtop : top;
                vtuple = new double[] {coord.getValue(tuple, 0), getBase(scale, from)};
+
+               if(prevBridgeX != null && !Double.isNaN(prevBridgeX[v])) {
+                  double step = vtuple[0] - prevBridgeX[v];
+
+                  if(step > 0) {
+                     addBridgeForm(graph, prevBridgeX[v], vtuple[0], vtuple[1], step);
+                  }
+               }
+
+               if(prevBridgeX != null) {
+                  prevBridgeX[v] = vtuple[0];
+               }
+
                interval2 = getInterval(scale, from, interval, base, first);
                gobj = new IntervalGeometry(this, graph, vname, i, vmodel, vtuple, interval2);
                break;
@@ -708,10 +765,58 @@ public class IntervalElement extends StackableElement {
          IntervalElement elem = (IntervalElement) obj;
          return bases.equals(elem.bases) && zeroHeight == elem.zeroHeight &&
             Objects.equals(visualStacked, elem.visualStacked) &&
-            cornerRadius == elem.cornerRadius && roundAllCorners == elem.roundAllCorners;
+            cornerRadius == elem.cornerRadius && roundAllCorners == elem.roundAllCorners &&
+            Objects.equals(bridgeLineColor, elem.bridgeLineColor) &&
+            Objects.equals(bridgeLineStyle, elem.bridgeLineStyle);
       }
 
       return false;
+   }
+
+   /**
+    * Get the bridge connector line color, or {@code null} if using the default color.
+    */
+   @TernMethod
+   public Color getBridgeLineColor() {
+      return bridgeLineColor;
+   }
+
+   /**
+    * Get the bridge connector line style, or {@code null} if bridge lines are disabled.
+    */
+   @TernMethod
+   public GLine getBridgeLineStyle() {
+      return bridgeLineStyle;
+   }
+
+   /**
+    * Set bridge connector lines between adjacent waterfall bars.
+    * Only has effect on 2D coordinates; no-op for 1D and 3D.
+    * Bridge lines are not drawn on charts with a reversed x-axis.
+    * @param lineColor line color, or {@code null} to use the default line color.
+    * @param lineStyle line style, or {@code null} to disable bridge lines.
+    */
+   @TernMethod
+   public void setBridgeLine(Color lineColor, GLine lineStyle) {
+      this.bridgeLineColor = lineColor;
+      this.bridgeLineStyle = lineStyle;
+   }
+
+   // halfWidth controls how far from each bar's center the bridge endpoint sits.
+   // Larger halfWidth → shorter bridge. At r=0.3 (default) this equals 0.25*step
+   // (geometric bar edge). Higher radius shrinks halfWidth so the bridge grows
+   // longer to visually cover the rounded corner gap; lower radius extends it
+   // so the bridge doesn't over-run a sharp-cornered bar.
+   private void addBridgeForm(GGraph graph, double fromX, double toX, double bridgeY, double step) {
+      double halfWidth = Math.max(0, step * (0.40 - 0.5 * cornerRadius));
+      LineForm bridge = new LineForm(
+         new double[]{fromX + halfWidth, bridgeY},
+         new double[]{toX - halfWidth, bridgeY});
+      bridge.setColor(bridgeLineColor != null ? bridgeLineColor : GDefaults.DEFAULT_LINE_COLOR);
+      bridge.setLine(bridgeLineStyle.getStyle());
+      bridge.setZIndex(GDefaults.GRIDLINE_Z_INDEX + 1);
+      bridge.setInPlot(true);
+      graph.getEGraph().addForm(bridge);
    }
 
    private List<String> bases = new Vector<>(); // interval base columns
@@ -719,5 +824,7 @@ public class IntervalElement extends StackableElement {
    private double cornerRadius = 0;
    private boolean roundAllCorners = false;
    private Boolean visualStacked;
+   private Color bridgeLineColor = null;
+   private GLine bridgeLineStyle = null;
    private static final long serialVersionUID = 1L;
 }
