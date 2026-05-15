@@ -17,11 +17,14 @@
  */
 package inetsoft.graph.visual;
 
+import inetsoft.graph.geometry.IntervalGeometry;
 import org.junit.jupiter.api.Test;
 
 import java.awt.geom.Rectangle2D;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * Unit tests for BarVO.computeFullBarBounds geometry.
@@ -106,5 +109,47 @@ class BarVOStackRoundingTest {
       assertEquals(seg.getY(), full.getY(), 1e-9);
       assertEquals(seg.getWidth(), full.getWidth(), 1e-9);
       assertEquals(seg.getHeight(), full.getHeight(), 1e-9);
+   }
+
+   // -----------------------------------------------------------------------
+   // computeArcZones: waterfall negative-delta single-segment stack.
+   // IntervalElement carries signed totalStackInterval/cumulative when
+   // negGrp=false; computeArcZones must normalize via Math.abs.
+   // -----------------------------------------------------------------------
+
+   @Test
+   void computeArcZones_negativeSingleSegment_detectsOuterArcZone() {
+      IntervalGeometry geom = mock(IntervalGeometry.class);
+      when(geom.getInterval()).thenReturn(-72.0);
+      when(geom.getTotalStackInterval()).thenReturn(-72.0);
+      when(geom.getCumulativeStackInterval()).thenReturn(-72.0);
+
+      BarVO.ArcZoneInfo zones = BarVO.computeArcZones(geom, 0.5, 40, 100, false);
+
+      assertTrue(zones.stackDim() > 0, "stackDim should be positive magnitude");
+      assertTrue(zones.arc() > 0, "arc radius should be positive");
+      assertTrue(zones.inOuterArcZone(),
+                 "single-segment bar must register as inside the outer arc zone");
+   }
+
+   @Test
+   void computeArcZones_positiveSingleSegment_matchesNegative() {
+      IntervalGeometry pos = mock(IntervalGeometry.class);
+      when(pos.getInterval()).thenReturn(72.0);
+      when(pos.getTotalStackInterval()).thenReturn(72.0);
+      when(pos.getCumulativeStackInterval()).thenReturn(72.0);
+
+      IntervalGeometry neg = mock(IntervalGeometry.class);
+      when(neg.getInterval()).thenReturn(-72.0);
+      when(neg.getTotalStackInterval()).thenReturn(-72.0);
+      when(neg.getCumulativeStackInterval()).thenReturn(-72.0);
+
+      BarVO.ArcZoneInfo posZones = BarVO.computeArcZones(pos, 0.5, 40, 100, true);
+      BarVO.ArcZoneInfo negZones = BarVO.computeArcZones(neg, 0.5, 40, 100, true);
+
+      assertEquals(posZones.stackDim(), negZones.stackDim(), 1e-9);
+      assertEquals(posZones.arc(), negZones.arc(), 1e-9);
+      assertEquals(posZones.inOuterArcZone(), negZones.inOuterArcZone());
+      assertEquals(posZones.inInnerArcZone(), negZones.inInnerArcZone());
    }
 }

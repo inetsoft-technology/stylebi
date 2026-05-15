@@ -1380,7 +1380,8 @@ public class GraphBuilder {
                   }
                }
                else {
-                  double totalStackInterval = geom.getTotalStackInterval();
+                  // negGrp=false stacks (e.g. waterfall) carry signed values; use magnitude.
+                  double totalStackInterval = Math.abs(geom.getTotalStackInterval());
 
                   if(totalStackInterval > 0 && geom.getInterval() != 0) {
                      Rectangle2D barBounds = barVO.getPreRoundingBounds();
