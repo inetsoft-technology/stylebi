@@ -807,7 +807,7 @@ public class IntervalElement extends StackableElement {
    // longer to visually cover the rounded corner gap; lower radius extends it
    // so the bridge doesn't over-run a sharp-cornered bar.
    private void addBridgeForm(GGraph graph, double fromX, double toX, double bridgeY, double step) {
-      double halfWidth = step * (0.40 - 0.5 * cornerRadius);
+      double halfWidth = Math.max(0, step * (0.40 - 0.5 * cornerRadius));
       LineForm bridge = new LineForm(
          new double[]{fromX + halfWidth, bridgeY},
          new double[]{toX - halfWidth, bridgeY});
