@@ -54,39 +54,10 @@ public class WizVsService {
    }
 
    public CreateViewsheetResult createViewsheet(CreateVisualizationModel model, Principal user) throws Exception {
-      final boolean modificationOnly = model.getConfig() == null && model.getConditionModel() != null;
       String runtimeId = model.getRuntimeId();
       boolean createdRuntimeId = false;
 
-      // Modification-only: capture the source viewsheet before opening a fresh runtime.
-      // The source is never mutated; the result is an independent clone.
-      Viewsheet cloneSource = null;
-
-      if(modificationOnly) {
-         if(Tool.isEmptyString(runtimeId) && Tool.isEmptyString(model.getViewsheetIdentifier())) {
-            throw new IllegalArgumentException("runtimeId or viewsheetIdentifier is required for condition-only modifications");
-         }
-
-         if(Tool.isEmptyString(runtimeId)) {
-            String sourceRuntimeId = viewsheetService.openViewsheet(
-               AssetEntry.createAssetEntry(model.getViewsheetIdentifier()), user, true);
-
-            try {
-               cloneSource = getValidatedViewsheet(viewsheetService.getViewsheet(sourceRuntimeId, user));
-            }
-            finally {
-               viewsheetService.closeViewsheet(sourceRuntimeId, user);
-            }
-         }
-         else {
-            cloneSource = getValidatedViewsheet(viewsheetService.getViewsheet(runtimeId, user));
-         }
-
-         Viewsheet.WizInfo wizInfo = new Viewsheet.WizInfo(true, null, null);
-         runtimeId = viewsheetService.openTemporaryViewsheet(null, null, user, wizInfo);
-         createdRuntimeId = true;
-      }
-      else if(Tool.isEmptyString(runtimeId)) {
+      if(Tool.isEmptyString(runtimeId)) {
          Viewsheet.WizInfo wizInfo = new Viewsheet.WizInfo(true, null, null);
          runtimeId = viewsheetService.openTemporaryViewsheet(null, null, user, wizInfo);
          createdRuntimeId = true;
@@ -98,18 +69,26 @@ public class WizVsService {
 
          final Viewsheet targetVs;
          final VSAssembly assembly;
+         // Tracks the assembly displaced from primary in modificationOnly; restored on rollback.
+         VSAssembly previousPrimaryAssembly = null;
          // Only relevant for the incremental standard path (non-null when base entry may be mutated).
          AssetEntry previousBaseEntry = null;
+         boolean modificationOnly = model.getConfig() == null && model.getConditionModel() != null;
 
          if(modificationOnly) {
-            // Clone the source viewsheet — shares the same base worksheet but has an independent
-            // assembly tree, so applying the condition does not affect the original.
-            targetVs = cloneSource.clone();
-            assembly = findPrimaryAssembly(targetVs);
+            targetVs = vs;
+            VSAssembly sourceAssembly = findPrimaryAssembly(targetVs);
 
-            if(assembly == null) {
-               throw new IllegalStateException("No primary assembly found in cloned viewsheet");
+            if(sourceAssembly == null) {
+               throw new IllegalStateException("No primary assembly found in viewsheet for modification");
             }
+
+            String newName = uniqueAssemblyName(targetVs, sourceAssembly.getName());
+            assembly = sourceAssembly.copyAssembly(newName);
+            previousPrimaryAssembly = sourceAssembly;
+            sourceAssembly.setPrimary(false);
+            targetVs.addAssembly(assembly);
+            assembly.setPrimary(true);
          }
          else {
             SourceContext ctx = resolveSourceContext(model, user);
@@ -138,6 +117,17 @@ public class WizVsService {
                throw new IllegalArgumentException("Unsupported visualization type: " + model.getVisualizationType());
             }
 
+            // Clear old primary before adding the new assembly.
+            Assembly[] existingAssemblies = targetVs.getAssemblies();
+
+            if(existingAssemblies != null) {
+               for(Assembly a : existingAssemblies) {
+                  if(a instanceof VSAssembly va && va.isPrimary()) {
+                     va.setPrimary(false);
+                  }
+               }
+            }
+
             targetVs.addAssembly(assembly);
             assembly.setPrimary(true);
          }
@@ -159,8 +149,7 @@ public class WizVsService {
                result.setRuntimeId(runtimeId);
             }
 
-            // Modification-only always produces a new asset entry (null = auto-generate UUID).
-            String identifierToUse = modificationOnly ? null : model.getViewsheetIdentifier();
+            String identifierToUse = model.getViewsheetIdentifier();
             result.setViewsheetIdentifier(persistViewsheet(targetVs, identifierToUse, user));
 
             return result;
@@ -170,10 +159,18 @@ public class WizVsService {
             rvs.setViewsheet(previousVs);
 
             if(!createdRuntimeId) {
-               // In incremental mode targetVs == previousVs; remove the assembly and restore
-               // the base entry to leave the viewsheet in exactly its pre-call state.
+               // In incremental mode targetVs == previousVs; remove the new assembly and
+               // restore any displaced primary to leave the viewsheet in its pre-call state.
                previousVs.removeAssembly(assembly.getName());
-               previousVs.setBaseEntry(previousBaseEntry);
+
+               if(modificationOnly) {
+                  if(previousPrimaryAssembly != null) {
+                     previousPrimaryAssembly.setPrimary(true);
+                  }
+               }
+               else {
+                  previousVs.setBaseEntry(previousBaseEntry);
+               }
             }
 
             throw e;
@@ -241,6 +238,17 @@ public class WizVsService {
 
          if(assembly == null) {
             throw new IllegalArgumentException("Unsupported visualization type: " + model.getVisualizationType());
+         }
+
+         // Clear old primary before adding the new assembly.
+         Assembly[] existingAssemblies = targetVs.getAssemblies();
+
+         if(existingAssemblies != null) {
+            for(Assembly a : existingAssemblies) {
+               if(a instanceof VSAssembly va && va.isPrimary()) {
+                  va.setPrimary(false);
+               }
+            }
          }
 
          targetVs.addAssembly(assembly);
