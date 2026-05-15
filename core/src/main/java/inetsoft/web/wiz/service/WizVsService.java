@@ -63,11 +63,25 @@ public class WizVsService {
       Viewsheet cloneSource = null;
 
       if(modificationOnly) {
-         if(Tool.isEmptyString(runtimeId)) {
-            throw new IllegalArgumentException("runtimeId is required for condition-only modifications");
+         if(Tool.isEmptyString(runtimeId) && Tool.isEmptyString(model.getViewsheetIdentifier())) {
+            throw new IllegalArgumentException("runtimeId or viewsheetIdentifier is required for condition-only modifications");
          }
 
-         cloneSource = getValidatedViewsheet(viewsheetService.getViewsheet(runtimeId, user));
+         if(Tool.isEmptyString(runtimeId)) {
+            String sourceRuntimeId = viewsheetService.openViewsheet(
+               AssetEntry.createAssetEntry(model.getViewsheetIdentifier()), user, true);
+
+            try {
+               cloneSource = getValidatedViewsheet(viewsheetService.getViewsheet(sourceRuntimeId, user));
+            }
+            finally {
+               viewsheetService.closeViewsheet(sourceRuntimeId, user);
+            }
+         }
+         else {
+            cloneSource = getValidatedViewsheet(viewsheetService.getViewsheet(runtimeId, user));
+         }
+
          Viewsheet.WizInfo wizInfo = new Viewsheet.WizInfo(true, null, null);
          runtimeId = viewsheetService.openTemporaryViewsheet(null, null, user, wizInfo);
          createdRuntimeId = true;
