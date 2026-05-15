@@ -27,7 +27,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * Unit tests for BarVO.computeFullBarBounds geometry.
+ * Unit tests for BarVO stack rounding geometry helpers.
  */
 class BarVOStackRoundingTest {
 
@@ -144,6 +144,7 @@ class BarVOStackRoundingTest {
       when(neg.getTotalStackInterval()).thenReturn(-72.0);
       when(neg.getCumulativeStackInterval()).thenReturn(-72.0);
 
+      // roundAllCorners=true so inInnerArcZone is also exercised by the comparison.
       BarVO.ArcZoneInfo posZones = BarVO.computeArcZones(pos, 0.5, 40, 100, true);
       BarVO.ArcZoneInfo negZones = BarVO.computeArcZones(neg, 0.5, 40, 100, true);
 
