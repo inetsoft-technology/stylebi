@@ -1792,6 +1792,8 @@ public class WizVsService {
       AssetEntry wsEntry = null;
 
       try {
+         // AssetContent.NO_DATA strips assembly/embeddedData nodes but preserves
+         // <worksheetEntry>, so getBaseEntry() is always populated at this level.
          AbstractSheet sheet = engine.getSheet(entry, user, true, AssetContent.NO_DATA);
 
          if(sheet instanceof Viewsheet vs) {
@@ -1813,7 +1815,11 @@ public class WizVsService {
 
       if(wsEntry != null) {
          try {
-            engine.removeSheet(wsEntry, user, true);
+            AssetEntry[] dependents = engine.getSheetDependencies(wsEntry, user);
+
+            if(dependents == null || dependents.length == 0) {
+               engine.removeSheet(wsEntry, user, true);
+            }
          }
          catch(Exception e) {
             LOG.warn("Failed to delete source worksheet [{}] for viewsheet [{}]: {}",
