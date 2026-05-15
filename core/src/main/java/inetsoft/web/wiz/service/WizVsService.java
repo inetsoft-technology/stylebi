@@ -1809,13 +1809,11 @@ public class WizVsService {
 
       engine.removeSheet(entry, user, true);
 
+      // Wiz enforces a strict 1-viewsheet-to-1-worksheet contract: each wiz viewsheet
+      // owns its worksheet exclusively, so no dependency check is needed before deletion.
       if(wsEntry != null) {
          try {
-            AssetEntry[] dependents = engine.getSheetDependencies(wsEntry, user);
-
-            if(dependents == null || dependents.length == 0) {
-               engine.removeSheet(wsEntry, user, true);
-            }
+            engine.removeSheet(wsEntry, user, true);
          }
          catch(Exception e) {
             LOG.warn("Failed to delete source worksheet [{}] for viewsheet [{}]: {}",
