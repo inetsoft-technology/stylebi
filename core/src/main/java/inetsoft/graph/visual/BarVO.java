@@ -1457,9 +1457,10 @@ public class BarVO extends ElementVO {
                                            IntervalElement ielem, double r,
                                            int openDir, boolean stdOrientation)
    {
-      double totalStackInterval = geom.getTotalStackInterval();
+      // negGrp=false stacks (e.g. waterfall) carry signed values; use magnitude.
+      double totalStackInterval = Math.abs(geom.getTotalStackInterval());
 
-      if(totalStackInterval <= 0 || geom.getInterval() == 0) {
+      if(totalStackInterval == 0 || geom.getInterval() == 0) {
          return path0;
       }
 
@@ -1482,7 +1483,7 @@ public class BarVO extends ElementVO {
 
       Rectangle2D fullBounds = computeFullBarBounds(
          segBounds, stdOrientation, openDir,
-         geom.getInterval(), geom.getCumulativeStackInterval(),
+         geom.getInterval(), Math.abs(geom.getCumulativeStackInterval()),
          totalStackInterval);
 
       Area result = new Area(segBounds);
@@ -1636,10 +1637,11 @@ public class BarVO extends ElementVO {
                                       double barWidth, double segDim,
                                       boolean roundAllCorners)
    {
-      double totalStackInterval = geom.getTotalStackInterval();
+      // negGrp=false stacks (e.g. waterfall) carry signed values; use magnitude.
+      double totalStackInterval = Math.abs(geom.getTotalStackInterval());
       double scale = segDim / Math.abs(geom.getInterval());
       double stackDim = totalStackInterval * scale;
-      double cumulative = geom.getCumulativeStackInterval();
+      double cumulative = Math.abs(geom.getCumulativeStackInterval());
 
       double arc = Math.min(r * barWidth, Math.min(barWidth / 2, stackDim));
       double distFromOuter = (totalStackInterval - cumulative) * scale;
