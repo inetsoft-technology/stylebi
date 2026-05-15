@@ -132,6 +132,28 @@ public class ChartVSAScriptableTest {
    }
 
    @Test
+   void testTreeLayoutScriptProperty() {
+      chartVSAScriptable.addProperties();
+      PlotDescriptor plot = chartVSAScriptable.getRTChartDescriptor().getPlotDescriptor();
+
+      // round-trip each valid value
+      for(String layout : new String[] {
+         PlotDescriptor.TREE_LAYOUT_TOP_BOTTOM,
+         PlotDescriptor.TREE_LAYOUT_BOTTOM_TOP,
+         PlotDescriptor.TREE_LAYOUT_LEFT_RIGHT,
+         PlotDescriptor.TREE_LAYOUT_RIGHT_LEFT })
+      {
+         chartVSAScriptable.put("treeLayout", null, layout);
+         assertEquals(layout, plot.getTreeLayout());
+         assertEquals(layout, chartVSAScriptable.get("treeLayout", null));
+      }
+
+      // unknown values fall back to TOP_BOTTOM
+      chartVSAScriptable.put("treeLayout", null, "BOGUS");
+      assertEquals(PlotDescriptor.TREE_LAYOUT_TOP_BOTTOM, plot.getTreeLayout());
+   }
+
+   @Test
    void testPutProperties() {
       EGraph graph = new EGraph();
       LineElement elem = new LineElement("State", "Quantity");
@@ -216,7 +238,7 @@ public class ChartVSAScriptableTest {
       chartVSAScriptable.setTipView("this is a tip view");
       assertEquals("this is a tip view", chartVSAScriptable.getTipView());
 
-      assertEquals(146, chartVSAScriptable.getIds().length);
+      assertEquals(147, chartVSAScriptable.getIds().length);
    }
 
    /**

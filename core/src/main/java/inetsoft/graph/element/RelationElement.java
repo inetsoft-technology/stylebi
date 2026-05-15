@@ -17,6 +17,7 @@
  */
 package inetsoft.graph.element;
 
+import com.inetsoft.build.tern.TernMethod;
 import inetsoft.graph.*;
 import inetsoft.graph.aesthetic.*;
 import inetsoft.graph.coord.Coordinate;
@@ -30,19 +31,15 @@ import inetsoft.graph.mxgraph.model.mxCell;
 import inetsoft.graph.mxgraph.model.mxGeometry;
 import inetsoft.graph.mxgraph.util.mxPoint;
 import inetsoft.graph.mxgraph.view.mxGraph;
-import inetsoft.graph.visual.ElementVO;
-import inetsoft.graph.visual.FormVO;
-import inetsoft.graph.visual.VOText;
+import inetsoft.graph.visual.*;
 import inetsoft.sree.SreeEnv;
 import inetsoft.util.CoreTool;
 
 import java.awt.*;
-import java.awt.geom.AffineTransform;
-import java.awt.geom.Point2D;
-import java.awt.geom.Rectangle2D;
+import java.awt.geom.*;
 import java.text.Format;
-import java.util.List;
 import java.util.*;
+import java.util.List;
 
 /**
  * This defines a relation chart element.
@@ -869,6 +866,7 @@ public class RelationElement extends GraphElement {
    /**
     * Get the corner radius fraction for node rounding (0 = sharp, 0.5 = pill).
     */
+   @TernMethod
    public double getNodeCornerRadius() {
       return nodeCornerRadius;
    }
@@ -877,6 +875,7 @@ public class RelationElement extends GraphElement {
     * Set the corner radius fraction for node rounding.
     * @param nodeCornerRadius fraction in [0, 0.5]; 0 disables rounding.
     */
+   @TernMethod
    public void setNodeCornerRadius(double nodeCornerRadius) {
       this.nodeCornerRadius = Math.max(0, Math.min(0.5, nodeCornerRadius));
    }
@@ -910,6 +909,29 @@ public class RelationElement extends GraphElement {
       this.flipped = flipped;
    }
 
+   /**
+    * Get the GShape used to render nodes. When null the default rectangular rendering is used.
+    */
+   @TernMethod
+   public GShape getNodeShape() {
+      return nodeShape;
+   }
+
+   /**
+    * Set the GShape used to render nodes. When set, overrides the default rectangular
+    * rendering and the nodeCornerRadius setting is ignored. Only the geometric outline
+    * from {@link GShape#getShape} is used; GShape fill/line-colour properties (fillcolor,
+    * linecolor, lineStyle, fill flag) are ignored — node colours are controlled by the
+    * element's fill colour, border colour, and colour frame. Shapes with custom paint
+    * logic (e.g. ImageShape) will not render their image. Note: GShape.NIL returns null
+    * from getShape() and will fall back to the default rectangular rendering.
+    * @param nodeShape the shape to use, or null to restore default behaviour.
+    */
+   @TernMethod
+   public void setNodeShape(GShape nodeShape) {
+      this.nodeShape = nodeShape;
+   }
+
    @Override
    public boolean equalsContent(Object obj) {
       if(!super.equalsContent(obj)) {
@@ -926,6 +948,7 @@ public class RelationElement extends GraphElement {
             smoothEdges == elem.smoothEdges &&
             horizontal == elem.horizontal &&
             flipped == elem.flipped &&
+            Objects.equals(nodeShape, elem.nodeShape) &&
             Objects.equals(nodeColors, elem.nodeColors) &&
             Objects.equals(nodeSizes, elem.nodeSizes) &&
             Objects.equals(layoutSize, elem.layoutSize) &&
@@ -964,13 +987,14 @@ public class RelationElement extends GraphElement {
    private GShape shapeBorderShape;
    private Color shapeBorderColor;
    private GLine shapeBorderLine;
+   private GShape nodeShape;
    // derived; populated by mxLayout, not part of element identity
    private transient Point2D layoutCenter;
    private transient double layoutRadius;
    private boolean horizontal = false;
    private boolean flipped = false;
 
-   // Bumped to 2L when shapeBorderShape/Color/Line were added; null on deserialization = no border (safe).
+   // Bumped to 2L when shapeBorderShape/Color/Line nodeShape were added; null on deserialization = no border (safe).
    private static final long serialVersionUID = 2L;
 
    /**
