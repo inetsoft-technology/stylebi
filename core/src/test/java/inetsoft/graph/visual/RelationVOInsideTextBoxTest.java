@@ -115,6 +115,70 @@ class RelationVOInsideTextBoxTest {
    }
 
    @Test
+   void nilNodeShapeReturnsBoxUnchanged() {
+      // GShape.NIL renders as a plain rectangle, so no inset.
+      Rectangle2D box = new Rectangle2D.Double(10, 20, 100, 40);
+      RelationElement elem = new RelationElement("From", "To");
+      elem.setNodeShape(GShape.NIL);
+
+      Rectangle2D out = RelationVO.getInsideTextBox(box, elem);
+      assertEquals(box.getX(), out.getX(), EPS);
+      assertEquals(box.getY(), out.getY(), EPS);
+      assertEquals(box.getWidth(), out.getWidth(), EPS);
+      assertEquals(box.getHeight(), out.getHeight(), EPS);
+   }
+
+   @Test
+   void squareNodeShapeReturnsBoxUnchanged() {
+      // GShape.SQUARE returns a full-bounds Rectangle2D, so the painted node is just the bbox.
+      Rectangle2D box = new Rectangle2D.Double(0, 0, 100, 40);
+      RelationElement elem = new RelationElement("From", "To");
+      elem.setNodeShape(GShape.SQUARE);
+
+      Rectangle2D out = RelationVO.getInsideTextBox(box, elem);
+      assertEquals(box.getWidth(), out.getWidth(), EPS);
+      assertEquals(box.getHeight(), out.getHeight(), EPS);
+   }
+
+   @Test
+   void diamondNodeShapeUsesConservativeInset() {
+      // For a diamond, the largest inscribed axis-aligned rect is w/2 x h/2.
+      Rectangle2D box = new Rectangle2D.Double(0, 0, 100, 40);
+      RelationElement elem = new RelationElement("From", "To");
+      elem.setNodeShape(GShape.DIAMOND);
+
+      Rectangle2D out = RelationVO.getInsideTextBox(box, elem);
+      assertEquals(50.0, out.getWidth(), EPS);
+      assertEquals(20.0, out.getHeight(), EPS);
+   }
+
+   @Test
+   void triangleNodeShapeUsesConservativeInset() {
+      // Triangle's max inscribed axis-aligned rect is also w/2 x h/2.
+      Rectangle2D box = new Rectangle2D.Double(0, 0, 100, 40);
+      RelationElement elem = new RelationElement("From", "To");
+      elem.setNodeShape(GShape.TRIANGLE);
+
+      Rectangle2D out = RelationVO.getInsideTextBox(box, elem);
+      assertEquals(50.0, out.getWidth(), EPS);
+      assertEquals(20.0, out.getHeight(), EPS);
+   }
+
+   @Test
+   void strokedNodeShapeUsesConservativeInset() {
+      // Stroked paths (CROSS = two perpendicular lines) aren't closed regions; the
+      // conservative branch still applies a w/2 x h/2 inset so text doesn't run past
+      // the bbox of the strokes.
+      Rectangle2D box = new Rectangle2D.Double(0, 0, 100, 40);
+      RelationElement elem = new RelationElement("From", "To");
+      elem.setNodeShape(GShape.CROSS);
+
+      Rectangle2D out = RelationVO.getInsideTextBox(box, elem);
+      assertEquals(50.0, out.getWidth(), EPS);
+      assertEquals(20.0, out.getHeight(), EPS);
+   }
+
+   @Test
    void tinyNodeFloorsAtOnePixel() {
       // pathological tiny node should not produce zero/negative dims
       Rectangle2D box = new Rectangle2D.Double(0, 0, 2, 2);

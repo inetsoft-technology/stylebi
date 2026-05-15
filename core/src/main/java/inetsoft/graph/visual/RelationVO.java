@@ -31,6 +31,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.awt.*;
+import java.awt.geom.Ellipse2D;
 import java.awt.geom.Point2D;
 import java.awt.geom.Rectangle2D;
 import java.awt.geom.RoundRectangle2D;
@@ -269,15 +270,25 @@ public class RelationVO extends ElementVO {
       vtext.setOffset(offset);
    }
 
-   // 45deg inscribed rect for the rounded/ellipse node shape; inset = r*(1-1/sqrt2).
+   // Inscribed rect for the painted node shape so wrapping stays inside curved/polygon edges.
+   // ellipse: w/sqrt2 x h/sqrt2; polygons: conservative w/2 x h/2 (exact for diamond/triangle).
    static Rectangle2D getInsideTextBox(Rectangle2D box, RelationElement elem) {
       double insetX = 0, insetY = 0;
       double w = box.getWidth(), h = box.getHeight();
       GShape nodeShape = elem.getNodeShape();
 
       if(nodeShape != null) {
-         insetX = w * (1 - 1 / Math.sqrt(2)) / 2;
-         insetY = h * (1 - 1 / Math.sqrt(2)) / 2;
+         Shape s = nodeShape.getShape(box.getX(), box.getY(), w, h);
+
+         if(s instanceof Ellipse2D) {
+            insetX = w * (1 - 1 / Math.sqrt(2)) / 2;
+            insetY = h * (1 - 1 / Math.sqrt(2)) / 2;
+         }
+         else if(s != null && !(s instanceof Rectangle2D)) {
+            insetX = w / 4;
+            insetY = h / 4;
+         }
+         // null (NIL) or full-bbox Rectangle2D (SQUARE): no shrinking needed
       }
       else {
          double r = elem.getNodeCornerRadius();
