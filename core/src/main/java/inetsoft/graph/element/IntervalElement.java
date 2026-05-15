@@ -240,17 +240,11 @@ public class IntervalElement extends StackableElement {
                      double bridgeY = getBase(yscale, top);
                      double step = sumX - prevBridgeX[v];
 
-                     if(step > 0 && !Double.isNaN(sumX)) {
-                        double halfWidth = step * (0.40 - 0.5 * cornerRadius);
-                        LineForm bridge = new LineForm(
-                           new double[]{prevBridgeX[v] + halfWidth, bridgeY},
-                           new double[]{sumX - halfWidth, bridgeY});
-                        bridge.setColor(bridgeLineColor != null ? bridgeLineColor : GDefaults.DEFAULT_LINE_COLOR);
-                        bridge.setLine(bridgeLineStyle.getStyle());
-                        bridge.setZIndex(GDefaults.GRIDLINE_Z_INDEX + 1);
-                        bridge.setInPlot(true);
-                        graph.getEGraph().addForm(bridge);
+                     if(step > 0) {
+                        addBridgeForm(graph, prevBridgeX[v], sumX, bridgeY, step);
                      }
+                     // NaN suppresses any bridge drawn from the total bar to subsequent bars.
+                     prevBridgeX[v] = Double.NaN;
                   }
                }
                continue;
@@ -371,21 +365,7 @@ public class IntervalElement extends StackableElement {
                   double step = vtuple[0] - prevBridgeX[v];
 
                   if(step > 0) {
-                     // halfWidth controls how far from each bar's center the bridge endpoint sits.
-                     // Larger halfWidth → shorter bridge. At r=0.3 (default) this equals 0.25*step
-                     // (geometric bar edge). Higher radius shrinks halfWidth so the bridge grows
-                     // longer to visually cover the rounded corner gap; lower radius extends it
-                     // so the bridge doesn't over-run a sharp-cornered bar.
-                     double halfWidth = step * (0.40 - 0.5 * cornerRadius);
-                     double bridgeY = vtuple[1];
-                     LineForm bridge = new LineForm(
-                        new double[]{prevBridgeX[v] + halfWidth, bridgeY},
-                        new double[]{vtuple[0] - halfWidth, bridgeY});
-                     bridge.setColor(bridgeLineColor != null ? bridgeLineColor : GDefaults.DEFAULT_LINE_COLOR);
-                     bridge.setLine(bridgeLineStyle.getStyle());
-                     bridge.setZIndex(GDefaults.GRIDLINE_Z_INDEX + 1);
-                     bridge.setInPlot(true);
-                     graph.getEGraph().addForm(bridge);
+                     addBridgeForm(graph, prevBridgeX[v], vtuple[0], vtuple[1], step);
                   }
                }
 
@@ -811,6 +791,7 @@ public class IntervalElement extends StackableElement {
 
    /**
     * Set bridge connector lines between adjacent waterfall bars.
+    * Only has effect on 2D coordinates; no-op for 1D and 3D.
     * @param lineColor line color, or {@code null} to use the default line color.
     * @param lineStyle line style, or {@code null} to disable bridge lines.
     */
@@ -818,6 +799,23 @@ public class IntervalElement extends StackableElement {
    public void setBridgeLine(Color lineColor, GLine lineStyle) {
       this.bridgeLineColor = lineColor;
       this.bridgeLineStyle = lineStyle;
+   }
+
+   // halfWidth controls how far from each bar's center the bridge endpoint sits.
+   // Larger halfWidth → shorter bridge. At r=0.3 (default) this equals 0.25*step
+   // (geometric bar edge). Higher radius shrinks halfWidth so the bridge grows
+   // longer to visually cover the rounded corner gap; lower radius extends it
+   // so the bridge doesn't over-run a sharp-cornered bar.
+   private void addBridgeForm(GGraph graph, double fromX, double toX, double bridgeY, double step) {
+      double halfWidth = step * (0.40 - 0.5 * cornerRadius);
+      LineForm bridge = new LineForm(
+         new double[]{fromX + halfWidth, bridgeY},
+         new double[]{toX - halfWidth, bridgeY});
+      bridge.setColor(bridgeLineColor != null ? bridgeLineColor : GDefaults.DEFAULT_LINE_COLOR);
+      bridge.setLine(bridgeLineStyle.getStyle());
+      bridge.setZIndex(GDefaults.GRIDLINE_Z_INDEX + 1);
+      bridge.setInPlot(true);
+      graph.getEGraph().addForm(bridge);
    }
 
    private List<String> bases = new Vector<>(); // interval base columns
