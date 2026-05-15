@@ -232,7 +232,7 @@ public class IntervalElement extends StackableElement {
                   Scale xscale = graph.getScale(getDim(0));
                   Scale yscale = graph.getScale(vname0);
 
-                  if(xscale != null && yscale != null && data.getData(vname0, i) == null) {
+                  if(xVal != null && xscale != null && yscale != null && data.getData(vname0, i) == null) {
                      // xscale.map() is used instead of coord.getValue(tuple, 0) because
                      // tuple is null in this branch (that is why we are here); they produce
                      // the same scaled value in practice.
@@ -792,6 +792,7 @@ public class IntervalElement extends StackableElement {
    /**
     * Set bridge connector lines between adjacent waterfall bars.
     * Only has effect on 2D coordinates; no-op for 1D and 3D.
+    * Bridge lines are not drawn on charts with a reversed x-axis.
     * @param lineColor line color, or {@code null} to use the default line color.
     * @param lineStyle line style, or {@code null} to disable bridge lines.
     */
