@@ -22,8 +22,7 @@
 
 .tree-node {
   white-space: nowrap;
-  min-height: var(--inet-control-height-md, 30px);
-  padding: 6px 6px;
+  padding: 7px 6px;
   display: flex;
   align-items: center;
   align-content: center;
@@ -36,11 +35,11 @@
 }
 
 .tree-node > span, .tree-node > span > span, .tree-node > span > label {
-  line-height: 1.2;
+  line-height: 1em;
 }
 
 .tree-node span.tree-node-toggle {
-  line-height: 1;
+  line-height: 1em;
   padding-right: 4px;
   flex-grow: 0;
   flex-shrink: 0;
@@ -48,7 +47,7 @@
 }
 
 .tree-node span.tree-node-label-container {
-  line-height: 1.2;
+  line-height: 1em;
   flex-grow: 1;
   flex-shrink: 1;
   flex-basis: auto;
@@ -64,14 +63,14 @@
 }
 
 .tree-node span.tree-node-icon {
-  line-height: 1;
+  line-height: 1em;
   flex-grow: 0;
   flex-shrink: 0;
   flex-basis: auto;
 }
 
 .tree-node label.tree-node-label {
-  line-height: 1.2;
+  line-height: 1em;
   padding-left: 8px;
   margin-bottom: 0;
   flex-grow: 1;

@@ -16,67 +16,22 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 .item-pane {
-  width: 100%;
-
   .form-inline {
-    width: 100%;
-  }
-}
+    margin-top: -5px;
 
-.item-pane__row {
-  display: flex;
-  flex-wrap: nowrap;
-  gap: var(--inet-space-3, 6px);
-  align-items: flex-start;
-  min-width: 0;
-}
+    > * {
+      flex-shrink: 1;
+      min-width: 30px;
+      margin-top: 5px;
+    }
 
-.item-pane__value {
-  display: flex;
-  flex: 0 0 auto;
-  min-width: 0;
-}
+    .value-editor-container {
+      flex-grow: 1;
+    }
 
-.item-pane__value--primary {
-  flex: 0 1 auto;
-  max-width: 320px;
-}
-
-.item-pane__row > .item-pane__value:last-child {
-  flex: 1 1 0;
-}
-
-.item-pane__select {
-  display: flex;
-  flex: 0 0 auto;
-  min-width: 0;
-  flex-direction: column;
-  gap: var(--inet-space-2, 4px);
-}
-
-.item-pane__equals {
-  display: flex;
-  align-items: center;
-  gap: var(--inet-space-2, 4px);
-  min-height: var(--inet-control-height-md, 30px);
-  color: var(--inet-text-muted-color);
-  font-size: var(--inet-font-size-base);
-}
-
-.item-pane__select select {
-  min-width: 88px;
-  padding-left: 2px;
-  padding-right: 15px; // needed for the customized dropdown arrow
-}
-
-@media (max-width: 960px) {
-  .item-pane__row {
-    flex-direction: column;
-  }
-
-  .item-pane__value,
-  .item-pane__select {
-    width: 100%;
-    min-width: 0;
+    select {
+      padding-left: 2px;
+      padding-right: 15px; //needed for the customized dropdown arrow
+    }
   }
 }

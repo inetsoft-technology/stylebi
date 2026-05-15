@@ -64,6 +64,9 @@ public interface SVGSupport {
    // Sub-type flags appended to the base hint with ":" separators.
    // The injector parses these to handle each chart variant correctly.
 
+   /** 3D chart variant (pie or bar). Example hints: "pie:3d", "grow:3d". */
+   String ANIMATION_FLAG_3D = "3d";
+
    /** Stacked bar chart. Example hint: "grow:stacked". */
    String ANIMATION_FLAG_STACKED = "stacked";
 

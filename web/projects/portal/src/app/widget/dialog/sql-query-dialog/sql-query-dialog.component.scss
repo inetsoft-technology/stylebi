@@ -16,44 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 .modal-body {
-  display: flex;
-  flex-direction: column;
   min-height: 500px;
-}
-
-.modal-body > .container-fluid {
-  display: flex;
-  flex: 1 1 auto;
-  flex-direction: column;
-  min-height: 0;
-  min-width: 0;
-  width: 100%;
-}
-
-.advanced-query-pane {
-  display: flex;
-  flex: 1 1 auto;
-  min-height: 0;
-  min-width: 0;
-  width: 100%;
-  overflow: hidden;
-}
-
-.advanced-query-pane__content {
-  display: flex;
-  flex: 1 1 auto;
-  min-height: 0;
-  min-width: 0;
-  width: 100%;
-  overflow: auto;
-}
-
-.advanced-query-pane__content > database-query {
-  display: flex;
-  flex: 1 1 auto;
-  min-height: 0;
-  min-width: 0;
-  width: 100%;
 }
 
 textarea {

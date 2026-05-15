@@ -15,76 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-:host {
-  display: flex;
-  flex: 1 1 auto;
-  flex-direction: column;
-  min-height: 0;
-  min-width: 0;
-  width: 100%;
-  height: 100%;
-}
-
-.fields-pane {
-  display: flex;
-  flex: 1 1 auto;
-  flex-direction: column;
-  gap: 8px;
-  min-height: 0;
-  min-width: 0;
-  width: 100%;
-}
-
-.fields-pane__header {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 44px minmax(0, 1fr) auto;
-  gap: 12px;
-  align-items: start;
-}
-
-.fields-pane__heading {
-  color: var(--inet-text-muted-color);
-  font-size: 12px;
-  font-weight: 600;
-  line-height: 1.4;
-}
-
-.fields-pane__heading--right {
-  grid-column: 3;
-}
-
-.fields-pane__toolbar {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-}
-
-.fields-pane__body {
-  display: flex;
-  flex: 1 1 auto;
-  gap: 12px;
-  min-height: 0;
-  min-width: 0;
-}
-
-.fields-pane__column {
-  display: flex;
-  flex: 1 1 0;
-  flex-direction: column;
-  min-height: 0;
-  min-width: 0;
-}
-
-.fields-pane__actions {
-  display: flex;
-  flex: 0 0 44px;
-  flex-direction: column;
-  justify-content: flex-start;
-  gap: 10px;
-}
-
 .bordered-box {
-  width: 100%;
   height: 40em;
 }
 
@@ -93,47 +24,13 @@
 }
 
 .fields-button {
-  min-width: 36px;
-  min-height: 36px;
-  padding: 0;
+  width: unset;
+  margin: .5rem;
   line-height: 1rem;
-  border-color: var(--inet-default-border-color);
-}
-
-.fields-button:not(:disabled) {
-  background: var(--inet-shell-surface-default, #fff);
 }
 
 .field-item {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-.query-toolbar-btn i {
-  cursor: pointer;
-}
-
-@media (max-width: 960px) {
-  .fields-pane__header {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  }
-
-  .fields-pane__heading--right {
-    grid-column: 2;
-  }
-
-  .fields-pane__toolbar {
-    grid-column: 1 / -1;
-    justify-content: flex-start;
-  }
-
-  .fields-pane__body {
-    flex-direction: column;
-  }
-
-  .fields-pane__actions {
-    flex-direction: row;
-    padding-top: 0;
-  }
 }

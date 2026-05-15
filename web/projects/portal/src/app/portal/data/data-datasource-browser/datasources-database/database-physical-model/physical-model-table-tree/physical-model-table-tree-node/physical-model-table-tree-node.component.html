@@ -31,7 +31,7 @@
             (dblclick)="$event.stopPropagation()">
       </span>
       <input *ngIf="node.leaf" #nodeCheckbox
-             class="physical-model-table-tree-node__checkbox form-check-input"
+             class="physical-model-table-tree-node__checkbox"
              type="checkbox" [disabled]="disabled || node.data.baseTable"
              (click)="$event.stopPropagation();"
              [(ngModel)]="node.data.selected"

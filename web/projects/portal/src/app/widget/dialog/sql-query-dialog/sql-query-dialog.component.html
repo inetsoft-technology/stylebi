@@ -75,8 +75,8 @@
       </div>
     </ng-container>
     <ng-container  *ngIf="advancedEditing && model && model.advancedModel">
-      <div class="advanced-query-pane">
-        <div class="advanced-query-pane__content">
+      <div class="row flex-grow-1 flex-shrink-1 overflow-hidden">
+        <div class="h-100 overflow-auto">
             <database-query #advancedQueryPane [runtimeId]="model.runtimeId"
                             [freeFormSqlEnabled]="model.freeFormSqlEnabled"
                             [queryModel]="model.advancedModel"

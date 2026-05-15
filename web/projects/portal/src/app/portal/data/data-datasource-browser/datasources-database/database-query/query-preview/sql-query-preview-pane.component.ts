@@ -36,8 +36,7 @@ const LOAD_QUERY_DATA_URL = "../api/data/datasource/query/load/data";
 
 @Component({
    selector: "sql-query-preview-pane",
-   templateUrl: "./sql-query-preview-pane.component.html",
-   styleUrls: ["./sql-query-preview-pane.component.scss"]
+   templateUrl: "./sql-query-preview-pane.component.html"
 })
 export class SqlQueryPreviewPaneComponent implements OnDestroy, OnInit {
    @Input() runtimeId: string;

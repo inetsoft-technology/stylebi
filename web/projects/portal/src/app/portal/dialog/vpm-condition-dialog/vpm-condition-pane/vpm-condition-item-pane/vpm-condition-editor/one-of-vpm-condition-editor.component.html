@@ -15,8 +15,8 @@
   ~ You should have received a copy of the GNU Affero General Public License
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
-<div class="one-of-editor">
-  <div class="one-of-editor__content">
+<div class="form-inline">
+  <div class="form-group-column">
     <vpm-condition-editor [value]="editingModel" [values]="values"
                       [operation]="operation" [fields]="fields"
                       [valueTypes]="valueTypes"
@@ -34,7 +34,7 @@
           {{val}}
         </div>
       </div>
-      <div class="one-of-editor__actions">
+      <div class="btn-container-vertical form-group-column">
         <button type="button" class="btn btn-default" (click)="add()"
                 [disabled]="isEmpty()">_#(Add)</button>
         <button type="button" class="btn btn-default delete_id" (click)="remove()"
