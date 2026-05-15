@@ -24,9 +24,8 @@
   overflow: hidden;
 
   .em-staged-file-chooser {
-    flex-grow: 1;
+    flex-grow: 0;
     flex-shrink: 1;
-    max-height: fit-content;
   }
 
   .file-loading-indicator {
