@@ -48,9 +48,12 @@ import java.util.*;
 
 @Service
 public class WizVsService {
-   public WizVsService(ViewsheetService viewsheetService, AssetRepository engine) {
+   public WizVsService(ViewsheetService viewsheetService, AssetRepository engine,
+                       WsMergeService wsMergeService)
+   {
       this.viewsheetService = viewsheetService;
       this.engine = engine;
+      this.wsMergeService = wsMergeService;
    }
 
    public CreateViewsheetResult createViewsheet(CreateVisualizationModel model, Principal user) throws Exception {
@@ -105,13 +108,33 @@ public class WizVsService {
             // Snapshot before any mutation so we can restore on failure.
             previousBaseEntry = targetVs.getBaseEntry();
 
+            String effectivePrimaryName = ctx.primaryAssemblyName();
+
             if(!createdRuntimeId && !ctx.sourceWs().equals(previousBaseEntry)) {
-               targetVs.setBaseEntry(ctx.sourceWs());
+               if(previousBaseEntry != null) {
+                  // Merge the new query's worksheet into the existing one instead of replacing it.
+                  AbstractSheet dashSheet = engine.getSheet(previousBaseEntry, user, false, AssetContent.ALL);
+                  AbstractSheet vizSheet = engine.getSheet(ctx.sourceWs(), user, false, AssetContent.ALL);
+
+                  if(dashSheet instanceof Worksheet dashWS && vizSheet instanceof Worksheet vizWS) {
+                     String vizSuffix = wsMergeService.computeUniqueSuffix(ctx.title(), dashWS);
+                     Map<String, String> wsRenameMap = wsMergeService.mergeWorksheet(vizWS, dashWS, vizSuffix, new HashMap<>());
+                     effectivePrimaryName = wsRenameMap.getOrDefault(ctx.primaryAssemblyName(), ctx.primaryAssemblyName());
+                     engine.setSheet(previousBaseEntry, dashWS, user, true);
+                     // VS base entry stays as previousBaseEntry — no setBaseEntry() call needed.
+                  }
+                  else {
+                     targetVs.setBaseEntry(ctx.sourceWs());
+                  }
+               }
+               else {
+                  targetVs.setBaseEntry(ctx.sourceWs());
+               }
             }
 
             String assemblyName = uniqueAssemblyName(targetVs, ctx.title());
             assembly = createAssembly(targetVs, model.getVisualizationType(), assemblyName,
-                                      ctx.config(), ctx.primaryAssemblyName());
+                                      ctx.config(), effectivePrimaryName);
 
             if(assembly == null) {
                throw new IllegalArgumentException("Unsupported visualization type: " + model.getVisualizationType());
@@ -1798,6 +1821,7 @@ public class WizVsService {
 
    private final ViewsheetService viewsheetService;
    private final AssetRepository engine;
+   private final WsMergeService wsMergeService;
 
    private static final Logger LOG = LoggerFactory.getLogger(WizVsService.class);
    static final int MAX_ROWS = 10_000;
