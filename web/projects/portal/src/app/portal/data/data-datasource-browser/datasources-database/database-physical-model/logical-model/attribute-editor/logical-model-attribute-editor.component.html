@@ -106,7 +106,7 @@
   <div class="form-group">
     <div class="logical-model-attribute-editor__checkbox-row">
       <label class="logical-model-attribute-editor__checkbox-label">
-        <input type="checkbox" [(ngModel)]="attribute.browseData" [ngModelOptions]="{standalone: true}"
+        <input type="checkbox" class="form-check-input" [(ngModel)]="attribute.browseData" [ngModelOptions]="{standalone: true}"
                [disabled]="!editable"/>
         <span>_#(Browse Data)</span>
       </label>
@@ -115,7 +115,7 @@
   <div class="form-group" *ngIf="logicalModelParent">
     <div class="logical-model-attribute-editor__checkbox-row">
       <label class="logical-model-attribute-editor__checkbox-label">
-        <input type="checkbox" [(ngModel)]="attribute.visible" [ngModelOptions]="{standalone: true}"/>
+        <input type="checkbox" class="form-check-input" [(ngModel)]="attribute.visible" [ngModelOptions]="{standalone: true}"/>
         <span>_#(Visible)</span>
       </label>
     </div>

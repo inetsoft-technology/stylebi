@@ -61,7 +61,8 @@
         (click)="toggleNode()"></span>
   <span class="tree-node-label-container" [class.ellipsis-node-container]="ellipsisOverflowText">
     <ng-container *ngIf="checkboxEnable && node.leaf">
-      <input type="checkbox" [checked]="isSelected()">
+      <input class="form-check-input tree-node__checkbox" type="checkbox" [checked]="isSelected()"
+             tabindex="-1" aria-hidden="true">
     </ng-container>
     <span class="tree-node-icon"
           [ngClass]="getIcon()"

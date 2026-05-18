@@ -18,7 +18,7 @@
 <div class="d-flex flex-column align-items-stretch flex-grow-1 flex-shrink-1 overflow-hidden" *ngIf="!unauthorizedAccess">
   <div class="d-flex align-items-center th-cell-border flex-grow-0 flex-shrink-0 list-contents">
     <div class="col-1 table-cell-padding-sm" *ngIf="selectionOn">
-      <input type="checkbox" class="align-middle"
+      <input type="checkbox" class="form-check-input align-middle"
              [checked]="selectAllChecked"
              (change)="selectAllChanged.emit($event.target.checked)"/>
     </div>
@@ -78,7 +78,7 @@
          (dragenter)="$event.preventDefault()" (drop)="dropAssets(asset, $event)"
          (click)="updateAssetSelection(asset, $event)">
       <div class="col-1 table-cell-padding-sm" *ngIf="selectionOn">
-        <input type="checkbox" class="align-middle"
+        <input type="checkbox" class="form-check-input align-middle"
                [checked]="selectedItems.includes(asset)"
                (change)="updateSelection(asset)"
                (click)="$event.stopPropagation()"/>

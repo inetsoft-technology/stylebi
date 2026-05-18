@@ -18,7 +18,7 @@
 <div>
   <div class="toolbar">
     <label class="share-color-option" *ngIf="!isDC && isVS && !frameModel.colorValueFrame">
-      <input type="checkbox" [(ngModel)]="frameModel.shareColors"
+      <input type="checkbox" class="form-check-input" [(ngModel)]="frameModel.shareColors"
              (ngModelChange)="shareColorsChange($event)"/>
       _#(Share Colors)
     </label>
@@ -61,7 +61,7 @@
        aria-hidden="true" (click)="showNext()"></i>
   </div>
   <label class="color-value-frame" *ngIf="!isDC && showColorValueFrame()">
-    <input type="checkbox" [(ngModel)]="frameModel.colorValueFrame"/>
+    <input type="checkbox" class="form-check-input" [(ngModel)]="frameModel.colorValueFrame"/>
     _#(Use Column Values as Colors)
   </label>
 </div>

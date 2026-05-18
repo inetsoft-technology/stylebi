@@ -322,7 +322,7 @@
       <ng-container *ngIf="model.timeConditionModel.type == TimeConditionType.EVERY_MONTH">
         <div class="form-row-float-label row">
           <div class="col-auto">
-            <input type="radio" name="monthlyRadio" [value]="true"
+            <input class="form-check-input" type="radio" name="monthlyRadio" [value]="true"
                    [ngModelOptions]="{standalone: true}"
                    [(ngModel)]="model.timeConditionModel.monthlyDaySelected">
           </div>
@@ -339,7 +339,7 @@
         </div>
         <div class="form-row-float-label row">
           <div class="col-auto">
-            <input type="radio" name="monthlyRadio" [value]="false"
+            <input class="form-check-input" type="radio" name="monthlyRadio" [value]="false"
                    [ngModelOptions]="{standalone: true}"
                    [(ngModel)]="model.timeConditionModel.monthlyDaySelected">
           </div>

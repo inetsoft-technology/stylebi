@@ -70,6 +70,19 @@
   flex-basis: auto;
 }
 
+.tree-node .tree-node__checkbox {
+  flex: 0 0 auto;
+  pointer-events: none;
+  background-color: var(--inet-shell-surface-default) !important;
+  border-color: var(--inet-input-text-color) !important;
+}
+
+.tree-node .tree-node__checkbox:checked {
+  background-color: var(--inet-primary-color) !important;
+  border-color: var(--inet-primary-color) !important;
+  box-shadow: 0 0 0 var(--inet-focus-ring-width) var(--inet-focus-ring-color);
+}
+
 .tree-node label.tree-node-label {
   line-height: 1.2;
   padding-left: 8px;
