@@ -74,7 +74,6 @@ public class WizVsService {
          // Only relevant for the incremental standard path (non-null when base entry may be mutated).
          AssetEntry previousBaseEntry = null;
          boolean modificationOnly = model.getConfig() == null && model.getConditionModel() != null;
-         boolean baseEntryChanged = false;
 
          if(modificationOnly) {
             targetVs = vs;
@@ -106,9 +105,7 @@ public class WizVsService {
             // Snapshot before any mutation so we can restore on failure.
             previousBaseEntry = targetVs.getBaseEntry();
 
-            baseEntryChanged = !createdRuntimeId && !ctx.sourceWs().equals(previousBaseEntry);
-
-            if(baseEntryChanged) {
+            if(!createdRuntimeId && !ctx.sourceWs().equals(previousBaseEntry)) {
                targetVs.setBaseEntry(ctx.sourceWs());
             }
 
