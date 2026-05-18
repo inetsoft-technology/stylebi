@@ -71,7 +71,7 @@
       <div class="driver-wizard__section">
           <div class="list-group">
             <div class="list-group-item" *ngFor="let driver of drivers; let i = index; trackBy: trackByIdx">
-              <input type="checkbox" class="checkbox" [(ngModel)]="selectedDrivers[i]" (ngModelChange)="selectDriver(i)">
+              <input type="checkbox" class="form-check-input checkbox" [(ngModel)]="selectedDrivers[i]" (ngModelChange)="selectDriver(i)">
               <span>{{ driver }}</span>
             </div>
           </div>

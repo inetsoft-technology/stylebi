@@ -85,7 +85,7 @@
       <tr #selectedRow>
         <td *ngFor="let column of _value" class="text-center">
           <div class="cell-content">
-            <input class="checkbox center" type="checkbox" [(ngModel)]="column.selected"
+            <input class="form-check-input checkbox center" type="checkbox" [(ngModel)]="column.selected"
                    (ngModelChange)="valueChanged()" [disabled]="!enabled"/>
           </div>
         </td>

@@ -646,7 +646,7 @@
               <tbody>
                 <tr *ngFor="let highlight of highlights">
                   <td>
-                    <input class="text-center align-middle"
+                    <input class="form-check-input text-center align-middle"
                            type="checkbox"
                            [checked]="isHighlightSelected(highlight.element, highlight.highlight)"
                            (click)="highlightSelectionChange(highlight.element, highlight.highlight)" />
@@ -657,7 +657,7 @@
                 </tr>
                 <tr class="txt-danger cross-out" *ngFor="let highlight of disabledHighlights">
                   <td>
-                    <input class="text-center align-middle"
+                    <input class="form-check-input text-center align-middle"
                            type="checkbox"
                            [checked]="isHighlightSelected(highlight.element, highlight.highlight)"
                            (click)="highlightSelectionChange(highlight.element, highlight.highlight)" />

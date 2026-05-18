@@ -17,7 +17,7 @@
   -->
 <div class="list-group">
   <div class="d-flex align-items-center mt-1" *ngFor="let val of value; let i = index; trackBy: trackByIdx">
-    <input type="checkbox" class="checkbox me-1"
+    <input type="checkbox" class="form-check-input checkbox me-1"
            [class.query-parameter-checkbox]="type == 'PARAMETER'"
            [(ngModel)]="selected[i]" (ngModelChange)="valueChanged()"/>
     <div class="flex-grow-1">
