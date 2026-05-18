@@ -86,7 +86,7 @@ public class ScheduleTaskJob implements InterruptableJob {
                OrganizationContextHolder.setCurrentOrgId(owner.getOrgID());
             }
 
-            if(principal == null) {
+            if(principal == null && !ScheduleManager.isInternalTask(taskName)) {
                LOG.error("User is null", new Exception("User is null"));
             }
 
