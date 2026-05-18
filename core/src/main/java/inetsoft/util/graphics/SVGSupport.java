@@ -145,6 +145,8 @@ public interface SVGSupport {
    String ATTR_SIZE   = "size";
    /** {@code data-x} — screen X center in pixels, used to sort schema VOs left-to-right. */
    String ATTR_X      = "x";
+   /** {@code data-y} — screen Y center in pixels, used to sort relation nodes top-to-bottom. */
+   String ATTR_Y      = "y";
    /** {@code data-level} — nesting depth from {@code TreemapGeometry.getLevel()}; leaf=0, root=highest. */
    String ATTR_LEVEL  = "level";
    /** {@code data-id} — mxCell ID for relation/tree chart nodes, used to match edges to nodes. */
