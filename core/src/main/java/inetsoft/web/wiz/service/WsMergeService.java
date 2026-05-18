@@ -156,12 +156,9 @@ public class WsMergeService {
 
    /**
     * If {@code existingTable} does not yet have a wiz mirror pointing to it, promotes it
-    * to a "base" table: renames the base to "{name}_base", then creates a mirror under
-    * the original name that carries the first viz's conditions/aggregation.
-    *
-    * <p>By keeping the original name on the mirror (not the bare base), any VS assemblies
-    * already bound to that name continue to reference the correct filtered view without
-    * needing to be updated.</p>
+    * to a "base" table: strips its conditions/aggregation (moving them to a new mirror
+    * that takes its original role), and records the rename in {@code vsRenameMap} so the
+    * caller can redirect any VS-level bindings.
     */
    private void ensureBaseHasPrevMirror(Worksheet dashWS,
                                         BoundTableAssembly existingTable,
@@ -188,25 +185,23 @@ public class WsMergeService {
       AggregateInfo aggr = (AggregateInfo) existingTable.getAggregateInfo().clone();
       ColumnSelection origCols = existingTable.getColumnSelection(true).clone();
 
-      // Rename the base to "{name}_base", freeing the original name for the mirror.
-      // renameAssembly updates the registry and calls renameDepended on all assemblies.
-      String newBaseName = baseName + "_base";
-      dashWS.renameAssembly(baseName, newBaseName, true);
-
-      // Strip conditions/aggregation from the (now-renamed) base so it becomes "full data"
+      // Strip conditions/aggregation from the base so it becomes a "full data" query
       existingTable.setPreConditionList(new ConditionList());
       existingTable.setPostConditionList(new ConditionList());
       existingTable.setAggregateInfo(new AggregateInfo());
 
-      // Create a mirror under the original name that restores the first viz's view.
-      // VS assemblies already bound to baseName now point to this mirror — no VS update needed.
-      MirrorTableAssembly prevMirror = new MirrorTableAssembly(dashWS, baseName, existingTable);
+      // Create a mirror that restores the original viz's view
+      String prevMirrorName = ensureUniqueName(baseName, dashWS);
+      MirrorTableAssembly prevMirror = new MirrorTableAssembly(dashWS, prevMirrorName, existingTable);
       prevMirror.setColumnSelection(origCols, true);
       prevMirror.setPreConditionList(preconds);
       prevMirror.setPostConditionList(postconds);
       prevMirror.setAggregateInfo(aggr);
       prevMirror.setProperty(PROP_WIZ_MERGED, "true");
       dashWS.addAssembly(prevMirror);
+
+      // Collect the redirect so the caller can apply it to VS bindings if needed
+      vsRenameMap.put(baseName, prevMirrorName);
    }
 
    /**
@@ -237,13 +232,7 @@ public class WsMergeService {
    private String createVizMirror(Worksheet dashWS, BoundTableAssembly base,
                                    BoundTableAssembly srcTable)
    {
-      // Derive naming prefix from base: strip "_base" suffix to recover the original name,
-      // then ensureUniqueName to get "Query_1", "Query_2", etc.
-      String baseName = base.getName();
-      String namePrefix = baseName.endsWith("_base")
-         ? baseName.substring(0, baseName.length() - 5)
-         : baseName;
-      String mirrorName = ensureUniqueName(namePrefix, dashWS);
+      String mirrorName = ensureUniqueName(base.getName(), dashWS);
       ColumnSelection vizCols = srcTable.getColumnSelection(true).clone();
 
       MirrorTableAssembly mirror = new MirrorTableAssembly(dashWS, mirrorName, base);
