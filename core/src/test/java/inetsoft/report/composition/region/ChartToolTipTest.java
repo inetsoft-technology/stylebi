@@ -104,12 +104,13 @@ class ChartToolTipTest {
 
    @Test
    void combinedCardUsesListLayout() {
-      // Simulates a stacked-area combined tooltip: shared X-dim leads, each
-      // series adds rows, stack total appended at the end.
       IndexedSet<String> palette = new IndexedSet<>();
+      int xKey = palette.put("Cal QTR");
+      int xVal = palette.put("Q3-LY");
+
       ChartToolTip primary = new ChartToolTip();
       primary.setStyle(ChartInfo.TooltipStyle.CARD);
-      primary.addTooltip(palette.put("Cal QTR"), palette.put("Q3-LY"));
+      primary.setHeader(xKey, xVal);
       primary.addTooltip(palette.put("Sum"), palette.put("73.3K"));
       primary.addTooltip(palette.put("Category"), palette.put("Business"));
 
@@ -125,29 +126,30 @@ class ChartToolTipTest {
 
       String out = primary.getTooltip(palette);
 
-      // First pair is the header (tier-1).
-      assertTrue(out.startsWith("<div class=\"tt-tier-1\">Cal QTR"),
-                 "Combined card must lead with the X-dim header at tier-1");
-      // The shared X-dim header must not also appear at tier-2.
-      assertFalse(out.contains("<div class=\"tt-tier-2\">Cal QTR"));
-      // Other primary pairs and second-series pairs all render at tier-2.
-      assertTrue(out.contains("<div class=\"tt-tier-2\">Sum:&nbsp;73.3K"));
-      assertTrue(out.contains("<div class=\"tt-tier-2\">Category:&nbsp;Business"));
-      assertTrue(out.contains("<div class=\"tt-tier-2\">Sum:&nbsp;74.7K"));
-      assertTrue(out.contains("<div class=\"tt-tier-2\">Category:&nbsp;Personal"));
-      // The stack-total row is emphasized at tier-1.
-      assertTrue(out.contains("<div class=\"tt-tier-1\">Total:&nbsp;936.3K"));
-      // Combined layout never demotes to tier-3.
-      assertFalse(out.contains("tt-tier-3"));
+      assertTrue(out.startsWith("<div class=\"tt-tier-1\">Sum:&nbsp;73.3K"),
+                 "Combined card must promote the hovered measure to tier-1");
+      assertTrue(out.contains("<div class=\"tt-tier-2 tt-subtitle\">Cal QTR:&nbsp;Q3-LY"),
+                 "Shared X-dim must render as a tier-2 subtitle");
+      assertTrue(out.contains("<div class=\"tt-section tt-section-first\">"),
+                 "First section wrapper must carry tt-section-first for CSS targeting");
+      assertTrue(out.contains("<div class=\"tt-tier-3\">Category:&nbsp;Business"),
+                 "First section's remaining context drops to tier-3");
+      assertTrue(out.contains("<div class=\"tt-tier-2\">Sum:&nbsp;74.7K"),
+                 "Peer section's measure stays prominent at tier-2");
+      assertTrue(out.contains("<div class=\"tt-tier-3\">Category:&nbsp;Personal"),
+                 "Peer section's context drops to tier-3");
+      assertTrue(out.contains("<div class=\"tt-tier-1\">Total:&nbsp;936.3K"),
+                 "Stack total stays emphasized at tier-1");
+
+      int firstClassCount = out.split("tt-section-first", -1).length - 1;
+      assertEquals(1, firstClassCount, "tt-section-first must appear exactly once");
    }
 
    @Test
-   void combinedCardHeaderFollowsFirstAddedPair() {
-      // Documents the contract that PlotArea's cardSolo cols-ordering gate
-      // depends on: the FIRST pair added to the primary section becomes the
-      // tier-1 header, regardless of whether it's the dim or the measure.
-      // If this test fails after a PlotArea refactor, the combined-card
-      // header will end up showing the wrong field.
+   void combinedCardWithoutExplicitHeaderFallsBackToFirstPair() {
+      // Fallback layout for callers that build a combined tooltip without
+      // going through PlotArea (which sets the header). Tier-1 = first added
+      // pair, remaining rows at tier-2. Preserves legacy behavior.
       IndexedSet<String> paletteA = new IndexedSet<>();
       ChartToolTip dimFirst = new ChartToolTip();
       dimFirst.setStyle(ChartInfo.TooltipStyle.CARD);
@@ -160,7 +162,7 @@ class ChartToolTipTest {
 
       assertTrue(dimFirst.getTooltip(paletteA)
             .startsWith("<div class=\"tt-tier-1\">Year:&nbsp;2024"),
-         "Dim added first → dim becomes the combined-card header");
+         "Fallback: first added pair becomes the tier-1 header");
 
       IndexedSet<String> paletteB = new IndexedSet<>();
       ChartToolTip measureFirst = new ChartToolTip();
@@ -174,15 +176,18 @@ class ChartToolTipTest {
 
       assertTrue(measureFirst.getTooltip(paletteB)
             .startsWith("<div class=\"tt-tier-1\">Sales:&nbsp;100"),
-         "Measure added first → measure becomes the header (it's positional)");
+         "Fallback is positional: measure added first → measure as header");
    }
 
    @Test
-   void combinedCardWithoutStackTotalKeepsAllRowsUniform() {
+   void combinedCardWithoutStackTotalUsesHeaderSubtitleLayout() {
       IndexedSet<String> palette = new IndexedSet<>();
+      int xKey = palette.put("Cal QTR");
+      int xVal = palette.put("Q3");
+
       ChartToolTip primary = new ChartToolTip();
       primary.setStyle(ChartInfo.TooltipStyle.CARD);
-      primary.addTooltip(palette.put("Cal QTR"), palette.put("Q3"));
+      primary.setHeader(xKey, xVal);
       primary.addTooltip(palette.put("Sum"), palette.put("100"));
 
       ChartToolTip second = new ChartToolTip();
@@ -191,12 +196,61 @@ class ChartToolTipTest {
 
       String out = primary.getTooltip(palette);
 
-      // Header tier-1 (X-dim) + uniform tier-2 rows; no tier-3, no extra tier-1.
       int tier1 = out.split("tt-tier-1", -1).length - 1;
       int tier2 = out.split("tt-tier-2", -1).length - 1;
       int tier3 = out.split("tt-tier-3", -1).length - 1;
-      assertEquals(1, tier1, "Without stack total, only the header is tier-1");
-      assertEquals(2, tier2, "Remaining pairs render uniformly at tier-2");
-      assertEquals(0, tier3);
+      assertEquals(1, tier1, "Without stack total, only the hovered measure is tier-1");
+      assertEquals(2, tier2, "Subtitle + peer measure both render at tier-2");
+      assertEquals(0, tier3, "No additional context → no tier-3 rows");
+      assertTrue(out.contains("tt-tier-2 tt-subtitle"),
+                 "Header must carry the tt-subtitle modifier");
+   }
+
+   @Test
+   void combinedCardPromotesMeasureWhenHeaderSet() {
+      IndexedSet<String> palette = new IndexedSet<>();
+      int xKey = palette.put("Year");
+      int xVal = palette.put("2024");
+
+      ChartToolTip primary = new ChartToolTip();
+      primary.setStyle(ChartInfo.TooltipStyle.CARD);
+      primary.setHeader(xKey, xVal);
+      primary.addTooltip(palette.put("Sales"), palette.put("500"));
+
+      ChartToolTip peer = new ChartToolTip();
+      peer.addTooltip(palette.put("Sales"), palette.put("750"));
+      primary.appendTooltips(peer);
+
+      String out = primary.getTooltip(palette);
+
+      assertTrue(out.startsWith("<div class=\"tt-tier-1\">Sales:&nbsp;500"),
+                 "Header set → hovered measure leads at tier-1");
+      assertTrue(out.contains("<div class=\"tt-tier-2 tt-subtitle\">Year:&nbsp;2024"),
+                 "Header set → shared X-dim renders as tier-2 subtitle");
+   }
+
+   @Test
+   void combinedCardEmitsHeaderOnce() {
+      IndexedSet<String> palette = new IndexedSet<>();
+      int xKey = palette.put("Region");
+      int xVal = palette.put("West");
+
+      ChartToolTip primary = new ChartToolTip();
+      primary.setStyle(ChartInfo.TooltipStyle.CARD);
+      primary.setHeader(xKey, xVal);
+      primary.addTooltip(palette.put("Sales"), palette.put("100"));
+
+      ChartToolTip peer1 = new ChartToolTip();
+      peer1.addTooltip(palette.put("Sales"), palette.put("200"));
+      primary.appendTooltips(peer1);
+
+      ChartToolTip peer2 = new ChartToolTip();
+      peer2.addTooltip(palette.put("Sales"), palette.put("300"));
+      primary.appendTooltips(peer2);
+
+      String out = primary.getTooltip(palette);
+
+      int regionCount = out.split("Region:&nbsp;West", -1).length - 1;
+      assertEquals(1, regionCount, "Header must be emitted exactly once across all sections");
    }
 }

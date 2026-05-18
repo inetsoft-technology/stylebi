@@ -234,6 +234,16 @@ table.scrollable-table {
   .tt-tier-2 { font-size: 13px; margin-top: 6px; opacity: 0.9; }
   .tt-tier-3 { font-size: 11px; margin-top: 4px; opacity: 0.7; }
 
+  // Shared X-dim header for combined card: reads as a caption beneath the
+  // hovered measure rather than as another value row.
+  .tt-tier-2.tt-subtitle {
+    font-size: 12px;
+    font-weight: 400;
+    margin-top: 2px;
+    opacity: 0.65;
+    letter-spacing: 0.02em;
+  }
+
   // Combined card: each .tt-section groups one series' rows so adjacent
   // series read as distinct blocks (mirrors the default tooltip's blank-line
   // separators between sub-tooltips).
@@ -242,10 +252,21 @@ table.scrollable-table {
 
     .tt-tier-2 { margin-top: 1px; }
     .tt-tier-2:first-child { margin-top: 0; }
+    .tt-tier-3 { margin-top: 1px; }
   }
 
-  .tt-section:first-of-type { margin-top: 8px; }
+  // The first section holds the hovered series' context (e.g. its color dim),
+  // which belongs to the header group above it — keep it close to the
+  // subtitle/measure rather than spaced like a peer series. (Can't use
+  // :first-of-type — every child is a <div>, so it matches the leading
+  // tier-1, not the first .tt-section.)
+  .tt-section.tt-section-first { margin-top: 2px; }
+
   .tt-tier-1:not(:first-child) { margin-top: 10px; }
+
+  // Stack total sits at the bottom as the summary headline; bump it slightly
+  // above the regular tier-1 size so it reads as the punch line.
+  .tt-tier-1:last-child { font-size: 20px; }
 }
 
 .hidden__annotation-tooltip {
