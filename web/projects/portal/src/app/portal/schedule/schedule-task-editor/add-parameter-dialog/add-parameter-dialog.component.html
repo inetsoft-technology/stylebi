@@ -24,7 +24,7 @@
     <div class="form-row-float-label row">
       <div class="col">
         <div class="form-floating">
-          <input class="form-control" type="text" placeholder="_#(Parameter Name)"
+          <input class="form-control" type="text"
                  [ngClass]="{'input-transparent': parameterNames && parameterNames.length > 0,
                              'hideText' : parameterNames && parameterNames.includes(model.name)}"
                  [(ngModel)]="model.name" formControlName="name"
@@ -137,5 +137,5 @@
 </div>
 <div class="modal-footer">
   <button type="button" class="btn btn-primary" (click)="ok()" [disabled]="!form.valid || !verifyDynamicValue()" #okButton>_#(OK)</button>
-  <button type="button" class="btn btn-default" data-dismiss="modal" (click)="close()">_#(Cancel)</button>
+  <button type="button" class="btn btn-default" (click)="close()">_#(Cancel)</button>
 </div>

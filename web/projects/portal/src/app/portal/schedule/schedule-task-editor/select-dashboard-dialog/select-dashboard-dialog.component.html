@@ -22,7 +22,7 @@
 <div class="modal-body" enterSubmit (onEnter)="saveChanges()">
   <fieldset>
     <legend>{{legend}}</legend>
-    <div class="bordered-box bd-gray bordered-box-lg">
+    <div class="schedule-dashboard-dialog__browser">
       <repository-tree class="repository-tree" [selector]="selector"
                        [root]="rootNode" [isReport]="isReport"
                        [showBurstReport] = "false" [showVS]="showVS"
@@ -31,9 +31,9 @@
   </fieldset>
 </div>
 <div class="modal-footer">
-  <button type="button" class="btn btn-default" (click)="clear()"
+  <button type="button" class="btn btn-secondary" (click)="clear()"
           [disabled]="!path">_#(Clear)</button>
   <button type="button" class="btn btn-primary" (click)="saveChanges()" #okButton>_#(OK)</button>
-  <button type="button" class="btn btn-default" data-dismiss="modal"
+  <button type="button" class="btn btn-default"
           (click)="cancelChanges()">_#(Cancel)</button>
 </div>

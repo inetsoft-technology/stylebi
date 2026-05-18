@@ -15,11 +15,7 @@
   ~ You should have received a copy of the GNU Affero General Public License
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
-<div class="modal-header">
-  <h3 class="modal-title">_#(em.schedule.task.folderEdit)</h3>
-  <button type="button" class="btn-close" (click)="cancel()" [attr.title]="'_#(Close)'" aria-label="Close">
-  </button>
-</div>
+<modal-header [title]="'_#(em.schedule.task.folderEdit)'" (onCancel)="cancel()"></modal-header>
 <div class="modal-body">
   <form class="container-fluid" [formGroup]="form">
     <div class="row">
@@ -52,7 +48,7 @@
   <button type="button" class="btn btn-primary" (click)="ok()" [disabled]="form.invalid">
     _#(OK)
   </button>
-  <button type="button" class="btn btn-default" data-dismiss="modal" (click)="cancel()">
+  <button type="button" class="btn btn-default" (click)="cancel()">
     _#(Cancel)
   </button>
 </div>

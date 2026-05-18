@@ -22,11 +22,17 @@
   align-items: stretch;
   min-height: 0px;
 
-  > .container-fluid {
+  > .task-action-pane {
     flex-grow: 1;
     display: flex;
     flex-direction: column;
     align-items: stretch;
+    gap: 12px;
+    padding: 12px !important;
+    background-color: var(--inet-main-panel-bg-color);
+    border: 1px solid var(--inet-border-color);
+    border-radius: 8px;
+    min-height: 0;
 
     .scheduler-form {
       width: 600px;
@@ -43,22 +49,25 @@
       color: var(--inet-selected-item-text-color);
     }
 
-    > .task-action-form {
+    > .task-action-pane__form {
       flex-grow: 1;
       display: flex;
       flex-direction: column;
       align-items: stretch;
+      gap: 12px;
+      min-height: 0;
 
-      > .form-row-float-label.row {
+      > .task-action-pane__selector-row {
         flex-grow: 0;
         flex-shrink: 0;
       }
 
-      > .schedule-action-accordion {
+      > .task-action-pane__accordion {
         flex-grow: 1;
         display: flex;
         flex-direction: column;
         align-items: stretch;
+        min-height: 0;
       }
 
       > .user-action-properties {
@@ -68,7 +77,7 @@
       }
     }
 
-    > .task-action-buttons {
+    > .task-action-pane__footer {
       flex-grow: 0;
       flex-shrink: 0;
     }
@@ -97,4 +106,21 @@ span.disabled {
   pointer-events: none;
   background-color: unset;
   opacity: 0.5;
+}
+
+.task-action-pane__selector-row {
+  margin-bottom: 0;
+}
+
+.task-action-pane__selector-col {
+  max-width: min(100%, 640px);
+}
+
+.task-action-pane__footer,
+.task-action-pane__list-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 0;
 }
