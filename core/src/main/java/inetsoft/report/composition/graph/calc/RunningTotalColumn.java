@@ -180,7 +180,7 @@ public class RunningTotalColumn extends AbstractColumn {
                   }
 
                   Object fv = baseData.getData(field, i);
-                  String key = (bv == null ? "\0" : bv.toString()) + "" + iv;
+                  CacheKey key = new CacheKey(bv, iv);
                   dateGroupCache.computeIfAbsent(key, k -> new ArrayList<>())
                      .add(new Object[]{ dv, fv });
                }
@@ -191,8 +191,7 @@ public class RunningTotalColumn extends AbstractColumn {
                }
             }
 
-            String cacheKey = (firstBreakByVal == null ? "\0" : firstBreakByVal.toString())
-               + "" + interval;
+            CacheKey cacheKey = new CacheKey(firstBreakByVal, interval);
             List<Object[]> entries = dateGroupCache.getOrDefault(cacheKey, Collections.emptyList());
 
             for(Object[] entry : entries) {
@@ -567,6 +566,8 @@ public class RunningTotalColumn extends AbstractColumn {
       return calendar.getTimeInMillis();
    }
 
+   private record CacheKey(Object bv, long iv) {}
+
    private static class PartDataSet extends AbstractDataSetFilter {
       public PartDataSet(DataSet data, int mrow) {
          super(data);
@@ -586,6 +587,6 @@ public class RunningTotalColumn extends AbstractColumn {
    private String breakBy = null;
    private DataSetIndex subs;
    private DataSet subsRoot;
-   private Map<String, List<Object[]>> dateGroupCache;
+   private Map<CacheKey, List<Object[]>> dateGroupCache;
    private DataSet dateGroupCacheRoot;
 }
