@@ -74,6 +74,7 @@ public class WizVsService {
          // Only relevant for the incremental standard path (non-null when base entry may be mutated).
          AssetEntry previousBaseEntry = null;
          boolean modificationOnly = model.getConfig() == null && model.getConditionModel() != null;
+         boolean baseEntryChanged = false;
 
          if(modificationOnly) {
             targetVs = vs;
@@ -105,7 +106,9 @@ public class WizVsService {
             // Snapshot before any mutation so we can restore on failure.
             previousBaseEntry = targetVs.getBaseEntry();
 
-            if(!createdRuntimeId && !ctx.sourceWs().equals(previousBaseEntry)) {
+            baseEntryChanged = !createdRuntimeId && !ctx.sourceWs().equals(previousBaseEntry);
+
+            if(baseEntryChanged) {
                targetVs.setBaseEntry(ctx.sourceWs());
             }
 
@@ -138,6 +141,13 @@ public class WizVsService {
          // Always call setViewsheet so the sandbox picks up the updated viewsheet object.
          Viewsheet previousVs = rvs.getViewsheet();
          rvs.setViewsheet(targetVs);
+
+         // In incremental mode, GenerateWsService may have saved a new WS version (e.g. added
+         // mirror assemblies). Force the sandbox to reload from the repository so new assemblies
+         // are visible before execution.
+         if(!createdRuntimeId) {
+            rvs.resetRuntime();
+         }
 
          try {
             CreateViewsheetResult result = executeAndExtract(rvs, assembly);
