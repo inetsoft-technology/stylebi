@@ -353,10 +353,10 @@ $sqrt2: 1.41421356;
 
   // --> secondary
   --inet-button-secondary-bg-color: transparent;
-  --inet-button-secondary-text-color: var(--inet-ui-neutral-color);
+  --inet-button-secondary-text-color: var(--inet-text-color);
   --inet-button-secondary-border-color: var(--inet-ui-neutral-border-color);
   --inet-button-secondary-hover-bg-color: var(--inet-ui-neutral-hover-bg-color);
-  --inet-button-secondary-hover-text-color: var(--inet-ui-neutral-hover-color);
+  --inet-button-secondary-hover-text-color: var(--inet-text-color);
   --inet-button-secondary-hover-border-color: var(--inet-ui-neutral-border-color);
 
   // --> default

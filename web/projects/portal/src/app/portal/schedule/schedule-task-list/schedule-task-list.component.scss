@@ -38,16 +38,16 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 16px;
-      min-height: var(--inet-control-height-lg);
-      padding: var(--inet-space-3) var(--inet-space-5);
+      gap: 20px;
+      min-height: calc(var(--inet-control-height-lg) + var(--inet-space-3));
+      padding: var(--inet-space-5) var(--inet-space-5);
       border-bottom: 1px solid var(--inet-default-border-color);
     }
 
     .schedule-task-list-header__status {
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: 14px;
       min-width: 0;
       flex-wrap: wrap;
       flex: 1 1 auto;
@@ -90,6 +90,7 @@
       min-width: 0;
       color: var(--inet-text-muted-color);
       line-height: 1.45;
+      padding-block: 2px;
     }
 
     .schedule-task-list-header__status-action {
@@ -102,7 +103,7 @@
     .schedule-task-list-header__actions {
       display: flex;
       align-items: center;
-      gap: 0;
+      gap: 8px;
       flex-wrap: wrap;
       justify-content: flex-end;
       margin-left: auto;
@@ -148,6 +149,8 @@
         flex-direction: column;
 
         .split-pane {
+          --schedule-task-list-rail-bg: #F4F3F0;
+          --schedule-task-list-gutter-bg: #F4F3F0;
           display: flex;
           flex-direction: column;
           flex-grow: 1;
@@ -164,6 +167,9 @@
               flex-shrink: 1;
               overflow-y: auto;
               position: relative;
+              border: 1px solid var(--inet-border-color);
+              border-radius: 4px;
+              background-color: var(--inet-card-bg-color);
 
               .table {
                 width: 100%;
@@ -174,6 +180,8 @@
                 min-height: 0;
                 border-top: 0;
                 margin: 0;
+                border-collapse: separate;
+                border-spacing: 0;
 
                 > thead {
                   display: table;
@@ -187,6 +195,7 @@
                   background-color: var(--inet-toolbar-bg-color);
                   color: var(--inet-text-color);
                   font-weight: 500;
+                  border-bottom: 1px solid var(--inet-border-color);
                 }
 
                 > tbody {
@@ -205,17 +214,16 @@
                 }
 
                 > tbody tr:hover > td {
-                  background-color: var(--inet-ui-neutral-hover-bg-color);
+                  background-color: rgba(241, 239, 234, 0.2);
                 }
 
-                > tbody tr.selected {
-                  background-color: var(--inet-selected-item-bg-color);
-                  color: var(--inet-selected-item-text-color);
+                > tbody tr.task-row--selected {
+                  color: var(--inet-text-color);
                 }
 
-                > tbody tr.selected > td {
-                  background-color: var(--inet-selected-item-bg-color);
-                  color: var(--inet-selected-item-text-color);
+                > tbody tr.task-row--selected > td {
+                  background-color: rgba(241, 239, 234, 0.34);
+                  color: var(--inet-text-color);
                 }
 
                 > thead th,
@@ -228,6 +236,11 @@
 
                 > tbody td {
                   padding: 9px 12px;
+                  border-top: 1px solid var(--inet-border-color);
+                }
+
+                > tbody tr:first-child > td {
+                  border-top: 0;
                 }
 
                 > thead th[sortColumn] {
@@ -364,6 +377,14 @@
     z-index: 6;
     cursor: pointer;
     border-radius: var(--inet-radius-md);
+    color: var(--inet-text-muted-color);
+    background-color: transparent;
+    transition: background-color 120ms ease, color 120ms ease;
+  }
+
+  .collapse-pane-button:hover {
+    color: var(--inet-text-color);
+    background-color: #F6F5F2;
   }
 
   .data-tree-pane {
@@ -371,8 +392,8 @@
     display: flex;
     flex-direction: column;
     flex-shrink: 0;
-    background-color: var(--inet-portal-side-panel-bg-color);
-    --inet-float-label-bg-color: var(--inet-portal-side-panel-bg-color);
+    background-color: var(--schedule-task-list-rail-bg);
+    --inet-float-label-bg-color: var(--schedule-task-list-rail-bg);
     padding-top: 0;
 
     .schedule-view-toggle {
@@ -381,16 +402,11 @@
       align-items: center;
       padding: 8px 12px;
       border-bottom: 1px solid var(--inet-default-border-color);
-      background-color: var(--inet-portal-side-panel-bg-color);
+      background-color: var(--schedule-task-list-rail-bg);
     }
 
     .schedule-view-toggle__button {
       min-width: 96px;
-      border-color: var(--inet-default-border-color);
-      background-color: transparent;
-      color: var(--inet-text-color);
-      box-shadow: none;
-      font-weight: 400;
     }
 
     > tree {
@@ -398,6 +414,7 @@
       flex: 1 1 auto;
       min-height: 0;
       width: 100%;
+      background-color: transparent;
     }
 
     > p-data-sources-tree-view {
@@ -412,11 +429,53 @@
     background-color: var(--inet-shell-surface-default);
   }
 
-  .btn.schedule-button {
-    color: var(--inet-icon-color);
+  .schedule-button + .schedule-button {
+    margin-left: 6px;
+  }
 
-    & + .schedule-button {
-      margin-left: 6px;
-    }
+  .schedule-button {
+    color: var(--inet-text-muted-color);
+    opacity: 0.78;
+    border-radius: var(--inet-radius-md);
+    transition: color 120ms ease, opacity 120ms ease, background-color 120ms ease;
+  }
+
+  .schedule-button:hover {
+    color: var(--inet-text-color);
+    opacity: 1;
+    background-color: var(--inet-ui-neutral-hover-bg-color);
+  }
+
+  ::ng-deep split-pane .gutter.gutter-horizontal {
+    background-color: var(--schedule-task-list-gutter-bg);
+    border-left: 1px solid #F4F3F0;
+    border-right: 1px solid #F4F3F0;
+    box-shadow: none;
+  }
+
+  ::ng-deep split-pane .gutter.gutter-horizontal:hover,
+  ::ng-deep split-pane .gutter.gutter-horizontal:active {
+    background-color: #F6F5F2;
+    box-shadow: none;
+  }
+
+  ::ng-deep .data-tree-pane .tree-div,
+  ::ng-deep .data-tree-pane .tree-container {
+    background-color: var(--schedule-task-list-rail-bg);
+  }
+
+  ::ng-deep .data-tree-pane .tree-node-hover:not([disabled]):hover {
+    background-color: #F6F5F2;
+  }
+
+  ::ng-deep .data-tree-pane .tree-node-toggle {
+    color: var(--inet-text-muted-color);
+    opacity: 0.78;
+  }
+
+  ::ng-deep .data-tree-pane .tree-node.bl-highlight-filler,
+  ::ng-deep .data-tree-pane .tree-node.bl-highlight-primary,
+  ::ng-deep .data-tree-pane .tree-node-hover.bl-highlight-primary {
+    border-left: 0 !important;
   }
 }

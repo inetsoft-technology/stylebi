@@ -25,8 +25,7 @@
     flex-grow: 1;
     overflow-x: hidden;
     overflow-y: auto;
-    width: 600px;
-    max-width: 100%;
+    min-width: 0;
   }
 
   .execute-as-buttons {
@@ -41,4 +40,51 @@
       }
     }
   }
+}
+
+.task-options-pane {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 8px 16px;
+  width: 600px;
+  max-width: 100%;
+}
+
+.task-options-pane__row {
+  margin-bottom: 0;
+}
+
+.task-options-pane__date-group,
+.task-options-pane__execute-as-group {
+  align-items: stretch;
+}
+
+.task-options-pane__date-group {
+  .date-picker-input {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+}
+
+.task-options-pane__icon-button {
+  flex: 0 0 var(--inet-control-height-md);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--inet-control-height-md);
+  padding: 0;
+}
+
+.task-options-pane__action-button {
+  flex: 0 0 auto;
+}
+
+.task-options-pane__footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 0;
+  padding-top: 8px;
 }

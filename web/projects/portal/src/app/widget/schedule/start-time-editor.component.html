@@ -16,7 +16,7 @@
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
 <ng-container [formGroup]="form">
-  <div class="form-row-float-label row" [class.single-option]="!timeRangeEnabled" *ngIf="startTimeEnabled">
+  <div class="form-row-float-label row start-time-editor__time-row" [class.single-option]="!timeRangeEnabled" *ngIf="startTimeEnabled">
     <div class="col-auto select-type-option">
       <input
         class="form-check-input"
@@ -27,8 +27,8 @@
         (change)="fireStartTimeChanged()"
       />
     </div>
-    <div class="col-auto">
-      <div class="form-floating">
+    <div class="col-auto start-time-editor__field-col">
+      <div class="form-floating start-time-editor__time-field">
         <ngb-timepicker
           [spinners]="false"
           [meridian]="showMeridian"
@@ -38,16 +38,23 @@
         <label class="time-label">_#(Start Time)</label>
       </div>
     </div>
-    <div class="col-auto" *ngIf="timeZoneName">
-      <div class="mt-2 ms-2">{{ timeZoneName + (serverTimeZone ? " (_#(em.scheduler.servertimezone))" : "")}}</div>
+    <div class="col-auto start-time-editor__timezone-text-col" *ngIf="timeZoneName">
+      <div class="start-time-editor__timezone-meta">
+        <div class="start-time-editor__timezone-text">{{ timeZoneName + (serverTimeZone ? " (_#(em.scheduler.servertimezone))" : "")}}</div>
+        <label class="form-check start-time-editor__server-timezone-toggle" *ngIf="startTimeEnabled">
+          <input class="form-check-input" type="checkbox" name="timezone"
+                 [checked]="serverTimeZone" (change)="changeServerTimeZone(!serverTimeZone)">
+          <span class="form-check-label">_#(Show Server Time Zone)</span>
+        </label>
+      </div>
     </div>
   </div>
-  <div class="form-row-float-label row">
-    <div class="col-auto">
+  <div class="form-row-float-label row start-time-editor__supplemental-row">
+    <div class="col">
       <ng-content></ng-content>
     </div>
   </div>
-  <div class="form-row-float-label row time-range-row" [class.single-option]="!startTimeEnabled" *ngIf="timeRangeEnabled">
+  <div class="form-row-float-label row time-range-row start-time-editor__range-row" [class.single-option]="!startTimeEnabled" *ngIf="timeRangeEnabled">
     <div class="col-auto select-type-option">
       <input
         class="form-check-input"
@@ -58,7 +65,7 @@
         (change)="fireStartTimeChanged()"
       />
     </div>
-    <div class="col-auto">
+    <div class="col-auto start-time-editor__field-col">
       <div class="form-floating time-range-input">
         <select
           class="form-control"

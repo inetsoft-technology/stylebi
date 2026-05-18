@@ -349,10 +349,10 @@ export class TreeNodeComponent implements OnInit, OnDestroy, OnChanges {
 
    getToggleIcon(): string {
       if(this.node.expanded) {
-         return this.node && this.node.toggleExpandedIcon || "caret-down-icon icon-lg";
+         return this.node && this.node.toggleExpandedIcon || "downward-icon icon-lg";
       }
       else {
-         return this.node && this.node.toggleCollapsedIcon || "caret-right-icon icon-lg";
+         return this.node && this.node.toggleCollapsedIcon || "forward-icon icon-lg";
       }
    }
 
