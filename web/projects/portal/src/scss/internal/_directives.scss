@@ -266,7 +266,7 @@ table.scrollable-table {
 
   // Stack total sits at the bottom as the summary headline; bump it slightly
   // above the regular tier-1 size so it reads as the punch line.
-  .tt-tier-1:last-child { font-size: 20px; }
+  .tt-stack-total { font-size: 20px; }
 }
 
 .hidden__annotation-tooltip {

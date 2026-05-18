@@ -165,7 +165,9 @@ public class ChartToolTip implements DataSerializable {
             for(int i = 0; i < section.length; i += 2) {
                String label = palette.get(section[i]);
                String value = (i + 1) < section.length ? palette.get(section[i + 1]) : "";
-               appendTier(buffer, 1, label + ChartToolTip.COLON + value);
+               buffer.append("<div class=\"tt-tier-1 tt-stack-total\">")
+                     .append(label).append(ChartToolTip.COLON).append(value)
+                     .append("</div>");
             }
 
             continue;
@@ -230,7 +232,9 @@ public class ChartToolTip implements DataSerializable {
             for(int i = 0; i < section.length; i += 2) {
                String label = palette.get(section[i]);
                String value = (i + 1) < section.length ? palette.get(section[i + 1]) : "";
-               appendTier(buffer, 1, label + ChartToolTip.COLON + value);
+               buffer.append("<div class=\"tt-tier-1 tt-stack-total\">")
+                     .append(label).append(ChartToolTip.COLON).append(value)
+                     .append("</div>");
             }
 
             continue;

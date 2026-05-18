@@ -138,8 +138,8 @@ class ChartToolTipTest {
                  "Peer section's measure stays prominent at tier-2");
       assertTrue(out.contains("<div class=\"tt-tier-3\">Category:&nbsp;Personal"),
                  "Peer section's context drops to tier-3");
-      assertTrue(out.contains("<div class=\"tt-tier-1\">Total:&nbsp;936.3K"),
-                 "Stack total stays emphasized at tier-1");
+      assertTrue(out.contains("<div class=\"tt-tier-1 tt-stack-total\">Total:&nbsp;936.3K"),
+                 "Stack total emits the dedicated tt-stack-total class");
 
       int firstClassCount = out.split("tt-section-first", -1).length - 1;
       assertEquals(1, firstClassCount, "tt-section-first must appear exactly once");
