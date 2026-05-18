@@ -159,21 +159,46 @@ public class RunningTotalColumn extends AbstractColumn {
 
          Object firstBreakByVal = baseData.getData(breakBy, row);
          long interval = getInterval(data, sortedRow);
+         Object currentInnerVal = (innerDim != null) ? baseData.getData(innerDim, row) : null;
 
-         for(int i = row; i >= 0; i--) {
-            Object breakByVal = baseData.getData(breakBy, i);
-            long intervali = getInterval(baseData, i);
+         if(currentInnerVal instanceof Date) {
+            // Root dataset row order may not be chronological when sort-by-value
+            // reorders within breakBy groups. Scan all rows and filter by date so
+            // the running calc is not sensitive to physical row ordering.
+            for(int i = 0; i < baseData.getRowCount(); i++) {
+               if(!Tool.equals(baseData.getData(breakBy, i), firstBreakByVal)) {
+                  continue;
+               }
 
-            if(interval != intervali) {
-               continue;
+               if(interval != getInterval(baseData, i)) {
+                  continue;
+               }
+
+               Object innerVal = baseData.getData(innerDim, i);
+
+               if(!(innerVal instanceof Date) ||
+                  ((Date) innerVal).compareTo((Date) currentInnerVal) <= 0)
+               {
+                  formula.addValue(baseData.getData(field, i));
+               }
             }
+         }
+         else {
+            for(int i = row; i >= 0; i--) {
+               Object breakByVal = baseData.getData(breakBy, i);
+               long intervali = getInterval(baseData, i);
 
-            // save year\quarter...
-            if(Tool.equals(breakByVal, firstBreakByVal)) {
-               formula.addValue(baseData.getData(field, i));
-            }
-            else {
-               break;
+               if(interval != intervali) {
+                  continue;
+               }
+
+               // save year\quarter...
+               if(Tool.equals(breakByVal, firstBreakByVal)) {
+                  formula.addValue(baseData.getData(field, i));
+               }
+               else {
+                  break;
+               }
             }
          }
       }
