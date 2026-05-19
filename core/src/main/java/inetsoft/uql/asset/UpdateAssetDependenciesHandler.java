@@ -99,6 +99,17 @@ public final class UpdateAssetDependenciesHandler implements AutoCloseable {
       }
       catch(Exception e) {
          LOG.error(catalog.getString("maintain.dependencies.failed"), e);
+         // Reset the distributed state so subsequent rebuild() calls are not blocked
+         // indefinitely waiting for a STATE_UPDATING that will never clear.
+         lock.lock();
+         try {
+            if(state.get() == STATE_UPDATING) {
+               state.set(0L);
+            }
+         }
+         finally {
+            lock.unlock();
+         }
       }
       finally {
          rebuilding = false;
@@ -426,13 +437,14 @@ public final class UpdateAssetDependenciesHandler implements AutoCloseable {
                timedOut = false;
                break;
             }
-            else {
-               Thread.sleep(1000L);
-            }
          }
          finally {
             lock.unlock();
          }
+
+         // Sleep outside the lock so other cluster nodes can update the state
+         // (e.g., so the running node can call assetUpdated() to set STATE_UPDATED).
+         Thread.sleep(1000L);
       }
 
       if(timedOut) {

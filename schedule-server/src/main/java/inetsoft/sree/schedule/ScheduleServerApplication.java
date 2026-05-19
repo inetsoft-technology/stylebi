@@ -53,6 +53,7 @@ import java.util.*;
       "inetsoft.util",
       "inetsoft.sree",
       "inetsoft.storage",
+      "inetsoft.uql.asset.sync",
       "inetsoft.web.factory",
       "inetsoft.web.viewsheet.service",
       "inetsoft.web.viewsheet.model",
