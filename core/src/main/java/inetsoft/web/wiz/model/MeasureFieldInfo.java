@@ -37,6 +37,24 @@ public class MeasureFieldInfo extends SimpleFieldInfo {
       this.fullName = fullName;
    }
 
+   public String getSecondaryField() {
+      return secondaryField;
+   }
+
+   public void setSecondaryField(String secondaryField) {
+      this.secondaryField = secondaryField;
+   }
+
+   public Integer getNOrP() {
+      return nOrP;
+   }
+
+   public void setNOrP(Integer nOrP) {
+      this.nOrP = nOrP;
+   }
+
    private String aggregateFormula;
    private String fullName;
+   private String secondaryField;
+   private Integer nOrP;
 }

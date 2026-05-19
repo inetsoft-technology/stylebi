@@ -25,20 +25,48 @@ import java.util.List;
 /**
  * Transport model representing a condition/filter specification sent from the Wiz AI service.
  * Mirrors the TypeScript {@code ConditionModel} structure.
- * Each entry in {@code conditions} is either a leaf ({@link ConditionLeaf}) or a
- * parenthesized group ({@link ConditionGroup}), distinguished by the {@code type} field.
+ * Contains two categories of conditions:
+ * <ul>
+ *   <li>{@code baseConditions}: Applied before aggregation (SQL WHERE equivalent)</li>
+ *   <li>{@code aggregateConditions}: Applied after aggregation (SQL HAVING equivalent)</li>
+ * </ul>
+ * When {@code aggregateConditions} is non-empty, StyleBI pushes groups, aggregates, and all
+ * conditions down to the worksheet table level; the visualization then uses pre-processed fields.
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class VisualizationConditionModel {
-   public List<ConditionNode> getConditions() {
-      return conditions;
+   /**
+    * Conditions on base fields, applied before aggregation (SQL WHERE equivalent).
+    */
+   public List<ConditionNode> getBaseConditions() {
+      return baseConditions;
    }
 
-   public void setConditions(List<ConditionNode> conditions) {
-      this.conditions = conditions;
+   public void setBaseConditions(List<ConditionNode> baseConditions) {
+      this.baseConditions = baseConditions;
    }
 
-   private List<ConditionNode> conditions;
+   /**
+    * Conditions on aggregated/grouped fields, applied after aggregation (SQL HAVING equivalent).
+    */
+   public List<ConditionNode> getAggregateConditions() {
+      return aggregateConditions;
+   }
+
+   public void setAggregateConditions(List<ConditionNode> aggregateConditions) {
+      this.aggregateConditions = aggregateConditions;
+   }
+
+   /**
+    * Returns true if there are any aggregate conditions that require pushing
+    * aggregation to the worksheet level.
+    */
+   public boolean hasAggregateConditions() {
+      return aggregateConditions != null && !aggregateConditions.isEmpty();
+   }
+
+   private List<ConditionNode> baseConditions;
+   private List<ConditionNode> aggregateConditions;
 
    /**
     * Polymorphic base for condition tree nodes.
@@ -119,6 +147,50 @@ public class VisualizationConditionModel {
          this.field = field;
       }
 
+      /**
+       * Aggregation function for aggregate conditions (e.g., Sum, Average, Count, Max, Min).
+       */
+      public String getAggregateFormula() {
+         return aggregateFormula;
+      }
+
+      public void setAggregateFormula(String aggregateFormula) {
+         this.aggregateFormula = aggregateFormula;
+      }
+
+      /**
+       * Secondary field for two-column formulas: Correlation, Covariance, WeightedAverage, SumWT.
+       */
+      public String getSecondaryField() {
+         return secondaryField;
+      }
+
+      public void setSecondaryField(String secondaryField) {
+         this.secondaryField = secondaryField;
+      }
+
+      /**
+       * N or P parameter for formulas: NthLargest(N), NthSmallest(N), NthMostFrequent(N), PthPercentile(P: 0-100).
+       */
+      public Integer getNOrP() {
+         return nOrP;
+      }
+
+      public void setNOrP(Integer nOrP) {
+         this.nOrP = nOrP;
+      }
+
+      /**
+       * Date grouping level for date-level conditions (e.g., Year, Quarter, Month, Week, Day).
+       */
+      public String getDateGroupLevel() {
+         return dateGroupLevel;
+      }
+
+      public void setDateGroupLevel(String dateGroupLevel) {
+         this.dateGroupLevel = dateGroupLevel;
+      }
+
       public boolean isNegated() {
          return negated;
       }
@@ -159,6 +231,10 @@ public class VisualizationConditionModel {
       }
 
       private String field;
+      private String aggregateFormula;
+      private String secondaryField;
+      private Integer nOrP;
+      private String dateGroupLevel;
       private boolean negated;
       private String operation;
       private Boolean equal;
