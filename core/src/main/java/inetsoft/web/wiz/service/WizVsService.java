@@ -153,19 +153,9 @@ public class WizVsService {
 
          // Collect binding for result
          CreateViewsheetResult.FlatBinding binding = collectFlatBinding(assembly);
-
-         // Snapshot worksheet state for potential rollback (aggregate condition path only)
-         AggregateInfo originalAggInfo = null;
-         ConditionListWrapper originalPreConds = null;
-         ConditionListWrapper originalPostConds = null;
-         ColumnSelection originalCols = null;
-         boolean originalAggregate = false;
-         AbstractTableAssembly wsTable = null;
          // Store at outer scope for rollback persistence
          AssetEntry wsEntry = null;
          Worksheet ws = null;
-         // Track if worksheet rollback has already been performed (avoid double rollback)
-         boolean wsRolledBack = false;
 
          if(hasAggregateConditions && wsTableName != null && binding != null) {
             wsEntry = targetVs.getBaseEntry();
@@ -174,13 +164,6 @@ public class WizVsService {
             Assembly wsAssembly = ws != null ? ws.getAssembly(wsTableName) : null;
 
             if(wsAssembly instanceof AbstractTableAssembly tableAsm) {
-               wsTable = tableAsm;
-               originalAggInfo = (AggregateInfo) tableAsm.getAggregateInfo().clone();
-               originalPreConds = tableAsm.getPreConditionList();
-               originalPostConds = tableAsm.getPostConditionList();
-               originalCols = tableAsm.getColumnSelection(false).clone();
-               originalAggregate = tableAsm.isAggregate();
-
                try {
                   // Push aggregation and conditions to worksheet
                   PreAggregationMapping preAggMapping = pushAggregationToWorksheet(
@@ -2200,7 +2183,7 @@ public class WizVsService {
                if(pushedMeasureFullNames.contains(fullName)) {
                   // Data is pre-aggregated, set column to fullName and remove formula
                   aggRef.setColumnValue(fullName);
-                  aggRef.setFormulaValue(null);
+                  aggRef.setFormulaValue(AggregateFormula.NONE.toString());
                }
             }
          }
@@ -2218,16 +2201,22 @@ public class WizVsService {
       }
 
       Set<String> pushedMeasureFullNames = preAggMapping.pushedMeasureFullNames();
-      String column = sbinfo.getColumnValue();
-      String formula = sbinfo.getAggregateValue();
+      DataRef column = sbinfo.getColumn();
 
-      // Construct fullName like "Sum(Column)" to match worksheet output column
-      if(column != null && formula != null) {
-         String fullName = formula + "(" + column + ")";
+      if(column != null && sbinfo.getAggregateValue() != null) {
+         VSAggregateRef ref = new VSAggregateRef();
+         ref.setColumnValue(sbinfo.getColumnValue());
 
-         if(pushedMeasureFullNames.contains(fullName)) {
-            sbinfo.setColumnValue(fullName);
-            sbinfo.setAggregateValue(null); // Data already aggregated
+         if(sbinfo.getAggregateValue() != null) {
+            ref.setFormulaValue(sbinfo.getAggregateValue());
+         }
+
+         ref.setSecondaryColumn(sbinfo.getSecondaryColumn());
+         ref.setN(sbinfo.getN());
+
+         if(pushedMeasureFullNames.contains(ref.getFullName())) {
+            sbinfo.setColumnValue(ref.getFullName());
+            sbinfo.setAggregateValue(AggregateFormula.NONE.toString()); // Data already aggregated
          }
       }
    }
