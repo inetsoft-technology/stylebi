@@ -1764,6 +1764,26 @@ public class SVGAnimationDOMInjector {
          .map(SVGAnimationDOMInjector::annotGroupBounds)
          .collect(Collectors.toList());
 
+      // Prefer data-y stamped by RelationVO (shape-agnostic screen Y center) over the
+      // bounds-derived center, which fails for non-rect node shapes such as circles.
+      List<Double> nodeCY = new ArrayList<>();
+
+      for(int i = 0; i < nodes.size(); i++) {
+         String yAttr = nodes.get(i).getAttribute("data-" + SVGSupport.ATTR_Y);
+
+         if(!yAttr.isEmpty()) {
+            try {
+               nodeCY.add(Double.parseDouble(yAttr));
+            }
+            catch(NumberFormatException ignored) {
+               nodeCY.add((bounds.get(i)[1] + bounds.get(i)[3]) / 2.0);
+            }
+         }
+         else {
+            nodeCY.add((bounds.get(i)[1] + bounds.get(i)[3]) / 2.0);
+         }
+      }
+
       // Sort node indices by Y-centre ascending (root = topmost = smallest Y in SVG coords).
       // NOTE: this assumes a vertical (top-to-bottom) tree layout. For horizontal COMPACT_TREE
       // layouts the level ordering will be approximate (nodes sorted by the width axis instead of
@@ -1776,7 +1796,7 @@ public class SVGAnimationDOMInjector {
          order.add(i);
       }
 
-      order.sort(Comparator.comparingDouble(i -> (bounds.get(i)[1] + bounds.get(i)[3]) / 2.0));
+      order.sort(Comparator.comparingDouble(nodeCY::get));
 
       // Cluster into level bands: a gap larger than 50% of the average node height signals
       // a new level.  Clamp threshold to at least 5px for degenerate single-pixel nodes.
@@ -1787,7 +1807,7 @@ public class SVGAnimationDOMInjector {
       double prevLevelY = Double.NEGATIVE_INFINITY;
 
       for(int idx : order) {
-         double cy = (bounds.get(idx)[1] + bounds.get(idx)[3]) / 2.0;
+         double cy = nodeCY.get(idx);
 
          if(numLevels == 0 || cy - prevLevelY > threshold) {
             prevLevelY = cy;
@@ -1805,44 +1825,35 @@ public class SVGAnimationDOMInjector {
             AnimationConstants.DURATION, AnimationConstants.EASING, delay));
       }
 
-      // Compute average center-Y for each level band so edges can be matched to levels.
-      double[] levelAvgY = new double[numLevels];
-      int[] levelCount = new int[numLevels];
+      // Build node-ID → level map so edges can be assigned the same level as their target node.
+      Map<String, Integer> levelByNodeId = new HashMap<>();
 
       for(int i = 0; i < nodes.size(); i++) {
-         double cy = (bounds.get(i)[1] + bounds.get(i)[3]) / 2.0;
-         levelAvgY[levelOf[i]] += cy;
-         levelCount[levelOf[i]]++;
-      }
+         String id = nodes.get(i).getAttribute("data-" + SVGSupport.ATTR_NODE_ID);
 
-      for(int l = 0; l < numLevels; l++) {
-         if(levelCount[l] > 0) {
-            levelAvgY[l] /= levelCount[l];
+         if(!id.isEmpty()) {
+            levelByNodeId.put(id, levelOf[i]);
          }
       }
 
-      // Edge animation: each edge fades in with its child node (the end of the edge furthest
-      // from the root, i.e. the maximum Y in SVG coordinates).
-      // NOTE: eb[3] (maxY) is the child end only for vertical layouts. For horizontal trees the
-      // child end would be eb[2] (maxX). This is acceptable for the current vertical-only support.
+      // Edge animation: each edge fades in with its target (child) node so the edge and
+      // its destination appear together. Falls back to the source node's level, then level 0.
       List<Element> edgeGroups = collectAnnotationGroups(svgRoot, SVGSupport.ANNOTATION_RELATION_EDGE);
 
       for(Element edgeG : edgeGroups) {
-         double[] eb = annotGroupBounds(edgeG);
-         double childY = eb[3]; // maxY = child end of the edge in SVG coords (vertical layout)
-         int bestLevel = 0;
-         double bestDist = Math.abs(childY - levelAvgY[0]);
+         String targetId = edgeG.getAttribute("data-" + SVGSupport.ATTR_TARGET);
+         String sourceId = edgeG.getAttribute("data-" + SVGSupport.ATTR_SOURCE);
+         Integer level = levelByNodeId.get(targetId);
 
-         for(int l = 1; l < numLevels; l++) {
-            double dist = Math.abs(childY - levelAvgY[l]);
-
-            if(dist < bestDist) {
-               bestDist = dist;
-               bestLevel = l;
-            }
+         if(level == null) {
+            level = levelByNodeId.get(sourceId);
          }
 
-         double delay = AnimationConstants.staggerDelay(bestLevel, numLevels);
+         if(level == null) {
+            level = 0;
+         }
+
+         double delay = AnimationConstants.staggerDelay(level, numLevels);
          applyAnimStyleToChildren(edgeG, String.format(java.util.Locale.US,
             "animation:inetsoft-relation-fade %.2fs %s %.2fs both",
             AnimationConstants.DURATION, AnimationConstants.EASING, delay));

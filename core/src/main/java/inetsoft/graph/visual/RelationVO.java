@@ -100,11 +100,17 @@ public class RelationVO extends ElementVO {
 
       SVGSupport svg = SVGSupport.isSVGContext(g) ? SVGSupport.getInstance() : null;
 
+      // Pre-compute bounds from the untransformed layout shape so data-y can be stamped
+      // on the annotation group regardless of the final rendered node shape (rect, circle, etc.).
+      Shape screenShape = getScreenTransform().createTransformedShape(this.shape);
+      Rectangle2D b = screenShape.getBounds2D();
+
       if(svg != null) {
          Map<String, String> nodeAttrs = new LinkedHashMap<>();
          nodeAttrs.put(SVGSupport.ATTR_ROW, String.valueOf(gobj.getRowIndex()));
          nodeAttrs.put(SVGSupport.ATTR_COL, String.valueOf(gobj.getColIndex()));
          nodeAttrs.put(SVGSupport.ATTR_NODE_ID, gobj.getMxCell().getId());
+         nodeAttrs.put(SVGSupport.ATTR_Y, String.valueOf(b.getCenterY()));
          svg.beginAnnotationGroup(g, SVGSupport.ANNOTATION_RELATION, nodeAttrs);
       }
 
@@ -113,8 +119,7 @@ public class RelationVO extends ElementVO {
 
          GTool.setRenderingHint(g2, false);
 
-         Shape shape = getScreenTransform().createTransformedShape(this.shape);
-         Rectangle2D b = shape.getBounds2D();
+         Shape shape = screenShape;
          GShape nodeShape = elem.getNodeShape();
 
          if(nodeShape != null) {
