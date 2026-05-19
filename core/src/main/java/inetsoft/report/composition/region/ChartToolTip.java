@@ -91,6 +91,14 @@ public class ChartToolTip implements DataSerializable {
          return renderCombinedCard(palette);
       }
 
+      // Solo card with an explicit header (e.g. candle/stock X-dim): pair[0] is
+      // the headline, header renders as a tier-1 subtitle directly below it,
+      // the next tier2GroupSize pairs form an auxiliary tier-2 group, the
+      // remainder tail at tier-3.
+      if(hasHeader() && (customToolTip == null || customToolTip.isEmpty())) {
+         return renderSoloCardWithHeader(palette);
+      }
+
       StringBuilder buffer = new StringBuilder();
       int tier = 1;
 
@@ -120,6 +128,43 @@ public class ChartToolTip implements DataSerializable {
          String value = (i + 1) < tooltips.size() ? palette.get(tooltips.get(i + 1)) : "";
          appendTier(buffer, tier, label + ChartToolTip.COLON + value);
          tier++;
+      }
+
+      return buffer.toString();
+   }
+
+   private String renderSoloCardWithHeader(IndexedSet<String> palette) {
+      StringBuilder buffer = new StringBuilder();
+      int pairsRendered = 0;
+
+      for(int i = 0; i < tooltips.size(); i += 2) {
+         int keyIdx = tooltips.get(i);
+
+         if(keyIdx == -1) {
+            continue;
+         }
+
+         String label = palette.get(keyIdx);
+         String value = (i + 1) < tooltips.size() ? palette.get(tooltips.get(i + 1)) : "";
+         int tier;
+
+         if(pairsRendered == 0) {
+            tier = 1;
+         }
+         else if(pairsRendered < 1 + tier2GroupSize) {
+            tier = 2;
+         }
+         else {
+            tier = 3;
+         }
+
+         appendTier(buffer, tier, label + ChartToolTip.COLON + value);
+
+         if(pairsRendered == 0) {
+            appendSubtitle(buffer, 1, palette.get(headerKey), palette.get(headerValue));
+         }
+
+         pairsRendered++;
       }
 
       return buffer.toString();
@@ -180,7 +225,7 @@ public class ChartToolTip implements DataSerializable {
             String label = palette.get(section[0]);
             String value = palette.get(section[1]);
             appendTier(buffer, 1, label + ChartToolTip.COLON + value);
-            appendSubtitle(buffer, palette.get(headerKey), palette.get(headerValue));
+            appendSubtitle(buffer, 2, palette.get(headerKey), palette.get(headerValue));
             wroteSubtitle = true;
             start = 2;
          }
@@ -310,8 +355,11 @@ public class ChartToolTip implements DataSerializable {
             .append("</div>");
    }
 
-   private void appendSubtitle(StringBuilder buffer, String label, String value) {
-      buffer.append("<div class=\"tt-tier-2 tt-subtitle\">")
+   // Solo card uses tier=1 (headline-bound subtitle, e.g. candle/stock date);
+   // combined card uses tier=2 (shared X-dim that scopes all peer sections).
+   private void appendSubtitle(StringBuilder buffer, int tier, String label, String value) {
+      int t = Math.min(Math.max(tier, 1), 3);
+      buffer.append("<div class=\"tt-tier-").append(t).append(" tt-subtitle\">")
             .append(label == null ? "" : label)
             .append(ChartToolTip.COLON)
             .append(value == null ? "" : value)
@@ -438,8 +486,9 @@ public class ChartToolTip implements DataSerializable {
       this.style = style == null ? ChartInfo.TooltipStyle.DEFAULT : style;
    }
 
-   // Shared X-dim header for combined card tooltips. When set, renderCombinedCard
-   // promotes the hovered measure to tier-1 and emits this pair as a tier-2 subtitle.
+   // Shared X-dim header. Solo card renders it as a tier-1 subtitle directly
+   // under the headline; combined card renders it as a tier-2 subtitle scoping
+   // multiple peer sections.
    public void setHeader(int key, int value) {
       this.headerKey = key;
       this.headerValue = value;
@@ -455,6 +504,17 @@ public class ChartToolTip implements DataSerializable {
 
    public int getHeaderValue() {
       return headerValue;
+   }
+
+   // Number of pairs after the tier-1 headline that should render at tier-2 in
+   // the solo-card-with-header path (candle/stock OHL group). Pairs past this
+   // group drop to tier-3.
+   public void setTier2GroupSize(int size) {
+      this.tier2GroupSize = Math.max(1, size);
+   }
+
+   public int getTier2GroupSize() {
+      return tier2GroupSize;
    }
 
    /**
@@ -508,4 +568,5 @@ public class ChartToolTip implements DataSerializable {
    private ChartInfo.TooltipStyle style = ChartInfo.TooltipStyle.DEFAULT;
    private int headerKey = -1;
    private int headerValue = -1;
+   private int tier2GroupSize = 1;
 }

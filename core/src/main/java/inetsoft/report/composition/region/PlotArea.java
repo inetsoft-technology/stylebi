@@ -1417,6 +1417,7 @@ public class PlotArea extends GridContainerArea implements GraphComponentArea, R
       }
       else {
          boolean isGantt = GraphTypes.isGantt(chartInfo.getChartType());
+         boolean isCandleOrStock = chartInfo instanceof CandleChartInfo;
 
          // Gantt: Y-axis is the "row" axis that distinguishes bars, so list
          // Y dims ahead of X dims regardless of binding order in the element.
@@ -1425,8 +1426,18 @@ public class PlotArea extends GridContainerArea implements GraphComponentArea, R
          }
 
          boolean cardMeasureFirst = cardPutsMeasureFirst(chartInfo, element);
+         String[] tipMeasures = measures;
+         boolean candleCardLayout = isCandleOrStock && cardMeasureFirst;
+
+         // Candle/Stock card: Close is the canonical headline price; promote it
+         // ahead of OHL so it becomes the tier-1 row.
+         if(candleCardLayout) {
+            tipMeasures = reorderCandleMeasuresCloseFirst(
+               measures, (CandleChartInfo) chartInfo);
+         }
+
          String[][] cols = cardMeasureFirst
-            ? new String[][] {measures, dims, others}
+            ? new String[][] {tipMeasures, dims, others}
             : new String[][] {dims, measures, others};
          HashSet<String> added = new HashSet<>();
          Object[] arr = new Object[list.size()];
@@ -1558,6 +1569,12 @@ public class PlotArea extends GridContainerArea implements GraphComponentArea, R
                appendInfo(vmodel, tooltip, index, dataset, added, aesthetics, evo, excludeDims);
             }
          }
+
+         // Candle/Stock card: lift the X-dim (date) to a tier-1 subtitle below
+         // the Close headline, and keep OHL together at tier-2 above aesthetics.
+         if(candleCardLayout && dims.length > 0) {
+            applyCandleCardHeader(tooltip, dims[0], tipMeasures);
+         }
       }
 
       HRef ref = getHyperlink(evo, col, vgraph, false, null);
@@ -1681,6 +1698,72 @@ public class PlotArea extends GridContainerArea implements GraphComponentArea, R
 
    private String getStackTotalName(String measureName) {
       return measureName == null ? STACK_TOTAL : STACK_TOTAL + " " + measureName;
+   }
+
+   // Build the candle/stock tip measure order: Close, Open, High, Low,
+   // then any extras in their original position. Null fields are dropped.
+   private String[] reorderCandleMeasuresCloseFirst(String[] measures,
+                                                    CandleChartInfo info)
+   {
+      String closeName = nameOf(info.getRTCloseField());
+      String openName = nameOf(info.getRTOpenField());
+      String highName = nameOf(info.getRTHighField());
+      String lowName = nameOf(info.getRTLowField());
+
+      List<String> reordered = new ArrayList<>();
+
+      if(closeName != null) {
+         reordered.add(closeName);
+      }
+
+      if(openName != null) {
+         reordered.add(openName);
+      }
+
+      if(highName != null) {
+         reordered.add(highName);
+      }
+
+      if(lowName != null) {
+         reordered.add(lowName);
+      }
+
+      for(String m : measures) {
+         if(m != null && !reordered.contains(m)) {
+            reordered.add(m);
+         }
+      }
+
+      return reordered.toArray(new String[0]);
+   }
+
+   private String nameOf(ChartRef ref) {
+      return ref == null ? null : GraphUtil.getName(ref);
+   }
+
+   // Set the X-dim as the tooltip header (rendered as tier-1 subtitle by
+   // ChartToolTip's solo-card-with-header path) and group OHL pairs at tier-2.
+   private void applyCandleCardHeader(ChartToolTip tooltip, String xDim,
+                                      String[] tipMeasures)
+   {
+      String dimName = tips.get(xDim);
+
+      if(dimName == null) {
+         dimName = xDim;
+      }
+
+      int xKey = palette.put(dimName);
+      int xVal = tooltip.getTooltipValue(xKey);
+
+      if(xVal >= 0) {
+         tooltip.setHeader(xKey, xVal);
+         tooltip.removeTooltip(xKey);
+      }
+
+      // Pairs 1..N (Open/High/Low) stay at tier-2; anything past them
+      // (aesthetics like color dims) drops to tier-3.
+      int auxCount = Math.max(0, tipMeasures.length - 1);
+      tooltip.setTier2GroupSize(auxCount);
    }
 
    // check if point corresponding to null value should show tooltip.

@@ -248,6 +248,82 @@ class ChartToolTipTest {
    }
 
    @Test
+   void soloCardWithHeaderRendersCandleStockLayout() {
+      // Candle/Stock: Close at tier-1, Date as tier-1 subtitle, OHL grouped at
+      // tier-2, aesthetic dims (e.g. bullOrbear) at tier-3.
+      IndexedSet<String> palette = new IndexedSet<>();
+      int xKey = palette.put("Week(date)");
+      int xVal = palette.put("2025-01-19");
+
+      ChartToolTip tip = new ChartToolTip();
+      tip.setStyle(ChartInfo.TooltipStyle.CARD);
+      tip.setHeader(xKey, xVal);
+      tip.addTooltip(palette.put("Last(close, date)"), palette.put("165.8"));
+      tip.addTooltip(palette.put("First(open, date)"), palette.put("158.3"));
+      tip.addTooltip(palette.put("Max(high)"), palette.put("166.5"));
+      tip.addTooltip(palette.put("Min(low)"), palette.put("157.5"));
+      tip.addTooltip(palette.put("bullOrbear"), palette.put("Bullish"));
+      tip.setTier2GroupSize(3);
+
+      String out = tip.getTooltip(palette);
+
+      assertTrue(out.contains("<div class=\"tt-tier-1\">Last(close, date):&nbsp;165.8"),
+                 "Close is the canonical headline price at tier-1");
+      assertTrue(out.contains("<div class=\"tt-tier-1 tt-subtitle\">Week(date):&nbsp;2025-01-19"),
+                 "X-dim renders as a tier-1 subtitle under the headline");
+      assertTrue(out.contains("<div class=\"tt-tier-2\">First(open, date):&nbsp;158.3"),
+                 "Open stays in the tier-2 OHL group");
+      assertTrue(out.contains("<div class=\"tt-tier-2\">Max(high):&nbsp;166.5"),
+                 "High stays in the tier-2 OHL group");
+      assertTrue(out.contains("<div class=\"tt-tier-2\">Min(low):&nbsp;157.5"),
+                 "Low stays in the tier-2 OHL group");
+      assertTrue(out.contains("<div class=\"tt-tier-3\">bullOrbear:&nbsp;Bullish"),
+                 "Aesthetic dims past the OHL group drop to tier-3");
+      assertFalse(out.contains("tt-tier-4"), "Tiers must cap at 3");
+   }
+
+   @Test
+   void soloCardWithHeaderRespectsTier2GroupSizeBoundary() {
+      // tier2GroupSize=1 (default) keeps only one pair at tier-2 below the
+      // headline; the rest fall to tier-3.
+      IndexedSet<String> palette = new IndexedSet<>();
+      ChartToolTip tip = new ChartToolTip();
+      tip.setStyle(ChartInfo.TooltipStyle.CARD);
+      tip.setHeader(palette.put("Year"), palette.put("2024"));
+      tip.addTooltip(palette.put("Close"), palette.put("100"));
+      tip.addTooltip(palette.put("Open"), palette.put("90"));
+      tip.addTooltip(palette.put("High"), palette.put("110"));
+
+      String out = tip.getTooltip(palette);
+
+      assertTrue(out.contains("<div class=\"tt-tier-1\">Close:&nbsp;100"));
+      assertTrue(out.contains("<div class=\"tt-tier-1 tt-subtitle\">Year:&nbsp;2024"));
+      assertTrue(out.contains("<div class=\"tt-tier-2\">Open:&nbsp;90"));
+      assertTrue(out.contains("<div class=\"tt-tier-3\">High:&nbsp;110"));
+   }
+
+   @Test
+   void soloCardWithoutHeaderKeepsLegacyTierCap() {
+      // No header → legacy path: 1, 2, 3, 3, 3...
+      IndexedSet<String> palette = new IndexedSet<>();
+      ChartToolTip tip = new ChartToolTip();
+      tip.setStyle(ChartInfo.TooltipStyle.CARD);
+      tip.setTier2GroupSize(3); // Without a header this has no effect.
+      tip.addTooltip(palette.put("A"), palette.put("1"));
+      tip.addTooltip(palette.put("B"), palette.put("2"));
+      tip.addTooltip(palette.put("C"), palette.put("3"));
+      tip.addTooltip(palette.put("D"), palette.put("4"));
+
+      String out = tip.getTooltip(palette);
+
+      assertTrue(out.contains("<div class=\"tt-tier-1\">A"));
+      assertTrue(out.contains("<div class=\"tt-tier-2\">B"));
+      assertTrue(out.contains("<div class=\"tt-tier-3\">C"));
+      assertTrue(out.contains("<div class=\"tt-tier-3\">D"));
+      assertFalse(out.contains("tt-subtitle"));
+   }
+
+   @Test
    void combinedCardEmitsHeaderOnce() {
       IndexedSet<String> palette = new IndexedSet<>();
       int xKey = palette.put("Region");
