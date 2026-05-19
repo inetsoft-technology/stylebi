@@ -72,6 +72,7 @@ import { VariableListDialogModule } from "../widget/dialog/variable-list-dialog/
 import { VSAssemblyScriptPaneModule } from "../widget/dialog/vsassembly-script-pane/vsassembly-script-pane.module";
 import { WidgetDirectivesModule } from "../widget/directive/widget-directives.module";
 import { DropdownViewModule } from "../widget/dropdown-view/dropdown-view.module";
+import { CustomSelectModule } from "../widget/custom-select/custom-select.module";
 import { DynamicComboBoxModule } from "../widget/dynamic-combo-box/dynamic-combo-box.module";
 import { ElidedCellModule } from "../widget/elided-cell/elided-cell.module";
 import { ExpandStringModule } from "../widget/expand-string/expand-string.module";
@@ -335,6 +336,7 @@ import { LineAnchorService } from "./services/line-anchor.service";
       NotificationsModule,
       FixedDropdownModule,
       TreeModule,
+      CustomSelectModule,
       DynamicComboBoxModule,
       WidgetFormatModule,
       ColorPickerModule,

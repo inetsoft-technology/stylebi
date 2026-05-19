@@ -42,11 +42,11 @@
     </div>
     <div class="form-row-float-label row">
       <div class="col form-floating">
-        <select class="form-control" [ngModelOptions]="{standalone: true}"
-                [(ngModel)]="model.position" placeholder="_#(Legend Position)" data-test="legend-position">
-          <option *ngFor="let _column of positionChoices; let _i = index"
-             [value]="_column">{{positionLabels[_i]}}</option>
-        </select>
+        <custom-select [options]="positionSelectOptions"
+                       [ngModelOptions]="{standalone: true}"
+                       [(ngModel)]="model.position"
+                       placeholder="_#(Legend Position)"
+                       data-test="legend-position"></custom-select>
         <label><span>_#(Legend Position)</span></label>
       </div>
       <div class="col">

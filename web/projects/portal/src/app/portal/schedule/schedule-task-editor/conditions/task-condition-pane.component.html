@@ -45,10 +45,10 @@
                 <div class="condition-edit-view__timezone-row form-row-float-label row" *ngIf="startTimeEnabled">
                   <div class="col condition-edit-view__timezone-col">
                     <div class="form-floating">
-                      <select class="form-control" [ngModel]="localTimeZoneId" (ngModelChange)="setLocalTimeZone($event)"
-                              formControlName="timeZone">
-                        <option *ngFor="let tz of timeZoneOptions" [value]="tz.timeZoneId" [title]="tz.timeZoneId">{{ tz.hourOffset + " " + tz.label }}</option>
-                      </select>
+                      <custom-select [options]="timeZoneSelectOptions"
+                                     formControlName="timeZone"
+                                     (selectionChange)="setLocalTimeZone($event)">
+                      </custom-select>
                       <label>_#(Time Zone)</label>
                     </div>
                   </div>
@@ -115,10 +115,10 @@
                 <div class="condition-edit-view__timezone-row form-row-float-label row" *ngIf="startTimeEnabled">
                   <div class="col condition-edit-view__timezone-col">
                     <div class="form-floating">
-                      <select class="form-control" [ngModel]="localTimeZoneId" (ngModelChange)="setLocalTimeZone($event)"
-                              formControlName="timeZone">
-                        <option *ngFor="let tz of timeZoneOptions" [value]="tz.timeZoneId" [title]="tz.timeZoneId">{{ tz.hourOffset + " " + tz.label }}</option>
-                      </select>
+                      <custom-select [options]="timeZoneSelectOptions"
+                                     formControlName="timeZone"
+                                     (selectionChange)="setLocalTimeZone($event)">
+                      </custom-select>
                       <label>_#(Time Zone)</label>
                     </div>
                   </div>
@@ -190,10 +190,10 @@
                 <div class="condition-edit-view__timezone-row form-row-float-label row" *ngIf="startTimeEnabled">
                   <div class="col condition-edit-view__timezone-col">
                     <div class="form-floating">
-                      <select class="form-control" [ngModel]="localTimeZoneId" (ngModelChange)="setLocalTimeZone($event)"
-                              formControlName="timeZone">
-                        <option *ngFor="let tz of timeZoneOptions" [value]="tz.timeZoneId" [title]="tz.timeZoneId">{{ tz.hourOffset + " " + tz.label }}</option>
-                      </select>
+                      <custom-select [options]="timeZoneSelectOptions"
+                                     formControlName="timeZone"
+                                     (selectionChange)="setLocalTimeZone($event)">
+                      </custom-select>
                       <label>_#(Time Zone)</label>
                     </div>
                   </div>
@@ -208,10 +208,10 @@
               </div>
               <div class="col">
                 <div class="input-group scheduler-form">
-                  <select class="form-control" [(ngModel)]="timeCondition.dayOfMonth"
-                          formControlName="dayOfMonth">
-                      <option *ngFor="let day of monthDays; let i = index" [value]="daysOfMonthNum[i]">{{ day }}</option>
-                  </select>
+                  <custom-select [options]="monthDaySelectOptions"
+                                 formControlName="dayOfMonth"
+                                 (selectionChange)="timeCondition.dayOfMonth = $event">
+                  </custom-select>
                   <div class="input-group-text">_#(day of the month)</div>
                 </div>
               </div>
@@ -227,16 +227,17 @@
                        (ngModelChange)="changeMonthRadioOption($event)" [value]="false">
               </div>
               <div class="col-auto">
-                <select class="form-control scheduler-form sm-dropdown" [(ngModel)]="timeCondition.weekOfMonth"
-                        formControlName="weekOfMonth">
-                      <option *ngFor="let week of monthWeeks; let i = index" [value]="i + 1">{{ week }}</option>
-                </select>
+                <custom-select class="scheduler-form sm-dropdown"
+                               [options]="monthWeekSelectOptions"
+                               formControlName="weekOfMonth"
+                               (selectionChange)="timeCondition.weekOfMonth = $event">
+                </custom-select>
               </div>
               <div class="col-auto input-group scheduler-form">
-                <select class="form-control" [(ngModel)]="timeCondition.dayOfWeek"
-                        formControlName="dayOfWeek">
-                      <option *ngFor="let day of weekdays; let i = index" [value]="i + 1">{{ day }}</option>
-                </select>
+                <custom-select [options]="weekdaySelectOptions"
+                               formControlName="dayOfWeek"
+                               (selectionChange)="timeCondition.dayOfWeek = $event">
+                </custom-select>
                 <div class="input-group-text">_#(of the month)</div>
               </div>
             </div>
@@ -327,10 +328,10 @@
                   <div class="condition-edit-view__timezone-row form-row-float-label row">
                     <div class="col condition-edit-view__timezone-col">
                       <div class="form-floating">
-                        <select class="form-control" [ngModel]="localTimeZoneId" (ngModelChange)="setLocalTimeZone($event)"
-                                formControlName="timeZone">
-                          <option *ngFor="let tz of timeZoneOptions" [value]="tz.timeZoneId" [title]="tz.timeZoneId">{{ tz.hourOffset + " " + tz.label }}</option>
-                        </select>
+                        <custom-select [options]="timeZoneSelectOptions"
+                                       formControlName="timeZone"
+                                       (selectionChange)="setLocalTimeZone($event)">
+                        </custom-select>
                         <label>_#(Time Zone)</label>
                       </div>
                     </div>
@@ -418,10 +419,10 @@
                   <div class="condition-edit-view__timezone-row form-row-float-label row">
                     <div class="col condition-edit-view__timezone-col">
                       <div class="form-floating">
-                        <select class="form-control" [ngModel]="localTimeZoneId" (ngModelChange)="setLocalTimeZone($event)"
-                                formControlName="timeZone">
-                          <option *ngFor="let tz of timeZoneOptions" [value]="tz.timeZoneId" [title]="tz.timeZoneId">{{ tz.hourOffset + " " + tz.label }}</option>
-                        </select>
+                        <custom-select [options]="timeZoneSelectOptions"
+                                       formControlName="timeZone"
+                                       (selectionChange)="setLocalTimeZone($event)">
+                        </custom-select>
                         <label>_#(Time Zone)</label>
                       </div>
                     </div>
@@ -456,14 +457,13 @@
         <form [formGroup]="form">
           <div class="form-row-float-label row completion-condition-row">
             <div class="col form-floating">
-                <select class="form-control scheduler-form" id="taskName"
-                        formControlName="task"
-                        [(ngModel)]="completionCondition.taskName"
-                        [class.is-invalid]="!form.controls['task'].valid">
-                  <ng-container *ngFor="let task of allTasks">
-                    <option *ngIf="task.name !== taskName" [value]="task.name">{{ task.label }}</option>
-                  </ng-container>
-                </select>
+                <custom-select class="scheduler-form"
+                               id="taskName"
+                               [options]="completionTaskSelectOptions"
+                               formControlName="task"
+                               (selectionChange)="completionCondition.taskName = $event"
+                               [invalid]="!form.controls['task'].valid">
+                </custom-select>
                 <label>_#(Run after)</label>
                 <span class="invalid-feedback"
                       *ngIf="form && !!form.controls['task'] && form.controls['task'].errors">

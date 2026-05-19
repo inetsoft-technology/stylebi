@@ -60,6 +60,7 @@ export class TreeDropdownComponent extends TreeDataPane {
    @ViewChild("dropdownMenu") dropdownMenu: TemplateRef<any>;
    @ViewChild(FixedDropdownDirective) inputDropdown: FixedDropdownDirective;
    currentLabel: string = "";
+   open: boolean = false;
 
    constructor(private dropdownService: FixedDropdownService,
                private renderer: Renderer2,
@@ -76,6 +77,10 @@ export class TreeDropdownComponent extends TreeDataPane {
          this.selectNode(node);
          this.inputDropdown.close();
       }
+   }
+
+   handleOpenChange(open: boolean): void {
+      this.open = open;
    }
 
    reset() {

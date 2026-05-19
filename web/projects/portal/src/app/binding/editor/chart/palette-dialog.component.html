@@ -23,11 +23,10 @@
   <!--palette selector-->
   <div *ngIf="colorPalettes">
     <div class="form-floating">
-      <select class="form-control" [(ngModel)]="_selectedIndex" id="selectedIndex">
-        <option *ngFor="let p of colorPalettes; let i = index" [value]="i">
-          {{p.name}}
-        </option>
-      </select>
+      <custom-select [options]="paletteSelectOptions"
+                     [(ngModel)]="_selectedIndex"
+                     id="selectedIndex">
+      </custom-select>
       <label for="selectedIndex"><span>_#(Select Palette)</span></label>
     </div>
   </div>

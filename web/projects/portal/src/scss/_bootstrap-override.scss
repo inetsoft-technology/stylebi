@@ -171,6 +171,8 @@ label {
 
   > *:not(:placeholder-shown) ~ label, > .condition-field-combo-toggle.disabled:focus ~ label,
   > .condition-field-combo-toggle.disabled:not(:placeholder-shown) ~ label,
+  > custom-select.has-value ~ label, > custom-select.is-focused ~ label,
+  > custom-select.is-open ~ label,
   > .form-control-plaintext ~ label, > .form-control:focus ~ label,
   > .form-control:not(:placeholder-shown) ~ label, > .form-select ~ label
   {

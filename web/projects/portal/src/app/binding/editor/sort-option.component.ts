@@ -43,6 +43,7 @@ import { ManualOrderingDialog } from "./manual-ordering-dialog.component";
 import { ComponentTool } from "../../common/util/component-tool";
 import { XConstants } from "../../common/util/xconstants";
 import { SourceInfo } from "../data/source-info";
+import { CustomSelectOption } from "../../widget/custom-select/custom-select.component";
 
 const GENERAL_SORT_OPTIONS: any[] = [
    {label: "_#(js:None)", value: StyleConstants.SORT_NONE},
@@ -243,6 +244,15 @@ export class SortOption implements OnInit {
 
    isEmptyAggregate(): boolean {
       return !this.aggregates || this.aggregates.length == 0;
+   }
+
+   get sortOrderSelectOptions(): CustomSelectOption<any>[] {
+      return (this.getSortOrders() || [])
+         .filter((sort) => this.sortItemVisible(sort))
+         .map((sort) => ({
+            value: sort.value,
+            label: sort.label
+         }));
    }
 
    /**

@@ -24,6 +24,7 @@ import { ColorMappingDialogModel } from "../../data/chart/color-mapping-dialog-m
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { ComponentTool } from "../../../common/util/component-tool";
 import { ValueLabelModel } from "../../data/value-label-model";
+import { CustomSelectOption } from "../../../widget/custom-select/custom-select.component";
 
 @Component({
    selector: "color-mapping-dialog",
@@ -65,6 +66,13 @@ export class ColorMappingDialog implements OnInit {
 
    set currentColorMaps(colorMaps: ColorMap[]) {
      this._currentColorMaps = colorMaps;
+   }
+
+   get dimensionSelectOptions(): CustomSelectOption<any>[] {
+      return (this.truncatedDimensionData || []).map((data) => ({
+         value: data.value,
+         label: data.label
+      }));
    }
 
    ngOnInit(): void {

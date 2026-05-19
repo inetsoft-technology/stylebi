@@ -22,6 +22,7 @@ import { ComponentTool } from "../../common/util/component-tool";
 import { FileFormatPaneModel } from "../model/file-format-pane-model";
 import { FileFormatType } from "../model/file-format-type";
 import { UntypedFormGroup } from "@angular/forms";
+import { CustomSelectOption } from "../../widget/custom-select/custom-select.component";
 
 @Component({
    selector: "file-format-pane",
@@ -36,6 +37,12 @@ export class FileFormatPane implements OnInit {
    @Input() supportCSVTableSelect: boolean = false;
    FileFormatType = FileFormatType;
    types: any[];
+   get formatTypeSelectOptions(): CustomSelectOption<number>[] {
+      return this.types?.map((type) => ({
+         label: type.label,
+         value: type.value
+      })) ?? [];
+   }
 
    constructor(private modalService: NgbModal) {
    }

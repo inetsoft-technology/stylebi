@@ -1,4 +1,4 @@
-/*!
+/*
  * This file is part of StyleBI.
  * Copyright (C) 2024  InetSoft Technology
  *
@@ -15,36 +15,24 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-.dropdown-item {
-  padding-left: 3px;
-  padding-right: 3px;
-  min-width: 150px;
-}
+import {CommonModule} from "@angular/common";
+import {NgModule} from "@angular/core";
+import {FormsModule} from "@angular/forms";
+import {CustomSelectComponent} from "./custom-select.component";
+import {FixedDropdownModule} from "../fixed-dropdown/fixed-dropdown.module";
 
-button.dropdown-toggle {
-  position: relative;
-  width: 100%;
-  padding-right: 2rem;
-  text-align: left;
-}
-
-button.dropdown-toggle .line-display {
-  display: block;
-  margin-top: 0;
-  margin-bottom: 0;
-  margin-right: 1.5rem;
-}
-
-button.dropdown-toggle .line-style-NONE {
-  min-height: 1rem;
-  display: flex;
-  align-items: center;
-}
-
-.style-dropdown__icon {
-  position: absolute;
-  right: 10px;
-  top: 50%;
-  transform: translateY(-50%);
-  pointer-events: none;
+@NgModule({
+   imports: [
+      CommonModule,
+      FormsModule,
+      FixedDropdownModule,
+   ],
+   declarations: [
+      CustomSelectComponent
+   ],
+   exports: [
+      CustomSelectComponent
+   ],
+})
+export class CustomSelectModule {
 }

@@ -36,6 +36,7 @@
       <div class="col">
         <div class="form-floating">
           <style-dropdown data-test="lineStyleDropdown"
+                          [color]="model.color === 'Static' ? model.colorValue : null"
                           [(style)]="model.style"></style-dropdown>
           <label>_#(Style)</label>
         </div>

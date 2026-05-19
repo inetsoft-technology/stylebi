@@ -183,10 +183,13 @@ export class FixedDropdownComponent implements OnInit, AfterViewInit, OnDestroy 
 
    private documentMousedown0(event: MouseEvent, target: EventTarget) {
       const element = target as Element;
-
-      if(this.closeOnOutsideClick && !this.elementContainsTarget(target) &&
+      const containsTarget = this.elementContainsTarget(target);
+      const currentDropdown = this.dropdownService.isCurrent(this);
+      const shouldClose = this.closeOnOutsideClick && !containsTarget &&
          !this.isBackdrop(element) &&
-         (!this.isDropdown(element) || this.dropdownService.isCurrent(this)))
+         (!this.isDropdown(element) || currentDropdown);
+
+      if(shouldClose)
       {
          this.onClose.emit();
          event.stopPropagation();
@@ -194,9 +197,10 @@ export class FixedDropdownComponent implements OnInit, AfterViewInit, OnDestroy 
    }
 
    private documentClick(event: MouseEvent) {
-      const target = event.target as Element;
+      const currentDropdown = this.dropdownService.isCurrent(this);
+      const shouldClose = event.button !== 2 && this.autoClose && currentDropdown;
 
-      if(event.button !== 2 && this.autoClose && this.dropdownService.isCurrent(this)) {
+      if(shouldClose) {
          this.onClose.emit();
          event.stopPropagation();
       }

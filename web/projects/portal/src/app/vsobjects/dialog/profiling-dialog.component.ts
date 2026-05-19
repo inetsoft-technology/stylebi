@@ -36,6 +36,7 @@ import { SortInfo } from "../../vsobjects/objects/table/sort-info";
 import { ModelService } from "../../widget/services/model.service";
 import { ProfileTableDataEvent } from "../model/profile-table-data-event";
 import { DownloadService } from "../../../../../shared/download/download.service";
+import { CustomSelectOption } from "../../widget/custom-select/custom-select.component";
 
 const GET_PROFILE_CHART: string = "../api/image/portal/profile/image";
 const GET_PROFILE_TABLE_URL = "../api/portal/profile/table";
@@ -67,6 +68,12 @@ export class ProfilingDialog implements OnInit {
 
    groupBy: string = "cycle";
    groupByFields: GroupByField[] = [ { label: "_#(js:Cycle Name)", value: "cycle" } ];
+   get groupBySelectOptions(): CustomSelectOption<string>[] {
+      return this.groupByFields.map((field) => ({
+         label: field.label,
+         value: field.value
+      }));
+   }
    showValue: boolean = true;
    _showDetails: boolean = false;
    sortEnabled: boolean = true;

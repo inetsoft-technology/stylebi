@@ -45,6 +45,7 @@ import { FormValidators } from "../../../../../shared/util/form-validators";
 import { ActionsContextmenuComponent } from "../fixed-dropdown/actions-contextmenu.component";
 import { DropdownOptions } from "../fixed-dropdown/dropdown-options";
 import { FixedDropdownService } from "../fixed-dropdown/fixed-dropdown.service";
+import { CustomSelectOption } from "../custom-select/custom-select.component";
 import { TreeNodeModel } from "../tree/tree-node-model";
 import { FormulaEditorDialogModel } from "./formula-editor-dialog-model";
 import { FormulaEditorService } from "./formula-editor.service";
@@ -155,6 +156,12 @@ export class FormulaEditorDialog extends BaseResizeableDialogComponent implement
    NEW_AGGREGATE: string = "New Aggregate";
    cursor: {line: number, ch: number};
    returnTypes: {label: string, data: string}[];
+   get returnTypeSelectOptions(): CustomSelectOption<string>[] {
+      return this.returnTypes?.map((type) => ({
+         label: type.label,
+         value: type.data
+      })) ?? [];
+   }
    @Output() onCommit: EventEmitter<FormulaEditorDialogModel> =
       new EventEmitter<FormulaEditorDialogModel>();
    @Output() onCancel: EventEmitter<string> = new EventEmitter<string>();

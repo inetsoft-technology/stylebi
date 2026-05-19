@@ -21,6 +21,7 @@ import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { NgbNavModule, NgbTypeaheadModule } from "@ng-bootstrap/ng-bootstrap";
 import { CkeditorWrapperModule } from "../../../../../shared/ckeditor-wrapper/ckeditor-wrapper.module";
 import { AssetTreeModule } from "../asset-tree/asset-tree.module";
+import { CustomSelectModule } from "../custom-select/custom-select.module";
 import { WidgetDirectivesModule } from "../directive/widget-directives.module";
 import { IdentityTreeModule } from "../identity-tree/identity-tree.module";
 import { ModalHeaderModule } from "../modal-header/modal-header.module";
@@ -44,6 +45,7 @@ import { QueryEmailPane } from "./query-email-pane.component";
       ScrollableTableModule,
       ShuffleListModule,
       AssetTreeModule,
+      CustomSelectModule,
       CkeditorWrapperModule,
    ],
    declarations: [

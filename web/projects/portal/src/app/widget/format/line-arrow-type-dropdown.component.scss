@@ -23,6 +23,20 @@
 }
 
 button.dropdown-toggle {
+  position: relative;
   width: 100%;
-  padding-right: 2em;
+  padding-right: 2rem;
+  text-align: left;
+}
+
+button.dropdown-toggle > div {
+  margin-right: 1.5rem;
+}
+
+.line-arrow-type-dropdown__icon {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
 }

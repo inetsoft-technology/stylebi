@@ -68,6 +68,10 @@
   --bs-gutter-x: 12px;
 }
 
+.action-accordion-bookmark-select-col {
+  width: min(100%, 360px);
+}
+
 .action-accordion-bookmark-list-col {
   flex: 0 0 auto;
   width: min(100%, 540px);

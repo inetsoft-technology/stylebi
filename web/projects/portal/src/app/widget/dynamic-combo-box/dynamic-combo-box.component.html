@@ -25,9 +25,15 @@
            [class.custom-select]="isValuesDefinedAndNotEmpty()"
            [class.disabled]="disable"
            [fixedDropdown]="selectOnClick ? null : valueDropdownMenu"
+           (openChange)="handleValueDropdownOpenChange($event)"
            dropdownPlacement="bottom" [attr.title]="tooltip"
            [autoClose]="!asTree" [disabled]="disable">
-        {{getCurrentValue()}}&nbsp;
+        <span class="dynamic-combo-box__display-text">{{getCurrentValue()}}&nbsp;</span>
+        <i *ngIf="isValuesDefinedAndNotEmpty()"
+           class="dynamic-combo-box__display-icon icon-color-default"
+           aria-hidden="true"
+           [class.chevron-down-icon]="!valueDropdownOpen"
+           [class.chevron-up-icon]="valueDropdownOpen"></i>
       </div>
       <input *ngIf="editable && mode == ValueMode.TEXT" class="form-control"
              [class.is-invalid]="invalid"
@@ -84,12 +90,14 @@
     </ng-container>
   </ng-container>
   <ng-container *ngIf="type == ComboMode.VARIABLE">
-     <select class="form-control" [ngModel]="value" [attr.title]="value"
-            (ngModelChange)="valueChange.emit($event)" [disabled]="disable" data-test="variable-value-dropdown">
-      <option [value]="variable" *ngFor="let variable of (variables ? variables.sort() : [])">
-        {{variable}}
-      </option>
-    </select>
+    <custom-select class="w-100"
+                   [options]="variableSelectOptions"
+                   [ngModel]="value"
+                   [disabled]="disable"
+                   [ariaLabel]="label || '_#(Variable)'"
+                   (ngModelChange)="valueChange.emit($event)"
+                   data-test="variable-value-dropdown">
+    </custom-select>
   </ng-container>
   <ng-container *ngIf="type == ComboMode.EXPRESSION">
     <input type="text" class="form-control" [class.disabled]="disable" [ngModel]="value" [attr.title]="value"

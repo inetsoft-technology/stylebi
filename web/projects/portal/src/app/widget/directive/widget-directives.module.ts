@@ -25,6 +25,7 @@ import {ExistsDirective} from "./exists-validator.directive";
 import {InputTrimDirective} from "./input-trim.directive";
 import {MaxNumberDirective} from "./max-number-validator.directive";
 import {MinNumberDirective} from "./min-number-validator.directive";
+import {NativeSelectShellDirective} from "./native-select-shell.directive";
 import {OutOfZoneDirective} from "./out-of-zone.directive";
 import {ResizableTableDirective} from "./resizable-table.directive";
 import {SelectionBoxDirective} from "./selection-box.directive";
@@ -43,6 +44,7 @@ import {SortColumnDirective} from "./sort-column.directive";
       InputTrimDirective,
       MaxNumberDirective,
       MinNumberDirective,
+      NativeSelectShellDirective,
       OutOfZoneDirective,
       ResizableTableDirective,
       SelectionBoxDirective,
@@ -57,6 +59,7 @@ import {SortColumnDirective} from "./sort-column.directive";
       InputTrimDirective,
       MaxNumberDirective,
       MinNumberDirective,
+      NativeSelectShellDirective,
       OutOfZoneDirective,
       ResizableTableDirective,
       SelectionBoxDirective,

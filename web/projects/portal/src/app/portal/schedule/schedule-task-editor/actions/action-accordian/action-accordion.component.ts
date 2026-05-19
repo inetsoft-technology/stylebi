@@ -57,6 +57,7 @@ import { ServerPathInfoModel } from "../../../../../vsobjects/model/server-path-
 import { VSBookmarkInfoModel } from "../../../../../vsobjects/model/vs-bookmark-info-model";
 import { EmailAddrDialogModel } from "../../../../../widget/email-dialog/email-addr-dialog-model";
 import { EmailDialogData } from "../../../../../widget/email-dialog/email-addr-dialog.component";
+import { CustomSelectOption } from "../../../../../widget/custom-select/custom-select.component";
 import { TreeNodeModel } from "../../../../../widget/tree/tree-node-model";
 import { ScheduleAlertModel } from "../../../model/schedule-alert-model";
 
@@ -276,6 +277,34 @@ export class ActionAccordion implements OnInit, OnChanges, OnDestroy {
    get saveFormats(): ExportFormatModel[] {
       return this.model ? (this.isDashboard ?
             this.model.vsSaveFileFormats : this.model.saveFileFormats) : [];
+   }
+
+   get bookmarkSelectOptions(): CustomSelectOption<VSBookmarkInfoModel>[] {
+      return (this.bookmarks || []).map((bookmark) => ({
+         value: bookmark,
+         label: bookmark.label
+      }));
+   }
+
+   get mailFormatSelectOptions(): CustomSelectOption<string>[] {
+      return (this.mailFormats || []).map((format) => ({
+         value: format.type,
+         label: format.label
+      }));
+   }
+
+   get locationSelectOptions(): CustomSelectOption<string>[] {
+      return (this.locations || []).map((location) => ({
+         value: location.path,
+         label: location.label
+      }));
+   }
+
+   get saveFormatSelectOptions(): CustomSelectOption<string>[] {
+      return (this.saveFormats || []).map((format) => ({
+         value: format.type,
+         label: format.label
+      }));
    }
 
    get fromEmail(): string {

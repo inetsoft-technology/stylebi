@@ -31,6 +31,7 @@ export class StyleDropdown implements OnInit {
    @Output() styleChange: EventEmitter<string> = new EventEmitter<string>();
    @Input() isPresenter: boolean = false;
    @ViewChild("dropdownBody") dropdownBody: ElementRef;
+   open: boolean = false;
    public LineStyle = LineStyle;
    public lineStyles: string[];
 
@@ -72,6 +73,10 @@ export class StyleDropdown implements OnInit {
    choose(style: string): void {
       this.style = style;
       this.styleChange.emit(style);
+   }
+
+   handleOpenChange(open: boolean): void {
+      this.open = open;
    }
 
    get dropdownMinWidth(): number {

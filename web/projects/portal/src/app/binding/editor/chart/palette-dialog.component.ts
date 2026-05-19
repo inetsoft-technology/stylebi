@@ -17,6 +17,7 @@
  */
 import { Component, Input, Output, EventEmitter } from "@angular/core";
 import { CategoricalColorModel } from "../../../common/data/visual-frame-model";
+import { CustomSelectOption } from "../../../widget/custom-select/custom-select.component";
 
 @Component({
    selector: "palette-dialog",
@@ -32,6 +33,13 @@ export class PaletteDialog {
    @Output() onCancel: EventEmitter<string> = new EventEmitter<string>();
    _selectedIndex: number = -1;
    _reversed: boolean = false;
+
+   get paletteSelectOptions(): CustomSelectOption<number>[] {
+      return (this.colorPalettes || []).map((palette, index) => ({
+         value: index,
+         label: palette.name
+      }));
+   }
 
    get displayPalette(): CategoricalColorModel {
       if(!this.colorPalettes) {

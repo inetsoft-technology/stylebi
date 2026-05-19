@@ -67,19 +67,12 @@
     </div>
     <div class="col-auto start-time-editor__field-col">
       <div class="form-floating time-range-input">
-        <select
-          class="form-control"
+        <custom-select
+          [options]="timeRangeSelectOptions"
           formControlName="timeRange"
-          [compareWith]="compareTimeRange"
-          (change)="fireStartTimeChanged()"
+          (selectionChange)="fireStartTimeChanged()"
         >
-          <option
-            *ngFor="let range of timeRanges"
-            [ngValue]="range"
-          >
-            {{range.label}}
-          </option>
-        </select>
+        </custom-select>
         <label>_#(Time Range)</label>
       </div>
     </div>

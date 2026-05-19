@@ -27,6 +27,7 @@ import { TimeZoneModel } from "../../../../../../../shared/schedule/model/time-z
 import { ScheduleUsersService } from "../../../../../../../shared/schedule/schedule-users.service";
 import { FormValidators } from "../../../../../../../shared/util/form-validators";
 import { ComponentTool } from "../../../../common/util/component-tool";
+import { CustomSelectOption } from "../../../../widget/custom-select/custom-select.component";
 import { ExecuteAsDialog } from "../execute-as-dialog/execute-as-dialog.component";
 import { Observable } from "rxjs";
 import { ScheduleTaskDialogModel } from "../../../../../../../shared/schedule/model/schedule-task-dialog-model";
@@ -107,6 +108,28 @@ export class TaskOptionsPane implements OnInit {
 
    set locale(loc: string) {
       this._model.locale = loc != TaskOptionsPane.DEFAULT_LOCALE ? loc : null;
+   }
+
+   get timeZoneSelectOptions(): CustomSelectOption<string>[] {
+      return (this.timeZoneOptions || []).map((tz) => ({
+         value: tz.timeZoneId,
+         label: `${tz.hourOffset} ${tz.label}`,
+         title: tz.timeZoneId
+      }));
+   }
+
+   get executeAsTypeSelectOptions(): CustomSelectOption<number>[] {
+      return this.executeAsTypes.map((type) => ({
+         value: type.value,
+         label: type.label
+      }));
+   }
+
+   get localeSelectOptions(): CustomSelectOption<string>[] {
+      return [
+         {value: TaskOptionsPane.DEFAULT_LOCALE, label: "_#(js:Default)"},
+         ...(this._model?.locales || []).map((locale) => ({value: locale, label: locale}))
+      ];
    }
 
    public startDateChange(date: NgbDateStruct): void {
@@ -231,7 +254,7 @@ export class TaskOptionsPane implements OnInit {
       this.form = new UntypedFormGroup({
          "start": new UntypedFormControl(this.startDate, []),
          "stop": new UntypedFormControl(this.endDate, []),
-         "timeZone": new UntypedFormControl({value: this._model.timeZone})
+         "timeZone": new UntypedFormControl(this._model.timeZone)
       }, FormValidators.dateSmallerThan("start", "stop"));
 
       this.form.get("start").valueChanges.subscribe((date) => {

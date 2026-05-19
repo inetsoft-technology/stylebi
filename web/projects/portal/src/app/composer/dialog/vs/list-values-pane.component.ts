@@ -18,6 +18,7 @@
 import { Component, EventEmitter, Input, OnInit, Output } from "@angular/core";
 import { ListValuesPaneModel } from "../../data/vs/list-values-pane-model";
 import { ComboboxGeneralPaneModel } from "../../data/vs/combobox-general-pane-model";
+import { CustomSelectOption } from "../../../widget/custom-select/custom-select.component";
 
 @Component({
    selector: "list-values-pane",
@@ -31,6 +32,12 @@ export class ListValuesPane implements OnInit {
    @Input() isComboBox: boolean = false;
    @Input() isCheckBox: boolean = false;
    @Output() isInputValid: EventEmitter<boolean> = new EventEmitter<boolean>();
+
+   readonly sortOptions: CustomSelectOption<number>[] = [
+      { label: "_#(Ascending)", value: 1 },
+      { label: "_#(Descending)", value: 2 },
+      { label: "_#(None)", value: 0 }
+   ];
 
    constructor() {
    }

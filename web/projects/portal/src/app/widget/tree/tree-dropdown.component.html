@@ -15,12 +15,18 @@
   ~ You should have received a copy of the GNU Affero General Public License
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
-<div #inputDropdown class="input-dropdown form-control dropdown-toggle unhighlightable"
+<div #inputDropdown class="input-dropdown form-control unhighlightable"
      [ngClass]="{disabled: isDisabled}"
-     [fixedDropdown]="dropdownMenu" dropdownPlacement="bottom" [autoClose]="false">
+     [fixedDropdown]="dropdownMenu" dropdownPlacement="bottom" [autoClose]="false"
+     (openChange)="handleOpenChange($event)">
   <div class="label-container" [title]="currentLabel">
     {{currentLabel}}
   </div>
+  <i class="icon-size-medium icon-color-default input-dropdown-icon"
+     [class.chevron-down-icon]="!open"
+     [class.chevron-up-icon]="open"
+     aria-hidden="true">
+  </i>
 </div>
 <ng-template #dropdownMenu>
   <div class="tree-dropdown-menu dropdown-menu show bd-gray">

@@ -21,13 +21,17 @@
   <div class="form-row-float-label row">
     <div class="col">
       <div class="form-floating">
-        <line-arrow-type-dropdown [(style)]="model.begin"></line-arrow-type-dropdown>
+        <line-arrow-type-dropdown [(style)]="model.begin"
+                                  [color]="model.linePropPaneModel.color === 'Static'
+                                     ? model.linePropPaneModel.colorValue : null"></line-arrow-type-dropdown>
         <label>_#(Begin)</label>
       </div>
     </div>
     <div class="col">
       <div class="form-floating">
-        <line-arrow-type-dropdown [(style)]="model.end"></line-arrow-type-dropdown>
+        <line-arrow-type-dropdown [(style)]="model.end"
+                                  [color]="model.linePropPaneModel.color === 'Static'
+                                     ? model.linePropPaneModel.colorValue : null"></line-arrow-type-dropdown>
         <label>_#(End)</label>
       </div>
     </div>
