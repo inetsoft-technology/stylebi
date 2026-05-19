@@ -1408,7 +1408,7 @@ public class WizVsService {
       boolean measure = field instanceof MeasureFieldInfo ||
          (field.getType() != null &&
             (XSchema.isNumericType(field.getType()) || XSchema.DECIMAL.equals(field.getType())));
-      return createAestheticRef(field, measure ? new LinearShapeFrame() : new CategoricalShapeFrame());
+      return createAestheticRef(field, measure ? new OvalShapeFrame() : new CategoricalShapeFrame());
    }
 
    private AestheticRef createTextRef(SimpleFieldInfo field) {
