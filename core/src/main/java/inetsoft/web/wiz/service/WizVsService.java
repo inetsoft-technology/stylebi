@@ -142,7 +142,7 @@ public class WizVsService {
          try {
             // In incremental mode, GenerateWsService may have added new WS assemblies. Reload
             // inside try so any failure triggers the same rollback as an execution failure.
-            if(!createdRuntimeId) {
+            if(!createdRuntimeId && !modificationOnly) {
                targetVs.reloadBaseWorksheet(engine, user);
             }
 
