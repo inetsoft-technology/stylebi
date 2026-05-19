@@ -23,6 +23,7 @@ import inetsoft.uql.XFormatInfo;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.jdbc.*;
 import inetsoft.util.Catalog;
+import inetsoft.util.MessageException;
 import inetsoft.web.adhoc.model.FormatInfoModel;
 import inetsoft.web.composer.BrowseDataController;
 import inetsoft.web.composer.model.TreeNodeModel;
@@ -233,13 +234,20 @@ public class QueryController extends WorksheetController {
                                                       @RequestBody UpdateFreeFormSQLPaneEvent event,
                                                       Principal principal)
    {
-      String errorMsg = queryManager.setFreeFormSQLPaneModel(event, principal);
-      RuntimeQueryService.RuntimeXQuery runtimeQuery =
-         runtimeQueryService.getRuntimeQuery(event.getRuntimeId());
-      UpdateFreeFormSQLPaneResult result = new UpdateFreeFormSQLPaneResult();
-      result.setErrorMsg(errorMsg);
-      result.setModel(queryManager.getAdvancedQueryModel(runtimeQuery, principal));
-      return result;
+      try {
+         String errorMsg = queryManager.setFreeFormSQLPaneModel(event, principal);
+         RuntimeQueryService.RuntimeXQuery runtimeQuery =
+            runtimeQueryService.getRuntimeQuery(event.getRuntimeId());
+         UpdateFreeFormSQLPaneResult result = new UpdateFreeFormSQLPaneResult();
+         result.setErrorMsg(errorMsg);
+         result.setModel(queryManager.getAdvancedQueryModel(runtimeQuery, principal));
+         return result;
+      }
+      catch(MessageException e) {
+         UpdateFreeFormSQLPaneResult result = new UpdateFreeFormSQLPaneResult();
+         result.setErrorMsg(e.getMessage());
+         return result;
+      }
    }
 
    @GetMapping("/api/data/datasource/query/load/data")
