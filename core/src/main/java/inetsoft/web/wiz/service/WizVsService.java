@@ -36,6 +36,7 @@ import inetsoft.uql.schema.StringValue;
 import inetsoft.uql.schema.UserVariable;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
+import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.Tool;
 import inetsoft.web.composer.wiz.service.VisualizationService;
 import inetsoft.web.wiz.model.*;
@@ -74,6 +75,8 @@ public class WizVsService {
          // Only relevant for the incremental standard path (non-null when base entry may be mutated).
          AssetEntry previousBaseEntry = null;
          boolean modificationOnly = model.getConfig() == null && model.getConditionModel() != null;
+         // Track the worksheet table name for aggregate condition handling
+         String wsTableName = null;
 
          if(modificationOnly) {
             targetVs = vs;
@@ -81,6 +84,12 @@ public class WizVsService {
 
             if(sourceAssembly == null) {
                throw new IllegalStateException("No primary assembly found in viewsheet for modification");
+            }
+
+            // Get the worksheet table name from the source assembly's source info
+            if(sourceAssembly instanceof DataVSAssembly dataAsm) {
+               SourceInfo srcInfo = dataAsm.getSourceInfo();
+               wsTableName = srcInfo != null ? srcInfo.getSource() : null;
             }
 
             String newName = uniqueAssemblyName(targetVs, sourceAssembly.getName());
@@ -92,6 +101,7 @@ public class WizVsService {
          }
          else {
             SourceContext ctx = resolveSourceContext(model, user);
+            wsTableName = ctx.primaryAssemblyName();
 
             // Incremental mode: reuse the existing viewsheet when runtimeId was supplied.
             if(createdRuntimeId) {
@@ -133,21 +143,84 @@ public class WizVsService {
             assembly.setPrimary(true);
          }
 
-         applyConditionModel(assembly, model.getConditionModel());
-
          // Always call setViewsheet so the sandbox picks up the updated viewsheet object.
          Viewsheet previousVs = rvs.getViewsheet();
          rvs.setViewsheet(targetVs);
 
-         try {
-            // In incremental mode, GenerateWsService may have added new WS assemblies. Reload
-            // inside try so any failure triggers the same rollback as an execution failure.
-            if(!createdRuntimeId && !modificationOnly) {
-               targetVs.reloadBaseWorksheet(engine, user);
-            }
+         // In incremental mode, GenerateWsService may have added new WS assemblies. Reload
+         // inside try so any failure triggers the same rollback as an execution failure.
+         if(!createdRuntimeId && !modificationOnly) {
+            targetVs.reloadBaseWorksheet(engine, user);
+         }
 
+         // Check if aggregate conditions exist - if so, push everything to worksheet
+         VisualizationConditionModel conditionModel = model.getConditionModel();
+         boolean hasAggregateConditions = conditionModel != null && conditionModel.hasAggregateConditions();
+
+         // Collect binding for result
+         CreateViewsheetResult.FlatBinding binding = collectFlatBinding(assembly);
+
+         // Snapshot worksheet state for potential rollback (aggregate condition path only)
+         AggregateInfo originalAggInfo = null;
+         ConditionListWrapper originalPreConds = null;
+         ConditionListWrapper originalPostConds = null;
+         ColumnSelection originalCols = null;
+         boolean originalAggregate = false;
+         AbstractTableAssembly wsTable = null;
+
+         if(hasAggregateConditions && wsTableName != null && binding != null) {
+            AssetEntry wsEntry = targetVs.getBaseEntry();
+            Worksheet ws = (Worksheet) engine.getSheet(wsEntry, user, false, AssetContent.ALL);
+            wsTableName = VSUtil.stripOuter(wsTableName);
+            Assembly wsAssembly = ws != null ? ws.getAssembly(wsTableName) : null;
+
+            if(wsAssembly instanceof AbstractTableAssembly tableAsm) {
+               wsTable = tableAsm;
+               originalAggInfo = (AggregateInfo) tableAsm.getAggregateInfo().clone();
+               originalPreConds = tableAsm.getPreConditionList();
+               originalPostConds = tableAsm.getPostConditionList();
+               originalCols = tableAsm.getColumnSelection(false).clone();
+               originalAggregate = tableAsm.isAggregate();
+
+               try {
+                  // Push aggregation and conditions to worksheet
+                  PreAggregationMapping preAggMapping = pushAggregationToWorksheet(
+                     binding, conditionModel, tableAsm);
+
+                  if(wsEntry != null) {
+                     engine.setSheet(wsEntry, ws, user, true);
+                     targetVs.reloadBaseWorksheet(engine, user);
+                  }
+
+                  // Update VS assembly to use pre-aggregated columns
+                  updateVsBindingForPreAggregation(assembly, preAggMapping);
+
+                  // Re-collect binding after updating for pre-aggregation
+                  binding = collectFlatBinding(assembly);
+               }
+               catch(Exception e) {
+                  // Rollback worksheet changes
+                  tableAsm.setAggregateInfo(originalAggInfo);
+                  tableAsm.setPreConditionList(originalPreConds);
+                  tableAsm.setPostConditionList(originalPostConds);
+                  tableAsm.setColumnSelection(originalCols, false);
+                  tableAsm.setAggregate(originalAggregate);
+                  throw e;
+               }
+            }
+            else {
+               // Fallback to original path if worksheet table not found
+               applyConditionModel(assembly, conditionModel);
+            }
+         }
+         else {
+            // Original path: apply base conditions to VS assembly
+            applyConditionModel(assembly, conditionModel);
+         }
+
+         try {
             CreateViewsheetResult result = executeAndExtract(rvs, assembly);
-            result.setBinding(collectFlatBinding(assembly));
+            result.setBinding(binding);
             result.setAssemblyName(assembly.getName());
             boolean metadataMode = rvs.getViewsheet().getViewsheetInfo().isMetadata();
             result.setHasData(!metadataMode && result.getRows() != null && !result.getRows().isEmpty());
@@ -164,6 +237,15 @@ public class WizVsService {
          catch(Exception e) {
             // Rollback: restore the previous viewsheet state.
             rvs.setViewsheet(previousVs);
+
+            // Rollback worksheet changes if we modified it
+            if(wsTable != null && originalAggInfo != null) {
+               wsTable.setAggregateInfo(originalAggInfo);
+               wsTable.setPreConditionList(originalPreConds);
+               wsTable.setPostConditionList(originalPostConds);
+               wsTable.setColumnSelection(originalCols, false);
+               wsTable.setAggregate(originalAggregate);
+            }
 
             if(!createdRuntimeId) {
                // In incremental mode targetVs == previousVs; remove the new assembly and
@@ -1583,9 +1665,13 @@ public class WizVsService {
     * Applies the given {@link VisualizationConditionModel} to {@code assembly} as a pre-condition list.
     * No-ops silently when the model is null, empty, or the assembly is not a data assembly.
     */
+   /**
+    * Applies base conditions from the condition model to the VS assembly.
+    * Only base conditions are applied here; aggregate conditions require pushing to worksheet.
+    */
    private void applyConditionModel(VSAssembly assembly, VisualizationConditionModel conditionModel) {
-      if(conditionModel == null || conditionModel.getConditions() == null ||
-         conditionModel.getConditions().isEmpty())
+      if(conditionModel == null || conditionModel.getBaseConditions() == null ||
+         conditionModel.getBaseConditions().isEmpty())
       {
          return;
       }
@@ -1604,11 +1690,14 @@ public class WizVsService {
     * Items within a group at depth {@code d} receive level {@code d}, so the Java
     * ConditionList evaluator groups them at higher precedence than items at outer depths.
     */
+   /**
+    * Builds a ConditionList from the base conditions in the model.
+    */
    private ConditionList buildConditionList(VisualizationConditionModel wizModel) {
       ConditionList conditionList = new ConditionList();
 
-      if(wizModel != null && wizModel.getConditions() != null) {
-         appendConditionNodes(wizModel.getConditions(), 0, conditionList, new boolean[]{true});
+      if(wizModel != null && wizModel.getBaseConditions() != null) {
+         appendConditionNodes(wizModel.getBaseConditions(), 0, conditionList, new boolean[]{true}, null);
       }
 
       return conditionList;
@@ -1617,16 +1706,19 @@ public class WizVsService {
    /**
     * Recursively appends condition nodes to {@code result}.
     *
-    * @param nodes     the sibling nodes at the current level
-    * @param depth     current nesting depth (0 = top-level); controls junction/item level values
-    * @param result    the ConditionList being built
-    * @param isFirst   single-element boolean array used to track whether any item has been
-    *                  appended yet at the current level (avoids a leading junction)
+    * @param nodes    the sibling nodes at the current level
+    * @param depth    current nesting depth (0 = top-level); controls junction/item level values
+    * @param result   the ConditionList being built
+    * @param isFirst  single-element boolean array used to track whether any item has been
+    *                 appended yet at the current level (avoids a leading junction)
+    * @param measures optional list of measure fields for aggregate conditions;
+    *                 pass null for base conditions, non-null for aggregate conditions
     */
    private void appendConditionNodes(List<VisualizationConditionModel.ConditionNode> nodes,
                                      int depth,
                                      ConditionList result,
-                                     boolean[] isFirst)
+                                     boolean[] isFirst,
+                                     List<MeasureFieldInfo> measures)
    {
       for(VisualizationConditionModel.ConditionNode node : nodes) {
          if(node == null) {
@@ -1644,7 +1736,7 @@ public class WizVsService {
                result.append(new JunctionOperator(parseJunction(leaf.getJunction()), depth));
             }
 
-            result.append(buildConditionItem(spec, depth));
+            result.append(buildConditionItem(spec, depth, measures));
             isFirst[0] = false;
          }
          else if(node instanceof VisualizationConditionModel.ConditionGroup group) {
@@ -1657,7 +1749,7 @@ public class WizVsService {
             // Build the group's contents into a temporary list first so we can check
             // whether it produced any valid items before committing a junction.
             ConditionList groupContents = new ConditionList();
-            appendConditionNodes(items, depth + 1, groupContents, new boolean[]{true});
+            appendConditionNodes(items, depth + 1, groupContents, new boolean[]{true}, measures);
 
             if(groupContents.isEmpty()) {
                continue;
@@ -1681,10 +1773,36 @@ public class WizVsService {
       }
    }
 
+   /**
+    * Builds a ConditionItem from a condition spec.
+    *
+    * @param spec     the condition specification
+    * @param level    the nesting level for the condition item
+    * @param measures optional list of measure fields for aggregate conditions; if non-null,
+    *                 looks up the aggregated column name by matching field and formula
+    */
    private ConditionItem buildConditionItem(VisualizationConditionModel.ConditionSpec spec,
-                                            int level)
+                                            int level,
+                                            List<MeasureFieldInfo> measures)
    {
-      AttributeRef attr = new AttributeRef(null, spec.getField());
+      // For aggregate conditions, translate field+formula to aggregated column name (fullName)
+      String fieldName = spec.getField();
+
+      if(measures != null) {
+         String formula = spec.getAggregateFormula();
+
+         for(MeasureFieldInfo measure : measures) {
+            // Match by both field name and aggregate formula
+            if(fieldName.equals(measure.getField()) &&
+               Objects.equals(formula, measure.getAggregateFormula()))
+            {
+               fieldName = measure.getFullName();
+               break;
+            }
+         }
+      }
+
+      AttributeRef attr = new AttributeRef(null, fieldName);
       Condition condition = new Condition();
       condition.setOperation(mapConditionOperation(spec.getOperation()));
       condition.setNegated(spec.isNegated());
@@ -1701,6 +1819,7 @@ public class WizVsService {
 
       return new ConditionItem(attr, condition, level);
    }
+
 
    private int parseJunction(String junction) {
       return "or".equalsIgnoreCase(junction) ? JunctionOperator.OR : JunctionOperator.AND;
@@ -1719,33 +1838,33 @@ public class WizVsService {
       }
 
       switch(type.toUpperCase()) {
-         case "FIELD":
-            return new AttributeRef(null, String.valueOf(value));
-         case "VARIABLE":
-         case "SESSION_DATA": {
-            if(value instanceof String) {
-               String str = (String) value;
+      case "FIELD":
+         return new AttributeRef(null, String.valueOf(value));
+      case "VARIABLE":
+      case "SESSION_DATA": {
+         if(value instanceof String) {
+            String str = (String) value;
 
-               if(str.startsWith("$(") && str.endsWith(")")) {
-                  String name = str.substring(2, str.length() - 1);
-                  UserVariable variable = new UserVariable();
-                  variable.setName(name);
-                  variable.setAlias(name);
-                  variable.setValueNode(new StringValue(name));
-                  return variable;
-               }
+            if(str.startsWith("$(") && str.endsWith(")")) {
+               String name = str.substring(2, str.length() - 1);
+               UserVariable variable = new UserVariable();
+               variable.setName(name);
+               variable.setAlias(name);
+               variable.setValueNode(new StringValue(name));
+               return variable;
             }
+         }
 
-            return value;
-         }
-         case "EXPRESSION": {
-            ExpressionValue expr = new ExpressionValue();
-            expr.setExpression(String.valueOf(value));
-            expr.setType(ExpressionValue.JAVASCRIPT);
-            return expr;
-         }
-         default:
-            return value;
+         return value;
+      }
+      case "EXPRESSION": {
+         ExpressionValue expr = new ExpressionValue();
+         expr.setExpression(String.valueOf(value));
+         expr.setType(ExpressionValue.JAVASCRIPT);
+         return expr;
+      }
+      default:
+         return value;
       }
    }
 
@@ -1770,6 +1889,336 @@ public class WizVsService {
          case "DATE_IN" -> XCondition.DATE_IN;
          default -> XCondition.EQUAL_TO;
       };
+   }
+
+   /**
+    * Pushes aggregation and conditions to the worksheet table.
+    * When aggregate conditions exist, all groups, aggregates, base conditions (pre),
+    * and aggregate conditions (post) are pushed to the worksheet level.
+    * Returns a PreAggregationMapping containing dimension column mappings and pushed measure fullNames.
+    */
+   private PreAggregationMapping pushAggregationToWorksheet(
+      CreateViewsheetResult.FlatBinding binding,
+      VisualizationConditionModel conditionModel,
+      AbstractTableAssembly table)
+   {
+      ColumnSelection cols = table.getColumnSelection(false);
+      AggregateInfo aggInfo = new AggregateInfo();
+      Map<String, String> dimColumnMapping = new HashMap<>();
+      Set<String> pushedMeasureFullNames = new HashSet<>();
+      boolean columnsChanged = false;
+
+      // Add GroupRefs for dimensions
+      if(binding.getDimensions() != null) {
+         for(DimensionFieldInfo dim : binding.getDimensions()) {
+            DataRef colRef = cols.getAttribute(dim.getField());
+
+            if(colRef == null) {
+               continue;
+            }
+
+            GroupRef groupRef;
+
+            if(dim.getDateGroupLevel() != null) {
+               int dateLevel = getDateGroupLevel(dim.getDateGroupLevel());
+               String fullName = DateRangeRef.getName(dim.getField(), dateLevel);
+               DateRangeRef rangeRef = new DateRangeRef(fullName, colRef, dateLevel);
+
+               if(colRef instanceof ColumnRef origCol) {
+                  rangeRef.setOriginalType(origCol.getDataType());
+               }
+
+               ColumnRef dateCol = new ColumnRef(rangeRef);
+               dateCol.setDataType(rangeRef.getDataType());
+
+               // Add the DateRangeRef column to the column selection if not present
+               if(cols.getAttribute(fullName) == null) {
+                  int baseIdx = cols.indexOfAttribute(colRef);
+
+                  if(baseIdx >= 0) {
+                     cols.addAttribute(baseIdx, dateCol);
+                  }
+                  else {
+                     cols.addAttribute(dateCol);
+                  }
+
+                  columnsChanged = true;
+               }
+
+               groupRef = new GroupRef(dateCol);
+               groupRef.setDateGroup(dateLevel);
+               dimColumnMapping.put(dim.getField(), fullName);
+            }
+            else {
+               groupRef = new GroupRef(colRef);
+            }
+
+            aggInfo.addGroup(groupRef);
+         }
+      }
+
+      // Add AggregateRefs for measures
+      if(binding.getMeasures() != null) {
+         for(MeasureFieldInfo measure : binding.getMeasures()) {
+            DataRef colRef = cols.getAttribute(measure.getField());
+
+            if(colRef == null) {
+               continue;
+            }
+
+            AggregateFormula formula = AggregateFormula.getFormula(measure.getAggregateFormula());
+
+            if(formula == null) {
+               formula = AggregateFormula.SUM;
+            }
+
+            // Look up secondary field for formulas that require it (Correlation, Covariance, WeightedAverage, SumWT)
+            DataRef secondaryColRef = null;
+
+            if(measure.getSecondaryField() != null) {
+               secondaryColRef = cols.getAttribute(measure.getSecondaryField());
+            }
+
+            AggregateRef aggRef = new AggregateRef(colRef, secondaryColRef, formula);
+
+            if(measure.getNOrP() != null) {
+               aggRef.setN(measure.getNOrP());
+            }
+
+            aggInfo.addAggregate(aggRef);
+            pushedMeasureFullNames.add(measure.getFullName());
+         }
+      }
+
+      // Update the column selection if we added new DateRangeRef columns
+      if(columnsChanged) {
+         table.setColumnSelection(cols, false);
+      }
+
+      table.setAggregateInfo(aggInfo);
+      table.setAggregate(!aggInfo.isEmpty());
+
+      // Apply base conditions as pre-conditions and aggregate conditions as post-conditions
+      applyConditionsToWorksheet(table, conditionModel, binding.getMeasures());
+
+      return new PreAggregationMapping(dimColumnMapping, pushedMeasureFullNames);
+   }
+
+   /**
+    * Applies base conditions as pre-conditions and aggregate conditions as post-conditions.
+    *
+    * @param table          the worksheet table assembly
+    * @param conditionModel the condition model containing base and aggregate conditions
+    * @param measures       list of measure fields for looking up aggregated column names
+    */
+   private void applyConditionsToWorksheet(
+      AbstractTableAssembly table,
+      VisualizationConditionModel conditionModel,
+      List<MeasureFieldInfo> measures)
+   {
+      if(conditionModel == null) {
+         return;
+      }
+
+      // Apply base conditions as pre-conditions (WHERE equivalent)
+      if(conditionModel.getBaseConditions() != null && !conditionModel.getBaseConditions().isEmpty()) {
+         ConditionList preCondList = new ConditionList();
+         appendConditionNodes(conditionModel.getBaseConditions(), 0, preCondList, new boolean[]{true}, null);
+
+         if(!preCondList.isEmpty()) {
+            table.setPreConditionList(preCondList);
+         }
+      }
+
+      // Apply aggregate conditions as post-conditions (HAVING equivalent)
+      // Use measures list to translate field+formula to aggregated column names
+      if(conditionModel.getAggregateConditions() != null && !conditionModel.getAggregateConditions().isEmpty()) {
+         ConditionList postCondList = new ConditionList();
+         appendConditionNodes(conditionModel.getAggregateConditions(), 0, postCondList, new boolean[]{true}, measures);
+
+         if(!postCondList.isEmpty()) {
+            table.setPostConditionList(postCondList);
+         }
+      }
+   }
+
+   /**
+    * Updates VS assembly binding to use pre-aggregated columns from worksheet.
+    * Sets formula to NONE and date level to NONE since aggregation is done in worksheet.
+    */
+   private void updateVsBindingForPreAggregation(
+      VSAssembly assembly,
+      PreAggregationMapping preAggMapping)
+   {
+      if(assembly instanceof ChartVSAssembly chart) {
+         updateChartBindingForPreAggregation(chart.getVSChartInfo(), preAggMapping);
+      }
+      else if(assembly instanceof CrosstabVSAssembly crosstab) {
+         updateCrosstabBindingForPreAggregation(crosstab.getVSCrosstabInfo(), preAggMapping);
+      }
+      else if(assembly instanceof OutputVSAssembly output) {
+         updateOutputBindingForPreAggregation(output, preAggMapping);
+      }
+   }
+
+   private void updateChartBindingForPreAggregation(
+      VSChartInfo chartInfo,
+      PreAggregationMapping preAggMapping)
+   {
+      Map<String, String> dimMapping = preAggMapping.dimColumnMapping();
+      Set<String> measureFullNames = preAggMapping.pushedMeasureFullNames();
+
+      // Update X fields
+      for(int i = 0; i < chartInfo.getXFieldCount(); i++) {
+         ChartRef ref = chartInfo.getXField(i);
+         updateChartRefForPreAggregation(ref, dimMapping, measureFullNames);
+      }
+
+      // Update Y fields
+      for(int i = 0; i < chartInfo.getYFieldCount(); i++) {
+         ChartRef ref = chartInfo.getYField(i);
+         updateChartRefForPreAggregation(ref, dimMapping, measureFullNames);
+      }
+
+      // Update group fields
+      for(int i = 0; i < chartInfo.getGroupFieldCount(); i++) {
+         ChartRef ref = chartInfo.getGroupField(i);
+         updateChartRefForPreAggregation(ref, dimMapping, measureFullNames);
+      }
+
+      // Update aesthetic refs
+      updateAestheticRefForPreAggregation(chartInfo.getColorField(), dimMapping, measureFullNames);
+      updateAestheticRefForPreAggregation(chartInfo.getShapeField(), dimMapping, measureFullNames);
+      updateAestheticRefForPreAggregation(chartInfo.getSizeField(), dimMapping, measureFullNames);
+      updateAestheticRefForPreAggregation(chartInfo.getTextField(), dimMapping, measureFullNames);
+   }
+
+   private void updateChartRefForPreAggregation(
+      ChartRef ref,
+      Map<String, String> dimColumnMapping,
+      Set<String> pushedMeasureFullNames)
+   {
+      if(ref == null) {
+         return;
+      }
+
+      if(ref instanceof VSChartAggregateRef aggRef) {
+         // If this measure was pushed to worksheet, just set formula to NONE
+         // The column name stays the same since aggRef.getFullName() already matches worksheet output
+         if(pushedMeasureFullNames.contains(aggRef.getFullName())) {
+            aggRef.setFormulaValue(AggregateFormula.NONE.getFormulaName());
+         }
+      }
+      else if(ref instanceof VSChartDimensionRef dimRef) {
+         String originalCol = dimRef.getGroupColumnValue();
+         String newColName = dimColumnMapping.get(originalCol);
+
+         if(newColName != null) {
+            // Point to pre-grouped column, remove date level
+            dimRef.setGroupColumnValue(newColName);
+            dimRef.setDateLevelValue(null); // Data already grouped
+         }
+      }
+   }
+
+   private void updateAestheticRefForPreAggregation(
+      AestheticRef aref,
+      Map<String, String> dimColumnMapping,
+      Set<String> pushedMeasureFullNames)
+   {
+      if(aref == null) {
+         return;
+      }
+
+      DataRef dataRef = aref.getDataRef();
+
+      if(dataRef instanceof ChartRef chartRef) {
+         updateChartRefForPreAggregation(chartRef, dimColumnMapping, pushedMeasureFullNames);
+      }
+   }
+
+   private void updateCrosstabBindingForPreAggregation(
+      VSCrosstabInfo crosstabInfo,
+      PreAggregationMapping preAggMapping)
+   {
+      Map<String, String> dimColumnMapping = preAggMapping.dimColumnMapping();
+      Set<String> pushedMeasureFullNames = preAggMapping.pushedMeasureFullNames();
+
+      // Update row headers
+      DataRef[] rowHeaders = crosstabInfo.getDesignRowHeaders();
+
+      if(rowHeaders != null) {
+         for(DataRef ref : rowHeaders) {
+            if(ref instanceof VSDimensionRef dimRef) {
+               String originalCol = dimRef.getGroupColumnValue();
+               String newColName = dimColumnMapping.get(originalCol);
+
+               if(newColName != null) {
+                  dimRef.setGroupColumnValue(newColName);
+                  dimRef.setDateLevelValue(null);
+               }
+            }
+         }
+      }
+
+      // Update col headers
+      DataRef[] colHeaders = crosstabInfo.getDesignColHeaders();
+
+      if(colHeaders != null) {
+         for(DataRef ref : colHeaders) {
+            if(ref instanceof VSDimensionRef dimRef) {
+               String originalCol = dimRef.getGroupColumnValue();
+               String newColName = dimColumnMapping.get(originalCol);
+
+               if(newColName != null) {
+                  dimRef.setGroupColumnValue(newColName);
+                  dimRef.setDateLevelValue(null);
+               }
+            }
+         }
+      }
+
+      // Update aggregates - check if this aggregate was pushed to worksheet
+      DataRef[] aggregates = crosstabInfo.getDesignAggregates();
+
+      if(aggregates != null) {
+         for(DataRef ref : aggregates) {
+            if(ref instanceof VSAggregateRef aggRef) {
+               String fullName = aggRef.getFullName();
+
+               if(pushedMeasureFullNames.contains(fullName)) {
+                  // Data is pre-aggregated, set column to fullName and remove formula
+                  aggRef.setColumnValue(fullName);
+                  aggRef.setFormulaValue(null);
+               }
+            }
+         }
+      }
+   }
+
+   private void updateOutputBindingForPreAggregation(
+      OutputVSAssembly output,
+      PreAggregationMapping preAggMapping)
+   {
+      ScalarBindingInfo sbinfo = output.getScalarBindingInfo();
+
+      if(sbinfo == null) {
+         return;
+      }
+
+      Set<String> pushedMeasureFullNames = preAggMapping.pushedMeasureFullNames();
+      String column = sbinfo.getColumnValue();
+      String formula = sbinfo.getAggregateValue();
+
+      // Construct fullName like "Sum(Column)" to match worksheet output column
+      if(column != null && formula != null) {
+         String fullName = formula + "(" + column + ")";
+
+         if(pushedMeasureFullNames.contains(fullName)) {
+            sbinfo.setColumnValue(fullName);
+            sbinfo.setAggregateValue(null); // Data already aggregated
+         }
+      }
    }
 
    /**
@@ -1831,6 +2280,16 @@ public class WizVsService {
          }
       }
    }
+
+   /**
+    * Holds the mapping information from pushAggregationToWorksheet.
+    * @param dimColumnMapping maps original dimension field names to pre-grouped column names (for date grouping)
+    * @param pushedMeasureFullNames set of measure fullNames (e.g., "Sum(Amount)") that were pushed to worksheet
+    */
+   private record PreAggregationMapping(
+      Map<String, String> dimColumnMapping,
+      Set<String> pushedMeasureFullNames
+   ) {}
 
    private final ViewsheetService viewsheetService;
    private final AssetRepository engine;
