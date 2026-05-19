@@ -285,6 +285,11 @@ fieldset.float-title {
   }
 }
 
+input[type="checkbox"]:not(.form-check-input),
+input[type="radio"]:not(.form-check-input) {
+  accent-color: var(--inet-primary-color);
+}
+
 .form-switch .form-check-input {
   width: 2.25rem;
   min-width: 2.25rem;
