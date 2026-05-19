@@ -1022,6 +1022,11 @@ public class WizVsService {
             if(!engine.containsEntry(folder)) {
                throw e;
             }
+
+            // Folder exists now, but log the original exception in case it was a different error
+            // (e.g., permissions issue that succeeded on retry or a transient failure).
+            LOG.debug("Exception during folder creation (folder now exists, proceeding): {}",
+                      e.getMessage());
          }
 
          String uuid = UUID.randomUUID().toString();
@@ -1164,8 +1169,9 @@ public class WizVsService {
                   int layerId = MapData.getLayer(layerConfig.getLayer());
                   geoOption.setLayerValue(String.valueOf(layerId));
                }
-               catch(Exception ignored) {
-                  throw new RuntimeException("Invalid layer " + layerConfig.getLayer());
+               catch(Exception e) {
+                  throw new RuntimeException("Invalid layer '" + layerConfig.getLayer() +
+                                             "': " + e.getMessage(), e);
                }
             }
 
@@ -2054,6 +2060,8 @@ public class WizVsService {
             DataRef colRef = cols.getAttribute(dim.getField());
 
             if(colRef == null) {
+               LOG.warn("Dimension field '{}' not found in worksheet column selection; " +
+                        "skipping from aggregation", dim.getField());
                continue;
             }
 
@@ -2103,6 +2111,8 @@ public class WizVsService {
             DataRef colRef = cols.getAttribute(measure.getField());
 
             if(colRef == null) {
+               LOG.warn("Measure field '{}' not found in worksheet column selection; " +
+                        "skipping from aggregation", measure.getField());
                continue;
             }
 
@@ -2354,11 +2364,14 @@ public class WizVsService {
       DataRef column = sbinfo.getColumn();
 
       if(column != null && sbinfo.getAggregateValue() != null) {
+         // Use design-time getColumn2Value() to match collectOutputFlatBinding, not resolved
+         // getSecondaryColumn().getName() which can return a different string
+         String col2 = sbinfo.getColumn2Value();
          String fullName = buildVSAggregateRefFullName(
             sbinfo.getColumnValue(),
             sbinfo.getAggregateValue(),
-            sbinfo.getSecondaryColumn() != null ? sbinfo.getSecondaryColumn().getName() : null,
-            sbinfo.getN());
+            col2 != null && !col2.isEmpty() ? col2 : null,
+            sbinfo.getN() != 0 ? sbinfo.getN() : null);
 
          if(pushedMeasureFullNames.contains(fullName)) {
             sbinfo.setColumnValue(fullName);
