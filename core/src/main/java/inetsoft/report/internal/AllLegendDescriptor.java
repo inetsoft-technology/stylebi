@@ -220,6 +220,17 @@ public class AllLegendDescriptor extends LegendDescriptor {
       applySet("setSymbolSize", new Object[] {symbolSize}, new Class[] {int.class});
    }
 
+   @Override
+   public boolean isSymbolRoundCorners() {
+      return (Boolean) applyGet("isSymbolRoundCorners");
+   }
+
+   @Override
+   public void setSymbolRoundCorners(boolean symbolRoundCorners) {
+      applySet("setSymbolRoundCorners", new Object[] {symbolRoundCorners},
+               new Class[] {boolean.class});
+   }
+
    /**
     * Retrieve property from multiple objects.
     */
