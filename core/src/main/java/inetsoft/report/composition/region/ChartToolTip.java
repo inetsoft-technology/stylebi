@@ -131,9 +131,82 @@ public class ChartToolTip implements DataSerializable {
       return tooltips.contains(-1);
    }
 
-   // Header (shared X-dim) + per-series .tt-section blocks for CSS spacing
-   // + emphasized stack-total row at the bottom.
+   // Header path: measure tier-1, X-dim subtitle tier-2, peers grouped.
+   // Positional fallback: first added pair as tier-1, rest tier-2.
    private String renderCombinedCard(IndexedSet<String> palette) {
+      return hasHeader()
+         ? renderCombinedCardWithHeader(palette)
+         : renderCombinedCardPositional(palette);
+   }
+
+   private String renderCombinedCardWithHeader(IndexedSet<String> palette) {
+      StringBuilder buffer = new StringBuilder();
+      List<int[]> sections = splitSections();
+
+      if(sections.isEmpty()) {
+         return "";
+      }
+
+      boolean hasStackTotal = stackTotalName != null && !stackTotalName.isEmpty()
+         && sections.size() > 1;
+      int lastIndex = sections.size() - 1;
+      boolean wroteSubtitle = false;
+
+      for(int s = 0; s < sections.size(); s++) {
+         int[] section = sections.get(s);
+
+         if(section.length == 0) {
+            continue;
+         }
+
+         boolean isStackTotal = hasStackTotal && s == lastIndex;
+
+         if(isStackTotal) {
+            for(int i = 0; i < section.length; i += 2) {
+               String label = palette.get(section[i]);
+               String value = (i + 1) < section.length ? palette.get(section[i + 1]) : "";
+               buffer.append("<div class=\"tt-tier-1 tt-stack-total\">")
+                     .append(label).append(ChartToolTip.COLON).append(value)
+                     .append("</div>");
+            }
+
+            continue;
+         }
+
+         boolean isFirst = !wroteSubtitle;
+         int start = 0;
+
+         if(isFirst && section.length >= 2) {
+            String label = palette.get(section[0]);
+            String value = palette.get(section[1]);
+            appendTier(buffer, 1, label + ChartToolTip.COLON + value);
+            appendSubtitle(buffer, palette.get(headerKey), palette.get(headerValue));
+            wroteSubtitle = true;
+            start = 2;
+         }
+
+         if(start < section.length) {
+            buffer.append(isFirst
+               ? "<div class=\"tt-section tt-section-first\">"
+               : "<div class=\"tt-section\">");
+
+            for(int i = start; i < section.length; i += 2) {
+               String label = palette.get(section[i]);
+               String value = (i + 1) < section.length ? palette.get(section[i + 1]) : "";
+               int tier = isFirst ? 3 : (i == start ? 2 : 3);
+               appendTier(buffer, tier, label + ChartToolTip.COLON + value);
+            }
+
+            buffer.append("</div>");
+         }
+      }
+
+      return buffer.toString();
+   }
+
+   // Legacy positional layout retained for callers that build combined
+   // tooltips without going through PlotArea (and for the matching test).
+   private String renderCombinedCardPositional(IndexedSet<String> palette) {
       StringBuilder buffer = new StringBuilder();
       List<int[]> sections = splitSections();
 
@@ -149,8 +222,6 @@ public class ChartToolTip implements DataSerializable {
       for(int s = 0; s < sections.size(); s++) {
          int[] section = sections.get(s);
 
-         // splitSections already filters empties; this guard keeps the
-         // positional header contract intact if that invariant ever drifts.
          if(section.length == 0) {
             continue;
          }
@@ -161,7 +232,9 @@ public class ChartToolTip implements DataSerializable {
             for(int i = 0; i < section.length; i += 2) {
                String label = palette.get(section[i]);
                String value = (i + 1) < section.length ? palette.get(section[i + 1]) : "";
-               appendTier(buffer, 1, label + ChartToolTip.COLON + value);
+               buffer.append("<div class=\"tt-tier-1 tt-stack-total\">")
+                     .append(label).append(ChartToolTip.COLON).append(value)
+                     .append("</div>");
             }
 
             continue;
@@ -169,7 +242,6 @@ public class ChartToolTip implements DataSerializable {
 
          int start = 0;
 
-         // First pair → tier-1 header, outside any section wrapper.
          if(!wroteHeader && section.length >= 2) {
             String label = palette.get(section[0]);
             String value = palette.get(section[1]);
@@ -178,7 +250,6 @@ public class ChartToolTip implements DataSerializable {
             start = 2;
          }
 
-         // Remaining pairs of this section render as one visual group.
          if(start < section.length) {
             buffer.append("<div class=\"tt-section\">");
 
@@ -236,6 +307,14 @@ public class ChartToolTip implements DataSerializable {
       int t = Math.min(tier, 3);
       buffer.append("<div class=\"tt-tier-").append(t).append("\">")
             .append(content)
+            .append("</div>");
+   }
+
+   private void appendSubtitle(StringBuilder buffer, String label, String value) {
+      buffer.append("<div class=\"tt-tier-2 tt-subtitle\">")
+            .append(label == null ? "" : label)
+            .append(ChartToolTip.COLON)
+            .append(value == null ? "" : value)
             .append("</div>");
    }
 
@@ -359,6 +438,25 @@ public class ChartToolTip implements DataSerializable {
       this.style = style == null ? ChartInfo.TooltipStyle.DEFAULT : style;
    }
 
+   // Shared X-dim header for combined card tooltips. When set, renderCombinedCard
+   // promotes the hovered measure to tier-1 and emits this pair as a tier-2 subtitle.
+   public void setHeader(int key, int value) {
+      this.headerKey = key;
+      this.headerValue = value;
+   }
+
+   public boolean hasHeader() {
+      return headerKey >= 0;
+   }
+
+   public int getHeaderKey() {
+      return headerKey;
+   }
+
+   public int getHeaderValue() {
+      return headerValue;
+   }
+
    /**
     * Clear chart tooltip.
     */
@@ -400,11 +498,14 @@ public class ChartToolTip implements DataSerializable {
 
    @Override
    public String toString() {
-      return super.toString() + "[" + customToolTip + ": " + tooltips + "]";
+      return super.toString() + "[" + customToolTip + ": " + tooltips
+         + ", header=(" + headerKey + "," + headerValue + ")]";
    }
 
    private final List<Integer> tooltips;
    private String stackTotalName = null;
    private String customToolTip;
    private ChartInfo.TooltipStyle style = ChartInfo.TooltipStyle.DEFAULT;
+   private int headerKey = -1;
+   private int headerValue = -1;
 }

@@ -1416,11 +1416,9 @@ public class PlotArea extends GridContainerArea implements GraphComponentArea, R
          }
       }
       else {
-         // Card solo: measures first (primary tier). Combined/Default: dims
-         // first so the shared X-dim becomes the combined-card header.
-         boolean cardSolo = chartInfo.getTooltipStyle() == ChartInfo.TooltipStyle.CARD
-            && !chartInfo.isCombinedToolTip();
-         String[][] cols = cardSolo
+         // Card style: measure leads at tier-1 for both solo and combined.
+         // Combined lifts the shared X-dim out later as a tier-2 subtitle.
+         String[][] cols = chartInfo.getTooltipStyle() == ChartInfo.TooltipStyle.CARD
             ? new String[][] {measures, dims, others}
             : new String[][] {dims, measures, others};
          HashSet<String> added = new HashSet<>();
@@ -1711,6 +1709,8 @@ public class PlotArea extends GridContainerArea implements GraphComponentArea, R
          dimIndexes[i] = palette.put(dims[i]);
       }
 
+      captureCombinedCardHeader(resultTooltip, dimIndexes);
+
       List<Integer> pidxs = rowIndexMap.get(rowValue);
 
       if(pidxs != null) {
@@ -1786,6 +1786,8 @@ public class PlotArea extends GridContainerArea implements GraphComponentArea, R
          dimIndexes[i] = palette.put(dims[i]);
       }
 
+      captureCombinedCardHeader(resultTooltip, dimIndexes);
+
       ChartToolTip tempTip;
       ElementVO tempVO;
 
@@ -1833,6 +1835,27 @@ public class PlotArea extends GridContainerArea implements GraphComponentArea, R
       }
 
       return resultTooltip;
+   }
+
+   // For card-style combined tooltips, move the shared X-dim out of the primary
+   // tooltip onto a separate header field so renderCombinedCard can use it as a
+   // tier-2 subtitle while the hovered measure stays at tier-1.
+   private void captureCombinedCardHeader(ChartToolTip primary, int[] dimIndexes) {
+      if(chartInfo.getTooltipStyle() != ChartInfo.TooltipStyle.CARD
+         || dimIndexes.length == 0)
+      {
+         return;
+      }
+
+      int xKey = dimIndexes[0];
+      int xVal = primary.getTooltipValue(xKey);
+
+      if(xVal < 0) {
+         return;
+      }
+
+      primary.setHeader(xKey, xVal);
+      primary.removeTooltip(xKey);
    }
 
    private Map<String, ArrayList<Integer>> getRowValuePointMap(List<VisualObject> vos) {
