@@ -1734,7 +1734,7 @@ public class WizVsService {
       ConditionList conditionList = new ConditionList();
 
       if(wizModel != null && wizModel.getBaseConditions() != null) {
-         appendConditionNodes(wizModel.getBaseConditions(), 0, conditionList, new boolean[]{true}, null, null);
+         appendConditionNodes(wizModel.getBaseConditions(), 0, conditionList, new boolean[]{true}, null);
       }
 
       return conditionList;
@@ -1748,8 +1748,6 @@ public class WizVsService {
     * @param result           the ConditionList being built
     * @param isFirst          single-element boolean array used to track whether any item has been
     *                         appended yet at the current level (avoids a leading junction)
-    * @param measures         optional list of measure fields for aggregate conditions;
-    *                         pass null for base conditions, non-null for aggregate conditions
     * @param dimColumnMapping optional map of original dimension field names to pre-grouped column names;
     *                         used for translating dateGroupLevel to DateRangeRef column names
     */
@@ -1757,7 +1755,6 @@ public class WizVsService {
                                      int depth,
                                      ConditionList result,
                                      boolean[] isFirst,
-                                     List<MeasureFieldInfo> measures,
                                      Map<String, String> dimColumnMapping)
    {
       for(VisualizationConditionModel.ConditionNode node : nodes) {
@@ -1776,7 +1773,7 @@ public class WizVsService {
                result.append(new JunctionOperator(parseJunction(leaf.getJunction()), depth));
             }
 
-            result.append(buildConditionItem(spec, depth, measures, dimColumnMapping));
+            result.append(buildConditionItem(spec, depth, dimColumnMapping));
             isFirst[0] = false;
          }
          else if(node instanceof VisualizationConditionModel.ConditionGroup group) {
@@ -1789,7 +1786,7 @@ public class WizVsService {
             // Build the group's contents into a temporary list first so we can check
             // whether it produced any valid items before committing a junction.
             ConditionList groupContents = new ConditionList();
-            appendConditionNodes(items, depth + 1, groupContents, new boolean[]{true}, measures, dimColumnMapping);
+            appendConditionNodes(items, depth + 1, groupContents, new boolean[]{true}, dimColumnMapping);
 
             if(groupContents.isEmpty()) {
                continue;
@@ -1818,34 +1815,27 @@ public class WizVsService {
     *
     * @param spec             the condition specification
     * @param level            the nesting level for the condition item
-    * @param measures         optional list of measure fields for aggregate conditions; if non-null,
-    *                         looks up the aggregated column name by matching field and formula
     * @param dimColumnMapping optional map of original dimension field names to pre-grouped column names;
     *                         used for translating dateGroupLevel to DateRangeRef column names
     */
    private ConditionItem buildConditionItem(VisualizationConditionModel.ConditionSpec spec,
                                             int level,
-                                            List<MeasureFieldInfo> measures,
                                             Map<String, String> dimColumnMapping)
    {
       // For aggregate conditions, translate field+formula to aggregated column name (fullName)
       String fieldName = spec.getField();
-      // First check if this is a measure field condition
-      boolean isMeasure = false;
+      // Check if this is a measure field condition (has an aggregate formula)
+      boolean isMeasure = spec.getAggregateFormula() != null;
 
-      if(measures != null) {
-         String formula = spec.getAggregateFormula();
-
-         for(MeasureFieldInfo measure : measures) {
-            // Match by both field name and aggregate formula
-            if(fieldName.equals(measure.getField()) &&
-               Objects.equals(formula, measure.getAggregateFormula()))
-            {
-               fieldName = measure.getFullName();
-               isMeasure = true;
-               break;
-            }
-         }
+      if(isMeasure) {
+         // Compute fullName directly from ConditionSpec to correctly handle formulas
+         // that require secondaryField (Correlation, Covariance, WeightedAverage, SumWT)
+         // or nOrP parameter (NthLargest, NthSmallest, NthMostFrequent, PthPercentile)
+         fieldName = buildVSAggregateRefFullName(
+            spec.getField(),
+            spec.getAggregateFormula(),
+            spec.getSecondaryField(),
+            spec.getNOrP());
       }
 
       // If not a measure, check if it's a dimension with dateGroupLevel
@@ -2064,7 +2054,7 @@ public class WizVsService {
       table.setAggregate(!aggInfo.isEmpty());
 
       // Apply base conditions as pre-conditions and aggregate conditions as post-conditions
-      applyConditionsToWorksheet(table, conditionModel, binding.getMeasures(), dimColumnMapping);
+      applyConditionsToWorksheet(table, conditionModel, dimColumnMapping);
 
       return new PreAggregationMapping(dimColumnMapping, pushedMeasureFullNames);
    }
@@ -2074,13 +2064,11 @@ public class WizVsService {
     *
     * @param table            the worksheet table assembly
     * @param conditionModel   the condition model containing base and aggregate conditions
-    * @param measures         list of measure fields for looking up aggregated column names
     * @param dimColumnMapping maps original dimension field names to pre-grouped column names (for date grouping)
     */
    private void applyConditionsToWorksheet(
       AbstractTableAssembly table,
       VisualizationConditionModel conditionModel,
-      List<MeasureFieldInfo> measures,
       Map<String, String> dimColumnMapping)
    {
       if(conditionModel == null) {
@@ -2090,7 +2078,7 @@ public class WizVsService {
       // Apply base conditions as pre-conditions (WHERE equivalent)
       if(conditionModel.getBaseConditions() != null && !conditionModel.getBaseConditions().isEmpty()) {
          ConditionList preCondList = new ConditionList();
-         appendConditionNodes(conditionModel.getBaseConditions(), 0, preCondList, new boolean[]{true}, null, null);
+         appendConditionNodes(conditionModel.getBaseConditions(), 0, preCondList, new boolean[]{true}, null);
 
          if(!preCondList.isEmpty()) {
             table.setPreConditionList(preCondList);
@@ -2098,11 +2086,11 @@ public class WizVsService {
       }
 
       // Apply aggregate conditions as post-conditions (HAVING equivalent)
-      // Use measures list to translate field+formula to aggregated column names
+      // Aggregate column names are computed directly from ConditionSpec (field+formula+secondaryField+nOrP)
       // Use dimColumnMapping to translate dimension field+dateGroupLevel to DateRangeRef column names
       if(conditionModel.getAggregateConditions() != null && !conditionModel.getAggregateConditions().isEmpty()) {
          ConditionList postCondList = new ConditionList();
-         appendConditionNodes(conditionModel.getAggregateConditions(), 0, postCondList, new boolean[]{true}, measures, dimColumnMapping);
+         appendConditionNodes(conditionModel.getAggregateConditions(), 0, postCondList, new boolean[]{true}, dimColumnMapping);
 
          if(!postCondList.isEmpty()) {
             table.setPostConditionList(postCondList);
