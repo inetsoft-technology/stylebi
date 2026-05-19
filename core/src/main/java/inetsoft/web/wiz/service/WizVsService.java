@@ -34,6 +34,7 @@ import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.schema.StringValue;
+import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.schema.UserVariable;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
@@ -1394,13 +1395,11 @@ public class WizVsService {
 
    // NOTE: The instanceof check is the primary signal, but if the LLM omits fieldType the field
    // is deserialized as plain SimpleFieldInfo (defaultImpl) regardless of its data type.
-   // The getType() fallback catches that case by treating known numeric data types as measures.
-   private static final Set<String> NUMERIC_TYPES =
-      Set.of("integer", "long", "float", "double", "bigdecimal");
-
+   // XSchema.isNumericType() is used as a fallback to catch that case, and stays automatically
+   // correct if XSchema gains new numeric types in the future.
    private AestheticRef createColorRef(SimpleFieldInfo field) {
       boolean measure = field instanceof MeasureFieldInfo ||
-         (field.getType() != null && NUMERIC_TYPES.contains(field.getType().toLowerCase()));
+         (field.getType() != null && XSchema.isNumericType(field.getType()));
       return createAestheticRef(field, measure ? new RGBCubeColorFrame() : new CategoricalColorFrame());
    }
 
