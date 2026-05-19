@@ -1424,10 +1424,7 @@ public class PlotArea extends GridContainerArea implements GraphComponentArea, R
             dims = ganttDimsYFirst(dims, chartInfo);
          }
 
-         // Card style: measure leads at tier-1; gantt is the exception — its
-         // Y-axis grouping dim identifies the bar, dates are timeline context.
-         boolean cardMeasureFirst =
-            chartInfo.getTooltipStyle() == ChartInfo.TooltipStyle.CARD && !isGantt;
+         boolean cardMeasureFirst = cardPutsMeasureFirst(chartInfo, element);
          String[][] cols = cardMeasureFirst
             ? new String[][] {measures, dims, others}
             : new String[][] {dims, measures, others};
@@ -1866,6 +1863,27 @@ public class PlotArea extends GridContainerArea implements GraphComponentArea, R
 
       primary.setHeader(xKey, xVal);
       primary.removeTooltip(xKey);
+   }
+
+   // Card style puts the hovered measure at tier-1 — except where the dim
+   // itself identifies the hovered shape (Gantt Y-dim labels the bar; word
+   // cloud dim is rendered as the word). In those cases the dim leads.
+   static boolean cardPutsMeasureFirst(ChartInfo chartInfo, GraphElement element) {
+      if(chartInfo == null
+         || chartInfo.getTooltipStyle() != ChartInfo.TooltipStyle.CARD)
+      {
+         return false;
+      }
+
+      if(GraphTypes.isGantt(chartInfo.getChartType())) {
+         return false;
+      }
+
+      if(element instanceof PointElement && ((PointElement) element).isWordCloud()) {
+         return false;
+      }
+
+      return true;
    }
 
    // Partition the gantt's element dims into Y-axis dims first, then anything
