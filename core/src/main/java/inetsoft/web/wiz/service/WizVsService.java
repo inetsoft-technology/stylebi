@@ -140,6 +140,12 @@ public class WizVsService {
          rvs.setViewsheet(targetVs);
 
          try {
+            // In incremental mode, GenerateWsService may have added new WS assemblies. Reload
+            // inside try so any failure triggers the same rollback as an execution failure.
+            if(!createdRuntimeId && !modificationOnly) {
+               targetVs.reloadBaseWorksheet(engine, user);
+            }
+
             CreateViewsheetResult result = executeAndExtract(rvs, assembly);
             result.setBinding(collectFlatBinding(assembly));
             result.setAssemblyName(assembly.getName());

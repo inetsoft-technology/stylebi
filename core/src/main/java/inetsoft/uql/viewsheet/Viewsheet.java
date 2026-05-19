@@ -202,6 +202,23 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
    }
 
    /**
+    * Reloads the base worksheet from the repository into the internal ws cache.
+    * Lighter than update() — skips clearCache() and embedded viewsheet processing.
+    */
+   public void reloadBaseWorksheet(AssetRepository rep, Principal user) throws Exception {
+      if(wentry == null || !wentry.isWorksheet()) {
+         return;
+      }
+
+      Worksheet ws = (Worksheet) rep.getSheet(wentry, user, true, AssetContent.ALL);
+
+      if(ws != null) {
+         ws.getWorksheetInfo().setDesignMaxRows(vinfo.getDesignMaxRows());
+         setBaseWorksheet(ws);
+      }
+   }
+
+   /**
     * Set the base worksheet to this viewsheet.
     * @param ws the specified base worksheet.
     */
