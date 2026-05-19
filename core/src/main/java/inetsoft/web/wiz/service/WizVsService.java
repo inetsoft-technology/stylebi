@@ -153,25 +153,28 @@ public class WizVsService {
 
          // Collect binding for result
          CreateViewsheetResult.FlatBinding binding = collectFlatBinding(assembly);
-         // Store at outer scope for rollback persistence
          AssetEntry wsEntry = null;
-         Worksheet ws = null;
+         Worksheet originWs = null;
+         boolean wsModified = false;
 
          if(hasAggregateConditions && wsTableName != null && binding != null) {
             wsEntry = targetVs.getBaseEntry();
-            ws = (Worksheet) engine.getSheet(wsEntry, user, false, AssetContent.ALL);
+            Worksheet ws = (Worksheet) engine.getSheet(wsEntry, user, false, AssetContent.ALL);
             wsTableName = VSUtil.stripOuter(wsTableName);
             Assembly wsAssembly = ws != null ? ws.getAssembly(wsTableName) : null;
 
             if(wsAssembly instanceof AbstractTableAssembly tableAsm) {
                try {
+                  // Clone original worksheet for rollback before any modifications
+                  originWs = (Worksheet) ws.clone();
+
                   // Push aggregation and conditions to worksheet
                   PreAggregationMapping preAggMapping = pushAggregationToWorksheet(
                      binding, conditionModel, tableAsm);
 
                   if(wsEntry != null) {
                      engine.setSheet(wsEntry, ws, user, true);
-                     targetVs.reloadBaseWorksheet(engine, user);
+                     wsModified = true;
                   }
 
                   // Update VS assembly to use pre-aggregated columns
@@ -181,6 +184,17 @@ public class WizVsService {
                   binding = collectFlatBinding(assembly);
                }
                catch(Exception e) {
+                  // Rollback worksheet if it was modified
+                  if(wsModified && originWs != null && wsEntry != null) {
+                     try {
+                        engine.setSheet(wsEntry, originWs, user, true);
+                     }
+                     catch(Exception rollbackEx) {
+                        LOG.warn("Failed to rollback worksheet during error recovery: {}",
+                                 rollbackEx.getMessage());
+                     }
+                  }
+
                   throw e;
                }
             }
@@ -199,7 +213,7 @@ public class WizVsService {
          try {
             // In incremental mode, GenerateWsService may have added new WS assemblies. Reload
             // inside try so any failure triggers the same rollback as an execution failure.
-            if(!createdRuntimeId && !modificationOnly) {
+            if(wsModified || !createdRuntimeId && !modificationOnly) {
                targetVs.reloadBaseWorksheet(engine, user);
             }
 
@@ -221,6 +235,17 @@ public class WizVsService {
          catch(Exception e) {
             // Rollback: restore the previous viewsheet state.
             rvs.setViewsheet(previousVs);
+
+            // Rollback worksheet if it was modified
+            if(wsModified && originWs != null && wsEntry != null) {
+               try {
+                  engine.setSheet(wsEntry, originWs, user, true);
+               }
+               catch(Exception rollbackEx) {
+                  LOG.warn("Failed to rollback worksheet during error recovery: {}",
+                           rollbackEx.getMessage());
+               }
+            }
 
             if(!createdRuntimeId) {
                // In incremental mode targetVs == previousVs; remove the new assembly and
@@ -1576,6 +1601,49 @@ public class WizVsService {
       return ref;
    }
 
+   /**
+    * Builds a VSAggregateRef from MeasureFieldInfo and returns its fullName.
+    * This ensures consistent fullName generation across the codebase.
+    */
+   private String buildVSAggregateRefFullName(MeasureFieldInfo measure) {
+      return buildVSAggregateRefFullName(
+         measure.getField(),
+         measure.getAggregateFormula(),
+         measure.getSecondaryField(),
+         measure.getNOrP());
+   }
+
+   /**
+    * Builds a VSAggregateRef from individual parameters and returns its fullName.
+    * This ensures consistent fullName generation across the codebase.
+    *
+    * @param columnValue      the primary column/field name
+    * @param formulaValue     the aggregate formula (e.g., "Sum", "Average")
+    * @param secondaryField   the secondary field name for two-column formulas (may be null)
+    * @param nOrP             the N or P parameter for Nth/Percentile formulas (may be null)
+    * @return the computed fullName from VSAggregateRef
+    */
+   private String buildVSAggregateRefFullName(String columnValue, String formulaValue,
+                                              String secondaryField, Integer nOrP)
+   {
+      VSAggregateRef ref = new VSAggregateRef();
+      ref.setColumnValue(columnValue);
+
+      if(formulaValue != null) {
+         ref.setFormulaValue(formulaValue);
+      }
+
+      if(secondaryField != null) {
+         ref.setSecondaryColumnValue(secondaryField);
+      }
+
+      if(nOrP != null) {
+         ref.setN(nOrP);
+      }
+
+      return ref.getFullName();
+   }
+
    public static int getDateGroupLevel(String level) {
       if(level == null) {
          return XConstants.NONE_DATE_GROUP;
@@ -1964,6 +2032,8 @@ public class WizVsService {
             AggregateFormula formula = AggregateFormula.getFormula(measure.getAggregateFormula());
 
             if(formula == null) {
+               LOG.warn("Aggregate formula '{}' for measure '{}' is null or unrecognized; " +
+                        "defaulting to SUM", measure.getAggregateFormula(), measure.getField());
                formula = AggregateFormula.SUM;
             }
 
@@ -1981,7 +2051,7 @@ public class WizVsService {
             }
 
             aggInfo.addAggregate(aggRef);
-            pushedMeasureFullNames.add(measure.getFullName());
+            pushedMeasureFullNames.add(buildVSAggregateRefFullName(measure));
          }
       }
 
@@ -2104,6 +2174,7 @@ public class WizVsService {
          // If this measure was pushed to worksheet, just set formula to NONE
          // The column name stays the same since aggRef.getFullName() already matches worksheet output
          if(pushedMeasureFullNames.contains(aggRef.getFullName())) {
+            aggRef.setColumnValue(aggRef.getFullName());
             aggRef.setFormulaValue(AggregateFormula.NONE.getFormulaName());
          }
       }
@@ -2187,7 +2258,7 @@ public class WizVsService {
                if(pushedMeasureFullNames.contains(fullName)) {
                   // Data is pre-aggregated, set column to fullName and remove formula
                   aggRef.setColumnValue(fullName);
-                  aggRef.setFormulaValue(AggregateFormula.NONE.toString());
+                  aggRef.setFormulaValue(AggregateFormula.NONE.getFormulaName());
                }
             }
          }
@@ -2208,19 +2279,15 @@ public class WizVsService {
       DataRef column = sbinfo.getColumn();
 
       if(column != null && sbinfo.getAggregateValue() != null) {
-         VSAggregateRef ref = new VSAggregateRef();
-         ref.setColumnValue(sbinfo.getColumnValue());
+         String fullName = buildVSAggregateRefFullName(
+            sbinfo.getColumnValue(),
+            sbinfo.getAggregateValue(),
+            sbinfo.getSecondaryColumn() != null ? sbinfo.getSecondaryColumn().getName() : null,
+            sbinfo.getN());
 
-         if(sbinfo.getAggregateValue() != null) {
-            ref.setFormulaValue(sbinfo.getAggregateValue());
-         }
-
-         ref.setSecondaryColumn(sbinfo.getSecondaryColumn());
-         ref.setN(sbinfo.getN());
-
-         if(pushedMeasureFullNames.contains(ref.getFullName())) {
-            sbinfo.setColumnValue(ref.getFullName());
-            sbinfo.setAggregateValue(AggregateFormula.NONE.toString()); // Data already aggregated
+         if(pushedMeasureFullNames.contains(fullName)) {
+            sbinfo.setColumnValue(fullName);
+            sbinfo.setAggregateValue(AggregateFormula.NONE.getFormulaName()); // Data already aggregated
          }
       }
    }
