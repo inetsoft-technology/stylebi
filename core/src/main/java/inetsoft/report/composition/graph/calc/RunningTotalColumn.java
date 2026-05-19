@@ -159,21 +159,66 @@ public class RunningTotalColumn extends AbstractColumn {
 
          Object firstBreakByVal = baseData.getData(breakBy, row);
          long interval = getInterval(data, sortedRow);
+         Object currentInnerVal = (innerDim != null) ? baseData.getData(innerDim, row) : null;
 
-         for(int i = row; i >= 0; i--) {
-            Object breakByVal = baseData.getData(breakBy, i);
-            long intervali = getInterval(baseData, i);
+         if(currentInnerVal instanceof Date) {
+            // Root dataset row order may not be chronological when sort-by-value
+            // reorders within breakBy groups. Build a per-(breakBy,interval) list of
+            // (date, value) pairs once per dataset, then walk it in date order so the
+            // running calc is order-independent. Cache is cleared in complete().
+            if(dateGroupCache == null || baseData != dateGroupCacheRoot) {
+               dateGroupCache = new HashMap<>();
+               dateGroupCacheRoot = baseData;
 
-            if(interval != intervali) {
-               continue;
+               for(int i = 0; i < baseData.getRowCount(); i++) {
+                  Object bv = baseData.getData(breakBy, i);
+                  long iv = getInterval(baseData, i);
+                  Object dv = baseData.getData(innerDim, i);
+
+                  if(!(dv instanceof Date)) {
+                     continue;
+                  }
+
+                  Object fv = baseData.getData(field, i);
+                  CacheKey key = new CacheKey(bv, iv);
+                  dateGroupCache.computeIfAbsent(key, k -> new ArrayList<>())
+                     .add(new Object[]{ dv, fv });
+               }
+
+               // sort each group chronologically so the forward scan below is O(n)
+               for(List<Object[]> entries : dateGroupCache.values()) {
+                  entries.sort((a, b2) -> ((Date) a[0]).compareTo((Date) b2[0]));
+               }
             }
 
-            // save year\quarter...
-            if(Tool.equals(breakByVal, firstBreakByVal)) {
-               formula.addValue(baseData.getData(field, i));
+            CacheKey cacheKey = new CacheKey(firstBreakByVal, interval);
+            List<Object[]> entries = dateGroupCache.getOrDefault(cacheKey, Collections.emptyList());
+
+            for(Object[] entry : entries) {
+               if(((Date) entry[0]).compareTo((Date) currentInnerVal) <= 0) {
+                  formula.addValue(entry[1]);
+               }
+               else {
+                  break;
+               }
             }
-            else {
-               break;
+         }
+         else {
+            for(int i = row; i >= 0; i--) {
+               Object breakByVal = baseData.getData(breakBy, i);
+               long intervali = getInterval(baseData, i);
+
+               if(interval != intervali) {
+                  continue;
+               }
+
+               // save year\quarter...
+               if(Tool.equals(breakByVal, firstBreakByVal)) {
+                  formula.addValue(baseData.getData(field, i));
+               }
+               else {
+                  break;
+               }
             }
          }
       }
@@ -408,6 +453,8 @@ public class RunningTotalColumn extends AbstractColumn {
    public void complete() {
       subs = null;
       subsRoot = null;
+      dateGroupCache = null;
+      dateGroupCacheRoot = null;
    }
 
    /**
@@ -519,6 +566,8 @@ public class RunningTotalColumn extends AbstractColumn {
       return calendar.getTimeInMillis();
    }
 
+   private record CacheKey(Object bv, long iv) {}
+
    private static class PartDataSet extends AbstractDataSetFilter {
       public PartDataSet(DataSet data, int mrow) {
          super(data);
@@ -538,4 +587,6 @@ public class RunningTotalColumn extends AbstractColumn {
    private String breakBy = null;
    private DataSetIndex subs;
    private DataSet subsRoot;
+   private Map<CacheKey, List<Object[]>> dateGroupCache;
+   private DataSet dateGroupCacheRoot;
 }
