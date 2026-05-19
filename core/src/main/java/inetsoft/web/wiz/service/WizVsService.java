@@ -1399,12 +1399,16 @@ public class WizVsService {
    // correct if XSchema gains new numeric types in the future.
    private AestheticRef createColorRef(SimpleFieldInfo field) {
       boolean measure = field instanceof MeasureFieldInfo ||
-         (field.getType() != null && XSchema.isNumericType(field.getType()));
+         (field.getType() != null &&
+            (XSchema.isNumericType(field.getType()) || XSchema.DECIMAL.equals(field.getType())));
       return createAestheticRef(field, measure ? new RGBCubeColorFrame() : new CategoricalColorFrame());
    }
 
    private AestheticRef createShapeRef(SimpleFieldInfo field) {
-      return createAestheticRef(field, new CategoricalShapeFrame());
+      boolean measure = field instanceof MeasureFieldInfo ||
+         (field.getType() != null &&
+            (XSchema.isNumericType(field.getType()) || XSchema.DECIMAL.equals(field.getType())));
+      return createAestheticRef(field, measure ? new LinearShapeFrame() : new CategoricalShapeFrame());
    }
 
    private AestheticRef createTextRef(SimpleFieldInfo field) {
