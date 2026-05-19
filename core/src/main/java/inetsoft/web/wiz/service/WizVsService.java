@@ -135,16 +135,15 @@ public class WizVsService {
 
          applyConditionModel(assembly, model.getConditionModel());
 
+         // In incremental mode, GenerateWsService may have added new WS assemblies. Reload
+         // targetVs.ws before setViewsheet so resetRuntime() propagates the fresh WS to wbox.
+         if(!createdRuntimeId) {
+            targetVs.reloadBaseWorksheet(engine, user);
+         }
+
          // Always call setViewsheet so the sandbox picks up the updated viewsheet object.
          Viewsheet previousVs = rvs.getViewsheet();
          rvs.setViewsheet(targetVs);
-
-         // In incremental mode, GenerateWsService may have saved a new WS version (e.g. added
-         // mirror assemblies). Force the sandbox to reload from the repository so new assemblies
-         // are visible before execution.
-         if(!createdRuntimeId) {
-            rvs.resetRuntime();
-         }
 
          try {
             CreateViewsheetResult result = executeAndExtract(rvs, assembly);
