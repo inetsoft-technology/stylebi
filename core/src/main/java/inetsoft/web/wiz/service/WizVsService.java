@@ -639,7 +639,7 @@ public class WizVsService {
 
    /**
     * Builds a {@link CreateViewsheetResult.FlatBinding} from the assembly's current binding.
-    * Returns null for assembly types that carry no aggregate binding (e.g. Table, Image).
+    * Returns null for assembly types that carry no aggregate binding (e.g. Image).
     */
    private CreateViewsheetResult.FlatBinding collectFlatBinding(VSAssembly assembly) {
       if(assembly instanceof ChartVSAssembly chart) {
@@ -650,6 +650,9 @@ public class WizVsService {
       }
       else if(assembly instanceof OutputVSAssembly output) {
          return collectOutputFlatBinding(output);
+      }
+      else if(assembly instanceof TableVSAssembly) {
+         return new CreateViewsheetResult.FlatBinding(List.of(), List.of());
       }
 
       return null;
