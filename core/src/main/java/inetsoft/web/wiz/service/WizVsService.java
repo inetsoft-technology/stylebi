@@ -974,7 +974,11 @@ public class WizVsService {
          case "asia" -> "Asia";
          case "europe", "eu" -> "Europe";
          case "world" -> "World";
-         default -> mapType.trim();
+         default -> {
+            LOG.warn("normalizeMapType: unrecognized map type '{}', passing through as-is. " +
+               "Valid types: U.S., World, Canada, Mexico, Asia, Europe", mapType.trim());
+            yield mapType.trim();
+         }
       };
    }
 
@@ -1159,7 +1163,9 @@ public class WizVsService {
                DataRef existing = chartInfo.getGeoColumns().getAttribute(f.getField());
 
                if(existing instanceof VSChartGeoRef existingGeoRef) {
-                  mapInfo.addGeoField(existingGeoRef);
+                  // Clone to prevent addGeoField's internal mutation (setNamedGroupInfo(null))
+                  // from propagating back to the shared geoColumns reference.
+                  mapInfo.addGeoField((VSChartGeoRef) existingGeoRef.clone());
                }
                else {
                   VSChartGeoRef geoRef = new VSChartGeoRef();
@@ -1386,9 +1392,16 @@ public class WizVsService {
       return createAestheticRef(field, new LinearSizeFrame());
    }
 
+   // NOTE: The instanceof check is the primary signal, but if the LLM omits fieldType the field
+   // is deserialized as plain SimpleFieldInfo (defaultImpl) regardless of its data type.
+   // The getType() fallback catches that case by treating known numeric data types as measures.
+   private static final Set<String> NUMERIC_TYPES =
+      Set.of("integer", "long", "float", "double", "bigdecimal");
+
    private AestheticRef createColorRef(SimpleFieldInfo field) {
-      return createAestheticRef(field,
-         field instanceof MeasureFieldInfo ? new RGBCubeColorFrame() : new CategoricalColorFrame());
+      boolean measure = field instanceof MeasureFieldInfo ||
+         (field.getType() != null && NUMERIC_TYPES.contains(field.getType().toLowerCase()));
+      return createAestheticRef(field, measure ? new RGBCubeColorFrame() : new CategoricalColorFrame());
    }
 
    private AestheticRef createShapeRef(SimpleFieldInfo field) {
