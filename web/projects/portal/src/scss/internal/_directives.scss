@@ -244,17 +244,6 @@ table.scrollable-table {
     letter-spacing: 0.02em;
   }
 
-  // Headline-bound subtitle (e.g. candle/stock date below the Close row): sits
-  // visually closer to the tier-1 row than tier-2 subtitle does — it identifies
-  // the period the headline value belongs to rather than scoping peer sections.
-  // Inherits tier-1's full opacity; size + weight do the subordination.
-  .tt-tier-1.tt-subtitle {
-    font-size: 14px;
-    font-weight: 400;
-    margin-top: 2px;
-    letter-spacing: 0.02em;
-  }
-
   // Combined card: each .tt-section groups one series' rows so adjacent
   // series read as distinct blocks (mirrors the default tooltip's blank-line
   // separators between sub-tooltips).
@@ -274,6 +263,20 @@ table.scrollable-table {
   .tt-section.tt-section-first { margin-top: 2px; }
 
   .tt-tier-1:not(:first-child) { margin-top: 10px; }
+
+  // Headline-bound subtitle (e.g. candle/stock date below the Close row): sits
+  // visually closer to the tier-1 row than tier-2 subtitle does — it identifies
+  // the period the headline value belongs to rather than scoping peer sections.
+  // Inherits tier-1's full opacity; size + weight do the subordination.
+  // Must come after .tt-tier-1:not(:first-child) — both have equal specificity
+  // so the later rule wins; without this ordering the 10px margin would clobber
+  // the intended 2px.
+  .tt-tier-1.tt-subtitle {
+    font-size: 14px;
+    font-weight: 400;
+    margin-top: 2px;
+    letter-spacing: 0.02em;
+  }
 
   // Stack total sits at the bottom as the summary headline; bump it slightly
   // above the regular tier-1 size so it reads as the punch line.
