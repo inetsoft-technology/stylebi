@@ -99,7 +99,7 @@ public class ChartToolTip implements DataSerializable {
          String[] lines = customToolTip.split(ChartToolTip.ENTER + "|\\r|\\n");
 
          for(String line : lines) {
-            if(line.isEmpty()) {
+            if(line.isBlank()) {
                continue;
             }
 

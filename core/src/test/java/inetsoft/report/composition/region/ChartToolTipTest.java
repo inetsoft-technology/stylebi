@@ -96,6 +96,24 @@ class ChartToolTipTest {
    }
 
    @Test
+   void cardStyleSkipsWhitespaceOnlyCustomTooltipLines() {
+      IndexedSet<String> palette = new IndexedSet<>();
+      ChartToolTip tip = new ChartToolTip();
+      tip.setStyle(ChartInfo.TooltipStyle.CARD);
+      tip.setCustomToolTip("   " + ChartToolTip.ENTER + "Line1" + ChartToolTip.ENTER + "Line2");
+
+      String out = tip.getTooltip(palette);
+
+      int tierCount = out.split("<div class=\"tt-tier-", -1).length - 1;
+      assertEquals(2, tierCount,
+                   "Whitespace-only line must be skipped, leaving only the two real lines");
+      assertTrue(out.contains("<div class=\"tt-tier-1\">Line1"),
+                 "Real content must claim tier-1, not be demoted by a blank leading line");
+      assertTrue(out.contains("<div class=\"tt-tier-2\">Line2"));
+      assertFalse(out.contains("tt-tier-3"));
+   }
+
+   @Test
    void setStyleNullDefaultsToLegacyStyle() {
       ChartToolTip tip = new ChartToolTip();
       tip.setStyle(null);
