@@ -64,16 +64,18 @@ public class LegendFormatDialogModelTest {
       aliasPaneModel.setAliasList(new ModelAlias[0]);
       dialog.setAliasPaneModel(aliasPaneModel);
 
-      LegendDescriptor edited = new LegendDescriptor();
-      LegendDescriptor other = new LegendDescriptor();
       LegendsDescriptor legendsDesc = new LegendsDescriptor();
+      LegendDescriptor edited = new LegendDescriptor();
+      LegendDescriptor unrelated = new LegendDescriptor();
+      legendsDesc.setColorLegendDescriptor(edited);
+      legendsDesc.setSizeLegendDescriptor(unrelated);
 
       dialog.updateLegendFormatDialogModel(new VSChartInfo(), legendsDesc, edited, null);
 
       assertFalse(edited.isSymbolRoundCorners(),
                   "the edited legend should reflect the dialog value");
-      assertTrue(other.isSymbolRoundCorners(),
-                 "an unrelated legend on the same chart must not be affected");
+      assertTrue(unrelated.isSymbolRoundCorners(),
+                 "another legend on the same chart must not be affected");
    }
 
    @Test
