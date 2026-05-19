@@ -157,14 +157,15 @@ public class WizVsService {
          Worksheet originWs = null;
          boolean wsModified = false;
 
-         if(hasAggregateConditions && wsTableName != null && binding != null) {
-            wsEntry = targetVs.getBaseEntry();
-            Worksheet ws = (Worksheet) engine.getSheet(wsEntry, user, false, AssetContent.ALL);
-            wsTableName = VSUtil.stripOuter(wsTableName);
-            Assembly wsAssembly = ws != null ? ws.getAssembly(wsTableName) : null;
+         try {
+            // All mutations happen inside this try so the catch can roll back everything
+            if(hasAggregateConditions && wsTableName != null && binding != null) {
+               wsEntry = targetVs.getBaseEntry();
+               Worksheet ws = (Worksheet) engine.getSheet(wsEntry, user, false, AssetContent.ALL);
+               wsTableName = VSUtil.stripOuter(wsTableName);
+               Assembly wsAssembly = ws != null ? ws.getAssembly(wsTableName) : null;
 
-            if(wsAssembly instanceof AbstractTableAssembly tableAsm) {
-               try {
+               if(wsAssembly instanceof AbstractTableAssembly tableAsm) {
                   // Clone original worksheet for rollback before any modifications
                   originWs = (Worksheet) ws.clone();
 
@@ -183,34 +184,18 @@ public class WizVsService {
                   // Re-collect binding after updating for pre-aggregation
                   binding = collectFlatBinding(assembly);
                }
-               catch(Exception e) {
-                  // Rollback worksheet if it was modified
-                  if(wsModified && originWs != null && wsEntry != null) {
-                     try {
-                        engine.setSheet(wsEntry, originWs, user, true);
-                     }
-                     catch(Exception rollbackEx) {
-                        LOG.warn("Failed to rollback worksheet during error recovery: {}",
-                                 rollbackEx.getMessage());
-                     }
-                  }
-
-                  throw e;
+               else {
+                  // Fallback to original path if worksheet table not found
+                  LOG.warn("Aggregate conditions specified but worksheet table '{}' not found; " +
+                           "aggregate conditions will be ignored", wsTableName);
+                  applyConditionModel(assembly, conditionModel);
                }
             }
             else {
-               // Fallback to original path if worksheet table not found
-               LOG.warn("Aggregate conditions specified but worksheet table '{}' not found; " +
-                        "aggregate conditions will be ignored", wsTableName);
+               // Original path: apply base conditions to VS assembly
                applyConditionModel(assembly, conditionModel);
             }
-         }
-         else {
-            // Original path: apply base conditions to VS assembly
-            applyConditionModel(assembly, conditionModel);
-         }
 
-         try {
             // In incremental mode, GenerateWsService may have added new WS assemblies. Reload
             // inside try so any failure triggers the same rollback as an execution failure.
             if(wsModified || !createdRuntimeId && !modificationOnly) {
