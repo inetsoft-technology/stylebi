@@ -1793,7 +1793,41 @@ public class WizVsService {
             "Viewsheet is not in the managed visualizations folder and cannot be deleted: " + path);
       }
 
+      AssetEntry wsEntry = null;
+
+      try {
+         // AssetContent.NO_DATA strips assembly/embeddedData nodes but preserves
+         // <worksheetEntry>, so getBaseEntry() is always populated at this level.
+         AbstractSheet sheet = engine.getSheet(entry, user, true, AssetContent.NO_DATA);
+
+         if(sheet instanceof Viewsheet vs) {
+            AssetEntry baseEntry = vs.getBaseEntry();
+
+            if(baseEntry != null && baseEntry.getPath() != null &&
+               baseEntry.getPath().startsWith(GenerateWsService.WORKSHEET_ROOT_FOLDER_PATH + "/"))
+            {
+               wsEntry = baseEntry;
+            }
+         }
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to retrieve source worksheet entry for viewsheet [{}]",
+                  identifier, e);
+      }
+
       engine.removeSheet(entry, user, true);
+
+      // Wiz enforces a strict 1-viewsheet-to-1-worksheet contract: each wiz viewsheet
+      // owns its worksheet exclusively, so no dependency check is needed before deletion.
+      if(wsEntry != null) {
+         try {
+            engine.removeSheet(wsEntry, user, true);
+         }
+         catch(Exception e) {
+            LOG.warn("Failed to delete source worksheet [{}] for viewsheet [{}]",
+                     wsEntry.toIdentifier(), identifier, e);
+         }
+      }
    }
 
    private final ViewsheetService viewsheetService;
