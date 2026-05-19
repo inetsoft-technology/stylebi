@@ -815,6 +815,12 @@ public class WizVsService {
             DimensionFieldInfo info = new DimensionFieldInfo();
             info.setField(dim.getGroupColumnValue());
             info.setFullName(dim.getFullName());
+            int dateLevel = dim.getDateLevel();
+
+            if(dateLevel != XConstants.NONE_DATE_GROUP) {
+               info.setDateGroupLevel(getDateGroupLevelName(dateLevel));
+            }
+
             dimensions.add(info);
          }
       }
@@ -824,6 +830,15 @@ public class WizVsService {
             info.setField(agg.getColumnValue());
             info.setFullName(agg.getFullName());
             info.setAggregateFormula(agg.getFormulaValue());
+
+            if(agg.getSecondaryColumnValue() != null) {
+               info.setSecondaryField(agg.getSecondaryColumnValue());
+            }
+
+            if(agg.getN() != 0) {
+               info.setNOrP(agg.getN());
+            }
+
             measures.add(info);
          }
       }
@@ -842,6 +857,13 @@ public class WizVsService {
                DimensionFieldInfo info = new DimensionFieldInfo();
                info.setField(dim.getGroupColumnValue());
                info.setFullName(dim.getFullName());
+
+               int dateLevel = dim.getDateLevel();
+
+               if(dateLevel != XConstants.NONE_DATE_GROUP) {
+                  info.setDateGroupLevel(getDateGroupLevelName(dateLevel));
+               }
+
                dimensions.add(info);
             }
          }
@@ -853,6 +875,13 @@ public class WizVsService {
                DimensionFieldInfo info = new DimensionFieldInfo();
                info.setField(dim.getGroupColumnValue());
                info.setFullName(dim.getFullName());
+
+               int dateLevel = dim.getDateLevel();
+
+               if(dateLevel != XConstants.NONE_DATE_GROUP) {
+                  info.setDateGroupLevel(getDateGroupLevelName(dateLevel));
+               }
+
                dimensions.add(info);
             }
          }
@@ -865,6 +894,15 @@ public class WizVsService {
                info.setField(agg.getColumnValue());
                info.setFullName(agg.getFullName());
                info.setAggregateFormula(agg.getFormulaValue());
+
+               if(agg.getSecondaryColumnValue() != null) {
+                  info.setSecondaryField(agg.getSecondaryColumnValue());
+               }
+
+               if(agg.getN() != 0) {
+                  info.setNOrP(agg.getN());
+               }
+
                measures.add(info);
             }
          }
@@ -895,10 +933,39 @@ public class WizVsService {
          ref.setFormulaValue(sbinfo.getAggregateValue());
       }
 
+      String secondaryColumn = sbinfo.getColumn2Value();
+
+      if(secondaryColumn != null && !secondaryColumn.isEmpty()) {
+         ref.setSecondaryColumnValue(secondaryColumn);
+      }
+
+      String nValueStr = sbinfo.getNValue();
+
+      if(nValueStr != null && !nValueStr.isEmpty()) {
+         try {
+            int nValue = Integer.parseInt(nValueStr);
+
+            if(nValue != 0) {
+               ref.setN(nValue);
+            }
+         }
+         catch(NumberFormatException ignored) {
+            // Ignore non-numeric N values
+         }
+      }
+
       MeasureFieldInfo info = new MeasureFieldInfo();
       info.setField(sbinfo.getColumnValue());
       info.setFullName(ref.getFullName());
       info.setAggregateFormula(sbinfo.getAggregateValue());
+
+      if(ref.getSecondaryColumnValue() != null) {
+         info.setSecondaryField(ref.getSecondaryColumnValue());
+      }
+
+      if(ref.getN() != 0) {
+         info.setNOrP(ref.getN());
+      }
 
       return new CreateViewsheetResult.FlatBinding(List.of(), List.of(info));
    }
@@ -1672,6 +1739,41 @@ public class WizVsService {
       }
 
       return DateRangeRef.getDateRangeOption(mappedLevel);
+   }
+
+   /**
+    * Converts an integer date level constant (from XConstants/DateRangeRef) back to
+    * the human-readable name used by the Wiz AI service (e.g., "year", "month").
+    * This is the reverse of {@link #getDateGroupLevel(String)}.
+    *
+    * @param level the integer date level constant
+    * @return the human-readable name, or null if level is NONE_DATE_GROUP or unrecognized
+    */
+   private static String getDateGroupLevelName(int level) {
+      return switch(level) {
+         // Interval levels
+         case XConstants.YEAR_DATE_GROUP -> "year";
+         case XConstants.QUARTER_DATE_GROUP -> "quarter";
+         case XConstants.MONTH_DATE_GROUP -> "month";
+         case XConstants.WEEK_DATE_GROUP -> "week";
+         case XConstants.DAY_DATE_GROUP -> "day";
+         case XConstants.HOUR_DATE_GROUP -> "hour";
+         case XConstants.MINUTE_DATE_GROUP -> "minute";
+         case XConstants.SECOND_DATE_GROUP -> "second";
+         // Part levels
+         case XConstants.QUARTER_OF_YEAR_DATE_GROUP -> "quarter of year";
+         case XConstants.MONTH_OF_YEAR_DATE_GROUP -> "month of year";
+         case XConstants.WEEK_OF_YEAR_DATE_GROUP -> "week of year";
+         case XConstants.WEEK_OF_MONTH_DATE_GROUP -> "week of month";
+         case XConstants.DAY_OF_YEAR_DATE_GROUP -> "day of year";
+         case XConstants.DAY_OF_MONTH_DATE_GROUP -> "day of month";
+         case XConstants.DAY_OF_WEEK_DATE_GROUP -> "day of week";
+         case XConstants.HOUR_OF_DAY_DATE_GROUP -> "hour of day";
+         case XConstants.MINUTE_OF_HOUR_DATE_GROUP -> "minute of hour";
+         case XConstants.SECOND_OF_MINUTE_DATE_GROUP -> "second of minute";
+         // None or unrecognized
+         default -> null;
+      };
    }
 
    /**
