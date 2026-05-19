@@ -65,6 +65,14 @@ class PlotAreaCardMeasureFirstTest {
    }
 
    @Test
+   void nullElementIsSafe() {
+      // instanceof short-circuits on null, so a null element is not flagged as
+      // word cloud and the method falls through to true.
+      assertTrue(PlotArea.cardPutsMeasureFirst(
+         chartInfo(ChartInfo.TooltipStyle.CARD, GraphTypes.CHART_BAR), null));
+   }
+
+   @Test
    void cardOnPointElementNotWordCloudPromotesMeasure() {
       // Regression guard: only word-cloud PointElements get the dim-first
       // treatment, regular point charts (scatter, etc.) keep measure-first.
