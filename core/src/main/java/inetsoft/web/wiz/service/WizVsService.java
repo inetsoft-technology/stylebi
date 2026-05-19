@@ -20,6 +20,7 @@ package inetsoft.web.wiz.service;
 
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.analytic.composition.event.VSEventUtil;
+import inetsoft.graph.aesthetic.*;
 import inetsoft.graph.data.*;
 import inetsoft.report.TableLens;
 import inetsoft.report.composition.RuntimeViewsheet;
@@ -956,6 +957,28 @@ public class WizVsService {
    }
 
    /**
+    * Normalise LLM-generated map type strings to the canonical names used in mapdata.xml.
+    * e.g. "U.S" → "U.S.", "us" → "U.S.", "usa" → "U.S."
+    */
+   private String normalizeMapType(String mapType) {
+      if(mapType == null) {
+         return null;
+      }
+
+      String lower = mapType.trim().toLowerCase().replace(".", "").replace(" ", "");
+
+      return switch(lower) {
+         case "us", "usa" -> "U.S.";
+         case "canada", "ca" -> "Canada";
+         case "mexico", "mx" -> "Mexico";
+         case "asia" -> "Asia";
+         case "europe", "eu" -> "Europe";
+         case "world" -> "World";
+         default -> mapType.trim();
+      };
+   }
+
+   /**
     * Returns the GraphTypes constant for chart types, or -1 for non-chart types.
     */
    private int getChartType(String type) {
@@ -1036,7 +1059,7 @@ public class WizVsService {
             }
 
             if(layerConfig.getMap() != null) {
-               geoOption.getMapping().setType(layerConfig.getMap());
+               geoOption.getMapping().setType(normalizeMapType(layerConfig.getMap()));
             }
 
             chartInfo.getGeoColumns().addAttribute(geoRef);
@@ -1077,15 +1100,15 @@ public class WizVsService {
 
          // Edge aesthetics: color, shape, size
          if(binding.getColor() != null) {
-            chartInfo.setColorField(createAestheticRef(binding.getColor()));
+            chartInfo.setColorField(createColorRef(binding.getColor()));
          }
 
          if(binding.getShape() != null) {
-            chartInfo.setShapeField(createAestheticRef(binding.getShape()));
+            chartInfo.setShapeField(createShapeRef(binding.getShape()));
          }
 
          if(binding.getSize() != null) {
-            chartInfo.setSizeField(createAestheticRef(binding.getSize()));
+            chartInfo.setSizeField(createSizeRef(binding.getSize()));
          }
 
          // Source / target node fields
@@ -1102,15 +1125,15 @@ public class WizVsService {
             ChartBinding.NodeBinding node = binding.getNode();
 
             if(node.getColor() != null) {
-               relationInfo.setNodeColorField(createAestheticRef(node.getColor()));
+               relationInfo.setNodeColorField(createColorRef(node.getColor()));
             }
 
             if(node.getSize() != null) {
-               relationInfo.setNodeSizeField(createAestheticRef(node.getSize()));
+               relationInfo.setNodeSizeField(createSizeRef(node.getSize()));
             }
 
             if(node.getText() != null) {
-               relationInfo.setTextField(createAestheticRef(node.getText()));
+               relationInfo.setTextField(createTextRef(node.getText()));
             }
          }
       }
@@ -1130,9 +1153,19 @@ public class WizVsService {
 
          if(binding.getGeo() != null) {
             for(SimpleFieldInfo f : binding.getGeo()) {
-               VSChartGeoRef geoRef = new VSChartGeoRef();
-               geoRef.setGroupColumnValue(f.getField());
-               mapInfo.addGeoField(geoRef);
+               // Prefer the pre-configured geoRef from geoColumns (has layer/map from createGeoFields).
+               // Its GeographicOption is preserved through clone() in update0(), so the layer
+               // stays correct even if the name-based lookup in VSMapInfo.update() misses.
+               DataRef existing = chartInfo.getGeoColumns().getAttribute(f.getField());
+
+               if(existing instanceof VSChartGeoRef existingGeoRef) {
+                  mapInfo.addGeoField(existingGeoRef);
+               }
+               else {
+                  VSChartGeoRef geoRef = new VSChartGeoRef();
+                  geoRef.setGroupColumnValue(f.getField());
+                  mapInfo.addGeoField(geoRef);
+               }
             }
          }
 
@@ -1143,15 +1176,15 @@ public class WizVsService {
          }
 
          if(binding.getShape() != null && chartType == GraphTypes.CHART_MAP) {
-            chartInfo.setShapeField(createAestheticRef(binding.getShape()));
+            chartInfo.setShapeField(createShapeRef(binding.getShape()));
          }
 
          if(binding.getSize() != null) {
-            chartInfo.setSizeField(createAestheticRef(binding.getSize()));
+            chartInfo.setSizeField(createSizeRef(binding.getSize()));
          }
 
          if(binding.getText() != null) {
-            chartInfo.setTextField(createAestheticRef(binding.getText()));
+            chartInfo.setTextField(createTextRef(binding.getText()));
          }
 
          if(binding.getPath() != null && chartType == GraphTypes.CHART_MAP) {
@@ -1159,7 +1192,7 @@ public class WizVsService {
          }
 
          if(binding.getColor() != null) {
-            chartInfo.setColorField(createAestheticRef(binding.getColor()));
+            chartInfo.setColorField(createColorRef(binding.getColor()));
          }
       }
 
@@ -1210,11 +1243,11 @@ public class WizVsService {
          }
 
          if(binding.getColor() != null) {
-            chartInfo.setColorField(createAestheticRef(binding.getColor()));
+            chartInfo.setColorField(createColorRef(binding.getColor()));
          }
 
          if(binding.getText() != null) {
-            chartInfo.setTextField(createAestheticRef(binding.getText()));
+            chartInfo.setTextField(createTextRef(binding.getText()));
          }
 
          if(binding.getHigh() != null) {
@@ -1235,11 +1268,11 @@ public class WizVsService {
 
          if(chartType == GraphTypes.CHART_CANDLE) {
             if(binding.getShape() != null) {
-               chartInfo.setShapeField(createAestheticRef(binding.getShape()));
+               chartInfo.setShapeField(createShapeRef(binding.getShape()));
             }
 
             if(binding.getSize() != null) {
-               chartInfo.setSizeField(createAestheticRef(binding.getSize()));
+               chartInfo.setSizeField(createSizeRef(binding.getSize()));
             }
          }
       }
@@ -1265,19 +1298,19 @@ public class WizVsService {
          }
 
          if(binding.getColor() != null) {
-            chartInfo.setColorField(createAestheticRef(binding.getColor()));
+            chartInfo.setColorField(createColorRef(binding.getColor()));
          }
 
          if(binding.getShape() != null) {
-            chartInfo.setShapeField(createAestheticRef(binding.getShape()));
+            chartInfo.setShapeField(createShapeRef(binding.getShape()));
          }
 
          if(binding.getSize() != null) {
-            chartInfo.setSizeField(createAestheticRef(binding.getSize()));
+            chartInfo.setSizeField(createSizeRef(binding.getSize()));
          }
 
          if(binding.getText() != null) {
-            chartInfo.setTextField(createAestheticRef(binding.getText()));
+            chartInfo.setTextField(createTextRef(binding.getText()));
          }
 
          if(binding.getPath() != null) {
@@ -1310,19 +1343,19 @@ public class WizVsService {
          }
 
          if(binding.getColor() != null) {
-            chartInfo.setColorField(createAestheticRef(binding.getColor()));
+            chartInfo.setColorField(createColorRef(binding.getColor()));
          }
 
          if(binding.getShape() != null && chartType != GraphTypes.CHART_SCATTER_CONTOUR) {
-            chartInfo.setShapeField(createAestheticRef(binding.getShape()));
+            chartInfo.setShapeField(createShapeRef(binding.getShape()));
          }
 
          if(binding.getSize() != null && chartType != GraphTypes.CHART_MEKKO) {
-            chartInfo.setSizeField(createAestheticRef(binding.getSize()));
+            chartInfo.setSizeField(createSizeRef(binding.getSize()));
          }
 
          if(binding.getText() != null) {
-            chartInfo.setTextField(createAestheticRef(binding.getText()));
+            chartInfo.setTextField(createTextRef(binding.getText()));
          }
 
          if(binding.getPath() != null && (chartType == GraphTypes.CHART_LINE ||
@@ -1340,10 +1373,30 @@ public class WizVsService {
          chartType == GraphTypes.CHART_ICICLE;
    }
 
-   private AestheticRef createAestheticRef(SimpleFieldInfo field) {
+   private AestheticRef createAestheticRef(SimpleFieldInfo field, VisualFrame frame) {
       VSAestheticRef ref = new VSAestheticRef();
       ref.setDataRef(createChartRef(field));
+      ref.setVisualFrame(frame);
       return ref;
+   }
+
+   // VSFrameVisitor.createVisualFrame calls getVisualFrame().clone() and will NPE if the frame
+   // is null, so each aesthetic type must supply an appropriate default frame.
+   private AestheticRef createSizeRef(SimpleFieldInfo field) {
+      return createAestheticRef(field, new LinearSizeFrame());
+   }
+
+   private AestheticRef createColorRef(SimpleFieldInfo field) {
+      return createAestheticRef(field,
+         field instanceof MeasureFieldInfo ? new RGBCubeColorFrame() : new CategoricalColorFrame());
+   }
+
+   private AestheticRef createShapeRef(SimpleFieldInfo field) {
+      return createAestheticRef(field, new CategoricalShapeFrame());
+   }
+
+   private AestheticRef createTextRef(SimpleFieldInfo field) {
+      return createAestheticRef(field, new DefaultTextFrame());
    }
 
    private TableVSAssembly createTableAssembly(Viewsheet vs, String name,
