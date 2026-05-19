@@ -58,6 +58,7 @@ import {
    storeCondition
 } from "../../../../common/util/schedule-condition.util";
 import { StartTimeData } from "../../../../widget/schedule/start-time-data";
+import { CustomSelectOption } from "../../../../widget/custom-select/custom-select.component";
 
 const TASK_URI = "../api/portal/schedule/task/condition";
 const TZ_STORAGE_KEY: string = "inetsoft_conditionServerTimeZone";
@@ -234,6 +235,44 @@ export class TaskConditionPane implements OnInit, OnChanges {
 
    get showMeridian(): boolean {
       return this.model && this.model.twelveHourSystem;
+   }
+
+   get timeZoneSelectOptions(): CustomSelectOption<string>[] {
+      return (this.timeZoneOptions || []).map((tz) => ({
+         value: tz.timeZoneId,
+         label: `${tz.hourOffset} ${tz.label}`,
+         title: tz.timeZoneId
+      }));
+   }
+
+   get monthDaySelectOptions(): CustomSelectOption<number>[] {
+      return this.monthDays.map((day, index) => ({
+         value: this.daysOfMonthNum[index],
+         label: day
+      }));
+   }
+
+   get monthWeekSelectOptions(): CustomSelectOption<number>[] {
+      return this.monthWeeks.map((week, index) => ({
+         value: index + 1,
+         label: week
+      }));
+   }
+
+   get weekdaySelectOptions(): CustomSelectOption<number>[] {
+      return this.weekdays.map((day, index) => ({
+         value: index + 1,
+         label: day
+      }));
+   }
+
+   get completionTaskSelectOptions(): CustomSelectOption<string>[] {
+      return (this.allTasks || [])
+         .filter((task) => task.name !== this.taskName)
+         .map((task) => ({
+            value: task.name,
+            label: task.label
+         }));
    }
 
    constructor(private http: HttpClient,
@@ -729,11 +768,14 @@ export class TaskConditionPane implements OnInit, OnChanges {
          (<TimeConditionModel> this.condition).weekOfMonth = null;
          (<TimeConditionModel> this.condition).dayOfWeek = null;
          (<TimeConditionModel> this.condition).dayOfMonth = this.defaultDayOfMonth;
+         this.form.controls["dayOfMonth"].setValue(this.defaultDayOfMonth, {emitEvent: false});
       }
       else {
          (<TimeConditionModel> this.condition).dayOfMonth = null;
          (<TimeConditionModel> this.condition).weekOfMonth = this.defaultWeekOfMonth;
          (<TimeConditionModel> this.condition).dayOfWeek = this.defaultDayOfWeek;
+         this.form.controls["weekOfMonth"].setValue(this.defaultWeekOfMonth, {emitEvent: false});
+         this.form.controls["dayOfWeek"].setValue(this.defaultDayOfWeek, {emitEvent: false});
       }
    }
 
@@ -770,7 +812,7 @@ export class TaskConditionPane implements OnInit, OnChanges {
 
    initForm() {
       let startControl: UntypedFormControl;
-      let timeZoneControl = new UntypedFormControl({value: this.localTimeZoneId || ""});
+      let timeZoneControl = new UntypedFormControl(this.localTimeZoneId || "");
 
       if(this.selectedOption === TimeConditionType.AT ||
          this.selectedOption === TimeConditionType.EVERY_HOUR)
@@ -846,6 +888,8 @@ export class TaskConditionPane implements OnInit, OnChanges {
             let dayOfMonth = (<TimeConditionModel> this.condition).dayOfMonth;
             (<TimeConditionModel> this.condition).dayOfMonth =
                dayOfMonth ? dayOfMonth : this.defaultDayOfMonth;
+            this.form.controls["dayOfMonth"].setValue(
+               (<TimeConditionModel> this.condition).dayOfMonth, {emitEvent: false});
          }
          else {
             this.addWeekOfMonthControl();
@@ -855,6 +899,10 @@ export class TaskConditionPane implements OnInit, OnChanges {
                weekOfMonth ? weekOfMonth : this.defaultWeekOfMonth;
             (<TimeConditionModel> this.condition).dayOfWeek =
                dayOfWeek ? dayOfWeek : this.defaultDayOfWeek;
+            this.form.controls["weekOfMonth"].setValue(
+               (<TimeConditionModel> this.condition).weekOfMonth, {emitEvent: false});
+            this.form.controls["dayOfWeek"].setValue(
+               (<TimeConditionModel> this.condition).dayOfWeek, {emitEvent: false});
          }
       }
       // Hourly Condition

@@ -18,6 +18,7 @@
 import {CommonModule} from "@angular/common";
 import {NgModule} from "@angular/core";
 import {CSVConfigPane} from "./csv-config-pane.component";
+import {CustomSelectModule} from "../custom-select/custom-select.module";
 import {SimpleScheduleDialog} from "./simple-schedule-dialog.component";
 import {StartTimeEditor} from "./start-time-editor.component";
 import {WidgetDirectivesModule} from "../directive/widget-directives.module";
@@ -33,6 +34,7 @@ import {ModalHeaderModule} from "../modal-header/modal-header.module";
 @NgModule({
     imports: [
         CommonModule,
+        CustomSelectModule,
         WidgetDirectivesModule,
         FormsModule,
         HelpLinkModule,

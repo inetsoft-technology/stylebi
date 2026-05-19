@@ -49,6 +49,7 @@ import { ScriptPaneModule } from "../widget/dialog/script-pane/script-pane.modul
 import { SQLQueryDialogModule } from "../widget/dialog/sql-query-dialog/sql-query-dialog.module";
 import { WidgetDirectivesModule } from "../widget/directive/widget-directives.module";
 import { DropdownViewModule } from "../widget/dropdown-view/dropdown-view.module";
+import { CustomSelectModule } from "../widget/custom-select/custom-select.module";
 import { DynamicComboBoxModule } from "../widget/dynamic-combo-box/dynamic-combo-box.module";
 import { EmailDialogModule } from "../widget/email-dialog/email-dialog.module";
 import { ExpandStringModule } from "../widget/expand-string/expand-string.module";
@@ -352,6 +353,7 @@ import { RouteSourceResolver } from "./services/route-source-resolver.service";
       MessageDialogModule,
       MouseEventModule,
       WidgetScheduleModule,
+      CustomSelectModule,
       GenericSelectableListModule,
       DropdownViewModule,
       ExpandStringModule,

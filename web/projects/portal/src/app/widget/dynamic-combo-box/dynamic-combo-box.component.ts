@@ -19,6 +19,7 @@ import { Component, ElementRef, EventEmitter, Input, OnChanges, OnInit, Output,
          ViewChild, ViewChildren, QueryList, SimpleChanges } from "@angular/core";
 import { NgbModal, NgbModalOptions } from "@ng-bootstrap/ng-bootstrap";
 import { Tool } from "../../../../../shared/util/tool";
+import { CustomSelectOption } from "../custom-select/custom-select.component";
 import { FixedDropdownDirective } from "../fixed-dropdown/fixed-dropdown.directive";
 import { ComboMode, ValueMode } from "./dynamic-combo-box-model";
 import { FormulaEditorDialog } from "../formula-editor/formula-editor-dialog.component";
@@ -35,6 +36,7 @@ import { FormulaEditorDialogModel } from "../formula-editor/formula-editor-dialo
 export class DynamicComboBox implements OnInit, OnChanges {
    public ComboMode = ComboMode;
    public ValueMode = ValueMode;
+   valueDropdownOpen: boolean = false;
    @Input() type: ComboMode = ComboMode.VALUE;
    @Input() mode: ValueMode = ValueMode.TEXT;
    @Input() normalColumn: boolean = false;
@@ -121,6 +123,13 @@ export class DynamicComboBox implements OnInit, OnChanges {
 
    get value(): any {
       return this._value;
+   }
+
+   get variableSelectOptions(): CustomSelectOption<any>[] {
+      return (this.variables ? [...this.variables].sort() : []).map((variable) => ({
+         value: variable,
+         label: variable
+      }));
    }
 
    private updateValue(val: any) {
@@ -230,6 +239,10 @@ export class DynamicComboBox implements OnInit, OnChanges {
 
    closeDropdowns() {
       this.dropdowns.forEach(d => d.close());
+   }
+
+   handleValueDropdownOpenChange(open: boolean): void {
+      this.valueDropdownOpen = open;
    }
 
    // Update type and emit change when type chosen

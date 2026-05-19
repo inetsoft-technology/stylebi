@@ -39,10 +39,15 @@ export class GradientColorPicker {
    @Input() label: string = null;
    @Output() gradientColorChanged: EventEmitter<GradientColor> = new EventEmitter<GradientColor>();
    @ViewChild(FixedDropdownDirective) dropdown: FixedDropdownDirective;
+   open: boolean = false;
 
    selectColor(value: GradientColor): void {
       this.gradientColor = value;
       this.gradientColorChanged.emit(value);
+   }
+
+   handleOpenChange(open: boolean): void {
+      this.open = open;
    }
 
    get background(): string {

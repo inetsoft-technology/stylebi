@@ -66,10 +66,9 @@
       </div>
       <ng-container *ngIf="returnTypeVisible">
         <div class="col-3 form-floating return-type">
-            <select class="form-control" formControlName="dataType" placeholder="_#(Return Data Type)">
-              <option [value]="type.data" *ngFor="let type of returnTypes">
-                {{type.label}}</option>
-            </select>
+            <custom-select [options]="returnTypeSelectOptions"
+                           formControlName="dataType"
+                           placeholder="_#(Return Data Type)"></custom-select>
             <label>_#(Return Data Type)</label>
         </div>
         <ng-container *ngIf="calcType != 'aggregate' && !reportWorksheetSource && sqlMergeable">

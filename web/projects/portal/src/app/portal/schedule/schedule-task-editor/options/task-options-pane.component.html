@@ -87,18 +87,19 @@
 
     <div class="form-row-float-label row form-group task-options-pane__row">
       <div class="col form-floating">
-        <select class="form-control" [ngModel]="localTimeZoneId" formControlName="timeZone">
-          <option *ngFor="let tz of timeZoneOptions" [value]="tz.timeZoneId" [title]="tz.timeZoneId">{{ tz.hourOffset + " " + tz.label }}</option>
-        </select>
+        <custom-select [options]="timeZoneSelectOptions" formControlName="timeZone"></custom-select>
         <label>_#(Time Zone)</label>
       </div>
     </div>
     <div class="form-row-float-label row form-group task-options-pane__row">
       <div class="col form-floating">
           <div class="input-group btn-group task-options-pane__execute-as-group">
-            <select class="form-control w-auto" [disabled]="disableExecuteAs()" [(ngModel)]="executeAsType" [ngModelOptions]="{standalone: true}">
-              <option [value]="type.value" *ngFor="let type of executeAsTypes">{{type.label}}</option>
-            </select>
+            <custom-select class="w-auto"
+                           [options]="executeAsTypeSelectOptions"
+                           [disabled]="disableExecuteAs()"
+                           [(ngModel)]="executeAsType"
+                           [ngModelOptions]="{standalone: true}">
+            </custom-select>
             <input type="text" class="form-control w-75" id="inputAddress2" [ngModelOptions]="{standalone: true}"
                    [ngModel]="executeAsName" [disabled]="disableExecuteAs()" (ngModelChange)="updateExecuteAs($event)">
             <div class="execute-as-buttons">
@@ -116,10 +117,10 @@
     </div>
     <div class="form-row-float-label row form-group task-options-pane__row">
       <div class="col form-floating">
-          <select class="form-control" [(ngModel)]="locale" [ngModelOptions]="{standalone: true}">
-            <option [value]="'Default'">_#(Default)</option>
-            <option [value]="locale" *ngFor="let locale of _model.locales">{{locale}}</option>
-          </select>
+          <custom-select [options]="localeSelectOptions"
+                         [(ngModel)]="locale"
+                         [ngModelOptions]="{standalone: true}">
+          </custom-select>
           <label>_#(Locale)</label>
       </div>
     </div>

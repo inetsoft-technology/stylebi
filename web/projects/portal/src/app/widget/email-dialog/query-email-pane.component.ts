@@ -17,6 +17,7 @@
  */
 import { HttpClient } from "@angular/common/http";
 import { Component, EventEmitter, Input, Output } from "@angular/core";
+import { CustomSelectOption } from "../custom-select/custom-select.component";
 import { TreeNodeModel } from "../tree/tree-node-model";
 import { QueryColumnsModel } from "./query-columns-model";
 import { EmailDialogData } from "./email-addr-dialog.component";
@@ -48,6 +49,12 @@ export class QueryEmailPane {
    email: string = null;
    dataSourcePath: string = "";
    queryType: string = null;
+   get columnSelectOptions(): CustomSelectOption<string>[] {
+      return this.columnLabels.map((label, index) => ({
+         label,
+         value: this.columns[index]
+      }));
+   }
 
    constructor(private http: HttpClient) {}
 

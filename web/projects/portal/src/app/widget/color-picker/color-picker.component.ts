@@ -41,6 +41,7 @@ export class ColorPicker {
    @Input() isTableStyle: boolean = false;
    @Output() colorChanged: EventEmitter<string> = new EventEmitter<string>();
    @ViewChild(FixedDropdownDirective) dropdown: FixedDropdownDirective;
+   open: boolean = false;
 
    selectColor(value: string): void {
       this.color = value;
@@ -56,6 +57,10 @@ export class ColorPicker {
       if(this.dropdown) {
          this.dropdown.closeOnOutsideClick = !opened;
       }
+   }
+
+   handleOpenChange(open: boolean): void {
+      this.open = open;
    }
 
    get colorString(): string {

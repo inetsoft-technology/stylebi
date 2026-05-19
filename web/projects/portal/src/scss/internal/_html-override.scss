@@ -41,6 +41,21 @@ select:not([multiple]) {
   }
 }
 
+select.native-select-shell:not([multiple]) {
+  padding-right: calc(var(--inet-space-5) + 1rem);
+  background-position: calc(100% - 1rem) calc(50% - 1px), calc(100% - 0.7rem) calc(50% - 1px);
+  background-size: 0.4rem 0.4rem;
+  text-overflow: ellipsis;
+}
+
+select.native-select-shell.form-control {
+  background-clip: padding-box;
+
+  &:disabled {
+    cursor: not-allowed;
+  }
+}
+
 //should not apply background to paintable components
 select:not(.paintable-container select) {
   // select needs to have a background on focus or the dropdown will not look good

@@ -16,10 +16,13 @@
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
 <button #dropdownBody id="simple-btn-keyboard-nav"
-        class="btn form-control bd-gray dropdown-toggle"
-        type="button" [fixedDropdown]="dropdownMenu" dropdownPlacement="bottom">
+        class="btn form-control bd-gray dropdown-toggle no-caret"
+        type="button" [fixedDropdown]="dropdownMenu" dropdownPlacement="bottom"
+        (openChange)="handleOpenChange($event)">
   <div class="line-display line-style-{{style}}" [style.--inet-line-style-color]="color"></div>
-  <span class="caret"></span>
+  <i class="style-dropdown__icon icon-color-default" aria-hidden="true"
+     [class.chevron-down-icon]="!open"
+     [class.chevron-up-icon]="open"></i>
 </button>
 <ng-template #dropdownMenu>
   <div class="dropdown-pane" [style.min-width.px]="dropdownMinWidth">

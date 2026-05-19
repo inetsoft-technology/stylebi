@@ -25,6 +25,7 @@ import {
    Validators
 } from "@angular/forms";
 import { TimeRange } from "../../../../../shared/schedule/model/time-condition-model";
+import { CustomSelectOption } from "../custom-select/custom-select.component";
 import { StartTimeData } from "./start-time-data";
 
 @Component({
@@ -62,6 +63,13 @@ export class StartTimeEditor implements OnInit, ControlValueAccessor {
    private onTouched: any;
    _model: StartTimeData;
    startTimeModel: any;
+
+   get timeRangeSelectOptions(): CustomSelectOption<TimeRange>[] {
+      return (this.timeRanges || []).map((range) => ({
+         value: range,
+         label: range.label
+      }));
+   }
 
    private get data(): StartTimeData {
       const value = {

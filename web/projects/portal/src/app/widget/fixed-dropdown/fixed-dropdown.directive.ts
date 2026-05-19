@@ -164,18 +164,22 @@ export class FixedDropdownDirective implements OnDestroy {
 
          this.openChange.emit(true);
          this.dropdown = this.dropdownService.open(this.fixedDropdown, options);
+         const dropdownRef = this.dropdown;
 
          this.zone.run(() => {
             this.changeRef.detectChanges();
          });
 
-         const sub = this.dropdown.closeEvent.subscribe(() => {
+         const sub = dropdownRef.closeEvent.subscribe(() => {
             this.openChange.emit(false);
+            if(this.dropdown === dropdownRef) {
+               this.dropdown = null;
+            }
             sub.unsubscribe();
          });
       }
       else if(this.dropdown) {
-         this.dropdown.close();
+         this.close();
       }
    }
 
@@ -188,7 +192,10 @@ export class FixedDropdownDirective implements OnDestroy {
 
    public close(): void {
       if(this.dropdown) {
-         this.dropdown.close();
+         const closed = this.dropdown.close();
+         if(closed) {
+            this.openChange.emit(false);
+         }
          this.dropdown = null;
       }
    }

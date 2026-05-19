@@ -27,6 +27,7 @@ export class LineArrowTypeDropdown {
    @Input() style: number;
    @Input() color: string;
    @Output() styleChange: EventEmitter<number> = new EventEmitter<number>();
+   open: boolean = false;
    LineEndStyles = LineEndStyles;
    lineStyles: string[] = [
       LineEndStyles[LineEndStyles.NONE],
@@ -38,5 +39,9 @@ export class LineArrowTypeDropdown {
    choose(lineStyle: string): void {
       this.style = LineEndStyles[lineStyle];
       this.styleChange.emit(this.style);
+   }
+
+   handleOpenChange(open: boolean): void {
+      this.open = open;
    }
 }

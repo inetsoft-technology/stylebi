@@ -45,6 +45,7 @@ import { PropertyDialogService } from "../vsobjects/util/property-dialog.service
 import { VSObjectModule } from "../vsobjects/vs-object.module";
 import { VSViewModule } from "../vsview/vs-view.module";
 import { ColorPickerModule } from "../widget/color-picker/color-picker.module";
+import { CustomSelectModule } from "../widget/custom-select/custom-select.module";
 import { DynamicComboBoxModule } from "../widget/dynamic-combo-box/dynamic-combo-box.module";
 import { FixedDropdownModule } from "../widget/fixed-dropdown/fixed-dropdown.module";
 import { WidgetFormatModule } from "../widget/format/widget-format.module";
@@ -414,6 +415,7 @@ import { ScrollingModule } from "@angular/cdk/scrolling";
       NotificationsModule,
       FixedDropdownModule,
       TreeModule,
+      CustomSelectModule,
       DynamicComboBoxModule,
       WidgetFormatModule,
       ColorPickerModule,

@@ -46,10 +46,7 @@
     <div class="form-row-float-label row">
       <div class="col">
         <div class="form-floating">
-          <select class="form-control" formControlName="type">
-            <option *ngFor="let type of dataTypeList" [value]="type.data"
-                    [selected]="model.type == type.data">{{type.label}}</option>
-          </select>
+          <custom-select [options]="typeSelectOptions" formControlName="type"></custom-select>
           <label>_#(Type)</label>
         </div>
       </div>

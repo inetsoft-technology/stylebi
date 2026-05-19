@@ -17,11 +17,12 @@
   -->
 <div class="form-floating">
   <div class="input-group">
-    <select data-test="Trend and Comparison Dropdown" class="form-control calc-combo" [(ngModel)]="calculateValue" [disabled]="!enabled">
-      <option [ngValue]="calc.data" *ngFor="let calc of defaultCalcs">
-        {{calc.label}}
-      </option>
-    </select>
+    <custom-select data-test="Trend and Comparison Dropdown"
+                   class="calc-combo"
+                   [options]="calculateSelectOptions"
+                   [(ngModel)]="calculateValue"
+                   [disabled]="!enabled">
+    </custom-select>
     <button class="btn btn-default"
             [disabled]="!aggregate.calculateInfo && !customCalc || !enabled"
             (click)="openCalculateDialog()">

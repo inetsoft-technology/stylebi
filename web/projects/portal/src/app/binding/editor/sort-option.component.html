@@ -19,13 +19,12 @@
   <div class="row form-row-float-label">
     <div class="col-5">
       <div class="form-floating sort_label_id">
-        <select class="form-control" [ngModel]="getCurrentOrder()" id="currentOrder"
-                (ngModelChange)="changeOrderType($event)"
-                [disabled]="!isSortEnabled()">
-          <ng-container *ngFor="let sort of getSortOrders(); trackBy: trackByFn">
-            <option *ngIf="sortItemVisible(sort)" [value]="sort.value">{{sort.label}}</option>
-          </ng-container>
-        </select>
+        <custom-select [options]="sortOrderSelectOptions"
+                       [ngModel]="getCurrentOrder()"
+                       (ngModelChange)="changeOrderType($event)"
+                       [disabled]="!isSortEnabled()"
+                       id="currentOrder">
+        </custom-select>
         <label for="currentOrder"><span>_#(Sort)</span></label>
       </div>
     </div>

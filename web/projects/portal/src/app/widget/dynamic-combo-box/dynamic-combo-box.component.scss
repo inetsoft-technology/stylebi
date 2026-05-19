@@ -91,17 +91,13 @@ button.form-control {
 
 .span-as-dropdown {
   background-image: none;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding-right: 0.5rem;
 
   &::after {
-    right: 2%;
-    top: calc(50% - 0.4em);
-    position: absolute;
-    display: inline-block;
-    content: "";
-    border-bottom: 0;
-    border-right: 0.4em solid transparent;
-    border-left: 0.4em solid transparent;
-    border-top: 0.5em solid var(--inet-dropdown-toggle-color);
+    display: none;
   }
 }
 
@@ -113,6 +109,18 @@ button.form-control {
   text-overflow: ellipsis;
   padding-left: 10px;
   flex-grow: 1;
+}
+
+.dynamic-combo-box__display-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dynamic-combo-box__display-icon {
+  flex: 0 0 auto;
+  margin-left: auto;
+  pointer-events: none;
 }
 
 .dropdown-item-label {

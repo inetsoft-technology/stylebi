@@ -19,6 +19,7 @@ import { CommonModule } from "@angular/common";
 import { NgModule } from "@angular/core";
 import { FormsModule } from "@angular/forms";
 import { WidgetDirectivesModule } from "../directive/widget-directives.module";
+import { CustomSelectModule } from "../custom-select/custom-select.module";
 import { DynamicComboBox } from "./dynamic-combo-box.component";
 import { TreeModule } from "../tree/tree.module";
 import {TooltipModule} from "../tooltip/tooltip.module";
@@ -29,6 +30,7 @@ import {MouseEventModule} from "../mouse-event/mouse-event.module";
    imports: [
       CommonModule,
       FormsModule,
+      CustomSelectModule,
       TreeModule,
       TooltipModule,
       FixedDropdownModule,
