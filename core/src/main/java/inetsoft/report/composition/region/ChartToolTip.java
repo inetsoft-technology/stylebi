@@ -508,9 +508,10 @@ public class ChartToolTip implements DataSerializable {
 
    // Number of pairs after the tier-1 headline that should render at tier-2 in
    // the solo-card-with-header path (candle/stock OHL group). Pairs past this
-   // group drop to tier-3.
+   // group drop to tier-3. 0 is valid: no tier-2 group, so everything after the
+   // headline lands at tier-3 (e.g. partial OHL binding with only Close).
    public void setTier2GroupSize(int size) {
-      this.tier2GroupSize = Math.max(1, size);
+      this.tier2GroupSize = Math.max(0, size);
    }
 
    public int getTier2GroupSize() {
@@ -563,6 +564,9 @@ public class ChartToolTip implements DataSerializable {
    }
 
    private final List<Integer> tooltips;
+   // Render-time only: stackTotalName, style, headerKey, headerValue, and
+   // tier2GroupSize are reconstructed by PlotArea each render and are not part
+   // of the writeData wire format. parseData is a no-op; keep them off the wire.
    private String stackTotalName = null;
    private String customToolTip;
    private ChartInfo.TooltipStyle style = ChartInfo.TooltipStyle.DEFAULT;

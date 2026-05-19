@@ -1572,6 +1572,8 @@ public class PlotArea extends GridContainerArea implements GraphComponentArea, R
 
          // Candle/Stock card: lift the X-dim (date) to a tier-1 subtitle below
          // the Close headline, and keep OHL together at tier-2 above aesthetics.
+         // Only dims[0] is lifted — nested X-dims (e.g. Year + Month) remain as
+         // regular tooltip rows. Same single-dim policy as captureCombinedCardHeader.
          if(candleCardLayout && dims.length > 0) {
             applyCandleCardHeader(tooltip, dims[0], tipMeasures);
          }
@@ -1700,40 +1702,36 @@ public class PlotArea extends GridContainerArea implements GraphComponentArea, R
       return measureName == null ? STACK_TOTAL : STACK_TOTAL + " " + measureName;
    }
 
-   // Build the candle/stock tip measure order: Close, Open, High, Low,
-   // then any extras in their original position. Null fields are dropped.
+   // Build the candle/stock tip measure order: Close, Open, High, Low, then any
+   // extras in their original position. Only OHLC names actually present in
+   // measures are included — phantom names (e.g. an info field whose column
+   // wasn't bound) would inflate the result length and over-count the tier-2
+   // group size in applyCandleCardHeader.
    private String[] reorderCandleMeasuresCloseFirst(String[] measures,
                                                     CandleChartInfo info)
    {
-      String closeName = nameOf(info.getRTCloseField());
-      String openName = nameOf(info.getRTOpenField());
-      String highName = nameOf(info.getRTHighField());
-      String lowName = nameOf(info.getRTLowField());
-
-      List<String> reordered = new ArrayList<>();
-
-      if(closeName != null) {
-         reordered.add(closeName);
-      }
-
-      if(openName != null) {
-         reordered.add(openName);
-      }
-
-      if(highName != null) {
-         reordered.add(highName);
-      }
-
-      if(lowName != null) {
-         reordered.add(lowName);
-      }
+      Set<String> remaining = new LinkedHashSet<>();
 
       for(String m : measures) {
-         if(m != null && !reordered.contains(m)) {
-            reordered.add(m);
+         if(m != null) {
+            remaining.add(m);
          }
       }
 
+      List<String> reordered = new ArrayList<>();
+
+      for(String candidate : new String[] {
+         nameOf(info.getRTCloseField()),
+         nameOf(info.getRTOpenField()),
+         nameOf(info.getRTHighField()),
+         nameOf(info.getRTLowField()) })
+      {
+         if(candidate != null && remaining.remove(candidate)) {
+            reordered.add(candidate);
+         }
+      }
+
+      reordered.addAll(remaining);
       return reordered.toArray(new String[0]);
    }
 

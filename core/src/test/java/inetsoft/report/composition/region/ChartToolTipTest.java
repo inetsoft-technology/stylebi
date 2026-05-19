@@ -324,6 +324,51 @@ class ChartToolTipTest {
    }
 
    @Test
+   void soloCardWithHeaderTier2GroupSizeZeroSkipsTier2() {
+      // Partial OHL binding (only Close): no auxiliary tier-2 group, so the
+      // first aesthetic after the headline drops straight to tier-3.
+      IndexedSet<String> palette = new IndexedSet<>();
+      ChartToolTip tip = new ChartToolTip();
+      tip.setStyle(ChartInfo.TooltipStyle.CARD);
+      tip.setHeader(palette.put("Year"), palette.put("2024"));
+      tip.addTooltip(palette.put("Close"), palette.put("100"));
+      tip.addTooltip(palette.put("Bullish"), palette.put("true"));
+      tip.setTier2GroupSize(0);
+
+      String out = tip.getTooltip(palette);
+
+      assertTrue(out.contains("<div class=\"tt-tier-1\">Close:&nbsp;100"));
+      assertTrue(out.contains("<div class=\"tt-tier-1 tt-subtitle\">Year:&nbsp;2024"));
+      assertTrue(out.contains("<div class=\"tt-tier-3\">Bullish:&nbsp;true"),
+                 "tier2GroupSize=0 puts the next pair directly at tier-3");
+      assertFalse(out.contains("<div class=\"tt-tier-2\">"),
+                  "tier2GroupSize=0 must produce no tier-2 rows");
+   }
+
+   @Test
+   void soloCardWithHeaderRendersPartialOhlBinding() {
+      // Stock chart bound with Close + High + Low but no Open: tier-2 group
+      // shrinks accordingly and aesthetic dims still drop to tier-3.
+      IndexedSet<String> palette = new IndexedSet<>();
+      ChartToolTip tip = new ChartToolTip();
+      tip.setStyle(ChartInfo.TooltipStyle.CARD);
+      tip.setHeader(palette.put("Week"), palette.put("2025-01-19"));
+      tip.addTooltip(palette.put("Close"), palette.put("165.8"));
+      tip.addTooltip(palette.put("High"), palette.put("166.5"));
+      tip.addTooltip(palette.put("Low"), palette.put("157.5"));
+      tip.addTooltip(palette.put("color"), palette.put("Bullish"));
+      tip.setTier2GroupSize(2);
+
+      String out = tip.getTooltip(palette);
+
+      assertTrue(out.contains("<div class=\"tt-tier-1\">Close:&nbsp;165.8"));
+      assertTrue(out.contains("<div class=\"tt-tier-1 tt-subtitle\">Week:&nbsp;2025-01-19"));
+      assertTrue(out.contains("<div class=\"tt-tier-2\">High:&nbsp;166.5"));
+      assertTrue(out.contains("<div class=\"tt-tier-2\">Low:&nbsp;157.5"));
+      assertTrue(out.contains("<div class=\"tt-tier-3\">color:&nbsp;Bullish"));
+   }
+
+   @Test
    void combinedCardEmitsHeaderOnce() {
       IndexedSet<String> palette = new IndexedSet<>();
       int xKey = palette.put("Region");
