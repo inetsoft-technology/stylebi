@@ -64,7 +64,8 @@ public class WizVisualizationController {
       }
       catch(Exception e) {
          LOG.error("Failed to save visualization", e);
-         return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));
+         return ResponseEntity.internalServerError()
+            .body(Map.of("error", "An unexpected error occurred. Please try again."));
       }
    }
 

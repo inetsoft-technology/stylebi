@@ -130,6 +130,11 @@ public class WizVisualizationService {
          targetFolderPath = VisualizationService.VISUALIZATION_COMPONENTS_FOLDER_PATH;
       }
 
+      if(!targetFolderPath.startsWith(VisualizationService.VISUALIZATION_COMPONENTS_FOLDER_PATH)) {
+         throw new IllegalArgumentException(
+            "targetFolderPath must be under the visualization components folder");
+      }
+
       // ── Step 4: Save the trimmed Worksheet ───────────────────────────────────
       String alias = !Tool.isEmptyString(event.getDisplayName())
          ? event.getDisplayName()
