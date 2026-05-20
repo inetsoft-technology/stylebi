@@ -1195,7 +1195,7 @@ public class ChartVSAQuery extends CubeVSAQuery implements BindableVSAQuery {
       // snapshot before validation can remove fields that another request is simultaneously changing.
       table = (TableAssembly) table.clone();
 
-      // AbstractWSAssembly.clone() catches CloneNotSupportedException and returns null on failure.
+      // AbstractWSAssembly.clone() catches Exception and returns null on error.
       if(table == null) {
          return null;
       }
