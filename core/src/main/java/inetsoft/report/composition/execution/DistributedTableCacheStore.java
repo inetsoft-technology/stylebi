@@ -42,6 +42,7 @@ import java.time.Instant;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 import java.util.zip.ZipException;
@@ -231,6 +232,20 @@ public class DistributedTableCacheStore implements MessageListener, SmartLifecyc
     * the configured timeout ({@code distributed.table.cache.flush.timeout.seconds}) is reached.
     */
    public void flushLocalCache() {
+      if(!flushing.compareAndSet(false, true)) {
+         LOG.debug("DistributedTableCacheStore.flushLocalCache: flush already in progress, skipping");
+         return;
+      }
+
+      try {
+         doFlushLocalCache();
+      }
+      finally {
+         flushing.set(false);
+      }
+   }
+
+   private void doFlushLocalCache() {
       if(cluster.getServerClusterNodes().size() <= 1) {
          LOG.debug("DistributedTableCacheStore.flushLocalCache: skipping flush, single-node cluster");
          return;
@@ -272,9 +287,12 @@ public class DistributedTableCacheStore implements MessageListener, SmartLifecyc
 
          Principal principal = cache.getPrincipalForKey(dataKey);
          Principal oldPrincipal = ThreadContext.getContextPrincipal();
-         ThreadContext.setContextPrincipal(principal);
 
          try {
+            if(principal != null) {
+               ThreadContext.setContextPrincipal(principal);
+            }
+
             if(exists(dataKey)) {
                skippedExists++;
                continue;
@@ -294,7 +312,9 @@ public class DistributedTableCacheStore implements MessageListener, SmartLifecyc
             failed++;
          }
          finally {
-            ThreadContext.setContextPrincipal(oldPrincipal);
+            if(principal != null) {
+               ThreadContext.setContextPrincipal(oldPrincipal);
+            }
          }
       }
 
@@ -341,6 +361,7 @@ public class DistributedTableCacheStore implements MessageListener, SmartLifecyc
    }
 
    private volatile boolean running = false;
+   private final AtomicBoolean flushing = new AtomicBoolean(false);
    private final Cluster cluster;
    private final BlobStorageManager blobStorageManager;
    private final ObjectProvider<AssetDataCache> assetDataCacheProvider;

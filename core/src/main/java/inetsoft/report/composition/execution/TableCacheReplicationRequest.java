@@ -25,9 +25,8 @@ import java.io.Serializable;
  * respond by writing any cached {@link inetsoft.report.TableLens} objects they hold to the
  * distributed store asynchronously; the requesting node picks them up on cache miss.
  * <p>
- * This is only active when {@code distributed.table.cache.mode=prestop}. In that mode, normal
- * {@link DistributedTableCacheStore#put} calls are no-ops, so the distributed store is only
- * populated at node shutdown (flush) or when another node requests replication.
+ * Query-time cache puts do not write to the distributed store — entries are only written at
+ * node shutdown or when replication is requested via this message.
  */
 public class TableCacheReplicationRequest implements Serializable {
    private static final long serialVersionUID = 1L;

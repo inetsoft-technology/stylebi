@@ -231,11 +231,11 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
          Principal keyPrincipal = principalMap.get(key);
          Principal oldPrincipal = ThreadContext.getContextPrincipal();
 
-         if(keyPrincipal != null) {
-            ThreadContext.setContextPrincipal(keyPrincipal);
-         }
-
          try {
+            if(keyPrincipal != null) {
+               ThreadContext.setContextPrincipal(keyPrincipal);
+            }
+
             if(store.exists(key)) {
                store.remove(key);
             }
@@ -263,11 +263,11 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
       Principal keyPrincipal = principalMap.get(key);
       Principal oldPrincipal = ThreadContext.getContextPrincipal();
 
-      if(keyPrincipal != null) {
-         ThreadContext.setContextPrincipal(keyPrincipal);
-      }
-
       try {
+         if(keyPrincipal != null) {
+            ThreadContext.setContextPrincipal(keyPrincipal);
+         }
+
          if(store.exists(key)) {
             store.remove(key);
          }
