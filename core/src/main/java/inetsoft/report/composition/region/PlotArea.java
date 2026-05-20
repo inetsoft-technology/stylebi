@@ -1416,9 +1416,19 @@ public class PlotArea extends GridContainerArea implements GraphComponentArea, R
          }
       }
       else {
-         // Card style: measure leads at tier-1 for both solo and combined.
-         // Combined lifts the shared X-dim out later as a tier-2 subtitle.
-         String[][] cols = chartInfo.getTooltipStyle() == ChartInfo.TooltipStyle.CARD
+         boolean isGantt = GraphTypes.isGantt(chartInfo.getChartType());
+
+         // Gantt: Y-axis is the "row" axis that distinguishes bars, so list
+         // Y dims ahead of X dims regardless of binding order in the element.
+         if(isGantt) {
+            dims = ganttDimsYFirst(dims, chartInfo);
+         }
+
+         // Card style: measure leads at tier-1; gantt is the exception — its
+         // Y-axis grouping dim identifies the bar, dates are timeline context.
+         boolean cardMeasureFirst =
+            chartInfo.getTooltipStyle() == ChartInfo.TooltipStyle.CARD && !isGantt;
+         String[][] cols = cardMeasureFirst
             ? new String[][] {measures, dims, others}
             : new String[][] {dims, measures, others};
          HashSet<String> added = new HashSet<>();
@@ -1856,6 +1866,26 @@ public class PlotArea extends GridContainerArea implements GraphComponentArea, R
 
       primary.setHeader(xKey, xVal);
       primary.removeTooltip(xKey);
+   }
+
+   // Partition the gantt's element dims into Y-axis dims first, then anything
+   // else (X dims, leftover refs). Order within each partition is preserved.
+   static String[] ganttDimsYFirst(String[] dims, ChartInfo chartInfo) {
+      Set<String> yNames = new HashSet<>();
+
+      for(ChartRef ref : chartInfo.getRTYFields()) {
+         yNames.add(GraphUtil.getName(ref));
+      }
+
+      List<String> head = new ArrayList<>(dims.length);
+      List<String> tail = new ArrayList<>();
+
+      for(String d : dims) {
+         (yNames.contains(d) ? head : tail).add(d);
+      }
+
+      head.addAll(tail);
+      return head.toArray(new String[0]);
    }
 
    private Map<String, ArrayList<Integer>> getRowValuePointMap(List<VisualObject> vos) {
