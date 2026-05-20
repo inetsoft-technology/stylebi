@@ -363,15 +363,6 @@ public class ChartVSAQuery extends CubeVSAQuery implements BindableVSAQuery {
             return null;
          }
 
-         // The worksheet table can be reused by overlapping chart/data-tip requests. Keep this
-         // execution's aggregate and sort state isolated from later mutations of that assembly.
-         table = (TableAssembly) table.clone();
-
-         // clone() returns null only if the assembly internally swallows a CloneNotSupportedException
-         if(table == null) {
-            return null;
-         }
-
          GroupRef[] preservedGroups = table.getAggregateInfo().getGroups();
 
          if(no_filter) {
@@ -1204,6 +1195,7 @@ public class ChartVSAQuery extends CubeVSAQuery implements BindableVSAQuery {
       // snapshot before validation can remove fields that another request is simultaneously changing.
       table = (TableAssembly) table.clone();
 
+      // AbstractWSAssembly.clone() catches CloneNotSupportedException and returns null on failure.
       if(table == null) {
          return null;
       }

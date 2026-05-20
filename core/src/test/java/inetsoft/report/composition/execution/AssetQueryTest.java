@@ -21,9 +21,10 @@ package inetsoft.report.composition.execution;
 import inetsoft.report.filter.*;
 import inetsoft.test.*;
 import inetsoft.uql.*;
-import inetsoft.uql.asset.ColumnRef;
+import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.DateRangeRef;
 import inetsoft.uql.erm.AttributeRef;
+import inetsoft.uql.erm.ExpressionRef;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.util.XUtil;
 import org.junit.jupiter.api.Assertions;
@@ -40,6 +41,24 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 @SreeHome
 @Tag("core")
 public class AssetQueryTest {
+
+   @Test
+   public void testGroupedExpressionColumnIsRecognised() {
+      ExpressionRef expr = new ExpressionRef(null, "Range@customer_id");
+      ColumnRef column = new ColumnRef(expr);
+      column.setVisible(true);
+
+      AggregateInfo info = new AggregateInfo();
+      info.addGroup(new GroupRef(column));
+
+      boolean recognized = info.containsGroup(column)
+         || info.getGroup(column) != null
+         || info.getGroup(column.getName()) != null;
+
+      Assertions.assertTrue(recognized,
+         "AggregateInfo must find a grouped expression column via at least one lookup path");
+   }
+
    @Test
    public void testSerializeFormatTableLens() throws Exception {
       AssetQuery.FormatTableLens originalTable = new AssetQuery.FormatTableLens(XTableUtil.getDefaultTableLens());

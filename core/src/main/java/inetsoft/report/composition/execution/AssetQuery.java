@@ -1369,8 +1369,8 @@ public abstract class AssetQuery extends PreAssetQuery {
          columns0.addAttribute(column);
 
          if(!column.isExpression() ||
-            !groupedExpression && column.isVisible() && column.isProcessed() &&
-            AssetUtil.findColumn(base, column, true) >= 0)
+            (!groupedExpression && column.isVisible() && column.isProcessed() &&
+             AssetUtil.findColumn(base, column, true) >= 0))
          {
             continue;
          }
