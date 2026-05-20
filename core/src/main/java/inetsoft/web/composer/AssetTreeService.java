@@ -248,6 +248,10 @@ public class AssetTreeService {
             if(event.shared()) {
                addVisualizationRootNodes(children, user, principal);
             }
+
+            if(event.wizSave()) {
+               addVisualizationComponentsRootNodes(children, user, principal);
+            }
          }
 
          if(includeLibrary && (viewsheetPermission || worksheetPermission)) {
@@ -766,6 +770,17 @@ public class AssetTreeService {
       Catalog catalog = Catalog.getCatalog();
 
       children.add(createNodeFromEntry(entry, catalog.getString("Visualizations"), principal));
+   }
+
+   private void addVisualizationComponentsRootNodes(List<TreeNodeModel> children, IdentityID user,
+                                                    Principal principal)
+   {
+      AssetEntry entry = new AssetEntry(
+         AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.REPOSITORY_FOLDER,
+         VisualizationService.VISUALIZATION_COMPONENTS_FOLDER_PATH, user);
+      Catalog catalog = Catalog.getCatalog();
+
+      children.add(createNodeFromEntry(entry, catalog.getString("Visualization Components"), principal));
    }
 
    private void addLibraryRootNodes(List<TreeNodeModel> children, IdentityID user,
