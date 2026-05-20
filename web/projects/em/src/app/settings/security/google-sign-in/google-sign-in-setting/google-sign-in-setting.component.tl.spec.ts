@@ -194,7 +194,7 @@ describe("GoogleSignInSettingComponent - submit and reset HTTP flow", () => {
    // Regression-sensitive: submit must POST the edited model, not the original route model,
    // and then reset from the server so generated/normalized fields are reflected locally.
    it("should post the current model and then reset from the server model", async () => {
-      let capturedBody: GoogleSignInModel = null;
+      let capturedBody: GoogleSignInModel | null = null;
       const routeModel = makeModel({ enable: false });
       const resetModel = makeModel({
          enable: true,

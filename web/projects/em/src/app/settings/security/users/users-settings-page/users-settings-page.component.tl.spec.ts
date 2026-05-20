@@ -164,7 +164,7 @@ async function renderComponent(opts: RenderOpts = {}) {
    const errorServiceSpy = { showSnackBar: jest.fn().mockReturnValue(of(null)) };
    const pageHeaderSpy = { title: "" };
 
-   // 默认 MSW：ngOnInit 与 refreshTree / deleteIdentities 后的树刷新
+   // Default MSW: tree refresh after ngOnInit and refreshTree / deleteIdentities
    server.use(
       http.get("*/api/em/navbar/organization", () => HttpResponse.json("TestOrg")),
       http.get("*/api/em/security/user/get-security-tree-root/*", () =>
@@ -555,7 +555,7 @@ describe("UsersSettingsPageComponent — deleteIdentities(): newUserIdentity syn
 
 describe("UsersSettingsPageComponent — setUser(): logout dialog for own-credential changes", () => {
 
-   const makeUserModel = (overrides: Partial<EditUserPaneModel> = {}): EditUserPaneModel => ({
+   const makeEditUserModel = (overrides: Partial<EditUserPaneModel> = {}): EditUserPaneModel => ({
       name: "CurrentUser",
       oldName: "CurrentUser",
       organization: "CurrentOrgID",
@@ -589,7 +589,7 @@ describe("UsersSettingsPageComponent — setUser(): logout dialog for own-creden
          dialogClosesWith: false, // user cancels → no logout
       });
 
-      const model = makeUserModel({ name: "NewName", oldName: "CurrentUser" });
+      const model = makeEditUserModel({ name: "NewName", oldName: "CurrentUser" });
       comp.setUser(model);
 
       expect(dialogSpy.open).toHaveBeenCalledTimes(1);
@@ -603,7 +603,7 @@ describe("UsersSettingsPageComponent — setUser(): logout dialog for own-creden
          dialogClosesWith: false,
       });
 
-      const model = makeUserModel({ password: "newPass123" });
+      const model = makeEditUserModel({ password: "newPass123" });
       comp.setUser(model);
 
       expect(dialogSpy.open).toHaveBeenCalledTimes(1);
@@ -625,7 +625,7 @@ describe("UsersSettingsPageComponent — setUser(): logout dialog for own-creden
          loginUserOrgID: "CurrentOrgID",
       });
 
-      const model = makeUserModel({
+      const model = makeEditUserModel({
          name: "OtherUser",
          oldName: "OtherUser",
          organization: "OtherOrg",
