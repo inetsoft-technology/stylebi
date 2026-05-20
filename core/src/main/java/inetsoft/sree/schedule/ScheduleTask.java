@@ -534,7 +534,14 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
          final ScheduleAction act = acts.elementAt(i);
 
          if(!waited && act instanceof MVAction && ((MVAction) act).isSequenced()) {
-            long timeout = Long.parseLong(SreeEnv.getProperty("schedule.task.timeout"));
+            long timeout;
+
+            try {
+               timeout = Long.parseLong(SreeEnv.getProperty("schedule.task.timeout"));
+            }
+            catch(NumberFormatException e) {
+               timeout = 600000L;
+            }
 
             for(Future future : futures) {
                try {
@@ -552,6 +559,10 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
                   }
                }
                catch(TimeoutException ex) {
+                  for(Future f : futures) {
+                     f.cancel(true);
+                  }
+
                   cancel();
                   throw new RuntimeException("Schedule Task Timeout exceeded waiting for MV actions: " +
                                                 getName(), ex);
@@ -615,7 +626,14 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
       int threshold = (cycleInfo != null && cycleInfo.isExceedNotify())
          ? cycleInfo.getThreshold() : 0;
       int time = 0;
-      long timeout = Long.parseLong(SreeEnv.getProperty("schedule.task.timeout"));
+      long timeout;
+
+      try {
+         timeout = Long.parseLong(SreeEnv.getProperty("schedule.task.timeout"));
+      }
+      catch(NumberFormatException e) {
+         timeout = 600000L;
+      }
 
       // only after all the replet actions are over, should the task be over
       synchronized(this) {

@@ -255,7 +255,14 @@ public class MVAction implements AssetSupport, Cloneable, XMLSerializable, Cance
          boolean exists = mv.hasData();
 
          if(createInScheduler) {
-            long timeout = Long.parseLong(SreeEnv.getProperty("schedule.task.timeout"));
+            long timeout;
+
+            try {
+               timeout = Long.parseLong(SreeEnv.getProperty("schedule.task.timeout"));
+            }
+            catch(NumberFormatException e) {
+               timeout = 600000L;
+            }
 
             try {
                MVCallable creator = new MVCallable(mv, principal);
@@ -279,8 +286,8 @@ public class MVAction implements AssetSupport, Cloneable, XMLSerializable, Cance
             }
             catch(TimeoutException ex) {
                mvFuture.cancel(true);
-               throw new RuntimeException("MV creation timed out after " + timeout +
-                                             "ms: " + mv.getName(), ex);
+               throw new RuntimeException("MV creation timed out after " + (timeout / 1000) +
+                                             "s: " + mv.getName(), ex);
             }
             finally {
                mvFuture = null;
