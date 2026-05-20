@@ -116,41 +116,34 @@ public class VisualizationService {
 
    public TreeNodeModel getVisualizations(LoadAssetTreeNodesEvent event, Principal principal) throws Exception {
       IdentityID user = principal == null ? null : IdentityID.getIdentityIDFromKey(principal.getName());
-      AssetEntry visualizationsEntry = new AssetEntry(
-         AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.REPOSITORY_FOLDER,
-         VISUALIZATION_ROOT_FOLDER_PATH, user);
+      AssetEntry parentEntry = event != null && event.targetEntry() != null
+         ? event.targetEntry()
+         : new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.REPOSITORY_FOLDER,
+                          VISUALIZATION_ROOT_FOLDER_PATH, user);
       AssetEntry.Selector assetSelector = new AssetEntry.Selector(
          AssetEntry.Type.FOLDER, AssetEntry.Type.VIEWSHEET, AssetEntry.Type.REPOSITORY_FOLDER);
       AssetEntry[] entries = assetRepository.getEntries(
-         visualizationsEntry, principal, ResourceAction.READ, assetSelector);
+         parentEntry, principal, ResourceAction.READ, assetSelector);
       List<TreeNodeModel> children = new ArrayList<>();
 
       if(entries != null) {
          for(AssetEntry entry : entries) {
             if(entry.isFolder()) {
                children.add(TreeNodeModel.builder()
-                  .label(entry.getName())
-                  .icon("folder-toolbox-icon")
-                  .data(entry)
-                  .leaf(false)
-                  .build());
+                               .label(entry.getName())
+                               .icon("folder-icon")
+                               .data(entry)
+                               .leaf(false)
+                               .build());
             }
-            else if(WizUtil.VisualizationScope.SHARED.getValue().equals(entry.getProperty("visualizationScope"))) {
-               TreeNodeModel.Builder builder = TreeNodeModel.builder()
-                  .icon("new-viewsheet-icon")
-                  .dragName("dragVisualization")
-                  .data(entry)
-                  .leaf(true);
-
-               if(WizUtil.isWizCopyEntry(entry, true)) {
-                  AssetEntry wizOriginalVisualization = WizUtil.createWizOriginalVisualization(entry);
-                  builder.label(wizOriginalVisualization.getName());
-               }
-               else {
-                  builder.label(entry.getName());
-               }
-
-               children.add(builder.build());
+            else {
+               children.add(TreeNodeModel.builder()
+                               .label(entry.getName())
+                               .icon("viewsheet-icon")
+                               .dragName("dragVisualization")
+                               .data(entry)
+                               .leaf(true)
+                               .build());
             }
          }
       }
