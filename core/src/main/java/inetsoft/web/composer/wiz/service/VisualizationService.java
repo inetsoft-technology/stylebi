@@ -119,7 +119,7 @@ public class VisualizationService {
       AssetEntry parentEntry = event != null && event.targetEntry() != null
          ? event.targetEntry()
          : new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.REPOSITORY_FOLDER,
-                          VISUALIZATION_ROOT_FOLDER_PATH, user);
+                          VISUALIZATION_COMPONENTS_FOLDER_PATH, user);
       AssetEntry.Selector assetSelector = new AssetEntry.Selector(
          AssetEntry.Type.FOLDER, AssetEntry.Type.VIEWSHEET, AssetEntry.Type.REPOSITORY_FOLDER);
       AssetEntry[] entries = assetRepository.getEntries(
