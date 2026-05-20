@@ -25,7 +25,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.awt.*;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.*;
 
 @SreeHome()
 @ExtendWith(MockitoExtension.class)
@@ -49,5 +49,46 @@ public class LegendFormatDialogModelTest {
                                                             legendDescriptor, null);
 
       assertEquals(Color.WHITE, legendsDescriptor.getBorderColor());
+   }
+
+   @Test
+   public void symbolRoundCornersIsWrittenToEditedLegendOnly() {
+      LegendFormatDialogModel dialog = new LegendFormatDialogModel();
+      LegendFormatGeneralPaneModel pane = new LegendFormatGeneralPaneModel();
+      pane.setPosition("");
+      pane.setFillColor("#ffffff");
+      pane.setSymbolRoundCorners(false);
+      dialog.setLegendFormatGeneralPaneModel(pane);
+      dialog.setLegendScalePaneModel(new LegendScalePaneModel());
+      AliasPaneModel aliasPaneModel = new AliasPaneModel();
+      aliasPaneModel.setAliasList(new ModelAlias[0]);
+      dialog.setAliasPaneModel(aliasPaneModel);
+
+      LegendsDescriptor legendsDesc = new LegendsDescriptor();
+      LegendDescriptor edited = new LegendDescriptor();
+      LegendDescriptor unrelated = new LegendDescriptor();
+      legendsDesc.setColorLegendDescriptor(edited);
+      legendsDesc.setSizeLegendDescriptor(unrelated);
+
+      dialog.updateLegendFormatDialogModel(new VSChartInfo(), legendsDesc, edited, null);
+
+      assertFalse(edited.isSymbolRoundCorners(),
+                  "the edited legend should reflect the dialog value");
+      assertTrue(unrelated.isSymbolRoundCorners(),
+                 "another legend on the same chart must not be affected");
+   }
+
+   @Test
+   public void equalsContentDiscriminatesSymbolRoundCorners() {
+      LegendDescriptor a = new LegendDescriptor();
+      LegendDescriptor b = new LegendDescriptor();
+      a.setSymbolRoundCorners(true);
+      b.setSymbolRoundCorners(false);
+
+      assertFalse(a.equalsContent(b));
+
+      b.setSymbolRoundCorners(true);
+
+      assertTrue(a.equalsContent(b));
    }
 }

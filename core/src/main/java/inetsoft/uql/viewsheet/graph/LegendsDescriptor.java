@@ -108,14 +108,6 @@ public class LegendsDescriptor implements AssetObject, ContentObject {
       this.roundCorners = roundCorners;
    }
 
-   public boolean isSymbolRoundCorners() {
-      return symbolRoundCorners;
-   }
-
-   public void setSymbolRoundCorners(boolean symbolRoundCorners) {
-      this.symbolRoundCorners = symbolRoundCorners;
-   }
-
    /**
     * Get the color used by the legends border.
     */
@@ -414,7 +406,6 @@ public class LegendsDescriptor implements AssetObject, ContentObject {
          && Tool.equals(borderColor, desc.borderColor)
          && Tool.equals(border, desc.border)
          && roundCorners == desc.roundCorners
-         && symbolRoundCorners == desc.symbolRoundCorners
          && option == desc.option
          && Tool.equals(preferredSize, desc.preferredSize)
          && Tool.equals(gap, desc.gap)
@@ -441,7 +432,6 @@ public class LegendsDescriptor implements AssetObject, ContentObject {
       writer.print(" borderColor=\"" + borderColor + "\"");
       writer.print(" border=\"" + border + "\"");
       writer.print(" roundCorners=\"" + roundCorners + "\"");
-      writer.print(" symbolRoundCorners=\"" + symbolRoundCorners + "\"");
       writer.print(" option=\"" + option + "\"");
 
       if(preferredSize != null) {
@@ -505,13 +495,6 @@ public class LegendsDescriptor implements AssetObject, ContentObject {
 
       if((val = Tool.getAttribute(tag, "roundCorners")) != null) {
          roundCorners = "true".equals(val);
-      }
-
-      if((val = Tool.getAttribute(tag, "symbolRoundCorners")) != null) {
-         symbolRoundCorners = "true".equals(val);
-      }
-      else {
-         symbolRoundCorners = false;
       }
 
       if((val = Tool.getAttribute(tag, "option")) != null) {
@@ -598,8 +581,6 @@ public class LegendsDescriptor implements AssetObject, ContentObject {
    private CompositeValue<Integer> border = new CompositeValue<>(Integer.class,
                                                                  StyleConstants.THIN_LINE);
    private boolean roundCorners = false;
-   // default true for new charts; parseAttributes forces false on legacy XML
-   private boolean symbolRoundCorners = true;
    private LegendDescriptor colorDesc;
    private LegendDescriptor shapeDesc;
    private LegendDescriptor sizeDesc;

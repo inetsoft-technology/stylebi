@@ -180,6 +180,14 @@ public class LegendDescriptor implements AssetObject, ContentObject {
       this.symbolSize = Math.max(6, Math.min(50, symbolSize));
    }
 
+   public boolean isSymbolRoundCorners() {
+      return symbolRoundCorners;
+   }
+
+   public void setSymbolRoundCorners(boolean symbolRoundCorners) {
+      this.symbolRoundCorners = symbolRoundCorners;
+   }
+
    /**
     * Get the preferred size for legends if set by the user, if the width/height
     * is between 0-1, will treat it as proportion, otherwise treat it as really
@@ -459,7 +467,7 @@ public class LegendDescriptor implements AssetObject, ContentObject {
       return logScale == des.logScale && reversed == des.reversed &&
          visible == des.visible && notShowNull == des.notShowNull &&
          titleVisible == des.titleVisible && maxModeVisible == des.maxModeVisible &&
-         symbolSize == des.symbolSize;
+         symbolSize == des.symbolSize && symbolRoundCorners == des.symbolRoundCorners;
    }
 
    /**
@@ -502,6 +510,7 @@ public class LegendDescriptor implements AssetObject, ContentObject {
       writer.print(" notShowNull=\"" + notShowNull + "\" ");
       writer.print(" includeZero=\"" + includeZero + "\" ");
       writer.print(" symbolSize=\"" + symbolSize + "\" ");
+      writer.print(" symbolRoundCorners=\"" + symbolRoundCorners + "\" ");
    }
 
    /**
@@ -647,6 +656,10 @@ public class LegendDescriptor implements AssetObject, ContentObject {
             LOG.error("Failed to parse symbolSize: " + val, ex);
          }
       }
+
+      val = Tool.getAttribute(tag, "symbolRoundCorners");
+      // absent on legacy XML — default off so old charts render unchanged
+      symbolRoundCorners = "true".equals(val);
    }
 
    /**
@@ -897,6 +910,18 @@ public class LegendDescriptor implements AssetObject, ContentObject {
          }
       }
 
+      @Override
+      public boolean isSymbolRoundCorners() {
+         return legends[legends.length - 1].isSymbolRoundCorners();
+      }
+
+      @Override
+      public void setSymbolRoundCorners(boolean symbolRoundCorners) {
+         for(LegendDescriptor legend : legends) {
+            legend.setSymbolRoundCorners(symbolRoundCorners);
+         }
+      }
+
       private LegendDescriptor[] legends;
    }
 
@@ -923,6 +948,7 @@ public class LegendDescriptor implements AssetObject, ContentObject {
    private boolean notShowNull = false;
    private boolean includeZero = false;
    private int symbolSize = LegendItem.DEFAULT_SYMBOL_SIZE;
+   private boolean symbolRoundCorners = true;
 
    private static final Logger LOG = LoggerFactory.getLogger(LegendDescriptor.class);
 }

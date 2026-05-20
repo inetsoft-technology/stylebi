@@ -579,7 +579,6 @@ public class GraphUtil {
       spec.setBorder(legends.getBorder());
       spec.setBorderColor(legends.getBorderColor());
       spec.setRoundCorners(legends.isRoundCorners());
-      spec.setSymbolRoundCorners(legends.isSymbolRoundCorners());
       spec.setTitleTextSpec(GraphUtil.getTextSpec(format, null, null));
       spec.setPartial(true);
    }
