@@ -534,8 +534,28 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
          final ScheduleAction act = acts.elementAt(i);
 
          if(!waited && act instanceof MVAction && ((MVAction) act).isSequenced()) {
+            long timeout = Long.parseLong(SreeEnv.getProperty("schedule.task.timeout"));
+
             for(Future future : futures) {
-               future.get();
+               try {
+                  if(timeout > 0) {
+                     long remaining = timeout - (System.currentTimeMillis() - startTime);
+
+                     if(remaining <= 0) {
+                        throw new TimeoutException("Schedule task timeout exceeded waiting for MV actions");
+                     }
+
+                     future.get(remaining, TimeUnit.MILLISECONDS);
+                  }
+                  else {
+                     future.get();
+                  }
+               }
+               catch(TimeoutException ex) {
+                  cancel();
+                  throw new RuntimeException("Schedule Task Timeout exceeded waiting for MV actions: " +
+                                                getName(), ex);
+               }
             }
 
             waited = true;
