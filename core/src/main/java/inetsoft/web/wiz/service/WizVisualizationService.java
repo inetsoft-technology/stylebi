@@ -27,13 +27,13 @@ import inetsoft.uql.viewsheet.internal.WizUtil;
 import inetsoft.util.Tool;
 import inetsoft.web.composer.model.TreeNodeModel;
 import inetsoft.web.composer.wiz.service.VisualizationService;
-import inetsoft.web.wiz.service.GenerateWsService;
 import inetsoft.web.wiz.model.WizVisualizationSaveEvent;
 import inetsoft.web.wiz.model.WizVisualizationSaveResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import java.awt.Point;
 import java.security.Principal;
 import java.util.*;
 
@@ -48,14 +48,14 @@ public class WizVisualizationService {
 
    /**
     * Returns the folder tree rooted at {@link VisualizationService#VISUALIZATION_COMPONENTS_FOLDER_PATH}.
-    * Only folder nodes are included (no viewsheet leaves). Used by the WIZ Save dialog.
+    * Folder nodes and viewsheet leaf nodes are both included. Used by the WIZ Save dialog.
     */
    public TreeNodeModel getVisualizationFolderTree(Principal principal) throws Exception {
       AssetEntry rootEntry = new AssetEntry(
          AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.REPOSITORY_FOLDER,
          VisualizationService.VISUALIZATION_COMPONENTS_FOLDER_PATH, null);
 
-      ensureRepositoryFolderExists(rootEntry, principal);
+      ensureFolder(rootEntry, principal);
 
       AssetEntry.Selector treeSelector = new AssetEntry.Selector(
          AssetEntry.Type.FOLDER, AssetEntry.Type.REPOSITORY_FOLDER, AssetEntry.Type.VIEWSHEET);
@@ -73,7 +73,7 @@ public class WizVisualizationService {
     *   <li>Load the source Worksheet and clone it.</li>
     *   <li>Remove all worksheet tables NOT required by the target assembly.</li>
     *   <li>Persist the trimmed Worksheet under
-    *       {@link VisualizationService#WORKSHEET_COMPONENTS_FOLDER_PATH}.</li>
+    *       {@link GenerateWsService#WORKSHEET_COMPONENTS_FOLDER_PATH}.</li>
     *   <li>Create a new single-assembly ViewSheet pointing to the new Worksheet.</li>
     *   <li>Set {@code visualizationScope=SHARED}, {@code conversationId}, and
     *       {@code sourceAssemblyName} on the new AssetEntry.</li>
@@ -149,13 +149,15 @@ public class WizVisualizationService {
 
       VSAssembly cloned = (VSAssembly) assembly.clone();
       cloned.setPrimary(true);
+      // Reset position so the assembly appears at the top-left of the new single-assembly viewsheet.
+      cloned.setPixelOffset(new Point(24, 24));
       newVs.addAssembly(cloned);
 
       // ── Step 6: Ensure target ViewSheet folder exists ─────────────────────────
       AssetEntry targetFolder = new AssetEntry(
          AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.REPOSITORY_FOLDER,
          targetFolderPath, null);
-      ensureRepositoryFolderExists(targetFolder, principal);
+      ensureFolder(targetFolder, principal);
 
       // ── Step 7: Create new AssetEntry and set WIZ properties ─────────────────
       IdentityID pId = IdentityID.getIdentityIDFromKey(principal.getName());
@@ -180,7 +182,23 @@ public class WizVisualizationService {
       }
 
       // ── Step 8: Persist ViewSheet ─────────────────────────────────────────────
-      viewsheetService.setViewsheet(newVs, newVsEntry, principal, true, true);
+      // If viewsheet save fails, clean up the already-persisted worksheet to avoid orphans.
+      try {
+         viewsheetService.setViewsheet(newVs, newVsEntry, principal, true, true);
+      }
+      catch(Exception e) {
+         if(newWsEntry != null) {
+            try {
+               assetRepository.removeSheet(newWsEntry, principal, true);
+            }
+            catch(Exception ce) {
+               LOG.warn("Failed to clean up orphaned worksheet after viewsheet save failure: {}",
+                        newWsEntry.getPath(), ce);
+            }
+         }
+
+         throw e;
+      }
 
       WizVisualizationSaveResult result = new WizVisualizationSaveResult();
       result.setSavedViewsheetIdentifier(newVsEntry.toIdentifier());
@@ -192,7 +210,7 @@ public class WizVisualizationService {
    /**
     * Loads the source Worksheet, clones it, removes all tables not required by the
     * given assembly, and persists the trimmed clone under
-    * {@link VisualizationService#WORKSHEET_COMPONENTS_FOLDER_PATH}/{targetSubFolder}/{uuid}.
+    * {@link GenerateWsService#WORKSHEET_COMPONENTS_FOLDER_PATH}/{targetSubFolder}/{uuid}.
     *
     * @return the saved Worksheet's AssetEntry, or {@code null} if no worksheet was found
     */
@@ -226,21 +244,25 @@ public class WizVisualizationService {
       Set<String> requiredTables = collectRequiredTables(sourceWs, rootTable);
 
       // Clone and strip all tables not in the dependency chain of the target assembly.
-      // collectRequiredTables already follows MirrorAssembly chains, so no special
-      // casing is needed here.
+      // Collect removal candidates first to avoid ConcurrentModificationException.
       Worksheet newWs = (Worksheet) sourceWs.clone();
+      List<String> toRemove = new ArrayList<>();
 
       for(Assembly wsAssembly : newWs.getAssemblies()) {
          if(!requiredTables.contains(wsAssembly.getName())) {
-            newWs.removeAssembly(wsAssembly.getName());
+            toRemove.add(wsAssembly.getName());
          }
+      }
+
+      for(String name : toRemove) {
+         newWs.removeAssembly(name);
       }
 
       // Resolve worksheet target folder — mirrors the viewsheet folder under a parallel root
       String wsFolderPath = resolveWorksheetFolderPath(targetFolderPath);
       AssetEntry wsFolder = new AssetEntry(
          AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.FOLDER, wsFolderPath, null);
-      ensureWorksheetFolderExists(wsFolder, principal);
+      ensureFolder(wsFolder, principal);
 
       // Persist
       IdentityID pId = IdentityID.getIdentityIDFromKey(principal.getName());
@@ -257,9 +279,9 @@ public class WizVisualizationService {
    }
 
    /**
-    * Collects the BFS dependency chain of worksheet table names starting from
+    * Collects the DFS dependency chain of worksheet table names starting from
     * {@code rootTableName}. Follows join-table sub-tables and mirror-table targets.
-    * Returns an empty set (keep all) when {@code rootTableName} is blank.
+    * Returns an empty set when {@code rootTableName} is blank.
     */
    private Set<String> collectRequiredTables(Worksheet ws, String rootTableName) {
       Set<String> required = new LinkedHashSet<>();
@@ -268,11 +290,11 @@ public class WizVisualizationService {
          return required;
       }
 
-      Deque<String> queue = new ArrayDeque<>();
-      queue.push(rootTableName);
+      Deque<String> stack = new ArrayDeque<>();
+      stack.push(rootTableName);
 
-      while(!queue.isEmpty()) {
-         String name = queue.pop();
+      while(!stack.isEmpty()) {
+         String name = stack.pop();
 
          if(required.contains(name)) {
             continue;
@@ -288,11 +310,11 @@ public class WizVisualizationService {
                String[] pair = (String[]) opTables.nextElement();
 
                if(pair[0] != null) {
-                  queue.push(pair[0]);
+                  stack.push(pair[0]);
                }
 
                if(pair[1] != null) {
-                  queue.push(pair[1]);
+                  stack.push(pair[1]);
                }
             }
          }
@@ -300,7 +322,7 @@ public class WizVisualizationService {
             String mirrored = mirror.getAssemblyName();
 
             if(!Tool.isEmptyString(mirrored)) {
-               queue.push(mirrored);
+               stack.push(mirrored);
             }
          }
       }
@@ -311,7 +333,7 @@ public class WizVisualizationService {
    /**
     * Maps a viewsheet folder path to a parallel worksheet folder path.
     * Replaces the viewsheet components prefix with the worksheet components prefix, or
-    * falls back to {@link VisualizationService#WORKSHEET_COMPONENTS_FOLDER_PATH}.
+    * falls back to {@link GenerateWsService#WORKSHEET_COMPONENTS_FOLDER_PATH}.
     */
    private String resolveWorksheetFolderPath(String vsFolderPath) {
       if(vsFolderPath.startsWith(VisualizationService.VISUALIZATION_COMPONENTS_FOLDER_PATH)) {
@@ -363,9 +385,7 @@ public class WizVisualizationService {
          .build();
    }
 
-   private void ensureRepositoryFolderExists(AssetEntry folder, Principal principal)
-      throws Exception
-   {
+   private void ensureFolder(AssetEntry folder, Principal principal) throws Exception {
       try {
          if(!assetRepository.containsEntry(folder)) {
             assetRepository.addFolder(folder, principal);
@@ -376,26 +396,7 @@ public class WizVisualizationService {
             throw e;
          }
 
-         LOG.debug("Repository folder creation exception (folder now exists, proceeding): {}",
-                   e.getMessage());
-      }
-   }
-
-   private void ensureWorksheetFolderExists(AssetEntry folder, Principal principal)
-      throws Exception
-   {
-      try {
-         if(!assetRepository.containsEntry(folder)) {
-            assetRepository.addFolder(folder, principal);
-         }
-      }
-      catch(Exception e) {
-         if(!assetRepository.containsEntry(folder)) {
-            throw e;
-         }
-
-         LOG.debug("Worksheet folder creation exception (folder now exists, proceeding): {}",
-                   e.getMessage());
+         LOG.debug("Folder creation race (folder now exists, proceeding): {}", e.getMessage());
       }
    }
 
