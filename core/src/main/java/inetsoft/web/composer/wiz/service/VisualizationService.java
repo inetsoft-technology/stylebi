@@ -372,6 +372,7 @@ public class VisualizationService {
    }
 
    public static final String VISUALIZATION_ROOT_FOLDER_PATH = "visualizations-593bb4a4-fd6d-4178-b3f0-c89dad407f02";
+   public static final String VISUALIZATION_COMPONENTS_FOLDER_PATH = "visualization-components-b4f2e8c1-3a7d-4e9b-8c5f-1d6e0a3b7f2c";
    private final ViewsheetService viewsheetService;
    private final AssetRepository assetRepository;
    private static final Logger LOG = LoggerFactory.getLogger(VisualizationService.class);
