@@ -121,6 +121,8 @@ public class ScheduleTaskCloudJob implements InterruptableJob {
             "Scheduled task '" + SUtil.getTaskNameWithoutOrg(taskName) + "' failed to complete", e);
       }
       finally {
+         cluster.removeMessageListener(listener);
+
          if(interrupted) {
             context.getJobDetail().getJobDataMap().put("inetsoft.cancelled", true);
          }
