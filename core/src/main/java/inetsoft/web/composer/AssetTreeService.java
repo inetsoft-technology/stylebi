@@ -41,6 +41,7 @@ import inetsoft.web.RecycleUtils;
 import inetsoft.web.composer.model.*;
 import inetsoft.web.composer.wiz.service.VisualizationService;
 import inetsoft.web.composer.ws.assembly.VariableAssemblyModelInfo;
+import inetsoft.web.wiz.service.GenerateWsService;
 import org.springframework.stereotype.Service;
 
 import java.rmi.RemoteException;
@@ -633,11 +634,6 @@ public class AssetTreeService {
    {
       return Arrays.stream(entries)
          .filter(e -> {
-            // Temporary comment to display visualizations on the tree for debugging.
-            /*if(Tool.equals(e.getPath(), VisualizationService.VISUALIZATION_ROOT_FOLDER_PATH)) {
-               return false;
-            }*/
-
             if(e.isFolder() || e.isRepositoryFolder()) {
                return true;
             }
@@ -909,8 +905,28 @@ public class AssetTreeService {
       String label = AssetUtil.getEntryLabel(entry, catalog);
       entry.setProperty("sqlEnabled", String.valueOf(sqlEnabled));
 
-      return createNodeFromEntry(
+      if(VisualizationService.VISUALIZATION_COMPONENTS_FOLDER_PATH.equals(entry.getPath())) {
+         label = catalog.getString("Visualization Components");
+      }
+      else if(GenerateWsService.WORKSHEET_COMPONENTS_FOLDER_PATH.equals(entry.getPath())) {
+         label = catalog.getString("Worksheet Components");
+      }
+
+      TreeNodeModel result = createNodeFromEntry(
          node.getEntry(), "".equals(label) ? emptyName : label, children, isLeaf, user);
+
+      // alias has higher priority than label in the Angular nodeLabel getter, so set it too
+      // to ensure the friendly name is shown instead of the internal UUID-based path segment.
+      if(VisualizationService.VISUALIZATION_COMPONENTS_FOLDER_PATH.equals(entry.getPath()) ||
+         GenerateWsService.WORKSHEET_COMPONENTS_FOLDER_PATH.equals(entry.getPath()))
+      {
+         result = TreeNodeModel.builder()
+            .from(result)
+            .alias(label)
+            .build();
+      }
+
+      return result;
    }
 
    public static AssetEntry[] getFilterFor(AssetEntry parentEntry) {
