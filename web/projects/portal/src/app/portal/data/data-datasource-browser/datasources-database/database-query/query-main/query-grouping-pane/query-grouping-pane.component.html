@@ -15,7 +15,7 @@
   ~ You should have received a copy of the GNU Affero General Public License
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
-<div class="container-fluid h-100 w-100 g-0">
+<div class="grouping-pane-shell">
   <div class="grouping-pane-container">
     <ul ngbNav #nav="ngbNav" class="nav-tabs" [activeId]="activeTab" (navChange)="updateGroupingPaneTab($event)">
       <ng-container ngbNavItem="group-by">
@@ -42,6 +42,6 @@
         </ng-template>
       </ng-container>
     </ul>
-    <div [ngbNavOutlet]="nav"></div>
+    <div class="grouping-pane-outlet" [ngbNavOutlet]="nav"></div>
   </div>
 </div>

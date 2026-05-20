@@ -2434,6 +2434,48 @@ public class QueryManagerService {
          .build();
    }
 
+   private int getPhysicalTableChildCount(AssetEntry folderEntry,
+                                          AssetRepository assetRepository,
+                                          Principal principal)
+      throws Exception
+   {
+      AssetEntry.Selector selector =
+         new AssetEntry.Selector(AssetEntry.Type.DATA, AssetEntry.Type.PHYSICAL);
+      AssetEntry[] entries = assetRepository.getEntries(folderEntry, principal, ResourceAction.READ,
+         selector);
+      int count = 0;
+
+      for(AssetEntry entry : entries) {
+         if(entry.getType() == AssetEntry.Type.PHYSICAL_TABLE) {
+            count++;
+         }
+      }
+
+      return count;
+   }
+
+   private Integer getPhysicalTableChildCount(AssetEntry folderEntry,
+                                              AssetRepository assetRepository,
+                                              Principal principal,
+                                              Map<String, Integer> tableCountCache)
+   {
+      String folderPath = folderEntry.getPath();
+
+      if(tableCountCache.containsKey(folderPath)) {
+         return tableCountCache.get(folderPath);
+      }
+
+      try {
+         int tableCount = getPhysicalTableChildCount(folderEntry, assetRepository, principal);
+         tableCountCache.put(folderPath, tableCount);
+         return tableCount;
+      }
+      catch(Exception ex) {
+         LOG.warn("Failed to resolve physical table count for schema folder '{}'", folderPath, ex);
+         return null;
+      }
+   }
+
    public TreeNodeModel getDataSourceFieldsTreeNode(String runtimeId, boolean sort,
                                                     Principal principal)
    {
@@ -2508,6 +2550,7 @@ public class QueryManagerService {
          new AssetEntry.Selector(AssetEntry.Type.DATA, AssetEntry.Type.PHYSICAL);
       AssetEntry[] entries = assetRepository.getEntries(
          expandedEntry, principal, ResourceAction.READ, selector);
+      Map<String, Integer> tableCountCache = new HashMap<>();
       String alias = expandedEntry.getAlias();
       SQLHelper helper = SQLHelper.getSQLHelper(dataSourceService.getDataSource(datasource));
 
@@ -2518,11 +2561,25 @@ public class QueryManagerService {
 
          entry.setProperty("quoteTableName", expandedEntry.getProperty("quoteTableName"));
          entry.setProperty("quoteColumnName", XUtil.quoteNameSegment(entry.getName(), helper));
+         String label = entry.getName();
          TreeNodeModel.Builder child = TreeNodeModel.builder()
-            .label(entry.getName())
             .data(entry)
             .leaf(!columnLevel && entry.getType() == AssetEntry.Type.PHYSICAL_TABLE ||
                columnLevel && entry.isColumn());
+
+         if(entry.getType() == AssetEntry.Type.PHYSICAL_FOLDER &&
+            !StringUtils.isEmpty(entry.getProperty(XSourceInfo.SCHEMA)))
+         {
+            Integer tableCount = getPhysicalTableChildCount(entry, assetRepository, principal,
+               tableCountCache);
+
+            if(tableCount != null && tableCount > 0) {
+               label += " (" + tableCount + ")";
+               child.tooltip(tableCount + " table" + (tableCount == 1 ? "" : "s"));
+            }
+         }
+
+         child.label(label);
 
          if(!entry.getType().isActualFolder()) {
             child.dragName(entry.getType().toString());

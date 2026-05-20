@@ -15,6 +15,15 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+:host {
+  display: flex;
+  flex: 1 1 auto;
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+  width: 100%;
+}
+
 .preview-table-container {
   color: var(--inet-table-text-color);
   cursor: default;
@@ -58,7 +67,12 @@
 }
 
 .preview-table {
+  display: flex;
+  flex: 1 1 auto;
   position: relative;
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
 
   &:not(.table-style-applied) {
     & table, td, th {
@@ -72,7 +86,7 @@
   width: 100%;
   overflow-x: hidden;
   overflow-y: hidden;
-  height: 220px;
+  height: 100%;
 }
 
 .preview-table-body-container {

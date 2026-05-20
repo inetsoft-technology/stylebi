@@ -15,3 +15,25 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+:host {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.query-condition-pane {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  padding-top: var(--inet-space-5, 12px);
+  width: 100%;
+  height: 100%;
+}
+
+.query-condition-pane--having {
+  padding-top: var(--inet-space-4, 8px);
+}

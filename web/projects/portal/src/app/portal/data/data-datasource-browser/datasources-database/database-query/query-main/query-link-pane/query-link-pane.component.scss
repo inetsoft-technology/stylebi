@@ -15,11 +15,102 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+:host {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  width: 100%;
+}
+
+.query-link-pane {
+  display: flex;
+  flex: 1 1 auto;
+  gap: 12px;
+  min-height: 0;
+  min-width: 0;
+  width: 100%;
+}
+
+.query-link-pane__column {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+  min-width: 0;
+}
+
+.query-link-pane__column--tree {
+  max-width: 320px;
+}
+
+.query-link-pane__column--graph {
+  flex: 1 1 auto;
+}
+
+.query-link-pane__heading {
+  color: var(--inet-text-muted-color);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.query-link-pane__actions {
+  display: flex;
+  flex: 0 0 44px;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 10px;
+  padding-top: 26px;
+}
+
+.query-link-pane__action-button {
+  min-width: 36px;
+  min-height: 36px;
+  padding: 0;
+  border-color: var(--inet-default-border-color);
+}
+
+.query-link-pane__action-button:not(:disabled) {
+  background: var(--inet-shell-surface-default, #fff);
+}
+
+.query-link-pane__action-button:disabled {
+  opacity: 0.5;
+}
+
 .tree-container {
+  flex: 1 1 auto;
   overflow: hidden;
   border: 1px solid var(--inet-default-border-color);
+  background: var(--inet-shell-surface-default, #fff);
 
   &:hover {
     overflow: auto;
+  }
+}
+
+.link-container {
+  flex: 1 1 auto;
+  height: 100%;
+  border: 1px solid var(--inet-default-border-color);
+  background: var(--inet-shell-surface-default, #fff);
+  overflow: hidden;
+}
+
+@media (max-width: 960px) {
+  .query-link-pane {
+    flex-direction: column;
+  }
+
+  .query-link-pane__column--tree {
+    max-width: none;
+  }
+
+  .query-link-pane__actions {
+    flex-direction: row;
+    justify-content: flex-start;
+    padding-top: 0;
   }
 }

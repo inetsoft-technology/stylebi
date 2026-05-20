@@ -17,7 +17,7 @@
   -->
 <div class="preview-table" [class.mobile]="mobileDevice" [style.max-width.px]="tableBodyWidth">
   <div #previewContainer class="preview-table-container"
-       [style.height.px]="containerHeight" (scroll)="horizontalScroll()">
+       (scroll)="horizontalScroll()">
     <table #headerTable *ngIf="tableData.length > 0" class="table-layout-fixed table-sm">
       <thead *ngIf="tableData[0]">
       <tr [style.height.px]="cellHeight">

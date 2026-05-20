@@ -22,9 +22,7 @@ import {
    Component,
    ElementRef,
    Input,
-   OnChanges,
    Renderer2,
-   SimpleChanges,
    ViewChild
 } from "@angular/core";
 import { NgbTooltip } from "@ng-bootstrap/ng-bootstrap";
@@ -40,7 +38,7 @@ const INITIAL_COLUMN_WIDTH: number = 80;
    templateUrl: "query-preview-table.component.html",
    styleUrls: ["query-preview-table.component.scss"]
 })
-export class QueryPreviewTableComponent implements OnChanges, AfterViewChecked, AfterContentChecked {
+export class QueryPreviewTableComponent implements AfterViewChecked, AfterContentChecked {
    @Input() containerSize: Rectangle;
    @ViewChild("previewContainer", {static: true}) previewContainer: ElementRef;
    @ViewChild("table") table: ElementRef;
@@ -71,8 +69,6 @@ export class QueryPreviewTableComponent implements OnChanges, AfterViewChecked, 
    col: number;
    isFirefox = GuiTool.isFF();
    mobileDevice: boolean = GuiTool.isMobileDevice();
-   containerHeight: number = 0;
-   containerWidth: number = 0;
 
    private initialColWidth: number = INITIAL_COLUMN_WIDTH;
 
@@ -185,13 +181,6 @@ export class QueryPreviewTableComponent implements OnChanges, AfterViewChecked, 
    constructor(private renderer: Renderer2,
                private changeRef: ChangeDetectorRef)
    {
-   }
-
-   ngOnChanges(changes: SimpleChanges) {
-      if(changes.containerSize) {
-         this.containerHeight = changes.containerSize.currentValue.height - 2;
-         this.containerWidth = changes.containerSize.currentValue.width - 2;
-      }
    }
 
    ngAfterContentChecked(): void {
