@@ -893,6 +893,9 @@ public class Condition extends AbstractCondition {
       if(str.equalsIgnoreCase("last year")) {
          result = getYear(now) - LAST_YEAR == getYear(date);
       }
+      else if(str.equalsIgnoreCase("next year")) {
+         result = getYear(now) + 1 == getYear(date);
+      }
       else if(str.equalsIgnoreCase("this year")) {
          result = getYear(now) - THIS_YEAR == getYear(date);
       }
@@ -1009,6 +1012,11 @@ public class Condition extends AbstractCondition {
          nmonths = getYear(now) * 12 + getMonth(now);
          dmonths = getYear(date) * 12 + getMonth(date);
          result = nmonths - LAST_MONTH == dmonths + THIS_YEAR * 12;
+      }
+      else if(str.equalsIgnoreCase("next month")) {
+         nmonths = getYear(now) * 12 + getMonth(now);
+         dmonths = getYear(date) * 12 + getMonth(date);
+         result = nmonths + 1 == dmonths;
       }
       else if(str.equalsIgnoreCase("this month last year")) {
          nmonths = getYear(now) * 12 + getMonth(now);
@@ -1239,6 +1247,11 @@ public class Condition extends AbstractCondition {
          w1 = getWeeks(date);
          w2 = getWeeks(now);
          result = w1 + LAST_WEEK == w2;
+      }
+      else if(str.equalsIgnoreCase("next week")) {
+         w1 = getWeeks(date);
+         w2 = getWeeks(now);
+         result = w1 - 1 == w2;
       }
       else if(str.equalsIgnoreCase("week before last week")) {
          w1 = getWeeks(date);

@@ -22,6 +22,10 @@
 <name><![CDATA[Last year]]></name>
 <label><![CDATA[Last year]]></label>
 </xCondition>
+<xCondition class="inetsoft.uql.asset.DateCondition$YearCondition" type="date" negated="false" operation="11" equal="false" year="-1">
+<name><![CDATA[Next year]]></name>
+<label><![CDATA[Next year]]></label>
+</xCondition>
 <xCondition class="inetsoft.uql.asset.DateCondition$YearCondition" type="date" negated="false" operation="11" equal="false" year="0">
 <name><![CDATA[This year]]></name>
 <label><![CDATA[This year]]></label>
@@ -97,6 +101,10 @@
 <xCondition class="inetsoft.uql.asset.DateCondition$MonthCondition" type="date" negated="false" operation="11" equal="false" year="0" month="1">
 <name><![CDATA[Last month]]></name>
 <label><![CDATA[Last month]]></label>
+</xCondition>
+<xCondition class="inetsoft.uql.asset.DateCondition$MonthCondition" type="date" negated="false" operation="11" equal="false" year="0" month="-1">
+<name><![CDATA[Next month]]></name>
+<label><![CDATA[Next month]]></label>
 </xCondition>
 <xCondition class="inetsoft.uql.asset.DateCondition$MonthsCondition" type="date" negated="false" operation="11" equal="false" from="0" to="2">
 <name><![CDATA[Last 1 months]]></name>
@@ -265,6 +273,10 @@
 <xCondition class="inetsoft.uql.asset.DateCondition$WeekCondition" type="date" negated="false" operation="11" equal="false" week="1">
 <name><![CDATA[Last week]]></name>
 <label><![CDATA[Last week]]></label>
+</xCondition>
+<xCondition class="inetsoft.uql.asset.DateCondition$WeekCondition" type="date" negated="false" operation="11" equal="false" week="-1">
+<name><![CDATA[Next week]]></name>
+<label><![CDATA[Next week]]></label>
 </xCondition>
 <xCondition class="inetsoft.uql.asset.DateCondition$WeekCondition" type="date" negated="false" operation="11" equal="false" week="2">
 <name><![CDATA[Week before last week]]></name>
