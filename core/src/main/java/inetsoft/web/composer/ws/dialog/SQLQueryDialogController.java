@@ -221,7 +221,7 @@ public class SQLQueryDialogController extends WorksheetController {
 
    @PostMapping("/api/composer/ws/sql-query-dialog/query/update")
    @ResponseBody
-   public UpdateQueryResult updateQueryBySample(@RequestBody() BasicSQLQueryModel model,
+   public UpdateQueryResult updateQueryBySample(@RequestBody BasicSQLQueryModel model,
                                                 @RequestParam("runtimeId") String runtimeId,
                                                 @RequestParam("datasource") String datasource,
                                                 Principal principal)

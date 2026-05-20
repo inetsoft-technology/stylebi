@@ -81,7 +81,7 @@ public class QueryManagerService {
 
       if(runtimeQuery == null) {
          throw new MessageException(
-            "The query session has expired. Please close and reopen the query editor.");
+            Catalog.getCatalog().getString("common.sqlquery.sessionExpired"));
       }
 
       JDBCQuery query = createQueryByBaseModel(queryModel, datasource, principal);
@@ -952,7 +952,7 @@ public class QueryManagerService {
 
       if(runtimeQuery == null) {
          throw new MessageException(
-            "The query session has expired. Please close and reopen the query editor.");
+            Catalog.getCatalog().getString("common.sqlquery.sessionExpired"));
       }
 
       JDBCQuery query = createNewQuery(name, database);
@@ -1199,7 +1199,7 @@ public class QueryManagerService {
 
       if(runtimeQuery == null) {
          throw new MessageException(
-            "The query session has expired. Please close and reopen the query editor.");
+            Catalog.getCatalog().getString("common.sqlquery.sessionExpired"));
       }
 
       JDBCQuery query = runtimeQuery.getQuery();
@@ -1581,7 +1581,7 @@ public class QueryManagerService {
 
       if(runtimeQuery == null) {
          throw new MessageException(
-            "The query session has expired. Please close and reopen the query editor.");
+            Catalog.getCatalog().getString("common.sqlquery.sessionExpired"));
       }
 
       String sqlString = event.getSqlString();
@@ -1672,7 +1672,7 @@ public class QueryManagerService {
 
       if(runtimeQuery == null) {
          throw new MessageException(
-            "The query session has expired. Please close and reopen the query editor.");
+            Catalog.getCatalog().getString("common.sqlquery.sessionExpired"));
       }
 
       JDBCQuery query = runtimeQuery.getQuery();
@@ -1839,7 +1839,7 @@ public class QueryManagerService {
 
       if(runtimeQuery == null) {
          throw new MessageException(
-            "The query session has expired. Please close and reopen the query editor.");
+            Catalog.getCatalog().getString("common.sqlquery.sessionExpired"));
       }
 
       JDBCQuery query = runtimeQuery.getQuery();

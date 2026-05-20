@@ -639,12 +639,18 @@ export class SimpleQueryPaneComponent {
             .set("datasource", this.datasource);
 
          this.http.post<{errorMsg: string}>(UPDATE_QUERY_URI, this.model, {params: params})
-            .subscribe(res => {
-               if(res?.errorMsg) {
-                  ComponentTool.showMessageDialog(this.modal, "_#(js:Error)", res.errorMsg);
-               }
-               else {
-                  this._defaultTab = next;
+            .subscribe({
+               next: res => {
+                  if(res?.errorMsg) {
+                     ComponentTool.showMessageDialog(this.modal, "_#(js:Error)", res.errorMsg);
+                  }
+                  else {
+                     this._defaultTab = next;
+                  }
+               },
+               error: () => {
+                  ComponentTool.showMessageDialog(
+                     this.modal, "_#(js:Error)", "_#(js:common.network.error)");
                }
             });
       }
