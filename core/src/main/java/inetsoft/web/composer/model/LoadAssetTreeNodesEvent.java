@@ -65,7 +65,7 @@ public abstract class LoadAssetTreeNodesEvent {
    }
 
    @Value.Default
-   public boolean wizSave() {
+   public boolean wizVisualizationRoot() {
       return false;
    }
 

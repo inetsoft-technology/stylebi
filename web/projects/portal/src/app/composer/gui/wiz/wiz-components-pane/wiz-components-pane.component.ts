@@ -99,7 +99,7 @@ export class WizComponentsPane implements OnInit, OnChanges, OnDestroy {
 
       const params = new HttpParams().set("runtimeId", this.runtimeId);
 
-      this.http.get<TreeNodeModel>("../api/composer/wiz/visualizations", { params })
+      this.http.get<TreeNodeModel>("../api/wiz/composer/visualizations", { params })
          .subscribe({
             next: (result) => {
                this.visualizations.children = result.children || [];

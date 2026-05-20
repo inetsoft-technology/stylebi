@@ -32,6 +32,7 @@ import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.OutputVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.WizUtil;
 import inetsoft.util.Tool;
+import inetsoft.web.composer.model.LoadAssetTreeNodesEvent;
 import inetsoft.web.composer.model.TreeNodeModel;
 import inetsoft.web.composer.wiz.command.SetWizDetailsCommand;
 import inetsoft.web.composer.wiz.model.VisualizationDetailModel;
@@ -113,8 +114,7 @@ public class VisualizationService {
          .build();
    }
 
-   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
-   public TreeNodeModel getVisualizations(@ClusterProxyKey String runtimeId, Principal principal) throws Exception {
+   public TreeNodeModel getVisualizations(LoadAssetTreeNodesEvent event, Principal principal) throws Exception {
       IdentityID user = principal == null ? null : IdentityID.getIdentityIDFromKey(principal.getName());
       AssetEntry visualizationsEntry = new AssetEntry(
          AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.REPOSITORY_FOLDER,

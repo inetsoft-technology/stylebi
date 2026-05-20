@@ -250,7 +250,7 @@ public class AssetTreeService {
                addVisualizationRootNodes(children, user, principal);
             }
 
-            if(event.wizSave()) {
+            if(event.wizVisualizationRoot()) {
                addVisualizationComponentsRootNodes(children, user, principal);
             }
          }

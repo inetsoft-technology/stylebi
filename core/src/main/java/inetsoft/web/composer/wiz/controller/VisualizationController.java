@@ -18,7 +18,9 @@
 
 package inetsoft.web.composer.wiz.controller;
 
+import inetsoft.web.composer.model.LoadAssetTreeNodesEvent;
 import inetsoft.web.composer.model.TreeNodeModel;
+import inetsoft.web.composer.wiz.service.VisualizationService;
 import inetsoft.web.composer.wiz.service.VisualizationServiceProxy;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.enums.ParameterIn;
@@ -28,23 +30,19 @@ import java.security.Principal;
 
 @RestController
 public class VisualizationController {
-   public VisualizationController(VisualizationServiceProxy visualizationServiceProxy) {
+   public VisualizationController(VisualizationServiceProxy visualizationServiceProxy,
+                                  VisualizationService visualizationService)
+   {
       this.visualizationServiceProxy = visualizationServiceProxy;
+      this.visualizationService = visualizationService;
    }
 
-   @GetMapping(value = "/api/composer/wiz/visualizations")
-   public TreeNodeModel getVisualizations(
-      @RequestParam("runtimeId")
-      @Parameter(
-         name = "runtimeId",
-         description = "The runtime ID of the viewsheet.",
-         in = ParameterIn.QUERY,
-         required = true
-      )
-      String runtimeId,
-      Principal principal) throws Exception
+   @PostMapping(value = "/api/wiz/composer/visualizations")
+   public TreeNodeModel getVisualizations(@RequestBody(required = false) LoadAssetTreeNodesEvent event,
+                                          Principal principal)
+      throws Exception
    {
-      return visualizationServiceProxy.getVisualizations(runtimeId, principal);
+      return visualizationService.getVisualizations(event, principal);
    }
 
    @GetMapping(value = "/api/composer/wiz/components")
@@ -63,4 +61,5 @@ public class VisualizationController {
    }
 
    private final VisualizationServiceProxy visualizationServiceProxy;
+   private final VisualizationService visualizationService;
 }
