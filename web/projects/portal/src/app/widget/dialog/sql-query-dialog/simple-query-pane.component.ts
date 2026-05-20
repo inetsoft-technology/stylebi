@@ -638,9 +638,15 @@ export class SimpleQueryPaneComponent {
             .set("runtimeId", this.runtimeId)
             .set("datasource", this.datasource);
 
-         this.http.post(UPDATE_QUERY_URI, this.model, {params: params}).subscribe(data => {
-            this._defaultTab = next;
-         });
+         this.http.post<{errorMsg: string}>(UPDATE_QUERY_URI, this.model, {params: params})
+            .subscribe(res => {
+               if(res?.errorMsg) {
+                  ComponentTool.showMessageDialog(this.modal, "_#(js:Error)", res.errorMsg);
+               }
+               else {
+                  this._defaultTab = next;
+               }
+            });
       }
       else {
          this._defaultTab = next;

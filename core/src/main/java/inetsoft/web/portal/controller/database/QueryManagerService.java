@@ -80,7 +80,8 @@ public class QueryManagerService {
          runtimeQueryService.getRuntimeQuery(runtimeId);
 
       if(runtimeQuery == null) {
-         throw new RuntimeException("runtime query do not exist");
+         throw new MessageException(
+            "The query session has expired. Please close and reopen the query editor.");
       }
 
       JDBCQuery query = createQueryByBaseModel(queryModel, datasource, principal);
