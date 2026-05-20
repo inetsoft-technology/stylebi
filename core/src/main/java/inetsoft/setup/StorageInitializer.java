@@ -413,6 +413,7 @@ public class StorageInitializer implements Callable<Integer> {
       }
    }
 
+   @Configuration
    private static class ClusterConfig {
       @Bean
       public InetsoftConfig inetsoftConfig() {
