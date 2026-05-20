@@ -28,7 +28,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 // Bug #75075
 public class VSUtilZIndexTest {
-   // Must match the z-index of .top-level-composer-overlay in vs-viewsheet.component.scss.
+   // Must match the z-index of .composer-overlay in vs-viewsheet.component.scss.
    private static final int COMPOSER_OVERLAY_ZINDEX = 99997;
 
    @Test
@@ -41,7 +41,7 @@ public class VSUtilZIndexTest {
    }
 
    // Regression test: inner objects of the 11th embedded viewsheet were assigned z-indexes
-   // starting at 10002, exceeding the top-level-composer-overlay CSS z-index of 9998 and
+   // starting at 10002, exceeding the composer-overlay CSS z-index of 9998 and
    // blocking right-click access to Properties. The overlay was raised to 99997.
    @Test
    void innerObjectZIndexesRemainBelowComposerOverlayFor100EmbeddedViewsheets() {

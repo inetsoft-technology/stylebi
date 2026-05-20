@@ -284,13 +284,13 @@ describe("EditableObjectContainer", () => {
    });
 
    // Bug #75075: inner objects of the 11th+ embedded viewsheet were assigned z-indexes that
-   // exceeded the top-level-composer-overlay CSS z-index (was 9998, now 99997), blocking
+   // exceeded the composer-overlay CSS z-index (was 9998, now 99997), blocking
    // right-click access to Properties. The VIEWSHEET_ZINDEX_GAP of 1000 means the Nth
    // embedded viewsheet gets outer z-index 1 + (N-1)*1000, and its inner objects start
    // at that value + 1. For N=11 the inner objects start at 10002, which now sits well
    // below the raised overlay threshold.
    describe("calculateZIndex", () => {
-      // Must match .top-level-composer-overlay z-index in vs-viewsheet.component.scss.
+      // Must match .composer-overlay z-index in vs-viewsheet.component.scss.
       const COMPOSER_OVERLAY_ZINDEX = 99997;
       const VIEWSHEET_ZINDEX_GAP = 1000;
 
