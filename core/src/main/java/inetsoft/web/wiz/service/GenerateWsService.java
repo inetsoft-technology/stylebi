@@ -1154,4 +1154,8 @@ public class GenerateWsService {
    // UUID suffix prevents name collision with user-created folders.
    public static final String WORKSHEET_ROOT_FOLDER_PATH =
       "worksheets-7a3f9c2e-8b5d-4f6a-b1c4-3e7d0a9f2b8c";
+
+   // Saved visualization worksheets — parallel to VISUALIZATION_COMPONENTS_FOLDER_PATH.
+   public static final String WORKSHEET_COMPONENTS_FOLDER_PATH =
+      "worksheet-components-e5c7a1b2-9f3d-4e8a-b6c0-2d4f8e1a5b9c";
 }
