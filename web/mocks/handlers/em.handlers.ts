@@ -50,6 +50,19 @@ export const emHandlers = [
       return HttpResponse.json({ users: [] });
    }),
 
+   // Security tree root — UsersSettingsPageComponent.refreshTree()
+   http.get("*/api/em/security/user/get-security-tree-root/*", () => {
+      return HttpResponse.json({
+         users: { identityID: { name: "Users", orgID: "" }, type: 1, children: [], readOnly: false, organization: "" },
+         groups: { identityID: { name: "Groups", orgID: "" }, type: 2, children: [], readOnly: false, organization: "" },
+         roles: { identityID: { name: "Roles", orgID: "" }, type: 3, children: [], readOnly: false, organization: "" },
+         organizations: { identityID: { name: "Organizations", orgID: "" }, type: 4, children: [], readOnly: false, organization: "" },
+         editable: true,
+         isMultiTenant: false,
+         namedUsers: false,
+      });
+   }),
+
    // Identity theme list — returned on every EditIdentityView init (ngOnInit)
    http.get("*/api/em/security/themes", () => {
       return HttpResponse.json({ themes: [] });
@@ -73,5 +86,18 @@ export const emHandlers = [
    }),
    http.get("*/api/em/navbar/isSiteAdmin", () => {
       return HttpResponse.json(true);
+   }),
+
+   // Security settings page — defaults: security off, multi-tenancy off, no LDAP
+   http.get("*/api/em/security/get-enable-security", () => {
+      return HttpResponse.json({ enable: false, toggleDisabled: false, ldapProviderUsed: false });
+   }),
+   http.get("*/api/em/security/get-multi-tenancy", () => {
+      return HttpResponse.json({
+         enable: false, toggleDisabled: false, ldapProviderUsed: false, passOrgIdAs: "domain"
+      });
+   }),
+   http.get("*/api/em/security/get-enable-self-signup", () => {
+      return HttpResponse.json({ enable: false, toggleDisabled: false, ldapProviderUsed: false });
    }),
 ];
