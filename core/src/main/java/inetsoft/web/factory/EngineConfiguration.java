@@ -371,8 +371,11 @@ public class EngineConfiguration {
     */
    @Bean
    @Lazy
-   public DistributedTableCacheStore distributedTableCacheStore(@Lazy Cluster cluster, @Lazy BlobStorageManager blobStorageManager) {
-      return new DistributedTableCacheStore(cluster, blobStorageManager);
+   public DistributedTableCacheStore distributedTableCacheStore(@Lazy Cluster cluster,
+                                                                @Lazy BlobStorageManager blobStorageManager,
+                                                                ObjectProvider<AssetDataCache> assetDataCacheProvider)
+   {
+      return new DistributedTableCacheStore(cluster, blobStorageManager, assetDataCacheProvider);
    }
 
    /**

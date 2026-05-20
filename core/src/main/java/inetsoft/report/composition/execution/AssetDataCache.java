@@ -228,9 +228,22 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
       // remove the entries
       entries.stream().forEach(key -> {
          dependenceMap.remove(key);
+         Principal keyPrincipal = principalMap.get(key);
+         Principal oldPrincipal = ThreadContext.getContextPrincipal();
 
-         if(store.exists(key)) {
-            store.remove(key);
+         if(keyPrincipal != null) {
+            ThreadContext.setContextPrincipal(keyPrincipal);
+         }
+
+         try {
+            if(store.exists(key)) {
+               store.remove(key);
+            }
+         }
+         finally {
+            if(keyPrincipal != null) {
+               ThreadContext.setContextPrincipal(oldPrincipal);
+            }
          }
 
          // recursively remove the parent dependency
@@ -247,12 +260,26 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
 
    private Object removeCache(DataKey key) {
       DistributedTableCacheStore store = distributedTableCacheStoreProvider.getObject();
+      Principal keyPrincipal = principalMap.get(key);
+      Principal oldPrincipal = ThreadContext.getContextPrincipal();
 
-      if(store.exists(key)) {
-         store.remove(key);
+      if(keyPrincipal != null) {
+         ThreadContext.setContextPrincipal(keyPrincipal);
+      }
+
+      try {
+         if(store.exists(key)) {
+            store.remove(key);
+         }
+      }
+      finally {
+         if(keyPrincipal != null) {
+            ThreadContext.setContextPrincipal(oldPrincipal);
+         }
       }
 
       dependenceMap.remove(key);
+      principalMap.remove(key);
       return remove(key);
    }
 
@@ -453,6 +480,43 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
       dataSourceRegistry.removeRefreshedListener(registryListener);
       dataSourceRegistry.removeModifiedListener(registryListener);
       clear();
+      principalMap.clear();
+   }
+
+   /**
+    * Returns all valid entries from the local in-memory cache. Used by
+    * {@link DistributedTableCacheStore#flushLocalCache()} to replicate data to the distributed
+    * store on node shutdown or in response to a {@link TableCacheReplicationRequest} from a new
+    * node. Cancelled, changed, or already-evicted entries are excluded.
+    */
+   public Map<DataKey, TableLens> getLocalEntries() {
+      Map<DataKey, TableLens> result = new LinkedHashMap<>();
+
+      for(DataKey key : keySet()) {
+         TableLens data = getCachedData(key, -1);
+
+         if(data != null) {
+            result.put(key, data);
+         }
+      }
+
+      return result;
+   }
+
+   /**
+    * Returns the principal that was active when the given key was cached, or {@code null} if not
+    * recorded. Used during distributed cache flush to write to the correct org-scoped storage.
+    */
+   public Principal getPrincipalForKey(DataKey key) {
+      return principalMap.get(key);
+   }
+
+   private void recordPrincipal(DataKey key) {
+      Principal principal = ThreadContext.getContextPrincipal();
+
+      if(principal != null) {
+         principalMap.put(key, principal);
+      }
    }
 
    private final java.beans.PropertyChangeListener registryListener = evt -> clearCache();
@@ -589,8 +653,6 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
 
          if(executingKey != null) {
             synchronized(executingKey) {
-               DistributedTableCacheStore store = distributedTableCacheStoreProvider.getObject();
-               store.put(key, get(key));
                unmarkExecuting(executingKey);
                executingKey.notifyAll();
             }
@@ -1229,6 +1291,7 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
    {
       CacheEntry<DataKey, TableLens> entry = super.put(key, data, timeout);
       lockEntries.get().monitor(entry);
+      recordPrincipal(key);
       return entry;
    }
 
@@ -1249,6 +1312,7 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
    protected boolean demote(CacheEntry<DataKey, TableLens> entry) {
       // clean up when corresponding entry removed from cache
       dependenceMap.remove(entry.getKey());
+      principalMap.remove(entry.getKey());
       return super.demote(entry);
    }
 
@@ -1296,6 +1360,8 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
    // key -> source (e.g. data source name)
    // if a key doesn't exist in dependenceMap (removed), then its cache is invalid.
    private final Map<DataKey, String> dependenceMap = new ConcurrentHashMap<>();
+   // key -> principal active when the entry was cached (for org-scoped distributed store writes)
+   private final Map<DataKey, Principal> principalMap = new ConcurrentHashMap<>();
    private final ThreadPool pool;
    private final AtomicInteger hits = new AtomicInteger();
    private final AtomicInteger noHits = new AtomicInteger();

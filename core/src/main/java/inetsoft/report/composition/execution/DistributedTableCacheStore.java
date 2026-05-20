@@ -19,26 +19,41 @@
 package inetsoft.report.composition.execution;
 
 import inetsoft.report.TableLens;
+import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.cluster.Cluster;
+import inetsoft.sree.internal.cluster.MessageEvent;
+import inetsoft.sree.internal.cluster.MessageListener;
 import inetsoft.sree.security.OrganizationManager;
 import inetsoft.storage.BlobStorage;
 import inetsoft.storage.BlobStorageManager;
 import inetsoft.storage.BlobTransaction;
 import inetsoft.uql.XTable;
-import inetsoft.util.*;
+import inetsoft.util.ConfigurationContext;
+import inetsoft.util.ThreadContext;
 import org.apache.commons.codec.digest.DigestUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.context.SmartLifecycle;
 
 import java.io.*;
 import java.security.Principal;
+import java.time.Instant;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 import java.util.zip.ZipException;
 
-public class DistributedTableCacheStore {
+/**
+ * Cross-node persistent cache for serialized {@link TableLens} objects backed by
+ * {@link BlobStorage}. Operates in prestop mode: {@link #put} is a no-op during normal operation;
+ * entries are only written to the distributed store on node shutdown or when a new node broadcasts
+ * a {@link TableCacheReplicationRequest}. This eliminates per-query write overhead during stable
+ * cluster operation; cache misses fall back to re-execution.
+ */
+public class DistributedTableCacheStore implements MessageListener, SmartLifecycle {
    /**
     * Get the distributed table cache store instance
     */
@@ -46,10 +61,16 @@ public class DistributedTableCacheStore {
       return ConfigurationContext.getContext().getSpringBean(DistributedTableCacheStore.class);
    }
 
-   public DistributedTableCacheStore(Cluster cluster, BlobStorageManager blobStorageManager) {
+   public DistributedTableCacheStore(Cluster cluster, BlobStorageManager blobStorageManager,
+                                     ObjectProvider<AssetDataCache> assetDataCacheProvider)
+   {
+      this.cluster = cluster;
       this.blobStorageManager = blobStorageManager;
+      this.assetDataCacheProvider = assetDataCacheProvider;
       clusterId = cluster.getId();
       storages = new ConcurrentHashMap<>();
+
+      cluster.addMessageListener(this);
 
       // scheduleAtFixedRate is idempotent across the cluster (deduplicates by class name),
       // so calling it on every construction is safe and ensures the task is re-registered
@@ -58,7 +79,68 @@ public class DistributedTableCacheStore {
          new CleanupTableCacheTask(), 1L, CLEANUP_FREQUENCY_TIME,
          TimeUnit.MINUTES);
 
-      this.debouncer = new DefaultDebouncer<>(false);
+   }
+
+   /**
+    * On startup, broadcast a replication request so that peer nodes populate the distributed store
+    * with their local cache entries. The new node picks them up on cache miss; misses that arrive
+    * before replication completes fall back to re-execution.
+    */
+   @Override
+   public void start() {
+      running = true;
+
+      if(cluster.getServerClusterNodes().size() <= 1) {
+         LOG.debug("DistributedTableCacheStore: skipping replication request, single-node cluster");
+         return;
+      }
+
+      LOG.info("DistributedTableCacheStore: broadcasting replication request to cluster peers");
+
+      try {
+         cluster.sendMessage(new TableCacheReplicationRequest());
+      }
+      catch(Exception e) {
+         LOG.warn("DistributedTableCacheStore: failed to broadcast replication request on startup", e);
+      }
+   }
+
+   /**
+    * Called by Spring before any {@code @PreDestroy} methods, guaranteeing that the local cache
+    * is still populated when we flush. Uses {@code SmartLifecycle} rather than
+    * {@code @PreDestroy} specifically to control ordering: {@code AssetDataCache.closeCache()}
+    * (a {@code @PreDestroy}) clears the local cache, so we must flush before it runs.
+    */
+   @Override
+   public void stop() {
+      try {
+         flushLocalCache();
+      }
+      finally {
+         cluster.removeMessageListener(this);
+         running = false;
+      }
+   }
+
+   @Override
+   public boolean isRunning() {
+      return running;
+   }
+
+   @Override
+   public int getPhase() {
+      // High phase = stopped first among SmartLifecycle beans, and before all @PreDestroy methods.
+      return Integer.MAX_VALUE - 1;
+   }
+
+   @Override
+   public void messageReceived(MessageEvent event) {
+      if(event.getMessage() instanceof TableCacheReplicationRequest) {
+         LOG.info("DistributedTableCacheStore: received replication request, flushing async");
+         Thread flushThread = new Thread(this::flushLocalCache, "table-cache-flush");
+         flushThread.setDaemon(true);
+         flushThread.start();
+      }
    }
 
    /**
@@ -82,19 +164,8 @@ public class DistributedTableCacheStore {
          return null;
       }
 
-      // Read the raw bytes while holding the Ignite distributed lock, then release the lock
-      // before deserializing. Deserialization of XSwappableTable calls XSwapper.waitForMemory()
-      // which acquires waitLock. Holding an Ignite distributed lock across that call creates a
-      // cross-layer lock ordering dependency that leads to deadlock under concurrent export
-      // workloads. (Bug #73990)
-      byte[] data;
-
-      try(InputStream storageInputStream = storage.getInputStream(key)) {
-         data = storageInputStream.readAllBytes();
-      }
-
-      // Ignite distributed lock is now released; decompress and deserialize without holding it
-      try(GZIPInputStream gzipIn = new GZIPInputStream(new ByteArrayInputStream(data));
+      try(InputStream storageInputStream = storage.getInputStream(key);
+          GZIPInputStream gzipIn = new GZIPInputStream(storageInputStream);
           ObjectInputStream ois = new ObjectInputStream(gzipIn))
       {
          TableLens lens = (TableLens) ois.readObject();
@@ -118,45 +189,22 @@ public class DistributedTableCacheStore {
       }
    }
 
-   void put(DataKey dataKey, TableLens lens) {
-      if(dataKey.isLocalCacheOnly()) {
-         return;
+   /**
+    * Writes the given lens to the distributed store. Called during flush (node shutdown or
+    * replication request); not called during normal query execution.
+    */
+   private void put(String key, BlobStorage<Metadata> storage, TableLens lens) throws IOException {
+      try(BlobTransaction<Metadata> tx = storage.beginTransaction()) {
+         try(OutputStream out = tx.newStream(key, null);
+             GZIPOutputStream gzipOut = new GZIPOutputStream(out);
+             ObjectOutputStream oos = new ObjectOutputStream(gzipOut))
+         {
+            lens.moreRows(XTable.EOT);
+            oos.writeObject(lens);
+         }
+
+         tx.commit();
       }
-
-      String key = getKey(dataKey);
-      BlobStorage<Metadata> storage = getStorage();
-      final Principal principal = ThreadContext.getContextPrincipal();
-
-      debouncer.debounce(key, 1L, TimeUnit.SECONDS, () -> {
-         ThreadContext.setContextPrincipal(principal);
-
-         try(BlobTransaction<Metadata> tx = storage.beginTransaction()) {
-            try(OutputStream out = tx.newStream(key, null);
-                GZIPOutputStream gzipOut = new GZIPOutputStream(out);
-                ObjectOutputStream oos = new ObjectOutputStream(gzipOut))
-            {
-               // get all rows before writing
-               lens.moreRows(XTable.EOT);
-               oos.writeObject(lens);
-            }
-
-            // streams are fully closed (GZIP trailer written) before commit
-            tx.commit();
-         }
-         catch(IOException ex) {
-            // TimeoutException during cluster partition exchange (e.g. pod restart) is transient;
-            // log as WARN since the table will be recomputed on the next cache miss.
-            if(ex.getCause() instanceof java.util.concurrent.TimeoutException) {
-               LOG.warn("Timed out writing to blob storage (cluster rebalancing?): {}", key, ex);
-            }
-            else {
-               LOG.error("Failed to write to the blob storage: {}", key, ex);
-            }
-         }
-         finally {
-            ThreadContext.setContextPrincipal(null);
-         }
-      });
    }
 
    void remove(DataKey dataKey) {
@@ -174,6 +222,99 @@ public class DistributedTableCacheStore {
       catch(IOException e) {
          LOG.warn("Failed to remove data from cache: {}", key, e);
       }
+   }
+
+   /**
+    * Iterates all entries in the local {@link AssetDataCache} and writes them to the distributed
+    * store. Entries already present in the distributed store are skipped to avoid redundant writes
+    * when multiple nodes respond to the same {@link TableCacheReplicationRequest}. Stops early if
+    * the configured timeout ({@code distributed.table.cache.flush.timeout.seconds}) is reached.
+    */
+   public void flushLocalCache() {
+      if(cluster.getServerClusterNodes().size() <= 1) {
+         LOG.debug("DistributedTableCacheStore.flushLocalCache: skipping flush, single-node cluster");
+         return;
+      }
+
+      AssetDataCache cache = assetDataCacheProvider.getObject();
+      Map<DataKey, TableLens> entries = cache.getLocalEntries();
+
+      if(entries.isEmpty()) {
+         return;
+      }
+
+      long timeoutSeconds = Long.parseLong(FLUSH_TIMEOUT_SECONDS.get());
+      Instant deadline = Instant.now().plusSeconds(timeoutSeconds);
+
+      LOG.info("DistributedTableCacheStore.flushLocalCache: flushing {} entr{} (timeout {}s)",
+               entries.size(), entries.size() == 1 ? "y" : "ies", timeoutSeconds);
+
+      long startMs = System.currentTimeMillis();
+      int written = 0;
+      int skippedLocal = 0;
+      int skippedExists = 0;
+      int failed = 0;
+
+      for(Map.Entry<DataKey, TableLens> entry : entries.entrySet()) {
+         if(Instant.now().isAfter(deadline)) {
+            int remaining = entries.size() - written - skippedLocal - skippedExists - failed;
+            LOG.warn("DistributedTableCacheStore.flushLocalCache: timeout reached — wrote {}, {} not flushed",
+                     written, remaining);
+            break;
+         }
+
+         DataKey dataKey = entry.getKey();
+
+         if(dataKey.isLocalCacheOnly()) {
+            skippedLocal++;
+            continue;
+         }
+
+         Principal principal = cache.getPrincipalForKey(dataKey);
+         Principal oldPrincipal = ThreadContext.getContextPrincipal();
+         ThreadContext.setContextPrincipal(principal);
+
+         try {
+            if(exists(dataKey)) {
+               skippedExists++;
+               continue;
+            }
+
+            put(getKey(dataKey), getStorage(), entry.getValue());
+            written++;
+         }
+         catch(Exception ex) {
+            if(isClusterStopped(ex)) {
+               LOG.warn("DistributedTableCacheStore.flushLocalCache: cluster stopped during flush — aborting ({} entries not flushed)",
+                        entries.size() - written - skippedLocal - skippedExists - failed);
+               break;
+            }
+
+            LOG.warn("DistributedTableCacheStore.flushLocalCache: failed to write entry", ex);
+            failed++;
+         }
+         finally {
+            ThreadContext.setContextPrincipal(oldPrincipal);
+         }
+      }
+
+      int timedOut = entries.size() - written - skippedLocal - skippedExists - failed;
+      LOG.info("DistributedTableCacheStore.flushLocalCache: complete in {}ms — total {}, wrote {}, skipped-local {}, skipped-exists {}, failed {}, timed-out {}",
+               System.currentTimeMillis() - startMs, entries.size(), written, skippedLocal, skippedExists, failed, timedOut);
+   }
+
+   private static boolean isClusterStopped(Throwable ex) {
+      Throwable t = ex;
+
+      while(t != null) {
+         if(t.getClass().getName().contains("IgniteIllegalStateException")) {
+            return true;
+         }
+
+         t = t.getCause();
+      }
+
+      return false;
    }
 
    private BlobStorage<Metadata> getStorage() {
@@ -199,12 +340,21 @@ public class DistributedTableCacheStore {
       return clusterId + "__" + DigestUtils.sha256Hex(dataKey.getValue());
    }
 
+   private volatile boolean running = false;
+   private final Cluster cluster;
    private final BlobStorageManager blobStorageManager;
+   private final ObjectProvider<AssetDataCache> assetDataCacheProvider;
    private final String clusterId;
    private final ConcurrentHashMap<String, BlobStorage<Metadata>> storages;
-   private final Debouncer<String> debouncer;
 
    private static final long CLEANUP_FREQUENCY_TIME = 30L; // minutes
+   /**
+    * Maximum seconds to spend flushing the local cache on shutdown. Should be less than the ECS
+    * container StopTimeout to allow the flush to complete before the container is killed.
+    * Default: 90 (Fargate max StopTimeout is 120s).
+    */
+   private static final SreeEnv.Value FLUSH_TIMEOUT_SECONDS =
+      new SreeEnv.Value("distributed.table.cache.flush.timeout.seconds", 30000, "90");
    private static final Logger LOG = LoggerFactory.getLogger(DistributedTableCacheStore.class);
 
    public static final class Metadata implements Serializable {

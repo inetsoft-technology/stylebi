@@ -56,6 +56,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 public abstract class BaseInetsoftApplication {
    public void start(String[] args) {
+      // Disable Ignite's JVM shutdown hook so that Spring controls shutdown ordering.
+      // Ignite is stopped explicitly in shutdownInetsoft() after all SmartLifecycle.stop()
+      // and @PreDestroy methods have run.
+      System.setProperty("IGNITE_NO_SHUTDOWN_HOOK", "true");
+
       ApplicationArguments appArguments = new DefaultApplicationArguments(args);
 
       // make sure aot is not enabled during process-aot phase
@@ -217,9 +222,6 @@ public abstract class BaseInetsoftApplication {
 
    @PreDestroy
    public void shutdownInetsoft() {
-      // Ignite's jvm shutdown hook will execute its own shutdown logic so just
-      // mark the cluster instance as closed
-      Cluster.getInstance().setClosed(true);
       Logger log = LoggerFactory.getLogger(getClass());
 
       try {
@@ -252,6 +254,16 @@ public abstract class BaseInetsoftApplication {
       }
       catch(Exception ex) {
          log.debug("Failed to cancel threads", ex);
+      }
+
+      // Explicitly close the cluster now that all SmartLifecycle.stop() and @PreDestroy methods
+      // (including the distributed table cache flush) have completed. Ignite's own JVM shutdown
+      // hook is disabled via IGNITE_NO_SHUTDOWN_HOOK=true set at the top of start().
+      try {
+         Cluster.getInstance().close();
+      }
+      catch(Exception ex) {
+         log.debug("Failed to close cluster", ex);
       }
    }
 
