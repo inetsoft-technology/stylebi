@@ -64,6 +64,11 @@ public abstract class LoadAssetTreeNodesEvent {
       return false;
    }
 
+   @Value.Default
+   public boolean wizSave() {
+      return false;
+   }
+
    public static Builder builder() {
       return new Builder();
    }
