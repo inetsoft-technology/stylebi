@@ -1364,10 +1364,6 @@ public abstract class DateCondition extends AbstractCondition implements AssetOb
        * Set year n.
        */
       public void setYearN(int yn) {
-         if(yn < 0) {
-            return;
-         }
-
          this.yn = yn;
       }
 

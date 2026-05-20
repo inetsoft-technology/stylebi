@@ -1251,7 +1251,7 @@ public class Condition extends AbstractCondition {
       else if(str.equalsIgnoreCase("next week")) {
          w1 = getWeeks(date);
          w2 = getWeeks(now);
-         result = w1 - 1 == w2;
+         result = w1 + NEXT_WEEK == w2;
       }
       else if(str.equalsIgnoreCase("week before last week")) {
          w1 = getWeeks(date);
@@ -2235,6 +2235,10 @@ public class Condition extends AbstractCondition {
     * User defined last week.
     */
    private static final int LAST_WEEK = 1;
+   /**
+    * User defined next week.
+    */
+   private static final int NEXT_WEEK = -1;
    /**
     * User defined the month.
     */

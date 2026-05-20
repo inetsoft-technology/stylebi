@@ -22,13 +22,13 @@
 <name><![CDATA[Last year]]></name>
 <label><![CDATA[Last year]]></label>
 </xCondition>
-<xCondition class="inetsoft.uql.asset.DateCondition$YearCondition" type="date" negated="false" operation="11" equal="false" year="-1">
-<name><![CDATA[Next year]]></name>
-<label><![CDATA[Next year]]></label>
-</xCondition>
 <xCondition class="inetsoft.uql.asset.DateCondition$YearCondition" type="date" negated="false" operation="11" equal="false" year="0">
 <name><![CDATA[This year]]></name>
 <label><![CDATA[This year]]></label>
+</xCondition>
+<xCondition class="inetsoft.uql.asset.DateCondition$YearCondition" type="date" negated="false" operation="11" equal="false" year="-1">
+<name><![CDATA[Next year]]></name>
+<label><![CDATA[Next year]]></label>
 </xCondition>
 <xCondition class="inetsoft.uql.asset.DateCondition$QuarterCondition" type="date" negated="false" operation="11" equal="false" year="0" quarter="0">
 <name><![CDATA[This quarter]]></name>
@@ -94,13 +94,13 @@
 <name><![CDATA[2nd half of last year]]></name>
 <label><![CDATA[2nd half of last year]]></label>
 </xCondition>
-<xCondition class="inetsoft.uql.asset.DateCondition$MonthCondition" type="date" negated="false" operation="11" equal="false" year="0" month="0">
-<name><![CDATA[This month]]></name>
-<label><![CDATA[This month]]></label>
-</xCondition>
 <xCondition class="inetsoft.uql.asset.DateCondition$MonthCondition" type="date" negated="false" operation="11" equal="false" year="0" month="1">
 <name><![CDATA[Last month]]></name>
 <label><![CDATA[Last month]]></label>
+</xCondition>
+<xCondition class="inetsoft.uql.asset.DateCondition$MonthCondition" type="date" negated="false" operation="11" equal="false" year="0" month="0">
+<name><![CDATA[This month]]></name>
+<label><![CDATA[This month]]></label>
 </xCondition>
 <xCondition class="inetsoft.uql.asset.DateCondition$MonthCondition" type="date" negated="false" operation="11" equal="false" year="0" month="-1">
 <name><![CDATA[Next month]]></name>
