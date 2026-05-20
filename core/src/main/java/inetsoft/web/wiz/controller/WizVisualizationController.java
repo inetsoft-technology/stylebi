@@ -22,11 +22,14 @@ import inetsoft.web.composer.model.TreeNodeModel;
 import inetsoft.web.wiz.model.WizVisualizationSaveEvent;
 import inetsoft.web.wiz.model.WizVisualizationSaveResult;
 import inetsoft.web.wiz.service.WizVisualizationService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.security.Principal;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/wiz/visualization")
@@ -37,7 +40,7 @@ public class WizVisualizationController {
 
    /**
     * Returns the folder tree under "Visualization Components" for the WIZ Save dialog.
-    * Only folder nodes are returned (no viewsheet leaves).
+    * Both folder nodes and viewsheet leaf nodes are included.
     */
    @GetMapping(value = "/tree", produces = MediaType.APPLICATION_JSON_VALUE)
    public TreeNodeModel getVisualizationFolderTree(Principal principal) throws Exception {
@@ -49,7 +52,7 @@ public class WizVisualizationController {
     * under the user-selected folder. Stores {@code conversationId} as an AssetEntry property.
     */
    @PostMapping(value = "/save", produces = MediaType.APPLICATION_JSON_VALUE)
-   public ResponseEntity<WizVisualizationSaveResult> saveVisualization(
+   public ResponseEntity<?> saveVisualization(
       @RequestBody WizVisualizationSaveEvent event, Principal principal)
    {
       try {
@@ -57,12 +60,14 @@ public class WizVisualizationController {
          return ResponseEntity.ok(result);
       }
       catch(IllegalArgumentException e) {
-         return ResponseEntity.badRequest().build();
+         return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
       }
       catch(Exception e) {
-         return ResponseEntity.internalServerError().build();
+         LOG.error("Failed to save visualization", e);
+         return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));
       }
    }
 
    private final WizVisualizationService wizVisualizationService;
+   private static final Logger LOG = LoggerFactory.getLogger(WizVisualizationController.class);
 }
