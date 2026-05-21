@@ -232,57 +232,82 @@ public class WizVisualizationService {
 
       if(!Tool.isEmptyString(runtimeId)) {
          try {
-            // Validate ownership: getViewsheet enforces that the runtime viewsheet
-            // belongs to this principal, preventing cross-session thumbnail access.
-            if(viewsheetService.getViewsheet(runtimeId, principal) == null) {
+            // Fetch once: validates ownership (prevents cross-session access) and
+            // is reused for the fallback path, avoiding redundant lookups.
+            RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
+
+            if(rvs == null) {
                LOG.warn("runtimeId '{}' not accessible for principal '{}', skipping thumbnail",
                         runtimeId, principal.getName());
             }
             else {
-               AssemblyImageService.ImageRenderResult imgResult =
-                  assemblyImageService.downloadAssemblyImage(
-                     runtimeId, Tool.byteEncode(event.getAssemblyName()),
-                     THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT, THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT,
-                     true, principal);
+               // Short-circuit fallback path for large viewsheets to avoid heap pressure.
+               Viewsheet preCheckVs = rvs.getViewsheet();
 
-               if(imgResult != null && imgResult.getRetryAfter() > 0) {
-                  LOG.debug("downloadAssemblyImage not yet ready for '{}' (retryAfter={}), skipping thumbnail",
-                            event.getAssemblyName(), imgResult.getRetryAfter());
+               if(preCheckVs != null &&
+                  preCheckVs.getAssemblies().length > MAX_ASSEMBLIES_FOR_FALLBACK_THUMBNAIL)
+               {
+                  LOG.debug("Skipping fallback thumbnail for '{}': viewsheet has {} assemblies (limit {})",
+                            event.getAssemblyName(), preCheckVs.getAssemblies().length,
+                            MAX_ASSEMBLIES_FOR_FALLBACK_THUMBNAIL);
                }
-               else if(imgResult != null && imgResult.getImageData() != null) {
-                  byte[] imageBytes = binaryTransferService.getData(imgResult.getImageData());
+               else {
+                  AssemblyImageService.ImageRenderResult imgResult =
+                     assemblyImageService.downloadAssemblyImage(
+                        runtimeId, Tool.byteEncode(event.getAssemblyName()),
+                        THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT, THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT,
+                        true, principal);
 
-                  if(imageBytes != null && imageBytes.length > 0) {
-                     if(imgResult.isPng()) {
-                        // 1×1 is a StyleBI placeholder returned for assembly types that
-                        // downloadAssemblyImage does not support (e.g. Crosstab, Table).
-                        // In that case fall back to a full-viewsheet PNG export + crop.
-                        String thumbnailValue = null;
-                        try {
-                           BufferedImage decoded = ImageIO.read(new ByteArrayInputStream(imageBytes));
+                  if(imgResult != null && imgResult.getRetryAfter() > 0) {
+                     LOG.debug("downloadAssemblyImage not yet ready for '{}' (retryAfter={}), skipping thumbnail",
+                               event.getAssemblyName(), imgResult.getRetryAfter());
+                  }
+                  else if(imgResult != null && imgResult.getImageData() != null) {
+                     byte[] imageBytes = binaryTransferService.getData(imgResult.getImageData());
 
-                           if(decoded != null && decoded.getWidth() > 1 && decoded.getHeight() > 1) {
-                              thumbnailValue = "data:image/png;base64," +
-                                 Base64.getEncoder().encodeToString(imageBytes);
+                     if(imageBytes != null && imageBytes.length > 0) {
+                        if(imgResult.isPng()) {
+                           // 1×1 is a StyleBI placeholder returned for assembly types that
+                           // downloadAssemblyImage does not support (e.g. Crosstab, Table).
+                           // In that case fall back to a full-viewsheet PNG export + crop.
+                           String thumbnailValue = null;
+                           try {
+                              BufferedImage decoded = ImageIO.read(new ByteArrayInputStream(imageBytes));
+
+                              if(decoded != null && decoded.getWidth() > 1 && decoded.getHeight() > 1) {
+                                 thumbnailValue = "data:image/png;base64," +
+                                    Base64.getEncoder().encodeToString(imageBytes);
+                              }
+                           }
+                           catch(Exception e) {
+                              LOG.debug("Failed to decode PNG for '{}': {}. Attempting full-viewsheet fallback.",
+                                        event.getAssemblyName(), e.getMessage());
+                           }
+
+                           if(thumbnailValue == null) {
+                              LOG.debug("PNG was 1×1 or undecodable for '{}', using full-viewsheet fallback",
+                                        event.getAssemblyName());
+                              thumbnailValue = renderFallbackThumbnail(rvs, event.getAssemblyName(), principal);
+                           }
+
+                           if(thumbnailValue != null) {
+                              result.setThumbnail(thumbnailValue);
+                              result.setThumbnailFormat("png");
                            }
                         }
-                        catch(Exception e) {
-                           LOG.debug("Failed to decode PNG for '{}': {}. Attempting full-viewsheet fallback.",
-                                     event.getAssemblyName(), e.getMessage());
+                        else {
+                           // Issue 6: guard against oversized SVG payloads
+                           if(imageBytes.length > MAX_SVG_THUMBNAIL_BYTES) {
+                              LOG.debug("SVG thumbnail for '{}' is {} bytes (limit {}), skipping",
+                                        event.getAssemblyName(), imageBytes.length,
+                                        MAX_SVG_THUMBNAIL_BYTES);
+                           }
+                           else {
+                              result.setThumbnail(normalizeSvgNamespace(
+                                 new String(imageBytes, StandardCharsets.UTF_8)));
+                              result.setThumbnailFormat("svg");
+                           }
                         }
-
-                        if(thumbnailValue == null) {
-                           LOG.debug("PNG was 1×1 or undecodable for '{}', using full-viewsheet fallback",
-                                     event.getAssemblyName());
-                           thumbnailValue = renderFallbackThumbnail(
-                              runtimeId, event.getAssemblyName(), principal);
-                        }
-
-                        result.setThumbnail(thumbnailValue);
-                     }
-                     else {
-                        result.setThumbnail(normalizeSvgNamespace(
-                           new String(imageBytes, StandardCharsets.UTF_8)));
                      }
                   }
                }
@@ -481,19 +506,14 @@ public class WizVisualizationService {
     * Used as a fallback for assembly types (Crosstab, Table) that downloadAssemblyImage
     * does not support — those return a 1×1 placeholder PNG instead of real content.
     */
-   private String renderFallbackThumbnail(String runtimeId, String assemblyName, Principal principal) {
+   private String renderFallbackThumbnail(RuntimeViewsheet rvs, String assemblyName,
+                                           Principal principal)
+   {
       try {
-         RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
-
-         if(rvs == null) {
-            LOG.warn("renderFallbackThumbnail: RuntimeViewsheet not found for id='{}'", runtimeId);
-            return null;
-         }
-
          Viewsheet vs = rvs.getViewsheet();
 
          if(vs == null) {
-            LOG.warn("renderFallbackThumbnail: Viewsheet is null for id='{}'", runtimeId);
+            LOG.warn("renderFallbackThumbnail: Viewsheet is null for assembly '{}'", assemblyName);
             return null;
          }
 
@@ -549,8 +569,8 @@ public class WizVisualizationService {
          int cropW = Math.min(size.width, full.getWidth() - cropX);
          int cropH = Math.min(size.height, full.getHeight() - cropY);
 
-         if(cropW <= 1 || cropH <= 1) {
-            LOG.warn("renderFallbackThumbnail: crop dimensions too small ({}x{}) for assembly '{}'",
+         if(cropW <= 0 || cropH <= 0) {
+            LOG.warn("renderFallbackThumbnail: crop dimensions invalid ({}x{}) for assembly '{}'",
                      cropW, cropH, assemblyName);
             return null;
          }
@@ -622,6 +642,12 @@ public class WizVisualizationService {
     * <p>Note: only element start/end tags are de-prefixed. Attributes carrying the same namespace
     * prefix (e.g. {@code a0:fill="..."}) are not stripped. Batik does not apply the SVG namespace
     * prefix to attribute names, so this is not an issue in practice.
+    *
+    * <p>Coupling: this method assumes Batik generates a non-colliding prefix such as {@code a0:}.
+    * If a renderer emits a short common prefix (e.g. {@code x:} or {@code s:}), the
+    * {@code "<" + prefixColon} replacement could corrupt unrelated tags such as
+    * {@code &lt;xlink:href&gt;}. The SVG-namespace URI guard in the loop reduces this risk but
+    * does not eliminate it. A proper fix requires an XML-aware namespace stripper.
     */
    private static String normalizeSvgNamespace(String svg) {
       if(svg == null) {
@@ -675,4 +701,8 @@ public class WizVisualizationService {
    private static final int THUMBNAIL_WIDTH  = 400;
    private static final int THUMBNAIL_HEIGHT = 300;
    private static final String SVG_NS = "http://www.w3.org/2000/svg";
+   /** Drop SVG thumbnails larger than 512 KB to prevent oversized response payloads. */
+   private static final int MAX_SVG_THUMBNAIL_BYTES = 512 * 1024;
+   /** Skip the full-viewsheet fallback export for viewsheets with many assemblies. */
+   private static final int MAX_ASSEMBLIES_FOR_FALLBACK_THUMBNAIL = 50;
 }

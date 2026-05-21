@@ -38,8 +38,17 @@ public class WizVisualizationSaveResult {
       this.thumbnail = thumbnail;
    }
 
+   public String getThumbnailFormat() {
+      return thumbnailFormat;
+   }
+
+   public void setThumbnailFormat(String thumbnailFormat) {
+      this.thumbnailFormat = thumbnailFormat;
+   }
+
    private String savedViewsheetIdentifier;
-   /** Base64-encoded PNG data URI ({@code data:image/png;base64,...}) for chart assemblies,
-    *  or raw SVG markup for vector-rendered assemblies. */
+   /** Raw SVG markup or {@code data:image/png;base64,...} depending on assembly type. */
    private String thumbnail;
+   /** Discriminator for {@link #thumbnail}: {@code "svg"} or {@code "png"}, {@code null} if absent. */
+   private String thumbnailFormat;
 }
