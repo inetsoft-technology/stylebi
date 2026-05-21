@@ -66,9 +66,18 @@ public class WizVisualizationSaveEvent {
       this.displayName = displayName;
    }
 
+   public String getSourceViewsheetRuntimeId() {
+      return sourceViewsheetRuntimeId;
+   }
+
+   public void setSourceViewsheetRuntimeId(String sourceViewsheetRuntimeId) {
+      this.sourceViewsheetRuntimeId = sourceViewsheetRuntimeId;
+   }
+
    private String sourceViewsheetIdentifier;
    private String assemblyName;
    private String conversationId;
    private String targetFolderPath;
    private String displayName;
+   private String sourceViewsheetRuntimeId;
 }
