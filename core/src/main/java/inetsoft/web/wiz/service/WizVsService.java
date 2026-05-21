@@ -2360,7 +2360,6 @@ public class WizVsService {
             sbinfo.getN() != 0 ? sbinfo.getN() : null);
 
          if(pushedMeasureFullNames.contains(fullName)) {
-            sbinfo.setColumnValue(sbinfo.getColumnValue());
             sbinfo.setAggregateValue(AggregateFormula.NONE.getFormulaName()); // Data already aggregated
          }
       }

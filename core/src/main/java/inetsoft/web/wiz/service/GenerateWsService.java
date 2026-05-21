@@ -508,6 +508,8 @@ public class GenerateWsService {
       for(WorksheetConstructionModel.QueryField field : modelFields) {
          if(Boolean.FALSE.equals(field.getVisible())) {
             String fieldName = field.getAlias() != null ? field.getAlias() : field.getFieldName();
+            WorksheetConstructionModel.TableInfo table = field.getTable();
+            fieldName = table != null ? table.getName() + "." + fieldName : fieldName;
             DataRef ref = columnSelection.getAttribute(fieldName);
 
             if(ref instanceof ColumnRef colRef) {
