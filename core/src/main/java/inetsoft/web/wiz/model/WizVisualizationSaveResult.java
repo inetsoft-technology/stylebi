@@ -18,9 +18,12 @@
 
 package inetsoft.web.wiz.model;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+
 /**
  * Response body for POST /api/wiz/visualization/save.
  */
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public class WizVisualizationSaveResult {
    public String getSavedViewsheetIdentifier() {
       return savedViewsheetIdentifier;
