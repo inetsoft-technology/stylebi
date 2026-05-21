@@ -47,7 +47,6 @@ import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.security.Principal;
 import java.util.*;
-import java.util.Base64;
 
 @Service
 public class WizVisualizationService {
@@ -226,7 +225,7 @@ public class WizVisualizationService {
       WizVisualizationSaveResult result = new WizVisualizationSaveResult();
       result.setSavedViewsheetIdentifier(newVsEntry.toIdentifier());
 
-      // Try to generate SVG thumbnail from the source runtime viewsheet (non-fatal)
+      // Try to generate thumbnail from the source runtime viewsheet (non-fatal)
       String runtimeId = event.getSourceViewsheetRuntimeId();
 
       if(!Tool.isEmptyString(runtimeId)) {
@@ -234,7 +233,8 @@ public class WizVisualizationService {
             AssemblyImageService.ImageRenderResult imgResult =
                assemblyImageService.downloadAssemblyImage(
                   runtimeId, Tool.byteEncode(event.getAssemblyName()),
-                  400, 300, 400, 300, true, principal);
+                  THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT, THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT,
+                  true, principal);
 
             if(imgResult != null && imgResult.getImageData() != null) {
                byte[] imageBytes = binaryTransferService.getData(imgResult.getImageData());
@@ -244,32 +244,36 @@ public class WizVisualizationService {
                      // 1×1 is a StyleBI placeholder returned for assembly types that
                      // downloadAssemblyImage does not support (e.g. Crosstab, Table).
                      // In that case fall back to a full-viewsheet PNG export + crop.
-                     boolean use1x1Fallback = true;
+                     String thumbnailValue = null;
                      try {
-                        BufferedImage decoded = ImageIO.read(
-                           new ByteArrayInputStream(imageBytes));
+                        BufferedImage decoded = ImageIO.read(new ByteArrayInputStream(imageBytes));
+
                         if(decoded != null && decoded.getWidth() > 1 && decoded.getHeight() > 1) {
-                           result.setSvg("data:image/png;base64," +
-                              Base64.getEncoder().encodeToString(imageBytes));
-                           use1x1Fallback = false;
+                           thumbnailValue = "data:image/png;base64," +
+                              Base64.getEncoder().encodeToString(imageBytes);
                         }
                      }
-                     catch(Exception ignored) { /* fall through to fallback */ }
-
-                     if(use1x1Fallback) {
-                        result.setSvg(renderTableThumbnail(
-                           runtimeId, event.getAssemblyName(), principal));
+                     catch(Exception e) {
+                        LOG.debug("Failed to decode PNG for '{}', trying fallback: {}",
+                                  event.getAssemblyName(), e.getMessage());
                      }
+
+                     if(thumbnailValue == null) {
+                        thumbnailValue = renderTableThumbnail(
+                           runtimeId, event.getAssemblyName(), principal);
+                     }
+
+                     result.setThumbnail(thumbnailValue);
                   }
                   else {
-                     result.setSvg(normalizeSvgNamespace(
+                     result.setThumbnail(normalizeSvgNamespace(
                         new String(imageBytes, StandardCharsets.UTF_8)));
                   }
                }
             }
          }
          catch(Exception e) {
-            LOG.warn("Failed to generate SVG thumbnail for assembly '{}' (non-fatal): {}",
+            LOG.warn("Failed to generate thumbnail for assembly '{}' (non-fatal): {}",
                      event.getAssemblyName(), e.getMessage());
          }
       }
@@ -503,7 +507,7 @@ public class WizVisualizationService {
 
          Point offset = assembly.getPixelOffset();
          Dimension size = assembly.getPixelSize();
-         LOG.info("renderTableThumbnail: assembly='{}' offset={} size={}", assemblyName, offset, size);
+         LOG.debug("renderTableThumbnail: assembly='{}' offset={} size={}", assemblyName, offset, size);
 
          if(size == null || size.width <= 0 || size.height <= 0) {
             LOG.warn("renderTableThumbnail: invalid size {} for assembly '{}'", size, assemblyName);
@@ -519,8 +523,8 @@ public class WizVisualizationService {
             new ExportResponse(baos), principal);
 
          byte[] pngBytes = baos.toByteArray();
-         LOG.info("renderTableThumbnail: export produced {} bytes for assembly '{}'",
-                  pngBytes.length, assemblyName);
+         LOG.debug("renderTableThumbnail: export produced {} bytes for assembly '{}'",
+                   pngBytes.length, assemblyName);
 
          if(pngBytes.length == 0) {
             LOG.warn("renderTableThumbnail: exportViewsheet produced 0 bytes for assembly '{}'", assemblyName);
@@ -534,10 +538,10 @@ public class WizVisualizationService {
             return null;
          }
 
-         LOG.info("renderTableThumbnail: full image {}x{}, crop at ({},{}) size {}x{}",
-                  full.getWidth(), full.getHeight(),
-                  offset != null ? offset.x : 0, offset != null ? offset.y : 0,
-                  size.width, size.height);
+         LOG.debug("renderTableThumbnail: full image {}x{}, crop at ({},{}) size {}x{}",
+                   full.getWidth(), full.getHeight(),
+                   offset != null ? offset.x : 0, offset != null ? offset.y : 0,
+                   size.width, size.height);
 
          // Crop to assembly bounds (PNGCoordinateHelper renders at 1:1 pixel scale)
          int cropX = Math.max(0, offset != null ? offset.x : 0);
@@ -561,8 +565,8 @@ public class WizVisualizationService {
             return null;
          }
 
-         LOG.info("renderTableThumbnail: success, cropped PNG {} bytes for assembly '{}'",
-                  croppedBytes.length, assemblyName);
+         LOG.debug("renderTableThumbnail: success, cropped PNG {} bytes for assembly '{}'",
+                   croppedBytes.length, assemblyName);
          return "data:image/png;base64," + Base64.getEncoder().encodeToString(croppedBytes);
       }
       catch(Exception e) {
@@ -573,24 +577,26 @@ public class WizVisualizationService {
    }
 
    /**
-    * Removes custom XML namespace prefixes (e.g. "a0:") added by the Batik SVG generator
+    * Removes the first custom XML namespace prefix (e.g. "a0:") added by the Batik SVG generator
     * so the resulting SVG can be rendered directly by browsers.
     *
     * Batik generates: {@code <a0:svg xmlns:a0="http://www.w3.org/2000/svg">}
     * Browser requires: {@code <svg xmlns="http://www.w3.org/2000/svg">}
+    *
+    * <p>Note: only the first xmlns: prefix is stripped. Additional Batik prefixes (e.g. xlink:)
+    * are not removed. This is sufficient for the chart SVG output validated against Batik 1.17.
+    *
+    * <p>Note: String.replace is a literal full-text replacement, not XML-aware. An attribute value
+    * or text node containing the literal prefix string (e.g. "&lt;a0:") would be incorrectly
+    * mutated. This is not expected in normal Batik chart output.
     */
    private static String normalizeSvgNamespace(String svg) {
       if(svg == null || !svg.contains("xmlns:")) {
          return svg;
       }
 
-      // Locate "xmlns:PREFIX=" — the prefix sits between "xmlns:" and the "=" sign
+      // nsIdx >= 0 is guaranteed by the contains("xmlns:") guard above
       int nsIdx = svg.indexOf("xmlns:");
-
-      if(nsIdx < 0) {
-         return svg;
-      }
-
       int eqIdx = svg.indexOf('=', nsIdx + 6); // skip past "xmlns:" itself
 
       if(eqIdx < 0) {
@@ -618,4 +624,6 @@ public class WizVisualizationService {
    private final BinaryTransferService binaryTransferService;
    private final VSExportService vsExportService;
    private static final Logger LOG = LoggerFactory.getLogger(WizVisualizationService.class);
+   private static final int THUMBNAIL_WIDTH  = 400;
+   private static final int THUMBNAIL_HEIGHT = 300;
 }
