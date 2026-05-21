@@ -39,6 +39,7 @@ public class WizVisualizationSaveResult {
    }
 
    private String savedViewsheetIdentifier;
-   /** SVG or PNG data URI depending on assembly type. */
+   /** Base64-encoded PNG data URI ({@code data:image/png;base64,...}) for chart assemblies,
+    *  or raw SVG markup for vector-rendered assemblies. */
    private String thumbnail;
 }

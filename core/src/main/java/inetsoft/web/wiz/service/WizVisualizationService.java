@@ -238,7 +238,11 @@ public class WizVisualizationService {
                   THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT, THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT,
                   true, principal);
 
-            if(imgResult != null && imgResult.getImageData() != null) {
+            if(imgResult != null && imgResult.getRetryAfter() > 0) {
+               LOG.debug("downloadAssemblyImage not yet ready for '{}' (retryAfter={}), skipping thumbnail",
+                         event.getAssemblyName(), imgResult.getRetryAfter());
+            }
+            else if(imgResult != null && imgResult.getImageData() != null) {
                byte[] imageBytes = binaryTransferService.getData(imgResult.getImageData());
 
                if(imageBytes != null && imageBytes.length > 0) {
@@ -263,7 +267,7 @@ public class WizVisualizationService {
                      if(thumbnailValue == null) {
                         LOG.debug("PNG was 1×1 or undecodable for '{}', using full-viewsheet fallback",
                                   event.getAssemblyName());
-                        thumbnailValue = renderTableThumbnail(
+                        thumbnailValue = renderFallbackThumbnail(
                            runtimeId, event.getAssemblyName(), principal);
                      }
 
@@ -485,36 +489,36 @@ public class WizVisualizationService {
     * Used as a fallback for assembly types (Crosstab, Table) that downloadAssemblyImage
     * does not support — those return a 1×1 placeholder PNG instead of real content.
     */
-   private String renderTableThumbnail(String runtimeId, String assemblyName, Principal principal) {
+   private String renderFallbackThumbnail(String runtimeId, String assemblyName, Principal principal) {
       try {
          RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
 
          if(rvs == null) {
-            LOG.warn("renderTableThumbnail: RuntimeViewsheet not found for id='{}'", runtimeId);
+            LOG.warn("renderFallbackThumbnail: RuntimeViewsheet not found for id='{}'", runtimeId);
             return null;
          }
 
          Viewsheet vs = rvs.getViewsheet();
 
          if(vs == null) {
-            LOG.warn("renderTableThumbnail: Viewsheet is null for id='{}'", runtimeId);
+            LOG.warn("renderFallbackThumbnail: Viewsheet is null for id='{}'", runtimeId);
             return null;
          }
 
          Assembly assembly = vs.getAssembly(assemblyName);
 
          if(!(assembly instanceof VSAssembly)) {
-            LOG.warn("renderTableThumbnail: assembly '{}' not found or not VSAssembly (type={})",
+            LOG.warn("renderFallbackThumbnail: assembly '{}' not found or not VSAssembly (type={})",
                      assemblyName, assembly == null ? "null" : assembly.getClass().getSimpleName());
             return null;
          }
 
          Point offset = assembly.getPixelOffset();
          Dimension size = assembly.getPixelSize();
-         LOG.debug("renderTableThumbnail: assembly='{}' offset={} size={}", assemblyName, offset, size);
+         LOG.debug("renderFallbackThumbnail: assembly='{}' offset={} size={}", assemblyName, offset, size);
 
          if(size == null || size.width <= 0 || size.height <= 0) {
-            LOG.warn("renderTableThumbnail: invalid size {} for assembly '{}'", size, assemblyName);
+            LOG.warn("renderFallbackThumbnail: invalid size {} for assembly '{}'", size, assemblyName);
             return null;
          }
 
@@ -527,22 +531,22 @@ public class WizVisualizationService {
             new ExportResponse(baos), principal);
 
          byte[] pngBytes = baos.toByteArray();
-         LOG.debug("renderTableThumbnail: export produced {} bytes for assembly '{}'",
+         LOG.debug("renderFallbackThumbnail: export produced {} bytes for assembly '{}'",
                    pngBytes.length, assemblyName);
 
          if(pngBytes.length == 0) {
-            LOG.warn("renderTableThumbnail: exportViewsheet produced 0 bytes for assembly '{}'", assemblyName);
+            LOG.warn("renderFallbackThumbnail: exportViewsheet produced 0 bytes for assembly '{}'", assemblyName);
             return null;
          }
 
          BufferedImage full = ImageIO.read(new ByteArrayInputStream(pngBytes));
 
          if(full == null) {
-            LOG.warn("renderTableThumbnail: ImageIO.read returned null for assembly '{}'", assemblyName);
+            LOG.warn("renderFallbackThumbnail: ImageIO.read returned null for assembly '{}'", assemblyName);
             return null;
          }
 
-         LOG.debug("renderTableThumbnail: full image {}x{}, crop at ({},{}) size {}x{}",
+         LOG.debug("renderFallbackThumbnail: full image {}x{}, crop at ({},{}) size {}x{}",
                    full.getWidth(), full.getHeight(),
                    offset != null ? offset.x : 0, offset != null ? offset.y : 0,
                    size.width, size.height);
@@ -554,7 +558,7 @@ public class WizVisualizationService {
          int cropH = Math.min(size.height, full.getHeight() - cropY);
 
          if(cropW <= 1 || cropH <= 1) {
-            LOG.warn("renderTableThumbnail: crop dimensions too small ({}x{}) for assembly '{}'",
+            LOG.warn("renderFallbackThumbnail: crop dimensions too small ({}x{}) for assembly '{}'",
                      cropW, cropH, assemblyName);
             return null;
          }
@@ -577,7 +581,7 @@ public class WizVisualizationService {
             }
             cropped = scaled;
 
-            LOG.debug("renderTableThumbnail: scaled crop from {}x{} to {}x{}", cropW, cropH, scaledW, scaledH);
+            LOG.debug("renderFallbackThumbnail: scaled crop from {}x{} to {}x{}", cropW, cropH, scaledW, scaledH);
          }
 
          ByteArrayOutputStream out = new ByteArrayOutputStream();
@@ -585,21 +589,21 @@ public class WizVisualizationService {
          byte[] croppedBytes = out.toByteArray();
 
          if(croppedBytes.length == 0) {
-            LOG.warn("renderTableThumbnail: re-encoded PNG is empty for assembly '{}'", assemblyName);
+            LOG.warn("renderFallbackThumbnail: re-encoded PNG is empty for assembly '{}'", assemblyName);
             return null;
          }
 
-         LOG.debug("renderTableThumbnail: success, cropped PNG {} bytes for assembly '{}'",
+         LOG.debug("renderFallbackThumbnail: success, cropped PNG {} bytes for assembly '{}'",
                    croppedBytes.length, assemblyName);
          return "data:image/png;base64," + Base64.getEncoder().encodeToString(croppedBytes);
       }
       catch(OutOfMemoryError oom) {
-         LOG.warn("renderTableThumbnail: out of memory for assembly '{}', skipping thumbnail",
+         LOG.warn("renderFallbackThumbnail: out of memory for assembly '{}', skipping thumbnail",
                   assemblyName);
          return null;
       }
       catch(Exception e) {
-         LOG.warn("renderTableThumbnail: exception for assembly '{}': {}",
+         LOG.warn("renderFallbackThumbnail: exception for assembly '{}': {}",
                   assemblyName, e.getMessage(), e);
          return null;
       }
@@ -618,6 +622,10 @@ public class WizVisualizationService {
     * <p>Note: String.replace is a literal full-text replacement, not XML-aware. An attribute value
     * or text node containing the literal prefix string (e.g. "&lt;a0:") would be incorrectly
     * mutated. This is not expected in normal Batik chart output.
+    *
+    * <p>Note: only element start/end tags are de-prefixed. Attributes carrying the same namespace
+    * prefix (e.g. {@code a0:fill="..."}) are not stripped. Batik does not apply the SVG namespace
+    * prefix to attribute names, so this is not an issue in practice.
     */
    private static String normalizeSvgNamespace(String svg) {
       if(svg == null || !svg.contains("xmlns:")) {
