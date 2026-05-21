@@ -21,7 +21,7 @@ package inetsoft.web.wiz.controller;
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.util.Tool;
-import inetsoft.web.composer.wiz.service.VisualizationService;
+import inetsoft.web.wiz.service.VisualizationService;
 import inetsoft.web.wiz.model.CloseViewsheetRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.MediaType;

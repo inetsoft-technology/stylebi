@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-package inetsoft.web.composer.wiz.service;
+package inetsoft.web.wiz.service;
 
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.cluster.*;
@@ -32,8 +32,8 @@ import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.OutputVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.WizUtil;
 import inetsoft.web.composer.model.TreeNodeModel;
-import inetsoft.web.composer.wiz.command.SetWizDetailsCommand;
-import inetsoft.web.composer.wiz.model.VisualizationDetailModel;
+import inetsoft.web.wiz.command.SetWizDetailsCommand;
+import inetsoft.web.wiz.model.VisualizationDetailModel;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

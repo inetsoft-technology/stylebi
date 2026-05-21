@@ -495,6 +495,8 @@ public class WizVisualizationService {
                      ? child.getAlias() : child.getName();
                   children.add(TreeNodeModel.builder()
                      .label(vsLabel)
+                     .icon("viewsheet-icon")
+                     .dragName("dragVisualization")
                      .data(child)
                      .leaf(true)
                      .build());
@@ -508,6 +510,7 @@ public class WizVisualizationService {
 
       return TreeNodeModel.builder()
          .label(label)
+         .icon("folder-icon")
          .data(entry)
          .leaf(false)
          .children(children)

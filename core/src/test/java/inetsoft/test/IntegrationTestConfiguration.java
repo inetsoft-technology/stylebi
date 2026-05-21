@@ -55,7 +55,7 @@ import inetsoft.web.binding.service.DataRefModelFactory;
 import inetsoft.web.binding.service.DataRefModelFactoryService;
 import inetsoft.web.composer.vs.VSObjectTreeService;
 import inetsoft.web.composer.vs.controller.VSLayoutService;
-import inetsoft.web.composer.wiz.service.VisualizationService;
+import inetsoft.web.wiz.service.VisualizationService;
 import inetsoft.web.wiz.service.WizViewsheetService;
 import inetsoft.web.wiz.service.WizViewsheetServiceProxy;
 import inetsoft.web.messaging.MessageAttributes;

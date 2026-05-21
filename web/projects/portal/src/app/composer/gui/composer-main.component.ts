@@ -406,6 +406,10 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
 
       this.setKeydownListener();
 
+      if(this.wizComposer) {
+         this.openNewViewsheet(null);
+      }
+
       const bc = new BroadcastChannel("composer");
       bc.onmessage = (evt) => this.handleMessageEvent(evt);
 
@@ -503,6 +507,10 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
 
    get showingWiz(): boolean {
       return this.wizService.showingWiz;
+   }
+
+   get wizComposer(): boolean {
+      return this.wizService.wizComposer;
    }
 
    get focusedSheet(): Sheet {

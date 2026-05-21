@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-package inetsoft.web.composer.wiz.event;
+package inetsoft.web.wiz.event;
 
 import inetsoft.uql.asset.AssetEntry;
 
