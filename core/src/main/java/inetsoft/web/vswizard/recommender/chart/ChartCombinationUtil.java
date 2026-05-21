@@ -54,8 +54,6 @@ public class ChartCombinationUtil {
       ChartRef[] aggs = temp.getYFields();
       int n = groups.length + aggs.length;
 
-      // sanity check. the thread should never reach here (see ChartRecommenderUtil.isTableOnly).
-      // if the n is large, it could cause OOM. (42284)
       if(n > 10) {
          LOG.error("Number of columns exceeds chart limit: " + n + " x: " +
                       Arrays.toString(groups) + " y: " + Arrays.toString(aggs));
@@ -64,9 +62,72 @@ public class ChartCombinationUtil {
 
       List<List<ChartRef>> hgroup = getHierarchy(entries, temp);
       List<ChartTypeFilter> filters = createFilters(entries, temp, hgroup, geoCols, autoOrder);
-      List<ChartInfo> infos = getChartInfos(n, filters);
+      return getChartInfos(n, filters);
+   }
 
-      return infos;
+   /**
+    * Preference-aware variant: each filter selects its best candidate using slot-field bonuses
+    * from {@code pref} before the global score sort.
+    * Returns a {@link ChartInfosResult} that carries both the sorted infos list and the score
+    * map, so the caller can make score-based primary selection without relying solely on list order.
+    */
+   public static ChartInfosResult getChartInfosWithScores(AssetEntry[] entries, VSChartInfo temp,
+                                                          ColumnSelection geoCols, boolean autoOrder,
+                                                          ChartPreference pref)
+   {
+      ChartRef[] groups = temp.getXFields();
+      ChartRef[] aggs = temp.getYFields();
+      int n = groups.length + aggs.length;
+
+      if(n > 10) {
+         LOG.error("Number of columns exceeds chart limit: " + n + " x: " +
+                      Arrays.toString(groups) + " y: " + Arrays.toString(aggs));
+         return new ChartInfosResult(Collections.emptyList(), Collections.emptyMap(), null);
+      }
+
+      List<List<ChartRef>> hgroup = getHierarchy(entries, temp);
+      List<ChartTypeFilter> filters = createFilters(entries, temp, hgroup, geoCols, autoOrder);
+      return getChartInfosWithScores(n, filters, pref);
+   }
+
+   /**
+    * Carries a ChartInfo together with its preference-adjusted score.
+    */
+   public static class ScoredInfo {
+      public ScoredInfo(ChartInfo info, int score) {
+         this.info = info;
+         this.score = score;
+      }
+
+      public ChartInfo getInfo() { return info; }
+      public int getScore() { return score; }
+
+      private final ChartInfo info;
+      private final int score;
+   }
+
+   /**
+    * Carries the recommendation result:
+    * {@code infos} — sorted by base data-score (for the recommendations list);
+    * {@code prefInfos} — sorted by preference-adjusted score (for primary selection), or
+    * {@code null} when no preference was supplied.
+    */
+   public static class ChartInfosResult {
+      public ChartInfosResult(List<ChartInfo> infos, Map<Integer, Integer> scores,
+                              List<ScoredInfo> prefInfos)
+      {
+         this.infos = infos;
+         this.scores = scores;
+         this.prefInfos = prefInfos;
+      }
+
+      public List<ChartInfo> getInfos() { return infos; }
+      public Map<Integer, Integer> getScores() { return scores; }
+      public List<ScoredInfo> getPrefInfos() { return prefInfos; }
+
+      private final List<ChartInfo> infos;
+      private final Map<Integer, Integer> scores;
+      private final List<ScoredInfo> prefInfos;
    }
 
    public static List<List<ChartRef>> getHierarchy(AssetEntry[] entries, VSChartInfo temp) {
@@ -135,24 +196,47 @@ public class ChartCombinationUtil {
     * it will return strings such as: 003, 012, 021....
     */
    private static List<ChartInfo> getChartInfos(int n, List<ChartTypeFilter> filters) {
+      return getChartInfosWithScores(n, filters, null).getInfos();
+   }
+
+   private static ChartInfosResult getChartInfosWithScores(int n, List<ChartTypeFilter> filters,
+                                                            ChartPreference pref)
+   {
       getChartCombination(n, filters);
 
-      List<ChartInfo> allInfos = new ArrayList<>();
-      Map<Integer, Integer> scores = new HashMap<>();
+      List<ChartInfo> allDefaultInfos = new ArrayList<>();
+      List<ScoredInfo> allPrefInfos = pref != null ? new ArrayList<>() : null;
+      Map<Integer, Integer> baseScores = new HashMap<>();
 
-      // Filter infos in every styles at first, then score for the filtered infos.
       filters.forEach(f -> {
-         List<ChartInfo> charts = f.filter();
-         scores.putAll(f.getScores());
-         charts = charts.stream()
-            .filter(chartInfo -> GraphTypeUtil.checkChartStylePermission(chartInfo.getChartType()))
-            .collect(Collectors.toList());
-         allInfos.addAll(charts);
+         if(pref != null) {
+            ChartTypeFilter.FilterResult result = f.filterWithPreference(pref);
+            baseScores.putAll(f.getScores());
+
+            result.defaultRanked.stream()
+               .filter(ci -> GraphTypeUtil.checkChartStylePermission(ci.getChartType()))
+               .forEach(ci -> allDefaultInfos.add(ci));
+
+            result.prefRanked.stream()
+               .filter(si -> GraphTypeUtil.checkChartStylePermission(si.getInfo().getChartType()))
+               .forEach(si -> allPrefInfos.add(si));
+         }
+         else {
+            List<ChartInfo> charts = f.filter();
+            baseScores.putAll(f.getScores());
+            charts.stream()
+               .filter(ci -> GraphTypeUtil.checkChartStylePermission(ci.getChartType()))
+               .forEach(ci -> allDefaultInfos.add(ci));
+         }
       });
 
-      Collections.sort(allInfos, new VSChartScoreComparator(scores));
+      allDefaultInfos.sort(new VSChartScoreComparator(baseScores));
 
-      return allInfos;
+      if(allPrefInfos != null) {
+         allPrefInfos.sort(Comparator.comparingInt(ScoredInfo::getScore).reversed());
+      }
+
+      return new ChartInfosResult(allDefaultInfos, baseScores, allPrefInfos);
    }
 
    private static void getChartCombination(int n, List<ChartTypeFilter> filters) {
