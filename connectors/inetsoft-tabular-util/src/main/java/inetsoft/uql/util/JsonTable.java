@@ -330,6 +330,28 @@ public class JsonTable extends BaseJsonTable {
             // fall-through
          }
       }
+      else if(val instanceof com.fasterxml.jackson.databind.JsonNode node) {
+         // Jackson nodes arrive here when JacksonJsonProvider is used by JSONPath.
+         // Numeric nodes (e.g. DoubleNode) do not implement java.lang.Number, so
+         // without this branch they fall through to toString(), which produces
+         // scientific notation strings like "2.777172E-4" for small values.
+
+         if(node.isNumber()) {
+            return node.numberValue();
+         }
+
+         if(node.isTextual()) {
+            return node.textValue();
+         }
+
+         if(node.isBoolean()) {
+            return node.booleanValue();
+         }
+
+         if(node.isNull()) {
+            return null;
+         }
+      }
       else if(val instanceof Number || val instanceof Date || val instanceof Boolean) {
          return val;
       }
