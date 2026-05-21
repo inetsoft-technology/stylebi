@@ -20,7 +20,7 @@ import {HttpClient, HttpErrorResponse} from "@angular/common/http";
 import { Component, OnDestroy, OnInit } from "@angular/core";
 import { MatDialog, MatDialogConfig } from "@angular/material/dialog";
 import {MatSnackBar} from "@angular/material/snack-bar";
-import { Observable, of, Subject } from "rxjs";
+import { EMPTY, Observable, of, Subject } from "rxjs";
 import {catchError, finalize, map, tap} from "rxjs/operators";
 import {IdentityType} from "../../../../../../../shared/data/identity-type";
 import {Tool} from "../../../../../../../shared/util/tool";
@@ -51,7 +51,7 @@ import {SecurityTreeRootModel} from "../users-settings-view/security-tree-root-m
 import {DeleteIdentitiesResponse} from "./delete-identities-response";
 import {SecurityEnabledEvent} from "../../security-settings-page/security-enabled-event";
 import {ScheduleUsersService} from "../../../../../../../shared/schedule/schedule-users.service";
-import { convertKeyToID, convertToKey, IdentityId } from "../identity-id";
+import { convertToKey, equalsIdentity, IdentityId } from "../identity-id";
 
 @Secured({
    route: "/settings/security/users",
@@ -410,8 +410,13 @@ export class UsersSettingsPageComponent implements OnInit, OnDestroy {
 
    clearIncompleteNewUser(refreshAfter: boolean = false): Observable<void> {
       const identity = this.newUserIdentity;
-      this.newUserIdentity = null;
-      return identity ? this.deleteNewUser(identity, refreshAfter) : of(undefined as void);
+      return identity ? this.deleteNewUser(identity, refreshAfter).pipe(
+         tap(() => {
+            if(this.newUserIdentity != null && equalsIdentity(this.newUserIdentity, identity)) {
+               this.newUserIdentity = null;
+            }
+         })
+      ) : of(undefined as void);
    }
 
    public newGroup(parentGroup: string) {
@@ -467,24 +472,32 @@ export class UsersSettingsPageComponent implements OnInit, OnDestroy {
    }
 
    deleteIdentities(): void {
+      const deletedNodes = this.selectedNodes.slice();
       const identities: IdentityModel[] =
-         this.selectedNodes.map(node => <IdentityModel>{
+         deletedNodes.map(node => <IdentityModel>{
             identityID: node.identityID,
             type: node.type
          });
 
-      if(this.newUserIdentity && identities.some(i =>
-         i.identityID.name === this.newUserIdentity.name &&
-         i.identityID.orgID === this.newUserIdentity.orgID))
-      {
-         this.newUserIdentity = null;
-      }
+      const pendingNewUser = this.newUserIdentity;
+      const deletesIncompleteNewUser = pendingNewUser != null && identities.some(i =>
+         equalsIdentity(i.identityID, pendingNewUser));
 
       let provider = Tool.byteEncodeURLComponent(this.selectedProvider);
       const uri = `../api/em/security/user/delete-identities/${provider}`;
-      this.http.post<DeleteIdentitiesResponse>(uri, identities)
-         .subscribe(response => {
+      this.http.post<DeleteIdentitiesResponse>(uri, identities).pipe(
+         catchError((error: HttpErrorResponse) => {
+            this.errorService.showSnackBar(error);
+            return EMPTY;
+         })
+      ).subscribe(response => {
             this.selectedNodes = [];
+
+            if(deletesIncompleteNewUser && this.newUserIdentity != null &&
+               equalsIdentity(this.newUserIdentity, pendingNewUser))
+            {
+               this.newUserIdentity = null;
+            }
 
             if(response.warnings && response.warnings.length) {
                const content = response.warnings.join("\n");
@@ -498,9 +511,9 @@ export class UsersSettingsPageComponent implements OnInit, OnDestroy {
                });
             }
 
-            let sameTypeNode: SecurityTreeNodeModel = this.getSameTypeNode();
+            let sameTypeNode: SecurityTreeNodeModel = this.getSameTypeNode(deletedNodes);
 
-            if(this.model.namedUsers && this.selectedNodes.some(node => node.type == IdentityType.USER)) {
+            if(this.model.namedUsers && deletedNodes.some(node => node.type == IdentityType.USER)) {
                this.snackBar.open("_#(js:em.security.userNameChangeWarning)", "_#(js:Close)", {duration: Tool.SNACKBAR_DURATION});
             }
 
@@ -515,11 +528,13 @@ export class UsersSettingsPageComponent implements OnInit, OnDestroy {
          });
    }
 
-   private getSameTypeNode(): SecurityTreeNodeModel {
-      for(let selectNode of this.selectedNodes) {
+   private getSameTypeNode(selectedNodes: SecurityTreeNode[] = this.selectedNodes): SecurityTreeNodeModel {
+      for(let selectNode of selectedNodes) {
          let node = this.getSameTypeNode0(selectNode.type);
 
-         if(node != null && this.selectedNodes.find(n => n.identityID === node.identityID) == null) {
+         if(node != null && selectedNodes.find(n => n.type === node.type &&
+            equalsIdentity(n.identityID, node.identityID)) == null)
+         {
             return node;
          }
       }

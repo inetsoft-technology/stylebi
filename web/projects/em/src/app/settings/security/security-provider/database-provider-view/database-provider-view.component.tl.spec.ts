@@ -26,21 +26,6 @@
  *                      must pass the parent provider form and write returned state back.
  *   Group 4 [Risk 2] - change emission: dbForm edits must notify the parent.
  *
- * Confirmed bugs (it.failing - remove wrapper once fixed):
- *
- *   Bug A - canTestConnection ignores required secretId (Group 1):
- *     useCredential=true makes secretId required and clears user/password validators.
- *     canTestConnection checks driver, url, user, password, and hashAlgorithm, but never checks
- *     secretId. Result: Test Connection can become enabled while the required Secret ID is empty.
- *
- * Potential bugs (not covered by a test case in this file):
- *
- *   Possible Bug A - repeated model setter subscriptions:
- *     The model input setter subscribes to dbForm.valueChanges every time a model is bound, but
- *     the component does not keep or unsubscribe the prior subscription. If the parent rebinds the
- *     model after reset/reload, one user edit may emit changed multiple times and leave stale
- *     subscriptions alive for the life of the component.
- *
  * KEY contracts:
  *   - requiresLogin=false clears secretId, user, and password validators.
  *   - useCredential=true requires secretId and clears user/password validators.
@@ -58,7 +43,6 @@ import { MatFormFieldModule } from "@angular/material/form-field";
 import { MatIconModule } from "@angular/material/icon";
 import { MatInputModule } from "@angular/material/input";
 import { NoopAnimationsModule } from "@angular/platform-browser/animations";
-import { it } from "@jest/globals";
 import { render, waitFor } from "@testing-library/angular";
 import { of } from "rxjs";
 
@@ -191,8 +175,7 @@ describe("DatabaseProviderViewComponent - login credential validators", () => {
    });
 
    // Regression-sensitive: secretId is the credential when useCredential=true.
-   // Bug A - remove it.failing once canTestConnection includes secretId validity.
-   it.failing("should keep Test Connection disabled when useCredential=true and secretId is empty", async () => {
+   it("should keep Test Connection disabled when useCredential=true and secretId is empty", async () => {
       const { comp } = await renderComponent({ isCloudSecrets: true });
       setConnectionFields(comp);
 
@@ -202,6 +185,10 @@ describe("DatabaseProviderViewComponent - login credential validators", () => {
       expect(comp.dbForm.controls["user"].errors?.["required"]).toBeFalsy();
       expect(comp.dbForm.controls["password"].errors?.["required"]).toBeFalsy();
       expect(comp.canTestConnection).toBe(false);
+
+      comp.dbForm.controls["secretId"].setValue("db-secret");
+
+      expect(comp.canTestConnection).toBe(true);
    });
 });
 
@@ -305,5 +292,21 @@ describe("DatabaseProviderViewComponent - change emission", () => {
       comp.dbForm.controls["driver"].setValue("org.postgresql.Driver");
 
       await waitFor(() => expect(emitted.length).toBeGreaterThan(0));
+   });
+
+   // Regression-sensitive: rebinding the input model should replace the old subscription instead
+   // of emitting while patching the new model or emitting duplicate changes for one user edit.
+   it("should not duplicate changed emissions after model is rebound", async () => {
+      const { comp } = await renderComponent();
+      const emitted: void[] = [];
+      comp.changed.subscribe(() => emitted.push(undefined));
+
+      comp.model = makeModel({ url: "jdbc:h2:mem:next" });
+
+      expect(emitted).toHaveLength(0);
+
+      comp.dbForm.controls["driver"].setValue("org.postgresql.Driver");
+
+      expect(emitted).toHaveLength(1);
    });
 });

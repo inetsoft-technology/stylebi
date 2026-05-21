@@ -32,6 +32,7 @@ import { MatSnackBar } from "@angular/material/snack-bar";
 import { take } from "rxjs/operators";
 import { IdentityClipboardService, IdentityCopyPasteContext } from "./identity-clipboard.service";
 import { MessageDialog, MessageDialogType } from "../../../common/util/message-dialog";
+import { equalsIdentity } from "../users/identity-id";
 
 @Component({
    selector: "em-security-table-view",
@@ -103,8 +104,7 @@ export class SecurityTableViewComponent implements OnChanges, AfterViewInit {
       }
 
       const dragNodes: IdentityModel[] = JSON.parse(event.dataTransfer.getData("text"));
-      dragNodes.filter((model) => !this.dataSource.some((data) => data.identityID === model.identityID &&
-         data.type === model.type))
+      dragNodes.filter((model) => !this.hasIdentity(model))
          .forEach((model) => this.dropOnTable.emit(model));
    }
 
@@ -122,11 +122,14 @@ export class SecurityTableViewComponent implements OnChanges, AfterViewInit {
             this.addIdentities.emit(result
                .map(node => <IdentityModel>{identityID: node.identityID,
                   identityIDLabel: node.organization, type: node.type})
-               .filter((model) => !this.dataSource.some(
-                  (data) => data.identityID === model.name && data.type === model.type)
-            ));
+               .filter((model) => !this.hasIdentity(model)));
          }
       });
+   }
+
+   private hasIdentity(model: IdentityModel): boolean {
+      return this.dataSource.some((data) => data.type === model.type &&
+         equalsIdentity(data.identityID, model.identityID));
    }
 
    getIcon(type: number): string {
