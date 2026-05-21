@@ -20,7 +20,7 @@ import {Component, OnDestroy, OnInit} from "@angular/core";
 import {MatDialog} from "@angular/material/dialog";
 import {MatSnackBar} from "@angular/material/snack-bar";
 import {NavigationExtras, Router} from "@angular/router";
-import {EMPTY, Observable, Subject, throwError, timer} from "rxjs";
+import {EMPTY, Observable, Subject, timer} from "rxjs";
 import { AppInfoService } from "../../../../../../../shared/util/app-info.service";
 import { OrganizationDropdownService } from "../../../../navbar/organization-dropdown.service";
 import {catchError, concatMap, map, takeUntil} from "rxjs/operators";
@@ -195,7 +195,7 @@ export class AuthenticationProviderViewComponent implements OnInit, OnDestroy {
          duration: Tool.SNACKBAR_DURATION
       });
       console.error(`Failed to move provider from ${source} to ${destination}: `, error);
-      return throwError(error);
+      return EMPTY;
    }
 
    private handleRemoveProviderError(error: HttpErrorResponse, name: string): Observable<any> {
@@ -219,7 +219,7 @@ export class AuthenticationProviderViewComponent implements OnInit, OnDestroy {
          duration: Tool.SNACKBAR_DURATION
       });
       console.error("Failed to copy provider: ", error);
-      return throwError(error);
+      return EMPTY;
    }
 
    private formatCacheAgeLabel(provider: SecurityProviderStatus): SecurityProviderStatus {
