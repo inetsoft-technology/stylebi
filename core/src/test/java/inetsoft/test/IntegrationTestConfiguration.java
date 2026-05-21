@@ -466,8 +466,10 @@ public class IntegrationTestConfiguration {
    }
 
    @Bean
-   public DistributedTableCacheStore distributedTableCacheStore(Cluster cluster, BlobStorageManager blobStorageManager) {
-      return new DistributedTableCacheStore(cluster, blobStorageManager);
+   public DistributedTableCacheStore distributedTableCacheStore(Cluster cluster, BlobStorageManager blobStorageManager,
+                                                                ObjectProvider<AssetDataCache> assetDataCacheProvider)
+   {
+      return new DistributedTableCacheStore(cluster, blobStorageManager, assetDataCacheProvider);
    }
 
    @Bean
