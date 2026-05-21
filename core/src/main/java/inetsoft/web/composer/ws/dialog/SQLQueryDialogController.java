@@ -30,6 +30,7 @@ import inetsoft.web.binding.service.DataRefModelFactoryService;
 import inetsoft.web.composer.model.BrowseDataModel;
 import inetsoft.web.composer.model.ws.BasicSQLQueryModel;
 import inetsoft.web.composer.model.ws.SQLQueryDialogModel;
+import inetsoft.web.composer.model.ws.UpdateQueryResult;
 import inetsoft.web.composer.ws.WorksheetController;
 import inetsoft.web.portal.controller.database.QueryManagerService;
 import inetsoft.web.viewsheet.LoadingMask;
@@ -220,13 +221,19 @@ public class SQLQueryDialogController extends WorksheetController {
 
    @PostMapping("/api/composer/ws/sql-query-dialog/query/update")
    @ResponseBody
-   public void updateQueryBySample(@RequestBody() BasicSQLQueryModel model,
-                                   @RequestParam("runtimeId") String runtimeId,
-                                   @RequestParam("datasource") String datasource,
-                                   Principal principal)
+   public UpdateQueryResult updateQueryBySample(@RequestBody BasicSQLQueryModel model,
+                                                @RequestParam("runtimeId") String runtimeId,
+                                                @RequestParam("datasource") String datasource,
+                                                Principal principal)
       throws Exception
    {
-      queryManagerService.updateQuery(runtimeId, model, datasource, principal);
+      try {
+         queryManagerService.updateQuery(runtimeId, model, datasource, principal);
+         return new UpdateQueryResult(null);
+      }
+      catch(MessageException e) {
+         return new UpdateQueryResult(e.getMessage());
+      }
    }
 
    @Undoable
