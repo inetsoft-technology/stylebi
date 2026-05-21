@@ -21,6 +21,7 @@ package inetsoft.web.wiz.service;
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.analytic.composition.event.VSEventUtil;
 import inetsoft.graph.data.*;
+import inetsoft.report.composition.graph.GraphUtil;
 import inetsoft.report.TableLens;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
@@ -1148,6 +1149,7 @@ public class WizVsService {
 
       if(config != null && config.getBindingInfo() instanceof ChartBinding binding) {
          applyChartBinding(chartInfo, binding, chartType);
+         GraphUtil.fixVisualFrames(chartInfo);
       }
 
       return chart;
