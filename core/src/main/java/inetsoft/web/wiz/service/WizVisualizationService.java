@@ -49,6 +49,9 @@ import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.security.Principal;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 @Service
 public class WizVisualizationService {
@@ -232,6 +235,9 @@ public class WizVisualizationService {
 
       if(!Tool.isEmptyString(runtimeId)) {
          try {
+            CompletableFuture.runAsync(() -> {
+
+            try {
             // Fetch once: validates ownership (prevents cross-session access) and
             // is reused for the fallback path, avoiding redundant lookups.
             RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
@@ -313,8 +319,18 @@ public class WizVisualizationService {
                }
             }
          }
+            catch(Exception e) {
+               LOG.warn("Failed to generate thumbnail for assembly '{}' (non-fatal): {}",
+                        event.getAssemblyName(), e.getMessage());
+            }
+            }).get(THUMBNAIL_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+         }
+         catch(TimeoutException te) {
+            LOG.debug("Thumbnail generation timed out after {}s for assembly '{}'",
+                      THUMBNAIL_TIMEOUT_SECONDS, event.getAssemblyName());
+         }
          catch(Exception e) {
-            LOG.warn("Failed to generate thumbnail for assembly '{}' (non-fatal): {}",
+            LOG.warn("Thumbnail future failed for assembly '{}' (non-fatal): {}",
                      event.getAssemblyName(), e.getMessage());
          }
       }
@@ -682,10 +698,21 @@ public class WizVisualizationService {
             continue;
          }
 
-         // Only normalize when this declaration's value is the SVG namespace URI
-         String afterEq = svg.substring(eqIdx + 1).stripLeading();
+         // Only normalize when this declaration's value is the SVG namespace URI.
+         // Avoid substring allocation by scanning the position directly.
+         int valStart = eqIdx + 1;
 
-         if(!afterEq.startsWith("\"" + SVG_NS + "\"") && !afterEq.startsWith("'" + SVG_NS + "'")) {
+         while(valStart < svg.length() && Character.isWhitespace(svg.charAt(valStart))) {
+            valStart++;
+         }
+
+         char quote = valStart < svg.length() ? svg.charAt(valStart) : 0;
+         boolean matchesSvgNs = (quote == '"' || quote == '\'') &&
+            svg.startsWith(SVG_NS, valStart + 1) &&
+            valStart + 1 + SVG_NS.length() < svg.length() &&
+            svg.charAt(valStart + 1 + SVG_NS.length()) == quote;
+
+         if(!matchesSvgNs) {
             searchFrom = nsIdx + 1;
             continue;
          }
@@ -714,4 +741,6 @@ public class WizVisualizationService {
    private static final int MAX_PNG_THUMBNAIL_BYTES = 256 * 1024;
    /** Skip the full-viewsheet fallback export for viewsheets with many assemblies. */
    private static final int MAX_ASSEMBLIES_FOR_FALLBACK_THUMBNAIL = 50;
+   /** Maximum wall-clock seconds to spend on thumbnail generation before returning the save result. */
+   private static final long THUMBNAIL_TIMEOUT_SECONDS = 2;
 }
