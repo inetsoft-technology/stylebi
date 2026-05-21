@@ -46,7 +46,6 @@ import { MatSnackBar } from "@angular/material/snack-bar";
 import { MatTableModule } from "@angular/material/table";
 import { MatTooltipModule } from "@angular/material/tooltip";
 import { NoopAnimationsModule } from "@angular/platform-browser/animations";
-import { it } from "@jest/globals";
 import { render } from "@testing-library/angular";
 import { of, Subject } from "rxjs";
 

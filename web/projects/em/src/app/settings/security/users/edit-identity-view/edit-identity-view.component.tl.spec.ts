@@ -262,9 +262,15 @@ describe("EditIdentityViewComponent — reset(): full state restoration", () => 
       comp.reset();
 
       expect(comp.form.get("changePasswordEnabled").value).toBe(false);
-      // reset() clears the input fields; null semantics are enforced when syncing to the model.
-      expect((comp.pwForm as UntypedFormGroup).controls["password"].value).toBe("");
-      expect((comp.pwForm as UntypedFormGroup).controls["confirmPassword"].value).toBe("");
+      expect(comp.pwForm.disabled).toBe(true);
+      // reset() writes ""; if form.valueChanges is already subscribed (200ms defer in init),
+      // restoring user fields may call updatePassword(false) and yield null instead.
+      const password = (comp.pwForm as UntypedFormGroup).controls["password"].value;
+      const confirmPassword = (comp.pwForm as UntypedFormGroup).controls["confirmPassword"].value;
+      expect(password === "" || password === null).toBe(true);
+      expect(confirmPassword === "" || confirmPassword === null).toBe(true);
+      expect(password).not.toBe("Password1!");
+      expect(confirmPassword).not.toBe("Password1!");
    });
 
    // reset() must emit pageChanged(false) — the last emission

@@ -37,7 +37,6 @@ import { NoopAnimationsModule } from "@angular/platform-browser/animations";
 import { MatDialog } from "@angular/material/dialog";
 import { MatSnackBar } from "@angular/material/snack-bar";
 import { Router } from "@angular/router";
-import { it } from "@jest/globals";
 import { render, waitFor } from "@testing-library/angular";
 import { Subject, of } from "rxjs";
 import { http, HttpResponse } from "msw";

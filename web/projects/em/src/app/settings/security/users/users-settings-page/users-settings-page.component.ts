@@ -20,7 +20,7 @@ import {HttpClient, HttpErrorResponse} from "@angular/common/http";
 import { Component, OnDestroy, OnInit } from "@angular/core";
 import { MatDialog, MatDialogConfig } from "@angular/material/dialog";
 import {MatSnackBar} from "@angular/material/snack-bar";
-import { Observable, of, Subject } from "rxjs";
+import { EMPTY, Observable, of, Subject } from "rxjs";
 import {catchError, finalize, map, tap} from "rxjs/operators";
 import {IdentityType} from "../../../../../../../shared/data/identity-type";
 import {Tool} from "../../../../../../../shared/util/tool";
@@ -485,8 +485,12 @@ export class UsersSettingsPageComponent implements OnInit, OnDestroy {
 
       let provider = Tool.byteEncodeURLComponent(this.selectedProvider);
       const uri = `../api/em/security/user/delete-identities/${provider}`;
-      this.http.post<DeleteIdentitiesResponse>(uri, identities)
-         .subscribe(response => {
+      this.http.post<DeleteIdentitiesResponse>(uri, identities).pipe(
+         catchError((error: HttpErrorResponse) => {
+            this.errorService.showSnackBar(error);
+            return EMPTY;
+         })
+      ).subscribe(response => {
             this.selectedNodes = [];
 
             if(deletesIncompleteNewUser && this.newUserIdentity != null &&

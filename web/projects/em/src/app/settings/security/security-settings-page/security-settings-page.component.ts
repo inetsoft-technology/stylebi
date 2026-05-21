@@ -198,7 +198,7 @@ export class SecuritySettingsPageComponent implements OnInit, OnDestroy {
       this.httpClient.post<SecurityEnabledEvent>("../api/em/security/set-enable-self-signup", request)
          .subscribe({
             next: (event: SecurityEnabledEvent) => this.selfSignupEnabled = event.enable,
-            error: () => void 0
+            error: (err) => console.error("Failed to update security setting:", err)
          });
    }
 

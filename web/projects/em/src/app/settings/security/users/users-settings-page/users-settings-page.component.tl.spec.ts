@@ -143,7 +143,7 @@ async function renderComponent(opts: RenderOpts = {}) {
    const snackBarSpy = { open: jest.fn() };
    const usersServiceSpy = { loadScheduleUsers: jest.fn() };
    const orgBusySpy = { beginOrgSave: jest.fn(), endOrgSave: jest.fn() };
-   const errorServiceSpy = { showSnackBar: jest.fn().mockReturnValue(of(null)) };
+   const errorServiceSpy = { showSnackBar: jest.fn() };
    const pageHeaderSpy = { title: "" };
 
    // Default MSW: tree refresh after ngOnInit and refreshTree / deleteIdentities
@@ -728,6 +728,24 @@ describe("UsersSettingsPageComponent — deleteIdentities(): auto-select and nam
       await waitFor(() => expect(comp.selectedNodes.length).toBe(0));
 
       expect(snackBarSpy.open).toHaveBeenCalled();
+   });
+
+   // Regression-sensitive: HTTP errors must not clear selectedNodes or run the success refresh path.
+   it("should show error snackBar and preserve selectedNodes when delete-identities fails", async () => {
+      server.use(
+         http.post("*/api/em/security/user/delete-identities/*", () =>
+            new HttpResponse(null, { status: 500 }),
+         ),
+      );
+
+      const { comp, errorServiceSpy } = await renderComponent();
+      const node = makeUserNode("failed-delete");
+      comp.selectedNodes = [node];
+
+      comp.deleteIdentities();
+
+      await waitFor(() => expect(errorServiceSpy.showSnackBar).toHaveBeenCalled());
+      expect(comp.selectedNodes).toEqual([node]);
    });
 });
 

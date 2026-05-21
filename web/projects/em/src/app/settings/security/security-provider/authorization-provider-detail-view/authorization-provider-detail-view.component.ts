@@ -116,8 +116,9 @@ export class AuthorizationProviderDetailViewComponent implements OnInit, OnDestr
             current.providerType = this.form.value["providerType"];
          }
 
+         const customForm = this.form.get("customForm");
          return this.form.value["providerType"] === SecurityProviderType.CUSTOM ?
-            this.form.controls["customForm"].valid && this.changed :
+            !!customForm && customForm.valid && this.changed :
             this.changed && (current == null ? true : !Tool.isEquals(this._original, current));
       }
 
