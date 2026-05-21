@@ -2466,9 +2466,9 @@ public class QueryManagerService {
       }
 
       try {
-         int count = getPhysicalTableChildCount(folderEntry, assetRepository, principal);
-         tableCountCache.put(folderPath, count);
-         return count;
+         int tableCount = getPhysicalTableChildCount(folderEntry, assetRepository, principal);
+         tableCountCache.put(folderPath, tableCount);
+         return tableCount;
       }
       catch(Exception ex) {
          LOG.warn("Failed to resolve physical table count for schema folder '{}'", folderPath, ex);
