@@ -2252,15 +2252,9 @@ public class WizVsService {
          }
       }
       else if(ref instanceof VSChartDimensionRef dimRef) {
-         int dateLevel = dimRef.getDateLevel();
-
-         if(XSchema.isDateType(dimRef.getDataType()) && dateLevel != XConstants.NONE_DATE_GROUP) {
-            String dateRangeName = DateRangeRef.getName(dimRef.getGroupColumnValue(), dateLevel);
-
-            if(dimColumnMapping.contains(dateRangeName)) {
-               dimRef.setDateLevelValue(null);
-               dimRef.setDateLevel(DateRangeRef.NONE);
-            }
+         if(dimColumnMapping.contains(dimRef.getFullName())) {
+            dimRef.setDateLevelValue(null);
+            dimRef.setDateLevel(DateRangeRef.NONE);
          }
       }
    }
@@ -2288,63 +2282,55 @@ public class WizVsService {
       Set<String> dimColumnMapping = preAggMapping.dimColumnMapping();
       Set<String> pushedMeasureFullNames = preAggMapping.pushedMeasureFullNames();
 
-      // Update row headers
-      DataRef[] rowHeaders = crosstabInfo.getDesignRowHeaders();
+      // Update row and col headers
+      updateDimensionRefsForPreAggregation(crosstabInfo.getDesignRowHeaders(), dimColumnMapping);
+      updateDimensionRefsForPreAggregation(crosstabInfo.getDesignColHeaders(), dimColumnMapping);
 
-      if(rowHeaders != null) {
-         for(DataRef ref : rowHeaders) {
-            if(ref instanceof VSDimensionRef dimRef) {
-               String dateLevelStr = dimRef.getDateLevelValue();
+      // Update aggregates
+      updateAggregateRefsForPreAggregation(crosstabInfo.getDesignAggregates(), pushedMeasureFullNames);
+   }
 
-               if(dateLevelStr != null && !dateLevelStr.isEmpty()) {
-                  int dateLevel = Integer.parseInt(dateLevelStr);
-                  String originalCol = dimRef.getGroupColumnValue();
-                  String dateRangeName = DateRangeRef.getName(originalCol, dateLevel);
+   /**
+    * Updates VSDimensionRef elements in the array for pre-aggregation.
+    * For dimensions with date grouping that were pushed to worksheet, clears the date level.
+    */
+   private void updateDimensionRefsForPreAggregation(DataRef[] refs, Set<String> dimColumnMapping) {
+      if(refs == null) {
+         return;
+      }
 
-                  if(dimColumnMapping.contains(dateRangeName)) {
-                     dimRef.setGroupColumnValue(dateRangeName);
-                     dimRef.setDateLevelValue(null);
-                  }
+      for(DataRef ref : refs) {
+         if(ref instanceof VSDimensionRef dimRef) {
+            int dateLevel = dimRef.getDateLevel();
+
+            if(dateLevel != XConstants.NONE_DATE_GROUP) {
+               String dateRangeName = DateRangeRef.getName(dimRef.getGroupColumnValue(), dateLevel);
+
+               if(dimColumnMapping.contains(dateRangeName)) {
+                  dimRef.setDateLevelValue(null);
+                  dimRef.setDateLevel(DateRangeRef.NONE);
                }
             }
          }
       }
+   }
 
-      // Update col headers
-      DataRef[] colHeaders = crosstabInfo.getDesignColHeaders();
-
-      if(colHeaders != null) {
-         for(DataRef ref : colHeaders) {
-            if(ref instanceof VSDimensionRef dimRef) {
-               String dateLevelStr = dimRef.getDateLevelValue();
-
-               if(dateLevelStr != null && !dateLevelStr.isEmpty()) {
-                  int dateLevel = Integer.parseInt(dateLevelStr);
-                  String originalCol = dimRef.getGroupColumnValue();
-                  String dateRangeName = DateRangeRef.getName(originalCol, dateLevel);
-
-                  if(dimColumnMapping.contains(dateRangeName)) {
-                     dimRef.setGroupColumnValue(dateRangeName);
-                     dimRef.setDateLevelValue(null);
-                  }
-               }
-            }
-         }
+   /**
+    * Updates VSAggregateRef elements in the array for pre-aggregation.
+    * For measures that were pushed to worksheet, sets formula to NONE.
+    */
+   private void updateAggregateRefsForPreAggregation(DataRef[] refs, Set<String> pushedMeasureFullNames) {
+      if(refs == null) {
+         return;
       }
 
-      // Update aggregates - check if this aggregate was pushed to worksheet
-      DataRef[] aggregates = crosstabInfo.getDesignAggregates();
+      for(DataRef ref : refs) {
+         if(ref instanceof VSAggregateRef aggRef) {
+            String fullName = aggRef.getFullName();
 
-      if(aggregates != null) {
-         for(DataRef ref : aggregates) {
-            if(ref instanceof VSAggregateRef aggRef) {
-               String fullName = aggRef.getFullName();
-
-               if(pushedMeasureFullNames.contains(fullName)) {
-                  // Data is pre-aggregated, set column to fullName and remove formula
-                  aggRef.setColumnValue(fullName);
-                  aggRef.setFormulaValue(AggregateFormula.NONE.getFormulaName());
-               }
+            if(pushedMeasureFullNames.contains(fullName)) {
+               aggRef.setColumnValue(fullName);
+               aggRef.setFormulaValue(AggregateFormula.NONE.getFormulaName());
             }
          }
       }
