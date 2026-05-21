@@ -316,12 +316,11 @@ public class WizVisualizationService {
          return null;
       }
 
-      // Only DataVSAssembly references a worksheet table; others need no worksheet.
-      String rootTable = assembly instanceof DataVSAssembly
-         ? ((DataVSAssembly) assembly).getTableName()
-         : null;
+      String rootTable = assembly.getTableName();
 
       if(Tool.isEmptyString(rootTable)) {
+         LOG.debug("saveWorksheet: no source table for assembly '{}' ({}), skipping worksheet save",
+                   assembly.getName(), assembly.getClass().getSimpleName());
          return null;
       }
 
@@ -395,26 +394,11 @@ public class WizVisualizationService {
          required.add(name);
          Assembly a = ws.getAssembly(name);
 
-         if(a instanceof AbstractJoinTableAssembly joinTable) {
-            Enumeration<?> opTables = joinTable.getOperatorTables();
-
-            while(opTables.hasMoreElements()) {
-               String[] pair = (String[]) opTables.nextElement();
-
-               if(pair[0] != null) {
-                  stack.push(pair[0]);
+         if(a instanceof ComposedTableAssembly composed) {
+            for(String tname : composed.getTableNames()) {
+               if(!Tool.isEmptyString(tname)) {
+                  stack.push(tname);
                }
-
-               if(pair[1] != null) {
-                  stack.push(pair[1]);
-               }
-            }
-         }
-         else if(a instanceof MirrorAssembly mirror) {
-            String mirrored = mirror.getAssemblyName();
-
-            if(!Tool.isEmptyString(mirrored)) {
-               stack.push(mirrored);
             }
          }
       }
