@@ -2540,7 +2540,6 @@ public class QueryManagerService {
          entry.setProperty("quoteTableName", expandedEntry.getProperty("quoteTableName"));
          entry.setProperty("quoteColumnName", XUtil.quoteNameSegment(entry.getName(), helper));
          String label = entry.getName();
-         String label = entry.getName();
          TreeNodeModel.Builder child = TreeNodeModel.builder()
             .data(entry)
             .leaf(!columnLevel && entry.getType() == AssetEntry.Type.PHYSICAL_TABLE ||
