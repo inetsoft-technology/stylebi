@@ -1749,7 +1749,7 @@ public class WizVsService {
     * @param level the integer date level constant
     * @return the human-readable name, or null if level is NONE_DATE_GROUP or unrecognized
     */
-   private static String getDateGroupLevelName(int level) {
+   public static String getDateGroupLevelName(int level) {
       return switch(level) {
          // Interval levels
          case XConstants.YEAR_DATE_GROUP -> "year";

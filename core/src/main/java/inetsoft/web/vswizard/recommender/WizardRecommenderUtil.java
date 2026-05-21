@@ -959,6 +959,22 @@ public final class WizardRecommenderUtil {
       }
    }
 
+   /**
+    * Returns the field name used as a lookup key for a chart ref.
+    * Handles dimension (groupColumnValue), aggregate (columnValue), and generic (attribute) refs.
+    */
+   public static String getChartRefFieldName(DataRef ref) {
+      if(ref instanceof VSChartDimensionRef dim) {
+         return dim.getGroupColumnValue();
+      }
+
+      if(ref instanceof VSChartAggregateRef agg) {
+         return agg.getColumnValue();
+      }
+
+      return ref != null ? ref.getAttribute() : null;
+   }
+
    private static final String CHILDREN_FLAG = "__children__";
    private static final String CHILDREN_SPLITER = "__:::::__";
    private static final String DEPENDENCY_CHECKED = "__dependency_checked__";
