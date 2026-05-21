@@ -28,8 +28,6 @@ import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.viewsheet.service.LinkUri;
 import inetsoft.web.wiz.service.AddFilterServiceProxy;
 import inetsoft.web.wiz.service.AddVisualizationServiceProxy;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Controller;
@@ -140,5 +138,4 @@ public class WizComposerController {
    private final AddVisualizationServiceProxy addVisualizationServiceProxy;
    private final AddFilterServiceProxy addFilterServiceProxy;
    private final VSRefreshServiceProxy vsRefreshServiceProxy;
-   private static final Logger LOG = LoggerFactory.getLogger(WizComposerController.class);
 }

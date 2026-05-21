@@ -71,6 +71,16 @@ public class AddVisualizationService {
                                 Principal principal)
       throws Exception
    {
+      doAddVisualization(runtimeId, vizEntry, xOffset, yOffset, scale, principal);
+      return null;
+   }
+
+   private void doAddVisualization(String runtimeId,
+                                   AssetEntry vizEntry,
+                                   int xOffset, int yOffset, float scale,
+                                   Principal principal)
+      throws Exception
+   {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
 
       if(rvs == null) {
@@ -166,8 +176,6 @@ public class AddVisualizationService {
 
       // Save the merged dashboard worksheet back to the repository
       assetRepository.setSheet(dashVS.getBaseEntry(), dashWS, principal, true);
-
-      return null;
    }
 
    // ---------------------------------------------------------------------------
@@ -361,12 +369,24 @@ public class AddVisualizationService {
          }
 
          RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
+
+         if(rvs == null) {
+            LOG.warn("Runtime viewsheet expired during bulk add, stopping: {}", runtimeId);
+            break;
+         }
+
          Set<String> namesBefore = collectAssemblyNames(rvs.getViewsheet());
 
          try {
-            addVisualization(runtimeId, entry, colStartX, rowStartY, 1.0f, principal);
+            doAddVisualization(runtimeId, entry, colStartX, rowStartY, 1.0f, principal);
 
             rvs = viewsheetService.getViewsheet(runtimeId, principal);
+
+            if(rvs == null) {
+               LOG.warn("Runtime viewsheet expired after adding '{}', stopping: {}", identifier, runtimeId);
+               break;
+            }
+
             Rectangle added = computeAddedBounds(rvs.getViewsheet(), namesBefore);
 
             if(added != null) {
