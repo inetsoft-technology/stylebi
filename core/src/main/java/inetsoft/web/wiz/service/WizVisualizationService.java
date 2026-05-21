@@ -232,50 +232,58 @@ public class WizVisualizationService {
 
       if(!Tool.isEmptyString(runtimeId)) {
          try {
-            AssemblyImageService.ImageRenderResult imgResult =
-               assemblyImageService.downloadAssemblyImage(
-                  runtimeId, Tool.byteEncode(event.getAssemblyName()),
-                  THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT, THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT,
-                  true, principal);
-
-            if(imgResult != null && imgResult.getRetryAfter() > 0) {
-               LOG.debug("downloadAssemblyImage not yet ready for '{}' (retryAfter={}), skipping thumbnail",
-                         event.getAssemblyName(), imgResult.getRetryAfter());
+            // Validate ownership: getViewsheet enforces that the runtime viewsheet
+            // belongs to this principal, preventing cross-session thumbnail access.
+            if(viewsheetService.getViewsheet(runtimeId, principal) == null) {
+               LOG.warn("runtimeId '{}' not accessible for principal '{}', skipping thumbnail",
+                        runtimeId, principal.getName());
             }
-            else if(imgResult != null && imgResult.getImageData() != null) {
-               byte[] imageBytes = binaryTransferService.getData(imgResult.getImageData());
+            else {
+               AssemblyImageService.ImageRenderResult imgResult =
+                  assemblyImageService.downloadAssemblyImage(
+                     runtimeId, Tool.byteEncode(event.getAssemblyName()),
+                     THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT, THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT,
+                     true, principal);
 
-               if(imageBytes != null && imageBytes.length > 0) {
-                  if(imgResult.isPng()) {
-                     // 1×1 is a StyleBI placeholder returned for assembly types that
-                     // downloadAssemblyImage does not support (e.g. Crosstab, Table).
-                     // In that case fall back to a full-viewsheet PNG export + crop.
-                     String thumbnailValue = null;
-                     try {
-                        BufferedImage decoded = ImageIO.read(new ByteArrayInputStream(imageBytes));
+               if(imgResult != null && imgResult.getRetryAfter() > 0) {
+                  LOG.debug("downloadAssemblyImage not yet ready for '{}' (retryAfter={}), skipping thumbnail",
+                            event.getAssemblyName(), imgResult.getRetryAfter());
+               }
+               else if(imgResult != null && imgResult.getImageData() != null) {
+                  byte[] imageBytes = binaryTransferService.getData(imgResult.getImageData());
 
-                        if(decoded != null && decoded.getWidth() > 1 && decoded.getHeight() > 1) {
-                           thumbnailValue = "data:image/png;base64," +
-                              Base64.getEncoder().encodeToString(imageBytes);
+                  if(imageBytes != null && imageBytes.length > 0) {
+                     if(imgResult.isPng()) {
+                        // 1×1 is a StyleBI placeholder returned for assembly types that
+                        // downloadAssemblyImage does not support (e.g. Crosstab, Table).
+                        // In that case fall back to a full-viewsheet PNG export + crop.
+                        String thumbnailValue = null;
+                        try {
+                           BufferedImage decoded = ImageIO.read(new ByteArrayInputStream(imageBytes));
+
+                           if(decoded != null && decoded.getWidth() > 1 && decoded.getHeight() > 1) {
+                              thumbnailValue = "data:image/png;base64," +
+                                 Base64.getEncoder().encodeToString(imageBytes);
+                           }
                         }
-                     }
-                     catch(Exception e) {
-                        LOG.debug("Failed to decode PNG for '{}': {}. Attempting full-viewsheet fallback.",
-                                  event.getAssemblyName(), e.getMessage());
-                     }
+                        catch(Exception e) {
+                           LOG.debug("Failed to decode PNG for '{}': {}. Attempting full-viewsheet fallback.",
+                                     event.getAssemblyName(), e.getMessage());
+                        }
 
-                     if(thumbnailValue == null) {
-                        LOG.debug("PNG was 1×1 or undecodable for '{}', using full-viewsheet fallback",
-                                  event.getAssemblyName());
-                        thumbnailValue = renderFallbackThumbnail(
-                           runtimeId, event.getAssemblyName(), principal);
-                     }
+                        if(thumbnailValue == null) {
+                           LOG.debug("PNG was 1×1 or undecodable for '{}', using full-viewsheet fallback",
+                                     event.getAssemblyName());
+                           thumbnailValue = renderFallbackThumbnail(
+                              runtimeId, event.getAssemblyName(), principal);
+                        }
 
-                     result.setThumbnail(thumbnailValue);
-                  }
-                  else {
-                     result.setThumbnail(normalizeSvgNamespace(
-                        new String(imageBytes, StandardCharsets.UTF_8)));
+                        result.setThumbnail(thumbnailValue);
+                     }
+                     else {
+                        result.setThumbnail(normalizeSvgNamespace(
+                           new String(imageBytes, StandardCharsets.UTF_8)));
+                     }
                   }
                }
             }
@@ -598,8 +606,11 @@ public class WizVisualizationService {
          return "data:image/png;base64," + Base64.getEncoder().encodeToString(croppedBytes);
       }
       catch(OutOfMemoryError oom) {
-         LOG.warn("renderFallbackThumbnail: out of memory for assembly '{}', skipping thumbnail",
-                  assemblyName);
+         // Log at ERROR so repeated OOM occurrences are visible as systemic memory pressure,
+         // not buried as routine warnings.
+         LOG.error("renderFallbackThumbnail: out of memory exporting viewsheet PNG for assembly '{}' " +
+                   "— if this recurs, investigate heap usage during concurrent thumbnail generation",
+                   assemblyName);
          return null;
       }
       catch(Exception e) {
@@ -610,14 +621,15 @@ public class WizVisualizationService {
    }
 
    /**
-    * Removes the first custom XML namespace prefix (e.g. "a0:") added by the Batik SVG generator
-    * so the resulting SVG can be rendered directly by browsers.
+    * Removes the custom XML namespace prefix (e.g. "a0:") that Batik adds to the SVG namespace
+    * so the resulting markup can be rendered directly by browsers.
     *
-    * Batik generates: {@code <a0:svg xmlns:a0="http://www.w3.org/2000/svg">}
+    * Batik generates: {@code <a0:svg xmlns:xlink="..." xmlns:a0="http://www.w3.org/2000/svg">}
     * Browser requires: {@code <svg xmlns="http://www.w3.org/2000/svg">}
     *
-    * <p>Note: only the first xmlns: prefix is stripped. Additional Batik prefixes (e.g. xlink:)
-    * are not removed. This is sufficient for the chart SVG output validated against Batik 1.17.
+    * <p>The method scans all {@code xmlns:PREFIX} declarations until it finds one whose value is
+    * exactly {@value #SVG_NS}. This avoids incorrectly treating an earlier {@code xmlns:xlink}
+    * declaration as the SVG-namespace prefix (a real Batik output ordering).
     *
     * <p>Note: String.replace is a literal full-text replacement, not XML-aware. An attribute value
     * or text node containing the literal prefix string (e.g. "&lt;a0:") would be incorrectly
@@ -628,32 +640,46 @@ public class WizVisualizationService {
     * prefix to attribute names, so this is not an issue in practice.
     */
    private static String normalizeSvgNamespace(String svg) {
-      if(svg == null || !svg.contains("xmlns:")) {
-         return svg;
+      if(svg == null) {
+         return null;
       }
 
-      // nsIdx >= 0 is guaranteed by the contains("xmlns:") guard above
-      int nsIdx = svg.indexOf("xmlns:");
-      int eqIdx = svg.indexOf('=', nsIdx + 6); // skip past "xmlns:" itself
+      int searchFrom = 0;
 
-      if(eqIdx < 0) {
-         LOG.debug("normalizeSvgNamespace: malformed xmlns declaration, skipping normalization");
-         return svg;
+      while(true) {
+         int nsIdx = svg.indexOf("xmlns:", searchFrom);
+
+         if(nsIdx < 0) {
+            return svg; // no xmlns: declaration maps to the SVG namespace
+         }
+
+         int eqIdx = svg.indexOf('=', nsIdx + 6);
+
+         if(eqIdx < 0) {
+            return svg;
+         }
+
+         String prefix = svg.substring(nsIdx + 6, eqIdx).trim();
+
+         if(prefix.isEmpty()) {
+            searchFrom = nsIdx + 1;
+            continue;
+         }
+
+         // Only normalize when this declaration's value is the SVG namespace URI
+         String afterEq = svg.substring(eqIdx + 1).stripLeading();
+
+         if(!afterEq.startsWith("\"" + SVG_NS + "\"") && !afterEq.startsWith("'" + SVG_NS + "'")) {
+            searchFrom = nsIdx + 1;
+            continue;
+         }
+
+         String prefixColon = prefix + ":";
+         return svg
+            .replace("xmlns:" + prefix + "=\"" + SVG_NS + "\"", "xmlns=\"" + SVG_NS + "\"")
+            .replace("<" + prefixColon, "<")
+            .replace("</" + prefixColon, "</");
       }
-
-      String prefix = svg.substring(nsIdx + 6, eqIdx).trim(); // e.g. "a0"
-
-      if(prefix.isEmpty()) {
-         return svg;
-      }
-
-      String prefixColon = prefix + ":"; // "a0:"
-
-      return svg
-         .replace("xmlns:" + prefix + "=\"http://www.w3.org/2000/svg\"",
-                  "xmlns=\"http://www.w3.org/2000/svg\"")
-         .replace("<" + prefixColon, "<")
-         .replace("</" + prefixColon, "</");
    }
 
    private final ViewsheetService viewsheetService;
@@ -664,4 +690,5 @@ public class WizVisualizationService {
    private static final Logger LOG = LoggerFactory.getLogger(WizVisualizationService.class);
    private static final int THUMBNAIL_WIDTH  = 400;
    private static final int THUMBNAIL_HEIGHT = 300;
+   private static final String SVG_NS = "http://www.w3.org/2000/svg";
 }
