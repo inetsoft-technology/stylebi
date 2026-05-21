@@ -1983,6 +1983,7 @@ public class DateComparisonUtil {
       Calendar calendar = new GregorianCalendar();
       calendar.setFirstDayOfWeek(Tool.getFirstDayOfWeek());
       calendar.setMinimalDaysInFirstWeek(7);
+
       return calendar;
    }
 }
