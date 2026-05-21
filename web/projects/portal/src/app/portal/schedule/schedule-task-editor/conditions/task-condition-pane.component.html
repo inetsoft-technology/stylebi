@@ -37,6 +37,7 @@
               [timeRangeEnabled]="timeRangeEnabled"
               [timeZoneName]="timeZoneName"
               [serverTimeZone]="serverTimeZone"
+              (serverTimeZoneChange)="changeServerTimeZone($event)"
               [showMeridian]="showMeridian"
               formControlName="startTime"
             >
@@ -106,6 +107,7 @@
               [timeRangeEnabled]="timeRangeEnabled"
               [timeZoneName]="timeZoneName"
               [serverTimeZone]="serverTimeZone"
+              (serverTimeZoneChange)="changeServerTimeZone($event)"
               [showMeridian]="showMeridian"
               formControlName="startTime"
             >
@@ -180,6 +182,7 @@
               [timeRangeEnabled]="timeRangeEnabled"
               [timeZoneName]="timeZoneName"
               [serverTimeZone]="serverTimeZone"
+              (serverTimeZoneChange)="changeServerTimeZone($event)"
               [showMeridian]="showMeridian"
               formControlName="startTime"
             >
@@ -463,7 +466,7 @@
   </div>
 
   <div class="condition-edit-view__footer">
-    <button type="button" class="btn btn-default"
+    <button type="button" class="btn btn-secondary"
             (click)="changeView(true); listViewChanged.emit(true)"
             [disabled]="!form.valid || !parentForm.valid">
       _#(Multiple Schedules)

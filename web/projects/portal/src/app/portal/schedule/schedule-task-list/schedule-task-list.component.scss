@@ -149,8 +149,8 @@
         flex-direction: column;
 
         .split-pane {
-          --schedule-task-list-rail-bg: #F4F3F0;
-          --schedule-task-list-gutter-bg: #F4F3F0;
+          --schedule-task-list-rail-bg: var(--inet-shell-surface-subtle);
+          --schedule-task-list-gutter-bg: var(--inet-shell-surface-subtle);
           display: flex;
           flex-direction: column;
           flex-grow: 1;
@@ -214,7 +214,7 @@
                 }
 
                 > tbody tr:hover > td {
-                  background-color: rgba(241, 239, 234, 0.2);
+                  background-color: var(--inet-ui-neutral-hover-bg-color);
                 }
 
                 > tbody tr.task-row--selected {
@@ -222,7 +222,7 @@
                 }
 
                 > tbody tr.task-row--selected > td {
-                  background-color: rgba(241, 239, 234, 0.34);
+                  background-color: var(--inet-selected-item-bg-color);
                   color: var(--inet-text-color);
                 }
 
@@ -384,7 +384,7 @@
 
   .collapse-pane-button:hover {
     color: var(--inet-text-color);
-    background-color: #F6F5F2;
+    background-color: var(--inet-ui-neutral-hover-bg-color);
   }
 
   .data-tree-pane {
@@ -448,14 +448,14 @@
 
   ::ng-deep split-pane .gutter.gutter-horizontal {
     background-color: var(--schedule-task-list-gutter-bg);
-    border-left: 1px solid #F4F3F0;
-    border-right: 1px solid #F4F3F0;
+    border-left: 1px solid var(--inet-shell-surface-subtle);
+    border-right: 1px solid var(--inet-shell-surface-subtle);
     box-shadow: none;
   }
 
   ::ng-deep split-pane .gutter.gutter-horizontal:hover,
   ::ng-deep split-pane .gutter.gutter-horizontal:active {
-    background-color: #F6F5F2;
+    background-color: var(--inet-ui-neutral-hover-bg-color);
     box-shadow: none;
   }
 
@@ -465,7 +465,7 @@
   }
 
   ::ng-deep .data-tree-pane .tree-node-hover:not([disabled]):hover {
-    background-color: #F6F5F2;
+    background-color: var(--inet-ui-neutral-hover-bg-color);
   }
 
   ::ng-deep .data-tree-pane .tree-node-toggle {
