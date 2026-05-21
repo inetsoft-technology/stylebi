@@ -46,17 +46,24 @@ public class VSTableRecommendationFactory implements VSObjectRecommendationFacto
 
    @Override
    public VSTableRecommendation recommend(VSWizardData wizardData, Principal principal) {
-      VSTableRecommendation tableRecommendation = new VSTableRecommendation();
-      tableRecommendation.setColumns(createColumnSelection(wizardData.getSelectedEntries(),
-         principal));
+      return buildRecommendation(wizardData, getRuntimeViewsheet(principal));
+   }
 
+   @Override
+   public VSTableRecommendation recommend(VSWizardData wizardData, RuntimeViewsheet rvs,
+                                          Principal principal)
+   {
+      return buildRecommendation(wizardData, rvs);
+   }
+
+   private VSTableRecommendation buildRecommendation(VSWizardData wizardData, RuntimeViewsheet rvs) {
+      VSTableRecommendation tableRecommendation = new VSTableRecommendation();
+      tableRecommendation.setColumns(createColumnSelection(wizardData.getSelectedEntries(), rvs));
       return tableRecommendation;
    }
 
-   private ColumnSelection createColumnSelection(AssetEntry[] entries, Principal principal) {
-      RuntimeViewsheet rvs = getRuntimeViewsheet(principal);
-
-      if(entries == null || entries.length < 1 || rvs == null) {
+   private ColumnSelection createColumnSelection(AssetEntry[] entries, RuntimeViewsheet rvs) {
+      if(entries == null || entries.length < 1) {
          return null;
       }
 
@@ -66,7 +73,7 @@ public class VSTableRecommendationFactory implements VSObjectRecommendationFacto
          ColumnRef columnRef = WizardRecommenderUtil.createColumnRef(entry);
 
          if(WizardRecommenderUtil.isDimension(entry) ||
-            !WizardRecommenderUtil.isCalcAggregateField(rvs, columnRef))
+            rvs == null || !WizardRecommenderUtil.isCalcAggregateField(rvs, columnRef))
          {
             columns.addAttribute(columnRef);
          }
@@ -78,7 +85,8 @@ public class VSTableRecommendationFactory implements VSObjectRecommendationFacto
    private RuntimeViewsheet getRuntimeViewsheet(Principal principal) {
       try {
          return viewsheetService.getViewsheet(runtimeViewsheetRef.getRuntimeId(), principal);
-      } catch (Exception ex) {
+      }
+      catch(Exception ex) {
          LOG.error("Failed to get viewsheet", ex);
          return null;
       }
