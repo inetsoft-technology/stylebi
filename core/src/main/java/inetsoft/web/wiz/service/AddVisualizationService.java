@@ -15,17 +15,15 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-package inetsoft.web.composer.wiz.service;
+package inetsoft.web.wiz.service;
 
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.cluster.*;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.WorksheetEngine;
-import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
-import inetsoft.web.wiz.service.WsMergeService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -315,9 +313,129 @@ public class AddVisualizationService {
       return base + "_" + count;
    }
 
+   /**
+    * Bulk-adds multiple visualizations to the wiz dashboard by identifier, stacking them
+    * in a 3-column grid.  X and Y placement are determined by measuring the actual bounding
+    * box of each newly merged visualization rather than using a fixed cell size, so the layout
+    * adapts to the real dimensions of each visualization.
+    *
+    * <p>Layout rules:
+    * <ul>
+    *   <li>Visualizations fill left-to-right, wrapping to a new row after every 3.</li>
+    *   <li>The X origin of each column is the right edge of the previous column plus {@code VIZ_GAP}.</li>
+    *   <li>The Y origin of each row is the bottom edge of the tallest visualization in the
+    *       previous row plus {@code VIZ_GAP}.</li>
+    *   <li>Invalid or failed identifiers are skipped without shifting the grid position.</li>
+    * </ul>
+    *
+    * @param runtimeId   the runtime ID of the wiz dashboard viewsheet.
+    * @param identifiers AssetEntry identifier strings (as produced by {@link AssetEntry#toIdentifier()}).
+    * @param principal   the current user.
+    */
+   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   public Void addVisualizationsByIds(@ClusterProxyKey String runtimeId,
+                                      List<String> identifiers,
+                                      Principal principal)
+      throws Exception
+   {
+      int gridIndex = 0;  // counts only successfully placed visualizations
+      int rowStartY = 0;
+      int colStartX = 0;
+      int rowMaxBottom = 0;
+
+      for(String identifier : identifiers) {
+         AssetEntry entry = AssetEntry.createAssetEntry(identifier);
+
+         if(entry == null) {
+            LOG.warn("Skipping invalid visualization identifier: {}", identifier);
+            continue;
+         }
+
+         int col = gridIndex % GRID_COLS;
+
+         if(col == 0 && gridIndex > 0) {
+            // First column of a new row: advance Y past the tallest viz in the previous row.
+            rowStartY = rowMaxBottom + VIZ_GAP;
+            rowMaxBottom = rowStartY;
+            colStartX = 0;
+         }
+
+         RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
+         Set<String> namesBefore = collectAssemblyNames(rvs.getViewsheet());
+
+         try {
+            addVisualization(runtimeId, entry, colStartX, rowStartY, 1.0f, principal);
+
+            rvs = viewsheetService.getViewsheet(runtimeId, principal);
+            Rectangle added = computeAddedBounds(rvs.getViewsheet(), namesBefore);
+
+            if(added != null) {
+               colStartX = added.x + added.width + VIZ_GAP;
+               rowMaxBottom = Math.max(rowMaxBottom, added.y + added.height);
+            }
+
+            gridIndex++;
+         }
+         catch(Exception e) {
+            LOG.warn("Failed to add visualization '{}': {}", identifier, e.getMessage());
+         }
+      }
+
+      return null;
+   }
+
+   /**
+    * Returns the names of all assemblies currently in the viewsheet.
+    * Used to identify which assemblies were added by the next merge operation.
+    */
+   private Set<String> collectAssemblyNames(Viewsheet vs) {
+      Set<String> names = new HashSet<>();
+
+      for(Assembly a : vs.getAssemblies()) {
+         names.add(a.getName());
+      }
+
+      return names;
+   }
+
+   /**
+    * Computes the bounding box of the assemblies added since {@code namesBefore} was captured.
+    * Returns {@code null} if no new assemblies were added.
+    */
+   private Rectangle computeAddedBounds(Viewsheet vs, Set<String> namesBefore) {
+      int minX = Integer.MAX_VALUE;
+      int minY = Integer.MAX_VALUE;
+      int maxRight = Integer.MIN_VALUE;
+      int maxBottom = Integer.MIN_VALUE;
+      boolean found = false;
+
+      for(Assembly a : vs.getAssemblies()) {
+         if(namesBefore.contains(a.getName()) || !(a instanceof VSAssembly va)) {
+            continue;
+         }
+
+         Point pos = va.getPixelOffset();
+         Dimension size = va.getPixelSize();
+
+         if(pos == null || size == null) {
+            continue;
+         }
+
+         minX = Math.min(minX, pos.x);
+         minY = Math.min(minY, pos.y);
+         maxRight = Math.max(maxRight, pos.x + size.width);
+         maxBottom = Math.max(maxBottom, pos.y + size.height);
+         found = true;
+      }
+
+      return found ? new Rectangle(minX, minY, maxRight - minX, maxBottom - minY) : null;
+   }
+
    private final ViewsheetService viewsheetService;
    private final AssetRepository assetRepository;
    private final WsMergeService wsMergeService;
 
+   private static final int GRID_COLS = 3;
+   private static final int VIZ_GAP = 50;
    private static final Logger LOG = LoggerFactory.getLogger(AddVisualizationService.class);
 }

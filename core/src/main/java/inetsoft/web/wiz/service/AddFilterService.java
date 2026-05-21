@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-package inetsoft.web.composer.wiz.service;
+package inetsoft.web.wiz.service;
 
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.cluster.*;
@@ -122,7 +122,7 @@ public class AddFilterService {
     * matching the given {@code attribute} name (alias-first lookup).
     *
     * <p>The worksheet is loaded fresh from {@code assetRepository} rather than from
-    * {@code vs.getBaseWorksheet()}, because {@link inetsoft.web.composer.wiz.service.AddVisualizationService}
+    * {@code vs.getBaseWorksheet()}, because {@link AddVisualizationService}
     * saves the merged wiz temp worksheet to the repository without reloading the runtime
     * viewsheet object. Using the runtime object would return stale data that does not yet
     * include tables merged by subsequent visualization additions.</p>

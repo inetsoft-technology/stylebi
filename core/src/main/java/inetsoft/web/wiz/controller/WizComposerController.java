@@ -15,23 +15,27 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-package inetsoft.web.composer.wiz.controller;
+package inetsoft.web.wiz.controller;
 
-import inetsoft.web.composer.wiz.event.AddFilterEvent;
-import inetsoft.web.composer.wiz.event.AddVisualizationEvent;
-import inetsoft.web.composer.wiz.service.AddFilterServiceProxy;
-import inetsoft.web.composer.wiz.service.AddVisualizationServiceProxy;
+import inetsoft.web.wiz.event.AddFilterEvent;
+import inetsoft.web.wiz.event.AddVisualizationEvent;
+import inetsoft.web.wiz.event.AddVisualizationsByIdsEvent;
 import inetsoft.web.viewsheet.command.RefreshWizFiltersCommand;
 import inetsoft.web.viewsheet.controller.VSRefreshServiceProxy;
 import inetsoft.web.viewsheet.event.VSRefreshEvent;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.viewsheet.service.LinkUri;
+import inetsoft.web.wiz.service.AddFilterServiceProxy;
+import inetsoft.web.wiz.service.AddVisualizationServiceProxy;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Controller;
 
 import java.security.Principal;
+import java.util.List;
 
 /**
  * STOMP controller for wiz composer actions on the viewsheet pane.
@@ -100,8 +104,41 @@ public class WizComposerController {
          VSRefreshEvent.builder().confirmed(false).build(), principal, dispatcher, linkUri);
    }
 
+   /**
+    * Bulk-adds multiple visualizations to the wiz dashboard by their AssetEntry identifiers.
+    * Used when the composer is opened with {@code wizComposer=true} and pre-selected
+    * visualization IDs ({@code wizVizIds}).  Placement is computed dynamically inside the
+    * service — each visualization is stacked below the previous one based on the actual
+    * measured bottom edge of the dashboard assemblies.
+    *
+    * @param event      carries the list of AssetEntry identifier strings.
+    * @param principal  the current user.
+    * @param dispatcher command dispatcher for sending commands back to the client.
+    * @param linkUri    the base link URI for the current session.
+    */
+   @MessageMapping("/composer/wiz/addVisualizationsByIds")
+   public void addVisualizationsByIds(@Payload AddVisualizationsByIdsEvent event,
+                                      Principal principal,
+                                      CommandDispatcher dispatcher,
+                                      @LinkUri String linkUri)
+      throws Exception
+   {
+      List<String> identifiers = event.getIdentifiers();
+
+      if(identifiers == null || identifiers.isEmpty()) {
+         return;
+      }
+
+      String runtimeId = runtimeViewsheetRef.getRuntimeId();
+      addVisualizationServiceProxy.addVisualizationsByIds(runtimeId, identifiers, principal);
+      dispatcher.sendCommand(new RefreshWizFiltersCommand());
+      vsRefreshServiceProxy.refreshViewsheetAsync(runtimeId,
+         VSRefreshEvent.builder().confirmed(false).build(), principal, dispatcher, linkUri);
+   }
+
    private final RuntimeViewsheetRef runtimeViewsheetRef;
    private final AddVisualizationServiceProxy addVisualizationServiceProxy;
    private final AddFilterServiceProxy addFilterServiceProxy;
    private final VSRefreshServiceProxy vsRefreshServiceProxy;
+   private static final Logger LOG = LoggerFactory.getLogger(WizComposerController.class);
 }

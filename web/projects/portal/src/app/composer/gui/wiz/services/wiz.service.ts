@@ -7,6 +7,8 @@ import { WizDashboard } from "../../../data/vs/wizDashboard";
 })
 export class WizService {
    showingWiz: boolean = false;
+   wizComposer: boolean = false;
+   wizVizIds: string[] = [];
    private _openVisualization = new Subject<{value?: string, standaloneVisualization?: boolean}>();
    private _showVisualization = new Subject<WizDashboard>();
    private _saveVisualization = new Subject<WizDashboard>();

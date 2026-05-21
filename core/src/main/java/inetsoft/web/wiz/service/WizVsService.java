@@ -37,7 +37,6 @@ import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.Tool;
-import inetsoft.web.composer.wiz.service.VisualizationService;
 import inetsoft.web.wiz.model.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

@@ -39,7 +39,7 @@ import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
 import inetsoft.web.RecycleUtils;
 import inetsoft.web.composer.model.*;
-import inetsoft.web.composer.wiz.service.VisualizationService;
+import inetsoft.web.wiz.service.VisualizationService;
 import inetsoft.web.composer.ws.assembly.VariableAssemblyModelInfo;
 import inetsoft.web.wiz.service.GenerateWsService;
 import org.springframework.stereotype.Service;
