@@ -1932,10 +1932,10 @@ public class WizVsService {
       if(!isMeasure && spec.getDateGroupLevel() != null) {
          int dateLevel = getDateGroupLevel(spec.getDateGroupLevel());
 
-         if(dateLevel != XConstants.NONE_DATE_GROUP) {
+         if(dimColumnMapping != null && dateLevel != XConstants.NONE_DATE_GROUP) {
             String dateRangeName = DateRangeRef.getName(spec.getField(), dateLevel);
 
-            if(dimColumnMapping == null || dimColumnMapping.contains(dateRangeName)) {
+            if(dimColumnMapping.contains(dateRangeName)) {
                fieldName = dateRangeName;
             }
          }
@@ -2257,6 +2257,7 @@ public class WizVsService {
       }
       else if(ref instanceof VSChartDimensionRef dimRef) {
          if(dimColumnMapping.contains(dimRef.getFullName())) {
+            dimRef.setGroupColumnValue(dimRef.getFullName());
             dimRef.setDateLevelValue(null);
             dimRef.setDateLevel(DateRangeRef.NONE);
          }
@@ -2307,13 +2308,12 @@ public class WizVsService {
          if(ref instanceof VSDimensionRef dimRef) {
             int dateLevel = dimRef.getDateLevel();
 
-            if(dateLevel != XConstants.NONE_DATE_GROUP) {
-               String dateRangeName = DateRangeRef.getName(dimRef.getGroupColumnValue(), dateLevel);
-
-               if(dimColumnMapping.contains(dateRangeName)) {
-                  dimRef.setDateLevelValue(null);
-                  dimRef.setDateLevel(DateRangeRef.NONE);
-               }
+            if(XSchema.isDateType(dimRef.getDataType()) && dateLevel != XConstants.NONE_DATE_GROUP
+               && dimColumnMapping.contains(dimRef.getFullName()))
+            {
+               dimRef.setGroupColumnValue(dimRef.getFullName());
+               dimRef.setDateLevelValue(null);
+               dimRef.setDateLevel(DateRangeRef.NONE);
             }
          }
       }
@@ -2333,7 +2333,7 @@ public class WizVsService {
             String fullName = aggRef.getFullName();
 
             if(pushedMeasureFullNames.contains(fullName)) {
-               aggRef.setColumnValue(fullName);
+               aggRef.setColumnValue(aggRef.getName());
                aggRef.setFormulaValue(AggregateFormula.NONE.getFormulaName());
             }
          }
@@ -2364,7 +2364,7 @@ public class WizVsService {
             sbinfo.getN() != 0 ? sbinfo.getN() : null);
 
          if(pushedMeasureFullNames.contains(fullName)) {
-            sbinfo.setColumnValue(fullName);
+            sbinfo.setColumnValue(sbinfo.getColumnValue());
             sbinfo.setAggregateValue(AggregateFormula.NONE.getFormulaName()); // Data already aggregated
          }
       }
