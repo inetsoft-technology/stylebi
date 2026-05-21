@@ -232,6 +232,7 @@ public class WizAutoBindingService {
 
    private void setRefType(AssetEntry entry, boolean isMeasure) {
       if(isMeasure) {
+         // NONE(0) is correct: isDimension() checks for DIMENSION bit, so 0 → treated as measure
          entry.setProperty("refType", "0");
          entry.setProperty(AssetEntry.CUBE_COL_TYPE, String.valueOf(AssetEntry.MEASURES));
       }
@@ -265,6 +266,23 @@ public class WizAutoBindingService {
       }
 
       for(ChartRef ref : chartInfo.getYFields()) {
+         applyFieldConfig(ref, configMap);
+      }
+
+      for(ChartRef ref : chartInfo.getGroupFields()) {
+         applyFieldConfig(ref, configMap);
+      }
+
+      applyAestheticFieldConfig(chartInfo.getColorField(), configMap);
+      applyAestheticFieldConfig(chartInfo.getSizeField(), configMap);
+      applyAestheticFieldConfig(chartInfo.getShapeField(), configMap);
+      applyAestheticFieldConfig(chartInfo.getTextField(), configMap);
+   }
+
+   private void applyAestheticFieldConfig(AestheticRef aestheticRef,
+                                           Map<String, SimpleFieldInfo> configMap)
+   {
+      if(aestheticRef != null && aestheticRef.getDataRef() instanceof ChartRef ref) {
          applyFieldConfig(ref, configMap);
       }
    }
@@ -323,7 +341,7 @@ public class WizAutoBindingService {
       long dimCount = Arrays.stream(entries).filter(e -> !isMeasureEntry(e)).count();
       long measCount = entries.length - dimCount;
 
-      if(dimCount == 0 || measCount == 0 || entries.length > 10) {
+      if(dimCount == 0 || measCount == 0) {
          return null;
       }
 
@@ -394,7 +412,7 @@ public class WizAutoBindingService {
                                                                   String worksheetId)
    {
       CrosstabBinding binding = new CrosstabBinding();
-      List<DimensionFieldInfo> rows = new ArrayList<>();
+      List<DimensionFieldInfo> dims = new ArrayList<>();
       List<MeasureFieldInfo> aggregates = new ArrayList<>();
 
       for(AssetEntry entry : entries) {
@@ -402,12 +420,17 @@ public class WizAutoBindingService {
             aggregates.add(entryToMeasureFieldInfo(entry));
          }
          else {
-            rows.add(entryToDimensionFieldInfo(entry));
+            dims.add(entryToDimensionFieldInfo(entry));
          }
       }
 
-      if(!rows.isEmpty()) {
-         binding.setRows(rows);
+      // Put the last dimension in cols so the crosstab has both axes populated.
+      if(dims.size() > 1) {
+         binding.setCols(List.of(dims.remove(dims.size() - 1)));
+      }
+
+      if(!dims.isEmpty()) {
+         binding.setRows(dims);
       }
 
       if(!aggregates.isEmpty()) {
@@ -559,7 +582,8 @@ public class WizAutoBindingService {
    {
       if(vizType != null) {
          if(isChartVizType(vizType)) {
-            return buildBestChartVizByType(prefInfos, vizType, worksheetId);
+            RecommendedVisualization byType = buildBestChartVizByType(prefInfos, vizType, worksheetId);
+            if(byType != null) return byType;
          }
 
          RecommendedVisualization found = findInRecommendations(vizType, recommendations);
@@ -606,7 +630,6 @@ public class WizAutoBindingService {
 
       if(countRoleMatches(bindings, CROSSTAB_ROLES) > chartScore) return "crosstab";
       if(countRoleMatches(bindings, TABLE_ROLES) > chartScore) return "table";
-      if(countRoleMatches(bindings, GAUGE_ROLES) > chartScore) return "gauge";
 
       return null;
    }
@@ -626,7 +649,6 @@ public class WizAutoBindingService {
    private static final Set<String> CHART_ROLES = Set.of("x", "y", "group", "color", "shape", "size", "text");
    private static final Set<String> CROSSTAB_ROLES = Set.of("rows", "cols", "aggregates");
    private static final Set<String> TABLE_ROLES = Set.of("details");
-   private static final Set<String> GAUGE_ROLES = Set.of("field");
 
    private RecommendedVisualization buildBestChartVizByType(
       List<ChartCombinationUtil.ScoredInfo> prefInfos,
@@ -636,13 +658,12 @@ public class WizAutoBindingService {
          return null;
       }
 
-      ChartInfo bestInfo = prefInfos.stream()
+      return prefInfos.stream()
          .map(ChartCombinationUtil.ScoredInfo::getInfo)
          .filter(ci -> explicitChartType.equals(getChartTypeString(ci.getChartType())))
          .findFirst()
-         .orElse(prefInfos.get(0).getInfo());
-
-      return toRecommendedVisualization(bestInfo, worksheetId);
+         .map(ci -> toRecommendedVisualization(ci, worksheetId))
+         .orElse(null);
    }
 
    private RecommendedVisualization buildBestChartViz(
@@ -751,8 +772,7 @@ public class WizAutoBindingService {
       // geospatial — location-based data
       m.put("geospatial", Set.of(
          GraphTypes.CHART_MAP,
-         GraphTypes.CHART_MAP_CONTOUR,
-         GraphTypes.CHART_POLYGON
+         GraphTypes.CHART_MAP_CONTOUR
       ));
 
       INTENT_CATEGORY_CHART_TYPES = Collections.unmodifiableMap(m);

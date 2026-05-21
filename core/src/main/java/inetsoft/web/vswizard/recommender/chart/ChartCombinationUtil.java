@@ -82,7 +82,7 @@ public class ChartCombinationUtil {
       if(n > 10) {
          LOG.error("Number of columns exceeds chart limit: " + n + " x: " +
                       Arrays.toString(groups) + " y: " + Arrays.toString(aggs));
-         return new ChartInfosResult(Collections.emptyList(), Collections.emptyMap(), null);
+         return new ChartInfosResult(Collections.emptyList(), null);
       }
 
       List<List<ChartRef>> hgroup = getHierarchy(entries, temp);
@@ -113,20 +113,15 @@ public class ChartCombinationUtil {
     * {@code null} when no preference was supplied.
     */
    public static class ChartInfosResult {
-      public ChartInfosResult(List<ChartInfo> infos, Map<Integer, Integer> scores,
-                              List<ScoredInfo> prefInfos)
-      {
+      public ChartInfosResult(List<ChartInfo> infos, List<ScoredInfo> prefInfos) {
          this.infos = infos;
-         this.scores = scores;
          this.prefInfos = prefInfos;
       }
 
       public List<ChartInfo> getInfos() { return infos; }
-      public Map<Integer, Integer> getScores() { return scores; }
       public List<ScoredInfo> getPrefInfos() { return prefInfos; }
 
       private final List<ChartInfo> infos;
-      private final Map<Integer, Integer> scores;
       private final List<ScoredInfo> prefInfos;
    }
 
@@ -236,7 +231,7 @@ public class ChartCombinationUtil {
          allPrefInfos.sort(Comparator.comparingInt(ScoredInfo::getScore).reversed());
       }
 
-      return new ChartInfosResult(allDefaultInfos, baseScores, allPrefInfos);
+      return new ChartInfosResult(allDefaultInfos, allPrefInfos);
    }
 
    private static void getChartCombination(int n, List<ChartTypeFilter> filters) {
