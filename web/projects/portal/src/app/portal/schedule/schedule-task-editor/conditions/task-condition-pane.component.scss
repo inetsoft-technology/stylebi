@@ -141,7 +141,30 @@
 .condition-edit-view__timezone-text {
   line-height: 1.4;
   color: var(--inet-text-muted-color);
-  padding-top: 2px;
+}
+
+.condition-edit-view__timezone-meta {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.condition-edit-view__server-timezone-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  white-space: nowrap;
+  cursor: pointer;
+
+  .form-check-input {
+    margin-top: 0;
+    flex: 0 0 auto;
+  }
+
+  .form-check-label {
+    margin-bottom: 0;
+  }
 }
 
 .condition-edit-view__timezone-row {

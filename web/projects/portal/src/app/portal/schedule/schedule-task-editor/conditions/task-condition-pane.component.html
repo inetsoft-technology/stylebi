@@ -286,12 +286,14 @@
                 </div>
               </div>
               <div class="col-auto condition-edit-view__time-field-col">
-                <div class="condition-edit-view__timezone-text">{{ timeZoneName + (serverTimeZone ? " (_#(em.scheduler.servertimezone))" : "")}}</div>
-                <label class="form-check">
-                  <input class="form-check-input" type="checkbox" name="timezone"
-                         [checked]="serverTimeZone" (change)="changeServerTimeZone(!serverTimeZone)">
-                  <span class="form-check-label">_#(Show Server Time Zone)</span>
-                </label>
+                <div class="condition-edit-view__timezone-meta">
+                  <div class="condition-edit-view__timezone-text">{{ timeZoneName + (serverTimeZone ? " (_#(em.scheduler.servertimezone))" : "")}}</div>
+                  <label class="condition-edit-view__server-timezone-toggle">
+                    <input class="form-check-input" type="checkbox" name="timezone"
+                           [checked]="serverTimeZone" (change)="changeServerTimeZone(!serverTimeZone)">
+                    <span class="form-check-label">_#(Show Server Time Zone)</span>
+                  </label>
+                </div>
               </div>
             </div>
             <div class="alert alert-danger"
@@ -396,12 +398,14 @@
                 </div>
               </div>
               <div class="col-auto condition-edit-view__time-field-col">
-                <div class="condition-edit-view__timezone-text">{{ timeZoneName + (serverTimeZone ? " (_#(em.scheduler.servertimezone))" : "")}}</div>
-                <label class="form-check">
-                  <input class="form-check-input" type="checkbox" name="timezone"
-                         [checked]="serverTimeZone" (change)="changeServerTimeZone(!serverTimeZone)">
-                  <span class="form-check-label">_#(Show Server Time Zone)</span>
-                </label>
+                <div class="condition-edit-view__timezone-meta">
+                  <div class="condition-edit-view__timezone-text">{{ timeZoneName + (serverTimeZone ? " (_#(em.scheduler.servertimezone))" : "")}}</div>
+                  <label class="condition-edit-view__server-timezone-toggle">
+                    <input class="form-check-input" type="checkbox" name="timezone"
+                           [checked]="serverTimeZone" (change)="changeServerTimeZone(!serverTimeZone)">
+                    <span class="form-check-label">_#(Show Server Time Zone)</span>
+                  </label>
+                </div>
               </div>
             </div>
             <div class="alert alert-danger"
