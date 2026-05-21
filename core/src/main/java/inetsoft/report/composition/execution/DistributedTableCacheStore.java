@@ -43,6 +43,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 import java.util.zip.ZipException;
@@ -114,11 +115,30 @@ public class DistributedTableCacheStore implements MessageListener, SmartLifecyc
     */
    @Override
    public void stop() {
+      // Remove the listener first so no new replication-triggered flush threads can start.
+      cluster.removeMessageListener(this);
+
       try {
-         flushLocalCache();
+         Thread t = asyncFlushThread.getAndSet(null);
+
+         if(t != null && t.isAlive()) {
+            // A replication-triggered flush is already in progress; wait for it instead of
+            // starting a redundant flush. The join timeout matches the flush timeout so we
+            // don't block the shutdown longer than intended.
+            long timeoutMs = Long.parseLong(FLUSH_TIMEOUT_SECONDS.get()) * 1000L;
+
+            try {
+               t.join(timeoutMs);
+            }
+            catch(InterruptedException ignored) {
+               Thread.currentThread().interrupt();
+            }
+         }
+         else {
+            flushLocalCache();
+         }
       }
       finally {
-         cluster.removeMessageListener(this);
          running = false;
       }
    }
@@ -137,10 +157,15 @@ public class DistributedTableCacheStore implements MessageListener, SmartLifecyc
    @Override
    public void messageReceived(MessageEvent event) {
       if(event.getMessage() instanceof TableCacheReplicationRequest) {
+         if(event.isLocal()) {
+            return;
+         }
+
          LOG.info("DistributedTableCacheStore: received replication request, flushing async");
-         Thread flushThread = new Thread(this::flushLocalCache, "table-cache-flush");
-         flushThread.setDaemon(true);
-         flushThread.start();
+         Thread t = new Thread(this::flushLocalCache, "table-cache-flush");
+         t.setDaemon(true);
+         asyncFlushThread.set(t);
+         t.start();
       }
    }
 
@@ -231,7 +256,7 @@ public class DistributedTableCacheStore implements MessageListener, SmartLifecyc
     * when multiple nodes respond to the same {@link TableCacheReplicationRequest}. Stops early if
     * the configured timeout ({@code distributed.table.cache.flush.timeout.seconds}) is reached.
     */
-   public void flushLocalCache() {
+   void flushLocalCache() {
       if(!flushing.compareAndSet(false, true)) {
          LOG.debug("DistributedTableCacheStore.flushLocalCache: flush already in progress, skipping");
          return;
@@ -318,16 +343,16 @@ public class DistributedTableCacheStore implements MessageListener, SmartLifecyc
          }
       }
 
-      int timedOut = entries.size() - written - skippedLocal - skippedExists - failed;
-      LOG.info("DistributedTableCacheStore.flushLocalCache: complete in {}ms — total {}, wrote {}, skipped-local {}, skipped-exists {}, failed {}, timed-out {}",
-               System.currentTimeMillis() - startMs, entries.size(), written, skippedLocal, skippedExists, failed, timedOut);
+      int notFlushed = entries.size() - written - skippedLocal - skippedExists - failed;
+      LOG.info("DistributedTableCacheStore.flushLocalCache: complete in {}ms — total {}, wrote {}, skipped-local {}, skipped-exists {}, failed {}, not-flushed {}",
+               System.currentTimeMillis() - startMs, entries.size(), written, skippedLocal, skippedExists, failed, notFlushed);
    }
 
    private static boolean isClusterStopped(Throwable ex) {
       Throwable t = ex;
 
       while(t != null) {
-         if(t.getClass().getName().contains("IgniteIllegalStateException")) {
+         if("IgniteIllegalStateException".equals(t.getClass().getSimpleName())) {
             return true;
          }
 
@@ -362,6 +387,7 @@ public class DistributedTableCacheStore implements MessageListener, SmartLifecyc
 
    private volatile boolean running = false;
    private final AtomicBoolean flushing = new AtomicBoolean(false);
+   private final AtomicReference<Thread> asyncFlushThread = new AtomicReference<>();
    private final Cluster cluster;
    private final BlobStorageManager blobStorageManager;
    private final ObjectProvider<AssetDataCache> assetDataCacheProvider;
