@@ -18,9 +18,12 @@
 
 package inetsoft.web.wiz.model;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+
 /**
  * Response body for POST /api/wiz/visualization/save.
  */
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public class WizVisualizationSaveResult {
    public String getSavedViewsheetIdentifier() {
       return savedViewsheetIdentifier;
@@ -30,5 +33,31 @@ public class WizVisualizationSaveResult {
       this.savedViewsheetIdentifier = savedViewsheetIdentifier;
    }
 
+   public String getThumbnail() {
+      return thumbnail;
+   }
+
+   public void setThumbnail(String thumbnail) {
+      this.thumbnail = thumbnail;
+   }
+
+   public String getThumbnailFormat() {
+      return thumbnailFormat;
+   }
+
+   public void setThumbnailFormat(String thumbnailFormat) {
+      this.thumbnailFormat = thumbnailFormat;
+   }
+
    private String savedViewsheetIdentifier;
+   /**
+    * Raw SVG markup ({@code thumbnailFormat="svg"}) or a {@code data:image/png;base64,...} URI
+    * ({@code thumbnailFormat="png"}) depending on assembly type, or {@code null} if unavailable.
+    *
+    * <p><b>Security:</b> when {@code thumbnailFormat} is {@code "svg"} the value is raw SVG markup.
+    * Callers must sanitize it before embedding in the DOM to prevent XSS.
+    */
+   private String thumbnail;
+   /** Discriminator for {@link #thumbnail}: {@code "svg"} or {@code "png"}, {@code null} if absent. */
+   private String thumbnailFormat;
 }
