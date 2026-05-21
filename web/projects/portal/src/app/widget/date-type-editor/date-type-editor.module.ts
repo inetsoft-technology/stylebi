@@ -33,6 +33,7 @@ import {
    DynamicComboBoxModule
 } from "../dynamic-combo-box/dynamic-combo-box.module";
 import {FixedDropdownModule} from "../fixed-dropdown/fixed-dropdown.module";
+import { CustomSelectModule } from "../custom-select/custom-select.module";
 
 @NgModule({
    imports: [
@@ -42,6 +43,7 @@ import {FixedDropdownModule} from "../fixed-dropdown/fixed-dropdown.module";
       NgbDatepickerModule,
       DynamicComboBoxModule,
       FixedDropdownModule,
+      CustomSelectModule,
       ReactiveFormsModule,
    ],
    declarations: [

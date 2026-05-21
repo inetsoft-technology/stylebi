@@ -20,6 +20,7 @@ import { Tool } from "../../../../../../shared/util/tool";
 import { ImageAdvancedPaneModel } from "../../data/vs/image-advanced-pane-model";
 import { ImageType } from "../../util/image-util";
 import { PopLocation, PopComponentService} from "../../../vsobjects/objects/data-tip/pop-component.service";
+import { CustomSelectOption } from "../../../widget/custom-select/custom-select.component";
 
 @Component({
    selector: "image-advanced-pane",
@@ -40,6 +41,25 @@ export class ImageAdvancedPane {
 
    changeAlphaWarning($event: boolean): void {
       this.alphaInvalid = $event;
+   }
+
+   get popComponentOptions(): CustomSelectOption<string>[] {
+      return [
+         { label: "_#(None)", value: "" },
+         ...(this.model?.popComponents ?? []).map((component) => ({
+            label: component,
+            value: component,
+            title: component
+         }))
+      ];
+   }
+
+   get popLocationOptions(): CustomSelectOption<string>[] {
+      return this.getKeys().map((key) => ({
+         label: this.popService.getPopLocationLabel(key),
+         value: key,
+         title: this.popService.getPopLocationLabel(key)
+      }));
    }
 
    previewEnabled(): boolean {

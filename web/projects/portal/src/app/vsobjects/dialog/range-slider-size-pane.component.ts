@@ -22,6 +22,7 @@ import { FormValidators } from "../../../../../shared/util/form-validators";
 import { RangeSliderDataPaneModel } from "../model/range-slider-data-pane-model";
 import { RangeSliderSizePaneModel } from "../model/range-slider-size-pane-model";
 import { TimeInfoType } from "../../composer/data/vs/time-info-type";
+import { CustomSelectOption } from "../../widget/custom-select/custom-select.component";
 
 interface RangeType {
    label: string;
@@ -56,6 +57,13 @@ export class RangeSliderSizePane implements OnInit {
    ];
    numberOptions: RangeType[] = [{ label: "_#(js:Number)", value: TimeInfoType.NUMBER }];
    memberOptions: RangeType[] = [{ label: "_#(js:Member)", value: TimeInfoType.MEMBER }];
+
+   get rangeSelectOptions(): CustomSelectOption<number>[] {
+      return this.rangeOptions.map((range) => ({
+         value: range.value,
+         label: range.label
+      }));
+   }
 
    ngOnInit(): void {
       this.initRanges();

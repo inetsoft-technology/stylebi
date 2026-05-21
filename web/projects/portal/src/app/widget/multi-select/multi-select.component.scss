@@ -15,21 +15,38 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-button {
-  white-space: nowrap;
-  display: flex;
-  align-items: center;
-  padding-right: 6px;
-
-  div {
-    flex-grow: 1;
-    text-align: left;
-    overflow: hidden;
-    width: 100%;
-  }
+:host {
+  display: block;
+  width: 100%;
 }
 
-.dropdown-pane > div {
+.custom-select-trigger {
+  position: relative;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  padding-right: 2rem;
+  background-image: none;
+}
+
+.multi-select__label {
+  flex-grow: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dropdown-caret {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.multi-select-menu > div {
   padding-right: 1.25rem;
   padding-top: 0.25rem;
   padding-bottom: 0.25rem;

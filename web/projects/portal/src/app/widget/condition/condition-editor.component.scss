@@ -20,14 +20,122 @@
   max-height: 300px;
 }
 
+:host ::ng-deep ngb-datepicker.dropdown-menu,
+:host ::ng-deep .ngb-dp-body.dropdown-menu {
+  overflow: visible;
+  max-height: none;
+}
+
 .editor-container {
-  display: flex;
-  flex-wrap: nowrap;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: stretch;
+  gap: var(--condition-row-gap, 0.375rem);
+  width: 100%;
+  min-width: 0;
   margin: 0;
 }
 
-value-editor {
+.editor-container__main {
   display: flex;
-  align-items: flex-start;
-  min-height: 40px;
+  align-items: stretch;
+  min-width: 0;
+}
+
+value-editor,
+field-editor,
+subquery-editor,
+session-data-editor,
+expression-editor,
+top-n-editor {
+  display: flex;
+  align-items: center;
+  min-height: var(--condition-row-control-height, 2.375rem);
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+variable-editor {
+  display: flex;
+  align-items: center;
+  min-height: var(--condition-row-control-height, 2.375rem);
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.editor-container__main > .form-group {
+  display: flex;
+  align-items: stretch;
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
+  margin-bottom: 0;
+}
+
+.editor-container__type-toggle {
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+}
+
+.editor-container--field-value {
+  gap: 0.25rem;
+}
+
+.editor-container--field-value .editor-container__type-toggle {
+  flex: 0 0 auto;
+}
+
+#simple-btn-keyboard-nav {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--condition-row-icon-size, 2rem);
+  min-width: var(--condition-row-icon-size, 2rem);
+  height: 100%;
+  min-height: var(--condition-row-control-height, 2.375rem);
+  padding: 0;
+  line-height: 1;
+
+  &::before {
+    display: block;
+    line-height: 1;
+  }
+}
+
+:host ::ng-deep .editor-container--field-value condition-field-combo .condition-field-combo {
+  gap: 0.25rem;
+}
+
+:host ::ng-deep .editor-container--field-value condition-field-combo .condition-field-combo-toggle {
+  padding-right: 1.75rem;
+}
+
+:host ::ng-deep .editor-container--field-value condition-field-combo .search-button,
+:host ::ng-deep .editor-container--field-value condition-field-combo .search-close {
+  width: 1.25rem;
+  min-width: 1.25rem;
+}
+
+:host ::ng-deep .editor-container--field-value condition-field-combo .switch-button,
+:host ::ng-deep .editor-container--field-value #simple-btn-keyboard-nav {
+  width: 1.75rem;
+  min-width: 1.75rem;
+}
+
+:host ::ng-deep .editor-container--field-value condition-field-combo .search-field {
+  right: calc(1.75rem + 1.25rem + 0.5rem);
+}
+
+:host ::ng-deep .condition-expression-editor {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--condition-row-gap, 0.375rem);
+  width: 100%;
+  min-width: 0;
+}
+
+:host ::ng-deep .condition-expression-editor .form-control {
+  min-width: 0;
 }

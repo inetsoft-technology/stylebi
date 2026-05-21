@@ -18,6 +18,7 @@
 import { CommonModule } from "@angular/common";
 import { NgModule } from "@angular/core";
 import { FormsModule } from "@angular/forms";
+import { CustomSelectModule } from "../../custom-select/custom-select.module";
 import { DynamicComboBoxModule } from "../../dynamic-combo-box/dynamic-combo-box.module";
 import { ModalHeaderModule } from "../../modal-header/modal-header.module";
 import { ComputationComboBox } from "./computation-combo-box.component";
@@ -27,6 +28,7 @@ import { ComputationDialog } from "./computation-dialog.component";
    imports: [
       CommonModule,
       ModalHeaderModule,
+      CustomSelectModule,
       DynamicComboBoxModule,
       FormsModule,
    ],

@@ -29,6 +29,7 @@ import { XSchema } from "../../../../../../../../../common/data/xschema";
 import { FormulaEditorService } from "../../../../../../../../../widget/formula-editor/formula-editor.service";
 import { Tool } from "../../../../../../../../../../../../shared/util/tool";
 import { FormValidators } from "../../../../../../../../../../../../shared/util/form-validators";
+import { CustomSelectOption } from "../../../../../../../../../widget/custom-select/custom-select.component";
 
 enum SourceType {
    FIELD,
@@ -343,5 +344,31 @@ export class ParameterDialog implements OnInit, AfterViewInit {
             emitEvent: false
          });
       }
+   }
+
+   get parameterNameSelectOptions(): CustomSelectOption<string>[] {
+      return (this.variables || []).map((variable) => ({
+         value: variable,
+         label: variable
+      }));
+   }
+
+   get fieldSelectOptions(): CustomSelectOption<string>[] {
+      return (this.fields || []).map((field) => ({
+         value: field,
+         label: field
+      }));
+   }
+
+   get typeSelectOptions(): CustomSelectOption<string>[] {
+      return (this.types || []).map((type) => ({
+         value: type.data,
+         label: type.label
+      }));
+   }
+
+   selectVariable(variable: string): void {
+      this.variable = variable;
+      this.nameControl.setValue(variable);
    }
 }

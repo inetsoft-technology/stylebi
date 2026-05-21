@@ -36,6 +36,7 @@ import { AutoDrillInfoModel } from "../../../../../model/datasources/database/ph
 import { AutoDrillDialog } from "./auto-drill-dialog/data-auto-drill-dialog.component";
 import { ComponentTool } from "../../../../../../../common/util/component-tool";
 import { GetModelEvent } from "../../../../../model/datasources/database/events/get-model-event";
+import { CustomSelectOption } from "../../../../../../../widget/custom-select/custom-select.component";
 import { FormValidators } from "../../../../../../../../../../shared/util/form-validators";
 import { Subscription } from "rxjs";
 import { EntityModel } from "../../../../../model/datasources/database/physical-model/logical-model/entity-model";
@@ -200,6 +201,13 @@ export class LogicalModelAttributeEditor implements OnInit, OnDestroy {
     */
    get refTypeControl(): AbstractControl {
       return this.form.get("refType");
+   }
+
+   get dataTypeSelectOptions(): CustomSelectOption<string>[] {
+      return (this.dataTypes || []).map((dataType) => ({
+         value: dataType.data,
+         label: dataType.label
+      }));
    }
 
    /**

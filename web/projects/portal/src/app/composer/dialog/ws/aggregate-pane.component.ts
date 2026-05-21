@@ -33,10 +33,12 @@ import { AggregateDialog, LabelDGroup } from "./aggregate-dialog.component";
 import { DateRangeRef } from "../../../common/data/date-range-ref";
 import { DateLevelExamplesService } from "../../../common/services/date-level-examples.service";
 import { SummaryAttrUtil } from "../../../binding/util/summary-attr-util";
+import { CustomSelectOption } from "../../../widget/custom-select/custom-select.component";
 
 @Component({
    selector: "aggregate-pane",
    templateUrl: "aggregate-pane.component.html",
+   styleUrls: ["aggregate-pane.component.scss"],
 })
 export class AggregatePane {
    @Input() trapFields: ColumnRef[] = [];
@@ -66,6 +68,13 @@ export class AggregatePane {
       {label: "_#(js:Grand Total)", value: StyleConstants.PERCENTAGE_OF_GRANDTOTAL},
       {label: "_#(js:Sub Total)", value: StyleConstants.PERCENTAGE_OF_GROUP},
    ];
+
+   get percentageSelectOptions(): CustomSelectOption<number>[] {
+      return this.percentageOptions.map((option) => ({
+         label: option.label,
+         value: option.value
+      }));
+   }
 
    @Input()
    set model(model: AggregateDialogModel) {
@@ -290,6 +299,16 @@ export class AggregatePane {
       return ColumnRef.getTooltip(_ref);
    }
 
+   getRefOptions(refList: ColumnRef[], includeEmpty: boolean = false): CustomSelectOption<number>[] {
+      const options = refList.map((_ref, index) => ({
+         label: _ref.view,
+         value: index,
+         title: this.getTooltip(_ref)
+      }));
+
+      return includeEmpty ? [{label: "", value: this.EMPTY_REF_INDEX}, ...options] : options;
+   }
+
    private resetAggregateDropdowns(row: Row, listIndex: number): void {
       const isDateTimeGroup: boolean = this.groups[listIndex].length > 1 &&
          (row.selectedRef.classType === "DateRangeRef" || Tool.isDate(row.selectedRef.dataType));
@@ -334,6 +353,13 @@ export class AggregatePane {
    getAggregateIndexOf(row: Row, listIndex: number): number {
       return this.aggregates[listIndex]
          .findIndex((agg) => agg.formulaName === row.aggregate.formulaName);
+   }
+
+   getAggregateOptions(listIndex: number): CustomSelectOption<number>[] {
+      return (this.aggregates[listIndex] || []).map((aggregate, index) => ({
+         label: aggregate.label,
+         value: index
+      }));
    }
 
    isGroupChange(row: Row, listIndex: number, checked: boolean, isGroupCheckbox: boolean): void {

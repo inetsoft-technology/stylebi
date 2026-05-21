@@ -21,6 +21,7 @@ import { NgModule } from "@angular/core";
 import { FormsModule } from "@angular/forms";
 import { NgbDropdownModule, NgbNavModule } from "@ng-bootstrap/ng-bootstrap";
 import { ColorPickerModule } from "../color-picker/color-picker.module";
+import { CustomSelectModule } from "../custom-select/custom-select.module";
 import { ComputationComboBoxModule } from "../dialog/computation-combo-box/computation-combo-box.module";
 import { WidgetDirectivesModule } from "../directive/widget-directives.module";
 import { DynamicComboBoxModule } from "../dynamic-combo-box/dynamic-combo-box.module";
@@ -46,6 +47,7 @@ import {MouseEventModule} from "../mouse-event/mouse-event.module";
       FormsModule,
       NgbDropdownModule,
       ColorPickerModule,
+      CustomSelectModule,
       WidgetFormatModule,
       ComputationComboBoxModule,
       DynamicComboBoxModule,

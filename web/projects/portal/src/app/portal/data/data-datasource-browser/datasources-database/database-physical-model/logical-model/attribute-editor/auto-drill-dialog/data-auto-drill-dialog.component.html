@@ -110,8 +110,8 @@
               </span>
             </div>
             <div *ngIf="editDrill.linkType !== LinkType.WEB_LINK" class="form-group">
-              <div #dropdown="ngbDropdown" ngbDropdown [autoClose]="'outside'">
-                <div class="form-floating">
+              <div #dropdown="ngbDropdown" ngbDropdown [autoClose]="'outside'" class="drill-link-picker">
+                <div class="form-floating drill-link-picker__field">
                   <input ngbDropdownToggle type="text" readonly
                          class="form-control" [value]="drillLabel"
                          [class.is-invalid]="!editDrill.link">
@@ -120,7 +120,9 @@
                     _#(data.logicalmodel.drillLinkRequired)
                   </span>
                 </div>
-                <div class="drill-dropdown-arrow icon-size-small"></div>
+                <div class="drill-dropdown-arrow icon-size-small"
+                     [class.chevron-down-icon]="!dropdown.isOpen()"
+                     [class.chevron-up-icon]="dropdown.isOpen()"></div>
                 <div ngbDropdownMenu class="drill-tree-dropdown-menu">
                   <repository-tree #repositoryTree
                                    [root]="assetTreeRoot"

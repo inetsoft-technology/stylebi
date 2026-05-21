@@ -18,6 +18,7 @@
 import { Component, EventEmitter, Input, OnInit, Output } from "@angular/core";
 import { UntypedFormControl, UntypedFormGroup, Validators } from "@angular/forms";
 import { XSchema } from "../../../common/data/xschema";
+import { CustomSelectOption } from "../../../widget/custom-select/custom-select.component";
 import { ColumnInfo } from "../../data/ws/column-info";
 import { ColumnTypeDialogModel } from "../../data/ws/column-type-dialog-model";
 
@@ -81,6 +82,13 @@ export class ColumnTypeDialog implements OnInit {
    formValid = () => this.form && this.form.valid;
    removeNonconvertible: boolean = false;
    loading: boolean = false;
+
+   get dataTypeOptions(): CustomSelectOption<string>[] {
+      return this.dataTypeList.map((dataType) => ({
+         label: dataType.label,
+         value: dataType.data
+      }));
+   }
 
    ngOnInit() {
       this.initForm();

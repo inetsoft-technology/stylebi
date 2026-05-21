@@ -25,18 +25,13 @@
   gap: var(--inet-space-4);
 }
 
-input.form-control.input-transparent {
-  position: absolute;
-  width: 90%;
-  margin-right: 20px;
-  z-index: 1;
-  top: 1px;
-  left: 1px;
+custom-select.parameter-name-picker {
+  flex: 0 0 10rem;
 }
 
-.variable-input {
-  height: calc(100% - 2px);
-  background: white;
+custom-select.parameter-name-picker ::ng-deep .custom-select-trigger {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
 }
 
 .parameter-dialog__source-row {

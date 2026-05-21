@@ -23,12 +23,11 @@
       <legend class="mb-3">{{ columnName }}</legend>
       <div class="form-row-float-label row">
         <div class="col form-floating">
-          <select class="form-control" id="dataType" [(ngModel)]="dataType"
-                  [ngModelOptions]="{standalone: true}">
-            <option *ngFor="let _dataType of dataTypeList" [value]="_dataType.data">
-              {{_dataType.label}}
-            </option>
-          </select>
+          <custom-select id="dataType"
+                         [options]="dataTypeSelectOptions"
+                         [(ngModel)]="dataType"
+                         [ngModelOptions]="{standalone: true}">
+          </custom-select>
           <label><span>_#(Type)</span></label>
         </div>
       </div>

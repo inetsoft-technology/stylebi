@@ -16,10 +16,9 @@
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
 <div class="select-query-field-pane">
-  <select multiple class="query-field-list" [ngModel]="selectedField" (ngModelChange)="selectField($event)">
-    <option *ngFor="let field of fields" [value]="field.name"
-            [class.selected]="field.name == selectedField">
-      {{field.name}}
-    </option>
-  </select>
+  <custom-select class="query-field-list"
+                 [options]="fieldSelectOptions"
+                 [ngModel]="selectedField"
+                 (ngModelChange)="selectField($event)">
+  </custom-select>
 </div>

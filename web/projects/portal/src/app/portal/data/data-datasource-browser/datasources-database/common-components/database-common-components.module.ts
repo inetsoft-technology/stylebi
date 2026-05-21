@@ -19,6 +19,7 @@ import { CommonModule } from "@angular/common";
 import { NgModule } from "@angular/core";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { FormatModule } from "../../../../../format/format.module";
+import { CustomSelectModule } from "../../../../../widget/custom-select/custom-select.module";
 import {
    AttributeFormattingPane
 } from "../database-physical-model/logical-model/attribute-editor/format-dialog/attribute-formatting-pane.component";
@@ -40,7 +41,8 @@ import {
       CommonModule,
       FormatModule,
       FormsModule,
-      ReactiveFormsModule
+      ReactiveFormsModule,
+      CustomSelectModule
    ],
    declarations: [
       JoinNodeGraphComponent,

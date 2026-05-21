@@ -22,10 +22,12 @@ import { XSchema } from "../../../common/data/xschema";
 import { AssetUtil } from "../../../binding/util/asset-util";
 import { AggregateFormula } from "../../../binding/util/aggregate-formula";
 import { SummaryAttrUtil } from "../../../binding/util/summary-attr-util";
+import { CustomSelectOption } from "../../custom-select/custom-select.component";
 
 @Component({
    selector: "new-aggr-dialog",
-   templateUrl: "./new-aggr-dialog.component.html"
+   templateUrl: "./new-aggr-dialog.component.html",
+   styleUrls: ["./new-aggr-dialog.component.scss"]
 })
 export class NewAggrDialog implements OnInit {
    @Input() model: NewAggrDialogModel;
@@ -40,6 +42,20 @@ export class NewAggrDialog implements OnInit {
       "Distinct Count", "First", "Last", "Correlation", "Covariance",
       "Variance", "Median", "Mode", "Std Deviation", "Variance (Pop)",
       "Std Deviation (Pop)", "Weighted Average"];
+
+   get fieldSelectOptions(): CustomSelectOption<string>[] {
+      return (this.model?.fields ?? []).map((field) => ({
+         label: field,
+         value: field
+      }));
+   }
+
+   get aggregateSelectOptions(): CustomSelectOption<string>[] {
+      return (this.formulas ?? []).map((formula) => ({
+         label: formula.label,
+         value: formula.value
+      }));
+   }
 
    ngOnInit(): void {
       this.initForm();

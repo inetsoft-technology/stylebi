@@ -15,12 +15,13 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { AfterViewInit, Component, Input, OnInit, ViewChild } from "@angular/core";
+import { AfterViewInit, Component, Input, OnInit } from "@angular/core";
 import { UntypedFormControl, UntypedFormGroup, Validators } from "@angular/forms";
 import { Tool } from "../../../../../../shared/util/tool";
 import { StyleConstants } from "../../../common/util/style-constants";
 import { FormValidators } from "../../../../../../shared/util/form-validators";
 import { MODE } from "../../../vsobjects/objects/selection/selection-tree-controller";
+import { CustomSelectOption } from "../../../widget/custom-select/custom-select.component";
 import { TreeNodeModel } from "../../../widget/tree/tree-node-model";
 import { SelectionGeneralPaneModel } from "../../data/vs/selection-general-pane-model";
 import { SelectionTreePaneModel } from "../../data/vs/selection-tree-pane-model";
@@ -116,6 +117,13 @@ export class SelectionGeneralPane implements OnInit, AfterViewInit {
 
    selectLevelToAdd(level: string): void {
       this.levelToAdd = level;
+   }
+
+   get levelOptions(): CustomSelectOption<string>[] {
+      return this.levels.map((level) => ({
+         label: level,
+         value: level
+      }));
    }
 
    selectLevel(index: number): void {

@@ -16,6 +16,10 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+:host {
+  display: block;
+}
+
 .color-cell {
   width: 20px;
   height: 20px;
@@ -31,9 +35,10 @@
 }
 
 .palette-cell {
-  display: table-cell;
+  display: block;
+  width: 100%;
 }
 
 .palette-row {
-  width: 98%;
+  width: 100%;
 }

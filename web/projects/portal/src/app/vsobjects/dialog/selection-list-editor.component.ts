@@ -20,6 +20,7 @@ import { Component, Input, OnInit } from "@angular/core";
 import { XSchema } from "../../common/data/xschema";
 import { SelectionListEditorModel } from "../model/selection-list-editor-model";
 import { Tool } from "../../../../../shared/util/tool";
+import { CustomSelectOption } from "../../widget/custom-select/custom-select.component";
 
 const COLUMNS_URI: string = "../api/vs/selectionList/columns/";
 
@@ -40,6 +41,14 @@ export class SelectionListEditor implements OnInit {
    columnTooltips: string[] = [];
    columnDataTypes: string[] = [];
    grayedOutValues: string[] = [];
+
+   get columnOptions(): CustomSelectOption<string>[] {
+      return (this.columns ?? []).map((column, index) => ({
+         label: column,
+         value: column,
+         title: this.columnTooltips[index]
+      }));
+   }
 
    constructor(private http: HttpClient) {
       this.headers = new HttpHeaders({

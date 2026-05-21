@@ -15,6 +15,12 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+:host {
+  display: block;
+  width: 100%;
+  min-width: 0;
+}
+
 label {
   font-weight: normal;
   white-space: nowrap;
@@ -24,11 +30,27 @@ label {
 .dropdown-caret {
   position: absolute;
   right: 10px;
-  top: calc(50% - 6px);
+  top: 50%;
+  transform: translateY(-50%);
 }
 
 .dropdown-button {
   width: 100%;
   text-align: left;
   height: 100%;
+  position: relative;
+  padding-right: 2rem;
+  background-image: none;
+}
+
+.custom-select-trigger__text {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.custom-select-trigger__icon {
+  pointer-events: none;
 }

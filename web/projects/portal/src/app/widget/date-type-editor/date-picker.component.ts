@@ -20,6 +20,7 @@ import { NgbDatepickerConfig } from "@ng-bootstrap/ng-bootstrap";
 import { DateTypeFormatter } from "../../../../../shared/util/date-type-formatter";
 import { TimeInstant } from "../../common/data/time-instant";
 import { DateTimeChangeType } from "./date-time-change-type";
+import { CustomSelectOption } from "../custom-select/custom-select.component";
 
 @Component({
    selector: "date-picker",
@@ -32,8 +33,8 @@ export class DatePickerComponent {
    @Output() onCommit = new EventEmitter<string>();
    @Output() valueChanged = new EventEmitter<{value: string, changeType: DateTimeChangeType}>();
    format: string = DateTypeFormatter.ISO_8601_DATE_FORMAT;
-   years: any[] = this.getOptionYears();
-   months: any[] = [
+   years: CustomSelectOption<number>[] = this.getOptionYears();
+   months: CustomSelectOption<number>[] = [
       {value: 0, label: "_#(js:January)"},
       {value: 1, label: "_#(js:February)"},
       {value: 2, label: "_#(js:March)"},
@@ -63,11 +64,11 @@ export class DatePickerComponent {
       return DateTypeFormatter.formatInstant(dateTime, this.format);
    }
 
-   getOptionYears(): any {
-      let years: any[] = [];
+   getOptionYears(): CustomSelectOption<number>[] {
+      let years: CustomSelectOption<number>[] = [];
 
       for(let i = 1900; i < 2101; i++) {
-         years.push({value: i, label: i});
+         years.push({value: i, label: String(i)});
       }
 
       return years;

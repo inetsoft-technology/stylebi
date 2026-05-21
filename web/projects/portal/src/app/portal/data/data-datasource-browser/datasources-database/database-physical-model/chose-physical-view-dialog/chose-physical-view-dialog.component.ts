@@ -19,6 +19,7 @@ import { Component, EventEmitter, Input, OnInit, Output } from "@angular/core";
 import { HttpClient, HttpParams } from "@angular/common/http";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { UntypedFormControl, UntypedFormGroup, Validators } from "@angular/forms";
+import { CustomSelectOption } from "../../../../../../widget/custom-select/custom-select.component";
 const GET_DATABASE_PHYSICAL_VIEW_URI = "../api/data/physicalmodel/views";
 
 @Component({
@@ -47,6 +48,13 @@ export class ChosePhysicalViewDialog implements OnInit {
            this.form.get("selectedView")?.patchValue(views[0]);
          }
        });
+  }
+
+  get physicalViewSelectOptions(): CustomSelectOption<string>[] {
+    return (this.physicalViews || []).map((view) => ({
+      value: view,
+      label: view
+    }));
   }
 
   cancel(): void {

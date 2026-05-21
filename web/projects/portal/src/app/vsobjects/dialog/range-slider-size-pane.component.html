@@ -26,12 +26,11 @@
           <label>_#(Slider Size)</label>
       </div>
       <div class="col-auto ps-1" *ngIf="!dataModel.composite && rangeOptions.length > 1">
-        <select class="form-control"
-                [ngModelOptions]="{standalone: true}" [(ngModel)]="model.rangeType">
-          <option *ngFor="let range of rangeOptions" [ngValue]="range.value">
-            {{range.label}}
-          </option>
-        </select>
+        <custom-select [options]="rangeSelectOptions"
+                       [ngModelOptions]="{standalone: true}"
+                       [(ngModel)]="model.rangeType"
+                       ariaLabel="_#(Range Type)">
+        </custom-select>
       </div>
       <div class="col-auto" *ngIf="dataModel.composite">_#(periods)</div>
     </div>

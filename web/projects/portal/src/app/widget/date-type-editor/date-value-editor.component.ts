@@ -15,18 +15,22 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+import { DOCUMENT } from "@angular/common";
 import {
    Component,
    ElementRef,
    forwardRef,
+   Inject,
    Input,
    Renderer2,
+   TemplateRef,
    ViewChild
 } from "@angular/core";
 import { ControlValueAccessor, NG_VALUE_ACCESSOR } from "@angular/forms";
-import { NgbDateParserFormatter, NgbDateStruct } from "@ng-bootstrap/ng-bootstrap";
+import { NgbDatepicker, NgbDateParserFormatter, NgbDateStruct } from "@ng-bootstrap/ng-bootstrap";
 import { DateTypeFormatter } from "../../../../../shared/util/date-type-formatter";
 import { Tool } from "../../../../../shared/util/tool";
+import { CustomSelectOption } from "../custom-select/custom-select.component";
 
 export const DATE_VALUE_ACCESSOR: any = {
    provide: NG_VALUE_ACCESSOR,
@@ -42,6 +46,7 @@ export const DATE_VALUE_ACCESSOR: any = {
 })
 export class DateValueEditorComponent implements ControlValueAccessor {
    @ViewChild("datepickerMax") ngbDatepicker;
+   @ViewChild("datepickerContent", { static: true }) datepickerContent: TemplateRef<any>;
    @Input() format: string = DateTypeFormatter.ISO_8601_DATE_FORMAT;
    @Input() disabled: boolean = false;
    date: NgbDateStruct;
@@ -50,6 +55,7 @@ export class DateValueEditorComponent implements ControlValueAccessor {
    onChange = (_: any) => {};
    onTouched = () => {};
    private closeDatepickerListener: () => any;
+   private readonly defaultYearWindow: number = 10;
 
    @Input() set model(dateString: string) {
       let dateObject = new Date(dateString);
@@ -66,7 +72,8 @@ export class DateValueEditorComponent implements ControlValueAccessor {
       }
    }
 
-   constructor(private ngbDateParserFormatter: NgbDateParserFormatter,
+   constructor(@Inject(DOCUMENT) private document: Document,
+               private ngbDateParserFormatter: NgbDateParserFormatter,
                private renderer: Renderer2,
                private element: ElementRef)
    {
@@ -167,10 +174,109 @@ export class DateValueEditorComponent implements ControlValueAccessor {
       this.disabled = isDisabled;
    }
 
-   toggleDatepicker() {
+   toggleDatepicker(event?: MouseEvent) {
+      event?.preventDefault();
+      event?.stopPropagation();
       this.ngbDatepicker.toggle();
       this.initDateValue();
       this.initCloseDatepickerListener();
+   }
+
+   getMonthSelectOptions(datepicker: NgbDatepicker): CustomSelectOption<number>[] {
+      const displayed = this.getDisplayedMonth(datepicker);
+
+      return this.getAvailableMonths(datepicker, displayed.year).map((month) => ({
+         value: month,
+         label: datepicker.i18n.getMonthShortName(month, displayed.year)
+      }));
+   }
+
+   getYearSelectOptions(datepicker: NgbDatepicker): CustomSelectOption<number>[] {
+      const displayed = this.getDisplayedMonth(datepicker);
+      const minYear = datepicker.state.minDate?.year ?? displayed.year - this.defaultYearWindow;
+      const maxYear = datepicker.state.maxDate?.year ?? displayed.year + this.defaultYearWindow;
+      const options: CustomSelectOption<number>[] = [];
+
+      for(let year = minYear; year <= maxYear; year++) {
+         options.push({
+            value: year,
+            label: datepicker.i18n.getYearNumerals(year)
+         });
+      }
+
+      return options;
+   }
+
+   selectMonth(datepicker: NgbDatepicker, month: number): void {
+      const displayed = this.getDisplayedMonth(datepicker);
+      datepicker.navigateTo({ year: displayed.year, month, day: 1 });
+   }
+
+   selectYear(datepicker: NgbDatepicker, year: number): void {
+      const displayed = this.getDisplayedMonth(datepicker);
+      const availableMonths = this.getAvailableMonths(datepicker, year);
+      const month = availableMonths.includes(displayed.month) ? displayed.month : availableMonths[0];
+
+      datepicker.navigateTo({ year, month, day: 1 });
+   }
+
+   navigateMonth(datepicker: NgbDatepicker, offset: number): void {
+      const displayed = this.getDisplayedMonth(datepicker);
+      let year = displayed.year;
+      let month = displayed.month + offset;
+
+      while(month < 1) {
+         month += 12;
+         year--;
+      }
+
+      while(month > 12) {
+         month -= 12;
+         year++;
+      }
+
+      const minDate = datepicker.state.minDate;
+      const maxDate = datepicker.state.maxDate;
+
+      if(minDate && (year < minDate.year || year === minDate.year && month < minDate.month)) {
+         year = minDate.year;
+         month = minDate.month;
+      }
+
+      if(maxDate && (year > maxDate.year || year === maxDate.year && month > maxDate.month)) {
+         year = maxDate.year;
+         month = maxDate.month;
+      }
+
+      datepicker.navigateTo({ year, month, day: 1 });
+   }
+
+   canNavigateMonth(datepicker: NgbDatepicker, offset: number): boolean {
+      const displayed = this.getDisplayedMonth(datepicker);
+      const minDate = datepicker.state.minDate;
+      const maxDate = datepicker.state.maxDate;
+      let year = displayed.year;
+      let month = displayed.month + offset;
+
+      while(month < 1) {
+         month += 12;
+         year--;
+      }
+
+      while(month > 12) {
+         month -= 12;
+         year++;
+      }
+
+      if(minDate && (year < minDate.year || year === minDate.year && month < minDate.month)) {
+         return false;
+      }
+
+      if(maxDate && (year > maxDate.year || year === maxDate.year && month > maxDate.month)) {
+         return false;
+      }
+
+      return true;
    }
 
    initDateValue() {
@@ -178,14 +284,13 @@ export class DateValueEditorComponent implements ControlValueAccessor {
          this.initDate.month == null && this.initDate.day == null)
       {
          let dateObject = new Date();
-         this.initDate = {
+         const today = {
             year: dateObject.getFullYear(),
             month: dateObject.getMonth() + 1,
             day: dateObject.getDate()
          };
 
-         this.date = this.initDate;
-         this.propagateDateChange();
+         this.ngbDatepicker?.navigateTo(today);
       }
    }
 
@@ -193,7 +298,12 @@ export class DateValueEditorComponent implements ControlValueAccessor {
       if(this.closeDatepickerListener == null) {
          this.closeDatepickerListener = this.renderer.listen("document", "mouseup",
             (event: MouseEvent) => {
-               if(!this.element.nativeElement.contains(event.target)) {
+               const target = event.target as Node;
+               const popup = this.document.querySelector("ngb-datepicker.dropdown-menu.show");
+
+               if(!this.element.nativeElement.contains(target) &&
+                  !(popup instanceof HTMLElement && popup.contains(target)))
+               {
                   this.ngbDatepicker.close();
 
                   // remove the listener
@@ -208,5 +318,24 @@ export class DateValueEditorComponent implements ControlValueAccessor {
       if(!this.element.nativeElement.contains(event.target)) {
          this.ngbDatepicker.close();
       }
+   }
+
+   private getDisplayedMonth(datepicker: NgbDatepicker): NgbDateStruct {
+      const displayedMonth: any = datepicker.state.months?.[0];
+      return displayedMonth?.firstDate ?? displayedMonth ?? datepicker.state.firstDate ?? this.initDate;
+   }
+
+   private getAvailableMonths(datepicker: NgbDatepicker, year: number): number[] {
+      const minDate = datepicker.state.minDate;
+      const maxDate = datepicker.state.maxDate;
+      const startMonth = minDate && minDate.year === year ? minDate.month : 1;
+      const endMonth = maxDate && maxDate.year === year ? maxDate.month : 12;
+      const months: number[] = [];
+
+      for(let month = startMonth; month <= endMonth; month++) {
+         months.push(month);
+      }
+
+      return months;
    }
 }

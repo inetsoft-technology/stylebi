@@ -26,6 +26,7 @@ import { UntypedFormControl, UntypedFormGroup, Validators } from "@angular/forms
 import { FormValidators } from "../../../../../../shared/util/form-validators";
 import { ViewsheetPrintLayoutDialogModel } from "../../data/vs/viewsheet-print-layout-dialog-model";
 import { PrintLayoutMeasures } from "../../data/vs/vs-layout-model";
+import { CustomSelectOption } from "../../../widget/custom-select/custom-select.component";
 
 interface PaperSize {
    width: number;
@@ -89,6 +90,20 @@ export class ViewsheetPrintLayoutDialog implements OnInit {
    formValid = () => this.model && this.formPrint && this.formPrint.valid &&
       !this.isHorizontalMarginTooLarge() && !this.isHorizontalMarginTooLarge() &&
       !this.isHeaderFromEdgeTooLarge() && !this.isFooterFromEdgeTooLarge();
+
+   get paperOptions(): CustomSelectOption<string>[] {
+      return this.paper.map((paperSize) => ({
+         label: paperSize.label,
+         value: paperSize.value
+      }));
+   }
+
+   get measurementOptions(): CustomSelectOption<string>[] {
+      return this.measurementsView.map((measurement) => ({
+         label: measurement.label,
+         value: measurement.value
+      }));
+   }
 
    ngOnInit() {
       if(!this.model) {

@@ -17,6 +17,7 @@
  */
 import { Component, Input } from "@angular/core";
 import { AlignmentPaneModel } from "../model/alignment-pane-model";
+import { CustomSelectOption } from "../../widget/custom-select/custom-select.component";
 
 @Component({
    selector: "alignment-pane",
@@ -25,5 +26,9 @@ import { AlignmentPaneModel } from "../model/alignment-pane-model";
 export class AlignmentPane {
    @Input() model: AlignmentPaneModel;
 
-   alignOptions: string[] = ["Auto", "Left", "Center", "Right"];
+   readonly alignOptions: CustomSelectOption<string>[] = ["Auto", "Left", "Center", "Right"]
+      .map((align) => ({
+         label: align,
+         value: align
+      }));
 }

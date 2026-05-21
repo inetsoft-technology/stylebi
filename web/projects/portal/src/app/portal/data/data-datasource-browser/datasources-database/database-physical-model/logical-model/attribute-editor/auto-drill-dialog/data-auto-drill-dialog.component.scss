@@ -102,20 +102,52 @@
   min-width: 200px;
   width: 100%;
   overflow-y: auto;
+  padding: 0.25rem;
+  border-radius: var(--inet-radius-md);
+  background: var(--inet-shell-surface-default);
+  box-shadow: var(--inet-shadow-md);
+}
+
+.drill-link-picker {
+  position: relative;
+}
+
+.drill-link-picker__field .form-control[ngbdropdowntoggle],
+.drill-link-picker__field .form-control[ngbDropdownToggle] {
+  padding-right: 2rem;
+  cursor: pointer;
+  background-image: none;
+}
+
+.drill-link-picker__field .form-control[ngbdropdowntoggle]:focus,
+.drill-link-picker__field .form-control[ngbDropdownToggle]:focus {
+  border-color: var(--inet-primary-color);
+  box-shadow: var(--inet-focus-ring);
+}
+
+.drill-link-picker__field .form-control.is-invalid {
+  padding-right: 2rem;
 }
 
 .drill-dropdown-arrow {
-  display: inline-block;
-  width: 0;
-  height: 0;
-  vertical-align: middle;
-  content: "";
-  border-top: 0.3em solid;
-  border-right: 0.3em solid transparent;
-  border-left: 0.3em solid transparent;
   position: absolute;
   top: 50%;
-  right: 15px;
+  right: 12px;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.drill-link-picker .invalid-feedback {
+  display: block;
+}
+
+.drill-tree-dropdown-menu ::ng-deep .dropdown-pane {
+  box-shadow: none;
+}
+
+.drill-tree-dropdown-menu ::ng-deep .tree-item,
+.drill-tree-dropdown-menu ::ng-deep .tree-node-label {
+  border-radius: var(--inet-radius-sm);
 }
 
 .toolbar-button-group {

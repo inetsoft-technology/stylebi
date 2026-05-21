@@ -24,9 +24,12 @@
     <form [formGroup]="form" class="container-fluid">
       <div class="form-row-float-label row">
         <div class="col">
-          <input type="file" class="form-control-file" id="file"
-                 accept=".csv,.txt,.xls,.xlsx"
-                 (change)="updateFile($event)">
+          <div class="d-flex gap-2 align-items-center">
+            <button type="button" class="btn btn-secondary" (click)="fileInput.click()">_#(Browse)</button>
+            <span class="text-truncate">{{model?.fileName}}</span>
+            <input #fileInput type="file" hidden accept=".csv,.txt,.xls,.xlsx"
+                   (change)="updateFile($event)">
+          </div>
           <ngb-progressbar *ngIf="fileUploadProgress" type="success" [animated]="true"
                            [value]="fileUploadProgress" [striped]="true"></ngb-progressbar>
         </div>
@@ -34,10 +37,11 @@
       <div class="form-row-float-label row">
         <div class="col">
         <div class="form-floating">
-          <select name="Sheet:" class="form-control" id="sheet" formControlName="sheetSelected"
-                  placeholder="_#(Sheet)">
-            <option *ngFor="let _sheet of model.sheetsList" [value]="_sheet">{{_sheet}}</option>
-          </select>
+          <custom-select id="sheet"
+                         formControlName="sheetSelected"
+                         [options]="sheetSelectOptions"
+                         placeholder="_#(Sheet)">
+          </custom-select>
           <label><span>_#(Sheet)</span></label>
         </div>
         </div>
@@ -45,11 +49,11 @@
       <div class="form-row-float-label row">
         <div class="col">
         <div class="form-floating">
-          <select name="Encoding" class="form-control" id="encoding"
-                  formControlName="encodingSelected" placeholder="_#(Encoding)">
-            <option *ngFor="let _encoding of encodingList" [value]="_encoding">
-              {{_encoding}}</option>
-          </select>
+          <custom-select id="encoding"
+                         formControlName="encodingSelected"
+                         [options]="encodingSelectOptions"
+                         placeholder="_#(Encoding)">
+          </custom-select>
           <label><span>_#(Encoding)</span></label>
         </div>
         </div>

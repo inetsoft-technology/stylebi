@@ -58,6 +58,7 @@ export class TreeDropdownComponent extends TreeDataPane {
    @Output() nodeExpanded = new EventEmitter<TreeNodeModel>();
    @Output() nodeSelected = new EventEmitter<TreeNodeModel>();
    @ViewChild("dropdownMenu") dropdownMenu: TemplateRef<any>;
+   @ViewChild("inputDropdown", { read: ElementRef }) inputDropdownRef: ElementRef<HTMLElement>;
    @ViewChild(FixedDropdownDirective) inputDropdown: FixedDropdownDirective;
    currentLabel: string = "";
    open: boolean = false;
@@ -81,6 +82,10 @@ export class TreeDropdownComponent extends TreeDataPane {
 
    handleOpenChange(open: boolean): void {
       this.open = open;
+   }
+
+   get dropdownMinWidth(): number {
+      return this.inputDropdownRef?.nativeElement?.offsetWidth ?? 300;
    }
 
    reset() {

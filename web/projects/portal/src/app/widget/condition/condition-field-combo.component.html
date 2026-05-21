@@ -16,7 +16,7 @@
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
 <div #dropdownBody class="condition-field-combo">
-  <div #conditionFieldToggle class="condition-field-combo-toggle form-control dropdown-toggle bd-gray"
+  <div #conditionFieldToggle class="condition-field-combo-toggle form-control no-caret bd-gray"
        [class.opacity-0]="showSearch"
        [ngClass]="{disabled: !enabled}" [fixedDropdown]="dropdownMenu"
        (openChange)="dropDownOpenChange($event)"
@@ -24,6 +24,10 @@
     <div class="condition-field-combo-text ps-1" [attr.title]="getTooltip(field)">
       {{field ? field.view : getDefaultValue()}}&nbsp;
     </div>
+    <i class="condition-field-combo-icon dropdown-caret icon-color-default"
+       [class.chevron-up-icon]="dropdownOpen"
+       [class.chevron-down-icon]="!dropdownOpen"
+       aria-hidden="true"></i>
   </div>
   <input *ngIf="showSearch" #searchInput type="text" class="search-field form-control"
          (mousedown)="$event.stopImmediatePropagation()"

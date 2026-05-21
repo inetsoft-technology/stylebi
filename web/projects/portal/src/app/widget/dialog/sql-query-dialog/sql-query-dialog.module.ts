@@ -70,6 +70,7 @@ import {
    DataConditionModule
 } from "../../../portal/dialog/vpm-condition-dialog/data-condition.module";
 import { DropdownViewModule } from "../../dropdown-view/dropdown-view.module";
+import { CustomSelectModule } from "../../custom-select/custom-select.module";
 import { SplitPaneModule } from "../../split-pane/split-pane.module";
 import { SQLQueryDialog } from "./sql-query-dialog.component";
 import { SQLQueryDialogListComponent } from "./sql-query-dialog-list.component";
@@ -111,6 +112,7 @@ import { SimpleQueryPaneComponent } from "./simple-query-pane.component";
       SimpleTableModule,
       SplitPaneModule,
       DatabaseCommonComponentsModule,
+      CustomSelectModule,
       DropdownViewModule,
       DataConditionModule,
       ScrollModule,

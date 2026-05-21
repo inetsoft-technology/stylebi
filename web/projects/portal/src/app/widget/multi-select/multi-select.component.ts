@@ -27,6 +27,7 @@ export class MultiSelect {
    @Input() selectedItems: any[] = [];
    @Input() disabled: boolean = false;
    @Output() selectedItemsChange: EventEmitter<any[]> = new EventEmitter<any[]>();
+   open: boolean = false;
 
    changed(event) {
       if(event.target.checked) {
@@ -45,5 +46,9 @@ export class MultiSelect {
 
    isSelected(item: any): boolean {
       return this.selectedItems.indexOf(item) >= 0;
+   }
+
+   handleOpenChange(open: boolean): void {
+      this.open = open;
    }
 }

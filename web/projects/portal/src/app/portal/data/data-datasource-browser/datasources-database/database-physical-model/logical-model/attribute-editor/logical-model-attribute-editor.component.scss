@@ -30,6 +30,16 @@
   padding: var(--inet-space-2) var(--inet-space-4);
 }
 
+.tree-dropdown-menu {
+  padding: 0.25rem;
+  border: 1px solid var(--inet-default-border-color);
+  border-radius: var(--inet-radius-md);
+  background: var(--inet-shell-surface-default);
+  box-shadow: var(--inet-shadow-md);
+  max-height: min(32rem, calc(100vh - 6rem));
+  overflow-y: auto;
+}
+
 .logical-model-attribute-editor__reference-group-label {
   font-size: 11px;
   font-weight: 600;
@@ -40,6 +50,17 @@
 
 .logical-model-attribute-editor__reference-option {
   cursor: default;
+  border-radius: var(--inet-radius-sm);
+}
+
+.logical-model-attribute-editor__reference-option:hover,
+.logical-model-attribute-editor__reference-option.selected {
+  background-color: var(--inet-hover-primary-bg-color);
+  color: var(--inet-text-color);
+}
+
+.logical-model-attribute-editor__reference-option.selected {
+  font-weight: 600;
 }
 
 .logical-model-attribute-editor__reference-option--nested {
@@ -62,8 +83,9 @@
   margin: 0;
 }
 
-.caret-down-icon {
+.dropdown-caret {
   position: absolute;
   right: 10px;
   top: calc(50% - 5px);
+  pointer-events: none;
 }

@@ -53,11 +53,11 @@
     </div>
     <div class="row form-group">
       <div class="col">
-        <select *ngIf="model.dataSources?.length > 1" class="form-control"
-                [(ngModel)]="model.dataSource" (ngModelChange)="dataSourceChanged()">
-          <option *ngFor="let dataSource of model.dataSources" [value]="dataSource">
-            {{dataSource}}</option>
-        </select>
+        <custom-select *ngIf="model.dataSources?.length > 1"
+                       [options]="dataSourceSelectOptions"
+                       [(ngModel)]="model.dataSource"
+                       (ngModelChange)="dataSourceChanged()">
+        </custom-select>
       </div>
     </div>
     <ng-container *ngIf="!advancedEditing">

@@ -17,41 +17,29 @@
  */
 import {
    Component, Input, Output, EventEmitter, OnChanges,
-   SimpleChanges, AfterViewInit, OnInit, Renderer2, ViewChild, ElementRef, OnDestroy
+   SimpleChanges, AfterViewInit
 } from "@angular/core";
 import { Observable } from "rxjs";
 import { UntypedFormControl, UntypedFormGroup } from "@angular/forms";
 import { Tool } from "../../../../../shared/util/tool";
+import { CustomSelectOption } from "../custom-select/custom-select.component";
 
 @Component({
    selector: "variable-editor",
    templateUrl: "variable-editor.component.html",
    styleUrls: ["variable-editor.component.scss"]
 })
-export class VariableEditor implements OnInit, OnChanges, AfterViewInit, OnDestroy {
+export class VariableEditor implements OnChanges, AfterViewInit {
    @Input() value: string;
    @Input() showUseList: boolean = false;
    @Input() variablesFunction: () => Observable<any[]>;
    @Output() valueChange: EventEmitter<string> = new EventEmitter<string>();
    @Output() updateChoiceQuery: EventEmitter<boolean> = new EventEmitter<boolean>();
-   @ViewChild("variableSelect") variableSelect: ElementRef;
    variableName: string;
    variableList: string[];
    _useList: boolean = false;
    vform: UntypedFormGroup = new UntypedFormGroup({"name": new UntypedFormControl()});
    useListId: string = "useList-" + Tool.generateRandomUUID();
-   clickListener = null;
-
-   constructor(private renderer: Renderer2) {
-   }
-
-   ngOnInit(): void {
-      this.clickListener = this.renderer.listen("document", "click", (event: MouseEvent) => {
-         if(!!this.variableSelect && event.target == this.variableSelect.nativeElement) {
-            event.preventDefault();
-         }
-      });
-   }
 
    ngAfterViewInit(): void {
       //fix a problem for IE
@@ -98,8 +86,14 @@ export class VariableEditor implements OnInit, OnChanges, AfterViewInit, OnDestr
       this.valueChange.emit(this.value);
    }
 
-
-   ngOnDestroy() {
-      this.clickListener = null;
+   get variableSelectOptions(): CustomSelectOption<string>[] {
+      return [
+         { value: "", label: "" },
+         ...((this.variableList || []).map((variable) => ({
+            value: variable,
+            label: variable
+         })))
+      ];
    }
+
 }

@@ -23,3 +23,8 @@ select[size] {
   overflow: auto;
   background: none;
 }
+
+:host ::ng-deep custom-select.embedded-list-values-select .custom-select-trigger {
+  background-color: transparent;
+  background-image: none;
+}

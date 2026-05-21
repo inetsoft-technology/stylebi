@@ -17,6 +17,7 @@
  */
 import { Component, Input, OnInit } from "@angular/core";
 import { UntypedFormGroup } from "@angular/forms";
+import { CustomSelectOption } from "../../../widget/custom-select/custom-select.component";
 import { ColumnOptionType } from "../../../vsobjects/model/column-option-type";
 import { TextInputColumnOptionPaneModel } from "../../data/vs/textinput-column-option-pane-model";
 
@@ -31,6 +32,12 @@ export class TextInputColumnOptionPane implements OnInit {
       ColumnOptionType.INTEGER, ColumnOptionType.FLOAT, ColumnOptionType.PASSWORD];
    inputControlLabels: string[] = ["_#(js:Text)", "_#(js:Date)", "_#(js:Integer)",
                                    "_#(js:Float)", "_#(js:Password)"];
+   get inputControlOptions(): CustomSelectOption<string>[] {
+      return this.inputControlList.map((value, index) => ({
+         label: this.inputControlLabels[index],
+         value
+      }));
+   }
 
    ngOnInit() {
       if(!this.model.type) {

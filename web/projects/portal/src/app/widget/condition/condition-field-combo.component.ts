@@ -63,6 +63,7 @@ export class ConditionFieldComboComponent implements OnChanges, OnInit {
    needUseVirtualScroll: boolean = false;
    showSearch: boolean = false;
    searchStr: string = "";
+   dropdownOpen: boolean = false;
    virtualScrollTreeDatasource: VirtualScrollTreeDatasource = new VirtualScrollTreeDatasource();
    @ViewChild("dropdownBody") dropdownBody: ElementRef;
    @ViewChild("searchInput") searchInput: ElementRef;
@@ -314,6 +315,8 @@ export class ConditionFieldComboComponent implements OnChanges, OnInit {
    }
 
    dropDownOpenChange(open: boolean) {
+      this.dropdownOpen = open;
+
       if(!open) {
          this.showSearch = false;
       }

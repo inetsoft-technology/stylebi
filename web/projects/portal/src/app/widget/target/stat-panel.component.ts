@@ -21,6 +21,7 @@ import { TargetInfo, MeasureInfo } from "./target-info";
 import { ComboMode, ValueMode } from "../dynamic-combo-box/dynamic-combo-box-model";
 import { GraphTypes } from "../../common/graph-types";
 import { DefaultPalette } from "../color-picker/default-palette";
+import { CustomSelectOption } from "../custom-select/custom-select.component";
 
 @Component({
    selector: "stat-panel",
@@ -39,6 +40,15 @@ export class StatPanel implements OnInit {
    alphaInvalid: boolean = false;
    fillPalette = DefaultPalette.bgWithTransparent;
 
+   get fieldOptions(): CustomSelectOption<MeasureInfo>[] {
+      return (this.availableFields || [])
+         .filter((field) => !!field && !field.groupOthers && !!field.label)
+         .map((field) => ({
+            label: field.label,
+            value: field
+         }));
+   }
+
    ngOnInit() {
       if(!this.model.measure.label && this.availableFields) {
          for(let field of this.availableFields) {
@@ -55,6 +65,10 @@ export class StatPanel implements OnInit {
    onLabelChange(label: any) {
       this.model.labelFormats = label ? label : "";
       this.model.label = label;
+   }
+
+   onMeasureChange(field: MeasureInfo): void {
+      this.model.measure = field;
    }
 
    changeAlphaWarning(event) {

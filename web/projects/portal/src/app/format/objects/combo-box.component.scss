@@ -22,7 +22,13 @@
 
 .combo-box input {
   position: absolute;
-  width: calc(100% - 2em);
+  z-index: 1;
+  width: calc(100% - 2.25rem);
   background-color: var(--inet-dropdown-bg-color);
   -moz-padding-start: 1.125em;
+}
+
+.combo-box__select {
+  display: block;
+  width: 100%;
 }

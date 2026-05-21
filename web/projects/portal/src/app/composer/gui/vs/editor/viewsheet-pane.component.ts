@@ -150,6 +150,7 @@ import { VSSelectionContainerModel } from "../../../../vsobjects/model/vs-select
 import { PrintLayoutSection } from "../../../../vsobjects/model/layout/print-layout-section";
 import { VSDependencyChangedCommand } from "../../../../vsobjects/command/vs-dependency-changed-command";
 import { LayoutUtil } from "../../../../vsobjects/util/layout-util";
+import { CustomSelectOption } from "../../../../widget/custom-select/custom-select.component";
 
 const COLLECT_PARAMS_URI = "/events/vs/collectParameters";
 
@@ -2197,6 +2198,13 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
 
    get layoutToolbarVisible(): boolean {
       return this.vs.layouts && this.vs.layouts.length > 1;
+   }
+
+   get layoutSelectOptions(): CustomSelectOption<string>[] {
+      return (this.vs?.layouts ?? []).map((layout) => ({
+         label: layout,
+         value: layout
+      }));
    }
 
    get mobileToolbarVisible(): boolean {

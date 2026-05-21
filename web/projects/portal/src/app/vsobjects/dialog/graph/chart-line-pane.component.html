@@ -21,7 +21,9 @@
       <div class="form-row-float-label row" *ngIf="model.gridLineVisible">
          <div class="col line-combo-container">
                 <div class="form-floating">
-                  <grid-line-dropdown [(lineStyle)]="model.xGridLineStyle" data-test="x-grid-line">
+                  <grid-line-dropdown [(lineStyle)]="model.xGridLineStyle"
+                                      [color]="model.xGridLineColor"
+                                      data-test="x-grid-line">
                   </grid-line-dropdown>
                   <label>_#(X Grid)</label>
                 </div>
@@ -29,7 +31,9 @@
          </div>
          <div class="col line-combo-container">
                 <div class="form-floating">
-                  <grid-line-dropdown [(lineStyle)]="model.yGridLineStyle" data-test="y-grid-line">
+                  <grid-line-dropdown [(lineStyle)]="model.yGridLineStyle"
+                                      [color]="model.yGridLineColor"
+                                      data-test="y-grid-line">
                   </grid-line-dropdown>
                   <label>_#(Y Grid)</label>
                 </div>
@@ -39,7 +43,9 @@
       <div class="form-row-float-label row" *ngIf="model.innerLineVisible">
          <div class="col line-combo-container">
                 <div class="form-floating">
-                  <grid-line-dropdown [(lineStyle)]="model.quadrantGridLineStyle" data-test="quadrant-grid-line">
+                  <grid-line-dropdown [(lineStyle)]="model.quadrantGridLineStyle"
+                                      [color]="model.quadrantGridLineColor"
+                                      data-test="quadrant-grid-line">
                   </grid-line-dropdown>
                   <label>_#(Quadrant Grid)</label>
                 </div>
@@ -48,7 +54,9 @@
          </div>
          <div class="col line-combo-container">
                 <div class="form-floating">
-                  <grid-line-dropdown [(lineStyle)]="model.diagonalLineStyle" data-test="diagonal-line">
+                  <grid-line-dropdown [(lineStyle)]="model.diagonalLineStyle"
+                                      [color]="model.diagonalLineColor"
+                                      data-test="diagonal-line">
                   </grid-line-dropdown>
                   <label>_#(Diagonal Line)</label>
                 </div>
@@ -75,18 +83,19 @@
     <div class="form-row-float-label row">
       <div class="col">
         <div class="form-floating">
-          <select class="form-control" [ngModelOptions]="{standalone: true}"
-                  placeholder="_#(Trend Line)"
-                  [(ngModel)]="model.trendLineType" (change)="setEnabled()">
-            <option *ngFor="let _option of trendlineOptions;"
-                    [value]="_option.value">{{_option.label}}</option>
-          </select>
+          <custom-select [options]="trendLineOptions"
+                         [ngModelOptions]="{standalone: true}"
+                         [(ngModel)]="model.trendLineType"
+                         (ngModelChange)="setEnabled()"
+                         placeholder="_#(Trend Line)">
+          </custom-select>
           <label>_#(Trend Line)</label>
         </div>
       </div>
       <div class="col line-combo-container">
         <div class="form-floating">
           <grid-line-dropdown class="trend-line" [(lineStyle)]="model.trendLineStyle"
+                              [color]="model.trendLineColor"
                               [supportDefault]="true"
                               [disabled]="noTrendlineSelected" data-test="trend-line-style">
           </grid-line-dropdown>

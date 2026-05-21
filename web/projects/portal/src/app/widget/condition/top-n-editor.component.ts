@@ -24,6 +24,7 @@ import { RankingValue } from "../../common/data/condition/ranking-value";
 import { DataRef } from "../../common/data/data-ref";
 import { XSchema } from "../../common/data/xschema";
 import { Tool } from "../../../../../shared/util/tool";
+import { CustomSelectOption } from "../custom-select/custom-select.component";
 
 @Component({
    selector: "top-n-editor",
@@ -95,4 +96,14 @@ export class TopNEditor implements OnChanges {
    }
 
    isEquals = (a, b) => a === b || a && b && a.view == b.view;
+
+   get aggregateFieldSelectOptions(): CustomSelectOption<DataRef>[] {
+      return [
+         { value: null, label: "" },
+         ...((this.aggFields || []).map((field) => ({
+            value: field,
+            label: field.view
+         })))
+      ];
+   }
 }

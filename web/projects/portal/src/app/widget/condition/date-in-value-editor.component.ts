@@ -18,6 +18,7 @@
 import { Component, Input, Output, EventEmitter, OnInit } from "@angular/core";
 import { Observable } from "rxjs";
 import { BrowseDataModel } from "../../common/data/browse-data-model";
+import { CustomSelectOption } from "../custom-select/custom-select.component";
 
 @Component({
    selector: "date-in-value-editor",
@@ -60,5 +61,12 @@ export class DateInValueEditor implements OnInit {
             }
          });
       }
+   }
+
+   get dateRangeSelectOptions(): CustomSelectOption<string>[] {
+      return (this.dateRanges || []).map((dateRange, i) => ({
+         value: dateRange,
+         label: this.dateRangeLabels?.[i] ?? dateRange
+      }));
    }
 }

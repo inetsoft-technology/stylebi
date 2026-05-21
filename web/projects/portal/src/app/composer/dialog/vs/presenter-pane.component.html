@@ -20,10 +20,11 @@
     <legend>_#(Presenter)</legend>
     <div class="form-row-float-label row">
       <div class="col form-floating">
-        <select class="form-control" id="presenter" [(ngModel)]="model.presenter"
-                placeholder="_#(Presenter)">
-          <option *ngFor="let _presenter of model.presenters">{{_presenter}}</option>
-        </select>
+        <custom-select id="presenter"
+                       [options]="presenterOptions"
+                       [(ngModel)]="model.presenter"
+                       placeholder="_#(Presenter)">
+        </custom-select>
         <label><span>_#(Presenter)</span></label>
       </div>
       <button type="button" class="btn btn-default" [disabled]="model.presenter==null">...</button> <!--Needs to open pane based on selection, needs data from backend to decided what to show (As done in presenter property dialog -->

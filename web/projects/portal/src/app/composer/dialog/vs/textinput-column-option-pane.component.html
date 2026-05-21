@@ -19,10 +19,9 @@
   <fieldset>
     <div class="row form-row-float-label">
       <div class="col form-floating">
-        <select class="form-control" [(ngModel)]="model.type" placeholder="_#(Input Control)">
-          <option *ngFor="let _input of inputControlLabels; let i = index"
-                  [value]="inputControlList[i]">{{_input}}</option>
-        </select>
+        <custom-select [options]="inputControlOptions"
+                       [(ngModel)]="model.type">
+        </custom-select>
         <label><span>_#(Input Control)</span></label>
       </div>
     </div>

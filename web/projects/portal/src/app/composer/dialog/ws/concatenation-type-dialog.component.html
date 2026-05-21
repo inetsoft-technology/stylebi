@@ -26,12 +26,10 @@
       <div class="form-row-float-label row">
         <div class="col-4 text-right">{{model.leftTableName}}</div>
         <div class="col-4">
-          <select class="form-control" [ngModel]="model.operator.operation"
-                  (ngModelChange)="updateOperation($event)">
-            <option [value]="concatenationTypes.union">_#(Union)</option>
-            <option [value]="concatenationTypes.intersect">_#(Intersect)</option>
-            <option [value]="concatenationTypes.minus">_#(Minus)</option>
-          </select>
+          <custom-select [ngModel]="model.operator.operation"
+                         (ngModelChange)="updateOperation($event)"
+                         [options]="operationSelectOptions">
+          </custom-select>
         </div>
         <span class="col-4 concatenation-type-subtable-span">{{model.rightTableName}}</span>
       </div>

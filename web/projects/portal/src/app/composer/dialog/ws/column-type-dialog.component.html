@@ -28,11 +28,11 @@
       <legend class="mb-3">{{colInfo.header}}</legend>
       <div class="form-row-float-label row">
         <div class="col form-floating">
-          <select class="form-control" type="text" id="dataType" formControlName="dataType"
-                  placeholder="_#(Type)">
-            <option *ngFor="let _dataType of dataTypeList" [value]="_dataType.data">
-              {{_dataType.label}}</option>
-          </select>
+          <custom-select id="dataType" formControlName="dataType"
+                         placeholder="_#(Type)"
+                         ariaLabel="_#(Type)"
+                         [options]="dataTypeOptions">
+          </custom-select>
           <label><span>_#(Type)</span></label>
         </div>
       </div>

@@ -420,8 +420,62 @@ fieldset.float-title {
 }
 
 // override and fix ngb-datepicker layout issue on month/year dropdown
+ngb-datepicker-navigation-select,
 ngb-datepicker-navigation-select.d-block {
   display: flex !important;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+ngb-datepicker-navigation-select.ngb-dp-navigation-select .form-select,
+ngb-datepicker-navigation-select .form-select,
+ngb-datepicker-navigation-select.d-block .form-select {
+  min-width: 0;
+  min-height: calc(1.5em + 0.75rem + 2px);
+  height: calc(1.5em + 0.75rem + 2px);
+  font-size: inherit;
+  line-height: 1.5;
+  padding: 0.375rem 2rem 0.375rem 0.75rem;
+  border: 1px solid var(--inet-border-color, #c7c6c1);
+  border-radius: var(--inet-radius-sm);
+  color: var(--inet-text-color);
+  background-color: var(--inet-input-bg-color, var(--inet-dropdown-bg-color));
+  background-image: linear-gradient(45deg, transparent 44%, var(--inet-dropdown-toggle-color) 45%, var(--inet-dropdown-toggle-color) 55%, transparent 56%),
+    linear-gradient(-45deg, transparent 44%, var(--inet-dropdown-toggle-color) 45%, var(--inet-dropdown-toggle-color) 55%, transparent 56%);
+  background-position: calc(100% - 1rem) calc(50% - 1px), calc(100% - 0.7rem) calc(50% - 1px);
+  background-size: 0.35rem 0.35rem;
+  background-repeat: no-repeat;
+  box-shadow: none;
+}
+
+ngb-datepicker-navigation-select.ngb-dp-navigation-select .form-select:focus,
+ngb-datepicker-navigation-select .form-select:focus,
+ngb-datepicker-navigation-select.d-block .form-select:focus {
+  border-color: var(--inet-primary-color);
+  background-color: var(--inet-input-focus-bg-color, var(--inet-dropdown-bg-color));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--inet-primary-color) 30%, transparent);
+}
+
+ngb-datepicker-navigation .ngb-dp-arrow-btn,
+ngb-datepicker-navigation button.btn-link {
+  color: var(--inet-text-muted-color, var(--inet-text-color));
+}
+
+ngb-datepicker-navigation .ngb-dp-navigation-chevron {
+  color: var(--inet-text-muted-color, var(--inet-text-color));
+  border-color: currentColor;
+}
+
+ngb-datepicker-navigation .ngb-dp-arrow-btn:hover,
+ngb-datepicker-navigation .ngb-dp-arrow-btn:focus,
+ngb-datepicker-navigation button.btn-link:hover,
+ngb-datepicker-navigation button.btn-link:focus {
+  color: var(--inet-text-color);
+}
+
+ngb-datepicker-navigation .ngb-dp-arrow-btn:hover .ngb-dp-navigation-chevron,
+ngb-datepicker-navigation .ngb-dp-arrow-btn:focus .ngb-dp-navigation-chevron {
+  color: var(--inet-text-color);
 }
 
 ngb-datepicker {
@@ -1004,6 +1058,169 @@ a, .btn-link {
 
 .ngb-dp-content {
   background-color: var(--inet-dropdown-bg-color);
+}
+
+ngb-datepicker.dropdown-menu,
+.ngb-dp-body.dropdown-menu {
+  overflow: visible !important;
+  max-height: none !important;
+}
+
+.schedule-datepicker__calendar {
+  width: min(15.5rem, calc(100vw - 2rem));
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.schedule-datepicker__calendar-header {
+  padding: 0.25rem 0.3rem 0.2rem;
+  border-bottom: 0;
+  background: transparent;
+}
+
+.schedule-datepicker__calendar-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.15rem;
+  width: 100%;
+}
+
+.schedule-datepicker__nav-button {
+  flex: 0 0 auto;
+  color: var(--inet-text-muted-color, var(--inet-text-color));
+  padding: 0;
+  min-width: 1.25rem;
+  line-height: 1;
+  justify-self: center;
+
+  &:hover,
+  &:focus {
+    color: var(--inet-text-color);
+  }
+}
+
+.schedule-datepicker__calendar-nav custom-select.schedule-datepicker__nav-select {
+  min-width: 0;
+  width: auto;
+  max-width: none;
+}
+
+.schedule-datepicker__calendar-nav custom-select.schedule-datepicker__nav-select--month {
+  width: 4.2rem;
+  min-width: 4.2rem;
+  max-width: 4.2rem;
+}
+
+.schedule-datepicker__calendar-nav custom-select.schedule-datepicker__nav-select--year {
+  width: 4.85rem;
+  min-width: 4.85rem;
+  max-width: 4.85rem;
+}
+
+.schedule-datepicker__calendar-nav custom-select.schedule-datepicker__nav-select ::ng-deep .custom-select-trigger {
+  min-height: calc(1.5em + 0.25rem + 2px);
+  height: calc(1.5em + 0.25rem + 2px);
+  padding-left: 0.5rem;
+  padding-right: 1.4rem;
+  border-radius: 4px;
+}
+
+.schedule-datepicker__calendar-nav custom-select.schedule-datepicker__nav-select ::ng-deep .custom-select-trigger__text {
+  font-size: 0.875rem;
+}
+
+.schedule-datepicker__calendar-nav custom-select.schedule-datepicker__nav-select ::ng-deep .dropdown-caret {
+  right: 0.55rem;
+}
+
+.schedule-datepicker__calendar .ngb-dp-weekdays {
+  background: transparent !important;
+  justify-content: center;
+}
+
+.schedule-datepicker__calendar .ngb-dp-weekday {
+  background: transparent !important;
+}
+
+.schedule-datepicker__calendar .ngb-dp-content {
+  display: flex;
+  justify-content: center;
+}
+
+.schedule-datepicker__calendar .ngb-dp-month {
+  margin: 0 auto;
+}
+
+.date-value-editor__calendar {
+  width: min(15.5rem, calc(100vw - 2rem));
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.date-value-editor__calendar-header {
+  padding: 0.25rem 0.3rem 0.375rem;
+  border-bottom: 0;
+  background: transparent;
+}
+
+.date-value-editor__calendar-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.15rem;
+}
+
+.date-value-editor__nav-button {
+  flex: 0 0 auto;
+  color: var(--inet-text-muted-color, var(--inet-text-color));
+  padding: 0.125rem 0.25rem;
+  line-height: 1;
+
+  &:hover,
+  &:focus {
+    color: var(--inet-text-color);
+  }
+}
+
+custom-select.date-value-editor__nav-select {
+  flex: 0 0 auto;
+  min-width: 0;
+  width: auto;
+  max-width: none;
+  --custom-select-height: 2.25rem;
+}
+
+.date-value-editor__nav-icon {
+  font-size: 0.875rem;
+}
+
+custom-select.date-value-editor__nav-select--month {
+  flex-basis: 4.2rem;
+  width: 4.2rem;
+  min-width: 4.2rem;
+  max-width: 4.2rem;
+}
+
+custom-select.date-value-editor__nav-select--year {
+  flex-basis: 4.85rem;
+  width: 4.85rem;
+  min-width: 4.85rem;
+  max-width: 4.85rem;
+}
+
+.date-value-editor__calendar .ngb-dp-content {
+  display: flex;
+  justify-content: center;
+}
+
+.date-value-editor__calendar .ngb-dp-month {
+  margin: 0 auto;
+}
+
+.date-value-editor__calendar .ngb-dp-weekdays,
+.date-value-editor__calendar .ngb-dp-weekday {
+  background: transparent !important;
 }
 
 .ngb-dp-day {

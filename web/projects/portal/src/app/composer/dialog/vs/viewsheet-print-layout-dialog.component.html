@@ -27,10 +27,12 @@
           <legend>_#(Paper)</legend>
           <div class="form-row-float-label form-row">
             <div class="form-floating col-12">
-              <select class="form-control" [(ngModel)]="model.paperSize"
-                      [ngModelOptions]="{standalone: true}" (change)="initForm()">
-                <option *ngFor="let paperSize of paper" [value]="paperSize.value">{{paperSize.label}}</option>
-              </select>
+              <custom-select [(ngModel)]="model.paperSize"
+                             [ngModelOptions]="{standalone: true}"
+                             [options]="paperOptions"
+                             ariaLabel="_#(Paper Size)"
+                             (selectionChange)="initForm()">
+              </custom-select>
               <label><span>_#(Paper Size)</span></label>
             </div>
           </div>
@@ -80,11 +82,13 @@
           <legend>_#(Units)</legend>
           <div class="form-row-float-label form-row">
             <div class="form-floating col-auto">
-              <select class="form-control unit_select_id" [ngModel]="model.units" (ngModelChange)="unitChanged($event)" [ngModelOptions]="{standalone: true}">
-                <option *ngFor="let measurement of measurementsView" [value]="measurement.value">
-                  {{measurement.label}}
-                </option>
-              </select>
+              <custom-select class="unit_select_id"
+                             [ngModel]="model.units"
+                             [ngModelOptions]="{standalone: true}"
+                             [options]="measurementOptions"
+                             ariaLabel="_#(Units)"
+                             (selectionChange)="unitChanged($event)">
+              </custom-select>
               <label><span>_#(Units)</span></label>
             </div>
           </div>

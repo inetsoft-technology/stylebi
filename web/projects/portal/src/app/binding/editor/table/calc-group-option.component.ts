@@ -52,6 +52,7 @@ import { SummaryAttrUtil } from "../../util/summary-attr-util";
 import { ManualOrderingDialog } from "../manual-ordering-dialog.component";
 import { CalcNamedGroupDialog } from "./calc-named-group-dialog.component";
 import { DateLevelExamplesService } from "../../../common/services/date-level-examples.service";
+import { CustomSelectOption } from "../../../widget/custom-select/custom-select.component";
 
 @Component({
    selector: "calc-group-option",
@@ -483,5 +484,35 @@ export class CalcGroupOption implements OnInit, OnChanges {
       {
          orderInfo.type = StyleConstants.SORT_NONE;
       }
+   }
+
+   get sortOptions(): CustomSelectOption<number>[] {
+      return this.sorts
+         .filter((sort) => this.sortItemVisible(sort))
+         .map((sort) => ({
+            label: sort.label,
+            value: sort.value
+         }));
+   }
+
+   get aggregateViewOptions(): CustomSelectOption<string>[] {
+      return (this.aggrs || []).map((aggregate) => ({
+         label: aggregate.view,
+         value: aggregate.view
+      }));
+   }
+
+   get rankingOptions(): CustomSelectOption<number>[] {
+      return this.TOP_OPTION.map((top) => ({
+         label: top.label,
+         value: top.value
+      }));
+   }
+
+   get namedGroupOptions(): CustomSelectOption<string>[] {
+      return (this.ngNames || []).map((name) => ({
+         label: name.label,
+         value: name.name
+      }));
    }
 }

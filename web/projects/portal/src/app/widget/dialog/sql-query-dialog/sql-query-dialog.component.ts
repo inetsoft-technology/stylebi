@@ -55,6 +55,7 @@ import { UntypedFormControl, UntypedFormGroup, Validators } from "@angular/forms
 import { FormValidators } from "../../../../../../shared/util/form-validators";
 import { SqlQueryDialogController } from "./sql-query-dialog-controller";
 import { WsSqlQueryController } from "../../../composer/gui/ws/editor/ws-sql-query-controller";
+import { CustomSelectOption } from "../../custom-select/custom-select.component";
 
 const CHANGE_EDIT_MODE_URI: string = "../api/composer/ws/sql-query-dialog/change-edit-mode";
 const QUERY_OPERATIONS_URI = "../api/data/datasource/query/operations";
@@ -107,6 +108,13 @@ export class SQLQueryDialog implements OnInit {
    operations: OperationModel[] = [];
    sessionOperations: OperationModel[] = [null, null];
    validGroupBy: boolean = true;
+
+   get dataSourceSelectOptions(): CustomSelectOption<string>[] {
+      return (this.model?.dataSources ?? []).map((dataSource) => ({
+         label: dataSource,
+         value: dataSource
+      }));
+   }
 
    constructor(private modelService: ModelService,
                private modal: NgbModal,

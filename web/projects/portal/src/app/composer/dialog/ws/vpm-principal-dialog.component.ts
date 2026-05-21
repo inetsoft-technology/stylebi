@@ -21,6 +21,7 @@ import { Tool } from "../../../../../../shared/util/tool";
 import { ModelService } from "../../../widget/services/model.service";
 import { VPMPrincipalDialogModel } from "../../data/ws/vpm-principal-dialog-model";
 import { Worksheet } from "../../data/ws/worksheet";
+import { CustomSelectOption } from "../../../widget/custom-select/custom-select.component";
 
 const WORKSHEET_VPM_PRINCIPAL_URI = "../api/composer/ws/dialog/vpm-principal-dialog/";
 
@@ -35,6 +36,13 @@ export class VPMPrincipalDialogComponent implements OnInit {
    model: VPMPrincipalDialogModel;
    form: UntypedFormGroup;
    sessionIds: string[];
+
+   get sessionIdSelectOptions(): CustomSelectOption<string>[] {
+      return (this.sessionIds ?? []).map((sessionId) => ({
+         label: sessionId,
+         value: sessionId
+      }));
+   }
 
    constructor(private modelService: ModelService) {
    }

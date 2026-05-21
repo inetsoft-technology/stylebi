@@ -30,6 +30,7 @@ import { XSchema } from "../../../common/data/xschema";
 import { XConstants } from "../../../common/util/xconstants";
 import { Tool } from "../../../../../../shared/util/tool";
 import { DateLevelExamplesService } from "../../../common/services/date-level-examples.service";
+import { CustomSelectOption } from "../../../widget/custom-select/custom-select.component";
 
 @Component({
    selector: "crosstab-pane",
@@ -150,6 +151,14 @@ export class CrosstabPane {
       return ColumnRef.getTooltip(_ref);
    }
 
+   getRefOptions(refList: DataRef[]): CustomSelectOption<number>[] {
+      return refList.map((_ref: any, index) => ({
+         label: _ref.view ?? _ref.name,
+         value: index,
+         title: _ref?.name ? this.getTooltip(_ref as ColumnRef) : ""
+      }));
+   }
+
    private get empty() {
       return Object.assign({}, this._empty);
    }
@@ -188,6 +197,13 @@ export class CrosstabPane {
 
       return this.measure.availableAggregates
          .findIndex((agg) => agg.formulaName === this.measure.aggregate.formulaName);
+   }
+
+   getAggregateOptions(): CustomSelectOption<number>[] {
+      return (this.measure.availableAggregates || []).map((aggregate, index) => ({
+         label: aggregate.label,
+         value: index
+      }));
    }
 
    getGroupVal(header: HeaderGroup) {

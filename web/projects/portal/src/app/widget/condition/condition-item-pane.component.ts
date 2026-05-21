@@ -51,6 +51,8 @@ import { ConditionFieldComboModel } from "./condition-field-combo-model";
 import { SourceInfo } from "../../binding/data/source-info";
 import { BaseField } from "../../binding/data/base-field";
 import { ConditionValue } from "../../common/data/condition/condition-value";
+import { CustomSelectOption } from "../custom-select/custom-select.component";
+import { ConditionOperationPipe } from "./condition-operation.pipe";
 
 @Component({
    selector: "condition-item-pane",
@@ -95,6 +97,7 @@ export class ConditionItemPane implements OnInit, OnChanges {
    columnTreeModel: TreeNodeModel;
    formula: DataRef;
    fieldsModel: ConditionFieldComboModel;
+   private readonly conditionOperationPipe = new ConditionOperationPipe();
 
    get formulaExpression(): string {
       return this.formula ? (<FormulaField> this.formula).exp : null;
@@ -106,6 +109,20 @@ export class ConditionItemPane implements OnInit, OnChanges {
       }
 
       return this.formula ? (<FormulaField> this.formula).formulaType : null;
+   }
+
+   get negationOptions(): CustomSelectOption<boolean>[] {
+      return [
+         { value: false, label: "_#(is)" },
+         { value: true, label: "_#(is not)" }
+      ];
+   }
+
+   get operationOptions(): CustomSelectOption<ConditionOperation>[] {
+      return (this.operations || []).map((operation) => ({
+         value: operation,
+         label: this.conditionOperationPipe.transform(operation)
+      }));
    }
 
    @Input() set fields(fields: DataRef[]) {

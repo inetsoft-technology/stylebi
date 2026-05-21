@@ -46,6 +46,7 @@ import { ComponentTool } from "../../../common/util/component-tool";
 import { ColumnRef } from "../../../binding/data/column-ref";
 import { AssetEntryHelper } from "../../../common/data/asset-entry-helper";
 import { AssetType } from "../../../../../../shared/data/asset-type";
+import { CustomSelectOption } from "../../../widget/custom-select/custom-select.component";
 
 @Component({
    selector: "grouping-dialog",
@@ -73,6 +74,21 @@ export class GroupingDialog implements OnInit {
    currentSelectedNode: TreeNodeModel;
    outerMirror: boolean;
    formValid = () => this.model && this.form && this.form.valid && !this.outerMirror;
+
+   get typeSelectOptions(): CustomSelectOption<string>[] {
+      return (this.types ?? []).map((type) => ({
+         value: type.data,
+         label: type.label
+      }));
+   }
+
+   get attributeSelectOptions(): CustomSelectOption<number>[] {
+      return (this.attributes ?? []).map((attribute, index) => ({
+         value: index,
+         label: attribute.name,
+         title: this.getTooltip(attribute)
+      }));
+   }
 
    constructor(private modelService: ModelService,
                private assetTreeService: AssetTreeService,

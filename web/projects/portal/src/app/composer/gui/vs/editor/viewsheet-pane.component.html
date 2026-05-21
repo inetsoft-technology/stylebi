@@ -144,10 +144,13 @@
         </button>
         <form class="form-inline layout-dropdown-group" *ngIf="layoutToolbarVisible">
           <label class="me-sm-2" for="layoutDropdown">_#(Layout):</label>
-          <select id="layoutDropdown" class="layout-dropdown form-control form-control-sm"
-                  [ngModel]="layoutName" [ngModelOptions]="{standalone: true}" (change)="layoutChanged($event.target.value)">
-            <option *ngFor="let layout of vs.layouts">{{layout}}</option>
-          </select>
+          <custom-select id="layoutDropdown"
+                         class="layout-dropdown form-control-sm"
+                         [ngModel]="layoutName"
+                         [ngModelOptions]="{standalone: true}"
+                         (ngModelChange)="layoutChanged($event)"
+                         [options]="layoutSelectOptions">
+          </custom-select>
         </form>
         <button type="button" class="btn btn-default p-0 ms-auto" (click)="changeSearchMode()" title="_#(Search)">
           <i class="search-icon icon-size-medium icon-color-default d-flex" aria-hidden="true"></i>

@@ -15,7 +15,17 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-.select-query-field-pane select {
+.select-query-field-pane custom-select {
+  display: block;
+}
+
+.select-query-field-pane custom-select ::ng-deep .custom-select-trigger {
   width: 100%;
   border: none;
+  box-shadow: none;
+}
+
+.select-query-field-pane custom-select ::ng-deep .custom-select-menu {
+  max-height: 16rem;
+  overflow-y: auto;
 }

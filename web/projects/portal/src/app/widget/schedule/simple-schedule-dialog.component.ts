@@ -55,6 +55,7 @@ const CHECK_EMAIL_VALID_URI: string = "../api/vs/check-email-valid";
 @Component({
    selector: "simple-schedule-dialog",
    templateUrl: "simple-schedule-dialog.component.html",
+   styleUrls: ["simple-schedule-dialog.component.scss"],
 })
 export class SimpleScheduleDialog implements OnInit, OnDestroy {
    @Input() model: SimpleScheduleDialogModel;

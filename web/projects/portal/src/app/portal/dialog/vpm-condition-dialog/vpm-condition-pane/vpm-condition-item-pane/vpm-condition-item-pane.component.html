@@ -47,17 +47,18 @@
       </ng-template>
     </div>
     <div class="item-pane__select">
-      <select class="form-control isNot_check_id" [(ngModel)]="condition.negated" (ngModelChange)="conditionChange.emit(this.condition)">
-        <option [ngValue]="false">_#(is)</option>
-        <option [ngValue]="true">_#(is not)</option>
-      </select>
+      <custom-select class="isNot_check_id"
+                     [options]="negatedSelectOptions"
+                     [(ngModel)]="condition.negated"
+                     (ngModelChange)="conditionChange.emit(this.condition)">
+      </custom-select>
     </div>
     <div class="item-pane__select">
-      <select class="form-control operation_check_id" [(ngModel)]="optSymbol" (ngModelChange)="optionChange($event)">
-        <option *ngFor="let opt of operations" [ngValue]="opt.symbol">
-          {{opt.name}}
-        </option>
-      </select>
+      <custom-select class="operation_check_id"
+                     [options]="operationSelectOptions"
+                     [(ngModel)]="optSymbol"
+                     (ngModelChange)="optionChange($event)">
+      </custom-select>
       <div *ngIf="supportEqualsOperation()" class="item-pane__equals">
         <input type="checkbox" class="form-check-input" [ngModel]="equalsOperation"
                id="equal" (ngModelChange)="equalsChanged($event)">

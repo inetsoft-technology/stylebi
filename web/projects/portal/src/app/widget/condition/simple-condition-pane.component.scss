@@ -15,6 +15,35 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+.condition-editor-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--inet-border-color, #d9d4cb);
+}
+
+.condition-editor-header__title {
+  font-weight: 400;
+  color: var(--inet-text-color, #2f2f2f);
+}
+
+.condition-editor-header__actions {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.condition-editor-fieldset {
+  margin-top: 0.5rem;
+}
+
+.condition-editor-fieldset legend {
+  display: none;
+}
+
 .condition-item-container {
   min-height: 300px;
 }

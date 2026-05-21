@@ -315,15 +315,17 @@
                    [ngModelOptions]="{standalone: true}"
                    [(ngModel)]="model.timeConditionModel.monthlyDaySelected">
           </div>
-          <div class="col-auto ps-0">
-            <custom-select id="dayOfMonth"
+          <div class="col simple-schedule-dialog__monthly-select-col ps-0">
+            <div class="input-group scheduler-form simple-schedule-dialog__monthly-input-group">
+              <custom-select id="dayOfMonth"
                            [options]="dayOfMonthSelectOptions"
                            [(ngModel)]="model.timeConditionModel.dayOfMonth"
                            [ngModelOptions]="{standalone: true}"
                            [disabled]="!model.timeConditionModel.monthlyDaySelected">
-            </custom-select>
+              </custom-select>
+              <div class="input-group-text">_#(Day of the Month)</div>
+            </div>
           </div>
-          <div class="col-auto ps-0">_#(Day of the Month)</div>
         </div>
         <div class="form-row-float-label row">
           <div class="col-auto">
@@ -331,8 +333,9 @@
                    [ngModelOptions]="{standalone: true}"
                    [(ngModel)]="model.timeConditionModel.monthlyDaySelected">
           </div>
-          <div class="col-auto ps-0">
+          <div class="col-auto simple-schedule-dialog__monthly-short-col ps-0">
             <custom-select id="weekOfMonth"
+                           class="scheduler-form simple-schedule-dialog__monthly-short-select"
                            [options]="weekOfMonthSelectOptions"
                            [(ngModel)]="model.timeConditionModel.weekOfMonth"
                            [ngModelOptions]="{standalone: true}"
@@ -340,14 +343,17 @@
             </custom-select>
           </div>
           <div class="col-auto ps-0">
-            <custom-select id="dayOfWeek"
+            <div class="input-group scheduler-form simple-schedule-dialog__monthly-input-group simple-schedule-dialog__monthly-input-group--secondary">
+              <custom-select id="dayOfWeek"
+                           class="simple-schedule-dialog__monthly-weekday-select"
                            [options]="dayOfWeekSelectOptions"
                            [(ngModel)]="model.timeConditionModel.dayOfWeek"
                            [ngModelOptions]="{standalone: true}"
                            [disabled]="model.timeConditionModel.monthlyDaySelected">
-            </custom-select>
+              </custom-select>
+              <div class="input-group-text">_#(of the month)</div>
+            </div>
           </div>
-          <div class="col-auto ps-0">_#(of the month)</div>
         </div>
       </ng-container>
     </fieldset>

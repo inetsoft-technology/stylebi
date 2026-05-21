@@ -20,6 +20,7 @@ import { UntypedFormControl, UntypedFormGroup, Validators } from "@angular/forms
 import { CreateMeasureDialogModel } from "./create-measure-dialog-model";
 import { XSchema } from "../../../common/data/xschema";
 import { FormValidators } from "../../../../../../shared/util/form-validators";
+import { CustomSelectOption } from "../../../widget/custom-select/custom-select.component";
 
 @Component({
    selector: "create-measure-dialog",
@@ -38,6 +39,13 @@ export class CreateMeasureDialog implements OnInit {
    @Output() onCommit: EventEmitter<CreateMeasureDialogModel> =
       new EventEmitter<CreateMeasureDialogModel>();
    @Output() onCancel: EventEmitter<string> = new EventEmitter<string>();
+
+   get dataTypeSelectOptions(): CustomSelectOption<string>[] {
+      return (this.dataTypeList ?? []).map((dataType) => ({
+         label: dataType.label,
+         value: dataType.label
+      }));
+   }
 
    ngOnInit() {
       this.setInitialValues();

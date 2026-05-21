@@ -16,23 +16,23 @@
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
 <form [formGroup]="vform">
-   <div class="form-floating">
+   <div class="variable-editor-field">
       <input class="form-control variable-input" type="text" placeholder="_#(Variable Name)"
-             [ngClass]="{'input-transparent border-0': variableList && variableList.length > 0,
-                        'hideText' : variableList.includes(variableName)}"
              [ngModel]="variableName" (ngModelChange)="variableNameChanged($event)"
              formControlName="name"/>
-       <label>_#(Variable Name)</label>
-      <select *ngIf="variableList && variableList.length > 0" class="form-control"
-              [ngModel]="variableName" (ngModelChange)="variableNameChanged($event)"
-              formControlName="name" #variableSelect>
-         <option [ngValue]="''"></option>
-         <option *ngFor="let _variable of variableList" [value]="_variable">{{_variable}}</option>
-      </select>
+      <custom-select *ngIf="variableList && variableList.length > 0"
+                     class="variable-picker"
+                     [options]="variableSelectOptions"
+                     [ngModel]="variableName"
+                     [ngModelOptions]="{standalone: true}"
+                     (selectionChange)="variableNameChanged($event)"
+                     ariaLabel="_#(Variable Name)"
+                     placeholder="_#(Variable Name)">
+      </custom-select>
    </div>
 </form>
 
-<div class="form-check" *ngIf="showUseList">
+<div class="form-check use-list-toggle" *ngIf="showUseList">
   <input id="{{useListId}}" type="checkbox" class="form-check-input" [(ngModel)]="useList"/>
   <label for="{{useListId}}">_#(Use Selection List)</label>
 </div>

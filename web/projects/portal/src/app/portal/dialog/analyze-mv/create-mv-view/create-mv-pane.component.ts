@@ -21,6 +21,7 @@ import { CreateUpdateMvRequest } from "../../../../../../../shared/util/model/mv
 import { MaterializedModel } from "../../../../../../../shared/util/model/mv/materialized-model";
 import { NameLabelTuple } from "../../../../../../../shared/util/name-label-tuple";
 import { ComponentTool } from "../../../../common/util/component-tool";
+import { CustomSelectOption } from "../../../../widget/custom-select/custom-select.component";
 
 @Component({
    selector: "create-mv-pane",
@@ -149,5 +150,18 @@ export class CreateMVPane implements OnInit {
 
    changeSortType(sortType: any) {
       this.sortType = sortType;
+   }
+
+   get cycleSelectOptions(): CustomSelectOption<string>[] {
+      return [
+         {
+            value: "",
+            label: "_#(None)"
+         },
+         ...(this.cycles || []).map((cycle) => ({
+            value: cycle.name,
+            label: cycle.label
+         }))
+      ];
    }
 }

@@ -178,3 +178,37 @@
 .sm-dropdown {
   width: 100px;
 }
+
+.condition-edit-view__monthly-select-col {
+  display: flex;
+  min-width: 0;
+}
+
+.condition-edit-view__monthly-short-col {
+  display: flex;
+}
+
+.condition-edit-view__monthly-input-group {
+  display: flex;
+  align-items: stretch;
+  width: auto;
+  max-width: 100%;
+
+  custom-select {
+    flex: 0 0 180px;
+    min-width: 0;
+  }
+
+  .input-group-text {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+}
+
+.condition-edit-view__monthly-input-group--secondary custom-select {
+  flex-basis: 150px;
+}
+
+.condition-edit-view__monthly-short-select {
+  width: 120px;
+}

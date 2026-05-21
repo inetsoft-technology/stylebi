@@ -203,8 +203,8 @@
                        [ngModel]="timeCondition.monthlyDaySelected"
                        (ngModelChange)="changeMonthRadioOption($event)" [value]="true">
               </div>
-              <div class="col">
-                <div class="input-group scheduler-form">
+              <div class="col condition-edit-view__monthly-select-col">
+                <div class="input-group scheduler-form condition-edit-view__monthly-input-group">
                   <custom-select [options]="monthDaySelectOptions"
                                  formControlName="dayOfMonth"
                                  (selectionChange)="timeCondition.dayOfMonth = $event">
@@ -223,15 +223,16 @@
                        [ngModel]="timeCondition.monthlyDaySelected"
                        (ngModelChange)="changeMonthRadioOption($event)" [value]="false">
               </div>
-              <div class="col-auto">
-                <custom-select class="scheduler-form sm-dropdown"
+              <div class="col-auto condition-edit-view__monthly-short-col">
+                <custom-select class="scheduler-form sm-dropdown condition-edit-view__monthly-short-select"
                                [options]="monthWeekSelectOptions"
                                formControlName="weekOfMonth"
                                (selectionChange)="timeCondition.weekOfMonth = $event">
                 </custom-select>
               </div>
-              <div class="col-auto input-group scheduler-form">
-                <custom-select [options]="weekdaySelectOptions"
+              <div class="col-auto input-group scheduler-form condition-edit-view__monthly-input-group condition-edit-view__monthly-input-group--secondary">
+                <custom-select class="condition-edit-view__monthly-weekday-select"
+                               [options]="weekdaySelectOptions"
                                formControlName="dayOfWeek"
                                (selectionChange)="timeCondition.dayOfWeek = $event">
                 </custom-select>
@@ -419,7 +420,9 @@
                     <input class="form-control" placeholder="_#(yyyy-mm-dd)"
                            formControlName="date"
                            id="date" [(ngModel)]="formDate"
-                           ngbDatepicker #startDatePicker="ngbDatepicker" placement="bottom-right">
+                           ngbDatepicker #startDatePicker="ngbDatepicker" placement="bottom-start"
+                           container="body"
+                           [navigation]="'none'" [contentTemplate]="scheduleDatepickerContent">
                     <button class="input-group-btn-addon btn icon-hover-bg" (click)="startDatePicker.toggle()" type="button">
                       <span class="calendar-icon icon-size-medium align-middle"></span>
                     </button>
@@ -478,6 +481,51 @@
     </button>
   </div>
 </div>
+
+<ng-template #scheduleDatepickerContent let-datepicker>
+  <div class="schedule-datepicker__calendar">
+    <div class="ngb-dp-header schedule-datepicker__calendar-header">
+      <div class="schedule-datepicker__calendar-nav">
+        <button type="button"
+                class="btn btn-light-no-bg schedule-datepicker__nav-button schedule-datepicker__nav-button--prev"
+                [disabled]="!canNavigateMonth(datepicker, -1)"
+                (click)="navigateMonth(datepicker, -1)"
+                aria-label="_#(Previous month)">
+          <i class="chevron-left-icon icon-size0" aria-hidden="true"></i>
+        </button>
+        <custom-select class="schedule-datepicker__nav-select schedule-datepicker__nav-select--month"
+                       [options]="getMonthSelectOptions(datepicker)"
+                       [ngModel]="datepicker.state.firstDate.month"
+                       [ngModelOptions]="{standalone: true}"
+                       ariaLabel="_#(Select month)"
+                       (selectionChange)="selectMonth(datepicker, $event)">
+        </custom-select>
+        <custom-select class="schedule-datepicker__nav-select schedule-datepicker__nav-select--year"
+                       [options]="getYearSelectOptions(datepicker)"
+                       [ngModel]="datepicker.state.firstDate.year"
+                       [ngModelOptions]="{standalone: true}"
+                       ariaLabel="_#(Select year)"
+                       (selectionChange)="selectYear(datepicker, $event)">
+        </custom-select>
+        <button type="button"
+                class="btn btn-light-no-bg schedule-datepicker__nav-button"
+                [disabled]="!canNavigateMonth(datepicker, 1)"
+                (click)="navigateMonth(datepicker, 1)"
+                aria-label="_#(Next month)">
+          <i class="chevron-right-icon icon-size0" aria-hidden="true"></i>
+        </button>
+      </div>
+    </div>
+    <div class="ngb-dp-content ngb-dp-months">
+      <div *ngFor="let month of datepicker.state.months" class="ngb-dp-month">
+        <div *ngIf="datepicker.displayMonths > 1" class="ngb-dp-month-name">
+          {{ datepicker.i18n.getMonthLabel(month) }}
+        </div>
+        <ngb-datepicker-month [month]="month"></ngb-datepicker-month>
+      </div>
+    </div>
+  </div>
+</ng-template>
 <ng-container *ngIf="listView">
   <div class="condition-list-view mb-2">
     <editable-table [title]="'Conditions'" [items]="conditionNames"

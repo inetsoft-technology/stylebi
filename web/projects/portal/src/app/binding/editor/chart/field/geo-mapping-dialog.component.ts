@@ -27,6 +27,7 @@ import { GeoMappingDialogModel } from "../../../data/chart/geo-mapping-dialog-mo
 import { MapFeature } from "../../../data/chart/map-feature";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { ComponentTool } from "../../../../common/util/component-tool";
+import { CustomSelectOption } from "../../../../widget/custom-select/custom-select.component";
 
 @Component({
    selector: "geo-mapping-dialog",
@@ -455,5 +456,12 @@ export class GeoMappingDialog implements OnInit {
 
    get cshid(): string {
       return "EditGeographic";
+   }
+
+    get algorithmOptions(): CustomSelectOption<string>[] {
+      return (this.showAlgorithms || []).map((algorithm) => ({
+         label: algorithm.label,
+         value: algorithm.value
+      }));
    }
 }

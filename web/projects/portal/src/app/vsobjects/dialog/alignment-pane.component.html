@@ -20,17 +20,19 @@
   <div class="form-row-float-label">
     <label class="col-3" for="horizontal">_#(Horizontal):</label>
     <div class="col-4">
-      <select class="form-control" id="horizontal" [(ngModel)]="model.horizontal">
-        <option *ngFor="let _align of alignOptions" value="_align">{{_align}}</option>
-      </select>
+      <custom-select id="horizontal"
+                     [(ngModel)]="model.horizontal"
+                     [options]="alignOptions">
+      </custom-select>
     </div>
   </div>
   <div class="form-row-float-label">
     <label class="col-3" for="vertical">_#(Vertical):</label>
     <div class="col-4">
-      <select class="form-control" id="vertical" [(ngModel)]="model.vertical">
-        <option *ngFor="let _align of alignOptions" value="_align">{{_align}}</option>
-      </select>
+      <custom-select id="vertical"
+                     [(ngModel)]="model.vertical"
+                     [options]="alignOptions">
+      </custom-select>
     </div>
   </div>
 </form>

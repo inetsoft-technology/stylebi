@@ -55,6 +55,7 @@ export class CustomSelectComponent implements ControlValueAccessor, AfterViewIni
    @Input() options: CustomSelectOption[] = [];
    @Input() placeholder: string = "";
    @Input() id: string;
+   @Input() dataTest: string;
    @Input() ariaLabel: string;
    @Input() ariaLabelledby: string;
    @Input() invalid: boolean = false;

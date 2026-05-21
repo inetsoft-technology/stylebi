@@ -21,20 +21,11 @@
       <tabular-text-editor [(value)]="value.name" (valueChange)="valueChanged()" [placeholder]="'Name'" [enabled]="enabled"></tabular-text-editor>
     </div>
     <div class="form-group align-items-start flex-column ps-1">
-      <select class="form-control" [(ngModel)]="value.type" (ngModelChange)="valueChanged()" [disabled]="!enabled">
-        <option value="STRING">_#(String)</option>
-        <option value="CHAR">_#(Character)</option>
-        <option value="INTEGER">_#(Integer)</option>
-        <option value="BYTE">_#(Byte)</option>
-        <option value="SHORT">_#(Short)</option>
-        <option value="LONG">_#(Long)</option>
-        <option value="FLOAT">_#(Float)</option>
-        <option value="DOUBLE">_#(Double)</option>
-        <option value="BOOLEAN">_#(Boolean)</option>
-        <option value="DATE">_#(Date)</option>
-        <option value="TIME">_#(Time)</option>
-        <option value="TIME_INSTANT">_#(Time Instant)</option>
-      </select>
+      <custom-select [options]="typeSelectOptions"
+                     [(ngModel)]="value.type"
+                     (ngModelChange)="valueChanged()"
+                     [disabled]="!enabled">
+      </custom-select>
       <div class="form-check mt-1">
         <label class="no-float-label form-check-label">
           <input type="checkbox" class="form-check-input"

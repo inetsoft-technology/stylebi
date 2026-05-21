@@ -23,6 +23,7 @@ import { MeasureInfo, TargetInfo } from "./target-info";
 import { GraphTypes } from "../../common/graph-types";
 import { Tool } from "../../../../../shared/util/tool";
 import { DefaultPalette } from "../color-picker/default-palette";
+import { CustomSelectOption } from "../custom-select/custom-select.component";
 
 @Component({
    selector: "line-panel",
@@ -40,6 +41,19 @@ export class LinePanel {
    enableFormulaLabelLinePanel: boolean = false;
    @ViewChild("dateField") dateField: DateInputField;
    fillPalette = DefaultPalette.bgWithTransparent;
+
+   get fieldOptions(): CustomSelectOption<MeasureInfo>[] {
+      return (this.availableFields || [])
+         .filter((field) => !!field && !field.groupOthers)
+         .map((field) => ({
+            label: field.label,
+            value: field
+         }));
+   }
+
+   onMeasureChange(field: MeasureInfo): void {
+      this.model.measure = field;
+   }
 
    isChartScopeEnabled() {
       return !!this.model.value && isNaN(parseFloat(this.model.value)) &&

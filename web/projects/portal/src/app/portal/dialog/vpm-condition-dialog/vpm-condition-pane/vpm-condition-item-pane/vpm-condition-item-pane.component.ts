@@ -299,7 +299,9 @@ export class VPMConditionItemPane implements OnInit, OnChanges {
    }
 
    optionChange(event: any) {
-      if(event && this.isUnaryOperationLogic(event)) {
+      const selectedOperation = this.operations?.find((opt) => opt.symbol == event);
+
+      if(selectedOperation && this.isUnaryOperationLogic(selectedOperation)) {
          this.condition.value2.expression = undefined;
       }
 
@@ -358,5 +360,19 @@ export class VPMConditionItemPane implements OnInit, OnChanges {
       }
 
       return expression;
+   }
+
+   get negatedSelectOptions() {
+      return [
+         { value: false, label: "_#(is)" },
+         { value: true, label: "_#(is not)" }
+      ];
+   }
+
+   get operationSelectOptions() {
+      return (this.operations || []).map((opt) => ({
+         value: opt.symbol,
+         label: opt.name
+      }));
    }
 }
