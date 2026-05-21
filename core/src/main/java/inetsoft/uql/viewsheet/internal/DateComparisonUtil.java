@@ -1071,6 +1071,7 @@ public class DateComparisonUtil {
       }
 
       cal.setTime(date);
+      int refYear = cal.get(Calendar.YEAR);
       List<XDimensionRef> mergedRefs = cell.getMergedRefs();
 
       for(int i = 0; i < mergedRefs.size(); i++) {
@@ -1143,13 +1144,8 @@ public class DateComparisonUtil {
          }
       }
 
-      // When the partial week at the start of a year straddles the year boundary (e.g.,
-      // Dec 28-Jan 3 with firstDayOfWeek=Monday), the computed date may fall in the
-      // previous year. Advance by one week so the label stays within the reference year.
-      Calendar yearRefCal = new GregorianCalendar();
-      yearRefCal.setTime(date);
-
-      if(cal.get(Calendar.YEAR) < yearRefCal.get(Calendar.YEAR)) {
+      // Partial week at year start (e.g. Dec 28-Jan 3) may land in the previous year; advance one week.
+      if(cal.get(Calendar.YEAR) < refYear) {
          cal.add(Calendar.DATE, 7);
       }
 
