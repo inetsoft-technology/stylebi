@@ -50,7 +50,13 @@ public class WizVisualizationSaveResult {
    }
 
    private String savedViewsheetIdentifier;
-   /** Raw SVG markup or {@code data:image/png;base64,...} depending on assembly type. */
+   /**
+    * Raw SVG markup ({@code thumbnailFormat="svg"}) or a {@code data:image/png;base64,...} URI
+    * ({@code thumbnailFormat="png"}) depending on assembly type, or {@code null} if unavailable.
+    *
+    * <p><b>Security:</b> when {@code thumbnailFormat} is {@code "svg"} the value is raw SVG markup.
+    * Callers must sanitize it before embedding in the DOM to prevent XSS.
+    */
    private String thumbnail;
    /** Discriminator for {@link #thumbnail}: {@code "svg"} or {@code "png"}, {@code null} if absent. */
    private String thumbnailFormat;

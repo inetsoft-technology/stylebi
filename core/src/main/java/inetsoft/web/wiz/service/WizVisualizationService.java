@@ -49,9 +49,7 @@ import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.security.Principal;
 import java.util.*;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
+import java.util.concurrent.*;
 
 @Service
 public class WizVisualizationService {
@@ -234,19 +232,22 @@ public class WizVisualizationService {
       String runtimeId = event.getSourceViewsheetRuntimeId();
 
       if(!Tool.isEmptyString(runtimeId)) {
-         try {
-            CompletableFuture.runAsync(() -> {
-
+         // Run thumbnail generation on a dedicated executor (not ForkJoinPool.commonPool())
+         // so that blocking I/O does not starve CPU-bound tasks across the JVM.
+         // The callable returns [thumbnailData, format]; result is set only in this thread
+         // after get() succeeds, eliminating any cross-thread mutation race.
+         Future<String[]> thumbnailFuture = THUMBNAIL_EXECUTOR.submit(() -> {
             try {
-            // Fetch once: validates ownership (prevents cross-session access) and
-            // is reused for the fallback path, avoiding redundant lookups.
-            RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
+               // Fetch once: validates ownership (prevents cross-session access) and
+               // is reused for the fallback path, avoiding redundant lookups.
+               RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
 
-            if(rvs == null) {
-               LOG.warn("runtimeId '{}' not accessible for principal '{}', skipping thumbnail",
-                        runtimeId, principal.getName());
-            }
-            else {
+               if(rvs == null) {
+                  LOG.warn("runtimeId '{}' not accessible for principal '{}', skipping thumbnail",
+                           runtimeId, principal.getName());
+                  return null;
+               }
+
                Viewsheet preCheckVs = rvs.getViewsheet();
 
                // Always attempt the lightweight primary path regardless of viewsheet size.
@@ -259,8 +260,10 @@ public class WizVisualizationService {
                if(imgResult != null && imgResult.getRetryAfter() > 0) {
                   LOG.debug("downloadAssemblyImage not yet ready for '{}' (retryAfter={}), skipping thumbnail",
                             event.getAssemblyName(), imgResult.getRetryAfter());
+                  return null;
                }
-               else if(imgResult != null && imgResult.getImageData() != null) {
+
+               if(imgResult != null && imgResult.getImageData() != null) {
                   byte[] imageBytes = binaryTransferService.getData(imgResult.getImageData());
 
                   if(imageBytes != null && imageBytes.length > 0) {
@@ -298,10 +301,7 @@ public class WizVisualizationService {
                            }
                         }
 
-                        if(thumbnailValue != null) {
-                           result.setThumbnail(thumbnailValue);
-                           result.setThumbnailFormat("png");
-                        }
+                        return thumbnailValue != null ? new String[]{thumbnailValue, "png"} : null;
                      }
                      else {
                         if(imageBytes.length > MAX_SVG_THUMBNAIL_BYTES) {
@@ -310,22 +310,34 @@ public class WizVisualizationService {
                                      MAX_SVG_THUMBNAIL_BYTES);
                         }
                         else {
-                           result.setThumbnail(normalizeSvgNamespace(
-                              new String(imageBytes, StandardCharsets.UTF_8)));
-                           result.setThumbnailFormat("svg");
+                           return new String[]{
+                              normalizeSvgNamespace(new String(imageBytes, StandardCharsets.UTF_8)),
+                              "svg"
+                           };
                         }
                      }
                   }
                }
+
+               return null;
             }
-         }
             catch(Exception e) {
                LOG.warn("Failed to generate thumbnail for assembly '{}' (non-fatal): {}",
                         event.getAssemblyName(), e.getMessage());
+               return null;
             }
-            }).get(THUMBNAIL_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+         });
+
+         try {
+            String[] thumbResult = thumbnailFuture.get(THUMBNAIL_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+
+            if(thumbResult != null) {
+               result.setThumbnail(thumbResult[0]);
+               result.setThumbnailFormat(thumbResult[1]);
+            }
          }
          catch(TimeoutException te) {
+            thumbnailFuture.cancel(true);
             LOG.debug("Thumbnail generation timed out after {}s for assembly '{}'",
                       THUMBNAIL_TIMEOUT_SECONDS, event.getAssemblyName());
          }
@@ -665,6 +677,11 @@ public class WizVisualizationService {
     * prefix (e.g. {@code a0:fill="..."}) are not stripped. Batik does not apply the SVG namespace
     * prefix to attribute names, so this is not an issue in practice.
     *
+    * <p><b>Security:</b> the returned string is raw SVG markup. Callers that embed it in the DOM
+    * via {@code innerHTML} or Angular {@code [innerHTML]} must sanitize it first (strip
+    * {@code on*} event-handler attributes and {@code <script>} elements) to prevent XSS. Batik
+    * output is generally safe, but this method provides no sanitization guarantee.
+    *
     * <p>Coupling: this method assumes Batik generates a non-colliding prefix such as {@code a0:}.
     * If a renderer emits a short common prefix (e.g. {@code x:} or {@code s:}), the
     * {@code "<" + prefixColon} replacement could corrupt unrelated tags such as
@@ -717,10 +734,12 @@ public class WizVisualizationService {
             continue;
          }
 
+         // Use the detected quote character so only one replacement can ever match.
          String prefixColon = prefix + ":";
+         String nsDeclaration = "xmlns:" + prefix + "=" + quote + SVG_NS + quote;
+         String nsDefault     = "xmlns="                 + quote + SVG_NS + quote;
          return svg
-            .replace("xmlns:" + prefix + "=\"" + SVG_NS + "\"", "xmlns=\"" + SVG_NS + "\"")
-            .replace("xmlns:" + prefix + "='" + SVG_NS + "'", "xmlns='" + SVG_NS + "'")
+            .replace(nsDeclaration, nsDefault)
             .replace("<" + prefixColon, "<")
             .replace("</" + prefixColon, "</");
       }
@@ -742,5 +761,8 @@ public class WizVisualizationService {
    /** Skip the full-viewsheet fallback export for viewsheets with many assemblies. */
    private static final int MAX_ASSEMBLIES_FOR_FALLBACK_THUMBNAIL = 50;
    /** Maximum wall-clock seconds to spend on thumbnail generation before returning the save result. */
-   private static final long THUMBNAIL_TIMEOUT_SECONDS = 2;
+   private static final long THUMBNAIL_TIMEOUT_SECONDS = 5;
+   /** Dedicated executor for thumbnail I/O — keeps blocking work off ForkJoinPool.commonPool(). */
+   private static final ExecutorService THUMBNAIL_EXECUTOR =
+      Executors.newVirtualThreadPerTaskExecutor();
 }
