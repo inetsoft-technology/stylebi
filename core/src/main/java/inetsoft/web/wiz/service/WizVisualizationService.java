@@ -27,7 +27,6 @@ import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.WizUtil;
 import inetsoft.util.Tool;
 import inetsoft.web.composer.model.TreeNodeModel;
-import inetsoft.web.composer.wiz.service.VisualizationService;
 import inetsoft.web.service.BinaryTransferService;
 import inetsoft.web.viewsheet.controller.AssemblyImageService;
 import inetsoft.web.viewsheet.service.ExportResponse;
@@ -495,6 +494,8 @@ public class WizVisualizationService {
                      ? child.getAlias() : child.getName();
                   children.add(TreeNodeModel.builder()
                      .label(vsLabel)
+                     .icon("viewsheet-icon")
+                     .dragName("dragVisualization")
                      .data(child)
                      .leaf(true)
                      .build());
@@ -508,6 +509,7 @@ public class WizVisualizationService {
 
       return TreeNodeModel.builder()
          .label(label)
+         .icon("folder-icon")
          .data(entry)
          .leaf(false)
          .children(children)

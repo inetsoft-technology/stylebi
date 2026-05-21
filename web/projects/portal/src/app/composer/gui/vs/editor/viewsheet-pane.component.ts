@@ -143,6 +143,7 @@ import { ComposerObjectService } from "../composer-object.service";
 import { NewViewsheetEvent } from "../event/new-viewsheet-event";
 import { AssemblyChangedCommand } from "../../../../vs-wizard/model/command/assembly-changed-command";
 import { AddVisualizationEvent } from "../../wiz/event/add-visualization-event";
+import { AddVisualizationsByIdsEvent } from "../../wiz/event/add-visualizations-by-ids-event";
 import { AddFilterEvent } from "../../wiz/event/add-filter-event";
 import { RefreshVsAssemblyEvent } from "../../../../vsobjects/event/refresh-vs-assembly-event";
 import { ResizeHandlerService } from "../../resize-handler.service";
@@ -550,7 +551,8 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
          }
          else {
             let event: NewViewsheetEvent = new NewViewsheetEvent(
-               this.vs.id, 0, 0, mobile, window.navigator.userAgent, this.vs.baseEntry, this.vs.type == "wiz");
+               this.vs.id, 0, 0, mobile, window.navigator.userAgent, this.vs.baseEntry,
+               this.vs.type == "wiz" || this.wizService.wizComposer);
             event.viewer = false;
             this.viewsheetClient.sendEvent("/events/composer/viewsheet/new", event);
          }
@@ -1046,6 +1048,12 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
          this.vs.bindingTreeInitialLoad = false;
          this.vs.socketConnection.sendEvent("/events/vs/bindingtree/gettreemodel",
             new RefreshBindingTreeEvent(null, this.deployed));
+      }
+
+      if(this.wizService.wizComposer && this.wizService.wizVizIds.length > 0) {
+         const event = new AddVisualizationsByIdsEvent(this.wizService.wizVizIds);
+         this.wizService.wizVizIds = [];
+         this.viewsheetClient.sendEvent("/events/composer/wiz/addVisualizationsByIds", event);
       }
    }
 

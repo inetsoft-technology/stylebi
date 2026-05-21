@@ -15,9 +15,9 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-package inetsoft.web.composer.wiz.command;
+package inetsoft.web.wiz.command;
 
-import inetsoft.web.composer.wiz.model.VisualizationDetailModel;
+import inetsoft.web.wiz.model.VisualizationDetailModel;
 import inetsoft.web.viewsheet.command.ViewsheetCommand;
 
 import java.util.List;

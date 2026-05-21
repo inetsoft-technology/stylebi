@@ -45,12 +45,6 @@ export class WizComponentsPane implements OnInit, OnChanges, OnDestroy {
       },
       children: []
    };
-   private components: TreeNodeModel = {
-      label: "_#(js:Components)",
-      icon: "folder-toolbox-icon",
-      data: { componentsRoot: true },
-      children: []
-   };
    private filter: TreeNodeModel = {
       label: "_#(js:Filter)",
       icon: "condition-icon",
@@ -68,13 +62,11 @@ export class WizComponentsPane implements OnInit, OnChanges, OnDestroy {
    ngOnInit(): void {
       this.initStaticNodes();
       this.loadVisualizations();
-      this.loadComponents();
       this.loadFilters();
       this.buildRoot();
       this.subscriptions.add(this.wizService.refreshFilters.subscribe(() => this.loadFilters()));
       this.subscriptions.add(this.wizService.refreshTree.subscribe(() => {
          this.loadVisualizations();
-         this.loadComponents();
          this.loadFilters();
       }));
    }
@@ -85,21 +77,12 @@ export class WizComponentsPane implements OnInit, OnChanges, OnDestroy {
 
    ngOnChanges(changes: SimpleChanges): void {
       if(changes["runtimeId"] && !changes["runtimeId"].firstChange) {
-         this.loadVisualizations();
-         this.loadComponents();
          this.loadFilters();
       }
    }
 
    private loadVisualizations(): void {
-      if(!this.runtimeId) {
-         this.visualizations.children = [];
-         return;
-      }
-
-      const params = new HttpParams().set("runtimeId", this.runtimeId);
-
-      this.http.get<TreeNodeModel>("../api/composer/wiz/visualizations", { params })
+      this.http.get<TreeNodeModel>("/api/wiz/visualization/tree")
          .subscribe({
             next: (result) => {
                this.visualizations.children = result.children || [];
@@ -108,29 +91,6 @@ export class WizComponentsPane implements OnInit, OnChanges, OnDestroy {
                this.visualizations.children = [];
             }
          });
-   }
-
-   private loadComponents(): void {
-      if(!this.runtimeId) {
-         this.components.children = [];
-         return;
-      }
-
-      const params = new HttpParams().set("runtimeId", this.runtimeId);
-
-      this.http.get<TreeNodeModel>("../api/composer/wiz/components", { params })
-         .subscribe({
-            next: (result) => {
-               this.components.children = result.children || [];
-            },
-            error: () => {
-               this.components.children = [];
-            }
-         });
-   }
-
-   newVisualization(): void {
-      this.wizService.onOpenVisualization();
    }
 
    private loadFilters(): void {
@@ -156,7 +116,6 @@ export class WizComponentsPane implements OnInit, OnChanges, OnDestroy {
       this.root = {
          children: [
             this.visualizations,
-            this.components,
             this.filter,
             this.output,
             this.shape
@@ -234,7 +193,6 @@ export class WizComponentsPane implements OnInit, OnChanges, OnDestroy {
          .subscribe({
             next: () => {
                this.loadVisualizations();
-               this.loadComponents();
             },
             error: (err) => {
                console.error("Failed to remove visualization", err);
@@ -268,7 +226,7 @@ export class WizComponentsPane implements OnInit, OnChanges, OnDestroy {
       let groups = [group];
       let node = event[1];
 
-      if(node?.data?.visualizationRoot || node?.data?.componentsRoot) {
+      if(node?.data?.visualizationRoot) {
          group.actions.push({
             id: () => "new-wiz-visualization",
             label: () => "_#(js:New Visualization)",

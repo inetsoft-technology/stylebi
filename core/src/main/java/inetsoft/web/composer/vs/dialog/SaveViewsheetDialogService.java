@@ -38,7 +38,7 @@ import inetsoft.util.audit.Audit;
 import inetsoft.util.log.LogLevel;
 import inetsoft.web.AutoSaveUtils;
 import inetsoft.web.composer.model.vs.*;
-import inetsoft.web.composer.wiz.service.VisualizationService;
+import inetsoft.web.wiz.service.VisualizationService;
 import inetsoft.web.viewsheet.command.SaveSheetCommand;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.viewsheet.service.CoreLifecycleService;

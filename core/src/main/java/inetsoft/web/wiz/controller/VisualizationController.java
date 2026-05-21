@@ -16,10 +16,10 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-package inetsoft.web.composer.wiz.controller;
+package inetsoft.web.wiz.controller;
 
 import inetsoft.web.composer.model.TreeNodeModel;
-import inetsoft.web.composer.wiz.service.VisualizationServiceProxy;
+import inetsoft.web.wiz.service.VisualizationServiceProxy;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import org.springframework.web.bind.annotation.*;

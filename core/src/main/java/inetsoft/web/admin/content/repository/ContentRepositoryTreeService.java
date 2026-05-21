@@ -41,7 +41,7 @@ import inetsoft.web.*;
 import inetsoft.web.admin.content.repository.model.LicensedComponents;
 import inetsoft.web.admin.schedule.ScheduleTaskFolderService;
 import inetsoft.web.admin.security.SSOType;
-import inetsoft.web.composer.wiz.service.VisualizationService;
+import inetsoft.web.wiz.service.VisualizationService;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 import org.slf4j.Logger;

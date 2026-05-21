@@ -15,22 +15,24 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-package inetsoft.web.composer.wiz.model;
+package inetsoft.web.wiz.event;
 
-public class VisualizationDetailModel {
-   public VisualizationDetailModel(String label, String value) {
-      this.label = label;
-      this.value = value;
+import java.io.Serializable;
+import java.util.List;
+
+/**
+ * Event sent to bulk-add visualizations to a wiz dashboard by their AssetEntry identifiers.
+ * Used when the composer is opened with {@code wizComposer=true} and pre-selected
+ * visualization identifiers ({@code wizVizIds}).
+ */
+public class AddVisualizationsByIdsEvent implements Serializable {
+   public List<String> getIdentifiers() {
+      return identifiers;
    }
 
-   public String getLabel() {
-      return label;
+   public void setIdentifiers(List<String> identifiers) {
+      this.identifiers = identifiers;
    }
 
-   public String getValue() {
-      return value;
-   }
-
-   private final String label;
-   private final String value;
+   private List<String> identifiers;
 }
