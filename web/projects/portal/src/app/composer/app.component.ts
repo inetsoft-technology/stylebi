@@ -115,8 +115,19 @@ export class ComposerAppComponent implements OnInit, OnDestroy {
 
          if(wizVizIdsKey) {
             const raw = localStorage.getItem(wizVizIdsKey);
-            this.wizService.wizVizIds = raw ? JSON.parse(raw) : [];
             localStorage.removeItem(wizVizIdsKey);
+
+            if(raw) {
+               try {
+                  this.wizService.wizVizIds = JSON.parse(raw);
+               }
+               catch(e) {
+                  this.wizService.wizVizIds = [];
+               }
+            }
+            else {
+               this.wizService.wizVizIds = [];
+            }
          }
       }
 
