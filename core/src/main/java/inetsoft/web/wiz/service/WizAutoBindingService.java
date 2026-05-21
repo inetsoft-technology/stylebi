@@ -131,7 +131,6 @@ public class WizAutoBindingService {
          applyFieldConfigs(tempChartInfo, configMap);
 
          String vizType = request.getVisualizationType();
-         boolean vizTypeIsExplicit = request.isVisualizationTypeIsExplicit();
          List<ExplicitBinding> explicitBindings = request.getExplicitBindings();
          ChartPreference pref = buildChartPreference(explicitBindings);
 
@@ -148,7 +147,7 @@ public class WizAutoBindingService {
 
          String intentCategory = request.getIntentCategory();
          RecommendedVisualization primary = buildPrimaryVisualization(
-            recommendations, worksheetId, vizType, vizTypeIsExplicit,
+            recommendations, worksheetId, vizType,
             explicitBindings, prefInfos, intentCategory);
 
          AutoBindingResponse resp = new AutoBindingResponse();
@@ -541,24 +540,24 @@ public class WizAutoBindingService {
    /**
     * Selects the primary visualization.
     * <ul>
-    *   <li>Explicit chart type → pick best binding of that type from {@code prefInfos}.</li>
-    *   <li>Explicit non-chart type → find it in {@code recommendations}.</li>
-    *   <li>Auto-select with explicit bindings → infer viz type from binding role names
+    *   <li>{@code vizType} non-null (chart) → pick best binding of that type from {@code prefInfos}.</li>
+    *   <li>{@code vizType} non-null (non-chart) → find it in {@code recommendations}.</li>
+    *   <li>No vizType, explicit bindings → infer viz type from binding role names
     *       (non-chart type wins only when its role-match count strictly exceeds chart roles),
     *       then find it in {@code recommendations}.</li>
-    *   <li>Auto-select fallback → if top recommendation is a chart use {@code prefInfos},
-    *       otherwise return the top recommendation.</li>
+    *   <li>No vizType fallback → if top recommendation is a chart, apply {@code intentCategory}
+    *       filter on {@code prefInfos}; otherwise return the top recommendation.</li>
     * </ul>
     */
    private RecommendedVisualization buildPrimaryVisualization(
       List<RecommendedVisualization> recommendations,
       String worksheetId,
-      String vizType, boolean vizTypeIsExplicit,
+      String vizType,
       List<ExplicitBinding> explicitBindings,
       List<ChartCombinationUtil.ScoredInfo> prefInfos,
       String intentCategory)
    {
-      if(vizTypeIsExplicit && vizType != null) {
+      if(vizType != null) {
          if(isChartVizType(vizType)) {
             return buildBestChartVizByType(prefInfos, vizType, worksheetId);
          }

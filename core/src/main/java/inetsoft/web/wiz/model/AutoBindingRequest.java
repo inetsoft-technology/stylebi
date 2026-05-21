@@ -42,14 +42,6 @@ public class AutoBindingRequest {
       this.visualizationType = visualizationType;
    }
 
-   public boolean isVisualizationTypeIsExplicit() {
-      return visualizationTypeIsExplicit;
-   }
-
-   public void setVisualizationTypeIsExplicit(boolean visualizationTypeIsExplicit) {
-      this.visualizationTypeIsExplicit = visualizationTypeIsExplicit;
-   }
-
    public List<SimpleFieldInfo> getFieldConfigs() {
       return fieldConfigs;
    }
@@ -78,8 +70,6 @@ public class AutoBindingRequest {
    private String worksheetId;
    /** Expected visualization type string, e.g. "bar", "table", "crosstab", "gauge". */
    private String visualizationType;
-   /** True when the user explicitly named the visualization type; false when inferred. */
-   private boolean visualizationTypeIsExplicit;
    /**
     * Per-field configurations from the LLM.
     * Uses the existing {@link SimpleFieldInfo} polymorphic hierarchy:
