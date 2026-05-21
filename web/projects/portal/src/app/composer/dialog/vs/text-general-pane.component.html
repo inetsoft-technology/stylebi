@@ -29,14 +29,10 @@
     <div class="form-row-float-label row">
       <div class="col">
         <div class="form-floating">
-          <select class="form-control" [(ngModel)]="model.popComponent"
-                  [disabled]="layoutObject || model.textPaneModel.url"
-                  placeholder="_#(Pop Component)">
-            <option value="">_#(None)</option>
-            <option *ngFor="let component of model.popComponents" [title]="component" [value]="component">
-              {{component | truncate}}
-            </option>
-          </select>
+          <custom-select [options]="popComponentOptions"
+                         [(ngModel)]="model.popComponent"
+                         [disabled]="layoutObject || model.textPaneModel.url">
+          </custom-select>
           <label><span>_#(Pop Component)</span></label>
         </div>
       </div>
@@ -52,13 +48,10 @@
     <div class="form-row-float-label row">
       <div class="col">
         <div class="form-floating">
-        <select class="form-control" [(ngModel)]="model.popLocation"
-                [disabled]="layoutObject || model.textPaneModel.url"
-                placeholder="_#(Pop Location)">
-          <option *ngFor="let component of getKeys()" [title]="popService.getPopLocationLabel(component)" [value]="component">
-            {{popService.getPopLocationLabel(component) | truncate}}
-          </option>
-        </select>
+        <custom-select [options]="popLocationOptions"
+                       [(ngModel)]="model.popLocation"
+                       [disabled]="layoutObject || model.textPaneModel.url">
+        </custom-select>
         <label><span>_#(Pop Location)</span></label>
           </div>
       </div>

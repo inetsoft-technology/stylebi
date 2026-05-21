@@ -33,7 +33,7 @@ import {
    ValidatorFn,
    Validators
 } from "@angular/forms";
-import { NgbDateStruct, NgbModal, NgbTimeStruct } from "@ng-bootstrap/ng-bootstrap";
+import { NgbDatepicker, NgbDateStruct, NgbModal, NgbTimeStruct } from "@ng-bootstrap/ng-bootstrap";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
 import { CompletionConditionModel } from "../../../../../../../shared/schedule/model/completion-condition-model";
@@ -71,6 +71,7 @@ dayjs.extend(utc);
    styleUrls: ["./task-condition-pane.component.scss"]
 })
 export class TaskConditionPane implements OnInit, OnChanges {
+   private readonly defaultYearWindow: number = 10;
    @Input() oldTaskName: string;
    @Input() taskName: string;
    @Input() timeZone: string;
@@ -259,6 +260,103 @@ export class TaskConditionPane implements OnInit, OnChanges {
       }));
    }
 
+   getMonthSelectOptions(datepicker: NgbDatepicker): CustomSelectOption<number>[] {
+      const displayed = this.getDisplayedMonth(datepicker);
+
+      return this.getAvailableMonths(datepicker, displayed.year).map((month) => ({
+         value: month,
+         label: datepicker.i18n.getMonthShortName(month, displayed.year)
+      }));
+   }
+
+   getYearSelectOptions(datepicker: NgbDatepicker): CustomSelectOption<number>[] {
+      const displayed = this.getDisplayedMonth(datepicker);
+      const minYear = datepicker.state.minDate?.year ?? displayed.year - this.defaultYearWindow;
+      const maxYear = datepicker.state.maxDate?.year ?? displayed.year + this.defaultYearWindow;
+      const options: CustomSelectOption<number>[] = [];
+
+      for(let year = minYear; year <= maxYear; year++) {
+         options.push({
+            value: year,
+            label: datepicker.i18n.getYearNumerals(year)
+         });
+      }
+
+      return options;
+   }
+
+   selectMonth(datepicker: NgbDatepicker, month: number): void {
+      const displayed = this.getDisplayedMonth(datepicker);
+      datepicker.navigateTo({ year: displayed.year, month, day: 1 });
+   }
+
+   selectYear(datepicker: NgbDatepicker, year: number): void {
+      const displayed = this.getDisplayedMonth(datepicker);
+      const availableMonths = this.getAvailableMonths(datepicker, year);
+      const month = availableMonths.includes(displayed.month) ? displayed.month : availableMonths[0];
+
+      datepicker.navigateTo({ year, month, day: 1 });
+   }
+
+   navigateMonth(datepicker: NgbDatepicker, offset: number): void {
+      const displayed = this.getDisplayedMonth(datepicker);
+      let year = displayed.year;
+      let month = displayed.month + offset;
+
+      while(month < 1) {
+         month += 12;
+         year--;
+      }
+
+      while(month > 12) {
+         month -= 12;
+         year++;
+      }
+
+      const minDate = datepicker.state.minDate;
+      const maxDate = datepicker.state.maxDate;
+
+      if(minDate && (year < minDate.year || year === minDate.year && month < minDate.month)) {
+         year = minDate.year;
+         month = minDate.month;
+      }
+
+      if(maxDate && (year > maxDate.year || year === maxDate.year && month > maxDate.month)) {
+         year = maxDate.year;
+         month = maxDate.month;
+      }
+
+      datepicker.navigateTo({ year, month, day: 1 });
+   }
+
+   canNavigateMonth(datepicker: NgbDatepicker, offset: number): boolean {
+      const displayed = this.getDisplayedMonth(datepicker);
+      const minDate = datepicker.state.minDate;
+      const maxDate = datepicker.state.maxDate;
+      let year = displayed.year;
+      let month = displayed.month + offset;
+
+      while(month < 1) {
+         month += 12;
+         year--;
+      }
+
+      while(month > 12) {
+         month -= 12;
+         year++;
+      }
+
+      if(minDate && (year < minDate.year || year === minDate.year && month < minDate.month)) {
+         return false;
+      }
+
+      if(maxDate && (year > maxDate.year || year === maxDate.year && month > maxDate.month)) {
+         return false;
+      }
+
+      return true;
+   }
+
    get weekdaySelectOptions(): CustomSelectOption<number>[] {
       return this.weekdays.map((day, index) => ({
          value: index + 1,
@@ -417,6 +515,25 @@ export class TaskConditionPane implements OnInit, OnChanges {
       if(!!changes.listView && !changes.listView.currentValue && !changes.listView.firstChange) {
          this.addCondition();
       }
+   }
+
+   private getDisplayedMonth(datepicker: NgbDatepicker): NgbDateStruct {
+      const displayedMonth: any = datepicker.state.months?.[0];
+      return displayedMonth?.firstDate ?? displayedMonth ?? datepicker.state.firstDate ?? this.date;
+   }
+
+   private getAvailableMonths(datepicker: NgbDatepicker, year: number): number[] {
+      const minDate = datepicker.state.minDate;
+      const maxDate = datepicker.state.maxDate;
+      const startMonth = minDate && minDate.year === year ? minDate.month : 1;
+      const endMonth = maxDate && maxDate.year === year ? maxDate.month : 12;
+      const months: number[] = [];
+
+      for(let month = startMonth; month <= endMonth; month++) {
+         months.push(month);
+      }
+
+      return months;
    }
 
    private updateStartTime(): void {

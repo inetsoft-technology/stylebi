@@ -35,9 +35,11 @@
               </div>
               <div class="form-row-float-label col-offset-1">
                 <label for="returnDetail">_#(Return Data Type):</label>
-                <select id="returnDetail" class="form-control" formControlName="dataType" [(ngModel)]="model.dataType">
-                      <option *ngFor="let dataType of dataTypeList">{{dataType.label}}</option>
-                </select>
+                <custom-select id="returnDetail"
+                               formControlName="dataType"
+                               [options]="dataTypeSelectOptions"
+                               [(ngModel)]="model.dataType">
+                </custom-select>
               </div>
               <div class="form-row-float-label col-offset-2">
                 <div class="form-check">
@@ -80,10 +82,12 @@
                   <label><span>_#(Name)</span></label>
                 </div>
                 <div class="col form-floating">>
-                  <select id="returnAggregate" class="form-control" formControlName="dataType"
-                          [(ngModel)]="model.dataType" placeholder="_#(Return Data Type)">
-                    <option *ngFor="let dataType of dataTypeList">{{dataType.label}}</option>
-                  </select>
+                  <custom-select id="returnAggregate"
+                                 formControlName="dataType"
+                                 [options]="dataTypeSelectOptions"
+                                 [(ngModel)]="model.dataType"
+                                 placeholder="_#(Return Data Type)">
+                  </custom-select>
                   <label><span>_#(Return Data Type):</span></label>
                 </div>
                 <div class="col">

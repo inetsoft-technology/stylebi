@@ -18,6 +18,7 @@
 import { CommonModule } from "@angular/common";
 import { NgModule } from "@angular/core";
 import { FormsModule } from "@angular/forms";
+import { CustomSelectModule } from "../custom-select/custom-select.module";
 import { FixedDropdownModule } from "../fixed-dropdown/fixed-dropdown.module";
 import { ModalHeaderModule } from "../modal-header/modal-header.module";
 import { ColorComponentEditor } from "./color-component-editor.component";
@@ -37,6 +38,7 @@ import { RecentColorService } from "./recent-color.service";
 @NgModule({
    imports: [
       CommonModule,
+      CustomSelectModule,
       FormsModule,
       FixedDropdownModule,
       MouseEventModule,

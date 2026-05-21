@@ -16,7 +16,7 @@
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
 <form ngNoForm (submit)="$event.preventDefault()" class="container-fluid">
-  <div class="form-row-float-label row" *ngFor="let _sortRef of sortRefs; let _i = index">
+  <div class="form-row-float-label row align-items-center sort-column-editor__row" *ngFor="let _sortRef of sortRefs; let _i = index">
     <div class="col-auto pe-0">
       <button [disabled]="_i >= model.selectedColumns.length - 1" class="btn btn-sm btn-light-no-bg"
               type="button" id="downArrow" title="_#(Move Down)"
@@ -31,15 +31,15 @@
         <i class="upward-icon" aria-hidden="true"></i>
       </button>
     </div>
-    <div class="col">
-      <select class="form-control" [ngModel]="_sortRef.name" (ngModelChange)="updateRow($event, _i)"
-              [disabled]="_i > model.selectedColumns.length">
-        <option *ngFor="let _col of columnList; let _j = index" [value]="_col.name"
-                [disabled]="isOptionDisabled(_col.name, _sortRef.name)"
-                [attr.title]="_col.tooltip">{{_col.label}}</option>
-      </select>
+    <div class="col sort-column-editor__select-col">
+      <custom-select class="sort-column-editor__select"
+                     [ngModel]="_sortRef.name"
+                     (ngModelChange)="updateRow($event, _i)"
+                     [options]="getColumnSelectOptions(_sortRef)"
+                     [disabled]="_i > model.selectedColumns.length">
+      </custom-select>
     </div>
-    <div class="col-auto">
+    <div class="col-auto sort-column-editor__order-col">
       <div class="form-check">
         <input type="radio" class="form-check-input" [name]="'sort' + _i" [attr.id]="'asc' + _i"
                [disabled]="_sortRef.name === empty"
@@ -49,7 +49,7 @@
         </label>
       </div>
     </div>
-    <div class="col-auto">
+    <div class="col-auto sort-column-editor__order-col">
       <div class="form-check">
         <input type="radio" class="form-check-input" [name]="'sort' + _i"
                [disabled]="_sortRef.name === empty" [attr.id]="'desc' + _i"

@@ -15,6 +15,7 @@
   ~ You should have received a copy of the GNU Affero General Public License
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
-<select class="form-control" [(ngModel)]="value" (ngModelChange)="valueChange.emit($event)">
-  <option *ngFor="let dateRange of dateRanges; index as i" [value]="dateRange">{{dateRangeLabels?.[i] ?? dateRange}}</option>
-</select>
+<custom-select [options]="dateRangeSelectOptions"
+               [ngModel]="value"
+               (ngModelChange)="valueChange.emit($event)">
+</custom-select>

@@ -49,6 +49,7 @@ export class SelectWorksheetDialog {
    selectedEntry: AssetEntry;
    queryParams: string[];
    closeMenu: boolean;
+   dropdownOpenState: Record<string, boolean> = {};
 
    @Input() set selectedSubQuery(model: DrillSubQueryModel) {
       this._selectedSubQuery = model;
@@ -168,6 +169,11 @@ export class SelectWorksheetDialog {
       }
 
       this.closeMenu = true;
+      this.dropdownOpenState[paramName] = false;
+   }
+
+   setDropdownOpenState(paramName: string, open: boolean): void {
+      this.dropdownOpenState[paramName] = open;
    }
 
    ok() {

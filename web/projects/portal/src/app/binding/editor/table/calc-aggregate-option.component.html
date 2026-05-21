@@ -24,20 +24,20 @@
   </div>
   <div class="row form-row-float-label">
     <div class="col form-floating">
-      <select class="form-control" [(ngModel)]="baseFormula" placeholder="_#(Aggregate)">
-        <option [value]="fl.formulaName" *ngFor="let fl of formulas">{{fl.label}}</option>
-      </select>
+      <custom-select [options]="formulaOptions"
+                     [(ngModel)]="baseFormula"
+                     placeholder="_#(Aggregate)">
+      </custom-select>
       <label><span>_#(Aggregate)</span></label>
     </div>
   </div>
   <div class="row form-row-float-label" *ngIf="!hasN">
     <div class="col form-floating">
-      <select class="form-control" [(ngModel)]="secondCol"
-              [disabled]="!isTwoColumns()" placeholder="_#(With)">
-        <option [value]="col.name" [attr.title]="col.description"
-                [class.grayed-out-field]="isGrayedOut(col.name)"
-                *ngFor="let col of availableFields">{{col.name}}</option>
-      </select>
+      <custom-select [options]="availableFieldOptions"
+                     [(ngModel)]="secondCol"
+                     [disabled]="!isTwoColumns()"
+                     placeholder="_#(With)">
+      </custom-select>
       <label><span>_#(With)</span></label>
     </div>
   </div>
@@ -49,10 +49,11 @@
   </div>
   <div class="row form-row-float-label">
     <div class="col form-floating">
-      <select class="form-control" [(ngModel)]="percentage" placeholder="_#(Percentage)"
-              [disabled]="!isPercent()">
-        <option [value]="per.value" *ngFor="let per of getPercents()">{{per.label}}</option>
-      </select>
+      <custom-select [options]="percentOptions"
+                     [(ngModel)]="percentage"
+                     [disabled]="!isPercent()"
+                     placeholder="_#(Percentage)">
+      </custom-select>
       <label><span>_#(Percentage)</span></label>
     </div>
   </div>

@@ -47,32 +47,39 @@
     </div>
     <div class="row form-row-float-label">
       <div class="col-4">
-        <select class="form-control" [(ngModel)]="join.table1" (ngModelChange)="tableChange($event, true)">
-          <option *ngFor="let table of getTableNames()" [ngValue]="table">{{table}}</option>
-        </select>
+        <custom-select [options]="tableSelectOptions"
+                       [(ngModel)]="join.table1"
+                       (ngModelChange)="tableChange($event, true)">
+        </custom-select>
       </div>
       <div class="col-4"></div>
       <div class="col-4">
-        <select class="form-control" [(ngModel)]="join.table2" (ngModelChange)="tableChange($event, false)">
-          <option *ngFor="let table of getTableNames()" [ngValue]="table">{{table}}</option>
-        </select>
+        <custom-select [options]="tableSelectOptions"
+                       [(ngModel)]="join.table2"
+                       (ngModelChange)="tableChange($event, false)">
+        </custom-select>
       </div>
     </div>
     <div class="row form-row-float-label">
       <div class="col-4">
-        <select class="form-control" [ngModel]="columns1?.indexOf(tempColumn1)" (ngModelChange)="tempColumn1 = columns1[$event]; validate()" [disabled]="columns1 == null">
-          <option *ngFor="let _col of columns1; let _i = index" [ngValue]="_i">{{_col.properties.attribute}}</option>
-        </select>
+        <custom-select [options]="column1SelectOptions"
+                       [ngModel]="tempColumn1"
+                       (ngModelChange)="tempColumn1 = $event; validate()"
+                       [disabled]="columns1 == null">
+        </custom-select>
       </div>
       <div class="col-4">
-        <select class="form-control" [ngModel]="join.operator" (ngModelChange)="changeOperator($event)">
-          <option *ngFor="let operator of operators" [ngValue]="operator">{{operator}}</option>
-        </select>
+        <custom-select [options]="operatorSelectOptions"
+                       [ngModel]="join.operator"
+                       (ngModelChange)="changeOperator($event)">
+        </custom-select>
       </div>
       <div class="col-4">
-        <select class="form-control" [ngModel]="columns2?.indexOf(tempColumn2)" (ngModelChange)="tempColumn2 = columns2[$event]; validate()" [disabled]="columns2 == null">
-          <option *ngFor="let _col of columns2; let _i = index" [ngValue]="_i">{{_col.properties.attribute}}</option>
-        </select>
+        <custom-select [options]="column2SelectOptions"
+                       [ngModel]="tempColumn2"
+                       (ngModelChange)="tempColumn2 = $event; validate()"
+                       [disabled]="columns2 == null">
+        </custom-select>
       </div>
     </div>
     <div *ngIf="error" class="alert alert-danger">{{error}}</div>

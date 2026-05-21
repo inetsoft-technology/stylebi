@@ -79,4 +79,12 @@ export class FormatCSSPane implements OnChanges {
          .map((i) => this.cssClasses[i]).join(",");
       this.cssClassChange.emit(this.cssClass);
    }
+
+   get hasCSSIDs(): boolean {
+      return !!this.cssIDs?.length;
+   }
+
+   get hasCSSClasses(): boolean {
+      return !!this.cssClasses?.length;
+   }
 }

@@ -31,6 +31,7 @@ import {
 import { ComponentTool } from "../../../../../../../../common/util/component-tool";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { GetTableColumnEvent } from "../../../../../../model/datasources/database/events/get-table-column-event";
+import { CustomSelectOption } from "../../../../../../../../widget/custom-select/custom-select.component";
 
 
 const TABLE_COLUMNS_URI: string = "../api/data/physicalmodel/columns";
@@ -49,7 +50,7 @@ export class AddJoinDialog implements OnInit, AfterViewInit {
    @Input() id: string;
    @Output() onCommit: EventEmitter<JoinModel> = new EventEmitter<JoinModel>();
    @Output() onCancel: EventEmitter<string> = new EventEmitter<string>();
-   @ViewChild("selectFocus") selectFocus: ElementRef;
+   @ViewChild("selectFocus", {read: ElementRef}) selectFocus: ElementRef<HTMLElement>;
    join: JoinModel = {
       type: JoinType.EQUAL,
       orderPriority: 1,
@@ -84,7 +85,28 @@ export class AddJoinDialog implements OnInit, AfterViewInit {
    }
 
    ngAfterViewInit(): void {
-      this.selectFocus.nativeElement.focus();
+      this.selectFocus?.nativeElement?.querySelector("button")?.focus();
+   }
+
+   get columnSelectOptions(): CustomSelectOption<string>[] {
+      return (this.columns || []).map((column) => ({
+         value: column,
+         label: column
+      }));
+   }
+
+   get foreignTableSelectOptions(): CustomSelectOption<string>[] {
+      return (this.foreignTables || []).map((foreignTable) => ({
+         value: foreignTable.qualifiedName,
+         label: foreignTable.qualifiedName
+      }));
+   }
+
+   get foreignColumnSelectOptions(): CustomSelectOption<string>[] {
+      return (this.filteredForeignColumns || []).map((column) => ({
+         value: column,
+         label: column
+      }));
    }
 
    /**

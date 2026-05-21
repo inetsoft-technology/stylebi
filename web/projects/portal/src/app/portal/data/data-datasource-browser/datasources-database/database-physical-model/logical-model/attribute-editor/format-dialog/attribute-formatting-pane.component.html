@@ -34,23 +34,19 @@
     </button>
   </div>
   <div class="form-floating">
-    <select class="formatSelect form-control" [ngModel]="formatModel?.format"
-            (ngModelChange)="typeChange($event)"
-            placeholder="_#(Format)">
-      <option [ngValue]="fmt.value" *ngFor="let fmt of formats">
-        {{fmt.label}}
-      </option>
-    </select>
+    <custom-select class="formatSelect"
+                   [options]="formatTypeSelectOptions"
+                   [ngModel]="formatModel?.format"
+                   (ngModelChange)="typeChange($event)"
+                   placeholder="_#(Format)">
+    </custom-select>
     <label><span>_#(Format Type)</span></label>
   </div>
   <div class="popup-editor__field popup-editor__field--compact" *ngIf="formatModel?.format == 'DateFormat'">
-    <select [ngModel]="dateFormat"
-            (ngModelChange)="updateDateFormat($event)"
-            class="form-control">
-      <option [value]="dfmt.value" *ngFor="let dfmt of dateFormats">
-        {{dfmt.label}}
-      </option>
-    </select>
+    <custom-select [options]="dateFormatSelectOptions"
+                   [ngModel]="dateFormat"
+                   (ngModelChange)="updateDateFormat($event)">
+    </custom-select>
   </div>
   <div class="popup-editor__field-group" *ngIf="showFormatSpec()">
     <div class="form-floating" *ngIf="formatModel?.format == 'MessageFormat'">

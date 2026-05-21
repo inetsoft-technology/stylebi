@@ -22,6 +22,7 @@ import { ComponentTool } from "../../../../common/util/component-tool";
 import { ChartGeoRef } from "../../../data/chart/chart-geo-ref";
 import { FeatureMappingInfo } from "../../../data/chart/feature-mapping-info";
 import { GeoMappingDialog } from "./geo-mapping-dialog.component";
+import { CustomSelectOption } from "../../../../widget/custom-select/custom-select.component";
 
 @Component({
    selector: "geo-option-pane",
@@ -219,5 +220,26 @@ export class GeoOptionPane implements OnInit {
          }, {windowClass: "geo-mapping-dialog"} );
 
       dialog.provider = this.provider;
+   }
+
+   get mapTypeOptions(): CustomSelectOption<string>[] {
+      return (this.typeModel || []).map((type) => ({
+         label: type.label,
+         value: type.data
+      }));
+   }
+
+   get layerOptions(): CustomSelectOption<string>[] {
+      return (this.layerMode || []).map((layer) => ({
+         label: layer.label,
+         value: layer.data
+      }));
+   }
+
+   get mappingOptions(): CustomSelectOption<FeatureMappingInfo>[] {
+      return (this.mappingMode || []).map((mapping) => ({
+         label: mapping.label,
+         value: mapping.data
+      }));
    }
 }

@@ -20,9 +20,9 @@
 </modal-header>
 <div class="modal-body">
   <div class="form-group form-floating" [formGroup]="form">
-    <select defaultFocus class="form-control" formControlName="selectedView">
-      <option *ngFor="let view of physicalViews" [value]="view">{{ view }}</option>
-    </select>
+    <custom-select [options]="physicalViewSelectOptions"
+                   formControlName="selectedView">
+    </custom-select>
     <label><span>_#(Physical View)</span></label>
   </div>
 </div>

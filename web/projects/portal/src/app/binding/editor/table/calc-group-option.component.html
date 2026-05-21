@@ -24,21 +24,20 @@
   </div>
   <div class="row form-row-float-label">
     <div class="col form-floating">
-      <select class="form-control" [(ngModel)]="order.type" placeholder="_#(Sort)"
-              [disabled]="cellBinding.timeSeries">
-        <ng-container *ngFor="let sort of sorts">
-          <option *ngIf="sortItemVisible(sort)" [value]="sort.value">{{sort.label}}</option>
-        </ng-container>
-      </select>
+      <custom-select [options]="sortOptions"
+                     [(ngModel)]="order.type"
+                     [disabled]="cellBinding.timeSeries"
+                     placeholder="_#(Sort)">
+      </custom-select>
       <label><span>_#(Sort)</span></label>
     </div>
     <div class="col">
       <div class="form-floating by_label_id" *ngIf="(order.type==17 || order.type==18)">
-        <select class="form-control" placeholder="_#(By)" [(ngModel)]="sortValue"
-                [disabled]="cellBinding.timeSeries">
-          <option [value]="agg.view" *ngFor="let agg of aggrs">{{agg.view}}
-          </option>
-        </select>
+        <custom-select [options]="aggregateViewOptions"
+                       [(ngModel)]="sortValue"
+                       [disabled]="cellBinding.timeSeries"
+                       placeholder="_#(By)">
+        </custom-select>
         <label><span>_#(By)</span></label>
       </div>
       <span (click)="openManualDialog()" *ngIf="order.type == 8">
@@ -50,11 +49,12 @@
   <div class="row form-row-float-label">
     <div class="col-4 pe-0">
       <div class="form-floating ranking_label_id">
-        <select class="form-control" [(ngModel)]="topN.type" placeholder="_#(Ranking)"
-                (ngModelChange)="changeTopnType($event)"
-                [disabled]="isDisableRanking()">
-          <option [value]="top.value" *ngFor="let top of TOP_OPTION">{{top.label}}</option>
-        </select>
+        <custom-select [options]="rankingOptions"
+                       [(ngModel)]="topN.type"
+                       (ngModelChange)="changeTopnType($event)"
+                       [disabled]="isDisableRanking()"
+                       placeholder="_#(Ranking)">
+        </custom-select>
         <label><span>_#(Ranking)</span></label>
       </div>
     </div>
@@ -67,12 +67,11 @@
     </div>
     <div class="col">
       <div class="form-floating of_label_id">
-        <select class="form-control"
-                [disabled]="topN.type == 0 || isDisableRanking()"
-                [(ngModel)]="sumColValue" placeholder="_#(calculationOf)">
-          <option [value]="agg.view" *ngFor="let agg of aggrs">{{agg.view}}
-          </option>
-        </select>
+        <custom-select [options]="aggregateViewOptions"
+                       [disabled]="topN.type == 0 || isDisableRanking()"
+                       [(ngModel)]="sumColValue"
+                       placeholder="_#(calculationOf)">
+        </custom-select>
         <label><span>_#(calculationOf)</span></label>
       </div>
     </div>
@@ -92,13 +91,12 @@
   <div class="row form-row-float-label">
     <div class="col">
       <div class="form-floating namedGroup_label_id">
-        <select class="form-control" [ngModel]="order.info?.name"
-                (ngModelChange)="changeNamedGroup($event)" placeholder="_#(Named Group)"
-                [disabled]="cellBinding.timeSeries">
-          <option [ngValue]="name.name" *ngFor="let name of ngNames">
-            {{name.label}}
-          </option>
-        </select>
+        <custom-select [options]="namedGroupOptions"
+                       [ngModel]="order.info?.name"
+                       (ngModelChange)="changeNamedGroup($event)"
+                       [disabled]="cellBinding.timeSeries"
+                       placeholder="_#(Named Group)">
+        </custom-select>
         <label><span>_#(Named Group)</span></label>
       </div>
     </div>

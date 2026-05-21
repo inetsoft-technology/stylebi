@@ -21,10 +21,9 @@
 </modal-header>
 <div class="modal-body">
   <div class="form-group form-floating">
-    <select defaultFocus class="form-control"
-            [(ngModel)]="selectedConnection">
-      <option *ngFor="let connection of connections" [value]="connection">{{ connection }}</option>
-    </select>
+    <custom-select [options]="connectionSelectOptions"
+                   [(ngModel)]="selectedConnection">
+    </custom-select>
     <label><span>_#(Connection)</span></label>
   </div>
 </div>

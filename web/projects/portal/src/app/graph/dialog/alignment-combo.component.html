@@ -16,9 +16,9 @@
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
 <div>
-  <select [ngModelOptions]="{standalone: true}" [(ngModel)]="alignment"
-          (ngModelChange)="alignmentChange()">
-    <option *ngFor="let opt of alignOptions; let _i = index" value={{opt.data}}>
-      {{opt.label}}</option>
-  </select>
+  <custom-select [ngModelOptions]="{standalone: true}"
+                 [(ngModel)]="alignment"
+                 (ngModelChange)="alignmentChange()"
+                 [options]="alignOptions">
+  </custom-select>
 </div>

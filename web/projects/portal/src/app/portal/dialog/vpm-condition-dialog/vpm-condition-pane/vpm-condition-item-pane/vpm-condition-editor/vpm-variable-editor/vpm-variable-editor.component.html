@@ -17,21 +17,26 @@
   -->
 <form [formGroup]="vform">
    <div class="form-floating">
+      <div class="input-group" [class.variable-input-group]="varShowDate">
       <input class="form-control" type="text" [class.variable-input]="varShowDate"
          [placeholder]="'_#(Variable Name)'"
-         [ngClass]="{'input-transparent border-0': varShowDate, 'w-100': !varShowDate,
+         [ngClass]="{'w-100': !varShowDate,
                      'text-low-Priority': !inputFocused && DATE_ITEMS.includes(variableName)}"
          [ngModel]="variableName"
          (ngModelChange)="variableNameChanged($event)"
          (focus)="inputFocused = true"
          formControlName="name"/>
+      <custom-select *ngIf="varShowDate"
+                     class="variable-date-picker"
+                     [options]="dateItemSelectOptions"
+                     [ngClass]="{'text-low-Priority': inputFocused}"
+                     [ngModel]="variableName"
+                     [ngModelOptions]="{standalone: true}"
+                     (selectionChange)="selectDateVariable($event)"
+                     ariaLabel="_#(Variable Name)"
+                     placeholder="_#(Select)">
+      </custom-select>
+      </div>
       <label>_#(Variable Name)</label>
-      <select *ngIf="varShowDate" class="form-control select-text"
-              [ngClass]="{'text-low-Priority': inputFocused}"
-              [ngModel]="variableName" (ngModelChange)="variableNameChanged($event)"
-              (focus)="inputFocused = false"
-              formControlName="name">
-        <option *ngFor="let _variable of DATE_ITEMS" [value]="_variable">{{_variable}}</option>
-      </select>
    </div>
 </form>

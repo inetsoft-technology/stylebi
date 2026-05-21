@@ -37,13 +37,12 @@
     <label><span>_#(Description)</span></label>
   </div>
   <div class="form-group form-floating">
-    <select class="form-control" [ngModel]="attribute.dataType"
-            formControlName="dataType" (ngModelChange)="updateDataType($event)"
-            [class.is-invalid]="dataTypeControl.invalid">
-      <option *ngFor="let dataType of dataTypes" [value]="dataType.data">
-        {{ dataType.label }}
-      </option>
-    </select>
+    <custom-select [options]="dataTypeSelectOptions"
+                   [ngModel]="attribute.dataType"
+                   formControlName="dataType"
+                   (ngModelChange)="updateDataType($event)"
+                   [invalid]="dataTypeControl.invalid">
+    </custom-select>
     <label><span>_#(Data Type)</span></label>
     <span class="invalid-feedback" *ngIf="dataTypeControl.getError('required')">
       _#(data.logicalmodel.attribute.dataTypeRequired)
@@ -82,14 +81,18 @@
     </div>
   </div>
   <div class="form-group form-floating" #dropdown="ngbDropdown" ngbDropdown [autoClose]="'outside'">
-    <input type="text" class="form-control input-dropdown" [value]="selectedFormulaLabel"
+    <input #referenceTypeTrigger type="text" class="form-control input-dropdown" [value]="selectedFormulaLabel"
            [disabled]="!editable" readonly ngbDropdownToggle>
-    <div class="caret-down-icon dropdown-caret"></div>
+    <div class="dropdown-caret icon-size-small"
+         [class.chevron-down-icon]="!dropdown.isOpen()"
+         [class.chevron-up-icon]="dropdown.isOpen()"></div>
     <label><span>_#(Reference Type)</span></label>
     <span class="invalid-feedback" *ngIf="dataTypeControl.getError('required')">
       _#(data.logicalmodel.attribute.referenceTypeRequired)
     </span>
-    <div ngbDropdownMenu class="tree-dropdown-menu">
+    <div ngbDropdownMenu class="tree-dropdown-menu"
+         [style.width.px]="referenceTypeTrigger.offsetWidth"
+         [style.min-width.px]="referenceTypeTrigger.offsetWidth">
       <div class="logical-model-attribute-editor__reference-group-label">_#(Measure)</div>
       <ng-container *ngFor="let ref of currentFormulas">
         <div class="logical-model-attribute-editor__reference-option logical-model-attribute-editor__reference-option--nested"

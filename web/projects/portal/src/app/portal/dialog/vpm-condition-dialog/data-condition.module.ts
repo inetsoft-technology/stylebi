@@ -20,6 +20,7 @@ import { NgModule } from "@angular/core";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { ConditionModule } from "../../../widget/condition/condition.module";
+import { CustomSelectModule } from "../../../widget/custom-select/custom-select.module";
 import { DateTypeEditorModule } from "../../../widget/date-type-editor/date-type-editor.module";
 import { FixedDropdownModule } from "../../../widget/fixed-dropdown/fixed-dropdown.module";
 import { ModalHeaderModule } from "../../../widget/modal-header/modal-header.module";
@@ -65,6 +66,7 @@ import { VPMConditionPane } from "./vpm-condition-pane/vpm-condition-pane.compon
       FormsModule,
       ReactiveFormsModule,
       ConditionModule,
+      CustomSelectModule,
       FixedDropdownModule,
       DateTypeEditorModule,
       ModalHeaderModule,

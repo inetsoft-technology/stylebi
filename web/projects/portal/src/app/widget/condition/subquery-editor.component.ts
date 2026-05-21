@@ -30,7 +30,8 @@ import { SubqueryValue } from "../../common/data/condition/subquery-value";
 
 @Component({
    selector: "subquery-editor",
-   templateUrl: "subquery-editor.component.html"
+   templateUrl: "subquery-editor.component.html",
+   styleUrls: ["subquery-editor.component.scss"]
 })
 export class SubqueryEditor {
    @Input() subqueryTables: SubqueryTable[];
@@ -40,6 +41,10 @@ export class SubqueryEditor {
    @ViewChild("subqueryDialog") subqueryDialog: TemplateRef<any>;
 
    constructor(private modalService: NgbModal) {
+   }
+
+   get buttonLabel(): string {
+      return this.value?.query ? `_#(Edit Subquery): ${this.value.query}` : "_#(Select Subquery)";
    }
 
    openSubqueryDialog(): void {

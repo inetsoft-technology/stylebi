@@ -21,6 +21,7 @@ import { MaterializedModel } from "../../../../../../../shared/util/model/mv/mat
 import { NameLabelTuple } from "../../../../../../../shared/util/name-label-tuple";
 import { AnalyzeMVModel } from "../../../data/model/analyze-mv-model";
 import { MVTreeModel } from "../../../data/model/mv-tree-model";
+import { CustomSelectOption } from "../../../../widget/custom-select/custom-select.component";
 
 @Component({
    selector: "analyze-mv-pane",
@@ -85,5 +86,18 @@ export class AnalyzeMVPane implements OnInit {
    isFullDataVisible(): boolean {
       return this.selectedNodes != null &&
          !!this.selectedNodes.find(node => node.type === RepositoryEntryType.VIEWSHEET);
+   }
+
+   get fullDataSelectOptions(): CustomSelectOption<boolean>[] {
+      return [
+         {
+            value: true,
+            label: "_#(em.mv.fullData)"
+         },
+         {
+            value: false,
+            label: "_#(em.mv.minData)"
+         }
+      ];
    }
 }

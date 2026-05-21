@@ -25,6 +25,7 @@ import {
 } from "@angular/core";
 import { AttributeFormatInfoModel } from "../../../../../../model/datasources/database/physical-model/logical-model/attribute-format-info-model";
 import { Format } from "../../../../../../../../common/util/format";
+import { CustomSelectOption } from "../../../../../../../../widget/custom-select/custom-select.component";
 
 @Component({
    selector: "attribute-formatting-pane",
@@ -313,5 +314,19 @@ export class AttributeFormattingPane implements OnChanges {
    decreaseDecimalDisabled(): boolean {
       return this.increaseDecimalDisabled() || this.formatModel?.format === "PercentFormat" ||
          this.formatModel.format === "DecimalFormat" && !this.formatModel?.formatSpec?.includes(".");
+   }
+
+   get formatTypeSelectOptions(): CustomSelectOption<string>[] {
+      return (this.formats || []).map((format) => ({
+         value: format.value,
+         label: format.label
+      }));
+   }
+
+   get dateFormatSelectOptions(): CustomSelectOption<string>[] {
+      return (this.dateFormats || []).map((format) => ({
+         value: format.value,
+         label: format.label
+      }));
    }
 }

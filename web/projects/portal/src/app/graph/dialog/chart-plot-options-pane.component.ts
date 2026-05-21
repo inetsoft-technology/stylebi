@@ -19,6 +19,7 @@ import { Component, Input, OnInit } from "@angular/core";
 import { ChartPlotOptionsPaneModel } from "../model/dialog/chart-plot-options-pane-model";
 import { UntypedFormControl, UntypedFormGroup, Validators } from "@angular/forms";
 import { FormValidators } from "../../../../../shared/util/form-validators";
+import { CustomSelectOption } from "../../widget/custom-select/custom-select.component";
 
 @Component({
    selector: "chart-plot-options-pane",
@@ -31,9 +32,22 @@ export class ChartPlotOptionsPaneComponent implements OnInit {
    @Input() form: UntypedFormGroup;
    alphaInvalid: boolean = false;
    contourEdgeAlphaInvalid: boolean = false;
+   readonly treeLayoutOptions: CustomSelectOption<string>[] = [
+      { value: "TOP_BOTTOM", label: "_#(Top to Bottom)" },
+      { value: "BOTTOM_TOP", label: "_#(Bottom to Top)" },
+      { value: "LEFT_RIGHT", label: "_#(Left to Right)" },
+      { value: "RIGHT_LEFT", label: "_#(Right to Left)" }
+   ];
 
    ngOnInit() {
       this.initForm();
+   }
+
+   get webMapStyleOptions(): CustomSelectOption<string>[] {
+      return (this.model?.mapboxStyles ?? []).map((style) => ({
+         value: style.id,
+         label: style.name
+      }));
    }
 
    initForm() {

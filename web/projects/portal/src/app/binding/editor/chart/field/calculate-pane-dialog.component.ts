@@ -34,6 +34,7 @@ import {DateRangeRef} from "../../../../common/util/date-range-ref";
 import {SummaryAttrUtil} from "../../../util/summary-attr-util";
 import {StyleConstants} from "../../../../common/util/style-constants";
 import {Tool} from "../../../../../../../shared/util/tool";
+import { CustomSelectOption } from "../../../../widget/custom-select/custom-select.component";
 
 @Component({
    selector: "calculate-pane-dialog",
@@ -490,5 +491,63 @@ export class CalculatePaneDialog implements OnInit {
          calc: this.calculator,
          percentageDirection: this.percentageDirection
       });
+   }
+
+   get calcTypeOptions(): CustomSelectOption<string>[] {
+      return (this.calcDatas || []).map((calc) => ({
+         label: calc.label,
+         value: calc.data
+      }));
+   }
+
+   get percentageOfOptions(): CustomSelectOption<any>[] {
+      return (this.percDims || []).map((dimension) => ({
+         label: dimension.label,
+         value: dimension.data,
+         title: dimension.description
+      }));
+   }
+
+   get valueOfOptions(): CustomSelectOption<any>[] {
+      return (this.valueOfDatas || []).map((value) => ({
+         label: value.label,
+         value: value.data,
+         title: value.description
+      }));
+   }
+
+   get fromOptions(): CustomSelectOption<any>[] {
+      return (this.fromDatas || []).map((from) => ({
+         label: from.label,
+         value: from.data
+      }));
+   }
+
+   get aggregateOptions(): CustomSelectOption<string>[] {
+      return (this.aggregateDatas || []).map((aggregate) => ({
+         label: aggregate.label,
+         value: aggregate.formulaName
+      }));
+   }
+
+   get breakByOptions(): CustomSelectOption<any>[] {
+      return (this.breakByDims || []).map((dimension) => ({
+         label: dimension.label,
+         value: dimension.data
+      }));
+   }
+
+   get resetOptions(): CustomSelectOption<any>[] {
+      return (this.resetOptsData || []).map((reset) => ({
+         label: reset.label,
+         value: reset.data
+      }));
+   }
+
+   get movingDimensionOptions(): CustomSelectOption<any>[] {
+      return (this.movingDims || []).map((dimension) => ({
+         label: dimension.label,
+         value: dimension.data
+      }));
    }
 }

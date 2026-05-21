@@ -43,6 +43,7 @@ import { ExpressionType } from "../../../common/data/condition/expression-type";
 import { ExpressionValue } from "../../../common/data/condition/expression-value";
 import { Observable, of } from "rxjs";
 import { TreeNodeModel } from "../../../widget/tree/tree-node-model";
+import { CustomSelectOption } from "../../../widget/custom-select/custom-select.component";
 
 enum UserVariable {
    NONE = 0,
@@ -98,6 +99,13 @@ export class VariableAssemblyDialog implements OnInit {
       return this.getVariableTree(value);
    };
    defaultValueType: ConditionValueType = ConditionValueType.VALUE;
+
+   get dataTypeSelectOptions(): CustomSelectOption<string>[] {
+      return (this.dataTypeList ?? []).map((dataType) => ({
+         label: dataType.label,
+         value: dataType.data
+      }));
+   }
 
    constructor(private modelService: ModelService,
                private modalService: NgbModal)

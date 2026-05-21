@@ -32,6 +32,30 @@
   padding: var(--inet-space-3);
 }
 
+.logical-model-attribute-dialog__dropdown-menu {
+  padding: 0.25rem;
+  width: 100%;
+  min-width: 100%;
+  border: 1px solid var(--inet-default-border-color);
+  border-radius: var(--inet-radius-md);
+  background: var(--inet-shell-surface-default);
+  box-shadow: var(--inet-shadow-md);
+}
+
+.logical-model-attribute-dialog__dropdown-item {
+  border-radius: var(--inet-radius-sm);
+}
+
+.logical-model-attribute-dialog__dropdown-item:hover,
+.logical-model-attribute-dialog__dropdown-item.selected {
+  background-color: var(--inet-hover-primary-bg-color);
+  color: var(--inet-text-color);
+}
+
+.logical-model-attribute-dialog__dropdown-item.selected {
+  font-weight: 600;
+}
+
 .logical-model-attribute-dialog__tree-shell ::ng-deep .tree-node.checkbox-enabled.selected,
 .logical-model-attribute-dialog__tree-shell ::ng-deep .tree-node.checkbox-enabled.selected:hover {
   background: transparent;

@@ -23,9 +23,8 @@
                  (valueChange)="nChanged($event)"></variable-editor>
 <div [style.padding-top.px]="3" *ngIf="aggregateFieldDropdownVisible()">
   _#(calculationOf)
-  <select class="form-control" [compareWith]="isEquals"
-          [ngModel]="dataRef" (ngModelChange)="dataRefChanged($event)">
-    <option [ngValue]="null"></option>
-    <option *ngFor="let _field of aggFields" [ngValue]="_field">{{_field.view}}</option>
-  </select>
+  <custom-select [options]="aggregateFieldSelectOptions"
+                 [ngModel]="dataRef"
+                 (ngModelChange)="dataRefChanged($event)">
+  </custom-select>
 </div>

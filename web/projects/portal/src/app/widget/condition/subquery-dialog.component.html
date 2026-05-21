@@ -25,27 +25,19 @@
       <legend>_#(Retrieve data from)</legend>
       <div class="row form-row-float-label">
         <div class="col form-floating">
-          <select class="form-control" [ngModel]="value.query"
-                  (ngModelChange)="changeSelectedTable($event)">
-            <option *ngFor="let _subqueryTable of getAvailableTables()"
-                    [value]="_subqueryTable.name" [attr.title]="_subqueryTable.description">
-              {{_subqueryTable.name}}
-            </option>
-          </select>
+          <custom-select [options]="subqueryTableSelectOptions"
+                         [ngModel]="value.query"
+                         (ngModelChange)="changeSelectedTable($event)">
+          </custom-select>
           <label>_#(Subquery)</label>
         </div>
       </div>
       <div class="row form-row-float-label">
         <div class="col form-floating">
-          <select class="form-control" [compareWith]="dataRefsEqual"
-                  [ngModel]="value.attribute"
-                  (ngModelChange)="attributeChanged($event)">
-            <option *ngFor="let _field of selectedTable?.columns"
-                    [ngValue]="_field"
-                    [attr.title]="getTooltip(_field)">
-              {{_field.name}}
-            </option>
-          </select>
+          <custom-select [options]="attributeSelectOptions"
+                         [ngModel]="value.attribute"
+                         (ngModelChange)="attributeChanged($event)">
+          </custom-select>
           <label>_#(In column)</label>
         </div>
       </div>
@@ -57,16 +49,10 @@
       <legend>_#(Where)</legend>
       <div class="row form-row-float-label">
         <div class="col form-floating">
-          <select class="form-control" [compareWith]="dataRefsEqual"
-                  [ngModel]="value.subAttribute"
-                  (ngModelChange)="subAttributeChanged($event)">
-            <option [ngValue]="null"></option>
-            <option *ngFor="let _field of selectedTable?.columns"
-                    [ngValue]="_field"
-                    [attr.title]="getTooltip(_field)">
-              {{_field.name}}
-            </option>
-          </select>
+          <custom-select [options]="subAttributeSelectOptions"
+                         [ngModel]="value.subAttribute"
+                         (ngModelChange)="subAttributeChanged($event)">
+          </custom-select>
           <label>_#(Subquery column)</label>
         </div>
       </div>
@@ -75,16 +61,10 @@
       </div>
       <div class="row form-row-float-label">
         <div class="col form-floating">
-          <select class="form-control" [compareWith]="dataRefsEqual"
-                  [ngModel]="value.mainAttribute"
-                  (ngModelChange)="mainAttributeChanged($event)">
-            <option [ngValue]="null"></option>
-            <option *ngFor="let _field of getCurrentTableColumns()"
-                    [ngValue]="_field"
-                    [attr.title]="getTooltip(_field)">
-              {{_field.name}}
-            </option>
-          </select>
+          <custom-select [options]="mainAttributeSelectOptions"
+                         [ngModel]="value.mainAttribute"
+                         (ngModelChange)="mainAttributeChanged($event)">
+          </custom-select>
           <label>_#(Current table column)</label>
         </div>
       </div>

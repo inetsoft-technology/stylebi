@@ -70,3 +70,24 @@ li.line-style {
 .line-label {
   display: inline-block;
 }
+
+.border-style-trigger {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+  padding-right: 2rem;
+  background-image: none;
+  text-align: left;
+}
+
+.border-style-trigger__content {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.border-style-trigger__icon {
+  pointer-events: none;
+}

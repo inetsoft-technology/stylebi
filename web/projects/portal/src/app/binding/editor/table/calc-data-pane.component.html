@@ -19,14 +19,10 @@
   <fieldset [disabled]="!cellSelected">
     <div class="row form-row-float-label">
       <div class="col form-floating">
-        <select class="form-control" [(ngModel)]="columnValue" placeholder="_#(Cell Binding)">
-          <option [value]="col.value"
-                  [class.grayed-out-field]="isGrayedOut(col.value)"
-                  *ngFor="let col of valueList"
-                  [title]="col.tooltip">
-            {{col.label}}
-          </option>
-        </select>
+        <custom-select [options]="valueOptions"
+                       [(ngModel)]="columnValue"
+                       placeholder="_#(Cell Binding)">
+        </custom-select>
         <label><span>_#(Cell Binding)</span></label>
       </div>
       <div class="col cellName_id form-floating">
@@ -58,15 +54,12 @@
         </button>
       </div>
       <div class="col-6 form-floating">
-        <select class="form-control" [(ngModel)]="cellBinding.rowGroup"
-                [disabled]="!cellGroupEnabled"
-                (ngModelChange)="changeGroup()"
-                placeholder="_#(Row Group)">
-          <option [value]="cname.value" *ngFor="let cname of getCellNames()"
-                  [disabled]="cellBinding.runtimeName != null && cellBinding.runtimeName === cname.value">
-            {{cname.label}}
-          </option>
-        </select>
+        <custom-select [options]="cellNameOptions"
+                       [(ngModel)]="cellBinding.rowGroup"
+                       [disabled]="!cellGroupEnabled"
+                       (ngModelChange)="changeGroup()"
+                       placeholder="_#(Row Group)">
+        </custom-select>
         <label><span>_#(Row Group)</span></label>
       </div>
     </div>
@@ -92,15 +85,12 @@
         </button>
       </div>
       <div class="col col_group_id form-floating">
-        <select class="form-control" [(ngModel)]="cellBinding.colGroup"
-                [disabled]="!cellGroupEnabled"
-                (ngModelChange)="changeGroup()"
-                placeholder="_#(Column Group)">
-          <option [value]="cname.value" *ngFor="let cname of getCellNames()"
-                  [disabled]="cellBinding.runtimeName != null && cellBinding.runtimeName === cname.value">
-            {{cname.label}}
-          </option>
-        </select>
+        <custom-select [options]="cellNameOptions"
+                       [(ngModel)]="cellBinding.colGroup"
+                       [disabled]="!cellGroupEnabled"
+                       (ngModelChange)="changeGroup()"
+                       placeholder="_#(Column Group)">
+        </custom-select>
         <label><span>_#(Column Group)</span></label>
       </div>
     </div>

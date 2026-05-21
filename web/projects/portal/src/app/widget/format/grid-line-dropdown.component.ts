@@ -19,6 +19,7 @@ import { Component, Input, Output, OnInit, EventEmitter, ViewChild, ElementRef
        } from "@angular/core";
 import { StyleConstants } from "../../common/util/style-constants";
 import { ChartConfig } from "../../common/util/chart-config";
+import { FixedDropdownDirective } from "../fixed-dropdown/fixed-dropdown.directive";
 
 @Component({
    selector: "grid-line-dropdown",
@@ -27,23 +28,26 @@ import { ChartConfig } from "../../common/util/chart-config";
 })
 export class GridLineDropdown implements OnInit {
    @Input() lineStyle: number;
+   @Input() color: string;
    @Input() disabled: boolean = false;
    @Input() supportDefault: boolean = false;
    @Output() lineStyleChange: EventEmitter<number> = new EventEmitter<number>();
-   @ViewChild("dropdownBody") dropdownBody: ElementRef;
+   @ViewChild("dropdownBody") dropdownBody: ElementRef<HTMLButtonElement>;
+   @ViewChild(FixedDropdownDirective) dropdown: FixedDropdownDirective;
    private lineStyles0: number[] = [
       StyleConstants.NONE,
+      StyleConstants.ULTRA_THIN_LINE,
+      StyleConstants.THIN_THIN_LINE,
       StyleConstants.THIN_LINE,
       StyleConstants.MEDIUM_LINE,
       StyleConstants.THICK_LINE,
       StyleConstants.DOT_LINE,
       StyleConstants.DASH_LINE,
-      StyleConstants.THIN_THIN_LINE,
-      StyleConstants.ULTRA_THIN_LINE,
       StyleConstants.MEDIUM_DASH,
       StyleConstants.LARGE_DASH
    ];
    lineStyles: number[] = this.lineStyles0;
+   open: boolean = false;
 
    ngOnInit() {
       if(this.supportDefault) {
@@ -54,10 +58,19 @@ export class GridLineDropdown implements OnInit {
    public choose(lineStyle: number): void {
       this.lineStyle = lineStyle;
       this.lineStyleChange.emit(lineStyle);
+      this.dropdown?.close();
    }
 
    getLineStyleName(val: number) {
       return ChartConfig.getLineStyleName(val);
+   }
+
+   isNoneLineStyle(val: number): boolean {
+      return this.getLineStyleName(val) === "NONE";
+   }
+
+   handleOpenChange(open: boolean): void {
+      this.open = open;
    }
 
    get dropdownMinWidth(): number {

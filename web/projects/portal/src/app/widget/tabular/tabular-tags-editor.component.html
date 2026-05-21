@@ -47,9 +47,11 @@
   </div>
 </div>
 <ng-template #select>
-  <select class="form-control" [(ngModel)]="value" [formControl]="valueControl">
-    <option *ngFor="let label of labels; let i = index" [value]="tags[i]">{{label}}</option>
-  </select>
+  <custom-select [options]="selectOptions"
+                 [ngModel]="value"
+                 (ngModelChange)="onSelectValueChanged($event)"
+                 [formControl]="valueControl">
+  </custom-select>
 </ng-template>
 
 <tabular-text-editor *ngIf="editable" [(value)]="value" (valueChange)="valueChange.emit($event)" [enabled]="enabled"

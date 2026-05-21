@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Component, EventEmitter, Input, Output, ViewChild } from "@angular/core";
+import { Component, EventEmitter, HostBinding, Input, Output, ViewChild } from "@angular/core";
 import { FixedDropdownDirective } from "../fixed-dropdown/fixed-dropdown.directive";
 
 @Component({
@@ -31,12 +31,15 @@ export class DropdownView {
    @Output() onToggle = new EventEmitter<string>();
    @Output() closed = new EventEmitter<boolean>();
    @ViewChild(FixedDropdownDirective) dropdown: FixedDropdownDirective;
+   @HostBinding("class.custom-select") readonly customSelectClass = true;
+   @HostBinding("class.is-open") open: boolean = false;
 
    public close(): void {
       this.dropdown.close();
    }
 
    public toggled(open: boolean): void {
+      this.open = open;
       this.onToggle.emit(open.toString());
 
       if(!open) {

@@ -42,6 +42,7 @@ import { ImportCSVDialogModel } from "../../data/ws/import-csv-dialog-model";
 import { ImportCSVDialogModelValidator } from "../../data/ws/import-csv-dialog-model-validator";
 import { Worksheet } from "../../data/ws/worksheet";
 import { ComponentTool } from "../../../common/util/component-tool";
+import { CustomSelectOption } from "../../../widget/custom-select/custom-select.component";
 
 const MODEL_URI = "../api/composer/ws/import-csv-dialog-model/";
 const SUBMIT_URI = "/events/ws/dialog/import-csv-dialog-model";
@@ -80,6 +81,20 @@ export class ImportCSVDialog implements OnInit, AfterViewChecked, OnDestroy {
    invalidCharacters: boolean = false;
    private progressInterval: any = null;
    ignoreTypeColumns: number[];
+
+   get sheetSelectOptions(): CustomSelectOption<string>[] {
+      return (this.model?.sheetsList ?? []).map((sheet) => ({
+         label: sheet,
+         value: sheet
+      }));
+   }
+
+   get encodingSelectOptions(): CustomSelectOption<string>[] {
+      return (this.encodingList ?? []).map((encoding) => ({
+         label: encoding,
+         value: encoding
+      }));
+   }
 
    constructor(private modelService: ModelService,
                private fileUploadService: FileUploadService,

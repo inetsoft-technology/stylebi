@@ -25,6 +25,7 @@ import {
 import { UntypedFormControl, UntypedFormGroup, Validators } from "@angular/forms";
 import { VSBookmarkInfoModel, VSBookmarkType } from "../model/vs-bookmark-info-model";
 import { FormValidators } from "../../../../../shared/util/form-validators";
+import { CustomSelectOption } from "../../widget/custom-select/custom-select.component";
 
 @Component({
   selector: "bookmark-property-dialog",
@@ -42,6 +43,11 @@ export class BookmarkPropertyDialog implements OnInit {
    sharedOption: VSBookmarkType = VSBookmarkType.ALLSHARE;
    VSBookmarkType = VSBookmarkType;
    formValid = () => this.model && this.form && this.form.valid;
+
+   readonly shareTypeOptions: CustomSelectOption<VSBookmarkType>[] = [
+      { label: "_#(All Users)", value: VSBookmarkType.ALLSHARE },
+      { label: "_#(Same Groups)", value: VSBookmarkType.GROUPSHARE }
+   ];
 
    ngOnInit(): void {
       if(this.model.type == VSBookmarkType.GROUPSHARE || this.shareToAllDisabled) {

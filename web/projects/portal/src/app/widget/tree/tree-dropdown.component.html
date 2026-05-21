@@ -29,7 +29,8 @@
   </i>
 </div>
 <ng-template #dropdownMenu>
-  <div class="tree-dropdown-menu dropdown-menu show bd-gray">
+  <div class="tree-dropdown-menu dropdown-menu show bd-gray"
+       [style.min-width.px]="dropdownMinWidth">
     <tree [root]="root" [showRoot]="false" [iconFunction]="iconFunction"
           [selectedNodes]="selectedNodes" [showTooltip]="true"
           [initSelectedNodesExpanded]="expandSelectedNodes"

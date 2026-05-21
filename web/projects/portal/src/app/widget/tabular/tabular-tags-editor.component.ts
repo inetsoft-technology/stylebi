@@ -26,6 +26,7 @@ import {
 } from "@angular/core";
 import { UntypedFormControl, Validators } from "@angular/forms";
 import { Tool } from "../../../../../shared/util/tool";
+import { CustomSelectOption } from "../custom-select/custom-select.component";
 
 @Component({
    selector: "tabular-tags-editor",
@@ -48,6 +49,13 @@ export class TabularTagsEditor implements OnInit, OnChanges {
    searching = false;
    searchTerm: string;
    searchResults: {tag: string, label: string}[] = [];
+
+   get selectOptions(): CustomSelectOption<string>[] {
+      return (this.tags ?? []).map((tag, index) => ({
+         value: tag,
+         label: this.labels?.[index] ?? tag
+      }));
+   }
 
    ngOnInit(): void {
       if((this.tags == null || this.tags.length == 0) &&
@@ -86,6 +94,7 @@ export class TabularTagsEditor implements OnInit, OnChanges {
          if(index < 0) {
             setTimeout(() => {
                this.value = this.tags[0];
+               this.valueControl.setValue(this.value);
                this.valueChange.emit(this.value);
             });
          }
@@ -108,6 +117,7 @@ export class TabularTagsEditor implements OnInit, OnChanges {
                if(index < 0) {
                   setTimeout(() => {
                      this.value = this.tags[0];
+                     this.valueControl.setValue(this.value);
                      this.valueChange.emit(this.value);
                   });
                }
@@ -161,9 +171,14 @@ export class TabularTagsEditor implements OnInit, OnChanges {
       }
    }
 
-   selectSearchResult(value: string): void {
+   onSelectValueChanged(value: string): void {
       this.value = value;
+      this.valueControl.markAsDirty();
+      this.valueControl.setValue(value);
+   }
+
+   selectSearchResult(value: string): void {
+      this.onSelectValueChanged(value);
       this.searching = false;
-      this.valueChange.emit(value);
    }
 }

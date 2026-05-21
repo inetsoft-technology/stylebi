@@ -40,14 +40,14 @@ export class StyleDropdown implements OnInit {
 
       if(this.isPresenter) {
          this.lineStyles = lineStyles.concat([
+            LineStyle.ULTRA_THIN_LINE,
+            LineStyle.THIN_THIN_LINE,
             LineStyle.THIN_LINE,
             LineStyle.MEDIUM_LINE,
             LineStyle.THICK_LINE,
             LineStyle.DOUBLE_LINE,
             LineStyle.DOT_LINE,
             LineStyle.DASH_LINE,
-            LineStyle.THIN_THIN_LINE,
-            LineStyle.ULTRA_THIN_LINE,
             LineStyle.MEDIUM_DASH,
             LineStyle.LARGE_DASH,
             LineStyle.RAISED_3D,

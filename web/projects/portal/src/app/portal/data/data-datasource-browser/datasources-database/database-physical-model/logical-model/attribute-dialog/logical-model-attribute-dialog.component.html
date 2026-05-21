@@ -22,22 +22,26 @@
 <div class="modal-body logical-model-attribute-dialog">
   <form [formGroup]="form" class="logical-model-attribute-dialog__form">
     <div class="form-group form-floating" #entityDropdown="ngbDropdown" ngbDropdown [autoClose]="true">
-      <input type="text" class="form-control input-dropdown"
+      <input #entityTrigger type="text" class="form-control input-dropdown"
              [value]="selectedEntityName"
              [class.is-invalid]="!!parentControl.errors"
              [disabled]="parentControl.disabled"
              readonly
              ngbDropdownToggle
              #selectFocus>
-      <div class="caret-down-icon dropdown-caret"></div>
+      <div class="dropdown-caret icon-size-small"
+           [class.chevron-down-icon]="!entityDropdown.isOpen()"
+           [class.chevron-up-icon]="entityDropdown.isOpen()"></div>
       <label><span>_#(data.logicalmodel.parentEntity)</span></label>
       <span class="invalid-feedback" *ngIf="parentControl.getError('required')">
         _#(data.logicalmodel.parentEntityRequired)
       </span>
-      <div ngbDropdownMenu>
+      <div ngbDropdownMenu class="logical-model-attribute-dialog__dropdown-menu"
+           [style.width.px]="entityTrigger.offsetWidth"
+           [style.min-width.px]="entityTrigger.offsetWidth">
         <button *ngFor="let entity of entities; let i = index"
                 type="button"
-                class="dropdown-item"
+                class="dropdown-item logical-model-attribute-dialog__dropdown-item"
                 [class.selected]="parent === i"
                 (click)="selectEntity(i, entityDropdown)">
           {{ entity.name }}

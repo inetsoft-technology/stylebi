@@ -19,6 +19,7 @@ import { CommonModule } from "@angular/common";
 import { NgModule } from "@angular/core";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { ColorPickerModule } from "../widget/color-picker/color-picker.module";
+import { CustomSelectModule } from "../widget/custom-select/custom-select.module";
 import { BindingAlignmentPane } from "./objects/binding-alignment-pane.component";
 import { BindingBorderPane } from "./objects/binding-border-pane.component";
 import { BorderStylePane } from "./objects/border-style-pane.component";
@@ -35,6 +36,7 @@ import { FixedDropdownModule } from "../widget/fixed-dropdown/fixed-dropdown.mod
       ReactiveFormsModule,
       WidgetDirectivesModule,
       DynamicComboBoxModule,
+      CustomSelectModule,
       ColorPickerModule,
       FixedDropdownModule
    ],

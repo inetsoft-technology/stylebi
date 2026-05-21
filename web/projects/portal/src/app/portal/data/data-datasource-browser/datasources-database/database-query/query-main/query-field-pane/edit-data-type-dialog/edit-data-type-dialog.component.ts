@@ -17,6 +17,7 @@
  */
 import { Component, EventEmitter, Input, Output } from "@angular/core";
 import { XSchema } from "../../../../../../../../common/data/xschema";
+import { CustomSelectOption } from "../../../../../../../../widget/custom-select/custom-select.component";
 
 @Component({
    selector: "edit-data-type-dialog",
@@ -29,6 +30,13 @@ export class EditDataTypeDialogComponent {
    @Output() onCommit: EventEmitter<string> = new EventEmitter<string>();
    @Output() onCancel: EventEmitter<string> = new EventEmitter<string>();
    readonly dataTypeList = XSchema.standardDataTypeList;
+
+   get dataTypeSelectOptions(): CustomSelectOption<string>[] {
+      return (this.dataTypeList || []).map((dataType) => ({
+         value: dataType.data,
+         label: dataType.label
+      }));
+   }
 
    ok() {
       this.onCommit.emit(this.dataType);

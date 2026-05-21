@@ -26,18 +26,21 @@
     <legend>{{cssType}}</legend>
 
     <div class="mt-2">
-      <div ngbDropdown #cssIDDropdown="ngbDropdown">
+      <div ngbDropdown #cssIDDropdown="ngbDropdown" class="css-picker">
         <div class="form-floating">
-          <input class="form-control" type='text' [(ngModel)]="cssID"
-                 (focusout)="cssIDChange.emit(cssID)" ngbDropdownToggle>
+          <div class="input-group css-picker__group">
+            <input class="form-control css-picker__input" type='text' [(ngModel)]="cssID"
+                   (focusout)="cssIDChange.emit(cssID)">
+            <button type="button"
+                    class="btn btn-default css-picker__toggle"
+                    ngbDropdownToggle
+                    *ngIf="hasCSSIDs">
+              <i class="caret-down-icon"></i>
+            </button>
+          </div>
           <label>_#(ID)</label>
         </div>
-        <span class="values-caret"
-              (click)="$event.stopPropagation(); cssIDDropdown.toggle()"
-              *ngIf="cssIDs">
-          <i class="caret-down-icon"></i>
-        </span>
-        <ul *ngIf="cssIDs" ngbDropdownMenu>
+        <ul *ngIf="hasCSSIDs" ngbDropdownMenu>
           <li>
             <a class="dropdown-item"
                (mousedown)="selectCSSID('', -1); $event.stopPropagation(); cssIDDropdown.close()"
@@ -53,18 +56,21 @@
     </div>
 
     <div class="mt-2">
-      <div ngbDropdown #cssClassDropdown="ngbDropdown" autoClose="outside">
+      <div ngbDropdown #cssClassDropdown="ngbDropdown" autoClose="outside" class="css-picker">
         <div class="form-floating">
-          <input class="form-control" type="text" [(ngModel)]="cssClass"
-                 (focusout)="cssClassChange.emit(cssClass)" ngbDropdownToggle>
+          <div class="input-group css-picker__group">
+            <input class="form-control css-picker__input" type="text" [(ngModel)]="cssClass"
+                   (focusout)="cssClassChange.emit(cssClass)">
+            <button type="button"
+                    class="btn btn-default css-picker__toggle"
+                    ngbDropdownToggle
+                    *ngIf="hasCSSClasses">
+              <i class="caret-down-icon"></i>
+            </button>
+          </div>
           <label>_#(Class)</label>
         </div>
-        <span class="values-caret"
-              (click)="$event.stopPropagation(); cssClassDropdown.toggle()"
-              *ngIf="cssClasses">
-          <i class="caret-down-icon"></i>
-        </span>
-        <ul *ngIf="cssClasses" ngbDropdownMenu>
+        <ul *ngIf="hasCSSClasses" ngbDropdownMenu>
           <li>
             <a class="dropdown-item"
                (mousedown)="selectCSSClass('', -1); $event.stopPropagation(); cssClassDropdown.close();"

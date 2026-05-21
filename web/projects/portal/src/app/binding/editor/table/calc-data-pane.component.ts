@@ -36,6 +36,7 @@ import { DataRefType } from "../../../common/data/data-ref-type";
 import { XSchema } from "../../../common/data/xschema";
 import { XConstants } from "../../../common/util/xconstants";
 import { ComponentTool } from "../../../common/util/component-tool";
+import { CustomSelectOption } from "../../../widget/custom-select/custom-select.component";
 
 @Component({
    selector: "calc-data-pane",
@@ -444,5 +445,22 @@ export class CalcDataPane {
             event.stopPropagation();
          }
       }
+   }
+
+   get valueOptions(): CustomSelectOption<string>[] {
+      return (this.valueList || []).map((value) => ({
+         label: value.label,
+         value: value.value,
+         title: value.tooltip,
+         disabled: !!value.value && this.isGrayedOut(value.value)
+      }));
+   }
+
+   get cellNameOptions(): CustomSelectOption<string>[] {
+      return this.getCellNames().map((cell) => ({
+         label: cell.label,
+         value: cell.value,
+         disabled: this.cellBinding.runtimeName != null && this.cellBinding.runtimeName === cell.value
+      }));
    }
 }

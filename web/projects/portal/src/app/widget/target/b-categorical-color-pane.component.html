@@ -15,15 +15,30 @@
   ~ You should have received a copy of the GNU Affero General Public License
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
-<div class="color-picker input-group">
-  <span class="input-group-text">_#(Fill Band)</span>
-  <span class="input-group-btn" ngbDropdown #fillBandDropdown="ngbDropdown" autoClose="outside">
-    <button type="button" class="btn form-control input-group-addon-action bd-gray fill-band-btn"
-            ngbDropdownToggle>
-      <span class="color-fill-icon"></span>
-    </button>
-    <div ngbDropdownMenu class="dropdown-menu fill-band-dropdown-menu"
-         (click)="$event.stopPropagation()">
+<div class="fill-band-picker" ngbDropdown #fillBandDropdown="ngbDropdown" autoClose="outside">
+  <button type="button"
+          class="custom-select-trigger form-control no-caret fill-band-trigger"
+          [class.is-open]="fillBandDropdown.isOpen()"
+          [attr.aria-expanded]="fillBandDropdown.isOpen()"
+          aria-haspopup="dialog"
+          [attr.aria-label]="label || '_#(Fill Band)'"
+          ngbDropdownToggle>
+    <span class="fill-band-trigger__content">
+      <span class="fill-band-trigger__swatches" aria-hidden="true">
+        <span class="fill-band-trigger__swatch"
+              *ngFor="let color of previewColors"
+              [style.background]="color">
+        </span>
+      </span>
+      <span class="custom-select-trigger__text">{{label || '_#(Fill Band)'}}</span>
+    </span>
+    <i class="custom-select-trigger__icon dropdown-caret icon-color-default"
+       [class.chevron-up-icon]="fillBandDropdown.isOpen()"
+       [class.chevron-down-icon]="!fillBandDropdown.isOpen()"
+       aria-hidden="true"></i>
+  </button>
+  <div ngbDropdownMenu class="dropdown-menu fill-band-dropdown-menu"
+       (click)="$event.stopPropagation()">
     <div class="container-fluid">
       <div class="row justify-content-end">
         <div class="col-auto p-0">
@@ -34,8 +49,8 @@
           <i class="img-button reset-icon" (click)="reset()" title="_#(Reset)"></i>
         </div>
         <div class="col-auto p-0 pe-2">
-         <i class="submit-icon icon-size-small color-pane-apply" title="_#(Apply)"
-            aria-hidden="true" (click)="$event.stopPropagation(); fillBandDropdown.close()"></i>
+          <i class="submit-icon icon-size-small color-pane-apply" title="_#(Apply)"
+             aria-hidden="true" (click)="$event.stopPropagation(); fillBandDropdown.close()"></i>
         </div>
       </div>
       <div class="row">
@@ -54,7 +69,6 @@
       </div>
     </div>
   </div>
-</span>
 </div>
 <ng-template #paletteDialog let-close="close" let-dismiss="dismiss">
   <graph-palette-dialog (confirm)="close($event)" (cancel)="dismiss($event)" [currPalette]="colorModel" [colorPalettes]="colorPalettes"></graph-palette-dialog>

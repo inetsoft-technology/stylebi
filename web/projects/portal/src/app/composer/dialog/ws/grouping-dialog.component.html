@@ -43,9 +43,11 @@
     </div>
     <div class="form-row-float-label row">
       <div class="col-6 form-floating">
-        <select class="form-control" formControlName="type" placeholder="_#(Type)">
-          <option *ngFor="let _type of types" [value]="_type.data">{{_type.label}}</option>
-        </select>
+        <custom-select formControlName="type"
+                       [options]="typeSelectOptions"
+                       placeholder="_#(Type)"
+                       ariaLabel="_#(Type)">
+        </custom-select>
         <label><span>_#(Type)</span></label>
       </div>
     </div>
@@ -61,14 +63,12 @@
         </div>
       </div>
       <div class="col form-floating">
-        <select class="form-control" formControlName="attributeIndex"
-                [class.is-invalid]="!this.form.get('attribute').value && this.form.get('type').value === '-1'"
-                placeholder="_#(Attribute)">
-          <option *ngFor="let _attr of attributes; let i = index"
-            [value]="i" [attr.title]="getTooltip(_attr)">
-            {{_attr.name}}
-          </option>
-        </select>
+        <custom-select formControlName="attributeIndex"
+                       [options]="attributeSelectOptions"
+                       [invalid]="!this.form.get('attribute').value && this.form.get('type').value === '-1'"
+                       placeholder="_#(Attribute)"
+                       ariaLabel="_#(Attribute)">
+        </custom-select>
         <label><span>_#(Attribute)</span></label>
         <span *ngIf="!this.form.get('attribute').value && this.form.get('type').value === '-1'"
              class="invalid-feedback">

@@ -21,6 +21,7 @@ import { AssetUtil } from "../../../binding/util/asset-util";
 import { AssetEntry } from "../../../../../../shared/data/asset-entry";
 import { Tool } from "../../../../../../shared/util/tool";
 import { JoinItem } from "../../../composer/data/ws/join-item";
+import { CustomSelectOption } from "../../custom-select/custom-select.component";
 
 @Component({
    selector: "sql-query-join-dialog",
@@ -44,6 +45,28 @@ export class SQLQueryJoinDialog implements OnInit, OnDestroy {
    @Output() onCommit: EventEmitter<JoinItem> = new EventEmitter<JoinItem>();
    @Output() onCancel: EventEmitter<string> = new EventEmitter<string>();
    formValid = () => !this.error;
+
+   get tableSelectOptions(): CustomSelectOption<string>[] {
+      return this.getTableNames()?.map((table) => ({
+         label: table,
+         value: table
+      })) ?? [];
+   }
+
+   get operatorSelectOptions(): CustomSelectOption<string>[] {
+      return this.operators.map((operator) => ({
+         label: operator,
+         value: operator
+      }));
+   }
+
+   get column1SelectOptions(): CustomSelectOption<AssetEntry>[] {
+      return this.toColumnSelectOptions(this.columns1);
+   }
+
+   get column2SelectOptions(): CustomSelectOption<AssetEntry>[] {
+      return this.toColumnSelectOptions(this.columns2);
+   }
 
    ngOnInit(): void {
       if(this.join == null) {
@@ -252,5 +275,12 @@ export class SQLQueryJoinDialog implements OnInit, OnDestroy {
       }
 
       this.validate();
+   }
+
+   private toColumnSelectOptions(columns: AssetEntry[]): CustomSelectOption<AssetEntry>[] {
+      return (columns ?? []).map((column) => ({
+         label: column?.properties?.attribute,
+         value: column
+      }));
    }
 }

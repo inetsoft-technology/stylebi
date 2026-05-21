@@ -89,11 +89,11 @@
 <div class="form-row-float-label row">
   <div class="row-style">
     <div class="form-floating">
-      <select class="form-control" [(ngModel)]="mvCycle"
-              (ngModelChange)="cycleChange()" placeholder="_#(Set Cycle)">
-        <option [value]="''">_#(None)</option>
-        <option *ngFor="let cycle of cycles" [value]="cycle.name">{{cycle.label}}</option>
-      </select>
+      <custom-select [options]="cycleSelectOptions"
+                     [(ngModel)]="mvCycle"
+                     (ngModelChange)="cycleChange()"
+                     placeholder="_#(Set Cycle)">
+      </custom-select>
       <label>_#(Set Cycle)</label>
     </div>
   </div>

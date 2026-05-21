@@ -17,8 +17,54 @@
   -->
 <input class="form-control date-field" placeholder="yyyy-mm-dd" [disabled]="disabled"
          [ngModel]="initDate" (ngModelChange)="changeDate($event)" ngbDatepicker
-       (change)="change($event.target.value)"
+       placement="bottom-start"
+       [navigation]="'none'" [contentTemplate]="datepickerContent" (change)="change($event.target.value)"
          #datepickerMax="ngbDatepicker">
-<button class="date-value-editor-toggle btn btn-light-no-bg icon-size-small calendar-icon"
-          [disabled]="disabled" (click)="toggleDatepicker()">
+<button type="button" class="date-value-editor-toggle btn btn-light-no-bg icon-size-small calendar-icon"
+          [disabled]="disabled" (click)="toggleDatepicker($event)">
 </button>
+
+<ng-template #datepickerContent let-datepicker>
+  <div class="date-value-editor__calendar">
+    <div class="ngb-dp-header date-value-editor__calendar-header">
+      <div class="date-value-editor__calendar-nav">
+        <button type="button"
+                class="btn btn-light-no-bg date-value-editor__nav-button"
+                [disabled]="!canNavigateMonth(datepicker, -1)"
+                (click)="navigateMonth(datepicker, -1)"
+                aria-label="_#(Previous month)">
+          <i class="chevron-left-icon date-value-editor__nav-icon" aria-hidden="true"></i>
+        </button>
+        <custom-select class="date-value-editor__nav-select date-value-editor__nav-select--month"
+                       [options]="getMonthSelectOptions(datepicker)"
+                       [ngModel]="datepicker.state.firstDate.month"
+                       [ngModelOptions]="{standalone: true}"
+                       ariaLabel="_#(Select month)"
+                       (selectionChange)="selectMonth(datepicker, $event)">
+        </custom-select>
+        <custom-select class="date-value-editor__nav-select date-value-editor__nav-select--year"
+                       [options]="getYearSelectOptions(datepicker)"
+                       [ngModel]="datepicker.state.firstDate.year"
+                       [ngModelOptions]="{standalone: true}"
+                       ariaLabel="_#(Select year)"
+                       (selectionChange)="selectYear(datepicker, $event)">
+        </custom-select>
+        <button type="button"
+                class="btn btn-light-no-bg date-value-editor__nav-button"
+                [disabled]="!canNavigateMonth(datepicker, 1)"
+                (click)="navigateMonth(datepicker, 1)"
+                aria-label="_#(Next month)">
+          <i class="chevron-right-icon date-value-editor__nav-icon" aria-hidden="true"></i>
+        </button>
+      </div>
+    </div>
+    <div class="ngb-dp-content ngb-dp-months">
+      <div *ngFor="let month of datepicker.state.months" class="ngb-dp-month">
+        <div *ngIf="datepicker.displayMonths > 1" class="ngb-dp-month-name">
+          {{ datepicker.i18n.getMonthLabel(month) }}
+        </div>
+        <ngb-datepicker-month [month]="month"></ngb-datepicker-month>
+      </div>
+    </div>
+  </div>
+</ng-template>

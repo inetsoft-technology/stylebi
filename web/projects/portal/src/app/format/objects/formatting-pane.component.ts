@@ -19,6 +19,7 @@ import { Component, EventEmitter, Input, OnInit, Output } from "@angular/core";
 import { FormatInfoModel } from "../../common/data/format-info-model";
 import { LabelValueTuple } from "../../../../../shared/util/label-value-tuple";
 import { Format } from "../../common/util/format";
+import { CustomSelectOption } from "../../widget/custom-select/custom-select.component";
 
 @Component({
    selector: "formatting-pane",
@@ -242,5 +243,19 @@ export class FormattingPane {
    decreaseDecimalDisabled(): boolean {
       return this.increaseDecimalDisabled() || this.formatModel?.format === "PercentFormat" ||
           this.formatModel.format === "DecimalFormat" && !this.formatModel?.formatSpec?.includes(".");
+   }
+
+   get formatOptions(): CustomSelectOption<Format | null>[] {
+      return this.formats.map((format) => ({
+         label: format.label,
+         value: format.value
+      }));
+   }
+
+   get dateFormatOptions(): CustomSelectOption<string>[] {
+      return this.dateFormats.map((format) => ({
+         label: format.label,
+         value: format.value
+      }));
    }
 }

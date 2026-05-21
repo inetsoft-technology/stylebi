@@ -48,14 +48,9 @@
 <fieldset *ngIf="isFullDataVisible() || securityEnabled">
   <legend>_#(MV Analysis Options):</legend>
   <div class="form-row-float-label" *ngIf="isFullDataVisible()">
-    <select class="form-control" [(ngModel)]="analyzeMVModel.fullData">
-      <option [ngValue]="true">
-        _#(em.mv.fullData)
-      </option>
-      <option [ngValue]="false">
-        _#(em.mv.minData)
-      </option>
-    </select>
+    <custom-select [options]="fullDataSelectOptions"
+                   [(ngModel)]="analyzeMVModel.fullData">
+    </custom-select>
   </div>
   <div *ngIf="!testDrive" class="form-row-float-label">
     <div class="form-check">

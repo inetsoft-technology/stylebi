@@ -19,7 +19,8 @@
         class="btn form-control bd-gray dropdown-toggle no-caret"
         type="button" [fixedDropdown]="dropdownMenu" dropdownPlacement="bottom"
         (openChange)="handleOpenChange($event)">
-  <div class="line-display line-style-{{style}}" [style.--inet-line-style-color]="color"></div>
+  <div class="line-display style-dropdown__line line-style-{{style}}"
+       [style.--inet-line-style-color]="color"></div>
   <i class="style-dropdown__icon icon-color-default" aria-hidden="true"
      [class.chevron-down-icon]="!open"
      [class.chevron-up-icon]="open"></i>
@@ -29,7 +30,8 @@
     <div class="dropdown-item" *ngFor="let lineStyle of lineStyles"
       [class.selected]="lineStyle === style"
       (click)="choose(lineStyle);">
-      <div class="line-display line-style-{{lineStyle}}" [style.--inet-line-style-color]="color"></div>
+      <div class="line-display style-dropdown__line line-style-{{lineStyle}}"
+           [style.--inet-line-style-color]="color"></div>
     </div>
   </div>
 </ng-template>

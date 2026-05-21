@@ -19,19 +19,17 @@
   <ng-container *ngFor="let _row of rows; let _j = index">
     <div class="form-row-float-label row">
       <div class="col">
-        <div class="row">
-          <div class="col">
-            <select [attr.id]="'aggregate pane columns #' + _j" class="form-control"
-                    [title]="_row.selectedRef ? _row.selectedRef.name : ''"
-                    [ngModel]="getIndexOfRef(refList, _row)"
-                    (ngModelChange)="resetRow(_j, $event)">
-              <option [ngValue]="EMPTY_REF_INDEX"></option>
-              <option *ngFor="let _ref of refList; let _i = index" [ngValue]="_i"
-                      [attr.title]="getTooltip(_ref)"
-                      [class.grayed-out-field]="trapField(_ref)">{{_ref.view}}</option>
-            </select>
+        <div class="row aggregate-pane__row">
+          <div class="col aggregate-pane__field-col">
+            <custom-select [id]="'aggregate pane columns #' + _j"
+                           [title]="_row.selectedRef ? _row.selectedRef.name : ''"
+                           [ngModel]="getIndexOfRef(refList, _row)"
+                           [ngModelOptions]="{standalone: true}"
+                           [options]="getRefOptions(refList, true)"
+                           (selectionChange)="resetRow(_j, $event)">
+            </custom-select>
           </div>
-          <div class="col-auto">
+          <div class="col-auto aggregate-pane__mode-col">
             <fieldset [disabled]="_row.isGroup == null" class="m-0">
               <div class="form-check">
                 <input type="checkbox" class="form-check-input" [ngModel]="_row.isGroup === true"
@@ -49,7 +47,7 @@
               </div>
             </fieldset>
           </div>
-          <div class="col-4">
+          <div class="col aggregate-pane__formula-col">
             <div class="row">
               <div class="col">
                 <dynamic-combo-box *ngIf="_row.isGroup === true" id="group" [valueOnly]="true"
@@ -58,28 +56,28 @@
                                    [examples]="dateLevelExamples[_j]"
                                    (valueChange)="groupChange(_row, _j, $event)">
                 </dynamic-combo-box>
-                <select *ngIf="_row.isGroup === false" id="aggregate" class="form-control"
-                        [ngModel]="getAggregateIndexOf(_row, _j)"
-                        (ngModelChange)="aggregateChange(_row, _j, $event)">
-                  <option *ngFor="let _aggregate of aggregates[_j]; let _i = index" [ngValue]="_i">
-                    {{_aggregate.label}}</option>
-                </select>
-                <select *ngIf="_row.isGroup == null" id="empty" class="form-control" disabled>
-                  <option></option>
-                </select>
+                <custom-select *ngIf="_row.isGroup === false" id="aggregate"
+                               [ngModel]="getAggregateIndexOf(_row, _j)"
+                               [ngModelOptions]="{standalone: true}"
+                               [options]="getAggregateOptions(_j)"
+                               (selectionChange)="aggregateChange(_row, _j, $event)">
+                </custom-select>
+                <custom-select *ngIf="_row.isGroup == null" id="empty"
+                               [options]="[{ label: '', value: '' }]"
+                               [disabled]="true">
+                </custom-select>
               </div>
             </div>
             <div *ngIf="_row.aggregate?.twoColumns" class="row mt-3">
-              <div class="col-auto">
+              <div class="col aggregate-pane__secondary-field">
                 <div class="form-floating">
-                  <select id="withColumn" class="form-control" placeholder="_#(With)"
-                          [ngModel]="getIndexOfRef(aggregateRefList, _row, true)"
-                          (ngModelChange)="_row.aggregateRef = aggregateRefList[$event]; updateState()">
-                    <option *ngFor="let _ref of aggregateRefList; let _i = index" [value]="_i"
-                            [class.grayed-out-field]="trapField(_ref)"
-                            [title]="getTooltip(_ref)">{{_ref.name}}
-                    </option>
-                  </select>
+                  <custom-select id="withColumn"
+                                 [ngModel]="getIndexOfRef(aggregateRefList, _row, true)"
+                                 [ngModelOptions]="{standalone: true}"
+                                 [options]="getRefOptions(aggregateRefList)"
+                                 ariaLabel="_#(With)"
+                                 (selectionChange)="_row.aggregateRef = aggregateRefList[$event]; updateState()">
+                  </custom-select>
                   <label *ngIf="!isByFormula(_row.aggregate); else elseBlock">
                     _#(With)
                   </label>
@@ -100,19 +98,20 @@
               </div>
             </div>
           </div>
-          <div class="col-auto">
-            <div class="form-check form-floating">
-              <select class="form-control" placeholder="_#(Percentage)"
-                      [attr.id]="'percentage' + _j"
-                      [disabled]="_row.isGroup || !_row.aggregate || !_row.aggregate.supportPercentage"
-                      [ngModel]="_row.percentageOption"
-                      (ngModelChange)="percentageChange($event, _row)">
-                <option *ngFor="let option of percentageOptions" [value]="option.value">{{option.label}}</option>
-              </select>
+          <div class="col-auto aggregate-pane__percentage-col">
+            <div class="form-floating">
+              <custom-select [id]="'percentage' + _j"
+                             placeholder="_#(Percentage)"
+                             [disabled]="_row.isGroup || !_row.aggregate || !_row.aggregate.supportPercentage"
+                             [ngModel]="_row.percentageOption"
+                             [ngModelOptions]="{standalone: true}"
+                             [options]="percentageSelectOptions"
+                             (selectionChange)="percentageChange($event, _row)">
+              </custom-select>
               <label><span>_#(Percentage)</span></label>
             </div>
           </div>
-          <div class="col-auto">
+          <div class="col-auto aggregate-pane__time-series-col">
             <div class="form-check">
               <input type="checkbox" class="form-check-input" [attr.id]="'timeSeries' + _j"
                      [disabled]="isTimeSeriesDisabled(_row)"

@@ -20,6 +20,7 @@ import { SubqueryTable } from "../../common/data/condition/subquery-table";
 import { SubqueryValue } from "../../common/data/condition/subquery-value";
 import { DataRef } from "../../common/data/data-ref";
 import { ColumnRef } from "../../binding/data/column-ref";
+import { CustomSelectOption } from "../custom-select/custom-select.component";
 
 @Component({
    selector: "subquery-dialog",
@@ -131,5 +132,43 @@ export class SubqueryDialog implements OnInit {
 
    getTooltip(dataRef: DataRef): string {
       return this.showOriginalName ? ColumnRef.getTooltip(<ColumnRef> dataRef) : dataRef.description;
+   }
+
+   get subqueryTableSelectOptions(): CustomSelectOption<string>[] {
+      return (this.getAvailableTables() || []).map((table) => ({
+         value: table.name,
+         label: table.name,
+         title: table.description
+      }));
+   }
+
+   get attributeSelectOptions(): CustomSelectOption<DataRef>[] {
+      return (this.selectedTable?.columns || []).map((field) => ({
+         value: field,
+         label: field.name,
+         title: this.getTooltip(field)
+      }));
+   }
+
+   get subAttributeSelectOptions(): CustomSelectOption<DataRef>[] {
+      return [
+         { value: null, label: "" },
+         ...((this.selectedTable?.columns || []).map((field) => ({
+            value: field,
+            label: field.name,
+            title: this.getTooltip(field)
+         })))
+      ];
+   }
+
+   get mainAttributeSelectOptions(): CustomSelectOption<DataRef>[] {
+      return [
+         { value: null, label: "" },
+         ...((this.getCurrentTableColumns() || []).map((field) => ({
+            value: field,
+            label: field.name,
+            title: this.getTooltip(field)
+         })))
+      ];
    }
 }

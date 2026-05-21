@@ -19,6 +19,7 @@ import { Component, Input, Output, EventEmitter } from "@angular/core";
 
 import { ConcatenationTypeDialogModel } from "../../data/ws/concatenation-type-dialog-model";
 import { XConstants } from "../../../common/util/xconstants";
+import { CustomSelectOption } from "../../../widget/custom-select/custom-select.component";
 
 const SOCKET_URI: string = "/events/composer/worksheet/concatenation-type-dialog";
 
@@ -35,6 +36,14 @@ export class ConcatenationTypeDialog {
       intersect: XConstants.INTERSECT,
       minus: XConstants.MINUS
    };
+
+   get operationSelectOptions(): CustomSelectOption<number>[] {
+      return [
+         { label: "_#(Union)", value: this.concatenationTypes.union },
+         { label: "_#(Intersect)", value: this.concatenationTypes.intersect },
+         { label: "_#(Minus)", value: this.concatenationTypes.minus }
+      ];
+   }
 
    ok(): void {
       this.onCommit.emit({controller: SOCKET_URI, model: this.model});

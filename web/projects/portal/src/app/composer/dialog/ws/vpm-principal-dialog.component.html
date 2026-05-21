@@ -42,9 +42,10 @@
       </div>
     </div>
     <div class="form-group">
-      <select class="form-control" id="sessionId" formControlName="sessionId">
-        <option *ngFor="let _id of sessionIds" [ngValue]="_id">{{_id}}</option>
-      </select>
+      <custom-select id="sessionId"
+                     formControlName="sessionId"
+                     [options]="sessionIdSelectOptions">
+      </custom-select>
     </div>
   </form>
   <div *ngIf="model != null && !model.vpmSelectable">

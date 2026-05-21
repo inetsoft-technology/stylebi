@@ -29,6 +29,7 @@ import { AssemblyAction } from "../../common/action/assembly-action";
 import { FixedDropdownDirective } from "../fixed-dropdown/fixed-dropdown.directive";
 import { GradientColor, ColorStop} from "../../common/data/base-format-model";
 import { VSShape } from "../../vsobjects/objects/shape/vs-shape";
+import { CustomSelectOption } from "../custom-select/custom-select.component";
 
 @Component({
    selector: "gradient-color-pane",
@@ -55,6 +56,11 @@ export class GradientColorPane implements OnInit {
    };
    actions: AssemblyActionGroup[] = [new AssemblyActionGroup([this.clearAction])];
 
+   readonly directionOptions: CustomSelectOption<string>[] = [
+      { label: "_#(Linear)", value: "linear" },
+      { label: "_#(Radial)", value: "radial" }
+   ];
+
    ngOnInit(): void {
       for(let angle = 0; angle < 360; angle += this.angleIncrement) {
          this.supportedAngles.push(angle);
@@ -72,6 +78,13 @@ export class GradientColorPane implements OnInit {
       }
 
       return this.gradientColor.colors;
+   }
+
+   get angleOptions(): CustomSelectOption<number>[] {
+      return this.supportedAngles.map((angle) => ({
+         label: `${angle}`,
+         value: angle
+      }));
    }
 
    addColor() {

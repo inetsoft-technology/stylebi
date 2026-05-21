@@ -42,21 +42,15 @@
     <div class="col-6 col-sm-4">
       <div class="form-group">
         <div class="form-floating" *ngIf="testUserType">
-          <select class="form-control"
-                  [(ngModel)]="selectedUser">
-            <option *ngFor="let user of testData.users" [value]="user?.value">
-              {{user?.label}}
-            </option>
-          </select>
+          <custom-select [options]="userSelectOptions"
+                         [(ngModel)]="selectedUser">
+          </custom-select>
           <label>_#(data.vpm.testUser)</label>
         </div>
         <div class="form-floating" *ngIf="!testUserType">
-          <select class="form-control"
-                  [(ngModel)]="selectedRole">
-            <option *ngFor="let role of testData.roles" [value]="role?.value">
-              {{role?.label}}
-            </option>
-          </select>
+          <custom-select [options]="roleSelectOptions"
+                         [(ngModel)]="selectedRole">
+          </custom-select>
           <label>_#(data.vpm.testRole)</label>
         </div>
       </div>

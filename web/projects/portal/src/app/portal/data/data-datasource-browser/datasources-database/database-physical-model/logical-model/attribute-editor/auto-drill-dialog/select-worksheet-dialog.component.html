@@ -44,15 +44,19 @@
         <div #dropdownBody class="field-combo" [class.form-group]="i != queryParams.length - 1">
           <div #dropDownToggle class="field-combo-toggle form-floating form-control dropdown-toggle bd-gray"
                [fixedDropdown]="dropdownMenu" [autoClose]="closeMenu"
-               dropdownPlacement="bottom">
+               dropdownPlacement="bottom"
+               (openChange)="setDropdownOpenState(param, $event)">
             <div class="field-combo-text select-worksheet-dialog__field-text">
               {{getSelectedParamVal(param)}}&nbsp;
             </div>
+            <div class="field-combo-caret icon-size-small"
+                 [class.chevron-down-icon]="!dropdownOpenState[param]"
+                 [class.chevron-up-icon]="dropdownOpenState[param]"></div>
             <label class="base-font-size"><span>{{param}}</span></label>
           </div>
         </div>
         <ng-template #dropdownMenu>
-          <div class="dropdown-pane" [style.min-width.px]="dropdownMinWidth">
+          <div class="dropdown-pane field-combo-dropdown" [style.min-width.px]="dropdownMinWidth">
             <select-attribute-pane *ngIf="entities" [entities]="entities" [info]="getSelectedInfo(param)"
                                    (onSelectItem)="selectItem($event, param)">
             </select-attribute-pane>

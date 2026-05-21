@@ -19,20 +19,20 @@
   <!--month selector-->
   <div class="row month-year-row" blockMouse>
     <div class="col-6 form-floating" *ngIf="months">
-        <select class="form-control" [ngModel]="dateTime.months" (ngModelChange)="selectMonth($event)">
-          <option *ngFor="let month of months" [value]="month.value">
-            {{month.label}}
-          </option>
-        </select>
+        <custom-select [options]="months"
+                       [ngModel]="dateTime.months"
+                       (ngModelChange)="selectMonth($event)"
+                       ariaLabel="_#(Select a Month)">
+        </custom-select>
         <label>_#(Select a Month)</label>
     </div>
     <!--year selector-->
     <div class="col-6 form-floating" *ngIf="years">
-        <select class="form-control" [ngModel]="dateTime.years" (ngModelChange)="selectYear($event)">
-          <option *ngFor="let year of years" [value]="year.value">
-            {{year.label}}
-          </option>
-        </select>
+        <custom-select [options]="years"
+                       [ngModel]="dateTime.years"
+                       (ngModelChange)="selectYear($event)"
+                       ariaLabel="_#(Select a Year)">
+        </custom-select>
         <label>_#(Select a Year)</label>
     </div>
   </div>

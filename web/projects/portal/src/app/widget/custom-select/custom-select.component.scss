@@ -24,6 +24,10 @@
 .custom-select-trigger {
   position: relative;
   width: 100%;
+  min-height: var(--custom-select-height, calc(1.5em + 0.75rem + 2px));
+  height: var(--custom-select-height, calc(1.5em + 0.75rem + 2px));
+  display: flex;
+  align-items: center;
   text-align: left;
   padding-right: 2rem;
   background-image: none;

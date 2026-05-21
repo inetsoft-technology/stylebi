@@ -62,6 +62,17 @@ export class AddParameterDialog implements OnInit {
       }));
    }
 
+   get parameterNameSelectOptions(): CustomSelectOption<string>[] {
+      return (this.parameterNames || []).map((name) => ({
+         value: name,
+         label: name
+      }));
+   }
+
+   get selectedParameterName(): string | null {
+      return this.parameterNames?.includes(this.model?.name) ? this.model.name : null;
+   }
+
    constructor(private modalService: NgbModal,
                private http: HttpClient)
    {
@@ -245,6 +256,13 @@ export class AddParameterDialog implements OnInit {
    changeValue(value: any) {
       this.model.value = value;
       this.form.controls["value"].setValue(this.model.value.value);
+   }
+
+   selectParameterName(name: string): void {
+      this.model.name = name;
+      this.form.controls["name"].setValue(name);
+      this.form.controls["name"].markAsDirty();
+      this.form.controls["name"].markAsTouched();
    }
 
    updateDynamicValue() {

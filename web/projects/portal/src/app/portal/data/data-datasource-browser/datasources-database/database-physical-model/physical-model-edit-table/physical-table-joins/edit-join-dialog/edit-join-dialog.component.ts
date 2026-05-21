@@ -24,6 +24,7 @@ import { ValueLabelPair } from "../../../../../../model/datasources/database/val
 import { MergingRule } from "../../../../../../model/datasources/database/physical-model/merging-rule.enum";
 import { Cardinality } from "../../../../../../model/datasources/database/physical-model/cardinality.enum";
 import {DataType} from "../../../../common-components/join-thumbnail.service";
+import { CustomSelectOption } from "../../../../../../../../widget/custom-select/custom-select.component";
 
 @Component({
    selector: "edit-join-dialog",
@@ -92,6 +93,13 @@ export class EditJoinDialog {
       return !!this.joinModel && this.joinModel.supportFullOuter
          ? this.fullOuterJoinTypeOptions
          : this.joinTypeOptions;
+   }
+
+   get joinTypeSelectOptions(): CustomSelectOption<string>[] {
+      return (this.joinTypes || []).map((option) => ({
+         value: option.value,
+         label: option.label
+      }));
    }
 
    get joinPreview(): string {
