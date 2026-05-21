@@ -55,8 +55,8 @@ export class DatabaseProviderViewComponent implements OnInit, OnDestroy {
    @Input()
    set model(model: DatabaseAuthenticationProviderModel) {
       this._model = model;
-      this.valueChangesSubscription.unsubscribe();
       this.subscriptions.remove(this.valueChangesSubscription);
+      this.valueChangesSubscription.unsubscribe();
 
       if(model && this.form) {
          if(!this.dbForm) {

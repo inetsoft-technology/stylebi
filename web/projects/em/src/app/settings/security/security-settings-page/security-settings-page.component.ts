@@ -91,7 +91,7 @@ export class SecuritySettingsPageComponent implements OnInit, OnDestroy {
             this.appInfoService.setLdapProviderUsed(this.ldapProviderUsed);
             this.passOrgIdAs = event.passOrgIdAs;
             this.cloudPlatform = event.cloudPlatform;
-            this.isOrgAdminOnly = event.warning && event.warning === "isOrgAdmin";
+            this.isOrgAdminOnly = event.warning === "isOrgAdmin";
          });
 
       this.authzService.getPermissions("settings/security").subscribe((p) => {
@@ -142,7 +142,7 @@ export class SecuritySettingsPageComponent implements OnInit, OnDestroy {
                   this.userService.loadScheduleUsers();
                }
             },
-            error: () => void 0
+            error: (err) => console.error("Failed to update security setting:", err)
          });
    }
 
@@ -177,7 +177,7 @@ export class SecuritySettingsPageComponent implements OnInit, OnDestroy {
                   this.refreshContent();
                }
             },
-            error: () => void 0
+            error: (err) => console.error("Failed to update security setting:", err)
          });
    }
 

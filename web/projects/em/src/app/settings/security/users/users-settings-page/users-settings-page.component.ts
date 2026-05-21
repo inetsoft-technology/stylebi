@@ -489,7 +489,7 @@ export class UsersSettingsPageComponent implements OnInit, OnDestroy {
          .subscribe(response => {
             this.selectedNodes = [];
 
-            if(pendingNewUser != null && deletesIncompleteNewUser && this.newUserIdentity != null &&
+            if(deletesIncompleteNewUser && this.newUserIdentity != null &&
                equalsIdentity(this.newUserIdentity, pendingNewUser))
             {
                this.newUserIdentity = null;

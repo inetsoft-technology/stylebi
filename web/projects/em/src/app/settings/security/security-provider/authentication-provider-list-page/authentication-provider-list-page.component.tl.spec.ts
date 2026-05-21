@@ -222,8 +222,7 @@ describe("AuthenticationProviderViewComponent — removeProvider(): stale-index 
       confirmSubject.next(true);
       confirmSubject.complete();
 
-      // Bug: DELETE fires with index 1 → server deletes "X"; splice(1,1) on [A,X,B,C] also removes "X"
-      // "B" survives. Correct: "B" should be absent.
+      // Before fix: DELETE used stale index 1 and removed "X". After fix: index 2 is resolved by name — "B" must be absent.
       await waitFor(() =>
          expect(comp.authenticationProviders.map(p => p.name)).not.toContain("B"),
       );
