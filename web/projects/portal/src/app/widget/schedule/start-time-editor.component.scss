@@ -49,13 +49,12 @@
   .start-time-editor__timezone-text {
     line-height: 1.4;
     color: var(--inet-text-muted-color);
-    padding-top: 2px;
   }
 
   .start-time-editor__timezone-meta {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 1rem;
   }
 
   .start-time-editor__server-timezone-toggle {
