@@ -1143,6 +1143,16 @@ public class DateComparisonUtil {
          }
       }
 
+      // When the partial week at the start of a year straddles the year boundary (e.g.,
+      // Dec 28-Jan 3 with firstDayOfWeek=Monday), the computed date may fall in the
+      // previous year. Advance by one week so the label stays within the reference year.
+      Calendar yearRefCal = new GregorianCalendar();
+      yearRefCal.setTime(date);
+
+      if(cal.get(Calendar.YEAR) < yearRefCal.get(Calendar.YEAR)) {
+         cal.add(Calendar.DATE, 7);
+      }
+
       Format dateFmt = fmt != null ? fmt : XUtil.getDefaultDateFormat(formatLevel);
 
       if(dateFmt instanceof ExtendedDecimalFormat) {
@@ -1977,7 +1987,6 @@ public class DateComparisonUtil {
       Calendar calendar = new GregorianCalendar();
       calendar.setFirstDayOfWeek(Tool.getFirstDayOfWeek());
       calendar.setMinimalDaysInFirstWeek(7);
-
       return calendar;
    }
 }
