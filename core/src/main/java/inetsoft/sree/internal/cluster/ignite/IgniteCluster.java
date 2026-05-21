@@ -1626,6 +1626,9 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
          try {
             return igniteFuture.get();
          }
+         catch (IgniteInterruptedException e) {
+            throw new InterruptedException(e.getMessage());
+         }
          catch (Exception e) {
             throw new ExecutionException(e);
          }
@@ -1637,6 +1640,12 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       {
          try {
             return igniteFuture.get(timeout, unit);
+         }
+         catch (IgniteFutureTimeoutException e) {
+            throw new java.util.concurrent.TimeoutException(e.getMessage());
+         }
+         catch (IgniteInterruptedException e) {
+            throw new InterruptedException(e.getMessage());
          }
          catch (Exception e) {
             throw new ExecutionException(e);
