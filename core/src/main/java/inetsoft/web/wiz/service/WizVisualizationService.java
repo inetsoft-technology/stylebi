@@ -241,72 +241,72 @@ public class WizVisualizationService {
                         runtimeId, principal.getName());
             }
             else {
-               // Short-circuit fallback path for large viewsheets to avoid heap pressure.
                Viewsheet preCheckVs = rvs.getViewsheet();
 
-               if(preCheckVs != null &&
-                  preCheckVs.getAssemblies().length > MAX_ASSEMBLIES_FOR_FALLBACK_THUMBNAIL)
-               {
-                  LOG.debug("Skipping fallback thumbnail for '{}': viewsheet has {} assemblies (limit {})",
-                            event.getAssemblyName(), preCheckVs.getAssemblies().length,
-                            MAX_ASSEMBLIES_FOR_FALLBACK_THUMBNAIL);
+               // Always attempt the lightweight primary path regardless of viewsheet size.
+               AssemblyImageService.ImageRenderResult imgResult =
+                  assemblyImageService.downloadAssemblyImage(
+                     runtimeId, Tool.byteEncode(event.getAssemblyName()),
+                     THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT, THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT,
+                     true, principal);
+
+               if(imgResult != null && imgResult.getRetryAfter() > 0) {
+                  LOG.debug("downloadAssemblyImage not yet ready for '{}' (retryAfter={}), skipping thumbnail",
+                            event.getAssemblyName(), imgResult.getRetryAfter());
                }
-               else {
-                  AssemblyImageService.ImageRenderResult imgResult =
-                     assemblyImageService.downloadAssemblyImage(
-                        runtimeId, Tool.byteEncode(event.getAssemblyName()),
-                        THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT, THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT,
-                        true, principal);
+               else if(imgResult != null && imgResult.getImageData() != null) {
+                  byte[] imageBytes = binaryTransferService.getData(imgResult.getImageData());
 
-                  if(imgResult != null && imgResult.getRetryAfter() > 0) {
-                     LOG.debug("downloadAssemblyImage not yet ready for '{}' (retryAfter={}), skipping thumbnail",
-                               event.getAssemblyName(), imgResult.getRetryAfter());
-                  }
-                  else if(imgResult != null && imgResult.getImageData() != null) {
-                     byte[] imageBytes = binaryTransferService.getData(imgResult.getImageData());
+                  if(imageBytes != null && imageBytes.length > 0) {
+                     if(imgResult.isPng()) {
+                        // 1×1 is a StyleBI placeholder returned for assembly types that
+                        // downloadAssemblyImage does not support (e.g. Crosstab, Table).
+                        // In that case fall back to a full-viewsheet PNG export + crop.
+                        String thumbnailValue = null;
+                        try {
+                           BufferedImage decoded = ImageIO.read(new ByteArrayInputStream(imageBytes));
 
-                     if(imageBytes != null && imageBytes.length > 0) {
-                        if(imgResult.isPng()) {
-                           // 1×1 is a StyleBI placeholder returned for assembly types that
-                           // downloadAssemblyImage does not support (e.g. Crosstab, Table).
-                           // In that case fall back to a full-viewsheet PNG export + crop.
-                           String thumbnailValue = null;
-                           try {
-                              BufferedImage decoded = ImageIO.read(new ByteArrayInputStream(imageBytes));
-
-                              if(decoded != null && decoded.getWidth() > 1 && decoded.getHeight() > 1) {
-                                 thumbnailValue = "data:image/png;base64," +
-                                    Base64.getEncoder().encodeToString(imageBytes);
-                              }
+                           if(decoded != null && decoded.getWidth() > 1 && decoded.getHeight() > 1) {
+                              thumbnailValue = "data:image/png;base64," +
+                                 Base64.getEncoder().encodeToString(imageBytes);
                            }
-                           catch(Exception e) {
-                              LOG.debug("Failed to decode PNG for '{}': {}. Attempting full-viewsheet fallback.",
-                                        event.getAssemblyName(), e.getMessage());
-                           }
+                        }
+                        catch(Exception e) {
+                           LOG.debug("Failed to decode PNG for '{}': {}. Attempting full-viewsheet fallback.",
+                                     event.getAssemblyName(), e.getMessage());
+                        }
 
-                           if(thumbnailValue == null) {
+                        // Only use the expensive fallback if within the assembly-count limit.
+                        if(thumbnailValue == null) {
+                           if(preCheckVs != null &&
+                              preCheckVs.getAssemblies().length > MAX_ASSEMBLIES_FOR_FALLBACK_THUMBNAIL)
+                           {
+                              LOG.debug("Skipping fallback thumbnail for '{}': viewsheet has {} assemblies (limit {})",
+                                        event.getAssemblyName(), preCheckVs.getAssemblies().length,
+                                        MAX_ASSEMBLIES_FOR_FALLBACK_THUMBNAIL);
+                           }
+                           else {
                               LOG.debug("PNG was 1×1 or undecodable for '{}', using full-viewsheet fallback",
                                         event.getAssemblyName());
                               thumbnailValue = renderFallbackThumbnail(rvs, event.getAssemblyName(), principal);
                            }
+                        }
 
-                           if(thumbnailValue != null) {
-                              result.setThumbnail(thumbnailValue);
-                              result.setThumbnailFormat("png");
-                           }
+                        if(thumbnailValue != null) {
+                           result.setThumbnail(thumbnailValue);
+                           result.setThumbnailFormat("png");
+                        }
+                     }
+                     else {
+                        if(imageBytes.length > MAX_SVG_THUMBNAIL_BYTES) {
+                           LOG.debug("SVG thumbnail for '{}' is {} bytes (limit {}), skipping",
+                                     event.getAssemblyName(), imageBytes.length,
+                                     MAX_SVG_THUMBNAIL_BYTES);
                         }
                         else {
-                           // Issue 6: guard against oversized SVG payloads
-                           if(imageBytes.length > MAX_SVG_THUMBNAIL_BYTES) {
-                              LOG.debug("SVG thumbnail for '{}' is {} bytes (limit {}), skipping",
-                                        event.getAssemblyName(), imageBytes.length,
-                                        MAX_SVG_THUMBNAIL_BYTES);
-                           }
-                           else {
-                              result.setThumbnail(normalizeSvgNamespace(
-                                 new String(imageBytes, StandardCharsets.UTF_8)));
-                              result.setThumbnailFormat("svg");
-                           }
+                           result.setThumbnail(normalizeSvgNamespace(
+                              new String(imageBytes, StandardCharsets.UTF_8)));
+                           result.setThumbnailFormat("svg");
                         }
                      }
                   }
@@ -605,6 +605,12 @@ public class WizVisualizationService {
             return null;
          }
 
+         if(croppedBytes.length > MAX_PNG_THUMBNAIL_BYTES) {
+            LOG.debug("renderFallbackThumbnail: PNG thumbnail for '{}' is {} bytes (limit {}), skipping",
+                      assemblyName, croppedBytes.length, MAX_PNG_THUMBNAIL_BYTES);
+            return null;
+         }
+
          LOG.debug("renderFallbackThumbnail: success, cropped PNG {} bytes for assembly '{}'",
                    croppedBytes.length, assemblyName);
          return "data:image/png;base64," + Base64.getEncoder().encodeToString(croppedBytes);
@@ -687,6 +693,7 @@ public class WizVisualizationService {
          String prefixColon = prefix + ":";
          return svg
             .replace("xmlns:" + prefix + "=\"" + SVG_NS + "\"", "xmlns=\"" + SVG_NS + "\"")
+            .replace("xmlns:" + prefix + "='" + SVG_NS + "'", "xmlns='" + SVG_NS + "'")
             .replace("<" + prefixColon, "<")
             .replace("</" + prefixColon, "</");
       }
@@ -703,6 +710,8 @@ public class WizVisualizationService {
    private static final String SVG_NS = "http://www.w3.org/2000/svg";
    /** Drop SVG thumbnails larger than 512 KB to prevent oversized response payloads. */
    private static final int MAX_SVG_THUMBNAIL_BYTES = 512 * 1024;
+   /** Drop PNG thumbnails larger than 256 KB to prevent oversized response payloads. */
+   private static final int MAX_PNG_THUMBNAIL_BYTES = 256 * 1024;
    /** Skip the full-viewsheet fallback export for viewsheets with many assemblies. */
    private static final int MAX_ASSEMBLIES_FOR_FALLBACK_THUMBNAIL = 50;
 }
