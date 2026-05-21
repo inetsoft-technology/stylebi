@@ -33,6 +33,7 @@ import inetsoft.util.config.SecretsConfig;
 import inetsoft.util.log.LogUtil;
 import inetsoft.util.log.logback.AuditLogFilter;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.context.annotation.*;
 import org.springframework.context.support.AbstractApplicationContext;
 import picocli.CommandLine;
@@ -412,7 +413,7 @@ public class StorageInitializer implements Callable<Integer> {
       }
    }
 
-   @Configuration(proxyBeanMethods = false)
+   @Configuration
    private static class ClusterConfig {
       @Bean
       public InetsoftConfig inetsoftConfig() {
@@ -423,6 +424,21 @@ public class StorageInitializer implements Callable<Integer> {
       public Cluster cluster(InetsoftConfig config) {
          // todo use client mode
          return new IgniteCluster();
+      }
+
+      @Bean
+      public PasswordEncryption passwordEncryption(InetsoftConfig inetsoftConfig) {
+         SecretsConfig secretsConfig = inetsoftConfig.getSecrets();
+         String type = secretsConfig.getType();
+
+         for(PasswordEncryptionFactory factory : ServiceLoader.load(PasswordEncryptionFactory.class)) {
+            if(factory.getType().equals(type)) {
+               return factory.createPasswordEncryption(secretsConfig);
+            }
+         }
+
+         throw new BeanCreationException("passwordEncryption",
+                                         "No PasswordEncryptionFactory found for type: " + type);
       }
    }
 }
