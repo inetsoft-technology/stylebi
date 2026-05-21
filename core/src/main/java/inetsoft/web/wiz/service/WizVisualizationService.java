@@ -40,7 +40,9 @@ import org.springframework.stereotype.Service;
 
 import javax.imageio.ImageIO;
 import java.awt.Dimension;
+import java.awt.Graphics2D;
 import java.awt.Point;
+import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -254,11 +256,13 @@ public class WizVisualizationService {
                         }
                      }
                      catch(Exception e) {
-                        LOG.debug("Failed to decode PNG for '{}', trying fallback: {}",
+                        LOG.debug("Failed to decode PNG for '{}': {}. Attempting full-viewsheet fallback.",
                                   event.getAssemblyName(), e.getMessage());
                      }
 
                      if(thumbnailValue == null) {
+                        LOG.debug("PNG was 1×1 or undecodable for '{}', using full-viewsheet fallback",
+                                  event.getAssemblyName());
                         thumbnailValue = renderTableThumbnail(
                            runtimeId, event.getAssemblyName(), principal);
                      }
@@ -562,7 +566,15 @@ public class WizVisualizationService {
             int scaledW = Math.max(1, (int)(cropW * scale));
             int scaledH = Math.max(1, (int)(cropH * scale));
             BufferedImage scaled = new BufferedImage(scaledW, scaledH, BufferedImage.TYPE_INT_ARGB);
-            scaled.createGraphics().drawImage(cropped, 0, 0, scaledW, scaledH, null);
+            Graphics2D g = scaled.createGraphics();
+            try {
+               g.setRenderingHint(RenderingHints.KEY_INTERPOLATION,
+                                  RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+               g.drawImage(cropped, 0, 0, scaledW, scaledH, null);
+            }
+            finally {
+               g.dispose();
+            }
             cropped = scaled;
 
             LOG.debug("renderTableThumbnail: scaled crop from {}x{} to {}x{}", cropW, cropH, scaledW, scaledH);
@@ -580,6 +592,11 @@ public class WizVisualizationService {
          LOG.debug("renderTableThumbnail: success, cropped PNG {} bytes for assembly '{}'",
                    croppedBytes.length, assemblyName);
          return "data:image/png;base64," + Base64.getEncoder().encodeToString(croppedBytes);
+      }
+      catch(OutOfMemoryError oom) {
+         LOG.warn("renderTableThumbnail: out of memory for assembly '{}', skipping thumbnail",
+                  assemblyName);
+         return null;
       }
       catch(Exception e) {
          LOG.warn("renderTableThumbnail: exception for assembly '{}': {}",
