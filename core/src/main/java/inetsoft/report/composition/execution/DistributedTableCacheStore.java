@@ -161,6 +161,13 @@ public class DistributedTableCacheStore implements MessageListener, SmartLifecyc
             return;
          }
 
+         Thread existing = asyncFlushThread.get();
+
+         if(existing != null && existing.isAlive()) {
+            LOG.debug("DistributedTableCacheStore: replication request received but flush thread already running, skipping");
+            return;
+         }
+
          LOG.info("DistributedTableCacheStore: received replication request, flushing async");
          Thread t = new Thread(this::flushLocalCache, "table-cache-flush");
          t.setDaemon(true);
