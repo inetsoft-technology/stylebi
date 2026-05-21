@@ -359,15 +359,6 @@ public class AddVisualizationService {
             continue;
          }
 
-         int col = gridIndex % GRID_COLS;
-
-         if(col == 0 && gridIndex > 0) {
-            // First column of a new row: advance Y past the tallest viz in the previous row.
-            rowStartY = rowMaxBottom + VIZ_GAP;
-            rowMaxBottom = rowStartY;
-            colStartX = 0;
-         }
-
          RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
 
          if(rvs == null) {
@@ -380,13 +371,6 @@ public class AddVisualizationService {
          try {
             doAddVisualization(runtimeId, entry, colStartX, rowStartY, 1.0f, principal);
 
-            rvs = viewsheetService.getViewsheet(runtimeId, principal);
-
-            if(rvs == null) {
-               LOG.warn("Runtime viewsheet expired after adding '{}', stopping: {}", identifier, runtimeId);
-               break;
-            }
-
             Rectangle added = computeAddedBounds(rvs.getViewsheet(), namesBefore);
 
             if(added != null) {
@@ -395,6 +379,13 @@ public class AddVisualizationService {
             }
 
             gridIndex++;
+
+            if(gridIndex % GRID_COLS == 0) {
+               // Filled the last column of a row: advance Y for the next row.
+               rowStartY = rowMaxBottom + VIZ_GAP;
+               rowMaxBottom = rowStartY;
+               colStartX = 0;
+            }
          }
          catch(Exception e) {
             LOG.warn("Failed to add visualization '{}': {}", identifier, e.getMessage());
