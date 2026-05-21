@@ -126,11 +126,11 @@ export class AuthenticationProviderViewComponent implements OnInit, OnDestroy {
    }
 
    removeProvider(index: number) {
+      const providerName = this.authenticationProviders[index].name;
+      const current: boolean = this.currentProvider === providerName;
       let content: string = "_#(js:em.security.provider.confirmDelete)";
-      let current: boolean = false;
 
-      if(this.currentProvider === this.authenticationProviders[index].name) {
-         current = true;
+      if(current) {
          content += "\n\n_#(js:em.security.provider.currentDelete)";
       }
 
@@ -143,17 +143,21 @@ export class AuthenticationProviderViewComponent implements OnInit, OnDestroy {
          }
       }).afterClosed().subscribe((result) => {
          if(result) {
-            this.http.delete("../api/em/security/remove-authentication-provider/" + index)
-               .pipe(catchError(error => this.handleRemoveProviderError(error, this.authenticationProviders[index].name)))
-               .subscribe(() => {
-                  if(index > -1) {
-                     this.authenticationProviders.splice(index, 1);
-                  }
+            const currentIndex = this.authenticationProviders.findIndex(p => p.name === providerName);
+            if(currentIndex > -1) {
+               this.http.delete("../api/em/security/remove-authentication-provider/" + currentIndex)
+                  .pipe(catchError(error => this.handleRemoveProviderError(error, providerName)))
+                  .subscribe(() => {
+                     const removeIndex = this.authenticationProviders.findIndex(p => p.name === providerName);
+                     if(removeIndex > -1) {
+                        this.authenticationProviders.splice(removeIndex, 1);
+                     }
 
-                  if(current) {
-                     window.open("../logout?fromEm=true", "_self");
-                  }
-               });
+                     if(current) {
+                        window.open("../logout?fromEm=true", "_self");
+                     }
+                  });
+            }
          }
       });
    }
@@ -162,7 +166,7 @@ export class AuthenticationProviderViewComponent implements OnInit, OnDestroy {
       const uri = `../api/em/security/clear-authentication-provider/${index}`;
       this.http.get<SecurityProviderStatus>(uri)
          .pipe(catchError(error => this.handleClearCacheError(error)))
-         .subscribe(status => this.authenticationProviders[index] = status);
+         .subscribe(status => this.authenticationProviders[index] = this.formatCacheAgeLabel(status));
    }
 
    copyProvider(index: number) {
@@ -199,7 +203,7 @@ export class AuthenticationProviderViewComponent implements OnInit, OnDestroy {
          duration: Tool.SNACKBAR_DURATION
       });
       console.error(`Failed to remove provider "${name}": `, error);
-      return throwError(error);
+      return EMPTY;
    }
 
    private handleClearCacheError(error: HttpErrorResponse): Observable<SecurityProviderStatus> {
@@ -207,7 +211,7 @@ export class AuthenticationProviderViewComponent implements OnInit, OnDestroy {
          duration: Tool.SNACKBAR_DURATION
       });
       console.error("Failed to clear provider cache: ", error);
-      return throwError(error);
+      return EMPTY;
    }
 
    private handleCopyProviderError(error: HttpErrorResponse): Observable<SecurityProviderStatus> {

@@ -121,58 +121,64 @@ export class SecuritySettingsPageComponent implements OnInit, OnDestroy {
          ldapProviderUsed: this.ldapProviderUsed
       };
 
-      this.httpClient.post("../api/em/security/set-enable-security", request)
+      this.httpClient.post<SecurityEnabledEvent>("../api/em/security/set-enable-security", request)
          .pipe(finalize(() => this.securityToggleDisabled = false))
-         .subscribe((event: SecurityEnabledEvent) => {
-            if(event.warning) {
-               this.dialog.open(MessageDialog, {
-                  width: "350px",
-                  data: {
-                     title: "_#(js:Error)",
-                     content: event.warning,
-                     type: MessageDialogType.ERROR
-                  }
-               });
-               this.securityEnabled = event.enable;
-               this.refreshContent();
-            }
-            else {
-               this.securityEnabled = event.enable;
-               this.userService.loadScheduleUsers();
-            }
+         .subscribe({
+            next: (event: SecurityEnabledEvent) => {
+               if(event.warning) {
+                  this.dialog.open(MessageDialog, {
+                     width: "350px",
+                     data: {
+                        title: "_#(js:Error)",
+                        content: event.warning,
+                        type: MessageDialogType.ERROR
+                     }
+                  });
+                  this.securityEnabled = event.enable;
+                  this.refreshContent();
+               }
+               else {
+                  this.securityEnabled = event.enable;
+                  this.userService.loadScheduleUsers();
+               }
+            },
+            error: () => void 0
          });
    }
 
    toggleEnterpriseToggle(toggleChange: MatSlideToggleChange) {
-       this.multiTenancyToggleDisabled = true;
-       const request: SecurityEnabledEvent = {
-          enable: toggleChange.checked,
-          toggleDisabled: this.securityToggleDisabled,
-          ldapProviderUsed: this.ldapProviderUsed
-       };
-       this.httpClient.post<SecurityEnabledEvent>("../api/em/security/set-multi-tenancy", request).pipe(
-          finalize(() => this.multiTenancyToggleDisabled = false)
-       )
-          .subscribe((event: SecurityEnabledEvent) => {
-             if(event.warning != null && event.warning != "") {
-                const content = event.warning;
-                this.dialog.open(MessageDialog, {
-                   width: "350px",
-                   data: {
-                      title: "_#(js:Error)",
-                      content: content,
-                      type: MessageDialogType.ERROR
-                   }
-                });
-                this.multiTenancyEnabled = true;
-                this.refreshContent();
-             }
-             else {
-                this.multiTenancyEnabled = event.enable;
-                this.orgDropdownService.refreshProviders();
-                this.refreshContent();
-             }
-          });
+      this.multiTenancyToggleDisabled = true;
+      const request: SecurityEnabledEvent = {
+         enable: toggleChange.checked,
+         toggleDisabled: this.multiTenancyToggleDisabled,
+         ldapProviderUsed: this.ldapProviderUsed
+      };
+      this.httpClient.post<SecurityEnabledEvent>("../api/em/security/set-multi-tenancy", request).pipe(
+         finalize(() => this.multiTenancyToggleDisabled = false)
+      )
+         .subscribe({
+            next: (event: SecurityEnabledEvent) => {
+               if(event.warning != null && event.warning != "") {
+                  const content = event.warning;
+                  this.dialog.open(MessageDialog, {
+                     width: "350px",
+                     data: {
+                        title: "_#(js:Error)",
+                        content: content,
+                        type: MessageDialogType.ERROR
+                     }
+                  });
+                  this.multiTenancyEnabled = event.enable;
+                  this.refreshContent();
+               }
+               else {
+                  this.multiTenancyEnabled = event.enable;
+                  this.orgDropdownService.refreshProviders();
+                  this.refreshContent();
+               }
+            },
+            error: () => void 0
+         });
    }
 
    //resets child components after updating isMultiTenant
@@ -189,8 +195,11 @@ export class SecuritySettingsPageComponent implements OnInit, OnDestroy {
          toggleDisabled: this.securityToggleDisabled,
          ldapProviderUsed: this.ldapProviderUsed
       };
-      this.httpClient.post("../api/em/security/set-enable-self-signup", request)
-         .subscribe((event: SecurityEnabledEvent) => this.selfSignupEnabled = event.enable);
+      this.httpClient.post<SecurityEnabledEvent>("../api/em/security/set-enable-self-signup", request)
+         .subscribe({
+            next: (event: SecurityEnabledEvent) => this.selfSignupEnabled = event.enable,
+            error: () => void 0
+         });
    }
 
    updatePassOption(option: string): void {

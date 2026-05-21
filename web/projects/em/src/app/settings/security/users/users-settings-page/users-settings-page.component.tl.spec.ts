@@ -21,7 +21,7 @@
  *
  * Risk-first coverage:
  *   Group 1 [Risk 3] — clearIncompleteNewUser(): newUserIdentity must remain trackable when delete
- *                       fails (it.fails — confirmed bug)
+ *                       fails
  *   Group 2 [Risk 3] — selectionChanged(): incomplete new user guard must confirm before navigating
  *                       away and restore selection on cancel
  *   Group 3 [Risk 2] — selectionChanged(): pageChanged guard must show dialog and honour
@@ -33,33 +33,16 @@
  *   Group 7 [Risk 2] — selfRefreshing guard: onRefresh events triggered by the component itself
  *                       must be ignored to prevent recursive refresh loops
  *   Group 8 [Risk 3] — deleteIdentities(): selectedNodes cleared before getSameTypeNode() and
- *                       namedUsers check — both branches become unreachable dead code
- *                       (it.fails — confirmed bug)
+ *                       namedUsers check must still use the deleted-node snapshot
  *   Group 9 [Risk 2] — selectionChanged(): navigatingAway=false for event.length>1 — pageChanged
  *                       and incomplete-new-user guards both silently bypassed on multi-select
  *                       (Design Gap)
- *
- * Confirmed bugs (it.fails — remove wrapper once fixed):
- *
- *   Bug A — newUserIdentity premature nullification (Group 1):
- *     clearIncompleteNewUser() sets this.newUserIdentity = null BEFORE issuing the HTTP DELETE.
- *     If the DELETE fails and the caller swallows the error ({error: () => {}}), the component
- *     transitions to hasIncompleteNewUser = false, while the server still holds the incomplete user.
- *     Result: the phantom user persists on the server with no way for the component to retry cleanup.
- *
- *   Bug B — selectedNodes premature clear in deleteIdentities() (Group 8):
- *     The subscribe callback opens with this.selectedNodes = [] as its FIRST statement.
- *     getSameTypeNode() then iterates this.selectedNodes (now []) and always returns null,
- *     so the isSysAdmin auto-select branch is never reached.
- *     The namedUsers snackBar reads this.selectedNodes.some() which is always false for the same reason.
- *     Result: (1) after deletion a sysAdmin never auto-selects the next same-type sibling node;
- *             (2) the namedUsers license-change warning never appears after deleteIdentities().
  *
  * KEY contracts:
  *   - clearIncompleteNewUser(false) must NOT trigger refreshTree.
  *   - selectionChanged "navigatingAway" fires only when event.length == 1 AND
  *     selectedNodes[0] !== event[0] (reference inequality).
- *   - deleteIdentities() always clears selectedNodes before processing the response.
+ *   - deleteIdentities() snapshots selectedNodes before clearing them while processing the response.
  *   - setUser() calls postUserInfo(model, logout=true) only when
  *     model.organization == userOrgID AND (oldName != name OR password is set).
  *   - selfRefreshing is a synchronous guard: set true → call refresh() → set false, so any
@@ -71,7 +54,6 @@ import { HttpClientModule } from "@angular/common/http";
 import { NoopAnimationsModule } from "@angular/platform-browser/animations";
 import { MatDialog } from "@angular/material/dialog";
 import { MatSnackBar } from "@angular/material/snack-bar";
-import { it } from "@jest/globals";
 import { render, waitFor } from "@testing-library/angular";
 import { of, Subject } from "rxjs";
 import { http, HttpResponse } from "msw";
@@ -204,10 +186,10 @@ async function renderComponent(opts: RenderOpts = {}) {
 
 describe("UsersSettingsPageComponent — clearIncompleteNewUser(): state consistency on failure", () => {
 
-   // 🔁 Regression-sensitive: newUserIdentity is pre-cleared before the HTTP call.
+   // 🔁 Regression-sensitive: newUserIdentity must only clear after a successful HTTP delete.
    // Risk Point/Contract: On delete failure, hasIncompleteNewUser must remain true so the
-   // caller can retry; instead it becomes false — the phantom user is now untrackable.
-   it.failing("should keep hasIncompleteNewUser true when HTTP delete fails", async () => {
+   // caller can retry and the phantom user stays trackable.
+   it("should keep hasIncompleteNewUser true when HTTP delete fails", async () => {
       server.use(
          http.post("*/api/em/security/user/delete-identities/*", () =>
             new HttpResponse(null, { status: 500 }),
@@ -221,7 +203,6 @@ describe("UsersSettingsPageComponent — clearIncompleteNewUser(): state consist
       comp.clearIncompleteNewUser(false).subscribe({ error: () => {} });
 
       await waitFor(() => {
-         // BUG: this assertion fails because newUserIdentity was nulled before the request
          expect(comp.hasIncompleteNewUser).toBe(true);
       });
    });
@@ -686,17 +667,16 @@ describe("UsersSettingsPageComponent — selfRefreshing guard: ignores self-trig
 });
 
 // ════════════════════════════════════════════════════════════════════════════
-// Group 8 [Risk 3] — deleteIdentities(): dead auto-select and dead namedUsers warning
-//   (it.fails — confirmed bug: selectedNodes cleared before getSameTypeNode() is called)
+// Group 8 [Risk 3] — deleteIdentities(): auto-select and namedUsers warning
 // ════════════════════════════════════════════════════════════════════════════
 
-describe("UsersSettingsPageComponent — deleteIdentities(): dead auto-select and namedUsers warning", () => {
+describe("UsersSettingsPageComponent — deleteIdentities(): auto-select and namedUsers warning", () => {
 
    // 🔁 Regression-sensitive: when isSysAdmin=true and a sibling of the same type exists in
    // the model, refreshTree must be called with that sibling's identityID so the tree
-   // auto-selects it.  The bug: selectedNodes=[] before getSameTypeNode() → sameTypeNode=null
-   // → refreshTree(null, null, false, false) is called instead.
-   it.failing("should call refreshTree with the next same-type node ID when isSysAdmin is true", async () => {
+   // auto-selects it. selectedNodes is cleared while processing the response, so this must use
+   // the deleted-node snapshot instead of the live selection array.
+   it("should call refreshTree with the next same-type node ID when isSysAdmin is true", async () => {
       server.use(
          http.post("*/api/em/security/user/delete-identities/*", () =>
             HttpResponse.json({ warnings: [] }),
@@ -719,17 +699,15 @@ describe("UsersSettingsPageComponent — deleteIdentities(): dead auto-select an
 
       await waitFor(() => expect(refreshTreeSpy).toHaveBeenCalled());
 
-      // BUG: called with (null, null, false, false) because selectedNodes was [] when
-      // getSameTypeNode() ran → sameTypeNode is always null
       const lastCall = refreshTreeSpy.mock.calls[refreshTreeSpy.mock.calls.length - 1];
       expect(lastCall[0]).toEqual(nextUserModel.identityID);
       expect(lastCall[1]).toBe(IdentityType.USER);
    });
 
    // 🔁 Regression-sensitive: when namedUsers=true and a USER is among the deleted identities,
-   // the license-change snackBar must appear.  The bug: selectedNodes=[] before the
-   // this.selectedNodes.some() check → .some() is always false → snackBar never opens.
-   it.failing("should show namedUsers snackBar when a USER is deleted and namedUsers is true", async () => {
+   // the license-change snackBar must appear. selectedNodes is cleared while processing the
+   // response, so this check must use the deleted-node snapshot.
+   it("should show namedUsers snackBar when a USER is deleted and namedUsers is true", async () => {
       server.use(
          http.post("*/api/em/security/user/delete-identities/*", () =>
             HttpResponse.json({ warnings: [] }),
@@ -749,8 +727,6 @@ describe("UsersSettingsPageComponent — deleteIdentities(): dead auto-select an
       // Wait for the HTTP response to be processed (selectedNodes cleared is the observable side-effect)
       await waitFor(() => expect(comp.selectedNodes.length).toBe(0));
 
-      // BUG: snackBar.open is never reached because this.selectedNodes.some() is evaluated
-      // after selectedNodes has already been set to []
       expect(snackBarSpy.open).toHaveBeenCalled();
    });
 });

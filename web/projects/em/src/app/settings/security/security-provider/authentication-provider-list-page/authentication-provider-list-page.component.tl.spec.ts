@@ -19,36 +19,13 @@
 /**
  * AuthenticationProviderViewComponent — Testing Library style
  *
- * Risk-first coverage:
- *   Group 1 [Risk 3]  — removeProvider: stale-index bug — index captured at click time; poll replaces array before confirm
- *   Group 2 [Risk 2]  — clearProviderCache: cacheAgeLabel undefined after direct status assignment (it.failing — confirmed bug)
+ * Coverage:
+ *   Group 1 [Risk 3]  — removeProvider: index re-resolved by name at confirm time; poll cannot shift the target
+ *   Group 2 [Risk 2]  — clearProviderCache: formatCacheAgeLabel applied to server response
  *   Group 3 [Risk 2]  — currentProvider: fetched once at init, never refreshed — stale logout warning
  *   Group 4 [Risk 2]  — reorder: out-of-bounds destination fires POST before server-side bounds check
  *   Group 5 [Risk 2]  — copyProvider: duplicate-name guard prevents double-push
  *   Group 6 [Risk 2]  — polling lifecycle: 5 s timer starts on init, stops cleanly on destroy
- *
- * Confirmed bugs (it.failing — remove wrapper once fixed):
- *
- *   Bug A — stale-index on removeProvider (Group 1):
- *     removeProvider() captures the positional index at button-click time.
- *     The 5 s poll can replace this.authenticationProviders with a fresh array before the user
- *     confirms the dialog. Both the DELETE URL and the local splice use the original stale index
- *     on the (now different) array.
- *     Result: the wrong provider is deleted on the server; locally the wrong row is removed with
- *     no error shown to the user.
- *
- *   Bug B — missing cacheAgeLabel after clearProviderCache (Group 2):
- *     clearProviderCache() assigns the raw SecurityProviderStatus from the server directly to
- *     authenticationProviders[index] without calling formatCacheAgeLabel().
- *     The poll's map() calls formatCacheAgeLabel() on every tick; clearProviderCache() bypasses it.
- *     Result: cacheAgeLabel is undefined on the refreshed entry until the next poll fires (up to 5 s),
- *     so the cache-age column goes blank immediately after the user clears the cache.
- *
- *   Bug C — catchError handlers return throwError (remove/clear API errors):
- *     handleRemoveProviderError / handleClearCacheError return throwError instead of EMPTY.
- *     E2E tests (MSW + removeProvider / clearProviderCache) are it.skip until fixed: while the bug
- *     remains, the error propagates to subscribe without an error handler and Jest fails with
- *     unhandled "Http failure response" before assertions run. Remove .skip after handlers return EMPTY.
  *
  * KEY contracts: DELETE endpoint is /remove-authentication-provider/${index} — positional, not name-based.
  *               Poll fires via timer(0, 5000) + concatMap and replaces the whole authenticationProviders reference.
@@ -199,10 +176,7 @@ describe("AuthenticationProviderViewComponent — removeProvider(): stale-index 
       );
    });
 
-   // SKIP until Bug C fix (handleRemoveProviderError must return EMPTY, not throwError).
-   // E2E: renderComponent + MSW DELETE 500 + removeProvider(0). While throwError remains, Jest aborts with
-   // unhandled "Http failure response" before snackBar/array assertions. Remove it.skip after the fix.
-   it.skip("should show snackBar and preserve the local array when the delete API returns an error", async () => {
+   it("should show snackBar and preserve the local array when the delete API returns an error", async () => {
       const consoleErrorSpy = jest.spyOn(console, "error").mockImplementation(() => {});
       server.use(
          http.delete("*/api/em/security/remove-authentication-provider/0", () =>
@@ -226,11 +200,11 @@ describe("AuthenticationProviderViewComponent — removeProvider(): stale-index 
    // 🔁 Regression-sensitive: poll replacing authenticationProviders mid-dialog causes a silent wrong deletion
    // Risk Point/Contract: DELETE encodes the captured index; splice also uses it on the updated (post-poll) array
    // Why High Value: deletes the wrong provider server-side; the intended target remains in the UI with no error
-   it.failing("should remove the targeted provider even when poll shifts the array before the user confirms", async () => {
+   it("should remove the targeted provider even when poll shifts the array before the user confirms", async () => {
       const confirmSubject = new Subject<boolean>();
 
       server.use(
-         http.delete("*/api/em/security/remove-authentication-provider/1", () => HttpResponse.json({})),
+         http.delete("*/api/em/security/remove-authentication-provider/2", () => HttpResponse.json({})),
       );
 
       const providers = [makeProvider("A"), makeProvider("B"), makeProvider("C")];
@@ -282,7 +256,7 @@ describe("AuthenticationProviderViewComponent — clearProviderCache(): missing 
    // 🔁 Regression-sensitive: poll map() calls formatCacheAgeLabel but clearProviderCache bypasses it
    // Risk Point/Contract: raw SecurityProviderStatus stored directly; cacheAgeLabel is undefined until next poll
    // Why High Value: cache-age column goes blank for up to 5 s after every user-initiated clear
-   it.failing("should set cacheAgeLabel on the provider entry returned by clearProviderCache", async () => {
+   it("should set cacheAgeLabel on the provider entry returned by clearProviderCache", async () => {
       // Server returns raw status without cacheAgeLabel — as the real API would
       server.use(
          http.get("*/api/em/security/clear-authentication-provider/0", () =>
@@ -305,9 +279,7 @@ describe("AuthenticationProviderViewComponent — clearProviderCache(): missing 
       expect(comp.authenticationProviders[0].cacheAgeLabel).toBeDefined();
    });
 
-   // SKIP until Bug C fix (handleClearCacheError must return EMPTY, not throwError).
-   // E2E: renderComponent + MSW GET 503 + clearProviderCache(0). Same unhandled Http failure as delete-error test.
-   it.skip("should show snackBar when the clearProviderCache API fails", async () => {
+   it("should show snackBar when the clearProviderCache API fails", async () => {
       const consoleErrorSpy = jest.spyOn(console, "error").mockImplementation(() => {});
       server.use(
          http.get("*/api/em/security/clear-authentication-provider/0", () =>

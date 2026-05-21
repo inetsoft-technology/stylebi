@@ -20,44 +20,21 @@
  * SecuritySettingsPageComponent — Angular Testing Library + MSW
  *
  * Risk-first coverage:
- *   Group 1 [Risk 3]  — toggleEnterpriseToggle: request body + HTTP error handling (it.failing — confirmed bugs A, C)
- *   Group 2 [Risk 3]  — toggleEnterpriseToggle error path: multiTenancyEnabled hardcoded to true on warning (it.failing — confirmed bug)
+ *   Group 1 [Risk 3]  — toggleEnterpriseToggle: request body + HTTP error handling
+ *   Group 2 [Risk 3]  — toggleEnterpriseToggle warning path preserves server state
  *   Group 3 [Risk 2]  — toggleSelfSignupEnabled: no in-flight lock allows concurrent POST requests
  *   Group 4 [Risk 2]  — ldapProviderUsed: late appInfoService emission overwrites get-multi-tenancy response
  *   Group 5 [Risk 2]  — ngOnInit: security and multi-tenancy state loaded correctly from server
  *   Group 6 [Risk 2]  — toggleSecurityEnabled: loadScheduleUsers called only on non-warning path
  *
- * Confirmed bugs (it.failing — remove wrapper once fixed):
- *
- *   Bug A — toggleEnterpriseToggle wrong request field (Group 1):
- *     toggleEnterpriseToggle sets this.multiTenancyToggleDisabled = true at the top of the method,
- *     then builds the POST body with `toggleDisabled: this.securityToggleDisabled` — the wrong field.
- *     When securityToggleDisabled and multiTenancyToggleDisabled differ, the backend receives the
- *     security toggle's disabled state instead of the multi-tenancy toggle's disabled state.
- *     Result: incorrect flag sent to backend on every multi-tenancy toggle request.
- *
- *   Bug B — multiTenancyEnabled hardcoded to true on warning (Group 2):
- *     On a warning response, the error branch sets this.multiTenancyEnabled = true unconditionally,
- *     regardless of whether multiTenancyEnabled was true or false before the toggle attempt.
- *     If multi-tenancy was disabled and the user tries to enable it but the server rejects with a
- *     warning, the UI shows multi-tenancy as enabled even though the server kept it disabled.
- *     Result: UI state diverges from server state on any warning response.
- *
- *   Bug C — toggle POSTs lack subscribe error handler (Group 1):
- *     toggleEnterpriseToggle, toggleSecurityEnabled, and toggleSelfSignupEnabled only pass a
- *     next callback. On HTTP 4xx/5xx, finalize still runs but jsdom reports an uncaught
- *     HttpErrorResponse (console.error / test failure). Group 1 it.failing documents the
- *     expected finalize-on-error behavior until an error handler is added.
- *
  * KEY contracts: event.warning of null, undefined, or "" all route to the success path.
- *   toggleEnterpriseToggle calls refreshContent() on both success and error paths.
+ *   toggleEnterpriseToggle calls refreshContent() on both success and warning paths.
  *   toggleSecurityEnabled calls refreshContent() only on the warning (error) path.
  *   MSW default handlers (em.handlers.ts) return security=off, multi-tenancy=off, self-signup=off.
  */
 
 import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { provideHttpClient } from "@angular/common/http";
-import { it } from "@jest/globals"; // must import to enable it.failing
 import { MatDialog } from "@angular/material/dialog";
 import { MatSlideToggleChange } from "@angular/material/slide-toggle";
 import { render, waitFor } from "@testing-library/angular";
@@ -187,8 +164,7 @@ describe("SecuritySettingsPageComponent", () => {
       // 🔁 Regression-sensitive: toggleDisabled in the POST body must reflect the
       // multi-tenancy toggle's lock state (true, set at method entry), not the security
       // toggle's state. When both flags diverge the backend receives incorrect data.
-      // Bug A — remove it.failing once fixed.
-      it.failing("should send multiTenancyToggleDisabled (true) not securityToggleDisabled (false) in request body", async () => {
+      it("should send multiTenancyToggleDisabled (true) not securityToggleDisabled (false) in request body", async () => {
          let capturedBody: SecurityEnabledEvent | null = null;
          server.use(
             http.post("*/api/em/security/set-multi-tenancy", async ({ request }) => {
@@ -259,9 +235,9 @@ describe("SecuritySettingsPageComponent", () => {
          expect(orgDropdownMock.refreshProviders).not.toHaveBeenCalled();
       });
 
-      // Bug C — it.failing: POST subscribe has no error handler; jsdom reports uncaught HttpErrorResponse.
-      // finalize() still releases multiTenancyToggleDisabled; the failing assertion is no uncaught error.
-      it.failing("should re-enable multiTenancyToggleDisabled via finalize even after HTTP error (Bug C)", async () => {
+      // Regression-sensitive: POST errors must be handled so jsdom does not report an uncaught
+      // HttpErrorResponse, while finalize() still releases multiTenancyToggleDisabled.
+      it("should re-enable multiTenancyToggleDisabled via finalize even after HTTP error", async () => {
          const uncaughtErrors: string[] = [];
          const errorListener = (event: ErrorEvent) => {
             uncaughtErrors.push(event.message ?? String(event.error));
@@ -292,11 +268,10 @@ describe("SecuritySettingsPageComponent", () => {
    describe("Group 2 — toggleEnterpriseToggle: multiTenancyEnabled state after warning response", () => {
 
       // 🔁 Regression-sensitive: UI must preserve pre-toggle state when server rejects the change.
-      // Bug B — remove it.failing once fixed.
       // passOrgIdAs:"path" in the GET override is used as a synchronization signal: waiting for
       // it confirms the ngOnInit GET has completed, preventing the GET response from arriving
       // after the POST and accidentally overwriting multiTenancyEnabled back to false.
-      it.failing("should keep multiTenancyEnabled=false when warning fires and pre-toggle state was false", async () => {
+      it("should keep multiTenancyEnabled=false when warning fires and pre-toggle state was false", async () => {
          server.use(
             http.get("*/api/em/security/get-multi-tenancy", () =>
                MswHttpResponse.json({ ...BASE_EVENT, enable: false, passOrgIdAs: "path" })

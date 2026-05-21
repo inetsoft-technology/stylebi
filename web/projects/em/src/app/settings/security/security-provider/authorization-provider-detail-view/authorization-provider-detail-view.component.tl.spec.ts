@@ -19,20 +19,13 @@
 /**
  * AuthorizationProviderDetailViewComponent - Testing Library style
  *
- * Risk-first coverage:
+ * Coverage:
  *   Group 1 [Risk 3] - model binding: existing provider input must populate the form and
  *                      enterprise state must control CUSTOM availability.
  *   Group 2 [Risk 2] - change tracking and reset: parent dirty state must reflect edits and
  *                      reset must clear it.
  *   Group 3 [Risk 2] - isValid: FILE and CUSTOM providers must use the correct validation path.
  *   Group 4 [Risk 2] - lifecycle: value-change subscriptions stop on destroy.
- *
- * Confirmed bugs (it.failing - remove wrapper once fixed):
- *
- *   Bug A - initial model input is not written to the form (Group 1):
- *     Angular supplies @Input values before ngOnInit. The setter records _model/_original but
- *     skips form writes because form is not created yet; initForm() then creates blank controls
- *     and never replays the model. Existing authorization providers can render as blank.
  *
  * KEY contracts:
  *   - FILE provider validity is changed && different from original.
@@ -119,7 +112,7 @@ describe("AuthorizationProviderDetailViewComponent - model binding and enterpris
 
    // Regression-sensitive: editing an existing provider starts from the @Input model. If the
    // form stays blank, reset/save can overwrite the provider name and type.
-   it.failing("should initialize providerName and providerType from an input model", async () => {
+   it("should initialize providerName and providerType from an input model", async () => {
       const model = makeModel({
          providerName: "ExistingAuthz",
          providerType: SecurityProviderType.CUSTOM,

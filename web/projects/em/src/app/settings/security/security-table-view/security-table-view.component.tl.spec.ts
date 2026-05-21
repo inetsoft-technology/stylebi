@@ -28,15 +28,6 @@
  *                      the selection column.
  *   Group 4 [Risk 1] - organization members: Add is hidden for organization member tables.
  *
- * Confirmed bugs (it.failing - remove wrapper once fixed):
- *
- *   Bug A - onDrop duplicate check uses object identity (Group 1):
- *     Drag payloads are JSON parsed, so identityID objects are new references. Existing rows
- *     with the same name/org/type are not recognized and duplicate identities can be emitted.
- *
- *   Bug B - openAddDialog duplicate filter compares identityID to model.name (Group 2):
- *     The mapped IdentityModel has no name field, so existing identities are never filtered.
- *
  * KEY contracts:
  *   - Duplicate identity checks must use identityID.name + identityID.orgID + type.
  *   - Read-only tables still preventDefault() on drop but must not read or emit payload rows.
@@ -186,7 +177,7 @@ describe("SecurityTableViewComponent - onDrop(): duplicate and read-only guards"
 
    // Regression-sensitive: JSON parsing recreates identityID objects, so duplicate detection
    // must compare identity values, not object references.
-   it.failing("should not emit a dropped identity whose name/org/type already exists", async () => {
+   it("should not emit a dropped identity whose name/org/type already exists", async () => {
       const existing = makeIdentity("alice", IdentityType.USER, "OrgA");
       const sameIdentityFromJson = makeIdentity("alice", IdentityType.USER, "OrgA");
       const { comp } = await renderComponent({ dataSource: [existing] });
@@ -244,8 +235,7 @@ describe("SecurityTableViewComponent - openAddDialog(): map and dedupe dialog re
    });
 
    // Regression-sensitive: Add-dialog and drag/drop paths must share duplicate semantics.
-   // The current implementation compares data.identityID to model.name, so this fails today.
-   it.failing("should filter out dialog identities that already exist in the table", async () => {
+   it("should filter out dialog identities that already exist in the table", async () => {
       const existing = makeIdentity("alice", IdentityType.USER, "OrgA");
       const duplicateNode = {
          identityID: { name: "alice", orgID: "OrgA" },

@@ -47,7 +47,6 @@ export class AuthorizationProviderDetailViewComponent implements OnInit, OnDestr
    private _changed: boolean = false;
    isEnterprise: boolean = false;
 
-   con
    constructor(private appInfoService: AppInfoService) {
       this.appInfoService.isEnterprise().subscribe(val => {
          this.isEnterprise = val;
@@ -88,9 +87,9 @@ export class AuthorizationProviderDetailViewComponent implements OnInit, OnDestr
 
    initForm() {
       this.form = new UntypedFormGroup({
-         providerName: new UntypedFormControl("", [Validators.required,
+         providerName: new UntypedFormControl(this._model?.providerName ?? "", [Validators.required,
             FormValidators.containsSpecialCharsForCommonName]),
-         providerType: new UntypedFormControl(SecurityProviderType.FILE, [Validators.required])
+         providerType: new UntypedFormControl(this._model?.providerType ?? SecurityProviderType.FILE, [Validators.required])
       });
 
       this.subscription.add(
