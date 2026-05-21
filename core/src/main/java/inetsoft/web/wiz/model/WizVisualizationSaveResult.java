@@ -30,14 +30,15 @@ public class WizVisualizationSaveResult {
       this.savedViewsheetIdentifier = savedViewsheetIdentifier;
    }
 
-   public String getSvg() {
-      return svg;
+   public String getThumbnail() {
+      return thumbnail;
    }
 
-   public void setSvg(String svg) {
-      this.svg = svg;
+   public void setThumbnail(String thumbnail) {
+      this.thumbnail = thumbnail;
    }
 
    private String savedViewsheetIdentifier;
-   private String svg;
+   /** SVG or PNG data URI depending on assembly type. */
+   private String thumbnail;
 }
