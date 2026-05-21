@@ -32,8 +32,7 @@ import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
-import inetsoft.uql.schema.StringValue;
-import inetsoft.uql.schema.UserVariable;
+import inetsoft.uql.schema.*;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.VSUtil;
@@ -817,7 +816,7 @@ public class WizVsService {
             info.setFullName(dim.getFullName());
             int dateLevel = dim.getDateLevel();
 
-            if(dateLevel != XConstants.NONE_DATE_GROUP) {
+            if(XSchema.isDateType(dim.getDataType()) && dateLevel != XConstants.NONE_DATE_GROUP) {
                info.setDateGroupLevel(getDateGroupLevelName(dateLevel));
             }
 
@@ -857,10 +856,9 @@ public class WizVsService {
                DimensionFieldInfo info = new DimensionFieldInfo();
                info.setField(dim.getGroupColumnValue());
                info.setFullName(dim.getFullName());
-
                int dateLevel = dim.getDateLevel();
 
-               if(dateLevel != XConstants.NONE_DATE_GROUP) {
+               if(XSchema.isDateType(dim.getDataType()) && dateLevel != XConstants.NONE_DATE_GROUP) {
                   info.setDateGroupLevel(getDateGroupLevelName(dateLevel));
                }
 
@@ -875,10 +873,9 @@ public class WizVsService {
                DimensionFieldInfo info = new DimensionFieldInfo();
                info.setField(dim.getGroupColumnValue());
                info.setFullName(dim.getFullName());
-
                int dateLevel = dim.getDateLevel();
 
-               if(dateLevel != XConstants.NONE_DATE_GROUP) {
+               if(XSchema.isDateType(dim.getDataType()) && dateLevel != XConstants.NONE_DATE_GROUP) {
                   info.setDateGroupLevel(getDateGroupLevelName(dateLevel));
                }
 
@@ -2255,17 +2252,14 @@ public class WizVsService {
          // If this measure was pushed to worksheet, just set formula to NONE
          // The column name stays the same since aggRef.getFullName() already matches worksheet output
          if(pushedMeasureFullNames.contains(aggRef.getFullName())) {
-            aggRef.setColumnValue(aggRef.getFullName());
+            aggRef.setColumnValue(aggRef.getName());
             aggRef.setFormulaValue(AggregateFormula.NONE.getFormulaName());
          }
       }
       else if(ref instanceof VSChartDimensionRef dimRef) {
-         String originalCol = dimRef.getGroupColumnValue();
-         String newColName = dimColumnMapping.get(originalCol);
-
-         if(newColName != null) {
-            // Point to pre-grouped column, remove date level
-            dimRef.setGroupColumnValue(newColName);
+         if(dimColumnMapping.containsKey(dimRef.getFullName())) {
+            dimRef.setDateLevelValue(null);
+            dimRef.setDateLevel(DateRangeRef.NONE);
             dimRef.setDateLevelValue(null); // Data already grouped
          }
       }
