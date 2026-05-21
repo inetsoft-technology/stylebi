@@ -30,5 +30,14 @@ public class WizVisualizationSaveResult {
       this.savedViewsheetIdentifier = savedViewsheetIdentifier;
    }
 
+   public String getSvg() {
+      return svg;
+   }
+
+   public void setSvg(String svg) {
+      this.svg = svg;
+   }
+
    private String savedViewsheetIdentifier;
+   private String svg;
 }

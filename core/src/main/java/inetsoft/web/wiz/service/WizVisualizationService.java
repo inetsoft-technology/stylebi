@@ -19,6 +19,7 @@
 package inetsoft.web.wiz.service;
 
 import inetsoft.analytic.composition.ViewsheetService;
+import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.uql.asset.*;
@@ -27,23 +28,40 @@ import inetsoft.uql.viewsheet.internal.WizUtil;
 import inetsoft.util.Tool;
 import inetsoft.web.composer.model.TreeNodeModel;
 import inetsoft.web.composer.wiz.service.VisualizationService;
+import inetsoft.web.service.BinaryTransferService;
+import inetsoft.web.viewsheet.controller.AssemblyImageService;
+import inetsoft.web.viewsheet.service.ExportResponse;
+import inetsoft.web.viewsheet.service.VSExportService;
 import inetsoft.web.wiz.model.WizVisualizationSaveEvent;
 import inetsoft.web.wiz.model.WizVisualizationSaveResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import javax.imageio.ImageIO;
+import java.awt.Dimension;
 import java.awt.Point;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.nio.charset.StandardCharsets;
 import java.security.Principal;
 import java.util.*;
+import java.util.Base64;
 
 @Service
 public class WizVisualizationService {
    public WizVisualizationService(ViewsheetService viewsheetService,
-                                   AssetRepository assetRepository)
+                                   AssetRepository assetRepository,
+                                   AssemblyImageService assemblyImageService,
+                                   BinaryTransferService binaryTransferService,
+                                   VSExportService vsExportService)
    {
       this.viewsheetService = viewsheetService;
       this.assetRepository = assetRepository;
+      this.assemblyImageService = assemblyImageService;
+      this.binaryTransferService = binaryTransferService;
+      this.vsExportService = vsExportService;
    }
 
    /**
@@ -207,6 +225,55 @@ public class WizVisualizationService {
 
       WizVisualizationSaveResult result = new WizVisualizationSaveResult();
       result.setSavedViewsheetIdentifier(newVsEntry.toIdentifier());
+
+      // Try to generate SVG thumbnail from the source runtime viewsheet (non-fatal)
+      String runtimeId = event.getSourceViewsheetRuntimeId();
+
+      if(!Tool.isEmptyString(runtimeId)) {
+         try {
+            AssemblyImageService.ImageRenderResult imgResult =
+               assemblyImageService.downloadAssemblyImage(
+                  runtimeId, Tool.byteEncode(event.getAssemblyName()),
+                  400, 300, 400, 300, true, principal);
+
+            if(imgResult != null && imgResult.getImageData() != null) {
+               byte[] imageBytes = binaryTransferService.getData(imgResult.getImageData());
+
+               if(imageBytes != null && imageBytes.length > 0) {
+                  if(imgResult.isPng()) {
+                     // 1×1 is a StyleBI placeholder returned for assembly types that
+                     // downloadAssemblyImage does not support (e.g. Crosstab, Table).
+                     // In that case fall back to a full-viewsheet PNG export + crop.
+                     boolean use1x1Fallback = true;
+                     try {
+                        BufferedImage decoded = ImageIO.read(
+                           new ByteArrayInputStream(imageBytes));
+                        if(decoded != null && decoded.getWidth() > 1 && decoded.getHeight() > 1) {
+                           result.setSvg("data:image/png;base64," +
+                              Base64.getEncoder().encodeToString(imageBytes));
+                           use1x1Fallback = false;
+                        }
+                     }
+                     catch(Exception ignored) { /* fall through to fallback */ }
+
+                     if(use1x1Fallback) {
+                        result.setSvg(renderTableThumbnail(
+                           runtimeId, event.getAssemblyName(), principal));
+                     }
+                  }
+                  else {
+                     result.setSvg(normalizeSvgNamespace(
+                        new String(imageBytes, StandardCharsets.UTF_8)));
+                  }
+               }
+            }
+         }
+         catch(Exception e) {
+            LOG.warn("Failed to generate SVG thumbnail for assembly '{}' (non-fatal): {}",
+                     event.getAssemblyName(), e.getMessage());
+         }
+      }
+
       return result;
    }
 
@@ -405,7 +472,150 @@ public class WizVisualizationService {
       }
    }
 
+   /**
+    * Exports the source runtime viewsheet as a full PNG and crops to the target assembly bounds.
+    * Used as a fallback for assembly types (Crosstab, Table) that downloadAssemblyImage
+    * does not support — those return a 1×1 placeholder PNG instead of real content.
+    */
+   private String renderTableThumbnail(String runtimeId, String assemblyName, Principal principal) {
+      try {
+         RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
+
+         if(rvs == null) {
+            LOG.warn("renderTableThumbnail: RuntimeViewsheet not found for id='{}'", runtimeId);
+            return null;
+         }
+
+         Viewsheet vs = rvs.getViewsheet();
+
+         if(vs == null) {
+            LOG.warn("renderTableThumbnail: Viewsheet is null for id='{}'", runtimeId);
+            return null;
+         }
+
+         Assembly assembly = vs.getAssembly(assemblyName);
+
+         if(!(assembly instanceof VSAssembly)) {
+            LOG.warn("renderTableThumbnail: assembly '{}' not found or not VSAssembly (type={})",
+                     assemblyName, assembly == null ? "null" : assembly.getClass().getSimpleName());
+            return null;
+         }
+
+         Point offset = assembly.getPixelOffset();
+         Dimension size = assembly.getPixelSize();
+         LOG.info("renderTableThumbnail: assembly='{}' offset={} size={}", assemblyName, offset, size);
+
+         if(size == null || size.width <= 0 || size.height <= 0) {
+            LOG.warn("renderTableThumbnail: invalid size {} for assembly '{}'", size, assemblyName);
+            return null;
+         }
+
+         // Export full viewsheet to an in-memory PNG.
+         // current=true is required: with current=false and no bookmarks, the exporter's
+         // export() method is never called and write() produces 0 bytes.
+         ByteArrayOutputStream baos = new ByteArrayOutputStream();
+         vsExportService.exportViewsheet(rvs, FileFormatInfo.EXPORT_TYPE_PNG,
+            true, false, true, false, false, null, false,
+            new ExportResponse(baos), principal);
+
+         byte[] pngBytes = baos.toByteArray();
+         LOG.info("renderTableThumbnail: export produced {} bytes for assembly '{}'",
+                  pngBytes.length, assemblyName);
+
+         if(pngBytes.length == 0) {
+            LOG.warn("renderTableThumbnail: exportViewsheet produced 0 bytes for assembly '{}'", assemblyName);
+            return null;
+         }
+
+         BufferedImage full = ImageIO.read(new ByteArrayInputStream(pngBytes));
+
+         if(full == null) {
+            LOG.warn("renderTableThumbnail: ImageIO.read returned null for assembly '{}'", assemblyName);
+            return null;
+         }
+
+         LOG.info("renderTableThumbnail: full image {}x{}, crop at ({},{}) size {}x{}",
+                  full.getWidth(), full.getHeight(),
+                  offset != null ? offset.x : 0, offset != null ? offset.y : 0,
+                  size.width, size.height);
+
+         // Crop to assembly bounds (PNGCoordinateHelper renders at 1:1 pixel scale)
+         int cropX = Math.max(0, offset != null ? offset.x : 0);
+         int cropY = Math.max(0, offset != null ? offset.y : 0);
+         int cropW = Math.min(size.width, full.getWidth() - cropX);
+         int cropH = Math.min(size.height, full.getHeight() - cropY);
+
+         if(cropW <= 1 || cropH <= 1) {
+            LOG.warn("renderTableThumbnail: crop dimensions too small ({}x{}) for assembly '{}'",
+                     cropW, cropH, assemblyName);
+            return null;
+         }
+
+         BufferedImage cropped = full.getSubimage(cropX, cropY, cropW, cropH);
+         ByteArrayOutputStream out = new ByteArrayOutputStream();
+         ImageIO.write(cropped, "PNG", out);
+         byte[] croppedBytes = out.toByteArray();
+
+         if(croppedBytes.length == 0) {
+            LOG.warn("renderTableThumbnail: re-encoded PNG is empty for assembly '{}'", assemblyName);
+            return null;
+         }
+
+         LOG.info("renderTableThumbnail: success, cropped PNG {} bytes for assembly '{}'",
+                  croppedBytes.length, assemblyName);
+         return "data:image/png;base64," + Base64.getEncoder().encodeToString(croppedBytes);
+      }
+      catch(Exception e) {
+         LOG.warn("renderTableThumbnail: exception for assembly '{}': {}",
+                  assemblyName, e.getMessage(), e);
+         return null;
+      }
+   }
+
+   /**
+    * Removes custom XML namespace prefixes (e.g. "a0:") added by the Batik SVG generator
+    * so the resulting SVG can be rendered directly by browsers.
+    *
+    * Batik generates: {@code <a0:svg xmlns:a0="http://www.w3.org/2000/svg">}
+    * Browser requires: {@code <svg xmlns="http://www.w3.org/2000/svg">}
+    */
+   private static String normalizeSvgNamespace(String svg) {
+      if(svg == null || !svg.contains("xmlns:")) {
+         return svg;
+      }
+
+      // Locate "xmlns:PREFIX=" — the prefix sits between "xmlns:" and the "=" sign
+      int nsIdx = svg.indexOf("xmlns:");
+
+      if(nsIdx < 0) {
+         return svg;
+      }
+
+      int eqIdx = svg.indexOf('=', nsIdx + 6); // skip past "xmlns:" itself
+
+      if(eqIdx < 0) {
+         return svg;
+      }
+
+      String prefix = svg.substring(nsIdx + 6, eqIdx).trim(); // e.g. "a0"
+
+      if(prefix.isEmpty()) {
+         return svg;
+      }
+
+      String prefixColon = prefix + ":"; // "a0:"
+
+      return svg
+         .replace("xmlns:" + prefix + "=\"http://www.w3.org/2000/svg\"",
+                  "xmlns=\"http://www.w3.org/2000/svg\"")
+         .replace("<" + prefixColon, "<")
+         .replace("</" + prefixColon, "</");
+   }
+
    private final ViewsheetService viewsheetService;
    private final AssetRepository assetRepository;
+   private final AssemblyImageService assemblyImageService;
+   private final BinaryTransferService binaryTransferService;
+   private final VSExportService vsExportService;
    private static final Logger LOG = LoggerFactory.getLogger(WizVisualizationService.class);
 }
