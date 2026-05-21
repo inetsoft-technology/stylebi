@@ -1190,6 +1190,16 @@ public class ChartVSAQuery extends CubeVSAQuery implements BindableVSAQuery {
          }
       }
 
+      // Chart binding updates aggregate, sort, and column selections while the same source table can
+      // be requested by data tips, chart-area refreshes, and image refreshes. Work on a private table
+      // snapshot before validation can remove fields that another request is simultaneously changing.
+      table = (TableAssembly) table.clone();
+
+      // AbstractWSAssembly.clone() catches Exception and returns null on error.
+      if(table == null) {
+         return null;
+      }
+
       ChartVSAssembly cassembly = (ChartVSAssembly) getAssembly();
       ColumnSelection cols = table.getColumnSelection();
       VSChartInfo cinfo = cassembly.getVSChartInfo();
@@ -1544,6 +1554,30 @@ public class ChartVSAQuery extends CubeVSAQuery implements BindableVSAQuery {
          }
          else {
             table.setSortInfo(sorts);
+         }
+      }
+
+      // Align generated grouping/sorting refs with the final private column selection before
+      // resetColumnSelection() validates and rebuilds public columns.
+      for(GroupRef group : ainfo.getGroups()) {
+         ColumnRef column = AssetUtil.getColumnRefFromAttribute(cols, group.getDataRef());
+
+         if(column != null) {
+            group.setDataRef(column);
+         }
+         else if(group.getDataRef() instanceof ColumnRef) {
+            cols.addAttribute((ColumnRef) group.getDataRef());
+         }
+      }
+
+      for(SortRef sort : sorts.getSorts()) {
+         ColumnRef column = AssetUtil.getColumnRefFromAttribute(cols, sort.getDataRef());
+
+         if(column != null) {
+            sort.setDataRef(column);
+         }
+         else if(sort.getDataRef() instanceof ColumnRef) {
+            cols.addAttribute((ColumnRef) sort.getDataRef());
          }
       }
 

@@ -1365,9 +1365,13 @@ public abstract class AssetQuery extends PreAssetQuery {
 
       for(int i = 0; i < columns.getAttributeCount(); i++) {
          ColumnRef column = (ColumnRef) columns.getAttribute(i);
+         boolean groupedExpression = isGroupedExpression(column);
          columns0.addAttribute(column);
 
-         if(!column.isExpression() || (column.isVisible() && column.isProcessed())) {
+         if(!column.isExpression() ||
+            (!groupedExpression && column.isVisible() && column.isProcessed() &&
+             AssetUtil.findColumn(base, column, true) >= 0))
+         {
             continue;
          }
 
@@ -1399,7 +1403,7 @@ public abstract class AssetQuery extends PreAssetQuery {
          // column might be executed
          int col = AssetUtil.findColumn(base, column, true);
 
-         if(col >= 0) {
+         if(col >= 0 && !groupedExpression) {
             boolean dateRange = column.getDataRef() instanceof DateRangeRef;
 
             // for regular expression column, we check for duplicate column name so it's
@@ -1487,6 +1491,16 @@ public abstract class AssetQuery extends PreAssetQuery {
       }
 
       return base;
+   }
+
+   private boolean isGroupedExpression(ColumnRef column) {
+      if(column == null || !column.isExpression() || !column.isVisible()) {
+         return false;
+      }
+
+      AggregateInfo info = getAggregateInfo();
+      return info != null && (info.containsGroup(column) ||
+         info.getGroup(column) != null || info.getGroup(column.getName()) != null);
    }
 
    /**
