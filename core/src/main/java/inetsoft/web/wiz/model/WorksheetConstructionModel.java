@@ -125,6 +125,7 @@ public class WorksheetConstructionModel {
       private String expression;
       private String description;
       private String type;
+      private Boolean visible;
 
       public QueryField() {
       }
@@ -180,6 +181,14 @@ public class WorksheetConstructionModel {
 
       public void setType(String type) {
          this.type = type;
+      }
+
+      public Boolean getVisible() {
+         return visible;
+      }
+
+      public void setVisible(Boolean visible) {
+         this.visible = visible;
       }
 
       public String getUnqualifiedFieldName() {

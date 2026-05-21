@@ -228,6 +228,7 @@ public class GenerateWsService {
 
             innerJoinService.editExistingJoinTable(worksheet, joinTable, noperator, true);
             initCompositeTableAssemblyColumnSelection(joinTable);
+            applyFieldVisibility(joinTable, model.getFields());
             table = joinTable;
          }
       }
@@ -484,6 +485,38 @@ public class GenerateWsService {
       }
 
       compositeTableAssembly.setColumnSelection(columnSelection, false);
+   }
+
+   /**
+    * Apply visibility settings from model fields to the composite table's column selection.
+    * Fields with visible=false in the model will be set to invisible in the joinTable,
+    * but base table visibility is not affected.
+    */
+   private void applyFieldVisibility(CompositeTableAssembly compositeTable,
+                                     List<WorksheetConstructionModel.QueryField> modelFields)
+   {
+      if(compositeTable == null || modelFields == null) {
+         return;
+      }
+
+      ColumnSelection columnSelection = compositeTable.getColumnSelection(false);
+
+      if(columnSelection == null) {
+         return;
+      }
+
+      for(WorksheetConstructionModel.QueryField field : modelFields) {
+         if(Boolean.FALSE.equals(field.getVisible())) {
+            String fieldName = field.getAlias() != null ? field.getAlias() : field.getFieldName();
+            DataRef ref = columnSelection.getAttribute(fieldName);
+
+            if(ref instanceof ColumnRef colRef) {
+               colRef.setVisible(false);
+            }
+         }
+      }
+
+      compositeTable.setColumnSelection(columnSelection, false);
    }
 
    private boolean needAddColumn(CompositeTableAssembly compositeTableAssembly, ColumnSelection columnSelection, String tableName, String column) {
