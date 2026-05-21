@@ -289,6 +289,17 @@ public class MVAction implements AssetSupport, Cloneable, XMLSerializable, Cance
                throw new RuntimeException("MV creation timed out after " + (timeout / 1000) +
                                              "s: " + mv.getName(), ex);
             }
+            catch(ExecutionException ex) {
+               Throwable cause = ex.getCause();
+               mvFuture.cancel(true);
+
+               if(cause != null && cause.getClass().getName().contains("FutureTimeoutException")) {
+                  throw new RuntimeException("MV creation timed out after " + (timeout / 1000) +
+                                                "s: " + mv.getName(), ex);
+               }
+
+               throw ex;
+            }
             finally {
                mvFuture = null;
             }
