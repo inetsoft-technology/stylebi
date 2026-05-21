@@ -66,6 +66,14 @@ public class AutoBindingRequest {
       this.explicitBindings = explicitBindings;
    }
 
+   public String getIntentCategory() {
+      return intentCategory;
+   }
+
+   public void setIntentCategory(String intentCategory) {
+      this.intentCategory = intentCategory;
+   }
+
    /** Worksheet global path, same as VisualizationConfig.data.source. */
    private String worksheetId;
    /** Expected visualization type string, e.g. "bar", "table", "crosstab", "gauge". */
@@ -81,4 +89,10 @@ public class AutoBindingRequest {
    private List<SimpleFieldInfo> fieldConfigs;
    /** Optional explicit slot assignments; may be null or empty. */
    private List<ExplicitBinding> explicitBindings;
+   /**
+    * Visualization intent category inferred by the LLM.
+    * One of: "comparison", "trend", "distribution", "proportion",
+    * "relationship", "ranking", "geospatial", "other".
+    */
+   private String intentCategory;
 }

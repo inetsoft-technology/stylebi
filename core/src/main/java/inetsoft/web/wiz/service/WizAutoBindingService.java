@@ -146,9 +146,10 @@ public class WizAutoBindingService {
          List<ChartCombinationUtil.ScoredInfo> prefInfos =
             chartResult != null ? chartResult.getPrefInfos() : null;
 
+         String intentCategory = request.getIntentCategory();
          RecommendedVisualization primary = buildPrimaryVisualization(
             recommendations, worksheetId, vizType, vizTypeIsExplicit,
-            explicitBindings, prefInfos);
+            explicitBindings, prefInfos, intentCategory);
 
          AutoBindingResponse resp = new AutoBindingResponse();
          resp.setRecommendations(recommendations);
@@ -554,11 +555,12 @@ public class WizAutoBindingService {
       String worksheetId,
       String vizType, boolean vizTypeIsExplicit,
       List<ExplicitBinding> explicitBindings,
-      List<ChartCombinationUtil.ScoredInfo> prefInfos)
+      List<ChartCombinationUtil.ScoredInfo> prefInfos,
+      String intentCategory)
    {
       if(vizTypeIsExplicit && vizType != null) {
          if(isChartVizType(vizType)) {
-            return buildBestChartViz(prefInfos, vizType, true, worksheetId);
+            return buildBestChartVizByType(prefInfos, vizType, worksheetId);
          }
 
          RecommendedVisualization found = findInRecommendations(vizType, recommendations);
@@ -580,7 +582,8 @@ public class WizAutoBindingService {
          RecommendedVisualization topRec = recommendations.get(0);
 
          if(isChartVizType(topRec.getVisualizationType())) {
-            RecommendedVisualization chartPrimary = buildBestChartViz(prefInfos, null, false, worksheetId);
+            RecommendedVisualization chartPrimary =
+               buildBestChartViz(prefInfos, intentCategory, worksheetId);
             return chartPrimary != null ? chartPrimary : topRec;
          }
 
@@ -626,20 +629,39 @@ public class WizAutoBindingService {
    private static final Set<String> TABLE_ROLES = Set.of("details");
    private static final Set<String> GAUGE_ROLES = Set.of("field");
 
+   private RecommendedVisualization buildBestChartVizByType(
+      List<ChartCombinationUtil.ScoredInfo> prefInfos,
+      String explicitChartType, String worksheetId)
+   {
+      if(prefInfos == null || prefInfos.isEmpty()) {
+         return null;
+      }
+
+      ChartInfo bestInfo = prefInfos.stream()
+         .map(ChartCombinationUtil.ScoredInfo::getInfo)
+         .filter(ci -> explicitChartType.equals(getChartTypeString(ci.getChartType())))
+         .findFirst()
+         .orElse(prefInfos.get(0).getInfo());
+
+      return toRecommendedVisualization(bestInfo, worksheetId);
+   }
+
    private RecommendedVisualization buildBestChartViz(
       List<ChartCombinationUtil.ScoredInfo> prefInfos,
-      String chartType, boolean chartTypeIsExplicit, String worksheetId)
+      String intentCategory, String worksheetId)
    {
       if(prefInfos == null || prefInfos.isEmpty()) {
          return null;
       }
 
       ChartInfo bestInfo;
+      Set<Integer> categoryTypes = intentCategory != null
+         ? INTENT_CATEGORY_CHART_TYPES.get(intentCategory) : null;
 
-      if(chartTypeIsExplicit && chartType != null) {
+      if(categoryTypes != null && !categoryTypes.isEmpty()) {
          bestInfo = prefInfos.stream()
+            .filter(si -> categoryTypes.contains(si.getInfo().getChartType()))
             .map(ChartCombinationUtil.ScoredInfo::getInfo)
-            .filter(ci -> chartType.equals(getChartTypeString(ci.getChartType())))
             .findFirst()
             .orElse(prefInfos.get(0).getInfo());
       }
@@ -647,7 +669,11 @@ public class WizAutoBindingService {
          bestInfo = prefInfos.get(0).getInfo();
       }
 
-      String vizType = getChartTypeString(bestInfo.getChartType());
+      return toRecommendedVisualization(bestInfo, worksheetId);
+   }
+
+   private RecommendedVisualization toRecommendedVisualization(ChartInfo info, String worksheetId) {
+      String vizType = getChartTypeString(info.getChartType());
 
       if(vizType == null) {
          return null;
@@ -655,12 +681,83 @@ public class WizAutoBindingService {
 
       RecommendedVisualization rec = new RecommendedVisualization();
       rec.setVisualizationType(vizType);
-      rec.setConfig(convertToChartConfig(bestInfo, worksheetId));
+      rec.setConfig(convertToChartConfig(info, worksheetId));
       return rec;
    }
 
 
    private static final Set<String> NON_CHART_VIZ_TYPES = Set.of("table", "crosstab", "gauge");
+
+   /**
+    * Maps each intent category to the set of {@link GraphTypes} chart-type constants that best
+    * express that intent.  Categories are not mutually exclusive — a chart type may appear in
+    * multiple categories.  "other" is absent intentionally: it acts as the no-filter fallback.
+    */
+   private static final Map<String, Set<Integer>> INTENT_CATEGORY_CHART_TYPES;
+
+   static {
+      Map<String, Set<Integer>> m = new HashMap<>();
+
+      // comparison — values side-by-side across categories
+      m.put("comparison", Set.of(
+         GraphTypes.CHART_BAR, GraphTypes.CHART_BAR_STACK,
+         GraphTypes.CHART_3D_BAR, GraphTypes.CHART_3D_BAR_STACK,
+         GraphTypes.CHART_RADAR, GraphTypes.CHART_FILL_RADAR,
+         GraphTypes.CHART_MEKKO,
+         GraphTypes.CHART_AREA, GraphTypes.CHART_AREA_STACK
+      ));
+
+      // trend — change over time
+      m.put("trend", Set.of(
+         GraphTypes.CHART_LINE, GraphTypes.CHART_LINE_STACK,
+         GraphTypes.CHART_AREA, GraphTypes.CHART_AREA_STACK,
+         GraphTypes.CHART_STEP, GraphTypes.CHART_STEP_STACK,
+         GraphTypes.CHART_STEP_AREA, GraphTypes.CHART_STEP_AREA_STACK,
+         GraphTypes.CHART_JUMP,
+         GraphTypes.CHART_WATERFALL
+      ));
+
+      // distribution — spread / frequency of values
+      m.put("distribution", Set.of(
+         GraphTypes.CHART_BOXPLOT,
+         GraphTypes.CHART_POINT, GraphTypes.CHART_POINT_STACK,
+         GraphTypes.CHART_SCATTER_CONTOUR,
+         GraphTypes.CHART_BAR
+      ));
+
+      // proportion — part-to-whole relationships
+      m.put("proportion", Set.of(
+         GraphTypes.CHART_PIE, GraphTypes.CHART_3D_PIE, GraphTypes.CHART_DONUT,
+         GraphTypes.CHART_TREEMAP, GraphTypes.CHART_SUNBURST,
+         GraphTypes.CHART_CIRCLE_PACKING, GraphTypes.CHART_ICICLE,
+         GraphTypes.CHART_MEKKO,
+         GraphTypes.CHART_BAR_STACK, GraphTypes.CHART_AREA_STACK
+      ));
+
+      // relationship — correlations, connections, dependencies
+      m.put("relationship", Set.of(
+         GraphTypes.CHART_POINT, GraphTypes.CHART_POINT_STACK,
+         GraphTypes.CHART_SCATTER_CONTOUR,
+         GraphTypes.CHART_NETWORK, GraphTypes.CHART_CIRCULAR,
+         GraphTypes.CHART_TREE
+      ));
+
+      // ranking — ordered comparison, top-N
+      m.put("ranking", Set.of(
+         GraphTypes.CHART_BAR, GraphTypes.CHART_BAR_STACK,
+         GraphTypes.CHART_PARETO,
+         GraphTypes.CHART_WATERFALL
+      ));
+
+      // geospatial — location-based data
+      m.put("geospatial", Set.of(
+         GraphTypes.CHART_MAP,
+         GraphTypes.CHART_MAP_CONTOUR,
+         GraphTypes.CHART_POLYGON
+      ));
+
+      INTENT_CATEGORY_CHART_TYPES = Collections.unmodifiableMap(m);
+   }
 
    private boolean isChartVizType(String vizType) {
       return vizType != null && !NON_CHART_VIZ_TYPES.contains(vizType);
