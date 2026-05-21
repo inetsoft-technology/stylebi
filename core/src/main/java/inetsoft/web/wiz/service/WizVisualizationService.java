@@ -556,6 +556,18 @@ public class WizVisualizationService {
          }
 
          BufferedImage cropped = full.getSubimage(cropX, cropY, cropW, cropH);
+
+         if(cropW > THUMBNAIL_WIDTH || cropH > THUMBNAIL_HEIGHT) {
+            double scale = Math.min((double) THUMBNAIL_WIDTH / cropW, (double) THUMBNAIL_HEIGHT / cropH);
+            int scaledW = Math.max(1, (int)(cropW * scale));
+            int scaledH = Math.max(1, (int)(cropH * scale));
+            BufferedImage scaled = new BufferedImage(scaledW, scaledH, BufferedImage.TYPE_INT_ARGB);
+            scaled.createGraphics().drawImage(cropped, 0, 0, scaledW, scaledH, null);
+            cropped = scaled;
+
+            LOG.debug("renderTableThumbnail: scaled crop from {}x{} to {}x{}", cropW, cropH, scaledW, scaledH);
+         }
+
          ByteArrayOutputStream out = new ByteArrayOutputStream();
          ImageIO.write(cropped, "PNG", out);
          byte[] croppedBytes = out.toByteArray();
@@ -600,6 +612,7 @@ public class WizVisualizationService {
       int eqIdx = svg.indexOf('=', nsIdx + 6); // skip past "xmlns:" itself
 
       if(eqIdx < 0) {
+         LOG.debug("normalizeSvgNamespace: malformed xmlns declaration, skipping normalization");
          return svg;
       }
 
