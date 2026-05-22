@@ -97,9 +97,9 @@
     <!-- MySQL -->
     <database type="5">
         <catalog>mysql</catalog>
-        <schema>information_schema</schema>
-        <schema>performance_schema</schema>
-        <schema>sys</schema>
+        <catalog>information_schema</catalog>
+        <catalog>performance_schema</catalog>
+        <catalog>sys</catalog>
     </database>
     
     <!-- MS Access -->
