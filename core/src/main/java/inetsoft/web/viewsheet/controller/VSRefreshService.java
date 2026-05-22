@@ -98,18 +98,29 @@ public class VSRefreshService {
       }
 
       if(event.getAssemblySize() != null) {
-         EmbedAssemblyInfo embedAssemblyInfo = rvs.getEmbedAssemblyInfo();
+         final Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
-         // Only create embed assembly metadata during the explicit embed refresh path.
-         // Resize events may omit embed=true and should only update existing state.
-         if(embedAssemblyInfo == null && event.getEmbed()) {
-            embedAssemblyInfo = new EmbedAssemblyInfo();
-            embedAssemblyInfo.setAssemblyName(event.getAssemblyName());
-            rvs.setEmbedAssemblyInfo(embedAssemblyInfo);
-         }
+         if(box.isPresent()) {
+            box.get().lockWrite();
 
-         if(embedAssemblyInfo != null) {
-            embedAssemblyInfo.setAssemblySize(event.getAssemblySize());
+            try {
+               EmbedAssemblyInfo embedAssemblyInfo = rvs.getEmbedAssemblyInfo();
+
+               // Only create embed assembly metadata during the explicit embed refresh path.
+               // Resize events may omit embed=true and should only update existing state.
+               if(embedAssemblyInfo == null && event.getEmbed()) {
+                  embedAssemblyInfo = new EmbedAssemblyInfo();
+                  embedAssemblyInfo.setAssemblyName(event.getAssemblyName());
+                  rvs.setEmbedAssemblyInfo(embedAssemblyInfo);
+               }
+
+               if(embedAssemblyInfo != null) {
+                  embedAssemblyInfo.setAssemblySize(event.getAssemblySize());
+               }
+            }
+            finally {
+               box.get().unlockWrite();
+            }
          }
       }
 
