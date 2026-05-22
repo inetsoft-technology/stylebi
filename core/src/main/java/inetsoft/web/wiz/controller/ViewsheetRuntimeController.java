@@ -21,8 +21,8 @@ package inetsoft.web.wiz.controller;
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.util.Tool;
-import inetsoft.web.wiz.service.VisualizationService;
 import inetsoft.web.wiz.model.CloseViewsheetRequest;
+import inetsoft.web.wiz.service.WizVisualizationService;
 import jakarta.validation.Valid;
 import org.springframework.http.MediaType;
 import org.springframework.validation.annotation.Validated;
@@ -60,7 +60,7 @@ public class ViewsheetRuntimeController {
 
       String path = entry.getPath();
 
-      if(path == null || !path.startsWith(VisualizationService.VISUALIZATION_ROOT_FOLDER_PATH + "/")) {
+      if(path == null || !path.startsWith(WizVisualizationService.VISUALIZATION_ROOT_FOLDER_PATH + "/")) {
          throw new IllegalArgumentException(
             "Viewsheet is not in the managed visualizations folder: " + path);
       }

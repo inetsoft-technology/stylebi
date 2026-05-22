@@ -94,6 +94,7 @@ export class AssetTreeComponent implements OnInit, OnDestroy, OnChanges {
    @Input() initSelectedNodesExpanded: boolean;
    @Input() manyNodesUseVirtualScroll: boolean;
    @Input() stickySearch: boolean = false;
+   @Input() autoExpandRoot: boolean = false;
    @Output() nodesSelected = new EventEmitter<TreeNodeModel[]>();
    @Output() nodeSelected = new EventEmitter<TreeNodeModel>();
    @Output() pathSelected = new EventEmitter<TreeNodeModel[]>();
@@ -211,6 +212,15 @@ export class AssetTreeComponent implements OnInit, OnDestroy, OnChanges {
 
             if(this.datasources) {
                this.dataSourcesTree = res.treeNodeModel.children.find(isDataSource);
+            }
+
+            if(this.autoExpandRoot && this.root?.children) {
+               this.root.children.forEach(child => {
+                  if(!child.leaf) {
+                     child.expanded = true;
+                     this.refreshNodeChildren(child, this.createRefreshNodeEvent(child));
+                  }
+               });
             }
 
             this.changeDetector.markForCheck();

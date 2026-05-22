@@ -691,7 +691,10 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
             this.formatPaneDisabled = isWorksheet;
             this.toolboxDisabled = isWorksheet;
 
-            if(isWorksheet) {
+            if(this.wizComposer) {
+               this.selectedTab = SidebarTab.VISUALIZATIONS;
+            }
+            else if(isWorksheet) {
                const worksheet = sheet as Worksheet;
 
                if(worksheet.isCompositeView()) {
@@ -2925,6 +2928,13 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
    }
 
    newViewsheet(gettingStarted?: boolean): void {
+      if(this.wizComposer) {
+         this.scriptDisabled = true;
+         this.regionsDisabled = true;
+         this.openNewViewsheet(null);
+         return;
+      }
+
       let dialog = ComponentTool.showDialog(this.modalService, NewViewsheetDialog,
          (model: NewViewsheetDialogModel) => {
             if(!model.openWizard) {

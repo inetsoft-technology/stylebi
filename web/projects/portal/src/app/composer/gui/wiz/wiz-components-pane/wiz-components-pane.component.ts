@@ -170,13 +170,8 @@ export class WizComponentsPane implements OnInit, OnChanges, OnDestroy {
       };
    }
 
-   openVisualization(node: TreeNodeModel) {
-      if(!node?.data?.properties || node.data.type !== AssetType.VIEWSHEET) {
-         return;
-      }
-
-      const standaloneVisualization = node.data?.properties?.visualizationScope !== "private";
-      this.wizService.onOpenVisualization(node.data.identifier, standaloneVisualization);
+   editVisualization(node: TreeNodeModel) {
+      // todo: request wiz-portal to edit the visualization
    }
 
    removeVisualization(node: TreeNodeModel) {
@@ -226,24 +221,14 @@ export class WizComponentsPane implements OnInit, OnChanges, OnDestroy {
       let groups = [group];
       let node = event[1];
 
-      if(node?.data?.visualizationRoot) {
+      if(node?.data?.type === AssetType.VIEWSHEET) {
          group.actions.push({
-            id: () => "new-wiz-visualization",
-            label: () => "_#(js:New Visualization)",
+            id: () => "edit-wiz-visualization",
+            label: () => "_#(js:Edit)",
             icon: () => "",
             enabled: () => true,
             visible: () => true,
-            action: () => this.wizService.onOpenVisualization(undefined, node?.data?.visualizationRoot)
-         });
-      }
-      else if(node?.data?.type === AssetType.VIEWSHEET) {
-         group.actions.push({
-            id: () => "open-wiz-visualization",
-            label: () => "_#(js:Open)",
-            icon: () => "",
-            enabled: () => true,
-            visible: () => true,
-            action: () => this.openVisualization(node)
+            action: () => this.editVisualization(node)
          });
          group.actions.push({
             id: () => "remove-wiz-visualization",
