@@ -16,12 +16,75 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 :host {
+  display: block;
+
   .single-option .select-type-option {
     display: none;
   }
 
+  .start-time-editor__time-row,
+  .start-time-editor__supplemental-row,
+  .start-time-editor__range-row {
+    align-items: center;
+    row-gap: 10px;
+  }
+
+  .select-type-option {
+    display: flex;
+    align-items: center;
+    min-height: 40px;
+    padding-top: 0;
+  }
+
+  .start-time-editor__field-col {
+    display: flex;
+    align-items: center;
+  }
+
+  .start-time-editor__time-field,
   .time-range-input {
     width: 125px;
+  }
+
+  .start-time-editor__timezone-text {
+    line-height: 1.4;
+    color: var(--inet-text-muted-color);
+  }
+
+  .start-time-editor__timezone-meta {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
+
+  .start-time-editor__server-timezone-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0;
+    white-space: nowrap;
+
+    .form-check-input {
+      margin-top: 0;
+      flex: 0 0 auto;
+    }
+
+    .form-check-label {
+      margin-bottom: 0;
+    }
+  }
+
+  .start-time-editor__supplemental-row > .col {
+    flex: 0 0 auto;
+    width: auto;
+    max-width: 100%;
+    padding-inline-end: 0;
+  }
+
+  .start-time-editor__supplemental-row {
+    align-items: flex-start;
+    margin-top: 14px;
+    margin-bottom: 8px;
   }
 
   .time-range-row.single-option {

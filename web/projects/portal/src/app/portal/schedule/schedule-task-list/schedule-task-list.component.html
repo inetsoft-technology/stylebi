@@ -23,7 +23,7 @@
            [ngClass]="schedulerHealthPillClass">
         {{ schedulerHealth?.statusLabel }}
       </div>
-      <button type="button" class="btn btn-default schedule-task-list-header__status-action"
+      <button type="button" class="btn btn-secondary schedule-task-list-header__status-action"
               (click)="refreshSchedulerHealth()"
               [disabled]="schedulerHealthLoading">
         _#(Refresh Status)
@@ -35,13 +35,13 @@
     </div>
     <div class="schedule-task-list-header__actions" [class.disable-actions-fade]="loading">
       <button type="button" class="btn btn-primary" (click)="newTask()" [disabled]="!isCreateTaskEnabled()">_#(New Task)</button>
-      <button type="button" class="btn btn-default ms-2" (click)="loadTasks(true)">_#(Refresh List)</button>
-      <button type="button" class="btn btn-default ms-2"
+      <button type="button" class="btn btn-secondary" (click)="loadTasks(true)">_#(Refresh List)</button>
+      <button type="button" class="btn btn-secondary"
               (click)="moveTasks()"
               [disabled]="(showTasksAsList || !removeEnable())">
         _#(Move)
       </button>
-      <button type="button" class="btn btn-default ms-2"
+      <button type="button" class="btn btn-secondary"
               (click)="removeItems()" [disabled]="!removeEnable()">
         _#(Delete)
       </button>
@@ -55,7 +55,7 @@
         <div class="pane data-tree-pane">
           <div class="schedule-view-toggle">
             <button type="button"
-                    class="btn btn-default schedule-view-toggle__button"
+                    class="btn btn-secondary schedule-view-toggle__button"
                     (click)="changeShowType(true)">
               _#(Show as List)
             </button>
@@ -85,11 +85,11 @@
         <div class="pane data-pane">
           <div class="schedule-task-list-content">
             <div class="schedule-task-list-table">
-              <table class="table table-bordered table-sm" wScrollableFlexTable [wScrollableSetBodyWidths]="true">
-                <thead class="thead-light">
+              <table class="table table-sm schedule-task-list-table__grid" wScrollableFlexTable [wScrollableSetBodyWidths]="true">
+                <thead class="schedule-task-list-table__head">
                 <tr class="task-row">
                   <th class="select-container">
-                    <input type="checkbox" class="align-middle" [ngModel]="selectAllChecked"
+                    <input type="checkbox" class="form-check-input align-middle" [ngModel]="selectAllChecked"
                            (change)="selectAll($event.target.checked)"/>
                   </th>
                   <th class="tasks-container" sortColumn [sortKey]="'label'" [data]="tasks" [sortType]="sortType"
@@ -108,12 +108,12 @@
                 </tr>
                 </thead>
                 <tbody [style.height.px]="tableHeight">
-                <tr class="task-row" *ngFor="let task of tasks" [class.selected]="selectedItems.includes(task.name)"
+                <tr class="task-row" *ngFor="let task of tasks" [class.task-row--selected]="selectedItems.includes(task.name)"
                     (dragstart)="dragTask($event, task)" [draggable]="true"
                     (dragover)="$event.preventDefault();"
                     (dragenter)="$event.preventDefault()">
                   <td class="select-container">
-                    <input type="checkbox" class="align-middle" [checked]="selectedItems.includes(task.name)"
+                    <input type="checkbox" class="form-check-input align-middle" [checked]="selectedItems.includes(task.name)"
                            (change)="selectTask(task)"/>
                   </td>
                   <td class="tasks-container" [class.disabled-task]="!task.enabled">{{ task.label }}</td>

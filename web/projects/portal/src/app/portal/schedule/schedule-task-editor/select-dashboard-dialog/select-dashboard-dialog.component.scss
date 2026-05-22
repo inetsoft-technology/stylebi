@@ -15,7 +15,16 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-.usersOverflow {
-  overflow-y: auto;
+:host {
+  display: block;
+}
+
+.schedule-dashboard-dialog__browser {
+  min-height: 360px;
   max-height: 50vh;
+  overflow: auto;
+  padding: 8px;
+  border: 1px solid var(--inet-border-color);
+  border-radius: 4px;
+  background-color: var(--inet-card-bg-color);
 }

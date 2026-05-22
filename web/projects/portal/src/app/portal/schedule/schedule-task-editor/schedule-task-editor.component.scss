@@ -22,12 +22,18 @@
   align-items: stretch;
   min-height: 0;
 
-  > .container-fluid {
+  > .schedule-task-editor-shell {
     flex-grow: 1;
     display: flex;
     flex-direction: column;
     align-items: stretch;
     min-height: 0;
+    gap: 12px;
+    padding: 16px 12px 12px !important;
+    background-color: var(--inet-main-panel-bg-color);
+    border: 1px solid var(--inet-border-color);
+    border-radius: 8px;
+    overflow: hidden;
 
     > form {
       flex-grow: 0;
@@ -38,6 +44,13 @@
       flex-grow: 0;
       flex-shrink: 0;
     }
+
+    > task-condition-pane,
+    > task-action-pane,
+    > task-options-pane {
+      flex-grow: 1;
+      min-height: 0;
+    }
   }
 
   > .notifications-task-edit {
@@ -46,6 +59,20 @@
     top: 60px;
     right: 20px;
   }
+}
+
+.schedule-task-editor-shell__name-row {
+  margin-bottom: 0;
+  padding-top: 4px;
+}
+
+.schedule-task-editor-shell__tabs {
+  margin: 0;
+  padding-top: 4px;
+}
+
+.schedule-task-editor-shell__tab-link {
+  font-weight: 500;
 }
 
 .nav-item a.nav-link.disabled {

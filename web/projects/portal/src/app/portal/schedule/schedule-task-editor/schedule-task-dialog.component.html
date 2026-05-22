@@ -15,10 +15,7 @@
   ~ You should have received a copy of the GNU Affero General Public License
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
-<div class="modal-header">
-  <h3 class="modal-title">_#(Schedule Task)</h3>
-  <button type="button" class="btn-close" (click)="close()" aria-label="Close"></button>
-</div>
+<modal-header [title]="'_#(Schedule Task)'" (onCancel)="close()"></modal-header>
 <div class="modal-body" [enterSubmit]="enterSubmit" (onEnter)="close()" *ngIf="model">
   <form [formGroup]="form">
     <div class="form-row-float-label row">
@@ -41,8 +38,8 @@
                              [taskName]="model.label"
                              [timeZone]="model.timeZone"
                              [taskDefaultTimeProperty]="model.taskDefaultTime"
-                             [parentForm]="form">
-                             (updateTaskName)="updateOldTaskName($event)"
+                             [parentForm]="form"
+                             (updateTaskName)="updateOldTaskName($event)">
         </task-condition-pane>
       </ng-template>
     </ng-container>
@@ -62,8 +59,8 @@
         <task-options-pane [model]="model.taskOptionsPaneModel"
                            [oldTaskName]="model.name"
                            [taskName]="model.label"
-                           [parentForm]="form">
-                           (updateTaskName)="updateOldTaskName($event)"
+                           [parentForm]="form"
+                           (updateTaskName)="updateOldTaskName($event)">
         </task-options-pane>
       </ng-template>
     </ng-container>
@@ -71,7 +68,7 @@
   <div [ngbNavOutlet]="nav"></div>
 </div>
 <div class="modal-footer">
-  <button type="button" class="btn btn-default" data-dismiss="modal" (click)="close()">
+  <button type="button" class="btn btn-default" (click)="close()">
     _#(Close)
   </button>
 </div>

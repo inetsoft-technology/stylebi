@@ -28,3 +28,38 @@
     flex-direction: column;
   }
 }
+
+.editable-table-shell {
+  margin-bottom: 0;
+  border: 1px solid var(--inet-border-color);
+  border-radius: 4px;
+  border-collapse: separate;
+  border-spacing: 0;
+  overflow: hidden;
+  background-color: var(--inet-card-bg-color);
+}
+
+.editable-table-shell thead th {
+  background-color: var(--inet-toolbar-bg-color);
+  border-bottom: 1px solid var(--inet-border-color);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 8px 10px;
+}
+
+.editable-table-shell tbody tr {
+  cursor: pointer;
+}
+
+.editable-table-shell tbody tr:hover td {
+  background-color: var(--inet-ui-neutral-hover-bg-color);
+}
+
+.editable-table-shell tbody td {
+  padding: 8px 10px;
+  border-top: 1px solid var(--inet-border-color);
+}
+
+.editable-table-shell tbody tr:first-child td {
+  border-top: 0;
+}

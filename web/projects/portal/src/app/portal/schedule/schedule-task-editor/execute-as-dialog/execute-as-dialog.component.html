@@ -15,14 +15,7 @@
   ~ You should have received a copy of the GNU Affero General Public License
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
-<div class="modal-header">
-  <h3 class="modal-title">_#(Execute As)</h3>
-  <div class="d-flex align-items-center">
-    <i [helpLink]="'PortalExecuteAs'" tabindex="0"
-       aria-label="_#(Help Information)" role="link" enterClick></i>
-    <button type="button" class="btn-close" (click)="close()" aria-label="_#(Close)" title="_#(Close)"></button>
-  </div>
-</div>
+<modal-header [title]="'_#(Execute As)'" [cshid]="'PortalExecuteAs'" (onCancel)="close()"></modal-header>
 <div class="modal-body" enterSubmit (onEnter)="ok()">
   <div class="form-group usersOverflow">
     <identity-tree #identityTree [hidden]="searchMode" [root]="getRoot()"
@@ -35,7 +28,7 @@
   </div>
   <div class="input-group mt-2">
     <input type="text" class="form-control" (keyup.enter)="searchUsers()" [(ngModel)]="searchText"/>
-    <button class="btn input-group-btn-addon" (click)="searchUsers()">
+    <button type="button" class="btn input-group-btn-addon" (click)="searchUsers()" aria-label="_#(Search)">
       <i class="search-icon align-middle" aria-hidden="true"></i>
     </button>
   </div>
@@ -44,7 +37,7 @@
   <button type="button" class="btn btn-primary" (click)="ok()" [disabled]="!selectedNode">
     _#(OK)
   </button>
-  <button type="button" class="btn btn-default" data-dismiss="modal" (click)="close()">
+  <button type="button" class="btn btn-secondary" (click)="close()">
     _#(Cancel)
   </button>
 </div>

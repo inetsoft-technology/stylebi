@@ -27,6 +27,59 @@ thead, tbody tr {
     table-layout: fixed;
 }
 
+.parameter-table-shell {
+    margin-bottom: 12px;
+    border: 1px solid var(--inet-border-color);
+    border-radius: 4px;
+    overflow: hidden;
+    background-color: var(--inet-card-bg-color);
+}
+
+.parameter-table-grid {
+    margin-bottom: 0;
+    border-collapse: separate;
+    border-spacing: 0;
+    background-color: transparent;
+}
+
+.parameter-table-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
+.parameter-table-actions > .btn + .btn {
+    margin-left: 0 !important;
+}
+
+.parameter-table-grid thead th {
+    background-color: var(--inet-toolbar-bg-color);
+    border-bottom: 1px solid var(--inet-border-color);
+    border-right: 1px solid var(--inet-border-color);
+    font-size: 11px;
+    font-weight: 600;
+    padding: 8px;
+}
+
+.parameter-table-grid thead th:last-child {
+    border-right: 0;
+}
+
+.parameter-table-grid tbody td {
+    border-top: 1px solid var(--inet-border-color);
+    border-right: 1px solid var(--inet-border-color);
+    padding: 8px;
+}
+
+.parameter-table-grid tbody td:last-child {
+    border-right: 0;
+}
+
+.parameter-table-grid tbody tr:first-child td {
+    border-top: 0;
+}
+
 tbody td {
     white-space: nowrap;
     overflow: hidden;
