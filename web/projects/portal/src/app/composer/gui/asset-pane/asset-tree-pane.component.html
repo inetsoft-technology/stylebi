@@ -16,11 +16,11 @@
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
 <asset-tree tabindex="0" class="h-100"
-            [datasources]="focusedSheet?.type === 'worksheet'"
-            [columns]="focusedSheet?.type === 'worksheet'"
-            [viewsheets]="true" [worksheets]="!deployed"
-            [scripts]="true" [tableStyles]="true"
-            [library]="true"
+            [datasources]="!wizComposer && focusedSheet?.type === 'worksheet'"
+            [columns]="!wizComposer && focusedSheet?.type === 'worksheet'"
+            [viewsheets]="true" [worksheets]="!wizComposer && !deployed"
+            [scripts]="!wizComposer" [tableStyles]="!wizComposer"
+            [library]="!wizComposer"
             [draggable]="true" [searchEnabled]="true"
             [forceType]="focusedSheet?.type"
             [showContextmenu]="true" [multiSelect]="true"
@@ -31,6 +31,7 @@
             [recentEnabled]="true"
             [getRecentTreeFun]="getRecentRootFun()"
             [manyNodesUseVirtualScroll]="true"
+            [autoExpandRoot]="wizComposer"
             (nodeDrag)="nodeDrag($event)"
             (nodeDrop)="nodeDrop($event)"
             (nodesSelected)="selectedNodes = $event">

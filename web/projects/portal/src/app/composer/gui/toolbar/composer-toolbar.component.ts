@@ -78,6 +78,7 @@ import { EventQueueService } from "../vs/event-queue.service";
 import { LayoutUndoRedoEvent } from "../vs/event/layout-undo-redo-event";
 import { MoveResizeLayoutObjectsEvent } from "../vs/event/move-resize-layout-objects-event";
 import { ResizeVSObjectEvent } from "../vs/objects/event/resize-vs-object-event";
+import { WizService } from "../wiz/services/wiz.service";
 import { WSCollectVariablesOverEvent } from "../ws/socket/ws-collect-variables/ws-collect-variables-over-event";
 import { WSConcatenateEvent } from "../ws/socket/ws-concatenate-event";
 import { WSCrossJoinEvent } from "../ws/socket/ws-join/ws-cross-join-event";
@@ -149,8 +150,6 @@ export class ComposerToolbarComponent implements OnInit, AfterViewInit, OnDestro
    @Output() onPaste: EventEmitter<Sheet> = new EventEmitter<Sheet>();
    @Output() onNewWorksheet: EventEmitter<any> = new EventEmitter<any>();
    @Output() onOpenViewsheetWizard: EventEmitter<any> = new EventEmitter<AssetEntry>(); // teamp
-   @Output() onCreateNewVisualization: EventEmitter<any> = new EventEmitter<AssetEntry>();
-   @Output() onCreateWiz: EventEmitter<any> = new EventEmitter<AssetEntry>();
    @Output() onNotification = new EventEmitter<Notification>();
    @Output() onSaveWorksheet: EventEmitter<Sheet> = new EventEmitter<Sheet>();
    @Output() onSaveWorksheetAs: EventEmitter<Sheet> = new EventEmitter<Sheet>();
@@ -273,6 +272,10 @@ export class ComposerToolbarComponent implements OnInit, AfterViewInit, OnDestro
          total + (!object.container && object.locked !== true ? 1 : 0), 0) >= 2;
    }
 
+   get wizComposer(): boolean {
+      return this.wizService.wizComposer;
+   }
+
    constructor(public aiAssistantDialogService: AiAssistantDialogService,
                private hostElement: ElementRef,
                private renderer: Renderer2,
@@ -286,7 +289,8 @@ export class ComposerToolbarComponent implements OnInit, AfterViewInit, OnDestro
                private scaleService: ScaleService,
                private tooltipConfig: NgbTooltipConfig,
                private chatService: ChatService,
-               private dropdownObserver: DropdownObserver)
+               private dropdownObserver: DropdownObserver,
+               private wizService: WizService)
    {
       tooltipConfig.container = "body";
       this.wsSqlQueryController = new WsSqlQueryController(this.http, this.modelService, this.modalService);
@@ -453,14 +457,6 @@ export class ComposerToolbarComponent implements OnInit, AfterViewInit, OnDestro
 
    openViewsheetWizard(): void {
       this.onOpenViewsheetWizard.emit();
-   }
-
-   createNewVisualization(): void {
-      this.onCreateNewVisualization.emit();
-   }
-
-   createNewWiz(): void {
-      this.onCreateWiz.emit();
    }
 
    notify(notification: Notification): void {
@@ -1605,7 +1601,7 @@ export class ComposerToolbarComponent implements OnInit, AfterViewInit, OnDestro
             buttonClass: "new-worksheet-button",
             tooltip: () => "<b>_#(js:New Worksheet)</b>\n" + "_#(js:fl.action.newWorksheetDes)",
             enabled: () => this.worksheetPermission,
-            visible: () => !this.deployed,
+            visible: () => !this.deployed && !this.wizComposer,
             action: () => this.newWorksheet()
          },
          {
@@ -1616,35 +1612,6 @@ export class ComposerToolbarComponent implements OnInit, AfterViewInit, OnDestro
             enabled: () => this.viewsheetPermission,
             visible: () => !this.deployed,
             action: () => this.openViewsheetWizard()
-         }
-      ]
-   };
-
-   wizOperations: ToolbarActionGroup  = {
-      label: "_#(js:Wiz)",
-      iconClass: "new-viewsheet-icon",
-      buttonClass: "new-viewsheet-button",
-      enabled: () => true,
-      visible: () => true,
-      action: () => {},
-      actions: [
-         {
-            label: "_#(js:Start Chat)",
-            iconClass: "new-viewsheet-icon",
-            buttonClass: "new-viewsheet-button",
-            tooltip: () => "<b>_#(js:Create Visualization By Chat)</b>",
-            enabled: () => true,
-            visible: () => !this.deployed,
-            action: () => this.createNewVisualization()
-         },
-         {
-            label: "_#(js:WIZ Composer)",
-            iconClass: "new-viewsheet-icon",
-            buttonClass: "new-viewsheet-button",
-            tooltip: () => "<b>_#(js:Use visualizations to design a dashboard)</b>",
-            enabled: () => true,
-            visible: () => !this.deployed,
-            action: () => this.createNewWiz()
          }
       ]
    };
