@@ -254,6 +254,15 @@ public class ConcatenatedQuery extends AssetQuery {
     */
    @Override
    protected boolean isSourceMergeable() throws Exception {
+      if(sourceMergeable != null) {
+         return sourceMergeable;
+      }
+
+      sourceMergeable = computeIsSourceMergeable();
+      return sourceMergeable;
+   }
+
+   private boolean computeIsSourceMergeable() throws Exception {
       if(!super.isSourceMergeable()) {
          return false;
       }
@@ -788,6 +797,7 @@ public class ConcatenatedQuery extends AssetQuery {
    private TableAssembly[] tables; // base tables
    private AssetQuery[] queries; // base queries
    private JDBCQuery nquery; // new query
+   private transient Boolean sourceMergeable;
    protected Set<String> colset; // columns
 
    private static final Logger LOG =
