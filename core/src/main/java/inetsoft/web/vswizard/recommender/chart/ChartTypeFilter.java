@@ -109,12 +109,17 @@ public class ChartTypeFilter {
 
       Map<String, Set<String>> slotFields = pref.getSlotFields();
       Map<Integer, Integer> adjustedScores = new HashMap<>(scores);
+      // IdentityHashMap avoids hashCode collisions when mapping per-instance bonuses
+      Map<ChartInfo, Integer> prefBonuses = new IdentityHashMap<>();
 
       for(ChartInfo info : infos) {
-         int bonus = computePreferenceBonus((VSChartInfo) info, slotFields);
+         if(info instanceof VSChartInfo vsci) {
+            int bonus = computePreferenceBonus(vsci, slotFields);
 
-         if(bonus > 0) {
-            adjustedScores.merge(info.hashCode(), bonus * PREFERENCE_SLOT_BONUS, Integer::sum);
+            if(bonus > 0) {
+               prefBonuses.put(info, bonus * PREFERENCE_SLOT_BONUS);
+               adjustedScores.merge(info.hashCode(), bonus * PREFERENCE_SLOT_BONUS, Integer::sum);
+            }
          }
       }
 
@@ -124,13 +129,13 @@ public class ChartTypeFilter {
       List<ChartCombinationUtil.ScoredInfo> prefRanked = prefSorted.stream()
          .limit(getStyleCount())
          .map(ci -> new ChartCombinationUtil.ScoredInfo(
-            ci, adjustedScores.getOrDefault(ci.hashCode(), 0)))
+            ci, scores.getOrDefault(ci.hashCode(), 0) + prefBonuses.getOrDefault(ci, 0)))
          .collect(Collectors.toList());
 
       return new FilterResult(defaultList, prefRanked);
    }
 
-   static class FilterResult {
+   public static class FilterResult {
       FilterResult(List<ChartInfo> defaultRanked, List<ChartCombinationUtil.ScoredInfo> prefRanked) {
          this.defaultRanked = defaultRanked;
          this.prefRanked = prefRanked;
