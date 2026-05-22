@@ -242,7 +242,9 @@ public class WizAutoBindingService {
 
    private void setRefType(AssetEntry entry, boolean isMeasure) {
       if(isMeasure) {
-         // NONE(0) is correct: isDimension() checks for DIMENSION bit, so 0 → treated as measure
+         // refType=0 carries no DIMENSION bit; CUBE_COL_TYPE=MEASURES has bit 0 set.
+         // WizardRecommenderUtil.isDimension checks both conditions, so both must be false
+         // for the entry to be treated as a measure.
          entry.setProperty("refType", "0");
          entry.setProperty(AssetEntry.CUBE_COL_TYPE, String.valueOf(AssetEntry.MEASURES));
       }
@@ -571,9 +573,7 @@ public class WizAutoBindingService {
    // ── Entry → FieldInfo conversion ─────────────────────────────────────────────
 
    private SimpleFieldInfo entryToSimpleFieldInfo(AssetEntry entry) {
-      boolean isMeasure = String.valueOf(AssetEntry.MEASURES)
-         .equals(entry.getProperty(AssetEntry.CUBE_COL_TYPE));
-      return isMeasure
+      return !WizardRecommenderUtil.isDimension(entry)
          ? entryToMeasureFieldInfo(entry)
          : entryToDimensionFieldInfo(entry);
    }
@@ -623,6 +623,11 @@ public class WizAutoBindingService {
          }
 
          RecommendedVisualization found = findInRecommendations(vizType, recommendations);
+
+         if(found == null && !recommendations.isEmpty()) {
+            LOG.debug("Requested vizType '{}' not found in recommendations; returning top recommendation", vizType);
+         }
+
          return found != null ? found : (!recommendations.isEmpty() ? recommendations.get(0) : null);
       }
 
@@ -753,7 +758,7 @@ public class WizAutoBindingService {
    }
 
 
-   private static final Set<String> NON_CHART_VIZ_TYPES = Set.of("table", "crosstab", "gauge");
+   private static final Set<String> NON_CHART_VIZ_TYPES = Set.of("table", "crosstab", "gauge", "text");
 
    /**
     * Maps each intent category to the set of {@link GraphTypes} chart-type constants that best
@@ -833,14 +838,21 @@ public class WizAutoBindingService {
 
    private static String getChartTypeString(int chartType) {
       return switch(chartType) {
-         case GraphTypes.CHART_BAR, GraphTypes.CHART_BAR_STACK -> "bar";
-         case GraphTypes.CHART_3D_BAR, GraphTypes.CHART_3D_BAR_STACK -> "3d_bar";
-         case GraphTypes.CHART_AREA, GraphTypes.CHART_AREA_STACK -> "area";
-         case GraphTypes.CHART_POINT, GraphTypes.CHART_POINT_STACK -> "point";
-         case GraphTypes.CHART_STEP_AREA, GraphTypes.CHART_STEP_AREA_STACK -> "step_area";
+         case GraphTypes.CHART_BAR -> "bar";
+         case GraphTypes.CHART_BAR_STACK -> "bar_stack";
+         case GraphTypes.CHART_3D_BAR -> "3d_bar";
+         case GraphTypes.CHART_3D_BAR_STACK -> "3d_bar_stack";
+         case GraphTypes.CHART_AREA -> "area";
+         case GraphTypes.CHART_AREA_STACK -> "area_stack";
+         case GraphTypes.CHART_POINT -> "point";
+         case GraphTypes.CHART_POINT_STACK -> "point_stack";
+         case GraphTypes.CHART_STEP_AREA -> "step_area";
+         case GraphTypes.CHART_STEP_AREA_STACK -> "step_area_stack";
          case GraphTypes.CHART_INTERVAL -> "interval";
-         case GraphTypes.CHART_LINE, GraphTypes.CHART_LINE_STACK -> "line";
-         case GraphTypes.CHART_STEP, GraphTypes.CHART_STEP_STACK -> "step_line";
+         case GraphTypes.CHART_LINE -> "line";
+         case GraphTypes.CHART_LINE_STACK -> "line_stack";
+         case GraphTypes.CHART_STEP -> "step_line";
+         case GraphTypes.CHART_STEP_STACK -> "step_line_stack";
          case GraphTypes.CHART_JUMP -> "jump_line";
          case GraphTypes.CHART_PIE -> "pie";
          case GraphTypes.CHART_3D_PIE -> "3d_pie";
