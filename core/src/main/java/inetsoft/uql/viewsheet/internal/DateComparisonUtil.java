@@ -1148,6 +1148,9 @@ public class DateComparisonUtil {
       if(cal.get(Calendar.YEAR) < refYear) {
          cal.add(Calendar.DATE, 7);
       }
+      else if(cal.get(Calendar.YEAR) > refYear) {
+         cal.add(Calendar.DATE, -7);
+      }
 
       Format dateFmt = fmt != null ? fmt : XUtil.getDefaultDateFormat(formatLevel);
 
