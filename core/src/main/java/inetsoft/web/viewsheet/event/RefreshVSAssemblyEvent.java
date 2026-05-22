@@ -23,6 +23,9 @@ import inetsoft.web.admin.cache.CacheMetrics;
 import org.immutables.serial.Serial;
 import org.immutables.value.Value;
 
+import javax.annotation.Nullable;
+import java.awt.Dimension;
+
 @Value.Immutable
 @Serial.Structural
 @JsonSerialize(as = ImmutableRefreshVSAssemblyEvent.class)
@@ -42,6 +45,8 @@ public abstract class RefreshVSAssemblyEvent {
    public boolean getEmbed() {
       return false;
    }
+
+   public abstract @Nullable Dimension getAssemblySize();
 
    public static CacheMetrics.Builder builder() {
       return new CacheMetrics.Builder();

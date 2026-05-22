@@ -97,6 +97,20 @@ public class VSRefreshService {
          coreLifecycleService.setViewsheetInfo(rvs, linkUri, dispatcher);
       }
 
+      if(event.getAssemblySize() != null) {
+         EmbedAssemblyInfo embedAssemblyInfo = rvs.getEmbedAssemblyInfo();
+
+         if(embedAssemblyInfo == null && event.getEmbed()) {
+            embedAssemblyInfo = new EmbedAssemblyInfo();
+            embedAssemblyInfo.setAssemblyName(event.getAssemblyName());
+            rvs.setEmbedAssemblyInfo(embedAssemblyInfo);
+         }
+
+         if(embedAssemblyInfo != null) {
+            embedAssemblyInfo.setAssemblySize(event.getAssemblySize());
+         }
+      }
+
       // reset the assembly and dependencies.
       if(assembly != null) {
          refreshAssemblyAndDependencies(rvs, assembly, linkUri, dispatcher);

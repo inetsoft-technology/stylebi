@@ -1227,6 +1227,8 @@ public class CoreLifecycleService {
             }
          }
 
+         applyEmbedAssemblySize(rvs, assembly);
+
          box.get().lockWrite();
 
          try {
@@ -1376,22 +1378,13 @@ public class CoreLifecycleService {
 
       ViewsheetSandbox box = boxOpt.get();
 
-      if(rvs.getEmbedAssemblyInfo() != null && name != null) {
-         EmbedAssemblyInfo embedAssemblyInfo = rvs.getEmbedAssemblyInfo();
-
-         if(!Tool.equals(name, embedAssemblyInfo.getAssemblyName())) {
-            return;
-         }
-
-         AssemblyInfo info = assembly.getInfo();
-
-         if(info instanceof ChartVSAssemblyInfo) {
-            // open with max mode
-            ((ChartVSAssemblyInfo) info).setMaxSize(
-               embedAssemblyInfo.getAssemblySize());
-            info.setPixelSize(embedAssemblyInfo.getAssemblySize());
-         }
+      if(rvs.getEmbedAssemblyInfo() != null && name != null &&
+         !Tool.equals(name, rvs.getEmbedAssemblyInfo().getAssemblyName()))
+      {
+         return;
       }
+
+      applyEmbedAssemblySize(rvs, assembly);
 
       // @by yanie: bug1422049637079
       // The runtime dynamic values might be reset, so herein execute them to
@@ -1588,6 +1581,28 @@ public class CoreLifecycleService {
          else {
             dispatcher.sendCommand(command);
          }
+      }
+   }
+
+   private void applyEmbedAssemblySize(RuntimeViewsheet rvs, VSAssembly assembly) {
+      String name = assembly == null ? null : assembly.getAbsoluteName();
+
+      if(rvs.getEmbedAssemblyInfo() == null || name == null) {
+         return;
+      }
+
+      EmbedAssemblyInfo embedAssemblyInfo = rvs.getEmbedAssemblyInfo();
+
+      if(!Tool.equals(name, embedAssemblyInfo.getAssemblyName())) {
+         return;
+      }
+
+      AssemblyInfo info = assembly.getInfo();
+
+      if(info instanceof ChartVSAssemblyInfo) {
+         // Apply the embed container size before building the runtime chart model.
+         ((ChartVSAssemblyInfo) info).setMaxSize(embedAssemblyInfo.getAssemblySize());
+         info.setPixelSize(embedAssemblyInfo.getAssemblySize());
       }
    }
 
