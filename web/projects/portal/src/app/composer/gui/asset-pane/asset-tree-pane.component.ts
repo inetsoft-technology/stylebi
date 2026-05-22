@@ -512,17 +512,6 @@ export class AssetTreePane implements OnChanges, OnInit {
       };
    }
 
-   private createNewWizAction(entry: AssetEntry): AssemblyAction {
-      return {
-         id: () => "wiz-new",
-         label: () => "_#(js:New Wiz)",
-         icon: () => "",
-         enabled: () => true,
-         visible: () => true,
-         action: () => this.onNewViewsheet.emit(entry)
-      };
-   }
-
    private containsAuditNodes(entries: AssetEntry[]): boolean {
       return entries.filter(entry => !!entry.path)
          .map(entry => entry.path.split("/")[0])
