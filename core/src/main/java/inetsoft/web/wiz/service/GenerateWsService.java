@@ -357,12 +357,14 @@ public class GenerateWsService {
       AssetEntry folder = new AssetEntry(
          AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.FOLDER, WORKSHEET_ROOT_FOLDER_PATH, null);
 
-      try {
-         repo.addFolder(folder, user);
-      }
-      catch(Exception e) {
-         if(!repo.containsEntry(folder)) {
-            throw e;
+      if(!repo.containsEntry(folder)) {
+         try {
+            repo.addFolder(folder, user);
+         }
+         catch(Exception e) {
+            if(!repo.containsEntry(folder)) {
+               throw e;
+            }
          }
       }
 
