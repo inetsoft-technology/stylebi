@@ -39,9 +39,8 @@ import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
 import inetsoft.web.RecycleUtils;
 import inetsoft.web.composer.model.*;
-import inetsoft.web.wiz.service.VisualizationService;
+import inetsoft.web.wiz.service.*;
 import inetsoft.web.composer.ws.assembly.VariableAssemblyModelInfo;
-import inetsoft.web.wiz.service.GenerateWsService;
 import org.springframework.stereotype.Service;
 
 import java.rmi.RemoteException;
@@ -762,7 +761,7 @@ public class AssetTreeService {
    {
       AssetEntry entry = new AssetEntry(
          AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.REPOSITORY_FOLDER,
-         VisualizationService.VISUALIZATION_ROOT_FOLDER_PATH, user);
+         WizVisualizationService.VISUALIZATION_ROOT_FOLDER_PATH, user);
       Catalog catalog = Catalog.getCatalog();
 
       children.add(createNodeFromEntry(entry, catalog.getString("Visualizations"), principal));
@@ -773,7 +772,7 @@ public class AssetTreeService {
    {
       AssetEntry entry = new AssetEntry(
          AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.REPOSITORY_FOLDER,
-         VisualizationService.VISUALIZATION_COMPONENTS_FOLDER_PATH, user);
+         WizVisualizationService.VISUALIZATION_COMPONENTS_FOLDER_PATH, user);
       Catalog catalog = Catalog.getCatalog();
 
       children.add(createNodeFromEntry(entry, catalog.getString("Visualization Components"), principal));
@@ -905,7 +904,7 @@ public class AssetTreeService {
       String label = AssetUtil.getEntryLabel(entry, catalog);
       entry.setProperty("sqlEnabled", String.valueOf(sqlEnabled));
 
-      if(VisualizationService.VISUALIZATION_COMPONENTS_FOLDER_PATH.equals(entry.getPath())) {
+      if(WizVisualizationService.VISUALIZATION_COMPONENTS_FOLDER_PATH.equals(entry.getPath())) {
          label = catalog.getString("Visualization Components");
       }
       else if(GenerateWsService.WORKSHEET_COMPONENTS_FOLDER_PATH.equals(entry.getPath())) {
@@ -917,7 +916,7 @@ public class AssetTreeService {
 
       // alias has higher priority than label in the Angular nodeLabel getter, so set it too
       // to ensure the friendly name is shown instead of the internal UUID-based path segment.
-      if(VisualizationService.VISUALIZATION_COMPONENTS_FOLDER_PATH.equals(entry.getPath()) ||
+      if(WizVisualizationService.VISUALIZATION_COMPONENTS_FOLDER_PATH.equals(entry.getPath()) ||
          GenerateWsService.WORKSHEET_COMPONENTS_FOLDER_PATH.equals(entry.getPath()))
       {
          result = TreeNodeModel.builder()

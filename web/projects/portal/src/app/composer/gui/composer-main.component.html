@@ -59,23 +59,23 @@
         <div #toolPane class="column-pane component-pane-container split">
           <div class="composer-tab-content" [class.composer-nav-tab-hidden]="navTabHidden">
             <div #tabContent class="composer-tab-content-body bg-white-inet" >
+              <asset-tree-pane
+                [openedSheets]="sheets"
+                [opendTabs]="openedTabs"
+                [inactive]="selectedTab !== SidebarTab.ASSET_TREE"
+                [deployed]="deployed"
+                [viewsheetPermission]="viewsheetPermission"
+                [focusedSheet]="focusedSheet"
+                (onOpenSheet)="openSheet($event)"
+                (onOpenLibraryAsset)="openLibraryAsset($event)"
+                (onNewViewsheet)="openNewViewsheet($event)"
+                (onNewQuery)="openNewQuery($event)"
+                (onSheetClose)="onSheetClosed($event, true)"
+                (onTabClose)="onTabClosed($event, true)"
+                (onNewTableStyle)="onNewTableStyle()"
+                (onNewScript)="openNewScriptAsset()">
+              </asset-tree-pane>
               <ng-container *ngIf="!wizComposer">
-                <asset-tree-pane
-                  [openedSheets]="sheets"
-                  [opendTabs]="openedTabs"
-                  [inactive]="selectedTab !== SidebarTab.ASSET_TREE"
-                  [deployed]="deployed"
-                  [viewsheetPermission]="viewsheetPermission"
-                  [focusedSheet]="focusedSheet"
-                  (onOpenSheet)="openSheet($event)"
-                  (onOpenLibraryAsset)="openLibraryAsset($event)"
-                  (onNewViewsheet)="openNewViewsheet($event)"
-                  (onNewQuery)="openNewQuery($event)"
-                  (onSheetClose)="onSheetClosed($event, true)"
-                  (onTabClose)="onTabClosed($event, true)"
-                  (onNewTableStyle)="onNewTableStyle()"
-                  (onNewScript)="openNewScriptAsset()">
-                </asset-tree-pane>
                 <composer-toolbox-pane [inactive]="selectedTab !== SidebarTab.TOOLBOX"
                                        [focusedViewsheet]="focusedViewsheet"
                                        [grayedOutFields]="grayedOutFields"
@@ -118,16 +118,17 @@
                 ></ws-composite-table-sidebar-pane>
               </ng-container>
               <wiz-components-pane *ngIf="wizComposer"
+                                   [inactive]="selectedTab !== SidebarTab.VISUALIZATIONS"
                                    [runtimeId]="focusedSheet?.runtimeId">
               </wiz-components-pane>
             </div>
             <ul [hidden]="navTabHidden" class="nav nav-inline nav-tabs tabs-bottom composer-bottom-tabs tabs-bottom-split">
+              <li class="nav-item hover-bg-secondary" [class.active]="selectedTab === SidebarTab.ASSET_TREE"
+                  [class.bt-highlight-filler]="selectedTab !== SidebarTab.ASSET_TREE"
+                  [class.bt-highlight-primary]="selectedTab === SidebarTab.ASSET_TREE">
+                <a class="nav-link" (click)="onTabClick(SidebarTab.ASSET_TREE)">_#(Assets)</a>
+              </li>
               <ng-container *ngIf="!wizComposer">
-                <li class="nav-item hover-bg-secondary" [class.active]="selectedTab === SidebarTab.ASSET_TREE"
-                    [class.bt-highlight-filler]="selectedTab !== SidebarTab.ASSET_TREE"
-                    [class.bt-highlight-primary]="selectedTab === SidebarTab.ASSET_TREE">
-                  <a class="nav-link" (click)="onTabClick(SidebarTab.ASSET_TREE)">_#(Assets)</a>
-                </li>
                 <li class="nav-item hover-bg-secondary" [class.active]="selectedTab === SidebarTab.TOOLBOX" [class.nav-disabled]="toolboxDisabled"
                     [class.bt-highlight-filler]="selectedTab !== SidebarTab.TOOLBOX"
                     [class.bt-highlight-primary]="selectedTab === SidebarTab.TOOLBOX">
@@ -155,8 +156,11 @@
                 </li>
               </ng-container>
               <ng-container *ngIf="wizComposer">
-                <li class="nav-item hover-bg-secondary active bt-highlight-primary">
-                  <a class="nav-link">_#(js:Visualizations)</a>
+                <li class="nav-item hover-bg-secondary"
+                    [class.active]="selectedTab === SidebarTab.VISUALIZATIONS"
+                    [class.bt-highlight-filler]="selectedTab !== SidebarTab.VISUALIZATIONS"
+                    [class.bt-highlight-primary]="selectedTab === SidebarTab.VISUALIZATIONS">
+                  <a class="nav-link" (click)="onTabClick(SidebarTab.VISUALIZATIONS)">_#(js:Visualizations)</a>
                 </li>
               </ng-container>
             </ul>

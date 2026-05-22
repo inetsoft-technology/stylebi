@@ -972,7 +972,7 @@ public class WizVsService {
     *
     * <p>If {@code existingIdentifier} is non-empty the viewsheet is written to that exact
     * entry (overwrite / update).  Otherwise a new UUID-named entry is created under
-    * {@link VisualizationService#VISUALIZATION_ROOT_FOLDER_PATH}.
+    * {@link WizVisualizationService#VISUALIZATION_ROOT_FOLDER_PATH}.
     *
     * @param vs                 the viewsheet to persist
     * @param existingIdentifier optional identifier returned from a previous call; may be null
@@ -997,7 +997,7 @@ public class WizVsService {
          String existingPath = entry.getPath();
 
          if(existingPath == null ||
-            !existingPath.startsWith(VisualizationService.VISUALIZATION_ROOT_FOLDER_PATH + "/"))
+            !existingPath.startsWith(WizVisualizationService.VISUALIZATION_ROOT_FOLDER_PATH + "/"))
          {
             throw new IllegalArgumentException(
                "viewsheetIdentifier points outside the managed visualizations folder: " + existingPath);
@@ -1007,7 +1007,7 @@ public class WizVsService {
          IdentityID pId = IdentityID.getIdentityIDFromKey(user.getName());
          AssetEntry folder = new AssetEntry(
             AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.REPOSITORY_FOLDER,
-            VisualizationService.VISUALIZATION_ROOT_FOLDER_PATH, null);
+            WizVisualizationService.VISUALIZATION_ROOT_FOLDER_PATH, null);
 
          try {
             if(!engine.containsEntry(folder)) {
@@ -1027,7 +1027,7 @@ public class WizVsService {
          }
 
          String uuid = UUID.randomUUID().toString();
-         String path = VisualizationService.VISUALIZATION_ROOT_FOLDER_PATH + "/" + uuid;
+         String path = WizVisualizationService.VISUALIZATION_ROOT_FOLDER_PATH + "/" + uuid;
          entry = new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.VIEWSHEET, path, pId);
       }
 
@@ -2395,7 +2395,7 @@ public class WizVsService {
 
       String path = entry.getPath();
 
-      if(path == null || !path.startsWith(VisualizationService.VISUALIZATION_ROOT_FOLDER_PATH + "/")) {
+      if(path == null || !path.startsWith(WizVisualizationService.VISUALIZATION_ROOT_FOLDER_PATH + "/")) {
          throw new IllegalArgumentException(
             "Viewsheet is not in the managed visualizations folder and cannot be deleted: " + path);
       }

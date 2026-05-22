@@ -66,13 +66,13 @@ public class WizVisualizationService {
    }
 
    /**
-    * Returns the folder tree rooted at {@link VisualizationService#VISUALIZATION_COMPONENTS_FOLDER_PATH}.
+    * Returns the folder tree rooted at {@link WizVisualizationService#VISUALIZATION_COMPONENTS_FOLDER_PATH}.
     * Folder nodes and viewsheet leaf nodes are both included. Used by the WIZ Save dialog.
     */
    public TreeNodeModel getVisualizationFolderTree(Principal principal) throws Exception {
       AssetEntry rootEntry = new AssetEntry(
          AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.REPOSITORY_FOLDER,
-         VisualizationService.VISUALIZATION_COMPONENTS_FOLDER_PATH, null);
+         VISUALIZATION_COMPONENTS_FOLDER_PATH, null);
 
       ensureFolder(rootEntry, principal);
 
@@ -84,7 +84,7 @@ public class WizVisualizationService {
 
    /**
     * Saves a single assembly from the chat's shared ViewSheet into a new dedicated ViewSheet
-    * under the user-selected folder in {@link VisualizationService#VISUALIZATION_COMPONENTS_FOLDER_PATH}.
+    * under the user-selected folder in {@link WizVisualizationService#VISUALIZATION_COMPONENTS_FOLDER_PATH}.
     *
     * <p>Steps:
     * <ol>
@@ -146,10 +146,10 @@ public class WizVisualizationService {
       String targetFolderPath = event.getTargetFolderPath();
 
       if(Tool.isEmptyString(targetFolderPath)) {
-         targetFolderPath = VisualizationService.VISUALIZATION_COMPONENTS_FOLDER_PATH;
+         targetFolderPath = VISUALIZATION_COMPONENTS_FOLDER_PATH;
       }
 
-      if(!targetFolderPath.startsWith(VisualizationService.VISUALIZATION_COMPONENTS_FOLDER_PATH)) {
+      if(!targetFolderPath.startsWith(VISUALIZATION_COMPONENTS_FOLDER_PATH)) {
          throw new IllegalArgumentException(
             "targetFolderPath must be under the visualization components folder");
       }
@@ -464,9 +464,9 @@ public class WizVisualizationService {
     * falls back to {@link GenerateWsService#WORKSHEET_COMPONENTS_FOLDER_PATH}.
     */
    private String resolveWorksheetFolderPath(String vsFolderPath) {
-      if(vsFolderPath.startsWith(VisualizationService.VISUALIZATION_COMPONENTS_FOLDER_PATH)) {
+      if(vsFolderPath.startsWith(VISUALIZATION_COMPONENTS_FOLDER_PATH)) {
          String suffix = vsFolderPath.substring(
-            VisualizationService.VISUALIZATION_COMPONENTS_FOLDER_PATH.length());
+            VISUALIZATION_COMPONENTS_FOLDER_PATH.length());
 
          return GenerateWsService.WORKSHEET_COMPONENTS_FOLDER_PATH + suffix;
       }
@@ -747,6 +747,8 @@ public class WizVisualizationService {
       }
    }
 
+   public static final String VISUALIZATION_ROOT_FOLDER_PATH = "visualizations-593bb4a4-fd6d-4178-b3f0-c89dad407f02";
+   public static final String VISUALIZATION_COMPONENTS_FOLDER_PATH = "visualization-components-b4f2e8c1-3a7d-4e9b-8c5f-1d6e0a3b7f2c";
    private final ViewsheetService viewsheetService;
    private final AssetRepository assetRepository;
    private final AssemblyImageService assemblyImageService;
