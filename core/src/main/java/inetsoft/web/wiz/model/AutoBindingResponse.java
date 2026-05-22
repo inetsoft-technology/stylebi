@@ -39,7 +39,9 @@ public class AutoBindingResponse {
       this.primary = primary;
    }
 
-   /** All candidate visualizations, charts ordered by vsWizard score followed by crosstab/table/output. */
+   /** All candidate visualizations: charts ordered by vsWizard score, then table (always),
+    *  crosstab (only when both dimensions and measures are present),
+    *  and gauge (only when there is exactly one measure and no dimensions). */
    private List<RecommendedVisualization> recommendations;
    /** Best-fit visualization built from user preferences; null when no preference can be determined. */
    private RecommendedVisualization primary;

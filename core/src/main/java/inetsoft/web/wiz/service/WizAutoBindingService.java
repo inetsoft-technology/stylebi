@@ -115,6 +115,7 @@ public class WizAutoBindingService {
          }
 
          Map<String, SimpleFieldInfo> configMap = fieldConfigs.stream()
+            .filter(f -> f != null && f.getField() != null)
             .collect(Collectors.toMap(SimpleFieldInfo::getField, f -> f, (a, b) -> a));
 
          // Convert all columns to AssetEntry[]; fieldConfigs only adds config overrides
@@ -388,13 +389,23 @@ public class WizAutoBindingService {
       }
 
       if(dimCount > 0 && measCount > 0) {
-         recs.add(buildCrosstabRecommendation(entries, worksheetId, tempInfo, user));
+         RecommendedVisualization crosstabRec =
+            buildCrosstabRecommendation(entries, worksheetId, tempInfo, user);
+
+         if(crosstabRec != null) {
+            recs.add(crosstabRec);
+         }
       }
 
       recs.add(buildTableRecommendation(entries, worksheetId, rvs, user));
 
       if(measCount == 1 && dimCount == 0) {
-         recs.add(buildOutputRecommendation(entries, worksheetId, tempInfo, user));
+         RecommendedVisualization outputRec =
+            buildOutputRecommendation(entries, worksheetId, tempInfo, user);
+
+         if(outputRec != null) {
+            recs.add(outputRec);
+         }
       }
 
       return recs;
@@ -747,15 +758,20 @@ public class WizAutoBindingService {
       Set<Integer> categoryTypes = intentCategory != null
          ? INTENT_CATEGORY_CHART_TYPES.get(intentCategory) : null;
 
+      ChartInfo highestScored = prefInfos.stream()
+         .max(Comparator.comparingInt(ChartCombinationUtil.ScoredInfo::getScore))
+         .map(ChartCombinationUtil.ScoredInfo::getInfo)
+         .orElse(null);
+
       if(categoryTypes != null && !categoryTypes.isEmpty()) {
          bestInfo = prefInfos.stream()
             .filter(si -> categoryTypes.contains(si.getInfo().getChartType()))
+            .max(Comparator.comparingInt(ChartCombinationUtil.ScoredInfo::getScore))
             .map(ChartCombinationUtil.ScoredInfo::getInfo)
-            .findFirst()
-            .orElse(prefInfos.get(0).getInfo());
+            .orElse(highestScored);
       }
       else {
-         bestInfo = prefInfos.get(0).getInfo();
+         bestInfo = highestScored;
       }
 
       return toRecommendedVisualization(bestInfo, worksheetId);
