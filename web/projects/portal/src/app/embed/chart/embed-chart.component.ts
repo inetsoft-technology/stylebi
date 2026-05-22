@@ -252,6 +252,8 @@ export class EmbedChartComponent extends CommandProcessor implements OnInit, OnD
       // A newly opened embedded assembly may need an explicit refresh to apply the
       // requested assembly size after the runtime is established.
       if(this.assemblyName && !this.inputRuntimeId) {
+         // The fresh-open path only needs the targeted refresh; a full onResize() here
+         // would be redundant because it would see the same current dimensions.
          this.refreshEmbedAssembly();
          return;
       }

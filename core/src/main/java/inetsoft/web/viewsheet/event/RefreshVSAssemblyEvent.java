@@ -19,7 +19,6 @@ package inetsoft.web.viewsheet.event;
 
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
-import inetsoft.web.admin.cache.CacheMetrics;
 import org.immutables.serial.Serial;
 import org.immutables.value.Value;
 

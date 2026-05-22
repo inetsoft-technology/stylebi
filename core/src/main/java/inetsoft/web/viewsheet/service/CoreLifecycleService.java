@@ -1227,7 +1227,7 @@ public class CoreLifecycleService {
             }
          }
 
-         applyEmbedAssemblySize(rvs, assembly);
+         applyEmbedChartSize(rvs, assembly);
 
          box.get().lockWrite();
 
@@ -1384,7 +1384,7 @@ public class CoreLifecycleService {
          return;
       }
 
-      applyEmbedAssemblySize(rvs, assembly);
+      applyEmbedChartSize(rvs, assembly);
 
       // @by yanie: bug1422049637079
       // The runtime dynamic values might be reset, so herein execute them to
@@ -1584,7 +1584,8 @@ public class CoreLifecycleService {
       }
    }
 
-   private void applyEmbedAssemblySize(RuntimeViewsheet rvs, VSAssembly assembly) {
+   // This only applies to embedded charts; other assembly types intentionally remain unchanged.
+   private void applyEmbedChartSize(RuntimeViewsheet rvs, VSAssembly assembly) {
       String name = assembly == null ? null : assembly.getAbsoluteName();
 
       if(rvs.getEmbedAssemblyInfo() == null || name == null) {
