@@ -26,12 +26,12 @@
  *   Group 4 [Risk 2]  — masterToggle(): select all / deselect all toggle
  *   Group 5 [Risk 2]  — onImportComplete(): success dialog vs partial-failure warning dialog
  *
- * Suspected bugs (header only — no case until confirmed):
- *
- *   Suspicion A — handleImportError() missing optional chaining on error.error.message:
- *     `error.error.message` in handleImportError() throws TypeError when error.error is null
- *     (e.g. null JSON body on 500). handleUploadError() uses a fixed message string so it
- *     does not have this issue. Fix: change to `error.error?.message` or use a fallback string.
+ * Confirmed bugs (it.failing until source is fixed):
+ *   Bug #75126
+ *   Bug A — handleImportError() missing optional chaining on error.error.message:
+ *     `error.error.message` throws TypeError when error.error is null (e.g. null JSON body on
+ *     500). handleUploadError() uses a fixed message string and is unaffected.
+ *     Fix: `error.error?.message` with a fallback (e.g. `error.message`).
  *
  * KEY contracts:
  *   - finish() collects selection.selected values and sends their `.task` strings in POST body.
@@ -48,7 +48,9 @@ import { ControlValueAccessor, NG_VALUE_ACCESSOR, ReactiveFormsModule } from "@a
 import { MAT_DIALOG_DATA, MatDialog, MatDialogRef } from "@angular/material/dialog";
 import { MatCheckboxModule } from "@angular/material/checkbox";
 import { NoopAnimationsModule } from "@angular/platform-browser/animations";
+import { HttpErrorResponse } from "@angular/common/http";
 import { render, waitFor } from "@testing-library/angular";
+import { it } from "@jest/globals";
 import { http, HttpResponse } from "msw";
 import { of } from "rxjs";
 
@@ -332,6 +334,42 @@ describe("ImportTaskDialogComponent — onImportComplete(): dialog type and clos
       expect(dialogData.type).not.toBe(MessageDialogType.WARNING); // right output, right reason
 
       await waitFor(() => expect(dialogRefSpy.close).toHaveBeenCalledWith(true));
+   });
+
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+// Confirmed bug — handleImportError() null error.error body
+// ════════════════════════════════════════════════════════════════════════════
+
+describe("ImportTaskDialogComponent — handleImportError(): null error body", () => {
+
+   // Bug A — handleImportError() reads error.error.message without optional chaining.
+   // Null JSON body (network/500) makes error.error null → TypeError before dialog opens.
+   // Fix: error.error?.message ?? error.message (or equivalent fallback).
+   it.failing("should open error dialog from handleImportError when error.error is null", async () => {
+      const { comp, matDialogSpy } = await renderComp();
+      const error = new HttpErrorResponse({
+         error: null,
+         status: 500,
+         statusText: "Internal Server Error",
+         url: "/api/em/content/schedule/import/true",
+      });
+
+      let threw = false;
+      try {
+         (comp as any).handleImportError(error);
+      }
+      catch {
+         threw = true;
+      }
+
+      expect(threw).toBe(false);
+      expect(matDialogSpy.open).toHaveBeenCalledTimes(1);
+      const dialogData = matDialogSpy.open.mock.calls[0][1].data;
+      expect(dialogData.type).toBe(MessageDialogType.ERROR);
+      expect(dialogData.content).toBeTruthy();
+      expect(comp.loading).toBe(false);
    });
 
 });

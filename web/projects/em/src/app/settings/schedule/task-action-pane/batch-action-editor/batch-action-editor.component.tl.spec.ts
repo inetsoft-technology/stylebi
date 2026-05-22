@@ -94,12 +94,12 @@ async function renderComp(opts: {
    originalTaskName?: string;
    actionModel?: BatchActionModel;
    model?: TaskActionPaneModel;
-   dialogClosesWidth?: unknown;
+   dialogClosesWith?: unknown;
 } = {}) {
 
    const dialogMock = {
       open: jest.fn().mockReturnValue({
-         afterClosed: () => of(opts.dialogClosesWidth !== undefined ? opts.dialogClosesWidth : null),
+         afterClosed: () => of(opts.dialogClosesWith !== undefined ? opts.dialogClosesWith : null),
       }),
    };
 
@@ -152,7 +152,7 @@ describe("BatchActionEditorComponent — ngOnInit(): scheduled-tasks fetch", () 
 
       const { comp } = await renderComp({ originalTaskName: "" });
 
-      await new Promise(r => setTimeout(r, 50));
+      await waitFor(() => expect(comp.loadingParameterNames).toBe(false));
       expect(fetchSpy).not.toHaveBeenCalled();
       expect(comp.tasks).toBeUndefined();
    });
@@ -280,7 +280,7 @@ describe("BatchActionEditorComponent — editQuery() / editEmbedded(): dialog re
       };
 
       const { comp, dialogMock } = await renderComp({
-         dialogClosesWidth: dialogResult,
+         dialogClosesWith: dialogResult,
          actionModel: makeActionModel({ taskName: "TaskA" }),
       });
 
@@ -297,8 +297,8 @@ describe("BatchActionEditorComponent — editQuery() / editEmbedded(): dialog re
    // Risk Point/Contract: null dialog result (user cancelled) must leave actionModel unchanged
    // and must NOT fire modelChanged.
    it("should not update actionModel or emit when editEmbedded dialog closes with null", async () => {
-      const { comp } = await renderComp({
-         dialogClosesWidth: null,
+      const { comp, dialogMock } = await renderComp({
+         dialogClosesWith: null,
          actionModel: makeActionModel({ taskName: "TaskA", embeddedParameters: [[{ name: "orig" } as any]] }),
       });
 
@@ -307,7 +307,7 @@ describe("BatchActionEditorComponent — editQuery() / editEmbedded(): dialog re
 
       comp.editEmbedded();
 
-      await new Promise(r => setTimeout(r, 50));
+      await waitFor(() => expect(dialogMock.open).toHaveBeenCalled());
       expect(emitted.length).toBe(0);
       expect(comp.actionModel.embeddedParameters).toEqual([[{ name: "orig" }]]);
    });
@@ -355,8 +355,10 @@ describe("BatchActionEditorComponent — actionModel setter: conditional fetchPa
 
       comp.actionModel = makeActionModel({ taskName: "TaskA" }); // same name → no new fetch
 
-      await new Promise(r => setTimeout(r, 50));
-      expect(fetchSpy).not.toHaveBeenCalled();
+      await waitFor(() => {
+         expect(comp.loadingParameterNames).toBe(false);
+         expect(fetchSpy).not.toHaveBeenCalled();
+      });
    });
 
 });
