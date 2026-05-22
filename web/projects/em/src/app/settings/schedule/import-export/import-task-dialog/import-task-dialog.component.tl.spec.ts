@@ -27,11 +27,16 @@
  *   Group 5 [Risk 2]  — onImportComplete(): success dialog vs partial-failure warning dialog
  *
  * Confirmed bugs (it.failing until source is fixed):
- *   Bug #75126
+ *
  *   Bug A — handleImportError() missing optional chaining on error.error.message:
  *     `error.error.message` throws TypeError when error.error is null (e.g. null JSON body on
  *     500). handleUploadError() uses a fixed message string and is unaffected.
  *     Fix: `error.error?.message` with a fallback (e.g. `error.message`).
+ *
+ *   Bug B — ImportTaskResponse.failedTasks typed as `[]` (empty tuple), not `string[]`:
+ *     model/import-task-response.ts defines `failedTasks: []` but runtime/API returns task name
+ *     strings (Java: List<String>). Tests use `as any` to assign string arrays. Component uses
+ *     .length and .join() correctly. Fix: change to `failedTasks: string[]`.
  *
  * KEY contracts:
  *   - finish() collects selection.selected values and sends their `.task` strings in POST body.
@@ -308,6 +313,7 @@ describe("ImportTaskDialogComponent — onImportComplete(): dialog type and clos
    it("should open a WARNING dialog listing failed task names when failedTasks is non-empty", async () => {
       const { comp, matDialogSpy, dialogRefSpy } = await renderComp({ dialogClosesWith: undefined });
 
+      // Bug B — `as any` required until failedTasks is string[] in import-task-response.ts
       const response: ImportTaskResponse = { failedTasks: ["Task1", "Task2"] as any, failed: true };
       comp.onImportComplete(response);
 
