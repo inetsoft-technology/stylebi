@@ -100,7 +100,7 @@ public class ChartTypeFilter {
     * is used to build the recommendations list. The {@link FilterResult#prefRanked} list is
     * used only for primary visualization selection.
     */
-   FilterResult filterWithPreference(ChartPreference pref) {
+   protected FilterResult filterWithPreference(ChartPreference pref) {
       List<ChartInfo> defaultList = filter();
 
       if(pref == null || pref.isEmpty() || infos.isEmpty()) {
