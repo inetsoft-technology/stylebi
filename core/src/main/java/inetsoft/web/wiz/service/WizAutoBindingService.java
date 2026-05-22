@@ -29,12 +29,10 @@ import inetsoft.util.Tool;
 import inetsoft.web.vswizard.handler.VSWizardBindingHandler;
 import inetsoft.web.vswizard.model.VSWizardData;
 import inetsoft.web.vswizard.model.recommender.*;
+import inetsoft.web.vswizard.recommender.VSDefaultRecommendationFactory;
 import inetsoft.web.vswizard.recommender.WizardRecommenderUtil;
 import inetsoft.web.vswizard.recommender.chart.ChartCombinationUtil;
 import inetsoft.web.vswizard.recommender.chart.ChartPreference;
-import inetsoft.web.vswizard.recommender.object.VSCrosstabDefaultRecommendationFactory;
-import inetsoft.web.vswizard.recommender.object.VSGaugeRecommendationFactory;
-import inetsoft.web.vswizard.recommender.object.VSTableRecommendationFactory;
 import inetsoft.web.vswizard.service.VSWizardTemporaryInfoService;
 import inetsoft.web.wiz.model.*;
 import inetsoft.web.wiz.model.BindingInfo;
@@ -51,20 +49,16 @@ import java.util.stream.Collectors;
 @Service
 public class WizAutoBindingService {
    public WizAutoBindingService(ViewsheetService viewsheetService,
-                                 AssetRepository engine,
-                                 VSWizardTemporaryInfoService temporaryInfoService,
-                                 VSWizardBindingHandler bindingHandler,
-                                 VSCrosstabDefaultRecommendationFactory crosstabFactory,
-                                 VSGaugeRecommendationFactory gaugeFactory,
-                                 VSTableRecommendationFactory tableFactory)
+                                AssetRepository engine,
+                                VSWizardTemporaryInfoService temporaryInfoService,
+                                VSWizardBindingHandler bindingHandler,
+                                VSDefaultRecommendationFactory defaultRecommendationFactory)
    {
       this.viewsheetService = viewsheetService;
       this.engine = engine;
       this.temporaryInfoService = temporaryInfoService;
       this.bindingHandler = bindingHandler;
-      this.crosstabFactory = crosstabFactory;
-      this.gaugeFactory = gaugeFactory;
-      this.tableFactory = tableFactory;
+      this.defaultRecommendationFactory = defaultRecommendationFactory;
    }
 
    public AutoBindingResponse autoBinding(AutoBindingRequest request, Principal user)
@@ -144,17 +138,20 @@ public class WizAutoBindingService {
          String vizType = request.getVisualizationType();
          List<ExplicitBinding> explicitBindings = request.getExplicitBindings();
          ChartPreference pref = buildChartPreference(explicitBindings);
+         VSWizardData wizardData = new VSWizardData(entries, tempInfo, pref);
+         VSRecommendationModel model = defaultRecommendationFactory.recommend(wizardData, rvs, user);
 
-         // Single call: produces both the recommendations list (default-scored) and the
-         // preference-ranked infos for primary selection.
-         ChartCombinationUtil.ChartInfosResult chartResult =
-            buildChartInfos(entries, tempChartInfo, pref);
+         List<RecommendedVisualization> recommendations = Collections.emptyList();
+         List<ChartCombinationUtil.ScoredInfo> prefInfos = null;
 
-         List<RecommendedVisualization> recommendations =
-            buildRecommendations(entries, worksheetId, chartResult, rvs, tempInfo, user);
+         if(model != null) {
+            recommendations = buildRecommendations(model, worksheetId, entries);
+            VSObjectRecommendation chartRec = model.findRecommendation(VSRecommendType.CHART, false);
 
-         List<ChartCombinationUtil.ScoredInfo> prefInfos =
-            chartResult != null ? chartResult.getPrefInfos() : null;
+            if(chartRec instanceof VSChartRecommendation vcr) {
+               prefInfos = vcr.getPrefInfos();
+            }
+         }
 
          String intentCategory = request.getIntentCategory();
          RecommendedVisualization primary = buildPrimaryVisualization(
@@ -186,7 +183,7 @@ public class WizAutoBindingService {
    // ── AssetEntry building ──────────────────────────────────────────────────────
 
    private AssetEntry buildEntryFromColumn(ColumnRef col, String wsPath, String tableName,
-                                            SimpleFieldInfo fc)
+                                           SimpleFieldInfo fc)
    {
       String colName = col.getAttribute();
       String path = (wsPath != null && tableName != null)
@@ -222,7 +219,7 @@ public class WizAutoBindingService {
    }
 
    private AssetEntry buildEntryFromFieldInfo(SimpleFieldInfo field, String wsPath,
-                                               String tableName)
+                                              String tableName)
    {
       String fieldName = field.getField();
       String path = (wsPath != null && tableName != null)
@@ -293,7 +290,7 @@ public class WizAutoBindingService {
    }
 
    private void applyAestheticFieldConfig(AestheticRef aestheticRef,
-                                           Map<String, SimpleFieldInfo> configMap)
+                                          Map<String, SimpleFieldInfo> configMap)
    {
       if(aestheticRef != null && aestheticRef.getDataRef() instanceof ChartRef ref) {
          applyFieldConfig(ref, configMap);
@@ -339,7 +336,7 @@ public class WizAutoBindingService {
       for(ExplicitBinding eb : bindings) {
          if(eb.getRole() != null && eb.getField() != null) {
             slotFields.computeIfAbsent(eb.getRole(), k -> new LinkedHashSet<>())
-                      .add(eb.getField());
+               .add(eb.getField());
          }
       }
 
@@ -348,83 +345,61 @@ public class WizAutoBindingService {
 
    // ── Build full recommendations list ───────────────────────────────────────────
 
-   private ChartCombinationUtil.ChartInfosResult buildChartInfos(
-      AssetEntry[] entries, VSChartInfo tempChartInfo, ChartPreference pref)
-   {
-      long dimCount = Arrays.stream(entries).filter(e -> !isMeasureEntry(e)).count();
-      long measCount = entries.length - dimCount;
-
-      if(dimCount == 0 || measCount == 0) {
-         return null;
-      }
-
-      try {
-         return ChartCombinationUtil.getChartInfosWithScores(
-            entries, tempChartInfo, new ColumnSelection(), true, pref);
-      }
-      catch(Exception e) {
-         LOG.warn("ChartCombinationUtil.getChartInfosWithScores failed: {}", e.getMessage());
-         return null;
-      }
-   }
-
    private List<RecommendedVisualization> buildRecommendations(
-      AssetEntry[] entries, String worksheetId,
-      ChartCombinationUtil.ChartInfosResult chartResult,
-      RuntimeViewsheet rvs, VSTemporaryInfo tempInfo, Principal user)
+      VSRecommendationModel model, String worksheetId, AssetEntry[] entries)
    {
       List<RecommendedVisualization> recs = new ArrayList<>();
-      long dimCount = Arrays.stream(entries).filter(e -> !isMeasureEntry(e)).count();
-      long measCount = entries.length - dimCount;
 
-      if(chartResult != null) {
-         for(ChartInfo ci : chartResult.getInfos()) {
-            String vizType = getChartTypeString(ci.getChartType());
+      for(VSObjectRecommendation rec : model.getRecommendationList()) {
+         if(rec instanceof VSChartRecommendation chartRec) {
+            List<ChartInfo> infos = chartRec.getChartInfos();
 
-            if(vizType != null) {
-               RecommendedVisualization rec = new RecommendedVisualization();
-               rec.setVisualizationType(vizType);
-               rec.setConfig(convertToChartConfig(ci, worksheetId));
-               recs.add(rec);
+            if(infos != null) {
+               for(ChartInfo ci : infos) {
+                  String vizType = getChartTypeString(ci.getChartType());
+
+                  if(vizType != null) {
+                     RecommendedVisualization vizRec = new RecommendedVisualization();
+                     vizRec.setVisualizationType(vizType);
+                     vizRec.setConfig(convertToChartConfig(ci, worksheetId));
+                     recs.add(vizRec);
+                  }
+               }
             }
          }
-      }
-
-      if(dimCount > 0 && measCount > 0) {
-         RecommendedVisualization crosstabRec =
-            buildCrosstabRecommendation(entries, worksheetId, tempInfo, user);
-
-         if(crosstabRec != null) {
-            recs.add(crosstabRec);
+         else if(rec instanceof VSCrosstabRecommendation crosstabRec) {
+            if(crosstabRec.getCrosstabInfo() != null) {
+               CrosstabBinding binding = crosstabInfoToBinding(crosstabRec.getCrosstabInfo());
+               RecommendedVisualization vizRec = new RecommendedVisualization();
+               vizRec.setVisualizationType("crosstab");
+               vizRec.setConfig(wrapInConfig(binding, worksheetId));
+               recs.add(vizRec);
+            }
          }
-      }
-
-      recs.add(buildTableRecommendation(entries, worksheetId, rvs, user));
-
-      if(measCount == 1 && dimCount == 0) {
-         RecommendedVisualization outputRec =
-            buildOutputRecommendation(entries, worksheetId, tempInfo, user);
-
-         if(outputRec != null) {
-            recs.add(outputRec);
+         else if(rec instanceof VSTableRecommendation tableRec) {
+            recs.add(buildTableVisualization(tableRec, worksheetId, entries));
          }
+         else if(rec instanceof VSGaugeRecommendation gaugeRec) {
+            if(gaugeRec.getDataRef() != null) {
+               OutputBinding binding = new OutputBinding();
+               binding.setField(dataRefToMeasureFieldInfo(gaugeRec.getDataRef()));
+               RecommendedVisualization vizRec = new RecommendedVisualization();
+               vizRec.setVisualizationType("gauge");
+               vizRec.setConfig(wrapInConfig(binding, worksheetId));
+               recs.add(vizRec);
+            }
+         }
+         // VSFilterRecommendation, VSTextRecommendation: not included in REST response
       }
 
       return recs;
    }
 
-   private boolean isMeasureEntry(AssetEntry entry) {
-      return String.valueOf(AssetEntry.MEASURES).equals(entry.getProperty(AssetEntry.CUBE_COL_TYPE));
-   }
-
-   private RecommendedVisualization buildTableRecommendation(AssetEntry[] entries,
-                                                               String worksheetId,
-                                                               RuntimeViewsheet rvs,
-                                                               Principal user)
+   private RecommendedVisualization buildTableVisualization(VSTableRecommendation tableRec,
+                                                            String worksheetId,
+                                                            AssetEntry[] entries)
    {
-      VSWizardData wizardData = new VSWizardData(entries, null);
-      ColumnSelection columns = tableFactory.recommend(wizardData, rvs, user).getColumns();
-
+      ColumnSelection columns = tableRec.getColumns();
       TableBinding binding = new TableBinding();
 
       if(columns != null) {
@@ -449,67 +424,36 @@ public class WizAutoBindingService {
       return rec;
    }
 
-   private RecommendedVisualization buildCrosstabRecommendation(AssetEntry[] entries,
-                                                                  String worksheetId,
-                                                                  VSTemporaryInfo tempInfo,
-                                                                  Principal user)
-   {
-      VSWizardData wizardData = new VSWizardData(entries, tempInfo);
-      VSCrosstabRecommendation crosstabRec = crosstabFactory.recommend(wizardData, user);
-
-      if(crosstabRec == null) {
-         return null;
-      }
-
-      CrosstabBinding binding = crosstabInfoToBinding(crosstabRec.getCrosstabInfo());
-      RecommendedVisualization rec = new RecommendedVisualization();
-      rec.setVisualizationType("crosstab");
-      rec.setConfig(wrapInConfig(binding, worksheetId));
-      return rec;
-   }
-
-   private RecommendedVisualization buildOutputRecommendation(AssetEntry[] entries,
-                                                               String worksheetId,
-                                                               VSTemporaryInfo tempInfo,
-                                                               Principal user)
-   {
-      VSWizardData wizardData = new VSWizardData(entries, tempInfo);
-      VSGaugeRecommendation gaugeRec = gaugeFactory.recommend(wizardData, user);
-
-      if(gaugeRec == null || gaugeRec.getDataRef() == null) {
-         return null;
-      }
-
-      OutputBinding binding = new OutputBinding();
-      binding.setField(dataRefToMeasureFieldInfo(gaugeRec.getDataRef()));
-      RecommendedVisualization rec = new RecommendedVisualization();
-      rec.setVisualizationType("gauge");
-      rec.setConfig(wrapInConfig(binding, worksheetId));
-      return rec;
-   }
-
    // ── Factory output → BindingInfo conversion ──────────────────────────────────
 
    private CrosstabBinding crosstabInfoToBinding(VSCrosstabInfo info) {
       CrosstabBinding binding = new CrosstabBinding();
 
       List<DimensionFieldInfo> rows = dataRefsToFields(info.getDesignRowHeaders());
-      if(!rows.isEmpty()) binding.setRows(rows);
+      if(!rows.isEmpty()) {
+         binding.setRows(rows);
+      }
 
       List<DimensionFieldInfo> cols = dataRefsToFields(info.getDesignColHeaders());
-      if(!cols.isEmpty()) binding.setCols(cols);
+      if(!cols.isEmpty()) {
+         binding.setCols(cols);
+      }
 
       List<MeasureFieldInfo> aggs = Arrays.stream(info.getDesignAggregates())
          .filter(r -> r instanceof VSAggregateRef)
          .map(r -> vsAggRefToFieldInfo((VSAggregateRef) r))
          .collect(Collectors.toList());
-      if(!aggs.isEmpty()) binding.setAggregates(aggs);
+      if(!aggs.isEmpty()) {
+         binding.setAggregates(aggs);
+      }
 
       return binding;
    }
 
    private List<DimensionFieldInfo> dataRefsToFields(DataRef[] refs) {
-      if(refs == null) return Collections.emptyList();
+      if(refs == null) {
+         return Collections.emptyList();
+      }
       return Arrays.stream(refs)
          .filter(r -> r instanceof VSDimensionRef)
          .map(r -> vsDimRefToFieldInfo((VSDimensionRef) r))
@@ -549,13 +493,19 @@ public class WizAutoBindingService {
       ChartBinding binding = new ChartBinding();
 
       List<SimpleFieldInfo> x = chartRefsToFieldInfos(info.getXFields());
-      if(!x.isEmpty()) binding.setX(x);
+      if(!x.isEmpty()) {
+         binding.setX(x);
+      }
 
       List<SimpleFieldInfo> y = chartRefsToFieldInfos(info.getYFields());
-      if(!y.isEmpty()) binding.setY(y);
+      if(!y.isEmpty()) {
+         binding.setY(y);
+      }
 
       List<SimpleFieldInfo> group = chartRefsToFieldInfos(info.getGroupFields());
-      if(!group.isEmpty()) binding.setGroup(group);
+      if(!group.isEmpty()) {
+         binding.setGroup(group);
+      }
 
       if(info.getColorField() != null) {
          binding.setColor(chartRefToFieldInfo(info.getColorField().getDataRef()));
@@ -621,7 +571,9 @@ public class WizAutoBindingService {
    // ── Entry → FieldInfo conversion ─────────────────────────────────────────────
 
    private SimpleFieldInfo entryToSimpleFieldInfo(AssetEntry entry) {
-      return isMeasureEntry(entry)
+      boolean isMeasure = String.valueOf(AssetEntry.MEASURES)
+         .equals(entry.getProperty(AssetEntry.CUBE_COL_TYPE));
+      return isMeasure
          ? entryToMeasureFieldInfo(entry)
          : entryToDimensionFieldInfo(entry);
    }
@@ -665,7 +617,9 @@ public class WizAutoBindingService {
       if(vizType != null) {
          if(isChartVizType(vizType)) {
             RecommendedVisualization byType = buildBestChartVizByType(prefInfos, vizType, worksheetId);
-            if(byType != null) return byType;
+            if(byType != null) {
+               return byType;
+            }
          }
 
          RecommendedVisualization found = findInRecommendations(vizType, recommendations);
@@ -678,7 +632,9 @@ public class WizAutoBindingService {
 
          if(inferredType != null) {
             RecommendedVisualization found = findInRecommendations(inferredType, recommendations);
-            if(found != null) return found;
+            if(found != null) {
+               return found;
+            }
          }
       }
 
@@ -699,7 +655,7 @@ public class WizAutoBindingService {
    }
 
    private RecommendedVisualization findInRecommendations(String vizType,
-                                                            List<RecommendedVisualization> recommendations)
+                                                          List<RecommendedVisualization> recommendations)
    {
       return recommendations.stream()
          .filter(r -> vizType.equals(r.getVisualizationType()))
@@ -710,8 +666,12 @@ public class WizAutoBindingService {
    private String inferNonChartVizType(List<ExplicitBinding> bindings) {
       int chartScore = countRoleMatches(bindings, CHART_ROLES);
 
-      if(countRoleMatches(bindings, CROSSTAB_ROLES) > chartScore) return "crosstab";
-      if(countRoleMatches(bindings, TABLE_ROLES) > chartScore) return "table";
+      if(countRoleMatches(bindings, CROSSTAB_ROLES) > chartScore) {
+         return "crosstab";
+      }
+      if(countRoleMatches(bindings, TABLE_ROLES) > chartScore) {
+         return "table";
+      }
 
       return null;
    }
@@ -930,7 +890,5 @@ public class WizAutoBindingService {
    private final AssetRepository engine;
    private final VSWizardTemporaryInfoService temporaryInfoService;
    private final VSWizardBindingHandler bindingHandler;
-   private final VSCrosstabDefaultRecommendationFactory crosstabFactory;
-   private final VSGaugeRecommendationFactory gaugeFactory;
-   private final VSTableRecommendationFactory tableFactory;
+   private final VSDefaultRecommendationFactory defaultRecommendationFactory;
 }

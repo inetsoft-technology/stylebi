@@ -77,6 +77,16 @@ public final class VSDefaultRecommendationFactory implements VSRecommendationFac
    public VSRecommendationModel recommend(VSWizardData wizardData, Principal principal)
       throws Exception
    {
+      String id = runtimeViewsheetRef.getRuntimeId();
+      RuntimeViewsheet rvs = viewsheetService.getViewsheet(id, principal);
+      return recommend(wizardData, rvs, principal);
+   }
+
+   @Override
+   public VSRecommendationModel recommend(VSWizardData wizardData,
+                                          RuntimeViewsheet rvs,
+                                          Principal principal) throws Exception
+   {
       long ts = System.currentTimeMillis();
       AssetEntry[] entries = wizardData == null ? null : wizardData.getSelectedEntries();
 
@@ -84,18 +94,16 @@ public final class VSDefaultRecommendationFactory implements VSRecommendationFac
          return new VSRecommendationModel();
       }
 
-      Optional<ViewsheetSandbox> box = getViewsheetSandbox(principal);
-      VSTemporaryInfo temporaryInfo = getTemporaryInfo(principal);
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+      VSTemporaryInfo temporaryInfo = temporaryInfoService.getVSTemporaryInfo(rvs);
 
       if(temporaryInfo == null) {
          return null;
       }
 
-      AssetEntry[] selectedEntries = wizardData.getSelectedEntries();
-
       // don't recommend chart/crosstab when > 9 so no need to get cardinality
-      if(selectedEntries.length <= 9 && box.isPresent() && !box.get().isCancelled(ts)) {
-         WizardRecommenderUtil.refreshCardinalityAndHierarchy(box.get(), temporaryInfo, selectedEntries);
+      if(entries.length <= 9 && box.isPresent() && !box.get().isCancelled(ts)) {
+         WizardRecommenderUtil.refreshCardinalityAndHierarchy(box.get(), temporaryInfo, entries);
       }
 
       if(box.isEmpty() || box.get().isCancelled(ts)) {
@@ -103,14 +111,14 @@ public final class VSDefaultRecommendationFactory implements VSRecommendationFac
       }
 
       VSRecommendationModel model = new VSRecommendationModel();
-      doRecommendation(model, wizardData, principal);
+      doRecommendation(model, wizardData, rvs, principal);
 
-      if(model.getRecommendationList().size() > 0) {
+      if(!model.getRecommendationList().isEmpty()) {
          VSObjectRecommendation objModel = model.getRecommendationList().get(0);
          model.setSelectedType(objModel.getType());
          List<VSSubType> subTypes = objModel.getSubTypes();
 
-         if(subTypes.size() > 0) {
+         if(!subTypes.isEmpty()) {
             objModel.setSelectedIndex(0);
          }
       }
@@ -120,47 +128,47 @@ public final class VSDefaultRecommendationFactory implements VSRecommendationFac
 
    private void doRecommendation(VSRecommendationModel model,
                                  VSWizardData wizardData,
-                                 Principal principal)
-      throws Exception
+                                 RuntimeViewsheet rvs,
+                                 Principal principal) throws Exception
    {
       AssetEntry[] entries = wizardData.getSelectedEntries();
       VSChartInfo vinfo = bindingHandler.getTempChart(wizardData);
 
       // only one aggregate column.
       if(entries.length == 1 && vinfo.getYFields().length == 1) {
-         appendDataRecommendation(model, wizardData, principal);
+         appendDataRecommendation(model, wizardData, rvs, principal);
          appendOutputRecommendation(model, wizardData, principal);
-         appendFilterRecommendation(model, wizardData, principal);
+         appendFilterRecommendation(model, wizardData, rvs, principal);
       }
       else if(entries.length == 1 && vinfo.getXFields().length == 1 &&
          WizardRecommenderUtil.isDateType(entries[0]))
       {
-         appendFilterRecommendation(model, wizardData, principal);
-         appendDataRecommendation(model, wizardData, principal);
+         appendFilterRecommendation(model, wizardData, rvs, principal);
+         appendDataRecommendation(model, wizardData, rvs, principal);
       }
       else {
-         appendDataRecommendation(model, wizardData, principal);
+         appendDataRecommendation(model, wizardData, rvs, principal);
          appendOutputRecommendation(model, wizardData, principal);
-         appendFilterRecommendation(model, wizardData, principal);
+         appendFilterRecommendation(model, wizardData, rvs, principal);
       }
    }
 
    private void appendDataRecommendation(VSRecommendationModel model,
                                          VSWizardData wizardData,
-                                         Principal principal)
-      throws Exception
+                                         RuntimeViewsheet rvs,
+                                         Principal principal) throws Exception
    {
       AssetEntry[] entries = wizardData.getSelectedEntries();
       VSChartInfo vinfo = bindingHandler.getTempChart(wizardData);
       List<ChartRef> groups = Arrays.asList(vinfo.getXFields());
       List<ChartRef> aggregates = Arrays.asList(vinfo.getYFields());
       int refCount = groups.size() + aggregates.size();
-      boolean allAggCalc = groups.size() == 0 && allCalc(principal, aggregates);
+      boolean allAggCalc = groups.isEmpty() && WizardRecommenderUtil.allCalc(aggregates, rvs);
       int chartScore = refCount > 0
          ? ChartRecommenderUtil.scoreGroupAssembly(entries, groups, true) : -1;
-      int crosstabScore = aggregates.size() > 0
-         ? ChartRecommenderUtil.scoreGroupAssembly(entries, groups, false) : -1;
       // table score is compared to chart/crosstab scores calculated in scoreGroupAssembly
+      int crosstabScore = !aggregates.isEmpty()
+         ? ChartRecommenderUtil.scoreGroupAssembly(entries, groups, false) : -1;
       int tableScore = !allAggCalc ? 8 : -1;
       VSChartRecommendationFactory chartFactory = chartService.getFactory();
       VSCrosstabRecommendationFactory crosstabFactory = crosstabService.getFactory();
@@ -185,26 +193,26 @@ public final class VSDefaultRecommendationFactory implements VSRecommendationFac
       factories.sort((a, b) -> scoreMap.get(b) - scoreMap.get(a));
 
       for(VSObjectRecommendationFactory<?> factory : factories) {
-         model.addVSObjectRecommendation(factory.recommend(wizardData, principal));
+         model.addVSObjectRecommendation(factory.recommend(wizardData, rvs, principal));
       }
    }
 
    private void appendFilterRecommendation(VSRecommendationModel model,
                                            VSWizardData wizardData,
-                                           Principal principal)
-      throws Exception
+                                           RuntimeViewsheet rvs,
+                                           Principal principal) throws Exception
    {
       AssetEntry[] entries = wizardData.getSelectedEntries();
       VSChartInfo vinfo = bindingHandler.getTempChart(wizardData);
       List<ChartRef> groups = Arrays.asList(vinfo.getXFields());
       List<ChartRef> aggregates = Arrays.asList(vinfo.getYFields());
 
-      if(entries.length == 1 && !allCalc(principal, aggregates) ||
+      if(entries.length == 1 && !WizardRecommenderUtil.allCalc(aggregates, rvs) ||
          // limit cardinality and level of selection tree. (55118)
-         groups.size() > 0 && groups.size() <= 3 && aggregates.size() == 0 &&
+         !groups.isEmpty() && groups.size() <= 3 && aggregates.isEmpty() &&
             isDiscreteDimension(groups))
       {
-         model.addVSObjectRecommendation(filterFactory.recommend(wizardData, principal));
+         model.addVSObjectRecommendation(filterFactory.recommend(wizardData, rvs, principal));
       }
    }
 
@@ -223,33 +231,15 @@ public final class VSDefaultRecommendationFactory implements VSRecommendationFac
       List<ChartRef> aggregates = Arrays.asList(vinfo.getYFields());
 
       // Should only binding aggregate to text/gauge, not number type data.
-      if(groups.size() == 0 && aggregates.size() == 1) {
+      if(groups.isEmpty() && aggregates.size() == 1) {
          model.addVSObjectRecommendation(
             outputService.getFactory(GaugeVSAssembly.class).recommend(wizardData, principal));
       }
 
-      if(groups.size() == 0 && aggregates.size() == 1) {
+      if(groups.isEmpty() && aggregates.size() == 1) {
          model.addVSObjectRecommendation(
             outputService.getFactory(TextVSAssembly.class).recommend(wizardData, principal));
       }
-   }
-
-   private Optional<ViewsheetSandbox> getViewsheetSandbox(Principal principal) throws Exception {
-      String id = runtimeViewsheetRef.getRuntimeId();
-      RuntimeViewsheet rvs = viewsheetService.getViewsheet(id, principal);
-      return rvs.getViewsheetSandbox();
-   }
-
-   private VSTemporaryInfo getTemporaryInfo(Principal principal) throws Exception {
-      String id = runtimeViewsheetRef.getRuntimeId();
-      RuntimeViewsheet rvs = viewsheetService.getViewsheet(id, principal);
-      return temporaryInfoService.getVSTemporaryInfo(rvs);
-   }
-
-   private boolean allCalc(Principal principal, List<ChartRef> aggregates) throws Exception {
-      String id = this.runtimeViewsheetRef.getRuntimeId();
-      RuntimeViewsheet rvs = viewsheetService.getViewsheet(id, principal);
-      return WizardRecommenderUtil.allCalc(aggregates, rvs);
    }
 
    public static final String STRATEGY_NAME = "default_recommender";

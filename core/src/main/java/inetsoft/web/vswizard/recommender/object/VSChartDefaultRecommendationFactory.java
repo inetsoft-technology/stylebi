@@ -70,7 +70,22 @@ public final class VSChartDefaultRecommendationFactory implements VSChartRecomme
     */
    @Override
    public VSChartRecommendation recommend(VSWizardData wizardData, Principal principal) {
-      ColumnSelection geoCols = getGeoCols(bindingHandler.getTempChart(wizardData));
+      try {
+         RuntimeViewsheet rvs = viewsheetService.getViewsheet(
+            runtimeViewsheetRef.getRuntimeId(), principal);
+         return recommend(wizardData, rvs, principal);
+      }
+      catch(Exception ex) {
+         LOG.error("Failed to get the runtime viewsheet", ex);
+         return null;
+      }
+   }
+
+   @Override
+   public VSChartRecommendation recommend(VSWizardData wizardData,
+                                          RuntimeViewsheet rvs,
+                                          Principal principal)
+   {
       AssetEntry[] entries = wizardData.getSelectedEntries();
       VSChartInfo temp;
 
@@ -82,17 +97,17 @@ public final class VSChartDefaultRecommendationFactory implements VSChartRecomme
          return null;
       }
 
-      boolean autoOrder = isAutoOrder(principal);
-      // create all valid recommedation.
-      List<ChartInfo> infos = ChartCombinationUtil.getChartInfos(entries, temp, geoCols, autoOrder);
-      // changed to control how many is showing on the client.
-      // get the top recommendation.
-      //infos = infos.stream().limit(12).collect(Collectors.toList());
+      ColumnSelection geoCols = getGeoCols(temp);
+      boolean autoOrder = isAutoOrder(rvs);
+      ChartCombinationUtil.ChartInfosResult result =
+         ChartCombinationUtil.getChartInfosWithScores(
+            entries, temp, geoCols, autoOrder, wizardData.getPreferenceInfo());
+      List<ChartInfo> infos = result.getInfos();
       VSChartRecommendation chart = new VSChartRecommendation();
       chart.setSubTypes(getSubTypes(infos));
       infos.forEach(info -> fixChartInfo((VSChartInfo) info, temp));
       chart.setChartInfos(infos);
-
+      chart.setPrefInfos(result.getPrefInfos());
       return infos.size() > 0 ? chart : null;
    }
 
@@ -124,15 +139,8 @@ public final class VSChartDefaultRecommendationFactory implements VSChartRecomme
       info.setAggregateInfo(temp.getAggregateInfo());
    }
 
-   private boolean isAutoOrder(Principal principal) {
+   private boolean isAutoOrder(RuntimeViewsheet rvs) {
       try {
-         RuntimeViewsheet rvs = viewsheetService.getViewsheet(
-            this.runtimeViewsheetRef.getRuntimeId(), principal);
-
-         if(rvs == null) {
-            return true;
-         }
-
          return temporaryInfoService.getVSTemporaryInfo(rvs).isAutoOrder();
       }
       catch(Exception ex) {

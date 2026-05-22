@@ -21,6 +21,7 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import inetsoft.uql.viewsheet.graph.ChartInfo;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
 import inetsoft.util.Tool;
+import inetsoft.web.vswizard.recommender.chart.ChartCombinationUtil;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 
@@ -77,6 +78,16 @@ public class VSChartRecommendation extends VSAbstractObjectRecommendation {
       }
    }
 
+   public List<ChartCombinationUtil.ScoredInfo> getPrefInfos() {
+      return prefInfos;
+   }
+
+   public void setPrefInfos(List<ChartCombinationUtil.ScoredInfo> prefInfos) {
+      this.prefInfos = prefInfos;
+   }
+
    @JsonIgnore
    private transient List<ChartInfo> chartInfos;
+   @JsonIgnore
+   private transient List<ChartCombinationUtil.ScoredInfo> prefInfos;
 }
