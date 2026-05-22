@@ -21,11 +21,13 @@ import inetsoft.util.data.CommonKVModel;
 import inetsoft.report.composition.graph.GraphUtil;
 import inetsoft.uql.asset.AggregateFormula;
 import inetsoft.uql.asset.AssetEntry;
+import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.VSDimensionRef;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.graph.aesthetic.StaticSizeFrameWrapper;
 import inetsoft.web.vswizard.recommender.ChartRecommenderUtil;
+import inetsoft.web.vswizard.recommender.WizardRecommenderUtil;
 import inetsoft.web.vswizard.recommender.object.VSChartScoreComparator;
 import it.unimi.dsi.fastutil.ints.IntList;
 
@@ -89,6 +91,102 @@ public class ChartTypeFilter {
       Collections.sort(infos, scoreComp);
 
       return infos.stream().limit(getStyleCount()).collect(Collectors.toList());
+   }
+
+   /**
+    * Produces both the default-ranked list (base data-score) and a preference-ranked list
+    * (base score + slot-match bonuses) in a single pass.
+    * The {@link FilterResult#defaultRanked} list mirrors what {@link #filter()} returns and
+    * is used to build the recommendations list. The {@link FilterResult#prefRanked} list is
+    * used only for primary visualization selection.
+    */
+   protected FilterResult filterWithPreference(ChartPreference pref) {
+      List<ChartInfo> defaultList = filter();
+
+      if(pref == null || pref.isEmpty() || infos.isEmpty()) {
+         return new FilterResult(defaultList, Collections.emptyList());
+      }
+
+      Map<String, Set<String>> slotFields = pref.getSlotFields();
+      Map<Integer, Integer> adjustedScores = new HashMap<>(scores);
+      // IdentityHashMap avoids hashCode collisions when mapping per-instance bonuses
+      Map<ChartInfo, Integer> prefBonuses = new IdentityHashMap<>();
+
+      for(ChartInfo info : infos) {
+         if(info instanceof VSChartInfo vsci) {
+            int bonus = computePreferenceBonus(vsci, slotFields);
+
+            if(bonus > 0) {
+               prefBonuses.put(info, bonus * PREFERENCE_SLOT_BONUS);
+               adjustedScores.merge(info.hashCode(), bonus * PREFERENCE_SLOT_BONUS, Integer::sum);
+            }
+         }
+      }
+
+      List<ChartInfo> prefSorted = new ArrayList<>(infos);
+      prefSorted.sort(new VSChartScoreComparator(adjustedScores));
+
+      List<ChartCombinationUtil.ScoredInfo> prefRanked = prefSorted.stream()
+         .limit(getStyleCount())
+         .map(ci -> new ChartCombinationUtil.ScoredInfo(
+            ci, scores.getOrDefault(ci.hashCode(), 0) + prefBonuses.getOrDefault(ci, 0)))
+         .collect(Collectors.toList());
+
+      return new FilterResult(defaultList, prefRanked);
+   }
+
+   public static class FilterResult {
+      FilterResult(List<ChartInfo> defaultRanked, List<ChartCombinationUtil.ScoredInfo> prefRanked) {
+         this.defaultRanked = defaultRanked;
+         this.prefRanked = prefRanked;
+      }
+
+      final List<ChartInfo> defaultRanked;
+      final List<ChartCombinationUtil.ScoredInfo> prefRanked;
+   }
+
+   // score bonus per matched slot when selecting the primary recommendation
+   protected static final int PREFERENCE_SLOT_BONUS = 5;
+
+   private int computePreferenceBonus(VSChartInfo info, Map<String, Set<String>> slotFields) {
+      int bonus = 0;
+      bonus += countSlotMatches(info.getXFields(), slotFields.get("x"));
+      bonus += countSlotMatches(info.getYFields(), slotFields.get("y"));
+      bonus += countSlotMatches(info.getGroupFields(), slotFields.get("group"));
+      bonus += countAestheticMatch(info.getColorField(), slotFields.get("color"));
+      bonus += countAestheticMatch(info.getShapeField(), slotFields.get("shape"));
+      bonus += countAestheticMatch(info.getSizeField(), slotFields.get("size"));
+      bonus += countAestheticMatch(info.getTextField(), slotFields.get("text"));
+      return bonus;
+   }
+
+   private int countSlotMatches(ChartRef[] refs, Set<String> preferred) {
+      if(refs == null || preferred == null || preferred.isEmpty()) {
+         return 0;
+      }
+
+      int count = 0;
+
+      for(ChartRef ref : refs) {
+         if(preferred.contains(getRefFieldName(ref))) {
+            count++;
+         }
+      }
+
+      return count;
+   }
+
+   private int countAestheticMatch(AestheticRef aesthetic, Set<String> preferred) {
+      if(aesthetic == null || preferred == null || preferred.isEmpty()) {
+         return 0;
+      }
+
+      DataRef dataRef = aesthetic.getDataRef();
+      return dataRef != null && preferred.contains(getRefFieldName(dataRef)) ? 1 : 0;
+   }
+
+   private String getRefFieldName(DataRef ref) {
+      return WizardRecommenderUtil.getChartRefFieldName(ref);
    }
 
    /**

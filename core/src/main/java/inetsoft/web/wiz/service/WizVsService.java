@@ -1097,13 +1097,20 @@ public class WizVsService {
    private int getChartType(String type) {
       return switch(type) {
          case "bar" -> GraphTypes.CHART_BAR;
+         case "bar_stack" -> GraphTypes.CHART_BAR_STACK;
          case "3d_bar" -> GraphTypes.CHART_3D_BAR;
+         case "3d_bar_stack" -> GraphTypes.CHART_3D_BAR_STACK;
          case "area" -> GraphTypes.CHART_AREA;
+         case "area_stack" -> GraphTypes.CHART_AREA_STACK;
          case "point" -> GraphTypes.CHART_POINT;
+         case "point_stack" -> GraphTypes.CHART_POINT_STACK;
          case "step_area" -> GraphTypes.CHART_STEP_AREA;
+         case "step_area_stack" -> GraphTypes.CHART_STEP_AREA_STACK;
          case "interval" -> GraphTypes.CHART_INTERVAL;
          case "line" -> GraphTypes.CHART_LINE;
+         case "line_stack" -> GraphTypes.CHART_LINE_STACK;
          case "step_line" -> GraphTypes.CHART_STEP;
+         case "step_line_stack" -> GraphTypes.CHART_STEP_STACK;
          case "jump_line" -> GraphTypes.CHART_JUMP;
          case "pie" -> GraphTypes.CHART_PIE;
          case "3d_pie" -> GraphTypes.CHART_3D_PIE;
@@ -1753,7 +1760,7 @@ public class WizVsService {
     * @param level the integer date level constant
     * @return the human-readable name, or null if level is NONE_DATE_GROUP or unrecognized
     */
-   private static String getDateGroupLevelName(int level) {
+   public static String getDateGroupLevelName(int level) {
       return switch(level) {
          // Interval levels
          case XConstants.YEAR_DATE_GROUP -> "year";
