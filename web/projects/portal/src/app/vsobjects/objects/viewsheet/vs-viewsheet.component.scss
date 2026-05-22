@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 .viewsheet-link {
-   z-index: 10000;
+   z-index: 100000;
    position: absolute;
    top: 0;
    left: 0;
@@ -32,13 +32,13 @@
   position: absolute;
   top: 0;
   display: none;
-  z-index: 9999;
+  z-index: 99999;
   width: 20px;
   background-color: var(--inet-toolbar-bg-color);
 }
 
 .composer-overlay {
-  z-index: 9997;
+  z-index: 99997;
   position: absolute;
   top: 0;
   left: 0;
@@ -47,7 +47,7 @@
 }
 
 .top-level-composer-overlay {
-  z-index: 9998;
+  z-index: 99998;
   position: absolute;
   top: 0;
   left: 0;
