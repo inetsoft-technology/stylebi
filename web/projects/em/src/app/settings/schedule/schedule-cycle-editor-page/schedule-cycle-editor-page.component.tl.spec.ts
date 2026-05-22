@@ -302,30 +302,33 @@ describe("ScheduleCycleEditorPageComponent — save(): success and error paths",
    });
 
    // Bug A — save() error handler reads error.error.message without optional chaining (loadModel is safe).
-   // Null JSON body → TypeError; user gets no dialog feedback. Match loadModel(): skip dialog.
-   it.failing("should not throw and should skip error dialog when save error body is null", async () => {
-      const { dialogMock } = await renderComponent();
-      const error = new HttpErrorResponse({
+   // Null JSON body → TypeError in save() subscribe; no dialog. Fix: use error.error?.message like loadModel().
+   // Spy http.post so the real save() subscribe error callback runs with a null body (same as MSW 500/null).
+   it.failing("should not throw when save error body is null", async () => {
+      const { comp, dialogMock } = await renderComponent();
+      const httpError = new HttpErrorResponse({
          error: null,
          status: 500,
          statusText: "Internal Server Error",
       });
 
-      let threw = false;
-      try {
-         // mirror save() error handler (schedule-cycle-editor-page.component.ts:279-289)
-         if(error.error.message) {
-            dialogMock.open({} as any, {
-               width: "500px",
-               data: { title: "_#(js:Error)", content: error.error.message, type: 0 },
-            });
-         }
-      }
-      catch {
-         threw = true;
-      }
+      let errorHandlerThrew = false;
+      jest.spyOn(comp["http"], "post").mockReturnValue({
+         subscribe(_success: unknown, error: (err: HttpErrorResponse) => void) {
+            try {
+               error(httpError);
+            }
+            catch {
+               errorHandlerThrew = true;
+            }
+            return { unsubscribe: () => {} };
+         },
+      } as any);
 
-      expect(threw).toBe(false);
+      comp.taskChanged = true;
+      comp.save();
+
+      expect(errorHandlerThrew).toBe(false);
       expect(dialogMock.open).not.toHaveBeenCalled();
    });
 
