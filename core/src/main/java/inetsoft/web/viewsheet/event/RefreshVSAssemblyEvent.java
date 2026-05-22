@@ -48,8 +48,8 @@ public abstract class RefreshVSAssemblyEvent {
 
    public abstract @Nullable Dimension getAssemblySize();
 
-   public static CacheMetrics.Builder builder() {
-      return new CacheMetrics.Builder();
+   public static Builder builder() {
+      return new Builder();
    }
 
    public static final class Builder extends ImmutableRefreshVSAssemblyEvent.Builder {

@@ -1592,6 +1592,7 @@ public class CoreLifecycleService {
       }
 
       EmbedAssemblyInfo embedAssemblyInfo = rvs.getEmbedAssemblyInfo();
+      Dimension assemblySize = embedAssemblyInfo.getAssemblySize();
 
       if(!Tool.equals(name, embedAssemblyInfo.getAssemblyName())) {
          return;
@@ -1599,10 +1600,10 @@ public class CoreLifecycleService {
 
       AssemblyInfo info = assembly.getInfo();
 
-      if(info instanceof ChartVSAssemblyInfo) {
+      if(info instanceof ChartVSAssemblyInfo && assemblySize != null) {
          // Apply the embed container size before building the runtime chart model.
-         ((ChartVSAssemblyInfo) info).setMaxSize(embedAssemblyInfo.getAssemblySize());
-         info.setPixelSize(embedAssemblyInfo.getAssemblySize());
+         ((ChartVSAssemblyInfo) info).setMaxSize(assemblySize);
+         info.setPixelSize(assemblySize);
       }
    }
 

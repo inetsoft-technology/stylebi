@@ -584,6 +584,8 @@ export class EmbedChartComponent extends CommandProcessor implements OnInit, OnD
             const refreshEvent: RefreshVsAssemblyEvent = {
                vsRuntimeId: this.runtimeId,
                assemblyName: this.assemblyName,
+               // Intentionally omit embed=true here: resize should update an existing
+               // embedded assembly session, not create embed metadata on the server.
                assemblySize: this.assemblySize
             };
             this.viewsheetClient.sendEvent("/events/vs/refresh/assembly", refreshEvent);
