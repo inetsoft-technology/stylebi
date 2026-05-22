@@ -195,6 +195,7 @@ public class WizAutoBindingService {
       AssetEntry entry = new AssetEntry(
          AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.COLUMN, path, null);
       entry.setProperty("assembly", tableName != null ? tableName : "");
+      entry.setProperty("attribute", colName);
 
       String dtype = col.getDataType() != null ? col.getDataType() : XSchema.STRING;
       entry.setProperty("dtype", dtype);
@@ -230,6 +231,7 @@ public class WizAutoBindingService {
       AssetEntry entry = new AssetEntry(
          AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.COLUMN, path, null);
       entry.setProperty("assembly", tableName != null ? tableName : "");
+      entry.setProperty("attribute", fieldName);
 
       String dtype = field.getType() != null ? field.getType() : XSchema.STRING;
       entry.setProperty("dtype", dtype);
