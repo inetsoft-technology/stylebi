@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Component, Input, Output, EventEmitter } from "@angular/core";
+import { Component, ElementRef, EventEmitter, Input, Output, ViewChild } from "@angular/core";
 
 @Component({
    selector: "multi-select",
@@ -27,6 +27,7 @@ export class MultiSelect {
    @Input() selectedItems: any[] = [];
    @Input() disabled: boolean = false;
    @Output() selectedItemsChange: EventEmitter<any[]> = new EventEmitter<any[]>();
+   @ViewChild("trigger", { read: ElementRef }) triggerRef: ElementRef<HTMLElement>;
    open: boolean = false;
 
    changed(event) {
@@ -38,6 +39,7 @@ export class MultiSelect {
       }
 
       this.selectedItemsChange.emit(this.selectedItems);
+      setTimeout(() => this.triggerRef?.nativeElement?.focus());
    }
 
    getLabel(): string {

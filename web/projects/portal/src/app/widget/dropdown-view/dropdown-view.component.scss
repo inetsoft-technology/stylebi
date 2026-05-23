@@ -43,6 +43,15 @@ label {
   background-image: none;
 }
 
+:host(.is-open) .dropdown-button,
+:host(.is-open) .custom-select-trigger,
+:host(:focus-within) .dropdown-button,
+:host(:focus-within) .custom-select-trigger {
+  border-color: var(--inet-primary-color);
+  box-shadow: var(--inet-focus-ring);
+  outline: var(--inet-focus-ring-outline);
+}
+
 .custom-select-trigger__text {
   display: block;
   min-width: 0;

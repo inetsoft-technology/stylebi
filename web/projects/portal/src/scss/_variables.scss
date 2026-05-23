@@ -460,6 +460,8 @@ $sqrt2: 1.41421356;
   // focus
   --inet-focus-ring-width: 2px;
   --inet-focus-ring-color: rgba(229, 138, 42, 0.28);
+  --inet-focus-ring: 0 0 0 var(--inet-focus-ring-width) var(--inet-focus-ring-color);
+  --inet-focus-ring-outline: none;
 
   // transient surfaces
   --inet-splash-bg: var(--inet-dialog-bg-color);

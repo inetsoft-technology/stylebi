@@ -23,6 +23,9 @@ import { VSFormatPaneModel } from "../model/vs-format-pane-model";
    templateUrl: "vs-format-pane.component.html"
 })
 export class VSFormatPane {
+   // Repo scan on 2026-05-21 found this component declared in VSObjectModule but not mounted
+   // anywhere under web/projects. The active viewsheet formatting UI in Composer/viewer uses
+   // vs-formats-pane in vsobjects/format/vs-formats-pane.component instead.
    @Input() presenter: string[];
    @Input() model: VSFormatPaneModel;
 

@@ -15,15 +15,33 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-.form-floating label {
-  justify-content: flex-start;
+:host {
+  display: block;
+  width: 100%;
+  min-width: 0;
 }
 
+form {
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+}
+
+.variable-editor-group {
+  width: 100%;
+  min-width: 0;
+}
+
+.input-group,
 .variable-input-group {
   display: flex;
+  width: 100%;
+  min-width: 0;
 }
 
 .variable-input {
+  flex: 1 1 auto;
+  width: 100%;
   min-width: 0;
 }
 

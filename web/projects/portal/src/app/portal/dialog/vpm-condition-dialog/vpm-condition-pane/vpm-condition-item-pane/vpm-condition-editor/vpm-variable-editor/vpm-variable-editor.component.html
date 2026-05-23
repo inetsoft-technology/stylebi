@@ -16,8 +16,7 @@
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
 <form [formGroup]="vform">
-   <div class="form-floating">
-      <div class="input-group" [class.variable-input-group]="varShowDate">
+   <div class="input-group variable-editor-group" [class.variable-input-group]="varShowDate">
       <input class="form-control" type="text" [class.variable-input]="varShowDate"
          [placeholder]="'_#(Variable Name)'"
          [ngClass]="{'w-100': !varShowDate,
@@ -36,7 +35,5 @@
                      ariaLabel="_#(Variable Name)"
                      placeholder="_#(Select)">
       </custom-select>
-      </div>
-      <label>_#(Variable Name)</label>
    </div>
 </form>

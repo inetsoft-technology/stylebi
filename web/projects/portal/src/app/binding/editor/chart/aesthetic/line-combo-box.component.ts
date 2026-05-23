@@ -19,12 +19,14 @@ import { Component, Input, Output, EventEmitter } from "@angular/core";
 
 @Component({
    selector: "line-combo-box",
-   templateUrl: "line-combo-box.component.html"
+   templateUrl: "line-combo-box.component.html",
+   styleUrls: ["visual-combo-box-trigger.scss"]
 })
 export class LineComboBox {
    @Input() index: number;
    @Input() line: number;
    @Output() lineChanged: EventEmitter<number> = new EventEmitter<number>();
+   open: boolean = false;
 
    changeLine(nline: number) {
       this.lineChanged.emit(nline);

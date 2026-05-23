@@ -59,6 +59,7 @@ export class GridLineDropdown implements OnInit {
       this.lineStyle = lineStyle;
       this.lineStyleChange.emit(lineStyle);
       this.dropdown?.close();
+      setTimeout(() => this.dropdownBody?.nativeElement?.focus());
    }
 
    getLineStyleName(val: number) {

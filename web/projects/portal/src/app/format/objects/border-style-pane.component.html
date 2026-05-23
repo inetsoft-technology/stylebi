@@ -18,6 +18,7 @@
 <div [class.disabled]="isNullSelectedBorder()">
   <button #dropdown
           class="form-control custom-select-trigger border-style-trigger no-caret"
+          [class.border-style-trigger--open]="open"
           [disabled]="isNullSelectedBorder()"
           [fixedDropdown]="dropdownMenu"
           [style.white-space]="'nowrap'"

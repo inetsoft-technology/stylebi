@@ -54,7 +54,7 @@ export class PhysicalTableTreeNodeComponent {
     * @returns {string} the toggle icon css classes
     */
    getToggleIcon(): string {
-      return this.node.expanded ? "caret-down-icon" : "caret-right-icon";
+      return this.node.expanded ? "chevron-down-icon" : "chevron-right-icon";
    }
 
    /**

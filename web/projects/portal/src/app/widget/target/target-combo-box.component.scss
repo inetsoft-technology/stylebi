@@ -26,6 +26,15 @@
 
   input {
     flex-grow: 1;
+
+    &:focus,
+    &:focus-visible,
+    &:focus-within,
+    &.input-area--open {
+      border-color: var(--inet-primary-color);
+      box-shadow: var(--inet-focus-ring);
+      outline: var(--inet-focus-ring-outline);
+    }
   }
 
   input[readonly] {

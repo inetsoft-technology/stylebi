@@ -21,11 +21,13 @@ import {
    VariableCollectionSelector
 } from "./variable-collection-selector.component";
 import {FormsModule} from "@angular/forms";
+import {CustomSelectModule} from "../../custom-select/custom-select.module";
 
 @NgModule({
    imports: [
       CommonModule,
       FormsModule,
+      CustomSelectModule,
    ],
    declarations: [
       VariableCollectionSelector

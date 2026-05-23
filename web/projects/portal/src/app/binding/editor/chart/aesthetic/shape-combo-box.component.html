@@ -17,7 +17,12 @@
   -->
 <div>
    <shape-item [fixedDropdown]="dropdownMenu" [autoClose]="false"
-      class="dropdown-toggle" [shapeStr]="shapeStr" [isBiggerImage]="true" title="{{getTitle()}}">
+      class="dropdown-toggle"
+      [class.visual-combo-trigger--open]="open"
+      [shapeStr]="shapeStr"
+      [isBiggerImage]="true"
+      title="{{getTitle()}}"
+      (openChange)="open = $event">
    </shape-item>
    <ng-template #dropdownMenu>
       <div class="dropdown-pane">

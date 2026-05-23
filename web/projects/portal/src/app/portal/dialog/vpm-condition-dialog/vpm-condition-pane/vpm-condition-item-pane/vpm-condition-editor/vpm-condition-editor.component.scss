@@ -15,33 +15,60 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+:host {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
 .editor-container {
   display: flex;
+  width: 100%;
+  max-width: 100%;
   flex-wrap: nowrap;
-  gap: var(--inet-space-2, 4px);
+  gap: var(--condition-row-gap, 0.375rem);
+  align-items: flex-start;
   margin: 0;
+  min-width: 0;
 }
 
 vpm-value-editor {
   display: flex;
-  align-items: flex-start;
-  min-height: 40px;
+  align-items: stretch;
+  min-height: var(--condition-row-control-height, 2.375rem);
 }
 
 .editor-container__value,
 .editor-container__field {
-  flex: 1 1 auto;
+  flex: 1 1 0;
   min-width: 0;
+  overflow: hidden;
 }
 
 .editor-container__type-picker {
   display: flex;
-  align-items: flex-start;
+  flex: 0 0 auto;
+  align-items: center;
+  min-height: var(--condition-row-control-height, 2.375rem);
 }
 
 .editor-container__type-button {
-  min-width: var(--inet-control-height-md, 30px);
-  padding-inline: var(--inet-space-3, 6px);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--condition-row-icon-size, 2rem);
+  min-width: var(--condition-row-icon-size, 2rem);
+  height: var(--condition-row-control-height, 2.375rem);
+  padding: 0;
+  line-height: 1;
+  border-radius: 0.25rem;
+  background-image: none;
+}
+
+:host ::ng-deep .editor-container__field--expression .form-control {
+  font-family: var(--bs-font-monospace, "SFMono-Regular", Menlo, Consolas, monospace);
+  letter-spacing: 0.01em;
 }
 
 .primary-condition-editor {
@@ -49,5 +76,26 @@ vpm-value-editor {
 
   vpm-field-editor, vpm-value-editor, vpm-variable-editor, session-data-editor {
     flex-grow: 1;
+    min-width: 0;
   }
+
+  vpm-field-editor,
+  vpm-variable-editor,
+  session-data-editor,
+  vpm-subquery-editor {
+    display: block;
+    width: 100%;
+    min-width: 0;
+  }
+}
+
+.editor-container__type-menu {
+  padding: 0.25rem;
+  border-radius: 0.375rem;
+  box-shadow: 0 0.5rem 1rem rgb(0 0 0 / 15%);
+}
+
+.editor-container__type-option {
+  min-height: 1.875rem;
+  padding: 0.375rem 0.625rem;
 }

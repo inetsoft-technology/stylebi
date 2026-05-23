@@ -21,12 +21,12 @@ import {
    Input,
    Output,
    EventEmitter,
-   ViewChild,
    SimpleChanges
 } from "@angular/core";
 import { ClauseValueModel } from "../../../../../../data/model/datasources/database/vpm/condition/clause/clause-value-model";
 import { VPMColumnModel } from "../../../../../../data/model/datasources/database/vpm/condition/vpm-column-model";
-import { FixedDropdownDirective } from "../../../../../../../widget/fixed-dropdown/fixed-dropdown.directive";
+import { DataRef } from "../../../../../../../common/data/data-ref";
+import { ConditionFieldComboModel } from "../../../../../../../widget/condition/condition-field-combo-model";
 
 @Component({
    selector: "vpm-field-editor",
@@ -37,10 +37,15 @@ export class VPMFieldEditorComponent implements OnChanges {
    @Input() value: ClauseValueModel;
    @Input() fields: VPMColumnModel[] = [];
    @Output() valueChange: EventEmitter<ClauseValueModel> = new EventEmitter<ClauseValueModel>();
-   @ViewChild(FixedDropdownDirective) fieldsDropdown: FixedDropdownDirective;
+   fieldsModel: ConditionFieldComboModel = {
+      list: [],
+      tree: {children: []}
+   };
 
    ngOnChanges(changes: SimpleChanges) {
       if(changes.hasOwnProperty("value") || changes.hasOwnProperty("fields")) {
+         this.fieldsModel = this.createFieldsModel();
+
          if(!!this.value && !!this.fields) {
             const matchingRef = this.fields.find((field) => {
                return field.name === this.value.expression;
@@ -57,10 +62,59 @@ export class VPMFieldEditorComponent implements OnChanges {
     * Called when a field is selected. Update the conditions expression and emit the new value.
     * @param field
     */
-   selectField(field: VPMColumnModel) {
-      this.value.expression = field.name;
-      this.value.field = field;
+   selectField(field: DataRef) {
+      const matchingField = this.fields.find((vpmField) => vpmField.name === field?.name);
+
+      if(!matchingField) {
+         return;
+      }
+
+      this.value.expression = matchingField.name;
+      this.value.field = matchingField;
       this.valueChange.emit(this.value);
-      this.fieldsDropdown.close();
+   }
+
+   get selectedField(): DataRef | null {
+      if(!this.value?.expression) {
+         return null;
+      }
+
+      return this.fieldsModel.list.find((field) => field.name === this.value.expression) ?? null;
+   }
+
+   private createFieldsModel(): ConditionFieldComboModel {
+      const list: DataRef[] = (this.fields ?? []).map((field) => ({
+         name: field.name,
+         view: field.name,
+         attribute: field.columnName,
+         entity: field.tableName,
+         dataType: field.type,
+         description: field.physicalTableName ? `${field.tableName} (${field.physicalTableName})` :
+            field.tableName
+      }));
+      const entityMap = new Map<string, DataRef[]>();
+
+      for(const field of list) {
+         const entity = field.entity || "_#(js:Query Fields)";
+         const entityFields = entityMap.get(entity) ?? [];
+         entityFields.push(field);
+         entityMap.set(entity, entityFields);
+      }
+
+      return {
+         list,
+         tree: {
+            children: Array.from(entityMap.entries()).map(([entity, entityFields]) => ({
+               label: entity,
+               leaf: false,
+               children: entityFields.map((field) => ({
+                  label: field.view,
+                  data: field,
+                  tooltip: field.description,
+                  leaf: true
+               }))
+            }))
+         }
+      };
    }
 }

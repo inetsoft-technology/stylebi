@@ -29,6 +29,7 @@ import {
 } from "../replet-parameter-model";
 import {Tool} from "../../../../../../shared/util/tool";
 import {DateTimeValueDialog} from "../date-time-value-dialog.component";
+import { CustomSelectOption } from "../../custom-select/custom-select.component";
 
 @Component({
    selector: "parameter-page",
@@ -67,6 +68,23 @@ export class ParameterPage {
       return this.sidePaneVisible ?
          "col-xl-6 col-lg-8 col-md-10 col-sm-12" :
          "col-xl-4 col-lg-6 col-md-8 col-sm-12";
+   }
+
+   getChoiceOptions(param: ChoiceParameterModel): CustomSelectOption<any>[] {
+      const options: CustomSelectOption<any>[] = (param.choicesValue || []).map((value, index) => ({
+         value,
+         label: param.choicesLabel?.[index]
+      }));
+
+      if(param.dataTruncated) {
+         options.push({
+            label: "(_#(data.truncated))",
+            value: null,
+            disabled: true
+         });
+      }
+
+      return options;
    }
 
    getDateFormat(param: RepletParameterModel): string {

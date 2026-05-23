@@ -15,24 +15,9 @@
   ~ You should have received a copy of the GNU Affero General Public License
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
-<div class="condition-field-combo">
-  <div class="condition-field-combo-toggle btn dropdown-toggle bd-gray"
-       [fixedDropdown]="dropdownMenu"
-       dropdownPlacement="bottom" [autoClose]="false">
-    <span class="condition-field-combo-text" [ngbTooltip]="value.expression">
-      {{value.expression}}&nbsp;
-    </span>
-  </div>
-</div>
-
-<ng-template #dropdownMenu>
-  <div class="condition-field-combo-dropdown dropdown-pane" role="menu">
-    <div *ngFor="let field of fields">
-      <div class="condition-field-combo-list-item list-content hover-bg-primary"
-           (click)="selectField(field)"
-           [class.bg-selected]="field.name == value.expression">
-        {{field.name}}
-      </div>
-    </div>
-  </div>
-</ng-template>
+<condition-field-combo [field]="selectedField"
+                       [fieldsModel]="fieldsModel"
+                       [addNoneItem]="false"
+                       [showOriginalName]="true"
+                       (onSelectField)="selectField($event)">
+</condition-field-combo>

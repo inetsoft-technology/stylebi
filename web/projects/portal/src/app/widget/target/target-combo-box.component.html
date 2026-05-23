@@ -21,12 +21,14 @@
      [class.dropdown-toggle]="values && values.length > 0">
   <input *ngIf="mode == ValueMode.TEXT"
          class="input-area form-control"
+         [class.input-area--open]="valueDropdown.isOpen()"
          [placeholder]="promptString"
          type='text' [ngModel]="getCurrentValue()"
          (ngModelChange)="updateValue($event); valueDropdown.close()"
          [readonly]="!editable" ngbDropdownToggle>
   <input *ngIf="mode == ValueMode.NUMBER"
          class="input-area no-spinner form-control"
+         [class.input-area--open]="valueDropdown.isOpen()"
          [placeholder]="promptString"
          (ngModelChange)="updateValue($event) ;valueDropdown.close()"
          type='number' [ngModel]="value" (focusout)="updateValue($event)"

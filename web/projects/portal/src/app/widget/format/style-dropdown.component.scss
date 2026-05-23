@@ -15,20 +15,32 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-.dropdown-item {
+:host {
+  display: block;
+  width: 100%;
+}
+
+.custom-select-trigger {
+  min-height: var(--custom-select-height, calc(1.5em + 0.75rem + 2px));
+  height: var(--custom-select-height, calc(1.5em + 0.75rem + 2px));
+}
+
+.custom-select-menu {
+  padding: 0.25rem;
+}
+
+.custom-select-option {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-width: 150px;
+  min-height: 1.75rem;
   padding-left: 3px;
   padding-right: 3px;
-  min-width: 150px;
 }
 
-button.dropdown-toggle {
-  position: relative;
-  width: 100%;
-  padding-right: 2rem;
-  text-align: left;
-}
-
-button.dropdown-toggle .line-display {
+.custom-select-trigger .line-display,
+.custom-select-option .line-display {
   display: block;
   margin-top: 0;
   margin-bottom: 0;
@@ -38,7 +50,8 @@ button.dropdown-toggle .line-display {
   max-width: 66.6667%;
 }
 
-button.dropdown-toggle .line-style-NONE {
+.custom-select-trigger .line-style-NONE,
+.custom-select-option .line-style-NONE {
   min-height: 1rem;
   display: flex;
   align-items: center;
@@ -74,10 +87,3 @@ button.dropdown-toggle .line-style-NONE {
   opacity: 0.85;
 }
 
-.style-dropdown__icon {
-  position: absolute;
-  right: 10px;
-  top: 50%;
-  transform: translateY(-50%);
-  pointer-events: none;
-}

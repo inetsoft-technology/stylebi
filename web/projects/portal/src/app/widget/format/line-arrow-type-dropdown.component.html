@@ -16,6 +16,7 @@
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
 <button id="simple-btn-keyboard-nav" class="btn form-control bd-gray dropdown-toggle no-caret"
+        [class.line-arrow-type-dropdown__trigger--open]="open"
         type="button" [fixedDropdown]="dropdownMenu" dropdownPlacement="bottom"
         (openChange)="handleOpenChange($event)">
   <div class="line-style-{{LineEndStyles[style]}}" [style.--inet-line-style-color]="color"></div>

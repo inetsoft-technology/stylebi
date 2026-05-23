@@ -41,6 +41,11 @@ button.form-control {
 }
 
 .dynamic-combo-box-body {
+  display: flex;
+  align-items: stretch;
+  gap: 0.375rem;
+  min-width: 0;
+
   span.values-caret {
     flex-grow: 0;
     opacity: unset;
@@ -66,6 +71,7 @@ button.form-control {
   .type-toggle {
     padding: 0 3px;
     padding-top: 0.1em;
+    flex: 0 0 auto;
   }
 
   .no-select-input-text {
@@ -74,6 +80,28 @@ button.form-control {
 
   .form-control[readonly] {
     opacity: unset;
+  }
+}
+
+.dynamic-combo-box__trigger {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  padding-right: 2rem;
+  background-image: none;
+  border-top-right-radius: 0.25rem;
+  border-bottom-right-radius: 0.25rem;
+
+  &.is-open,
+  &:focus,
+  &:focus-visible,
+  &:focus-within {
+    border-color: var(--inet-primary-color);
+    box-shadow: var(--inet-focus-ring);
+    outline: var(--inet-focus-ring-outline);
+    z-index: 1;
   }
 }
 
@@ -87,18 +115,6 @@ button.form-control {
 
 .no-select-input-text {
   cursor: default;
-}
-
-.span-as-dropdown {
-  background-image: none;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding-right: 0.5rem;
-
-  &::after {
-    display: none;
-  }
 }
 
 .display-style {
@@ -118,8 +134,10 @@ button.form-control {
 }
 
 .dynamic-combo-box__display-icon {
-  flex: 0 0 auto;
-  margin-left: auto;
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
   pointer-events: none;
 }
 

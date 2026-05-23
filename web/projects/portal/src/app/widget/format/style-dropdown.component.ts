@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Component, EventEmitter, Input, OnInit, Output, ViewChild,
+import { Component, EventEmitter, HostBinding, Input, OnInit, Output, ViewChild,
          ElementRef } from "@angular/core";
 import { LineStyle } from "../../common/data/line-style";
 
@@ -31,7 +31,8 @@ export class StyleDropdown implements OnInit {
    @Output() styleChange: EventEmitter<string> = new EventEmitter<string>();
    @Input() isPresenter: boolean = false;
    @ViewChild("dropdownBody") dropdownBody: ElementRef;
-   open: boolean = false;
+   @HostBinding("class.custom-select") readonly customSelectClass = true;
+   @HostBinding("class.is-open") open: boolean = false;
    public LineStyle = LineStyle;
    public lineStyles: string[];
 

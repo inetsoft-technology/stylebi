@@ -42,6 +42,17 @@
   box-shadow: var(--inet-shadow-md);
 }
 
+.input-dropdown {
+  &:focus,
+  &:focus-visible,
+  &:focus-within,
+  &.input-dropdown--open {
+    border-color: var(--inet-primary-color);
+    box-shadow: var(--inet-focus-ring);
+    outline: var(--inet-focus-ring-outline);
+  }
+}
+
 .logical-model-attribute-dialog__dropdown-item {
   border-radius: var(--inet-radius-sm);
 }

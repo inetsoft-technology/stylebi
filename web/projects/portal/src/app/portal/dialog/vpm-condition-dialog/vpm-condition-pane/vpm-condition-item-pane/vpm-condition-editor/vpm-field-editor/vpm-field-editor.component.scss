@@ -15,38 +15,14 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-.condition-field-combo {
-   display: inline-flex;
-   align-items: flex-start;
-   width: 100%;
-
-  .condition-field-combo-toggle {
-    display: inline-flex;
-    padding-right: 0.75rem;
-    padding-left: 0.75rem;
-    width: 160px;
-    border-radius: 0.25rem;
-    flex-grow: 1;
-    align-items: center;
-    &:hover {
-      border: 1px solid var(--inet-default-border-color);
-    }
-  }
+:host {
+  display: block;
+  width: 100%;
+  min-width: 0;
 }
 
-.condition-field-combo-dropdown {
-  min-width: 165px;
-  max-width: 150%;
-  max-height: 300px;
-  min-height: 200px;
-  overflow-y: auto;
-}
-
-.condition-field-combo-text {
-  display: inline-flex;
-  overflow: hidden;
-  text-overflow: clip;
-  white-space: nowrap;
-  cursor: default;
-  flex-grow: 1;
+condition-field-combo {
+  display: block;
+  width: 100%;
+  min-width: 0;
 }

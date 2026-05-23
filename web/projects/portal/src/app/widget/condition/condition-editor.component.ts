@@ -78,6 +78,7 @@ export class ConditionEditor implements OnChanges {
    @Output() addValue = new EventEmitter<any>();
    @ViewChild(FixedDropdownDirective) fieldsDropdown: FixedDropdownDirective;
    @ViewChild(ValueEditor) valueEditor: ValueEditor;
+   dropdownOpen: boolean = false;
 
    getSelectValues(): any {
       return this.values.length == 0 ? [] : this.values.map(v => v.value);
@@ -102,6 +103,8 @@ export class ConditionEditor implements OnChanges {
    }
 
    openChange(open: boolean) {
+      this.dropdownOpen = open;
+
       if(this.valueEditor) {
          this.valueEditor.hideBrowse();
       }

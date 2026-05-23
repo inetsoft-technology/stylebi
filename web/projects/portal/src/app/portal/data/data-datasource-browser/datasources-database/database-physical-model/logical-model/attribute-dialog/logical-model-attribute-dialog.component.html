@@ -23,6 +23,7 @@
   <form [formGroup]="form" class="logical-model-attribute-dialog__form">
     <div class="form-group form-floating" #entityDropdown="ngbDropdown" ngbDropdown [autoClose]="true">
       <input #entityTrigger type="text" class="form-control input-dropdown"
+             [class.input-dropdown--open]="entityDropdown.isOpen()"
              [value]="selectedEntityName"
              [class.is-invalid]="!!parentControl.errors"
              [disabled]="parentControl.disabled"
