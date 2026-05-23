@@ -58,6 +58,7 @@ export class ChartFieldmc extends FieldMC {
    private _field: ChartRef;
    private _originalField: ChartRef;
    dialogOpened: boolean = false;
+   dropdownOpen: boolean = false;
 
    @Input() set field(field: ChartRef) {
       this._field = field;
@@ -145,6 +146,8 @@ export class ChartFieldmc extends FieldMC {
    }
 
    openChange(open: boolean): void {
+      this.dropdownOpen = open;
+
       if(!open) {
          this.dropdown.close();
 

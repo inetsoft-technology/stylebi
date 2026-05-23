@@ -129,10 +129,10 @@ export class ElementTreeNode implements OnChanges {
     */
    getToggleIcon(): string {
       if(this.expanded) {
-         return "caret-down-icon";
+         return "chevron-down-icon";
       }
       else {
-         return "caret-right-icon";
+         return "chevron-right-icon";
       }
    }
 

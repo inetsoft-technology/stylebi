@@ -15,51 +15,17 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-.viewsheet-parameters-dropdown-menu {
-  min-height: 100px;
-  max-height: 200px;
-  overflow-y: auto;
-}
+.dropdown-toggle {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 0.25rem;
 
-.hidden-menu {
-  display: none;
-}
-
-.input-dropdown {
+  &.visual-combo-trigger--open,
   &:focus,
   &:focus-visible,
-  &:focus-within,
-  &.input-dropdown--open {
+  &:focus-within {
     border-color: var(--inet-primary-color);
     box-shadow: var(--inet-focus-ring);
     outline: var(--inet-focus-ring-outline);
   }
-}
-
-:host {
-  --condition-row-control-height: 2.375rem;
-  --custom-select-height: var(--condition-row-control-height);
-}
-
-:host ::ng-deep .form-floating > custom-select {
-  display: block;
-  width: 100%;
-}
-
-:host ::ng-deep .form-floating > custom-select .custom-select-trigger {
-  min-height: var(--condition-row-control-height);
-  height: var(--condition-row-control-height);
-  padding-left: 0.75rem;
-  border-radius: 0.25rem;
-  display: flex;
-  align-items: center;
-}
-
-:host ::ng-deep .form-floating > custom-select .custom-select-trigger__text {
-  width: 100%;
-}
-
-:host ::ng-deep .form-floating > custom-select .custom-select-menu {
-  border-radius: 0.375rem;
-  box-shadow: 0 0.5rem 1rem rgb(0 0 0 / 15%);
 }

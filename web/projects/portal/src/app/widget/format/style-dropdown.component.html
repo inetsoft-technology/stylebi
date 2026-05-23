@@ -16,18 +16,18 @@
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
 <button #dropdownBody id="simple-btn-keyboard-nav"
-        class="btn form-control bd-gray dropdown-toggle no-caret"
+        class="custom-select-trigger form-control no-caret"
         type="button" [fixedDropdown]="dropdownMenu" dropdownPlacement="bottom"
         (openChange)="handleOpenChange($event)">
   <div class="line-display style-dropdown__line line-style-{{style}}"
        [style.--inet-line-style-color]="color"></div>
-  <i class="style-dropdown__icon icon-color-default" aria-hidden="true"
+  <i class="custom-select-trigger__icon dropdown-caret icon-color-default" aria-hidden="true"
      [class.chevron-down-icon]="!open"
      [class.chevron-up-icon]="open"></i>
 </button>
 <ng-template #dropdownMenu>
-  <div class="dropdown-pane" [style.min-width.px]="dropdownMinWidth">
-    <div class="dropdown-item" *ngFor="let lineStyle of lineStyles"
+  <div class="custom-select-menu dropdown-pane" [style.min-width.px]="dropdownMinWidth">
+    <div class="dropdown-item custom-select-option" *ngFor="let lineStyle of lineStyles"
       [class.selected]="lineStyle === style"
       (click)="choose(lineStyle);">
       <div class="line-display style-dropdown__line line-style-{{lineStyle}}"

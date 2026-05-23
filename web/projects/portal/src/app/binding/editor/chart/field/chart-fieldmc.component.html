@@ -26,7 +26,9 @@
                        [label]="cellLabel" data-test="chart-field-value-dropdown"
                        (valueChange)="changeColumnValue($event)" [tooltip]="cellLabel">
     </dynamic-combo-box>
-    <div class="fieldEditIcon" *ngIf="isEditMeasure()"
+    <div class="fieldEditIcon"
+         [class.fieldEditIcon--open]="dropdownOpen"
+         *ngIf="isEditMeasure()"
          (openChange)="openChange($event)" [fixedDropdown]="dropdownMenu"
          [disabled]="!isEnabled" [autoClose]="false" [zIndex]="10000"
          [closeOnOutsideClick]="!dialogOpened"

@@ -74,6 +74,7 @@
   <div *ngIf="!!field && !field.fakeNone" class="editor-container__type-toggle" keyboardNav="true">
     <div id="simple-btn-keyboard-nav"
          class="value-type-list-icon btn btn-sm btn-light"
+         [class.editor-container__type-button--open]="dropdownOpen"
          [fixedDropdown]="dropdownMenu"
          (openChange)="openChange($event)"
          title="_#(Change Value Type)">

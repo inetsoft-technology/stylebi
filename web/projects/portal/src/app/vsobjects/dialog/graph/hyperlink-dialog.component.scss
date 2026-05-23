@@ -15,35 +15,20 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+:host {
+  --condition-row-control-height: 2.375rem;
+  --custom-select-height: var(--condition-row-control-height);
+}
+
 .tree-dropdown-menu {
-   border: 1px solid #A9A9A9;
-   max-height: 300px;
-   min-width: 200px;
-   width: 100%;
-   overflow-y: auto;
-}
-
-.label-container {
-   width: calc(100% - 18px);
-   max-width: calc(100% - 18px);
-   display: inline-block;
-   overflow: hidden;
-   white-space: nowrap;
-   text-overflow: ellipsis;
-}
-
-.dropdown-arrow {
-   display: inline-block;
-   width: 0;
-   height: 0;
-   vertical-align: middle;
-   content: "";
-   border-top: 0.3em solid;
-   border-right: 0.3em solid transparent;
-   border-left: 0.3em solid transparent;
-   position: absolute;
-   top: 50%;
-   right: 15px;
+  border: 1px solid var(--inet-default-border-color);
+  max-height: 300px;
+  min-width: 200px;
+  width: 100%;
+  overflow-y: auto;
+  border-radius: var(--inet-radius-md);
+  background: var(--inet-shell-surface-default);
+  box-shadow: var(--inet-shadow-md);
 }
 
 .parameter-list {
@@ -52,4 +37,58 @@
 
 .web-field {
   padding-right: 0;
+}
+
+.asset-link-dropdown {
+  width: 100%;
+}
+
+.asset-link-trigger {
+  min-height: var(--condition-row-control-height);
+  height: var(--condition-row-control-height);
+  padding-right: 2rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  background-image: none;
+
+  &:focus,
+  &:focus-visible,
+  &:focus-within,
+  &.input-dropdown--open {
+    border-color: var(--inet-primary-color);
+    box-shadow: var(--inet-focus-ring);
+    outline: var(--inet-focus-ring-outline);
+  }
+}
+
+.asset-link-dropdown .dropdown-caret {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+:host ::ng-deep .form-floating > custom-select {
+  display: block;
+  width: 100%;
+}
+
+:host ::ng-deep .form-floating > custom-select .custom-select-trigger {
+  min-height: var(--condition-row-control-height);
+  height: var(--condition-row-control-height);
+  padding-left: 0.75rem;
+  border-radius: 0.25rem;
+  display: flex;
+  align-items: center;
+}
+
+:host ::ng-deep .form-floating > custom-select .custom-select-trigger__text {
+  width: 100%;
+}
+
+:host ::ng-deep .form-floating > custom-select .custom-select-menu {
+  border-radius: 0.375rem;
+  box-shadow: 0 0.5rem 1rem rgb(0 0 0 / 15%);
 }

@@ -15,7 +15,11 @@
   ~ You should have received a copy of the GNU Affero General Public License
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
-<div class="dropdown-toggle" [fixedDropdown]="dropdownMenu" [autoClose]="true">
+<div class="dropdown-toggle"
+     [class.visual-combo-trigger--open]="open"
+     [fixedDropdown]="dropdownMenu"
+     [autoClose]="true"
+     (openChange)="open = $event">
   <texture-item class="texture-combo" [texture]="texture"
                 [isLongerImage]="true" title="{{getTitle()}}">
   </texture-item>

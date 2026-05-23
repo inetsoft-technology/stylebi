@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Component, EventEmitter, HostBinding, Input, Output, ViewChild } from "@angular/core";
+import { Component, ElementRef, EventEmitter, HostBinding, Input, Output, ViewChild } from "@angular/core";
 import { FixedDropdownDirective } from "../fixed-dropdown/fixed-dropdown.directive";
 
 @Component({
@@ -31,11 +31,18 @@ export class DropdownView {
    @Output() onToggle = new EventEmitter<string>();
    @Output() closed = new EventEmitter<boolean>();
    @ViewChild(FixedDropdownDirective) dropdown: FixedDropdownDirective;
+   @ViewChild("trigger", { read: ElementRef }) triggerRef: ElementRef<HTMLButtonElement>;
    @HostBinding("class.custom-select") readonly customSelectClass = true;
    @HostBinding("class.is-open") open: boolean = false;
+   private restoreFocusOnClose: boolean = false;
 
    public close(): void {
+      this.restoreFocusOnClose = true;
       this.dropdown.close();
+   }
+
+   public focusTrigger(): void {
+      this.triggerRef?.nativeElement?.focus();
    }
 
    public toggled(open: boolean): void {
@@ -43,7 +50,13 @@ export class DropdownView {
       this.onToggle.emit(open.toString());
 
       if(!open) {
+         const shouldRestoreFocus = this.restoreFocusOnClose;
+         this.restoreFocusOnClose = false;
          this.closed.emit(true);
+
+         if(shouldRestoreFocus && !this.disabled) {
+            setTimeout(() => this.focusTrigger());
+         }
       }
    }
 }

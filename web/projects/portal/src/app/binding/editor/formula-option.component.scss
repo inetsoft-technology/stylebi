@@ -17,27 +17,19 @@
  */
 :host {
   display: block;
-  width: 100%;
-  min-width: 0;
 }
 
-.subquery-editor {
-  display: flex;
-  align-items: center;
-  width: 100%;
-  min-width: 0;
-  min-height: var(--condition-row-control-height, 2.375rem);
+:host ::ng-deep .aggregate_id dynamic-combo-box .dynamic-combo-box__trigger,
+:host ::ng-deep .with_label_id dynamic-combo-box .dynamic-combo-box__trigger,
+:host ::ng-deep .n_id dynamic-combo-box .dynamic-combo-box__trigger {
+  border-color: var(--inet-input-border-color);
 }
 
-.condition-field-combo {
-  display: inline-flex;
-  align-items: center;
-  justify-content: flex-start;
-  width: 100%;
-}
-
-.subquery-editor__button {
-  min-height: var(--condition-row-control-height, 2.375rem);
-  height: var(--condition-row-control-height, 2.375rem);
-  padding-inline: 0.75rem;
+:host ::ng-deep .aggregate_id dynamic-combo-box .dynamic-combo-box__trigger.is-open,
+:host ::ng-deep .aggregate_id dynamic-combo-box .dynamic-combo-box__trigger:focus,
+:host ::ng-deep .aggregate_id dynamic-combo-box .dynamic-combo-box__trigger:focus-visible,
+:host ::ng-deep .aggregate_id dynamic-combo-box .dynamic-combo-box__trigger:focus-within {
+  border-color: var(--inet-primary-color);
+  box-shadow: var(--inet-focus-ring);
+  outline: var(--inet-focus-ring-outline);
 }

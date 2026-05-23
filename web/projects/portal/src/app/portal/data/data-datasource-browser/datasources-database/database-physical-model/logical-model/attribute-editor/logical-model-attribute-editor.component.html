@@ -49,7 +49,8 @@
     </span>
   </div>
   <div class="form-group form-floating">
-    <tree-dropdown [root]="columnsTree" [selected]="selectedNode?.data?.qualifiedName"
+    <tree-dropdown class="logical-model-attribute-editor__physical-column-select"
+                   [root]="columnsTree" [selected]="selectedNode?.data?.qualifiedName"
                    [isDisabled]="isExpression || !editable"
                    [initSelectedNodes]="[selectedNode]"
                    [expandSelectedNodes]="true"
@@ -81,7 +82,9 @@
     </div>
   </div>
   <div class="form-group form-floating" #dropdown="ngbDropdown" ngbDropdown [autoClose]="'outside'">
-    <input #referenceTypeTrigger type="text" class="form-control input-dropdown" [value]="selectedFormulaLabel"
+    <input #referenceTypeTrigger type="text" class="form-control input-dropdown"
+           [class.input-dropdown--open]="dropdown.isOpen()"
+           [value]="selectedFormulaLabel"
            [disabled]="!editable" readonly ngbDropdownToggle>
     <div class="dropdown-caret icon-size-small"
          [class.chevron-down-icon]="!dropdown.isOpen()"

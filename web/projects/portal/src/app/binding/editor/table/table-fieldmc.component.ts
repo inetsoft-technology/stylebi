@@ -69,6 +69,7 @@ export class TableFieldmc extends FieldMC {
    private _field: AbstractBindingRef;
    private _originalField: AbstractBindingRef;
    dialogOpened: boolean = false;
+   dropdownOpen: boolean = false;
 
    @Input() set field(field: AbstractBindingRef) {
       this._field = field;
@@ -303,6 +304,8 @@ export class TableFieldmc extends FieldMC {
    }
 
    public toggled(open: boolean): void {
+      this.dropdownOpen = open;
+
       if(!open) {
          this.dropdown.close();
 

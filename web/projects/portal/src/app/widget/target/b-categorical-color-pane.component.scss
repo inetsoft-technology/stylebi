@@ -29,6 +29,14 @@
   padding-right: 2rem;
   text-align: left;
   background-image: none;
+
+  &:focus,
+  &:focus-visible,
+  &.is-open {
+    border-color: var(--inet-primary-color);
+    box-shadow: var(--inet-focus-ring);
+    outline: var(--inet-focus-ring-outline);
+  }
 }
 
 .fill-band-trigger__content {

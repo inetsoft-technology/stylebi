@@ -120,9 +120,11 @@
 }
 
 .drill-link-picker__field .form-control[ngbdropdowntoggle]:focus,
-.drill-link-picker__field .form-control[ngbDropdownToggle]:focus {
+.drill-link-picker__field .form-control[ngbDropdownToggle]:focus,
+.drill-link-picker__field .form-control.drill-link-picker__input--open {
   border-color: var(--inet-primary-color);
   box-shadow: var(--inet-focus-ring);
+  outline: var(--inet-focus-ring-outline);
 }
 
 .drill-link-picker__field .form-control.is-invalid {

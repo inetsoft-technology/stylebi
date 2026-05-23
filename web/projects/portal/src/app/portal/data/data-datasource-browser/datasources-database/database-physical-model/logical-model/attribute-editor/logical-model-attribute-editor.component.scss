@@ -40,6 +40,31 @@
   overflow-y: auto;
 }
 
+.logical-model-attribute-editor__physical-column-select {
+  display: block;
+  width: 100%;
+}
+
+.logical-model-attribute-editor__physical-column-select.is-open ::ng-deep .tree-dropdown-trigger,
+.logical-model-attribute-editor__physical-column-select ::ng-deep .tree-dropdown-trigger:focus,
+.logical-model-attribute-editor__physical-column-select ::ng-deep .tree-dropdown-trigger:focus-visible,
+.logical-model-attribute-editor__physical-column-select ::ng-deep .tree-dropdown-trigger:focus-within {
+  border-color: var(--inet-primary-color);
+  box-shadow: var(--inet-focus-ring);
+  outline: var(--inet-focus-ring-outline);
+}
+
+.input-dropdown {
+  &:focus,
+  &:focus-visible,
+  &:focus-within,
+  &.input-dropdown--open {
+    border-color: var(--inet-primary-color);
+    box-shadow: var(--inet-focus-ring);
+    outline: var(--inet-focus-ring-outline);
+  }
+}
+
 .logical-model-attribute-editor__reference-group-label {
   font-size: 11px;
   font-weight: 600;

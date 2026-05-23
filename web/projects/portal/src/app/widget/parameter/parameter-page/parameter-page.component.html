@@ -89,12 +89,11 @@
                                 (click)="openDateTimeValue(param)"></button>
                       </div>
                       <textarea class="form-control" [(ngModel)]="param.value" [rows]="param.rows" *ngIf="param.type === 'TextAreaParameter'"></textarea>
-                      <select class="form-control" [(ngModel)]="param.value" *ngIf="param.type === 'ChoiceParameter' && !!param.choicesValue">
-                        <option *ngFor="let val of param.choicesValue; let idx = index;" [value]="val">
-                          {{param.choicesLabel[idx]}}
-                        </option>
-                        <option *ngIf="param.dataTruncated" disabled>(_#(data.truncated))</option>
-                      </select>
+                      <custom-select *ngIf="param.type === 'ChoiceParameter' && !!param.choicesValue"
+                                     [options]="getChoiceOptions(param)"
+                                     [ngModel]="param.value"
+                                     (ngModelChange)="changeValue($event, param)">
+                      </custom-select>
                       <select class="form-control" [(ngModel)]="param.values" multiple size="6" *ngIf="param.type === 'ListParameter'">
                         <option *ngFor="let val of param.choicesValue; let i = index;" [value]="val">
                           {{param.choicesLabel[i]}}

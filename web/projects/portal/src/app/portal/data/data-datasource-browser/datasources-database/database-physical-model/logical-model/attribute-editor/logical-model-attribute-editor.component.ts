@@ -17,11 +17,13 @@
  */
 import {
    Component,
+   ElementRef,
    EventEmitter,
    Input,
    OnDestroy,
    OnInit,
-   Output
+   Output,
+   ViewChild
 } from "@angular/core";
 import { UntypedFormGroup, AbstractControl, UntypedFormControl, Validators } from "@angular/forms";
 import { AttributeModel } from "../../../../../model/datasources/database/physical-model/logical-model/attribute-model";
@@ -129,6 +131,8 @@ export class LogicalModelAttributeEditor implements OnInit, OnDestroy {
    _existNames: string[];
    private inited: boolean = false;
    private subscription: Subscription;
+   @ViewChild("referenceTypeTrigger", { read: ElementRef })
+   private referenceTypeTriggerRef: ElementRef<HTMLInputElement>;
 
    @Input() set existNames(existNames: string[]) {
       this._existNames = existNames;
@@ -358,6 +362,7 @@ export class LogicalModelAttributeEditor implements OnInit, OnDestroy {
 
       if(!!dropdown) {
          dropdown.close();
+         setTimeout(() => this.referenceTypeTriggerRef?.nativeElement?.focus());
       }
    }
 

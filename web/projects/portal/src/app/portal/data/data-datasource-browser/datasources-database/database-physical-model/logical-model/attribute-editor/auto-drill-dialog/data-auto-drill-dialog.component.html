@@ -112,8 +112,9 @@
             <div *ngIf="editDrill.linkType !== LinkType.WEB_LINK" class="form-group">
               <div #dropdown="ngbDropdown" ngbDropdown [autoClose]="'outside'" class="drill-link-picker">
                 <div class="form-floating drill-link-picker__field">
-                  <input ngbDropdownToggle type="text" readonly
+                  <input #drillLinkTrigger ngbDropdownToggle type="text" readonly
                          class="form-control" [value]="drillLabel"
+                         [class.drill-link-picker__input--open]="dropdown.isOpen()"
                          [class.is-invalid]="!editDrill.link">
                   <label>_#(Link)</label>
                   <span class="invalid-feedback" *ngIf="!editDrill.link">

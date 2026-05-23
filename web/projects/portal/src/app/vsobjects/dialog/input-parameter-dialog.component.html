@@ -27,6 +27,7 @@
         <div class="col" #nameDropdown="ngbDropdown" ngbDropdown>
            <div class="form-floating">
               <input autocomplete="off" type="text" name="name" formControlName="name" trim
+                     [class.input-dropdown--open]="nameDropdown.isOpen()"
                      [class.is-invalid]="form.controls['name'].invalid"
                      class="form-control" placeholder="_#(Parameter Name)" ngbDropdownToggle>
               <div ngbDropdownMenu class="form-control viewsheet-parameters-dropdown-menu"
@@ -76,15 +77,11 @@
       <div *ngSwitchCase="'field'">
         <div class="form-row-float-label row">
           <div class="col">
-            <div class="form-floating">
-                  <select class="form-control" formControlName="alphaNumericValue"
-                          placeholder="_#(Value for Parameter)">
-                    <option *ngIf="model.value == ''" [value]=""></option>
-                    <option *ngFor="let field of fields" [attr.title]="field.description" [class.grayed-out-field]="isGrayedOut(field.name)"
-                      [value]="field.name">
-                      {{field.name}}
-                    </option>
-                  </select>
+              <div class="form-floating">
+                  <custom-select [options]="fieldValueSelectOptions"
+                                 formControlName="alphaNumericValue"
+                                 placeholder="_#(Value for Parameter)">
+                  </custom-select>
                   <label>_#(Value for Parameter)</label>
               </div>
           </div>
@@ -93,10 +90,10 @@
       <div *ngSwitchCase="'constant'">
         <div class="form-row-float-label form-row">
           <div class="col-auto form-floating">
-              <select class="form-control" formControlName="type" placeholder="_#(Type)">
-                <option *ngFor="let type of dataTypeList" [value]="type.data"
-                        [selected]="model.type == type.data">{{type.label}}</option>
-              </select>
+              <custom-select [options]="dataTypeSelectOptions"
+                             formControlName="type"
+                             placeholder="_#(Type)">
+              </custom-select>
               <label>_#(Type)</label>
           </div>
           <div class="col"
@@ -121,13 +118,11 @@
           </div>
           <div class="col" *ngIf="model.type !== XSchema.DATE && model.type !== XSchema.TIME && model.type !== XSchema.TIME_INSTANT">
             <div class="form-floating">
-                <select class="form-control"
-                        placeholder="_#(Value for Parameter)"
-                        formControlName="alphaNumericValue"
-                        *ngIf="model.type == XSchema.BOOLEAN">
-                  <option [value]="true">_#(True)</option>
-                  <option [value]="false">_#(False)</option>
-                </select>
+                <custom-select [options]="booleanValueSelectOptions"
+                               placeholder="_#(Value for Parameter)"
+                               formControlName="alphaNumericValue"
+                               *ngIf="model.type == XSchema.BOOLEAN">
+                </custom-select>
 
                 <input type="number" class="form-control"
                        placeholder="_#(Value for Parameter)" formControlName="alphaNumericValue"

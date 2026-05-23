@@ -42,21 +42,23 @@
     <div class="parameter-content select-worksheet-dialog__parameter-content">
       <ng-container *ngFor="let param of queryParams; let i = index;">
         <div #dropdownBody class="field-combo" [class.form-group]="i != queryParams.length - 1">
-          <div #dropDownToggle class="field-combo-toggle form-floating form-control dropdown-toggle bd-gray"
+          <div #dropDownToggle class="field-combo-toggle custom-select-trigger form-floating form-control no-caret"
+               [class.field-combo-toggle--open]="dropdownOpenState[param]"
                [fixedDropdown]="dropdownMenu" [autoClose]="closeMenu"
                dropdownPlacement="bottom"
                (openChange)="setDropdownOpenState(param, $event)">
-            <div class="field-combo-text select-worksheet-dialog__field-text">
+            <div class="field-combo-text custom-select-trigger__text select-worksheet-dialog__field-text">
               {{getSelectedParamVal(param)}}&nbsp;
             </div>
-            <div class="field-combo-caret icon-size-small"
-                 [class.chevron-down-icon]="!dropdownOpenState[param]"
-                 [class.chevron-up-icon]="dropdownOpenState[param]"></div>
+            <i class="field-combo-caret custom-select-trigger__icon dropdown-caret icon-color-default"
+               [class.chevron-down-icon]="!dropdownOpenState[param]"
+               [class.chevron-up-icon]="dropdownOpenState[param]"
+               aria-hidden="true"></i>
             <label class="base-font-size"><span>{{param}}</span></label>
           </div>
         </div>
         <ng-template #dropdownMenu>
-          <div class="dropdown-pane field-combo-dropdown" [style.min-width.px]="dropdownMinWidth">
+          <div class="dropdown-pane custom-select-menu field-combo-dropdown" [style.min-width.px]="dropdownMinWidth">
             <select-attribute-pane *ngIf="entities" [entities]="entities" [info]="getSelectedInfo(param)"
                                    (onSelectItem)="selectItem($event, param)">
             </select-attribute-pane>

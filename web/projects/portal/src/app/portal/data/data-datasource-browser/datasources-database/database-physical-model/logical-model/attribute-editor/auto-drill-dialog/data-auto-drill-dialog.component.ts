@@ -72,6 +72,7 @@ export class AutoDrillDialog implements OnInit, AfterViewInit {
    @Output() onCancel: EventEmitter<string> = new EventEmitter<string>();
    @ViewChild("repositoryTree") repositoryTree: RepositoryTreeComponent;
    @ViewChild("btnFocus") btnFocus: ElementRef;
+   @ViewChild("drillLinkTrigger") drillLinkTrigger: ElementRef<HTMLInputElement>;
    private _autoDrillModel: AutoDrillInfoModel;
    queryFields: string[] = ["this.column"];
    LinkType = LinkType;
@@ -517,6 +518,7 @@ export class AutoDrillDialog implements OnInit, AfterViewInit {
 
       if(node.leaf) {
          dropdown.close();
+         setTimeout(() => this.drillLinkTrigger?.nativeElement?.focus());
       }
 
       this.drillPathLabel = null;

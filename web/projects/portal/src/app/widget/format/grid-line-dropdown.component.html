@@ -17,6 +17,7 @@
   -->
 <button #dropdownBody id="simple-btn-keyboard-nav" type="button" [disabled]="disabled"
         [class.disabled]="disabled"
+        [class.grid-line-dropdown__trigger--open]="open"
         [fixedDropdown]="dropdownMenu" dropdownPlacement="bottom"
         [autoClose]="false" [closeOnOutsideClick]="true"
         class="custom-select-trigger form-control no-caret"

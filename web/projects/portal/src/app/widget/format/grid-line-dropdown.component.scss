@@ -25,6 +25,14 @@
   width: 100%;
   padding-right: 2rem;
   background-image: none;
+
+  &:focus,
+  &:focus-visible,
+  &.grid-line-dropdown__trigger--open {
+    border-color: var(--inet-primary-color);
+    box-shadow: var(--inet-focus-ring);
+    outline: var(--inet-focus-ring-outline);
+  }
 }
 
 .dropdown-caret {

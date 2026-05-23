@@ -42,6 +42,14 @@
   font-size: inherit;
   border-bottom-left-radius: unset;
   border-top-left-radius: unset;
+
+  &:focus,
+  &:focus-visible,
+  &.color-picker__trigger--open {
+    border-color: var(--inet-primary-color);
+    box-shadow: var(--inet-focus-ring);
+    outline: var(--inet-focus-ring-outline);
+  }
 }
 
 .color-picker .color-picker-swatch {

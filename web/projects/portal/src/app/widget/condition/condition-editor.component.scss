@@ -101,6 +101,14 @@ variable-editor {
     display: block;
     line-height: 1;
   }
+
+  &:focus,
+  &:focus-visible,
+  &.editor-container__type-button--open {
+    border-color: var(--inet-primary-color);
+    box-shadow: var(--inet-focus-ring);
+    outline: var(--inet-focus-ring-outline);
+  }
 }
 
 :host ::ng-deep .editor-container--field-value condition-field-combo .condition-field-combo {

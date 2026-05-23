@@ -40,6 +40,7 @@ import { InputParameterDialogModel } from "../../model/input-parameter-dialog-mo
 import { VSTrapService } from "../../util/vs-trap.service";
 import { ExpressionValue } from "../../../common/data/condition/expression-value";
 import { ExpressionType } from "../../../common/data/condition/expression-type";
+import { CustomSelectOption } from "../../../widget/custom-select/custom-select.component";
 enum LinkType {
    WEB_LINK = 1,
    VIEWSHEET_LINK = 8,
@@ -191,6 +192,32 @@ export class HyperlinkDialog implements OnInit {
 
    set expressionValue(value: ExpressionValue) {
       this._expressionValue = value;
+   }
+
+   get webLinkFieldSelectOptions(): CustomSelectOption<string>[] {
+      return [
+         {
+            label: "",
+            value: null
+         },
+         ...((this.model?.fields ?? []).map((field) => ({
+            label: `hyperlink:${field.view}`,
+            value: `hyperlink:${field.name}`
+         })))
+      ];
+   }
+
+   get bookmarkSelectOptions(): CustomSelectOption<string>[] {
+      return [
+         {
+            label: "",
+            value: null
+         },
+         ...this.bookmarks.map((bookmark) => ({
+            label: bookmark,
+            value: this.getBookMarkValue(bookmark)
+         }))
+      ];
    }
 
    chooseLink(value: LinkType): void {

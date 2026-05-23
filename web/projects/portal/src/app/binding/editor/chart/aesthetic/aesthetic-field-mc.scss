@@ -29,6 +29,15 @@
   .field-icon {
     border: 1px solid transparent;
     border-radius: 3px;
+
+    &:focus,
+    &:focus-visible,
+    &:focus-within,
+    &.field-icon--open {
+      border-color: var(--inet-primary-color);
+      box-shadow: var(--inet-focus-ring);
+      outline: var(--inet-focus-ring-outline);
+    }
   }
 }
 

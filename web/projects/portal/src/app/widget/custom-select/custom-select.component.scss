@@ -38,6 +38,13 @@
   }
 }
 
+:host(.is-open) .custom-select-trigger,
+:host(.is-focused) .custom-select-trigger {
+  border-color: var(--inet-primary-color);
+  box-shadow: var(--inet-focus-ring);
+  outline: var(--inet-focus-ring-outline);
+}
+
 .custom-select-trigger__text,
 .custom-select-option__label {
   min-width: 0;

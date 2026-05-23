@@ -15,6 +15,13 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+:host {
+  display: flex;
+  align-items: stretch;
+  width: 100%;
+  min-width: 0;
+}
+
 string-value-editor,
 char-value-editor,
 boolean-value-editor,
@@ -23,17 +30,26 @@ date-value-editor,
 time-value-editor,
 time-instant-value-editor {
   flex-grow: 1;
+  min-width: 0;
 }
 
 .vpm-value-editor__browse-button {
-  min-width: var(--inet-control-height-md, 30px);
-  min-height: var(--inet-control-height-md, 30px);
-  padding-inline: var(--inet-space-3, 6px);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--condition-row-icon-size, 2rem);
+  min-width: var(--condition-row-icon-size, 2rem);
+  height: var(--condition-row-control-height, 2.375rem);
+  min-height: var(--condition-row-control-height, 2.375rem);
+  padding: 0;
+  line-height: 1;
 }
 
 .vpm-value-editor__browse-button-wrapper {
   display: inline-flex;
-  margin-left: var(--inet-space-2, 4px);
+  align-items: center;
+  flex: 0 0 auto;
+  margin-left: var(--condition-row-gap, 0.375rem);
 }
 
 .browse-data-dropdown {

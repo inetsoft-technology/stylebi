@@ -19,6 +19,7 @@
   <span class="input-group-text" *ngIf="label">{{label}}</span>
   <span class="input-group-btn">
     <button type="button" class="btn form-control dropdown-toggle no-caret input-group-addon-action bd-gray"
+            [class.color-picker__trigger--open]="open"
             data-toggle="dropdown" aria-haspopup="true" aria-expanded="false"
             [disabled]="!enabled" [class.disabled]="!enabled" *ngIf="display" [fixedDropdown]="dropdownMenu"
             [autoClose]="false" [closeOnOutsideClick]="true" [zIndex]="10500"

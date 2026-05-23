@@ -60,9 +60,22 @@
 }
 
 .fieldEditIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   line-height: 1;
   margin-left: 0.25em;
   margin-right: 0.25em;
+  border-radius: 0.25rem;
+
+  &:focus,
+  &:focus-visible,
+  &:focus-within,
+  &.fieldEditIcon--open {
+    border-color: var(--inet-primary-color);
+    box-shadow: var(--inet-focus-ring);
+    outline: var(--inet-focus-ring-outline);
+  }
 }
 
 .fieldOption {

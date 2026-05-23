@@ -31,7 +31,8 @@
       <i class="icon-size-small btn-icon setting-icon"
          title="_#(Field Option)"></i>
     </div>
-    <div (openChange)="toggled($event)" [autoClose]="false" class="fieldEditIcon"
+    <div (openChange)="toggled($event)" [autoClose]="false"
+         class="fieldEditIcon" [class.fieldEditIcon--open]="dropdownOpen"
          *ngIf="isEditEnable()" [closeOnOutsideClick]="!dialogOpened"
          [fixedDropdown]="dropdownMenu" [zIndex]="10000">
       <i class="icon-size-small btn-icon"

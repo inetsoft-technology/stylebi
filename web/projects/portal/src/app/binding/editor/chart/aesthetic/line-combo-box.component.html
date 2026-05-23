@@ -15,8 +15,12 @@
   ~ You should have received a copy of the GNU Affero General Public License
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
-<div class="dropdown-toggle" [fixedDropdown]="dropdownMenu" [autoClose]="true"
-     dropdownPlacement="bottom">
+<div class="dropdown-toggle"
+     [class.visual-combo-trigger--open]="open"
+     [fixedDropdown]="dropdownMenu"
+     [autoClose]="true"
+     dropdownPlacement="bottom"
+     (openChange)="open = $event">
   <line-item [line]="line" [title]="getTooltip()"></line-item>
 </div>
 <ng-template #dropdownMenu>

@@ -16,6 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, Input, EventEmitter, Output, OnInit } from "@angular/core";
+import { CustomSelectOption } from "../../custom-select/custom-select.component";
 
 enum StyleType {
    /**
@@ -49,6 +50,23 @@ export class VariableCollectionSelector implements OnInit {
    @Input() dataTruncated: boolean;
    @Output() valueChange = new EventEmitter<any[]>();
    StyleType = StyleType;
+
+   get comboBoxOptions(): CustomSelectOption<any>[] {
+      const options: CustomSelectOption<any>[] = (this.labels || []).map((label, index) => ({
+         label,
+         value: this.values[index]
+      }));
+
+      if(this.dataTruncated) {
+         options.push({
+            label: "(_#(data.truncated))",
+            value: null,
+            disabled: true
+         });
+      }
+
+      return options;
+   }
 
    ngOnInit() {
       // Fill value with undefined if not checked

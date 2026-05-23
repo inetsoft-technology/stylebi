@@ -20,6 +20,7 @@ import {
    Component,
    ElementRef,
    EventEmitter,
+   HostBinding,
    HostListener,
    Input,
    NgZone,
@@ -61,7 +62,9 @@ export class TreeDropdownComponent extends TreeDataPane {
    @ViewChild("inputDropdown", { read: ElementRef }) inputDropdownRef: ElementRef<HTMLElement>;
    @ViewChild(FixedDropdownDirective) inputDropdown: FixedDropdownDirective;
    currentLabel: string = "";
+   @HostBinding("class.is-open")
    open: boolean = false;
+   private restoreFocusOnClose: boolean = false;
 
    constructor(private dropdownService: FixedDropdownService,
                private renderer: Renderer2,
@@ -76,12 +79,22 @@ export class TreeDropdownComponent extends TreeDataPane {
 
       if(node && node.leaf) {
          this.selectNode(node);
+         this.restoreFocusOnClose = true;
          this.inputDropdown.close();
       }
    }
 
    handleOpenChange(open: boolean): void {
       this.open = open;
+
+       if(!open) {
+         const shouldRestoreFocus = this.restoreFocusOnClose;
+         this.restoreFocusOnClose = false;
+
+         if(shouldRestoreFocus && !this.isDisabled) {
+            setTimeout(() => this.inputDropdownRef?.nativeElement?.focus());
+         }
+      }
    }
 
    get dropdownMinWidth(): number {

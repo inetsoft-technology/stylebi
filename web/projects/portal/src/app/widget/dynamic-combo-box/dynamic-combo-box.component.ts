@@ -77,6 +77,7 @@ export class DynamicComboBox implements OnInit, OnChanges {
 
    valueTree: TreeNodeModel = null;
    @ViewChild("dropdownBody") dropdownBody: ElementRef;
+   @ViewChild("valueTrigger", { read: ElementRef }) valueTrigger: ElementRef<HTMLElement>;
    @ViewChild("textInput") textInput: ElementRef;
    @ViewChild("numberInput") numberInput: ElementRef;
    @ViewChildren(FixedDropdownDirective) dropdowns: QueryList<FixedDropdownDirective>;
@@ -237,8 +238,12 @@ export class DynamicComboBox implements OnInit, OnChanges {
       this.valueChange.emit(this.value);
    }
 
-   closeDropdowns() {
+   closeDropdowns(refocusTrigger: boolean = false) {
       this.dropdowns.forEach(d => d.close());
+
+      if(refocusTrigger && !this.disable && !this.editable && this.mode == ValueMode.TEXT) {
+         setTimeout(() => this.valueTrigger?.nativeElement?.focus());
+      }
    }
 
    handleValueDropdownOpenChange(open: boolean): void {
@@ -395,7 +400,7 @@ export class DynamicComboBox implements OnInit, OnChanges {
    nodesSelected(nodes: TreeNodeModel[]) {
       if(nodes && nodes.length > 0 && !nodes[0].children) {
          this.selectValue(nodes[0].data);
-         this.closeDropdowns();
+         this.closeDropdowns(true);
       }
    }
 
