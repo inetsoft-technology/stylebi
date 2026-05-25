@@ -130,10 +130,10 @@ public class WizVsService {
             else {
                assembly = createAssembly(targetVs, model.getVisualizationType(), assemblyName,
                                          ctx.config(), ctx.primaryAssemblyName());
-            }
 
-            if(assembly == null) {
-               throw new IllegalArgumentException("Unsupported visualization type: " + model.getVisualizationType());
+               if(assembly == null) {
+                  throw new IllegalArgumentException("Unsupported visualization type: " + model.getVisualizationType());
+               }
             }
 
             // Clear old primary before adding the new assembly; capture it for rollback.
@@ -1056,13 +1056,19 @@ public class WizVsService {
          case PrimaryBinding.TablePrimaryBinding tb ->
             createTableAssemblyFromInfo(vs, name, tb.columns(), tb.entries());
          case PrimaryBinding.GaugePrimaryBinding gb ->
-            createGaugeAssemblyFromInfo(vs, name, gb.dataRef(), tname);
+            createGaugeAssemblyFromInfo(vs, name, gb.dataRef());
          case PrimaryBinding.TextPrimaryBinding tb ->
-            createTextAssemblyFromInfo(vs, name, tb.dataRef(), tname);
+            createTextAssemblyFromInfo(vs, name, tb.dataRef());
       };
 
       if(assembly instanceof DataVSAssembly dataAssembly) {
          dataAssembly.setSourceInfo(new SourceInfo(SourceInfo.ASSET, null, tname));
+      }
+      else if(assembly instanceof OutputVSAssembly outputAssembly) {
+         ScalarBindingInfo sbinfo = outputAssembly.getScalarBindingInfo();
+         if(sbinfo != null) {
+            sbinfo.setTableName(tname);
+         }
       }
 
       return assembly;
@@ -1122,13 +1128,10 @@ public class WizVsService {
       return table;
    }
 
-   private GaugeVSAssembly createGaugeAssemblyFromInfo(Viewsheet vs, String name,
-                                                       DataRef dataRef, String tname)
-   {
+   private GaugeVSAssembly createGaugeAssemblyFromInfo(Viewsheet vs, String name, DataRef dataRef) {
       GaugeVSAssembly gauge = new GaugeVSAssembly(vs, name);
       gauge.initDefaultFormat();
       ScalarBindingInfo sbinfo = new ScalarBindingInfo();
-      sbinfo.setTableName(tname);
 
       if(dataRef instanceof VSAggregateRef agg) {
          sbinfo.setColumnValue(agg.getColumnValue());
@@ -1145,13 +1148,10 @@ public class WizVsService {
       return gauge;
    }
 
-   private TextVSAssembly createTextAssemblyFromInfo(Viewsheet vs, String name,
-                                                     DataRef dataRef, String tname)
-   {
+   private TextVSAssembly createTextAssemblyFromInfo(Viewsheet vs, String name, DataRef dataRef) {
       TextVSAssembly text = new TextVSAssembly(vs, name);
       text.initDefaultFormat();
       ScalarBindingInfo sbinfo = new ScalarBindingInfo();
-      sbinfo.setTableName(tname);
 
       if(dataRef instanceof VSAggregateRef agg) {
          sbinfo.setColumnValue(agg.getColumnValue());

@@ -153,6 +153,7 @@ public class WizAutoBindingService {
          VSWizardData wizardData = new VSWizardData(entries, tempInfo, pref);
          VSRecommendationModel model = defaultRecommendationFactory.recommend(wizardData, rvs, user);
 
+         // Phase 2: compute recommendations and primary binding.
          List<VSObjectRecommendation> recommendations = Collections.emptyList();
          PrimaryBinding primaryBinding = null;
 
