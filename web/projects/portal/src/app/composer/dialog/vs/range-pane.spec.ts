@@ -64,7 +64,7 @@ describe("Range pane Test", () => {
       fixture.detectChanges();
 
       let ranges = fixture.debugElement.nativeElement.querySelectorAll(
-         "div.dynamic-combo-box-body.w-100.input-group input");
+         "div.dynamic-combo-box-body.w-100 input");
       let range5 = ranges[0];
 
       range5.value = "aa";

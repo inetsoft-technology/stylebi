@@ -60,7 +60,7 @@ describe("Color Picker Unit Test", () => {
       tick();
       fixture.detectChanges();
 
-      const swatch = document.querySelector(".color-picker-palette .color-picker-swatch") as HTMLButtonElement;
+      const swatch = document.querySelector(".color-picker-palette-row:not(.color-picker-recent) .color-picker-swatch") as HTMLButtonElement;
       expect(swatch).toBeTruthy();
 
       swatch.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));

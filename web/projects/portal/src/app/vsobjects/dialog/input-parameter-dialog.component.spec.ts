@@ -24,6 +24,7 @@ import { NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { TestUtils } from "../../common/test/test-utils";
 import { EnterSubmitDirective } from "../../widget/directive/enter-submit.directive";
 import { ModalHeaderComponent } from "../../widget/modal-header/modal-header.component";
+import { CustomSelectModule } from "../../widget/custom-select/custom-select.module";
 import { InputParameterDialogModel } from "../model/input-parameter-dialog-model";
 import { InputParameterDialog } from "./input-parameter-dialog.component";
 
@@ -42,7 +43,7 @@ describe("input parameter dialog component unit case", () => {
 
    beforeEach(() => {
       TestBed.configureTestingModule({
-         imports: [ReactiveFormsModule, FormsModule, NgbModule, HttpClientTestingModule],
+         imports: [ReactiveFormsModule, FormsModule, NgbModule, HttpClientTestingModule, CustomSelectModule],
          declarations: [InputParameterDialog, EnterSubmitDirective, ModalHeaderComponent],
          schemas: [NO_ERRORS_SCHEMA]
       }).compileComponents();
