@@ -48,6 +48,7 @@ import { AddParameterDialog } from "../../add-parameter-dialog/add-parameter-dia
 import { ParameterTable } from "../../parameter-table/parameter-table.component";
 import { ActionAccordion } from "./action-accordion.component";
 import { ValueTypes } from "../../../../../vsobjects/model/dynamic-value-model";
+import { CustomSelectModule } from "../../../../../widget/custom-select/custom-select.module";
 
 describe("Action Accordion Unit Test", () => {
    const createVSActionModel: () => GeneralActionModel = () => {
@@ -135,7 +136,7 @@ describe("Action Accordion Unit Test", () => {
    beforeEach(async(() => {
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule, HttpClientTestingModule
+            FormsModule, ReactiveFormsModule, NgbModule, HttpClientTestingModule, CustomSelectModule
          ],
          declarations: [
             ActionAccordion, GenericSelectableList, ParameterTable,

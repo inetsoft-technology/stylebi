@@ -24,7 +24,6 @@ import { NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { DataRef } from "../../common/data/data-ref";
 import { DropDownTestModule } from "../../common/test/test-module";
 import { TestUtils } from "../../common/test/test-utils";
-import { FixedDropdownDirective } from "../fixed-dropdown/fixed-dropdown.directive";
 import { DragService } from "../services/drag.service";
 import { TreeNodeComponent } from "../tree/tree-node.component";
 import { TreeSearchPipe } from "../tree/tree-search.pipe";
@@ -73,7 +72,6 @@ describe ("condition field combo tree test", () => {
             TreeNodeComponent,
             TreeSearchPipe,
             SearchDataRefPipe,
-            FixedDropdownDirective,
             TestComponent
          ],
          providers: [

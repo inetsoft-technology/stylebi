@@ -23,7 +23,6 @@ import { UIContextService } from "../../common/services/ui-context.service";
 import { DropDownTestModule } from "../../common/test/test-module";
 import { RecentColorService } from "../../widget/color-picker/recent-color.service";
 import { EnterSubmitDirective } from "../../widget/directive/enter-submit.directive";
-import { FixedDropdownDirective } from "../../widget/fixed-dropdown/fixed-dropdown.directive";
 import { AxisLabelPaneModel } from "../model/dialog/axis-label-panel-model";
 import { AxisLinePaneModel } from "../model/dialog/axis-line-pane-model";
 import { AxisPropertyDialogModel } from "../model/dialog/axis-property-dialog-model";
@@ -90,7 +89,7 @@ describe("Axis Property Dialog Unit Tests", () => {
             NgbModule, FormsModule, ReactiveFormsModule, DropDownTestModule
          ],
          declarations: [
-            AxisPropertyDialog, AxisLinePane, FixedDropdownDirective,
+            AxisPropertyDialog, AxisLinePane,
             AliasPane, AxisLabelPane, EnterSubmitDirective
          ],
          providers: [

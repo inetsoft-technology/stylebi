@@ -36,7 +36,6 @@ import { MessageDialog } from "../dialog/message-dialog/message-dialog.component
 import { NewAggrDialog } from "../dialog/new-aggr-dialog/new-aggr-dialog.component";
 import { ScriptPane } from "../dialog/script-pane/script-pane.component";
 import { DynamicComboBox } from "../dynamic-combo-box/dynamic-combo-box.component";
-import { FixedDropdownDirective } from "../fixed-dropdown/fixed-dropdown.directive";
 import { ComboMode } from "../dynamic-combo-box/dynamic-combo-box-model";
 import { AlphaDropdown } from "../format/alpha-dropdown.component";
 import { GridLineDropdown } from "../format/grid-line-dropdown.component";
@@ -153,7 +152,6 @@ describe("LinePanel Unit Tests", () => {
             ColorComponentEditor,
             ColorPane,
             ScriptPane,
-            FixedDropdownDirective,
             DynamicComboBox
          ],
          providers: [
@@ -240,9 +238,10 @@ describe("LinePanel Unit Tests", () => {
          {name: "Sum(id)", label: "Sum(id)", groupOthers: false, dateField: false},
          {name: "Year(date)", label: "Year(date)", groupOthers: true, dateField: true}];
       fixture.detectChanges();
-      let fileds = fixture.nativeElement.querySelectorAll("select option");
-      expect(fileds.length).toBe(2);
-      expect(fileds[0].textContent).toContain("");
-      expect(fileds[1].textContent).toContain("Sum(id)");
+      const csDebugEl = fixture.debugElement.query(By.css("custom-select"));
+      const options = (csDebugEl.componentInstance as any).options;
+      expect(options.length).toBe(2);
+      expect(options[0].label).toContain("");
+      expect(options[1].label).toContain("Sum(id)");
    });
 });

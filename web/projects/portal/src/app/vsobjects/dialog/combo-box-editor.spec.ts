@@ -26,6 +26,7 @@ import { ComboBoxEditorModel } from "../model/combo-box-editor-model";
 import { SelectionListDialogModel } from "../model/selection-list-dialog-model";
 import { SelectionListEditorModel } from "../model/selection-list-editor-model";
 import { ComboBoxEditor } from "./combo-box-editor.component";
+import { CustomSelectModule } from "../../widget/custom-select/custom-select.module";
 
 describe("Combo Box Editor Test", () => {
    const createModel: () => ComboBoxEditorModel = () => {
@@ -53,7 +54,7 @@ describe("Combo Box Editor Test", () => {
       modalService = { open: jest.fn() };
 
       TestBed.configureTestingModule({
-         imports: [ReactiveFormsModule, FormsModule, NgbModule, HttpClientTestingModule],
+         imports: [ReactiveFormsModule, FormsModule, NgbModule, HttpClientTestingModule, CustomSelectModule],
          declarations: [ComboBoxEditor],
          providers: [{provide: DialogService, useValue: modalService}],
          schemas: [NO_ERRORS_SCHEMA]

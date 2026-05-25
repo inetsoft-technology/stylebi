@@ -24,7 +24,6 @@ import { NgbModal, NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { DropDownTestModule } from "../../common/test/test-module";
 import { TestUtils } from "../../common/test/test-utils";
 import { DynamicComboBox } from "../dynamic-combo-box/dynamic-combo-box.component";
-import { FixedDropdownDirective } from "../fixed-dropdown/fixed-dropdown.directive";
 import { ComboMode } from "../dynamic-combo-box/dynamic-combo-box-model";
 import { TreeNodeComponent } from "../tree/tree-node.component";
 import { TreeSearchPipe } from "../tree/tree-search.pipe";
@@ -42,7 +41,7 @@ describe("ValueInputField Unit Test", () => {
             DropDownTestModule, ReactiveFormsModule, FormsModule, NgbModule
          ],
          declarations: [
-            ValueInputField, TargetComboBox, FixedDropdownDirective,
+            ValueInputField, TargetComboBox,
             TreeComponent, TreeSearchPipe, TreeNodeComponent, DynamicComboBox
          ],
          providers: [ NgbModal ],

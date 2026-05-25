@@ -26,7 +26,6 @@ import { UIContextService } from "../../common/services/ui-context.service";
 import { DropDownTestModule } from "../../common/test/test-module";
 import { TestUtils } from "../../common/test/test-utils";
 import { StyleConstants } from "../../common/util/style-constants";
-import { FixedDropdownDirective } from "../../widget/fixed-dropdown/fixed-dropdown.directive";
 import { DynamicComboBox } from "../../widget/dynamic-combo-box/dynamic-combo-box.component";
 import { DragService } from "../../widget/services/drag.service";
 import { ModelService } from "../../widget/services/model.service";
@@ -60,7 +59,7 @@ describe("Sort Option Unit Test", () => {
             FormsModule, ReactiveFormsModule, NgbModule, DropDownTestModule
          ],
          declarations: [
-            SortOption, DynamicComboBox, FixedDropdownDirective
+            SortOption, DynamicComboBox
          ],
          providers: [{
                provide: BindingService, useValue: bindingService

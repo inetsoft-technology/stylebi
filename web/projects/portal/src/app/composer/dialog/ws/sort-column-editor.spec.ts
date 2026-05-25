@@ -20,6 +20,7 @@ import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { SortColumnEditorModel } from "../../data/ws/sort-column-editor-model";
 import { SortColumnEditor } from "./sort-column-editor.component";
+import { CustomSelectModule } from "../../../widget/custom-select/custom-select.module";
 
 describe("Sort Column Editor Unit Test", () => {
    const createModel: () => SortColumnEditorModel = () => {
@@ -41,7 +42,7 @@ describe("Sort Column Editor Unit Test", () => {
    beforeEach(async(() => {
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule
+            FormsModule, ReactiveFormsModule, NgbModule, CustomSelectModule
          ],
          declarations: [
             SortColumnEditor

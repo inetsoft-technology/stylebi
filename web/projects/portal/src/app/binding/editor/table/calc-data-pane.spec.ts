@@ -25,6 +25,7 @@ import { CellBindingInfo } from "../../data/table/cell-binding-info";
 import { BindingService } from "../../services/binding.service";
 import { VSCalcTableEditorService } from "../../services/table/vs-calc-table-editor.service";
 import { CalcDataPane } from "./calc-data-pane.component";
+import { CustomSelectModule } from "../../../widget/custom-select/custom-select.module";
 
 describe("Calc Data Pane Unit Test", () => {
    let createMockCellBindingInfo: (name?: string) => CellBindingInfo = (name?: string) => {
@@ -68,7 +69,7 @@ describe("Calc Data Pane Unit Test", () => {
    function configureTestEnv(): void {
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule
+            FormsModule, ReactiveFormsModule, NgbModule, CustomSelectModule
          ],
          declarations: [ CalcDataPane ],
          providers: [
@@ -212,7 +213,7 @@ describe("Calc Data Pane Unit Test", () => {
       calcDataPane.columnValue = "state";
       fixture.detectChanges();
 
-      let colGroup: HTMLElement = fixture.nativeElement.querySelector(".col_group_id select");
-      expect(colGroup.attributes["ng-reflect-model"].value).toEqual("(default)");
+      let colGroup: HTMLElement = fixture.nativeElement.querySelector(".col_group_id custom-select");
+      expect(colGroup.getAttribute("ng-reflect-model")).toEqual("(default)");
    });
 });

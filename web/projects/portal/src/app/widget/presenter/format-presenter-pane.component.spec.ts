@@ -22,7 +22,6 @@ import { NgbModal, NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { of as observableOf } from "rxjs";
 import { DropDownTestModule } from "../../common/test/test-module";
 import { DataTreeValidatorService } from "../../vsobjects/dialog/data-tree-validator.service";
-import { FixedDropdownDirective } from "../fixed-dropdown/fixed-dropdown.directive";
 import { ModelService } from "../services/model.service";
 import { TreeDropdownComponent } from "../tree/tree-dropdown.component";
 import { TreeNodeComponent } from "../tree/tree-node.component";
@@ -46,7 +45,7 @@ describe("format presenter pane componnet unit case", () => {
       TestBed.configureTestingModule({
          imports: [DropDownTestModule, ReactiveFormsModule, FormsModule, NgbModule],
          declarations: [
-            FormatPresenterPane, FixedDropdownDirective, TreeComponent, TreeSearchPipe,
+            FormatPresenterPane, TreeComponent, TreeSearchPipe,
             TreeNodeComponent, TreeDropdownComponent
          ],
          providers: [

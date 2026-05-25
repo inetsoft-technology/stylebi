@@ -23,7 +23,6 @@ import { NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { UIContextService } from "../../../common/services/ui-context.service";
 import { DropDownTestModule } from "../../../common/test/test-module";
 import { TestUtils } from "../../../common/test/test-utils";
-import { FixedDropdownDirective } from "../../../widget/fixed-dropdown/fixed-dropdown.directive";
 import { DynamicComboBox } from "../../../widget/dynamic-combo-box/dynamic-combo-box.component";
 import { BAggregateRef } from "../../data/b-aggregate-ref";
 import { BindingService } from "../../services/binding.service";
@@ -48,7 +47,7 @@ describe("Aggregate Option Unit Test", () => {
             FormsModule, ReactiveFormsModule, NgbModule, DropDownTestModule
          ],
          declarations: [
-            AggregateOption, FormulaOption, DynamicComboBox, FixedDropdownDirective
+            AggregateOption, FormulaOption, DynamicComboBox
          ],
          providers: [
             { provide: UIContextService, useValue: uiContextService },

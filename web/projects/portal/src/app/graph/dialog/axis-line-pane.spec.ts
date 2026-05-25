@@ -31,7 +31,6 @@ import { GradientColorItem } from "../../widget/color-picker/gradient-color-item
 import { ColorSlider } from "../../widget/color-picker/color-slider.component";
 import { ColorPane } from "../../widget/color-picker/cp-color-pane.component";
 import { RecentColorService } from "../../widget/color-picker/recent-color.service";
-import { FixedDropdownDirective } from "../../widget/fixed-dropdown/fixed-dropdown.directive";
 import { AxisLinePaneModel } from "../model/dialog/axis-line-pane-model";
 import { AxisLinePane } from "./axis-line-pane.component";
 import { ActionsContextmenuAnchorDirective } from "../../widget/fixed-dropdown/actions-contextmenu-anchor.directive";
@@ -83,7 +82,6 @@ describe("AxisLinePane Unit Tests", () => {
             ColorSlider,
             ColorComponentEditor,
             ColorPane,
-            FixedDropdownDirective
          ],
          providers: [
             NgbModal,

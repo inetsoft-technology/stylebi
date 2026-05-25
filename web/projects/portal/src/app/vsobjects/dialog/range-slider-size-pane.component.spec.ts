@@ -24,6 +24,7 @@ import { RangeSliderSizePane } from "./range-slider-size-pane.component";
 import { RangeSliderSizePaneModel } from "../model/range-slider-size-pane-model";
 import { RangeSliderDataPaneModel } from "../model/range-slider-data-pane-model";
 import { TestUtils } from "../../common/test/test-utils";
+import { CustomSelectModule } from "../../widget/custom-select/custom-select.module";
 
 let createModel = () => <RangeSliderSizePaneModel> {
    length: 3,
@@ -43,11 +44,11 @@ describe("Range Slider Size Pane Component Unit Test:", () => {
    let dataModel: RangeSliderDataPaneModel;
    let fixture: ComponentFixture<RangeSliderSizePane>;
    let de: DebugElement;
-   let el: HTMLSelectElement;
+   let el: HTMLElement;
 
    beforeEach(async(() => {
       TestBed.configureTestingModule({
-         imports: [ReactiveFormsModule, FormsModule, NgbModule],
+         imports: [ReactiveFormsModule, FormsModule, NgbModule, CustomSelectModule],
          declarations: [RangeSliderSizePane]
       });
       TestBed.compileComponents();
@@ -63,15 +64,15 @@ describe("Range Slider Size Pane Component Unit Test:", () => {
 
    it("should instantiate RangeSliderSizePane comboBox with string Month", async(() => {
       fixture.whenStable().then(() => {
-         de = fixture.debugElement.query(By.css("select.form-control"));
+         de = fixture.debugElement.query(By.css("custom-select"));
          el = de.nativeElement;
-         expect(TestUtils.toString((<HTMLOptionElement>el.options[el.selectedIndex]).text)).toBe("Month");
+         expect(TestUtils.toString((de.componentInstance as any).selectedLabel)).toBe("Month");
 
          fixture.componentInstance.model.rangeType = 16;
          fixture.detectChanges();
 
          fixture.whenStable().then(() => {
-            expect(TestUtils.toString((<HTMLOptionElement>el.options[el.selectedIndex]).text)).toBe("Day");
+            expect(TestUtils.toString((de.componentInstance as any).selectedLabel)).toBe("Day");
          });
       });
    }));

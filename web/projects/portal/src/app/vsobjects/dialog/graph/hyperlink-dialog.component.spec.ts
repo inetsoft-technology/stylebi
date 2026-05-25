@@ -27,7 +27,6 @@ import { DropDownTestModule } from "../../../common/test/test-module";
 import { TestUtils } from "../../../common/test/test-utils";
 import { StompClientService } from "../../../common/viewsheet-client";
 import { EnterSubmitDirective } from "../../../widget/directive/enter-submit.directive";
-import { FixedDropdownDirective } from "../../../widget/fixed-dropdown/fixed-dropdown.directive";
 import { GenericSelectableList } from "../../../widget/generic-selectable-list/generic-selectable-list.component";
 import { LargeFormFieldComponent } from "../../../widget/large-form-field/large-form-field.component";
 import { RepositoryTreeService } from "../../../widget/repository-tree/repository-tree.service";
@@ -170,7 +169,7 @@ describe("hyperlink dialog componnet unit case", () => {
 
       TestBed.configureTestingModule({
          imports: [ReactiveFormsModule, FormsModule, NgbModule, DropDownTestModule, HttpClientTestingModule],
-         declarations: [HyperlinkDialog, InputParameterDialog, LargeFormFieldComponent, RepositoryTreeComponent, GenericSelectableList, EnterSubmitDirective, TooltipDirective, FixedDropdownDirective],
+         declarations: [HyperlinkDialog, InputParameterDialog, LargeFormFieldComponent, RepositoryTreeComponent, GenericSelectableList, EnterSubmitDirective, TooltipDirective],
          providers: [TooltipService,
             {provide: VSTrapService, useValue: trapService},
             {provide: NgbModal, useValue: modalService},

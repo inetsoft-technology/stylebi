@@ -225,3 +225,5 @@ terraform.rc
 
 # Ignore local Claude Code settings
 .claude/settings.local.json
+.vscode/settings.json
+.gitignore

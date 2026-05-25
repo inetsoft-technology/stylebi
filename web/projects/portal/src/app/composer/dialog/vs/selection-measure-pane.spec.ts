@@ -26,7 +26,6 @@ import { DropDownTestModule } from "../../../common/test/test-module";
 import { NewAggrDialog } from "../../../widget/dialog/new-aggr-dialog/new-aggr-dialog.component";
 import { ScriptPane } from "../../../widget/dialog/script-pane/script-pane.component";
 import { DynamicComboBox } from "../../../widget/dynamic-combo-box/dynamic-combo-box.component";
-import { FixedDropdownDirective } from "../../../widget/fixed-dropdown/fixed-dropdown.directive";
 import { FormulaEditorDialog } from "../../../widget/formula-editor/formula-editor-dialog.component";
 import { DragService } from "../../../widget/services/drag.service";
 import { TreeNodeComponent } from "../../../widget/tree/tree-node.component";
@@ -64,7 +63,7 @@ describe("Selection Measure Pane Test", () => {
          declarations: [
             SelectionMeasurePane, FormulaEditorDialog,
             ScriptPane, NewAggrDialog, TreeComponent, TreeNodeComponent, TreeSearchPipe,
-            FixedDropdownDirective, DynamicComboBox
+            DynamicComboBox
          ],
          providers: [
             {provide: ChangeDetectorRef, useValue: changeDetectorRef},

@@ -22,7 +22,6 @@ import { NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { DropDownTestModule } from "../../common/test/test-module";
 import { NewAggrDialog } from "../dialog/new-aggr-dialog/new-aggr-dialog.component";
 import { ScriptPane } from "../dialog/script-pane/script-pane.component";
-import { FixedDropdownDirective } from "../fixed-dropdown/fixed-dropdown.directive";
 import { ComboMode, DynamicComboBoxModel, ValueMode } from "./dynamic-combo-box-model";
 import { DynamicComboBox } from "./dynamic-combo-box.component";
 import { FormulaEditorDialog } from "../formula-editor/formula-editor-dialog.component";
@@ -53,7 +52,7 @@ describe("Dynamic combo box Unit Case: ", () => {
          ],
          declarations: [
             DynamicComboBox, TreeComponent, FormulaEditorDialog, NewAggrDialog,
-            TreeNodeComponent, ScriptPane, TreeSearchPipe, FixedDropdownDirective
+            TreeNodeComponent, ScriptPane, TreeSearchPipe
          ],
          schemas: [ NO_ERRORS_SCHEMA ]
       });

@@ -17,6 +17,7 @@
  */
 import { async, TestBed } from "@angular/core/testing";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
+import { By } from "@angular/platform-browser";
 import { NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { ColumnRef } from "../../../binding/data/column-ref";
 import { AggregateRef } from "../../../common/data/aggregate-ref";
@@ -25,6 +26,7 @@ import { AggregateDialogModel } from "../../data/ws/aggregate-dialog-model";
 import { AggregatePane } from "./aggregate-pane.component";
 import { DateLevelExamplesService } from "../../../common/services/date-level-examples.service";
 import { of as observableOf } from "rxjs";
+import { CustomSelectModule } from "../../../widget/custom-select/custom-select.module";
 
 describe("Aggregate Pane Unit Test", () => {
    let createColumnRef: (name: string) => ColumnRef = (name: string) => {
@@ -67,7 +69,7 @@ describe("Aggregate Pane Unit Test", () => {
    beforeEach(async(() => {
       TestBed.configureTestingModule({
          imports: [
-            NgbModule, ReactiveFormsModule, FormsModule
+            NgbModule, ReactiveFormsModule, FormsModule, CustomSelectModule
          ],
          declarations: [
             AggregatePane
@@ -124,9 +126,10 @@ describe("Aggregate Pane Unit Test", () => {
       fixture.detectChanges();
 
       fixture.whenStable().then(() => {
-         let firstAggregate = fixture.nativeElement.querySelectorAll("select#aggregate")[0];
-         let aggregateOps = firstAggregate.querySelectorAll("option");
-         expect(aggregateOps[0].textContent.trim()).not.toBe("None");
+         const csEl = fixture.debugElement.query(By.css("custom-select#aggregate"));
+         const options = (csEl?.componentInstance as any)?.options;
+         expect(options?.length).toBeGreaterThan(0);
+         expect(options?.[0]?.label?.trim()).not.toBe("None");
       });
    });
 });

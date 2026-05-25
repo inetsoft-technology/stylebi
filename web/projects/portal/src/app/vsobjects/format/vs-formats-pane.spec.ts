@@ -36,7 +36,6 @@ import { ColorEditor } from "../../widget/color-picker/color-editor.component";
 import { ColorPicker } from "../../widget/color-picker/color-picker.component";
 import { ColorPane } from "../../widget/color-picker/cp-color-pane.component";
 import { RecentColorService } from "../../widget/color-picker/recent-color.service";
-import { FixedDropdownDirective } from "../../widget/fixed-dropdown/fixed-dropdown.directive";
 import { DropdownView } from "../../widget/dropdown-view/dropdown-view.component";
 import { DynamicComboBox } from "../../widget/dynamic-combo-box/dynamic-combo-box.component";
 import { FontPane } from "../../widget/font-pane/font-pane.component";
@@ -74,7 +73,7 @@ describe("VS Formats Pane Unit case", () => {
          declarations: [VSFormatsPane, DropdownView, DynamicComboBox, AlphaDropdown, ColorEditor, ColorPicker, ColorPane,
                         FontPane, FormattingPane, ColorDropdown,
                         ColorFieldPane, ColorPane, BindingAlignmentPane, BindingBorderPane,
-                        FormatCSSPane, ComboBox, BorderStylePane, FixedDropdownDirective],
+                        FormatCSSPane, ComboBox, BorderStylePane],
          providers: [
             {provide: FontService, useValue: fontService},
             RecentColorService,

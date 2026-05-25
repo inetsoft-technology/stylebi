@@ -26,7 +26,6 @@ import { MessageDialog } from "../../../widget/dialog/message-dialog/message-dia
 import { NewAggrDialog } from "../../../widget/dialog/new-aggr-dialog/new-aggr-dialog.component";
 import { ScriptPane } from "../../../widget/dialog/script-pane/script-pane.component";
 import { DynamicComboBox } from "../../../widget/dynamic-combo-box/dynamic-combo-box.component";
-import { FixedDropdownDirective } from "../../../widget/fixed-dropdown/fixed-dropdown.directive";
 import { FormulaEditorDialog } from "../../../widget/formula-editor/formula-editor-dialog.component";
 import { TreeNodeComponent } from "../../../widget/tree/tree-node.component";
 import { TreeSearchPipe } from "../../../widget/tree/tree-search.pipe";
@@ -57,7 +56,7 @@ describe("Number Range Pane Tests", () => {
          ],
          declarations: [NumberRangePane, FormulaEditorDialog,
             NewAggrDialog, MessageDialog, ScriptPane, TreeComponent,
-            TreeNodeComponent, TreeSearchPipe, FixedDropdownDirective, DynamicComboBox
+            TreeNodeComponent, TreeSearchPipe, DynamicComboBox
          ],
          schemas: [ NO_ERRORS_SCHEMA ]
       });

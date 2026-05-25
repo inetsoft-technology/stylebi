@@ -28,7 +28,6 @@ import { DateInValueEditor } from "./date-in-value-editor.component";
 import { NumberValueEditor } from "./number-value-editor.component";
 import { StringValueEditor } from "./string-value-editor.component";
 import { ValueEditor } from "./value-editor.component";
-import { FixedDropdownDirective } from "../fixed-dropdown/fixed-dropdown.directive";
 import { TimepickerComponent } from "../date-type-editor/timepicker.component";
 import { CharValueEditor } from "./char-value-editor.component";
 import { DropDownTestModule } from "../../common/test/test-module";
@@ -45,8 +44,7 @@ describe("Value Editor Component Unit Case", () => {
          declarations: [
             ValueEditor, StringValueEditor, NumberValueEditor, BooleanValueEditor,
             DateValueEditorComponent, TimeValueEditorComponent, DateInValueEditor,
-            TimeInstantValueEditorComponent, CharValueEditor, TimepickerComponent,
-            FixedDropdownDirective
+            TimeInstantValueEditorComponent, CharValueEditor, TimepickerComponent
          ]
       });
 

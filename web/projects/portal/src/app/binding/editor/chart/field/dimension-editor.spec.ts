@@ -19,6 +19,7 @@ import { HttpParams, HttpResponse } from "@angular/common/http";
 import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { async, ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
+import { By } from "@angular/platform-browser";
 import { NgbModal, NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { of as observableOf } from "rxjs";
 import { XSchema } from "../../../../common/data/xschema";
@@ -28,7 +29,6 @@ import { DropDownTestModule } from "../../../../common/test/test-module";
 import { TestUtils } from "../../../../common/test/test-utils";
 import { StyleConstants } from "../../../../common/util/style-constants";
 import { XConstants } from "../../../../common/util/xconstants";
-import { FixedDropdownDirective } from "../../../../widget/fixed-dropdown/fixed-dropdown.directive";
 import { DynamicComboBox } from "../../../../widget/dynamic-combo-box/dynamic-combo-box.component";
 import { ModelService } from "../../../../widget/services/model.service";
 import { ChartBindingModel } from "../../../data/chart/chart-binding-model";
@@ -63,7 +63,7 @@ describe("Dimension Editor Unit Test", () => {
             FormsModule, ReactiveFormsModule, NgbModule, DropDownTestModule
          ],
          declarations: [
-            DimensionEditor, SortOption, DynamicComboBox, FixedDropdownDirective
+            DimensionEditor, SortOption, DynamicComboBox
          ],
          providers: [
             { provide: ModelService, useValue: modelService },
@@ -92,17 +92,17 @@ describe("Dimension Editor Unit Test", () => {
       dimensionEditor.vsId = "chart-15042540419170";
       fixture.detectChanges();
 
-      let sortCombo: Element = fixture.nativeElement.querySelector(".popup-editor__container .sort_label_id select");
-      expect(sortCombo.attributes["ng-reflect-is-disabled"].value).toEqual("true");
+      let sortComboEl = fixture.debugElement.query(By.css(".popup-editor__container .sort_label_id custom-select"));
+      expect(sortComboEl.nativeElement.classList.contains("is-disabled")).toBe(true);
 
       dimensionEditor.dimension.dataType = XSchema.DATE;
       dimensionEditor.fieldType = "path";
       dimensionEditor.sortSupported = true;
       fixture.detectChanges();
 
-      sortCombo = fixture.nativeElement.querySelector(".popup-editor__container .sort_label_id select");
+      sortComboEl = fixture.debugElement.query(By.css(".popup-editor__container .sort_label_id custom-select"));
       let timeSeries: HTMLInputElement = fixture.nativeElement.querySelector(".time_series_id");
-      expect(sortCombo.attributes["ng-reflect-is-disabled"].value).toEqual("false");
+      expect(sortComboEl.nativeElement.classList.contains("is-disabled")).toBe(false);
       expect(timeSeries.attributes["ng-reflect-is-disabled"].value).toEqual("true");
    });
 
@@ -252,8 +252,8 @@ describe("Dimension Editor Unit Test", () => {
       dimensionEditor.fieldType = "xfields";
       fixture.detectChanges();
 
-      let sortSelect: Element = fixture.nativeElement.querySelector(".popup-editor__container .sort_label_id select");
-      expect(sortSelect.getAttribute("ng-reflect-is-disabled")).toBe("true");
+      let sortSelectEl = fixture.debugElement.query(By.css(".popup-editor__container .sort_label_id custom-select"));
+      expect(sortSelectEl.nativeElement.classList.contains("is-disabled")).toBe(true);
 
       dimensionEditor.dimension.order = StyleConstants.SORT_VALUE_ASC;
       fixture.detectChanges();
@@ -263,9 +263,9 @@ describe("Dimension Editor Unit Test", () => {
       dimensionEditor.dimension.timeSeries = false;
       fixture.detectChanges();
 
-      sortSelect = fixture.nativeElement.querySelector(".popup-editor__container .sort_label_id select");
+      sortSelectEl = fixture.debugElement.query(By.css(".popup-editor__container .sort_label_id custom-select"));
       sortSummaryCombo = fixture.nativeElement.querySelector(".popup-editor__container .sort_by_id dynamic-combo-box");
-      expect(sortSelect.getAttribute("ng-reflect-is-disabled")).toEqual("false");
+      expect(sortSelectEl.nativeElement.classList.contains("is-disabled")).toBe(false);
       expect(sortSummaryCombo.getAttribute("ng-reflect-disable")).toEqual("false");
    });
 

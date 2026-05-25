@@ -28,7 +28,6 @@ import { of as observableOf } from "rxjs";
 import { UIContextService } from "../../common/services/ui-context.service";
 import { DropDownTestModule } from "../../common/test/test-module";
 import { TestUtils } from "../../common/test/test-utils";
-import { FixedDropdownDirective } from "../../widget/fixed-dropdown/fixed-dropdown.directive";
 import { DynamicComboBox } from "../../widget/dynamic-combo-box/dynamic-combo-box.component";
 import { ModelService } from "../../widget/services/model.service";
 import { CrosstabBindingModel } from "../data/table/crosstab-binding-model";
@@ -68,7 +67,7 @@ describe("Binding Editor Component Unit Test", () => {
             DropDownTestModule
          ],
          declarations: [
-            BindingEditor, CrosstabOption, DynamicComboBox, FixedDropdownDirective
+            BindingEditor, CrosstabOption, DynamicComboBox
          ],
          providers: [
             BindingService, TableEditorService,

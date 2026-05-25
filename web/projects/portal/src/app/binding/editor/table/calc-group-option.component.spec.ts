@@ -30,7 +30,7 @@ import { XSchema } from "../../../common/data/xschema";
 import { TestUtils } from "../../../common/test/test-utils";
 import { StyleConstants } from "../../../common/util/style-constants";
 import { XConstants } from "../../../common/util/xconstants";
-import { FixedDropdownComponent } from "../../../widget/fixed-dropdown/fixed-dropdown.component";
+import { CustomSelectModule } from "../../../widget/custom-select/custom-select.module";
 import { CellBindingInfo } from "../../data/table/cell-binding-info";
 import { OrderModel } from "../../data/table/order-model";
 import { TopNModel } from "../../data/table/topn-model";
@@ -148,7 +148,8 @@ describe("Calc Group Option Unit Test", () => {
          imports: [
             FormsModule,
             NgbModule,
-            HttpClientTestingModule
+            HttpClientTestingModule,
+            CustomSelectModule
          ],
          declarations: [
             CalcGroupOption, TestApp
@@ -172,12 +173,13 @@ describe("Calc Group Option Unit Test", () => {
       comp.aggregates = () => [];
       fixture.detectChanges();
 
-      let sort = fixture.debugElement.queryAll(By.css(".popup-editor__container select"))[0].queryAll(By.css("option"));
+      const sortEl = fixture.debugElement.queryAll(By.css(".popup-editor__container custom-select"))[0];
+      const sort = (sortEl?.componentInstance as any)?.options ?? [];
       fixture.detectChanges();
 
-      let rankingSelect: Element = fixture.nativeElement.querySelectorAll("select")[1];
-      expect(sort.map(item => TestUtils.toString(item.nativeElement.textContent.trim()))).toEqual(BESIC_SORTOPTION);
-      expect(rankingSelect.getAttribute("ng-reflect-is-disabled")).toEqual("true");
+      const rankingSelectEl = fixture.debugElement.queryAll(By.css("custom-select"))[1];
+      expect(sort.map((item: any) => TestUtils.toString(item.label))).toEqual(BESIC_SORTOPTION);
+      expect(rankingSelectEl.nativeElement.classList.contains("is-disabled")).toBe(true);
    });
 
    //Bug #17175: sort combobox load error if there is summary column
@@ -194,10 +196,11 @@ describe("Calc Group Option Unit Test", () => {
       comp.ngOnChanges({});
       fixture.detectChanges();
 
-      let sort = fixture.debugElement.queryAll(By.css(".popup-editor__container select"))[0].queryAll(By.css("option"));
+      const sortEl = fixture.debugElement.queryAll(By.css(".popup-editor__container custom-select"))[0];
+      const sort = (sortEl?.componentInstance as any)?.options ?? [];
       fixture.detectChanges();
 
-      expect(sort.map(item => TestUtils.toString(item.nativeElement.textContent.trim()))).toEqual(BESIC_SORTOPTION.concat(AGG_SORTOPTION));
+      expect(sort.map((item: any) => TestUtils.toString(item.label))).toEqual(BESIC_SORTOPTION.concat(AGG_SORTOPTION));
    });
 
    //ranking Input, Of combobox should be disabled if ranking is None
@@ -215,23 +218,23 @@ describe("Calc Group Option Unit Test", () => {
       comp.ngOnChanges({});
       fixture.detectChanges();
 
-      let rankingSelect: HTMLElement = fixture.nativeElement.querySelector("div.popup-editor__container .ranking_label_id select");
+      const rankingSelectEl = fixture.debugElement.query(By.css("div.popup-editor__container .ranking_label_id custom-select"));
       let topN: HTMLElement = fixture.nativeElement.querySelector("div.popup-editor__container .topn_label_id > input");
-      let ofSelect: HTMLElement = fixture.nativeElement.querySelector(".of_label_id > select");
+      const ofSelectEl = fixture.debugElement.query(By.css(".of_label_id > custom-select"));
       let groupOther: HTMLElement = fixture.nativeElement.querySelector("div.popup-editor__container .group_other_id input[type=checkbox]");
-      expect(rankingSelect.getAttribute("ng-reflect-is-disabled")).toEqual("false");
+      expect(rankingSelectEl.nativeElement.classList.contains("is-disabled")).toBe(false);
       expect(topN.getAttribute("ng-reflect-is-disabled")).toEqual("true");
-      expect(ofSelect.getAttribute("ng-reflect-is-disabled")).toEqual("true");
+      expect(ofSelectEl.nativeElement.classList.contains("is-disabled")).toBe(true);
       expect(groupOther).toBeNull();
 
       comp.topN.type = StyleConstants.TOP_N;
       fixture.detectChanges();
       fixture.whenStable().then(() => {
          topN = fixture.nativeElement.querySelector("div.popup-editor__container .topn_label_id > input");
-         ofSelect = fixture.nativeElement.querySelector(".of_label_id > select");
+         const ofSelectEl2 = fixture.debugElement.query(By.css(".of_label_id > custom-select"));
          groupOther = fixture.nativeElement.querySelector("div.popup-editor__container .group_other_id input[type=checkbox]");
          expect(topN.getAttribute("ng-reflect-is-disabled")).toEqual("false");
-         expect(ofSelect.getAttribute("ng-reflect-is-disabled")).toEqual("false");
+         expect(ofSelectEl2.nativeElement.classList.contains("is-disabled")).toBe(false);
          expect(groupOther).not.toBeNull();
       });
    });
@@ -254,11 +257,11 @@ describe("Calc Group Option Unit Test", () => {
       fixture.detectChanges();
 
       fixture.whenStable().then(() => {
-         let ofSelect: Element = fixture.nativeElement.querySelector(".of_label_id > select");
-         let ofSelectedOpt: Element = ofSelect.querySelector("option:checked");
+         const ofSelectEl = fixture.debugElement.query(By.css(".of_label_id > custom-select"));
+         const ofOptions = (ofSelectEl?.componentInstance as any)?.options ?? [];
          let rankingInput: HTMLInputElement = fixture.nativeElement.querySelector("div.popup-editor__container .topn_label_id > input");
-         expect(ofSelectedOpt.textContent.trim()).toEqual("Sum(customer_id)");
-         expect(ofSelect.childElementCount).toEqual(1);
+         expect((ofSelectEl?.componentInstance as any)?.selectedLabel?.trim()).toEqual("Sum(customer_id)");
+         expect(ofOptions.length).toEqual(1);
          expect(rankingInput.value).toEqual("3");
       });
    });
@@ -277,15 +280,15 @@ describe("Calc Group Option Unit Test", () => {
       comp.ngOnChanges({});
       fixture.detectChanges();
 
-      let nameGroupEditButton: Element = fixture.nativeElement.querySelector("div.popup-editor__container button.form-control");
-      expect(nameGroupEditButton.attributes["disabled"].value).toBe("");
+      let nameGroupEditButton: HTMLButtonElement = fixture.nativeElement.querySelector("div.popup-editor__container button.form-control:not(.custom-select-trigger)");
+      expect(nameGroupEditButton.disabled).toBe(true);
 
       comp.order.info.name = "g1";
       fixture.detectChanges();
 
       fixture.whenStable().then(() => {
-         nameGroupEditButton = fixture.nativeElement.querySelector("div.popup-editor__container button");
-         expect(nameGroupEditButton.hasAttribute("disabled")).toBe(false);
+         nameGroupEditButton = fixture.nativeElement.querySelector("div.popup-editor__container button.form-control:not(.custom-select-trigger)");
+         expect(nameGroupEditButton.disabled).toBe(false);
       });
    });
 
@@ -344,9 +347,10 @@ describe("Calc Group Option Unit Test", () => {
       fixture.detectChanges();
 
       fixture.whenStable().then(() => {
-         let summarizedSelect: Element = fixture.nativeElement.querySelector("div.popup-editor__container .by_label_id select");
-         expect(summarizedSelect).toBeDefined();
-         expect(summarizedSelect.childElementCount).toEqual(1);
+         const summarizedSelectEl = fixture.debugElement.query(By.css("div.popup-editor__container .by_label_id custom-select"));
+         const summarizedOptions = (summarizedSelectEl?.componentInstance as any)?.options ?? [];
+         expect(summarizedSelectEl).toBeDefined();
+         expect(summarizedOptions.length).toEqual(1);
       });
    });
 

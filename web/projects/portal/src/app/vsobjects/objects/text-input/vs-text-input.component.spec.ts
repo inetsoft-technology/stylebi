@@ -27,7 +27,6 @@ import { TestUtils } from "../../../common/test/test-utils";
 import { ComponentTool } from "../../../common/util/component-tool";
 import { ViewsheetClientService } from "../../../common/viewsheet-client";
 import { DefaultFocusDirective } from "../../../widget/directive/default-focus.directive";
-import { FixedDropdownDirective } from "../../../widget/fixed-dropdown/fixed-dropdown.directive";
 import { DebounceService } from "../../../widget/services/debounce.service";
 import { ContextProvider } from "../../context-provider.service";
 import { SafeFontDirective } from "../../directives/safe-font.directive";
@@ -78,7 +77,7 @@ describe("VS Text Input Component Unit Test", () => {
          imports: [ ReactiveFormsModule, FormsModule, NgbModule, DropDownTestModule ],
          declarations: [
             VSTextInput, AppErrorMessage, VSPopComponentDirective,
-            FixedDropdownDirective, SafeFontDirective, DefaultFocusDirective
+            SafeFontDirective, DefaultFocusDirective
          ],
          schemas: [NO_ERRORS_SCHEMA],
          providers: [
