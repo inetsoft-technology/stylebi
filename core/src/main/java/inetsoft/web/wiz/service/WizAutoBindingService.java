@@ -52,13 +52,15 @@ public class WizAutoBindingService {
                                 AssetRepository engine,
                                 VSWizardTemporaryInfoService temporaryInfoService,
                                 VSWizardBindingHandler bindingHandler,
-                                VSDefaultRecommendationFactory defaultRecommendationFactory)
+                                VSDefaultRecommendationFactory defaultRecommendationFactory,
+                                WizVsService wizVsService)
    {
       this.viewsheetService = viewsheetService;
       this.engine = engine;
       this.temporaryInfoService = temporaryInfoService;
       this.bindingHandler = bindingHandler;
       this.defaultRecommendationFactory = defaultRecommendationFactory;
+      this.wizVsService = wizVsService;
    }
 
    public AutoBindingResponse autoBinding(AutoBindingRequest request, Principal user)
@@ -68,12 +70,22 @@ public class WizAutoBindingService {
          ? request.getFieldConfigs() : Collections.emptyList();
       String worksheetId = request.getWorksheetId();
 
-      Viewsheet.WizInfo wizInfo = new Viewsheet.WizInfo(true, null, null);
-      String runtimeId = viewsheetService.openTemporaryViewsheet(null, null, user, wizInfo);
+      // Phase 1: resolve or create the recommendation RVS.
+      String autoBindingRuntimeId = request.getAutoBindingRuntimeId();
+      boolean createdAutoBindingRvs = false;
+
+      if(Tool.isEmptyString(autoBindingRuntimeId)) {
+         Viewsheet.WizInfo wizInfo = new Viewsheet.WizInfo(true, null, null);
+         autoBindingRuntimeId = viewsheetService.openTemporaryViewsheet(null, null, user, wizInfo);
+         createdAutoBindingRvs = true;
+      }
+
+      boolean succeeded = false;
 
       try {
-         temporaryInfoService.initTemporary(runtimeId, user, new Point(0, 0));
-         RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, user);
+         // Always re-initialize so tempChart state is clean regardless of reuse.
+         temporaryInfoService.initTemporary(autoBindingRuntimeId, user, new Point(0, 0));
+         RuntimeViewsheet rvs = viewsheetService.getViewsheet(autoBindingRuntimeId, user);
          VSTemporaryInfo tempInfo = rvs.getVSTemporaryInfo();
 
          String tableName = null;
@@ -158,24 +170,52 @@ public class WizAutoBindingService {
             recommendations, worksheetId, vizType,
             explicitBindings, prefInfos, intentCategory);
 
+         // Phase 3: place primary into the output viewsheet.
+         CreateViewsheetResult visualizationResult = null;
+
+         if(primary != null) {
+            CreateVisualizationModel vsModel = new CreateVisualizationModel();
+            vsModel.setVisualizationType(primary.getVisualizationType());
+            vsModel.setConfig(primary.getConfig());
+            vsModel.setRuntimeId(request.getWizRuntimeId());
+            vsModel.setViewsheetIdentifier(request.getViewsheetIdentifier());
+
+            visualizationResult = wizVsService.createViewsheet(vsModel, user);
+
+            // createViewsheet only sets runtimeId when it creates a new RVS.
+            // Back-fill it so the client always receives the effective wizRuntimeId.
+            if(Tool.isEmptyString(visualizationResult.getRuntimeId())) {
+               visualizationResult.setRuntimeId(request.getWizRuntimeId());
+            }
+         }
+
+         // Phase 4: build response.
          AutoBindingResponse resp = new AutoBindingResponse();
          resp.setRecommendations(recommendations);
          resp.setPrimary(primary);
+         resp.setAutoBindingRuntimeId(autoBindingRuntimeId);
+         resp.setVisualizationResult(visualizationResult);
+
+         succeeded = true;
          return resp;
       }
       finally {
-         try {
-            temporaryInfoService.destroyTemporary(runtimeId, user);
-         }
-         catch(Exception e) {
-            LOG.warn("Failed to destroy temp viewsheet info [{}]: {}", runtimeId, e.getMessage());
-         }
+         // The recommendation RVS (autoBindingRuntimeId) is kept alive for client reuse.
+         // Only clean up when we created it this call but failed before returning the ID.
+         if(!succeeded && createdAutoBindingRvs) {
+            try {
+               temporaryInfoService.destroyTemporary(autoBindingRuntimeId, user);
+            }
+            catch(Exception e) {
+               LOG.warn("Failed to destroy temp viewsheet info [{}]: {}", autoBindingRuntimeId, e.getMessage());
+            }
 
-         try {
-            viewsheetService.closeViewsheet(runtimeId, user);
-         }
-         catch(Exception e) {
-            LOG.warn("Failed to close temp viewsheet [{}]: {}", runtimeId, e.getMessage());
+            try {
+               viewsheetService.closeViewsheet(autoBindingRuntimeId, user);
+            }
+            catch(Exception e) {
+               LOG.warn("Failed to close temp viewsheet [{}]: {}", autoBindingRuntimeId, e.getMessage());
+            }
          }
       }
    }
@@ -903,4 +943,5 @@ public class WizAutoBindingService {
    private final VSWizardTemporaryInfoService temporaryInfoService;
    private final VSWizardBindingHandler bindingHandler;
    private final VSDefaultRecommendationFactory defaultRecommendationFactory;
+   private final WizVsService wizVsService;
 }
