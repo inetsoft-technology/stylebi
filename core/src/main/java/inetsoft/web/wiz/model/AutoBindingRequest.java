@@ -66,9 +66,13 @@ public class AutoBindingRequest {
       this.intentCategory = intentCategory;
    }
 
-   /** Worksheet global path, same as VisualizationConfig.data.source. */
+   /**
+    * Worksheet global path, same as VisualizationConfig.data.source.
+    */
    private String worksheetId;
-   /** Expected visualization type string, e.g. "bar", "table", "crosstab", "gauge". */
+   /**
+    * Expected visualization type string, e.g. "bar", "table", "crosstab", "gauge".
+    */
    private String visualizationType;
    /**
     * Per-field configurations from the LLM.
@@ -77,7 +81,9 @@ public class AutoBindingRequest {
     * {@code fieldType:"measure"} → {@link MeasureFieldInfo}.
     */
    private List<SimpleFieldInfo> fieldConfigs;
-   /** Optional explicit slot assignments; may be null or empty. */
+   /**
+    * Optional explicit slot assignments; may be null or empty.
+    */
    private List<ExplicitBinding> explicitBindings;
    /**
     * Visualization intent category inferred by the LLM.
