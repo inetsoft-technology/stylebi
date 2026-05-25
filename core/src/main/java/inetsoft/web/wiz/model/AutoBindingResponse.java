@@ -13,9 +13,11 @@
  * GNU Affero General Public License for more details.
  *
  * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 package inetsoft.web.wiz.model;
+
+import inetsoft.web.vswizard.model.recommender.VSObjectRecommendation;
 
 import java.util.List;
 
@@ -23,11 +25,11 @@ import java.util.List;
  * Response body for {@code POST /api/wiz/viewsheet/autoBinding}.
  */
 public class AutoBindingResponse {
-   public List<RecommendedVisualization> getRecommendations() {
+   public List<VSObjectRecommendation> getRecommendations() {
       return recommendations;
    }
 
-   public void setRecommendations(List<RecommendedVisualization> recommendations) {
+   public void setRecommendations(List<VSObjectRecommendation> recommendations) {
       this.recommendations = recommendations;
    }
 
@@ -39,14 +41,47 @@ public class AutoBindingResponse {
       this.primary = primary;
    }
 
+   public String getAutoBindingRuntimeId() {
+      return autoBindingRuntimeId;
+   }
+
+   public void setAutoBindingRuntimeId(String autoBindingRuntimeId) {
+      this.autoBindingRuntimeId = autoBindingRuntimeId;
+   }
+
+   public CreateViewsheetResult getVisualizationResult() {
+      return visualizationResult;
+   }
+
+   public void setVisualizationResult(CreateViewsheetResult visualizationResult) {
+      this.visualizationResult = visualizationResult;
+   }
+
    /**
     * All candidate visualizations: charts ordered by vsWizard score, then table (always),
     * crosstab (only when both dimensions and measures are present),
     * and gauge (only when there is exactly one measure and no dimensions).
     */
-   private List<RecommendedVisualization> recommendations;
+   private List<VSObjectRecommendation> recommendations;
+
    /**
     * Best-fit visualization built from user preferences; null when no preference can be determined.
     */
    private RecommendedVisualization primary;
+
+   /**
+    * Recommendation-computation RVS ID. Client must pass this back in subsequent
+    * autoBinding requests to reuse the same RVS and avoid repeated open/close overhead.
+    */
+   private String autoBindingRuntimeId;
+
+   /**
+    * Full result of the primary visualization creation: headers, rows, binding,
+    * assemblyName, viewsheetIdentifier, hasData, truncated, and runtimeId (the
+    * output-viewsheet RVS ID, i.e. wizRuntimeId). Client must pass
+    * visualizationResult.runtimeId back as wizRuntimeId and
+    * visualizationResult.viewsheetIdentifier back as viewsheetIdentifier on subsequent
+    * calls so the primary assembly is updated in place. Null when primary is null.
+    */
+   private CreateViewsheetResult visualizationResult;
 }

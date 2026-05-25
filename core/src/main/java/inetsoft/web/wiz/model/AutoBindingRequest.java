@@ -66,9 +66,13 @@ public class AutoBindingRequest {
       this.intentCategory = intentCategory;
    }
 
-   /** Worksheet global path, same as VisualizationConfig.data.source. */
+   /**
+    * Worksheet global path, same as VisualizationConfig.data.source.
+    */
    private String worksheetId;
-   /** Expected visualization type string, e.g. "bar", "table", "crosstab", "gauge". */
+   /**
+    * Expected visualization type string, e.g. "bar", "table", "crosstab", "gauge".
+    */
    private String visualizationType;
    /**
     * Per-field configurations from the LLM.
@@ -77,7 +81,9 @@ public class AutoBindingRequest {
     * {@code fieldType:"measure"} → {@link MeasureFieldInfo}.
     */
    private List<SimpleFieldInfo> fieldConfigs;
-   /** Optional explicit slot assignments; may be null or empty. */
+   /**
+    * Optional explicit slot assignments; may be null or empty.
+    */
    private List<ExplicitBinding> explicitBindings;
    /**
     * Visualization intent category inferred by the LLM.
@@ -85,4 +91,48 @@ public class AutoBindingRequest {
     * "relationship", "ranking", "geospatial", "other".
     */
    private String intentCategory;
+
+   public String getAutoBindingRuntimeId() {
+      return autoBindingRuntimeId;
+   }
+
+   public void setAutoBindingRuntimeId(String autoBindingRuntimeId) {
+      this.autoBindingRuntimeId = autoBindingRuntimeId;
+   }
+
+   public String getWizRuntimeId() {
+      return wizRuntimeId;
+   }
+
+   public void setWizRuntimeId(String wizRuntimeId) {
+      this.wizRuntimeId = wizRuntimeId;
+   }
+
+   public String getViewsheetIdentifier() {
+      return viewsheetIdentifier;
+   }
+
+   public void setViewsheetIdentifier(String viewsheetIdentifier) {
+      this.viewsheetIdentifier = viewsheetIdentifier;
+   }
+
+   /**
+    * Recommendation-computation RVS ID. Null on first call; returned by the server
+    * and passed back on subsequent calls to reuse the same RVS.
+    */
+   private String autoBindingRuntimeId;
+
+   /**
+    * Output-viewsheet RVS ID. Null on first call; returned by the server and passed back
+    * on subsequent calls so the primary assembly is updated in place.
+    * Mirrors the runtimeId semantics of CreateVisualizationModel.
+    */
+   private String wizRuntimeId;
+
+   /**
+    * Persisted viewsheet identifier returned from the previous call.
+    * Null on first call; must be passed back on subsequent calls so persistViewsheet
+    * overwrites the existing entry rather than creating a new one.
+    */
+   private String viewsheetIdentifier;
 }

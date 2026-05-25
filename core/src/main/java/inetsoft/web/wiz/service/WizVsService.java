@@ -38,6 +38,7 @@ import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.Tool;
+import inetsoft.web.vswizard.recommender.WizardRecommenderUtil;
 import inetsoft.web.wiz.model.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -45,6 +46,7 @@ import org.springframework.stereotype.Service;
 
 import java.security.Principal;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 public class WizVsService {
@@ -73,7 +75,8 @@ public class WizVsService {
          VSAssembly previousPrimaryAssembly = null;
          // Only relevant for the incremental standard path (non-null when base entry may be mutated).
          AssetEntry previousBaseEntry = null;
-         boolean modificationOnly = model.getConfig() == null && model.getConditionModel() != null;
+         boolean modificationOnly = model.getConfig() == null && model.getPrimaryBinding() == null
+            && model.getConditionModel() != null;
          // Track the worksheet table name for aggregate condition handling
          String wsTableName = null;
 
@@ -119,11 +122,18 @@ public class WizVsService {
             }
 
             String assemblyName = uniqueAssemblyName(targetVs, ctx.title());
-            assembly = createAssembly(targetVs, model.getVisualizationType(), assemblyName,
-                                      ctx.config(), ctx.primaryAssemblyName());
 
-            if(assembly == null) {
-               throw new IllegalArgumentException("Unsupported visualization type: " + model.getVisualizationType());
+            if(model.getPrimaryBinding() != null) {
+               assembly = createAssemblyFromPrimaryBinding(
+                  targetVs, assemblyName, model.getPrimaryBinding(), ctx.primaryAssemblyName());
+            }
+            else {
+               assembly = createAssembly(targetVs, model.getVisualizationType(), assemblyName,
+                                         ctx.config(), ctx.primaryAssemblyName());
+
+               if(assembly == null) {
+                  throw new IllegalArgumentException("Unsupported visualization type: " + model.getVisualizationType());
+               }
             }
 
             // Clear old primary before adding the new assembly; capture it for rollback.
@@ -1033,6 +1043,129 @@ public class WizVsService {
 
       viewsheetService.setViewsheet(vs, entry, user, true, true);
       return entry.toIdentifier();
+   }
+
+   private VSAssembly createAssemblyFromPrimaryBinding(Viewsheet vs, String name,
+                                                      PrimaryBinding binding, String tname)
+   {
+      VSAssembly assembly = switch(binding) {
+         case PrimaryBinding.ChartPrimaryBinding cb ->
+            createChartAssemblyFromInfo(vs, name, cb.info());
+         case PrimaryBinding.CrosstabPrimaryBinding cb ->
+            createCrosstabAssemblyFromInfo(vs, name, cb.info());
+         case PrimaryBinding.TablePrimaryBinding tb ->
+            createTableAssemblyFromInfo(vs, name, tb.columns(), tb.entries());
+         case PrimaryBinding.GaugePrimaryBinding gb ->
+            createGaugeAssemblyFromInfo(vs, name, gb.dataRef());
+         case PrimaryBinding.TextPrimaryBinding tb ->
+            createTextAssemblyFromInfo(vs, name, tb.dataRef());
+      };
+
+      if(assembly instanceof DataVSAssembly dataAssembly) {
+         dataAssembly.setSourceInfo(new SourceInfo(SourceInfo.ASSET, null, tname));
+      }
+      else if(assembly instanceof OutputVSAssembly outputAssembly) {
+         ScalarBindingInfo sbinfo = outputAssembly.getScalarBindingInfo();
+         if(sbinfo != null) {
+            sbinfo.setTableName(tname);
+         }
+      }
+
+      return assembly;
+   }
+
+   private ChartVSAssembly createChartAssemblyFromInfo(Viewsheet vs, String name, ChartInfo info) {
+      ChartVSAssembly chart = new ChartVSAssembly(vs, name);
+      chart.initDefaultFormat();
+
+      if(info instanceof VSChartInfo vsChartInfo) {
+         chart.setVSChartInfo(vsChartInfo);
+         GraphUtil.fixVisualFrames(vsChartInfo);
+      }
+      else {
+         LOG.warn("createChartAssemblyFromInfo: expected VSChartInfo but got {}; chart '{}' will have no binding",
+                  info == null ? "null" : info.getClass().getName(), name);
+      }
+
+      return chart;
+   }
+
+   private CrosstabVSAssembly createCrosstabAssemblyFromInfo(Viewsheet vs, String name,
+                                                             VSCrosstabInfo info)
+   {
+      CrosstabVSAssembly crosstab = new CrosstabVSAssembly(vs, name);
+      crosstab.initDefaultFormat();
+      crosstab.setVSCrosstabInfo(info);
+      return crosstab;
+   }
+
+   private TableVSAssembly createTableAssemblyFromInfo(Viewsheet vs, String name,
+                                                       ColumnSelection columns, AssetEntry[] entries)
+   {
+      TableVSAssembly table = new TableVSAssembly(vs, name);
+      table.initDefaultFormat();
+
+      if(columns != null && entries != null) {
+         Map<String, AssetEntry> entryByName = Arrays.stream(entries)
+            .collect(Collectors.toMap(WizardRecommenderUtil::getFieldName, e -> e, (a, b) -> a));
+         ColumnSelection typedColumns = new ColumnSelection();
+
+         for(int i = 0; i < columns.getAttributeCount(); i++) {
+            DataRef attr = columns.getAttribute(i);
+            AttributeRef attributeRef = new AttributeRef(null, attr.getAttribute());
+            AssetEntry entry = entryByName.get(attr.getAttribute());
+
+            if(entry != null) {
+               attributeRef.setDataType(entry.getProperty("dtype"));
+            }
+
+            typedColumns.addAttribute(new ColumnRef(attributeRef));
+         }
+
+         table.setColumnSelection(typedColumns);
+      }
+
+      return table;
+   }
+
+   private GaugeVSAssembly createGaugeAssemblyFromInfo(Viewsheet vs, String name, DataRef dataRef) {
+      GaugeVSAssembly gauge = new GaugeVSAssembly(vs, name);
+      gauge.initDefaultFormat();
+      ScalarBindingInfo sbinfo = new ScalarBindingInfo();
+
+      if(dataRef instanceof VSAggregateRef agg) {
+         sbinfo.setColumnValue(agg.getColumnValue());
+
+         if(agg.getFormulaValue() != null) {
+            sbinfo.setAggregateValue(agg.getFormulaValue());
+         }
+      }
+      else if(dataRef != null) {
+         sbinfo.setColumnValue(dataRef.getAttribute());
+      }
+
+      gauge.setScalarBindingInfo(sbinfo);
+      return gauge;
+   }
+
+   private TextVSAssembly createTextAssemblyFromInfo(Viewsheet vs, String name, DataRef dataRef) {
+      TextVSAssembly text = new TextVSAssembly(vs, name);
+      text.initDefaultFormat();
+      ScalarBindingInfo sbinfo = new ScalarBindingInfo();
+
+      if(dataRef instanceof VSAggregateRef agg) {
+         sbinfo.setColumnValue(agg.getColumnValue());
+
+         if(agg.getFormulaValue() != null) {
+            sbinfo.setAggregateValue(agg.getFormulaValue());
+         }
+      }
+      else if(dataRef != null) {
+         sbinfo.setColumnValue(dataRef.getAttribute());
+      }
+
+      text.setScalarBindingInfo(sbinfo);
+      return text;
    }
 
    private VSAssembly createAssembly(Viewsheet vs, String type, String name,
