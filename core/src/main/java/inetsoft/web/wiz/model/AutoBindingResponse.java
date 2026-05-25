@@ -17,17 +17,19 @@
  */
 package inetsoft.web.wiz.model;
 
+import inetsoft.web.vswizard.model.recommender.VSObjectRecommendation;
+
 import java.util.List;
 
 /**
  * Response body for {@code POST /api/wiz/viewsheet/autoBinding}.
  */
 public class AutoBindingResponse {
-   public List<RecommendedVisualization> getRecommendations() {
+   public List<VSObjectRecommendation> getRecommendations() {
       return recommendations;
    }
 
-   public void setRecommendations(List<RecommendedVisualization> recommendations) {
+   public void setRecommendations(List<VSObjectRecommendation> recommendations) {
       this.recommendations = recommendations;
    }
 
@@ -60,7 +62,7 @@ public class AutoBindingResponse {
     * crosstab (only when both dimensions and measures are present),
     * and gauge (only when there is exactly one measure and no dimensions).
     */
-   private List<RecommendedVisualization> recommendations;
+   private List<VSObjectRecommendation> recommendations;
 
    /**
     * Best-fit visualization built from user preferences; null when no preference can be determined.
