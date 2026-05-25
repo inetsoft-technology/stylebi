@@ -38,11 +38,11 @@
  *     Ancestor nodes at depth ≥ 2 never receive `expanded = true`, so navigating to a
  *     deeply nested node leaves intermediate folders visually collapsed.
  *
- * Suspected bugs (header only — no case until confirmed):
- *
- *   Suspicion A — getDataNavigationTree missing error state:
- *     On HTTP error, `loading` is set to true before the request but never reset to false,
- *     and no user-visible error message is shown — the tree appears stuck loading indefinitely.
+ *   Bug B — getDataNavigationTree missing error handler (Group 3):
+ *     The subscribe() call at line ~409 has no error callback. When the HTTP request fails,
+ *     `loading` is set to true before the request but the error path never resets it to false,
+ *     leaving the tree spinner running indefinitely. Fix: add an error callback that sets
+ *     `loading = false`.
  *
  * KEY contracts:
  *   selectNode: guarded by gettingStartedService.isProcessing() && isEditWs() — early return before routing.
@@ -366,6 +366,21 @@ describe("DataSourcesTreeViewComponent — getDataNavigationTree — loading + r
       expect(comp.loading).toBe(false);
    });
 
+   // Bug B — subscribe() has no error callback; loading stays true indefinitely on HTTP failure.
+   // Fix: add error handler that sets loading = false.
+   it.failing("should reset loading to false when the HTTP request errors", async () => {
+      const { comp } = await renderComponent();
+
+      server.use(
+         http.get("*/api/portal/data/tree", () => new MswHttpResponse(null, { status: 500 }))
+      );
+
+      comp.getDataNavigationTree();
+      expect(comp.loading).toBe(true); // set synchronously before HTTP
+
+      await waitFor(() => expect(comp.loading).toBe(false)); // FAILS — error handler missing
+   });
+
    // Risk Point/Contract: selectedNodes must be carried over to matching nodes in the new tree;
    //   losing selection on refresh breaks the "stay on current page" UX contract.
    it("should keep selectedNodes pointing to the refreshed equivalents after a tree reload", async () => {
@@ -485,7 +500,8 @@ describe("DataSourcesTreeViewComponent — isVpmVisible — enterprise + identif
    // Why High Value: enterprise=true + DATABASE without ^SELF is the canonical VPM creation path
    it("should return true for DATABASE node with enterprise=true and no ^SELF suffix", async () => {
       const { comp } = await renderComponent({ enterprise: true });
-      (comp as any).enterprise = true;  // ensure the flag is set (of(true) emits synchronously)
+      // No manual override needed: AppInfoService.isEnterprise() returns of(true), which emits
+      // synchronously in ngOnInit before renderComponent's waitFor resolves.
       const node = makeNode(PortalDataType.DATABASE, "mydb", {
          data: { path: "mydb", scope: 0, identifier: "0^DATABASE^admin^mydb" } as any
       });
@@ -497,7 +513,6 @@ describe("DataSourcesTreeViewComponent — isVpmVisible — enterprise + identif
    //   enterprise must be able to create new VPMs there too.
    it("should return true for VPM_FOLDER node with enterprise=true", async () => {
       const { comp } = await renderComponent({ enterprise: true });
-      (comp as any).enterprise = true;
       const node = makeNode(PortalDataType.VPM_FOLDER, "mydb/VPMs", {
          data: { path: "mydb/VPMs", scope: 0, identifier: "0^VPM_FOLDER^admin^mydb/VPMs" } as any
       });

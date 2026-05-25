@@ -99,11 +99,14 @@ const CYCLE_SAVE_URL = "*/api/em/schedule/edit-cycle";
 async function renderComponent(opts: {
    model?: ScheduleCycleDialogModel;
    dialogConfirms?: boolean;
+   /** Override the GET handler for the cycle-dialog-model endpoint. When provided, the
+    *  helper skips waitFor(model) because the model will never be set on error paths. */
+   getHandler?: Parameters<typeof http.get>[1];
 } = {}) {
    const model = opts.model ?? makeCycleModel();
 
    server.use(
-      http.get(CYCLE_GET_URL, () => HttpResponse.json(model))
+      http.get(CYCLE_GET_URL, opts.getHandler ?? (() => HttpResponse.json(model)))
    );
 
    const dialogMock = {
@@ -127,7 +130,10 @@ async function renderComponent(opts: {
    });
 
    const comp = result.fixture.componentInstance;
-   await waitFor(() => expect(comp.model).toBeDefined());
+
+   if(!opts.getHandler) {
+      await waitFor(() => expect(comp.model).toBeDefined());
+   }
 
    return { ...result, comp, dialogMock, snackBarMock, routerMock };
 }
@@ -202,29 +208,8 @@ describe("ScheduleCycleEditorPageComponent — loadModel(): HTTP success and err
 
    // Risk Point/Contract: error WITH error.error?.message → dialog shown, then router.navigate on close.
    it("should open error dialog and navigate away when loadModel fails with a message", async () => {
-      server.use(
-         http.get(CYCLE_GET_URL, () =>
-            HttpResponse.json({ message: "Cycle not found" }, { status: 404 })
-         )
-      );
-
-      const dialogMock = {
-         open: jest.fn().mockReturnValue({ afterClosed: () => of(undefined) })
-      };
-      const routerMock = { navigate: jest.fn() };
-
-      await render(ScheduleCycleEditorPageComponent, {
-         imports: [ReactiveFormsModule, NoopAnimationsModule],
-         schemas: [NO_ERRORS_SCHEMA],
-         providers: [
-            provideHttpClient(),
-            { provide: MatDialog, useValue: dialogMock },
-            { provide: MatSnackBar, useValue: { open: jest.fn() } },
-            { provide: Router, useValue: routerMock },
-            { provide: ActivatedRoute, useValue: { params: of({ cycle: "TestCycle" }) } },
-            { provide: TimeZoneService, useValue: { updateTimeZoneOptions: jest.fn((o: any) => o) } },
-            { provide: PageHeaderService, useValue: { title: "" } },
-         ],
+      const { dialogMock, routerMock } = await renderComponent({
+         getHandler: () => HttpResponse.json({ message: "Cycle not found" }, { status: 404 })
       });
 
       await waitFor(() => expect(dialogMock.open).toHaveBeenCalledTimes(1));
@@ -235,25 +220,8 @@ describe("ScheduleCycleEditorPageComponent — loadModel(): HTTP success and err
 
    // Risk Point/Contract: error WITHOUT error.error?.message → skip dialog, close immediately.
    it("should navigate away directly when loadModel fails without an error message body", async () => {
-      server.use(
-         http.get(CYCLE_GET_URL, () => new Response(null, { status: 500 }))
-      );
-
-      const dialogMock = { open: jest.fn().mockReturnValue({ afterClosed: () => of(undefined) }) };
-      const routerMock = { navigate: jest.fn() };
-
-      await render(ScheduleCycleEditorPageComponent, {
-         imports: [ReactiveFormsModule, NoopAnimationsModule],
-         schemas: [NO_ERRORS_SCHEMA],
-         providers: [
-            provideHttpClient(),
-            { provide: MatDialog, useValue: dialogMock },
-            { provide: MatSnackBar, useValue: { open: jest.fn() } },
-            { provide: Router, useValue: routerMock },
-            { provide: ActivatedRoute, useValue: { params: of({ cycle: "TestCycle" }) } },
-            { provide: TimeZoneService, useValue: { updateTimeZoneOptions: jest.fn((o: any) => o) } },
-            { provide: PageHeaderService, useValue: { title: "" } },
-         ],
+      const { dialogMock, routerMock } = await renderComponent({
+         getHandler: () => new Response(null, { status: 500 })
       });
 
       await waitFor(() => expect(routerMock.navigate).toHaveBeenCalledWith(["/settings/schedule/cycles"]));

@@ -355,10 +355,8 @@ describe("BatchActionEditorComponent — actionModel setter: conditional fetchPa
 
       comp.actionModel = makeActionModel({ taskName: "TaskA" }); // same name → no new fetch
 
-      await waitFor(() => {
-         expect(comp.loadingParameterNames).toBe(false);
-         expect(fetchSpy).not.toHaveBeenCalled();
-      });
+      await waitFor(() => expect(comp.loadingParameterNames).toBe(false));
+      expect(fetchSpy).not.toHaveBeenCalled();
    });
 
 });
