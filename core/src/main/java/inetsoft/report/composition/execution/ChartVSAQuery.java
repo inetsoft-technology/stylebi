@@ -1200,6 +1200,17 @@ public class ChartVSAQuery extends CubeVSAQuery implements BindableVSAQuery {
          return null;
       }
 
+      // Replace the original in the worksheet wrapper with the clone. createBaseTableAssembly0()
+      // adds the original bound table to the WorksheetWrapper. MirrorTableAssembly's constructor
+      // calls MirrorAssemblyImpl.setWorksheet() -> update0() -> ws.getAssembly(name), which would
+      // return the unprocessed original instead of this clone (with aggregate info applied).
+      // Adding the clone replaces the original so the mirror picks up the correct processed table.
+      Worksheet cloneWs = table.getWorksheet();
+
+      if(cloneWs != null) {
+         cloneWs.addAssembly(table);
+      }
+
       ChartVSAssembly cassembly = (ChartVSAssembly) getAssembly();
       ColumnSelection cols = table.getColumnSelection();
       VSChartInfo cinfo = cassembly.getVSChartInfo();
