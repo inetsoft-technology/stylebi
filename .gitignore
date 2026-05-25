@@ -224,6 +224,7 @@ override.tf.json
 terraform.rc
 
 # Ignore local Claude Code settings
+.claude/
 .claude/settings.local.json
 .vscode/settings.json
 .gitignore
