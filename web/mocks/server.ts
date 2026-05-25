@@ -35,9 +35,11 @@ import { setupServer } from "msw/node";
 import { modelHandlers } from "./handlers/model.handlers";
 import { composerHandlers } from "./handlers/composer.handlers";
 import { emHandlers } from "./handlers/em.handlers";
+import { portalHandlers } from "./handlers/portal.handlers";
 
 export const server = setupServer(
    ...modelHandlers,
    ...composerHandlers,
    ...emHandlers,
+   ...portalHandlers,
 );
