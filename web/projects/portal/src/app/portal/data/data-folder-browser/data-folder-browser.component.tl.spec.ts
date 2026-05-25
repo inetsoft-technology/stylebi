@@ -391,7 +391,10 @@ describe("DataFolderBrowserComponent - deleteSelected [Group 2, Risk 3]", () => 
          folders: [{ path: "Folder", scope: 1 }],
          datasets: [{ path: "Sheet", scope: 1 }]
       });
-      expect(deleteRequest.map((item: WorksheetBrowserInfo) => item.path)).toEqual(["Folder", "Sheet"]);
+      expect(deleteRequest).toEqual([
+         expect.objectContaining({ path: "Folder" }),
+         expect.objectContaining({ path: "Sheet" })
+      ]);
       expect(ComponentTool.showConfirmDialog).toHaveBeenCalledWith(expect.anything(),
          "_#(js:data.datasets.delete)", expect.stringContaining("_#(js:data.datasets.deleteItemsDependencyError)"));
       expect(ComponentTool.showConfirmDialog).toHaveBeenCalledWith(expect.anything(),
@@ -406,18 +409,34 @@ describe("DataFolderBrowserComponent - deleteSelected [Group 2, Risk 3]", () => 
       const locked = makeWorksheet("Locked", "Locked", AssetType.WORKSHEET, {
          deletable: false
       });
+      let removableStatusRequests = 0;
 
       const confirmSpy = jest.spyOn(ComponentTool, "showConfirmDialog").mockResolvedValue("cancel");
 
       const { comp } = await renderComponent();
-      const postSpy = jest.spyOn((comp as any).httpClient, "post").mockReturnValue(EMPTY);
+      server.use(
+         http.post("*/api/data/removeableStatuses", () => {
+            removableStatusRequests++;
+            return HttpResponse.json({ folderDependencies: [], datasetDependencies: [] });
+         })
+      );
 
       comp.selectedItems = [locked];
       expect(comp.isSelectionDeletable()).toBe(false);
 
       comp.deleteSelected();
 
-      expect(postSpy).not.toHaveBeenCalled();
+      let removableStatusRequested = false;
+
+      try {
+         await waitFor(() => expect(removableStatusRequests).toBeGreaterThan(0), { timeout: 100 });
+         removableStatusRequested = true;
+      }
+      catch {
+         // Expected: guarded deletes never reach the removable status endpoint.
+      }
+
+      expect(removableStatusRequested).toBe(false);
       expect(confirmSpy).not.toHaveBeenCalled();
    });
 
@@ -515,13 +534,15 @@ describe("DataFolderBrowserComponent - move/drag [Group 3, Risk 3]", () => {
       const { comp, dataBrowserService } = await renderComponent({
          queryParams: { path: "current", scope: "1" }
       });
-      jest.spyOn(ComponentTool, "showConfirmDialog").mockResolvedValue("ok");
+      const confirmSpy = jest.spyOn(ComponentTool, "showConfirmDialog").mockResolvedValue("ok");
       const moveAssetsSpy = jest.spyOn(comp, "moveAssets").mockImplementation(jest.fn());
 
       comp.dataTreeDragToPane(target, {
          external: JSON.stringify([validWorksheet, sameTarget, ancestorFolder, unsupported])
       });
 
+      expect(confirmSpy).toHaveBeenCalledWith(expect.anything(),
+         "_#(js:Confirm)", "_#(js:em.reports.drag.confirm)");
       await waitFor(() => expect(moveAssetsSpy).toHaveBeenCalledWith(
          [expect.objectContaining({
             name: "Sheet",
