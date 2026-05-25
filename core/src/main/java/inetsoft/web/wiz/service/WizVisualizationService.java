@@ -516,6 +516,62 @@ public class WizVisualizationService {
          .build();
    }
 
+   public void deleteVisualizations(List<String> identifiers, Principal principal) throws Exception {
+      for(String identifier : identifiers) {
+         AssetEntry entry = AssetEntry.createAssetEntry(identifier);
+         assetRepository.checkAssetPermission(principal, entry, ResourceAction.DELETE);
+
+         if(entry.isRepositoryFolder()) {
+            // Visualization folders are created via assetRepository.addFolder(), so they live in
+            // the AssetRepository, not the RepletRegistry. removeFolder cascades to child viewsheets.
+            assetRepository.removeFolder(entry, principal, true);
+
+            String suffix = entry.getPath().substring(VISUALIZATION_COMPONENTS_FOLDER_PATH.length());
+            String wsFolderPath = GenerateWsService.WORKSHEET_COMPONENTS_FOLDER_PATH + suffix;
+            AssetEntry wsFolderEntry = new AssetEntry(
+               AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.FOLDER, wsFolderPath, null);
+
+            if(assetRepository.containsEntry(wsFolderEntry)) {
+               try {
+                  assetRepository.removeFolder(wsFolderEntry, principal, true);
+               }
+               catch(Exception e) {
+                  LOG.warn("Failed to delete worksheet folder (visualization folder deleted): {}",
+                           wsFolderPath, e);
+               }
+            }
+         }
+         else {
+            AssetEntry wsEntry = null;
+
+            try {
+               Viewsheet vs = (Viewsheet) assetRepository.getSheet(
+                  entry, principal, false, AssetContent.NO_DATA);
+
+               if(vs != null) {
+                  wsEntry = vs.getBaseEntry();
+               }
+            }
+            catch(Exception e) {
+               LOG.warn("Failed to load viewsheet for worksheet lookup before delete: {}",
+                        entry.getPath(), e);
+            }
+
+            assetRepository.removeSheet(entry, principal, true);
+
+            if(wsEntry != null && wsEntry.isWorksheet()) {
+               try {
+                  assetRepository.removeSheet(wsEntry, principal, true);
+               }
+               catch(Exception e) {
+                  LOG.warn("Failed to delete worksheet (viewsheet was deleted): {}",
+                           wsEntry.getPath(), e);
+               }
+            }
+         }
+      }
+   }
+
    private void ensureFolder(AssetEntry folder, Principal principal) throws Exception {
       try {
          if(!assetRepository.containsEntry(folder)) {
