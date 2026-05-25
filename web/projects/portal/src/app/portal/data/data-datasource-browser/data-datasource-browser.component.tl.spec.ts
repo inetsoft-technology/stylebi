@@ -80,11 +80,11 @@ import { DataSourceBrowserModel } from "./data-source-browser-model";
 import { DatasourceBrowserService } from "./datasource-browser.service";
 import { server } from "../../../../../../../mocks/server";
 
-type NotificationMock = {
+interface NotificationMock {
    success: jest.Mock;
    danger: jest.Mock;
    info: jest.Mock;
-};
+}
 
 let currentNotifications: NotificationMock;
 

@@ -37,10 +37,6 @@
  *     repositoryClient.dataChanged is subscribed in ngOnInit but not added to routeParamSubscription
  *     or subscriptions, so it can refresh this component after ngOnDestroy.
  *
- *   Bug B - deleteSelected-ignores-deletable-guard (Group 2):
- *     The template only applies a disabled CSS class on desktop and no disabled binding on the
- *     mobile delete action; deleteSelected itself never checks isSelectionDeletable().
- *
  *   Bug C - deleteSelected-error-does-not-refresh (Group 2):
  *     The delete request refresh is in the complete callback only. RxJS does not call complete
  *     after error, despite the comment saying refresh should happen even on failure.
@@ -82,11 +78,11 @@ import { DataFolderBrowserComponent } from "./data-folder-browser.component";
 import { PortalDataBrowserModel } from "./portal-data-browser-model";
 import { server } from "../../../../../../../mocks/server";
 
-type NotificationMock = {
+interface NotificationMock {
    success: jest.Mock;
    danger: jest.Mock;
    info: jest.Mock;
-};
+}
 
 let currentNotifications: NotificationMock;
 
@@ -338,9 +334,16 @@ describe("DataFolderBrowserComponent - browser refresh/search lifecycle [Group 1
       const { fixture, repositoryDataChanged, browserRequests } = await renderComponent();
       const initialRequestCount = browserRequests.length;
 
-      fixture.destroy();
-      repositoryDataChanged.next();
-      await new Promise(resolve => setTimeout(resolve, 10));
+      jest.useFakeTimers();
+      try {
+         fixture.destroy();
+         repositoryDataChanged.next();
+         jest.runAllTimers();
+      } finally {
+         jest.useRealTimers();
+      }
+      // setImmediate fires after all pending microtasks (including MSW Promise chains)
+      await new Promise(resolve => setImmediate(resolve));
 
       expect(browserRequests).toHaveLength(initialRequestCount);
    });
@@ -398,30 +401,24 @@ describe("DataFolderBrowserComponent - deleteSelected [Group 2, Risk 3]", () => 
       await waitFor(() => expect(refreshCount).toBeGreaterThan(0));
    });
 
-   // Bug B: deleteSelected bypasses the non-deletable toolbar contract.
-   it.failing("should not request deletion status when any selected item is not deletable", async () => {
+   // Direct calls must enforce the same non-deletable contract as the toolbar.
+   it("should not request deletion status when any selected item is not deletable", async () => {
       const locked = makeWorksheet("Locked", "Locked", AssetType.WORKSHEET, {
          deletable: false
       });
-      let removableRequest: any = null;
 
-      jest.spyOn(ComponentTool, "showConfirmDialog").mockResolvedValue("cancel");
+      const confirmSpy = jest.spyOn(ComponentTool, "showConfirmDialog").mockResolvedValue("cancel");
 
       const { comp } = await renderComponent();
-      server.use(
-         http.post("*/api/data/removeableStatuses", async ({ request }) => {
-            removableRequest = await request.json();
-            return HttpResponse.json({ folderDependencies: [], datasetDependencies: [] });
-         })
-      );
+      const postSpy = jest.spyOn((comp as any).httpClient, "post").mockReturnValue(EMPTY);
 
       comp.selectedItems = [locked];
       expect(comp.isSelectionDeletable()).toBe(false);
 
       comp.deleteSelected();
-      await new Promise(resolve => setTimeout(resolve, 10));
 
-      expect(removableRequest).toBeNull();
+      expect(postSpy).not.toHaveBeenCalled();
+      expect(confirmSpy).not.toHaveBeenCalled();
    });
 
    // Bug C: refresh lives in complete(), so partial server failures leave stale rows visible.
@@ -448,8 +445,7 @@ describe("DataFolderBrowserComponent - deleteSelected [Group 2, Risk 3]", () => 
 
       await waitFor(() =>
          expect(notifications.danger).toHaveBeenCalledWith("_#(js:data.datasets.deleteItemsError)"));
-      await new Promise(resolve => setTimeout(resolve, 10));
-      expect(refreshCount).toBeGreaterThan(0);
+      await waitFor(() => expect(refreshCount).toBeGreaterThan(0));
    });
 });
 
@@ -519,20 +515,23 @@ describe("DataFolderBrowserComponent - move/drag [Group 3, Risk 3]", () => {
       const { comp, dataBrowserService } = await renderComponent({
          queryParams: { path: "current", scope: "1" }
       });
-      const moveAssets0Spy = jest.spyOn(comp as any, "moveAssets0").mockImplementation(jest.fn());
+      jest.spyOn(ComponentTool, "showConfirmDialog").mockResolvedValue("ok");
+      const moveAssetsSpy = jest.spyOn(comp, "moveAssets").mockImplementation(jest.fn());
 
       comp.dataTreeDragToPane(target, {
          external: JSON.stringify([validWorksheet, sameTarget, ancestorFolder, unsupported])
       });
 
-      expect(moveAssets0Spy).toHaveBeenCalledWith([
-         expect.objectContaining({
+      await waitFor(() => expect(moveAssetsSpy).toHaveBeenCalledWith(
+         [expect.objectContaining({
             name: "Sheet",
             path: "Source/Sheet",
             type: AssetType.WORKSHEET,
             scope: 1
-         })
-      ], target);
+         })],
+         target,
+         1
+      ));
       expect(dataBrowserService.changeFolder).toHaveBeenCalledWith("current", 1);
    });
 
