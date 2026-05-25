@@ -1088,6 +1088,7 @@ public class WizVsService {
                                                              VSCrosstabInfo info)
    {
       CrosstabVSAssembly crosstab = new CrosstabVSAssembly(vs, name);
+      crosstab.initDefaultFormat();
       crosstab.setVSCrosstabInfo(info);
       return crosstab;
    }

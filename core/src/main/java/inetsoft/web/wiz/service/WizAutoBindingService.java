@@ -36,7 +36,6 @@ import inetsoft.web.vswizard.recommender.chart.ChartPreference;
 import inetsoft.web.vswizard.service.VSWizardTemporaryInfoService;
 import inetsoft.web.wiz.model.*;
 import inetsoft.web.wiz.model.BindingInfo;
-import inetsoft.web.wiz.model.PrimaryBinding;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -644,7 +643,7 @@ public class WizAutoBindingService {
       }
 
       // Fallback: delegate viz-type decision to the recommendation engine.
-      // Iterate past filter/text recommendations (toPrimaryBinding returns null for them).
+      // Iterate past VSFilterRecommendation (the only type toPrimaryBinding maps to null).
       for(VSObjectRecommendation rec : recs) {
          if(rec instanceof VSChartRecommendation) {
             PrimaryBinding.ChartPrimaryBinding chartPrimary = buildBestChartViz(prefInfos, intentCategory);
@@ -689,6 +688,11 @@ public class WizAutoBindingService {
                return new PrimaryBinding.GaugePrimaryBinding(gr.getDataRef());
             }
          }
+         else if("text".equals(vizType) && rec instanceof VSTextRecommendation tr) {
+            if(tr.getDataRef() != null) {
+               return new PrimaryBinding.TextPrimaryBinding(tr.getDataRef());
+            }
+         }
       }
 
       return null;
@@ -715,7 +719,7 @@ public class WizAutoBindingService {
    }
 
    private RecommendedVisualization primaryBindingToRecommendedVisualization(PrimaryBinding binding,
-                                                                              String worksheetId)
+                                                                             String worksheetId)
    {
       if(binding == null) {
          return null;
