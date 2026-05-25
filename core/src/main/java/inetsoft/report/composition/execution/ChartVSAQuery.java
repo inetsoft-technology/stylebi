@@ -1205,10 +1205,10 @@ public class ChartVSAQuery extends CubeVSAQuery implements BindableVSAQuery {
       // calls MirrorAssemblyImpl.setWorksheet() -> update0() -> ws.getAssembly(name), which would
       // return the unprocessed original instead of this clone (with aggregate info applied).
       // Adding the clone replaces the original so the mirror picks up the correct processed table.
-      Worksheet cloneWs = table.getWorksheet();
+      Worksheet ws = table.getWorksheet();
 
-      if(cloneWs != null) {
-         cloneWs.addAssembly(table);
+      if(ws != null) {
+         ws.addAssembly(table);
       }
 
       ChartVSAssembly cassembly = (ChartVSAssembly) getAssembly();
