@@ -74,7 +74,8 @@ public class WizVisualizationController {
       consumes = MediaType.APPLICATION_JSON_VALUE,
       produces = MediaType.APPLICATION_JSON_VALUE
    )
-   public ResponseEntity<?> deleteVisualizations(@RequestBody List<String> identifiers, Principal principal)
+   public ResponseEntity<?> deleteVisualizations(@RequestBody List<String> identifiers,
+                                                 Principal principal)
    {
       if(identifiers == null || identifiers.isEmpty()) {
          return ResponseEntity.badRequest().body(Map.of("error", "identifiers are required"));
