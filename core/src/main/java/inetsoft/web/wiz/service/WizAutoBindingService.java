@@ -158,7 +158,9 @@ public class WizAutoBindingService {
          PrimaryBinding primaryBinding = null;
 
          if(model != null) {
-            recommendations = model.getRecommendationList();
+            recommendations = model.getRecommendationList().stream()
+               .filter(r -> !(r instanceof VSFilterRecommendation))
+               .collect(Collectors.toList());
             List<ChartCombinationUtil.ScoredInfo> prefInfos = null;
             VSObjectRecommendation chartRec = model.findRecommendation(VSRecommendType.CHART, false);
 
@@ -174,14 +176,11 @@ public class WizAutoBindingService {
          // Phase 3: place primary into the output viewsheet.
          CreateViewsheetResult visualizationResult = null;
 
-         if(primaryBinding != null) {
+         if(primaryBinding != null && !Tool.isEmptyString(worksheetId)) {
             VisualizationConfig sourceConfig = new VisualizationConfig();
-
-            if(!Tool.isEmptyString(worksheetId)) {
-               VisualizationConfig.DataSource ds = new VisualizationConfig.DataSource();
-               ds.setSource(worksheetId);
-               sourceConfig.setData(ds);
-            }
+            VisualizationConfig.DataSource ds = new VisualizationConfig.DataSource();
+            ds.setSource(worksheetId);
+            sourceConfig.setData(ds);
 
             CreateVisualizationModel vsModel = new CreateVisualizationModel();
             vsModel.setConfig(sourceConfig);
@@ -645,15 +644,18 @@ public class WizAutoBindingService {
       }
 
       // Fallback: delegate viz-type decision to the recommendation engine.
-      if(!recs.isEmpty()) {
-         VSObjectRecommendation topRec = recs.get(0);
-
-         if(topRec instanceof VSChartRecommendation) {
+      // Iterate past filter/text recommendations (toPrimaryBinding returns null for them).
+      for(VSObjectRecommendation rec : recs) {
+         if(rec instanceof VSChartRecommendation) {
             PrimaryBinding.ChartPrimaryBinding chartPrimary = buildBestChartViz(prefInfos, intentCategory);
-            return chartPrimary != null ? chartPrimary : toPrimaryBinding(topRec, entries);
+            return chartPrimary != null ? chartPrimary : toPrimaryBinding(rec, entries);
          }
 
-         return toPrimaryBinding(topRec, entries);
+         PrimaryBinding converted = toPrimaryBinding(rec, entries);
+
+         if(converted != null) {
+            return converted;
+         }
       }
 
       return null;
@@ -706,6 +708,8 @@ public class WizAutoBindingService {
             new PrimaryBinding.TablePrimaryBinding(tr.getColumns(), entries);
          case VSGaugeRecommendation gr when gr.getDataRef() != null ->
             new PrimaryBinding.GaugePrimaryBinding(gr.getDataRef());
+         case VSTextRecommendation tr when tr.getDataRef() != null ->
+            new PrimaryBinding.TextPrimaryBinding(tr.getDataRef());
          default -> null;
       };
    }
@@ -733,6 +737,14 @@ public class WizAutoBindingService {
             outputBinding.setField(dataRefToMeasureFieldInfo(gb.dataRef()));
             RecommendedVisualization rec = new RecommendedVisualization();
             rec.setVisualizationType("gauge");
+            rec.setConfig(wrapInConfig(outputBinding, worksheetId));
+            yield rec;
+         }
+         case PrimaryBinding.TextPrimaryBinding tb -> {
+            OutputBinding outputBinding = new OutputBinding();
+            outputBinding.setField(dataRefToMeasureFieldInfo(tb.dataRef()));
+            RecommendedVisualization rec = new RecommendedVisualization();
+            rec.setVisualizationType("text");
             rec.setConfig(wrapInConfig(outputBinding, worksheetId));
             yield rec;
          }

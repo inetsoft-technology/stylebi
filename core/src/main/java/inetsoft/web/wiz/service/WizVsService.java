@@ -1057,6 +1057,8 @@ public class WizVsService {
             createTableAssemblyFromInfo(vs, name, tb.columns(), tb.entries());
          case PrimaryBinding.GaugePrimaryBinding gb ->
             createGaugeAssemblyFromInfo(vs, name, gb.dataRef(), tname);
+         case PrimaryBinding.TextPrimaryBinding tb ->
+            createTextAssemblyFromInfo(vs, name, tb.dataRef(), tname);
       };
 
       if(assembly instanceof DataVSAssembly dataAssembly) {
@@ -1073,6 +1075,10 @@ public class WizVsService {
       if(info instanceof VSChartInfo vsChartInfo) {
          chart.setVSChartInfo(vsChartInfo);
          GraphUtil.fixVisualFrames(vsChartInfo);
+      }
+      else {
+         LOG.warn("createChartAssemblyFromInfo: expected VSChartInfo but got {}; chart '{}' will have no binding",
+                  info == null ? "null" : info.getClass().getName(), name);
       }
 
       return chart;
@@ -1136,6 +1142,29 @@ public class WizVsService {
 
       gauge.setScalarBindingInfo(sbinfo);
       return gauge;
+   }
+
+   private TextVSAssembly createTextAssemblyFromInfo(Viewsheet vs, String name,
+                                                     DataRef dataRef, String tname)
+   {
+      TextVSAssembly text = new TextVSAssembly(vs, name);
+      text.initDefaultFormat();
+      ScalarBindingInfo sbinfo = new ScalarBindingInfo();
+      sbinfo.setTableName(tname);
+
+      if(dataRef instanceof VSAggregateRef agg) {
+         sbinfo.setColumnValue(agg.getColumnValue());
+
+         if(agg.getFormulaValue() != null) {
+            sbinfo.setAggregateValue(agg.getFormulaValue());
+         }
+      }
+      else if(dataRef != null) {
+         sbinfo.setColumnValue(dataRef.getAttribute());
+      }
+
+      text.setScalarBindingInfo(sbinfo);
+      return text;
    }
 
    private VSAssembly createAssembly(Viewsheet vs, String type, String name,

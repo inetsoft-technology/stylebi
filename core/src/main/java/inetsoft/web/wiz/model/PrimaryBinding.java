@@ -33,10 +33,12 @@ public sealed interface PrimaryBinding
    permits PrimaryBinding.ChartPrimaryBinding,
            PrimaryBinding.CrosstabPrimaryBinding,
            PrimaryBinding.TablePrimaryBinding,
-           PrimaryBinding.GaugePrimaryBinding
+           PrimaryBinding.GaugePrimaryBinding,
+           PrimaryBinding.TextPrimaryBinding
 {
    record ChartPrimaryBinding(ChartInfo info) implements PrimaryBinding {}
    record CrosstabPrimaryBinding(VSCrosstabInfo info) implements PrimaryBinding {}
    record TablePrimaryBinding(ColumnSelection columns, AssetEntry[] entries) implements PrimaryBinding {}
    record GaugePrimaryBinding(DataRef dataRef) implements PrimaryBinding {}
+   record TextPrimaryBinding(DataRef dataRef) implements PrimaryBinding {}
 }
