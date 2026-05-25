@@ -409,8 +409,11 @@ describe("DataSourcesTreeViewComponent — getDataNavigationTree — loading + r
       // Wait for the reload to complete: loading goes true→false only after the HTTP response is processed.
       await waitFor(() => expect(comp.loading).toBe(false));
       // selectedNodes must now point to the new tree's equivalent node, not the stale old reference.
+      // Reference equality is impossible after JSON round-trip (MSW → HttpClient deserializes to a new object),
+      // so verify by identifier — the same field updateSelectedNodes uses for matching.
       expect(comp.selectedNodes).not.toContain(oldChild);
       expect(comp.selectedNodes).toHaveLength(1);
+      expect(comp.selectedNodes[0].data.identifier).toBe(IDENTIFIER);
    });
 });
 
@@ -622,6 +625,7 @@ describe("DataSourcesTreeViewComponent — getNodePath / splitModelName — path
 
       expect(result).not.toBeNull();
       expect(result.database).toBe("db");
+      expect(result.folder).toBeNull();
       expect(result.name).toBe("model");
    });
 

@@ -46,7 +46,7 @@ import { IdentityIdWithLabel } from "../../em/src/app/settings/security/users/id
 import { StompClientService } from "../stomp/stomp-client.service";
 import { UsersModel } from "./model/users-model";
 import { PORTAL, ScheduleUsersService } from "./schedule-users.service";
-import { it as jestIt } from "@jest/globals";
+import { it } from "@jest/globals";
 
 // ─── fixtures ────────────────────────────────────────────────────────────────
 
@@ -335,7 +335,7 @@ describe("ScheduleUsersService", () => {
       // ssoEnable is declared in the service but ngOnDestroy() never calls ssoEnable.complete()
       // Steps to reproduce: N/A — lifecycle defect verified by unit test only; no user-visible
       // symptom under normal EM/Portal navigation.
-      jestIt.failing("[Risk 3] ssoEnable BehaviorSubject is not completed in ngOnDestroy", () => {
+      it.failing("[Risk 3] ssoEnable BehaviorSubject is not completed in ngOnDestroy", () => {
          let completed = false;
          service.ssoEnable.subscribe({ complete: () => (completed = true) });
 

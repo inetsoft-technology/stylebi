@@ -324,8 +324,8 @@ export const portalHandlers = [
       return HttpResponse.json([]);
    }),
 
-   // DataSourcesTreeViewComponent — datasource search
-   http.get("*/api/data/search/dataSources", () => {
+   // DataDatasourceBrowserComponent — datasource search (component sends POST with SearchCommand body)
+   http.post("*/api/data/search/dataSources", () => {
       return HttpResponse.json([]);
    }),
 
