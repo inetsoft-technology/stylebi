@@ -30,7 +30,6 @@ import { NewAggrDialog } from "../../../widget/dialog/new-aggr-dialog/new-aggr-d
 import { ScriptPane } from "../../../widget/dialog/script-pane/script-pane.component";
 import { DefaultFocusDirective } from "../../../widget/directive/default-focus.directive";
 import { EnterSubmitDirective } from "../../../widget/directive/enter-submit.directive";
-import { FixedDropdownDirective } from "../../../widget/fixed-dropdown/fixed-dropdown.directive";
 import { FormulaEditorDialog } from "../../../widget/formula-editor/formula-editor-dialog.component";
 import { TreeNodeComponent } from "../../../widget/tree/tree-node.component";
 import { TreeSearchPipe } from "../../../widget/tree/tree-search.pipe";
@@ -118,7 +117,7 @@ describe("SubmitPropertyDialog Integration Test", () => {
             LabelPropPane, ScriptPane, BasicGeneralPane, TreeComponent,
             FormulaEditorDialog, TreeNodeComponent, NewAggrDialog, MessageDialog,
             TreeSearchPipe, EnterSubmitDirective, DefaultFocusDirective,
-            FixedDropdownDirective, SizePositionPane
+            SizePositionPane
          ],
          providers: [
             { provide: UIContextService, useValue: contextService },

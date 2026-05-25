@@ -20,7 +20,6 @@ import { ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormGroup, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { NgbModal, NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { DropDownTestModule } from "../../common/test/test-module";
-import { FixedDropdownDirective } from "../../widget/fixed-dropdown/fixed-dropdown.directive";
 import { BasicGeneralPaneModel } from "../model/basic-general-pane-model";
 import { BasicGeneralPane } from "./basic-general-pane.component";
 
@@ -54,7 +53,7 @@ describe("Basic general pane Test", () => {
             FormsModule, ReactiveFormsModule, NgbModule, DropDownTestModule
          ],
          declarations: [
-            BasicGeneralPane, FixedDropdownDirective
+            BasicGeneralPane
          ],
          providers: [
             NgbModal

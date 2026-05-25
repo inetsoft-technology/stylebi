@@ -21,8 +21,6 @@ import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { ColorPicker } from "./color-picker.component";
 import { ColorPane } from "./cp-color-pane.component";
-import { FixedDropdownDirective } from "../fixed-dropdown/fixed-dropdown.directive";
-import { FixedDropdownService } from "../fixed-dropdown/fixed-dropdown.service";
 import { DropDownTestModule } from "../../common/test/test-module";
 
 describe("Color Picker Unit Test", () => {
@@ -35,9 +33,9 @@ describe("Color Picker Unit Test", () => {
             ReactiveFormsModule, FormsModule, NgbModule, DropDownTestModule
          ],
          declarations: [
-            ColorPicker, ColorPane, FixedDropdownDirective
+            ColorPicker, ColorPane
          ],
-         providers: [ FixedDropdownService ],
+         providers: [],
          schemas: [NO_ERRORS_SCHEMA]
       }).compileComponents();
 

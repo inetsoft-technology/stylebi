@@ -28,7 +28,6 @@ import { DataTreeValidatorService } from "../../../vsobjects/dialog/data-tree-va
 import { MessageDialog } from "../../../widget/dialog/message-dialog/message-dialog.component";
 import { NewAggrDialog } from "../../../widget/dialog/new-aggr-dialog/new-aggr-dialog.component";
 import { ScriptPane } from "../../../widget/dialog/script-pane/script-pane.component";
-import { FixedDropdownDirective } from "../../../widget/fixed-dropdown/fixed-dropdown.directive";
 import { ComboMode } from "../../../widget/dynamic-combo-box/dynamic-combo-box-model";
 import { FormulaEditorDialog } from "../../../widget/formula-editor/formula-editor-dialog.component";
 import { DragService } from "../../../widget/services/drag.service";
@@ -131,7 +130,7 @@ describe("Data Output Pane Test", () => {
             TestApp, DataOutputPane, TreeDropdownComponent,
             TreeComponent, TreeNodeComponent,
             FormulaEditorDialog, ScriptPane, NewAggrDialog, MessageDialog,
-            TreeSearchPipe, FixedDropdownDirective
+            TreeSearchPipe
          ],
          providers: [
             {provide: DragService, useValue: dragService},

@@ -25,7 +25,6 @@ import { MessageDialog } from "../../../widget/dialog/message-dialog/message-dia
 import { NewAggrDialog } from "../../../widget/dialog/new-aggr-dialog/new-aggr-dialog.component";
 import { ScriptPane } from "../../../widget/dialog/script-pane/script-pane.component";
 import { DynamicComboBox } from "../../../widget/dynamic-combo-box/dynamic-combo-box.component";
-import { FixedDropdownDirective } from "../../../widget/fixed-dropdown/fixed-dropdown.directive";
 import { ComboMode } from "../../../widget/dynamic-combo-box/dynamic-combo-box-model";
 import { FormulaEditorDialog } from "../../../widget/formula-editor/formula-editor-dialog.component";
 import { DragService } from "../../../widget/services/drag.service";
@@ -115,7 +114,7 @@ describe("Selection Tree Id Pane Test", () => {
          declarations: [
             TestApp, SelectionTreeIdPane, TreeComponent, TreeNodeComponent,
             TreeSearchPipe, FormulaEditorDialog, ScriptPane,
-            NewAggrDialog, MessageDialog, FixedDropdownDirective, DynamicComboBox
+            NewAggrDialog, MessageDialog, DynamicComboBox
          ],
          providers: [
             {provide: ChangeDetectorRef, useValue: changeDetectorRef},

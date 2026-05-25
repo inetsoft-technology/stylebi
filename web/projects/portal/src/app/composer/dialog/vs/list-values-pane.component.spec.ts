@@ -22,6 +22,7 @@ import { NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { ListValuesPaneModel } from "../../data/vs/list-values-pane-model";
 
 import { ListValuesPane } from "./list-values-pane.component";
+import { CustomSelectModule } from "../../../widget/custom-select/custom-select.module";
 
 let createListModel: () => ListValuesPaneModel = () => {
    return {
@@ -74,7 +75,7 @@ describe("list value component unit case: ", () => {
 
    beforeEach(() => {
       TestBed.configureTestingModule({
-         imports: [ReactiveFormsModule, FormsModule, NgbModule],
+         imports: [ReactiveFormsModule, FormsModule, NgbModule, CustomSelectModule],
          providers: [],
          declarations: [ListValuesPane, ComboBoxEditor],
          schemas: [NO_ERRORS_SCHEMA]

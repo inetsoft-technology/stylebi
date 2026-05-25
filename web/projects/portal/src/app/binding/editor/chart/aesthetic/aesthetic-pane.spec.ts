@@ -30,7 +30,6 @@ import { TestUtils } from "../../../../common/test/test-utils";
 import { StyleConstants } from "../../../../common/util/style-constants";
 import { ColorPane } from "../../../../widget/color-picker/cp-color-pane.component";
 import { RecentColorService } from "../../../../widget/color-picker/recent-color.service";
-import { FixedDropdownDirective } from "../../../../widget/fixed-dropdown/fixed-dropdown.directive";
 import { AestheticInfo } from "../../../data/chart/aesthetic-info";
 import { AllChartAggregateRef } from "../../../data/chart/all-chart-aggregate-ref";
 import { ChartAggregateRef } from "../../../data/chart/chart-aggregate-ref";
@@ -150,7 +149,7 @@ describe("Aesthetic Pane Unit Test", () => {
             FormsModule, ReactiveFormsModule, NgbModule, HttpClientTestingModule, DropDownTestModule
          ],
          declarations: [
-            AestheticPane, ColorFieldMc, ColorCell, ShapeFieldMc, ShapeCell, SizeFieldMc, SizeCell, CombinedShapePane, TextureItem, LineItem, ShapeItem, ChartAestheticMc, StaticTextureEditor, StaticTexturePane, StaticColorPane, StaticColorEditor, LinearShapePane, ColorFieldPane, ColorPane, TextFieldMc, FixedDropdownDirective
+            AestheticPane, ColorFieldMc, ColorCell, ShapeFieldMc, ShapeCell, SizeFieldMc, SizeCell, CombinedShapePane, TextureItem, LineItem, ShapeItem, ChartAestheticMc, StaticTextureEditor, StaticTexturePane, StaticColorPane, StaticColorEditor, LinearShapePane, ColorFieldPane, ColorPane, TextFieldMc
          ],
          providers: [
             { provide: ChartEditorService, useValue: editorService },

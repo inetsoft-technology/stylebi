@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { NgModule, NO_ERRORS_SCHEMA } from "@angular/core";
+import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { NgbModule } from "@ng-bootstrap/ng-bootstrap";
@@ -23,12 +23,8 @@ import { TestUtils } from "../../../common/test/test-utils";
 import { ColorEditor } from "../../../widget/color-picker/color-editor.component";
 import { ColorPicker } from "../../../widget/color-picker/color-picker.component";
 import { ColorPane } from "../../../widget/color-picker/cp-color-pane.component";
-import { FixedDropdownDirective } from "../../../widget/fixed-dropdown/fixed-dropdown.directive";
 import { DynamicComboBox } from "../../../widget/dynamic-combo-box/dynamic-combo-box.component";
-import { DropdownStackService } from "../../../widget/fixed-dropdown/dropdown-stack.service";
-import { FixedDropdownContextmenuComponent } from "../../../widget/fixed-dropdown/fixed-dropdown-contextmenu.component";
-import { FixedDropdownComponent } from "../../../widget/fixed-dropdown/fixed-dropdown.component";
-import { FixedDropdownService } from "../../../widget/fixed-dropdown/fixed-dropdown.service";
+import { DropDownTestModule } from "../../../common/test/test-module";
 import { AlphaDropdown } from "../../../widget/format/alpha-dropdown.component";
 import { TooltipDirective } from "../../../widget/tooltip/tooltip.directive";
 import { TreeDropdownComponent } from "../../../widget/tree/tree-dropdown.component";
@@ -39,13 +35,6 @@ import { FillPropPaneModel } from "../../data/vs/fill-prop-pane-model";
 import { FillPropPane } from "./fill-prop-pane.component";
 import { DebounceService } from "../../../widget/services/debounce.service";
 
-@NgModule({
-   declarations: [
-      FixedDropdownComponent,
-      FixedDropdownContextmenuComponent
-   ],
-})
-class TestModule {}
 
 let createMode: () => FillPropPaneModel = () => {
    return {
@@ -61,9 +50,9 @@ describe("fill prop pane unit case: ", () => {
 
    beforeEach(() => {
       TestBed.configureTestingModule({
-         imports: [TestModule, ReactiveFormsModule, FormsModule, NgbModule],
-         declarations: [AlphaDropdown, FillPropPane, DynamicComboBox, ColorEditor, ColorPicker, ColorPane, TreeComponent, TreeNodeComponent, TreeDropdownComponent, TreeSearchPipe, FixedDropdownDirective,  TooltipDirective],
-         providers: [FixedDropdownService, DropdownStackService, DebounceService],
+         imports: [DropDownTestModule, ReactiveFormsModule, FormsModule, NgbModule],
+         declarations: [AlphaDropdown, FillPropPane, DynamicComboBox, ColorEditor, ColorPicker, ColorPane, TreeComponent, TreeNodeComponent, TreeDropdownComponent, TreeSearchPipe, TooltipDirective],
+         providers: [DebounceService],
          schemas: [NO_ERRORS_SCHEMA]
       }).compileComponents();
 
@@ -82,7 +71,7 @@ describe("fill prop pane unit case: ", () => {
       TestUtils.changeDynamicComboValueType(1);
       fixture.detectChanges();
 
-      let colorInput = fixture.nativeElement.querySelector("dynamic-combo-box select");
+      let colorInput = fixture.nativeElement.querySelector("dynamic-combo-box custom-select");
       let colorEditor = fixture.nativeElement.querySelector("div.col-auto.ps-1");
       expect(colorInput.getAttribute("ng-reflect-model")).toBe("$(var1)");
       expect(colorEditor.getAttribute("class")).toContain("disable-actions-fade");

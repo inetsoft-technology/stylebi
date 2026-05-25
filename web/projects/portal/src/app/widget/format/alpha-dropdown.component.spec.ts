@@ -18,8 +18,9 @@
 import { ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { NgbModal, NgbModule } from "@ng-bootstrap/ng-bootstrap";
+import { NgModel, FormGroup, FormsModule, ReactiveFormsModule } from "@angular/forms";
+import { AlphaDropdown } from "./alpha-dropdown.component";
 import { DropDownTestModule } from "../../common/test/test-module";
-import { FixedDropdownDirective } from "../fixed-dropdown/fixed-dropdown.directive";
 import { DebounceService } from "../services/debounce.service";
 import { AlphaDropdown } from "./alpha-dropdown.component";
 
@@ -32,7 +33,7 @@ describe("alpha dropdown component unit case", () => {
       debounceService = { debounce: jest.fn() };
       TestBed.configureTestingModule({
          imports: [DropDownTestModule, ReactiveFormsModule, FormsModule, NgbModule],
-         declarations: [AlphaDropdown, FixedDropdownDirective],
+         declarations: [AlphaDropdown],
          providers: [
             NgbModal,
             {

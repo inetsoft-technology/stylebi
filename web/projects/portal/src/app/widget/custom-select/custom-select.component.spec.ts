@@ -20,8 +20,6 @@ import { ComponentFixture, fakeAsync, TestBed, tick } from "@angular/core/testin
 import { FormsModule } from "@angular/forms";
 import { By } from "@angular/platform-browser";
 import { DropDownTestModule } from "../../common/test/test-module";
-import { FixedDropdownDirective } from "../fixed-dropdown/fixed-dropdown.directive";
-import { FixedDropdownService } from "../fixed-dropdown/fixed-dropdown.service";
 import { CustomSelectComponent, CustomSelectOption } from "./custom-select.component";
 
 @Component({
@@ -41,8 +39,7 @@ describe("CustomSelectComponent", () => {
    beforeEach(async () => {
       await TestBed.configureTestingModule({
          imports: [FormsModule, DropDownTestModule],
-         declarations: [TestHostComponent, CustomSelectComponent, FixedDropdownDirective],
-         providers: [FixedDropdownService]
+         declarations: [TestHostComponent]
       }).compileComponents();
 
       fixture = TestBed.createComponent(TestHostComponent);
@@ -60,7 +57,7 @@ describe("CustomSelectComponent", () => {
       const options = document.querySelectorAll<HTMLButtonElement>(".custom-select-option");
       expect(options.length).toBe(2);
 
-      options.item(1).click();
+      options.item(1).dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
       fixture.detectChanges();
       tick();
       fixture.detectChanges();

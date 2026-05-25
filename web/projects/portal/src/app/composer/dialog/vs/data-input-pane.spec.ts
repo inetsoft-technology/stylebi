@@ -28,7 +28,6 @@ import { NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { DropDownTestModule } from "../../../common/test/test-module";
 import { TestUtils } from "../../../common/test/test-utils";
 import { DataTreeValidatorService } from "../../../vsobjects/dialog/data-tree-validator.service";
-import { FixedDropdownDirective } from "../../../widget/fixed-dropdown/fixed-dropdown.directive";
 import { DynamicComboBox } from "../../../widget/dynamic-combo-box/dynamic-combo-box.component";
 import { TooltipDirective } from "../../../widget/tooltip/tooltip.directive";
 import { TreeDropdownComponent } from "../../../widget/tree/tree-dropdown.component";
@@ -103,7 +102,7 @@ describe("Data Input Pane Test", () => {
          imports: [DropDownTestModule, ReactiveFormsModule, FormsModule, NgbModule, HttpClientTestingModule],
          declarations: [
             DataInputPane, DynamicComboBox, TreeComponent, TreeNodeComponent,
-            TreeDropdownComponent, FixedDropdownDirective, TreeSearchPipe,
+            TreeDropdownComponent, TreeSearchPipe,
             TooltipDirective, EnterClickDirective
          ],
          providers: [

@@ -35,6 +35,7 @@ import { Worksheet } from "../../data/ws/worksheet";
 import { VariableAssemblyDialog } from "./variable-assembly-dialog.component";
 import { VariableTableListDialog } from "./variable-table-list-dialog.component";
 import { ConditionValueTypePipe } from "../../../widget/condition/condition-value-type.pipe";
+import { CustomSelectModule } from "../../../widget/custom-select/custom-select.module";
 
 const createMockModel: () => Observable<any> = () => {
    return observableOf({
@@ -77,7 +78,7 @@ describe("VariableAssemblyDialog Integration Test", () => {
 
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule
+            FormsModule, ReactiveFormsModule, NgbModule, CustomSelectModule
          ],
          declarations: [
             VariableAssemblyDialog, VariableValueEditor, VariableListDialog,

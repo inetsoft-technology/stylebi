@@ -23,6 +23,7 @@ import { By } from "@angular/platform-browser";
 import { NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { TestUtils } from "../../common/test/test-utils";
 import { BandPanel } from "./band-panel.component";
+import { CustomSelectModule } from "../custom-select/custom-select.module";
 import { GraphTypes } from "../../common/graph-types";
 
 describe("band panel component unit case", () => {
@@ -31,7 +32,7 @@ describe("band panel component unit case", () => {
 
    beforeEach(() => {
       TestBed.configureTestingModule({
-         imports: [ReactiveFormsModule, FormsModule, NgbModule],
+         imports: [ReactiveFormsModule, FormsModule, NgbModule, CustomSelectModule],
          declarations: [BandPanel],
          providers: [],
          schemas: [NO_ERRORS_SCHEMA]
@@ -78,9 +79,10 @@ describe("band panel component unit case", () => {
          {name: "Sum(id)", label: "Sum(id)", groupOthers: false, dateField: false},
          {name: "Year(date)", label: "Year(date)", groupOthers: true, dateField: true}];
       fixture.detectChanges();
-      let fileds = fixture.nativeElement.querySelectorAll("select option");
-      expect(fileds.length).toBe(2);
-      expect(fileds[0].textContent).toContain("");
-      expect(fileds[1].textContent).toContain("Sum(id)");
+      const csDebugEl = fixture.debugElement.query(By.css("custom-select"));
+      const options = (csDebugEl.componentInstance as any).options;
+      expect(options.length).toBe(2);
+      expect(options[0].label).toContain("");
+      expect(options[1].label).toContain("Sum(id)");
    });
 });

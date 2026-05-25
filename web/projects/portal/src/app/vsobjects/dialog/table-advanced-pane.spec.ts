@@ -23,7 +23,6 @@ import { of as observableOf, Subject } from "rxjs";
 import { UIContextService } from "../../common/services/ui-context.service";
 import { DropDownTestModule } from "../../common/test/test-module";
 import { TipCustomizeDialog } from "../../widget/dialog/tip-customize-dialog/tip-customize-dialog.component";
-import { FixedDropdownDirective } from "../../widget/fixed-dropdown/fixed-dropdown.directive";
 import { AlphaDropdown } from "../../widget/format/alpha-dropdown.component";
 import { LargeFormFieldComponent } from "../../widget/large-form-field/large-form-field.component";
 import { ModelService } from "../../widget/services/model.service";
@@ -85,7 +84,7 @@ describe("Table Advanced Pane Unit Test", () => {
             FormsModule, ReactiveFormsModule, NgbModule, DropDownTestModule
          ],
          declarations: [
-            TableAdvancedPane, TipPane, TipCustomizeDialog, AlphaDropdown, FixedDropdownDirective, LargeFormFieldComponent
+            TableAdvancedPane, TipPane, TipCustomizeDialog, AlphaDropdown, LargeFormFieldComponent
          ],
          providers: [
             NgbModal, DebounceService,
