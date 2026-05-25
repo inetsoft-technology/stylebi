@@ -564,10 +564,13 @@ describe("DataFolderBrowserComponent - move/drag [Group 3, Risk 3]", () => {
       const target = makeWorksheet("Target", "Target", AssetType.FOLDER, { scope: 1 });
 
       jest.spyOn(ComponentTool, "showConfirmDialog").mockResolvedValue("ok");
-      const { comp } = await renderComponent();
+      const { comp, dragService } = await renderComponent();
+      (dragService.getDragData as jest.Mock).mockReturnValue({
+         dragWorksheets: JSON.stringify([scope1Worksheet, scope4Worksheet])
+      });
       const moveAssetsSpy = jest.spyOn(comp, "moveAssets").mockImplementation(jest.fn());
 
-      (comp as any).moveAssets0([scope1Worksheet, scope4Worksheet], target);
+      comp.assetsDroped(target);
 
       await waitFor(() => expect(moveAssetsSpy).toHaveBeenCalledTimes(2));
       expect(moveAssetsSpy).toHaveBeenNthCalledWith(1, [scope1Worksheet], target, 1);

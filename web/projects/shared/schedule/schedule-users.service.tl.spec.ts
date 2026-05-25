@@ -40,7 +40,7 @@
  */
 import { HttpClientTestingModule, HttpTestingController } from "@angular/common/http/testing";
 import { TestBed } from "@angular/core/testing";
-import { of, Subscription } from "rxjs";
+import { of } from "rxjs";
 import { IdentityId } from "../../em/src/app/settings/security/users/identity-id";
 import { IdentityIdWithLabel } from "../../em/src/app/settings/security/users/idenity-id-with-label";
 import { StompClientService } from "../stomp/stomp-client.service";
@@ -74,7 +74,7 @@ const FULL_USERS: UsersModel = {
 
 function createMockStomp() {
    const mockConnection = {
-      subscribe: jest.fn().mockReturnValue(new Subscription()),
+      subscribe: jest.fn().mockReturnValue({ unsubscribe: jest.fn() }),
       disconnect: jest.fn(),
    };
    const mockStompClient = {

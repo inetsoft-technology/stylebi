@@ -355,7 +355,7 @@ describe("DataDatasourceBrowserComponent - status refresh [Group 2, Risk 3]", ()
 
       comp.loadDataSourceStatus();
       expect(comp.updatingStatus).toBe(true);
-      expect(dsB.statusMessage).toBe((comp as any).attemptingConnectionStatus);
+      expect(dsB.statusMessage).toBe("_#(js:data.datasources.attemptingToConnectToDataSource)");
 
       comp.loadDataSourceStatus();
       await waitFor(() => expect(statusCalls).toHaveLength(1));
@@ -383,7 +383,7 @@ describe("DataDatasourceBrowserComponent - status refresh [Group 2, Risk 3]", ()
       comp.loadDataSourceStatus();
 
       await waitFor(() =>
-         expect(ds.statusMessage).toBe((comp as any).failedConnectionStatus));
+         expect(ds.statusMessage).toBe("_#(js:data.datasources.problemRetrievingDataSourceStatus)"));
       expect(ds.connected).toBe(false);
       expect(comp.updatingStatus).toBe(false);
    });
@@ -463,7 +463,10 @@ describe("DataDatasourceBrowserComponent - deleteSelected [Group 4, Risk 3]", ()
          dataSources: [{ name: "DS", path: "root/DS" }],
          folders: [{ name: "Folder", path: "root/Folder" }]
       });
-      expect(deleteRequest).toEqual(dependencyRequest);
+      expect(deleteRequest).toEqual({
+         dataSources: [{ name: "DS", path: "root/DS" }],
+         folders: [{ name: "Folder", path: "root/Folder" }]
+      });
       expect(confirmSpy).toHaveBeenCalledWith(expect.anything(), "_#(js:Delete)",
          "_#(js:data.datasets.confirmDeleteItems)");
       expect(comp.selectedItems).toEqual([]);
