@@ -426,17 +426,8 @@ describe("DataFolderBrowserComponent - deleteSelected [Group 2, Risk 3]", () => 
 
       comp.deleteSelected();
 
-      let removableStatusRequested = false;
-
-      try {
-         await waitFor(() => expect(removableStatusRequests).toBeGreaterThan(0), { timeout: 100 });
-         removableStatusRequested = true;
-      }
-      catch {
-         // Expected: guarded deletes never reach the removable status endpoint.
-      }
-
-      expect(removableStatusRequested).toBe(false);
+      // Guard returns synchronously; no HTTP call is ever queued for a non-deletable selection.
+      expect(removableStatusRequests).toBe(0);
       expect(confirmSpy).not.toHaveBeenCalled();
    });
 

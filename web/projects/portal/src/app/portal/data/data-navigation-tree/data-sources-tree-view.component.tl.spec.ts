@@ -207,6 +207,10 @@ async function renderComponent(opts: { enterprise?: boolean; routerUrl?: string 
    return { comp, mockRouter, fixture };
 }
 
+afterEach(() => {
+   jest.restoreAllMocks();
+});
+
 // ---------------------------------------------------------------------------
 // Group 1 — changeDataSourcesTree: always returns false [Risk 3] (confirmed bug)
 // ---------------------------------------------------------------------------
