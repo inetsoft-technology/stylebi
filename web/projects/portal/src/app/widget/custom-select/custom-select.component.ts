@@ -37,6 +37,7 @@ export interface CustomSelectOption<T = any> {
    value: T;
    title?: string;
    disabled?: boolean;
+   cssClass?: string;
 }
 
 let nextListboxId = 0;

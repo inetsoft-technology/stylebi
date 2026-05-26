@@ -55,6 +55,7 @@
             [disabled]="option.disabled"
             [class.selected]="isSelected(option)"
             [class.active]="isActive(i)"
+            [ngClass]="option.cssClass"
             [attr.aria-selected]="isSelected(option)"
             [attr.title]="option.title || option.label"
             (mouseenter)="setActiveIndex(i)"

@@ -63,7 +63,7 @@
                                (selectionChange)="aggregateChange(_row, _j, $event)">
                 </custom-select>
                 <custom-select *ngIf="_row.isGroup == null" id="empty"
-                               [options]="[{ label: '', value: '' }]"
+                               [options]="emptySelectOptions"
                                [disabled]="true">
                 </custom-select>
               </div>

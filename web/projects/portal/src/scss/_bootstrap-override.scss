@@ -98,7 +98,7 @@ label {
   }
 
   .form-control:not(textarea) {
-    height: calc(1.5em + .75rem + 2px);
+    height: var(--inet-control-height-md);
   }
 
   textarea.form-control {
@@ -607,6 +607,7 @@ a:not([href]) {
 }
 
 .input-group-text {
+  height: var(--inet-control-height-md);
   color: var(--inet-input-text-color);
   background-color: var(--inet-toolbar-bg-color);
   border-color: var(--inet-input-border-color);

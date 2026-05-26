@@ -42,6 +42,7 @@ import { CustomSelectOption } from "../../../widget/custom-select/custom-select.
 })
 export class AggregatePane {
    @Input() trapFields: ColumnRef[] = [];
+   readonly emptySelectOptions: CustomSelectOption[] = [{ label: "", value: "" }];
    private _model: AggregateDialogModel;
    @Output() validChange: EventEmitter<boolean> = new EventEmitter<boolean>();
    rows: Row[];
@@ -306,7 +307,8 @@ export class AggregatePane {
       const options = refList.map((_ref, index) => ({
          label: _ref.view,
          value: index,
-         title: this.getTooltip(_ref)
+         title: this.getTooltip(_ref),
+         cssClass: this.trapField(_ref) ? "grayed-out-field" : undefined
       }));
 
       return includeEmpty ? [{label: "", value: this.EMPTY_REF_INDEX}, ...options] : options;

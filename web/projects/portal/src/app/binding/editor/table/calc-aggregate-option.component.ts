@@ -345,7 +345,7 @@ export class CalcAggregateOption implements OnInit, OnChanges {
          label: field.name,
          value: field.name,
          title: field.description,
-         disabled: this.isGrayedOut(field.name)
+         cssClass: this.isGrayedOut(field.name) ? "grayed-out-field" : undefined
       }));
    }
 
