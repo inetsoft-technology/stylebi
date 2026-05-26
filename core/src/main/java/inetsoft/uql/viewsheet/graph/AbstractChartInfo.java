@@ -2255,13 +2255,8 @@ public abstract class AbstractChartInfo implements ChartInfo, AssetObject {
          obj.yrefs = Tool.deepCloneSynchronizedList(yrefs, new ArrayList<>());
          obj.grefs = Tool.deepCloneSynchronizedList(grefs, new ArrayList<>());
 
-         if(tooltipStyle != null) {
-            obj.tooltipStyle = (DynamicValue2) tooltipStyle.clone();
-         }
-
-         if(snapTooltip != null) {
-            obj.snapTooltip = (DynamicValue2) snapTooltip.clone();
-         }
+         obj.tooltipStyle = (DynamicValue2) tooltipStyle.clone();
+         obj.snapTooltip = (DynamicValue2) snapTooltip.clone();
 
          return obj;
       }
@@ -2729,10 +2724,11 @@ public abstract class AbstractChartInfo implements ChartInfo, AssetObject {
       tooltipVisible = !"false".equals(Tool.getAttribute(elem, "tooltipVisible"));
       // Legacy charts (attribute absent) keep the original tooltip look. A chart
       // round-tripped through an older server will also lose its CARD setting,
-      // since the older writer strips the unknown attribute.
+      // since the older writer strips the unknown attribute. Future-unknown
+      // values are normalized to DEFAULT here so dvalue is always a valid enum
+      // name and equalsContent doesn't see spurious differences.
       String tooltipStyleAttr = Tool.getAttribute(elem, "tooltipStyle");
-      tooltipStyle.setDValue(tooltipStyleAttr == null
-                                ? TooltipStyle.DEFAULT.name() : tooltipStyleAttr);
+      tooltipStyle.setDValue(parseTooltipStyle(tooltipStyleAttr).name());
       // Absent attribute = off (legacy charts preserve no-snap behavior).
       snapTooltip.setDValue("true".equals(Tool.getAttribute(elem, "snapTooltip")) + "");
    }

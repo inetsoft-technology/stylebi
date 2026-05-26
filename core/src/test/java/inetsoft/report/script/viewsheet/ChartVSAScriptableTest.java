@@ -28,7 +28,9 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.composition.region.ChartConstants;
 import inetsoft.report.script.*;
+import inetsoft.uql.viewsheet.graph.ChartInfo;
 import inetsoft.uql.viewsheet.graph.PlotDescriptor;
+import inetsoft.uql.viewsheet.graph.VSChartInfo;
 import inetsoft.test.*;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
@@ -238,7 +240,46 @@ public class ChartVSAScriptableTest {
       chartVSAScriptable.setTipView("this is a tip view");
       assertEquals("this is a tip view", chartVSAScriptable.getTipView());
 
-      assertEquals(147, chartVSAScriptable.getIds().length);
+      assertEquals(149, chartVSAScriptable.getIds().length);
+   }
+
+   @Test
+   void testSnapTooltipScriptProperty() {
+      chartVSAScriptable.addProperties();
+      VSChartInfo info = chartVSAssemblyInfo.getVSChartInfo();
+      info.setSnapTooltipValue(false);
+
+      chartVSAScriptable.put("snapTooltip", null, true);
+
+      assertTrue((boolean) chartVSAScriptable.get("snapTooltip", null));
+      assertTrue(info.isSnapTooltip());
+      assertFalse(info.getSnapTooltipValue(), "script put must not mutate dvalue");
+
+      chartVSAScriptable.put("snapTooltip", null, false);
+      assertFalse(info.isSnapTooltip());
+      assertFalse(info.getSnapTooltipValue());
+   }
+
+   @Test
+   void testTooltipStyleScriptProperty() {
+      chartVSAScriptable.addProperties();
+      VSChartInfo info = chartVSAssemblyInfo.getVSChartInfo();
+      info.setTooltipStyleValue(ChartInfo.TooltipStyle.DEFAULT);
+
+      chartVSAScriptable.put("tooltipStyle", null, "CARD");
+
+      assertEquals("CARD", chartVSAScriptable.get("tooltipStyle", null));
+      assertEquals(ChartInfo.TooltipStyle.CARD, info.getTooltipStyle());
+      assertEquals(ChartInfo.TooltipStyle.DEFAULT, info.getTooltipStyleValue(),
+                   "script put must not mutate dvalue");
+
+      // case-insensitive
+      chartVSAScriptable.put("tooltipStyle", null, "default");
+      assertEquals(ChartInfo.TooltipStyle.DEFAULT, info.getTooltipStyle());
+
+      // unknown values fall back to DEFAULT
+      chartVSAScriptable.put("tooltipStyle", null, "BOGUS");
+      assertEquals(ChartInfo.TooltipStyle.DEFAULT, info.getTooltipStyle());
    }
 
    /**
