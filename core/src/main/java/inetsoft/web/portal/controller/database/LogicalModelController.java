@@ -17,6 +17,7 @@
  */
 package inetsoft.web.portal.controller.database;
 
+import inetsoft.report.composition.execution.AssetDataCache;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
 import inetsoft.uql.*;
@@ -52,13 +53,14 @@ public class LogicalModelController {
                                  DataSourceService dataSourceService,
                                  LogicalModelService modelService,
                                  DatasourcesService datasourcesService,
-                                 LogicalModelTreeService treeService)
+                                 LogicalModelTreeService treeService, AssetDataCache assetDataCache)
    {
       this.assetRepository = assetRepository;
       this.dataSourceService = dataSourceService;
       this.modelService = modelService;
       this.datasourcesService = datasourcesService;
       this.treeService = treeService;
+      this.assetDataCache = assetDataCache;
    }
 
    /**
@@ -156,9 +158,11 @@ public class LogicalModelController {
    {
       LogicalModelDefinition model = event.getModel();
       String folder = model != null ? model.getFolder() : null;
-
-      return modelService.updateModel(
+      LogicalModelDefinition newModel = modelService.updateModel(
          event.getDatabase(), folder, event.getName(), model, event.getParent(), principal);
+      assetDataCache.removeCacheDependence(event.getDatabase());
+
+      return newModel;
    }
 
    /**
@@ -472,10 +476,13 @@ public class LogicalModelController {
       else if(model instanceof XAttributeModel) {
          String entityName = ((XAttributeModel) model).getParentEntity();
          XEntity entity = logicalModel.getEntity(entityName);
-         XAttribute attribute = entity.getAttribute(name);
 
-         if(attribute != null) {
-            ex = attribute.getDependencyException();
+         if(entity != null) {
+            XAttribute attribute = entity.getAttribute(name);
+
+            if(attribute != null) {
+               ex = attribute.getDependencyException();
+            }
          }
       }
 
@@ -489,4 +496,5 @@ public class LogicalModelController {
    private final LogicalModelService modelService;
    private final DatasourcesService datasourcesService;
    private final LogicalModelTreeService treeService;
+   private final AssetDataCache assetDataCache;
 }

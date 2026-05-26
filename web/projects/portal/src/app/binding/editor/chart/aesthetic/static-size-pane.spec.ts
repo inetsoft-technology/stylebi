@@ -15,17 +15,25 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { async, TestBed, ComponentFixture } from "@angular/core/testing";
+import { waitForAsync, TestBed, ComponentFixture } from "@angular/core/testing";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { StaticSizePane } from "./static-size-pane.component";
 import { Slider } from "../../../widget/slider.component";
 
+// JSDOM does not implement canvas — stub getContext so measureText calls don't throw
+beforeAll(() => {
+   jest.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({
+      font: "",
+      measureText: (_text: string) => ({ width: 0 })
+   } as any);
+});
+
 describe("Static Size Pane Unit Test", () => {
    let fixture: ComponentFixture<StaticSizePane>;
    let sizePane: StaticSizePane;
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
             FormsModule, ReactiveFormsModule, NgbModule

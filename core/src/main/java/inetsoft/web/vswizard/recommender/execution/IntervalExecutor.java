@@ -25,7 +25,6 @@ import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
-import inetsoft.util.SingletonManager;
 import inetsoft.web.vswizard.model.recommender.VSTemporaryInfo;
 import inetsoft.web.vswizard.recommender.WizardRecommenderUtil;
 import inetsoft.web.vswizard.recommender.execution.data.IntervalData;
@@ -41,7 +40,6 @@ import java.util.Date;
  * @version 13.2
  * @author InetSoft Technology CorpF
  */
-@SingletonManager.Singleton(IntervalExecutor.Reference.class)
 public class IntervalExecutor extends WizardDataExecutor {
    public static IntervalData getData(ViewsheetSandbox box, VSTemporaryInfo tempInfo,
                                       AssetEntry entry, String tname, String type)
@@ -354,28 +352,6 @@ public class IntervalExecutor extends WizardDataExecutor {
       agg.setFormula(formula);
 
       return agg;
-   }
-
-   public static final class Reference
-      extends SingletonManager.Reference<IntervalExecutor>
-   {
-      @Override
-      public synchronized IntervalExecutor get(Object ... parameters) {
-         if(executor == null) {
-            executor = new IntervalExecutor();
-         }
-
-         return executor;
-      }
-
-      @Override
-      public synchronized void dispose() {
-         if(executor != null) {
-            executor = null;
-         }
-      }
-
-      private IntervalExecutor executor;
    }
 
    private static final int DATE_RANGE_LIMIT = 3;

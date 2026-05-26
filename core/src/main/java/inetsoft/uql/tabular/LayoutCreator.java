@@ -302,7 +302,7 @@ public class LayoutCreator {
             dxType = ((XDataSource) bean).getType();
          }
 
-         ResourceBundle bundle = Config.getResourceBundle(dxType);
+         ResourceBundle bundle = Config.getConfig().getResourceBundle(dxType);
 
          if(bundle != null) {
             displayLabel = bundle.getString(displayLabel);

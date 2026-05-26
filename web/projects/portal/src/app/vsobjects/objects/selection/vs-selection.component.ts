@@ -211,7 +211,7 @@ export class VSSelection extends NavigationComponent<VSSelectionBaseModel>
       const bottomTab = VSUtil.getBottomTabContainer(this.model, this.vsInfo?.vsObjects);
       const inBottomTab = !!bottomTab;
 
-      if((this.viewer || this.embeddedVS) && !this.model.maxMode && !this.inContainer) {
+      if((this.viewer || this.embeddedVS) && !this.model.maxMode && (!this.inContainer || inBottomTab)) {
          if(this.atBottom && this.model.dropdown &&
             !SelectionBaseController.isHidden(this.model) && !inBottomTab)
          {
@@ -224,13 +224,14 @@ export class VSSelection extends NavigationComponent<VSSelectionBaseModel>
          else if(this.model.dropdown && inBottomTab) {
             // applies whether the dropdown is collapsed or expanded; the collapsed
             // case is critical because it's where objectFormat.top would be stale
-            // when bottomTabs is toggled via script.
+            // when bottomTabs is toggled via script. Also reached when inContainer=true
+            // (selection inside a tab container with bottomTabs enabled).
             const expanded = !SelectionBaseController.isHidden(this.model);
             return VSUtil.computeBottomTabSelectionTop(
                bottomTab.objectFormat.top, this.model.titleFormat.height,
                expanded, this.getBodyHeight(), this.model.searchDisplayed);
          }
-         else {
+         else if(!this.inContainer) {
             return this.model.objectFormat.top;
          }
       }

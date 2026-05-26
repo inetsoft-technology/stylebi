@@ -28,8 +28,8 @@ import java.util.Map;
 
 @Component
 public class FileSystemHealthIndicator implements HealthIndicator {
-   public FileSystemHealthIndicator() {
-      service = FileSystemHealthService.getInstance();
+   public FileSystemHealthIndicator(FileSystemHealthService service) {
+      this.service = service;
    }
 
    @Override

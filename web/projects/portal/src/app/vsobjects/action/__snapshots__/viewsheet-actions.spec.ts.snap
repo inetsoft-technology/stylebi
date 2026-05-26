@@ -1,10 +1,10 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`ViewsheetActions check status of menu actions of viewsheet in composer 1`] = `
-Array [
+[
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -17,8 +17,8 @@ Array [
     "label": [Function],
   },
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -26,7 +26,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -34,7 +34,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -42,7 +42,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -50,7 +50,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -63,8 +63,8 @@ Array [
     "label": [Function],
   },
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -72,7 +72,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -80,7 +80,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -88,7 +88,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -104,10 +104,10 @@ Array [
 `;
 
 exports[`ViewsheetActions check status of menu actions of viewsheet in viewer and preview 1`] = `
-Array [
+[
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -120,8 +120,8 @@ Array [
     "label": [Function],
   },
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -129,7 +129,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -137,7 +137,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -145,7 +145,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -153,7 +153,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -166,8 +166,8 @@ Array [
     "label": [Function],
   },
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -175,7 +175,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -183,7 +183,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -191,7 +191,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -207,10 +207,10 @@ Array [
 `;
 
 exports[`ViewsheetActions check status of menu actions of viewsheet in viewer and preview 2`] = `
-Array [
+[
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -223,8 +223,8 @@ Array [
     "label": [Function],
   },
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -232,7 +232,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -240,7 +240,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -248,7 +248,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -256,7 +256,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -269,8 +269,8 @@ Array [
     "label": [Function],
   },
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -278,7 +278,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -286,7 +286,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -294,7 +294,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],

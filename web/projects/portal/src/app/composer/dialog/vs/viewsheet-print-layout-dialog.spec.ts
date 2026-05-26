@@ -17,7 +17,7 @@
  */
 import { HttpClientTestingModule } from "@angular/common/http/testing";
 import { NO_ERRORS_SCHEMA } from "@angular/core";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { By } from "@angular/platform-browser";
 import { NgbDropdownModule } from "@ng-bootstrap/ng-bootstrap";
@@ -58,13 +58,14 @@ describe("Viewsheet print layout dialog Test", () => {
    let headerInput;
    let footerInput: HTMLInputElement;
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
             HttpClientTestingModule,
             ReactiveFormsModule,
             FormsModule,
             NgbDropdownModule,
+            HttpClientTestingModule,
          ],
          declarations: [
             ViewsheetPrintLayoutDialog, EnterSubmitDirective, StandardDialogComponent,

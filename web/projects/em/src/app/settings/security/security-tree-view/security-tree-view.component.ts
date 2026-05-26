@@ -34,7 +34,7 @@ import { SecurityTreeDataService } from "./security-tree-data.service";
 import { SecurityTreeFlattener } from "./security-tree-flattener";
 import { FlatSecurityTreeNode, SecurityTreeNode } from "./security-tree-node";
 import { IdentityType } from "../../../../../../shared/data/identity-type";
-import {IdentityId} from "../users/identity-id";
+import { equalsIdentity } from "../users/identity-id";
 
 @Component({
    selector: "em-security-tree-view",
@@ -166,7 +166,13 @@ export class SecurityTreeViewComponent implements OnInit, OnChanges, OnDestroy,
 
             const newIndex = this.flattenTree.indexOf(node);
             const lastIndex = this.flattenTree.findIndex(treeNode =>
-               treeNode.getData().identityID.name === last.identityID.name && treeNode.getData().type === last.type);
+               this.isSameNode(treeNode.getData(), last));
+
+            if(newIndex < 0 || lastIndex < 0) {
+               this.selectedNodes = [nodeData];
+               this.selectionChanged.emit(this.selectedNodes.slice(0));
+               return;
+            }
 
             this.selectedNodes = this.flattenTree
                .slice(Math.min(newIndex, lastIndex) + 1, Math.max(newIndex, lastIndex))
@@ -181,7 +187,8 @@ export class SecurityTreeViewComponent implements OnInit, OnChanges, OnDestroy,
          }
       }
       else if(event.ctrlKey) {
-         const index = this.selectedNodes.indexOf(nodeData);
+         const index = this.selectedNodes.findIndex(selectedNode =>
+            this.isSameNode(selectedNode, nodeData));
 
          if(index >= 0) {
             this.selectedNodes.splice(index, 1);
@@ -196,8 +203,7 @@ export class SecurityTreeViewComponent implements OnInit, OnChanges, OnDestroy,
 
    isSelected(node: FlatSecurityTreeNode): boolean {
       return node && this.selectedNodes
-            .some((selectedNode) => selectedNode.identityID.name === node.getData().identityID.name &&
-            selectedNode.type === node.getData().type);
+            .some((selectedNode) => this.isSameNode(selectedNode, node.getData()));
    }
 
    public hasChild(_nodeData: FlatSecurityTreeNode) {
@@ -234,7 +240,14 @@ export class SecurityTreeViewComponent implements OnInit, OnChanges, OnDestroy,
    }
 
    private isIdentityFolder(node: SecurityTreeNode): boolean {
-      return ["Users", "Groups", "Roles"].includes(node.identityID.name);
+      return ["Users", "Groups", "Roles", "Organizations", "Organization Roles"]
+         .includes(node.identityID.name);
+   }
+
+   private isSameNode(left: SecurityTreeNode, right: SecurityTreeNode): boolean {
+      return !!left && !!right &&
+         equalsIdentity(left.identityID, right.identityID) &&
+         left.type === right.type;
    }
 
    trackByFn(index, node: FlatSecurityTreeNode) {

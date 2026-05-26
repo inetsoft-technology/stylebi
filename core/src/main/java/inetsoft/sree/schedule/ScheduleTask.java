@@ -28,6 +28,7 @@ import inetsoft.sree.security.*;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.util.Identity;
 import inetsoft.util.*;
+import inetsoft.web.admin.content.repository.MVSupportService;
 import org.slf4j.*;
 import org.w3c.dom.*;
 

@@ -17,7 +17,7 @@
  */
 import { NgModule } from "@angular/core";
 import { RouterModule, Routes } from "@angular/router";
-import { AuthorizationGuard } from "../../authorization/authorization-guard.service";
+import { authorizationGuard } from "../../authorization/authorization-guard.service";
 import { SecuritySettingsPageComponent } from "./security-settings-page/security-settings-page.component";
 
 const routes: Routes = [
@@ -28,7 +28,7 @@ const routes: Routes = [
          {
             path: "provider",
             loadChildren: () => import("./security-provider/security-provider.module").then(m => m.SecurityProviderModule),
-            canActivate: [AuthorizationGuard],
+            canActivate: [authorizationGuard],
             data: {
                permissionParentPath: "settings/security",
                permissionChild: "provider"
@@ -37,7 +37,7 @@ const routes: Routes = [
          {
             path: "users",
             loadChildren: () => import("./users/users-settings.module").then(m => m.UsersSettingsModule),
-            canActivate: [AuthorizationGuard],
+            canActivate: [authorizationGuard],
             data: {
                permissionParentPath: "settings/security",
                permissionChild: "users"
@@ -46,7 +46,7 @@ const routes: Routes = [
          {
             path: "actions",
             loadChildren: () => import("./security-actions/security-actions.module").then(m => m.SecurityActionsModule),
-            canActivate: [AuthorizationGuard],
+            canActivate: [authorizationGuard],
             data: {
                permissionParentPath: "settings/security",
                permissionChild: "actions"
@@ -55,7 +55,7 @@ const routes: Routes = [
          {
             path: "sso",
             loadChildren: () => import("./sso/sso-settings.module").then(m => m.SSOSettingsModule),
-            canActivate: [AuthorizationGuard],
+            canActivate: [authorizationGuard],
             data: {
                permissionParentPath: "settings/security",
                permissionChild: "sso"
@@ -64,7 +64,7 @@ const routes: Routes = [
          {
             path: "googleSignIn",
             loadChildren: () => import("./google-sign-in/google-sign-in.module").then(m => m.GoogleSignInModule),
-            canActivate: [AuthorizationGuard],
+            canActivate: [authorizationGuard],
             data: {
                permissionParentPath: "settings/security",
                permissionChild: "googleSignIn"

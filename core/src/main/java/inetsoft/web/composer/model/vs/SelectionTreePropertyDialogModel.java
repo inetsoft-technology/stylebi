@@ -17,7 +17,9 @@
  */
 package inetsoft.web.composer.model.vs;
 
-public class SelectionTreePropertyDialogModel {
+import java.io.Serializable;
+
+public class SelectionTreePropertyDialogModel implements Serializable {
    public SelectionGeneralPaneModel getSelectionGeneralPaneModel() {
       if(selectionGeneralPaneModel == null) {
          selectionGeneralPaneModel = new SelectionGeneralPaneModel();

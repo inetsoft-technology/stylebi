@@ -17,15 +17,15 @@
  */
 package inetsoft.sree.internal.cluster;
 
-import inetsoft.sree.internal.cluster.ignite.IgniteCluster;
-import inetsoft.util.SingletonManager;
+import inetsoft.util.ConfigurationContext;
 import org.apache.ignite.services.Service;
 
+import javax.cache.Cache;
+import javax.cache.expiry.ExpiryPolicy;
 import java.io.*;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.*;
 
 /**
@@ -33,7 +33,6 @@ import java.util.function.*;
  *
  * @since 12.2
  */
-@SingletonManager.Singleton(Cluster.Reference.class)
 public interface Cluster extends AutoCloseable {
    /**
     * Gets the singleton cluster instance.
@@ -41,14 +40,14 @@ public interface Cluster extends AutoCloseable {
     * @return the cluster instance.
     */
    static Cluster getInstance() {
-      return SingletonManager.getInstance(Cluster.class);
+      return ConfigurationContext.getContext().getSpringBean(Cluster.class);
    }
 
    /**
     * Shuts down and disposes of the singleton cluster instance.
     */
    static void clear() {
-      SingletonManager.reset(Cluster.class);
+      // no-op: Cluster is a Spring-managed singleton; lifecycle is managed by BaseInetsoftApplication
    }
 
    /**
@@ -69,7 +68,7 @@ public interface Cluster extends AutoCloseable {
     * @return the cluster nodes.
     */
    default Set<String> getClusterNodes() {
-      return getClusterNodes(true);
+      return getClusterNodes(false);
    }
 
    /**
@@ -87,6 +86,15 @@ public interface Cluster extends AutoCloseable {
     * @return the server cluster nodes.
     */
    Set<String> getServerClusterNodes();
+
+   /**
+    * Checks if the cluster is ready to handle operations.
+    * This includes verifying that the cluster topology is stable and
+    * partition map exchange is complete.
+    *
+    * @return {@code true} if the cluster is ready, {@code false} otherwise.
+    */
+   boolean isClusterReady();
 
    void debug();
 
@@ -185,6 +193,150 @@ public interface Cluster extends AutoCloseable {
    void unlockWrite(String name);
 
    /**
+    * Gets the named cache. The cache will be partitioned and use the default expiry policy.
+    *
+    * @param name the name of the cache.
+    *
+    * @return the cache.
+    *
+    * @param <K> the key type.
+    * @param <V> the value type.
+    */
+   default <K, V> Cache <K, V> getCache(String name) {
+      return getCache(name, false);
+   }
+
+   /**
+    * Gets the named cache. The default expiry policy will be used.
+    *
+    * @param name       the name of the cache.
+    * @param replicated {@code true} if the cache is replicated, {@code false} if it partitioned.
+    *
+    * @return the cache.
+    *
+    * @param <K> the key type.
+    * @param <V> the value type.
+    */
+   default <K, V> Cache <K, V> getCache(String name, boolean replicated) {
+      return getCache(name, false, null);
+   }
+
+   /**
+    * Gets the named cache.
+    *
+    * @param name         the name of the cache.
+    * @param replicated   {@code true} if the cache is replicated, {@code false} if it partitioned.
+    * @param expiryPolicy the expiry policy for the cache.
+    *
+    * @return the cache.
+    *
+    * @param <K> the key type.
+    * @param <V> the value type.
+    */
+   <K, V> Cache<K, V> getCache(String name, boolean replicated, ExpiryPolicy expiryPolicy);
+
+   /**
+    * Gets the keys in the cache for which the current node is the primary partition owner.
+    *
+    * @param cache the cache.
+    * @param keys  the keys to query.
+    *
+    * @return the set of keys for which the current node is the primary partition owner.
+    *
+    * @param <K> the key type.
+    * @param <V> the value type.
+    */
+   <K, V> Collection<K> getLocalCacheKeys(Cache<K, V> cache, Collection<K> keys);
+
+   /**
+    * Determines if the current node is the owner of the primary partition containing the specified
+    * cache key.
+    *
+    * @param cache the name of the cache.
+    * @param key   the key.
+    *
+    * @return {@code true} if the owner or {@code false} if not.
+    */
+   <K> boolean isLocalCacheKey(String cache, K key);
+
+   /**
+    * Determines if should make the call local.
+    *
+    * @return {@code true} if make the call local or {@code false} if not.
+    */
+   <K> boolean isLocalCall();
+
+   /**
+    * Registers a cache name as a Spring Web / proxy related partitioned cache.
+    *
+    * <p>
+    * Caches registered via this method will be treated as "affinity-sensitive":
+    * when creating these caches in Ignite, the scheduler nodes will be excluded
+    * from holding any primary or backup partitions. This ensures that tasks
+    * triggered via Spring Web proxies or affinity calls are never dispatched
+    * to scheduler nodes, avoiding potential issues such as missing
+    * ApplicationContext or NPEs.
+    * </p>
+    *
+    * @param cacheName the name of the cache to register as a Spring Web / proxy partitioned cache.
+    */
+   void registerSpringProxyPartitionedCache(String cacheName);
+
+   /**
+    * Executes given job on the node where data for provided affinity key is located.
+    *
+    * @param cache the name of the cache.
+    * @param key   the affinity key value.
+    * @param job   the job to execute.
+    *
+    * @return the return value of the job.
+    *
+    * @param <T> the return type of the job.
+    */
+   <T> T affinityCall(String cache, Object key, AffinityCallable<T> job);
+
+   /**
+    * Asynchronously executes given job on the node where data for provided affinity key is located.
+    *
+    * @param cache the name of the cache.
+    * @param key   the affinity key value.
+    * @param job   the job to execute.
+    *
+    * @return the future.
+    *
+    * @param <T> the return type of the job.
+    */
+   <T> Future<T> affinityCallAsync(String cache, Object key, AffinityCallable<T> job);
+
+   /**
+    * Executes the given job on all nodes that host a primary partition of a cache.
+    *
+    * @param cache the name of the cache.
+    * @param job   the job to execute.
+    *
+    * @return the return value of the job.
+    *
+    * @param <T> the return type of the job.
+    */
+   <T> List<T> affinityCallAll(String cache, AffinityCallable<T> job);
+
+   /**
+    * Adds a listener that is notified when a cache is rebalanced.
+    *
+    * @param cacheName the name of the cache.
+    * @param listener  the listener to add.
+    */
+   void addCacheRebalanceListener(String cacheName, CacheRebalanceListener listener);
+
+   /**
+    * Removes a cache rebalance listener.
+    *
+    * @param cacheName the name of the cache.
+    * @param listener  the listener to remove.
+    */
+   void removeCacheRebalanceListener(String cacheName, CacheRebalanceListener listener);
+
+   /**
     * Get a distributed map.
     */
    <K, V> DistributedMap<K, V> getMap(String name);
@@ -193,7 +345,7 @@ public interface Cluster extends AutoCloseable {
 
    void destroyMap(String name);
 
-   void addMapListener(String name, MapChangeListener<?, ?> l);
+   <K, V> void addMapListener(String name, MapChangeListener<K, V> l);
 
    void removeMapListener(String name, MapChangeListener<?, ?> l);
 
@@ -203,11 +355,15 @@ public interface Cluster extends AutoCloseable {
 
    <K, V> DistributedMap<K, V> getReplicatedMap(String name);
 
+   <K, V> MultiMap<K, V> getReplicatedMultiMap(String name);
+
    void destroyReplicatedMap(String name);
 
    <K, V> void addReplicatedMapListener(String name, MapChangeListener<K, V> l);
 
    void removeReplicatedMapListener(String name, MapChangeListener<?, ?> l);
+
+   boolean mapExists(String name);
 
    <E> BlockingQueue<E> getQueue(String name);
 
@@ -370,6 +526,50 @@ public interface Cluster extends AutoCloseable {
                                                Class<T> responseType) throws Exception;
 
    /**
+    * Performs a message exchange between the local node and a remote node with a custom timeout.
+    *
+    * @param address         the address of the remote, recipient node.
+    * @param outgoingMessage the message object to send to the recipient.
+    * @param matcher         a function that checks if an incoming message is the response to the
+    *                        sent message. If it is, it returns the expected output; otherwise it
+    *                        returns {@code null}. It is guaranteed that the message was received
+    *                        from the recipient at <i>address</i>.
+    * @param timeout         the maximum time to wait for a response.
+    * @param unit            the time unit of the timeout argument.
+    *
+    * @param <T> the return type of the matcher function.
+    *
+    * @return the result of the matcher function.
+    *
+    * @throws Exception if an error occurs while sending the outgoing message.
+    * @throws InterruptedException if no matching response is received within the specified timeout.
+    */
+   <T extends Serializable> T exchangeMessages(String address, Serializable outgoingMessage,
+                                               Function<MessageEvent, T> matcher,
+                                               long timeout, TimeUnit unit) throws Exception;
+
+   /**
+    * Specialized version of {@link #exchangeMessages(String, Serializable, Function, long, TimeUnit)}
+    * that matches any messages of the specified return type.
+    *
+    * @param address         the address of the remote, recipient node.
+    * @param outgoingMessage the message object to send to the recipient.
+    * @param responseType    the expected type of the response message object.
+    * @param timeout         the maximum time to wait for a response.
+    * @param unit            the time unit of the timeout argument.
+    *
+    * @param <T> the type of the response message object.
+    *
+    * @return the result of the matcher function.
+    *
+    * @throws Exception if an error occurs while sending the outgoing message.
+    * @throws InterruptedException if no matching response is received within the specified timeout.
+    */
+   <T extends Serializable> T exchangeMessages(String address, Serializable outgoingMessage,
+                                               Class<T> responseType,
+                                               long timeout, TimeUnit unit) throws Exception;
+
+   /**
     * Refresh cluster config status.
     * Cluster is instantiated during server startup, and Config is constructed in the
     * constructor, so some states may not be up to date or correct.
@@ -472,54 +672,6 @@ public interface Cluster extends AutoCloseable {
     */
    void undeploySingletonService(String serviceName);
 
-   final class Reference extends SingletonManager.Reference<Cluster> {
-      @Override
-      public Cluster get(Object... parameters) {
-         lock.lock();
+   void setClosed(boolean closed);
 
-         try {
-            if(instance == null) {
-               String property = System.getProperty("inetsoft.sree.internal.cluster.implementation");
-
-               if(property != null) {
-                  try {
-                     instance = (Cluster) Class.forName(property).getConstructor().newInstance();
-                  }
-                  catch(Exception e) {
-                     throw new RuntimeException("Failed to create cluster instance", e);
-                  }
-               }
-               else {
-                  instance = new IgniteCluster();
-               }
-            }
-         }
-         finally {
-            lock.unlock();
-         }
-
-         return instance;
-      }
-
-      @Override
-      public void dispose() {
-         lock.lock();
-
-         try {
-            if(instance != null) {
-               try {
-                  instance.close();
-               }
-               catch(Exception ignore) {
-               }
-            }
-         }
-         finally {
-            lock.unlock();
-         }
-      }
-
-      Cluster instance = null;
-      private final Lock lock = new ReentrantLock();
-   }
 }

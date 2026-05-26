@@ -20,20 +20,11 @@ package inetsoft.web.admin.user;
 import inetsoft.sree.RepletRepository;
 import inetsoft.sree.internal.cluster.*;
 import inetsoft.sree.security.*;
-import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
-import inetsoft.web.MapSession;
-import inetsoft.web.MapSessionRepository;
 import inetsoft.web.admin.monitoring.*;
 import inetsoft.web.admin.viewsheet.ViewsheetService;
 import inetsoft.web.cluster.ServerClusterClient;
-
-import java.security.Principal;
-import java.util.*;
-import java.util.concurrent.TimeUnit;
-import java.util.function.Function;
-import java.util.stream.Collectors;
-
+import inetsoft.web.session.IgniteSessionRepository;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
@@ -44,18 +35,25 @@ import org.springframework.session.FindByIndexNameSessionRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import java.security.Principal;
+import java.util.*;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+
 @Service
 @Lazy(false)
 public class UserService
    extends MonitorLevelService
-   implements MessageListener, StatusUpdater, MapSessionRepository.PrincipalChangeListener
+   implements MessageListener, StatusUpdater
 {
    @Autowired
    public UserService(ViewsheetService viewsheetService,
                       ServerClusterClient client, SecurityEngine securityEngine,
                       SecurityProvider securityProvider,
                       MonitoringDataService monitoringDataService,
-                      MapSessionRepository sessionRepository)
+                      IgniteSessionRepository sessionRepository,
+                      Cluster cluster)
    {
       super(lowAttrs, medAttrs, highAttrs);
       this.viewsheetService = viewsheetService;
@@ -64,22 +62,17 @@ public class UserService
       this.securityProvider = securityProvider;
       this.monitoringDataService = monitoringDataService;
       this.sessionRepository = sessionRepository;
+      this.cluster = cluster;
    }
 
    @PostConstruct
    public void addListener() {
-      cluster = Cluster.getInstance();
       cluster.addMessageListener(this);
-      sessionRepository.addPrincipalChangeListener(this);
    }
 
    @PreDestroy
    public void removeListener() {
-      if(cluster != null) {
-         cluster.removeMessageListener(this);
-      }
-
-      sessionRepository.removePrincipalChangeListener(this);
+      cluster.removeMessageListener(this);
    }
 
    @Override
@@ -100,7 +93,13 @@ public class UserService
          sessions = getSessionInfo();
       }
       catch(Exception e) {
-         LOG.warn("Failed to update user status", e);
+         if(isCacheStoppedException(e)) {
+            LOG.debug("Cache stopped, skipping user status update", e);
+         }
+         else {
+            LOG.warn("Failed to update user status", e);
+         }
+
          sessions = Collections.emptyList();
       }
 
@@ -108,7 +107,13 @@ public class UserService
          topUsers = calculateTopNUsers();
       }
       catch(Exception e) {
-         LOG.warn("Failed to update user status", e);
+         if(isCacheStoppedException(e)) {
+            LOG.debug("Cache stopped, skipping user status update", e);
+         }
+         else {
+            LOG.warn("Failed to update user status", e);
+         }
+
          topUsers = Collections.emptyList();
       }
 
@@ -180,9 +185,8 @@ public class UserService
    List<UserSessionMonitoringTableModel> getServerSessionModel(String address, Principal principal)
    {
       boolean lastAccessEnabled = isLevelQualified("lastAccess");
-      Catalog catalog = Catalog.getCatalog(principal);
       String orgID = OrganizationManager.getInstance().getCurrentOrgID(principal);
-      SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+      SecurityProvider provider = securityEngine.getSecurityProvider();
 
       return getModelData(address, u -> u.sessions().stream()
          .filter(i -> i.user() != null)
@@ -190,7 +194,7 @@ public class UserService
          .filter(user -> provider.checkPermission(principal, ResourceType.SECURITY_USER,
                                                   user.user().convertToKey(), ResourceAction.ADMIN))
          .map(s -> UserSessionMonitoringTableModel.builder()
-            .from(s, lastAccessEnabled, catalog)
+            .from(s, lastAccessEnabled)
             .build())
          .collect(Collectors.toList()));
    }
@@ -232,7 +236,7 @@ public class UserService
    }
 
    private boolean isIdentityMising(IdentityID name, Function<SecurityProvider, IdentityID[]> fn) {
-      SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+      SecurityProvider provider = securityEngine.getSecurityProvider();
 
       if(provider != null) {
          for(IdentityID identity : fn.apply(provider)) {
@@ -260,7 +264,7 @@ public class UserService
    }
 
    private SecurityEngine getSecurityEngine() {
-      return SecurityEngine.getSecurity();
+      return securityEngine;
    }
 
    /**
@@ -358,15 +362,16 @@ public class UserService
 
       for(SRPrincipal principal : sessionRepository.getActiveSessions()) {
          if(principal != null && sessionId.equals(principal.getSessionID())) {
-            Map<String, MapSession> map = sessionRepository.findByIndexNameAndIndexValue(
+            Map<String, IgniteSessionRepository.IgniteSession> map =
+               sessionRepository.findByIndexNameAndIndexValue(
                FindByIndexNameSessionRepository.PRINCIPAL_NAME_INDEX_NAME, principal.getName());
 
-            for(Map.Entry<String, MapSession> e : map.entrySet()) {
+            for(Map.Entry<String, IgniteSessionRepository.IgniteSession> e : map.entrySet()) {
                SRPrincipal sessionPrincipal =
                   e.getValue().getAttribute(RepletRepository.PRINCIPAL_COOKIE);
 
                if(sessionPrincipal != null && sessionId.equals(sessionPrincipal.getSessionID())) {
-                  sessionRepository.invalidate(e.getKey());
+                  sessionRepository.invalidateSession(e.getKey());
                   this.updateStatus();
                   return;
                }
@@ -387,7 +392,12 @@ public class UserService
       }
 
       for(String sessionId : sessionIds) {
-         logout(sessionId);
+         try {
+            logout(sessionId);
+         }
+         catch(Exception e) {
+            LOG.warn("Failed to logout session: {}", sessionId, e);
+         }
       }
    }
 
@@ -399,18 +409,23 @@ public class UserService
       return cal.getTopNUserResources();
    }
 
-   @Override
-   public void principalChanged(MapSessionRepository.PrincipalChangeEvent event) {
-      updateStatus();
-   }
-
    private final ViewsheetService viewsheetService;
    private final ServerClusterClient client;
    private final SecurityEngine securityEngine;
    private final SecurityProvider securityProvider;
    private final MonitoringDataService monitoringDataService;
-   private final MapSessionRepository sessionRepository;
-   private Cluster cluster;
+   private final IgniteSessionRepository sessionRepository;
+   private final Cluster cluster;
+
+   private static boolean isCacheStoppedException(Throwable t) {
+      for(Throwable cause = t; cause != null; cause = cause.getCause()) {
+         if("CacheStoppedException".equals(cause.getClass().getSimpleName())) {
+            return true;
+         }
+      }
+
+      return false;
+   }
 
    private static final String[] lowAttrs = {"sessionCount", "sessionInfo", "quotaInfo"};
    private static final String[] medAttrs = {"lastAccess"};

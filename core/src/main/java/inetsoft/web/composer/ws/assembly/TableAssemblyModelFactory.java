@@ -118,7 +118,11 @@ public class TableAssemblyModelFactory {
 
       Instant end = Instant.now();
       Duration elapsed = Duration.between(start, end);
-      model.setDuration(elapsed.toMillis());
+
+      //limit duration to live data view, if cached, should return at least 1 ms to viewer
+      if(assembly.isLiveData()) {
+         model.setDuration(Math.max(elapsed.toMillis(), 1));
+      }
 
       if(model.isHasMaxRow()) {
          model.setExceededMaximum(AssetEventUtil.getExceededMsg(assembly, model.getTotalRows()));

@@ -17,36 +17,62 @@
  */
 package inetsoft.web.portal.controller;
 
+import inetsoft.report.LibManagerProvider;
+import inetsoft.report.internal.DesignSession;
+import inetsoft.sree.RepletRegistryManager;
 import inetsoft.sree.SreeEnv;
-import inetsoft.sree.internal.AnalyticEngine;
-import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.internal.*;
+import inetsoft.sree.internal.cluster.Cluster;
+import inetsoft.sree.portal.PortalThemesManager;
 import inetsoft.sree.security.*;
-import inetsoft.test.SreeHome;
+import inetsoft.test.*;
 import inetsoft.uql.asset.AssetRepository;
+import inetsoft.util.IndexedStorage;
 import inetsoft.util.Tool;
 import inetsoft.web.portal.service.GettingStartedService;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mockito;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.io.IOException;
-import static org.junit.jupiter.api.Assertions.*;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 @Disabled("Flaky on the build server")
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome
+@Tag("core")
 class GettingStartedControllerTest {
-   static SecurityEngine securityEngine;
-   static GettingStartedController gettingStartedController;
-   static SRPrincipal admin, user1;
+   @Autowired
+   SecurityEngine securityEngine;
+   @Autowired
+   Cluster cluster;
+   GettingStartedController gettingStartedController;
+   SRPrincipal admin;
+   SRPrincipal user1;
 
-   @BeforeAll
-   static void before() throws Exception {
-      securityEngine = SecurityEngine.getSecurity();
+   @BeforeEach
+   void before() throws Exception {
       securityEngine.enableSecurity();
       SUtil.setMultiTenant(true);
 
       AssetRepository assetRepository = Mockito.mock(AssetRepository.class);
-      GettingStartedService gettingStartedService = new GettingStartedService(assetRepository, new AnalyticEngine(), securityEngine);
-      gettingStartedController = new GettingStartedController(gettingStartedService);
+      DeployManagerService deployManagerService = Mockito.mock(DeployManagerService.class);
+      IndexedStorage indexedStorage = Mockito.mock(IndexedStorage.class);
+      DesignSession designSession = Mockito.mock(DesignSession.class);
+      LibManagerProvider libManagerProvider = Mockito.mock(LibManagerProvider.class);
+      DataCycleManager dataCycleManager = Mockito.mock(DataCycleManager.class);
+      RepletRegistryManager repletRegistryManager = Mockito.mock(RepletRegistryManager.class);
+      AnalyticEngine engine = new AnalyticEngine(deployManagerService, designSession, libManagerProvider, dataCycleManager, cluster, repletRegistryManager);
+      PortalThemesManager portalThemesManager = Mockito.mock(PortalThemesManager.class);
+      GettingStartedService gettingStartedService = new GettingStartedService(assetRepository, engine, securityEngine, indexedStorage, portalThemesManager);
+      gettingStartedController = new GettingStartedController(gettingStartedService, securityEngine);
 
       admin = new SRPrincipal(new IdentityID("admin", Organization.getDefaultOrganizationID()), new IdentityID[] { new IdentityID("Everyone",Organization.getDefaultOrganizationID())}, new String[0], Organization.getDefaultOrganizationID(),
                               Tool.getSecureRandom().nextLong());
@@ -55,12 +81,6 @@ class GettingStartedControllerTest {
       user1 = new SRPrincipal(new IdentityID("user1", Organization.getDefaultOrganizationID()), new IdentityID[] {new IdentityID("Everyone", Organization.getDefaultOrganizationID())}, new String[0], Organization.getDefaultOrganizationID(),
                               Tool.getSecureRandom().nextLong());
       user1.setProperty("showGettingStated", "true");
-   }
-
-   @AfterAll
-   static void cleanup() throws Exception {
-      SecurityEngine.clear();
-      securityEngine.disableSecurity();
    }
 
    @Test

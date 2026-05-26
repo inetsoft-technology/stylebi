@@ -18,9 +18,11 @@
 package inetsoft.web.viewsheet.event.annotation;
 
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import org.immutables.serial.Serial;
 import org.immutables.value.Value;
 
 @Value.Immutable
+@Serial.Structural
 @JsonDeserialize(as = ImmutableOpenAnnotationFormatDialogEvent.class)
 public interface OpenAnnotationFormatDialogEvent {
    // Name of the annotation to format

@@ -21,12 +21,14 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import inetsoft.report.gui.viewsheet.gauge.VSGauge;
 import inetsoft.uql.asset.AbstractSheet;
 
+import java.io.Serializable;
+
 /**
  * Data transfer object that represents the {@link FacePaneModel} for the
  * gauge property dialog
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class FacePaneModel {
+public class FacePaneModel implements Serializable {
    public int getFace() {
       return face;
    }

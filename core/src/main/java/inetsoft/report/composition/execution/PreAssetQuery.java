@@ -312,7 +312,11 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
    }
 
    protected SQLHelper getSQLHelper(UniformSQL sql) {
-      return SQLHelper.getSQLHelper(sql, box.getUser());
+      if(sqlHelperCache == null) {
+         sqlHelperCache = new IdentityHashMap<>(4);
+      }
+
+      return sqlHelperCache.computeIfAbsent(sql, s -> SQLHelper.getSQLHelper(s, box.getUser()));
    }
 
    /**
@@ -2868,7 +2872,6 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
          return false;
       }
 
-      boolean isSQLite = isSQLite();
       SQLHelper sqlHelper = getSQLHelper(getUniformSQL());
 
       for(int i = 0; i < conds.getSize(); i += 2) {
@@ -4646,14 +4649,20 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
    }
 
    protected boolean isSQLite() {
+      if(sqlite != null) {
+         return sqlite;
+      }
+
       try {
          if(getQuery() instanceof JDBCQuery) {
-            return  Util.isSQLite(getQuery().getDataSource());
+            sqlite = Util.isSQLite(getQuery().getDataSource());
+            return sqlite;
          }
       }
       catch(Exception ignore) {
       }
 
+      sqlite = false;
       return false;
    }
 
@@ -4698,6 +4707,8 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
 
    private boolean mergeable; // query mergeable flag
    private boolean merged; // query merged flag
+   private transient IdentityHashMap<UniformSQL, SQLHelper> sqlHelperCache;
+   private transient Boolean sqlite;
    private Map<DataRef, ColumnRef> colmap = new HashMap<>(); // optimization
    private Map<Tuple, Object> exprAttrs = new Object2ObjectOpenHashMap<>();
    private Map<String, List<AttributeRef>> expr2Attrs = new Object2ObjectOpenHashMap<>();

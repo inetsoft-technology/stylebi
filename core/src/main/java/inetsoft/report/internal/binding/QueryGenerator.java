@@ -63,7 +63,7 @@ public class QueryGenerator {
    public static XQuery getXQuery(XDataSelection columns, VariableTable vars,
                                   Principal user) throws Exception
    {
-      XRepository repository = XFactory.getRepository();
+      XRepository repository = XRepository.getRepository();
       XDataModel model = null;
       XLogicalModel lmodel = null;
       QueryGenerator gen = null;

@@ -17,7 +17,7 @@
  */
 import { HttpClientTestingModule } from "@angular/common/http/testing";
 import { DebugElement, NO_ERRORS_SCHEMA } from "@angular/core";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { By } from "@angular/platform-browser";
 import { NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { Observable, of as observableOf } from "rxjs";
@@ -49,12 +49,12 @@ describe("Reorder Columns Dialog Test", () => {
    let elUp: HTMLElement;
    let elDown: HTMLElement;
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       modelService = { getModel: jest.fn(() => createModel()) };
       tooltipService = { createToolTip: jest.fn() };
 
       TestBed.configureTestingModule({
-         imports: [ HttpClientTestingModule, NgbModule ],
+         imports: [ NgbModule, HttpClientTestingModule ],
          declarations: [
             ReorderColumnsDialog, EnterSubmitDirective, LargeFormFieldComponent, TooltipDirective, ModalHeaderComponent
          ],
@@ -78,7 +78,7 @@ describe("Reorder Columns Dialog Test", () => {
       });
    }));
 
-   it("should disable up button before a column name is selected", async(() => {
+   it("should disable up button before a column name is selected", waitForAsync(() => {
       fixture.detectChanges();
 
       fixture.whenStable().then(() => {
@@ -87,7 +87,7 @@ describe("Reorder Columns Dialog Test", () => {
       });
    }));
 
-   it("should enable up button after a column name is selected", async(() => {
+   it("should enable up button after a column name is selected", waitForAsync(() => {
       fixture.componentInstance.selectItem(new MouseEvent("click"), 1);
       fixture.detectChanges();
 

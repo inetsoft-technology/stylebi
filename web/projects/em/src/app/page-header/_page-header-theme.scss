@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-@import '../../../../../node_modules/@angular/material/theming';
+@use '@angular/material' as mat;
 @import '../../styles/constants';
 
 @mixin page-header-theme($theme) {
@@ -28,25 +28,25 @@
 
   .em-header-toolbar {
     @if $is-dark {
-      background-color: mat-color($primary, 80);
-      color: mat-color($foreground, secondary-text);
+      background-color: mat.get-color-from-palette($primary, 80);
+      color: mat.get-color-from-palette($foreground, secondary-text);
     }
     @else {
-      background-color: mat-color($primary, 50);
-      color: mat-color($primary);
+      background-color: mat.get-color-from-palette($primary, 50);
+      color: mat.get-color-from-palette($primary);
     }
 
     height: 40px !important;
 
     button {
-      color: mat-color($foreground, secondary-text);
+      color: mat.get-color-from-palette($foreground, secondary-text);
 
       &:hover {
         @if $is-dark {
-          color: mat-color($accent);
+          color: mat.get-color-from-palette($accent);
         }
         @else {
-          color: mat-color($primary);
+          color: mat.get-color-from-palette($primary);
         }
       }
     }

@@ -34,7 +34,7 @@ import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.Calculator;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.Tool;
-import inetsoft.web.viewsheet.controller.table.BaseTableDrillController;
+import inetsoft.web.viewsheet.controller.table.BaseTableDrillService;
 import inetsoft.web.viewsheet.handler.BaseDrillHandler;
 import inetsoft.web.viewsheet.model.*;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
@@ -153,12 +153,15 @@ public class CrosstabDrillHandler
 
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(
          runtimeViewsheetRef.getRuntimeId(), principal);
-      final ViewsheetSandbox box = rvs.getViewsheetSandbox();
-      VSTableLens lens = box.getVSTableLens(table.getAbsoluteName(), false);
+      final Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
-      for(String field : drillFilterAction.getFields()) { // for chart
-         drillAllField(true, drillFilterAction.isDrillUp(), field,
-                       table, this::drillChildEnabled, false, lens);
+      if(box.isPresent()) {
+         VSTableLens lens = box.get().getVSTableLens(table.getAbsoluteName(), false);
+
+         for(String field : drillFilterAction.getFields()) { // for chart
+            drillAllField(true, drillFilterAction.isDrillUp(), field,
+                          table, this::drillChildEnabled, false, lens);
+         }
       }
    }
 
@@ -243,7 +246,7 @@ public class CrosstabDrillHandler
          cinfo.setRuntimeColHeaders(newCols);
       }
 
-      BaseTableDrillController.saveColumnInfo(assembly.getCrosstabInfo(), lens);
+      BaseTableDrillService.saveColumnInfo(assembly.getCrosstabInfo(), lens);
    }
 
    private void drillUpAction(VSCrosstabInfo cinfo, String field, XCube cube,
@@ -556,7 +559,7 @@ public class CrosstabDrillHandler
          if(replace) {
             refs.set(currentColIndex, childRef);
             // in-place drill, port the format to new data path.
-            // the same for regular drill is handled in BaseTableDrillController.syncPath().
+            // the same for regular drill is handled in BaseTableDrillService.syncPath().
             syncPath(assembly.getFormatInfo().getFormatMap(), ref, childRef);
             updateCalcuators(assembly.getVSCrosstabInfo(), ref, childRef);
          }
@@ -599,10 +602,14 @@ public class CrosstabDrillHandler
                              boolean refreshData)
       throws Exception
    {
-      final ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      final Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box.isEmpty()) {
+         return;
+      }
 
       rvs.resetMVOptions();
-      box.updateAssembly(name);
+      box.get().updateAssembly(name);
 
       Viewsheet vs = rvs.getViewsheet();
       VSAssembly assembly = vs != null ? vs.getAssembly(name) : null;
@@ -618,12 +625,12 @@ public class CrosstabDrillHandler
 
       int hint = VSAssembly.INPUT_DATA_CHANGED;
       ChangedAssemblyList clist = coreLifecycleService.createList(false, dispatcher, rvs, linkUri);
-      box.processChange(name, hint, clist);
+      box.get().processChange(name, hint, clist);
 
       if(assembly instanceof CrosstabVSAssembly) {
-         TableLens nlens = box.getVSTableLens(name, false);
+         TableLens nlens = box.get().getVSTableLens(name, false);
          // restore the saved (in syncCrosstabPath) header info with the new table.
-         BaseTableDrillController.restoreColumnInfo(
+         BaseTableDrillService.restoreColumnInfo(
             ((CrosstabVSAssembly) assembly).getCrosstabInfo(), nlens);
       }
 

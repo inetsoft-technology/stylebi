@@ -21,8 +21,7 @@ import inetsoft.mv.MVManager;
 import inetsoft.report.internal.LicenseException;
 import inetsoft.sree.*;
 import inetsoft.sree.internal.SUtil;
-import inetsoft.sree.web.SessionLicenseManager;
-import inetsoft.sree.web.SessionLicenseService;
+import inetsoft.sree.web.*;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.util.ConnectionProcessor;
@@ -30,7 +29,6 @@ import inetsoft.uql.util.XSessionService;
 import inetsoft.util.*;
 import inetsoft.util.audit.Audit;
 import inetsoft.util.audit.SessionRecord;
-import inetsoft.util.config.InetsoftConfig;
 import inetsoft.web.admin.monitoring.MonitorLevelService;
 import inetsoft.web.admin.monitoring.StatusMetricsType;
 import inetsoft.web.admin.user.FailedLoginModel;
@@ -38,11 +36,12 @@ import inetsoft.web.admin.user.UserMetrics;
 import inetsoft.web.cluster.ServerClusterClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.stereotype.Service;
 
 import java.security.Principal;
 import java.sql.Timestamp;
 import java.util.*;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.stream.Collectors;
 
 /**
@@ -50,12 +49,23 @@ import java.util.stream.Collectors;
  *
  * @since 12.3
  */
-@SingletonManager.ShutdownOrder(after = InetsoftConfig.Reference.class)
+@Service
 public class AuthenticationService {
-   /**
-    * Creates a new instance of <tt>AuthenticationService</tt>.
-    */
-   public AuthenticationService() {
+   public AuthenticationService(SecurityEngine securityEngine, MVManager mvManager,
+                                DataSourceRegistry dataSourceRegistry,
+                                XSessionService sessionService, LocaleService localeService,
+                                SessionLicenseServiceProvider sessionLicenseServiceProvider,
+                                ApplicationEventPublisher eventPublisher,
+                                IndexedStorage indexedStorage)
+   {
+      this.securityEngine = securityEngine;
+      this.mvManager = mvManager;
+      this.dataSourceRegistry = dataSourceRegistry;
+      this.sessionService = sessionService;
+      this.localeService = localeService;
+      this.sessionLicenseServiceProvider = sessionLicenseServiceProvider;
+      this.eventPublisher = eventPublisher;
+      this.indexedStorage = indexedStorage;
    }
 
    /**
@@ -64,7 +74,7 @@ public class AuthenticationService {
     * @return the shared instance.
     */
    public static AuthenticationService getInstance() {
-      return SingletonManager.getInstance(AuthenticationService.class);
+      return ConfigurationContext.getContext().getSpringBean(AuthenticationService.class);
    }
 
    /**
@@ -102,9 +112,9 @@ public class AuthenticationService {
       Principal principal = null;
 
       // log action
-      String xSessionId = XSessionService.createSessionID(XSessionService.USER, userId.name);
+      String xSessionId = sessionService.createSessionID(XSessionService.USER, userId.name);
       String opType = SessionRecord.OP_TYPE_LOGON;
-      Long time = System.currentTimeMillis();
+      long time = System.currentTimeMillis();
       Timestamp opTimestamp = new Timestamp(time);
       IdentityID user = SUtil.getUserID(userId, loginAsUser);
       SessionRecord sessionRecord = new SessionRecord(
@@ -125,7 +135,7 @@ public class AuthenticationService {
                }
 
                ClientInfo clientInfo = new ClientInfo(userName, remoteAddr, sessionId, clientLocale);
-               clientInfo.setLoginUserName(userId);
+               clientInfo.setLoginUserName(loginAsUser);
                DefaultTicket ticket = new DefaultTicket(userId, password);
                principal = authenticate(clientInfo, ticket);
 
@@ -207,7 +217,7 @@ public class AuthenticationService {
             Audit.getInstance().auditSession(sessionRecord, principal);
          }
          else if(principal == null && userId != null) {
-            User u = SecurityEngine.getSecurity().getSecurityProvider().getUser(userId);
+            User u = securityEngine.getSecurityProvider().getUser(userId);
 
             if(u != null) {
                sessionRecord.setUserGroup(Arrays.asList(u.getGroups()));
@@ -252,7 +262,7 @@ public class AuthenticationService {
          }
 
          if(principal != null) {
-            String loc = LocaleService.getInstance().getLocale(locale, principal);
+            String loc = localeService.getLocale(locale, principal);
 
             if(principal instanceof SRPrincipal) {
                ((SRPrincipal) principal).setProperty(SRPrincipal.LOCALE, loc);
@@ -286,10 +296,9 @@ public class AuthenticationService {
       Principal principal = null;
 
       try {
-         SecurityEngine engine = SecurityEngine.getSecurity();
-         SecurityProvider provider = engine.getSecurityProvider();
+         SecurityProvider provider = securityEngine.getSecurityProvider();
          principal =
-            SecurityEngine.getSecurity().authenticate(user, credential, provider);
+            securityEngine.authenticate(user, credential, provider);
       }
       catch(Exception e) {
          LOG.error("An error prevented user from being authenticated: " + user, e);
@@ -308,7 +317,7 @@ public class AuthenticationService {
     */
    public void addSession(Principal principal) throws LicenseException {
       SessionLicenseManager sessionLicenseManager =
-         SessionLicenseService.getSessionLicenseService();
+         sessionLicenseServiceProvider.getSessionLicenseManager();
 
       try {
          if(sessionLicenseManager != null) {
@@ -322,16 +331,48 @@ public class AuthenticationService {
             try {
                sessionLicenseManager.newSession((SRPrincipal) principal);
                failed = false;
+               eventPublisher.publishEvent(new SessionLoggedInEvent(this, principal));
+            }
+            catch(LicenseException ignore) {
+            }
+         }
 
-               SessionEvent event = null;
+         if(failed) {
+            throw e;
+         }
+      }
+   }
 
-               for(SessionListener listener : listeners) {
-                  if(event == null) {
-                     event = new SessionEvent(this, principal);
-                  }
+   /**
+    * Adds a session for the specified user, terminating the session with the given ID first if
+    * the session limit has been reached.
+    *
+    * @param principal          the principal that identifies the user.
+    * @param sessionIdToReplace the ID of an existing session to terminate if the limit is
+    *                           reached, or {@code null} to use the standard behaviour.
+    *
+    * @throws LicenseException if the session could not be added due to licensing restrictions.
+    */
+   public void addSession(Principal principal, String sessionIdToReplace) throws LicenseException {
+      SessionLicenseManager sessionLicenseManager =
+         sessionLicenseServiceProvider.getSessionLicenseManager();
 
-                  listener.loggedIn(event);
-               }
+      try {
+         if(sessionLicenseManager != null) {
+            sessionLicenseManager.newSession((SRPrincipal) principal, sessionIdToReplace);
+         }
+      }
+      catch(SessionsExceededException e) {
+         throw e;
+      }
+      catch(LicenseException e) {
+         boolean failed = true;
+
+         if(SUtil.checkUserSessionTimeout()) {
+            try {
+               sessionLicenseManager.newSession((SRPrincipal) principal);
+               failed = false;
+               eventPublisher.publishEvent(new SessionLoggedInEvent(this, principal));
             }
             catch(LicenseException ignore) {
             }
@@ -405,19 +446,7 @@ public class AuthenticationService {
 
    public void logout(Principal principal, boolean invalidateSession) {
       if(principal != null) {
-         SessionEvent event = null;
-         // Create a copy of the listeners before iterating because DashboardRegistry removes itself
-         // as a listener when loggedOut() is called on it, causing a concurrent modification
-         // exception.
-         List<SessionListener> copy = new ArrayList<>(listeners);
-
-         for(SessionListener listener : copy) {
-            if(event == null) {
-               event = new SessionEvent(this, principal, invalidateSession);
-            }
-
-            listener.loggedOut(event);
-         }
+         eventPublisher.publishEvent(new SessionLoggedOutEvent(this, principal, invalidateSession));
       }
    }
 
@@ -425,25 +454,7 @@ public class AuthenticationService {
     * Resets the session management state.
     */
    public void reset() {
-      SessionLicenseService.resetServices();
-   }
-
-   /**
-    * Adds a listener that is notified when a user logs in or logs out.
-    *
-    * @param l the listener to add.
-    */
-   public void addSessionListener(SessionListener l) {
-      listeners.add(l);
-   }
-
-   /**
-    * Removes a listener from the notification list.
-    *
-    * @param l the listener to remove.
-    */
-   public void removeSessionListener(SessionListener l) {
-      listeners.remove(l);
+      eventPublisher.publishEvent(new AuthenticationResetEvent(this));
    }
 
    /**
@@ -458,7 +469,7 @@ public class AuthenticationService {
    {
       String clientLocaleString = clientLocale != null ? clientLocale.toString() : null;
       String localeName =
-         LocaleService.getInstance().getLocale(locale, clientLocaleString, userId, principal);
+         localeService.getLocale(locale, clientLocaleString, userId, principal);
 
       if(principal instanceof SRPrincipal) {
          ((SRPrincipal) principal).setProperty(SRPrincipal.LOCALE, localeName);
@@ -538,11 +549,9 @@ public class AuthenticationService {
     * Initialize singletons that rely on indexed storage's org id
     */
    private void initOrgID(String orgID, XPrincipal principal) throws Exception {
-      IndexedStorage indexedStorage = IndexedStorage.getIndexedStorage();
-
       if(!indexedStorage.isInitialized(orgID)) {
-         DataSourceRegistry.getRegistry().init();
-         MVManager.getManager().initMVDefMap();
+         dataSourceRegistry.init();
+         mvManager.initMVDefMap();
 
          indexedStorage.setInitialized(orgID);
       }
@@ -550,7 +559,14 @@ public class AuthenticationService {
       ConnectionProcessor.getInstance().setAdditionalDatasource(principal);
    }
 
-   private final List<SessionListener> listeners = new CopyOnWriteArrayList<>();
+   private final SecurityEngine securityEngine;
+   private final MVManager mvManager;
+   private final DataSourceRegistry dataSourceRegistry;
+   private final XSessionService sessionService;
+   private final LocaleService localeService;
+   private final SessionLicenseServiceProvider sessionLicenseServiceProvider;
+   private final ApplicationEventPublisher eventPublisher;
+   private final IndexedStorage indexedStorage;
 
    private static final Logger LOG = LoggerFactory.getLogger(AuthenticationService.class);
 }

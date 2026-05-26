@@ -24,17 +24,16 @@ import inetsoft.report.composition.*;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
 import inetsoft.uql.XPrincipal;
-import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.asset.ConfirmException;
 import inetsoft.uql.asset.internal.WSExecution;
 import inetsoft.uql.service.DataSourceRegistry;
-import inetsoft.uql.viewsheet.TextVSAssembly;
-import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.util.*;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
 import inetsoft.util.script.ScriptException;
-import inetsoft.web.composer.vs.controller.VSLayoutService;
+import inetsoft.web.AspectTask;
+import inetsoft.web.ServiceProxyContext;
+import inetsoft.web.composer.vs.controller.VSLayoutServiceProxy;
 import inetsoft.web.composer.ws.event.WSAssemblyEvent;
 import inetsoft.web.viewsheet.command.*;
 import inetsoft.web.viewsheet.event.VSRefreshEvent;
@@ -46,8 +45,6 @@ import org.aspectj.lang.JoinPoint;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.*;
 import org.aspectj.lang.reflect.MethodSignature;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.annotation.Order;
 import org.springframework.expression.Expression;
@@ -84,12 +81,14 @@ public class EventAspect {
       RuntimeViewsheetRef runtimeViewsheetRef,
       CoreLifecycleService coreLifecycleService,
       ViewsheetService viewsheetService,
-      VSLayoutService vsLayoutService)
+      VSLayoutServiceProxy vsLayoutService,
+      EventAspectServiceProxy eventAspectServiceProxy)
    {
       this.runtimeViewsheetRef = runtimeViewsheetRef;
       this.coreLifecycleService = coreLifecycleService;
       this.viewsheetService = viewsheetService;
       this.vsLayoutService = vsLayoutService;
+      this.eventAspectServiceProxy = eventAspectServiceProxy;
    }
 
    @PreDestroy
@@ -100,11 +99,10 @@ public class EventAspect {
    /**
     * Post process event methods.
     *
-    * @throws Throwable if the method invocation failed.
     */
    @AfterReturning("@annotation(Undoable) && within(inetsoft.web..*)")
    @Order(1)
-   public void postProcess(JoinPoint joinPoint) throws Throwable {
+   public void postProcess(JoinPoint joinPoint) {
       Object[] args = joinPoint.getArgs();
       String id = this.runtimeViewsheetRef.getRuntimeId();
       CommandDispatcher commandDispatcher = null;
@@ -119,15 +117,14 @@ public class EventAspect {
          }
       }
 
-      RuntimeSheet rs = viewsheetService.getSheet(id, principal);
       this.runtimeViewsheetRef.setLastModified(System.currentTimeMillis());
-      this.vsLayoutService.makeUndoable(rs, commandDispatcher, null);
+      this.vsLayoutService.makeUndoable(id, principal, commandDispatcher, null);
    }
 
    @Before("@annotation(InitWSExecution) && within(inetsoft.web..*)")
    public void setWSExecution(JoinPoint joinPoint) throws Throwable {
+      String id = runtimeViewsheetRef.getRuntimeId();
       Object[] args = joinPoint.getArgs();
-      String id = this.runtimeViewsheetRef.getRuntimeId();
       Principal principal = null;
 
       for(Object arg : args) {
@@ -138,22 +135,34 @@ public class EventAspect {
 
       MethodSignature signature = (MethodSignature) joinPoint.getSignature();
       boolean undoable = signature.getMethod().isAnnotationPresent(Undoable.class);
+      ServiceProxyContext.aspectTasks.get().add(new WSExecutionAspectTask(id, undoable));
 
-      RuntimeWorksheet rws = viewsheetService.getWorksheet(id, principal);
-      MVSession session = rws.getAssetQuerySandbox().getMVSession();
-      WSExecution.setAssetQuerySandbox(rws.getAssetQuerySandbox());
+      // ServiceProxyContext preprocessing does not occur if it is a local cache key, so handle it here
+      if(viewsheetService.isLocal(id)) {
+         RuntimeWorksheet rws = viewsheetService.getWorksheet(id, principal);
+         MVSession session = rws.getAssetQuerySandbox().getMVSession();
+         WSExecution.setAssetQuerySandbox(rws.getAssetQuerySandbox());
 
-      // if worksheet changed, re-init sql context so change in table
-      // is reflected in spark sql
-      if(undoable && session != null) {
-         session.clearInitialized();
+         // if worksheet changed, re-init sql context so change in table
+         // is reflected in spark sql
+         if(undoable && session != null) {
+            session.clearInitialized();
+         }
+
+         WSExecution.setAssetQuerySandbox(rws.getAssetQuerySandbox());
       }
-
-      WSExecution.setAssetQuerySandbox(rws.getAssetQuerySandbox());
    }
 
    @AfterReturning("@annotation(InitWSExecution) && within(inetsoft.web..*)")
-   public void clearWSExecution(JoinPoint joinPoint) throws Throwable {
+   public void clearWSExecution(JoinPoint joinPoint) {
+      for(Iterator<AspectTask> it = ServiceProxyContext.aspectTasks.get().iterator(); it.hasNext(); ) {
+         AspectTask task = it.next();
+
+         if(task instanceof WSExecutionAspectTask) {
+            it.remove();
+         }
+      }
+
       WSExecution.setAssetQuerySandbox(null);
    }
 
@@ -186,32 +195,8 @@ public class EventAspect {
          if(commandDispatcher.isPresent() && principal.isPresent() &&
             runtimeViewsheetRef.getRuntimeId() != null)
          {
-            RuntimeSheet rts = viewsheetService.getSheet(runtimeViewsheetRef.getRuntimeId(),
-               principal.get());
-
-            if(rts instanceof RuntimeViewsheet) {
-               RuntimeViewsheet rvs = (RuntimeViewsheet) rts;
-               Viewsheet vs = rvs.getViewsheet();
-               TextVSAssembly textVSAssembly = null;
-
-               if(vs != null) {
-                  textVSAssembly = vs.getWarningTextAssembly(false);
-
-                  if(textVSAssembly == null) {
-                     for(Assembly assembly : vs.getAssemblies()) {
-                        if(assembly instanceof Viewsheet) {
-                           textVSAssembly = ((Viewsheet) assembly).getWarningTextAssembly(false);
-                        }
-                     }
-                  }
-               }
-
-               if(textVSAssembly != null) {
-                  vs.adjustWarningTextPosition();
-                  coreLifecycleService.addDeleteVSObject(rvs, textVSAssembly, commandDispatcher.get());
-                  coreLifecycleService.refreshVSAssembly(rvs, textVSAssembly, commandDispatcher.get());
-               }
-            }
+            eventAspectServiceProxy.updateViewsheetAsync(runtimeViewsheetRef.getRuntimeId(),
+                                                         commandDispatcher.get(), principal.get());
          }
       }
    }
@@ -220,7 +205,7 @@ public class EventAspect {
       for(MessageCommand.Type type : MessageCommand.Type.values()) {
          final List<UserMessage> messages = Tool.getUserMessages(type);
 
-         if(messages.size() > 0) {
+         if(!messages.isEmpty()) {
             for(UserMessage message : messages) {
                final MessageCommand messageCommand = MessageCommand.fromUserMessage(message);
                messageCommand.setAssemblyName(assemblyName);
@@ -234,7 +219,7 @@ public class EventAspect {
 
    @Around("@annotation(Audited) && within(inetsoft.web..*)")
    public Object handleAudit(ProceedingJoinPoint pjp) throws Throwable {
-      ActionRecord record = null;
+      ActionRecord record;
 
       MethodSignature signature = (MethodSignature) pjp.getSignature();
       Audited annotation = signature.getMethod().getAnnotation(Audited.class);
@@ -243,11 +228,11 @@ public class EventAspect {
       String actionError = null;
       boolean defaultOrg = annotation.defaultOrg();
 
-      if(!annotation.objectName().isEmpty()) {
+      if(annotation != null && !annotation.objectName().isEmpty()) {
          objectName = annotation.objectName();
       }
 
-      if(!annotation.actionName().isEmpty()) {
+      if(annotation != null && !annotation.actionName().isEmpty()) {
          actionName = annotation.actionName();
       }
 
@@ -265,9 +250,8 @@ public class EventAspect {
                   objectParameters.add(objectNameTuple);
                }
                else if(SUtil.isEmptyString(actionName)
-                       && paramAnnotations[i][j] instanceof AuditActionName)
+                       && paramAnnotations[i][j] instanceof AuditActionName actionAnnotation)
                {
-                  AuditActionName actionAnnotation = (AuditActionName) paramAnnotations[i][j];
                   Object arg = pjp.getArgs()[i];
 
                   if(actionAnnotation.value().isEmpty()) {
@@ -279,8 +263,7 @@ public class EventAspect {
                      actionName = expr.getValue(context, String.class);
                   }
                }
-               else if(paramAnnotations[i][j] instanceof AuditActionError) {
-                  AuditActionError actionErrorAnnotation = (AuditActionError) paramAnnotations[i][j];
+               else if(paramAnnotations[i][j] instanceof AuditActionError actionErrorAnnotation) {
                   Object arg = pjp.getArgs()[i];
 
                   if(arg == null) {
@@ -301,7 +284,7 @@ public class EventAspect {
             }
          }
 
-         if(objectParameters.size() > 0) {
+         if(!objectParameters.isEmpty()) {
             objectName = processAnnotationOrder(objectParameters);
          }
 
@@ -325,7 +308,8 @@ public class EventAspect {
       }
 
       record = SUtil.getActionRecord(
-         SUtil.getUserName(principal), actionName, objectName, annotation.objectType(),
+         SUtil.getUserName(principal), actionName, objectName,
+         Objects.requireNonNull(annotation).objectType(),
          new Timestamp(System.currentTimeMillis()), actionError, principal, false);
 
       if(defaultOrg && ActionRecord.OBJECT_TYPE_EMPROPERTY.equals(annotation.objectType())) {
@@ -401,7 +385,7 @@ public class EventAspect {
             objName = expr.getValue(context, String.class);
          }
 
-         if(StringUtils.isEmpty(objName)) {
+         if(!StringUtils.hasText(objName)) {
             continue;
          }
 
@@ -424,8 +408,7 @@ public class EventAspect {
    @Around("@annotation(HandleAssetExceptions) && within(inetsoft.web..*)")
    public Object handleAssetExceptions(ProceedingJoinPoint pjp) throws Throwable {
       List<Exception> oldExceptions = WorksheetService.ASSET_EXCEPTIONS.get();
-      List<Exception> exceptions = new ArrayList<>();
-      WorksheetService.ASSET_EXCEPTIONS.set(exceptions);
+      WorksheetService.ASSET_EXCEPTIONS.set(new ArrayList<>());
 
       Optional<CommandDispatcher> commandDispatcher =
          Arrays.stream(pjp.getArgs())
@@ -437,6 +420,9 @@ public class EventAspect {
          return pjp.proceed();
       }
       finally {
+         // exceptions list can be replaced while processing a request so retrieve it here
+         List<Exception> exceptions = WorksheetService.ASSET_EXCEPTIONS.get();
+
          if(oldExceptions == null) {
             WorksheetService.ASSET_EXCEPTIONS.remove();
          }
@@ -444,37 +430,37 @@ public class EventAspect {
             WorksheetService.ASSET_EXCEPTIONS.set(oldExceptions);
          }
 
-         commandDispatcher.ifPresent(dispatcher -> {
-            boolean mvHandled = false;
-            for(Exception ex : exceptions) {
-               if(ex instanceof ConfirmException) {
-                  ConfirmException e = (ConfirmException) ex;
+         if(exceptions != null) {
+            commandDispatcher.ifPresent(dispatcher -> {
+               boolean mvHandled = false;
 
-                  if(!(e.getEvent() instanceof CheckMissingMVEvent)) {
-                     sendMessage(e, MessageCommand.Type.CONFIRM, dispatcher);
+               for(Exception ex : exceptions) {
+                  if(ex instanceof ConfirmException e) {
+                     if(!(e.getEvent() instanceof CheckMissingMVEvent)) {
+                        sendMessage(e, MessageCommand.Type.CONFIRM, dispatcher);
+                     }
+                     else if(!mvHandled) {
+                        coreLifecycleService.waitForMV(e, null, dispatcher);
+                        mvHandled = true;
+                     }
                   }
-                  else if(!mvHandled) {
-                     coreLifecycleService.waitForMV(e, null, dispatcher);
-                     mvHandled = true;
+                  else if(ex instanceof MessageException e) {
+                     sendMessage(e, MessageCommand.Type.fromCode(e.getWarningLevel()), dispatcher);
+                  }
+                  else if(ex instanceof ScriptException ||
+                     ex != null && ex.getCause() instanceof ScriptException)
+                  {
+                     sendMessage(ex, MessageCommand.Type.INFO, dispatcher);
+                  }
+                  else if(ex instanceof ExpiredSheetException) {
+                     ExpiredSheetCommand command = ExpiredSheetCommand.builder()
+                        .message(ex.getMessage())
+                        .build();
+                     dispatcher.sendCommand(command);
                   }
                }
-               else if(ex instanceof MessageException) {
-                  MessageException e = (MessageException) ex;
-                  sendMessage(e, MessageCommand.Type.fromCode(e.getWarningLevel()), dispatcher);
-               }
-               else if(ex instanceof ScriptException ||
-                  ex != null && ex.getCause() instanceof ScriptException)
-               {
-                  sendMessage(ex, MessageCommand.Type.INFO, dispatcher);
-               }
-               else if(ex instanceof ExpiredSheetException) {
-                  ExpiredSheetCommand command = ExpiredSheetCommand.builder()
-                     .message(ex.getMessage())
-                     .build();
-                  dispatcher.sendCommand(command);
-               }
-            }
-         });
+            });
+         }
       }
    }
 
@@ -488,8 +474,9 @@ public class EventAspect {
 
    @Around("@annotation(LoadingMask) && within(inetsoft.web..*)")
    public Object clearLoadingMask(ProceedingJoinPoint pjp) throws Throwable {
-      boolean force = ((MethodSignature) pjp.getSignature()).getMethod()
-         .getAnnotation(LoadingMask.class).value();
+      LoadingMask mask = ((MethodSignature) pjp.getSignature()).getMethod()
+         .getAnnotation(LoadingMask.class);
+      boolean force = mask != null && mask.value();
 
       Optional<VSRefreshEvent> refreshEvent =
          Arrays.stream(pjp.getArgs())
@@ -506,13 +493,177 @@ public class EventAspect {
             .filter(CommandDispatcher.class::isInstance)
             .map(CommandDispatcher.class::cast)
             .findFirst();
+      LoadingMaskAspectTask task = new LoadingMaskAspectTask(force);
 
-      Lock lock = new ReentrantLock();
-      AtomicBoolean complete = new AtomicBoolean(false);
-      AtomicBoolean loading = new AtomicBoolean(false);
-      final Thread pthread = Thread.currentThread();
+      if(mask != null && mask.asyncProxy()) {
+         ServiceProxyContext.aspectTasks.get().add(task);
+      }
+      else {
+         commandDispatcher.ifPresent(dispatcher -> {
+            task.preprocess(dispatcher, null); // principal not used
+         });
+      }
 
-      commandDispatcher.ifPresent(dispatcher -> {
+      try {
+         return pjp.proceed();
+      }
+      finally {
+         if(mask != null && mask.asyncProxy()) {
+            ServiceProxyContext.aspectTasks.get().remove(task);
+         }
+         else {
+            commandDispatcher.ifPresent(dispatcher -> {
+               task.postprocess(dispatcher, null); // principal not used
+            });
+         }
+      }
+   }
+
+   @Around("@annotation(ExecutionMonitoring) && within(inetsoft.web..*)")
+   public Object addExecutionMonitoring(ProceedingJoinPoint pjp) throws Throwable {
+      eventAspectServiceProxy.addExecutionMonitoring(this.runtimeViewsheetRef.getRuntimeId());
+
+      try {
+         return pjp.proceed();
+      }
+      finally {
+         eventAspectServiceProxy.removeExecutionMonitoring(this.runtimeViewsheetRef.getRuntimeId());
+      }
+   }
+
+   @Before("@annotation(SwitchOrg) && within(inetsoft.web..*)")
+   public void beforeController(JoinPoint joinPoint) throws Exception {
+      Principal contextPrincipal = ThreadContext.getContextPrincipal();
+
+      if(!(contextPrincipal instanceof XPrincipal xPrincipal) ||
+         Organization.getDefaultOrganizationID().equals(xPrincipal.getOrgId()) ||
+         !SUtil.isDefaultVSGloballyVisible(xPrincipal))
+      {
+         return;
+      }
+
+      Object[] args = joinPoint.getArgs();
+      Annotation[][] parameterAnnotations =
+         ((MethodSignature) joinPoint.getSignature()).getMethod().getParameterAnnotations();
+      String orgId = null;
+
+      for(int i = 0; i < parameterAnnotations.length; i++) {
+         for(int j = 0; j < parameterAnnotations[i].length; j++) {
+            if(parameterAnnotations[i][j] instanceof OrganizationID) {
+               Object arg = args[i];
+               String annoValue = ((OrganizationID) parameterAnnotations[i][j]).value();
+
+               if(annoValue.isEmpty()) {
+                  orgId = arg == null ? null : String.valueOf(arg);
+               }
+               else {
+                  StandardEvaluationContext context = new StandardEvaluationContext(arg);
+                  Expression expr = expressionParser.parseExpression(annoValue);
+                  orgId = expr.getValue(context, String.class);
+               }
+            }
+         }
+      }
+
+      if(orgId == null) {
+         return;
+      }
+
+      if(Organization.getDefaultOrganizationID().equals(orgId)) {
+         OrganizationContextHolder.setCurrentOrgId(orgId);
+         ServiceProxyContext.aspectTasks.get().add(new SwitchOrgAspectTask(orgId));
+      }
+   }
+
+   @After("@annotation(SwitchOrg) && within(inetsoft.web..*)")
+   public void afterController() {
+      OrganizationContextHolder.clear();
+      ServiceProxyContext.aspectTasks.get().removeIf((task) -> task instanceof SwitchOrgAspectTask);
+   }
+
+   private static class AnnotationParameterTuple<T> {
+      public AnnotationParameterTuple(T annotation, Object parameter) {
+         this.annotation = annotation;
+         this.parameter = parameter;
+      }
+
+      public T getAnnotation() {
+         return annotation;
+      }
+
+      public void setAnnotation(T annotation) {
+         this.annotation = annotation;
+      }
+
+      public Object getParameter() {
+         return parameter;
+      }
+
+      public void setParameter(Object parameter) {
+         this.parameter = parameter;
+      }
+
+      private T annotation;
+      private Object parameter;
+   }
+
+   private final RuntimeViewsheetRef runtimeViewsheetRef;
+   private final CoreLifecycleService coreLifecycleService;
+   private final ViewsheetService viewsheetService;
+   private final VSLayoutServiceProxy vsLayoutService;
+   private final EventAspectServiceProxy eventAspectServiceProxy;
+   private static final Timer timer = new Timer();
+   private final SpelExpressionParser expressionParser = new SpelExpressionParser();
+
+   public static final class WSExecutionAspectTask implements AspectTask {
+      public WSExecutionAspectTask(String id, boolean undoable) {
+         this.id = id;
+         this.undoable = undoable;
+      }
+
+      @Override
+      public void preprocess(CommandDispatcher dispatcher, Principal contextPrincipal) {
+         if(id != null) {
+            try {
+               ViewsheetService viewsheetService = ConfigurationContext.getContext()
+                  .getSpringBean(ViewsheetService.class);
+               RuntimeWorksheet rws = viewsheetService.getWorksheet(id, contextPrincipal);
+               MVSession session = rws.getAssetQuerySandbox().getMVSession();
+               WSExecution.setAssetQuerySandbox(rws.getAssetQuerySandbox());
+
+               // if worksheet changed, re-init sql context so change in table
+               // is reflected in spark sql
+               if(undoable && session != null) {
+                  session.clearInitialized();
+               }
+
+               WSExecution.setAssetQuerySandbox(rws.getAssetQuerySandbox());
+            }
+            catch(Exception e) {
+               throw new RuntimeException("Failed to set current worksheet", e);
+            }
+         }
+      }
+
+      @Override
+      public void postprocess(CommandDispatcher dispatcher, Principal contextPrincipal) {
+         if(id != null) {
+            WSExecution.setAssetQuerySandbox(null);
+         }
+      }
+
+      private final String id;
+      private final boolean undoable;
+   }
+
+   private final class LoadingMaskAspectTask implements AspectTask {
+      public LoadingMaskAspectTask(boolean force) {
+         this.force = force;
+      }
+
+      @Override
+      public void preprocess(CommandDispatcher dispatcher, Principal contextPrincipal) {
+         final Thread pthread = Thread.currentThread();
          boolean preparing = "true".equals(ThreadContext.getSessionInfo("preparing.data", pthread));
 
          if(force) {
@@ -563,120 +714,51 @@ public class EventAspect {
                }
             }, 1000, 1000);
          }
-      });
-
-      try {
-         return pjp.proceed();
       }
-      finally {
-         commandDispatcher.ifPresent(dispatcher -> {
-            lock.lock();
 
-            try {
-               if(loading.get()) {
-                  dispatcher.sendCommand(new ClearLoadingCommand());
-               }
+      @Override
+      public void postprocess(CommandDispatcher dispatcher, Principal contextPrincipal) {
+         lock.lock();
 
-               complete.set(true);
+         try {
+            if(loading.get()) {
+               dispatcher.sendCommand(new ClearLoadingCommand());
             }
-            finally {
-               lock.unlock();
-            }
-         });
-      }
-   }
 
-   @Around("@annotation(ExecutionMonitoring) && within(inetsoft.web..*)")
-   public Object addExecutionMonitoring(ProceedingJoinPoint pjp) throws Throwable {
-      viewsheetService.addExecution(this.runtimeViewsheetRef.getRuntimeId());
-
-      try {
-         return pjp.proceed();
-      }
-      finally {
-         viewsheetService.removeExecution(this.runtimeViewsheetRef.getRuntimeId());
-      }
-   }
-
-   @Before("@annotation(SwitchOrg) && within(inetsoft.web..*)")
-   public void beforeController(JoinPoint joinPoint) throws Exception {
-      Principal contextPrincipal = ThreadContext.getContextPrincipal();
-
-      if(!(contextPrincipal instanceof XPrincipal xPrincipal) ||
-         Organization.getDefaultOrganizationID().equals(xPrincipal.getOrgId()) ||
-         !SUtil.isDefaultVSGloballyVisible(xPrincipal))
-      {
-         return;
-      }
-
-      Object[] args = joinPoint.getArgs();
-      Annotation[][] parameterAnnotations =
-         ((MethodSignature) joinPoint.getSignature()).getMethod().getParameterAnnotations();
-      String orgId = null;
-
-      for(int i = 0; i < parameterAnnotations.length; i++) {
-         for(int j = 0; j < parameterAnnotations[i].length; j++) {
-            if(parameterAnnotations[i][j] instanceof OrganizationID) {
-               Object arg = args[i];
-               String annoValue = ((OrganizationID) parameterAnnotations[i][j]).value();
-
-               if(annoValue.isEmpty()) {
-                  orgId = arg == null ? null : String.valueOf(arg);
-               }
-               else {
-                  StandardEvaluationContext context = new StandardEvaluationContext(arg);
-                  Expression expr = expressionParser.parseExpression(annoValue);
-                  orgId = expr.getValue(context, String.class);
-               }
-            }
+            complete.set(true);
+         }
+         finally {
+            lock.unlock();
          }
       }
 
-      if(orgId == null) {
-         return;
-      }
-
-      if(Organization.getDefaultOrganizationID().equals(orgId)) {
-         OrganizationContextHolder.setCurrentOrgId(orgId);
-      }
+      private final boolean force;
+      private final Lock lock = new ReentrantLock();
+      private final AtomicBoolean complete = new AtomicBoolean(false);
+      private final AtomicBoolean loading = new AtomicBoolean(false);
    }
 
-   @After("@annotation(SwitchOrg) && within(inetsoft.web..*)")
-   public void afterController() {
-      OrganizationContextHolder.clear();
+   public static final class SwitchOrgAspectTask implements AspectTask {
+      public SwitchOrgAspectTask(String orgId) {
+         this.orgId = orgId;
+      }
+
+      @Override
+      public void preprocess(CommandDispatcher dispatcher, Principal contextPrincipal) {
+         if(orgId != null) {
+            savedOrgId = OrganizationContextHolder.getCurrentOrgId();
+            OrganizationContextHolder.setCurrentOrgId(orgId);
+         }
+      }
+
+      @Override
+      public void postprocess(CommandDispatcher dispatcher, Principal contextPrincipal) {
+         if(orgId != null) {
+            OrganizationContextHolder.setCurrentOrgId(savedOrgId);
+         }
+      }
+
+      private final String orgId;
+      private transient String savedOrgId;
    }
-
-   private static class AnnotationParameterTuple<T> {
-      public AnnotationParameterTuple(T annotation, Object parameter) {
-         this.annotation = annotation;
-         this.parameter = parameter;
-      }
-
-      public T getAnnotation() {
-         return annotation;
-      }
-
-      public void setAnnotation(T annotation) {
-         this.annotation = annotation;
-      }
-
-      public Object getParameter() {
-         return parameter;
-      }
-
-      public void setParameter(Object parameter) {
-         this.parameter = parameter;
-      }
-
-      private T annotation;
-      private Object parameter;
-   }
-
-   private final RuntimeViewsheetRef runtimeViewsheetRef;
-   private final CoreLifecycleService coreLifecycleService;
-   private final ViewsheetService viewsheetService;
-   private final VSLayoutService vsLayoutService;
-   private final Timer timer = new Timer();
-   private final SpelExpressionParser expressionParser = new SpelExpressionParser();
-   private static final Logger LOG = LoggerFactory.getLogger(EventAspect.class);
 }

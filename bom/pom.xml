@@ -22,7 +22,7 @@
   <parent>
     <groupId>com.inetsoft.stylebi</groupId>
     <artifactId>inetsoft-stylebi</artifactId>
-    <version>1.1.0-SNAPSHOT</version>
+    <version>1.2.0-SNAPSHOT</version>
   </parent>
 
   <artifactId>inetsoft-stylebi-bom</artifactId>
@@ -31,10 +31,10 @@
 
   <properties>
     <avro.version>1.11.4</avro.version>
-    <groovy.version>4.0.18</groovy.version>
+    <groovy.version>4.0.25</groovy.version>
     <ignite.version>2.17.0</ignite.version>
     <jackson.version>2.21.1</jackson.version>
-    <junit.version>5.10.2</junit.version>
+    <junit.version>5.11.4</junit.version>
     <logback.version>1.5.25</logback.version>
     <lucene.version>8.11.3</lucene.version>
     <protobuf.version>3.25.5</protobuf.version>
@@ -296,7 +296,7 @@
       <dependency>
         <groupId>com.inetsoft.stylebi.build</groupId>
         <artifactId>tern-annotations</artifactId>
-        <version>1.1.0-SNAPSHOT</version>
+        <version>1.2.0-SNAPSHOT</version>
       </dependency>
 
       <dependency>
@@ -855,6 +855,12 @@
       </dependency>
 
       <dependency>
+        <groupId>com.github.luben</groupId>
+        <artifactId>zstd-jni</artifactId>
+        <version>1.5.6-3</version>
+      </dependency>
+
+      <dependency>
         <groupId>org.jdbi</groupId>
         <artifactId>jdbi3-core</artifactId>
         <version>3.45.0</version>
@@ -1086,7 +1092,7 @@
       <dependency>
         <groupId>org.springframework.session</groupId>
         <artifactId>spring-session-core</artifactId>
-        <version>3.2.1</version>
+        <version>3.4.2</version>
       </dependency>
 
       <dependency>
@@ -1240,6 +1246,12 @@
       </dependency>
 
       <dependency>
+        <groupId>org.apache.ignite</groupId>
+        <artifactId>ignite-slf4j</artifactId>
+        <version>${ignite.version}</version>
+      </dependency>
+
+      <dependency>
         <groupId>com.h2database</groupId>
         <artifactId>h2</artifactId>
         <version>2.2.224</version>
@@ -1257,6 +1269,12 @@
         <artifactId>vault-java-driver</artifactId>
         <version>6.2.0</version>
       </dependency>
+
+      <dependency>
+        <groupId>com.davidehrmann.vcdiff</groupId>
+        <artifactId>vcdiff-core</artifactId>
+        <version>0.1.1</version>
+      </dependency>
     </dependencies>
   </dependencyManagement>
 
@@ -1266,7 +1284,7 @@
         <plugin>
           <groupId>com.inetsoft.stylebi.build</groupId>
           <artifactId>inetsoft-runner-maven-plugin</artifactId>
-          <version>1.1.0-SNAPSHOT</version>
+          <version>1.2.0-SNAPSHOT</version>
         </plugin>
         <plugin>
           <groupId>org.springframework.boot</groupId>

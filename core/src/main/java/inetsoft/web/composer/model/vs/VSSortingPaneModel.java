@@ -17,7 +17,9 @@
  */
 package inetsoft.web.composer.model.vs;
 
-public class VSSortingPaneModel {
+import java.io.Serializable;
+
+public class VSSortingPaneModel implements Serializable {
    public VSSortRefModel[] getColumnSortList() {
       return columnSortList;
    }

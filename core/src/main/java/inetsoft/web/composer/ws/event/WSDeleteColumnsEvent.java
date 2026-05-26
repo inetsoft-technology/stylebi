@@ -19,7 +19,9 @@ package inetsoft.web.composer.ws.event;
 
 import inetsoft.web.binding.drm.ColumnRefModel;
 
-public class WSDeleteColumnsEvent {
+import java.io.Serializable;
+
+public class WSDeleteColumnsEvent implements Serializable {
    public String getTableName() {
       return tableName;
    }

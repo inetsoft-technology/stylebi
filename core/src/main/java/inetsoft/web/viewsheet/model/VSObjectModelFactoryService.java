@@ -18,6 +18,7 @@
 package inetsoft.web.viewsheet.model;
 
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.util.audit.ExecutionBreakDownRecord;
 import inetsoft.util.profile.ProfileUtils;
@@ -86,7 +87,8 @@ public class VSObjectModelFactoryService {
          factory, () -> "No factory found for assembly type: " + assembly.getClass().getName());
 
       try {
-         return (M) ProfileUtils.addExecutionBreakDownRecord(rvs.getViewsheetSandbox().getID(),
+         String rid = rvs.getViewsheetSandbox().map(ViewsheetSandbox::getID).orElse(rvs.getID());
+         return (M) ProfileUtils.addExecutionBreakDownRecord(rid,
             ExecutionBreakDownRecord.UI_PROCESSING_CYCLE, (args) -> {
             return factory.createModel(assembly, rvs);
          }, assembly, rvs);

@@ -677,5 +677,5 @@ public class DefaultSummaryTable extends AbstractGroupedTable
    private Hashtable mmap = new Hashtable(); // xmeta info
 
    private String[] headers; // summary column headers
-   private TableDataDescriptor sdescriptor = null;
+   private transient TableDataDescriptor sdescriptor = null;
 }

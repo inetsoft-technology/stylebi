@@ -20,14 +20,22 @@ package inetsoft.util.swap;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.util.*;
+import inetsoft.util.ConfigurationContext;
+import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.stereotype.Service;
 
 import java.io.File;
 import java.io.IOException;
+import java.security.Principal;
 import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -37,11 +45,13 @@ import java.util.concurrent.locks.ReentrantLock;
  * @version 9.1
  * @author InetSoft Technology Corp
  */
+@Service
+@Lazy
 public final class XSwapper {
    /**
     * Timestamp being updated by swapper.
     */
-   public static long cur = System.currentTimeMillis();
+   public long cur = System.currentTimeMillis();
    /**
     * Critically low. Any memory allocation could trigger OOM.
     */
@@ -70,73 +80,46 @@ public final class XSwapper {
     * whether system is executing something, we could just check whether
     * swappable object is being created.
     */
-   public static boolean isExecuting() {
+   public boolean isExecuting() {
       long cur = System.currentTimeMillis();
       // if no swappable object is created within 5 seconds, system is idle
       return cur - cts < 5000;
    }
 
    /**
-    * Register a swappable.
-    * @param swappable the specified swappable.
-    */
-   public static void register(XSwappable swappable) {
-      getSwapper().register0(swappable);
-
-      // update the moment when swappable object is being created
-      cts = System.currentTimeMillis();
-   }
-
-   /**
-    * Deregister a swappable.
-    * @param swappable the specified swappable.
-    */
-   public static void deregister(XSwappable swappable) {
-      getSwapper().deregister0(swappable);
-   }
-
-   /**
     * Register a XSwappableMonitor.
     * @param monitor a XSwappableMonitor.
     */
-   public static void registerMonitor(XSwappableMonitor monitor) {
-      XSwapper.getSwapper().monitor.addMonitor(monitor);
+   public void registerMonitor(XSwappableMonitor monitor) {
+      this.monitor.addMonitor(monitor);
    }
 
    /**
     * Deregister a XSwappableMonitor.
     */
-   public static void deregisterMonitor(XSwappableMonitor monitor) {
-      XSwapper.getSwapper().monitor.removeMonitor(monitor);
+   public void deregisterMonitor(XSwappableMonitor monitor) {
+      this.monitor.removeMonitor(monitor);
    }
 
    /**
     * Get the XSwappableMonitor.
     */
-   public static XSwappableMonitor getMonitor() {
-      return XSwapper.getSwapper().monitor;
+   public XSwappableMonitor getMonitor() {
+      return monitor;
    }
 
    /**
     * Get the total swap count.
     */
-   public static long getSwapCount() {
+   public long getSwapCount() {
       return scount;
-   }
-
-   /**
-    * Get the next prefix.
-    * @return the next prefix.
-    */
-   public static String getPrefix() {
-      return getSwapper().getPrefix0();
    }
 
    /**
     * Get the free memory ratio.
     * @return the free memory ratio.
     */
-   private static double getFreeRatio() {
+   private double getFreeRatio() {
       long max = Runtime.getRuntime().maxMemory();
       return ((double) getFreeSpace()) / max;
    }
@@ -145,7 +128,7 @@ public final class XSwapper {
     * Get the free memory.
     * @return the free memory.
     */
-   private static long getFreeSpace() {
+   private long getFreeSpace() {
       long max = Runtime.getRuntime().maxMemory();
       long total = Runtime.getRuntime().totalMemory();
       long free = Runtime.getRuntime().freeMemory();
@@ -156,21 +139,20 @@ public final class XSwapper {
    /**
     * Get memory state at no more than a certain interval.
     */
-   public static int getMemoryState() {
+   public int getMemoryState() {
       long now = System.currentTimeMillis();
 
       if(now - stateTS > 200) {
          stateTS = now;
          cachedState = getMemoryState0();
       }
-
       return cachedState;
    }
 
    /**
     * Get the memory state.
     */
-   private static int getMemoryState0() {
+   private int getMemoryState0() {
       double ratio = getFreeRatio();
 
       // > 40%
@@ -196,32 +178,10 @@ public final class XSwapper {
    }
 
    /**
-    * Stop the swapper.
-    */
-   public static void stop() {
-      getSwapper().stop0();
-   }
-
-   /**
-    * Start the swapper.
-    */
-   public static void start() {
-      getSwapper().start0();
-   }
-
-   /**
     * Get the swapper.
     */
    public static XSwapper getSwapper() {
-      if(swapper == null) {
-         synchronized(XSwapper.class) {
-            if(swapper == null) {
-               swapper = new XSwapper();
-            }
-         }
-      }
-
-      return swapper;
+      return ConfigurationContext.getContext().getSpringBean(XSwapper.class);
    }
 
    /**
@@ -230,20 +190,19 @@ public final class XSwapper {
     * they are used. They should not be kept by other objects permanently.
     * @return the swappables.
     */
-   public static XSwappable[] getAllSwappables() {
-      XSwapper swapper = getSwapper();
+   public XSwappable[] getAllSwappables() {
       Vector<XSwappable> results = new Vector<>();
 
-      if(swapper.stopped) {
+      if(stopped) {
          return new XSwappable[] {};
       }
 
-      for(XSwapperThread0 thread : swapper.threads) {
+      for(XSwapperThread thread : threads) {
          if(thread.isCancelled()) {
             continue;
          }
 
-         XWeakList list = null;
+         XWeakList list;
 
          synchronized(thread.list) {
             list = (XWeakList) thread.list.clone();
@@ -266,7 +225,7 @@ public final class XSwapper {
    /**
     * Create an instance of <tt>XSwapper</tt>.
     */
-   private XSwapper() {
+   public XSwapper() {
       super();
 
       String cdir = null;
@@ -285,36 +244,50 @@ public final class XSwapper {
       if(file.isDirectory()) {
          // the cache directory could be very large so do it in background
          // to avoid holding up the server startup
-         (new Thread() {
-            @Override
-            public void run() {
-               Cluster cluster = Cluster.getInstance();
-               Lock lock = cluster.getLock(SWAP_FILE_MAP_LOCK);
+         (new Thread(() -> {
+            Cluster cluster;
+            Lock lock;
+
+            try {
+               cluster = Cluster.getInstance();
+               lock = cluster.getLock(SWAP_FILE_MAP_LOCK);
                lock.lock();
+            }
+            catch(Exception e) {
+               DEBUG_LOG.debug(
+                  "Unable to acquire swap file map lock for cache cleanup, " +
+                  "cluster may be stopped", e);
+               return;
+            }
 
-               try {
-                  Map<String, Integer> map = cluster.getMap(SWAP_FILE_MAP);
-                  File[] files = file.listFiles();
+            try {
+               Map<String, Integer> map = cluster.getMap(SWAP_FILE_MAP);
+               File[] files = file.listFiles();
 
-                  for(int i = 0; files != null && i < files.length; i++) {
-                     if(!files[i].isDirectory() && files[i].getName().endsWith(".tdat") &&
-                        !map.containsKey(files[i].getAbsolutePath()))
-                     {
-                        files[i].delete();
-                     }
+               for(int i = 0; files != null && i < files.length; i++) {
+                  if(!files[i].isDirectory() && files[i].getName().endsWith(".tdat") &&
+                     !map.containsKey(files[i].getAbsolutePath()))
+                  {
+                     files[i].delete();
                   }
                }
-               finally {
+            }
+            finally {
+               try {
                   lock.unlock();
                }
+               catch(Exception e) {
+                  DEBUG_LOG.debug("Unable to release swap file map lock", e);
+               }
             }
-         }).start();
+         })).start();
       }
 
-      threads = new XSwapperThread0[getThreadCount()];
+      Principal principal = ThreadContext.getContextPrincipal();
+      threads = new XSwapperThread[getThreadCount()];
 
       for(int i = 0; i < threads.length; i++) {
-         threads[i] = new XSwapperThread0();
+         threads[i] = new XSwapperThread(principal);
          threads[i].start();
       }
    }
@@ -324,8 +297,20 @@ public final class XSwapper {
     *
     * @return the thread count.
     */
-   public static long getWaitingThreadCount() {
-      return XSwapper.getSwapper().waitingThreadCount.get();
+   public long getWaitingThreadCount() {
+      return waitingThreadCount.get();
+   }
+
+   /**
+    * Gets the number of threads currently blocked waiting for memory because the memory
+    * state is critical (free ratio below 15%). Unlike {@link #getWaitingThreadCount()},
+    * this excludes threads that entered {@code waitForMemory()} but returned immediately
+    * because memory was sufficient.
+    *
+    * @return the count of threads blocked in critical memory state.
+    */
+   public long getCriticalWaitingThreadCount() {
+      return criticalWaitCount.get();
    }
 
    /**
@@ -335,6 +320,7 @@ public final class XSwapper {
     */
    public void waitForMemory() {
       waitingThreadCount.incrementAndGet();
+      boolean criticalWait = false;
 
       try {
          final boolean isThreadSwapping = swapping.get();
@@ -352,6 +338,9 @@ public final class XSwapper {
          if(getMemoryState() > CRITICAL_MEM) {
             return;
          }
+
+         criticalWait = true;
+         criticalWaitCount.incrementAndGet();
 
          final Thread curr = Thread.currentThread();
          // waiting for memory in swapper thread, could deadlock
@@ -402,9 +391,19 @@ public final class XSwapper {
                }
 
                try {
-                  Thread.sleep(200);
+                  if(deadlock) {
+                     Thread.sleep(200);
+                  }
+                  else {
+                     // Use Condition.await() instead of Thread.sleep() so that waitLock is
+                     // released during the wait. Holding waitLock across Thread.sleep() blocks
+                     // all threads that need to enter waitForMemory(), including threads that
+                     // hold critical locks (VS write lock, Ignite distributed locks), causing a
+                     // distributed deadlock under high-concurrency export workloads. (Bug #73990)
+                     waitCondition.await(200, TimeUnit.MILLISECONDS);
+                  }
                }
-               catch(InterruptedException exc) {
+               catch(InterruptedException ignore) {
                }
 
                if(deadlock) {
@@ -425,6 +424,10 @@ public final class XSwapper {
       }
       finally {
          waitingThreadCount.decrementAndGet();
+
+         if(criticalWait) {
+            criticalWaitCount.decrementAndGet();
+         }
       }
    }
 
@@ -439,14 +442,29 @@ public final class XSwapper {
    /**
     * Stop the swapper.
     */
-   private void stop0() {
+   @PreDestroy
+   public void stop() {
       stopped = true;
+
+      if(threads != null) {
+         for(XSwapperThread thread : threads) {
+            thread.cancel();
+         }
+
+         try {
+            for(XSwapperThread thread : threads) {
+               thread.join(15000L);
+            }
+         }
+         catch(InterruptedException ignore) {
+         }
+      }
    }
 
    /**
     * Start the swapper.
     */
-   private void start0() {
+   public void start() {
       stopped = false;
    }
 
@@ -467,46 +485,40 @@ public final class XSwapper {
     * Get the next prefix.
     * @return the next prefix.
     */
-   private final String getPrefix0() {
-      return new StringBuilder("s").append(seed).append("_").append(counter.incrementAndGet())
-         .toString();
+   public String getPrefix() {
+      return "s" + seed + "_" + counter.incrementAndGet();
    }
 
    /**
     * Register a swappable.
     * @param swappable the specified swappable.
     */
-   private void register0(XSwappable swappable) {
+   public void register(XSwappable swappable) {
       if(stopped) {
+         cts = System.currentTimeMillis();
          return;
       }
 
       int circle = this.circle % getThreadCount();
       threads[circle].register(swappable);
       this.circle++;
+      cts = System.currentTimeMillis();
    }
 
    /**
     * Deregister a swappable.
     * @param swappable the specified swappable.
     */
-   private void deregister0(XSwappable swappable) {
+   public void deregister(XSwappable swappable) {
       if(stopped) {
          return;
       }
 
-      for(int i = 0; i < threads.length; i++) {
-         if(threads[i].deregister(swappable)) {
+      for(XSwapperThread thread : threads) {
+         if(thread.deregister(swappable)) {
             break;
          }
       }
-   }
-
-   /**
-    * Base class for swapper threads.
-    */
-   private abstract class XSwapperThread extends GroupedThread {
-      public abstract void swapRemaining();
    }
 
    /**
@@ -527,9 +539,10 @@ public final class XSwapper {
    /**
     * XSwapper thread.
     */
-   private final class XSwapperThread0 extends XSwapperThread {
-      public XSwapperThread0() {
+   private final class XSwapperThread extends GroupedThread {
+      public XSwapperThread(Principal contextPrincipal) {
          super();
+         this.principal = contextPrincipal;
          setDaemon(true);
       }
 
@@ -547,40 +560,88 @@ public final class XSwapper {
 
       @Override
       protected void doRun() {
-         int state = GOOD_MEM;
-         long waitTime = 0;
-         swapping.set(true);
+         Principal oldPrincipal = ThreadContext.getContextPrincipal();
+         ThreadContext.setContextPrincipal(principal);
 
-         outer:
-         while(!isCancelled()) {
-            cur = System.currentTimeMillis();
+         try {
+            int state = GOOD_MEM;
+            long waitTime = 0;
+            swapping.set(true);
 
-            if(stopped || list.size() == 0) {
-               waitTime = 5000;
-            }
-            else {
-               // use the waitTime set in the loop
-            }
+            outer:
+            while(!isCancelled()) {
+               cur = System.currentTimeMillis();
 
-            try {
-               synchronized(swapLock) {
-                  swapLock.wait(waitTime);
+               if(stopped || list.isEmpty()) {
+                  waitTime = 5000;
                }
-            }
-            catch(Throwable ex) {
-               if(isCancelled()) {
+               else {
+                  // use the waitTime set in the loop
+               }
+
+               try {
+                  synchronized(swapLock) {
+                     swapLock.wait(waitTime);
+                  }
+               }
+               catch(Throwable ex) {
+                  if(isCancelled()) {
+                     break;
+                  }
+               }
+
+               state = getMemoryState();
+
+               if(state == GOOD_MEM) {
+                  // clear empty weak references per 10 minutes. It's not a
+                  // memory leak problem. However, it's confusing when memory
+                  // state is always good, for weak references are accumulated
+                  if(cur - lcheck >= 600000L) {
+                     lcheck = cur;
+
+                     for(int i = list.size - 1; i >= 0; i--) {
+                        XSwappable swappable = (XSwappable) list.get(i);
+
+                        if(stopped) {
+                           break;
+                        }
+
+                        if(isCancelled()) {
+                           break outer;
+                        }
+
+                        if(swappable == null || !swappable.isSwappable()) {
+                           synchronized(list) {
+                              list.remove(i);
+                           }
+                        }
+                     }
+                  }
+
+                  continue;
+               }
+
+               lcheck = cur;
+
+               switch(state) {
+               case GOOD_MEM:
+               case NORM_MEM:
+                  setPriority(MIN_PRIORITY);
+                  break;
+               case LOW_MEM:
+                  setPriority(MIN_PRIORITY + 1);
+                  break;
+               case BAD_MEM:
+                  setPriority(NORM_PRIORITY);
+                  break;
+               default: // critical
+                  setPriority(NORM_PRIORITY + 1);
                   break;
                }
-            }
 
-            state = getMemoryState();
-
-            if(state == GOOD_MEM) {
-               // clear empty weak references per 10 minutes. It's not a
-               // memory leak problem. However, it's confusing when memory
-               // state is always good, for weak references are accumulated
-               if(cur - lcheck >= 600000L) {
-                  lcheck = cur;
+               try {
+                  swaplist = new XObjectList();
+                  cur = System.currentTimeMillis();
 
                   for(int i = list.size - 1; i >= 0; i--) {
                      XSwappable swappable = (XSwappable) list.get(i);
@@ -597,130 +658,86 @@ public final class XSwapper {
                         synchronized(list) {
                            list.remove(i);
                         }
+
+                        continue;
                      }
-                  }
-               }
 
-               continue;
-            }
+                     double priority = swappable.getSwapPriority();
 
-            lcheck = cur;
+                     if(priority == 0 || priority < PRIORITY[state]) {
+                        continue;
+                     }
 
-            switch(state) {
-            case GOOD_MEM:
-            case NORM_MEM:
-               setPriority(MIN_PRIORITY);
-               break;
-            case LOW_MEM:
-               setPriority(MIN_PRIORITY + 1);
-               break;
-            case BAD_MEM:
-               setPriority(NORM_PRIORITY);
-               break;
-            default: // critical
-               setPriority(NORM_PRIORITY + 1);
-               break;
-            }
-
-            try {
-               swaplist = new XObjectList();
-               cur = System.currentTimeMillis();
-
-               for(int i = list.size - 1; i >= 0; i--) {
-                  XSwappable swappable = (XSwappable) list.get(i);
-
-                  if(stopped) {
-                     break;
+                     swaplist.add(swappable);
                   }
 
                   if(isCancelled()) {
                      break outer;
                   }
 
-                  if(swappable == null || !swappable.isSwappable()) {
-                     synchronized(list) {
-                        list.remove(i);
-                     }
-
+                  if(swaplist.size <= 3 && state > CRITICAL_MEM) {
+                     waitTime = 3000;
                      continue;
                   }
 
-                  double priority = swappable.getSwapPriority();
+                  Arrays.sort(swaplist.arr, 0, swaplist.size, new XSwappable.PriorityComparator());
+                  int max = (int) (PERCENT[state] * Math.max(100, swaplist.size));
+                  max = Math.min(max, swaplist.size);
 
-                  if(priority == 0 || priority < PRIORITY[state]) {
-                     continue;
+                  swapCnt = 0;
+                  swapIdx.set(-1);
+                  swapMax = max;
+
+                  swapRemaining();
+
+                  swapIdx.set(-1);
+                  swaplist.clear();
+
+                  if(swapCnt == 0 && state == CRITICAL_MEM) {
+                     criticalNoSwap++;
                   }
 
-                  swaplist.add(swappable);
+                  // get an acurate memory state after swapping
+                  if(swapCnt > 0 && state <= BAD_MEM) {
+                     doGC();
+                  }
+               }
+               catch(ShutdownException ignore) {
+                  // server is shutting down, ignore
+                  break;
+               }
+               catch(Throwable ex) {
+                  LOG.error("Failed to swap objects out of memory", ex);
                }
 
-               if(isCancelled()) {
-                  break outer;
-               }
+               waitTime = switch(getMemoryState()) {
+                  case GOOD_MEM -> 5000;
+                  case NORM_MEM -> 3000;
+                  case LOW_MEM -> 2000;
+                  case BAD_MEM -> 1000;
+                  default -> // critical
+                     500;
+               };
 
-               if(swaplist.size <= 3 && state > CRITICAL_MEM) {
-                  waitTime = 3000;
-                  continue;
-               }
-
-               Arrays.sort(swaplist.arr, 0, swaplist.size, new XSwappable.PriorityComparator());
-               int max = (int) (PERCENT[state] * Math.max(100, swaplist.size));
-               max = Math.min(max, swaplist.size);
-
-               swapCnt = 0;
-               swapIdx = -1;
-               swapMax = max;
-
-               swapRemaining();
-
-               swapIdx = -1;
-               swaplist.clear();
-
-               if(swapCnt == 0 && state == CRITICAL_MEM) {
-                  criticalNoSwap++;
-               }
-
-               // get an acurate memory state after swapping
-               if(swapCnt > 0 && state <= BAD_MEM) {
-                  doGC();
-               }
+               setPriority(NORM_PRIORITY);
             }
-            catch(Throwable ex) {
-               LOG.error(
-                           "Failed to swap objects out of memory", ex);
-            }
-
-            switch(state = getMemoryState()) {
-            case GOOD_MEM:
-               waitTime = 5000;
-               break;
-            case NORM_MEM:
-               waitTime = 3000;
-               break;
-            case LOW_MEM:
-               waitTime = 2000;
-               break;
-            case BAD_MEM:
-               waitTime = 1000;
-               break;
-            default: // critical
-               waitTime = 500;
-               break;
-            }
-
-	    setPriority(NORM_PRIORITY);
+         }
+         catch(ShutdownException ignore) {
+            // server is shutting down, ignore
+         }
+         finally {
+            ThreadContext.setContextPrincipal(oldPrincipal);
          }
       }
 
       /**
        * Swap the swappables in swaplist.
        */
-      @Override
       public void swapRemaining() {
          List<XSwappable> swapped = new ArrayList<>();
 
-         for(swapIdx++; swapIdx < swaplist.size; swapIdx++) {
-            XSwappable swappable = (XSwappable) swaplist.arr[swapIdx];
+         for(int idx = swapIdx.incrementAndGet(); idx < swaplist.size; idx = swapIdx.incrementAndGet()) {
+            XSwappable swappable = (XSwappable) swaplist.arr[idx];
 
             if(isCancelled()) {
                break;
@@ -735,7 +752,7 @@ public final class XSwapper {
             }
 
             cur = System.currentTimeMillis();
-            XSwapper.scount++;
+            scount++;
             swapCnt++;
 
             if(swapCnt == swapMax) {
@@ -743,17 +760,25 @@ public final class XSwapper {
             }
          }
 
-         Cluster cluster = Cluster.getInstance();
          // optimization, lock the map and bulk add files to cleaner instead
-         // of doing so individually.
-         Lock lock = cluster.getLock(SWAP_FILE_MAP_LOCK);
-         lock.lock();
+         // of doing so individually. If the cluster is unavailable (e.g.
+         // Ignite stopped), skip locking and still add files to the cleaner.
+         Lock lock;
+
+         try {
+            Cluster cluster = Cluster.getInstance();
+            lock = cluster.getLock(SWAP_FILE_MAP_LOCK);
+            lock.lock();
+         }
+         catch(Exception e) {
+            LOG.debug("Unable to acquire swap file map lock, cluster may be stopped", e);
+            lock = null;
+         }
 
          try {
             // if there are any swap files then add them to the cleaner so that
             // the files can be removed once they are no longer referenced
-            for(int i = 0; i < swapped.size(); i++) {
-               XSwappable swappable = swapped.get(i);
+            for(XSwappable swappable : swapped) {
                File[] swapFiles = swappable.getSwapFiles();
 
                if(swapFiles != null && swapFiles.length > 0) {
@@ -762,15 +787,22 @@ public final class XSwapper {
             }
          }
          finally {
-            lock.unlock();
+            if(lock != null) {
+               try {
+                  lock.unlock();
+               }
+               catch(Exception e) {
+                  LOG.debug("Unable to release swap file map lock", e);
+               }
+            }
          }
       }
 
-      private long lcheck = XSwapper.cur;
+      private long lcheck = cur;
+      private final Principal principal;
       private final XWeakList list = new XWeakList();
-
       private XObjectList swaplist = new XObjectList();
-      private int swapIdx; // the current swappable being swapped
+      private final AtomicInteger swapIdx = new AtomicInteger(-1); // the current swappable being swapped
       private int swapMax; // max items to swap
       private int swapCnt; // swapped out count
    }
@@ -824,26 +856,27 @@ public final class XSwapper {
       RATIOS[GOOD_MEM] = ratio;
    }
 
-   private static long cts = System.currentTimeMillis();
-   private static long scount = 0L;
-   private static int cachedState = GOOD_MEM;
-   private static volatile long stateTS = 0;
-   private static XSwapper swapper;
+   private long cts = System.currentTimeMillis();
+   private long scount = 0L;
+   private volatile int cachedState = GOOD_MEM;
+   private volatile long stateTS = 0;
 
    private boolean stopped = false;
-   private XSwapperThread0[] threads = null;
+   private XSwapperThread[] threads = null;
    private int criticalNoSwap = 0;
    private int circle = 0;
    private int tcount = 0;
    private final long seed = Math.abs(System.currentTimeMillis());
    private final MonitorMulticaster monitor = new MonitorMulticaster();
    private final AtomicLong waitingThreadCount = new AtomicLong(0L);
+   private final AtomicLong criticalWaitCount = new AtomicLong(0L);
 
    private final Lock waitLock = new ReentrantLock();
+   private final Condition waitCondition = waitLock.newCondition();
    private final Object swapLock = "swapLock";
 
-   private final static AtomicLong counter = new AtomicLong(0);
-   private final static ThreadLocal<Boolean> swapping = ThreadLocal.withInitial(() -> false);
+   private final AtomicLong counter = new AtomicLong(0);
+   private final ThreadLocal<Boolean> swapping = ThreadLocal.withInitial(() -> false);
 
    private static final Logger DEBUG_LOG = LoggerFactory.getLogger("inetsoft.swap_data");
 
@@ -896,20 +929,45 @@ public final class XSwapper {
    public static final String SWAP_FILE_MAP_LOCK = "inetsoft.swap.file.map.lock";
 
    public static final class XSwappableReference extends Cleaner.Reference<XSwappable> {
-      XSwappableReference(XSwappable referent, File[] files) {
+      public XSwappableReference(XSwappable referent, File[] files) {
          super(referent);
-         Cluster cluster = Cluster.getInstance();
-         Map<String, Integer> map = cluster.getMap(SWAP_FILE_MAP);
          this.files = Arrays.stream(files).map(File::getAbsolutePath).toArray(String[]::new);
+         boolean tracked = false;
 
-         for(String file : this.files) {
-            int count = map.getOrDefault(file, 0) + 1;
-            map.put(file, count);
+         try {
+            Cluster cluster = Cluster.getInstance();
+            Map<String, Integer> map = cluster.getMap(SWAP_FILE_MAP);
+
+            for(String file : this.files) {
+               int count = map.getOrDefault(file, 0) + 1;
+               map.put(file, count);
+            }
+
+            tracked = true;
          }
+         catch(Exception e) {
+            LOG.debug("Unable to register swap files in cluster map, cluster may be stopped", e);
+         }
+
+         this.clusterTracked = tracked;
       }
 
       @Override
       public void close() throws Exception {
+         if(!clusterTracked) {
+            // Cluster was unavailable when this reference was created; delete files directly.
+            // Swap files are node-local, so no cluster coordination is needed.
+            for(String file : files) {
+               boolean result = new File(file).delete();
+
+               if(!result) {
+                  FileSystemService.getInstance().remove(new File(file), 30000);
+               }
+            }
+
+            return;
+         }
+
          Cluster cluster = Cluster.getInstance();
          Lock lock = cluster.getLock(SWAP_FILE_MAP_LOCK);
          lock.lock();
@@ -939,5 +997,6 @@ public final class XSwapper {
       }
 
       private final String[] files;
+      private final boolean clusterTracked;
    }
 }

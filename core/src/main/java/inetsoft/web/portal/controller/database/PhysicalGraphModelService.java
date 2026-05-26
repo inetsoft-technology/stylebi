@@ -51,6 +51,7 @@ public class PhysicalGraphModelService {
 
       runtimePartition.setGraphWidth(width);
       runtimePartition.setGraphHeight(height);
+      partitionService.saveRuntimePartition(runtimePartition);
    }
 
    public boolean updateGraphNodeWidth(String runtimeId, String table, int width) {
@@ -76,6 +77,7 @@ public class PhysicalGraphModelService {
 
       if(bounds.width != width) {
          bounds.width = width;
+         partitionService.saveRuntimePartition(runtimePartition);
          changed = true;
       }
 
@@ -105,10 +107,14 @@ public class PhysicalGraphModelService {
 
       GraphViewModel graphModel = physicalGraphModel.getGraphViewModel();
       new PhysicalGraphLayout(graphModel, rPartition, colPriority).layout();
+      this.partitionService.saveRuntimePartition(rPartition);
    }
 
    public void createAlias(String runtimeId, String table, String alias) throws Exception {
-      XPartition partition = this.partitionService.getPartition(runtimeId);
+      RuntimePartitionService.RuntimeXPartition runtimePartition =
+         this.partitionService.getRuntimePartition(runtimeId);
+
+      XPartition partition = runtimePartition.getPartition();
       String sourceTable = DatabaseModelUtil.getOutgoingAutoAliasSource(table, partition);
       XPartition.PartitionTable temp = partition.getPartitionTable(sourceTable);
 
@@ -124,6 +130,8 @@ public class PhysicalGraphModelService {
       }
 
       partition.setAliasTable(alias, sourceTable);
+      runtimePartition.setPartition(partition);
+      partitionService.saveRuntimePartition(runtimePartition);
       modelService.fixTableBounds(runtimeId, partition, alias);
    }
 
@@ -131,6 +139,7 @@ public class PhysicalGraphModelService {
       RuntimePartitionService.RuntimeXPartition runtimePartition =
          this.partitionService.getRuntimePartition(runtimeId);
       managerService.editAlias(alias, oldAlias, runtimePartition);
+      partitionService.saveRuntimePartition(runtimePartition);
    }
 
    private final RuntimePartitionService partitionService;

@@ -20,8 +20,9 @@ package inetsoft.mv.data;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.OrganizationManager;
 import inetsoft.storage.*;
-import inetsoft.util.SingletonManager;
+import inetsoft.util.ConfigurationContext;
 import inetsoft.util.Tool;
+import jakarta.annotation.PreDestroy;
 import org.apache.commons.io.IOUtils;
 
 import java.io.*;
@@ -35,14 +36,16 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 public class MVStorage implements AutoCloseable {
-   public MVStorage() {
+   public MVStorage(BlobStorageManager blobStorageManager) {
+      this.blobStorageManager = blobStorageManager;
+
       if(getStorage() == null) {
          throw new RuntimeException("Failed to create MV definition storage");
       }
    }
 
    public static MVStorage getInstance() {
-      return SingletonManager.getInstance(MVStorage.class);
+      return ConfigurationContext.getContext().getSpringBean(MVStorage.class);
    }
 
    public static String getFile(String name) {
@@ -218,6 +221,7 @@ public class MVStorage implements AutoCloseable {
       return new BlobChannelProvider(name, getStorage(orgId), n -> new Metadata());
    }
 
+   @PreDestroy
    @Override
    public void close() throws Exception {
       getStorage().close();
@@ -243,9 +247,10 @@ public class MVStorage implements AutoCloseable {
          orgId = OrganizationManager.getInstance().getCurrentOrgID();
       }
 
-      return SingletonManager.getInstance(BlobStorage.class, orgId.toLowerCase() + "__mv", true);
+      return blobStorageManager.getStorage(orgId.toLowerCase() + "__mv", true);
    }
 
+   private final BlobStorageManager blobStorageManager;
    private final Map<String, MV> cache = new ConcurrentHashMap<>();
    private final Lock lock = new ReentrantLock();
 

@@ -3850,9 +3850,9 @@ public abstract class AbstractChartInfo implements ChartInfo, AssetObject {
    private List<ChartRef> xrefs = Collections.synchronizedList(new ArrayList<>()); // x refs
    private List<ChartRef> yrefs = Collections.synchronizedList(new ArrayList<>()); // y fields
    private List<ChartRef> grefs = Collections.synchronizedList(new ArrayList<>()); // break-by fields
-   private ChartRef[] rxrefs; // runtime x chart refs
-   private ChartRef[] ryrefs; // runtime y chart refs
-   private ChartRef[] rgrefs; // runtime group refs
+   private ChartRef[] rxrefs = new ChartRef[0]; // runtime x chart refs
+   private ChartRef[] ryrefs = new ChartRef[0]; // runtime y chart refs
+   private ChartRef[] rgrefs = new ChartRef[0]; // runtime group refs
    private ChartRef pathRef;
    private boolean aggregated; // boolean aggregated
    private boolean donut = false; // if donut chart (with a middle total label)

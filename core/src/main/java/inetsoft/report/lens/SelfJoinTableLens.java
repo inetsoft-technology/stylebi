@@ -212,47 +212,50 @@ public class SelfJoinTableLens extends AbstractTableLens implements TableFilter,
 
       // concurrent process
       final XSwappableIntList rows2 = rows;
-      ThreadPool.addOnDemand(() -> {
-         SelfJoinOperator[] ops = new SelfJoinOperator[oplist.size()];
-         oplist.toArray(ops);
+      ThreadPool.addOnDemand(new ThreadPool.AbstractContextRunnable() {
+         @Override
+         public void run() {
+            SelfJoinOperator[] ops = new SelfJoinOperator[oplist.size()];
+            oplist.toArray(ops);
 
-         try {
-            OUTER:
-            for(int i = table.getHeaderRowCount(); table.moreRows(i); i++) {
-               for(int j = 0; j < ops.length; j++) {
-                  if(!ops[j].evaluate(i)) {
-                     continue OUTER;
-                  }
-               }
-
-               synchronized(SelfJoinTableLens.this) {
-                  if(rows2.isDisposed()) {
-                     return;
+            try {
+               OUTER:
+               for(int i = table.getHeaderRowCount(); table.moreRows(i); i++) {
+                  for(int j = 0; j < ops.length; j++) {
+                     if(!ops[j].evaluate(i)) {
+                        continue OUTER;
+                     }
                   }
 
-                  rows2.add(i);
+                  synchronized(SelfJoinTableLens.this) {
+                     if(rows2.isDisposed()) {
+                        return;
+                     }
 
-                  // notify waiting consumers
-                  SelfJoinTableLens.this.notifyAll();
+                     rows2.add(i);
 
-                  if(rows2.size() >= maxRows) {
-                     maxAlert = true;
-                     break OUTER;
+                     // notify waiting consumers
+                     SelfJoinTableLens.this.notifyAll();
+
+                     if(rows2.size() >= maxRows) {
+                        maxAlert = true;
+                        break OUTER;
+                     }
                   }
                }
             }
-         }
-         catch(Exception ex) {
-            LOG.error("Failed to validate table rows", ex);
-         }
+            catch(Exception ex) {
+               LOG.error("Failed to validate table rows", ex);
+            }
 
-         synchronized(SelfJoinTableLens.this) {
-            if(!rows2.isDisposed()) {
-               completed = true;
-               rows2.complete();
+            synchronized(SelfJoinTableLens.this) {
+               if(!rows2.isDisposed()) {
+                  completed = true;
+                  rows2.complete();
 
-               // notify waiting consumers
-               SelfJoinTableLens.this.notifyAll();
+                  // notify waiting consumers
+                  SelfJoinTableLens.this.notifyAll();
+               }
             }
          }
       });

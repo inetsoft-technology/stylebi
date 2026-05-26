@@ -20,6 +20,7 @@ package inetsoft.sree.schedule;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.jcraft.jsch.*;
 import inetsoft.sree.SreeEnv;
+import inetsoft.util.ConfigurationContext;
 import inetsoft.util.Tool;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.net.ftp.*;
@@ -106,8 +107,17 @@ public class FTPUtil {
          JSch jsch = new JSch();
          Session session = null;
          InputStream in = null;
-         String known_hosts = SreeEnv.getProperty("ftp.knownhosts.path",
-            System.getProperty("user.home")) + File.separator + ".ssh" +
+         String knownHostsBase = SreeEnv.getProperty("ftp.knownhosts.path", null);
+
+         if(knownHostsBase == null) {
+            String inetHome = ConfigurationContext.getContext().getHome();
+            String inetKnownHosts = inetHome + File.separator + ".ssh" +
+               File.separator + "known_hosts";
+            knownHostsBase = new File(inetKnownHosts).exists()
+               ? inetHome : System.getProperty("user.home");
+         }
+
+         String known_hosts = knownHostsBase + File.separator + ".ssh" +
             File.separator + "known_hosts";
 
          try {

@@ -22,6 +22,8 @@ import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import inetsoft.web.viewsheet.command.MessageCommand;
 import org.immutables.value.Value;
 
+import java.io.Serializable;
+
 /**
  * Data transfer object that represents the {@link MessageDialogModel} for showing
  * the message dialog on the front end.
@@ -31,7 +33,7 @@ import org.immutables.value.Value;
 @Value.Immutable
 @JsonSerialize(as = ImmutableMessageDialogModel.class)
 @JsonDeserialize(as = ImmutableMessageDialogModel.class)
-public abstract class MessageDialogModel {
+public abstract class MessageDialogModel implements Serializable {
    public abstract MessageCommand.Type type();
    public abstract boolean success();
    public abstract String message();

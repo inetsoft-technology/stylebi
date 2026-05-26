@@ -17,18 +17,17 @@
  */
 import { NgModule } from "@angular/core";
 import { RouterModule, Routes } from "@angular/router";
-import { CanActivateComposerService } from "./composer/services/can-activate-composer.service";
-import { CanActivateRootService } from "./can-activate-root.service";
-import { ReloadPageComponent } from "./reload/reload-page.component";
+import { canActivateRoot } from "./can-activate-root.service";
+import { canActivateComposer } from "./composer/services/can-activate-composer.service";
 
 const routes: Routes = [
    {
       path: "",
-      canActivate: [CanActivateRootService],
+      canActivate: [canActivateRoot],
       children: [
          {
             path: "composer",
-            canActivate: [CanActivateComposerService],
+            canActivate: [canActivateComposer],
             loadChildren: () => import("./composer/composer-app.module").then(m => m.ComposerAppModule)
          },
          {
@@ -42,10 +41,6 @@ const routes: Routes = [
          {
             path: "embed/chart",
             loadChildren: () => import("./embed/chart/embed-chart.module").then(m => m.EmbedChartModule)
-         },
-         {
-            path: "reload",
-            component: ReloadPageComponent
          },
          {
             path: "**",

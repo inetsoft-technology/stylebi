@@ -19,11 +19,13 @@ package inetsoft.web.composer.ws.event;
 
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import inetsoft.uql.asset.AssetEntry;
+import org.immutables.serial.Serial;
 import org.immutables.value.Value;
 
 import javax.annotation.Nullable;
 
 @Value.Immutable
+@Serial.Structural
 @JsonDeserialize(builder = WSReplaceColumnsEvent.Builder.class)
 public abstract class WSReplaceColumnsEvent {
    public abstract String tableName();

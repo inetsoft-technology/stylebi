@@ -53,11 +53,13 @@ public class DataSpaceFolderSettingsController {
       DataSpaceContentSettingsService dataSpaceContentSettingsService,
       DataSpaceFolderSettingsService dataSpaceFolderSettingsService,
       UploadService uploadService,
+      DataSpace dataSpace,
       SecurityEngine securityEngine)
    {
       this.dataSpaceContentSettingsService = dataSpaceContentSettingsService;
       this.dataSpaceFolderSettingsService = dataSpaceFolderSettingsService;
       this.uploadService = uploadService;
+      this.dataSpace = dataSpace;
       this.securityEngine = securityEngine;
    }
 
@@ -92,7 +94,7 @@ public class DataSpaceFolderSettingsController {
                                              Principal principal)
       throws Exception
    {
-      DataSpace space = DataSpace.getDataSpace();
+      DataSpace space = this.dataSpace;
       String newPath = model.path();
       String objectType = ActionRecord.OBJECT_TYPE_FOLDER;
       Timestamp actionTimestamp = new Timestamp(System.currentTimeMillis());
@@ -131,6 +133,9 @@ public class DataSpaceFolderSettingsController {
                   throw new Exception(Catalog.getCatalog().getString(
                      "adm.dataspace.rename", model.name(), model.newName()));
                }
+            }
+            else {
+               dataSpaceContentSettingsService.onFileRenamed(model.path(), newPath);
             }
          }
       }
@@ -173,7 +178,7 @@ public class DataSpaceFolderSettingsController {
       String uploadId = model.files();
       List<UploadedFile> uploadedFiles = uploadService.get(uploadId)
          .orElseThrow(() -> new IllegalArgumentException("No uploaded files"));
-      DataSpace space = DataSpace.getDataSpace();
+      DataSpace space = this.dataSpace;
       ActionRecord actionRecord = SUtil.getActionRecord(principal, ActionRecord.ACTION_NAME_CREATE,
          "", ActionRecord.OBJECT_TYPE_FILE);
       StringBuilder files = new StringBuilder();
@@ -250,7 +255,7 @@ public class DataSpaceFolderSettingsController {
          "attachment; filename=\"" + Tool.cleanseCRLF(Tool.byteDecode(name)) + ".zip\"");
       path = Tool.byteDecode(path);
 
-      DataSpace dataSpace = DataSpace.getDataSpace();
+      DataSpace dataSpace = this.dataSpace;
       List<String> pathList = Arrays.asList(dataSpace.list(path));
 
       if(!path.equals("/")) {
@@ -345,5 +350,6 @@ public class DataSpaceFolderSettingsController {
    private final DataSpaceContentSettingsService dataSpaceContentSettingsService;
    private final DataSpaceFolderSettingsService dataSpaceFolderSettingsService;
    private final UploadService uploadService;
+   private final DataSpace dataSpace;
    private final SecurityEngine securityEngine;
 }

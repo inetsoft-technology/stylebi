@@ -18,16 +18,10 @@
 package inetsoft.storage;
 
 import inetsoft.sree.internal.cluster.Cluster;
-import inetsoft.util.SingletonManager;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.io.Serializable;
 import java.util.*;
 import java.util.concurrent.Future;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
-import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 /**
@@ -35,7 +29,6 @@ import java.util.stream.Stream;
  *
  * @param <T> the value type.
  */
-@SingletonManager.Singleton(KeyValueStorage.Reference.class)
 public interface KeyValueStorage<T extends Serializable> extends AutoCloseable {
    /**
     * Creates a new instance of {@code KeyValueStorage}.
@@ -46,8 +39,8 @@ public interface KeyValueStorage<T extends Serializable> extends AutoCloseable {
     *
     * @return a storage instance.
     */
-   static <T extends Serializable> KeyValueStorage<T> newInstance(String id) {
-      return newInstance(id, new LoadKeyValueTask<>(id));
+   static <T extends Serializable> KeyValueStorage<T> newInstance(String id, Cluster cluster) {
+      return newInstance(id, cluster, new LoadKeyValueTask<>(id));
    }
 
    /**
@@ -61,9 +54,10 @@ public interface KeyValueStorage<T extends Serializable> extends AutoCloseable {
     * @return a storage instance.
     */
    static <T extends Serializable> KeyValueStorage<T> newInstance(String id,
+                                                                  Cluster cluster,
                                                                   LoadKeyValueTask<T> load)
    {
-      return new LocalKeyValueStorage<>(id, load);
+      return new LocalKeyValueStorage<>(id, load, cluster);
    }
 
    /**
@@ -305,70 +299,4 @@ public interface KeyValueStorage<T extends Serializable> extends AutoCloseable {
       void entryRemoved(Event<T> event);
    }
 
-   class Reference extends SingletonManager.Reference<KeyValueStorage<?>> {
-      @Override
-      public  KeyValueStorage<?> get(Object... parameters) {
-         if(parameters.length < 1 || parameters.length > 2) {
-            return null;
-         }
-
-         if(storages == null) {
-            storages = new HashMap<>();
-         }
-
-         String storeID = (String) parameters[0];
-         KeyValueStorage<?> storage = storages.get(storeID); //possibly create here first
-
-         if(storage == null || storage.isClosed()) {
-            Supplier<LoadKeyValueTask<?>> createTask = parameters.length == 2 ?
-               (Supplier<LoadKeyValueTask<?>>) parameters[1] : null;
-
-
-            if(createTask == null) {
-               storage = KeyValueStorage.newInstance(storeID);
-            }
-            else {
-               storage = KeyValueStorage
-                  .newInstance(storeID, createTask.get());
-            }
-
-            lock.lock();
-
-            try {
-               if(storages.get(storeID) == null || storages.get(storeID).isClosed()) {
-                  storages.put(storeID, storage);
-               }
-            }
-            finally {
-               lock.unlock();
-            }
-         }
-
-         return storage;
-      }
-
-      @Override
-      public void dispose() {
-         if(storages != null) {
-            for(String storeID : storages.keySet()) {
-               try {
-                  KeyValueStorage<?> storage = storages.get(storeID);
-
-                  if(!storage.isClosed()) {
-                     storage.close();
-                  }
-               }
-               catch(Exception e) {
-                  LOG.error("Failed to close storage with storeID " + storeID, e);
-               }
-            }
-
-            storages = null;
-         }
-      }
-
-      private HashMap<String, KeyValueStorage<?>> storages;
-      private final ReentrantLock lock = new ReentrantLock();
-      private static final Logger LOG = LoggerFactory.getLogger(Reference.class);
-   }
 }

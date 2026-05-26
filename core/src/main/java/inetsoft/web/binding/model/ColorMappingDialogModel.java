@@ -20,13 +20,14 @@ package inetsoft.web.binding.model;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 import javax.annotation.Nullable;
+import java.io.Serializable;
 
 /**
  * Data transfer object that represents the {@link ColorMappingDialogModel} for the
  * Color Mapping dialog
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class ColorMappingDialogModel {
+public class ColorMappingDialogModel implements Serializable {
    public ColorMappingDialogModel() {
    }
 

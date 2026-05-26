@@ -75,6 +75,23 @@ public interface DistributedScheduledExecutorService {
    void scheduleAtFixedRate(Runnable command, long initialDelay, long period, TimeUnit unit);
 
    /**
+    * Creates and executes a one-shot action that becomes enabled
+    * after the given delay. If a task with the given id is already
+    * scheduled then it does nothing.
+    *
+    * @param command the task to execute
+    * @param delay the time from now to delay execution
+    * @param unit the time unit of the delay parameter
+    * @return a ScheduledFuture representing pending completion of
+    *         the task and whose {@code get()} method will return
+    *         {@code null} upon completion
+    * @throws RejectedExecutionException if the task cannot be
+    *         scheduled for execution
+    * @throws NullPointerException if command is null
+    */
+   void scheduleWithId(String id, Runnable command, long delay, TimeUnit unit);
+
+   /**
     * Initiates an orderly shutdown in which previously submitted
     * tasks are executed, but no new tasks will be accepted.
     * Invocation has no additional effect if already shut down.

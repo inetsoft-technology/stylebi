@@ -24,9 +24,18 @@ import { Title } from "@angular/platform-browser";
 export class PageHeaderService {
    private _title = "";
    private _orgVisible = false;
+   private _currentOrgId: string = null;
 
    get title(): string {
       return this._title;
+   }
+
+   get currentOrgId(): string {
+      return this._currentOrgId;
+   }
+
+   set currentOrgId(orgId: string) {
+      this._currentOrgId = orgId;
    }
 
    set title(title: string) {

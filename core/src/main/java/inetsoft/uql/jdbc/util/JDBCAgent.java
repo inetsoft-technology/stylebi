@@ -136,14 +136,14 @@ public class JDBCAgent extends XAgent {
                              Principal user) throws Exception
    {
       XDataSource xds =
-         XFactory.getRepository().getDataSource(model.getDataSource());
+         XRepository.getRepository().getDataSource(model.getDataSource());
 
       if(lname == null) {
          SQLDefinition sql = createDistinctSelect(ename, aname, null, null);
          return runQuery(xds, sql, vars, session, null, user);
       }
 
-      XDataService xrep = XFactory.getDataService();
+      XDataService xrep = XRepository.getRepository();
       XLogicalModel lmodel = model.getLogicalModel(lname, user);
       String partition = lmodel.getPartition();
       XPartition xPartition = model.getPartition(partition, user);
@@ -244,7 +244,7 @@ public class JDBCAgent extends XAgent {
                              VariableTable vars, Object session, Principal user)
          throws Exception
    {
-      XDataService xrep = XFactory.getDataService();
+      XDataService xrep = XRepository.getRepository();
       XDataSource xds = query.getDataSource();
 
       // @by mikec, 2004-4-9
@@ -286,7 +286,7 @@ public class JDBCAgent extends XAgent {
                              VariableTable vars, Object session, Principal user)
          throws Exception
    {
-      XDataService xrep = XFactory.getDataService();
+      XDataService xrep = XRepository.getRepository();
       XDataSource xds = query.getDataSource();
 
       if(xds instanceof JDBCDataSource) {
@@ -392,7 +392,7 @@ public class JDBCAgent extends XAgent {
    private XNode runQuery(XDataSource xds, SQLDefinition sql,
                           VariableTable vars, Object session, String partition,
                           Principal user) throws Exception {
-      XDataService xrep = XFactory.getDataService();
+      XDataService xrep = XRepository.getRepository();
       JDBCQuery xquery = new JDBCQuery();
 
       if(sql.getDataSource() == null) {
@@ -456,7 +456,7 @@ public class JDBCAgent extends XAgent {
          throws Exception
    {
       try {
-         XRepository xrep = XFactory.getRepository();
+         XRepository xrep = XRepository.getRepository();
 
          if(xquery instanceof JDBCQuery) {
             JDBCQuery query = (JDBCQuery) xquery;
@@ -584,4 +584,3 @@ public class JDBCAgent extends XAgent {
    private static final Logger LOG =
       LoggerFactory.getLogger(JDBCAgent.class);
 }
-

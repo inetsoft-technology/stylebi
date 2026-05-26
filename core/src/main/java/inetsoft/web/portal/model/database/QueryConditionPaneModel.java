@@ -17,9 +17,10 @@
  */
 package inetsoft.web.portal.model.database;
 
+import java.io.Serializable;
 import java.util.List;
 
-public class QueryConditionPaneModel {
+public class QueryConditionPaneModel implements Serializable {
    public List<Column> getFields() {
       return fields;
    }

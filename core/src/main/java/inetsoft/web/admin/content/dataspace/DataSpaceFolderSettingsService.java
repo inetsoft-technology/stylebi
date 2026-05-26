@@ -27,10 +27,14 @@ import java.io.*;
 
 @Service
 public class DataSpaceFolderSettingsService {
+   public DataSpaceFolderSettingsService(DataSpace dataSpace) {
+      this.dataSpace = dataSpace;
+   }
+
    public void writeArchiveEntry(ArchiveEntry entry, InputStream input, String rootFolder)
       throws IOException
    {
-      DataSpace space = DataSpace.getDataSpace();
+      DataSpace space = this.dataSpace;
       String name = entry.getName();
       String fullPath = rootFolder != null && !rootFolder.isEmpty() && !"/".equals(rootFolder) ?
          rootFolder + "/" + name : name;
@@ -68,4 +72,6 @@ public class DataSpaceFolderSettingsService {
          return null;
       }
    }
+
+   private final DataSpace dataSpace;
 }

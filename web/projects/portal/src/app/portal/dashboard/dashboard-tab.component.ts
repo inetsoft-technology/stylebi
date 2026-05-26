@@ -218,25 +218,31 @@ export class DashboardTabComponent implements OnInit, OnDestroy {
          (result: string) => {
             if(result === "ok") {
                this.http.delete(DELETE_DASHBOARD_URI + this.selectedDashboard.name)
-                  .subscribe((success) => {
-                     if(success) {
-                        this.updateModel().subscribe((model) => {
-                           if(model.dashboards && model.dashboards.length > 0) {
-                              this.selectedDashboardIndex = 0;
-                              this.selectDashboard(model.dashboards[0]);
-                           }
-                           else {
-                              this.selectedDashboardIndex = -1;
-                              this.selectedDashboard = null;
-                              this.router.navigate(["/portal/tab/dashboard"]);
-                           }
-                        });
-                     }
-                     else {
+                  .subscribe(
+                     (success) => {
+                        if(success) {
+                           this.updateModel().subscribe((model) => {
+                              if(model.dashboards && model.dashboards.length > 0) {
+                                 this.selectedDashboardIndex = 0;
+                                 this.selectDashboard(model.dashboards[0]);
+                              }
+                              else {
+                                 this.selectedDashboardIndex = -1;
+                                 this.selectedDashboard = null;
+                                 this.router.navigate(["/portal/tab/dashboard"]);
+                              }
+                           });
+                        }
+                        else {
+                           ComponentTool.showMessageDialog(this.modalService, "_#(js:Error)",
+                              "_#(js:viewer.dashboardDeleteError)");
+                        }
+                     },
+                     (err) => {
                         ComponentTool.showMessageDialog(this.modalService, "_#(js:Error)",
-                           "_#(js:viewer.dashboardDeleteError)");
+                           "_#(js:common.noPermission)");
                      }
-                  });
+                  );
             }
          });
    }

@@ -38,6 +38,7 @@ import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 
 import java.io.PrintWriter;
+import java.io.Serializable;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -47,7 +48,7 @@ import java.util.stream.Collectors;
  * @version 11.1
  * @author InetSoft Technology Corp
  */
-public class CrosstabTree implements XMLSerializable, Cloneable {
+public class CrosstabTree implements XMLSerializable, Cloneable, Serializable {
    public CrosstabTree() {
    }
 

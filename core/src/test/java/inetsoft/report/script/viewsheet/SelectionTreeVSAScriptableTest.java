@@ -18,7 +18,6 @@
 
 package inetsoft.report.script.viewsheet;
 
-import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.test.*;
@@ -26,30 +25,36 @@ import inetsoft.uql.XConstants;
 import inetsoft.uql.asset.ColumnRef;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
-import inetsoft.uql.viewsheet.*;
+import inetsoft.uql.viewsheet.SelectionTreeVSAssembly;
+import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.SelectionTreeVSAssemblyInfo;
-
 import inetsoft.web.viewsheet.event.OpenViewsheetEvent;
-import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.RegisterExtension;
-import org.mockito.Mock;
-
-import java.security.Principal;
+import org.junit.jupiter.api.Tag;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 import static org.mockito.MockitoAnnotations.openMocks;
 
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class, IntegrationTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome(importResources = "SelectionTreeVSAScriptableTest.vso")
+@Tag("core")
+@Tag("integration")
 public class SelectionTreeVSAScriptableTest {
    private ViewsheetSandbox viewsheetSandbox ;
    private SelectionTreeVSAScriptable selectionTreeVSAScriptable, selectionTreeVSAScriptable1;
    private SelectionTreeVSAssemblyInfo selectionTreeVSAssemblyInfo;
    private SelectionTreeVSAssembly selectionTreeVSAssembly, selectionTreeVSAssembly1;
    private VSAScriptable vsaScriptable;
-
-   @Mock
-   ViewsheetService viewsheetService;
 
    @BeforeEach
    void setUp() {
@@ -210,10 +215,7 @@ public class SelectionTreeVSAScriptableTest {
     */
    private void processAssembly(String assemblyName) throws Exception {
       RuntimeViewsheet rvs = viewsheetResource.getRuntimeViewsheet();
-      ViewsheetSandbox sandbox = rvs.getViewsheetSandbox();
-      Principal principal = mock(Principal.class);
-      when(viewsheetService.getViewsheet(viewsheetResource.getRuntimeId(), principal))
-         .thenReturn(viewsheetResource.getRuntimeViewsheet());
+      ViewsheetSandbox sandbox = rvs.getViewsheetSandbox().orElseThrow();
 
       selectionTreeVSAssembly1 = (SelectionTreeVSAssembly) viewsheetResource
          .getRuntimeViewsheet().getViewsheet().getAssembly(assemblyName);
@@ -224,11 +226,6 @@ public class SelectionTreeVSAScriptableTest {
    public static final String ASSET_ID = "1^128^__NULL__^SelectionTreeVSAScriptableTest";
 
    @RegisterExtension
-   @Order(1)
-   ControllersExtension controllers = new ControllersExtension();
-
-   @RegisterExtension
-   @Order(2)
    RuntimeViewsheetExtension viewsheetResource =
-      new RuntimeViewsheetExtension(createOpenViewsheetEvent(), controllers);
+      new RuntimeViewsheetExtension(createOpenViewsheetEvent());
 }

@@ -24,6 +24,7 @@ import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.schedule.*;
 import inetsoft.sree.security.SecurityException;
 import inetsoft.sree.security.*;
+import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.util.*;
@@ -65,7 +66,8 @@ public class ScheduleTaskService {
                               ScheduleService scheduleService,
                               ScheduleConditionService scheduleConditionService,
                               SecurityProvider securityProvider,
-                              ScheduleTaskFolderService scheduleTaskFolderService)
+                              ScheduleTaskFolderService scheduleTaskFolderService,
+                              SecurityEngine securityEngine)
    {
       this.analyticRepository = analyticRepository;
       this.scheduleManager = scheduleManager;
@@ -73,6 +75,7 @@ public class ScheduleTaskService {
       this.scheduleConditionService = scheduleConditionService;
       this.securityProvider = securityProvider;
       this.scheduleTaskFolderService = scheduleTaskFolderService;
+      this.securityEngine = securityEngine;
    }
 
    public ScheduleTaskDialogModel getNewTaskDialogModel(PortalNewTaskRequest model,
@@ -86,6 +89,37 @@ public class ScheduleTaskService {
                                                         Principal principal, boolean save,
                                                         boolean em,  AssetEntry parent,
                                                         String timeZoneId)
+      throws Exception
+   {
+      return getNewTaskDialogModel(model, principal, save, em, parent, timeZoneId, null);
+   }
+
+   public ScheduleTaskDialogModel getNewTaskDialogModel(ScheduleConditionModel model,
+                                                        Principal principal, boolean save,
+                                                        boolean em,  AssetEntry parent,
+                                                        String timeZoneId, String orgId)
+      throws Exception
+   {
+      String originalOrg = OrganizationContextHolder.getCurrentOrgId();
+
+      if(!Tool.isEmptyString(orgId)) {
+         OrganizationContextHolder.setCurrentOrgId(orgId);
+      }
+
+      try {
+         return createNewTaskDialogModel(model, principal, save, em, parent, timeZoneId);
+      }
+      finally {
+         if(!Tool.isEmptyString(orgId)) {
+            OrganizationContextHolder.setCurrentOrgId(originalOrg);
+         }
+      }
+   }
+
+   private ScheduleTaskDialogModel createNewTaskDialogModel(ScheduleConditionModel model,
+                                                            Principal principal, boolean save,
+                                                            boolean em,  AssetEntry parent,
+                                                            String timeZoneId)
       throws Exception
    {
       Catalog catalog = Catalog.getCatalog(principal);
@@ -234,7 +268,6 @@ public class ScheduleTaskService {
       }
 
       try {
-         SecurityEngine securityEngine = SecurityEngine.getSecurity();
 
          if(securityEngine.checkPermission(principal, ResourceType.SECURITY_USER,
                                            task.getOwner(), ResourceAction.ADMIN))
@@ -277,7 +310,7 @@ public class ScheduleTaskService {
       String userOrgId = pId.orgID;
       boolean multitenant = SUtil.isMultiTenant();
       boolean timeRangeEnabled = (!multitenant || OrganizationManager.getInstance().isSiteAdmin(principal) &&
-         Tool.equals(OrganizationManager.getInstance().getCurrentOrgID(), userOrgId)) && securityProvider.checkPermission(
+         Tool.equals(OrganizationManager.getInstance().getCurrentOrgID(principal), userOrgId)) && securityProvider.checkPermission(
       principal, ResourceType.SCHEDULE_OPTION, "timeRange", ResourceAction.READ);
       List<TimeZoneModel> timeZoneOptions = TimeZoneModel.getTimeZoneOptions();
       String defaultTimeProp = SreeEnv.getProperty("schedule.condition.taskDefaultTime");
@@ -435,7 +468,7 @@ public class ScheduleTaskService {
          .saveFileFormats(getSaveFormats(principal))
          .vsSaveFileFormats(getVSSaveFormats())
          .serverLocations(scheduleService.getServerLocations(catalog))
-         .expandEnabled(SecurityEngine.getSecurity().checkPermission(
+         .expandEnabled(securityEngine.checkPermission(
             principal, ResourceType.VIEWSHEET_TOOLBAR_ACTION, "ScheduleExpandComponents",
             ResourceAction.READ))
          .mailHistoryEnabled(historyEnabled)
@@ -471,6 +504,14 @@ public class ScheduleTaskService {
                                            Principal principal, boolean em)
       throws Exception
    {
+      String orgId = model.orgId();
+      String originalOrg = OrganizationContextHolder.getCurrentOrgId();
+
+      if(!Tool.isEmptyString(orgId)) {
+         OrganizationContextHolder.setCurrentOrgId(orgId);
+      }
+
+      try {
       String oldTaskName = model.oldTaskName();
       Catalog catalog = Catalog.getCatalog(principal);
       ScheduleTask task;
@@ -562,7 +603,7 @@ public class ScheduleTaskService {
 
                if((!vsAction.isMatchLayout() || vsAction.isExpandSelections() ||
                   vsAction.isOnlyDataComponents()) &&
-                  !SecurityEngine.getSecurity().checkPermission(principal,
+                  !securityEngine.checkPermission(principal,
                   ResourceType.VIEWSHEET_TOOLBAR_ACTION, "ScheduleExpandComponents",
                   ResourceAction.READ))
                {
@@ -601,10 +642,16 @@ public class ScheduleTaskService {
       }
 
       return getDialogModel(taskName, principal, em);
+      }
+      finally {
+         if(!Tool.isEmptyString(orgId)) {
+            OrganizationContextHolder.setCurrentOrgId(originalOrg);
+         }
+      }
    }
 
-   void sanitizeConditions(ScheduleTask task, ScheduleTask originalTask,
-                           Principal principal)
+   public void sanitizeConditions(ScheduleTask task, ScheduleTask originalTask,
+                                  Principal principal)
    {
       boolean canSetStartTime = scheduleService.checkPermission(
          principal, ResourceType.SCHEDULE_OPTION, "startTime");
@@ -662,8 +709,8 @@ public class ScheduleTaskService {
       }
    }
 
-   void sanitizeAction(ScheduleAction action, ScheduleAction originalAction,
-                       Principal principal)
+   public void sanitizeAction(ScheduleAction action, ScheduleAction originalAction,
+                              Principal principal)
    {
       if(!(action instanceof ViewsheetAction vsa)) {
          return;
@@ -1139,7 +1186,7 @@ public class ScheduleTaskService {
 
 //      if(SUtil.isAdmin(principal)) {
 //         model.adminName(Optional.ofNullable(principal.getName()));
-//         SecurityEngine security = SecurityEngine.getSecurity();
+//         SecurityEngine security = securityEngine;
 //         owners = security.getUsers();
 //
 //         Tool.qsort(owners, true);
@@ -1201,7 +1248,7 @@ public class ScheduleTaskService {
          return new ArrayList<>();
       }
 
-      String currOrgId = OrganizationManager.getInstance().getCurrentOrgID();
+      String currOrgId = OrganizationManager.getInstance().getCurrentOrgID(principal);
       List<IdentityID> executeAsUsers =  Arrays.stream(securityProvider.getUsers())
          .filter(identityId -> Tool.equals(currOrgId, identityId.getOrgID()) && securityProvider.checkPermission(
             principal, ResourceType.SECURITY_USER, identityId.convertToKey(), ResourceAction.ADMIN))
@@ -1223,7 +1270,7 @@ public class ScheduleTaskService {
          return new ArrayList<>();
       }
 
-      String currOrgId = OrganizationManager.getInstance().getCurrentOrgID();
+      String currOrgId = OrganizationManager.getInstance().getCurrentOrgID(principal);
       return Arrays.stream(securityProvider.getGroups())
          .filter(group -> Tool.equals(currOrgId, group.getOrgID()) && securityProvider.checkPermission(
             principal, ResourceType.SECURITY_GROUP, group.convertToKey(), ResourceAction.ADMIN))
@@ -1431,7 +1478,8 @@ public class ScheduleTaskService {
          return null;
       }
 
-      return new IdentityID(name, OrganizationManager.getInstance().getInstance().getCurrentOrgID(principal));
+      String orgId = OrganizationManager.getInstance().getCurrentOrgID(principal);
+      return new IdentityID(name, orgId);
    }
 
    private final AnalyticRepository analyticRepository;
@@ -1440,6 +1488,7 @@ public class ScheduleTaskService {
    private final ScheduleConditionService scheduleConditionService;
    private final SecurityProvider securityProvider;
    private final ScheduleTaskFolderService scheduleTaskFolderService;
+   private final SecurityEngine securityEngine;
 
    private static final Logger LOG =
       LoggerFactory.getLogger(ScheduleTaskService.class);

@@ -34,7 +34,6 @@ import java.util.Set;
  * @version 8.0, 6/2/2005
  * @author InetSoft Technology Corp
  */
-@SingletonManager.Singleton(IndexedStorage.Reference.class)
 public interface IndexedStorage {
    /**
     * Remove all key-data mappings from storage.
@@ -388,7 +387,7 @@ public interface IndexedStorage {
     * @return the storage instance.
     */
    static IndexedStorage getIndexedStorage() {
-      return SingletonManager.getInstance(IndexedStorage.class);
+      return ConfigurationContext.getContext().getSpringBean(IndexedStorage.class);
    }
 
    /**
@@ -406,24 +405,4 @@ public interface IndexedStorage {
       boolean accept(String key);
    }
 
-   class Reference extends SingletonManager.Reference<IndexedStorage> {
-      @Override
-      public IndexedStorage get(Object... parameters) {
-         if(indexedStorage == null) {
-            indexedStorage = new BlobIndexedStorage();
-         }
-
-         return indexedStorage;
-      }
-
-      @Override
-      public void dispose() {
-         if(indexedStorage != null) {
-            indexedStorage.dispose();
-            indexedStorage = null;
-         }
-      }
-
-      private IndexedStorage indexedStorage;
-   }
 }

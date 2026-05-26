@@ -17,7 +17,7 @@
  */
 import { HttpClientTestingModule } from "@angular/common/http/testing";
 import { NO_ERRORS_SCHEMA } from "@angular/core";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { MatDialogModule } from "@angular/material/dialog";
 import { EditIdentityViewComponent } from "./edit-identity-view.component";
@@ -28,7 +28,7 @@ describe("EditIdentityViewComponent", () => {
    let fixture: ComponentFixture<EditIdentityViewComponent>;
    let identityEditableSubject: Subject<boolean>;
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       identityEditableSubject = new Subject<boolean>();
       TestBed.configureTestingModule({
          imports: [

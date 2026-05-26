@@ -15,27 +15,28 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+import type * as CM from "codemirror";
 import { Injectable } from "@angular/core";
 
-type TokenType = "keyword" | "comment" | null;
+export type TokenType = "keyword" | "comment" | null;
 
 @Injectable({
    providedIn: "root"
 })
 export class CodemirrorService {
-   createTernServer(options: any): any {
+   createTernServer(options: object): object {
       return null;
    }
 
-   getEcmaScriptDefs(): any[] {
+   getEcmaScriptDefs(): object[] {
       return null;
    }
 
-   createCodeMirrorInstance(element: any, config: any) {
+   createCodeMirrorInstance(element: HTMLTextAreaElement, config: CM.EditorConfiguration): CM.Editor {
       return null;
    }
 
-   public hasToken(cm: any, tokenType: TokenType, value: string): boolean {
+   public hasToken(cm: CM.Editor, tokenType: TokenType, value: string): boolean {
       return false;
    }
 }

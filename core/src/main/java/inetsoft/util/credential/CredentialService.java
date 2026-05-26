@@ -18,56 +18,31 @@
 
 package inetsoft.util.credential;
 
-import inetsoft.util.SingletonManager;
+import inetsoft.util.ConfigurationContext;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.stereotype.Service;
 
 import java.util.*;
 
-@SingletonManager.Singleton(CredentialService.Reference.class)
+@Service
+@Lazy
 public class CredentialService {
-   private CredentialService() {
+   CredentialService() {
       for(CredentialFactory factory : ServiceLoader.load(CredentialFactory.class)) {
          factories.put(factory.getType(), factory);
       }
    }
 
    public static synchronized CredentialService getInstance() {
-      return SingletonManager.getInstance(CredentialService.class);
+      return ConfigurationContext.getContext().getSpringBean(CredentialService.class);
    }
 
-   public static Credential newCredential(CredentialType type) {
-      return newCredential(type, false);
-   }
-
-   public static Credential newCredential(CredentialType type, boolean forceLocal) {
-      return CredentialService.getInstance().createCredential(type, forceLocal);
-   }
-
-   private Credential createCredential(CredentialType type) {
+   public Credential createCredential(CredentialType type) {
       return createCredential(type, false);
    }
 
-   private Credential createCredential(CredentialType type, boolean forceLocal) {
+   public Credential createCredential(CredentialType type, boolean forceLocal) {
       return factories.get(type).createCredential(forceLocal);
-   }
-
-   public static final class Reference extends SingletonManager.Reference<CredentialService> {
-      @Override
-      public synchronized CredentialService get(Object ... parameters) {
-         if(service == null) {
-            service = new CredentialService();
-         }
-
-         return service;
-      }
-
-      @Override
-      public synchronized void dispose() {
-         if(service != null) {
-            service = null;
-         }
-      }
-
-      private CredentialService service;
    }
 
    private Map<CredentialType, CredentialFactory> factories = new HashMap<>();

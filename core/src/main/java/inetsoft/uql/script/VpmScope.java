@@ -18,6 +18,7 @@
 package inetsoft.uql.script;
 
 import inetsoft.report.LibManager;
+import inetsoft.report.LibManagerProvider;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.util.XUtil;
@@ -137,9 +138,9 @@ public class VpmScope extends ScriptableObject {
     */
    private static Scriptable createRoot() {
       Context cx = Context.getCurrentContext();
-      Scriptable root = (Scriptable) cx.initStandardObjects(new RootScope());
+      Scriptable root = cx.initStandardObjects(new RootScope());
 
-      LibManager mgr = LibManager.getManager();
+      LibManager mgr = LibManagerProvider.getInstance().getManager();
       Enumeration names = mgr.getScripts();
 
       while(names.hasMoreElements()) {

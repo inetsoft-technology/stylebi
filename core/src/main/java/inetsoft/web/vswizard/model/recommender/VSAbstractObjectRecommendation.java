@@ -17,6 +17,10 @@
  */
 package inetsoft.web.vswizard.model.recommender;
 
+import inetsoft.util.Tool;
+import org.w3c.dom.Element;
+
+import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -67,6 +71,51 @@ public abstract class VSAbstractObjectRecommendation implements VSObjectRecommen
    @Override
    public void setSelectedIndex(int index) {
       this.selectedIndex = index;
+   }
+
+   @Override
+   public void writeXML(PrintWriter writer) {
+      writer.print("<vsObjectRecommendation class=\"" + getClass().getName() + "\"");
+      writeAttributes(writer);
+      writer.println(">");
+      writeContents(writer);
+      writer.print("</vsObjectRecommendation>");
+   }
+
+   protected void writeAttributes(PrintWriter writer) {
+      if(type != null) {
+         writer.print(" type=\"" + type.name() + "\"");
+      }
+
+      writer.print(" selectedIndex=\"" + selectedIndex + "\"");
+   }
+
+   protected void writeContents(PrintWriter writer) {
+      // do nothing
+   }
+
+   @Override
+   public void parseXML(Element elem) throws Exception {
+      parseAttributes(elem);
+      parseContents(elem);
+   }
+
+   protected void parseAttributes(Element elem) {
+      String typeVal = Tool.getAttribute(elem, "type");
+
+      if(!Tool.isEmptyString(typeVal)) {
+         type = VSRecommendType.valueOf(typeVal);
+      }
+
+      String selectedIndexVal = Tool.getAttribute(elem, "selectedIndex");
+
+      if(!Tool.isEmptyString(selectedIndexVal)) {
+         selectedIndex = Integer.parseInt(selectedIndexVal);
+      }
+   }
+
+   protected void parseContents(Element elem) throws Exception {
+      // do nothing
    }
 
    private VSRecommendType type;

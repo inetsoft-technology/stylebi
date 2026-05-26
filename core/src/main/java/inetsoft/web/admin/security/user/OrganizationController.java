@@ -24,7 +24,8 @@ import inetsoft.web.admin.security.AuthenticationProviderService;
 import inetsoft.web.admin.security.IdentityService;
 import inetsoft.web.factory.DecodePathVariable;
 import inetsoft.web.security.*;
-import inetsoft.web.viewsheet.*;
+import inetsoft.web.viewsheet.AuditObjectName;
+import inetsoft.web.viewsheet.AuditUser;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -39,11 +40,13 @@ public class OrganizationController {
    @Autowired
    public OrganizationController(UserTreeService userTreeService,
                                  IdentityService identityService,
-                                 AuthenticationProviderService authenticationProviderService)
+                                 AuthenticationProviderService authenticationProviderService,
+                                 SecurityEngine securityEngine)
    {
       this.userTreeService = userTreeService;
       this.identityService = identityService;
       this.authenticationProviderService = authenticationProviderService;
+      this.securityEngine = securityEngine;
    }
 
 
@@ -99,11 +102,11 @@ public class OrganizationController {
 
       if(!OrganizationManager.getInstance().isSiteAdmin(principal)) {
          String orgID = OrganizationManager.getInstance().getCurrentOrgID(principal);
-         String orgName = SecurityEngine.getSecurity().getSecurityProvider().getOrgNameFromID(orgID);
+         String orgName = securityEngine.getSecurityProvider().getOrgNameFromID(orgID);
          return orgName != null ? List.of(orgName) : new ArrayList<>();
       }
 
-      return Arrays.stream(SecurityEngine.getSecurity().getSecurityProvider().getOrganizationNames()).toList();
+      return Arrays.stream(securityEngine.getSecurityProvider().getOrganizationNames()).toList();
    }
 
    @Secured(
@@ -170,7 +173,7 @@ public class OrganizationController {
    {
       String currOrgID = OrganizationManager.getInstance().getCurrentOrgID();
 
-      if(SecurityEngine.getSecurity().getSecurityProvider().getOrganization(currOrgID) == null) {
+      if(securityEngine.getSecurityProvider().getOrganization(currOrgID) == null) {
          throw new InvalidOrgException(Catalog.getCatalog().getString("em.security.invalidOrganizationPassed"));
       }
 
@@ -191,5 +194,6 @@ public class OrganizationController {
    private final UserTreeService userTreeService;
    private final IdentityService identityService;
    private final AuthenticationProviderService authenticationProviderService;
+   private final SecurityEngine securityEngine;
    private static final Logger LOG = LoggerFactory.getLogger(OrganizationController.class);
 }

@@ -17,8 +17,8 @@
  */
 import { HttpClient } from "@angular/common/http";
 import { Injectable } from "@angular/core";
-import { BehaviorSubject, Observable } from "rxjs";
-import { map, take } from "rxjs/operators";
+import { BehaviorSubject, EMPTY, Observable } from "rxjs";
+import { catchError, map, take } from "rxjs/operators";
 import { Favorite } from "./favorite";
 import { FavoriteList } from "./favorite-list";
 
@@ -26,20 +26,16 @@ import { FavoriteList } from "./favorite-list";
    providedIn: "root"
 })
 export class FavoritesService {
-   private _favorites: BehaviorSubject<Favorite[]>;
+   private readonly _favorites = new BehaviorSubject<Favorite[]>([]);
 
    get favorites(): Observable<Favorite[]> {
-      if(!this._favorites) {
-         this._favorites = new BehaviorSubject<Favorite[]>([]);
-         this.http.get<FavoriteList>("../api/em/favorites").subscribe(
-            (list) => this._favorites.next(list.favorites)
-         );
-      }
-
       return this._favorites.asObservable();
    }
 
    constructor(private http: HttpClient) {
+      this.http.get<FavoriteList>("../api/em/favorites").pipe(
+         catchError(() => EMPTY)
+      ).subscribe((list) => this._favorites.next(list.favorites));
    }
 
    addFavorite(path: string, label: string): void {
@@ -82,8 +78,8 @@ export class FavoritesService {
    }
 
    private setFavorites(favorites: Favorite[]): void {
-      this.http.put("../api/em/favorites", { favorites }).subscribe(
-         () => this._favorites.next(favorites)
-      );
+      this.http.put("../api/em/favorites", { favorites }).pipe(
+         catchError(err => { console.error("Failed to save favorites", err); return EMPTY; })
+      ).subscribe(() => this._favorites.next(favorites));
    }
 }

@@ -18,9 +18,11 @@
 package inetsoft.web.composer.ws.event;
 
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import org.immutables.serial.Serial;
 import org.immutables.value.Value;
 
 @Value.Immutable
+@Serial.Structural
 @JsonDeserialize(builder = WSMergeAddJoinTableEvent.Builder.class)
 public abstract class WSMergeAddJoinTableEvent {
    public abstract String mergeTableName();

@@ -17,11 +17,6 @@
  */
 package inetsoft.web.viewsheet.controller.chart;
 
-import inetsoft.analytic.composition.ViewsheetService;
-import inetsoft.report.composition.graph.GraphTypeUtil;
-import inetsoft.uql.viewsheet.VSAssembly;
-import inetsoft.uql.viewsheet.graph.GraphTypes;
-import inetsoft.uql.viewsheet.graph.VSChartInfo;
 import inetsoft.web.viewsheet.LoadingMask;
 import inetsoft.web.viewsheet.Undoable;
 import inetsoft.web.viewsheet.event.chart.VSChartPlotResizeEvent;
@@ -35,13 +30,13 @@ import org.springframework.stereotype.Controller;
 import java.security.Principal;
 
 @Controller
-public class VSChartPlotResizeController extends VSChartController<VSChartPlotResizeEvent> {
+public class VSChartPlotResizeController {
    @Autowired
    public VSChartPlotResizeController(RuntimeViewsheetRef runtimeViewsheetRef,
-                                      CoreLifecycleService coreLifecycleService,
-                                      ViewsheetService viewsheetService)
+                                      VSChartPlotResizeServiceProxy serviceProxy)
    {
-      super(runtimeViewsheetRef, coreLifecycleService, viewsheetService);
+      this.runtimeViewsheetRef = runtimeViewsheetRef;
+      this.serviceProxy = serviceProxy;
    }
 
    /**
@@ -60,37 +55,9 @@ public class VSChartPlotResizeController extends VSChartController<VSChartPlotRe
                             Principal principal, CommandDispatcher dispatcher)
       throws Exception
    {
-      this.processEvent(event, principal, linkUri, dispatcher, chartState -> {
-         final boolean heightResized = event.isHeightResized();
-         final double sizeRatio = event.getSizeRatio();
-         final VSChartInfo chartInfo = chartState.getChartInfo();
-         final boolean reset = event.isReset();
-
-         if(reset) {
-            chartInfo.setUnitWidthRatio(1);
-            chartInfo.setUnitHeightRatio(1);
-            chartInfo.setWidthResized(false);
-            chartInfo.setHeightResized(false);
-         }
-         else {
-            // for wordcloud/circular-network, the ratio is equally applied to both width/height.
-            boolean square = GraphTypeUtil.isWordCloud(chartInfo) ||
-               chartInfo.getChartType() == GraphTypes.CHART_CIRCULAR;
-
-            if(!heightResized || square) {
-               chartInfo.setUnitWidthRatio(sizeRatio);
-               chartInfo.setUnitWidthRatioPercent(sizeRatio / chartInfo.getInitialWidthRatio());
-               chartInfo.setWidthResized(true);
-            }
-
-            if(heightResized || square) {
-               chartInfo.setUnitHeightRatio(sizeRatio);
-               chartInfo.setUnitWidthRatioPercent(sizeRatio / chartInfo.getInitialHeightRatio());
-               chartInfo.setHeightResized(true);
-            }
-         }
-
-         return VSAssembly.VIEW_CHANGED;
-      });
+      serviceProxy.eventHandler(runtimeViewsheetRef.getRuntimeId(), event, linkUri, principal, dispatcher);
    }
+
+   private final RuntimeViewsheetRef runtimeViewsheetRef;
+   private final VSChartPlotResizeServiceProxy serviceProxy;
 }

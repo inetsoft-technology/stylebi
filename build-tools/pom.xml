@@ -23,7 +23,7 @@
   <parent>
     <groupId>com.inetsoft.stylebi</groupId>
     <artifactId>inetsoft-stylebi</artifactId>
-    <version>1.1.0-SNAPSHOT</version>
+    <version>1.2.0-SNAPSHOT</version>
   </parent>
 
   <groupId>com.inetsoft.stylebi.build</groupId>
@@ -37,6 +37,7 @@
     <module>node-maven-plugin</module>
     <module>tern-annotations</module>
     <module>path-utils-maven-plugin</module>
+    <module>cluster-proxy-annotations</module>
   </modules>
 
 </project>

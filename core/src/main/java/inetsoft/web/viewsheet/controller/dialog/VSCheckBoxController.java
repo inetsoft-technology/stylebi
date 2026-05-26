@@ -20,6 +20,7 @@ package inetsoft.web.viewsheet.controller.dialog;
 import inetsoft.web.viewsheet.LoadingMask;
 import inetsoft.web.viewsheet.Undoable;
 import inetsoft.web.viewsheet.event.ApplyCheckBoxSelectionEvent;
+import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.service.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.handler.annotation.MessageMapping;
@@ -35,14 +36,12 @@ import java.security.Principal;
  */
 @Controller
 public class VSCheckBoxController {
-   /**
-    * Creates a new instance of <tt>VSCheckBoxController</tt>.
-    *
-    * @param service the checkbox service.
-    */
+
    @Autowired
-   public VSCheckBoxController(VSInputService inputService) {
-      this.inputService = inputService;
+   public VSCheckBoxController(VSInputServiceProxy vsInputServiceProxy,
+                               RuntimeViewsheetRef runtimeViewsheetRef) {
+      this.vsInputServiceProxy = vsInputServiceProxy;
+      this.runtimeViewsheetRef = runtimeViewsheetRef;
    }
 
    /**
@@ -62,9 +61,10 @@ public class VSCheckBoxController {
                               @LinkUri String linkUri)
       throws Exception
    {
-      inputService.singleApplySelection(event.assemblyName(), event.value(),
-                             principal, dispatcher, linkUri);
+      vsInputServiceProxy.singleApplySelection(runtimeViewsheetRef.getRuntimeId(), event.assemblyName(), event.value(),
+                                        principal, dispatcher, linkUri);
    }
 
-   private final VSInputService inputService;
+   private VSInputServiceProxy vsInputServiceProxy;
+   private final RuntimeViewsheetRef runtimeViewsheetRef;
 }

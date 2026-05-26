@@ -19,14 +19,18 @@
 package inetsoft.util.health;
 
 import inetsoft.sree.schedule.Scheduler;
-import inetsoft.util.SingletonManager;
+import inetsoft.util.ConfigurationContext;
 import inetsoft.util.config.InetsoftConfig;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.stereotype.Service;
 
 import java.util.concurrent.atomic.AtomicLong;
 
+@Service
+@Lazy
 public class SchedulerHealthService {
    public static SchedulerHealthService getInstance() {
-      return SingletonManager.getInstance(SchedulerHealthService.class);
+      return ConfigurationContext.getContext().getSpringBean(SchedulerHealthService.class);
    }
 
    public SchedulerStatus getStatus() {

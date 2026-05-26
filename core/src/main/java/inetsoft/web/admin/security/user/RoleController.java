@@ -18,6 +18,7 @@
 package inetsoft.web.admin.security.user;
 
 import inetsoft.report.internal.license.LicenseManager;
+import inetsoft.sree.RepletRepository;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.portal.CustomTheme;
 import inetsoft.sree.security.*;
@@ -47,7 +48,7 @@ public class RoleController {
    public RoleController(SecurityProvider securityProvider,
                          IdentityService identityService,
                          UserTreeService userTreeService,
-                         SecurityTreeServer securityTreeServer ,
+                         SecurityTreeServer securityTreeServer,
                          SystemAdminService systemAdminService,
                          IdentityThemeService themeService)
    {
@@ -69,9 +70,23 @@ public class RoleController {
    @GetMapping("/api/em/security/user/get-security-tree-root/{provider}/{providerChanged}")
    public SecurityTreeRootModel getSecurityTreeRoot(@DecodePathVariable("provider") String provider,
                                                     @PathVariable("providerChanged") boolean providerChanged,
-                                                    Principal principal)
+                                                    Principal principal,
+                                                    HttpServletRequest request)
    {
-      return securityTreeServer.getSecurityTree(provider, principal, false, providerChanged);
+      SecurityTreeRootModel result =
+         securityTreeServer.getSecurityTree(provider, principal, false, providerChanged);
+
+      if(providerChanged) {
+         // Persist the updated principal properties (curr_org_id, curr_provider_name)
+         // to the distributed session so they are available on other cluster nodes
+         HttpSession session = request.getSession(false);
+
+         if(session != null) {
+            session.setAttribute(RepletRepository.EM_PRINCIPAL_COOKIE, principal);
+         }
+      }
+
+      return result;
    }
 
    @Secured(
@@ -185,7 +200,7 @@ public class RoleController {
       String rootOrgRoleID = new IdentityID("Organization Roles", roleIdentityID.orgID).convertToKey();
       String currOrgID = OrganizationManager.getInstance().getCurrentOrgID();
 
-      if(SecurityEngine.getSecurity().getSecurityProvider().getOrganization(currOrgID) == null) {
+      if(securityProvider.getOrganization(currOrgID) == null) {
          throw new InvalidOrgException(Catalog.getCatalog().getString("em.security.invalidOrganizationPassed"));
       }
 
@@ -217,7 +232,7 @@ public class RoleController {
       //disable editing if a global role and not a system administrator
       boolean editableRoles =  (provider instanceof EditableAuthenticationProvider)
                      && ((org != null || OrganizationManager.getInstance().isSiteAdmin(principal)) ||
-            SecurityEngine.getSecurity().getSecurityProvider()
+            securityProvider
                .checkPermission(principal, ResourceType.SECURITY_ROLE, roleIdentityID.convertToKey(), ResourceAction.ASSIGN));
 
       List<IdentityModel> members = identityService.getRoleMembers(roleIdentityID, provider);
@@ -235,7 +250,7 @@ public class RoleController {
          .permittedIdentities(org == null && isSiteAdmin ? members : userTreeService.filterOtherOrgs(permissions))
          .editable(editableRoles)
          .theme(themeService.getTheme(roleIdentityID, CustomTheme::getRoles))
-         .enterprise(LicenseManager.getInstance().isEnterprise())
+         .enterprise(LicenseManager.isEnterprise())
          .build();
    }
 
@@ -309,7 +324,7 @@ public class RoleController {
    {
       String currOrgID = OrganizationManager.getInstance().getCurrentOrgID();
 
-      if(SecurityEngine.getSecurity().getSecurityProvider().getOrganization(currOrgID) == null) {
+      if(securityProvider.getOrganization(currOrgID) == null) {
          throw new InvalidOrgException(Catalog.getCatalog().getString("em.security.invalidOrganizationPassed"));
       }
 
@@ -353,7 +368,7 @@ public class RoleController {
    {
       String currOrgID = OrganizationManager.getInstance().getCurrentOrgID();
 
-      if(SecurityEngine.getSecurity().getSecurityProvider().getOrganization(currOrgID) == null) {
+      if(securityProvider.getOrganization(currOrgID) == null) {
          throw new InvalidOrgException(Catalog.getCatalog().getString("em.security.invalidOrganizationPassed"));
       }
 

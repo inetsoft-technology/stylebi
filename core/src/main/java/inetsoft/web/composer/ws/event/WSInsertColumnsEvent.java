@@ -19,9 +19,11 @@ package inetsoft.web.composer.ws.event;
 
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import inetsoft.uql.asset.AssetEntry;
+import org.immutables.serial.Serial;
 import org.immutables.value.Value;
 
 @Value.Immutable
+@Serial.Structural
 @JsonDeserialize(builder = WSInsertColumnsEvent.Builder.class)
 public abstract class WSInsertColumnsEvent {
    public abstract String name();

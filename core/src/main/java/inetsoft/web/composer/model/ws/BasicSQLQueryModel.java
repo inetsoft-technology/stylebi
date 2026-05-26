@@ -26,10 +26,11 @@ import inetsoft.uql.jdbc.XJoin;
 import inetsoft.util.ItemList;
 import inetsoft.web.portal.model.database.DataConditionItem;
 
+import java.io.Serializable;
 import java.util.*;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class BasicSQLQueryModel {
+public class BasicSQLQueryModel implements Serializable {
    public BasicSQLQueryModel() {
       super();
       this.maxColCount = Util.getOrganizationMaxColumn();

@@ -18,20 +18,24 @@
 package inetsoft.sree.security;
 
 import inetsoft.report.internal.license.LicenseManager;
-import inetsoft.sree.ClientInfo;
-import inetsoft.sree.SreeEnv;
+import inetsoft.sree.*;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.*;
+import inetsoft.uql.XPrincipal;
 import inetsoft.uql.util.*;
 import inetsoft.util.*;
+import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.event.EventListener;
+import org.springframework.stereotype.Service;
 
-import java.io.File;
-import java.io.IOException;
+import java.io.*;
 import java.security.Principal;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.*;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -45,16 +49,29 @@ import java.util.concurrent.locks.ReentrantLock;
  * @author Helen Chen
  * @version 5.1, 9/20/2003
  */
-public class SecurityEngine implements SessionListener, MessageListener, AutoCloseable {
+@Service
+public class SecurityEngine implements MessageListener, AutoCloseable {
    /**
-    * Create a <code>SecurityEngine</code> object
+    * Create a <code>SecurityEngine</code> object with Spring-injected dependencies.
     */
-   public SecurityEngine() {
+   @Autowired
+   public SecurityEngine(LicenseManager licenseManager, Cluster cluster) {
+      this.licenseManager = licenseManager;
+      this.clusterInstance = cluster;
+   }
+
+   @PostConstruct
+   public void postConstruct() {
       init();
-      authenticationService = AuthenticationService.getInstance();
-      authenticationService.addSessionListener(this);
-      clusterInstance = Cluster.getInstance();
       clusterInstance.addMessageListener(this);
+      users = clusterInstance.getReplicatedMap(USER_MAP_NAME);
+   }
+
+   @EventListener(ApplicationPropertiesChangedEvent.class)
+   public void handleApplicationPropertiesChanged(ApplicationPropertiesChangedEvent event) {
+      if(event.isSecurityProviderChanged()) {
+         init();
+      }
    }
 
    /**
@@ -74,6 +91,8 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
 
    private void doInit() {
       XUtil.setXIdentityFinder(new SRIdentityFinder());
+      boolean secEnabled = isSecurityEnabled();
+      int userCount = licenseManager.getNamedUserCount();
 
       if(provider != null) {
          provider.tearDown();
@@ -87,9 +106,8 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
 
       vprovider = CompositeSecurityProvider.create(
          new VirtualAuthenticationProvider(), new VirtualAuthorizationProvider());
-      int userCount = LicenseManager.getInstance().getNamedUserCount();
 
-      if(isSecurityEnabled() || userCount > 0) {
+      if(secEnabled || userCount > 0) {
          AuthenticationChain authcChain = new AuthenticationChain();
          AuthorizationChain authzChain = new AuthorizationChain();
 
@@ -141,7 +159,7 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
     * @return a <code>SecurityEngine</code> object
     */
    public static SecurityEngine getSecurity() {
-      return SingletonManager.getInstance(SecurityEngine.class);
+      return ConfigurationContext.getContext().getSpringBean(SecurityEngine.class);
    }
 
    /**
@@ -227,30 +245,71 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
    }
 
    public void enableSecurity() throws Exception {
-      setSecurityEnabled(true);
-      AuthenticationChain authcChain = new AuthenticationChain();
-      AuthorizationChain authzChain = new AuthorizationChain();
+      initLock.lock();
 
-      if(!authcChain.getProviders().isEmpty() && !authzChain.getProviders().isEmpty()) {
-         provider = CompositeSecurityProvider.create(authcChain, authzChain);
-         authcChain.addAuthenticationChangeListener(authzChain);
-         authcChain.addAuthenticationChangeListener(this::fireAuthenticationChange);
+      try {
+         setSecurityEnabled(true);
+         AuthenticationChain authcChain = new AuthenticationChain();
+         AuthorizationChain authzChain = new AuthorizationChain();
+
+         if(!authcChain.getProviders().isEmpty() && !authzChain.getProviders().isEmpty()) {
+            provider = CompositeSecurityProvider.create(authcChain, authzChain);
+            authcChain.addAuthenticationChangeListener(authzChain);
+            authcChain.addAuthenticationChangeListener(this::fireAuthenticationChange);
+         }
+         else {
+            authcChain.tearDown();
+            authzChain.tearDown();
+            newChain();
+         }
       }
-      else {
-         newChain();
+      finally {
+         initLock.unlock();
       }
 
-      clusterInstance.sendMessage(new SecurityChangedMessage(true));
+      initRemoteNodes(true);
    }
 
    public void disableSecurity() throws Exception {
-      setSecurityEnabled(false);
+      initLock.lock();
 
-      if(provider != null) {
-         provider.tearDown();
+      try {
+         setSecurityEnabled(false);
+
+         if(provider != null) {
+            provider.tearDown();
+            provider = null;
+         }
+      }
+      finally {
+         initLock.unlock();
       }
 
-      clusterInstance.sendMessage(new SecurityChangedMessage(false));
+      initRemoteNodes(false);
+   }
+
+   /**
+    * Synchronously initializes all remote cluster nodes after a security state change.
+    * Uses Ignite compute broadcast so that the controller does not return until all
+    * nodes have been updated. Falls back to async messaging if the broadcast fails.
+    */
+   private void initRemoteNodes(boolean enabled) {
+      try {
+         Future<Collection<Void>> future =
+            clusterInstance.submitAll(new SecurityInitCallable(enabled));
+         future.get(30L, TimeUnit.SECONDS);
+      }
+      catch(Exception e) {
+         LOG.warn(
+            "Cluster broadcast for security init failed, falling back to async message", e);
+
+         try {
+            clusterInstance.sendMessage(new SecurityChangedMessage(enabled));
+         }
+         catch(Exception ex) {
+            LOG.error("Async fallback for security init also failed", ex);
+         }
+      }
    }
 
    public void enableSelfSignup() throws Exception {
@@ -271,23 +330,18 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
       SreeEnv.save();
    }
 
+   @PreDestroy
    @Override
    public void close() throws Exception {
+      retryExecutor.shutdownNow();
+
       if(provider != null) {
          provider.tearDown();
-      }
-
-      if(authenticationService != null) {
-         authenticationService.removeSessionListener(this);
       }
 
       if(clusterInstance != null) {
          clusterInstance.removeMessageListener(this);
       }
-   }
-
-   public static void clear() {
-      SingletonManager.reset(SecurityEngine.class);
    }
 
    /**
@@ -349,7 +403,7 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
       }
       else if(ClientInfo.ANONYMOUS.equals(user.getLoginUserID().name)) {
          if(containsAnonymous(user.getUserIdentity().getOrgID())) {
-            principal = users.get(user);
+            principal = users.get(user.getCacheKey());
 
             if(principal == null ||
                ((new Date()).getTime() - principal.getAge()) > 36000000L) {
@@ -364,7 +418,7 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
                   principal.setProperty("__internal__", "true");
                   users.remove(user);
                   principal.setProperty("login.user", "true");
-                  users.put(user, principal);
+                  users.put(user.getCacheKey(), principal);
                   ConnectionProcessor.getInstance().setAdditionalDatasource(principal);
                }
             }
@@ -385,7 +439,7 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
                user.setUserName(realUser.getIdentityID());
             }
 
-            principal = users.get(user);
+            principal = users.get(user.getCacheKey());
 
             if(principal == null ||
                ((new Date()).getTime() - principal.getAge()) > 36000000L)
@@ -402,10 +456,13 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
                if(internal) {
                   principal.setProperty("__internal__", "true");
                }
+               else {
+                  principal.setUser(user.getCacheKey());
+               }
 
                users.remove(user);
                principal.setProperty("login.user", "true");
-               users.put(user, principal);
+               users.put(user.getCacheKey(), principal);
             }
          }
       }
@@ -751,8 +808,13 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
       // To access the resource, admin will create principal to fetch
       // resource properly. The principal is not authenticated. To support
       // this usage, here we ignore the authentication check
-      if(type != ResourceType.MY_DASHBOARDS && !isLogin(principal)) {
-         throw new SecurityException(principal.getName() + " did not login.");
+      // This is also used to check through which users have bookmark action permission
+      if(type != ResourceType.MY_DASHBOARDS && type != ResourceType.VIEWSHEET_ACTION &&
+         !isLogin(principal))
+      {
+         IdentityID identityID = IdentityID.getIdentityIDFromKey(principal.getName());
+         throw new SecurityException(Catalog.getCatalog().getString("security.login.error",
+                                                                    identityID.getLabel()));
       }
 
       boolean datasource = "true".equals(securityDatasourceEveryone.get());
@@ -921,7 +983,9 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
       // resource properly. The principal is not authenticated. To support
       // this usage, here we ignore the authentication check
       if(type != ResourceType.MY_DASHBOARDS && !isLogin(principal)) {
-         throw new SecurityException(principal.getName() + " did not login.");
+         IdentityID principalIdentityID = IdentityID.getIdentityIDFromKey(principal.getName());
+         throw new SecurityException(Catalog.getCatalog().getString("security.login.error",
+                                                                    principalIdentityID.getLabel()));
       }
 
       boolean datasource = "true".equals(securityDatasourceEveryone.get());
@@ -1062,9 +1126,9 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
          if(!isLogin(principal)) {
             String user = (principal == null) ?
                "This user" :
-               principal.getName();
-
-            throw new SRSecurityException(user + " did not login.");
+               IdentityID.getIdentityIDFromKey(principal.getName()).getLabel();
+            throw new SRSecurityException(Catalog.getCatalog().getString("security.login.error",
+                                                                         user));
          }
 
          EditableAuthenticationProvider auth =
@@ -1097,7 +1161,11 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
       initLock.lock();
 
       try {
-         return isSecurityEnabled() && provider != null ? provider : vprovider;
+         if(isSecurityEnabled() && provider != null) {
+            return provider;
+         }
+
+         return vprovider;
       }
       finally {
          initLock.unlock();
@@ -1370,15 +1438,16 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
             return true;
          }
 
-         SRPrincipal srPrincipal2 = users.get(srPrincipal.getUser());
+         SRPrincipal srPrincipal2 = users.get(srPrincipal.getUser().getCacheKey());
 
-         // if the principal is created on the same machine as the server,
-         // trust it as is so the principal can be passed from another
-         // application to the report server by declaring a user
          if(srPrincipal2 == null) {
-            String host2 = srPrincipal.getHost();
-            String host = Tool.getIP();
-            return host != null && host.equals(host2);
+            // anonymous users are not added to the users map. allow anonymous users if they exist
+            ClientInfo user = srPrincipal.getUser();
+            IdentityID identity = user.getLoginUserID();
+            return XPrincipal.SYSTEM.equals(identity.getName()) ||
+               (ClientInfo.ANONYMOUS.equals(identity.getName()) &&
+               (provider == null || provider.getAuthenticationProvider().isVirtual() ||
+                  containsAnonymous(identity.getOrgID())));
          }
 
          ClientInfo user1 = srPrincipal.getUser();
@@ -1392,8 +1461,11 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
          // secureIDs. The customer use-case involved SSO and the ClusterServlet
          // The immediate fix for this is to compare the ClientInfo, instead of
          // using the SRPrincipal.equals method.
-         if(user1 != null) {
-            return user1.equals(user2);
+         // Compare only user identity to be resilient to serialization issues
+         // in clustered environments where IP/locale might differ after
+         // Ignite serialization. The map lookup already validated the key match.
+         if(user1 != null && user2 != null) {
+            return Tool.equals(user1.getUserIdentity(), user2.getUserIdentity());
          }
 
          return srPrincipal2.equals(principal);
@@ -1411,8 +1483,15 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
     * @return <tt>true</tt> if active; <tt>false</tt> otherwise.
     */
    public boolean isActiveUser(Principal principal) {
-      return (principal instanceof SRPrincipal) &&
-         principal.equals(users.get(((SRPrincipal) principal).getUser()));
+      if(!(principal instanceof SRPrincipal srPrincipal)) {
+         return false;
+      }
+
+      SRPrincipal stored = users.get(srPrincipal.getUser().getCacheKey());
+
+      // Compare user identity to be resilient to serialization issues in clustered environments
+      return stored != null &&
+         Tool.equals(srPrincipal.getUser().getUserIdentity(), stored.getUser().getUserIdentity());
    }
 
    /**
@@ -1423,11 +1502,17 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
          return false;
       }
 
-      if(principal instanceof SRPrincipal) {
-         SRPrincipal sr = (SRPrincipal) principal;
+      if(principal instanceof SRPrincipal sr) {
+         // If not a login user, always valid
+         if(!"true".equals(sr.getProperty("login.user"))) {
+            return true;
+         }
 
-         return !"true".equals(sr.getProperty("login.user")) ||
-            principal.equals(users.get(sr.getUser()));
+         SRPrincipal stored = users.get(sr.getUser().getCacheKey());
+
+         // Compare user identity to be resilient to serialization issues in clustered environments
+         return stored != null &&
+            Tool.equals(sr.getUser().getUserIdentity(), stored.getUser().getUserIdentity());
       }
 
       return false;
@@ -1542,32 +1627,116 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
       return file;
    }
 
-   @Override
-   public void loggedIn(SessionEvent event) {
-      // NO-OP
-   }
-
-   @Override
-   public void loggedOut(SessionEvent event) {
+   @EventListener(SessionLoggedOutEvent.class)
+   public void loggedOut(SessionLoggedOutEvent event) {
       logout(event.getPrincipal());
    }
 
    @Override
    public void messageReceived(MessageEvent event) {
       if(!event.isLocal() && (event.getMessage() instanceof SecurityChangedMessage)) {
-         try {
-            boolean enabled = ((SecurityChangedMessage) event.getMessage()).isEnabled();
+         boolean enabled = ((SecurityChangedMessage) event.getMessage()).isEnabled();
 
-            if(enabled && !isSecurityEnabled()) {
-               enableSecurity();
+         if(enabled && !isSecurityEnabled()) {
+            handleRemoteSecurityEnable();
+         }
+         else if(!enabled && isSecurityEnabled()) {
+            handleRemoteSecurityDisable();
+         }
+      }
+   }
+
+   private void handleRemoteSecurityEnable() {
+      initLock.lock();
+
+      try {
+         setSecurityEnabled(true);
+         AuthenticationChain authcChain = new AuthenticationChain(true);
+         AuthorizationChain authzChain = new AuthorizationChain(true);
+
+         if(!authcChain.getProviders().isEmpty() && !authzChain.getProviders().isEmpty()) {
+            provider = CompositeSecurityProvider.create(authcChain, authzChain);
+            authcChain.addAuthenticationChangeListener(authzChain);
+            authcChain.addAuthenticationChangeListener(this::fireAuthenticationChange);
+         }
+         else {
+            authcChain.tearDown();
+            authzChain.tearDown();
+         }
+      }
+      catch(Exception e) {
+         LOG.error("Failed to enable security on remote node", e);
+      }
+      finally {
+         initLock.unlock();
+      }
+
+      if(provider == null) {
+         scheduleProviderRetry(1);
+      }
+   }
+
+   private void scheduleProviderRetry(int attempt) {
+      if(attempt > MAX_PROVIDER_RETRIES) {
+         LOG.error(
+            "Failed to initialize security provider after {} retries",
+            MAX_PROVIDER_RETRIES);
+         return;
+      }
+
+      long delayMs = INITIAL_RETRY_DELAY_MS * (1L << (attempt - 1));
+
+      providerRetryFuture = retryExecutor.schedule(() -> {
+         initLock.lock();
+
+         try {
+            if(!isSecurityEnabled() || provider != null) {
+               return;
             }
-            else if(!enabled && isSecurityEnabled()) {
-               disableSecurity();
+
+            AuthenticationChain authcChain = new AuthenticationChain(true);
+            AuthorizationChain authzChain = new AuthorizationChain(true);
+
+            if(!authcChain.getProviders().isEmpty() && !authzChain.getProviders().isEmpty()) {
+               provider = CompositeSecurityProvider.create(authcChain, authzChain);
+               authcChain.addAuthenticationChangeListener(authzChain);
+               authcChain.addAuthenticationChangeListener(this::fireAuthenticationChange);
+            }
+            else {
+               authcChain.tearDown();
+               authzChain.tearDown();
+               scheduleProviderRetry(attempt + 1);
             }
          }
-         catch(Exception e) {
-            LOG.error("Failed to update security", e);
+         finally {
+            initLock.unlock();
          }
+      }, delayMs, TimeUnit.MILLISECONDS);
+   }
+
+   private void handleRemoteSecurityDisable() {
+      ScheduledFuture<?> future = providerRetryFuture;
+
+      if(future != null) {
+         future.cancel(false);
+         providerRetryFuture = null;
+      }
+
+      initLock.lock();
+
+      try {
+         setSecurityEnabled(false);
+
+         if(provider != null) {
+            provider.tearDown();
+            provider = null;
+         }
+      }
+      catch(Exception e) {
+         LOG.error("Failed to disable security on remote node", e);
+      }
+      finally {
+         initLock.unlock();
       }
    }
 
@@ -1596,16 +1765,25 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
    }
 
    private static final Lock touchLock = new ReentrantLock();
+   private static final int MAX_PROVIDER_RETRIES = 5;
+   private static final long INITIAL_RETRY_DELAY_MS = 1000L;
    private SecurityProvider provider = null;
    private SecurityProvider vprovider = null;
    private SecurityProvider vpm_provider = null;
-   private Map<ClientInfo, SRPrincipal> users = new ConcurrentHashMap<>();
+   private Map<ClientInfo, SRPrincipal> users;
    private final Set<LoginListener> loginListeners = new LinkedHashSet<>();
    private final Set<AuthenticationChangeListener> authenticationChangeListeners =
       new LinkedHashSet<>();
    private final Lock initLock = new ReentrantLock();
-   private final AuthenticationService authenticationService;
+   private final LicenseManager licenseManager;
    private final Cluster clusterInstance;
+   private final ScheduledExecutorService retryExecutor =
+      Executors.newSingleThreadScheduledExecutor(r -> {
+         Thread t = new Thread(r, "SecurityEngine-Retry");
+         t.setDaemon(true);
+         return t;
+      });
+   private volatile ScheduledFuture<?> providerRetryFuture;
    private static final SreeEnv.Value securityDatasourceEveryone =
       new SreeEnv.Value("security.datasource.everyone", 10000, "true");
    private static final SreeEnv.Value securityScriptEveryone =
@@ -1614,6 +1792,7 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
       new SreeEnv.Value("security.tablestyle.everyone", 10000, "true");
    private static final SreeEnv.Value securitySchduletaskEveryone =
       new SreeEnv.Value("security.scheduletask.everyone", 10000, "true");
+   private static final String USER_MAP_NAME = SecurityEngine.class.getName() + ".users";
 
    /**
     * Interface used to perform additional authentication checks.
@@ -1631,5 +1810,77 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
        * @return <tt>true</tt> if valid; <tt>false</tt> otherwise.
        */
       boolean isValid(IdentityID userId, Object credential, SecurityProvider provider);
+   }
+
+   /**
+    * Callable that initializes security on each cluster node. Executed synchronously
+    * via {@code Cluster.submitAll()} so that the originating node can wait for all
+    * remote nodes to complete initialization before returning to the caller.
+    */
+   private static final class SecurityInitCallable implements Callable<Void>, Serializable {
+      private final boolean enabled;
+
+      SecurityInitCallable(boolean enabled) {
+         this.enabled = enabled;
+      }
+
+      @Override
+      public Void call() {
+         SecurityEngine engine = SecurityEngine.getSecurity();
+
+         if(enabled) {
+            engine.initLock.lock();
+
+            try {
+               if(engine.isSecurityEnabled() && engine.provider != null) {
+                  return null;
+               }
+
+               engine.setSecurityEnabled(true);
+               AuthenticationChain authcChain = new AuthenticationChain();
+               AuthorizationChain authzChain = new AuthorizationChain();
+
+               if(!authcChain.getProviders().isEmpty() &&
+                  !authzChain.getProviders().isEmpty())
+               {
+                  engine.provider =
+                     CompositeSecurityProvider.create(authcChain, authzChain);
+                  authcChain.addAuthenticationChangeListener(authzChain);
+                  authcChain.addAuthenticationChangeListener(engine::fireAuthenticationChange);
+               }
+               else {
+                  authcChain.tearDown();
+                  authzChain.tearDown();
+                  engine.newChain();
+               }
+            }
+            catch(Exception e) {
+               LOG.error("Failed to enable security via cluster broadcast", e);
+            }
+            finally {
+               engine.initLock.unlock();
+            }
+         }
+         else {
+            engine.initLock.lock();
+
+            try {
+               engine.setSecurityEnabled(false);
+
+               if(engine.provider != null) {
+                  engine.provider.tearDown();
+                  engine.provider = null;
+               }
+            }
+            catch(Exception e) {
+               LOG.error("Failed to disable security via cluster broadcast", e);
+            }
+            finally {
+               engine.initLock.unlock();
+            }
+         }
+
+         return null;
+      }
    }
 }

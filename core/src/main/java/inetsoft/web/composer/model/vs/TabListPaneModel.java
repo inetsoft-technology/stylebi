@@ -18,7 +18,9 @@
 package inetsoft.web.composer.model.vs;
 
 
-public class TabListPaneModel {
+import java.io.Serializable;
+
+public class TabListPaneModel implements Serializable {
    public String[] getAssemblies() {
       return assemblies;
    }

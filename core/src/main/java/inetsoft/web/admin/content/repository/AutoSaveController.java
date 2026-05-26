@@ -17,21 +17,17 @@
  */
 package inetsoft.web.admin.content.repository;
 
-import inetsoft.analytic.composition.ViewsheetService;
-import inetsoft.report.composition.event.AssetEventUtil;
 import inetsoft.report.internal.Util;
 import inetsoft.sree.RepositoryEntry;
 import inetsoft.sree.internal.SUtil;
-import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
-import inetsoft.uql.asset.*;
-import inetsoft.uql.asset.internal.AssetUtil;
+import inetsoft.uql.asset.AssetEntry;
+import inetsoft.uql.asset.AssetRepository;
 import inetsoft.util.*;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
-import inetsoft.web.AutoSaveUtils;
-import inetsoft.web.RecycleUtils;
+import inetsoft.web.*;
 import inetsoft.web.security.RequiredPermission;
 import inetsoft.web.security.Secured;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -43,8 +39,9 @@ import java.util.*;
 @RestController
 public class AutoSaveController {
    @Autowired
-   public AutoSaveController(ViewsheetService viewsheetService) {
-      this.viewsheetService = viewsheetService;
+   public AutoSaveController(AutoSaveServiceProxy autoSaveService, IndexedStorage indexedStorage) {
+      this.autoSaveService = autoSaveService;
+      this.indexedStorage = indexedStorage;
    }
 
    /**
@@ -131,26 +128,7 @@ public class AutoSaveController {
    private void restoreAutoSaveAsset(String id, String assetName, boolean override,
                                      Principal principal) throws Exception
    {
-      // Get auto save sheet from engine.
-      AssetEntry entry = AutoSaveUtils.createAssetEntry(id);
-      AssetRepository repository = AssetUtil.getAssetRepository(false);
-      AbstractSheet sheet = repository.getSheet(entry, principal, false, AssetContent.ALL);
-      IdentityID pId = IdentityID.getIdentityIDFromKey(principal.getName());
-
-      // Save auto save sheet to engine.
-      AssetEntry.Type type = id.startsWith("8^VIEWSHEET") ? AssetEntry.Type.VIEWSHEET :
-         AssetEntry.Type.WORKSHEET;
-      AssetEntry nentry = new AssetEntry(AssetRepository.GLOBAL_SCOPE, type, assetName,
-         pId);
-
-      if(!override && viewsheetService.isDuplicatedEntry(repository, nentry)) {
-         return;
-      }
-
-      repository.setSheet(nentry, sheet, principal, false);
-      ActionRecord actionRecord = SUtil.getActionRecord(principal, ActionRecord.ACTION_NAME_CREATE,
-         assetName, AssetEventUtil.getObjectType(entry));
-      Audit.getInstance().auditAction(actionRecord, principal);
+      autoSaveService.restoreAutoSaveAssets(id, assetName, override, principal);
    }
 
    /**
@@ -173,8 +151,8 @@ public class AutoSaveController {
    private RestoreAssetTreeListModel getAssetFolder(Principal user, boolean isVS) throws Exception {
       RestoreAssetTreeListModel.Builder builder = RestoreAssetTreeListModel.builder();
       Set<String> keys = isVS ?
-         IndexedStorage.getIndexedStorage().getKeys(this::isViewsheetFolder) :
-         IndexedStorage.getIndexedStorage().getKeys(this::isWorksheetFolder);
+         indexedStorage.getKeys(this::isViewsheetFolder) :
+         indexedStorage.getKeys(this::isWorksheetFolder);
       List<String> folders = new ArrayList<String>();
       String root = null;
 
@@ -271,5 +249,6 @@ public class AutoSaveController {
       return entry != null && entry.isWorksheetFolder() && !entry.isRepositoryFolder();
    }
 
-   private final ViewsheetService viewsheetService;
+   private final AutoSaveServiceProxy autoSaveService;
+   private final IndexedStorage indexedStorage;
 }

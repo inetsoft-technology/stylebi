@@ -481,7 +481,8 @@ export class EditIdentityViewComponent implements OnInit, OnChanges, OnDestroy {
             this.pwForm.controls.password.markAsTouched();
          }
          else {
-            (<UntypedFormGroup>this.form).controls["changePasswordEnabled"].setValue(false);
+            (<UntypedFormGroup>this.form).controls["changePasswordEnabled"].setValue(false, {emitEvent: false});
+            this.pwForm.disable({emitEvent: false});
          }
       }
 
@@ -567,12 +568,7 @@ export class EditIdentityViewComponent implements OnInit, OnChanges, OnDestroy {
          cmodel.description = this.form.value["description"];
          cmodel.organization = this.form.value["organization"];
 
-         if(this.form.value["organization"] == null) {
-            cmodel.name = this.form.value["name"].trim();
-         }
-         else {
-            cmodel.name = this.form.value["name"].trim();
-         }
+         cmodel.name = this.form.value["name"].trim();
          this.model = cmodel;
       }
       else if(this.type == IdentityType.USER) {

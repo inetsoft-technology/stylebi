@@ -17,7 +17,9 @@
  */
 package inetsoft.web.composer.model.vs;
 
-public class RangeSliderAdvancedPaneModel {
+import java.io.Serializable;
+
+public class RangeSliderAdvancedPaneModel implements Serializable {
    public RangeSliderSizePaneModel getRangeSliderSizePaneModel() {
       if(rangeSliderSizePaneModel == null) {
          rangeSliderSizePaneModel = new RangeSliderSizePaneModel();

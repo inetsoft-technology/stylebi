@@ -880,7 +880,7 @@ public class VSSlidingScale extends VSImageable implements Cloneable {
        * Get the resource cache.
        */
       public static ResourceCache getResourceCache() {
-         return SingletonManager.getInstance(ResourceCache2.class);
+         return CACHE;
       }
 
       /**
@@ -889,6 +889,8 @@ public class VSSlidingScale extends VSImageable implements Cloneable {
       public ResourceCache2() {
          super("slidingscale", 15, 604800000L); // one week timeout
       }
+
+      private static final ResourceCache2 CACHE = new ResourceCache2();
 
       /**
        * Create a resource.

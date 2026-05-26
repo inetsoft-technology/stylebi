@@ -16,7 +16,8 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, EventEmitter, Input, OnDestroy, Output } from "@angular/core";
-import { Subscription } from "rxjs";
+import { interval, Subscription } from "rxjs";
+import { switchMap } from "rxjs/operators";
 import { ClusterNodesService } from "../cluster/cluster-nodes.service";
 import { MonitoringDataService } from "../monitoring-data.service";
 
@@ -45,6 +46,20 @@ export class ClusterSelectorComponent implements OnDestroy {
                }
             }
          ));
+
+         //Refresh nodes list every 60 seconds
+         this.subscriptions.add(
+            interval(60000)
+               .pipe(switchMap(() => this.clusterNodesService.getClusterNodes()))
+               .subscribe((data: string[]) => {
+                  this.clusterNodes = data;
+
+                  // fallback if selected node is no longer valid
+                  if(!data.includes(this.selectedNode)) {
+                     this.selectedNode = data[0];
+                  }
+               })
+         );
       }
    }
 

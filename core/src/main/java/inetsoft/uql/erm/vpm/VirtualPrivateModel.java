@@ -351,7 +351,7 @@ public class VirtualPrivateModel extends VpmObject {
          XPartition partitionObj = null;
 
          if(ds != null) {
-            XRepository repository = XFactory.getRepository();
+            XRepository repository = XRepository.getRepository();
             XDataModel model = repository.getDataModel(ds);
             partitionObj = model.getPartition(partition, user);
          }

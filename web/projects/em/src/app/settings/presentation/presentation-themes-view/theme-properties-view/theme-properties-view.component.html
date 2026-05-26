@@ -31,7 +31,7 @@
         </mat-form-field>
         <mat-form-field appearance="outline" color="accent">
           <mat-label>_#(Theme JAR File)</mat-label>
-          <em-file-chooser [hidden]="form.disabled" formControlName="jar" placeholder="_#(Theme JAR File)" accept=".jar"></em-file-chooser>
+          <em-file-chooser [hidden]="jarHidden" formControlName="jar" placeholder="_#(Theme JAR File)" accept=".jar"></em-file-chooser>
           <mat-icon matSuffix fontSet="ineticons" fontIcon="folder-open-icon"></mat-icon>
           <mat-error *ngIf="form.controls.jar?.errors?.required">_#(em.laf.theme.jarRequired)</mat-error>
         </mat-form-field>

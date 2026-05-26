@@ -15,15 +15,40 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Injectable } from "@angular/core";
-import { ActivatedRouteSnapshot, CanActivate, Router, RouterStateSnapshot } from "@angular/router";
+import { inject } from "@angular/core";
+import {
+   ActivatedRouteSnapshot,
+   CanActivateFn,
+   Router,
+   RouterStateSnapshot
+} from "@angular/router";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { Observable } from "rxjs";
 import { map } from "rxjs/operators";
 import { Tool } from "../../../../../shared/util/tool";
 import { ComponentTool } from "../../common/util/component-tool";
-import { PortalTab } from "../portal-tab";
 import { PortalTabsService } from "./portal-tabs.service";
+
+export const canTabActivate: CanActivateFn = (next: ActivatedRouteSnapshot, state: RouterStateSnapshot): Observable<boolean> => {
+   const portalTabsService = inject(PortalTabsService);
+   const modalService = inject(NgbModal);
+   const router = inject(Router);
+   const tabName = routeToTabName(next.url.map( seg => seg.path).join("/"));
+
+   return portalTabsService.getPortalTabs().pipe(
+      map(tabs => {
+         const result = tabs.some(tab => tab.name === tabName) || tabName == "";
+
+         if(!result) {
+            ComponentTool.showMessageDialog(modalService, "_#(js:Error)",
+               Tool.formatCatalogString("_#(js:common.permit.view)", [tabName]))
+               .then(() => router.navigate(["/portal"]));
+         }
+
+         return result;
+      })
+   );
+};
 
 const URL_TAB_MAP = {
    "tab/schedule": "Schedule",
@@ -32,54 +57,7 @@ const URL_TAB_MAP = {
    "tab/data": "Data"
 };
 
-const DASHBOARD_TAB_ERROR_MSG = "_#(js:em.security.permit.view)";
-
-@Injectable()
-export class CanTabActivateService implements CanActivate {
-
-   constructor(private portalTabsService: PortalTabsService,
-               private router: Router,
-               private modalService: NgbModal)
-   {
-      this.portalTabsObs = this.portalTabsService.getPortalTabs();
-   }
-
-   /**
-    *
-    * @param {ActivatedRouteSnapshot} route
-    * @param {RouterStateSnapshot} state
-    * @returns {Observable<boolean>} returns true if specified tab name appears indicating
-    * that the user has permission to access the tab since otherwise it would not be there.
-    */
-   canActivate(route: ActivatedRouteSnapshot, state: RouterStateSnapshot): Observable<boolean> {
-      let tabName = this.routeToTabName(route.url.map( seg => seg.path).join("/"));
-
-      return this.portalTabsObs.pipe(
-         map(tabs => {
-            let result = tabs.some(tab => tab.name === tabName) || tabName == "";
-
-            if(!result) {
-               ComponentTool.showMessageDialog(this.modalService, "_#(js:Error)",
-                  Tool.formatCatalogString("_#(js:common.permit.view)",
-                     [tabName]))
-                  .then(() => this.router.navigate(["/portal"]));
-            }
-
-            return result;
-         })
-      );
-   }
-
-   /**
-    *
-    * @param {string} path
-    * @returns {string} name of tab that needs permission (to appear in portaltabs), if
-    * there is no tab then it returns empty string to indicate none needed
-    */
-   routeToTabName(path: string): string {
-      const result = URL_TAB_MAP[path];
-      return !!result ? result : "";
-   }
-
-   portalTabsObs: Observable<PortalTab[]>;
+function routeToTabName(path: string): string {
+   const result = URL_TAB_MAP[path];
+   return !!result ? result : "";
 }

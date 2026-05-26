@@ -420,6 +420,8 @@ public class VGraph extends BoundedContainer {
       }
 
       // overlay visual object requires overlay
+      List<ElementVO> overlayToRemove = new ArrayList<>();
+
       for(int i = 0; i < getVisualCount(); i++) {
          Visualizable visual = getVisual(i);
 
@@ -440,11 +442,25 @@ public class VGraph extends BoundedContainer {
             continue;
          }
 
+         // Brush VOs with an empty key are synthetic total rows (all-null dimensions) from
+         // multi-VS brush. In polar (pie/donut) charts they have no valid angular position
+         // and must be removed before overlay matching. Non-polar charts (e.g. bar) do not
+         // remove them here; getOverlayVO() returns null for an empty key, so no overlay is
+         // applied — the correct no-op for non-polar geometry.
+         if(coord instanceof PolarCoord && createKey(vo).isEmpty()) {
+            overlayToRemove.add(vo);
+            continue;
+         }
+
          ElementVO vo2 = getOverlayVO(vo);
 
          if(vo2 != null) {
             vo.overlay(vo2);
          }
+      }
+
+      for(ElementVO vo : overlayToRemove) {
+         removeVisual(vo);
       }
 
       sort3DBar();
@@ -502,6 +518,13 @@ public class VGraph extends BoundedContainer {
       ElementGeometry g = (ElementGeometry) vo.getGeometry();
       GraphElement elem = g.getElement();
       String key = createKey(vo);
+
+      // Empty key means this is a synthetic total/aggregate row with no dimension grouping
+      // (e.g., multi-VS brush grand-total row). It has no valid position in any chart and
+      // must not be matched to a base VO.
+      if(key.isEmpty()) {
+         return null;
+      }
 
       for(int i = 0; i < getVisualCount(); i++) {
          if(!(getVisual(i) instanceof ElementVO)) {

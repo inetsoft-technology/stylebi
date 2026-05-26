@@ -17,33 +17,47 @@
  */
 package inetsoft.uql.asset;
 
-import inetsoft.sree.security.OrganizationManager;
+import inetsoft.sree.security.*;
 import inetsoft.storage.BlobStorage;
+import inetsoft.storage.BlobStorageManager;
 import inetsoft.storage.BlobTransaction;
-import inetsoft.util.SingletonManager;
+import inetsoft.util.ConfigurationContext;
+import jakarta.annotation.PreDestroy;
 import org.apache.commons.io.IOUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.*;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 
-@SingletonManager.Singleton(EmbeddedTableStorage.Reference.class)
 public class EmbeddedTableStorage implements AutoCloseable {
-   public EmbeddedTableStorage() {
+   public EmbeddedTableStorage(BlobStorageManager blobStorageManager) {
+      this.blobStorageManager = blobStorageManager;
    }
 
    private BlobStorage<Metadata> getStorage() {
-      String storeID = OrganizationManager.getInstance().getCurrentOrgID().toLowerCase() +  "__pdata";
-      return SingletonManager.getInstance(BlobStorage.class, storeID, true);
+      return getStorage(null);
    }
 
-   private BlobStorage<Metadata> getStorage(String orgID) {
-      String storeID = orgID.toLowerCase() +  "__pdata";
-      return SingletonManager.getInstance(BlobStorage.class, storeID, true);
+   private BlobStorage<Metadata> getStorage(String orgId) {
+      orgId = orgId == null ? OrganizationManager.getInstance().getCurrentOrgID() : orgId;
+      String storeID = orgId.toLowerCase() + "__pdata";
+      return blobStorageManager.getStorage(storeID, true);
    }
 
    public boolean tableExists(String path) {
       try {
          return getStorage().exists(path);
+      }
+      catch(Exception ignore) {
+         return false;
+      }
+   }
+
+   public boolean tableExists(String path, String orgId) {
+      try {
+         return getStorage(orgId).exists(path);
       }
       catch(Exception ignore) {
          return false;
@@ -59,9 +73,22 @@ public class EmbeddedTableStorage implements AutoCloseable {
       }
    }
 
+   public InputStream readTable(String path, String orgId) throws IOException {
+      try {
+         return getStorage(orgId).getInputStream(path);
+      }
+      catch(FileNotFoundException ignore) {
+         return null;
+      }
+   }
+
    public void writeTable(String path, InputStream input) throws IOException {
+      writeTable(path, input, false);
+   }
+
+   public void writeTable(String path, InputStream input, boolean temp) throws IOException {
       try(BlobTransaction<Metadata> tx = getStorage().beginTransaction();
-          OutputStream output = tx.newStream(path, new Metadata()))
+          OutputStream output = tx.newStream(path, new Metadata(temp)))
       {
          IOUtils.copy(input, output);
          tx.commit();
@@ -73,7 +100,11 @@ public class EmbeddedTableStorage implements AutoCloseable {
    }
 
    public void removeTable(String path) throws IOException {
-      getStorage().delete(path);
+      removeTable(path, null);
+   }
+
+   public void removeTable(String path, String orgId) throws IOException {
+      getStorage(orgId).delete(path);
    }
 
    public String listBlobs(String orgID) throws IOException {
@@ -83,36 +114,79 @@ public class EmbeddedTableStorage implements AutoCloseable {
    }
 
    public Instant getLastModified(String path) throws FileNotFoundException {
-      return getStorage().getLastModified(path);
+      return getLastModified(path, null);
+   }
+
+   public Instant getLastModified(String path, String orgId) throws FileNotFoundException {
+      return getStorage(orgId).getLastModified(path);
+   }
+
+   public boolean isTempTable(String path) {
+      return isTempTable(path, null);
+   }
+
+   public boolean isTempTable(String path, String orgId) {
+      try {
+         return getStorage(orgId).getMetadata(path).temp;
+      }
+      catch(FileNotFoundException e) {
+         return false;
+      }
+   }
+
+   public void removeExpiredTempTables() {
+      Instant twoWeeksAgo = Instant.now().minus(14, ChronoUnit.DAYS);
+      SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+      String[] orgIds = provider.getOrganizationIDs();
+
+      for(String orgId : orgIds) {
+         getStorage(orgId).paths().filter(path -> {
+            if(!isTempTable(path, orgId)) {
+               return false;
+            }
+
+            try {
+               Instant lastModified = getLastModified(path, orgId);
+               return lastModified.isBefore(twoWeeksAgo);
+            }
+            catch(FileNotFoundException ignore) {
+            }
+
+            return false;
+         }).forEach(path -> {
+            try {
+               LOG.debug("Removing expired table {}", path);
+               removeTable(path, orgId);
+            }
+            catch(IOException e) {
+               throw new RuntimeException(e);
+            }
+         });
+      }
    }
 
    public static EmbeddedTableStorage getInstance() {
-      return SingletonManager.getInstance(EmbeddedTableStorage.class);
+      return ConfigurationContext.getContext().getSpringBean(EmbeddedTableStorage.class);
    }
 
+   @PreDestroy
    @Override
    public void close() throws Exception {
       getStorage().close();
    }
 
    public static final class Metadata implements Serializable {
-   }
-
-   public static final class Reference extends SingletonManager.Reference<EmbeddedTableStorage> {
-      @Override
-      public EmbeddedTableStorage get(Object... parameters) {
-         if(instance == null) {
-            instance = new EmbeddedTableStorage();
-         }
-
-         return instance;
+      public Metadata() {
+         this.temp = false;
       }
 
-      @Override
-      public void dispose() {
-
+      public Metadata(boolean temp) {
+         this.temp = temp;
       }
 
-      private EmbeddedTableStorage instance;
+      private final boolean temp;
    }
+
+   private final BlobStorageManager blobStorageManager;
+   private static final Logger LOG = LoggerFactory.getLogger(EmbeddedTableStorage.class);
 }

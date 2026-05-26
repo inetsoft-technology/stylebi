@@ -32,7 +32,6 @@ import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
@@ -49,21 +48,25 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
    @SuppressWarnings("unchecked")
    private void init() {
       synchronized(this) {
-         if(userStorage != null && groupStorage != null && roleStorage != null && organizationStorage != null) {
+         if(isStorageOpen(userStorage) && isStorageOpen(groupStorage) &&
+            isStorageOpen(roleStorage) && isStorageOpen(organizationStorage))
+         {
             return;
          }
 
-         roleStorage = SingletonManager.getInstance(KeyValueStorage.class,
-           "defaultSecurityRoles",
-           (Supplier<LoadRolesTask>) (() -> new LoadRolesTask("defaultSecurityRoles")));
-         userStorage = SingletonManager.getInstance(KeyValueStorage.class,
-           "defaultSecurityUsers",
-           (Supplier<LoadUsersTask>) (() -> new LoadUsersTask("defaultSecurityUsers")));
-         groupStorage = SingletonManager.getInstance(KeyValueStorage.class, "defaultSecurityGroups");
-         organizationStorage = SingletonManager.getInstance(KeyValueStorage.class,
-                                                 "defaultSecurityOrganizations",
-                                                 (Supplier<LoadOrganizationsTask>) (() -> new LoadOrganizationsTask("defaultSecurityOrganizations")));
+         roleStorage = KeyValueStorageManager.getInstance().getStorage(
+            "defaultSecurityRoles", new LoadRolesTask("defaultSecurityRoles"));
+         userStorage = KeyValueStorageManager.getInstance().getStorage(
+            "defaultSecurityUsers", new LoadUsersTask("defaultSecurityUsers"));
+         groupStorage = KeyValueStorageManager.getInstance().getStorage("defaultSecurityGroups");
+         organizationStorage = KeyValueStorageManager.getInstance().getStorage(
+            "defaultSecurityOrganizations",
+            new LoadOrganizationsTask("defaultSecurityOrganizations"));
       }
+   }
+
+   private static boolean isStorageOpen(KeyValueStorage<?> storage) {
+      return storage != null && !storage.isClosed();
    }
 
    /**
@@ -371,7 +374,9 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
     */
    @Override
    public void tearDown() {
-      if(userStorage != null || groupStorage != null || roleStorage != null) {
+      if(userStorage != null || groupStorage != null || roleStorage != null ||
+         organizationStorage != null)
+      {
          synchronized(this) {
             if(userStorage != null) {
                try {
@@ -404,6 +409,17 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
                }
 
                roleStorage = null;
+            }
+
+            if(organizationStorage != null) {
+               try {
+                  organizationStorage.close();
+               }
+               catch(Exception e) {
+                  LOG.warn("Failed to close organization storage", e);
+               }
+
+               organizationStorage = null;
             }
          }
       }
@@ -681,8 +697,14 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
       lock.lock();
 
       try {
-         String oldOrgID = getOrganization(id) != null ? id : null;
-         processAuthenticationChange(new IdentityID(getOrganization(id).getName(), oldOrgID), null, oldOrgID, null, Identity.ORGANIZATION, true);
+         Organization org = getOrganization(id);
+
+         if(org == null) {
+            LOG.warn("Organization {} not found for removal, skipping", id);
+            return;
+         }
+
+         processAuthenticationChange(new IdentityID(org.getName(), id), null, id, null, Identity.ORGANIZATION, true);
          organizationStorage.remove(id).get(10L, TimeUnit.SECONDS);
       }
       catch(Exception e) {
@@ -705,13 +727,13 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
 
          if(type == Identity.USER) {
 
-            if(removed && getUser(oldID) !=null) {
+            if(removed) {
                removeOrganizationMember(oldID);
             }
          }
          else if(type == Identity.GROUP) {
 
-            if(removed && getGroup(oldID) !=null) {
+            if(removed) {
                removeOrganizationMember(oldID);
             }
 
@@ -733,7 +755,7 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
                else {
                   int index = Arrays.asList(groups).indexOf(oldID.name);
 
-                  if(index >= 0) {
+                  if(index >= 0 && newID != null) {
                      groups[index] = newID.name;
                      userStorage.put(user.getIdentityID().convertToKey(), user)
                         .get(10L, TimeUnit.SECONDS);
@@ -768,7 +790,7 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
          }
          else if(type == Identity.ROLE) {
 
-            if(removed && getRole(oldID) !=null) {
+            if(removed) {
                removeOrganizationMember(oldID);
             }
 
@@ -926,10 +948,15 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
 
    private void removeOrganizationMember(IdentityID oldIdentity) {
       Organization org = getOrganization(oldIdentity.orgID);
+
+      if(org == null) {
+         return;
+      }
+
       List<String> members = new ArrayList<>(Arrays.asList(org.getMembers()));
-      members.remove(oldIdentity.orgID);
+      members.remove(oldIdentity.name);
       org.setMembers(members.toArray(new String[0]));
-      setOrganization(oldIdentity.orgID,org);
+      setOrganization(oldIdentity.orgID, org);
    }
 
    private KeyValueStorage<FSUser> userStorage;
@@ -955,19 +982,6 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
 
       @Override
       protected Class<FSUser> initialize(Map<String, FSUser> map) {
-         String rawPassword = System.getenv("INETSOFT_ADMIN_PASSWORD");
-
-         if(rawPassword == null || rawPassword.isBlank()) {
-            // INETSOFT_ADMIN_PASSWORD is not set — this container is not the init-storage
-            // container, or storage initialization did not complete successfully.
-            // Skip default admin creation; the operator must re-run init-storage.
-            LOG.error(
-               "The user store is empty and INETSOFT_ADMIN_PASSWORD is not set. " +
-               "No default admin user will be created. Re-run storage initialization " +
-               "with INETSOFT_ADMIN_PASSWORD set to restore access.");
-            return null;
-         }
-
          String defaultOrg = Organization.getDefaultOrganizationID();
          FSUser user = new FSUser(new IdentityID("admin", defaultOrg));
          HashedPassword hash = Tool.hash(AdminCredentialUtil.getRequiredAdminPassword(), "bcrypt");

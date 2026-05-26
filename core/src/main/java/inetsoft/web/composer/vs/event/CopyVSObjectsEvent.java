@@ -17,12 +17,14 @@
  */
 package inetsoft.web.composer.vs.event;
 
+import java.io.Serializable;
+
 /**
  * Class that encapsulates the parameters for opening a viewsheet.
  *
  * @since 12.3
  */
-public class CopyVSObjectsEvent {
+public class CopyVSObjectsEvent implements Serializable {
    /**
     * Gets the list of object names to copy.
     */

@@ -21,8 +21,9 @@ package inetsoft.web.binding.event;
 import inetsoft.web.composer.ws.event.AssetEvent;
 
 import javax.annotation.Nullable;
+import java.io.Serializable;
 
-public class VSOnClickEvent implements AssetEvent {
+public class VSOnClickEvent implements AssetEvent, Serializable {
    @Nullable
    @Override
    public String name() {

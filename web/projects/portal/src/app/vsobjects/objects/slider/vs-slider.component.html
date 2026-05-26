@@ -19,6 +19,7 @@
                         [contentOverflow]="viewer || embeddedVS ? 'visible' : 'hidden'"
                         [labelModel]="model.labelModel"
                         [labelSelected]="model.labelSelected"
+                        [disabled]="!model.enabled"
                         [style.display]="getVisible() ? null : 'none'"
                         [class.fade-assembly]="!viewer && !model.visible"
                         [style.top.px]="viewer || embeddedVS ? model.objectFormat.top : null"

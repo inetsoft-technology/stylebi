@@ -39,10 +39,10 @@ import java.security.Principal;
 public class VSSelectionListController {
    @Autowired
    public VSSelectionListController(RuntimeViewsheetRef runtimeViewsheetRef,
-                                    VSSelectionService vsSelectionService)
+                                    VSSelectionServiceProxy vsSelectionServiceProxy)
    {
       this.runtimeViewsheetRef = runtimeViewsheetRef;
-      this.vsSelectionService = vsSelectionService;
+      this.vsSelectionServiceProxy = vsSelectionServiceProxy;
    }
 
    /**
@@ -64,8 +64,8 @@ public class VSSelectionListController {
                               CommandDispatcher dispatcher, @LinkUri String linkUri)
       throws Exception
    {
-      final Context context = createContext(principal, dispatcher, linkUri);
-      vsSelectionService.applySelection(assemblyName, event, context);
+      vsSelectionServiceProxy.applySelection(runtimeViewsheetRef.getRuntimeId(), assemblyName,
+                                             event, principal, dispatcher, linkUri);
    }
 
    @RequestMapping(
@@ -77,8 +77,7 @@ public class VSSelectionListController {
       @PathVariable("name") String name, @LinkUri String linkUri,
       @RequestBody ApplySelectionListEvent event, Principal principal) throws Exception
    {
-      final Context context = createContext(runtimeId, principal, linkUri);
-      vsSelectionService.applySelection(name, event, context);
+      vsSelectionServiceProxy.applySelection(runtimeId, name, event, principal, null, linkUri);
    }
 
    @Undoable
@@ -87,8 +86,8 @@ public class VSSelectionListController {
                            Principal principal, CommandDispatcher dispatcher,
                            @LinkUri String linkUri) throws Exception
    {
-      final Context context = createContext(principal, dispatcher, linkUri);
-      vsSelectionService.unselectAll(assemblyName, context);
+      vsSelectionServiceProxy.unselectAll(runtimeViewsheetRef.getRuntimeId(), assemblyName, principal,
+                                     dispatcher, linkUri);
    }
 
    /**
@@ -109,8 +108,8 @@ public class VSSelectionListController {
                              CommandDispatcher dispatcher, @LinkUri String linkUri)
       throws Exception
    {
-      final Context context = createContext(principal, dispatcher, linkUri);
-      vsSelectionService.selectSubtree(assemblyName, event, context);
+      vsSelectionServiceProxy.selectSubtree(runtimeViewsheetRef.getRuntimeId(), assemblyName,
+                                       event, principal, dispatcher, linkUri);
    }
 
    @Undoable
@@ -119,8 +118,8 @@ public class VSSelectionListController {
                              Principal principal, CommandDispatcher dispatcher,
                              @LinkUri String linkUri) throws Exception
    {
-      final Context context = createContext(principal, dispatcher, linkUri);
-      vsSelectionService.applySelection(assemblyName, null, context);
+      vsSelectionServiceProxy.applySelection(runtimeViewsheetRef.getRuntimeId(), assemblyName, null,
+                                             principal, dispatcher, linkUri);
    }
 
    @Undoable
@@ -131,8 +130,7 @@ public class VSSelectionListController {
                              CommandDispatcher dispatcher, @LinkUri String linkUri)
       throws Exception
    {
-      final Context context = createContext(principal, dispatcher, linkUri);
-      vsSelectionService.sortSelection(assemblyName, event, context);
+      vsSelectionServiceProxy.sortSelection(runtimeViewsheetRef.getRuntimeId(), assemblyName, event, principal, dispatcher, linkUri);
    }
 
    @MessageMapping("/selectionList/toggle/{name}")
@@ -141,8 +139,8 @@ public class VSSelectionListController {
                                            @LinkUri String linkUri)
       throws Exception
    {
-      final Context context = createContext(principal, dispatcher, linkUri);
-      vsSelectionService.toggleSelectionStyle(assemblyName, context);
+      vsSelectionServiceProxy.toggleSelectionStyle(runtimeViewsheetRef.getRuntimeId(), assemblyName,
+                                              principal, dispatcher, linkUri);
    }
 
    @MessageMapping("/selectionTree/updateVisible/{name}")
@@ -152,27 +150,10 @@ public class VSSelectionListController {
                                    @LinkUri String linkUri)
       throws Exception
    {
-      final Context context = createContext(principal, dispatcher, linkUri);
-      vsSelectionService.updateVisibleValues(assemblyName, event, context);
+      vsSelectionServiceProxy.updateVisibleValues(
+         runtimeViewsheetRef.getRuntimeId(), assemblyName, event, principal, dispatcher, linkUri);
    }
 
-   private Context createContext(Principal principal,
-                                 CommandDispatcher dispatcher,
-                                 String linkUri)
-      throws Exception
-   {
-      return vsSelectionService.createContext(runtimeViewsheetRef.getRuntimeId(),
-         principal, dispatcher, linkUri);
-   }
-
-   private Context createContext(String runtimeId, Principal principal,
-                                 String linkUri)
-      throws Exception
-   {
-      return CommandDispatcher.withDummyDispatcher(principal, dispatcher ->
-         vsSelectionService.createContext(runtimeId, principal, dispatcher, linkUri));
-   }
-
-   private final RuntimeViewsheetRef runtimeViewsheetRef;
-   private final VSSelectionService vsSelectionService;
+      private final RuntimeViewsheetRef runtimeViewsheetRef;
+   private final VSSelectionServiceProxy vsSelectionServiceProxy;
 }

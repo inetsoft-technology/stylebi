@@ -25,11 +25,10 @@ import {
    Renderer2,
    ViewContainerRef
 } from "@angular/core";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { BrowserModule, By, Title } from "@angular/platform-browser";
 import { Router } from "@angular/router";
 import {
-   NgbConfig,
    NgbDatepickerConfig,
    NgbDropdownConfig,
    NgbModal,
@@ -78,6 +77,7 @@ import { VSBookmarkInfoModel } from "./model/vs-bookmark-info-model";
 import { VSChartService } from "./objects/chart/services/vs-chart.service";
 import { DataTipService } from "./objects/data-tip/data-tip.service";
 import { PopComponentService } from "./objects/data-tip/pop-component.service";
+import { TimerService } from "./objects/data-tip/timer.service";
 import { VSPopComponentDirective } from "./objects/data-tip/vs-pop-component.directive";
 import { MiniToolbarService } from "./objects/mini-toolbar/mini-toolbar.service";
 import { SelectionMobileService } from "./objects/selection/services/selection-mobile.service";
@@ -146,8 +146,9 @@ describe("ViewerApp Unit Tests", () => {
    let assetLoadingService: any;
    let viewContainerRef: any;
    let baseHrefService: any;
+   let timerService: any;
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       formDataService = {
          checkFormData: jest.fn(),
          removeObject: jest.fn(),
@@ -275,8 +276,14 @@ describe("ViewerApp Unit Tests", () => {
          element: jest.fn(),
       };
       baseHrefService = {
-         getBaseHref: jest.fn()
+         getBaseHref: jest.fn(),
       };
+      timerService = {
+         defer: jest.fn((fn) => {
+            fn();
+         })
+      };
+
 
       window.IntersectionObserver = jest.fn().mockImplementation(() => ({
          observe: () => {},
@@ -323,7 +330,8 @@ describe("ViewerApp Unit Tests", () => {
             { provide: AssetLoadingService, useValue: assetLoadingService },
             { provide: ViewContainerRef, useValue: viewContainerRef },
             { provide: BaseHrefService, useValue: baseHrefService },
-            AppInfoService
+            AppInfoService,
+            { provide: TimerService, useValue: timerService },
          ],
          declarations: [
             ViewerAppComponent, ActionsContextmenuComponent, InteractContainerDirective,
@@ -347,7 +355,7 @@ describe("ViewerApp Unit Tests", () => {
 
    //Bug #16456 TODO, logica changed, can not get fixed dropdown pane
    // Bug #19176 hide full screen in preview
-   it("should have disabled set as default and hidden full screen button in preview mode", async(() => {
+   it("should have disabled set as default and hidden full screen button in preview mode", waitForAsync(() => {
       const fixture: ComponentFixture<ViewerAppComponent> = TestBed.createComponent(ViewerAppComponent);
       fixture.componentInstance.touchDevice = false;
       fixture.componentInstance.preview = true;
@@ -370,14 +378,14 @@ describe("ViewerApp Unit Tests", () => {
 
    it("should remove the vsobject's actions when removing the vsobject", () => {
       const httpClient = TestBed.inject(HttpClient);
-      const baseHrefService = TestBed.inject(BaseHrefService);
+      const tooltipConfig = TestBed.inject(NgbTooltipConfig);
       const currentUserService = { getPortalCurrentUser: jest.fn().mockReturnValue(observableOf(null)) };
       const viewerApp = new ViewerAppComponent(
          viewsheetClientService, null, null, null, null, null, null, null,
          new NgbDatepickerConfig(), null, actionFactory, httpClient, null, formDataService,
          debounceService, scaleService, contextProvider, viewDataService, fullScreenService, router,
          renderer, null, sanitizer, titleService, hyperlinkService, viewerResizeService,
-         firstDayOfWeekService, new NgbTooltipConfig(new NgbConfig()), shareService, null,
+         firstDayOfWeekService, TestBed.inject(NgbTooltipConfig), shareService, null,
          richTextService, viewerToolbarMessageService, mobileToolbarService, mockDocument, composerRecentService,
          pageTabService, pagingControlService, selectionMobileService,
          assetLoadingService, viewContainerRef, baseHrefService,
@@ -424,7 +432,7 @@ describe("ViewerApp Unit Tests", () => {
    // Bug #16961 should refresh scale to screen vs when viewer root pane size changes
    // @by jasonshobe, this test case is failing, but it is bad (testing implementation instead of
    // behavior) so I'm disabling it.
-   xit("should refresh viewsheet on viewer root resize", async(() => {
+   xit("should refresh viewsheet on viewer root resize", waitForAsync(() => {
       const fixture: ComponentFixture<ViewerAppComponent> = TestBed.createComponent(ViewerAppComponent);
       fixture.componentInstance.toolbarVisible = true;
       fixture.componentInstance.preview = true;
@@ -494,7 +502,7 @@ describe("ViewerApp Unit Tests", () => {
    });
 
    // Bug #20628 Bug #20715 should display correct status for previous page
-   it("should display correct status for previous page", async(() => {
+   it("should display correct status for previous page", waitForAsync(() => {
       const fixture: ComponentFixture<ViewerAppComponent> =
          TestBed.createComponent(ViewerAppComponent);
       fixture.componentInstance.toolbarPermissions = [];

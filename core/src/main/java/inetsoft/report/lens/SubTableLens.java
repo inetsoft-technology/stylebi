@@ -768,6 +768,6 @@ public class SubTableLens extends AbstractTableLens implements TableFilter {
    }
 
    private TableLens table;
-   private TableDataDescriptor descriptor = null;
+   private transient TableDataDescriptor descriptor = null;
    protected int[] rows, cols;
 }

@@ -24,8 +24,9 @@ import inetsoft.uql.XPrincipal;
 import inetsoft.util.DefaultDebouncer;
 import inetsoft.util.Tool;
 import inetsoft.web.admin.security.*;
-import inetsoft.web.service.BaseSubscribeChangHandler;
+import inetsoft.web.service.BaseSubscribeChangeHandler;
 import jakarta.annotation.PreDestroy;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.context.event.EventListener;
 import org.springframework.messaging.MessageHeaders;
@@ -35,30 +36,34 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.stereotype.Service;
 import org.springframework.web.socket.messaging.SessionDisconnectEvent;
-import org.springframework.web.socket.messaging.SessionUnsubscribeEvent;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.concurrent.TimeUnit;
 
 @Service
 @Lazy(false)
-public class ScheduleUsersChangeService extends BaseSubscribeChangHandler implements MessageListener {
-   public ScheduleUsersChangeService(SimpMessagingTemplate messageTemplate) {
+public class ScheduleUsersChangeService extends BaseSubscribeChangeHandler implements MessageListener {
+   @Autowired
+   public ScheduleUsersChangeService(SimpMessagingTemplate messageTemplate, Cluster cluster) {
       super(messageTemplate);
-      Cluster.getInstance().addMessageListener(this);
+      this.cluster = cluster;
+      cluster.addMessageListener(this);
    }
 
    @PreDestroy
-   public void destroyInstance() throws Exception {
-      this.debouncer.close();
-      Cluster.getInstance().removeMessageListener(this);
+   public void destroyInstance() {
+      try {
+         this.debouncer.close();
+         cluster.removeMessageListener(this);
+      }
+      catch(Exception e) {
+         LOG.debug("Failed to clean up during shutdown", e);
+      }
    }
 
-   @EventListener
-   public void handleUnsubscribe(SessionUnsubscribeEvent event) {
-      super.handleUnsubscribe(event);
-   }
-
-   @EventListener
+   @EventListener(SessionDisconnectEvent.class)
    public void handleDisconnect(SessionDisconnectEvent event) {
       super.handleDisconnect(event);
    }
@@ -77,9 +82,9 @@ public class ScheduleUsersChangeService extends BaseSubscribeChangHandler implem
          .get(DestinationPatternsMessageCondition.LOOKUP_DESTINATION_HEADER);
       final String subscriptionId =
          (String) messageHeaders.get(SimpMessageHeaderAccessor.SUBSCRIPTION_ID_HEADER);
-      final BaseSubscribeChangHandler.BaseSubscriber subscriber =
-         new BaseSubscribeChangHandler.BaseSubscriber(sessionId, subscriptionId,
-            lookupDestination, destination, headerAccessor.getUser());
+      final BaseSubscribeChangeHandler.BaseSubscriber subscriber =
+         new BaseSubscribeChangeHandler.BaseSubscriber(sessionId, subscriptionId,
+                                                       lookupDestination, destination, headerAccessor.getUser());
 
       return addSubscriber(subscriber);
    }
@@ -113,5 +118,7 @@ public class ScheduleUsersChangeService extends BaseSubscribeChangHandler implem
       }
    }
 
+   private final Cluster cluster;
    private final DefaultDebouncer<String> debouncer = new DefaultDebouncer<>();
+   private static final Logger LOG = LoggerFactory.getLogger(ScheduleUsersChangeService.class);
 }

@@ -22,6 +22,7 @@ import inetsoft.util.GroupedThread;
 import inetsoft.util.log.LogContext;
 import org.apache.commons.lang3.StringUtils;
 
+import java.io.Serializable;
 import java.sql.Date;
 import java.util.*;
 
@@ -32,7 +33,7 @@ import java.util.*;
  * @author InetSoft Technology Corp.
  * @version 13.1, 10/11/2018
  */
-public class ExecutionBreakDownRecord implements AuditRecord {
+public class ExecutionBreakDownRecord implements AuditRecord, Serializable {
    /**
     * Object type report.
     */

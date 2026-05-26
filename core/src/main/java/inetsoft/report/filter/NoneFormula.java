@@ -137,8 +137,11 @@ public class NoneFormula implements Formula {
       else if(sval != Tool.NULL_SHORT) {
          return Short.valueOf(sval);
       }
-      else {
+      else if(val != null) {
          return val;
+      }
+      else {
+         return def ? (double) 0 : null;
       }
    }
 

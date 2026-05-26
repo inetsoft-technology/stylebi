@@ -116,7 +116,7 @@ public class QueryVariable extends XVariable {
     * @return query result.
     */
    public XNode execute(VariableTable vars) throws Exception {
-      XNode root = XFactory.getDataService().execute(vars.getSession(), query,
+      XNode root = XRepository.getRepository().execute(vars.getSession(), query,
                                                   vars, null, false, null);
 
       if(xpath != null) {
@@ -211,4 +211,3 @@ public class QueryVariable extends XVariable {
    private static final Logger LOG =
       LoggerFactory.getLogger(QueryVariable.class);
 }
-

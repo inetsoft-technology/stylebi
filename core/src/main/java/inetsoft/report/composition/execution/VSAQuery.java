@@ -1051,7 +1051,7 @@ public abstract class VSAQuery {
       }
 
       try {
-         TableLens lens = AssetDataCache.getData(
+         TableLens lens = AssetDataCache.getCache().getData(
             box.getID(), table, wbox, ignored, mode,
             limited, box.getTouchTimestamp(), qmgr);
 
@@ -1061,7 +1061,7 @@ public abstract class VSAQuery {
             tryIgnoring)
          {
             wbox.setIgnoreFiltering(true);
-            lens = AssetDataCache.getData(box.getID(), table, wbox, null, mode,
+            lens = AssetDataCache.getCache().getData(box.getID(), table, wbox, null, mode,
                                           true, box.getTouchTimestamp(), qmgr);
             exs = WorksheetService.ASSET_EXCEPTIONS.get();
 
@@ -1363,6 +1363,12 @@ public abstract class VSAQuery {
    public static void appendCalcField(TableAssembly table, String tname,
                                       boolean detail, Viewsheet vs)
    {
+      appendCalcFieldWithType(table, tname, detail, false, vs);
+   }
+
+   protected static void appendCalcFieldWithType(TableAssembly table, String tname,
+                                                 boolean detail, boolean rangeOnly, Viewsheet vs)
+   {
       if(table == null) {
          return;
       }
@@ -1381,14 +1387,18 @@ public abstract class VSAQuery {
                continue;
             }
 
-            if(!calcs[i].isBaseOnDetail()) {
-               // clear the mirror table aggregate entity.calc_field,
-               // only keep the calc_field
-               DataRef old = columns.getAttribute(calcs[i].getName());
+            // Only append Range@ calc fields in the cube path to avoid double-appending
+            // detail calc fields that are already merged via SQL (Bug #73963 / Bug #73410).
+            if(rangeOnly && !calcs[i].getName().startsWith("Range@")) {
+               continue;
+            }
 
-               if(old != null) {
-                  columns.removeAttribute(old);
-               }
+            // clear the mirror table entity-prefixed calc_field
+            // to avoid duplicates when adding the bare calc_field
+            DataRef old = columns.getAttribute(calcs[i].getName());
+
+            if(old != null) {
+               columns.removeAttribute(old);
             }
 
             calcs[i].setVisible(true);
@@ -1396,7 +1406,11 @@ public abstract class VSAQuery {
             changed = true;
          }
 
-         changed = VSUtil.addCalcBaseRefs(columns, null, Arrays.asList(calcs)) || changed;
+         List<CalculateRef> calcsToProcess = rangeOnly
+            ? Arrays.stream(calcs).filter(c -> c.getName().startsWith("Range@"))
+               .collect(Collectors.toList())
+            : Arrays.asList(calcs);
+         changed = VSUtil.addCalcBaseRefs(columns, null, calcsToProcess) || changed;
 
          if(changed) {
             table.resetColumnSelection();
@@ -1494,9 +1508,16 @@ public abstract class VSAQuery {
          if(ref instanceof CalculateRef && ((CalculateRef) ref).isBaseOnDetail()) {
             CalculateRef calc = (CalculateRef) ref;
 
-            if(!usedInSelection(pubcols, calc) && !usedInGroup(ainfo, calc) &&
-               !usedInAggregate(ainfo, calc) && !allCols.contains(ref.getName()) &&
-               !usedInSelection(child.getName(), calc))
+            boolean inSelection = usedInSelection(pubcols, calc);
+            boolean inGroup = usedInGroup(ainfo, calc);
+            boolean inAggregate = usedInAggregate(ainfo, calc);
+            boolean inAllCols = allCols.contains(ref.getName());
+            boolean inSelectionAssembly = usedInSelection(child.getName(), calc);
+            // Bug #73729: preserve calc fields for crosstab dimensions
+            boolean inCrosstabDim = usedInCrosstabDimension(calc);
+
+            if(!inSelection && !inGroup && !inAggregate && !inAllCols &&
+               !inSelectionAssembly && !inCrosstabDim)
             {
                pubcols.getAttribute(ref.getName());
                childPriv.removeAttribute(i);
@@ -1570,6 +1591,19 @@ public abstract class VSAQuery {
 
          return false;
       });
+   }
+
+   /**
+    * Bug #73729: Check if calc field should be preserved for crosstab dimension use.
+    *
+    * For crosstab assemblies, keep all detail calc fields in the column selection.
+    * This ensures they are available when used as row/column dimensions. The
+    * pushDownAggregate() method in AbstractCrosstabVSAQuery needs to find these
+    * CalculateRef instances to properly include calc field formulas in the query.
+    */
+   private boolean usedInCrosstabDimension(CalculateRef calc) {
+      VSAssembly assembly = getAssembly();
+      return assembly instanceof CrosstabDataVSAssembly;
    }
 
    /**

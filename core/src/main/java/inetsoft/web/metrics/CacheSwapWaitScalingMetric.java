@@ -22,15 +22,18 @@ import inetsoft.sree.SreeEnv;
 import inetsoft.util.swap.XSwapper;
 
 public class CacheSwapWaitScalingMetric extends ScalingMetric {
-   public CacheSwapWaitScalingMetric(boolean movingAverage, int capacity) {
+   public CacheSwapWaitScalingMetric(boolean movingAverage, int capacity, XSwapper swapper) {
       super(movingAverage, capacity);
+      this.swapper = swapper;
    }
 
    @Override
    protected double calculate() {
       long threshold = Long.parseLong(
          SreeEnv.getProperty("metric.cacheSwap.excessiveWaitingThreads", "10"));
-      double count = XSwapper.getWaitingThreadCount();
+      double count = swapper.getWaitingThreadCount();
       return Math.clamp(count / threshold, 0D, 1D);
    }
+
+   private final XSwapper swapper;
 }

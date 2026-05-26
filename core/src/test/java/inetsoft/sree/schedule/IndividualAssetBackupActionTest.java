@@ -20,13 +20,21 @@ package inetsoft.sree.schedule;
 
 import inetsoft.sree.security.*;
 import inetsoft.storage.ExternalStorageService;
-import inetsoft.uql.asset.*;
+import inetsoft.test.*;
+import inetsoft.uql.asset.AssetEntry;
+import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.util.Tool;
 import inetsoft.util.dep.*;
 import inetsoft.web.admin.deploy.DeployUtil;
 import org.junit.jupiter.api.Test;
-import org.mockito.*;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.Tag;
+import org.mockito.MockedStatic;
+import org.mockito.Mockito;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.io.File;
 import java.lang.reflect.InvocationTargetException;
@@ -40,6 +48,12 @@ import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class, IntegrationTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@SreeHome
+@Tag("core")
+@Tag("integration")
 public class IndividualAssetBackupActionTest {
    @Test
    void testRunWithFilePath() {

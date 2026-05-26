@@ -710,24 +710,27 @@ public final class MVBuilder {
                futures.add(future);
                final int finalCol = col;
 
-               ThreadPool.addOnDemand(() -> {
-                  try {
-                     for(int row = start; row < endRow; row++) {
-                        Object obj = lens.getObject(row, dimensions[finalCol]);
-                        int idx = convertDimValue(finalCol, row + lastRows[finalCol], obj);
+               ThreadPool.addOnDemand(new ThreadPool.AbstractContextRunnable() {
+                  @Override
+                  public void run() {
+                     try {
+                        for(int row = start; row < endRow; row++) {
+                           Object obj = lens.getObject(row, dimensions[finalCol]);
+                           int idx = convertDimValue(finalCol, row + lastRows[finalCol], obj);
 
-                        if(dims[finalCol] != null) {
-                           dims[finalCol].addKey(idx, row - start);
+                           if(dims[finalCol] != null) {
+                              dims[finalCol].addKey(idx, row - start);
+                           }
+
+                           int blockIdx = row - start;
+                           block.addDimension(blockIdx, finalCol, idx);
                         }
 
-                        int blockIdx = row - start;
-                        block.addDimension(blockIdx, finalCol, idx);
+                        future.complete(null);
                      }
-
-                     future.complete(null);
-                  }
-                  catch(Exception ex) {
-                     future.completeExceptionally(ex);
+                     catch(Exception ex) {
+                        future.completeExceptionally(ex);
+                     }
                   }
                });
             }
@@ -744,20 +747,23 @@ public final class MVBuilder {
                futures.add(future);
                final int finalCol = col;
 
-               ThreadPool.addOnDemand( () -> {
-                  try {
-                     for(int row = start; row < endRow; row++) {
-                        Object obj = lens.getObject(row, measures[finalCol]);
-                        double measure = MVCreatorUtil.convertMeasureValue(obj, row + lastRows[dcnt + finalCol],
-                                                                           dicts2[finalCol + dcnt], numbers[finalCol]);
-                        int blockIdx = row - start;
-                        block.addMeasure(blockIdx, finalCol, measure);
-                     }
+               ThreadPool.addOnDemand(new ThreadPool.AbstractContextRunnable() {
+                  @Override
+                  public void run() {
+                     try {
+                        for(int row = start; row < endRow; row++) {
+                           Object obj = lens.getObject(row, measures[finalCol]);
+                           double measure = MVCreatorUtil.convertMeasureValue(obj, row + lastRows[dcnt + finalCol],
+                                                                              dicts2[finalCol + dcnt], numbers[finalCol]);
+                           int blockIdx = row - start;
+                           block.addMeasure(blockIdx, finalCol, measure);
+                        }
 
-                     future.complete(null);
-                  }
-                  catch(Exception ex) {
-                     future.completeExceptionally(ex);
+                        future.complete(null);
+                     }
+                     catch(Exception ex) {
+                        future.completeExceptionally(ex);
+                     }
                   }
                });
             }

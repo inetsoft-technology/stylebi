@@ -314,9 +314,16 @@ public class AssetUtil {
    }
 
    public static String getEntryLabel(AssetEntry entry, Catalog catalog) {
+      // do not localize the table style and its folder except "Table Styles" folder
+      if(entry.getType() == AssetEntry.Type.TABLE_STYLE ||
+         (entry.getType() == AssetEntry.Type.TABLE_STYLE_FOLDER && !Objects.equals(entry.toView(), "Table Styles"))) {
+         return entry.toView();
+      }
+
       String label = entry.getProperty("localStr");
       label = label != null && !label.equals("") ?
          label : catalog.getString(entry.toView());
+
       return label;
    }
 
@@ -452,7 +459,7 @@ public class AssetUtil {
         type == SourceInfo.DATASOURCE || type == (SourceInfo.DATASOURCE | SourceInfo.CUBE))
       {
          String name = source.getPrefix();
-         XRepository repository = XFactory.getRepository();
+         XRepository repository = XRepository.getRepository();
          return repository.getDataSource(name);
       }
       else {
@@ -479,7 +486,7 @@ public class AssetUtil {
          return new UserVariable[0];
       }
 
-      XDataService service = XFactory.getDataService();
+      XDataService service = XRepository.getRepository();
       Object session = service.bind(System.getProperty("user.name"));
       UserVariable[] vars = new UserVariable[0];
       int type = source.getType();
@@ -2122,7 +2129,7 @@ public class AssetUtil {
       boolean view, boolean out)
    {
       List<Assembly> assemblies = new ArrayList<>();
-      getDependedAssemblies0(sheet, assembly, assemblies, included, view, out);
+      getDependedAssemblies0(sheet, assembly, assemblies, new HashSet<>(), included, view, out);
       Assembly[] arr = new Assembly[assemblies.size()];
       assemblies.toArray(arr);
 
@@ -2135,14 +2142,15 @@ public class AssetUtil {
     * @param sheet      the specified sheet container.
     * @param assembly   the specified assembly.
     * @param assemblies the assembly container.
+    * @param visited    tracks visited assemblies for O(1) cycle detection.
     * @param included   <tt>true</tt> to include itself, <tt>false</tt> otherwise.
     * @return all the assemblies depended on.
     */
    private static void getDependedAssemblies0(
       AbstractSheet sheet, Assembly assembly, List<Assembly> assemblies,
-      boolean included, boolean view, boolean out)
+      Set<Assembly> visited, boolean included, boolean view, boolean out)
    {
-      if(assemblies.contains(assembly)) {
+      if(!visited.add(assembly)) {
          return;
       }
 
@@ -2169,7 +2177,7 @@ public class AssetUtil {
             continue;
          }
 
-         getDependedAssemblies0(sheet, assembly2, assemblies, true, view, out);
+         getDependedAssemblies0(sheet, assembly2, assemblies, visited, true, view, out);
       }
    }
 
@@ -2289,7 +2297,7 @@ public class AssetUtil {
       }
 
       try {
-         XRepository repository = XFactory.getRepository();
+         XRepository repository = XRepository.getRepository();
          XDomain domain = repository.getDomain(prefix);
 
          if(domain == null) {
@@ -2410,7 +2418,7 @@ public class AssetUtil {
       }
 
       if(rep == null) {
-         rep = (AssetRepository) SingletonManager.getInstance(AnalyticRepository.class);
+         rep = AnalyticRepository.getInstance().unwrap(AssetRepository.class);
       }
 
       return rep;

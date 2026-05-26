@@ -110,6 +110,7 @@ export class PageHeaderComponent implements OnInit, OnDestroy {
          .subscribe((result: EmPageHeaderModel) => {
             this.model = result;
             this.currentProvider = result.providerName;
+            this.pageTitle.currentOrgId = result.currOrgID;
 
             if(!renameOnly && oldOrg != null && this.model != null && this.model.currOrgID != oldOrg) {
                // Notify of an externally-detected org change (e.g. changed from another session or admin action).
@@ -142,6 +143,8 @@ export class PageHeaderComponent implements OnInit, OnDestroy {
    }
 
    changeOrg(){
+      this.pageTitle.currentOrgId = this.model.currOrgID;
+
       this.http.post("../api/em/pageheader/organization", this.model)
          .subscribe(() => {
             // Notify of the user-initiated org change before routing, so clipboard is cleared immediately.

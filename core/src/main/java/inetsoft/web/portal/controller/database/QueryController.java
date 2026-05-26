@@ -21,11 +21,9 @@ import inetsoft.sree.security.*;
 import inetsoft.sree.security.SecurityException;
 import inetsoft.uql.XFormatInfo;
 import inetsoft.uql.asset.AssetEntry;
-import inetsoft.uql.jdbc.JDBCDataSource;
-import inetsoft.uql.jdbc.JDBCQuery;
-import inetsoft.uql.jdbc.UniformSQL;
-import inetsoft.uql.util.XUtil;
-import inetsoft.util.*;
+import inetsoft.uql.jdbc.*;
+import inetsoft.util.Catalog;
+import inetsoft.util.MessageException;
 import inetsoft.web.adhoc.model.FormatInfoModel;
 import inetsoft.web.composer.BrowseDataController;
 import inetsoft.web.composer.model.TreeNodeModel;
@@ -48,10 +46,12 @@ import java.util.List;
 public class QueryController extends WorksheetController {
    @Autowired
    public QueryController(RuntimeQueryService runtimeQueryService,
-                          QueryManagerService queryManager)
+                          QueryManagerService queryManager,
+                          SecurityEngine securityEngine)
    {
       this.runtimeQueryService = runtimeQueryService;
       this.queryManager = queryManager;
+      this.securityEngine = securityEngine;
    }
 
    @GetMapping("/api/data/datasource/query/query-model")
@@ -107,8 +107,13 @@ public class QueryController extends WorksheetController {
                                      @RequestParam("columnType") String columnType)
       throws Exception
    {
+      RuntimeQueryService.RuntimeXQuery runtimeQuery = queryManager.getRuntimeQuery(runtimeId);
 
-      JDBCQuery query = queryManager.getQuery(runtimeId);
+      if(runtimeQuery == null) {
+         return new ArrayList<>();
+      }
+
+      JDBCQuery query = runtimeQuery.getQuery();
 
       if(query == null) {
          return new ArrayList<>();
@@ -145,7 +150,7 @@ public class QueryController extends WorksheetController {
                            @RequestParam(value = "columnAlias", required = false) String columnAlias,
                            @RequestParam("add") boolean add, Principal principal) throws Exception
    {
-      if(!SecurityEngine.getSecurity().checkPermission(
+      if(!securityEngine.checkPermission(
          principal, ResourceType.WORKSHEET_EXPRESSION_COLUMN, "*", ResourceAction.ACCESS))
       {
          throw new SecurityException("You do not have permission to modify expression columns.");
@@ -229,13 +234,20 @@ public class QueryController extends WorksheetController {
                                                       @RequestBody UpdateFreeFormSQLPaneEvent event,
                                                       Principal principal)
    {
-      String errorMsg = queryManager.setFreeFormSQLPaneModel(event, principal);
-      RuntimeQueryService.RuntimeXQuery runtimeQuery =
-         runtimeQueryService.getRuntimeQuery(event.getRuntimeId());
-      UpdateFreeFormSQLPaneResult result = new UpdateFreeFormSQLPaneResult();
-      result.setErrorMsg(errorMsg);
-      result.setModel(queryManager.getAdvancedQueryModel(runtimeQuery, principal));
-      return result;
+      try {
+         String errorMsg = queryManager.setFreeFormSQLPaneModel(event, principal);
+         RuntimeQueryService.RuntimeXQuery runtimeQuery =
+            runtimeQueryService.getRuntimeQuery(event.getRuntimeId());
+         UpdateFreeFormSQLPaneResult result = new UpdateFreeFormSQLPaneResult();
+         result.setErrorMsg(errorMsg);
+         result.setModel(queryManager.getAdvancedQueryModel(runtimeQuery, principal));
+         return result;
+      }
+      catch(MessageException e) {
+         UpdateFreeFormSQLPaneResult result = new UpdateFreeFormSQLPaneResult();
+         result.setErrorMsg(e.getMessage());
+         return result;
+      }
    }
 
    @GetMapping("/api/data/datasource/query/load/data")
@@ -261,4 +273,5 @@ public class QueryController extends WorksheetController {
 
    private final RuntimeQueryService runtimeQueryService;
    private final QueryManagerService queryManager;
+   private final SecurityEngine securityEngine;
 }

@@ -17,8 +17,7 @@
  */
 package inetsoft.sree.internal;
 
-import inetsoft.sree.security.IdentityID;
-import inetsoft.sree.security.OrganizationManager;
+import inetsoft.sree.security.*;
 import inetsoft.uql.XPrincipal;
 import inetsoft.util.*;
 import inetsoft.util.log.*;
@@ -110,7 +109,9 @@ public class ProcessReader {
 
                if(logLine) {
                   if(firstRecord) {
-                     setPrincipal(SUtil.getPrincipal(new IdentityID(XPrincipal.SYSTEM, OrganizationManager.getInstance().getCurrentOrgID()), null, false));
+                     setPrincipal(SUtil.getPrincipal(
+                        new IdentityID(XPrincipal.SYSTEM, Organization.getDefaultOrganizationID()),
+                        null, false));
                      addRecord("External process");
                      firstRecord = false;
                   }

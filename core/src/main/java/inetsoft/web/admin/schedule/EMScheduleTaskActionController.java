@@ -17,6 +17,7 @@
  */
 package inetsoft.web.admin.schedule;
 
+import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.security.*;
 import inetsoft.uql.asset.AssetEntry;
@@ -39,11 +40,17 @@ public class EMScheduleTaskActionController {
    @Autowired
    public EMScheduleTaskActionController(ScheduleTaskActionService actionService,
                                          SecurityProvider securityProvider,
-                                         AssetRepository assetRepository)
+                                         AssetRepository assetRepository,
+                                         EMScheduleTaskActionServiceProxy emActionService,
+                                         ViewsheetService viewsheetService,
+                                         ScheduleTaskActionServiceProxy actionServiceProxy)
    {
       this.actionService = actionService;
       this.securityProvider = securityProvider;
       this.assetRepository = assetRepository;
+      this.emActionService = emActionService;
+      this.viewsheetService = viewsheetService;
+      this.actionServiceProxy = actionServiceProxy;
    }
 
    @GetMapping("/api/em/schedule/task/action/emails")
@@ -144,7 +151,12 @@ public class EMScheduleTaskActionController {
    public boolean hasPrintLayout(@DecodeParam("id") String id, Principal principal)
       throws Exception
    {
-      return actionService.hasPrintLayout(id, principal);
+      AssetEntry entry = AssetEntry.createAssetEntry(id);
+      String runtimeId = viewsheetService.openViewsheet(entry, principal, false);
+      boolean hasPrintLayout = actionServiceProxy.hasPrintLayout(runtimeId, principal);
+      emActionService.closeViewsheet(id, principal);
+
+      return hasPrintLayout;
    }
 
    /**
@@ -169,8 +181,13 @@ public class EMScheduleTaskActionController {
                                                     Principal principal)
       throws Exception
    {
+      AssetEntry entry = AssetEntry.createAssetEntry(identifier);
+      String runtimeId = viewsheetService.openViewsheet(entry, principal, false);
+      List<ScheduleAlertModel> highlights = actionServiceProxy.getViewsheetHighlights(runtimeId, principal);
+      emActionService.closeViewsheet(identifier, principal);
+
       return HighlightListModel.builder()
-         .highlights(actionService.getViewsheetHighlights(identifier, principal))
+         .highlights(highlights)
          .build();
    }
 
@@ -196,8 +213,12 @@ public class EMScheduleTaskActionController {
                                                           Principal principal)
       throws Exception
    {
+      AssetEntry entry = AssetEntry.createAssetEntry(identifier);
+      String runtimeId = viewsheetService.openViewsheet(entry, null, false);
+      List<String> params = actionServiceProxy.getViewsheetParameters(runtimeId, principal);
+      emActionService.closeViewsheet(identifier, null);
       return ViewsheetParametersModel.builder()
-         .parameters(actionService.getViewsheetParameters(identifier, principal))
+         .parameters(params)
          .build();
 
    }
@@ -224,7 +245,7 @@ public class EMScheduleTaskActionController {
       @DecodeParam("id") String identifier,
       Principal principal) throws Exception
    {
-      return actionService.getViewsheetTableDataAssemblies(identifier, principal);
+      return emActionService.getViewsheetTableDataAssemblies(identifier, principal);
    }
 
    @Secured(
@@ -344,4 +365,8 @@ public class EMScheduleTaskActionController {
    private final ScheduleTaskActionService actionService;
    private final SecurityProvider securityProvider;
    private final AssetRepository assetRepository;
+   private final EMScheduleTaskActionServiceProxy emActionService;
+   private final ViewsheetService viewsheetService;
+   private final ScheduleTaskActionServiceProxy actionServiceProxy;
+
 }

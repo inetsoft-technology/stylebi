@@ -70,6 +70,7 @@ management:
             - scheduler
             - securityProvider
             - fileSystem
+            - cluster
         liveness:
           include:
             - livenessState
@@ -85,6 +86,7 @@ management:
           include:
             - readinessState # nosemgrep: java.spring.security.audit.spring-actuator-non-health-enabled-yaml.spring-actuator-dangerous-endpoints-enabled-yaml
             - clusterReadiness # nosemgrep: java.spring.security.audit.spring-actuator-non-health-enabled-yaml.spring-actuator-dangerous-endpoints-enabled-yaml
+            - cluster
       show-details: always
       show-components: always
   health:
@@ -107,6 +109,8 @@ management:
     securityProvider:
       enabled: true
     fileSystem:
+      enabled: true
+    cluster:
       enabled: true
     clusterReadiness:
       enabled: true

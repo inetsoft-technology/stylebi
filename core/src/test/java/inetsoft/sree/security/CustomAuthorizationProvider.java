@@ -18,13 +18,16 @@
 package inetsoft.sree.security;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.fasterxml.jackson.core.*;
-import com.fasterxml.jackson.databind.*;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
+import org.junit.jupiter.api.Tag;
 
+@Tag("core")
 public class CustomAuthorizationProvider extends AbstractAuthorizationProvider {
    @Override
    public Permission getPermission(ResourceType type, String resource, String orgID) {

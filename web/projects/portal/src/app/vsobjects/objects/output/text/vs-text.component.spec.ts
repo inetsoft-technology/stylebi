@@ -17,7 +17,7 @@
  */
 import { HttpClientTestingModule } from "@angular/common/http/testing";
 import { DebugElement, NO_ERRORS_SCHEMA } from "@angular/core";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { By } from "@angular/platform-browser";
 import { Router } from "@angular/router";
@@ -36,6 +36,7 @@ import { VSTextModel } from "../../../model/output/vs-text-model";
 import { ShowHyperlinkService } from "../../../show-hyperlink.service";
 import { DataTipService } from "../../data-tip/data-tip.service";
 import { PopComponentService } from "../../data-tip/pop-component.service";
+import { TimerService } from "../../data-tip/timer.service";
 import { VSText } from "./vs-text.component";
 
 let createModel: () => VSTextModel = () => {
@@ -62,14 +63,20 @@ describe("VS Text Component Unit Test", () => {
    let dataTipService: any;
    let router: any;
    let richTextService: any;
+   let timerService: any;
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       viewsheetClientService = {};
       dropdownService = {};
       modelService = { sendModel: jest.fn() };
       dataTipService = { isDataTip: jest.fn() };
       viewDataService = {};
       contextProvider = {};
+      timerService = {
+         defer: jest.fn((fn) => {
+            fn();
+         })
+      };
 
       router = {
          navigate: jest.fn(),
@@ -100,7 +107,8 @@ describe("VS Text Component Unit Test", () => {
             DebounceService,
             {provide: DataTipService, useValue: dataTipService},
             { provide: RichTextService, useValue: richTextService },
-            AppInfoService
+            AppInfoService,
+            { provide: TimerService, useValue: timerService },
          ]
       });
       TestBed.compileComponents();

@@ -17,7 +17,7 @@
  */
 import { HttpClientTestingModule } from "@angular/common/http/testing";
 import { NO_ERRORS_SCHEMA } from "@angular/core";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { MatCardModule } from "@angular/material/card";
 import { MatCheckboxModule } from "@angular/material/checkbox";
@@ -28,8 +28,9 @@ import { MatSelectModule } from "@angular/material/select";
 import { MatSnackBarModule } from "@angular/material/snack-bar";
 import { MatTabsModule } from "@angular/material/tabs";
 import { NoopAnimationsModule } from "@angular/platform-browser/animations";
-import { NEVER, of as observableOf } from "rxjs";
+import { TestUtils } from "../../../../../../../portal/src/app/common/test/test-utils";
 import { StompClientService } from "../../../../../../../shared/stomp/stomp-client.service";
+import { NEVER, of as observableOf } from "rxjs";
 import { DatabaseDefinitionModel } from "../../../../../../../shared/util/model/database-definition-model";
 import { DatasourceDatabaseType } from "../../../../../../../shared/util/model/datasource-database-type";
 import { ResourcePermissionModule } from "../../../security/resource-permission/resource-permission.module";
@@ -55,36 +56,15 @@ const DEFAULT_DATABASE: DatabaseDefinitionModel = {
 describe("RepositoryDataSourceSettingsPageComponent", () => {
    let component: RepositoryDataSourceSettingsPageComponent;
    let fixture: ComponentFixture<RepositoryDataSourceSettingsPageComponent>;
-   let stompClientService: any;
+   let stompClientService: any = TestUtils.createMockStompClientService();
 
-   beforeEach(async(() => {
-      const stompConnection = {
-         subscribe: jest.fn(() => NEVER),
-         disconnect: jest.fn()
-      };
-      stompClientService = {
-         connect: jest.fn(() => observableOf(stompConnection))
-      };
+   beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
-         imports: [
-            MatCardModule,
-            MatTabsModule,
-            ResourcePermissionModule,
-            MatSnackBarModule,
-            NoopAnimationsModule,
-            FormsModule,
-            ReactiveFormsModule,
-            HttpClientTestingModule,
-            MatCheckboxModule,
-            MatSelectModule,
-            MatOptionModule,
-            MatFormFieldModule,
-            MatInputModule
-         ],
-         declarations: [
-            RepositoryDataSourceSettingsPageComponent,
-            RepositoryDataSourceSettingsViewComponent
-         ],
+         imports: [MatCardModule, MatTabsModule, ResourcePermissionModule, MatSnackBarModule,
+            NoopAnimationsModule, FormsModule, ReactiveFormsModule, HttpClientTestingModule,
+            MatCheckboxModule, MatSelectModule, MatOptionModule, MatFormFieldModule, MatInputModule],
+         declarations: [RepositoryDataSourceSettingsPageComponent,
+            RepositoryDataSourceSettingsViewComponent],
          providers: [
             { provide: StompClientService, useValue: stompClientService }
          ],

@@ -19,67 +19,133 @@ package inetsoft.web.viewsheet.service;
 
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.ExpiredSheetException;
-import inetsoft.report.composition.WorksheetService;
+import inetsoft.sree.internal.cluster.*;
 import inetsoft.uql.XPrincipal;
-import inetsoft.uql.asset.AssetEntry;
-import inetsoft.uql.viewsheet.internal.VSUtil;
+import inetsoft.util.ConfigurationContext;
+import inetsoft.web.ServiceProxyContext;
+import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.context.annotation.Scope;
-import org.springframework.context.annotation.ScopedProxyMode;
 import org.springframework.stereotype.Component;
 
 import java.security.Principal;
-import java.util.*;
-import java.util.concurrent.TimeUnit;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  * Component that ensures that open viewsheets are closed when the client that opened them
  * is closed,
  */
 @Component
-@Scope(value = "websocket", proxyMode = ScopedProxyMode.TARGET_CLASS)
 public class RuntimeViewsheetManager {
    @Autowired
-   public RuntimeViewsheetManager(ViewsheetService viewsheetService,
-                                  @Qualifier("worksheetService") WorksheetService worksheetService)
-   {
+   public RuntimeViewsheetManager(ViewsheetService viewsheetService, Cluster cluster) {
       this.viewsheetService = viewsheetService;
-      this.worksheetService = worksheetService;
+      this.cluster = cluster;
    }
 
-   public void sheetOpened(String runtimeId) {
-      synchronized(openSheets) {
-         openSheets.add(runtimeId);
+   @PostConstruct
+   public void init() {
+      openSheets = cluster.getReplicatedMap(OPEN_SHEETS_MAP);
+   }
+
+   private DistributedMap<String, Set<String>> getOpenSheets() {
+      if(openSheets == null) {
+         openSheets = cluster.getReplicatedMap(OPEN_SHEETS_MAP);
+      }
+
+      return openSheets;
+   }
+
+   public void sheetOpened(Principal user, String runtimeId) {
+      String sessionId = getSessionId(user);
+
+      getOpenSheets().lock(sessionId);
+
+      try {
+         Set<String> sheets = getOpenSheets().computeIfAbsent(sessionId, k -> new HashSet<>());
+         sheets.add(runtimeId);
+         getOpenSheets().put(sessionId, sheets);
+      }
+      finally {
+         getOpenSheets().unlock(sessionId);
       }
    }
 
-   public void sheetClosed(String runtimeId) {
-      synchronized(openSheets) {
-         openSheets.remove(runtimeId);
+   public void sheetClosed(Principal user, String runtimeId) {
+      String sessionId = getSessionId(user);
+
+      getOpenSheets().lock(sessionId);
+
+      try {
+         Set<String> sheets = getOpenSheets().get(sessionId);
+
+         if(sheets != null) {
+            sheets.remove(runtimeId);
+
+            if(sheets.isEmpty()) {
+               getOpenSheets().remove(sessionId);
+            }
+            else {
+               getOpenSheets().put(sessionId, sheets);
+            }
+         }
+      }
+      finally {
+         getOpenSheets().unlock(sessionId);
       }
    }
 
    public void sessionEnded(Principal user) {
-      // websocket might reconnect right away, wait a little before closing the viewsheets
-      VSUtil.getDebouncer().debounce(getDebounceKey(user), 1L, TimeUnit.MINUTES, () -> {
-         closeViewsheets(user);
-      });
-   }
-
-   public void sessionConnected(Principal user) {
-      VSUtil.getDebouncer().cancel(getDebounceKey(user));
+      closeViewsheets(user);
    }
 
    private void closeViewsheets(Principal user) {
-      synchronized(openSheets) {
-         for(Iterator<String> i = openSheets.iterator(); i.hasNext(); ) {
-            String runtimeId = i.next();
+      String sessionId = getSessionId(user);
+      Set<String> sheetsToClose;
+
+      getOpenSheets().lock(sessionId);
+
+      try {
+         sheetsToClose = getOpenSheets().remove(sessionId);
+      }
+      finally {
+         getOpenSheets().unlock(sessionId);
+      }
+
+      if(sheetsToClose != null) {
+         for(String runtimeId : sheetsToClose) {
+            viewsheetService.affinityCallAsync(runtimeId, new CloseViewsheetTask(runtimeId, user));
+         }
+      }
+   }
+
+   private String getSessionId(Principal user) {
+      return user instanceof XPrincipal ? ((XPrincipal) user).getSessionID() : "unknown-session";
+   }
+
+   private DistributedMap<String, Set<String>> openSheets;
+   private final ViewsheetService viewsheetService;
+   private final Cluster cluster;
+   private static final String OPEN_SHEETS_MAP = RuntimeViewsheetManager.class.getName() + ".openSheetsMap";
+   private static final Logger LOG = LoggerFactory.getLogger(RuntimeViewsheetManager.class);
+
+   public static final class CloseViewsheetTask implements AffinityCallable<Void> {
+      public CloseViewsheetTask(String runtimeId, Principal user) {
+         this.runtimeId = runtimeId;
+         this.user = user;
+      }
+
+      @Override
+      public Void call() throws Exception {
+         proxyContext.preprocess();
+
+         try {
+            ConfigurationContext configContext = ConfigurationContext.getContext();
 
             try {
-               viewsheetService.closeViewsheet(runtimeId, user);
+               configContext.getSpringBean(ViewsheetService.class).closeViewsheet(runtimeId, user);
             }
             catch(ExpiredSheetException expiredException) {
                LOG.debug("Failed to close viewsheet, it is expired: {}", runtimeId);
@@ -93,22 +159,15 @@ public class RuntimeViewsheetManager {
                }
             }
 
-            i.remove();
+            return null;
+         }
+         finally {
+            proxyContext.postprocess();
          }
       }
-   }
 
-   private String getSessionId(Principal user) {
-      return user instanceof XPrincipal ? ((XPrincipal) user).getSessionID() : "unknown-session";
+      private final String runtimeId;
+      private final Principal user;
+      private final ServiceProxyContext proxyContext = new ServiceProxyContext(false);
    }
-
-   private String getDebounceKey(Principal user) {
-      return "RuntimeViewsheetManager." + getSessionId(user);
-   }
-
-   private final Set<String> openSheets = new HashSet<>();
-   private final Map<String, AssetEntry> openWorksheets = new HashMap<>();
-   private final ViewsheetService viewsheetService;
-   private final WorksheetService worksheetService;
-   private static final Logger LOG = LoggerFactory.getLogger(RuntimeViewsheetManager.class);
 }

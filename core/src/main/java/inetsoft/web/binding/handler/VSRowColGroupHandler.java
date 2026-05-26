@@ -28,6 +28,8 @@ import inetsoft.uql.viewsheet.internal.CalcTableVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
 import org.springframework.stereotype.Component;
 
+import java.util.Optional;
+
 @Component
 public class VSRowColGroupHandler {
    /** CheckRowColGroupEvent */
@@ -46,15 +48,14 @@ public class VSRowColGroupHandler {
    private boolean checkRowColGroup(RuntimeViewsheet rvs, VSAssemblyInfo info,
       int row, int col, boolean isRow) {
       Viewsheet vs = rvs.getViewsheet();
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
-      if(vs == null || box == null ||
-         !(info instanceof CalcTableVSAssemblyInfo))
+      if(vs == null || box.isEmpty() ||
+         !(info instanceof CalcTableVSAssemblyInfo info0))
       {
          return false;
       }
 
-      CalcTableVSAssemblyInfo info0 = (CalcTableVSAssemblyInfo) info;
       TableLayout layout = info0.getTableLayout();
       CalcAttr attr = new CalcAttr(row, col);
       XNode tree = LayoutTool.buildTree(layout);
@@ -68,9 +69,8 @@ public class VSRowColGroupHandler {
 
       XNode croot = tree.getChild(1);
       XNode cparent = getParent(croot, attr);
-      boolean hasColGroup = cparent != null && cparent != croot;
 
-      return hasColGroup;
+      return cparent != null && cparent != croot;
    }
 
    private XNode getParent(XNode node, CalcAttr self) {

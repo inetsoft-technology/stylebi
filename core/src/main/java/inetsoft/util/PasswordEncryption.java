@@ -23,7 +23,8 @@ import inetsoft.util.config.*;
 import javax.crypto.SecretKey;
 import java.io.IOException;
 import java.security.KeyPair;
-import java.util.*;
+import java.util.ServiceLoader;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 
 /**
@@ -31,7 +32,6 @@ import java.util.function.Function;
  *
  * @since 2020
  */
-@SingletonManager.Singleton(PasswordEncryption.Reference.class)
 public interface PasswordEncryption {
    /**
     * Encrypts a password.
@@ -172,13 +172,15 @@ public interface PasswordEncryption {
     */
    SSLCertificateHelper getSSLCertificateHelper();
 
+   ConcurrentHashMap<SecretsConfig, PasswordEncryption> INSTANCE_CACHE = new ConcurrentHashMap<>();
+
    /**
     * Creates a new instance of {@code PasswordEncryption}.
     *
     * @return a new instance.
     */
    static PasswordEncryption newInstance() {
-      return SingletonManager.getInstance(PasswordEncryption.class);
+      return ConfigurationContext.getContext().getSpringBean(PasswordEncryption.class);
    }
 
    static PasswordEncryption newLocalInstance(boolean encrypt) {
@@ -213,7 +215,7 @@ public interface PasswordEncryption {
    static PasswordEncryption newInstance(boolean fipsCompliant) {
       SecretsConfig config = new SecretsConfig();
       config.setFipsComplianceMode(fipsCompliant);
-      return SingletonManager.getInstance(PasswordEncryption.class, config);
+      return newInstance(config);
    }
 
    /**
@@ -222,7 +224,15 @@ public interface PasswordEncryption {
     * @return a new instance.
     */
    static PasswordEncryption newInstance(SecretsConfig secretsConfig) {
-      return  SingletonManager.getInstance(PasswordEncryption.class, secretsConfig);
+      return INSTANCE_CACHE.computeIfAbsent(secretsConfig, config -> {
+         String type = config.getType();
+         for(PasswordEncryptionFactory factory : ServiceLoader.load(PasswordEncryptionFactory.class)) {
+            if(factory.getType().equals(type)) {
+               return factory.createPasswordEncryption(config);
+            }
+         }
+         throw new RuntimeException("Failed to get password encryption of type " + type);
+      });
    }
 
    /**
@@ -331,45 +341,4 @@ public interface PasswordEncryption {
       return forceLocal.get();
    }
 
-   final class Reference extends SingletonManager.Reference<PasswordEncryption> {
-      @Override
-      public synchronized PasswordEncryption get(Object... parameters) {
-         SecretsConfig secretsConfig = null;
-
-         if(parameters.length > 0 && parameters[0] instanceof SecretsConfig) {
-            secretsConfig = (SecretsConfig) parameters[0];
-         }
-         else {
-            InetsoftConfig config = InetsoftConfig.getInstance();
-            secretsConfig = config.getSecrets();
-         }
-
-         String type = secretsConfig.getType();
-         PasswordEncryption encryption = map.get(secretsConfig);
-
-         if(encryption == null) {
-            for(PasswordEncryptionFactory factory : ServiceLoader.load(PasswordEncryptionFactory.class)) {
-               if(factory.getType().equals(type)) {
-                  encryption = factory.createPasswordEncryption(secretsConfig);
-                  break;
-               }
-            }
-
-            if(encryption == null) {
-               throw new RuntimeException("Failed to get password encryption of type " + type);
-            }
-
-            map.put(secretsConfig, encryption);
-         }
-
-         return encryption;
-      }
-
-      @Override
-      public synchronized void dispose() {
-         map.clear();
-      }
-
-      private Map<SecretsConfig, PasswordEncryption> map = new HashMap<>();
-   }
 }

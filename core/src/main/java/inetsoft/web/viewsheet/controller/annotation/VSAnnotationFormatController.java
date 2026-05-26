@@ -17,13 +17,11 @@
  */
 package inetsoft.web.viewsheet.controller.annotation;
 
-import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.internal.Util;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.Tool;
 import inetsoft.web.viewsheet.Undoable;
-import inetsoft.web.viewsheet.command.OpenAnnotationFormatDialogCommand;
 import inetsoft.web.viewsheet.event.annotation.OpenAnnotationFormatDialogEvent;
 import inetsoft.web.viewsheet.event.annotation.UpdateAnnotationFormatEvent;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
@@ -41,13 +39,13 @@ import java.security.Principal;
 @Controller
 public class VSAnnotationFormatController {
    @Autowired
-   public VSAnnotationFormatController(VSObjectService service,
+   public VSAnnotationFormatController(VSAnnotationFormatServiceProxy vsAnnotationFormatServiceProxy,
                                        VSAnnotationService annotationService,
                                        RuntimeViewsheetRef runtimeViewsheetRef)
    {
-      this.service = service;
       this.annotationService = annotationService;
       this.runtimeViewsheetRef = runtimeViewsheetRef;
+      this.vsAnnotationFormatServiceProxy = vsAnnotationFormatServiceProxy;
    }
 
    /**
@@ -63,33 +61,7 @@ public class VSAnnotationFormatController {
                                 Principal principal,
                                 CommandDispatcher dispatcher) throws Exception
    {
-      // get annotation and related assemblies
-      final RuntimeViewsheet rvs =
-         service.getRuntimeViewsheet(runtimeViewsheetRef.getRuntimeId(), principal);
-      final Viewsheet viewsheet = rvs.getViewsheet();
-      final String name = event.getName();
-      final AnnotationVSAssembly assembly = (AnnotationVSAssembly) viewsheet.getAssembly(name);
-      final AnnotationVSAssemblyInfo info = (AnnotationVSAssemblyInfo) assembly.getVSAssemblyInfo();
-      final AnnotationRectangleVSAssembly rectangle =
-         (AnnotationRectangleVSAssembly) viewsheet.getAssembly(info.getRectangle());
-      final AnnotationLineVSAssembly line =
-         (AnnotationLineVSAssembly) viewsheet.getAssembly(info.getLine());
-
-      // create model from line and rectangle
-      final AnnotationFormatDialogModel formatDialogModel =
-         createFormatDialogModel(rectangle, line);
-
-      boolean forChart =
-        AnnotationVSUtil.getBaseAssembly(viewsheet, name) instanceof ChartVSAssembly;
-
-      final OpenAnnotationFormatDialogCommand command =
-         OpenAnnotationFormatDialogCommand.builder()
-                                          .formatDialogModel(formatDialogModel)
-                                          .assemblyName(name)
-                                          .forChart(forChart)
-                                          .annotationType(info.getType())
-                                          .build();
-      dispatcher.sendCommand(command);
+      vsAnnotationFormatServiceProxy.openFormatDialog(runtimeViewsheetRef.getRuntimeId(), event, principal, dispatcher);
    }
 
    /**
@@ -108,35 +80,7 @@ public class VSAnnotationFormatController {
                             @LinkUri String linkUri,
                             CommandDispatcher dispatcher) throws Exception
    {
-      // get annotation and related assemblies
-      final RuntimeViewsheet rvs =
-         service.getRuntimeViewsheet(runtimeViewsheetRef.getRuntimeId(), principal);
-      final Viewsheet viewsheet = rvs.getViewsheet();
-      final String name = event.getName();
-      final AnnotationFormatDialogModel model = event.getFormatModel();
-      final AnnotationVSAssembly annotation =
-         (AnnotationVSAssembly) viewsheet.getAssembly(name);
-      final AnnotationVSAssemblyInfo info =
-         (AnnotationVSAssemblyInfo) annotation.getVSAssemblyInfo();
-
-      // get parent
-      final String parent = AnnotationVSUtil.getAnnotationParentName(viewsheet, name);
-      final VSAssembly parentAssembly = (VSAssembly) viewsheet.getAssembly(parent);
-
-      // get rectangle
-      final AnnotationRectangleVSAssembly rectangle =
-         (AnnotationRectangleVSAssembly) viewsheet.getAssembly(info.getRectangle());
-
-      // get line
-      final AnnotationLineVSAssembly line =
-         (AnnotationLineVSAssembly) viewsheet.getAssembly(info.getLine());
-
-      // Apply format from model to rectangle and line
-      applyFormatDialogModel(rectangle, line, model);
-
-      // Refresh annotation and relayout viewsheet
-      annotationService.refreshAnnotation(rvs, annotation, rectangle,
-                                          parentAssembly, linkUri, dispatcher);
+     vsAnnotationFormatServiceProxy.updateFormat(runtimeViewsheetRef.getRuntimeId(), event, principal, linkUri, dispatcher);
    }
 
    /**
@@ -230,50 +174,7 @@ public class VSAnnotationFormatController {
       return builder.build();
    }
 
-   /**
-    * Apply the format model to the annotation
-    *
-    * @param rectangle The annotation rectangle to format
-    * @param line      the annotation line to format
-    */
-   private void applyFormatDialogModel(final AnnotationRectangleVSAssembly rectangle,
-                                       final AnnotationLineVSAssembly line,
-                                       final AnnotationFormatDialogModel model)
-   {
-      final RectangleVSAssemblyInfo rectangleInfo =
-         (RectangleVSAssemblyInfo) rectangle.getVSAssemblyInfo();
-      final VSCompositeFormat rectangleFormat = rectangleInfo.getFormat();
-      final VSFormat rectangleUserFormat = rectangleFormat.getUserDefinedFormat();
-      final int alpha = model.getBoxAlpha();
-      final String fillColor = model.getBoxFillColor();
-      final String borderColor = model.getBoxBorderColor();
-      final int borderRadius = model.getBoxBorderRadius();
-      final int borderStyle = Util.getStyleConstantsFromString(model.getBoxBorderStyle());
-
-      rectangleUserFormat.setAlphaValue(alpha);
-      rectangleUserFormat.setForegroundValue(borderColor);
-      rectangleUserFormat.setBackgroundValue(fillColor);
-      rectangleUserFormat.setRoundCornerValue(borderRadius);
-      rectangleInfo.setLineStyleValue(borderStyle);
-
-      if(line != null) {
-         final AnnotationLineVSAssemblyInfo lineInfo =
-            (AnnotationLineVSAssemblyInfo) line.getVSAssemblyInfo();
-         final VSCompositeFormat lineFormat = lineInfo.getFormat();
-         final VSFormat lineUserFormat = lineFormat.getUserDefinedFormat();
-         final String lineColor = model.getLineColor();
-         final int lineEnd = model.getLineEnd();
-         final int lineStyle = Util.getStyleConstantsFromString(model.getLineStyle());
-         final boolean lineVisible = model.getLineVisible();
-
-         lineUserFormat.setForegroundValue(lineColor);
-         lineInfo.setEndArrowStyleValue(lineEnd);
-         lineInfo.setLineStyleValue(lineStyle);
-         lineInfo.setVisibleValue(lineVisible ? "show" : "hide");
-      }
-   }
-
-   private final VSObjectService service;
    private final VSAnnotationService annotationService;
    private final RuntimeViewsheetRef runtimeViewsheetRef;
+   private VSAnnotationFormatServiceProxy vsAnnotationFormatServiceProxy;
 }

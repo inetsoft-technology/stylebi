@@ -697,7 +697,7 @@ public abstract class AssetQuery extends PreAssetQuery {
          }
 
          base = mexecuted || key == null ? null :
-            AssetDataCache.getOrMarkExecutingOrWait(key, touchtime);
+            AssetDataCache.getCache().getOrMarkExecutingOrWait(key, touchtime);
 
          if(AssetDataCache.isDebugData() && !(getTable() instanceof SnapshotEmbeddedTableAssembly)) {
             base = null;
@@ -705,7 +705,7 @@ public abstract class AssetQuery extends PreAssetQuery {
 
          if(base == null) {
             if(box.isDisposed()) {
-               throw new RuntimeException("Asset query sandbox is disposed");
+               throw new SandboxDisposedException("Asset query sandbox is disposed");
             }
 
             List<String> infos = XUtil.QUERY_INFOS.get();
@@ -732,7 +732,7 @@ public abstract class AssetQuery extends PreAssetQuery {
                }
 
                if(key != null) {
-                  base = AssetDataCache.setCachedData(key, base, getTable());
+                  base = AssetDataCache.getCache().setCachedData(key, base, getTable());
                }
             }
             catch(ConfirmException | CancelledException | MVExecutionException ex) {
@@ -843,7 +843,7 @@ public abstract class AssetQuery extends PreAssetQuery {
                }
             }
             finally {
-               AssetDataCache.markExecutingFinished(key);
+               AssetDataCache.getCache().markExecutingFinished(key);
                WSExecution.setAssetQuerySandbox(null);
             }
          }
@@ -1365,9 +1365,13 @@ public abstract class AssetQuery extends PreAssetQuery {
 
       for(int i = 0; i < columns.getAttributeCount(); i++) {
          ColumnRef column = (ColumnRef) columns.getAttribute(i);
+         boolean groupedExpression = isGroupedExpression(column);
          columns0.addAttribute(column);
 
-         if(!column.isExpression() || (column.isVisible() && column.isProcessed())) {
+         if(!column.isExpression() ||
+            (!groupedExpression && column.isVisible() && column.isProcessed() &&
+             AssetUtil.findColumn(base, column, true) >= 0))
+         {
             continue;
          }
 
@@ -1399,7 +1403,7 @@ public abstract class AssetQuery extends PreAssetQuery {
          // column might be executed
          int col = AssetUtil.findColumn(base, column, true);
 
-         if(col >= 0) {
+         if(col >= 0 && !groupedExpression) {
             boolean dateRange = column.getDataRef() instanceof DateRangeRef;
 
             // for regular expression column, we check for duplicate column name so it's
@@ -1487,6 +1491,16 @@ public abstract class AssetQuery extends PreAssetQuery {
       }
 
       return base;
+   }
+
+   private boolean isGroupedExpression(ColumnRef column) {
+      if(column == null || !column.isExpression() || !column.isVisible()) {
+         return false;
+      }
+
+      AggregateInfo info = getAggregateInfo();
+      return info != null && (info.containsGroup(column) ||
+         info.getGroup(column) != null || info.getGroup(column.getName()) != null);
    }
 
    /**
@@ -2108,7 +2122,7 @@ public abstract class AssetQuery extends PreAssetQuery {
          ConditionListWrapper wrapper = getPostConditionList();
          ConditionList conds = wrapper.getConditionList();
          ConditionGroup cgroup = (mexecuted || conds.getSize() == 0) ? null :
-            new AssetConditionGroup2(base, conds, mode, box, glist, slist);
+            new AssetConditionGroup2(base, conds, mode, box, glist, slist, touchtime, mexecuted);
          conds.removeAllItems();
 
          List<String> mheaders = getAggCalcHeader(farr, aggregates);
@@ -3477,7 +3491,7 @@ public abstract class AssetQuery extends PreAssetQuery {
 
       XDataSource dx = query.getDataSource();
       String dname = dx == null ? null : dx.getFullName();
-      XDataModel model = XFactory.getRepository().getDataModel(dname);
+      XDataModel model = XRepository.getRepository().getDataModel(dname);
 
       if(model == null) {
          return false;
@@ -3868,7 +3882,7 @@ public abstract class AssetQuery extends PreAssetQuery {
    /**
     * Another summary filter.
     */
-   private static class SummaryFilter2 extends SummaryFilter {
+   protected static class SummaryFilter2 extends SummaryFilter {
       /**
        * Constructor.
        * @param table the specified base table.
@@ -3930,7 +3944,7 @@ public abstract class AssetQuery extends PreAssetQuery {
    /**
     * Another asset condition group.
     */
-   private class AssetConditionGroup2 extends AssetConditionGroup {
+   private static class AssetConditionGroup2 extends AssetConditionGroup {
       /**
        * Construct a new instance of Condition Group.
        * @param table the specified table lens.
@@ -3941,7 +3955,7 @@ public abstract class AssetQuery extends PreAssetQuery {
        * @param slist the specified summary list.
        */
       AssetConditionGroup2(TableLens table, ConditionList list, int mode, AssetQuerySandbox box,
-                           List glist, List slist)
+                           List glist, List slist, long touchtime, boolean mexecuted)
       {
          this.glist = glist;
          this.slist = slist;
@@ -4169,7 +4183,7 @@ public abstract class AssetQuery extends PreAssetQuery {
    /**
     * Array table.
     */
-   private static class XArrayTable implements XTable {
+   protected static class XArrayTable implements XTable {
       /**
        * Constructor.
        */
@@ -4510,7 +4524,7 @@ public abstract class AssetQuery extends PreAssetQuery {
    /**
     * Format table lens.
     */
-   private static class FormatTableLens extends DefaultTableFilter {
+   protected static class FormatTableLens extends DefaultTableFilter {
       /**
        * Constructor.
        */

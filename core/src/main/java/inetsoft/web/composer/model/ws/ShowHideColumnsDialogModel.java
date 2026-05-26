@@ -20,12 +20,14 @@ package inetsoft.web.composer.model.ws;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import inetsoft.web.binding.drm.ColumnRefModel;
+import org.immutables.serial.Serial;
 import org.immutables.value.Value;
 
 import java.util.ArrayList;
 import java.util.List;
 
 @Value.Immutable
+@Serial.Structural
 @JsonSerialize(as = ImmutableShowHideColumnsDialogModel.class)
 @JsonDeserialize(as = ImmutableShowHideColumnsDialogModel.class)
 public interface ShowHideColumnsDialogModel {

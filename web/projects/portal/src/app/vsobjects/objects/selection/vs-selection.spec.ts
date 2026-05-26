@@ -18,7 +18,7 @@
 import { HttpClient } from "@angular/common/http";
 import { HttpClientTestingModule } from "@angular/common/http/testing";
 import { ElementRef, NO_ERRORS_SCHEMA, Renderer2 } from "@angular/core";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormsModule } from "@angular/forms";
 import { NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { of as observableOf } from "rxjs";
@@ -41,6 +41,7 @@ import { CheckFormDataService } from "../../util/check-form-data.service";
 import { AdhocFilterService } from "../data-tip/adhoc-filter.service";
 import { DataTipService } from "../data-tip/data-tip.service";
 import { PopComponentService } from "../data-tip/pop-component.service";
+import { TimerService } from "../data-tip/timer.service";
 import { VSPopComponentDirective } from "../data-tip/vs-pop-component.directive";
 import { MiniMenu } from "../mini-toolbar/mini-menu.component";
 import { MiniToolbar } from "../mini-toolbar/mini-toolbar.component";
@@ -140,6 +141,13 @@ let createTreeModel: () => VSSelectionTreeModel = () => {
 };
 
 describe("VSSelection Test", () => {
+   beforeAll(() => {
+      jest.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({
+         font: "",
+         measureText: (_text: string) => ({ width: 0 })
+      } as any);
+   });
+
    let vsSelection: VSSelection;
    let fixture: ComponentFixture<VSSelection>;
    let viewsheetClientService: any = { sendEvent: jest.fn() };
@@ -163,9 +171,15 @@ describe("VSSelection Test", () => {
    const scaleService = { getScale: jest.fn(), setScale: jest.fn(), getCurrentScale: jest.fn() };
    scaleService.getScale.mockImplementation(() => observableOf(1));
    let httpClient: HttpClient;
+   let timerService: any;
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       fixedDropdownService = { open: jest.fn() };
+      timerService = {
+         defer: jest.fn((fn) => {
+            fn();
+         })
+      };
 
       TestBed.configureTestingModule({
          imports: [ NgbModule, FormsModule, HttpClientTestingModule ],
@@ -185,6 +199,7 @@ describe("VSSelection Test", () => {
             { provide: DataTipService, useValue: dataTipService },
             { provide: FixedDropdownService, useValue: fixedDropdownService },
             { provide: AdhocFilterService, useValue: adhocFilterService },
+            { provide: TimerService, useValue: timerService },
             GlobalSubmitService
          ]
       });

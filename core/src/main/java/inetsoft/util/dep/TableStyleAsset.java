@@ -18,6 +18,7 @@
 package inetsoft.util.dep;
 
 import inetsoft.report.LibManager;
+import inetsoft.report.LibManagerProvider;
 import inetsoft.report.internal.StyleTreeModel;
 import inetsoft.report.style.XTableStyle;
 import inetsoft.sree.security.*;
@@ -53,7 +54,6 @@ public class TableStyleAsset extends AbstractXAsset {
     * @param style the specified table style name.
     */
    public TableStyleAsset(String style) {
-      this();
       this.style = style;
    }
 
@@ -127,7 +127,7 @@ public class TableStyleAsset extends AbstractXAsset {
     * Get table style id by path
     */
    public String getStyleID() {
-      LibManager manager = LibManager.getManager();
+      LibManager manager = LibManagerProvider.getInstance().getManager();
       XTableStyle tableStyle = manager.getTableStyle(style);
 
       if(tableStyle == null) {
@@ -138,7 +138,7 @@ public class TableStyleAsset extends AbstractXAsset {
    }
 
    public String getLabel() {
-      LibManager manager = LibManager.getManager();
+      LibManager manager = LibManagerProvider.getInstance().getManager();
       XTableStyle tableStyle = manager.getTableStyle(style);
       return tableStyle.getName();
    }
@@ -170,7 +170,7 @@ public class TableStyleAsset extends AbstractXAsset {
          return;
       }
 
-      LibManager manager = LibManager.getManager();
+      LibManager manager = LibManagerProvider.getInstance().getManager();
       String id = xstyle.getID();
       String name = xstyle.getName();
 
@@ -201,7 +201,11 @@ public class TableStyleAsset extends AbstractXAsset {
                (folder + LibManager.SEPARATOR + folders[i]);
 
             if(!manager.containsFolder(folder) || manager.isAuditStyleFolder(folder)) {
-               StyleTreeModel.addFolder(folder);
+               // Don't save immediately during import - the folder will be saved along with
+               // the table style at the end of the import process. Saving here would trigger
+               // a cluster message that causes reloadLibrary() to clear in-memory state,
+               // losing the table style that's about to be added.
+               StyleTreeModel.addFolder(folder, false);
             }
          }
       }
@@ -216,7 +220,7 @@ public class TableStyleAsset extends AbstractXAsset {
    public synchronized boolean writeContent(OutputStream output) throws Exception {
       String style0 = Tool.replaceAll(style, "/", "~");
       style0 = StyleTreeModel.getTableStyleID(style0);
-      LibManager manager = LibManager.getManager();
+      LibManager manager = LibManagerProvider.getInstance().getManager();
       XTableStyle xstyle = manager.getTableStyle(style0);
 
       if(xstyle == null) {
@@ -236,7 +240,7 @@ public class TableStyleAsset extends AbstractXAsset {
    public XTableStyle getXTableStyle() {
       String id = Tool.replaceAll(style, "/", "~");
       id = StyleTreeModel.getTableStyleID(id);
-      return LibManager.getManager().getTableStyle(id);
+      return LibManagerProvider.getInstance().getManager().getTableStyle(id);
    }
 
    @Override

@@ -18,13 +18,14 @@
 package inetsoft.web.composer.vs.objects.event;
 
 import javax.annotation.Nullable;
+import java.io.Serializable;
 
 /**
  * Class that encapsulates the parameters for moving an object.
  *
  * @since 12.3
  */
-public class MoveVSObjectEvent extends VSObjectEvent {
+public class MoveVSObjectEvent extends VSObjectEvent implements Serializable {
    /**
     * Gets the x offset of the object.
     *

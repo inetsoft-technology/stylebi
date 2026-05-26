@@ -23,7 +23,9 @@ import inetsoft.web.binding.model.*;
 import inetsoft.web.binding.service.DataRefModelWrapperFactory;
 import org.springframework.stereotype.Component;
 
-public class ColumnRefModel extends AbstractDataRefModel implements DataRefModelWrapper {
+import java.io.Serializable;
+
+public class ColumnRefModel extends AbstractDataRefModel implements DataRefModelWrapper, Serializable {
    public ColumnRefModel() {
    }
 

@@ -88,7 +88,7 @@ public class JDBCModelHandler extends XModelHandler {
       }
 
       XDataSource dx =
-         XFactory.getRepository().getDataSource(model.getDataSource());
+         XRepository.getRepository().getDataSource(model.getDataSource());
       getHandler().connect(dx, vars);
 
       return ((JDBCHandler) getHandler()).execute(query, vars, user, null);
@@ -120,7 +120,7 @@ public class JDBCModelHandler extends XModelHandler {
       addVariables(pmodel, vars);
 
       try {
-         XRepository rep = XFactory.getRepository();
+         XRepository rep = XRepository.getRepository();
          XDataSource ds = rep.getDataSource(model.getDataSource());
          query.setDataSource(ds);
       }

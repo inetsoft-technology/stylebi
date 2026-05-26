@@ -18,6 +18,7 @@
 package inetsoft.util.dep;
 
 import inetsoft.report.LibManager;
+import inetsoft.report.LibManagerProvider;
 
 import java.util.Enumeration;
 
@@ -33,7 +34,7 @@ public class TableStyleEnumeration implements XAssetEnumeration {
     * Constructor.
     */
    public TableStyleEnumeration() {
-      LibManager manager = LibManager.getManager();
+      LibManager manager = LibManagerProvider.getInstance().getManager();
       styles = manager.getTableStyles();
    }
 

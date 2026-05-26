@@ -75,7 +75,7 @@ public abstract class AbstractFileSystem implements XFileSystem, XMLSerializable
 
       Cluster cluster = Cluster.getInstance();
       String mapId = getClass().getName() + (orgID == null ? "" : "." + orgID.toLowerCase()) + ".map";
-      xfilemap = new LocalClusterMap<>(mapId, cluster, cluster.getMap(mapId));
+      xfilemap = cluster.getReplicatedMap(mapId);
       lock = cluster.getLock(getClass().getName() + ".lock");
       lastLoadKey = getClass().getName() + (orgID == null ? "" : "." + orgID.toLowerCase()) + ".lastLoad";
       lastLoad = cluster.getLong(lastLoadKey);
@@ -223,6 +223,8 @@ public abstract class AbstractFileSystem implements XFileSystem, XMLSerializable
                   sblock.add(new SNBlock(fileBlock));
                }
             }
+
+            xfilemap.put(file.getName(), file);
          }
          finally {
             file.getWriteLock().unlock();
@@ -326,7 +328,7 @@ public abstract class AbstractFileSystem implements XFileSystem, XMLSerializable
    public final void parseXML(Element elem) throws Exception {
       lock.lock();
 
-      Map<String, XFile> xfilemap = new ConcurrentHashMap<>();
+      Map<String, XFile> xfilemap = new TreeMap<>();
 
       try {
          Element valuesNode = Tool.getChildNodeByTagName(elem, "Files");
@@ -464,18 +466,12 @@ public abstract class AbstractFileSystem implements XFileSystem, XMLSerializable
     */
    @Override
    public void dispose() {
-      try {
-         xfilemap.close();
-         Cluster.getInstance().destroyLong(lastLoadKey);
-      }
-      catch(Exception e) {
-         LOG.warn("Failed to close distributed map", e);
-      }
+      Cluster.getInstance().destroyLong(lastLoadKey);
    }
 
    protected final FSConfig config;
    protected final XServerNode server;
-   protected final LocalClusterMap<String, XFile> xfilemap;
+   protected final DistributedMap<String, XFile> xfilemap;
    protected final Lock lock;
    private DistributedLong lastLoad;
    private final long ts;

@@ -328,7 +328,11 @@ export class ScheduleTaskListComponent implements OnInit, AfterViewInit, OnDestr
 
    newTask(): void {
       const localTimeZoneId = Intl.DateTimeFormat().resolvedOptions().timeZone;
-      const params = new HttpParams().set("timeZone", localTimeZoneId);
+      let params = new HttpParams().set("timeZone", localTimeZoneId);
+
+      if(this.pageTitle.currentOrgId) {
+         params = params.set("orgId", this.pageTitle.currentOrgId);
+      }
 
       // http REST requests use URI and a body object with data
       this.http.post(NEW_TASKS_URI, this.currentFolder, {params}).subscribe(
@@ -808,7 +812,7 @@ export class ScheduleTaskListComponent implements OnInit, AfterViewInit, OnDestr
    private mergeChange(change: ScheduleTaskChange): void {
       const list = this.tasks.slice();
       const index = list.findIndex(t => t.name === change.name || change.type == "REMOVED" &&
-         change.name === convertToKey(t.owner) + ":" + t.name);
+         change.name === ScheduleTaskListComponent.getTaskName(t));
 
       if(index >= 0) {
          if(change.type === "REMOVED") {

@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { HttpClientTestingModule } from "@angular/common/http/testing";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { PageTabService } from "../services/page-tab.service";
 import { PageTabComponent } from "./page-tab.component";
 
@@ -24,7 +24,7 @@ describe("PageTabComponent", () => {
    let component: PageTabComponent;
    let fixture: ComponentFixture<PageTabComponent>;
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
 
       TestBed.configureTestingModule({
          imports: [

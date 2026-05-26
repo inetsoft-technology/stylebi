@@ -19,9 +19,11 @@ package inetsoft.web.composer.ws.assembly;
 
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import inetsoft.web.binding.drm.DataRefModel;
+import org.immutables.serial.Serial;
 import org.immutables.value.Value;
 
 @Value.Immutable
+@Serial.Structural
 @JsonSerialize(as = ImmutableConditionTrapValidator.class)
 public abstract class ConditionTrapValidator {
    public abstract boolean showTrap();

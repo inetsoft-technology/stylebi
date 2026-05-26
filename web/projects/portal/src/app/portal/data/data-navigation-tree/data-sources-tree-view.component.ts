@@ -426,6 +426,8 @@ export class DataSourcesTreeViewComponent extends CommandProcessor implements On
             {
                this.selectNode(this.selectedNodes);
             }
+         }, () => {
+            this.loading = false;
          });
    }
 

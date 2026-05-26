@@ -77,7 +77,6 @@ public class SecureClassShutter implements ClassShutter {
       "java.net.MulticastSocket",
       "inetsoft.util.ThreadPool",
       "inetsoft.util.Plugins",
-      "inetsoft.util.SingletonManager",
       "inetsoft.util.IndexStorage",
       "inetsoft.util.XMLIndexedStorage",
       "inetsoft.util.BlobIndexedStorage"

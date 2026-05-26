@@ -774,6 +774,10 @@ describe("ChartActions", () => {
       model.chartType = GraphTypes.CHART_BAR;
       selectMeasureBar(model);
       expect(menuActions2[2].actions[1].visible()).toBe(true);
+
+      //Bug #71598, should display filter when in max mode
+      model.maxMode = true;
+      expect(menuActions2[2].actions[1].visible()).toBe(true);
    });
 
    it("check status of menu actions and toolbar actions in composer when select measure bar", () => {
@@ -1594,6 +1598,7 @@ describe("ChartActions", () => {
          zoomed: false,
          hasFlyovers: false,
          flyOnClick: false,
+         dataTipOnClick: false,
          axes: [],
          facets: [],
          legends: [],
@@ -1641,8 +1646,7 @@ describe("ChartActions", () => {
          dateComparisonEnabled: false,
          dateComparisonDefined: false,
          appliedDateComparison: false,
-         dateComparisonDescription: "",
-         dataTipOnClick: false
+         dateComparisonDescription: ""
       }, TestUtils.createMockVSObjectModel("VSChart", "chart1"));
 
       const actions = new ChartActions(model, popService, composerContext, false, null, dataTipService);

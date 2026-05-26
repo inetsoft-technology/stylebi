@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { NO_ERRORS_SCHEMA } from "@angular/core";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { ColorMappingDialog } from "./color-mapping-dialog.component";
@@ -32,15 +32,18 @@ describe("Color Mapping Dialog Unit Test", () => {
       return {
          colorMaps: [{
             color: "#ffff00",
-            option: "1997"
+            option: "1997",
+            manualInput: false
          },
          {
             color: "#ff0000",
-            option: "1997"
+            option: "1997",
+            manualInput: false
          },
          {
             color: "#0000ff",
-            option: "1997"
+            option: "1997",
+            manualInput: false
          }],
          globalModel: null,
          useGlobal: false,
@@ -57,7 +60,8 @@ describe("Color Mapping Dialog Unit Test", () => {
          clazz: "inetsoft.web.binding.model.graph.aesthetic.CategoricalColorModel",
          colorMaps: [{
             color: "#ffff00",
-            option: "1997"
+            option: "1997",
+            manualInput: false
          }],
          globalColorMaps: [],
          useGlobal: false,
@@ -92,7 +96,7 @@ describe("Color Mapping Dialog Unit Test", () => {
    let fixture: ComponentFixture<ColorMappingDialog>;
    let colorMappingDialog: ColorMappingDialog;
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
             FormsModule, ReactiveFormsModule, NgbModule
@@ -105,7 +109,7 @@ describe("Color Mapping Dialog Unit Test", () => {
    }));
 
    describe("manual input toggle for date-level dimension (value !== label)", () => {
-      beforeEach(async(() => {
+      beforeEach(waitForAsync(() => {
          fixture = TestBed.createComponent(ColorMappingDialog);
          colorMappingDialog = <ColorMappingDialog>fixture.componentInstance;
          colorMappingDialog.model = createDateLevelModel();
@@ -175,8 +179,8 @@ describe("Color Mapping Dialog Unit Test", () => {
 
       let cMaps: ColorMap[] = [{
          color: "#0000ff",
-         manualInput: false,
-         option: "1997"
+         option: "1997",
+         manualInput: false
       }];
       colorMappingDialog.onCommit.subscribe((maps: ColorMap[]) => {
          expect(maps).toEqual(cMaps);

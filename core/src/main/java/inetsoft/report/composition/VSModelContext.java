@@ -106,22 +106,22 @@ public class VSModelContext extends AbstractModelContext {
    /**
     * Constructor.
     */
-   public VSModelContext(RuntimeViewsheet rvs) {
+   public VSModelContext(RuntimeViewsheet rvs, DataSourceRegistry dataSourceRegistry) {
       this.rvs = rvs;
       this.vs = rvs.getViewsheet();
 
-      init(vs == null ? null : vs.getBaseEntry(),
-         rvs.getViewsheetSandbox() == null ?
-         null : rvs.getViewsheetSandbox().getUser());
+      init(
+         vs == null ? null : vs.getBaseEntry(),
+         rvs.getViewsheetSandbox().map(ViewsheetSandbox::getUser).orElse(null),
+         dataSourceRegistry);
    }
 
    /**
     * Initialize.
     */
-   protected void init(AssetEntry entry, Principal user) {
+   protected void init(AssetEntry entry, Principal user, DataSourceRegistry dataSourceRegistry) {
       if(entry != null && entry.getType() == AssetEntry.Type.LOGIC_MODEL) {
-         DataSourceRegistry dsr = DataSourceRegistry.getRegistry();
-         XDataModel xdm = dsr.getDataModel(entry.getProperty("prefix"));
+         XDataModel xdm = dataSourceRegistry.getDataModel(entry.getProperty("prefix"));
          lm = xdm.getLogicalModel(entry.getProperty("source"), user);
       }
    }
@@ -375,9 +375,9 @@ public class VSModelContext extends AbstractModelContext {
 
       if(cinfo != info) {
          try {
-            ViewsheetSandbox box = rvs.getViewsheetSandbox();
+            Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
-            if(box == null) {
+            if(box.isEmpty()) {
                return;
             }
 
@@ -385,7 +385,7 @@ public class VSModelContext extends AbstractModelContext {
 
             // make sure original info is roll back
             try {
-               box.updateAssembly(name);
+               box.get().updateAssembly(name);
             }
             finally {
                assembly.setVSAssemblyInfo(cinfo);
@@ -590,12 +590,13 @@ public class VSModelContext extends AbstractModelContext {
          return map;
       }
 
-      final ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      final Optional<ViewsheetSandbox> boxOpt = rvs.getViewsheetSandbox();
 
-      if(box == null) {
+      if(boxOpt.isEmpty()) {
          return map;
       }
 
+      ViewsheetSandbox box = boxOpt.get();
       Worksheet ws = box.getWorksheet();
       AbstractTableAssembly tassembly =
          (AbstractTableAssembly) ws.getAssembly(assembly.getTableName());

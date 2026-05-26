@@ -663,12 +663,12 @@ public abstract class AbstractConditionFilter extends AbstractTableLens
 
    private static final Logger LOG = LoggerFactory.getLogger(AbstractConditionFilter.class);
    private TableLens table;
-   private TableDataDescriptor hdescriptor;
+   private transient TableDataDescriptor hdescriptor;
    private XSwappableIntList rowmap;
-   private transient boolean completed = false;
+   private boolean completed = false;
    private transient boolean debug = "true".equals(SreeEnv.getProperty("filter.debug", "false"));
-   private transient int baseRow = 0;
-   private transient int hcount;
+   private int baseRow = 0;
+   private int hcount;
    private volatile boolean cancelled;       // cancelled flag
    private final Lock cancelLock = new ReentrantLock();
 }

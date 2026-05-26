@@ -31,7 +31,7 @@ import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
-import inetsoft.web.viewsheet.controller.table.BaseTableLoadDataController;
+import inetsoft.web.viewsheet.controller.table.BaseTableLoadDataService;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.ss.util.CellRangeAddress;
 import org.apache.xmlbeans.impl.schema.SchemaTypeSystemImpl;
@@ -39,6 +39,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.*;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.regex.Matcher;
@@ -50,12 +52,12 @@ public class PoiImportXLSService implements ImportXLSService {
    }
 
    @Override
-   public void updateViewsheet(File excelFile, String type, RuntimeViewsheet rvs, String linkUri,
+   public void updateViewsheet(Path excelPath, String type, RuntimeViewsheet rvs, String linkUri,
                                CommandDispatcher dispatcher, CoreLifecycleService coreLifecycleService,
                                Catalog catalog, List<String> assemblies, Set<String> notInRange)
       throws Exception
    {
-      Workbook wb = initWorkbook(excelFile, type);
+      Workbook wb = initWorkbook(excelPath, type);
       Map<String, Name> sheetNames;
       Map<String, Name> bSheetNames;
 
@@ -76,9 +78,12 @@ public class PoiImportXLSService implements ImportXLSService {
       bSheetNames = bSheet == null ? null : PoiExcelVSUtil.getSheetNames(bSheet);
 
       Viewsheet vs = rvs.getViewsheet();
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
-      updateViewsheet(rvs, vs, box, assemblies, linkUri, dispatcher, coreLifecycleService,
-                      sheet, bSheet, sheetNames, bSheetNames, notInRange);
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box.isPresent()) {
+         updateViewsheet(rvs, vs, box.get(), assemblies, linkUri, dispatcher, coreLifecycleService,
+                         sheet, bSheet, sheetNames, bSheetNames, notInRange);
+      }
    }
 
    /**
@@ -167,9 +172,9 @@ public class PoiImportXLSService implements ImportXLSService {
 
                VSAssemblyInfo info = VSEventUtil.getAssemblyInfo(rvs, vsAssembly);
                coreLifecycleService.refreshVSAssembly(rvs, vsAssembly.getAbsoluteName(), dispatcher);
-               BaseTableLoadDataController.loadTableData(rvs, name, 0, 0,
-                                                         table.getRowCount(), linkUri,
-                                                         dispatcher);
+               BaseTableLoadDataService.loadTableData(rvs, name, 0, 0,
+                                                      table.getRowCount(), linkUri,
+                                                      dispatcher);
 
                // TODO Refresh scripts
 //               for(int r = 1; r < table.getRowCount(); r ++) {
@@ -197,12 +202,12 @@ public class PoiImportXLSService implements ImportXLSService {
    /**
     * Init workbook by the file.
     */
-   private Workbook initWorkbook(File excelFile, String fileType) {
+   private Workbook initWorkbook(Path excelPath, String fileType) {
       Workbook wb = null;
       InputStream ifile;
 
       try {
-         ifile = new FileInputStream(excelFile);
+         ifile = Files.newInputStream(excelPath);
          ifile = new BufferedInputStream(ifile);
 
          if("xls".equals(fileType) || "xlsx".equals(fileType)) {

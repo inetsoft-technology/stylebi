@@ -17,110 +17,183 @@
  */
 package inetsoft.web.admin.content.repository;
 
-import inetsoft.report.LibManager;
+import inetsoft.report.LibManagerProvider;
 import inetsoft.sree.RepletRegistry;
+import inetsoft.sree.RepletRegistryManager;
 import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.internal.cluster.Cluster;
+import inetsoft.sree.internal.cluster.MessageListener;
 import inetsoft.sree.security.*;
-import inetsoft.sree.web.dashboard.*;
+import inetsoft.sree.web.dashboard.DashboardChangeEvent;
+import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.util.*;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Scope;
-import org.springframework.context.annotation.ScopedProxyMode;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
-import org.springframework.messaging.simp.annotation.SubscribeMapping;
-import org.springframework.stereotype.Controller;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.context.event.EventListener;
+import org.springframework.messaging.Message;
+import org.springframework.messaging.MessageHeaders;
+import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.messaging.simp.annotation.SubscribeMapping;
+import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
+import org.springframework.stereotype.Controller;
+import org.springframework.web.socket.messaging.AbstractSubProtocolEvent;
+import org.springframework.web.socket.messaging.SessionDisconnectEvent;
+
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
-import java.lang.invoke.MethodHandles;
+import java.io.Serializable;
 import java.security.Principal;
-import java.util.Arrays;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
+@Lazy(false)
 @Controller
-@Scope(value = "websocket", proxyMode = ScopedProxyMode.TARGET_CLASS)
 public class RepositoryChangeController {
    @Autowired
    public RepositoryChangeController(
       AssetRepository assetRepository,
-      SimpMessagingTemplate messagingTemplate)
+      SimpMessagingTemplate messagingTemplate,
+      Cluster cluster,
+      SecurityEngine securityEngine,
+      DataSourceRegistry dataSourceRegistry,
+      LibManagerProvider libManagerProvider,
+      RepletRegistryManager repletRegistryManager)
    {
       this.assetRepository = assetRepository;
       this.messagingTemplate = messagingTemplate;
+      this.libManagerProvider = libManagerProvider;
+      this.repletRegistryManager = repletRegistryManager;
       this.debouncer = new DefaultDebouncer<>();
+      this.cluster = cluster;
+      this.securityEngine = securityEngine;
+      this.dataSourceRegistry = dataSourceRegistry;
    }
 
    @PostConstruct
    public void addListeners() throws Exception {
-      RepletRegistry.getRegistry().addPropertyChangeListener(this.reportListener);
+      repletRegistryManager.getRegistry().addPropertyChangeListener(this.reportListener);
       assetRepository.addAssetChangeListener(this.assetListener);
       assetRepository.addAssetChangeListener(this.autoSaveListener);
-      LibManager.getManager().addActionListener(this.libraryListener);
-      DashboardManager.getManager().addDashboardChangeListener(this.dashboardListener);
-      DataSourceRegistry.getRegistry().addRefreshedListener(dataSourceListener);
+      dataSourceRegistry.addRefreshedListener(dataSourceListener);
+      cluster.addMessageListener(this.clusterMessageListener);
+
+      for(String orgId : securityEngine.getOrganizations()) {
+         addLibManagerListener(orgId);
+      }
    }
 
    @PreDestroy
-   public void removeListeners() throws Exception {
+   public void removeListeners() {
       closed = true;
 
       try {
-         RepletRegistry.getRegistry().removePropertyChangeListener(this.reportListener);
+         repletRegistryManager.getRegistry().removePropertyChangeListener(this.reportListener);
       }
       catch(Exception e) {
          LOG.debug("Exception occurred while removing listener, this usually indicates a shutdown in progress", e);
       }
 
-      assetRepository.removeAssetChangeListener(this.assetListener);
-      assetRepository.removeAssetChangeListener(this.autoSaveListener);
-      LibManager.getManager().removeActionListener(this.libraryListener);
-      DashboardManager.getManager().removeDashboardChangeListener(this.dashboardListener);
-      DataSourceRegistry.getRegistry().removeRefreshedListener(dataSourceListener);
+      try {
+         assetRepository.removeAssetChangeListener(this.assetListener);
+         assetRepository.removeAssetChangeListener(this.autoSaveListener);
+         dataSourceRegistry.removeRefreshedListener(dataSourceListener);
+         cluster.removeMessageListener(this.clusterMessageListener);
 
-      if(principal != null) {
-         IdentityID pId = IdentityID.getIdentityIDFromKey(principal.getName());
+         for(PropertyChangeListener listener : adminReportListeners.values()) {
+            repletRegistryManager.removeGlobalPropertyChangeListener(listener);
+         }
 
-         try {
-            IdentityID[] users = SecurityEngine.getSecurity().getSecurityProvider().getUsers();
+         for(Map.Entry<Principal, PropertyChangeListener> entry : userReportListeners.entrySet()) {
+            IdentityID pId = IdentityID.getIdentityIDFromKey(entry.getKey().getName());
+            RepletRegistry registry = repletRegistryManager.getRegistry(pId, false);
 
-            if(Tool.contains(users, pId)) {
-               RepletRegistry.getRegistry(pId)
-                  .removePropertyChangeListener(this.reportListener);
-
-               if(isSysAdmin(principal)) {
-                  RepletRegistry.removeGlobalPropertyChangeListener(this.reportListener);
-               }
+            if(registry != null) {
+               registry.removePropertyChangeListener(entry.getValue());
             }
          }
-         catch(Exception e) {
-            LOG.debug("Exception occurred while removing listener, this usually indicates a shutdown in progress", e);
-         }
-      }
 
-      debouncer.close();
+         for(String orgId : securityEngine.getOrganizations()) {
+            removeLibManagerListener(orgId);
+         }
+
+         debouncer.close();
+      }
+      catch(Exception e) {
+         LOG.debug("Failed to remove listeners during shutdown", e);
+      }
    }
 
    @SubscribeMapping(CHANGE_TOPIC)
-   public void subscribeToTopic(Principal principal) throws Exception {
-      this.principal = principal;
+   public void subscribeToTopic(StompHeaderAccessor header, Principal principal) throws Exception {
+      final MessageHeaders messageHeaders = header.getMessageHeaders();
+      final String sessionId =
+         (String) messageHeaders.get(SimpMessageHeaderAccessor.SESSION_ID_HEADER);
+      subscriptions.put(sessionId, principal);
       IdentityID pId = principal == null ? null : IdentityID.getIdentityIDFromKey(principal.getName());
 
       if(principal != null) {
          boolean isSysAdmin = isSysAdmin(principal);
 
          if(isSysAdmin) {
-            RepletRegistry.addGlobalPropertyChangeListener(this.reportListener);
+            PropertyChangeListener listener = new ReportChangeListener(null);
+            adminReportListeners.put(principal, listener);
+            repletRegistryManager.addGlobalPropertyChangeListener(listener);
          }
          else {
-            RepletRegistry.getRegistry(pId)
-               .addPropertyChangeListener(this.reportListener);
+            PropertyChangeListener listener = new ReportChangeListener(principal);
+            userReportListeners.put(principal, listener);
+            repletRegistryManager.getRegistry(pId).addPropertyChangeListener(listener);
+         }
+      }
+
+      if(principal instanceof XPrincipal) {
+         String orgId = ((XPrincipal) principal).getCurrentOrgId();
+         addLibManagerListener(orgId);
+      }
+   }
+
+   @EventListener(SessionDisconnectEvent.class)
+   public void handleDisconnect(SessionDisconnectEvent event) {
+      removeSubscription(event);
+   }
+
+   private void removeSubscription(AbstractSubProtocolEvent event) {
+      final Message<byte[]> message = event.getMessage();
+      final MessageHeaders headers = message.getHeaders();
+      final String sessionId =
+         (String) headers.get(SimpMessageHeaderAccessor.SESSION_ID_HEADER);
+
+      if(sessionId != null) {
+         Principal principal = subscriptions.remove(sessionId);
+
+         if(principal != null) {
+            PropertyChangeListener listener = adminReportListeners.remove(principal);
+
+            if(listener != null) {
+               repletRegistryManager.removeGlobalPropertyChangeListener(listener);
+            }
+
+            listener = userReportListeners.remove(principal);
+
+            if(listener != null) {
+               try {
+                  IdentityID identityId = IdentityID.getIdentityIDFromKey(principal.getName());
+                  repletRegistryManager.getRegistry(identityId).removePropertyChangeListener(listener);
+               }
+               catch(Exception e) {
+                  LOG.warn("Failed to remove registry listener for user {}", principal.getName(), e);
+               }
+            }
          }
       }
    }
@@ -128,14 +201,15 @@ public class RepositoryChangeController {
    private boolean isSysAdmin(Principal principal) {
       try {
          IdentityID pId = IdentityID.getIdentityIDFromKey(principal.getName());
-         SecurityProvider securityProvider = SecurityEngine.getSecurity().getSecurityProvider();
+         SecurityProvider securityProvider = securityEngine.getSecurityProvider();
          IdentityID[] roles = securityProvider.getRoles(pId);
 
          if(roles != null) {
-            return Arrays.stream(roles).anyMatch(r -> {
-               Role role = securityProvider.getRole(r);
-               return role instanceof FSRole && ((FSRole) role).isSysAdmin();
-            });
+            return Arrays.stream(roles)
+               .map(securityProvider::getRole)
+               .filter(r -> r instanceof FSRole)
+               .map(FSRole.class::cast)
+               .anyMatch(FSRole::isSysAdmin);
          }
       }
       catch(Exception ignore) {
@@ -144,62 +218,87 @@ public class RepositoryChangeController {
       return false;
    }
 
-   private void reportPropertyChanged(PropertyChangeEvent event) {
-      if(!RepletRegistry.EDIT_CYCLE_EVENT.equals(event.getPropertyName()) &&
-         !RepletRegistry.CHANGE_EVENT.equals(event.getPropertyName()))
-      {
-         String orgID = null;
-
-         if(event instanceof inetsoft.report.PropertyChangeEvent eventWrapper) {
-            orgID = eventWrapper.getOrgID();
-         }
-
-         scheduleChangeMessage(orgID);
-      }
-   }
-
    private void assetChanged(AssetChangeEvent event) {
       if(event.getChangeType() != AssetChangeEvent.ASSET_TO_BE_DELETED) {
-         String orgID = event.getAssetEntry() != null ? event.getAssetEntry().getOrgID() : null;
-         scheduleChangeMessage(orgID);
+         scheduleChangeMessage(null, getOrgId(event));
       }
    }
 
    private void libraryChanged(ActionEvent event) {
-      String orgID = null;
-
-      if(event instanceof inetsoft.report.ActionEvent eventWrapper) {
-         orgID = eventWrapper.getOrgID();
-      }
-
-      scheduleChangeMessage(orgID);
+      scheduleChangeMessage(null, getOrgId(event));
    }
 
-   private void dashboardChanged(DashboardChangeEvent event) {
-      scheduleChangeMessage(event.getOrgID());
+   @EventListener(DashboardChangeEvent.class)
+   public void dashboardChanged(DashboardChangeEvent event) {
+      scheduleChangeMessage(null, event == null ? null : event.getOrgID());
    }
 
    private void dataSourceChanged(PropertyChangeEvent event) {
-      String orgID = null;
-
-      if(event instanceof inetsoft.report.PropertyChangeEvent eventWrapper) {
-         orgID = eventWrapper.getOrgID();
-      }
-
-      scheduleChangeMessage(orgID);
+      scheduleChangeMessage(null, getOrgId(event));
    }
 
    private void autoSaveChanged(AssetChangeEvent event) {
       if(event.getChangeType() != AssetChangeEvent.AUTO_SAVE_ADD) {
-         String orgID = event.getAssetEntry() != null ? event.getAssetEntry().getOrgID() : null;
-         scheduleChangeMessage(orgID);
+         scheduleChangeMessage(null, getOrgId(event));
       }
    }
 
-   private void scheduleChangeMessage(String orgId) {
-      if(!closed) {
-         debouncer.debounce("change", 1L, TimeUnit.SECONDS, () -> sendChangeMessage(orgId));
+   private String getOrgId(AssetChangeEvent event) {
+      AssetEntry entry = event.getAssetEntry();
+      return entry == null ? null : entry.getOrgID();
+   }
+
+   private String getOrgId(PropertyChangeEvent event) {
+      if(event instanceof inetsoft.report.PropertyChangeEvent e) {
+         return e.getOrgID();
       }
+
+      return null;
+   }
+
+   private String getOrgId(ActionEvent event) {
+      if(event instanceof inetsoft.report.ActionEvent e) {
+         return e.getOrgID();
+      }
+
+      return null;
+   }
+
+   private void scheduleChangeMessage(Principal principal, String orgId) {
+      scheduleChangeMessage(principal, orgId, true);
+   }
+
+   private void scheduleChangeMessage(Principal principal, String orgId, boolean toCluster) {
+      if(toCluster) {
+         try {
+            cluster.sendMessage(new RepositoryChangeMessage(principal, orgId));
+         }
+         catch(Exception e) {
+            LOG.warn("Failed to send cluster message", e);
+         }
+      }
+
+      if(principal != null) {
+         debouncer.debounce(
+            principal.getName(), 1L, TimeUnit.SECONDS, () -> sendChangeMessage(principal));
+      }
+      else if(orgId != null) {
+         debouncer.debounce(orgId, 1L, TimeUnit.SECONDS, () -> sendChangeMessage(orgId));
+      }
+      else {
+         debouncer.debounce("change", 1L, TimeUnit.SECONDS, () -> sendChangeMessage());
+      }
+   }
+
+   private void sendChangeMessage() {
+      for(Principal principal : subscriptions.values()) {
+         sendChangeMessage(principal);
+      }
+   }
+
+   private void sendChangeMessage(Principal principal) {
+      messagingTemplate
+         .convertAndSendToUser(SUtil.getUserDestination(principal), CHANGE_TOPIC, "");
    }
 
    private void sendChangeMessage(String orgId) {
@@ -207,27 +306,90 @@ public class RepositoryChangeController {
          return;
       }
 
-      String principalOrgID = OrganizationManager.getInstance().getCurrentOrgID(principal);
+      for(Principal principal : subscriptions.values()) {
+         String principalOrgID = OrganizationManager.getInstance().getCurrentOrgID(principal);
 
-      if(Tool.equals(orgId, principalOrgID, false)) {
-         messagingTemplate
-            .convertAndSendToUser(SUtil.getUserDestination(principal), CHANGE_TOPIC, "");
+         if(Tool.equals(orgId, principalOrgID, false)) {
+            messagingTemplate
+               .convertAndSendToUser(SUtil.getUserDestination(principal), CHANGE_TOPIC, "");
+         }
       }
+   }
+
+   private final MessageListener clusterMessageListener = (event) -> {
+      if(event.getMessage() instanceof RepositoryChangeMessage) {
+         RepositoryChangeMessage change = (RepositoryChangeMessage) event.getMessage();
+         scheduleChangeMessage(null, change.getOrgId(), false);
+      }
+   };
+
+   private void addLibManagerListener(String orgId) {
+      if(!libManagerListenerOrgs.contains(orgId)) {
+         libManagerProvider.getManager(orgId).addActionListener(libraryListener);
+         libManagerListenerOrgs.add(orgId);
+      }
+   }
+
+   private void removeLibManagerListener(String orgId) {
+      libManagerProvider.getManager(orgId).removeActionListener(libraryListener);
+      libManagerListenerOrgs.remove(orgId);
    }
 
    private volatile boolean closed = false;
    private final AssetRepository assetRepository;
    private final SimpMessagingTemplate messagingTemplate;
-   private Principal principal;
    private final Debouncer<String> debouncer;
+   private final Map<String, Principal> subscriptions = new ConcurrentHashMap<>();
+   private final Map<Principal, PropertyChangeListener> adminReportListeners = new ConcurrentHashMap<>();
+   private final Map<Principal, PropertyChangeListener> userReportListeners = new ConcurrentHashMap<>();
+   private final Set<String> libManagerListenerOrgs = new HashSet<>();
 
-   private final PropertyChangeListener reportListener = this::reportPropertyChanged;
+   private final ReportChangeListener reportListener = new ReportChangeListener(null);
    private final AssetChangeListener assetListener = this::assetChanged;
    private final ActionListener libraryListener = this::libraryChanged;
-   private final DashboardChangeListener dashboardListener = this::dashboardChanged;
    private final PropertyChangeListener dataSourceListener = this::dataSourceChanged;
    private final AssetChangeListener autoSaveListener = this::autoSaveChanged;
+   private final Cluster cluster;
+   private final SecurityEngine securityEngine;
+   private final DataSourceRegistry dataSourceRegistry;
+   private final LibManagerProvider libManagerProvider;
+   private final RepletRegistryManager repletRegistryManager;
 
    private static final String CHANGE_TOPIC = "/em-content-changed";
-   private static final Logger LOG = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
+   private static final Logger LOG = LoggerFactory.getLogger(RepositoryChangeController.class);
+
+   private final class ReportChangeListener implements PropertyChangeListener {
+      public ReportChangeListener(Principal principal) {
+         this.principal = principal;
+      }
+
+      @Override
+      public void propertyChange(PropertyChangeEvent event) {
+         if(!RepletRegistry.EDIT_CYCLE_EVENT.equals(event.getPropertyName()) &&
+            !RepletRegistry.CHANGE_EVENT.equals(event.getPropertyName()))
+         {
+            scheduleChangeMessage(principal, getOrgId(event));
+         }
+      }
+
+      private final Principal principal;
+   }
+
+   public static final class RepositoryChangeMessage implements Serializable {
+      private final String principalName;
+      private final String orgId;
+
+      public RepositoryChangeMessage(Principal principal, String orgId) {
+         this.principalName = (principal != null) ? principal.getName() : null;
+         this.orgId = orgId;
+      }
+
+      public String getPrincipalName() {
+         return principalName;
+      }
+
+      public String getOrgId() {
+         return orgId;
+      }
+   }
 }

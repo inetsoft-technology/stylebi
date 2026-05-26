@@ -20,6 +20,7 @@ import { Observable, Subject } from "rxjs";
 import { VSObjectModel } from "../../model/vs-object-model";
 import { OpenDataTipEvent } from "../../event/open-datatip-event";
 import { ViewsheetClientService } from "../../../common/viewsheet-client/viewsheet-client.service";
+import { TimerService } from "./timer.service";
 
 export enum PopLocation { CENTER = "CENTER", MOUSE = "MOUSE" }
 
@@ -71,7 +72,7 @@ export class PopComponentService {
       return this._componentPop.asObservable();
    }
 
-   constructor(private viewsheetClient: ViewsheetClientService) {}
+   constructor(private viewsheetClient: ViewsheetClientService, private timer: TimerService) {}
 
    /**
     * Register a pop component with the service
@@ -224,6 +225,14 @@ export class PopComponentService {
    }
 
    showPopComponent(parentName: string, popName) {
+      // Guard against sending event when runtimeId is not set - this can happen
+      // in race conditions during preview initialization where the user clicks
+      // before SetRuntimeIdCommand is fully processed
+      if(!this.viewsheetClient.runtimeId) {
+         console.warn("PopComponentService: cannot show pop component, runtimeId not set");
+         return;
+      }
+
       const tipEvent = new OpenDataTipEvent();
       tipEvent.setName(popName);
       tipEvent.setParent(parentName);
@@ -252,7 +261,7 @@ export class PopComponentService {
          this._popComponentSource = null;
          this.showPopComponent(source, name);
 
-         setTimeout(() => {
+         this.timer.defer(() => {
             this.popComponent = name;
             this._popComponentSource = source;
             this._componentPop.next(this._popComponent);
@@ -262,7 +271,7 @@ export class PopComponentService {
          this.showPopComponent(source, name);
 
          // make sure the code is executed after all outside listeners have been fired
-         setTimeout(() => {
+         this.timer.defer(() => {
             this.popComponent = (this._popComponent == name) ? null : name;
             this._popComponentSource = !this._popComponent ? null : source;
             this._componentPop.next(this._popComponent);

@@ -20,6 +20,7 @@ package inetsoft.web.viewsheet.event;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import inetsoft.web.viewsheet.model.VSBookmarkInfoModel;
+import org.immutables.serial.Serial;
 import org.immutables.value.Value;
 
 import javax.annotation.Nullable;
@@ -28,6 +29,7 @@ import javax.annotation.Nullable;
  * Event used to edit a bookmark
  */
 @Value.Immutable
+@Serial.Structural
 @JsonSerialize(as = ImmutableVSEditBookmarkEvent.class)
 @JsonDeserialize(as = ImmutableVSEditBookmarkEvent.class)
 public interface VSEditBookmarkEvent extends ViewsheetEvent {

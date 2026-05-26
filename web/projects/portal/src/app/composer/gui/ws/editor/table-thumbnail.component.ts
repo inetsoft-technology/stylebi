@@ -302,8 +302,8 @@ export class TableThumbnailComponent extends WSAssemblyThumbnail
          titleTooltip += " (_#(js:Hidden))";
       }
 
-      this.titleTooltip = titleTooltip.replace(/(OUTER_|_\d+)/g, "");
-      this.titleTooltip = this.table.description ? titleTooltip + "\n" + this.table.description : titleTooltip;
+      titleTooltip = titleTooltip.replace(/(OUTER_|_\d+)/g, "");
+      this.titleTooltip = this.table.description ? titleTooltip + "\n_#(js:Description): " + this.table.description : titleTooltip;
    }
 
    private queueUpdateDragOverlayDimensions() {

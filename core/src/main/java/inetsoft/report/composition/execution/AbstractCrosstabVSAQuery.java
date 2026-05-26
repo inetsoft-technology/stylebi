@@ -1237,6 +1237,7 @@ public abstract class AbstractCrosstabVSAQuery extends CubeVSAQuery
 
       groupInfo = new AggregateInfo();
       ColumnSelection cols = table.getColumnSelection();
+
       AggregateInfo allGroupInfo = new AggregateInfo();
       DataRef[] grows = cinfo.getRuntimeRowHeaders();
       DataRef[] gcols = cinfo.getRuntimeColHeaders();
@@ -1255,9 +1256,83 @@ public abstract class AbstractCrosstabVSAQuery extends CubeVSAQuery
             VSDimensionRef ref = (VSDimensionRef) grps[i][j];
             GroupRef gref = ref.createGroupRef(cols);
 
-            if(gref == null) {
+            // Bug #73729: Handle detail-based calc fields used as crosstab dimensions.
+            //
+            // When a detail calc field (e.g., "CalcField1") is used as a dimension,
+            // the column selection may contain both:
+            //   - "CalcField1" (CalculateRef) - contains the formula expression
+            //   - "Sales.CalcField1" (ColumnRef) - entity-qualified name wrapper
+            //
+            // The createGroupRef() method above may find the ColumnRef wrapper instead
+            // of the CalculateRef. Since the ColumnRef doesn't contain the formula,
+            // the calc field won't be computed in the query, causing "column not found"
+            // errors later.
+            //
+            // Solution: Explicitly search for the CalculateRef and use it directly,
+            // bypassing whatever createGroupRef() returned.
+            String dimName = ref.getGroupColumnValue();
+            if(dimName == null || dimName.isEmpty()) {
+               dimName = ref.getName();
+            }
+
+            CalculateRef calcRef = null;
+            for(int c = 0; c < cols.getAttributeCount(); c++) {
+               DataRef colRef = cols.getAttribute(c);
+               if(colRef instanceof CalculateRef &&
+                  ((CalculateRef) colRef).isBaseOnDetail() &&
+                  dimName.equals(colRef.getName()))
+               {
+                  calcRef = (CalculateRef) colRef;
+                  break;
+               }
+            }
+
+            if(calcRef != null) {
+               // Ensure the CalculateRef is in the column selection so the formula
+               // is computed in the query.
+               cols.removeAttribute(calcRef);
+               cols.addAttribute(calcRef);
+
+               // If the dimension has a named group, use the GroupRef from
+               // createGroupRef() which wraps a NamedRangeRef for the group
+               // mapping. The CalculateRef above ensures the calc field formula
+               // runs, and the NamedRangeRef transforms the computed values
+               // into group names.
+               if(ref.isNameGroup() && gref != null) {
+                  DataRef dref = gref.getDataRef();
+                  cols.removeAttribute(dref);
+                  cols.addAttribute(dref);
+
+                  if(!groupInfo.containsGroup(gref)) {
+                     groupInfo.addGroup(gref);
+                  }
+
+                  if(!allGroupInfo.containsGroup(gref)) {
+                     allGroupInfo.addGroup(gref);
+                  }
+
+                  continue;
+               }
+
+               // No named group - use the CalculateRef directly (Bug #73729)
+               gref = new GroupRef(calcRef);
+
+               if(!groupInfo.containsGroup(gref)) {
+                  groupInfo.addGroup(gref);
+               }
+
+               if(!allGroupInfo.containsGroup(gref)) {
+                  allGroupInfo.addGroup(gref);
+               }
+
+               // Skip normal processing below - it would call getColumnRefFromAttribute()
+               // which could replace our CalculateRef with the wrong column reference
                continue;
             }
+            else if(gref == null) {
+               continue;
+            }
+            // End Bug #73729 handling
 
             DataRef dref = gref.getDataRef();
             cols.removeAttribute(dref);

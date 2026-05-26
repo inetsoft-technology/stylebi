@@ -18,29 +18,26 @@
 package inetsoft.web.admin.security;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import inetsoft.report.internal.Util;
 import inetsoft.sree.security.*;
 import inetsoft.sree.security.db.DatabaseAuthenticationProvider;
 import inetsoft.util.Tool;
 import inetsoft.util.data.MapModel;
-import inetsoft.report.internal.Util;
 import inetsoft.web.admin.general.DatabaseSettingsService;
 import inetsoft.web.admin.general.model.DatabaseSettingsModel;
 import inetsoft.web.factory.DecodePathVariable;
 import inetsoft.web.factory.RemainingPath;
-import inetsoft.sree.security.ResourceAction;
-import inetsoft.sree.security.ResourceType;
 import inetsoft.web.security.RequiredPermission;
 import inetsoft.web.security.Secured;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.messaging.simp.annotation.SubscribeMapping;
+import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
+import org.springframework.web.bind.annotation.*;
 
 import java.security.Principal;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
-
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.messaging.simp.annotation.SubscribeMapping;
-import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
-import org.springframework.web.bind.annotation.*;
 
 @RestController
 public class AuthenticationProviderController {

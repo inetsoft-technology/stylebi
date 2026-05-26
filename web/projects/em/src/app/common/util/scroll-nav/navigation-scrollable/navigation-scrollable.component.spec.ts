@@ -17,14 +17,14 @@
  */
 import { ScrollingModule } from "@angular/cdk/scrolling";
 import { NO_ERRORS_SCHEMA } from "@angular/core";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { NavigationScrollableComponent } from "./navigation-scrollable.component";
 
 describe("NavigationScrollableComponent", () => {
    let component: NavigationScrollableComponent;
    let fixture: ComponentFixture<NavigationScrollableComponent>;
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
             ScrollingModule

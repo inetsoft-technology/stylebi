@@ -197,10 +197,6 @@ export class VSChart extends AbstractVSObject<VSChartModel>
       if(!m.sheetMaxMode || m.maxMode || this.isDataTip()) {
          const event = new VSChartEvent(this._model, this._model.maxMode, this.container);
 
-         if(this.vsInfo?.orgId) {
-            event.setOrgId(this.vsInfo.orgId);
-         }
-
          // If a SetChartAreasCommand already arrived in this same event-loop tick
          // (i.e. from the server's proactive refresh paired with RefreshVSObjectCommand),
          // apply it directly to avoid a redundant CHART_AREAS_URI round-trip that would
@@ -838,6 +834,8 @@ export class VSChart extends AbstractVSObject<VSChartModel>
    onScroll(point: Point) {
       this.scrollLeft = point.x;
       this.scrollTop = point.y;
+      this.model.annotationScrollLeft = point.x;
+      this.model.annotationScrollTop = point.y;
    }
 
    mouseLeave(event: MouseEvent) {

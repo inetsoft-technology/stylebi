@@ -16,12 +16,12 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import {SelectionModel} from "@angular/cdk/collections";
-import {HttpClient} from "@angular/common/http";
+import {HttpClient, HttpParams} from "@angular/common/http";
 import {Component, OnDestroy, OnInit} from "@angular/core";
 import {MatDialog, MatDialogConfig} from "@angular/material/dialog";
 import {MatSnackBarConfig} from "@angular/material/snack-bar";
-import {Subject} from "rxjs";
-import {takeUntil} from "rxjs/operators";
+import {Subject, timer} from "rxjs";
+import {filter, switchMap, take, takeUntil, timeout} from "rxjs/operators";
 import { DateTypeFormatter } from "../../../../../../../shared/util/date-type-formatter";
 import {AnalyzeMVResponse} from "../../../../../../../shared/util/model/mv/analyze-mv-response";
 import {MaterializedModel} from "../../../../../../../shared/util/model/mv/materialized-model";
@@ -33,7 +33,7 @@ import {MessageDialog, MessageDialogType} from "../../../../common/util/message-
 import {ColumnInfo} from "../../../../common/util/table/column-info";
 import {TableModel} from "../../../../common/util/table/table-model";
 import {PageHeaderService} from "../../../../page-header/page-header.service";
-import {ConnectionStatus} from "../../../security/security-provider/security-provider-model/connection-status";
+import {CreateMvResponse} from "../../../../../../../shared/util/model/mv/create-mv-response";
 import {MvExceptionsDialogComponent} from "../../repository/mv-exceptions-dialog/mv-exceptions-dialog.component";
 import {MVManagementModel} from "./mv-management-model";
 import {DeviceType} from "../../../../common/util/table/expandable-row-table/expandable-row-table.component";
@@ -271,7 +271,7 @@ export class MvManagementViewComponent implements OnInit, OnDestroy {
                });
             }
             else {
-               this.analysisCompleted();
+               this.analysisCompleted(response.analysisId);
             }
          }, () => this.loading = false);
    }
@@ -285,10 +285,10 @@ export class MvManagementViewComponent implements OnInit, OnDestroy {
          });
    }
 
-   private analysisCompleted(): void {
-      this.http.get("../api/em/content/materialized-view/check-analysis").subscribe((response: AnalyzeMVResponse) => {
+   private analysisCompleted(analysisId: string): void {
+      this.http.get("../api/em/content/materialized-view/check-analysis/" + analysisId).subscribe((response: AnalyzeMVResponse) => {
          if(!response.completed) {
-            setTimeout(() => this.analysisCompleted(), 5000);
+            setTimeout(() => this.analysisCompleted(analysisId), 5000);
             return;
          }
 
@@ -297,7 +297,7 @@ export class MvManagementViewComponent implements OnInit, OnDestroy {
          this.loading = false;
 
          if(response.exception) {
-            this.http.get("../api/em/content/repository/mv/exceptions").subscribe(
+            this.http.get("../api/em/content/repository/mv/exceptions/" + analysisId).subscribe(
                (exceptions: MVExceptionResponse) =>
                {
                   // open the exception dialog
@@ -354,31 +354,40 @@ export class MvManagementViewComponent implements OnInit, OnDestroy {
    }
 
    apply(): void {
-      // apply
-      let materializedSelection: MaterializedModel[] = this.selection.selected.map(sel => <MaterializedModel>sel);
-      let applyModel: MVManagementModel = <MVManagementModel>{
+      const materializedSelection: MaterializedModel[] =
+         this.selection.selected.map(sel => <MaterializedModel>sel);
+      const applyModel: MVManagementModel = <MVManagementModel>{
          mvs: materializedSelection,
          runInBackground: this.runInBackground
       };
 
       this.loading = true;
+      const updateId = Tool.generateRandomUUID();
+      const options = { params: new HttpParams().set("updateId", updateId) };
 
-      this.http.post("../api/em/content/materialized-view/update", applyModel)
-         .subscribe((status: ConnectionStatus) => {
-            let config = new MatSnackBarConfig();
-            config.duration = Tool.SNACKBAR_DURATION;
-            config.panelClass = ["max-width"];
-
+      timer(0, 2000).pipe(
+         switchMap(() =>
+            this.http.post<CreateMvResponse>(
+               "../api/em/content/materialized-view/update", applyModel, options)),
+         filter(response => !!response.complete),
+         take(1),
+         timeout(600000)
+      ).subscribe(
+         () => {
             this.refreshMVList();
             this.loading = false;
+            const msg = this.runInBackground ?
+               "_#(js:em.alert.createMV0)" : "_#(js:em.alert.createMV)";
             this.dialog.open(MessageDialog, {
                data: {
                   title: "_#(js:Status)",
-                  content: status.status,
+                  content: msg,
                   type: MessageDialogType.INFO
                }
             });
-         }, () => this.loading = false);
+         },
+         () => this.loading = false
+      );
    }
 
    filterList(): void {

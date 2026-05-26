@@ -20,40 +20,53 @@ package inetsoft.uql.rest.auth;
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.protocol.HttpClientContext;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.*;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
+import java.util.stream.Stream;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.*;
 
 class BasicAuthTest {
-   @Test
-   void basicAuthHeadersAreSet() {
-      final String username = "user";
-      final String password = "password";
+   @ParameterizedTest(name = "username={0}, password={1}")
+   @MethodSource("authCredentials")
+   void should_set_correct_authorization_header(String username, String password) {
+      String expectedHeader = "Basic " + Base64.getEncoder()
+         .encodeToString((username + ":" + password).getBytes(StandardCharsets.UTF_8));
 
-      final String credentials = String.format("%s:%s", username, password);
-      final String encodedCredentials = Base64.getEncoder()
-         .encodeToString(credentials.getBytes(StandardCharsets.UTF_8));
-      final String expectedAuthorization = "Basic " + encodedCredentials;
+      BasicAuthenticator auth = new BasicAuthenticator(BasicAuthConfig.builder()
+         .username(username)
+         .password(password)
+         .build());
+      HttpGet request = new HttpGet();
+      auth.authenticateRequest(request, HttpClientContext.create());
 
-      final BasicAuthenticator basicAuth = new BasicAuthenticator(BasicAuthConfig.builder()
-                                                   .username(username)
-                                                   .password(password)
-                                                   .build());
-      final HttpGet get = new HttpGet();
-
-      basicAuth.authenticateRequest(get, HttpClientContext.create());
-      final String actualAuthorization = get.getFirstHeader(HttpHeaders.AUTHORIZATION)
-         .getValue();
-
-      assertEquals(expectedAuthorization, actualAuthorization);
+      assertEquals(expectedHeader, request.getFirstHeader(HttpHeaders.AUTHORIZATION).getValue());
    }
 
-   @Test
-   void allowEmptyUsernameOrPassword() {
-      BasicAuthConfig.builder().username("user").build();
-      BasicAuthConfig.builder().password("password").build();
+   static Stream<Arguments> authCredentials() {
+      return Stream.of(
+         Arguments.of("user", "password"),
+         Arguments.of("admin", "secret"),
+         Arguments.of("", "password"),
+         Arguments.of("user", "")
+      );
+   }
+
+   @ParameterizedTest(name = "username={0}, password={1}")
+   @CsvSource(value = {"user,null", "null,password"}, nullValues = "null")
+   void should_allow_incomplete_builder_config(String username, String password) {
+      assertDoesNotThrow(() -> {
+         BasicAuthConfig.Builder builder = BasicAuthConfig.builder();
+         if(username != null) {
+            builder.username(username);
+         }
+         if(password != null) {
+            builder.password(password);
+         }
+         builder.build();
+      });
    }
 }

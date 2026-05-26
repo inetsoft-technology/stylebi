@@ -1,0 +1,122 @@
+/*
+ * This file is part of StyleBI.
+ * Copyright (C) 2024  InetSoft Technology
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+package inetsoft.web.composer.vs.objects.controller;
+
+import inetsoft.analytic.composition.ViewsheetService;
+import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.report.composition.execution.ViewsheetSandbox;
+import inetsoft.sree.security.*;
+import inetsoft.test.*;
+import inetsoft.uql.asset.Assembly;
+import inetsoft.uql.viewsheet.*;
+import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
+import inetsoft.web.composer.ClipboardService;
+import inetsoft.web.composer.vs.VSObjectTreeService;
+import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
+import inetsoft.web.viewsheet.service.CommandDispatcher;
+import inetsoft.web.viewsheet.service.CoreLifecycleService;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.Tag;
+import org.mockito.*;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
+
+import java.awt.*;
+import java.security.Principal;
+import java.util.*;
+import java.util.List;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.Mockito.*;
+
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@SreeHome()
+@ExtendWith({MockitoExtension.class})
+@Tag("core")
+class ClipboardControllerServiceTest {
+
+   @BeforeEach
+   void setup() {
+      clipboardControllerService =
+         Mockito.spy(new ClipboardControllerService(coreLifecycleService, vsObjectTreeService,
+                                                    viewsheetService, assemblyHandler,
+                                                    vsObjectPropertyService));
+      doReturn(clipboardService)
+         .when(clipboardControllerService)
+         .getClipboardService(any(Principal.class));
+   }
+
+   // Bug #16764 make sure the top left is calculated correctly.
+   @Test
+   void should_position_pasted_objects_relative_to_origin() throws Exception {
+      when(viewsheetService.getViewsheet(any(), nullable(Principal.class))).thenReturn(rvs);
+      when(rvs.getViewsheet()).thenReturn(viewsheet);
+      when(rvs.getViewsheetSandbox()).thenReturn(Optional.of(sandbox));
+
+      List<Assembly> assemblies = new ArrayList<>();
+      ImageVSAssembly image = VSAssemblyFixture.image(viewsheet, "Image", 100, 100);
+      GaugeVSAssembly gauge = VSAssemblyFixture.gauge(viewsheet, "Gauge", 200, 200);
+      assemblies.add(image);
+      assemblies.add(gauge);
+
+      when(viewsheet.getAssemblies())
+         .thenReturn(assemblies.toArray(new Assembly[0]));
+
+      when(clipboardService.paste()).thenReturn(assemblies);
+
+      Principal principal = new SRPrincipal(new IdentityID("admin", Organization.getDefaultOrganizationID()));
+      clipboardControllerService.pasteObject(runtimeViewsheetRef.getRuntimeId(), 0, 0, principal, commandDispatcher, linkUri);
+
+      verify(coreLifecycleService, times(2))
+         .addDeleteVSObject(any(RuntimeViewsheet.class), argCaptor.capture(),
+                            any(CommandDispatcher.class));
+
+      List<VSAssembly> commands = argCaptor.getAllValues();
+      VSAssembly image2 = commands.get(0);
+      Point positionImage = image2.getPixelOffset();
+      VSAssembly gauge2 = commands.get(1);
+      Point positionGauge = gauge2.getPixelOffset();
+      assertEquals(0, positionImage.x);
+      assertEquals(0, positionImage.y);
+      assertEquals(100, positionGauge.y);
+      assertEquals(100, positionGauge.y);
+   }
+
+   @Captor
+   ArgumentCaptor<VSAssembly> argCaptor;
+   @Mock RuntimeViewsheetRef runtimeViewsheetRef;
+   @Mock
+   CoreLifecycleService coreLifecycleService;
+   @Mock VSObjectTreeService vsObjectTreeService;
+   @Mock ViewsheetService viewsheetService;
+   @Mock ClipboardService clipboardService;
+   @Mock RuntimeViewsheet rvs;
+   @Mock Viewsheet viewsheet;
+   @Mock CommandDispatcher commandDispatcher;
+   @Mock VSAssemblyInfoHandler assemblyHandler;
+   @Mock VSObjectPropertyService vsObjectPropertyService;
+   @Mock ViewsheetSandbox sandbox;
+   private ClipboardControllerService clipboardControllerService;
+   private final String linkUri = "http://localhost:18080/sree/";
+}

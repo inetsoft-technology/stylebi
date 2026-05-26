@@ -18,11 +18,13 @@
 
 package inetsoft.web.admin.server;
 
-import inetsoft.report.LibManager;
+import inetsoft.report.LibManagerProvider;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.Cluster;
-import inetsoft.sree.security.*;
-import inetsoft.storage.*;
+import inetsoft.sree.security.Organization;
+import inetsoft.sree.security.SecurityEngine;
+import inetsoft.storage.KeyValueEngine;
+import inetsoft.storage.KeyValuePair;
 import inetsoft.uql.asset.EmbeddedTableStorage;
 import inetsoft.util.*;
 import jakarta.servlet.http.HttpServletResponse;
@@ -30,15 +32,19 @@ import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.io.*;
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.stream.Stream;
 
 @RestController
 public class DebugMonitoringController {
+
+   public DebugMonitoringController(LibManagerProvider libManagerProvider) {
+      this.libManagerProvider = libManagerProvider;
+   }
 
    @GetMapping("/em/monitoring/server/debug/key-value-storage-dump")
    public void getKVDump(HttpServletResponse response) throws Exception
@@ -112,7 +118,7 @@ public class DebugMonitoringController {
                   copyTransferFile(transferFilePath, out);
                }
 
-               transferFilePath = LibManager.getManager().listBlobs(orgID);
+               transferFilePath = libManagerProvider.getManager().listBlobs(orgID);
                copyTransferFile(transferFilePath, out);
                transferFilePath = EmbeddedTableStorage.getInstance().listBlobs(orgID);
                copyTransferFile(transferFilePath, out);
@@ -137,5 +143,6 @@ public class DebugMonitoringController {
       }
    }
 
+   private final LibManagerProvider libManagerProvider;
    private static final Logger LOG = LoggerFactory.getLogger(DebugMonitoringController.class);
 }

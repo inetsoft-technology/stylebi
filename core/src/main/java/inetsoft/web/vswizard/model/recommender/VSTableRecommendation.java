@@ -19,6 +19,10 @@ package inetsoft.web.vswizard.model.recommender;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import inetsoft.uql.ColumnSelection;
+import inetsoft.util.Tool;
+import org.w3c.dom.Element;
+
+import java.io.PrintWriter;
 
 public class VSTableRecommendation extends VSAbstractObjectRecommendation {
    public VSTableRecommendation() {
@@ -37,6 +41,27 @@ public class VSTableRecommendation extends VSAbstractObjectRecommendation {
     */
    public ColumnSelection getColumns() {
       return this.columns;
+   }
+
+   @Override
+   public void writeContents(PrintWriter writer) {
+      super.writeContents(writer);
+
+      if(columns != null) {
+         columns.writeXML(writer);
+      }
+   }
+
+   @Override
+   protected void parseContents(Element elem) throws Exception {
+      super.parseContents(elem);
+
+      Element item = Tool.getChildNodeByTagName(elem, "ColumnSelection");
+
+      if(item != null) {
+         columns = new ColumnSelection();
+         columns.parseXML(item);
+      }
    }
 
    @JsonIgnore

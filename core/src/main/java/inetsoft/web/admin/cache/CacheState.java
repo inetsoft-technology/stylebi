@@ -33,12 +33,12 @@ public abstract class CacheState {
    }
 
    @Value.Default
-   public int reportMemoryCount() {
+   public int sheetMemoryCount() {
       return 0;
    }
 
    @Value.Default
-   public int reportDiskCount() {
+   public int sheetDiskCount() {
       return 0;
    }
 
@@ -53,12 +53,12 @@ public abstract class CacheState {
    }
 
    @Value.Default
-   public long reportBytesRead() {
+   public long sheetBytesRead() {
       return 0L;
    }
 
    @Value.Default
-   public long reportBytesWritten() {
+   public long sheetBytesWritten() {
       return 0L;
    }
 

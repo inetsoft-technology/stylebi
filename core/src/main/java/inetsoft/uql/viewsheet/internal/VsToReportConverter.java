@@ -43,6 +43,7 @@ import inetsoft.report.lens.AttributeTableLens;
 import inetsoft.report.lens.DefaultTextLens;
 import inetsoft.report.painter.ImagePainter;
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.portal.PortalThemesManager;
 import inetsoft.uql.asset.AbstractSheet;
 import inetsoft.uql.asset.Assembly;
@@ -64,8 +65,8 @@ import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.*;
 import java.lang.reflect.Field;
-import java.util.List;
 import java.util.*;
+import java.util.List;
 import java.util.stream.Collectors;
 
 /**
@@ -75,8 +76,13 @@ import java.util.stream.Collectors;
  * @author InetSoft Technology Corp
  */
 public class VsToReportConverter {
-   public VsToReportConverter(ViewsheetSandbox box) {
+   public VsToReportConverter(ViewsheetSandbox box, LibManagerProvider libManagerProvider, Cluster cluster, FileSystemService fileSystemService, DataSpace dataSpace) {
       this.box = box;
+      this.libManagerProvider = libManagerProvider;
+      this.cluster = cluster;
+      this.fileSystemService = fileSystemService;
+      this.dataSpace = dataSpace;
+      this.report = new TabularSheet(libManagerProvider, cluster);
    }
 
    /**
@@ -88,7 +94,7 @@ public class VsToReportConverter {
       playout = layoutinfo.getPrintLayout();
 
       if(playout == null) {
-         return new TabularSheet();
+         return new TabularSheet(libManagerProvider, cluster);
       }
 
       TableDataPath dataPath = new TableDataPath(-1, TableDataPath.OBJECT);
@@ -273,7 +279,7 @@ public class VsToReportConverter {
     */
    private TabularSheet createReportSheet(PrintLayout playout) {
       PrintInfo pinfo = playout.getPrintInfo();
-      TabularSheet report = new TabularSheet();
+      TabularSheet report = new TabularSheet(libManagerProvider, cluster);
       report.setPageSize(getInchSize(pinfo, playout.isHorizontalScreen()));
       Margin margin = pinfo.getMargin();
       report.setMargin(margin);
@@ -2344,7 +2350,6 @@ public class VsToReportConverter {
       VSImage obj = new VSImage(vs);
       ImageVSAssemblyInfo imgInfo = (ImageVSAssemblyInfo) assembly.getInfo();
 
-
       if(imgInfo.getImage() != null) {
          obj.setAssemblyInfo(imgInfo);
          String path = imgInfo.getImage();
@@ -2376,12 +2381,9 @@ public class VsToReportConverter {
                   final String dir = SreeEnv.getProperty("html.image.directory");
 
                   if(!Tool.isEmptyString(dir)) {
-                     final String imagePath =
-                        FileSystemService.getInstance().getPath(dir, name).toString();
+                     final String imagePath = fileSystemService.getPath(dir, name).toString();
 
-                     try(final InputStream stream =
-                            DataSpace.getDataSpace().getInputStream(null, imagePath))
-                     {
+                     try(final InputStream stream = dataSpace.getInputStream(null, imagePath)) {
                         svg = new byte[stream.available()];
                         stream.read(svg);
                      }
@@ -2390,6 +2392,65 @@ public class VsToReportConverter {
 
                Document doc = SVGSupport.getInstance().createSVGDocument(new ByteArrayInputStream(svg));
                Element root = doc.getDocumentElement();
+               Color svgBg = obj.getBackground();
+
+               // Center the SVG content within the layout element bounds.
+               //
+               // The SVG may be smaller than the element area (e.g. a 256x139 chart
+               // inside a 328x240 element).  We expand the SVG viewport to the layout
+               // dimensions and shift the viewBox origin so the original content sits
+               // centered, leaving transparent margins around it.  The element's
+               // configured background color (from paintBg()) then shows through those
+               // margins.  We also insert an explicit background rect that covers the
+               // full viewport so the background color is visible even inside the SVG
+               // rendering when no other fill is present.
+               String svgWStr = root.getAttribute("width");
+               String svgHStr = root.getAttribute("height");
+
+               if(!svgWStr.isEmpty() && !svgHStr.isEmpty() && root.getAttribute("viewBox").isEmpty()) {
+                  try {
+                     int svgW = Integer.parseInt(svgWStr);
+                     int svgH = Integer.parseInt(svgHStr);
+                     Dimension layoutDim = imgInfo.getLayoutSize();
+                     int lw = layoutDim != null ? layoutDim.width  : svgW;
+                     int lh = layoutDim != null ? layoutDim.height : svgH;
+
+                     // Centering offsets (may be negative if SVG is larger than layout)
+                     int ox = Math.round((lw - svgW) / 2.0f);
+                     int oy = Math.round((lh - svgH) / 2.0f);
+
+                     // viewBox origin is the negative of the offset: the SVG content
+                     // starts at (ox,oy) in the rendered output.
+                     root.setAttribute("viewBox", (-ox) + " " + (-oy) + " " + lw + " " + lh);
+                     root.setAttribute("width",  String.valueOf(lw));
+                     root.setAttribute("height", String.valueOf(lh));
+                     // "none" = no additional scaling/centering; we have done it via viewBox
+                     root.setAttribute("preserveAspectRatio", "none");
+
+                     // Background rect covering the full new viewport so the element
+                     // background color is visible in the margins around the chart.
+                     if(svgBg != null) {
+                        Element bgRect = doc.createElementNS("http://www.w3.org/2000/svg", "rect");
+                        bgRect.setAttribute("x",      String.valueOf(-ox));
+                        bgRect.setAttribute("y",      String.valueOf(-oy));
+                        bgRect.setAttribute("width",  String.valueOf(lw));
+                        bgRect.setAttribute("height", String.valueOf(lh));
+                        bgRect.setAttribute("fill", "rgb(" + svgBg.getRed() + "," +
+                                            svgBg.getGreen() + "," + svgBg.getBlue() + ")");
+
+                        if(svgBg.getAlpha() < 255) {
+                           bgRect.setAttribute("fill-opacity",
+                                               String.valueOf(svgBg.getAlpha() / 255.0));
+                        }
+
+                        root.insertBefore(bgRect, root.getFirstChild());
+                     }
+                  }
+                  catch(NumberFormatException ignored) {
+                     // Non-integer SVG dimensions — leave SVG as-is
+                  }
+               }
+
                String alphaStr = imgInfo.getImageAlpha();
 
                if(alphaStr != null && !alphaStr.equals("100")) {
@@ -2417,7 +2478,7 @@ public class VsToReportConverter {
                   LOG.warn("Failed to write modified SVG to temp file", e);
                }
 
-               FileSystemService.getInstance().remove(tempFile, 10 * 60000);
+               fileSystemService.remove(tempFile, 10 * 60000);
             }
             catch(Exception ex) {
                LOG.debug("Failed to create temp file: " + ex, ex);
@@ -3144,11 +3205,16 @@ public class VsToReportConverter {
 
       return psize;
    }
+
+   private final LibManagerProvider libManagerProvider;
+   private final Cluster cluster;
+   private final FileSystemService fileSystemService;
+   private final DataSpace dataSpace;
    private int zindex = 0;
    private float scalefont = 1;
    private PrintLayout playout = null;
    private ViewsheetSandbox box = null;
-   private TabularSheet report = new TabularSheet();
+   private TabularSheet report;
    // sections used to hold content elements
    private List<LayoutSection> contentSections = new ArrayList<>();
    // IDs of filler sections (empty spacing sections, not bound to any assembly)

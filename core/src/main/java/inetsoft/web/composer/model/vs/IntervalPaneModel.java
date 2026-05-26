@@ -20,7 +20,9 @@ package inetsoft.web.composer.model.vs;
 import inetsoft.uql.viewsheet.internal.DateComparisonInfo;
 import inetsoft.uql.viewsheet.internal.DateComparisonInterval;
 
-public class IntervalPaneModel {
+import java.io.Serializable;
+
+public class IntervalPaneModel implements Serializable {
    public IntervalPaneModel() {
    }
 

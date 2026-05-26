@@ -24,11 +24,12 @@ import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.util.Tool;
 
 import java.awt.*;
+import java.io.Serializable;
 import java.util.List;
 import java.util.*;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class LegendFormatDialogModel {
+public class LegendFormatDialogModel implements Serializable {
    public LegendFormatDialogModel() {
    }
 

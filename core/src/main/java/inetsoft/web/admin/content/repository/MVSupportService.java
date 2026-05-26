@@ -37,8 +37,11 @@ import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.ViewsheetInfo;
 import inetsoft.util.*;
 import jakarta.annotation.PreDestroy;
+import org.awaitility.Awaitility;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.io.Serializable;
@@ -54,7 +57,17 @@ import java.util.stream.Collectors;
 @Service
 public class MVSupportService {
    public static MVSupportService getInstance() {
-      return SingletonManager.getInstance(MVSupportService.class);
+      return ConfigurationContext.getContext().getSpringBean(MVSupportService.class);
+   }
+
+   @Autowired
+   public MVSupportService(MVManager mvManager, SecurityEngine securityEngine,
+                           ScheduleManager scheduleManager, Cluster cluster)
+   {
+      this.mvManager = mvManager;
+      this.securityEngine = securityEngine;
+      this.scheduleManager = scheduleManager;
+      this.cluster = cluster;
    }
 
    /**
@@ -73,12 +86,11 @@ public class MVSupportService {
             .getString("mv.permission.missing.message"));
       }
 
-      MVManager mgr = MVManager.getManager();
       Map<MVCandidate, MVDef> vs2def = new HashMap<>();
       Map<MVCandidate, MVDef> ws2def = new HashMap<>();
 
       for(String mv : mvs) {
-         MVDef def = mgr.get(mv);
+         MVDef def = mvManager.get(mv);
 
          if(def != null) {
             String[] sheetIds = def.getMetaData().getRegisteredSheets();
@@ -123,10 +135,11 @@ public class MVSupportService {
       List<UserInfo> exceptions = new ArrayList<>();
       Map<MVCandidate, StringBuffer> plans = new HashMap<>();
 
-      AnalysisTask task = new AnalysisTask(
-         candidates, exceptions, plans, expanded, bypass, full, true, principal, false);
-
-      return new AnalysisResult(candidates, exceptions, plans, analyzePool.submit(task));
+      String id = UUID.randomUUID().toString();
+      analyzePool.submit(new AnalysisTask(
+         id, candidates, exceptions, plans, expanded, bypass, full, true, principal, false,
+         securityEngine, cluster));
+      return new AnalysisResult(id);
    }
 
    /**
@@ -190,12 +203,13 @@ public class MVSupportService {
 
       List<MVCandidate> candidates = new ArrayList<>(candidateSet);
 
-      AnalysisTask task = new AnalysisTask(
-         candidates, exceptions, plans, new boolean[] { expandGroups },
+      String id = UUID.randomUUID().toString();
+      analyzePool.submit(new AnalysisTask(
+         id, candidates, exceptions, plans, new boolean[] { expandGroups },
          new boolean[] { bypassVpm }, new boolean[] { fullData }, false,
-         principal, portal);
+         principal, portal, securityEngine, cluster));
 
-      return new AnalysisResult(candidates, exceptions, plans, analyzePool.submit(task));
+      return new AnalysisResult(id);
    }
 
    /**
@@ -213,11 +227,10 @@ public class MVSupportService {
    public String recreateMV(String[] names, boolean background, Principal principal)
       throws Throwable
    {
-      MVManager manager = MVManager.getManager();
       ArrayList<MVStatus> views = new ArrayList<>();
 
       for(String name : names) {
-         MVDef def = manager.get(name);
+         MVDef def = mvManager.get(name);
 
          if(def != null) {
             MVStatus status = new MVStatus(def, "");
@@ -284,14 +297,14 @@ public class MVSupportService {
       // base MV to generate
       views.sort(new MVComparator());
 
-      Map<String, String> statusMap = Cluster.getInstance().getMap("inetsoft.mv.status.map");
+      Map<String, String> statusMap = cluster.getMap("inetsoft.mv.status.map");
 
       for(MVStatus status : views) {
          statusMap.put(status.getDefinition().getName(), "Pending");
       }
 
       if(background) {
-         if(Cluster.getInstance().isSchedulerRunning()) {
+         if(cluster.isSchedulerRunning()) {
             createMVBackground(views, principal);
          }
          else {
@@ -334,6 +347,7 @@ public class MVSupportService {
          ThreadContext.setContextPrincipal(oldPrincipal);
       }
    }
+
    /**
     * Creates a set of materialized views.
     *
@@ -346,20 +360,19 @@ public class MVSupportService {
     *
     */
    private String createMVForeground0(List<MVStatus> views, boolean noData, Principal principal) {
-      MVManager manager = MVManager.getManager();
       final String prefix = principal.getName() + ":";
       ScheduleTask task = new ScheduleTask(
          prefix + MV_TASK_PREFIX + UUID.randomUUID().toString(), ScheduleTask.Type.MV_TASK);
 
       for(MVStatus status : views) {
          if(noData) {
-            manager.add(status.getDefinition(), false);
+            mvManager.add(status.getDefinition(), false);
          }
          else {
             MVAction action = new MVAction(status.getDefinition());
             task.addAction(action);
             status.getDefinition().setSuccess(false);
-            manager.add(status.getDefinition(), false);
+            mvManager.add(status.getDefinition(), false);
          }
       }
 
@@ -372,7 +385,7 @@ public class MVSupportService {
          return ex.getMessage();
       }
       finally {
-         manager.fireEvent("mvmanager_", MVManager.MV_CHANGE_EVENT, null, null);
+         mvManager.fireEvent("mvmanager_", MVManager.MV_CHANGE_EVENT, null, null);
       }
    }
 
@@ -382,20 +395,34 @@ public class MVSupportService {
     * @param mvs the names of the materialized views to delete.
     */
    public void dispose(List<String> mvs) {
-      MVManager manager = MVManager.getManager();
       String orgID = OrganizationManager.getInstance().getCurrentOrgID();
 
       for(String mv : mvs) {
          ClusterUtil.deleteClusterMV(mv);
-         MVDef def = manager.get(mv, orgID);
+         MVDef def = mvManager.get(mv, orgID);
 
          if(def != null) {
-            manager.remove(def, false, orgID);
+            mvManager.remove(def, false, orgID);
          }
       }
 
       ClusterUtil.clearRemovedMVFiles();
-      manager.fireEvent("mvmanager_", MVManager.MV_CHANGE_EVENT, null, null);
+      mvManager.fireEvent("mvmanager_", MVManager.MV_CHANGE_EVENT, null, null);
+      removeAnalysisStatusEntries(mvs);
+   }
+
+   private void removeAnalysisStatusEntries(List<String> mvNames) {
+      Set<String> nameSet = new HashSet<>(mvNames);
+      Map<String, AnalysisStatus> map = cluster.getMap(ANALYSIS_STATUS_MAP);
+      map.entrySet().stream()
+         .filter(e -> {
+            List<MVStatus> results = e.getValue().getResults();
+            return results != null && results.stream()
+               .anyMatch(s -> nameSet.contains(s.getDefinition().getMVName()));
+         })
+         .map(Map.Entry::getKey)
+         .toList()
+         .forEach(map::remove);
    }
 
    /**
@@ -405,18 +432,22 @@ public class MVSupportService {
     * @param dataCycle the name of the data cycle.
     */
    public void setDataCycle(String[] mvs, String dataCycle) {
-      MVManager manager = MVManager.getManager();
       boolean event = mvs.length > 0;
 
       for(String mv : mvs) {
-         MVDef def = manager.get(mv);
+         MVDef def = mvManager.get(mv);
+
+         if(def == null) {
+            continue;
+         }
+
          def.setCycle(getCycle(dataCycle));
          def.setChanged(true);
-         manager.add(def, false);
+         mvManager.add(def, false);
       }
 
       if(event) {
-         manager.fireEvent("mvmanager_", MVManager.MV_CHANGE_EVENT, null, null);
+         mvManager.fireEvent("mvmanager_", MVManager.MV_CHANGE_EVENT, null, null);
       }
    }
 
@@ -424,19 +455,16 @@ public class MVSupportService {
     * Sets the data cycle for materialized views that have not been created yet.
     *
     * @param mvs       the names of the materialized views.
-    * @param statuses  the pending materialized view definitions.
     * @param dataCycle the name of the data cycle.
     */
-   public void setDataCycle(List<String> mvs, List<MVStatus> statuses, String dataCycle) {
-      MVManager manager = MVManager.getManager();
-
+   public void setDataCycle(List<String> mvs, AnalysisResult result, String dataCycle) {
       for(String name : mvs) {
-         for(MVStatus status : statuses) {
+         for(MVStatus status : result.getStatus()) {
             if(status.getDefinition().getName().equals(name)) {
                status.getDefinition().setCycle(getCycle(dataCycle));
                status.getDefinition().setChanged(true);
 
-               MVDef odef = manager.get(name);
+               MVDef odef = mvManager.get(name);
 
                if(odef != null) {
                   status.getDefinition().setSuccess(odef.isSuccess());
@@ -445,12 +473,18 @@ public class MVSupportService {
                // this is called when analyzing MV, don't trigger event
                // until it's actually created later to avoid creating
                // schedule task
-               manager.add(status.getDefinition(), false);
+               mvManager.add(status.getDefinition(), false);
             }
          }
       }
 
-      manager.fireEvent("mvmanager_", MVManager.MV_CHANGE_EVENT, null, null);
+      // update the analysis status in the distributed map after setting the data cycle
+      AnalysisStatus status = new AnalysisStatus(result.getCandidates(), result.getExceptions(),
+                                                 result.getPlans(), result.getStatus(),
+                                                 result.getError());
+      Map<String, AnalysisStatus> map = cluster.getMap(ANALYSIS_STATUS_MAP);
+      map.put(result.getId(), status);
+      mvManager.fireEvent("mvmanager_", MVManager.MV_CHANGE_EVENT, null, null);
    }
 
    /**
@@ -463,12 +497,24 @@ public class MVSupportService {
     */
    private void createMVBackground(List<MVStatus> statuses, Principal principal) throws Exception {
       long time = System.currentTimeMillis() + 6000 * 2;
-      MVManager mvManager = MVManager.getManager();
       TimeCondition condition = TimeCondition.at(new Date(time));
       ScheduleTask task = new ScheduleTask(MV_TASK_PREFIX + UUID.randomUUID(), ScheduleTask.Type.MV_TASK);
       IdentityID user = IdentityID.getIdentityIDFromKey(principal.getName());
+      String currentOrgId = OrganizationManager.getInstance().getCurrentOrgID(principal);
+
+      // When a site admin manages another org's resources, principal.getName() encodes the
+      // admin's own org (e.g. host-org) rather than the org being managed (e.g. org-sara).
+      // setScheduleTask() stores the task under getCurrentOrgID(principal) = the managed org,
+      // but the task name would embed the admin's own org as the owner prefix.
+      // The CloudRunner later extracts the org from the task name to look up the task, causing
+      // a mismatch (looks in host-org, task is stored in org-sara) → "Running Schedule Task: null".
+      // Fix: ensure the owner's orgID matches the org under which the task will be stored.
+      if(!Tool.equals(user.getOrgID(), currentOrgId)) {
+         user = new IdentityID(user.name, currentOrgId);
+      }
+
       IdentityID owner = SUtil.getOwnerForNewTask(user);
-      task.setOwner(SUtil.getOwnerForNewTask(user));
+      task.setOwner(owner);
       // Bug #74338: set path to "/" so the task is treated as a root-level task in
       // getScheduleTasks(); without it path is null which produces "null/<taskId>" and
       // the task is treated as residing in a non-existent folder, failing the permission
@@ -476,7 +522,6 @@ public class MVSupportService {
       task.setPath("/");
       ScheduleTask task2 = new ScheduleTask(MV_TASK_STAGE_PREFIX + UUID.randomUUID(), ScheduleTask.Type.MV_TASK);
       task2.setOwner(owner);
-      task2.setPath("/");
       task.setDeleteIfNoMoreRun(true);
       task.setEditable(false);
       task.setDurable(true);
@@ -499,67 +544,13 @@ public class MVSupportService {
          mvManager.add(status.getDefinition(), false);
       }
 
-      ScheduleManager manager = ScheduleManager.getScheduleManager();
-      manager.setScheduleTask(task.getTaskId(), task, principal);
+      scheduleManager.setScheduleTask(task.getTaskId(), task, principal);
 
       if(task2.getActionCount() > 0) {
-         manager.setScheduleTask(task2.getTaskId(), task2, principal);
+         scheduleManager.setScheduleTask(task2.getTaskId(), task2, principal);
       }
 
       mvManager.fireEvent("mvmanager_", MVManager.MV_CHANGE_EVENT, null, null);
-   }
-
-   /**
-    * Gets the status of all materialized views associated with a viewsheet.
-    *
-    * @param identifier the viewsheet identifier.
-    *
-    * @return the materialized view statuses.
-    */
-   public List<MVStatus> getMVStatus(String identifier) {
-      MVManager manager = MVManager.getManager();
-      ScheduleManager schedule = ScheduleManager.getScheduleManager();
-      List<MVStatus> list = new ArrayList<>();
-      AssetEntry entry = (identifier != null) ? getEntry(identifier) : null;
-
-      for(MVDef def : manager.list(false)) {
-         if(entry == null || def.matches(entry) ||
-            (def.getMetaData() != null &&
-               def.getMetaData().isRegistered(entry.toIdentifier())))
-         {
-            MVStatus mvstatus = new MVStatus(def, "");
-            mvstatus.setExists(true);
-            mvstatus.setDataPresent(def.hasData());
-            list.add(mvstatus);
-         }
-      }
-
-      // status to be removed
-      for(ScheduleTask task : schedule.getScheduleTasks()) {
-         if(task.getTaskId().startsWith(DataCycleManager.TASK_PREFIX)) {
-            continue;
-         }
-
-         for(int i = 0; i < task.getActionCount(); i++) {
-            ScheduleAction scheduleAction = task.getAction(i);
-
-            if(scheduleAction instanceof MVAction) {
-               MVAction mvaction = (MVAction) scheduleAction;
-               MVDef def = mvaction.getMV();
-
-               if(def.getEntry().toIdentifier().equals(identifier)) {
-                  MVStatus status = new MVStatus(def, "");
-                  status.setScheduled(true);
-
-                  if(!list.contains(status)) {
-                     list.add(status);
-                  }
-               }
-            }
-         }
-      }
-
-      return list;
    }
 
    /**
@@ -569,7 +560,6 @@ public class MVSupportService {
    @PreDestroy
    public void shutdown() {
       analyzePool.shutdownNow();
-      localCreatePool.shutdownNow();
       remoteCreatePool.shutdownNow();
    }
 
@@ -583,7 +573,7 @@ public class MVSupportService {
       SecurityProvider provider;
 
       try {
-         provider = SecurityEngine.getSecurity().getSecurityProvider();
+         provider = securityEngine.getSecurityProvider();
       }
       catch(Exception ex) {
          LOG.error("Failed to get security provider", ex);
@@ -664,12 +654,14 @@ public class MVSupportService {
       }
    }
 
-   private static Permission findPermission(String orgId, ResourceType type, String path) {
+   private static Permission findPermission(String orgId, ResourceType type, String path,
+                                            SecurityEngine securityEngine)
+   {
       if(orgId == null) {
          orgId = OrganizationManager.getInstance().getCurrentOrgID();
       }
 
-      Permission perm = SecurityEngine.getSecurity().getPermission(type, path);
+      Permission perm = securityEngine.getPermission(type, path);
 
       if((perm == null || perm.isBlank() && !perm.hasOrgEditedGrantAll(orgId)) &&
          type.isHierarchical())
@@ -678,7 +670,7 @@ public class MVSupportService {
          Resource parent = type.getParent(path);
 
          if(parent != null && !Objects.equals(resource, parent)) {
-            return findPermission(orgId, parent.getType(), parent.getPath());
+            return findPermission(orgId, parent.getType(), parent.getPath(), securityEngine);
          }
       }
 
@@ -720,6 +712,26 @@ public class MVSupportService {
       }
 
       currentPath.removeLast();
+   }
+
+   public AnalysisResult getAnalysisResult(String analysisId) {
+      return new AnalysisResult(analysisId);
+   }
+
+   public List<MVStatus> getMVStatusList(String analysisId) {
+      return getAnalysisResult(analysisId).getStatus();
+   }
+
+   @Scheduled(initialDelay = ANALYSIS_STATUS_MAP_CLEANUP_INTERVAL, fixedDelay = ANALYSIS_STATUS_MAP_CLEANUP_INTERVAL)
+   public void removeExpiredAnalysis() {
+      Map<String, AnalysisStatus> map = cluster.getMap(ANALYSIS_STATUS_MAP);
+
+      long limit = System.currentTimeMillis() - ANALYSIS_STATUS_MAP_CLEANUP_INTERVAL;
+      map.entrySet().stream()
+         .filter(e -> e.getValue().createdTime < limit)
+         .map(Map.Entry::getKey)
+         .toList() // copy to temp list before removing
+         .forEach(map::remove);
    }
 
    /**
@@ -834,8 +846,7 @@ public class MVSupportService {
        * Update the exist/hasData status.
        */
       public void updateStatus() {
-         MVManager manager = MVManager.getManager();
-         setExists(manager.get(mvDef.getName()) != null);
+         setExists(MVManager.getManager().get(mvDef.getName()) != null);
          setDataPresent(mvDef.hasData());
       }
 
@@ -878,28 +889,62 @@ public class MVSupportService {
       private boolean scheduled;
    }
 
-   /**
-    * Class that encapsulates the asynchronous result of an MV analysis.
-    */
-   public static final class AnalysisResult {
-      /**
-       * Creates a new instance of <tt>AnalysisResult</tt>.
-       *
-       * @param candidates  the candidates being analyzed.
-       * @param exceptions  the users for whom the viewsheet cannot be
-       *                    materialized.
-       * @param plans       the materialization plans.
-       * @param future      the asynchronous response for the analysis task.
-       */
-      private AnalysisResult(List<MVCandidate> candidates,
-                             List<UserInfo> exceptions,
-                             Map<MVCandidate, StringBuffer> plans,
-                             Future<List<MVStatus>> future)
+   public static final class AnalysisStatus {
+      public AnalysisStatus(List<MVCandidate> candidates, List<UserInfo> exceptions,
+                            Map<MVCandidate, StringBuffer> plans, List<MVStatus> results,
+                            Exception error)
       {
          this.candidates = candidates;
          this.exceptions = exceptions;
          this.plans = plans;
-         this.future = future;
+         this.results = results;
+         this.error = error;
+         this.createdTime = System.currentTimeMillis();
+      }
+
+      public List<MVCandidate> getCandidates() {
+         return candidates;
+      }
+
+      public List<UserInfo> getExceptions() {
+         return exceptions;
+      }
+
+      public Map<MVCandidate, StringBuffer> getPlans() {
+         return plans;
+      }
+
+      public List<MVStatus> getResults() {
+         return results;
+      }
+
+      public Exception getError() {
+         return error;
+      }
+
+      private final List<MVCandidate> candidates;
+      private final List<UserInfo> exceptions;
+      private final Map<MVCandidate, StringBuffer> plans;
+      private final List<MVStatus> results;
+      private final Exception error;
+      private final long createdTime;
+   }
+
+   /**
+    * Class that encapsulates the asynchronous result of an MV analysis.
+    */
+   public static final class AnalysisResult implements Serializable {
+      /**
+       * Creates a new instance of <tt>AnalysisResult</tt>.
+       *
+       * @param id the identifier of the analysis task.
+       */
+      public AnalysisResult(String id) {
+         this.id = id;
+      }
+
+      public String getId() {
+         return id;
       }
 
       /**
@@ -908,7 +953,8 @@ public class MVSupportService {
        * @return the identifiers.
        */
       public List<MVCandidate> getCandidates() {
-         return candidates;
+         return getAnalysisStatus().map(AnalysisStatus::getCandidates).orElseThrow(
+            () -> new IllegalStateException("The analysis job is not valid"));
       }
 
       /**
@@ -917,7 +963,8 @@ public class MVSupportService {
        * @return the exception users.
        */
       public List<UserInfo> getExceptions() {
-         return exceptions;
+         return getAnalysisStatus().map(AnalysisStatus::getExceptions).orElseThrow(
+            () -> new IllegalStateException("The analysis job is not valid"));
       }
 
       /**
@@ -927,7 +974,8 @@ public class MVSupportService {
        * @return the result status.
        */
       public List<MVStatus> getStatus() {
-         return status;
+         return getAnalysisStatus().map(AnalysisStatus::getResults).orElseThrow(
+            () -> new IllegalStateException("The analysis job is not valid"));
       }
 
       /**
@@ -936,7 +984,19 @@ public class MVSupportService {
        * @return the plans.
        */
       public Map<MVCandidate, StringBuffer> getPlans() {
-         return plans;
+         return getAnalysisStatus().map(AnalysisStatus::getPlans).orElseThrow(
+            () -> new IllegalStateException("The analysis job is not valid"));
+      }
+
+      /**
+       * Gets the error
+       *
+       * @return the error.
+       */
+      public Exception getError() {
+         AnalysisStatus status = getAnalysisStatus()
+            .orElseThrow(() -> new IllegalStateException("The analysis job is not valid"));
+         return status.getError();
       }
 
       /**
@@ -945,72 +1005,97 @@ public class MVSupportService {
        * @return <tt>true</tt> if completed; <tt>false</tt> otherwise.
        */
       public synchronized boolean isCompleted() {
-         boolean result = true;
-
-         if(future != null) {
-            if(future.isDone() || future.isCancelled()) {
-               try {
-                  status = future.get();
-               }
-               catch(Exception ex) {
-                  LOG.error("Failed to generate MV: " + ex, ex);
-               }
-
-               future = null;
-            }
-            else {
-               result = false;
-            }
-         }
-
-         return result;
+         AnalysisStatus analysisStatus = getAnalysisStatus().orElseThrow(
+            () -> new IllegalStateException("The analysis job is not valid"));
+         return analysisStatus.getResults() != null || analysisStatus.getError() != null;
       }
 
       /**
        * Waits for the background analysis task to complete.
        */
       public synchronized void waitFor() {
-         if(future != null) {
-            try {
-               status = future.get();
-            }
-            catch(Exception e) {
-               LOG.error("Failed to perform MV analysis", e);
-            }
-
-            future = null;
-         }
+         Awaitility.await()
+            .pollInterval(500, TimeUnit.MILLISECONDS)
+            .until(this::isCompleted);
       }
 
-      private final List<MVCandidate> candidates;
-      private final List<UserInfo> exceptions;
-      private final Map<MVCandidate, StringBuffer> plans;
-      private List<MVStatus> status;
-      private Future<List<MVStatus>> future;
+      private synchronized Optional<AnalysisStatus> getAnalysisStatus() {
+         if(completed != null) {
+            return Optional.of(completed);
+         }
+
+         Map<String, AnalysisStatus> map = ConfigurationContext.getContext().getSpringBean(Cluster.class).getMap(ANALYSIS_STATUS_MAP);
+         AnalysisStatus status = map.get(id);
+
+         if(status == null) {
+            return Optional.empty();
+         }
+
+         if(status.getResults() != null || status.getError() != null) {
+            completed = status;
+            return Optional.of(status);
+         }
+
+         return Optional.of(status);
+      }
+
+      private final String id;
+      private AnalysisStatus completed;
    }
 
-   private static final class AnalysisTask implements Callable<List<MVStatus>> {
-      public AnalysisTask(List<MVCandidate> candidates, List<UserInfo> exceptions,
-                          Map<MVCandidate, StringBuffer> plans, boolean[] expanded,
-                          boolean[] bypass, boolean[] full, boolean reanalyze,
-                          Principal principal, boolean portal) throws Exception
+   private static final class AnalysisTask implements Runnable {
+      public AnalysisTask(String id, List<MVCandidate> candidates,
+                          List<UserInfo> exceptions, Map<MVCandidate, StringBuffer> plans,
+                          boolean[] expanded, boolean[] bypass, boolean[] full, boolean reanalyze,
+                          Principal principal, boolean portal, SecurityEngine securityEngine,
+                          Cluster cluster)
+         throws Exception
       {
+         this.id = id;
+         this.candidates = candidates;
          this.exceptions = exceptions;
          this.plans = plans;
          this.reanalyze = reanalyze;
          this.portal = portal;
          this.principal = principal;
+         this.cluster = cluster;
 
          jobs = new AnalysisJob[candidates.size()];
 
          for(int i = 0; i < candidates.size(); i++) {
             int mod = i % expanded.length;
             jobs[i] = new AnalysisJob(candidates.get(i), expanded[mod],
-                                      bypass[mod], full[mod], principal);
+                                      bypass[mod], full[mod], principal, securityEngine);
          }
+
+         updateStatus(null, null);
       }
 
       @Override
+      public void run() {
+         List<MVStatus> results = null;
+         Exception error = null;
+
+         try {
+            results = call();
+         }
+         catch(Exception e) {
+            error = e;
+         }
+
+         // Set the principal so persistAndClearWorksheet() reads embedded table
+         // data from the correct org rather than the host org.
+         Principal oldPrincipal = ThreadContext.getContextPrincipal();
+         ThreadContext.setContextPrincipal(principal);
+
+         try {
+            updateStatus(results, error);
+         }
+         finally {
+            ThreadContext.setContextPrincipal(oldPrincipal);
+         }
+      }
+
       public List<MVStatus> call() {
          Principal oldPrincipal = ThreadContext.getContextPrincipal();
          ThreadContext.setContextPrincipal(principal);
@@ -1037,6 +1122,7 @@ public class MVSupportService {
             for(UserInfo info : infos) {
                if(!exceptions.contains(info)) {
                   exceptions.add(info);
+                  updateStatus(null, null);
                }
             }
 
@@ -1048,6 +1134,7 @@ public class MVSupportService {
             }
 
             plans.put(job.candidate, plan);
+            updateStatus(null, null);
          }
 
          List<MVDef> mvs = new ArrayList<>();
@@ -1064,6 +1151,7 @@ public class MVSupportService {
          for(UserInfo info : hints) {
             if(!exceptions.contains(info)) {
                exceptions.add(info);
+               updateStatus(null, null);
             }
          }
 
@@ -1079,17 +1167,36 @@ public class MVSupportService {
          return result;
       }
 
+      private void updateStatus(List<MVStatus> results, Exception error) {
+         // Persist worksheets to storage and clear from memory before distributing
+         // across the cluster. Each MVDef.container.ws (Worksheet) can be tens of MBs,
+         // causing severe GC pressure and node failure on the scheduler node.
+         // The worksheet is reloaded from storage by the scheduler node when needed.
+         if(results != null) {
+            for(MVStatus s : results) {
+               s.getDefinition().persistAndClearWorksheet();
+            }
+         }
+
+         Map<String, AnalysisStatus> map = cluster.getMap(ANALYSIS_STATUS_MAP);
+         AnalysisStatus status = new AnalysisStatus(candidates, exceptions, plans, results, error);
+         map.put(id, status);
+      }
+
+      private final String id;
+      private final List<MVCandidate> candidates;
       private final boolean reanalyze;
       private final AnalysisJob[] jobs;
       private final List<UserInfo> exceptions;
       private final Map<MVCandidate, StringBuffer> plans;
       private final boolean portal;
       private final Principal principal;
+      private final Cluster cluster;
    }
 
    private static final class AnalysisJob {
       public AnalysisJob(MVCandidate candidate, boolean expanded, boolean bypass,
-                         boolean full, Principal principal)
+                         boolean full, Principal principal, SecurityEngine securityEngine)
          throws Exception
       {
          this.candidate = candidate;
@@ -1100,6 +1207,7 @@ public class MVSupportService {
          this.bypass = bypass;
          this.full = full;
          this.principal = principal;
+         this.securityEngine = securityEngine;
 
          if(sheet instanceof Viewsheet) {
             ViewsheetInfo vinfo = ((Viewsheet) sheet).getViewsheetInfo();
@@ -1125,8 +1233,7 @@ public class MVSupportService {
        * Get identities.
        */
       private void createIdentities() {
-         SecurityEngine engine = SecurityEngine.getSecurity();
-         SecurityProvider securityProvider = engine.getSecurityProvider();
+         SecurityProvider securityProvider = securityEngine.getSecurityProvider();
 
          if(entry.getScope() == AssetRepository.USER_SCOPE) {
             identities.add(new DefaultIdentity(entry.getUser().name, entry.getOrgID(), Identity.USER));
@@ -1134,14 +1241,15 @@ public class MVSupportService {
          else if(!bypass) {
             Resource resource = AssetUtil.getSecurityResource(entry);
             String orgID = Optional.ofNullable(entry.getOrgID()).orElse(Organization.getDefaultOrganizationID());
-            Permission permission = findPermission(orgID, resource.getType(), resource.getPath());
+            Permission permission = findPermission(orgID, resource.getType(), resource.getPath(),
+                                                   securityEngine);
 
             if(permission != null) {
                for(Permission.PermissionIdentity pident : permission.getGroupGrants(ResourceAction.READ)) {
                   if(expanded) {
                      SRIdentityFinder finder = (SRIdentityFinder) XUtil.getXIdentityFinder();
 
-                     for(IdentityID usr : engine.getOrgUsers(pident.getOrganizationID())) {
+                     for(IdentityID usr : securityEngine.getOrgUsers(pident.getOrganizationID())) {
                         Identity user = new DefaultIdentity(usr.name, pident.getOrganizationID(), Identity.USER);
 
                         if(finder.isParentGroup(user, pident.getName())) {
@@ -1168,7 +1276,7 @@ public class MVSupportService {
             }
 
             // user enable security, but without any permission, default to administrator
-            if(!SecurityEngine.getSecurity().getSecurityProvider().isVirtual() &&
+            if(!securityEngine.getSecurityProvider().isVirtual() &&
                identities.isEmpty())
             {
                List<IdentityID> orgAdminUsers = OrganizationManager.getInstance().orgAdminUsers(orgID);
@@ -1178,7 +1286,7 @@ public class MVSupportService {
                {
                   //assign org admin role instead of printing all org admins
                   if(orgAdminUsers.size() > 1) {
-                     SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+                     SecurityProvider provider = securityEngine.getSecurityProvider();
 
                      for(IdentityID roleID : provider.getRoles()) {
                         if(roleID != null && (roleID.orgID == null || Tool.equals(roleID.orgID, orgID)) && provider.isOrgAdministratorRole(roleID)) {
@@ -1407,6 +1515,7 @@ public class MVSupportService {
       private boolean expanded;
       private boolean bypass;
       private boolean full;
+      private SecurityEngine securityEngine;
 
       private MVAnalyzer analyzer;
       private List<MVDef> defs = new ArrayList<>();
@@ -1424,7 +1533,7 @@ public class MVSupportService {
       }
    }
 
-   private static void checkAssetPermission(AssetEntry entry, Principal principal)
+   private void checkAssetPermission(AssetEntry entry, Principal principal)
       throws inetsoft.sree.security.SecurityException
    {
       boolean hasPermission;
@@ -1435,7 +1544,7 @@ public class MVSupportService {
       else {
          ResourceType resourceType = entry.isWorksheet() ?
             ResourceType.ASSET : ResourceType.REPORT;
-         hasPermission = SecurityEngine.getSecurity().checkPermission(
+         hasPermission = securityEngine.checkPermission(
             principal, resourceType, entry.getPath(), ResourceAction.WRITE);
       }
 
@@ -1445,7 +1554,7 @@ public class MVSupportService {
       }
    }
 
-   private static boolean hasUserScopePermission(AssetEntry entry, Principal principal)
+   private boolean hasUserScopePermission(AssetEntry entry, Principal principal)
       throws inetsoft.sree.security.SecurityException
    {
       IdentityID entryUser = entry.getUser();
@@ -1458,22 +1567,28 @@ public class MVSupportService {
       }
 
       boolean isSameUser = principal.getName().equals(entryUser.convertToKey());
-      boolean isAdmin = !isSameUser && SecurityEngine.getSecurity().checkPermission(
+      boolean isAdmin = !isSameUser && securityEngine.checkPermission(
          principal, ResourceType.SECURITY_USER, entryUser, ResourceAction.ADMIN);
 
       return (isSameUser || isAdmin) &&
-         SecurityEngine.getSecurity().checkPermission(
+         securityEngine.checkPermission(
             principal, ResourceType.MY_DASHBOARDS, "*", ResourceAction.READ);
    }
 
+   private final MVManager mvManager;
+   private final SecurityEngine securityEngine;
+   private final ScheduleManager scheduleManager;
+   private final Cluster cluster;
+
    private final ExecutorService analyzePool =
       Executors.newFixedThreadPool(4, new GroupedThreadFactory());
-   private final ExecutorService localCreatePool =
-      Executors.newFixedThreadPool(2, new GroupedThreadFactory());
    private final ExecutorService remoteCreatePool =
       Executors.newCachedThreadPool(new GroupedThreadFactory());
    public static final String MV_TASK_PREFIX = Util.MV_TASK_PREFIX;
    public static final String MV_TASK_STAGE_PREFIX = Util.MV_TASK_STAGE_PREFIX;
+   private static final String ANALYSIS_STATUS_MAP =
+      MVSupportService.class.getName() + ".analysisStatusMap";
+   private static final long ANALYSIS_STATUS_MAP_CLEANUP_INTERVAL = 1200000L; // 20 min
 
    private static final Logger LOG = LoggerFactory.getLogger(MVSupportService.class);
 
@@ -1486,7 +1601,7 @@ public class MVSupportService {
       }
    }
 
-   public static final class MVCandidate {
+   public static final class MVCandidate implements Serializable {
       public MVCandidate(String id) {
          this.id = id;
       }

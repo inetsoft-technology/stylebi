@@ -52,15 +52,23 @@ import java.util.stream.Collectors;
 public abstract class DatasourcesBaseService {
    public DatasourcesBaseService(XRepository repository,
                                  SecurityEngine securityEngine,
-                                 DataSourceStatusService dataSourceStatusService)
+                                 DataSourceStatusService dataSourceStatusService,
+                                 DataSourceRegistry dataSourceRegistry,
+                                 Config uqlConfig)
    {
       this.repository = repository;
       this.securityEngine = securityEngine;
       this.dataSourceStatusService = dataSourceStatusService;
+      this.dataSourceRegistry = dataSourceRegistry;
+      this.uqlConfig = uqlConfig;
    }
 
    protected XRepository getRepository() {
       return repository;
+   }
+
+   protected Config getUqlConfig() {
+      return uqlConfig;
    }
 
    public DataSourceDefinition getDataSourceDefinition(@PermissionPath String path,
@@ -145,7 +153,7 @@ public abstract class DatasourcesBaseService {
       TabularOAuthParams.Builder builder = TabularOAuthParams.builder()
          .license(license);
 
-      if(!LicenseManager.getInstance().isEnterprise() && (license == null || license.isEmpty())) {
+      if(!LicenseManager.isEnterprise() && (license == null || license.isEmpty())) {
          return builder.error(Catalog.getCatalog().getString("em.license.communityAPIKeyMissing"))
             .build();
       }
@@ -201,11 +209,11 @@ public abstract class DatasourcesBaseService {
    }
 
    private Object refreshAndGetDataSource(DataSourceDefinition definition) {
-      String dsClass = Config.getDataSourceClass(definition.getType());
+      String dsClass = uqlConfig.getDataSourceClass(definition.getType());
       Object ds = null;
 
       try {
-         ds = Config.getClass(definition.getType(), dsClass).getConstructor().newInstance();
+         ds = uqlConfig.getClass(definition.getType(), dsClass).getConstructor().newInstance();
       }
       catch(Exception e) {
          LOG.error("Failed to create class: " + dsClass, e);
@@ -555,7 +563,7 @@ public abstract class DatasourcesBaseService {
     * @return the asset entry from the repository.
     */
    public AssetEntry getDataSourceAssetEntry(AssetEntry oldEntry) {
-      DataSourceRegistry registry = DataSourceRegistry.getRegistry();
+      DataSourceRegistry registry = dataSourceRegistry;
       AssetEntry[] entries = registry.getEntries(oldEntry.getPath(), AssetEntry.Type.DATA_SOURCE);
 
       for(AssetEntry newEntry : entries) {
@@ -574,7 +582,7 @@ public abstract class DatasourcesBaseService {
     */
    private void updateDataSourceAssetEntry(AssetEntry entry) {
       try {
-         DataSourceRegistry registry = DataSourceRegistry.getRegistry();
+         DataSourceRegistry registry = dataSourceRegistry;
          registry.setObject(entry, registry.getObject(entry, true));
       }
       catch(Exception e) {
@@ -631,5 +639,7 @@ public abstract class DatasourcesBaseService {
    private final XRepository repository;
    private final SecurityEngine securityEngine;
    private final DataSourceStatusService dataSourceStatusService;
+   private final DataSourceRegistry dataSourceRegistry;
+   private final Config uqlConfig;
    private static final Logger LOG = LoggerFactory.getLogger(DatasourcesBaseService.class);
 }

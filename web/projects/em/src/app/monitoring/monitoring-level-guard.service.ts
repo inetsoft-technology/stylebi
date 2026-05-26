@@ -15,46 +15,42 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Injectable } from "@angular/core";
+import { inject } from "@angular/core";
 import {
-   ActivatedRouteSnapshot, CanActivate, Router,
+   ActivatedRouteSnapshot,
+   CanActivateFn,
+   Router,
    RouterStateSnapshot
 } from "@angular/router";
-import { Observable } from "rxjs";
+import { Observable, of } from "rxjs";
 import { map } from "rxjs/operators";
 import { MonitorLevel, MonitorLevelService } from "./monitor-level.service";
 
-@Injectable()
-export class MonitoringLevelGuard implements CanActivate {
-   constructor(private monitorLevelService: MonitorLevelService, private router: Router) {
+export const monitoringLevelGuard: CanActivateFn = (next: ActivatedRouteSnapshot, state: RouterStateSnapshot): Observable<boolean> => {
+   const monitorLevelService = inject(MonitorLevelService);
+   const router = inject(Router);
+   const isException = state.url == "/monitoring/exceptions";
+
+
+   if(!monitorLevelService.isLevelInitialized()) {
+      return monitorLevelService.monitorLevelForGuard().pipe(
+         map((level: number) => {
+            if(level <= MonitorLevel.OFF || isException && level <= MonitorLevel.MEDIUM) {
+               router.navigate(["monitoring/monitoringoff"]);
+               return false;
+            }
+
+            return true;
+         })
+      );
    }
 
-   canActivate(route: ActivatedRouteSnapshot, state: RouterStateSnapshot): Observable<boolean> | boolean {
-      const isException = state.url == "/monitoring/exceptions";
+   const level = monitorLevelService.getMonitorLevel();
 
-      if(!this.monitorLevelService.isLevelInitialized()) {
-         // The WebSocket hasn't delivered its first value yet — the BehaviorSubject
-         // default of OFF would incorrectly redirect every initial navigation to
-         // monitoringoff. Fall back to the HTTP call for the cold-start case only.
-         return this.monitorLevelService.monitorLevelForGuard().pipe(
-            map((level: number) => {
-               if(level <= MonitorLevel.OFF || isException && level <= MonitorLevel.MEDIUM) {
-                  this.router.navigate(["monitoring/monitoringoff"]);
-                  return false;
-               }
-
-               return true;
-            })
-         );
-      }
-
-      const level = this.monitorLevelService.getMonitorLevel();
-
-      if(level <= MonitorLevel.OFF || isException && level <= MonitorLevel.MEDIUM) {
-         this.router.navigate(["monitoring/monitoringoff"]);
-         return false;
-      }
-
-      return true;
+   if(level <= MonitorLevel.OFF || isException && level <= MonitorLevel.MEDIUM) {
+      router.navigate(["monitoring/monitoringoff"]);
+      return of(false);
    }
-}
+
+   return of(true);
+};

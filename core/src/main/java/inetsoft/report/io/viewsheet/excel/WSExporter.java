@@ -78,7 +78,11 @@ public interface WSExporter {
    default Class[] getColTypes(TableLens lens) {
       int colCount = lens.getColCount();
       final Class[] colTypes = new Class[colCount];
-      ExecutorService executor = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
+      ExecutorService executor = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors(), r -> {
+         Thread t = new Thread(r, "WSExporterColType");
+         t.setDaemon(true);
+         return t;
+      });
       CompletableFuture<Void>[] futures = new CompletableFuture[colCount];
 
       for(int i = 0; i < colCount; i++) {

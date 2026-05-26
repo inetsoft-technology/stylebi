@@ -115,7 +115,8 @@ public class AssetEntry implements AssetObject, Comparable<AssetEntry>, DataSeri
       MV_DEF_FOLDER(50, 8, MV_DEF.flags, FOLDER.flags, ACTUAL_FOLDER.flags),
       DASHBOARD(51, 9),
       LIBRARY_FOLDER(52, 10, FOLDER.flags, ACTUAL_FOLDER.flags),
-      DEVICE(53, 11);
+      DEVICE(53, 11),
+      DATA_CYCLE(54, 13);
 
       private final int id;
       private final int bitIndex;

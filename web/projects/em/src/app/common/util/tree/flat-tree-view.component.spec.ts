@@ -15,19 +15,18 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+import { ScrollingModule } from "@angular/cdk/scrolling";
 import { Component, NO_ERRORS_SCHEMA } from "@angular/core";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { ComponentFixture, TestBed, waitForAsync } from "@angular/core/testing";
 import { MatButtonModule } from "@angular/material/button";
 import { MatIconModule } from "@angular/material/icon";
 import { MatMenuModule } from "@angular/material/menu";
-import { MatTreeModule, MatTreeNode } from "@angular/material/tree";
-import { By } from "@angular/platform-browser";
+import { MatTreeModule } from "@angular/material/tree";
 import { Observable, of } from "rxjs";
 import { map } from "rxjs/operators";
 import { FlatTreeDataSource } from "./flat-tree-data-source";
 import { FlatTreeNode, TreeDataModel } from "./flat-tree-model";
 import { FlatTreeViewComponent } from "./flat-tree-view.component";
-import { ScrollingModule } from "@angular/cdk/scrolling";
 
 class TestTreeDataSource extends FlatTreeDataSource<any, any> {
    public count = 0;
@@ -68,7 +67,7 @@ describe("FlatTreeViewComponent", () => {
    let component: TestContentTreeView;
    let fixture: ComponentFixture<TestContentTreeView>;
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
             MatTreeModule,

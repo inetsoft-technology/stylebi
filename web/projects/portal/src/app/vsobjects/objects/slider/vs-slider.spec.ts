@@ -17,7 +17,7 @@
  */
 import { CommonModule } from "@angular/common";
 import { NO_ERRORS_SCHEMA } from "@angular/core";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { TestUtils } from "../../../common/test/test-utils";
 import { StompClientService, ViewsheetClientService } from "../../../common/viewsheet-client";
@@ -28,6 +28,7 @@ import { CheckFormDataService } from "../../util/check-form-data.service";
 import { FormInputService } from "../../util/form-input.service";
 import { DataTipService } from "../data-tip/data-tip.service";
 import { PopComponentService } from "../data-tip/pop-component.service";
+import { TimerService } from "../data-tip/timer.service";
 import { VSPopComponentDirective } from "../data-tip/vs-pop-component.directive";
 import { VSSlider } from "./vs-slider.component";
 
@@ -38,11 +39,24 @@ global.ResizeObserver = jest.fn().mockImplementation(() => ({
 }));
 
 describe("VSSlider Unit Tests", () => {
+   beforeAll(() => {
+      jest.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({
+         font: "",
+         measureText: (_text: string) => ({ width: 0 })
+      } as any);
+      (global as any).ResizeObserver = jest.fn().mockImplementation(() => ({
+         observe: jest.fn(),
+         unobserve: jest.fn(),
+         disconnect: jest.fn()
+      }));
+   });
+
    let stompClient: any;
    let dataTipService: any;
    let fixture: ComponentFixture<VSSlider>;
+   let timerService: any;
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       stompClient = TestUtils.createMockStompClientService();
       dataTipService = {isDataTip: jest.fn()};
       const contextProvider = {};
@@ -51,6 +65,11 @@ describe("VSSlider Unit Tests", () => {
          removeObject: jest.fn(),
          addObject: jest.fn(),
          replaceObject: jest.fn()
+      };
+      timerService = {
+         defer: jest.fn((fn) => {
+            fn();
+         })
       };
 
       TestBed.configureTestingModule({
@@ -71,6 +90,7 @@ describe("VSSlider Unit Tests", () => {
             DebounceService,
             { provide: DataTipService, useValue: dataTipService },
             { provide: ContextProvider, useValue: contextProvider },
+            { provide: TimerService, useValue: timerService },
          ]
       });
       TestBed.compileComponents();

@@ -31,8 +31,12 @@ import java.security.Principal;
 
 @RestController
 public class GettingStartedController {
-   public GettingStartedController(GettingStartedService gettingStartedService) {
+   @org.springframework.beans.factory.annotation.Autowired
+   public GettingStartedController(GettingStartedService gettingStartedService,
+                                    SecurityEngine securityEngine)
+   {
       this.gettingStartedService = gettingStartedService;
+      this.securityEngine = securityEngine;
    }
 
    @GetMapping("/api/portal/getting-started")
@@ -68,7 +72,7 @@ public class GettingStartedController {
          folderModel.errorMessage(catalog.getString("getting.started.new.asset.unauthorized",
             catalog.getString("Data Worksheet")));
       }
-      else if(!SecurityEngine.getSecurity().checkPermission(principal, ResourceType.PHYSICAL_TABLE,
+      else if(!securityEngine.checkPermission(principal, ResourceType.PHYSICAL_TABLE,
          "*", ResourceAction.ACCESS))
       {
          folderModel.errorMessage(catalog.getString("getting.started.access.asset.unauthorized",
@@ -119,4 +123,5 @@ public class GettingStartedController {
    }
 
    private final GettingStartedService gettingStartedService;
+   private final SecurityEngine securityEngine;
 }

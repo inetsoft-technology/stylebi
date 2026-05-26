@@ -15,8 +15,8 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Injectable } from "@angular/core";
-import { ActivatedRouteSnapshot, Resolve, RouterStateSnapshot } from "@angular/router";
+import { inject, Injectable } from "@angular/core";
+import { ActivatedRouteSnapshot, ResolveFn, RouterStateSnapshot } from "@angular/router";
 import { Observable } from "rxjs";
 import { publishReplay, refCount } from "rxjs/operators";
 import { SetPrincipalCommand } from "../../vsobjects/command/set-principal-command";
@@ -25,22 +25,23 @@ import { ModelService } from "../../widget/services/model.service";
 export const VIEWSHEET_PRINCIPAL_URI = "../api/viewsheet/get-principal";
 
 @Injectable()
-export class PrincipalResolver implements Resolve<SetPrincipalCommand> {
-   private command: Observable<SetPrincipalCommand>;
+export class PrincipalResolverService {
+   private command$: Observable<SetPrincipalCommand>;
+   private service = inject(ModelService);
 
-   constructor(private service: ModelService) {
-   }
-
-   resolve(route: ActivatedRouteSnapshot,
-           state: RouterStateSnapshot): Observable<SetPrincipalCommand>
-   {
-      if(!this.command) {
-         this.command = this.service.getModel<SetPrincipalCommand>(VIEWSHEET_PRINCIPAL_URI).pipe(
+   get command(): Observable<SetPrincipalCommand> {
+      if(!this.command$) {
+         this.command$ = this.service.getModel<SetPrincipalCommand>(VIEWSHEET_PRINCIPAL_URI).pipe(
             publishReplay(1),
             refCount()
          );
       }
 
-      return this.command;
+      return this.command$;
    }
 }
+
+export const principalResolver: ResolveFn<SetPrincipalCommand> = (route: ActivatedRouteSnapshot, state: RouterStateSnapshot): Observable<SetPrincipalCommand> => {
+   const service = inject(PrincipalResolverService);
+   return service.command;
+};

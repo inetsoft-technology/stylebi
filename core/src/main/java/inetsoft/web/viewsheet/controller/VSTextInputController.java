@@ -20,6 +20,7 @@ package inetsoft.web.viewsheet.controller;
 import inetsoft.web.viewsheet.LoadingMask;
 import inetsoft.web.viewsheet.Undoable;
 import inetsoft.web.viewsheet.event.VSListInputSelectionEvent;
+import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.service.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.handler.annotation.MessageMapping;
@@ -34,8 +35,11 @@ public class VSTextInputController {
     * Creates a new instance of <tt>VSTextInputController</tt>.
     */
    @Autowired
-   public VSTextInputController(VSInputService inputService) {
-      this.inputService = inputService;
+   public VSTextInputController(VSInputServiceProxy inputServiceProxy,
+                                RuntimeViewsheetRef runtimeViewsheetRef)
+   {
+      this.inputServiceProxy = inputServiceProxy;
+      this.runtimeViewsheetRef = runtimeViewsheetRef;
    }
 
    /**
@@ -55,9 +59,10 @@ public class VSTextInputController {
                               @LinkUri String linkUri)
       throws Exception
    {
-      inputService.singleApplySelection(event.assemblyName(), event.value(),
-                             principal, dispatcher, linkUri);
+      inputServiceProxy.singleApplySelection(runtimeViewsheetRef.getRuntimeId(), event.assemblyName(), event.value(),
+                                        principal, dispatcher, linkUri);
    }
 
-   private final VSInputService inputService;
+   private VSInputServiceProxy inputServiceProxy;
+   private final RuntimeViewsheetRef runtimeViewsheetRef;
 }

@@ -18,7 +18,6 @@
 
 package inetsoft.report.script.viewsheet;
 
-import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.graph.EGraph;
 import inetsoft.graph.GraphConstants;
 import inetsoft.graph.data.DefaultDataSet;
@@ -33,28 +32,34 @@ import inetsoft.test.*;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.web.viewsheet.event.OpenViewsheetEvent;
-import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.RegisterExtension;
-import org.mockito.Mock;
+import org.junit.jupiter.api.Tag;
 import org.mozilla.javascript.ScriptableObject;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.awt.*;
-import java.security.Principal;
-import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.mockito.MockitoAnnotations.openMocks;
 
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class, IntegrationTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome(importResources = "ChartVSAScriptableTest.vso")
+@Tag("core")
+@Tag("integration")
 public class ChartVSAScriptableTest {
    private ViewsheetSandbox viewsheetSandbox;
    private ChartVSAScriptable chartVSAScriptable, chartVSAScriptable1;
    private ChartVSAssemblyInfo chartVSAssemblyInfo;
    private ChartVSAssembly chartVSAssembly,  chartVSAssembly1;
-   @Mock
-   ViewsheetService viewsheetService;
 
    @BeforeEach
    void setUp() {
@@ -361,10 +366,7 @@ public class ChartVSAScriptableTest {
     */
    private void processAssembly(String assemblyName) throws Exception {
       RuntimeViewsheet rvs = viewsheetResource.getRuntimeViewsheet();
-      viewsheetSandbox = rvs.getViewsheetSandbox();
-      Principal principal = mock(Principal.class);
-      when(viewsheetService.getViewsheet(viewsheetResource.getRuntimeId(), principal))
-         .thenReturn(viewsheetResource.getRuntimeViewsheet());
+      viewsheetSandbox = rvs.getViewsheetSandbox().orElseThrow();
 
       chartVSAssembly1 = (ChartVSAssembly) viewsheetResource
          .getRuntimeViewsheet().getViewsheet().getAssembly(assemblyName);
@@ -374,11 +376,6 @@ public class ChartVSAScriptableTest {
    public static final String ASSET_ID = "1^128^__NULL__^ChartVSAScriptableTest";
 
    @RegisterExtension
-   @Order(1)
-   ControllersExtension controllers = new ControllersExtension();
-
-   @RegisterExtension
-   @Order(2)
    RuntimeViewsheetExtension viewsheetResource =
-      new RuntimeViewsheetExtension(createOpenViewsheetEvent(), controllers);
+      new RuntimeViewsheetExtension(createOpenViewsheetEvent());
 }

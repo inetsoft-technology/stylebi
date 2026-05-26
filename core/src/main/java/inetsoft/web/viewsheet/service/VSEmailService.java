@@ -31,14 +31,13 @@ import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.portal.PortalThemesManager;
 import inetsoft.sree.security.*;
 import inetsoft.uql.XPrincipal;
-import inetsoft.uql.asset.AssetEntry;
-import inetsoft.uql.asset.AssetRepository;
+import inetsoft.uql.asset.*;
+import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.util.Identity;
 import inetsoft.uql.viewsheet.*;
-import inetsoft.uql.viewsheet.internal.VSUtil;
+import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.*;
 import inetsoft.util.log.LogLevel;
-import inetsoft.web.viewsheet.controller.dialog.ExportDialogController;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Component;
 
@@ -49,6 +48,10 @@ import java.util.*;
 
 @Component
 public class VSEmailService {
+   public VSEmailService(FileSystemService fileSystemService) {
+      this.fileSystemService = fileSystemService;
+   }
+
    public void emailViewsheet(RuntimeViewsheet rvs, int formatType, String[] bookmarks,
                               boolean matchLayout, boolean expandSelections,
                               boolean includeCurrent, String toaddrs,
@@ -97,9 +100,13 @@ public class VSEmailService {
    {
       Catalog catalog = Catalog.getCatalog(principal);
       Viewsheet vs = rvs.getViewsheet();
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
-      if(formatType == FileFormatInfo.EXPORT_TYPE_SNAPSHOT && ExportDialogController.isCube(vs)) {
+      if(box.isEmpty()) {
+         return;
+      }
+
+      if(formatType == FileFormatInfo.EXPORT_TYPE_SNAPSHOT && isCube(vs)) {
          throw new MessageException(catalog.getString("cube.not.supported"), LogLevel.WARN);
       }
 
@@ -118,7 +125,7 @@ public class VSEmailService {
       boolean multipleFiles = formatType == FileFormatInfo.EXPORT_TYPE_PNG && bookmarks.length > 1;
       List<File> fileList = new ArrayList<>();
 
-      FileSystemService fileSystemService = FileSystemService.getInstance();
+      FileSystemService fileSystemService = this.fileSystemService;
 
       if(formatType != -1) {
          ftype = ExportUtil.getSuffix(formatType);
@@ -194,12 +201,12 @@ public class VSEmailService {
                   VSPortalHelper helper = new VSPortalHelper();
 
                   if(includeCurrent && i >= bookmarks.length) {
-                     exporter.export(box, catalog.getString("Current View"), helper);
+                     exporter.export(box.get(), catalog.getString("Current View"), helper);
                   }
                   else {
                      int vmode = Viewsheet.SHEET_RUNTIME_MODE;
 
-                     ViewsheetSandbox sandbox = new ViewsheetSandbox(
+                     ViewsheetSandbox sandbox = createSandbox(
                         rvs.getOriginalBookmark(bookmarks[i]), vmode, principal,
                         rvs.getEntry());
                      exporter.export(sandbox, bookmarks[i], (i + 1), helper);
@@ -214,7 +221,7 @@ public class VSEmailService {
       }
 
       try {
-         Mailer mailer = new Mailer();
+         Mailer mailer = createMailer();
          toaddrs = getEmailsString(getEmailsList(toaddrs, principal));
          boolean isEmptyCC = StringUtils.isEmpty(ccaddrs);
          boolean isEmptyBCC = StringUtils.isEmpty(bccaddrs);
@@ -407,7 +414,7 @@ public class VSEmailService {
       }
    }
 
-   private static void exportViewsheet(RuntimeViewsheet rvs, Principal principal, int formatType,
+   private void exportViewsheet(RuntimeViewsheet rvs, Principal principal, int formatType,
                                        String[] bookmarks, OutputStream output, CSVConfig csvConfig,
                                        boolean matchLayout, boolean expandSelections,
                                        boolean onlyDataComponent,  boolean includeCurrent,
@@ -415,7 +422,12 @@ public class VSEmailService {
       throws Exception
    {
       Catalog catalog = Catalog.getCatalog(principal);
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box.isEmpty()) {
+         return;
+      }
+
       VSExporter exporter = AbstractVSExporter.getVSExporter(
               formatType, PortalThemesManager.getColorTheme(), output, false, csvConfig);
       exporter.setLogExport(true);
@@ -423,7 +435,7 @@ public class VSEmailService {
       exporter.setExpandSelections(expandSelections);
       exporter.setAssetEntry(rvs.getEntry());
       exporter.setOnlyDataComponents(onlyDataComponent && !matchLayout);
-      exporter.setSandbox(box);
+      exporter.setSandbox(box.get());
       VSPortalHelper helper = new VSPortalHelper();
 
       if(exporter instanceof CSVVSExporter) {
@@ -435,13 +447,13 @@ public class VSEmailService {
       }
 
       if(includeCurrent) {
-         exporter.export(box, catalog.getString("Current View"), helper);
+         exporter.export(box.get(), catalog.getString("Current View"), helper);
       }
 
       int vmode = Viewsheet.SHEET_RUNTIME_MODE;
 
       for(int i = 0; bookmarks != null && i < bookmarks.length; i++) {
-         ViewsheetSandbox sandbox = new ViewsheetSandbox(
+         ViewsheetSandbox sandbox = createSandbox(
                  rvs.getOriginalBookmark(bookmarks[i]), vmode, principal,
                  rvs.getEntry());
          exporter.export(sandbox, bookmarks[i], (i + 1), helper); //!!! maybe the pictures aren't being written out become of overwriting?
@@ -450,6 +462,17 @@ public class VSEmailService {
 
       exporter.write();
       output.close();
+   }
+
+   protected Mailer createMailer() {
+      return new Mailer();
+   }
+
+   protected ViewsheetSandbox createSandbox(Viewsheet bookmark, int mode,
+                                             Principal principal, AssetEntry entry)
+      throws Exception
+   {
+      return new ViewsheetSandbox(bookmark, mode, principal, entry);
    }
 
    /*
@@ -573,4 +596,42 @@ public class VSEmailService {
       url.append(entry.getPath());
       return Tool.encodeUriPath(url.toString());
    }
+
+   /**
+    * Copy of isCube() from ExportVSEvent.java
+    * Check if base cube data source.
+    */
+   public static boolean isCube(Viewsheet viewsheet) {
+      Assembly[] assemblies = viewsheet.getAssemblies(true);
+
+      for(Assembly assembly : assemblies) {
+         VSAssemblyInfo info = ((VSAssembly) assembly).getVSAssemblyInfo();
+
+         if(info instanceof SelectionVSAssemblyInfo) {
+            for(String tableName : ((SelectionVSAssemblyInfo) info).getTableNames()) {
+               if(AssetUtil.getCubeType(null, tableName) != null) {
+                  return true;
+               }
+            }
+         }
+         else if(info instanceof DataVSAssemblyInfo) {
+            DataVSAssemblyInfo dinfo = (DataVSAssemblyInfo) info;
+            SourceInfo sinfo = dinfo.getSourceInfo();
+            String prefix = sinfo == null ? null : sinfo.getPrefix();
+            String source = sinfo == null ? null : sinfo.getSource();
+
+            if(source != null && source.length() > 0) {
+               String cubeType = AssetUtil.getCubeType(prefix, source);
+
+               if(cubeType != null) {
+                  return true;
+               }
+            }
+         }
+      }
+
+      return false;
+   }
+
+   private final FileSystemService fileSystemService;
 }

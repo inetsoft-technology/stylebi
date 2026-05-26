@@ -18,13 +18,14 @@
 package inetsoft.web;
 
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.AuthenticationService;
 import inetsoft.sree.security.SecurityEngine;
 import inetsoft.web.admin.security.SSOSettingsService;
 import inetsoft.web.admin.security.SSOType;
 import inetsoft.web.admin.server.NodeProtectionService;
 import inetsoft.web.security.SessionAccessFilter;
-import jakarta.servlet.ServletContext;
+import inetsoft.web.session.IgniteSessionRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -38,19 +39,18 @@ import org.springframework.session.web.http.DefaultCookieSerializer;
 @EnableSpringHttpSession
 @Configuration
 public class SessionConfig {
-   @SuppressWarnings("SpringJavaInjectionPointsAutowiringInspection")
    @Autowired
-   public SessionConfig(ServletContext servletContext,
-                        SecurityEngine securityEngine,
+   public SessionConfig(SecurityEngine securityEngine,
                         AuthenticationService authenticationService,
                         SSOSettingsService ssoSettingsService,
-                        NodeProtectionService nodeProtectionService)
+                        NodeProtectionService nodeProtectionService,
+                        Cluster cluster)
    {
-      this.servletContext = servletContext;
       this.securityEngine = securityEngine;
       this.authenticationService = authenticationService;
       this.ssoSettingsService = ssoSettingsService;
       this.nodeProtectionService = nodeProtectionService;
+      this.cluster = cluster;
    }
 
    /**
@@ -62,9 +62,9 @@ public class SessionConfig {
    }
 
    @Bean
-   public MapSessionRepository mapSessionRepository() {
-      return new MapSessionRepository(servletContext, securityEngine, authenticationService,
-                                      nodeProtectionService);
+   public IgniteSessionRepository igniteSessionRepository() {
+      return new IgniteSessionRepository(
+         securityEngine, authenticationService, nodeProtectionService, cluster);
    }
 
    @Bean
@@ -99,9 +99,9 @@ public class SessionConfig {
       }
    }
 
-   private final ServletContext servletContext;
    private final SecurityEngine securityEngine;
    private final AuthenticationService authenticationService;
    private final SSOSettingsService ssoSettingsService;
    private final NodeProtectionService nodeProtectionService;
+   private final Cluster cluster;
 }

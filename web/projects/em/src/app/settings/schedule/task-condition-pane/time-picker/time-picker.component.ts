@@ -233,7 +233,11 @@ export class TimePickerComponent implements OnInit, ControlValueAccessor {
    }
 
    timeDataToString(data: TimeData): string {
-      return data ? data.hour + ":" + data.minute + ":" + (this.seconds ? data.second : "00") : null;
+      if(!data || !this.isNumber(data.hour) || !this.isNumber(data.minute)) {
+         return null;
+      }
+
+      return this.padNumber(data.hour) + ":" + this.padNumber(data.minute) + ":" + (this.seconds ? this.padNumber(data.second) : "00");
    }
 
    formatTimeData(timeValue: string): TimeData {

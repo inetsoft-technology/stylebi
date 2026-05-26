@@ -222,7 +222,7 @@ export class AiAssistantService {
 
       user$.subscribe(model => {
          this.userId = convertToKey(model.name);
-         this.email = model.email?.length > 0 ? model.email[0] : null;
+         this.email = model.email?.length > 0 ? model.email[0] : "";
       });
    }
 

@@ -17,34 +17,20 @@
  */
 package inetsoft.web.admin.content.repository;
 
-import com.github.benmanes.caffeine.cache.Cache;
-import com.github.benmanes.caffeine.cache.Caffeine;
 import inetsoft.mv.trans.UserInfo;
 import inetsoft.sree.SreeEnv;
-import inetsoft.sree.internal.DataCycleManager;
-import inetsoft.sree.internal.SUtil;
-import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.*;
-import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.util.*;
-import inetsoft.util.audit.ActionRecord;
-import inetsoft.util.audit.Audit;
 import inetsoft.web.admin.content.repository.model.*;
-import inetsoft.web.admin.security.ConnectionStatus;
 import inetsoft.web.security.RequiredPermission;
 import inetsoft.web.security.Secured;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpSession;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import java.security.Principal;
 import java.util.List;
-import java.util.Objects;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 @RestController
@@ -52,15 +38,13 @@ public class MVController {
    @Autowired
    public MVController(MVService mvService,
                        MVSupportService support,
-                       SecurityProvider securityProvider)
+                       SecurityProvider securityProvider,
+                       SecurityEngine securityEngine)
    {
       this.mvService = mvService;
       this.support = support;
       this.securityProvider = securityProvider;
-      this.createMVCache = Caffeine.newBuilder()
-         .expireAfterAccess(10L, TimeUnit.MINUTES)
-         .maximumSize(1000L)
-         .build();
+      this.securityEngine = securityEngine;
    }
 
    @Secured({
@@ -76,70 +60,15 @@ public class MVController {
       )
    })
    @PostMapping("/api/em/content/repository/mv/analyze")
-   public void analyze(@RequestBody AnalyzeMVRequest analyzeMVRequest, HttpServletRequest req,
-                       Principal principal)
+   public AnalyzeMVResponse analyze(@RequestBody AnalyzeMVRequest analyzeMVRequest,
+                                    Principal principal)
       throws Exception
    {
-      HttpSession session = req.getSession(true);
-      MVSupportService.AnalysisResult jobs = mvService.analyze(analyzeMVRequest, principal);
-      session.setAttribute("mv_jobs", jobs);
-   }
-
-   @Secured(
-      @RequiredPermission(
-         resourceType = ResourceType.MATERIALIZATION,
-         resource = "*",
-         actions = ResourceAction.ACCESS
-      )
-   )
-   @GetMapping("/api/em/content/materialized-view/check-analysis")
-   public AnalyzeMVResponse checkStatus(HttpServletRequest req, Principal principal)
-      throws Exception
-   {
-      HttpSession session = req.getSession(true);
-      MVSupportService.AnalysisResult jobs = (MVSupportService.AnalysisResult)
-         session.getAttribute("mv_jobs");
-      AnalyzeMVResponse response = mvService.checkAnalyzeStatus(jobs, principal);
-
-      if(jobs.isCompleted()) {
-         session.setAttribute("mvstatus", jobs.getStatus());
-      }
-
-      return response;
-   }
-
-   @Secured(
-      @RequiredPermission(
-         resourceType = ResourceType.MATERIALIZATION,
-         resource = "*",
-         actions = ResourceAction.ACCESS
-      )
-   )
-   @GetMapping("/api/em/content/repository/mv/get-model")
-   @SuppressWarnings("unchecked")
-   public AnalyzeMVResponse getModel(HttpServletRequest req,
-                                     @RequestParam("hideData") boolean hideData,
-                                     @RequestParam("hideExist") boolean hideExist)
-   {
-      HttpSession session = req.getSession(true);
-      List<MVSupportService.MVStatus> mvstatus0 = (List) session.getAttribute("mvstatus");
-
-      if(mvstatus0 == null) {
-         mvstatus0 = support.getMVStatus(null);
-         session.setAttribute("mvstatus", mvstatus0);
-      }
-      else {
-         for(MVSupportService.MVStatus status : mvstatus0) {
-            status.updateStatus();
-         }
-      }
-
-      List<MaterializedModel> models = mvService.getMaterializedModel(mvstatus0, hideData, hideExist);
+      MVSupportService.AnalysisResult analysisResult =
+         mvService.analyze(analyzeMVRequest, principal);
       return AnalyzeMVResponse.builder()
-         .completed(true)
-         .exception(false)
-         .status(models)
-         .dateFormat(Tool.getDateFormatPattern())
+         .completed(false)
+         .analysisId(analysisResult.getId())
          .build();
    }
 
@@ -150,17 +79,58 @@ public class MVController {
          actions = ResourceAction.ACCESS
       )
    )
-   @PostMapping("/api/em/content/repository/mv/show-plan")
-   public String showPlan(HttpServletRequest req,
+   @GetMapping("/api/em/content/materialized-view/check-analysis/{analysisId}")
+   public AnalyzeMVResponse checkStatus(Principal principal,
+                                        @PathVariable("analysisId") String analysisId)
+      throws Exception
+   {
+      return mvService.checkAnalyzeStatus(analysisId, principal);
+   }
+
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.MATERIALIZATION,
+         resource = "*",
+         actions = ResourceAction.ACCESS
+      )
+   )
+   @GetMapping("/api/em/content/repository/mv/get-model/{analysisId}")
+   @SuppressWarnings("unchecked")
+   public AnalyzeMVResponse getModel(@RequestParam("hideData") boolean hideData,
+                                     @RequestParam("hideExist") boolean hideExist,
+                                     @PathVariable("analysisId") String analysisId)
+   {
+      List<MVSupportService.MVStatus> mvStatusList = support.getMVStatusList(analysisId);
+
+      for(MVSupportService.MVStatus status : mvStatusList) {
+         status.updateStatus();
+      }
+
+      List<MaterializedModel> models = mvService.getMaterializedModel(mvStatusList, hideData, hideExist);
+      return AnalyzeMVResponse.builder()
+         .completed(true)
+         .exception(false)
+         .status(models)
+         .dateFormat(Tool.getDateFormatPattern())
+         .analysisId(analysisId)
+         .build();
+   }
+
+   @Secured(
+      @RequiredPermission(
+         resourceType = ResourceType.MATERIALIZATION,
+         resource = "*",
+         actions = ResourceAction.ACCESS
+      )
+   )
+   @PostMapping("/api/em/content/repository/mv/show-plan/{analysisId}")
+   public String showPlan(@PathVariable("analysisId") String analysisId,
                           @RequestBody CreateUpdateMVRequest createUpdateMVRequest)
    {
-      HttpSession session = req.getSession(true);
-      List<MVSupportService.MVStatus> mvstatus = (List<MVSupportService.MVStatus>)
-         session.getAttribute("mvstatus");
-      MVSupportService.AnalysisResult jobs = (MVSupportService.AnalysisResult)
-         session.getAttribute("mv_jobs");
-      StringBuffer info = mvService.processPlan(createUpdateMVRequest.mvNames(), jobs, mvstatus);
-      session.setAttribute("info", info);
+      MVSupportService.AnalysisResult analysisResult = support.getAnalysisResult(analysisId);
+      List<MVSupportService.MVStatus> mvStatusList = analysisResult.getStatus();
+      StringBuffer info = mvService.processPlan(createUpdateMVRequest.mvNames(), analysisResult,
+                                                mvStatusList);
       return info.toString();
    }
 
@@ -171,104 +141,15 @@ public class MVController {
          actions = ResourceAction.ACCESS
       )
    )
+   @SuppressWarnings("unchecked")
    @PostMapping("/api/em/content/repository/mv/create")
-   public CreateMVResponse create(HttpServletRequest req,
-                      @RequestParam(name = "createId", required = false) String createId,
-                      @RequestBody CreateUpdateMVRequest createUpdateMVRequest,
-                      Principal principal) throws Throwable
-   {
-      HttpSession session = req.getSession(true);
-
-      if(createId != null) {
-         CompletableFuture<CreateMVResponse> future = createMVCache.getIfPresent(createId);
-
-         if(future != null) {
-            if(future.isDone()) {
-               createMVCache.invalidate(createId);
-               return future.get();
-            }
-            else {
-               return CreateMVResponse.builder().complete(false).build();
-            }
-         }
-      }
-
-      if(createId == null) {
-         create0(session, createUpdateMVRequest, principal);
-         return CreateMVResponse.builder().complete(true).build();
-      }
-      else if(createMVCache.getIfPresent(createId) == null) {
-         CompletableFuture<CreateMVResponse> future = new CompletableFuture<>();
-         createMVCache.put(createId, future);
-         ThreadPool.addOnDemand(() -> {
-            Principal oPrincipal = ThreadContext.getPrincipal();
-            ThreadContext.setPrincipal(principal);
-
-            try {
-               create0(session, createUpdateMVRequest, principal);
-               future.complete(CreateMVResponse.builder().complete(true).build());
-            }
-            catch(Throwable e) {
-               future.completeExceptionally(e);
-            }
-            finally {
-               ThreadContext.setPrincipal(oPrincipal);
-            }
-         });
-      }
-
-      return CreateMVResponse.builder().complete(false).build();
-   }
-
-   public void create0(HttpSession session, CreateUpdateMVRequest createUpdateMVRequest,
-                       Principal principal)
+   public CreateMVResponse create(@RequestParam(name = "createId") String createId,
+                                  @RequestParam(name = "analysisId") String analysisId,
+                                  @RequestBody CreateUpdateMVRequest createUpdateMVRequest,
+                                  Principal principal)
       throws Throwable
    {
-      ActionRecord actionRecord = SUtil.getActionRecord(
-         principal, ActionRecord.ACTION_NAME_CREATE,
-         (DataCycleManager.TASK_PREFIX + createUpdateMVRequest.cycle()).trim(),
-         ActionRecord.OBJECT_TYPE_TASK);
-
-      try {
-         IdentityID user = IdentityID.getIdentityIDFromKey(principal.getName());
-
-         if(createUpdateMVRequest.runInBackground() && Cluster.getInstance().isSchedulerRunning() &&
-            !SUtil.getRepletRepository().checkPermission(
-               principal, ResourceType.SCHEDULER, "*", ResourceAction.ACCESS))
-         {
-            throw new RuntimeException("User '" + user.getName() + "' doesn't have schedule permission.");
-         }
-
-         String orgId = OrganizationManager.getInstance().getCurrentOrgID(principal);
-         List<MVSupportService.MVStatus> mvstatus = (List<MVSupportService.MVStatus>)
-            session.getAttribute("mvstatus");
-         DataCycleManager dcmanager = DataCycleManager.getDataCycleManager();
-         dcmanager.setEnable(createUpdateMVRequest.cycle(), orgId, true);
-
-         if(principal instanceof XPrincipal) {
-            principal = (XPrincipal) ((XPrincipal) principal).clone();
-         }
-
-         String exception = support.createMV(createUpdateMVRequest.mvNames(), mvstatus,
-                                             createUpdateMVRequest.runInBackground(),
-                                             createUpdateMVRequest.noData(),
-                                             principal);
-
-         if(exception != null) {
-            throw new RuntimeException(exception);
-         }
-      }
-      catch(Exception e) {
-         actionRecord.setActionStatus(ActionRecord.ACTION_STATUS_FAILURE);
-         actionRecord.setActionError(e.getMessage());
-         throw e;
-      }
-      finally {
-         if(actionRecord != null) {
-            actionRecord.setObjectUser(XPrincipal.SYSTEM);
-            Audit.getInstance().auditAction(actionRecord, principal);
-         }
-      }
+      return mvService.create(createId, analysisId, createUpdateMVRequest, principal);
    }
 
    @Secured(
@@ -278,34 +159,31 @@ public class MVController {
          actions = ResourceAction.ACCESS
       )
    )
-   @PostMapping("/api/em/content/repository/mv/set-cycle")
-   public void setCycle(HttpServletRequest req,
+   @SuppressWarnings("unchecked")
+   @PostMapping("/api/em/content/repository/mv/set-cycle/{analysisId}")
+   public void setCycle(@PathVariable("analysisId") String analysisId,
                         @RequestBody CreateUpdateMVRequest createUpdateMVRequest)
    {
-      HttpSession session = req.getSession(true);
-      List<MVSupportService.MVStatus> mvstatus = (List<MVSupportService.MVStatus>)
-         session.getAttribute("mvstatus");
-      support.setDataCycle(createUpdateMVRequest.mvNames(), mvstatus,
+      support.setDataCycle(createUpdateMVRequest.mvNames(), support.getAnalysisResult(analysisId),
                            createUpdateMVRequest.cycle());
    }
 
-   @Secured(
+   @Secured({
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/repository",
+         actions = ResourceAction.ACCESS
+      ),
       @RequiredPermission(
          resourceType = ResourceType.MATERIALIZATION,
          resource = "*",
          actions = ResourceAction.ACCESS
       )
-   )
-   @GetMapping("/api/em/content/repository/mv/exceptions")
-   public MVExceptionResponse getExceptions(HttpServletRequest req) {
-      HttpSession session = req.getSession(true);
-      MVSupportService.AnalysisResult jobs = (MVSupportService.AnalysisResult) session.getAttribute("mv_jobs");
-      List<UserInfo> exceptions = jobs == null ? null : jobs.getExceptions();
-
-      if(exceptions == null) {
-         return MVExceptionResponse.builder().exceptions(List.of()).build();
-      }
-
+   })
+   @GetMapping("/api/em/content/repository/mv/exceptions/{analysisId}")
+   public MVExceptionResponse setCycle(@PathVariable("analysisId") String analysisId) {
+      MVSupportService.AnalysisResult analysisResult = support.getAnalysisResult(analysisId);
+      List<UserInfo> exceptions = analysisResult.getExceptions();
       List<MVExceptionModel> exceptionModels = exceptions.stream()
          .map(exception -> MVExceptionModel.builder()
             .viewsheet(exception.getSheetName())
@@ -329,7 +207,7 @@ public class MVController {
       List<String> ids = null;
       String currOrgID = OrganizationManager.getInstance().getCurrentOrgID();
 
-      if(SecurityEngine.getSecurity().getSecurityProvider().getOrganization(currOrgID) == null) {
+      if(securityEngine.getSecurityProvider().getOrganization(currOrgID) == null) {
          throw new InvalidOrgException(Catalog.getCatalog().getString("em.security.invalidOrganizationPassed"));
       }
 
@@ -356,15 +234,11 @@ public class MVController {
    })
    @PostMapping("/api/em/content/materialized-view/analysis")
    public AnalyzeMVResponse analyze(@RequestBody MVManagementModel model,
-                                    HttpServletRequest request,
                                     Principal principal) throws Exception
    {
       String[] mvNames = model.mvs().stream().map(MaterializedModel::name).toArray(String[]::new);
-      MVSupportService.AnalysisResult jobs = support.analyze(mvNames, principal);
-      HttpSession session = request.getSession(true);
-      session.setAttribute("mv_jobs", jobs);
-
-      return checkStatus(request, principal);
+      MVSupportService.AnalysisResult analysisResult = support.analyze(mvNames, principal);
+      return mvService.checkAnalyzeStatus(analysisResult, principal);
    }
 
    @Secured(
@@ -434,33 +308,48 @@ public class MVController {
       )
    })
    @PostMapping("/api/em/content/materialized-view/update")
-   public ConnectionStatus updateMaterializedViews(@RequestBody MVManagementModel model,
-                                                   Principal principal) throws Throwable
+   public CreateMVResponse updateMaterializedViews(
+      @RequestParam(name = "updateId", required = false) String updateId,
+      @RequestBody MVManagementModel model,
+      Principal principal) throws Throwable
    {
-      Catalog catalog = Catalog.getCatalog();
-      String msg = support.recreateMV(
-         model.mvs()
-            .stream()
-            .map(MaterializedModel::name)
-            .toArray(String[]::new),
+      return mvService.update(
+         updateId,
+         model.mvs().stream().map(MaterializedModel::name).toArray(String[]::new),
          model.runInBackground(),
-         principal
-      );
-
-      if(msg == null) {
-         msg = model.runInBackground() ? catalog.getString("em.alert.createMV0") :
-            catalog.getString("em.alert.createMV");
-      }
-
-      return new ConnectionStatus(msg);
+         principal);
    }
 
+   @Secured({
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/repository",
+         actions = ResourceAction.ACCESS
+      ),
+      @RequiredPermission(
+         resourceType = ResourceType.MATERIALIZATION,
+         resource = "*",
+         actions = ResourceAction.ACCESS
+      )
+   })
    @GetMapping("/api/em/content/repository/mv/ws-mv-enabled")
    public WSMVEnabledModel isWSMVEnabled() {
       return WSMVEnabledModel.builder().enabled(
          SreeEnv.getBooleanProperty("ws.mv.enabled")).build();
    }
 
+   @Secured({
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/content/repository",
+         actions = ResourceAction.ACCESS
+      ),
+      @RequiredPermission(
+         resourceType = ResourceType.MATERIALIZATION,
+         resource = "*",
+         actions = ResourceAction.ACCESS
+      )
+   })
    @GetMapping("/api/em/content/repository/mv/permission")
    public MVHasPermissionModel hasMVPermission(Principal principal) {
       boolean canMaterialize = securityProvider.checkPermission(
@@ -496,5 +385,5 @@ public class MVController {
    private final MVService mvService;
    private final MVSupportService support;
    private final SecurityProvider securityProvider;
-   private final Cache<String, CompletableFuture<CreateMVResponse>> createMVCache;
+   private final SecurityEngine securityEngine;
 }

@@ -18,10 +18,9 @@
 import { CommonModule } from "@angular/common";
 import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { ComponentFixture, TestBed } from "@angular/core/testing";
-import { MatTableModule } from "@angular/material/table";
-import { NoopAnimationsModule } from "@angular/platform-browser/animations";
 import { ExpandableRowTableInfo } from "../../../common/util/table/expandable-row-table/expandable-row-table-info";
 import { TableViewModule } from "../../../common/util/table/table-view.module";
+import { MaterialTestingModule } from "../../../testing/material-testing.module";
 import { ViewsheetMonitoringViewComponent } from "./viewsheet-monitoring-view.component";
 
 const mockTableInfo: ExpandableRowTableInfo = {
@@ -38,9 +37,8 @@ describe("ViewsheetMonitoringViewComponent", () => {
    beforeEach(() => {
       TestBed.configureTestingModule({
          imports: [
-            NoopAnimationsModule,
+            MaterialTestingModule,
             CommonModule,
-            MatTableModule,
             TableViewModule,
          ],
          declarations: [ViewsheetMonitoringViewComponent],

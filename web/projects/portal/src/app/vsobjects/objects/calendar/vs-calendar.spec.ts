@@ -18,7 +18,7 @@
 import { CommonModule } from "@angular/common";
 import { HttpClientTestingModule } from "@angular/common/http/testing";
 import { NO_ERRORS_SCHEMA, Renderer2 } from "@angular/core";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { of as observableOf } from "rxjs";
@@ -34,6 +34,7 @@ import { SafeFontDirective } from "../../directives/safe-font.directive";
 import { CheckFormDataService } from "../../util/check-form-data.service";
 import { DataTipService } from "../data-tip/data-tip.service";
 import { PopComponentService } from "../data-tip/pop-component.service";
+import { TimerService } from "../data-tip/timer.service";
 import { VSPopComponentDirective } from "../data-tip/vs-pop-component.directive";
 import { MiniToolbar } from "../mini-toolbar/mini-toolbar.component";
 import { MonthCalendar } from "./month-calendar.component";
@@ -52,8 +53,9 @@ describe("VSCalendar Unit Tests", () => {
    let dataTipService: any;
    let firstDayOfWeekService: any;
    let dropdownService: any;
+   let timerService: any;
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       viewsheetClientService = { sendEvent: jest.fn() };
       interactService = {
          addInteractable: jest.fn(),
@@ -71,6 +73,11 @@ describe("VSCalendar Unit Tests", () => {
       };
       firstDayOfWeekService = { getFirstDay: jest.fn() };
       firstDayOfWeekService.getFirstDay.mockImplementation(() => observableOf({}));
+      timerService = {
+         defer: jest.fn((fn) => {
+            fn();
+         })
+      };
 
       TestBed.configureTestingModule({
          imports: [
@@ -95,7 +102,8 @@ describe("VSCalendar Unit Tests", () => {
             {provide: DataTipService, useValue: dataTipService},
             {provide: FirstDayOfWeekService, useValue: firstDayOfWeekService},
             {provide: FixedDropdownService, useValue: dropdownService},
-            GlobalSubmitService
+            GlobalSubmitService,
+            {provide: TimerService, useValue: timerService},
          ],
          schemas: [ NO_ERRORS_SCHEMA ]
       });

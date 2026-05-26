@@ -25,12 +25,13 @@ import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.SourceInfo;
 import inetsoft.web.binding.service.DataRefModelFactoryService;
 
+import java.io.Serializable;
 import java.security.Principal;
 
 /**
  * Contains a Condition/Junction list along with a String identifier.
  */
-public class ConditionExpression {
+public class ConditionExpression implements Serializable {
 
    public ConditionList extractConditionList(
       AssetEntry entry, WorksheetService worksheetService,

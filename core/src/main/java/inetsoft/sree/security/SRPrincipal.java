@@ -30,6 +30,7 @@ import org.w3c.dom.NodeList;
 import java.io.*;
 import java.lang.ref.WeakReference;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * This class implements <code>java.security.Principal</code> to represent
@@ -39,12 +40,18 @@ import java.util.*;
  * @author Helen Chen
  * @version 5.1, 9/20/2003
  */
-public class SRPrincipal extends XPrincipal implements Serializable, LogPrincipal {
+public class SRPrincipal extends XPrincipal implements Serializable, Externalizable, LogPrincipal {
    /**
-    * Construct a <code>SRPrincipal</code> instance
+    * No-arg constructor required for Externalizable deserialization.
+    * Does not chain to the parameterized constructor to avoid calling
+    * XSessionService.getService(), which acquires Spring's singleton creation lock.
+    * If Ignite deserializes an SRPrincipal on a stripe worker while Spring is still
+    * initializing, that lock is held by the main thread waiting for Ignite's partition
+    * exchange — causing a circular deadlock. All fields are populated by readExternal().
     */
    public SRPrincipal() {
-      this(new ClientInfo(), new IdentityID[0], new String[0], null, 0);
+      age = new Date();
+      client = new ClientInfo();
    }
 
    /**
@@ -75,7 +82,9 @@ public class SRPrincipal extends XPrincipal implements Serializable, LogPrincipa
                      String defaultLocale = Catalog.getCatalog().getString("Default");
 
                      //overwrite default user locale with set organization locale
-                     if((locale == null || "".equals(locale) || defaultLocale.equals(locale)) && identity.getOrganizationID() != null) {
+                     if((locale == null || locale.isEmpty() || defaultLocale.equals(locale)) &&
+                        identity.getOrganizationID() != null)
+                     {
                         Organization userOrg = provider.getOrganization(identity.getOrganizationID());
 
                         if(userOrg.getLocale() != null && !"".equals(userOrg.getLocale())) {
@@ -188,11 +197,10 @@ public class SRPrincipal extends XPrincipal implements Serializable, LogPrincipa
       this.age = new Date(principal.getAge());
       this.client = principal.getUser();
 
-      Collections.list((Enumeration<String>) principal.getParameterNames())
-         .forEach(item -> this.setParameter(item, principal.getParameter(item)));
-
-      Collections.list((Enumeration<String>) principal.getPropertyNames()).forEach(
-         (item) -> this.setProperty(item, principal.getProperty((item))));
+      principal.getParameterNames().forEach(
+         item -> this.setParameter(item, principal.getParameter(item)));
+      principal.getPropertyNames().forEach(
+         item -> this.setProperty(item, principal.getProperty(item)));
    }
 
    public SRPrincipal(SRPrincipal principal, ClientInfo client) {
@@ -205,7 +213,14 @@ public class SRPrincipal extends XPrincipal implements Serializable, LogPrincipa
     */
    public static String getNameFromID(String id) {
       String[] parts = Tool.split(id, SEP);
-      return parts[0];
+      String name = parts[0];
+      int idx = name.indexOf(SEP2);
+
+      if(idx >= 0) {
+         name = name.substring(0, idx);
+      }
+
+      return Tool.byteDecode(name);
    }
 
    /**
@@ -227,11 +242,11 @@ public class SRPrincipal extends XPrincipal implements Serializable, LogPrincipa
             secureId = Long.parseLong(name.substring(index1 + 1, index2));
 
             if(index3 > 0) {
-               addr = name.substring(index2 + 1, index3);
-               session = name.substring(index3 + 1);
+               addr = Tool.byteDecode(name.substring(index2 + 1, index3));
+               session = Tool.byteDecode(name.substring(index3 + 1));
             }
             else {
-               addr = name.substring(index2 + 1);
+               addr = Tool.byteDecode(name.substring(index2 + 1));
             }
          }
          else {
@@ -241,8 +256,10 @@ public class SRPrincipal extends XPrincipal implements Serializable, LogPrincipa
          name = name.substring(0, index1);
       }
 
-      if(parts.length == 1) {
-         return SUtil.getPrincipal(new IdentityID(name, OrganizationManager.getInstance().getCurrentOrgID()), addr, true);
+      name = Tool.byteDecode(name);
+
+      if(parts.length < 3) {
+         return SUtil.getPrincipal(IdentityID.getIdentityIDFromKey(name), addr, true);
       }
 
       ClientInfo clientInfo = new ClientInfo(IdentityID.getIdentityIDFromKey(name), addr, session);
@@ -255,7 +272,9 @@ public class SRPrincipal extends XPrincipal implements Serializable, LogPrincipa
 
       if(gpart.length() > 1) {
          gpart = gpart.substring(1);
-         String[] groups = Tool.split(gpart, SEP2);
+         String[] groups = Arrays.stream(Tool.split(gpart, SEP2))
+            .map(Tool::byteDecode)
+            .toArray(String[]::new);
          user.setGroups(groups);
       }
       else {
@@ -264,8 +283,10 @@ public class SRPrincipal extends XPrincipal implements Serializable, LogPrincipa
 
       if(rpart.length() > 1) {
          rpart = rpart.substring(1);
-         IdentityID[] roles = Arrays.stream(Tool.split(rpart, SEP2)).map(IdentityID::getIdentityIDFromKey)
-                                                .toArray(IdentityID[]::new);
+         IdentityID[] roles = Arrays.stream(Tool.split(rpart, SEP2))
+            .map(Tool::byteDecode)
+            .map(IdentityID::getIdentityIDFromKey)
+            .toArray(IdentityID[]::new);
          user.setRoles(roles);
       }
       else {
@@ -274,10 +295,20 @@ public class SRPrincipal extends XPrincipal implements Serializable, LogPrincipa
 
       for(int i = 3; i < parts.length; i++) {
          String[] ppair = Tool.split(parts[i], SEP3);
+
+         if(ppair.length < 2) {
+            continue;
+         }
+
          String[] ntpair = Tool.split(ppair[0], SEP2);
-         String pname = ntpair[0];
+
+         if(ntpair.length < 2) {
+            continue;
+         }
+
+         String pname = Tool.byteDecode(ntpair[0]);
          String ptype = ntpair[1];
-         String ptext = ppair[1];
+         String ptext = Tool.byteDecode(ppair[1]);
          Object pval = Tool.getData(ptype, ptext);
          user.setParameter(pname, pval);
       }
@@ -296,17 +327,17 @@ public class SRPrincipal extends XPrincipal implements Serializable, LogPrincipa
       }
 
       StringBuilder sb = new StringBuilder();
-      sb.append(getName());
+      sb.append(encodeComponent(getName()));
 
       sb.append(SEP2).append(secureID);
 
       if(getUser() != null && getUser().getIPAddress() != null) {
-         sb.append(SEP2).append(getUser().getIPAddress());
-
+         sb.append(SEP2).append(encodeComponent(getUser().getIPAddress()));
+     
          if(getUser().getSession() != null) {
-            sb.append(SEP2).append(getUser().getSession());
+            sb.append(SEP2).append(encodeComponent(getUser().getSession()));
          }
-      }
+     }
 
       String[] groups = getGroups();
       sb.append(SEP);
@@ -317,7 +348,7 @@ public class SRPrincipal extends XPrincipal implements Serializable, LogPrincipa
             sb.append(SEP2);
          }
 
-         sb.append(groups[i]);
+         sb.append(encodeComponent(groups[i]));
       }
 
       IdentityID[] roles = getRoles();
@@ -329,26 +360,27 @@ public class SRPrincipal extends XPrincipal implements Serializable, LogPrincipa
             sb.append(SEP2);
          }
 
-         sb.append(roles[i]);
+         sb.append(encodeComponent(roles[i].convertToKey()));
       }
 
-      Enumeration<?> pnames = getParameterNames();
-
-      while(pnames.hasMoreElements()) {
-         String name = (String) pnames.nextElement();
+      for(String name : getParameterNames()) {
          Object val = getParameter(name);
 
-         if(name != null && name.length() > 0 && val != null) {
+         if(name != null && !name.isEmpty() && val != null) {
             sb.append(SEP);
-            sb.append(name);
+            sb.append(encodeComponent(name));
             sb.append(SEP2);
             sb.append(Tool.getDataType(val));
             sb.append(SEP3);
-            sb.append(Tool.getDataString(val));
+            sb.append(encodeComponent(Tool.getDataString(val)));
          }
       }
 
       return sb.toString();
+   }
+
+   private static String encodeComponent(String s) {
+      return s == null ? "" : Tool.byteEncode2(s, true);
    }
 
    /**
@@ -364,7 +396,6 @@ public class SRPrincipal extends XPrincipal implements Serializable, LogPrincipa
       // @by billh, please refer to bug bug1269875133083
       String[] groups = getGroups();
       IdentityID[] roles = getRoles();
-      String org = getOrgId();
       boolean existing = groups != null && groups.length > 0;
 
       if(!existing) {
@@ -404,16 +435,8 @@ public class SRPrincipal extends XPrincipal implements Serializable, LogPrincipa
          return true;
       }
 
-      if(!(another instanceof SRPrincipal)) {
+      if(!(another instanceof SRPrincipal that)) {
          return false;
-      }
-
-      SRPrincipal that = (SRPrincipal) another;
-      boolean this_fake = "true".equals(getProperty("__FAKE__"));
-      boolean that_fake = "true".equals(that.getProperty("__FAKE__"));
-
-      if(this_fake || that_fake) {
-         return Tool.equals(getName(), that.getName());
       }
 
       if(super.equals(that) &&
@@ -433,8 +456,7 @@ public class SRPrincipal extends XPrincipal implements Serializable, LogPrincipa
     */
    @Override
    public int hashCode() {
-      int hash = client.hashCode();
-      return super.hashCode() + hash;
+      return super.hashCode() + client.hashCode();
    }
 
    /**
@@ -644,6 +666,13 @@ public class SRPrincipal extends XPrincipal implements Serializable, LogPrincipa
       }
 
       writer.print("</properties>");
+
+      if(orgId != null) {
+         writer.print("<orgId>");
+         writer.print("<![CDATA[" + orgId + "]]>");
+         writer.print("</orgId>");
+      }
+
       writer.println("</principal>");
    }
 
@@ -737,6 +766,12 @@ public class SRPrincipal extends XPrincipal implements Serializable, LogPrincipa
 
          setProperty(Tool.getValue(knodes.item(0)), Tool.getValue(vnodes.item(0)));
       }
+
+      Element orgIdNode = Tool.getChildNodeByTagName(elem, "orgId");
+
+      if(orgIdNode != null) {
+         orgId = Tool.getValue(orgIdNode);
+      }
    }
 
    /**
@@ -801,7 +836,126 @@ public class SRPrincipal extends XPrincipal implements Serializable, LogPrincipa
       return sref == null || sref.get() != null;
    }
 
+   @Override
+   public void writeExternal(ObjectOutput out) throws IOException {
+      writeStringExternal(name, out);
+      out.writeInt(roles == null ? 0 : roles.length);
+
+      if(roles != null) {
+         for(IdentityID role : roles) {
+            writeStringExternal(role.getName(), out);
+            writeStringExternal(role.getOrgID(), out);
+         }
+      }
+
+      out.writeInt(groups == null ? 0 : groups.length);
+
+      if(groups != null) {
+         for(String group : groups) {
+            writeStringExternal(group, out);
+         }
+      }
+
+      writeStringExternal(orgId, out);
+      writeStringExternal(sessionID, out);
+      out.writeInt(prop == null ? 0 : prop.size());
+
+      if(prop != null) {
+         for(Map.Entry<String, String> entry : prop.entrySet()) {
+            writeStringExternal(entry.getKey(), out);
+            writeStringExternal(entry.getValue(), out);
+         }
+      }
+
+      // Use fields directly instead of methods to avoid calling overridden
+      // methods in subclasses that may access distributed resources during serialization,
+      // which can cause deadlocks with Ignite.
+      Set<String> parameterNames = params != null ? params.keySet() : Set.of();
+      out.writeInt(parameterNames.size());
+
+      for(String name : parameterNames) {
+         Object val = params.get(name);
+         Long ts = paramTS.get(name);
+         writeStringExternal(name, out);
+         out.writeObject(val);
+         out.writeLong(ts != null ? ts : 0L);
+      }
+
+      out.writeBoolean(ignoreLogin);
+      out.writeBoolean(profiling);
+      out.writeObject(client);
+      out.writeLong(secureID);
+      out.writeLong(age.getTime());
+      out.writeLong(accessed);
+      out.writeObject(host);
+      out.writeObject(locale);
+   }
+
+   protected void writeStringExternal(String s, ObjectOutput out) throws IOException {
+      out.writeUTF(Objects.requireNonNullElse(s, "__EXT_NULL_STR__"));
+   }
+
+   @Override
+   public void readExternal(ObjectInput in) throws IOException, ClassNotFoundException {
+      name = readStringExternal(in);
+      int length = in.readInt();
+      roles = new IdentityID[length];
+
+      for(int i = 0; i < length; i++) {
+         roles[i] = new IdentityID(readStringExternal(in), readStringExternal(in));
+      }
+
+      length = in.readInt();
+      groups = new String[length];
+
+      for(int i = 0; i < length; i++) {
+         groups[i] = readStringExternal(in);
+      }
+
+      orgId = readStringExternal(in);
+      sessionID = readStringExternal(in);
+      length = in.readInt();
+
+      prop = new ConcurrentHashMap<>();
+
+      for(int i = 0; i < length; i++) {
+         String key = readStringExternal(in);
+         String val = readStringExternal(in);
+         prop.put(key, val);
+      }
+
+      length = in.readInt();
+
+      for(int i = 0; i < length; i++) {
+         String name = readStringExternal(in);
+         Object val = in.readObject();
+         long ts = in.readLong();
+         setParameter(name, val, ts);
+      }
+
+      setIgnoreLogin(in.readBoolean());
+      setProfiling(in.readBoolean());
+      client = (ClientInfo) in.readObject();
+      secureID = in.readLong();
+      age = new Date(in.readLong());
+      accessed = in.readLong();
+      host = (String) in.readObject();
+      locale = (Locale) in.readObject();
+   }
+
+   protected String readStringExternal(ObjectInput in) throws IOException {
+      String s = in.readUTF();
+
+      if(s.equals("__EXT_NULL_STR__")) {
+         return null;
+      }
+      else {
+         return s;
+      }
+   }
+
    // for backward compatibility
+   @Serial
    private static final long serialVersionUID = 329619388094919499L;
    private static final char SEP = ';';
    private static final char SEP2 = '^';
@@ -813,7 +967,7 @@ public class SRPrincipal extends XPrincipal implements Serializable, LogPrincipa
    private Date age;
    private long accessed; // last access timestamp
    // machine this principal object is created
-   private String host = null;
+   private String host;
    private transient Locale locale = null;
    private transient WeakReference<Object> sref = null;
 

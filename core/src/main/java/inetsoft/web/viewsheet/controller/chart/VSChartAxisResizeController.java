@@ -17,11 +17,6 @@
  */
 package inetsoft.web.viewsheet.controller.chart;
 
-import inetsoft.analytic.composition.ViewsheetService;
-import inetsoft.report.composition.graph.GraphUtil;
-import inetsoft.uql.viewsheet.VSAssembly;
-import inetsoft.uql.viewsheet.graph.*;
-import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.web.viewsheet.LoadingMask;
 import inetsoft.web.viewsheet.Undoable;
 import inetsoft.web.viewsheet.event.chart.VSChartAxisResizeEvent;
@@ -35,13 +30,13 @@ import org.springframework.stereotype.Controller;
 import java.security.Principal;
 
 @Controller
-public class VSChartAxisResizeController extends VSChartController<VSChartAxisResizeEvent> {
+public class VSChartAxisResizeController {
    @Autowired
    public VSChartAxisResizeController(RuntimeViewsheetRef runtimeViewsheetRef,
-                                      CoreLifecycleService coreLifecycleService,
-                                      ViewsheetService viewsheetService)
+                                          VSChartAxisResizeServiceProxy vsChartAxisResizeService)
    {
-      super(runtimeViewsheetRef, coreLifecycleService, viewsheetService);
+      this.runtimeViewsheetRef = runtimeViewsheetRef;
+      this.vsChartAxisResizeService = vsChartAxisResizeService;
    }
 
    /**
@@ -61,81 +56,10 @@ public class VSChartAxisResizeController extends VSChartController<VSChartAxisRe
                             Principal principal,
                             CommandDispatcher dispatcher) throws Exception
    {
-      processEvent(event, principal, linkUri, dispatcher, chartState -> {
-         String axisType = event.getAxisType();
-         AxisDescriptor axisDesc = getAxisDesc(chartState, event.getAxisField(),
-                                               "x".equals(axisType));
-
-         if(axisDesc != null) {
-            try {
-               if("x".equals(axisType)) {
-                  axisDesc.setAxisHeight(event.getAxisSize());
-               }
-               else if("y".equals(axisType)) {
-                  axisDesc.setAxisWidth(event.getAxisSize());
-               }
-               else {
-                  throw new RuntimeException("Invalid event properties");
-               }
-
-               chartState.getChartInfo().clearRuntime();
-            }
-            catch(Exception ex) {
-               throw new RuntimeException(ex);
-            }
-         }
-
-         return VSAssembly.VIEW_CHANGED;
-      });
+      vsChartAxisResizeService.eventHandler(runtimeViewsheetRef.getRuntimeId(), event, linkUri,
+                                            principal, dispatcher);
    }
 
-   // from LayoutLegendEvent.process()
-   // Note: chart region handler has some extra logic that might affect the descriptor returned
-   private AxisDescriptor getAxisDesc(VSChartStateInfo chartState,
-                                      String axisField, boolean xAxisFlag)
-   {
-      VSChartInfo chartInfo = chartState.getChartInfo();
-      ChartVSAssemblyInfo assemblyInfo = chartState.getChartAssemblyInfo();
-      ChartRef ref = null;
-
-      if(assemblyInfo != null) {
-         ref = (ChartRef) chartState.getChartAssemblyInfo().getDCBIndingRef(axisField);
-      }
-
-      if(ref == null) {
-         ref = chartInfo.getFieldByName(axisField, false);
-      }
-
-      AxisDescriptor axisDesc = null;
-
-      if(ref == null && assemblyInfo != null) {
-         ref = (ChartRef) assemblyInfo.getDCBIndingRef(axisField);
-      }
-
-      if(chartInfo.isSeparatedGraph() && !(chartInfo instanceof MergedChartInfo)
-         || GraphUtil.isCategorical(ref) || chartInfo instanceof GanttChartInfo)
-      {
-         if(ref != null) {
-            axisDesc = ref.getAxisDescriptor();
-         }
-         // for mekko chart, y axis
-         else {
-            axisDesc = chartInfo.getAxisDescriptor();
-         }
-      }
-      else if(ref instanceof ChartAggregateRef && ((ChartAggregateRef) ref).isSecondaryY()) {
-         axisDesc = chartInfo.getAxisDescriptor2();
-      }
-      // in merged graph, if there is measure on y, x uses ref descriptor
-      // this needs to be the same as DefaultGraphGenerator
-      else if(xAxisFlag && ref != null && !GraphUtil.getMeasures(chartInfo.getYFields()).isEmpty())
-      {
-         axisDesc = ref.getAxisDescriptor();
-      }
-      else {
-         axisDesc = chartInfo.getAxisDescriptor();
-      }
-
-      return axisDesc;
-   }
+   private final RuntimeViewsheetRef runtimeViewsheetRef;
+   private final VSChartAxisResizeServiceProxy vsChartAxisResizeService;
 }

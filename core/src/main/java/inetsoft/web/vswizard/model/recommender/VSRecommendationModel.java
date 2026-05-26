@@ -17,10 +17,17 @@
  */
 package inetsoft.web.vswizard.model.recommender;
 
+import inetsoft.util.Tool;
+import inetsoft.util.XMLSerializable;
+import org.w3c.dom.Element;
+import org.w3c.dom.NodeList;
+
+import java.io.PrintWriter;
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
 
-public class VSRecommendationModel {
+public class VSRecommendationModel implements Serializable, XMLSerializable {
    /**
     * Getter for object recommendation list.
     */
@@ -83,6 +90,69 @@ public class VSRecommendationModel {
     */
    public VSRecommendType getOriginalType() {
        return originalType;
+   }
+
+   @Override
+   public void writeXML(PrintWriter writer) {
+      writer.print("<vsRecommendationModel class=\"" + getClass().getName() + "\"");
+      writeAttributes(writer);
+      writer.println(">");
+      writeContents(writer);
+      writer.print("</vsRecommendationModel>");
+   }
+
+   protected void writeAttributes(PrintWriter writer) {
+      if(selectedType != null) {
+         writer.print(" selectedType=\"" + selectedType.name() + "\"");
+      }
+
+      if(originalType != null) {
+         writer.print(" originalType=\"" + originalType.name() + "\"");
+      }
+   }
+
+   protected void writeContents(PrintWriter writer) {
+      if(recommendationList.isEmpty()) {
+         return;
+      }
+
+      for(int i = 0; i < recommendationList.size(); i++) {
+         VSObjectRecommendation recommendation = recommendationList.get(i);
+         recommendation.writeXML(writer);
+      }
+   }
+
+   @Override
+   public void parseXML(Element elem) throws Exception {
+      parseAttributes(elem);
+      parseContents(elem);
+   }
+
+   protected void parseAttributes(Element elem) {
+      String selectedTypeVal = Tool.getAttribute(elem, "selectedType");
+
+      if(!Tool.isEmptyString(selectedTypeVal)) {
+         selectedType = VSRecommendType.valueOf(selectedTypeVal);
+      }
+
+      String originalTypeVal = Tool.getAttribute(elem, "originalType");
+
+      if(!Tool.isEmptyString(originalTypeVal)) {
+         originalType = VSRecommendType.valueOf(originalTypeVal);
+      }
+   }
+
+   protected void parseContents(Element elem) throws Exception {
+      NodeList list = Tool.getChildNodesByTagName(elem, "vsObjectRecommendation");
+      recommendationList = new ArrayList<>();
+
+      for(int i = 0; i < list.getLength(); i++) {
+         Element item = (Element) list.item(i);
+
+         if(item != null) {
+            recommendationList.add(VSObjectRecommendation.createVSObjectRecommendation(item));
+         }
+      }
    }
 
    private List<VSObjectRecommendation> recommendationList = new ArrayList<>();

@@ -18,14 +18,14 @@
 import { NgModule } from "@angular/core";
 import { RouterModule, Routes } from "@angular/router";
 import { ContentRepositoryPageComponent } from "./content-repository-page/content-repository-page.component";
-import { ContentRepositorySaveGuard } from "./content-repository-page/content-repository-save.guard";
+import { contentRepositorySaveGuard } from "./content-repository-page/content-repository-save.guard";
 
 const routes: Routes = [
    {
       path: "",
       component: ContentRepositoryPageComponent,
       children: [],
-      canDeactivate: [ContentRepositorySaveGuard]
+      canDeactivate: [contentRepositorySaveGuard]
    }
 ];
 

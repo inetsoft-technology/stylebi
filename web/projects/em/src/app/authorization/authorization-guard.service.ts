@@ -15,8 +15,13 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Injectable } from "@angular/core";
-import { ActivatedRouteSnapshot, CanActivate, Router, RouterStateSnapshot } from "@angular/router";
+import { inject } from "@angular/core";
+import {
+   ActivatedRouteSnapshot,
+   CanActivateFn,
+   Router,
+   RouterStateSnapshot
+} from "@angular/router";
 import { Observable } from "rxjs";
 import { map } from "rxjs/operators";
 import {
@@ -25,46 +30,40 @@ import {
 } from "../../../../shared/ai-assistant/ai-assistant.service";
 import { AuthorizationService } from "./authorization.service";
 
-@Injectable()
-export class AuthorizationGuard implements CanActivate {
-   constructor(private service: AuthorizationService,
-               private router: Router,
-               private aiAssistantService: AiAssistantService)
-   {
-   }
+export const authorizationGuard: CanActivateFn = (next: ActivatedRouteSnapshot, state: RouterStateSnapshot): Observable<boolean> => {
+   const service = inject(AuthorizationService);
+   const router = inject(Router);
+   const aiAssistantService = inject(AiAssistantService);
+   const parent: string = next.data.permissionParentPath;
+   const child: string = next.data.permissionChild;
 
-   canActivate(route: ActivatedRouteSnapshot, state: RouterStateSnapshot): Observable<boolean> {
-      const parent: string = route.data.permissionParentPath;
-      const child: string = route.data.permissionChild;
+   return service.getPermissions(parent).pipe(
+      map( p => [p.permissions, p.labels, p.multiTenancyHiddenComponents]),
+      map(([p, l, h]) => {
+         const allowed = !!p[child];
 
-      return this.service.getPermissions(parent).pipe(
-         map( p => [p.permissions, p.labels, p.multiTenancyHiddenComponents]),
-         map(([p, l, h]) => {
-            const allowed = !!p[child];
+         if(!allowed) {
+            // find first permitted child and redirect to that
+            // "notification" and "distribution" are API-only permission keys with no Angular route; skip them
+            const redirect = Object.keys(p).find(
+               name => p[name] === true && name != "notification" && name != "distribution");
 
-            if(!allowed) {
-               // find first permitted child and redirect to that
-               // "notification" and "distribution" are API-only permission keys with no Angular route; skip them
-               const redirect = Object.keys(p).find(
-                  name => p[name] === true && name != "notification" && name != "distribution");
+            if(redirect) {
+               //force orgAdmin redirect to a page that is not external logs
+               const monitoringRedirect = Object.keys(p).find(name => p[name] === true && name === "queries");
+               const usersRedirect = Object.keys(p).find(name => p[name] === true && name === "users");
 
-               if(redirect) {
-                  //force orgAdmin redirect to a page that is not external logs
-                  const monitoringRedirect = Object.keys(p).find(name => p[name] === true && name === "queries");
-                  const usersRedirect = Object.keys(p).find(name => p[name] === true && name === "users");
-
-                  const uri = parent ? monitoringRedirect ? `${parent}/${monitoringRedirect}`
-                           : usersRedirect ? `${parent}/${usersRedirect}`
-                           :`${parent}/${redirect}` : redirect;
-                  this.router.navigate([uri]);
-               }
+               const uri = parent ? monitoringRedirect ? `${parent}/${monitoringRedirect}`
+                  : usersRedirect ? `${parent}/${usersRedirect}`
+                     :`${parent}/${redirect}` : redirect;
+               router.navigate([uri]);
             }
+         }
 
-            this.aiAssistantService.loadCurrentUser(true);
-            this.aiAssistantService.setContextTypeFieldValue(ContextType.EM);
+         aiAssistantService.loadCurrentUser(true);
+         aiAssistantService.setContextTypeFieldValue(ContextType.EM);
 
-            return allowed;
-         })
-      );
-   }
-}
+         return allowed;
+      })
+   );
+};

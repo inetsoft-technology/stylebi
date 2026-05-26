@@ -19,8 +19,10 @@ package inetsoft.web.composer.model.vs;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
+import java.io.Serializable;
+
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class CalcTableAdvancedPaneModel {
+public class CalcTableAdvancedPaneModel implements Serializable {
    public TipPaneModel getTipPaneModel() {
       if(tipPaneModel == null) {
          tipPaneModel = new TipPaneModel();

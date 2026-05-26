@@ -28,8 +28,8 @@ import java.util.Map;
 
 @Component
 public class SecurityProviderHealthIndicator implements HealthIndicator {
-   public SecurityProviderHealthIndicator() {
-      service = SecurityProviderHealthService.getInstance();
+   public SecurityProviderHealthIndicator(SecurityProviderHealthService service) {
+      this.service = service;
    }
 
    @Override

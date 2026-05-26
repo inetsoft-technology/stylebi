@@ -17,6 +17,10 @@
  */
 package inetsoft.web.security;
 
+import inetsoft.sree.web.ActiveSessionInfo;
+
+import java.util.List;
+
 /**
  * Exception that signals that an authentication failed.
  */
@@ -28,6 +32,7 @@ public class AuthenticationFailureException extends Exception {
     */
    public AuthenticationFailureException(AuthenticationFailureReason reason) {
       this.reason = reason;
+      this.activeSessions = null;
    }
 
    /**
@@ -41,6 +46,7 @@ public class AuthenticationFailureException extends Exception {
    {
       super(message);
       this.reason = reason;
+      this.activeSessions = null;
    }
 
    /**
@@ -55,6 +61,24 @@ public class AuthenticationFailureException extends Exception {
    {
       super(message, cause);
       this.reason = reason;
+      this.activeSessions = null;
+   }
+
+   /**
+    * Creates a new instance of <tt>AuthenticationFailureException</tt> for the case where a
+    * site administrator is denied login because the session limit is exceeded.
+    *
+    * @param reason         the reason that the authentication failed.
+    * @param message        the error message.
+    * @param activeSessions the list of currently active sessions.
+    */
+   public AuthenticationFailureException(AuthenticationFailureReason reason,
+                                         String message,
+                                         List<ActiveSessionInfo> activeSessions)
+   {
+      super(message);
+      this.reason = reason;
+      this.activeSessions = activeSessions;
    }
 
    /**
@@ -66,5 +90,14 @@ public class AuthenticationFailureException extends Exception {
       return reason;
    }
 
+   /**
+    * Gets the list of currently active sessions. Only non-null when the reason is
+    * {@link AuthenticationFailureReason#SESSION_EXCEEDED_ADMIN}.
+    */
+   public List<ActiveSessionInfo> getActiveSessions() {
+      return activeSessions;
+   }
+
    private final AuthenticationFailureReason reason;
+   private final List<ActiveSessionInfo> activeSessions;
 }

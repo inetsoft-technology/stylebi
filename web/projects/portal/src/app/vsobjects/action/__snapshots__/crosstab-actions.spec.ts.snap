@@ -1,10 +1,10 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`CrosstabActions check status of menu actions and toolbar actions in binding 1`] = `
-Array [
+[
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -12,7 +12,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -25,8 +25,8 @@ Array [
     "label": [Function],
   },
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -34,7 +34,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -42,7 +42,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -50,7 +50,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -58,29 +58,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-    ],
-    "icon": [Function],
-    "label": [Function],
-  },
-  AssemblyActionGroup {
-    "actions": Array [
-      Object {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -93,8 +71,8 @@ Array [
     "label": [Function],
   },
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -102,39 +80,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      Object {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      Object {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      Object {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -147,8 +93,8 @@ Array [
     "label": [Function],
   },
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -156,7 +102,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -164,7 +110,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -172,13 +118,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-    ],
-    "icon": [Function],
-    "label": [Function],
-  },
-  AssemblyActionGroup {
-    "actions": Array [
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -186,7 +126,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -194,15 +134,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -215,8 +147,8 @@ Array [
     "label": [Function],
   },
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -224,7 +156,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -232,23 +164,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      Object {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -261,8 +177,8 @@ Array [
     "label": [Function],
   },
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -270,7 +186,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -278,7 +194,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -286,37 +202,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-    ],
-    "icon": [Function],
-    "label": [Function],
-  },
-  AssemblyActionGroup {
-    "actions": Array [
-      Object {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      Object {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -329,8 +215,122 @@ Array [
     "label": [Function],
   },
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+    ],
+    "icon": [Function],
+    "label": [Function],
+  },
+  AssemblyActionGroup {
+    "actions": [
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+    ],
+    "icon": [Function],
+    "label": [Function],
+  },
+  AssemblyActionGroup {
+    "actions": [
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+    ],
+    "icon": [Function],
+    "label": [Function],
+  },
+  AssemblyActionGroup {
+    "actions": [
+      {
         "action": [Function],
         "classes": [Function],
         "enabled": [Function],
@@ -347,10 +347,10 @@ Array [
 `;
 
 exports[`CrosstabActions check status of menu actions and toolbar actions in binding 2`] = `
-Array [
+[
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -363,8 +363,8 @@ Array [
     "label": [Function],
   },
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -372,7 +372,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -380,7 +380,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -388,7 +388,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -396,7 +396,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -404,7 +404,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -412,7 +412,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -420,7 +420,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -433,8 +433,8 @@ Array [
     "label": [Function],
   },
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "childAction": [Function],
         "enabled": [Function],
@@ -451,10 +451,10 @@ Array [
 `;
 
 exports[`CrosstabActions check status of menu actions and toolbar actions in binding when select multiple group header 1`] = `
-Array [
+[
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -462,7 +462,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -475,8 +475,8 @@ Array [
     "label": [Function],
   },
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -484,7 +484,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -492,7 +492,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -500,7 +500,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -508,29 +508,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-    ],
-    "icon": [Function],
-    "label": [Function],
-  },
-  AssemblyActionGroup {
-    "actions": Array [
-      Object {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -543,8 +521,8 @@ Array [
     "label": [Function],
   },
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -552,39 +530,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      Object {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      Object {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      Object {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -597,8 +543,8 @@ Array [
     "label": [Function],
   },
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -606,7 +552,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -614,7 +560,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -622,13 +568,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-    ],
-    "icon": [Function],
-    "label": [Function],
-  },
-  AssemblyActionGroup {
-    "actions": Array [
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -636,7 +576,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -644,15 +584,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -665,8 +597,8 @@ Array [
     "label": [Function],
   },
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -674,7 +606,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -682,23 +614,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      Object {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -711,8 +627,8 @@ Array [
     "label": [Function],
   },
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -720,7 +636,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -728,7 +644,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -736,37 +652,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-    ],
-    "icon": [Function],
-    "label": [Function],
-  },
-  AssemblyActionGroup {
-    "actions": Array [
-      Object {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      Object {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -779,8 +665,122 @@ Array [
     "label": [Function],
   },
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+    ],
+    "icon": [Function],
+    "label": [Function],
+  },
+  AssemblyActionGroup {
+    "actions": [
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+    ],
+    "icon": [Function],
+    "label": [Function],
+  },
+  AssemblyActionGroup {
+    "actions": [
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+    ],
+    "icon": [Function],
+    "label": [Function],
+  },
+  AssemblyActionGroup {
+    "actions": [
+      {
         "action": [Function],
         "classes": [Function],
         "enabled": [Function],
@@ -797,10 +797,10 @@ Array [
 `;
 
 exports[`CrosstabActions check status of menu actions and toolbar actions in binding when select multiple group header 2`] = `
-Array [
+[
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -813,8 +813,8 @@ Array [
     "label": [Function],
   },
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -822,7 +822,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -830,7 +830,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -838,7 +838,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -846,7 +846,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -854,7 +854,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -862,7 +862,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -870,7 +870,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -883,8 +883,8 @@ Array [
     "label": [Function],
   },
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "childAction": [Function],
         "enabled": [Function],
@@ -901,10 +901,10 @@ Array [
 `;
 
 exports[`CrosstabActions check status of menu actions and toolbar actions in composer 1`] = `
-Array [
+[
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -912,7 +912,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -925,8 +925,8 @@ Array [
     "label": [Function],
   },
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -934,7 +934,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -942,7 +942,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -950,7 +950,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -958,29 +958,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-    ],
-    "icon": [Function],
-    "label": [Function],
-  },
-  AssemblyActionGroup {
-    "actions": Array [
-      Object {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -993,8 +971,8 @@ Array [
     "label": [Function],
   },
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -1002,39 +980,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      Object {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      Object {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      Object {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -1047,8 +993,8 @@ Array [
     "label": [Function],
   },
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -1056,7 +1002,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -1064,7 +1010,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -1072,13 +1018,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-    ],
-    "icon": [Function],
-    "label": [Function],
-  },
-  AssemblyActionGroup {
-    "actions": Array [
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -1086,7 +1026,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -1094,15 +1034,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -1115,8 +1047,8 @@ Array [
     "label": [Function],
   },
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -1124,7 +1056,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -1132,23 +1064,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      Object {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -1161,8 +1077,8 @@ Array [
     "label": [Function],
   },
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -1170,7 +1086,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -1178,7 +1094,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -1186,37 +1102,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-    ],
-    "icon": [Function],
-    "label": [Function],
-  },
-  AssemblyActionGroup {
-    "actions": Array [
-      Object {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      Object {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -1229,8 +1115,122 @@ Array [
     "label": [Function],
   },
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+    ],
+    "icon": [Function],
+    "label": [Function],
+  },
+  AssemblyActionGroup {
+    "actions": [
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+    ],
+    "icon": [Function],
+    "label": [Function],
+  },
+  AssemblyActionGroup {
+    "actions": [
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+    ],
+    "icon": [Function],
+    "label": [Function],
+  },
+  AssemblyActionGroup {
+    "actions": [
+      {
         "action": [Function],
         "classes": [Function],
         "enabled": [Function],
@@ -1247,10 +1247,10 @@ Array [
 `;
 
 exports[`CrosstabActions check status of menu actions and toolbar actions in composer 2`] = `
-Array [
+[
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -1263,8 +1263,8 @@ Array [
     "label": [Function],
   },
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -1272,7 +1272,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -1280,7 +1280,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -1288,7 +1288,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -1296,7 +1296,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -1304,7 +1304,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -1312,7 +1312,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -1320,7 +1320,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -1333,8 +1333,8 @@ Array [
     "label": [Function],
   },
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "childAction": [Function],
         "enabled": [Function],
@@ -1351,10 +1351,10 @@ Array [
 `;
 
 exports[`CrosstabActions check status of menu actions and toolbar actions in composer when select header cell 1`] = `
-Array [
+[
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -1362,7 +1362,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -1375,8 +1375,8 @@ Array [
     "label": [Function],
   },
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -1384,7 +1384,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -1392,7 +1392,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -1400,7 +1400,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -1408,29 +1408,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-    ],
-    "icon": [Function],
-    "label": [Function],
-  },
-  AssemblyActionGroup {
-    "actions": Array [
-      Object {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -1443,8 +1421,8 @@ Array [
     "label": [Function],
   },
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -1452,39 +1430,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      Object {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      Object {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      Object {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -1497,8 +1443,8 @@ Array [
     "label": [Function],
   },
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -1506,7 +1452,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -1514,7 +1460,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -1522,13 +1468,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-    ],
-    "icon": [Function],
-    "label": [Function],
-  },
-  AssemblyActionGroup {
-    "actions": Array [
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -1536,7 +1476,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -1544,15 +1484,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -1565,8 +1497,8 @@ Array [
     "label": [Function],
   },
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -1574,7 +1506,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -1582,23 +1514,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      Object {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -1611,8 +1527,8 @@ Array [
     "label": [Function],
   },
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -1620,7 +1536,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -1628,7 +1544,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -1636,37 +1552,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-    ],
-    "icon": [Function],
-    "label": [Function],
-  },
-  AssemblyActionGroup {
-    "actions": Array [
-      Object {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      Object {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -1679,8 +1565,122 @@ Array [
     "label": [Function],
   },
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+    ],
+    "icon": [Function],
+    "label": [Function],
+  },
+  AssemblyActionGroup {
+    "actions": [
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+    ],
+    "icon": [Function],
+    "label": [Function],
+  },
+  AssemblyActionGroup {
+    "actions": [
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+    ],
+    "icon": [Function],
+    "label": [Function],
+  },
+  AssemblyActionGroup {
+    "actions": [
+      {
         "action": [Function],
         "classes": [Function],
         "enabled": [Function],
@@ -1697,10 +1697,10 @@ Array [
 `;
 
 exports[`CrosstabActions check status of menu actions and toolbar actions in composer when select header cell 2`] = `
-Array [
+[
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -1713,8 +1713,8 @@ Array [
     "label": [Function],
   },
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -1722,7 +1722,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -1730,7 +1730,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -1738,7 +1738,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -1746,7 +1746,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -1754,7 +1754,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -1762,7 +1762,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -1770,7 +1770,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -1783,8 +1783,8 @@ Array [
     "label": [Function],
   },
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "childAction": [Function],
         "enabled": [Function],
@@ -1801,10 +1801,10 @@ Array [
 `;
 
 exports[`CrosstabActions check status of menu actions and toolbar actions in viewer and preview 1`] = `
-Array [
+[
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -1812,7 +1812,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -1825,8 +1825,8 @@ Array [
     "label": [Function],
   },
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -1834,7 +1834,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -1842,7 +1842,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -1850,7 +1850,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -1858,29 +1858,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-    ],
-    "icon": [Function],
-    "label": [Function],
-  },
-  AssemblyActionGroup {
-    "actions": Array [
-      Object {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -1893,8 +1871,8 @@ Array [
     "label": [Function],
   },
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -1902,39 +1880,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      Object {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      Object {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      Object {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -1947,8 +1893,8 @@ Array [
     "label": [Function],
   },
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -1956,7 +1902,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -1964,7 +1910,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -1972,13 +1918,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-    ],
-    "icon": [Function],
-    "label": [Function],
-  },
-  AssemblyActionGroup {
-    "actions": Array [
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -1986,7 +1926,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -1994,15 +1934,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -2015,8 +1947,8 @@ Array [
     "label": [Function],
   },
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -2024,7 +1956,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -2032,23 +1964,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      Object {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -2061,8 +1977,8 @@ Array [
     "label": [Function],
   },
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -2070,7 +1986,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -2078,7 +1994,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -2086,37 +2002,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-    ],
-    "icon": [Function],
-    "label": [Function],
-  },
-  AssemblyActionGroup {
-    "actions": Array [
-      Object {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      Object {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -2129,8 +2015,122 @@ Array [
     "label": [Function],
   },
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+    ],
+    "icon": [Function],
+    "label": [Function],
+  },
+  AssemblyActionGroup {
+    "actions": [
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+    ],
+    "icon": [Function],
+    "label": [Function],
+  },
+  AssemblyActionGroup {
+    "actions": [
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+    ],
+    "icon": [Function],
+    "label": [Function],
+  },
+  AssemblyActionGroup {
+    "actions": [
+      {
         "action": [Function],
         "classes": [Function],
         "enabled": [Function],
@@ -2147,10 +2147,10 @@ Array [
 `;
 
 exports[`CrosstabActions check status of menu actions and toolbar actions in viewer and preview 2`] = `
-Array [
+[
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -2163,8 +2163,8 @@ Array [
     "label": [Function],
   },
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -2172,7 +2172,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -2180,7 +2180,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -2188,7 +2188,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -2196,7 +2196,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -2204,7 +2204,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -2212,7 +2212,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -2220,7 +2220,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -2233,8 +2233,8 @@ Array [
     "label": [Function],
   },
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "childAction": [Function],
         "enabled": [Function],
@@ -2251,10 +2251,10 @@ Array [
 `;
 
 exports[`CrosstabActions check status of menu actions and toolbar actions in viewer and preview 3`] = `
-Array [
+[
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -2262,7 +2262,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -2275,8 +2275,8 @@ Array [
     "label": [Function],
   },
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -2284,7 +2284,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -2292,7 +2292,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -2300,7 +2300,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -2308,29 +2308,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-    ],
-    "icon": [Function],
-    "label": [Function],
-  },
-  AssemblyActionGroup {
-    "actions": Array [
-      Object {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -2343,8 +2321,8 @@ Array [
     "label": [Function],
   },
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -2352,39 +2330,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      Object {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      Object {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      Object {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -2397,8 +2343,8 @@ Array [
     "label": [Function],
   },
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -2406,7 +2352,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -2414,7 +2360,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -2422,13 +2368,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-    ],
-    "icon": [Function],
-    "label": [Function],
-  },
-  AssemblyActionGroup {
-    "actions": Array [
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -2436,7 +2376,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -2444,15 +2384,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -2465,8 +2397,8 @@ Array [
     "label": [Function],
   },
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -2474,7 +2406,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -2482,23 +2414,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      Object {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -2511,8 +2427,8 @@ Array [
     "label": [Function],
   },
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -2520,7 +2436,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -2528,7 +2444,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -2536,37 +2452,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-    ],
-    "icon": [Function],
-    "label": [Function],
-  },
-  AssemblyActionGroup {
-    "actions": Array [
-      Object {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      Object {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -2579,8 +2465,122 @@ Array [
     "label": [Function],
   },
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+    ],
+    "icon": [Function],
+    "label": [Function],
+  },
+  AssemblyActionGroup {
+    "actions": [
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+    ],
+    "icon": [Function],
+    "label": [Function],
+  },
+  AssemblyActionGroup {
+    "actions": [
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+    ],
+    "icon": [Function],
+    "label": [Function],
+  },
+  AssemblyActionGroup {
+    "actions": [
+      {
         "action": [Function],
         "classes": [Function],
         "enabled": [Function],
@@ -2597,10 +2597,10 @@ Array [
 `;
 
 exports[`CrosstabActions check status of menu actions and toolbar actions in viewer and preview 4`] = `
-Array [
+[
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -2613,8 +2613,8 @@ Array [
     "label": [Function],
   },
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -2622,7 +2622,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -2630,7 +2630,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -2638,7 +2638,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -2646,7 +2646,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -2654,7 +2654,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -2662,7 +2662,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -2670,7 +2670,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -2683,8 +2683,8 @@ Array [
     "label": [Function],
   },
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "childAction": [Function],
         "enabled": [Function],
@@ -2701,10 +2701,10 @@ Array [
 `;
 
 exports[`CrosstabActions check status of menu actions and toolbar actions in viewer when select summary cell 1`] = `
-Array [
+[
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -2712,7 +2712,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -2725,8 +2725,8 @@ Array [
     "label": [Function],
   },
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -2734,7 +2734,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -2742,7 +2742,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -2750,7 +2750,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -2758,29 +2758,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-    ],
-    "icon": [Function],
-    "label": [Function],
-  },
-  AssemblyActionGroup {
-    "actions": Array [
-      Object {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -2793,8 +2771,8 @@ Array [
     "label": [Function],
   },
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -2802,39 +2780,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      Object {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      Object {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      Object {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -2847,8 +2793,8 @@ Array [
     "label": [Function],
   },
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -2856,7 +2802,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -2864,7 +2810,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -2872,13 +2818,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-    ],
-    "icon": [Function],
-    "label": [Function],
-  },
-  AssemblyActionGroup {
-    "actions": Array [
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -2886,7 +2826,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -2894,15 +2834,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -2915,8 +2847,8 @@ Array [
     "label": [Function],
   },
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -2924,7 +2856,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -2932,23 +2864,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      Object {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -2961,8 +2877,8 @@ Array [
     "label": [Function],
   },
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -2970,7 +2886,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -2978,7 +2894,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -2986,37 +2902,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-    ],
-    "icon": [Function],
-    "label": [Function],
-  },
-  AssemblyActionGroup {
-    "actions": Array [
-      Object {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      Object {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -3029,8 +2915,122 @@ Array [
     "label": [Function],
   },
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+    ],
+    "icon": [Function],
+    "label": [Function],
+  },
+  AssemblyActionGroup {
+    "actions": [
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+    ],
+    "icon": [Function],
+    "label": [Function],
+  },
+  AssemblyActionGroup {
+    "actions": [
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+    ],
+    "icon": [Function],
+    "label": [Function],
+  },
+  AssemblyActionGroup {
+    "actions": [
+      {
         "action": [Function],
         "classes": [Function],
         "enabled": [Function],
@@ -3047,10 +3047,10 @@ Array [
 `;
 
 exports[`CrosstabActions check status of menu actions and toolbar actions in viewer when select summary cell 2`] = `
-Array [
+[
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -3063,8 +3063,8 @@ Array [
     "label": [Function],
   },
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -3072,7 +3072,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -3080,7 +3080,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -3088,7 +3088,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -3096,7 +3096,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -3104,7 +3104,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -3112,7 +3112,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -3120,7 +3120,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -3133,8 +3133,8 @@ Array [
     "label": [Function],
   },
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "childAction": [Function],
         "enabled": [Function],

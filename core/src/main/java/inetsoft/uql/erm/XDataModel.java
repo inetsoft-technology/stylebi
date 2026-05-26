@@ -826,7 +826,6 @@ public class XDataModel implements Cloneable, Serializable, XDomain,
 
    @Override
    public void clearCache() {
-
    }
 
    public void startWriteDTO(Map<String, Object> properties) {

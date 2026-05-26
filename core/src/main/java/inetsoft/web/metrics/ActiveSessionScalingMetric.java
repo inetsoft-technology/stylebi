@@ -19,10 +19,10 @@
 package inetsoft.web.metrics;
 
 import inetsoft.sree.SreeEnv;
-import inetsoft.web.MapSessionRepository;
+import inetsoft.web.session.IgniteSessionRepository;
 
 public class ActiveSessionScalingMetric extends ScalingMetric {
-   public ActiveSessionScalingMetric(MapSessionRepository sessionRepository) {
+   public ActiveSessionScalingMetric(IgniteSessionRepository sessionRepository) {
       super(false, 0);
       this.sessionRepository = sessionRepository;
    }
@@ -34,5 +34,5 @@ public class ActiveSessionScalingMetric extends ScalingMetric {
       return Math.clamp(sessionRepository.getActiveSessions().isEmpty() ? 0D : activeValue, 0D, 1D);
    }
 
-   private final MapSessionRepository sessionRepository;
+   private final IgniteSessionRepository sessionRepository;
 }

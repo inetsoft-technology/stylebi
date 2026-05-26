@@ -41,7 +41,7 @@
                 [cancelButtonExists]="cancelButtonExists">
   </tabular-view>
 </div>
-<div class="form-group">
+<div class="form-group" *ngIf="datasource.type === 'GOOGLE_ANALYTICS_GA4'">
   <button class="btn btn-default buttonMargin" type="button" (click)="refreshMetadata()">
     _#(Refresh Metadata)
   </button>

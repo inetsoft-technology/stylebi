@@ -19,7 +19,9 @@ package inetsoft.web.graph.model.dialog;
 
 import inetsoft.graph.guide.legend.LegendItem;
 
-public class LegendFormatGeneralPaneModel {
+import java.io.Serializable;
+
+public class LegendFormatGeneralPaneModel implements Serializable {
    public String getTitle() {
       return title;
    }

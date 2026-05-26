@@ -167,12 +167,12 @@ public class TabularHandler extends XHandler {
 
       if(runtime == null) {
          try {
-            runtime = (TabularRuntime) Config.getClass(type, Config.getRuntime(type))
+            runtime = (TabularRuntime) Config.getConfig().getClass(type, Config.getConfig().getRuntime(type))
                .getDeclaredConstructor().newInstance();
          }
          catch(Exception ex) {
             LOG.error("Failed to create tabular runtime: " +
-                        type + " " + Config.getRuntime(type), ex);
+                        type + " " + Config.getConfig().getRuntime(type), ex);
          }
 
          runtimes.put(type, runtime);

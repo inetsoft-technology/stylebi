@@ -18,6 +18,8 @@
 package inetsoft.web.security;
 
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.security.AuthenticationService;
+import inetsoft.sree.web.SessionLicenseServiceProvider;
 import jakarta.servlet.*;
 import jakarta.servlet.http.HttpServletResponse;
 
@@ -36,8 +38,18 @@ import java.io.IOException;
  * If the {@code security.enableContentTypeOptions} property is set to "true", the
  * {@code X-Content-Type-Options} header will be set to "nosniff". If it is not set to "true", the
  * header will not be added.
+ * <p>
+ * The {@code security.robotsTag} property controls the {@code X-Robots-Tag} header. By default,
+ * it is set to "noindex, nofollow" to prevent search engines from indexing the application.
+ * Set to an empty string to disable the header for publicly accessible dashboards.
  */
 public class SecurityHeaderFilter extends AbstractSecurityFilter {
+   public SecurityHeaderFilter(SessionLicenseServiceProvider sessionLicenseServiceProvider,
+                               AuthenticationService authenticationService)
+   {
+      super(sessionLicenseServiceProvider, authenticationService);
+   }
+
    @Override
    public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain)
       throws IOException, ServletException
@@ -62,6 +74,12 @@ public class SecurityHeaderFilter extends AbstractSecurityFilter {
          httpResponse.setHeader("X-Content-Type-Options", "nosniff");
       }
 
+      String robotsTagValue = robotsTag.get();
+
+      if(robotsTagValue != null && !robotsTagValue.isEmpty()) {
+         httpResponse.setHeader("X-Robots-Tag", robotsTagValue);
+      }
+
       chain.doFilter(request, response);
    }
 
@@ -69,4 +87,6 @@ public class SecurityHeaderFilter extends AbstractSecurityFilter {
       new SreeEnv.Value("security.enableXSSProtection", 10000, "false");
    private final SreeEnv.Value enableContentTypeOptions =
       new SreeEnv.Value("security.enableContentTypeOptions", 10000, "false");
+   private final SreeEnv.Value robotsTag =
+      new SreeEnv.Value("security.robotsTag", 10000, "noindex, nofollow");
 }

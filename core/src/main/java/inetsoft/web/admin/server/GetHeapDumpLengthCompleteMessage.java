@@ -28,14 +28,14 @@ public class GetHeapDumpLengthCompleteMessage implements Serializable {
       this.id = id;
    }
 
-   public int getLength() {
+   public long getLength() {
       return length;
    }
 
-   public void setLength(int length) {
+   public void setLength(long length) {
       this.length = length;
    }
 
    private String id;
-   private int length;
+   private long length;
 }

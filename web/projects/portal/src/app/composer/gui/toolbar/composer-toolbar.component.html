@@ -55,7 +55,7 @@
     <div ngbDropdown #snappingDropdown="ngbDropdown" *ngIf="isViewsheet && !mergeMenuCollapsed" class="snap-options-dropdown">
       <button id="editorSnapOptionsButton" class="btn composer-btn toolbar-btn pb-1 ps-1 pe-1 snap-options-button"
               [disabled]="!sheet || isPreview"
-              [ngbTooltip]="snappingTooltip"
+              [ngbTooltip]="snappingTooltip" triggers="hover"
               [placement]="snappingDropdown.isOpen() ? 'right' : 'bottom'"
               container="body" ngbDropdownToggle>
         <i class="snap-grid-icon icon-size-medium"></i>
@@ -81,7 +81,7 @@
     </div>
     <div ngbDropdown #arrangeDropdown="ngbDropdown" *ngIf="sheet && isViewsheet && !deployed && !mergeMenuCollapsed">
       <button id="editorLayoutAlignButton" class="btn composer-btn toolbar-btn pb-1 ps-0 pe-0 layout-align-button"
-              [ngbTooltip]="alignTooltip"
+              [ngbTooltip]="alignTooltip" triggers="hover"
               [placement]="arrangeDropdown.isOpen() ? 'right' : 'bottom'"
               container="body"
               [disabled]="!enableLayoutAlign() || isPreview" ngbDropdownToggle>
@@ -156,6 +156,7 @@
   <div ngbDropdown *ngIf="sheet && isViewsheet && layoutShowing">
     <button id="editContentButton" class="btn composer-btn toolbar-btn pb-1 ps-1 pe-1 edit-content"
             [ngbTooltip]="isPrintLayoutSelected(PrintLayoutSection.HEADER) ? EditHeaderTooltip : (isPrintLayoutSelected(PrintLayoutSection.FOOTER) ? EditFooterTooltip : EditContentTooltip)"
+            triggers="hover"
             [disabled]="!isPrintLayout" ngbDropdownToggle>
       <i class="edit-print-icon icon-size-medium"></i>
       <span *ngIf="isPrintLayoutSelected(PrintLayoutSection.HEADER)">_#(Edit Header)</span>
@@ -166,17 +167,17 @@
     </button>
     <div ngbDropdownMenu aria-labelledby="editorLayoutAlignButton">
       <button class="dropdown-item edit-header-button" (click)="editPrintHeader()"
-        [ngbTooltip]="EditHeaderTooltip" placement="bottom">
+        [ngbTooltip]="EditHeaderTooltip" triggers="hover" placement="bottom">
         <span class="icon-size-medium page-header-icon"></span>
         <div class="item-label">_#(Edit Header)</div>
       </button>
       <button class="dropdown-item edit-content-button" (click)="editPrintContent()"
-        [ngbTooltip]="EditContentTooltip" placement="bottom">
+        [ngbTooltip]="EditContentTooltip" triggers="hover" placement="bottom">
         <span class="icon-size-medium page-body-icon"></span>
         <div class="item-label">_#(Edit Content)</div>
       </button>
       <button class="dropdown-item edit-footer-button" (click)="editPrintFooter()"
-        [ngbTooltip]="EditFooterTooltip" placement="bottom">
+        [ngbTooltip]="EditFooterTooltip" triggers="hover" placement="bottom">
         <span class="icon-size-medium page-footer-icon"></span>
         <div class="item-label">_#(Edit Footer)</div>
       </button>
@@ -184,7 +185,7 @@
   </div>
   <div ngbDropdown *ngIf="sheet && isViewsheet && layoutShowing">
     <button id="guidesButton" class="btn composer-btn toolbar-btn pb-1 ps-1 pe-1 guides-button"
-            [ngbTooltip]="guideTooltip" placement="bottom" container="body"
+            [ngbTooltip]="guideTooltip" triggers="hover" placement="bottom" container="body"
             [disabled]="isPrintLayout || isPreview" ngbDropdownToggle>
       <i class="mobile-icon icon-size-medium"></i>
       <span>_#(Guides)<i class="downward-icon icon-size1"
@@ -215,7 +216,7 @@
   </div>
   <div ngbDropdown *ngIf="sheet && isViewsheet && !isPreview">
     <button id="zoomButton" class="btn composer-btn toolbar-btn pb-1 ps-1 pe-1 zoom-button"
-            [ngbTooltip]="zoomTooltip" placement="bottom" container="body" ngbDropdownToggle>
+            [ngbTooltip]="zoomTooltip" triggers="hover" placement="bottom" container="body" ngbDropdownToggle>
       <i class="zoom-in-icon icon-size-medium"></i>
       <span>_#(Zoom)<i class="downward-icon icon-size1"
                          style="display: inline-block;vertical-align: middle;"></i></span>
@@ -261,7 +262,7 @@
     <div ngbDropdown class="new-object-dropdown">
       <button id="newWorksheetObjectButton"
               class="btn composer-btn toolbar-btn pb-1 ps-1 pe-1 new-ws-object-button"
-              [ngbTooltip]="addTooltip" placement="bottom"
+              [ngbTooltip]="addTooltip" triggers="hover" placement="bottom"
               [disabled]="worksheetOperationsDisabled"
               ngbDropdownToggle (mousedown)="loadDataSources()">
         <i class="new-objects-icon icon-size-medium"></i>
@@ -270,26 +271,26 @@
       </button>
       <div ngbDropdownMenu class="scrollable-menu" aria-labelledby="newWorksheetObjectButton">
         <button class="dropdown-item new-embedded-table-button" (click)="newEmbeddedTable()"
-          [ngbTooltip]="embeddedTableTooltip" placement="bottom">
+          [ngbTooltip]="embeddedTableTooltip" triggers="hover" placement="bottom">
           <i class="embedded-table-icon icon-size-medium"></i>
           <span>_#(Embedded Table)</span>
         </button>
         <button class="dropdown-item new-upload-file-button" (click)="newUploadTable(false)"
-          [ngbTooltip]="uploadFileTooltip" placement="bottom">
+          [ngbTooltip]="uploadFileTooltip" triggers="hover" placement="bottom">
           <i class="upload-icon icon-size-medium"></i>
           <span>_#(Upload File)</span>
         </button>
         <button class="dropdown-item new-variable-button" (click)="newVariable()"
-          [ngbTooltip]="variableTooltip" placement="bottom">
+          [ngbTooltip]="variableTooltip" triggers="hover" placement="bottom">
           <i class="variable-icon icon-size-medium"></i>
           <span>_#(Variable)</span>
         </button>
         <button class="dropdown-item new-grouping-button" (click)="newGrouping()"
-          [ngbTooltip]="groupingTooltip" placement="bottom">
+          [ngbTooltip]="groupingTooltip" triggers="hover" placement="bottom">
           <i class="grouping-icon icon-size-medium"></i>
           <span>_#(Grouping)</span>
         </button>
-        <button *ngFor="let dataSource of databaseDataSources" [ngbTooltip]="databaseQueryTooltip"
+        <button *ngFor="let dataSource of databaseDataSources" [ngbTooltip]="databaseQueryTooltip" triggers="hover"
                 placement="bottom" [disabled]="!sqlEnabled"
                 class="dropdown-item new-database-query-button"
                 (click)="newDatabaseQuery(dataSource.name, false)">

@@ -17,6 +17,11 @@
  */
 package inetsoft.web.vswizard.command;
 
+import inetsoft.util.Tool;
+import org.w3c.dom.Element;
+
+import java.io.PrintWriter;
+
 public class SetWizardGridCommand implements TimeSensitiveCommand {
    public int getGridRowCount() {
       return this.gridRowCount;
@@ -33,6 +38,19 @@ public class SetWizardGridCommand implements TimeSensitiveCommand {
    public void setGridColCount(int gridColCount) {
       this.gridColCount = gridColCount;
    }
+
+   @Override
+   public void writeAttributes(PrintWriter writer) {
+      writer.print(" gridRowCount=\"" + gridRowCount + "\"");
+      writer.print(" gridColCount=\"" + gridColCount + "\"");
+   }
+
+   @Override
+   public void parseAttributes(Element tag) throws Exception {
+      gridRowCount = Integer.parseInt(Tool.getAttribute(tag, "gridRowCount"));
+      gridColCount = Integer.parseInt(Tool.getAttribute(tag, "gridColCount"));
+   }
+
 
    private int gridRowCount;
    private int gridColCount;

@@ -18,61 +18,67 @@
 package inetsoft.web.messaging;
 
 import inetsoft.sree.RepletRepository;
+import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.internal.cluster.*;
 import inetsoft.sree.security.*;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.util.Identity;
 import inetsoft.util.Tool;
-import inetsoft.web.MapSession;
-import inetsoft.web.MapSessionRepository;
 import inetsoft.web.admin.server.NodeProtectionService;
 import inetsoft.web.security.AbstractLogoutFilter;
+import inetsoft.web.session.*;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.*;
 import org.springframework.session.FindByIndexNameSessionRepository;
 import org.springframework.session.Session;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.WebSocketSession;
 
-import java.io.*;
+import java.io.IOException;
 import java.lang.ref.WeakReference;
-import java.net.HttpURLConnection;
-import java.net.URL;
 import java.security.Principal;
 import java.util.*;
 
 @Component
-public class SessionConnectionService implements MapSessionRepository.SessionExpirationListener {
+public class SessionConnectionService {
 
    @Autowired
-   public SessionConnectionService(MapSessionRepository sessionRepository,
+   public SessionConnectionService(IgniteSessionRepository sessionRepository,
                                    AuthenticationService authenticationService,
-                                   NodeProtectionService nodeProtectionService) {
+                                   ApplicationEventPublisher eventPublisher,
+                                   NodeProtectionService nodeProtectionService,
+                                   SecurityEngine securityEngine,
+                                   Cluster cluster)
+   {
       this.sessionRepository = sessionRepository;
       this.authenticationService = authenticationService;
+      this.eventPublisher = eventPublisher;
       this.nodeProtectionService = nodeProtectionService;
+      this.securityEngine = securityEngine;
+      this.cluster = cluster;
    }
 
    @PostConstruct
    public void addSessionListener() {
-      sessionRepository.addSessionExpirationListener(this);
-      SecurityEngine.getSecurity().addAuthenticationChangeListener(authenticationChangeListener);
+      securityEngine.addAuthenticationChangeListener(authenticationChangeListener);
+      cluster.addMessageListener(listener);
    }
 
    @PreDestroy
    public void removeSessionListener() {
-      sessionRepository.removeSessionExpirationListener(this);
-      SecurityEngine.getSecurity().removeAuthenticationChangeListener(authenticationChangeListener);
+      securityEngine.removeAuthenticationChangeListener(authenticationChangeListener);
    }
 
    public void webSocketConnected(WebSocketSession session) {
       cleanReferences();
-      nodeProtectionService.updateNodeProtection(true);
 
       String wsSessionId = session.getId();
+      eventPublisher.publishEvent(new WebsocketConnectionEvent(this, wsSessionId, true));
       String httpSessionId = (String) session.getAttributes().get("SPRING.SESSION.ID");
 
       synchronized(httpSessions) {
@@ -86,6 +92,7 @@ public class SessionConnectionService implements MapSessionRepository.SessionExp
       cleanReferences();
 
       String wsSessionId = session.getId();
+      eventPublisher.publishEvent(new WebsocketConnectionEvent(this, wsSessionId, false));
       String httpSessionId = (String) session.getAttributes().get("SPRING.SESSION.ID");
 
       synchronized(httpSessions) {
@@ -99,31 +106,30 @@ public class SessionConnectionService implements MapSessionRepository.SessionExp
             }
 
             webSocketSessions.remove(wsSessionId);
-
-            if(webSocketSessions.isEmpty()) {
-               nodeProtectionService.updateNodeProtection(false);
-            }
          }
       }
    }
 
-   @Override
-   public void sessionExpired(MapSessionRepository.SessionExpirationEvent event) {
+   private void messageReceived(MessageEvent event) {
+      if(event.getMessage() instanceof SessionExpiredEvent sessionExpiredEvent) {
+         onSessionExpiredEvent(sessionExpiredEvent);
+      }
+   }
+
+   private void onSessionExpiredEvent(SessionExpiredEvent event) {
       cleanReferences();
-      Session httpSession = event.getSession();
-      String httpSessionId = httpSession.getId();
+      String httpSessionId = event.getSessionId();
 
       synchronized(httpSessions) {
          Set<String> wsSessionIds = httpSessions.remove(httpSessionId);
 
          if(wsSessionIds != null) {
-            Principal principal = httpSession.getAttribute(RepletRepository.PRINCIPAL_COOKIE);
+            Principal principal = event.getPrincipalCookie();
             // only redirect if authenticated
             boolean authenticated =
                principal != null && !XPrincipal.ANONYMOUS.equals(principal.getName());
             // don't redirect if already coming from the logout filter
-            boolean fromLogout = Boolean.TRUE.equals(
-               httpSession.getAttribute(AbstractLogoutFilter.LOGGED_OUT));
+            boolean fromLogout = Boolean.TRUE.equals(event.getLoggedOutAttribute());
             // don't redirect to login if security is not enabled - allow to reconnect
             boolean securityEnabled = SecurityEngine.getSecurity().isSecurityEnabled();
 
@@ -158,10 +164,6 @@ public class SessionConnectionService implements MapSessionRepository.SessionExp
                      }
                   }
                }
-            }
-
-            if(webSocketSessions.isEmpty()) {
-               nodeProtectionService.updateNodeProtection(false);
             }
          }
       }
@@ -218,7 +220,7 @@ public class SessionConnectionService implements MapSessionRepository.SessionExp
 
    private void authenticationChanged(AuthenticationChangeEvent event) {
       if(event.getType() == Identity.ORGANIZATION) {
-         SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+         SecurityProvider provider = securityEngine.getSecurityProvider();
          String oldOrgName = event.getOldID() == null ? null : event.getOldID().name;
          String newOrgName = event.getNewID() == null ? null : event.getNewID().name;
          String oldOrgId = event.getOldOrgID();
@@ -238,10 +240,11 @@ public class SessionConnectionService implements MapSessionRepository.SessionExp
       for(SRPrincipal principal : sessionRepository.getActiveSessions()) {
          if(principal != null && (Tool.equals(oldOrgName, principal.getIdentityID().orgID) ||
                                   Tool.equals(oldOrgId, principal.getOrgId()))) {
-            Map<String, MapSession> map = sessionRepository.findByIndexNameAndIndexValue(
+            Map<String, IgniteSessionRepository.IgniteSession> map =
+               sessionRepository.findByIndexNameAndIndexValue(
                FindByIndexNameSessionRepository.PRINCIPAL_NAME_INDEX_NAME, principal.getName());
 
-            for(Map.Entry<String, MapSession> e : map.entrySet()) {
+            for(Map.Entry<String, IgniteSessionRepository.IgniteSession> e : map.entrySet()) {
                SRPrincipal sessionPrincipal =
                   e.getValue().getAttribute(RepletRepository.PRINCIPAL_COOKIE);
 
@@ -253,9 +256,13 @@ public class SessionConnectionService implements MapSessionRepository.SessionExp
       }
    }
 
+   private final Cluster cluster;
+   private final SecurityEngine securityEngine;
+   private final MessageListener listener = this::messageReceived;
    private final AuthenticationService authenticationService;
    private final NodeProtectionService nodeProtectionService;
-   private final MapSessionRepository sessionRepository;
+   private final IgniteSessionRepository sessionRepository;
+   private final ApplicationEventPublisher eventPublisher;
    private final Map<String, WebSocketSessionRef> webSocketSessions = new HashMap<>();
    private final Map<String, Set<String>> httpSessions = new HashMap<>();
    private final AuthenticationChangeListener authenticationChangeListener = this::authenticationChanged;

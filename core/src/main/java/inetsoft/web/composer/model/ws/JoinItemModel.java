@@ -20,8 +20,10 @@ package inetsoft.web.composer.model.ws;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import inetsoft.uql.jdbc.*;
 
+import java.io.Serializable;
+
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class JoinItemModel {
+public class JoinItemModel implements Serializable {
    public JoinItemModel() {}
 
    public JoinItemModel(XJoin join, UniformSQL sql) {

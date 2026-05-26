@@ -17,10 +17,12 @@
  */
 package inetsoft.web.viewsheet;
 
+import java.io.Serializable;
+
 /**
  * The result of the datatip cycle dependency check
  */
-public class DataTipDependencyCheckResult {
+public class DataTipDependencyCheckResult implements Serializable {
 
    public void setMessage(String message) {
       this.message = message;

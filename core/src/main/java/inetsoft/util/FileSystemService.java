@@ -19,19 +19,19 @@ package inetsoft.util;
 
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.cluster.Cluster;
-import inetsoft.sree.internal.cluster.ignite.IgniteCluster;
 import inetsoft.uql.DriverCache;
+import inetsoft.uql.asset.SnapshotEmbeddedTableAssembly;
 import inetsoft.util.swap.XSwapper;
-import inetsoft.web.service.LocalizationService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.stereotype.Service;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.*;
 import java.nio.file.attribute.FileTime;
 import java.util.*;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.Lock;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -42,10 +42,15 @@ import java.util.stream.Stream;
  * @version 13.1
  * @author InetSoft Technology Corp
  */
-@SingletonManager.ShutdownOrder(after = IgniteCluster.class)
+@Service
 public class FileSystemService {
+   public FileSystemService(Cluster cluster, ApplicationEventPublisher eventPublisher) {
+      this.eventPublisher = eventPublisher;
+      this.cluster = cluster;
+   }
+
    public static FileSystemService getInstance() {
-      return SingletonManager.getInstance(FileSystemService.class);
+      return ConfigurationContext.getContext().getSpringBean(FileSystemService.class);
    }
 
    /**
@@ -435,6 +440,25 @@ public class FileSystemService {
    }
 
    /**
+    * Remove file from a path in a period.
+    *
+    * @param path the specified path for the file to be removed.
+    *
+    * @param period the specified time period.
+    *
+    */
+   public synchronized void remove(Path path, int period) {
+      FileEntry entry = new FileEntry(path, period);
+      int pos = Collections.binarySearch(list, entry);
+      pos = pos >= 0 ? pos : -pos - 1;
+      list.add(pos, entry);
+
+      if(list.size() == 1) {
+         TimedQueue.add(runnable);
+      }
+   }
+
+   /**
     * Remove file in a period.
     *
     * @param file the specified file to be removed.
@@ -537,8 +561,6 @@ public class FileSystemService {
 
       if(Files.isDirectory(filePath)) {
          final File[] files = filePath.toFile().listFiles();
-         localizationService = localizationService == null ?
-            new LocalizationService() : localizationService;
 
          // delete in background in case there is a large number of files
          (new Thread() {
@@ -548,31 +570,21 @@ public class FileSystemService {
 
             @Override
             public void run() {
-               try {
-                  localizationService.clearI18nCache();
-               }
-               catch(IOException e) {
-                  if(LOG.isDebugEnabled()) {
-                     LOG.warn("Failed to delete I18n cache", e);
-                  }
-                  else {
-                     LOG.warn("Failed to delete I18n cache");
-                  }
-               }
+               eventPublisher.publishEvent(new ClearCacheFilesEvent(FileSystemService.this));
 
-
-               Cluster cluster = Cluster.getInstance();
-               Lock lock = cluster.getLock(XSwapper.SWAP_FILE_MAP_LOCK);
+               Lock lock = FileSystemService.this.cluster.getLock(XSwapper.SWAP_FILE_MAP_LOCK);
                lock.lock();
 
                try {
-                  Map<String, Integer> map = cluster.getMap(XSwapper.SWAP_FILE_MAP);
+                  Map<String, Integer> map = FileSystemService.this.cluster.getMap(XSwapper.SWAP_FILE_MAP);
+                  Map<String, Integer> snapshotMap = FileSystemService.this.cluster.getMap(SnapshotEmbeddedTableAssembly.FILE_REFERENCES_MAP);
 
                   for(int i = 0; files != null && i < files.length; i++) {
                      if(!files[i].isDirectory() &&
                         !files[i].getName().startsWith(Tool.PERSISTENT_PREFIX) &&
                         !files[i].getName().startsWith(DriverCache.DRIVER_CACHE_FILE_NAME) &&
-                        !map.containsKey(files[i].getAbsolutePath()))
+                        !map.containsKey(files[i].getAbsolutePath()) &&
+                        !snapshotMap.containsKey(files[i].getAbsolutePath()))
                      {
                         Path path = files[i].toPath();
 
@@ -651,11 +663,27 @@ public class FileSystemService {
          this.ts = System.currentTimeMillis() + period;
       }
 
+      public FileEntry(Path path, int period) {
+         super();
+
+         this.path = path;
+         this.ts = System.currentTimeMillis() + period;
+      }
+
       public boolean isRemovable() {
          return System.currentTimeMillis() >= ts;
       }
 
       public void remove() {
+         if(file != null) {
+            removeFile();
+         }
+         else if(path != null) {
+            removePath();
+         }
+      }
+
+      private void removeFile() {
          try {
             if(file.exists()) {
                boolean removed = file.delete();
@@ -672,6 +700,18 @@ public class FileSystemService {
          }
       }
 
+      private void removePath() {
+         try {
+            if(Files.exists(path)) {
+               Files.delete(path);
+            }
+         }
+         catch(Exception ex) {
+            LOG.error("Error removing path in FileTool: " +
+                         path, ex);
+         }
+      }
+
       @Override
       public int compareTo(FileEntry entry) {
          long val = ts - entry.ts;
@@ -679,10 +719,12 @@ public class FileSystemService {
       }
 
       public String toString() {
-         return "FileEntry[" + ts + ", " + file.getAbsolutePath() + "]";
+         String pathString = file != null ? file.getAbsolutePath() : path.toString();
+         return "FileEntry[" + ts + ", " + pathString + "]";
       }
 
       private File file;
+      private Path path;
       private long ts;
    }
 
@@ -705,8 +747,8 @@ public class FileSystemService {
    private List<FileEntry> list = new ArrayList<>();
    private String SREE_CACHE = null;
    private String CACHE = null;
-   private LocalizationService localizationService;
+   private final Cluster cluster;
+   private final ApplicationEventPublisher eventPublisher;
 
-   private static final Logger LOG =
-      LoggerFactory.getLogger(FileSystemService.class);
+   private static final Logger LOG = LoggerFactory.getLogger(FileSystemService.class);
 }

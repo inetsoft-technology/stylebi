@@ -17,11 +17,21 @@
  */
 package inetsoft.web.embed;
 
+import com.fasterxml.jackson.core.*;
+import com.fasterxml.jackson.databind.*;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.fasterxml.jackson.databind.deser.std.StdDeserializer;
+import com.fasterxml.jackson.databind.ser.std.StdSerializer;
+
 import java.awt.*;
+import java.io.IOException;
 
 /**
  * Contains info about the assembly that is embedded as a standalone component
  */
+@JsonSerialize(using = EmbedAssemblyInfo.Serializer.class)
+@JsonDeserialize(using = EmbedAssemblyInfo.Deserializer.class)
 public class EmbedAssemblyInfo {
    public String getAssemblyName() {
       return assemblyName;
@@ -41,4 +51,54 @@ public class EmbedAssemblyInfo {
 
    private String assemblyName;
    private Dimension assemblySize;
+
+   public static final class Serializer extends StdSerializer<EmbedAssemblyInfo> {
+      public Serializer() {
+         super(EmbedAssemblyInfo.class);
+      }
+
+      @Override
+      public void serialize(EmbedAssemblyInfo value, JsonGenerator gen, SerializerProvider provider)
+         throws IOException
+      {
+         gen.writeStartObject();
+         gen.writeStringField("assemblyName", value.assemblyName);
+
+         if(value.assemblySize == null) {
+            gen.writeNullField("assemblySize");
+         }
+         else {
+            gen.writeObjectFieldStart("assemblySize");
+            gen.writeNumberField("width", value.assemblySize.width);
+            gen.writeNumberField("height", value.assemblySize.height);
+            gen.writeEndObject();
+         }
+
+         gen.writeEndObject();
+      }
+   }
+
+   public static final class Deserializer extends StdDeserializer<EmbedAssemblyInfo> {
+      public Deserializer() {
+         super(EmbedAssemblyInfo.class);
+      }
+
+      @Override
+      public EmbedAssemblyInfo deserialize(JsonParser p, DeserializationContext ctxt)
+         throws IOException, JacksonException
+      {
+         JsonNode node = p.getCodec().readTree(p);
+         EmbedAssemblyInfo assemblyInfo = new EmbedAssemblyInfo();
+         assemblyInfo.assemblyName = node.get("assemblyName").asText();
+         JsonNode child = node.get("assemblySize");
+
+         if(!child.isNull()) {
+            int width = child.get("width").asInt();
+            int height = child.get("height").asInt();
+            assemblyInfo.assemblySize = new Dimension(width, height);
+         }
+
+         return assemblyInfo;
+      }
+   }
 }

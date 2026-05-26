@@ -17,10 +17,11 @@
  */
 package inetsoft.report.filter;
 
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
 
-public class GroupTuple {
+public class GroupTuple implements Serializable {
    public GroupTuple() {
    }
 

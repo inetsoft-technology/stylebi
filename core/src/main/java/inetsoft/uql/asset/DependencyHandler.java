@@ -21,22 +21,21 @@ import inetsoft.sree.schedule.ScheduleTask;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.sync.RenameDependencyInfo;
-import inetsoft.uql.erm.vpm.VirtualPrivateModel;
 import inetsoft.uql.erm.XLogicalModel;
+import inetsoft.uql.erm.vpm.VirtualPrivateModel;
 import inetsoft.uql.jdbc.JDBCDataSource;
 import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.xmla.XMLADataSource;
-import inetsoft.util.SingletonManager;
+import inetsoft.util.ConfigurationContext;
 import inetsoft.util.Tool;
 import inetsoft.util.dep.*;
 import org.apache.commons.lang3.StringUtils;
 
 import java.util.List;
 
-@SingletonManager.Singleton(DependencyHandler.Reference.class)
 public interface DependencyHandler {
    static DependencyHandler getInstance() {
-      return SingletonManager.getInstance(DependencyHandler.class);
+      return ConfigurationContext.getContext().getSpringBean(DependencyHandler.class);
    }
 
    void renameDependencies(AssetObject oentry, AssetObject nentry);
@@ -177,23 +176,4 @@ public interface DependencyHandler {
        return prefix + "/" + source;
    }
 
-   final class Reference extends SingletonManager.Reference<DependencyHandler> {
-      @Override
-      public synchronized DependencyHandler get(Object... parameters) {
-         if(handler == null) {
-            handler = new LocalDependencyHandler();
-         }
-
-         return handler;
-      }
-
-      @Override
-      public void dispose() {
-         if(handler != null) {
-            handler = null;
-         }
-      }
-
-      private DependencyHandler handler;
-   }
 }

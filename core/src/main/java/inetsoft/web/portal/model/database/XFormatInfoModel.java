@@ -19,7 +19,9 @@ package inetsoft.web.portal.model.database;
 
 import inetsoft.uql.XConstants;
 
-public class XFormatInfoModel {
+import java.io.Serializable;
+
+public class XFormatInfoModel implements Serializable {
    public String getFormat() {
       return format;
    }

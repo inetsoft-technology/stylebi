@@ -19,14 +19,14 @@ package inetsoft.sree.internal;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import inetsoft.mv.fs.*;
+import inetsoft.mv.fs.FSService;
+import inetsoft.mv.fs.XServerNode;
 import inetsoft.report.Hyperlink;
 import inetsoft.report.internal.Util;
-import inetsoft.report.internal.license.*;
+import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.report.io.viewsheet.snapshot.ViewsheetAsset2;
 import inetsoft.sree.*;
 import inetsoft.sree.internal.cluster.Cluster;
-import inetsoft.sree.internal.cluster.ignite.serializer.Object2ObjectOpenHashMapSerializer;
 import inetsoft.sree.schedule.ScheduleClient;
 import inetsoft.sree.schedule.ScheduleTask;
 import inetsoft.sree.security.*;
@@ -35,7 +35,7 @@ import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.schema.UserVariable;
 import inetsoft.uql.service.DataSourceRegistry;
-import inetsoft.uql.util.*;
+import inetsoft.uql.util.Identity;
 import inetsoft.uql.viewsheet.vslayout.DeviceInfo;
 import inetsoft.uql.viewsheet.vslayout.DeviceRegistry;
 import inetsoft.util.*;
@@ -46,6 +46,13 @@ import inetsoft.web.RecycleUtils;
 import inetsoft.web.admin.schedule.model.ServerLocation;
 import inetsoft.web.admin.schedule.model.ServerPathInfoModel;
 import inetsoft.web.viewsheet.service.LinkUriArgumentResolver;
+import jakarta.servlet.http.*;
+import org.apache.commons.io.IOUtils;
+import org.apache.hc.core5.net.InetAddressUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.messaging.simp.user.DestinationUserNameProvider;
+import org.springframework.util.StringUtils;
 
 import java.io.*;
 import java.lang.ref.WeakReference;
@@ -57,18 +64,6 @@ import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
-
-import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
-import jakarta.servlet.http.*;
-import org.apache.commons.io.IOUtils;
-import org.apache.hc.core5.net.InetAddressUtils;
-import org.apache.ignite.binary.BinaryTypeConfiguration;
-import org.apache.ignite.configuration.BinaryConfiguration;
-import org.apache.ignite.configuration.IgniteConfiguration;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.messaging.simp.user.DestinationUserNameProvider;
-import org.springframework.util.StringUtils;
 
 /**
  * Common utility methods used in SREE.
@@ -168,7 +163,7 @@ public class SUtil {
     * Try getting replet engine.
     */
    public static RepletEngine getRepletEngine(AnalyticRepository rep) {
-      return rep instanceof RepletEngine ? (RepletEngine) rep : null;
+      return rep != null && rep.isWrapperFor(RepletEngine.class) ? rep.unwrap(RepletEngine.class) : null;
    }
 
    /**
@@ -184,7 +179,7 @@ public class SUtil {
     * @return the repository.
     */
    public static AnalyticRepository getRepletRepository() {
-      return SingletonManager.getInstance(AnalyticRepository.class);
+      return AnalyticRepository.getInstance();
    }
 
    /**
@@ -476,7 +471,13 @@ public class SUtil {
       }
 
       if(cp.isEmpty() || ".".equals(cp)) {
-         return System.getProperty("java.class.path", ".");
+         cp = System.getProperty("java.class.path", ".");
+      }
+
+      String extraCp = System.getProperty("scheduler.extra.classpath");
+
+      if(extraCp != null && !extraCp.isEmpty()) {
+         cp = cp + File.pathSeparator + extraCp;
       }
 
       return cp;
@@ -730,7 +731,9 @@ public class SUtil {
     * Get principal.
     */
    public static SRPrincipal getPrincipal(IdentityID remoteUser, String remoteAddr, boolean fireEvent) {
-      return getPrincipal(remoteUser, remoteAddr, (String) null, fireEvent, null);
+      SRPrincipal principal = getPrincipal(remoteUser, remoteAddr, (String) null, fireEvent, null);
+      principal.setIgnoreLogin(true);
+      return principal;
    }
 
    /**
@@ -844,6 +847,57 @@ public class SUtil {
       }
 
       return res;
+   }
+
+   /**
+    * Gets the principal for a schedule task owner. Unlike {@link #getPrincipal}, this
+    * handles the case where a site admin owns tasks in an organization other than their
+    * home org: if the owner is not found in the specified org, it searches for a site
+    * admin with the same name across all orgs and returns a principal using that admin's
+    * roles with the original org preserved as the context.
+    */
+   public static SRPrincipal getScheduleTaskOwnerPrincipal(IdentityID owner, String addr,
+                                                            boolean fireEvent)
+   {
+      SRPrincipal principal = getPrincipal(owner, addr, fireEvent);
+
+      // If the user does not exist in the specified org, check whether the name belongs to a
+      // site admin in a different org
+      if(owner != null && owner.orgID != null &&
+         !XPrincipal.ANONYMOUS.equals(owner.name) && !XPrincipal.SYSTEM.equals(owner.name))
+      {
+         try {
+            SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+
+            if(provider.getUser(owner) == null) {
+               for(IdentityID candidateId : provider.getUsers()) {
+                  if(candidateId.name.equals(owner.name) && !owner.orgID.equals(candidateId.orgID)) {
+                     User candidate = provider.getUser(candidateId);
+
+                     if(candidate != null && OrganizationManager.getInstance().isSiteAdmin(candidateId)) {
+                        // Create a principal with the site admin's roles but the originally-
+                        // requested org as context so org-scoped lookups (task map, assets)
+                        // continue to use the correct org.
+                        LOG.debug("Resolved cross-org site admin {} (from {}) for task owner {}",
+                                  candidateId, candidateId.orgID, owner);
+                        principal = new SRPrincipal(
+                           new ClientInfo(owner, addr, null, null),
+                           candidate.getRoles(), new String[0], owner.orgID,
+                           getRandom().nextLong(), candidate.getAlias());
+                        principal.setIgnoreLogin(true);
+                        setAdditionalDatasource(principal);
+                        break;
+                     }
+                  }
+               }
+            }
+         }
+         catch(Exception e) {
+            LOG.warn("Failed to find cross-org site admin principal for {}", owner, e);
+         }
+      }
+
+      return principal;
    }
 
    /**
@@ -1754,7 +1808,7 @@ public class SUtil {
       try {
          boolean isMyReport = isMyReport(path);
          user = isMyReport ? user : null;
-         RepletRegistry registry = RepletRegistry.getRegistry(user);
+         RepletRegistry registry = RepletRegistryManager.getInstance().getRegistry(user);
          boolean result = registry != null && registry.isFolder(path);
 
          if(type == RepositoryEntry.VIEWSHEET) {
@@ -1925,10 +1979,10 @@ public class SUtil {
 
       try {
          if(principal != null && path.startsWith(MY_REPORT)) {
-            registry = RepletRegistry.getRegistry(IdentityID.getIdentityIDFromKey(principal.getName()));
+            registry = RepletRegistryManager.getInstance().getRegistry(IdentityID.getIdentityIDFromKey(principal.getName()));
          }
 
-         dregistry = RepletRegistry.getRegistry();
+         dregistry = RepletRegistryManager.getInstance().getRegistry();
       }
       catch(Exception ex) {
          LOG.error("Failed to get replet registry for localization", ex);
@@ -2468,6 +2522,11 @@ public class SUtil {
       try {
          Principal principal = null;
          HttpSession session = req.getSession(create);
+
+         if(session == null) {
+            return null;
+         }
+
          boolean isEmRequest = Tool.equals("true", req.getHeader(RepletRepository.EM_CLIENT)) ||
             "websocket".equals(req.getHeader("Upgrade")) &&
                Tool.equals("true", req.getParameter(RepletRepository.EM_CLIENT));
@@ -2480,6 +2539,11 @@ public class SUtil {
 
                if(principal != null && OrganizationManager.getInstance().isSiteAdmin(principal)) {
                   principal = createEMPrincipal(principal);
+
+                  if(principal instanceof XPrincipal xPrincipal) {
+                     xPrincipal.setProperty(EM_USER, "true");
+                  }
+
                   session.setAttribute(RepletRepository.EM_PRINCIPAL_COOKIE, principal);
                }
             }
@@ -2496,6 +2560,10 @@ public class SUtil {
       }
 
       return null;
+   }
+
+   public static boolean isEMPrincipal(XPrincipal principal) {
+      return principal != null && "true".equals(principal.getProperty(EM_USER));
    }
 
    public static boolean isSiteAdminSession(HttpSession session) {
@@ -2763,22 +2831,26 @@ public class SUtil {
    /**
     * Get ip address.
     */
-   private static String getIpAddress(HttpServletRequest req) {
+   public static String getIpAddress(HttpServletRequest req) {
       String ip = req.getHeader("remote_ip");
 
-      if(ip == null || ip.length() == 0 || "unknown".equalsIgnoreCase(ip)) {
+      if(ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
+         ip = req.getHeader("X-Original-Forwarded-For");
+      }
+
+      if(ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
          ip = req.getHeader("X-Forwarded-For");
       }
 
-      if(ip == null || ip.length() == 0 || "unknown".equalsIgnoreCase(ip)) {
+      if(ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
          ip = req.getHeader("Proxy-Client-IP");
       }
 
-      if(ip == null || ip.length() == 0 || "unknown".equalsIgnoreCase(ip)) {
+      if(ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
          ip = req.getHeader("WL-Proxy-Client-IP");
       }
 
-      if(ip == null || ip.length() == 0 || "unknown".equalsIgnoreCase(ip)) {
+      if(ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
          ip = req.getRemoteAddr();
       }
 
@@ -2931,7 +3003,7 @@ public class SUtil {
 
    public static boolean isMultiTenant() {
       return SecurityEngine.getSecurity().isSecurityEnabled() &&
-         LicenseManager.getInstance().isEnterprise() &&
+         LicenseManager.isEnterprise() &&
          Boolean.parseBoolean(SreeEnv.getProperty("security.users.multiTenant", "false"));
    }
 
@@ -3060,7 +3132,7 @@ public class SUtil {
       }
 
       String finalTaskName = Tool.buildString(userName, ":", taskName);
-      return LicenseManager.getInstance().isEnterprise() ?
+      return LicenseManager.isEnterprise() ?
          Tool.buildString(finalTaskName, "^", orgId) : finalTaskName;
    }
 
@@ -3102,7 +3174,20 @@ public class SUtil {
 
    public static IdentityID getOwnerForNewTask(IdentityID user) {
       OrganizationManager organizationManager = OrganizationManager.getInstance();
-      String currOrgId = organizationManager.getCurrentOrgID();
+      // Prefer the OrganizationContextHolder org (set when a site admin creates tasks for another
+      // org) over the user's own org, so the task owner belongs to the target organization.
+      String contextOrgId = OrganizationContextHolder.getCurrentOrgId();
+      String currOrgId;
+
+      if(!Tool.isEmptyString(contextOrgId)) {
+         currOrgId = contextOrgId;
+      }
+      else if(user != null && !Tool.isEmptyString(user.getOrgID())) {
+         currOrgId = user.getOrgID();
+      }
+      else {
+         currOrgId = organizationManager.getCurrentOrgID();
+      }
 
       if(user != null && !Tool.equals(user.getOrgID(), currOrgId)) {
          SecurityEngine security = SecurityEngine.getSecurity();
@@ -3323,22 +3408,6 @@ public class SUtil {
       }
 
       return map;
-   }
-
-   public static void configBinaryTypes(IgniteConfiguration config) {
-      BinaryConfiguration binaryCfg = new BinaryConfiguration();
-      binaryCfg.setTypeConfigurations(getBinaryTypeConfigurations());
-      config.setBinaryConfiguration(binaryCfg);
-   }
-
-   private static List<BinaryTypeConfiguration> getBinaryTypeConfigurations() {
-      List<BinaryTypeConfiguration> binaryTypeConfigurations = new ArrayList<>();
-      BinaryTypeConfiguration typeCfg = new BinaryTypeConfiguration();
-      typeCfg.setTypeName(Object2ObjectOpenHashMap.class.getName());
-      typeCfg.setSerializer(new Object2ObjectOpenHashMapSerializer());
-      binaryTypeConfigurations.add(typeCfg);
-
-      return binaryTypeConfigurations;
    }
 
    public static String writeCookiesString(Cookie[] cookies) {
@@ -3590,6 +3659,7 @@ public class SUtil {
     */
    public static final String MAC_LOG_NAME = "inetsoft.sree.MACAudit";
    public static final String VPM_USER = "composer_vpm_user";
+   public static final String EM_USER = "em_user";
    private static final Logger MAC_LOG = LoggerFactory.getLogger(MAC_LOG_NAME);
    private static final ReentrantLock scheduleLock = new ReentrantLock();
 

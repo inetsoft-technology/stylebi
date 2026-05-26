@@ -31,6 +31,7 @@ import inetsoft.report.io.viewsheet.*;
 import inetsoft.report.io.viewsheet.excel.ExcelVSUtil;
 import inetsoft.report.pdf.PDF3Generator;
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.viewsheet.*;
@@ -63,7 +64,11 @@ public class PDFVSExporter extends AbstractVSExporter {
     * Constructor.
     * @param stream the specified OutputStream.
     */
-   public PDFVSExporter(OutputStream stream) {
+   public PDFVSExporter(LibManagerProvider libManagerProvider, Cluster cluster, FileSystemService fileSystemService, DataSpace dataSpace, OutputStream stream) {
+      this.libManagerProvider = libManagerProvider;
+      this.cluster = cluster;
+      this.fileSystemService = fileSystemService;
+      this.dataSpace = dataSpace;
       helper = new PDFCoordinateHelper(stream);
       generator = PDF3Generator.getPDFGenerator(stream);
       genLink = SreeEnv.getProperty("pdf.generate.links").equalsIgnoreCase("true");
@@ -104,7 +109,7 @@ public class PDFVSExporter extends AbstractVSExporter {
 
             viewsheet.updateCSSFormat("pdf", null, box);
 
-            VsToReportConverter converter = new VsToReportConverter(box);
+            VsToReportConverter converter = new VsToReportConverter(box, libManagerProvider, cluster, fileSystemService, dataSpace);
             ReportSheet report = converter.generateReport();
 
             // Build a list of report sheets instead of generating a printlayout
@@ -361,12 +366,9 @@ public class PDFVSExporter extends AbstractVSExporter {
                   final String dir = SreeEnv.getProperty("html.image.directory");
 
                   if(!Tool.isEmptyString(dir)) {
-                     final String imagePath =
-                        FileSystemService.getInstance().getPath(dir, name).toString();
+                     final String imagePath = fileSystemService.getPath(dir, name).toString();
 
-                     try(final InputStream stream =
-                            DataSpace.getDataSpace().getInputStream(null, imagePath))
-                     {
+                     try(final InputStream stream = dataSpace.getInputStream(null, imagePath)) {
                         svg = new byte[stream.available()];
                         stream.read(svg);
                      }
@@ -1119,18 +1121,18 @@ public class PDFVSExporter extends AbstractVSExporter {
          generator.setPrintLayoutMode(true);
          generator.setPrintOnOpen(isPrintOnOpen());
          ReportSheet[] reportSheets = reportList.toArray(new ReportSheet[0]);
-         CompositeSheet compositeSheet = new CompositeSheet(reportSheets);
+         CompositeSheet compositeSheet = new CompositeSheet(reportSheets, libManagerProvider, cluster);
          generator.generate(compositeSheet);
+         return;
       }
-      else {
-         LicenseManager licenseManager = LicenseManager.getInstance();
 
-         if(licenseManager.isElasticLicense() && licenseManager.getElasticRemainingHours() == 0) {
-            Size pageSize = helper.getPrinter().getPageSize();
-            Dimension pageDimension = new Dimension((int) pageSize.width * 72,
-               (int) pageSize.height * 72);
-            Util.drawWatermark(helper.getPrinter(), pageDimension);
-         }
+      LicenseManager licenseManager = LicenseManager.getInstance();
+
+      if(licenseManager.isElasticLicense() && licenseManager.getElasticRemainingHours() == 0) {
+         Size pageSize = helper.getPrinter().getPageSize();
+         Dimension pageDimension = new Dimension((int) pageSize.width * 72,
+            (int) pageSize.height * 72);
+         Util.drawWatermark(helper.getPrinter(), pageDimension);
       }
 
       helper.write();
@@ -1197,6 +1199,10 @@ public class PDFVSExporter extends AbstractVSExporter {
       return !Tool.equals(fmt.getBackground(), parentFmt.getBackground());
    }
 
+   private final LibManagerProvider libManagerProvider;
+   private final Cluster cluster;
+   private final FileSystemService fileSystemService;
+   private final DataSpace dataSpace;
    // page height in PDF points (1 inch = 72 points)
    private float getPageHeightPts() {
       return helper.getPrinter().getPageSize().height * 72;

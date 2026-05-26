@@ -17,10 +17,6 @@
  */
 package inetsoft.web.composer.ws;
 
-import inetsoft.report.composition.RuntimeWorksheet;
-import inetsoft.uql.asset.TableAssembly;
-import inetsoft.uql.asset.Worksheet;
-import inetsoft.web.composer.ws.assembly.WSColumnDndProcessor;
 import inetsoft.web.composer.ws.event.WSDragColumnsEvent;
 import inetsoft.web.viewsheet.LoadingMask;
 import inetsoft.web.viewsheet.Undoable;
@@ -33,6 +29,10 @@ import java.security.Principal;
 
 @Controller
 public class DragColumnsController extends WorksheetController {
+   public DragColumnsController(DragColumnsServiceProxy dragColumnsService) {
+      this.dragColumnsService = dragColumnsService;
+   }
+
    @Undoable
    @LoadingMask
    @MessageMapping("/composer/worksheet/drag-columns")
@@ -40,16 +40,8 @@ public class DragColumnsController extends WorksheetController {
       @Payload WSDragColumnsEvent event, Principal principal,
       CommandDispatcher commandDispatcher) throws Exception
    {
-      RuntimeWorksheet rws = super.getRuntimeWorksheet(principal);
-      Worksheet ws = rws.getWorksheet();
-      String tname = event.tableName();
-      TableAssembly table = (TableAssembly) ws.getAssembly(tname);
-
-      if(event.columnIndices().length == 0) {
-         return;
-      }
-
-      new WSColumnDndProcessor(rws, table, event,
-                               principal, commandDispatcher).process();
+      dragColumnsService.dragColumns(getRuntimeId(), event, principal, commandDispatcher);
    }
+
+   private final DragColumnsServiceProxy dragColumnsService;
 }

@@ -32,22 +32,21 @@ import java.util.concurrent.TimeUnit;
 @Service
 @Lazy(false)
 public class MetricsPublisherService {
-   public MetricsPublisherService(ScalingMetricsService metricsService) {
+   @org.springframework.beans.factory.annotation.Autowired
+   public MetricsPublisherService(ScalingMetricsService metricsService, Cluster cluster) {
       this.metricsService = metricsService;
+      this.cluster = cluster;
    }
 
    @PostConstruct
    public void init() {
-      cluster = Cluster.getInstance();
-      scalingMetricMap = Cluster.getInstance().getMap(SCALING_METRIC_MAP);
+      scalingMetricMap = cluster.getMap(SCALING_METRIC_MAP);
       MetricsConfig metricsConfig = InetsoftConfig.getInstance().getMetrics();
 
       if(metricsConfig != null && metricsConfig.getType() != null) {
-         if(cluster.getLong(COUNTER_NAME).getAndIncrement() == 0) {
-            // first instance, start task
-            cluster.getScheduledExecutor().scheduleAtFixedRate(
-               new PublishMetricsTask(), 120L, 60L, TimeUnit.SECONDS);
-         }
+         // scheduleAtFixedRate is idempotent across the cluster (deduplicates by class name)
+         cluster.getScheduledExecutor().scheduleAtFixedRate(
+            new PublishMetricsTask(), 120L, 60L, TimeUnit.SECONDS);
       }
    }
 
@@ -61,8 +60,7 @@ public class MetricsPublisherService {
    }
 
    private final ScalingMetricsService metricsService;
-   private Cluster cluster;
+   private final Cluster cluster;
    private DistributedMap<String, Double> scalingMetricMap;
-   private static final String COUNTER_NAME = MetricsPublisherService.class.getName() + ".counter";
    public static final String SCALING_METRIC_MAP = MetricsPublisherService.class.getName() + ".scalingMetricMap";
 }

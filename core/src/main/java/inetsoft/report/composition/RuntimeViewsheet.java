@@ -17,6 +17,8 @@
  */
 package inetsoft.report.composition;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import inetsoft.analytic.AnalyticAssistant;
 import inetsoft.analytic.composition.event.VSEventUtil;
 import inetsoft.report.composition.execution.AssetQuerySandbox;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
@@ -41,8 +43,16 @@ import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.vswizard.model.recommender.VSTemporaryInfo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
 
+
+import java.awt.Dimension;
 import java.awt.event.ActionListener;
+import java.awt.geom.Point2D;
+import java.io.IOException;
+import java.io.StringReader;
+import java.nio.charset.StandardCharsets;
 import java.security.Principal;
 import java.util.*;
 import java.util.concurrent.locks.ReentrantLock;
@@ -136,6 +146,171 @@ public class RuntimeViewsheet extends RuntimeSheet {
       // the cloned viewsheet is for undo/redo, and we should share the cloned
       // viewsheet in cached query and undo/redo
       addCheckpoint(this.vs.prepareCheckpoint());
+   }
+
+   RuntimeViewsheet(RuntimeViewsheetState state, ObjectMapper mapper) {
+      super(state, mapper);
+      bindingID = state.getBindingId();
+
+      // Load originalVs first (it's the base for delta decoding)
+      if(state.getOriginalVs() != null) {
+         originalVs = loadXml(new Viewsheet(), state.getOriginalVs());
+      }
+
+      // Track vsXml for decoding point deltas later
+      String vsXmlForDeltas = null;
+
+      // Load vs: either directly, from delta, or use originalVs
+      if(state.getVs() != null) {
+         // Direct storage (backward compatibility or fallback)
+         vsXmlForDeltas = state.getVs();
+         vs = loadXml(new Viewsheet(), vsXmlForDeltas);
+         vs.setMaxMode(state.isMaxMode());
+      }
+      else if(state.getVsDelta() != null && state.getOriginalVs() != null) {
+         // VCDIFF delta decoding: decode vs using originalVs as dictionary
+         byte[] originalBytes = state.getOriginalVs().getBytes(StandardCharsets.UTF_8);
+
+         try {
+            byte[] vsBytes = applyVcdiffDelta(originalBytes, state.getVsDelta());
+            vsXmlForDeltas = new String(vsBytes, StandardCharsets.UTF_8);
+            vs = loadXml(new Viewsheet(), vsXmlForDeltas);
+            vs.setMaxMode(state.isMaxMode());
+         }
+         catch(IOException e) {
+            LOG.error("Failed to apply VCDIFF delta for vs, cloning originalVs", e);
+            vs = (Viewsheet) originalVs.clone();
+            vs.setMaxMode(state.isMaxMode());
+            // Use originalVs XML since vs is a clone of it
+            vsXmlForDeltas = state.getOriginalVs();
+         }
+      }
+      else if(originalVs != null) {
+         // vs was identical to originalVs, clone it
+         vs = (Viewsheet) originalVs.clone();
+         vs.setMaxMode(state.isMaxMode());
+         // vs equals originalVs, so use originalVs XML for delta decoding
+         vsXmlForDeltas = state.getOriginalVs();
+      }
+
+      if(state.getVars() != null) {
+         vars = loadJson(VariableTable.class, state.getVars(), mapper);
+      }
+
+      if(state.getHashImage() != null) {
+         imageHashService = loadXml(new ImageHashService(), state.getHashImage());
+      }
+
+      viewer = state.isViewer();
+      preview = state.isPreview();
+      needRefresh = state.isNeedsRefresh();
+      mode = state.getMode();
+      rep = AnalyticAssistant.getAnalyticAssistant().getAnalyticRepository().unwrap(AssetRepository.class);
+
+      //need to recover worksheet before setting box
+      vs.repopulateWorksheet(rep, user);
+
+      if(state.getBoxRid() != null) {
+         box = new ViewsheetSandbox(vs, mode, getUser(), false, entry, state.getBoxRid());
+      }
+      else {
+         box = new ViewsheetSandbox(vs, mode, getUser(), false, entry);
+      }
+
+      box.setOriginalID(state.getOriginalId());
+      execSessionID = state.getExecSessionId();
+      touchts = state.getTouchts();
+      tipviews = state.getTipviews();
+      popcomponents = state.getPopcomponents();
+
+      // bookmarksMap is loaded lazily from repository on demand via getUserBookmark()
+      // which calls getVSBookmark(principalKey) -> rep.getVSBookmark() when key is missing
+      bookmarksMap = new HashMap<>();
+
+      // Recreate ibookmark from originalVs (the initial viewsheet state)
+      if(originalVs != null && isRuntime()) {
+         ibookmark = new VSBookmark();
+         ibookmark.addBookmark(VSBookmark.INITIAL_STATE, originalVs,
+            VSBookmarkInfo.PRIVATE, false, true);
+      }
+
+      if(state.getOpenedBookmark() != null) {
+         openedBookmark = loadXml(new VSBookmarkInfo(), state.getOpenedBookmark());
+      }
+
+      lastReset = state.getLastReset();
+      dateCreated = state.getDateCreated();
+      engine = WorksheetEngine.getWorksheetService();
+      notHitMVs = new HashSet<>();
+
+      if(state.getRvsLayout() != null) {
+         rvsLayout = loadXml(new ViewsheetLayout(), state.getRvsLayout());
+      }
+
+      if(state.getLayoutPoints() != null) {
+         layoutPoints = new ArrayList<>();
+
+         for(String xml : state.getLayoutPoints()) {
+            layoutPoints.add(loadLayout(xml));
+         }
+      }
+
+      layoutPointLock = new ReentrantLock();
+      layoutPoint = state.getLayoutPoint();
+      wizardViewsheet = state.isWizardViewsheet();
+
+      if(state.getEmbedAssemblyInfo() != null) {
+         embedAssemblyInfo = loadJson(EmbedAssemblyInfo.class, state.getEmbedAssemblyInfo(), mapper);
+      }
+
+      // Decode undo/redo checkpoints from VCDIFF deltas
+      decodePointDeltas(state.getPointDeltas(), vsXmlForDeltas, xml -> loadXml(new Viewsheet(), xml));
+
+      boolean isUpdate = state.isUpdate();
+
+      setEntry(entry, isUpdate);
+
+      if(state.getTemporaryInfo() != null) {
+         temporaryInfo = loadXml(new VSTemporaryInfo(), state.getTemporaryInfo());
+
+         if(temporaryInfo.getTempChart() != null) {
+            temporaryInfo.getTempChart().setViewsheet(vs);
+         }
+      }
+
+      // load base worksheet and create asset query sandbox
+      resetRuntime(true);
+
+      // Re-apply scale if it was previously applied before the state was saved.
+      // The scaledPosition/scaledSize on assemblies are not persisted to XML,
+      // so we need to re-apply them from the saved scale properties.
+      // This is done after resetRuntime to ensure any resets are done first.
+      reapplyScaleFromState();
+   }
+
+   /**
+    * Re-apply scale to screen from saved state properties.
+    */
+   private void reapplyScaleFromState() {
+      Object appliedScale = getProperty("viewsheet.appliedScale");
+      Object scaleRatioObj = getProperty("viewsheet.scaleRatio");
+
+      if(appliedScale instanceof Dimension && scaleRatioObj instanceof Point2D.Double &&
+         vs != null && vs.getViewsheetInfo() != null && vs.getViewsheetInfo().isScaleToScreen() &&
+         box != null)
+      {
+         Dimension size = (Dimension) appliedScale;
+         Point2D.Double scaleRatio = (Point2D.Double) scaleRatioObj;
+
+         if(size.width > 0 && size.height > 0 && scaleRatio.x > 0 && scaleRatio.y > 0) {
+            try {
+               VSEventUtil.applyScale(vs, scaleRatio, false, null, size.width, size.height, box);
+            }
+            catch(Exception e) {
+               LOG.error("Failed to re-apply scale after restoration", e);
+            }
+         }
+      }
    }
 
    /**
@@ -238,11 +413,15 @@ public class RuntimeViewsheet extends RuntimeSheet {
     */
    @Override
    public void setEntry(AssetEntry entry) {
+      setEntry(entry, false);
+   }
+
+   public void setEntry(AssetEntry entry, boolean isUpdate) {
       super.setEntry(entry);
       updateVSBookmark(isRuntime());
 
       // go to the default bookmark state for runtime only
-      if(isRuntime() && !isAnonymous() && vs != null && user != null) {
+      if(!isUpdate && isRuntime() && !isAnonymous() && vs != null && user != null) {
          Viewsheet ovs = vs;
          vs = gotoDefaultBookmark(vs);
          resetViewsheet(vs, ovs);
@@ -291,7 +470,7 @@ public class RuntimeViewsheet extends RuntimeSheet {
          try {
             if(getDefaultContainer(defBookmark) != null) {
                VSBookmark cbookmark = getDefaultContainer(defBookmark);
-               vs = VSUtil.vsGotoBookmark(vs, cbookmark, defBookmark.getName(), rep);
+               vs = VSUtil.vsGotoBookmark(vs, cbookmark, defBookmark.getName(), rep, null);
                userDefined = true;
                VSBookmarkInfo dInfo = cbookmark.getBookmarkInfo(defBookmark.getName());
                setOpenedBookmark(dInfo);
@@ -318,8 +497,11 @@ public class RuntimeViewsheet extends RuntimeSheet {
             if(hInfo == null) {
                //The owner of (Home) bookmark is admin
                bookmark = getUserBookmark(new IdentityID("admin", OrganizationManager.getInstance().getCurrentOrgID()));
-               vs = bookmark.getHomeBookmark(vs);
-               hInfo = bookmark.getBookmarkInfo(VSBookmark.HOME_BOOKMARK);
+
+               if(bookmark != null) {
+                  vs = bookmark.getHomeBookmark(vs);
+                  hInfo = bookmark.getBookmarkInfo(VSBookmark.HOME_BOOKMARK);
+               }
             }
 
             setOpenedBookmark(hInfo);
@@ -361,8 +543,8 @@ public class RuntimeViewsheet extends RuntimeSheet {
     * Get the asset query sandbox.
     * @return the asset query sandbox.
     */
-   public ViewsheetSandbox getViewsheetSandbox() {
-      return box;
+   public Optional<ViewsheetSandbox> getViewsheetSandbox() {
+      return Optional.ofNullable(box);
    }
 
    /**
@@ -371,6 +553,10 @@ public class RuntimeViewsheet extends RuntimeSheet {
     * states can be reinitialized to be in sync.
     */
    public void resetRuntime() {
+      resetRuntime(false);
+   }
+
+   public void resetRuntime(boolean applyHomeBookmark) {
       final ViewsheetSandbox box = this.box;
       final Viewsheet vs = this.vs;
 
@@ -389,11 +575,16 @@ public class RuntimeViewsheet extends RuntimeSheet {
                containsEmbeddedVs(vs))
             {
                try {
-                  gotoBookmark(openedBookmark.getName(), openedBookmark.getOwner());
+                  gotoBookmark(openedBookmark.getName(), openedBookmark.getOwner(), null);
                }
                catch(Exception e) {
                   LOG.warn("Failed to go to bookmark after reset", e);
                }
+            }
+            else if(applyHomeBookmark && openedBookmark != null &&
+               VSBookmark.HOME_BOOKMARK.equals(openedBookmark.getName()))
+            {
+               gotoDefaultBookmark(vs);
             }
 
             initViewsheet(vs, true);
@@ -481,13 +672,19 @@ public class RuntimeViewsheet extends RuntimeSheet {
     * @param vs the specified viewsheet object.
     */
    public void setViewsheet(Viewsheet vs) {
-      if(isDisposed()) {
+      if(isDisposed() || box == null) {
          return;
       }
 
       Viewsheet ovs = this.vs;
       this.vs = vs;
+      vs.setRuntimeEntry(entry);
       resetViewsheet(this.vs, ovs);
+
+      //if worksheet entry exists but worksheet is unpopulated, reset runtime to repopulate
+      if(vs.getBaseEntry() != null && vs.getBaseWorksheet() == null) {
+         resetRuntime();
+      }
 
       box.setViewsheet(this.vs, true);
       // vs changed, ignore the previous failed mv attempts and try again
@@ -599,7 +796,7 @@ public class RuntimeViewsheet extends RuntimeSheet {
     * @return <tt>true</tt> if go to bookmark successfully, <tt>false</tt>
     * otherwise.
     */
-   public boolean gotoBookmark(String name, IdentityID user) throws Exception {
+   public boolean gotoBookmark(String name, IdentityID user, Principal principal) throws Exception {
       boolean isHome = VSBookmark.HOME_BOOKMARK.equals(name);
       VSBookmark bookmark = null;
 
@@ -635,13 +832,21 @@ public class RuntimeViewsheet extends RuntimeSheet {
             processedViewsheet = (Viewsheet) vs.clone();
          }
 
-         processedViewsheet = VSUtil.vsGotoBookmark(processedViewsheet, bookmark, name, rep);
+         processedViewsheet = VSUtil.vsGotoBookmark(processedViewsheet, bookmark, name, rep, principal);
       }
 
       // Apply the updated viewsheet
       if(processedViewsheet != null) {
          if(rvsLayout != null) {
             processedViewsheet = rvsLayout.apply(processedViewsheet);
+         }
+         else {
+            // Clear any stale layout state (layoutPosition/layoutSize/layoutVisible) that
+            // CalcTableVSAssembly.parseStateContent() may have restored from the bookmark.
+            // rvsLayout.apply() normally does this via clearLayoutState() before applying new
+            // positions, but when no layout is active that call is skipped entirely, leaving
+            // stale (0,0) layout coordinates from a prior layout application in the bookmark.
+            processedViewsheet.clearLayoutState();
          }
 
          setOpenedBookmark(bookmark == null ? null : bookmark.getBookmarkInfo(name));
@@ -740,7 +945,7 @@ public class RuntimeViewsheet extends RuntimeSheet {
       }
 
       // goto the refreshed bookmark
-      gotoBookmark(name, user);
+      gotoBookmark(name, user, null);
 
       return true;
    }
@@ -846,7 +1051,7 @@ public class RuntimeViewsheet extends RuntimeSheet {
          return null;
       }
 
-      return VSUtil.vsGotoBookmark(vs.clone(), bookmark, name, rep);
+      return VSUtil.vsGotoBookmark(vs.clone(), bookmark, name, rep, null);
    }
 
    /**
@@ -894,7 +1099,7 @@ public class RuntimeViewsheet extends RuntimeSheet {
                                                     processedViewsheet);
       }
 
-      return VSUtil.vsGotoBookmark(processedViewsheet, bookmark, name, rep);
+      return VSUtil.vsGotoBookmark(processedViewsheet, bookmark, name, rep, user);
    }
 
    /**
@@ -1091,7 +1296,7 @@ public class RuntimeViewsheet extends RuntimeSheet {
             VSBookmarkInfo bookmarkInfo = getBookmarkInfo(name, user);
             bookmark.removeBookmark(name);
             AuditRecordUtils.executeBookmarkRecord(
-               getViewsheet(), bookmarkInfo, BookmarkRecord.ACTION_TYPE_DELETE);
+               getViewsheet(), bookmarkInfo, BookmarkRecord.ACTION_TYPE_DELETE, null);
          }
 
          AssetEntry entry = AssetEntry.createAssetEntry(bookmark.getIdentifier());
@@ -1793,12 +1998,13 @@ public class RuntimeViewsheet extends RuntimeSheet {
          }
 
          RuntimeViewsheet rvs = (RuntimeViewsheet) rarr[i];
-         ViewsheetSandbox rbox = rvs.getViewsheetSandbox();
+         Optional<ViewsheetSandbox> rboxOpt = rvs.getViewsheetSandbox();
 
-         if(rbox == null) {
+         if(rboxOpt.isEmpty()) {
             continue;
          }
 
+         ViewsheetSandbox rbox = rboxOpt.get();
          ViewsheetSandbox[] boxes = rbox.getSandboxes();
 
          for(ViewsheetSandbox box : boxes) {
@@ -1858,7 +2064,7 @@ public class RuntimeViewsheet extends RuntimeSheet {
     * @return the original viewsheet id.
     */
    public String getOriginalID() {
-      return box.getOriginalID();
+      return box != null ? box.getOriginalID() : null;
    }
 
    /**
@@ -1891,6 +2097,10 @@ public class RuntimeViewsheet extends RuntimeSheet {
     * Get the base worksheet.
     */
    public RuntimeWorksheet getRuntimeWorksheet() {
+      if(vs == null || box == null) {
+         return null;
+      }
+
       Worksheet ws = vs.getBaseWorksheet();
 
       // @by billh, for vs binds to logical model, we need to shrink worksheet,
@@ -2502,6 +2712,112 @@ public class RuntimeViewsheet extends RuntimeSheet {
       return imageHashService;
    }
 
+   @Override
+   RuntimeViewsheetState saveState(ObjectMapper mapper) {
+      RuntimeViewsheetState state = new RuntimeViewsheetState();
+      super.saveState(state, mapper);
+      state.setBindingId(bindingID);
+      state.setHashImage(saveXml(imageHashService));
+      state.setBoxRid(this.box == null ? null : this.box.getID());
+
+      String originalVsXml = saveXml(originalVs);
+      String vsXml = saveXml(vs);
+      state.setOriginalVs(originalVsXml);
+
+      // Use VCDIFF delta encoding: store vs as a delta from originalVs
+      if(Objects.equals(vsXml, originalVsXml)) {
+         // vs is identical to originalVs, no need to store it
+         state.setVs(null);
+         state.setVsDelta(null);
+      }
+      else if(originalVsXml != null && vsXml != null) {
+         // Encode vs as VCDIFF delta from originalVs
+         byte[] originalBytes = originalVsXml.getBytes(StandardCharsets.UTF_8);
+         byte[] vsBytes = vsXml.getBytes(StandardCharsets.UTF_8);
+
+         try {
+            byte[] delta = createVcdiffDelta(originalBytes, vsBytes);
+            state.setVs(null);
+            state.setVsDelta(delta);
+         }
+         catch(IOException e) {
+            LOG.error("Failed to create VCDIFF delta for vs, storing full XML", e);
+            state.setVs(vsXml);
+            state.setVsDelta(null);
+         }
+      }
+      else {
+         // Fallback: store vs directly
+         state.setVs(vsXml);
+         state.setVsDelta(null);
+      }
+
+      state.setVars(saveJson(vars, mapper));
+      state.setViewer(viewer);
+      state.setPreview(preview);
+      state.setNeedsRefresh(needRefresh);
+
+      if(vs != null) {
+         state.setMaxMode(vs.isMaxMode());
+      }
+
+      state.setMode(mode);
+      state.setExecSessionId(execSessionID);
+      state.setTouchts(touchts);
+      state.setTipviews(tipviews);
+      state.setPopcomponents(popcomponents);
+      state.setOriginalId(getOriginalID());
+      state.setOpenedBookmark(saveXml(openedBookmark));
+      state.setLastReset(lastReset);
+      state.setDateCreated(dateCreated);
+      state.setRvsLayout(saveXml(rvsLayout));
+
+      if(layoutPoints == null) {
+         state.setLayoutPoints(null);
+      }
+      else {
+         List<String> list = new ArrayList<>();
+
+         for(AbstractLayout layout : layoutPoints) {
+            StringBuilder xml = new StringBuilder("<layout class=\"")
+               .append(layout.getClass().getName()).append("\">");
+            xml.append(saveXml(layout));
+            xml.append("</layout>");
+            list.add(xml.toString());
+         }
+
+         state.setLayoutPoints(list);
+      }
+
+      state.setLayoutPoint(layoutPoint);
+      state.setEmbedAssemblyInfo(saveJson(embedAssemblyInfo, mapper));
+
+      if(temporaryInfo != null) {
+         state.setTemporaryInfo(saveXml(temporaryInfo));
+      }
+
+      // Encode undo/redo checkpoints as VCDIFF deltas
+      encodePointDeltas(state, vsXml);
+
+      return state;
+   }
+
+   private static AbstractLayout loadLayout(String xml) {
+      try {
+         Document document = Tool.parseXML(new StringReader(xml));
+         Element root = document.getDocumentElement();
+         String className = root.getAttribute("class");
+         AbstractLayout layout =
+            (AbstractLayout) Class.forName(className).getConstructor().newInstance();
+         layout.parseXML(Tool.getFirstChildNode(root));
+         return layout;
+      }
+      catch(Exception e) {
+         LOG.error("Failed to load layout", e);
+         return null;
+      }
+   }
+
    private String bindingID;
    private Viewsheet vs; // viewsheet
    private Viewsheet originalVs;
@@ -2525,12 +2841,12 @@ public class RuntimeViewsheet extends RuntimeSheet {
    private transient Set<String> notHitMVs = new HashSet<>();
    private ViewsheetLayout rvsLayout;
    private List<AbstractLayout> layoutPoints = new ArrayList<>();
-   private final ReentrantLock layoutPointLock = new ReentrantLock();
+   private transient ReentrantLock layoutPointLock = new ReentrantLock();
    private int layoutPoint = -1;
    private VSTemporaryInfo temporaryInfo;
    private boolean wizardViewsheet = false;
    private EmbedAssemblyInfo embedAssemblyInfo;
-   private final ImageHashService imageHashService = new ImageHashService();
+   private ImageHashService imageHashService = new ImageHashService();
 
    private static final Logger LOG =
       LoggerFactory.getLogger(RuntimeViewsheet.class);

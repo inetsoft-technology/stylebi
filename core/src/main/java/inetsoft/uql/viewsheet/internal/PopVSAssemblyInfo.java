@@ -17,6 +17,8 @@
  */
 package inetsoft.uql.viewsheet.internal;
 
+import java.io.Serializable;
+
 /**
  * This interface defines the API for assemblies with pop component.
  *

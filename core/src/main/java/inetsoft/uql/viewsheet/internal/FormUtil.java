@@ -27,6 +27,8 @@ import inetsoft.util.Tool;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Optional;
+
 /**
  * Utility functions for forms.
  *
@@ -38,9 +40,9 @@ public final class FormUtil {
     * Check the form table data whether is changed.
     */
    public static boolean checkFormData(RuntimeViewsheet rvs, String name) {
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
-      if(box == null || name == null) {
+      if(box.isEmpty() || name == null) {
          return false;
       }
 
@@ -55,7 +57,7 @@ public final class FormUtil {
                ((TableVSAssemblyInfo) afino).isForm())
             {
                FormTableLens flens =
-                  box.getFormTableLens(vass[i].getAbsoluteName());
+                  box.get().getFormTableLens(vass[i].getAbsoluteName());
 
                if(isDepended(vs, vass[i], name) && formDataChanged(flens)) {
                   return true;

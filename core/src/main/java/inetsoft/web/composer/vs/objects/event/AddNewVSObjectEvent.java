@@ -20,13 +20,14 @@ package inetsoft.web.composer.vs.objects.event;
 import inetsoft.uql.asset.AssetEntry;
 
 import javax.annotation.Nullable;
+import java.io.Serializable;
 
 /**
  * Class that encapsulates the parameters for adding a new viewsheet object.
  *
  * @since 12.3
  */
-public class AddNewVSObjectEvent {
+public class AddNewVSObjectEvent implements Serializable {
    /**
     * Gets the type of object to create.
     *

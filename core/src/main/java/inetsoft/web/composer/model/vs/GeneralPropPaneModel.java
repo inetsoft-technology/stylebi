@@ -20,8 +20,10 @@ package inetsoft.web.composer.model.vs;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import inetsoft.uql.viewsheet.internal.PopVSAssemblyInfo.PopLocation;
 
+import java.io.Serializable;
+
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class GeneralPropPaneModel {
+public class GeneralPropPaneModel implements Serializable {
    public BasicGeneralPaneModel getBasicGeneralPaneModel() {
       if(basicGeneralPaneModel == null) {
          basicGeneralPaneModel = new BasicGeneralPaneModel();

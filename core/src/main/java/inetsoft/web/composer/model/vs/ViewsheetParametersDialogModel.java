@@ -18,7 +18,9 @@
 package inetsoft.web.composer.model.vs;
 
 
-public class ViewsheetParametersDialogModel {
+import java.io.Serializable;
+
+public class ViewsheetParametersDialogModel implements Serializable {
    public String[] getEnabledParameters() {
       return enabledParameters;
    }

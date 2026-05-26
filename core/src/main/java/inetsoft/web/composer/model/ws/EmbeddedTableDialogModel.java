@@ -17,7 +17,9 @@
  */
 package inetsoft.web.composer.model.ws;
 
-public class EmbeddedTableDialogModel {
+import java.io.Serializable;
+
+public class EmbeddedTableDialogModel implements Serializable {
    public String getName() {
       return name;
    }

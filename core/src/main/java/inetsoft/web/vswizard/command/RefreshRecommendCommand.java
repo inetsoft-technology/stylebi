@@ -17,7 +17,14 @@
  */
 package inetsoft.web.vswizard.command;
 
+import inetsoft.uql.viewsheet.VSCrosstabInfo;
+import inetsoft.util.Tool;
+import inetsoft.util.XMLSerializable;
 import inetsoft.web.vswizard.model.recommender.VSRecommendationModel;
+import org.w3c.dom.Element;
+
+import java.io.PrintWriter;
+import java.io.Serializable;
 
 public class RefreshRecommendCommand implements TimeSensitiveCommand {
 
@@ -35,6 +42,23 @@ public class RefreshRecommendCommand implements TimeSensitiveCommand {
 
    public void setRecommenderModel(VSRecommendationModel recommenderModel) {
       this.recommenderModel = recommenderModel;
+   }
+
+   @Override
+   public void writeContents(PrintWriter writer) {
+      if(recommenderModel != null) {
+         recommenderModel.writeXML(writer);
+      }
+   }
+
+   @Override
+   public void parseContents(Element elem) throws Exception {
+      Element enode = Tool.getChildNodeByTagName(elem, "vsRecommendationModel");
+
+      if(enode != null) {
+         recommenderModel = new VSRecommendationModel();
+         recommenderModel.parseXML(enode);
+      }
    }
 
    private VSRecommendationModel recommenderModel;

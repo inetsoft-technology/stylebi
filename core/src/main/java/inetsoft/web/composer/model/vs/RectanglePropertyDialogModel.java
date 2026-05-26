@@ -19,12 +19,14 @@ package inetsoft.web.composer.model.vs;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
+import java.io.Serializable;
+
 /**
  * Data transfer object that represents the {@link RectanglePropertyDialogModel} for the
  * rect property dialog
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class RectanglePropertyDialogModel {
+public class RectanglePropertyDialogModel implements Serializable {
    public ShapeGeneralPaneModel getShapeGeneralPaneModel() {
       if(shapeGeneralPaneModel == null) {
          shapeGeneralPaneModel = new ShapeGeneralPaneModel();

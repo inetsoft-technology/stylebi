@@ -40,7 +40,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.util.StringUtils;
 
-import java.io.Serializable;
+import java.io.*;
 import java.util.*;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -566,6 +566,12 @@ public class RealtimeTableMetaData extends TableMetaData {
       return appliedMaxRow;
    }
 
+   @Serial
+   private void readObject(ObjectInputStream in) throws ClassNotFoundException, IOException {
+      in.defaultReadObject();
+      lock = new ReentrantReadWriteLock();
+   }
+
    /**
     * This class captures a distinct row.
     */
@@ -844,7 +850,7 @@ public class RealtimeTableMetaData extends TableMetaData {
 
       private List<Object> values;
       private String name;
-      private TableDataDescriptor descriptor;
+      private transient TableDataDescriptor descriptor;
       private Comparator comp;
    }
 
@@ -964,13 +970,13 @@ public class RealtimeTableMetaData extends TableMetaData {
       private int[] idxmap;
       private int[] lastRow;
       private int lastR = -1;
-      private TableDataDescriptor descriptor;
+      private transient TableDataDescriptor descriptor;
    }
 
    /**
     * A hash key for an array of integers.
     */
-   private static class RowKey {
+   private static class RowKey implements Serializable {
       public RowKey(int[] arr) {
          this.arr = arr;
       }
@@ -1097,7 +1103,7 @@ public class RealtimeTableMetaData extends TableMetaData {
       private String[] columns;
    }
 
-   private ReadWriteLock lock = new ReentrantReadWriteLock();
+   private transient ReadWriteLock lock = new ReentrantReadWriteLock();
    private Hashtable<String, ColumnMetaData> colmap = new Hashtable<>();
    private XSwappableObjectList<RowTuple> tuples = new XSwappableObjectList<>(RowTuple.class);
    private XTable table; // original processed table, to get descriptor

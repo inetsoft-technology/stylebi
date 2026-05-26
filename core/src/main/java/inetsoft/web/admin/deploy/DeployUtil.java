@@ -17,8 +17,7 @@
  */
 package inetsoft.web.admin.deploy;
 
-import inetsoft.sree.RepletRegistry;
-import inetsoft.sree.RepositoryEntry;
+import inetsoft.sree.*;
 import inetsoft.sree.internal.DeploymentInfo;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.IdentityID;
@@ -223,7 +222,7 @@ public class DeployUtil {
    private static void addAssetParents(String path, XAsset asset, PartialDeploymentJarInfo info)
       throws Exception
    {
-      RepletRegistry registry = RepletRegistry.getRegistry(asset.getUser());
+      RepletRegistry registry = RepletRegistryManager.getInstance().getRegistry(asset.getUser());
       String[] values = Tool.split(path.substring(0, path.lastIndexOf('/')), '/');
       String newFolder = "";
 

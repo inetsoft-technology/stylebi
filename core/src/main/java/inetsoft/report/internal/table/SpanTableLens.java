@@ -870,7 +870,7 @@ public class SpanTableLens extends AttributeTableLens
    private int lval = -100;
    private BitSet spanrows = new BitSet(); // set for each row with span
    private Int2IntOpenHashMap splitmap = new Int2IntOpenHashMap(); // row -> span count
-   private TableDataDescriptor cdescriptor;
+   private transient TableDataDescriptor cdescriptor;
    private transient XIntList rowarr;
    private XSwappableIntList rowmap;
    private int rsize;

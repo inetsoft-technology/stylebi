@@ -23,6 +23,7 @@ import com.fasterxml.jackson.databind.*;
 import com.fasterxml.jackson.datatype.guava.GuavaModule;
 import com.fasterxml.jackson.datatype.jdk8.Jdk8Module;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import inetsoft.util.ConfigurationContext;
 import inetsoft.web.adhoc.DecodeArgumentResolver;
 import inetsoft.web.factory.DecodePathVariableResolver;
 import inetsoft.web.factory.RemainingPathResolver;
@@ -30,6 +31,7 @@ import inetsoft.web.json.ThirdPartySupportModule;
 import inetsoft.web.reportviewer.service.HttpServletRequestWrapperArgumentResolver;
 import inetsoft.web.security.WebSocketLimitFilter;
 import inetsoft.web.viewsheet.service.LinkUriArgumentResolver;
+import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.*;
@@ -40,12 +42,11 @@ import org.springframework.http.MediaType;
 import org.springframework.http.converter.*;
 import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
 import org.springframework.scheduling.annotation.EnableScheduling;
-import org.springframework.util.ClassUtils;
+import org.springframework.web.filter.CommonsRequestLoggingFilter;
 import org.springframework.web.method.support.HandlerMethodArgumentResolver;
 import org.springframework.web.multipart.support.StandardServletMultipartResolver;
 import org.springframework.web.servlet.ViewResolver;
 import org.springframework.web.servlet.config.annotation.*;
-import org.springframework.web.socket.server.support.AbstractHandshakeHandler;
 import org.springframework.web.util.UrlPathHelper;
 import org.thymeleaf.spring6.SpringTemplateEngine;
 import org.thymeleaf.spring6.templateresolver.SpringResourceTemplateResolver;
@@ -62,23 +63,36 @@ import java.util.*;
  * @since 12.3
  */
 @EnableWebMvc
-@EnableAspectJAutoProxy
+@EnableAspectJAutoProxy(proxyTargetClass = true)
 @EnableMBeanExport
 @EnableScheduling
 @Configuration
-@ComponentScan(basePackages = "inetsoft.web", lazyInit = true)
+@ComponentScan(
+   basePackages = {
+      "inetsoft.web",
+      "inetsoft.storage",
+      "inetsoft.util",
+      "inetsoft.sree",
+      "inetsoft.uql.asset.sync"
+   },
+   lazyInit = true)
 public class WebConfig implements WebMvcConfigurer, ApplicationContextAware {
    private ApplicationContext applicationContext;
 
    @Override
    public void setApplicationContext(ApplicationContext applicationContext) {
       this.applicationContext = applicationContext;
+      // Set early — before any @Service beans are initialized — so that
+      // KeyValueTask.getEngine() can resolve the Spring-managed KeyValueEngine
+      // singleton instead of falling back to the non-Spring path and creating a
+      // second MapDBKeyValueEngine instance that would conflict with the Spring
+      // bean's file locks.
+      ConfigurationContext.getContext().setApplicationContext(applicationContext);
    }
 
    @Override
    public void addResourceHandlers(ResourceHandlerRegistry registry) {
-      if(applicationContext instanceof DefaultResourceLoader) {
-         DefaultResourceLoader loader = (DefaultResourceLoader) applicationContext;
+      if(applicationContext instanceof DefaultResourceLoader loader) {
          loader.addProtocolResolver(new DataSpaceProtocolResolver());
          loader.addProtocolResolver(new ThemeProtocolResolver());
       }
@@ -255,17 +269,7 @@ public class WebConfig implements WebMvcConfigurer, ApplicationContextAware {
 
    @Override
    public void configurePathMatch(PathMatchConfigurer configurer) {
-      // .com in name causing json return type to be rejected
-      configurer.setUseSuffixPatternMatch(false);
-
-      if(isWebSphere()) {
-         // WebSphere strips the trailing slash
-         UrlPathHelper helper = new UrlPathHelper();
-         helper.setAlwaysUseFullPath(true);
-         helper.setRemoveSemicolonContent(false);
-         configurer.setUrlPathHelper(helper);
-      }
-      else if(configurer.getUrlPathHelper() == null) {
+      if(configurer.getUrlPathHelper() == null) {
          UrlPathHelper helper = new UrlPathHelper();
          helper.setRemoveSemicolonContent(false);
          configurer.setUrlPathHelper(helper);
@@ -275,16 +279,11 @@ public class WebConfig implements WebMvcConfigurer, ApplicationContextAware {
       configurer.getUrlPathHelper().setDefaultEncoding("UTF-8");
    }
 
-   @Override
-   public void configureContentNegotiation(ContentNegotiationConfigurer configurer) {
-      // .com in name causing json return type to be rejected
-      configurer.favorPathExtension(false);
-   }
-
-   private boolean isWebSphere() {
-      return ClassUtils.isPresent(
-         "com.ibm.websphere.wsoc.WsWsocServerContainer",
-         AbstractHandshakeHandler.class.getClassLoader());
+   @Bean
+   public CommonsRequestLoggingFilter requestLoggingFilter() {
+      CommonsRequestLoggingFilter filter = new CommonsRequestLoggingFilter();
+      filter.setIncludeQueryString(true);
+      return filter;
    }
 
    private static final Logger LOG = LoggerFactory.getLogger(WebConfig.class);

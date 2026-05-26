@@ -96,7 +96,7 @@ public class SecurityTreeServer {
          }
 
          String currOrgName = orgIds.length > 0 ? provider.getOrgNameFromID(currOrgID) : Organization.getDefaultOrganizationName();
-         boolean isEnterprise = LicenseManager.getInstance().isEnterprise();
+         boolean isEnterprise = LicenseManager.isEnterprise();
          isMultiTenant = isEnterprise && isMultiTenant;
 
          if(!isMultiTenant) {

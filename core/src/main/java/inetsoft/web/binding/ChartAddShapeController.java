@@ -17,11 +17,14 @@
  */
 package inetsoft.web.binding;
 
+import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
 import inetsoft.uql.viewsheet.graph.aesthetic.ImageShapes;
 import inetsoft.util.DataSpace;
 import inetsoft.util.Tool;
+import inetsoft.util.audit.ActionRecord;
+import inetsoft.util.audit.Audit;
 import inetsoft.web.admin.content.dataspace.DataSpaceContentSettingsService;
 import inetsoft.web.security.RequiredPermission;
 import inetsoft.web.security.Secured;
@@ -35,14 +38,18 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.io.ByteArrayInputStream;
 import java.io.OutputStream;
+import java.security.Principal;
 /**
  * Controller that upload shapes for chart.
  */
 @RestController
 public class ChartAddShapeController {
    @Autowired
-   public ChartAddShapeController(DataSpaceContentSettingsService dataSpaceContentSettingsService) {
+   public ChartAddShapeController(DataSpaceContentSettingsService dataSpaceContentSettingsService,
+                                  DataSpace dataSpace)
+   {
       this.dataSpaceContentSettingsService = dataSpaceContentSettingsService;
+      this.dataSpace = dataSpace;
    }
 
    @Secured(
@@ -53,9 +60,9 @@ public class ChartAddShapeController {
       )
    )
    @PostMapping("/api/chart/shape/upload")
-   public boolean uploadShape(@RequestParam("file") MultipartFile[] files) throws Exception {
+   public boolean uploadShape(@RequestParam("file") MultipartFile[] files, Principal principal) throws Exception {
       String folder = ImageShapes.getShapesDirectory();
-      DataSpace space = DataSpace.getDataSpace();
+      DataSpace space = this.dataSpace;
 
       for(MultipartFile file : files) {
          if(file.isEmpty()) {
@@ -64,6 +71,9 @@ public class ChartAddShapeController {
 
          String fileName = file.getOriginalFilename();
          byte[] fileData = file.getBytes();
+         ActionRecord actionRecord = SUtil.getActionRecord(
+            principal, ActionRecord.ACTION_NAME_IMPORT,
+            folder + "/" + fileName, ActionRecord.OBJECT_TYPE_SHAPE);
 
          try(DataSpace.Transaction tx = space.beginTransaction();
              OutputStream out = tx.newStream(folder, fileName))
@@ -76,7 +86,12 @@ public class ChartAddShapeController {
          }
          catch(Throwable e) {
             LOG.error("Failed to write shape: " + fileName, e);
+            actionRecord.setActionStatus(ActionRecord.ACTION_STATUS_FAILURE);
+            actionRecord.setActionError(e.getMessage());
             throw e;
+         }
+         finally {
+            Audit.getInstance().auditAction(actionRecord, principal);
          }
       }
 
@@ -84,5 +99,6 @@ public class ChartAddShapeController {
    }
 
    private final DataSpaceContentSettingsService dataSpaceContentSettingsService;
+   private final DataSpace dataSpace;
    private static final Logger LOG = LoggerFactory.getLogger(ChartAddShapeController.class);
 }

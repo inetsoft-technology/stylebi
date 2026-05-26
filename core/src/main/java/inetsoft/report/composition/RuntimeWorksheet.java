@@ -17,8 +17,9 @@
  */
 package inetsoft.report.composition;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import inetsoft.report.composition.execution.*;
-import inetsoft.uql.ColumnSelection;
+import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.util.QueryManager;
@@ -29,9 +30,11 @@ import org.slf4j.LoggerFactory;
 
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.security.Principal;
-import java.util.Arrays;
-import java.util.LinkedList;
+import java.util.*;
 
 /**
  * RuntimeWorksheet represents a runtime worksheet in editing time.
@@ -99,6 +102,61 @@ public class RuntimeWorksheet extends RuntimeSheet
       }
    }
 
+   RuntimeWorksheet(RuntimeWorksheetState state, ObjectMapper mapper) {
+      super(state, mapper);
+
+      // Track wsXml for decoding point deltas later
+      String wsXmlForDeltas = state.getWs();
+
+      if(wsXmlForDeltas != null) {
+         ws = loadXml(new Worksheet(), wsXmlForDeltas);
+      }
+
+      VariableTable vars;
+
+      if(state.getVars() == null) {
+         vars = new VariableTable();
+      }
+      else {
+         vars = loadJson(VariableTable.class, state.getVars(), mapper);
+      }
+
+      if(entry != null) {
+         box = new AssetQuerySandbox(ws, (XPrincipal) getUser(), vars);
+         box.setWSName(entry.getSheetName());
+         box.setWSEntry(entry);
+         box.setBaseUser(user);
+         box.setActive(true);
+         box.setQueryManager(new QueryManager());
+      }
+
+      preview = state.isPreview();
+      gettingStarted = state.isGettingStarted();
+      pid = state.getPid();
+      syncData = state.isSyncData();
+
+      if(state.getJoinWS() != null) {
+         RuntimeWorksheetState joinState = state.getJoinWS();
+
+         // Decode joinWS.ws from delta if stored that way
+         if(joinState.getWsDelta() != null && wsXmlForDeltas != null) {
+            try {
+               byte[] parentBytes = wsXmlForDeltas.getBytes(StandardCharsets.UTF_8);
+               byte[] joinWsBytes = applyVcdiffDelta(parentBytes, joinState.getWsDelta());
+               joinState.setWs(new String(joinWsBytes, StandardCharsets.UTF_8));
+            }
+            catch(IOException e) {
+               LOG.error("Failed to apply VCDIFF delta for joinWS", e);
+            }
+         }
+
+         joinWS = new RuntimeWorksheet(joinState, mapper);
+      }
+
+      // Decode undo/redo checkpoints from VCDIFF deltas
+      decodePointDeltas(state.getPointDeltas(), wsXmlForDeltas, xml -> loadXml(new Worksheet(), xml));
+   }
+
    /**
     * Triggered when data changed.
     */
@@ -158,7 +216,7 @@ public class RuntimeWorksheet extends RuntimeSheet
                try {
                   DataKey key = AssetDataCache.getCacheKey(
                      (TableAssembly) assembly, box, null, AssetQuerySandbox.LIVE_MODE, true);
-                  AssetDataCache.removeCachedData(key);
+                  AssetDataCache.getCache().removeCachedData(key);
                }
                catch(Exception e) {
                   LOG.warn("Failed to clear cache for {}", assembly.getAbsoluteName(), e);
@@ -412,6 +470,58 @@ public class RuntimeWorksheet extends RuntimeSheet
             }
          }
       }
+   }
+
+   @Override
+   RuntimeWorksheetState saveState(ObjectMapper mapper) {
+      RuntimeWorksheetState state = new RuntimeWorksheetState();
+
+      try {
+         Worksheet.setIsTEMP(true);
+         super.saveState(state, mapper);
+
+         state.setWs(saveXml(ws));
+
+         if(box != null && box.getVariableTable() != null) {
+            state.setVars(saveJson(box.getVariableTable(), mapper));
+         }
+
+         state.setPreview(preview);
+         state.setGettingStarted(gettingStarted);
+         state.setPid(pid);
+         state.setSyncData(syncData);
+
+         if(joinWS != null) {
+            RuntimeWorksheetState joinState = joinWS.saveState(mapper);
+
+            // Encode joinWS.ws as delta relative to parent ws
+            String parentWsXml = state.getWs();
+            String joinWsXml = joinState.getWs();
+
+            if(parentWsXml != null && joinWsXml != null) {
+               try {
+                  byte[] parentBytes = parentWsXml.getBytes(StandardCharsets.UTF_8);
+                  byte[] joinBytes = joinWsXml.getBytes(StandardCharsets.UTF_8);
+                  byte[] delta = createVcdiffDelta(parentBytes, joinBytes);
+                  joinState.setWsDelta(delta);
+                  joinState.setWs(null);  // Clear full ws, now stored as delta
+               }
+               catch(IOException e) {
+                  LOG.error("Failed to create VCDIFF delta for joinWS, storing full ws", e);
+               }
+            }
+
+            state.setJoinWS(joinState);
+         }
+
+         // Encode undo/redo checkpoints as VCDIFF deltas
+         encodePointDeltas(state, state.getWs());
+      }
+      finally {
+         Worksheet.setIsTEMP(false);
+      }
+
+      return state;
    }
 
    private Worksheet ws;          // worksheet

@@ -18,7 +18,6 @@
 package inetsoft.web.composer.ws;
 
 import inetsoft.analytic.composition.event.VSEventUtil;
-import inetsoft.report.composition.RuntimeWorksheet;
 import inetsoft.report.composition.WorksheetService;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
@@ -29,10 +28,7 @@ import inetsoft.uql.asset.internal.MirrorTableAssemblyInfo;
 import inetsoft.util.*;
 import inetsoft.util.log.LogContext;
 import inetsoft.web.AutoSaveUtils;
-import inetsoft.web.composer.model.ws.WorksheetModel;
-import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
-import inetsoft.web.composer.ws.command.OpenWorksheetCommand;
-import inetsoft.web.composer.ws.command.WSInitCommand;
+import inetsoft.web.composer.ws.assembly.WorksheetEventService;
 import inetsoft.web.composer.ws.event.OpenSheetEventValidator;
 import inetsoft.web.composer.ws.event.OpenWorksheetEvent;
 import inetsoft.web.viewsheet.LoadingMask;
@@ -46,7 +42,6 @@ import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
 
-import java.io.File;
 import java.security.Principal;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -54,10 +49,16 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class OpenWorksheetController extends WorksheetController {
    @Autowired
    public OpenWorksheetController(RuntimeViewsheetManager runtimeViewsheetManager,
-                                  AssetRepository assetRepository)
+                                  AssetRepository assetRepository,
+                                  WorksheetEventService eventService,
+                                  OpenWorksheetControllerServiceProxy openService,
+                                  SecurityEngine securityEngine)
    {
       this.runtimeViewsheetManager = runtimeViewsheetManager;
       this.assetRepository = assetRepository;
+      this.eventService = eventService;
+      this.openService = openService;
+      this.securityEngine = securityEngine;
    }
 
    @PostMapping("api/ws/open")
@@ -65,7 +66,7 @@ public class OpenWorksheetController extends WorksheetController {
    public OpenSheetEventValidator validateOpen(
       @RequestBody OpenWorksheetEvent event, Principal principal) throws Exception
    {
-      if(!SecurityEngine.getSecurity().checkPermission(principal, ResourceType.WORKSHEET,
+      if(!securityEngine.checkPermission(principal, ResourceType.WORKSHEET,
                                                        "*", ResourceAction.ACCESS))
       {
          throw new SecurityException(Catalog.getCatalog().getString(
@@ -94,7 +95,7 @@ public class OpenWorksheetController extends WorksheetController {
       @Payload OpenWorksheetEvent event, Principal principal,
       CommandDispatcher commandDispatcher) throws Exception
    {
-      if(!SecurityEngine.getSecurity().checkPermission(principal, ResourceType.WORKSHEET,
+      if(!securityEngine.checkPermission(principal, ResourceType.WORKSHEET,
                                                        "*", ResourceAction.ACCESS))
       {
          throw new SecurityException(Catalog.getCatalog().getString(
@@ -120,31 +121,28 @@ public class OpenWorksheetController extends WorksheetController {
          entryPath = entry.getPath();
       }
 
-      GroupedThread.withGroupedThread(groupedThread -> {
-         groupedThread.addRecord(LogContext.WORKSHEET, entryPath);
-      });
+      GroupedThread.withGroupedThread(
+         groupedThread -> groupedThread.addRecord(LogContext.WORKSHEET, entryPath));
 
       if(!event.openAutoSavedFile()) {
          assetRepository.clearCache(entry);
       }
 
-      WorksheetService engine = getWorksheetEngine();
       entry.setProperty("openAutoSaved", event.openAutoSavedFile() + "");
       entry.setProperty("gettingStarted", event.gettingStartedWs() + "");
-      String runtimeId = WorksheetEventUtil
-         .openWorksheet(engine, principal, entry, event.openAutoSavedFile(), event.createQuery(),
-            commandDispatcher);
+      String runtimeId = eventService.openWorksheet(
+         principal, entry, event.openAutoSavedFile(), event.createQuery(),
+         commandDispatcher);
 
       getRuntimeViewsheetRef().setRuntimeId(runtimeId);
-      runtimeViewsheetManager.sheetOpened(runtimeId);
+      runtimeViewsheetManager.sheetOpened(principal, runtimeId);
 
       if(entry.getScope() != AssetRepository.TEMPORARY_SCOPE) {
          VSEventUtil.deleteAutoSavedFile(entry, principal);
       }
 
-      GroupedThread.withGroupedThread(groupedThread -> {
-         groupedThread.removeRecord(LogContext.WORKSHEET.getRecord(entry.getPath()));
-      });
+      GroupedThread.withGroupedThread(
+         groupedThread -> groupedThread.removeRecord(LogContext.WORKSHEET.getRecord(entry.getPath())));
    }
 
    /**
@@ -154,7 +152,7 @@ public class OpenWorksheetController extends WorksheetController {
    public void newWorksheet(
       Principal principal, CommandDispatcher commandDispatcher) throws Exception
    {
-      if(!SecurityEngine.getSecurity().checkPermission(principal, ResourceType.WORKSHEET,
+      if(!securityEngine.checkPermission(principal, ResourceType.WORKSHEET,
                                                        "*", ResourceAction.ACCESS))
       {
          throw new SecurityException(Catalog.getCatalog().getString(
@@ -162,27 +160,9 @@ public class OpenWorksheetController extends WorksheetController {
       }
 
       WorksheetService engine = getWorksheetEngine();
-
       String runtimeId = engine.openTemporaryWorksheet(principal, null);
-      RuntimeWorksheet rws = engine.getWorksheet(runtimeId, principal);
-      AssetEntry entry = rws.getEntry();
-
-      WorksheetModel worksheet = new WorksheetModel();
-      worksheet.setId(entry.toIdentifier());
-      worksheet.setRuntimeId(runtimeId);
-      worksheet.setLabel(rws.getEntry().getName());
-      worksheet.setType("worksheet");
-      worksheet.setNewSheet(true);
-      worksheet.setInit(true);
-      worksheet.setCurrent(rws.getCurrent());
-      worksheet.setSavePoint(rws.getSavePoint());
-
-      OpenWorksheetCommand command = new OpenWorksheetCommand();
-      command.setWorksheet(worksheet);
       getRuntimeViewsheetRef().setRuntimeId(runtimeId);
-      runtimeViewsheetManager.sheetOpened(runtimeId);
-      commandDispatcher.sendCommand(command);
-      commandDispatcher.sendCommand(new WSInitCommand(principal));
+      openService.processNewWorksheet(runtimeId, principal, commandDispatcher);
    }
 
    private String getForbiddenSourcesMessage(AssetEntry entry, Principal user,
@@ -191,7 +171,7 @@ public class OpenWorksheetController extends WorksheetController {
       String forbiddenMsg = "";
 
       try {
-         if(!SecurityEngine.getSecurity().checkPermission(
+         if(!securityEngine.checkPermission(
             user, ResourceType.WORKSHEET, "*", ResourceAction.ACCESS))
          {
             return Catalog.getCatalog().getString("composer.ws.noPermission");
@@ -201,7 +181,7 @@ public class OpenWorksheetController extends WorksheetController {
             assetRepository.getSheet(entry, user, false, AssetContent.NO_DATA);
 
          if(sheet == null) {
-            LOG.error("Trying to open non-existent worksheet: " + entry);
+            LOG.error("Trying to open non-existent worksheet: {}", entry);
             return forbiddenMsg;
          }
 
@@ -209,8 +189,6 @@ public class OpenWorksheetController extends WorksheetController {
             notUndoable.set(true);
             return "";
          }
-
-         SecurityEngine security = SecurityEngine.getSecurity();
 
          for(Assembly assembly : sheet.getAssemblies()) {
             if(assembly instanceof BoundTableAssembly) {
@@ -238,7 +216,7 @@ public class OpenWorksheetController extends WorksheetController {
                      break;
                   }
 
-                  if(!security.checkPermission(
+                  if(!securityEngine.checkPermission(
                      user, ResourceType.PHYSICAL_TABLE, "*", ResourceAction.ACCESS))
                   {
                      forbiddenMsg = Catalog.getCatalog().getString("composer.ws.boundPhysicalTableForbidden");
@@ -248,7 +226,7 @@ public class OpenWorksheetController extends WorksheetController {
                else if(source.getType() == SourceInfo.CUBE) {
                   String resource = source.getPrefix() + "::" + source.getSource();
 
-                  if(!security.checkPermission(
+                  if(!securityEngine.checkPermission(
                      user, ResourceType.CUBE, resource, ResourceAction.READ))
                   {
                      forbiddenMsg = Catalog.getCatalog().getString("composer.ws.boundPhysicalTableForbidden");
@@ -268,7 +246,7 @@ public class OpenWorksheetController extends WorksheetController {
                {
                   String resource = mirrorEntry.getPath();
 
-                  if(!security.checkPermission(
+                  if(!securityEngine.checkPermission(
                      user, ResourceType.ASSET, resource, ResourceAction.READ))
                   {
                      forbiddenMsg = Catalog.getCatalog().getString("composer.ws.boundAssetSourcesForbidden");
@@ -288,5 +266,8 @@ public class OpenWorksheetController extends WorksheetController {
 
    private final RuntimeViewsheetManager runtimeViewsheetManager;
    private final AssetRepository assetRepository;
+   private final WorksheetEventService eventService;
+   private final OpenWorksheetControllerServiceProxy openService;
+   private final SecurityEngine securityEngine;
    private static final Logger LOG = LoggerFactory.getLogger(OpenWorksheetController.class);
 }

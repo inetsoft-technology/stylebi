@@ -21,12 +21,14 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import inetsoft.web.binding.drm.DataRefModel;
 import inetsoft.web.composer.model.TreeNodeModel;
 
+import java.io.Serializable;
+
 /**
  * Data transfer object that represents the {@link TextPropertyDialogModel} for the
  * text property dialog
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class DataOutputPaneModel {
+public class DataOutputPaneModel implements Serializable {
    public String getColumn() {
       return column;
    }

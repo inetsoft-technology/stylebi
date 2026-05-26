@@ -24,6 +24,7 @@ import inetsoft.util.Tool;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -34,7 +35,7 @@ import java.util.List;
  * @version 8.5
  * @author InetSoft Technology Corp
  */
-class ColumnMetaData implements Cloneable {
+class ColumnMetaData implements Cloneable, Serializable {
    /**
     * Get column distinct values.
     */

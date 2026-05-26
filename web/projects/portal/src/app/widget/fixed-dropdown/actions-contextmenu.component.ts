@@ -57,6 +57,7 @@ export class ActionsContextmenuComponent implements OnDestroy {
    visibleActions: AssemblyActionGroup[] = [];
    instance: ActionsContextmenuComponent;
    dropdownRef: DropdownRef;
+   assemblyName: string;
    private _actions: AssemblyActionGroup[];
    private focusedGroup: number = -1;
    private focusedAction: number = -1;

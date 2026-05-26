@@ -20,7 +20,7 @@ package inetsoft.uql.rest;
 import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.sree.SreeEnv;
 import inetsoft.uql.ListedDataSource;
-import inetsoft.uql.XFactory;
+import inetsoft.uql.XRepository;
 import inetsoft.uql.rest.auth.*;
 import inetsoft.uql.rest.datasource.zohocrm.ZohoCRMDataSource;
 import inetsoft.uql.tabular.*;
@@ -792,7 +792,7 @@ public abstract class AbstractRestDataSource<SELF extends AbstractRestDataSource
 
       if(this.getFullName() != null) {
          try {
-            XFactory.getRepository().updateDataSource(this, getFullName());
+            XRepository.getRepository().updateDataSource(this, getFullName());
          }
          catch(Exception e) {
             LOG.warn("Failed to save data source after refreshing token", e);

@@ -124,8 +124,9 @@ public class AssetLMDependencyTransformer extends AssetDependencyTransformer {
          Element pnode = Tool.getChildNodeByTagName(elem, "prefix");
          String opre = Tool.getValue(pnode);
 
-         if(Tool.equals(opre, oname)) {
-            replaceCDATANode(pnode, nname);
+         // Match exactly or at path boundary to avoid false positives (e.g., "folder1" matching "f1")
+         if(opre != null && (opre.equals(oname) || opre.endsWith("/" + oname))) {
+            replaceCDATANode(pnode, opre.replace(oname, nname));
          }
       }
       else if(info.getType() == (RenameInfo.LOGIC_MODEL | RenameInfo.FOLDER)) {
@@ -640,7 +641,23 @@ public class AssetLMDependencyTransformer extends AssetDependencyTransformer {
       return Tool.equals(source, info.getSource()) && Tool.equals(prefix, info.getPrefix());
    }
 
+   /**
+    * Normalize folder name representation. Root folder can be represented as
+    * null, "/" or "" - this method normalizes all to null.
+    */
+   private String normalizeFolder(String folder) {
+      if(folder == null || "/".equals(folder) || "".equals(folder)) {
+         return null;
+      }
+
+      return folder;
+   }
+
    private void renameLMFolder(Element elem, String oname, String nname) {
+      // Normalize root folder representation: null, "/" and "" all represent root
+      oname = normalizeFolder(oname);
+      nname = normalizeFolder(nname);
+
       Element pathNode = Tool.getChildNodeByTagName(elem, "path");
       Element descriptionNode = Tool.getChildNodeByTagName(elem, "description");
       Element entryPathPropNode = null;
@@ -664,14 +681,14 @@ public class AssetLMDependencyTransformer extends AssetDependencyTransformer {
          else if("entry.paths".equals(key)) {
             entryPathPropNode = valueElem;
          }
-         else if("folder".equals(key) && value != null && oname != null) {
-            replaceCDATANode(valueElem, value.replace(oname, nname != null ? nname : ""));
+         else if("folder".equals(key) && value != null) {
+            renameFolderProperty(valueElem, value, oname, nname);
          }
-         else if("folder_description".equals(key) && value != null && oname != null) {
-            replaceCDATANode(valueElem, value.replace(oname, nname != null ? nname : ""));
+         else if("folder_description".equals(key) && value != null) {
+            renameFolderProperty(valueElem, value, oname, nname);
          }
-         else if("__query_folder__".equals(key) && value != null && oname != null) {
-            replaceCDATANode(valueElem, value.replace(oname, nname != null ? nname : ""));
+         else if("__query_folder__".equals(key) && value != null) {
+            renameFolderProperty(valueElem, value, oname, nname);
          }
       }
 
@@ -680,17 +697,60 @@ public class AssetLMDependencyTransformer extends AssetDependencyTransformer {
       doRenameLMFolder(entryPathPropNode, prefix, source, oname, nname, "^_^", false);
    }
 
+   /**
+    * Rename folder property value, handling moves to/from root folder.
+    * @param valueElem the element containing the folder value
+    * @param value the current value
+    * @param oname old folder name (null if moving from root)
+    * @param nname new folder name (null if moving to root)
+    */
+   private void renameFolderProperty(Element valueElem, String value, String oname, String nname) {
+      if(oname != null && nname != null) {
+         // Folder to folder: simple replacement
+         replaceCDATANode(valueElem, value.replace(oname, nname));
+      }
+      else if(oname != null && nname == null) {
+         // Folder to root: remove the old folder name from the value
+         String newValue = value.replace(oname + "/", "");
+         newValue = newValue.replace("/" + oname, "");
+         newValue = newValue.replace(oname, "");
+         replaceCDATANode(valueElem, newValue);
+      }
+      else if(oname == null && nname != null) {
+         // Root to folder: root is represented as "/" or "" in property values
+         if("/".equals(value) || "".equals(value)) {
+            replaceCDATANode(valueElem, nname);
+         }
+      }
+      // Both null: no change needed
+   }
+
    private void doRenameLMFolder(Element node, String prefix, String suffix, String oname,
                                  String nname, String separator, boolean description)
    {
-      if(node != null && Tool.getValue(node) != null) {
+      if(node != null && Tool.getValue(node) != null && prefix != null && suffix != null) {
          String path = Tool.getValue(node);
-         String oldPath = null;
-         String newPath = null;
+         String oldPath;
+         String newPath;
 
-         if(prefix != null && suffix != null && oname != null && nname != null) {
+         if(oname != null && nname != null) {
+            // Folder to folder
             oldPath = prefix + separator + oname + separator + suffix;
             newPath = prefix + separator + nname + separator + suffix;
+         }
+         else if(oname != null && nname == null) {
+            // Folder to root: remove folder from path
+            oldPath = prefix + separator + oname + separator + suffix;
+            newPath = prefix + separator + suffix;
+         }
+         else if(oname == null && nname != null) {
+            // Root to folder: add folder to path
+            oldPath = prefix + separator + suffix;
+            newPath = prefix + separator + nname + separator + suffix;
+         }
+         else {
+            // Both null: no change
+            return;
          }
 
          if(description) {

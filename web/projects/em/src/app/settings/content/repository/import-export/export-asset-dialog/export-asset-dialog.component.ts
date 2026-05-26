@@ -111,7 +111,7 @@ export class ExportAssetDialogComponent implements OnInit {
       this.exportAssetsService.createExport(
          this.entities, this.selectedDependencies, !!this.form.get("overwrite").value,
          this.form.get("fileName").value, false)
-         .subscribe(() => this.downloadExport());
+         .subscribe((exportID: string) => this.downloadExport(exportID));
    }
 
    @HostListener("window:keyup.esc", [])
@@ -173,8 +173,8 @@ export class ExportAssetDialogComponent implements OnInit {
          });
    }
 
-   private downloadExport(): void {
-      this.downloadService.download("../em/content/repository/export/download");
+   private downloadExport(exportID: string): void {
+      this.downloadService.download("../em/content/repository/export/download/" + exportID);
       this.dialogRef.close(true);
    }
 

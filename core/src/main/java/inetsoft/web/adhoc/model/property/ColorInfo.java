@@ -17,7 +17,9 @@
  */
 package inetsoft.web.adhoc.model.property;
 
-public class ColorInfo {
+import java.io.Serializable;
+
+public class ColorInfo implements Serializable {
    public ColorInfo() {
 
    }

@@ -18,19 +18,31 @@
 
 package inetsoft.report.script.formula;
 
-import inetsoft.report.lens.*;
+import inetsoft.report.lens.DefaultTableLens;
+import inetsoft.test.*;
 import inetsoft.uql.XTable;
 import inetsoft.uql.util.DefaultTable;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
-import java.util.*;
+import java.util.Date;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@SreeHome
+@Tag("core")
 public class FormulaFunctionsTest {
    /**
     * test fixData with array
@@ -335,4 +347,26 @@ public class FormulaFunctionsTest {
       {"a", 3, new Date(2025 - 1900, 11, 31)},
       {"b", 2, new Date(2026 - 1900, 9, 20)}
    });
+
+   @Test
+   public void testSerializeUnion() throws Exception {
+      String options = "fields=col1:col1";
+      Object originalTable = FormulaFunctions.union(XTableUtil.getDefaultTableLens(),
+                                                    XTableUtil.getDefaultTableLens(),
+                                                    options);
+      Assertions.assertInstanceOf(XTable.class, originalTable);
+      XTable deserializedTable = TestSerializeUtils.serializeAndDeserialize((XTable) originalTable);
+      Assertions.assertInstanceOf(XTable.class, deserializedTable);
+   }
+
+   @Test
+   public void testSerializeIntersect() throws Exception {
+      String options = "fields=col1:col1";
+      Object originalTable = FormulaFunctions.intersect(XTableUtil.getDefaultTableLens(),
+                                                        XTableUtil.getDefaultTableLens(),
+                                                        options);
+      Assertions.assertInstanceOf(XTable.class, originalTable);
+      XTable deserializedTable = TestSerializeUtils.serializeAndDeserialize((XTable) originalTable);
+      Assertions.assertInstanceOf(XTable.class, deserializedTable);
+   }
 }

@@ -17,7 +17,9 @@
  */
 package inetsoft.web.composer.model.vs;
 
-public class SliderLabelPaneModel {
+import java.io.Serializable;
+
+public class SliderLabelPaneModel implements Serializable {
    public boolean isTick() {
       return tick;
    }

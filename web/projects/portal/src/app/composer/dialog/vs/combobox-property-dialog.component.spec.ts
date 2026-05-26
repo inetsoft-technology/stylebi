@@ -30,9 +30,9 @@ let createModel: () => ComboboxPropertyDialogModel = () => {
          sizePositionPaneModel: null
       },
       dataInputPaneModel: null,
-      vsAssemblyScriptPaneModel: {},
-      inputLabelPaneModel: null
-   } as any;
+      inputLabelPaneModel: null,
+      vsAssemblyScriptPaneModel: {}
+   };
 };
 
 let createListModel: () => ListValuesPaneModel = () => {

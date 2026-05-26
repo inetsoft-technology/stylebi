@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { DebugElement, NO_ERRORS_SCHEMA } from "@angular/core";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { By } from "@angular/platform-browser";
 import { NgbModule } from "@ng-bootstrap/ng-bootstrap";
@@ -36,6 +36,7 @@ import { FormInputService } from "../../util/form-input.service";
 import { AppErrorMessage } from "../app-error-message.component";
 import { DataTipService } from "../data-tip/data-tip.service";
 import { PopComponentService } from "../data-tip/pop-component.service";
+import { TimerService } from "../data-tip/timer.service";
 import { VSPopComponentDirective } from "../data-tip/vs-pop-component.directive";
 import { VSTextInput } from "./vs-text-input.component";
 
@@ -65,14 +66,20 @@ describe("VS Text Input Component Unit Test", () => {
    let debounceService: any;
    let dataTipService: any;
    let firstDayOfWeekService: any;
+   let timerService: any;
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       const viewsheetClientService = {};
       debounceService = { debounce: jest.fn((key, fn, delay, args) => fn(...args)) };
       dataTipService = { isDataTip: jest.fn() };
       const contextProvider = {};
       firstDayOfWeekService = { getFirstDay: jest.fn() };
       firstDayOfWeekService.getFirstDay.mockImplementation(() => observableOf({}));
+      timerService = {
+         defer: jest.fn((fn) => {
+            fn();
+         })
+      };
 
       TestBed.configureTestingModule({
          imports: [ ReactiveFormsModule, FormsModule, NgbModule, DropDownTestModule ],
@@ -88,7 +95,8 @@ describe("VS Text Input Component Unit Test", () => {
             { provide: ViewsheetClientService, useValue: viewsheetClientService },
             { provide: DebounceService, useValue: debounceService },
             { provide: DataTipService, useValue: dataTipService },
-            { provide: FirstDayOfWeekService, useValue: firstDayOfWeekService }
+            { provide: FirstDayOfWeekService, useValue: firstDayOfWeekService },
+            { provide: TimerService, useValue: timerService },
          ],
       });
       TestBed.compileComponents();

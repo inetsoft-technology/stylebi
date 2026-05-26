@@ -18,12 +18,14 @@
 package inetsoft.web.binding.event;
 
 import java.awt.*;
+import java.io.Serializable;
+
 /**
  * Class that encapsulates the parameters for applying a selection.
  *
  * @since 12.3
  */
-public class CopyCutCalcCellEvent {
+public class CopyCutCalcCellEvent implements Serializable {
    /**
     * Get the assembly name.
     * @return assembly name.

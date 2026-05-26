@@ -17,12 +17,14 @@
  */
 package inetsoft.web.composer.vs.objects.event;
 
+import java.io.Serializable;
+
 /**
  * Class that encapsulates the parameters for changing the x index of an object.
  *
  * @since 12.3
  */
-public class ChangeVSObjectLayerEvent extends VSObjectEvent {
+public class ChangeVSObjectLayerEvent extends VSObjectEvent implements Serializable {
    /**
     * Component to switch indexes with.
     * @return component name

@@ -19,12 +19,14 @@ package inetsoft.web.composer.model.vs;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
+import java.io.Serializable;
+
 /**
  * Data transfer object that represents the {@link ComboboxPropertyDialogModel} for the
  * combobox property dialog
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class ComboboxPropertyDialogModel {
+public class ComboboxPropertyDialogModel implements Serializable {
    public ComboboxGeneralPaneModel getComboboxGeneralPaneModel() {
       if(comboboxGeneralPaneModel == null) {
          comboboxGeneralPaneModel = new ComboboxGeneralPaneModel();

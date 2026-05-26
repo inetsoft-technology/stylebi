@@ -46,18 +46,44 @@ export class LoggingLevelTableComponent {
    private getTableColumns() {
       if(!this.enterprise || !this.isMultiTenant) {
          return [
-            {header: "_#(js:Type)", field: "context"},
+            {header: "_#(js:Type)", field: "context", render: (v: string) => this.getContextLabel(v)},
             {header: "_#(js:Name)", field: "name"},
-            {header: "_#(js:Level)", field: "level"}
+            {header: "_#(js:Level)", field: "level", render: (v: string) => this.getLevelLabel(v)}
          ];
       }
       else {
          return [
-            {header: "_#(js:Type)", field: "context"},
+            {header: "_#(js:Type)", field: "context", render: (v: string) => this.getContextLabel(v)},
             {header: "_#(js:Name)", field: "name"},
             {header: "_#(js:Organization)", field: "orgName"},
-            {header: "_#(js:Level)", field: "level"}
+            {header: "_#(js:Level)", field: "level", render: (v: string) => this.getLevelLabel(v)}
          ];
+      }
+   }
+
+   getContextLabel(value: string): string {
+      switch(value) {
+         case "DASHBOARD": return "_#(js:Viewsheet)";
+         case "QUERY": return "_#(js:Query)";
+         case "MODEL": return "_#(js:Model)";
+         case "WORKSHEET": return "_#(js:Worksheet)";
+         case "USER": return "_#(js:User)";
+         case "GROUP": return "_#(js:Group)";
+         case "ROLE": return "_#(js:Role)";
+         case "SCHEDULE_TASK": return "_#(js:Schedule Task)";
+         case "CATEGORY": return "_#(js:Log Category)";
+         case "ORGANIZATION": return "_#(js:Organization)";
+         default: return value;
+      }
+   }
+
+   getLevelLabel(value: string): string {
+      switch(value) {
+         case "debug": return "_#(js:Debug)";
+         case "info": return "_#(js:Info)";
+         case "warn": return "_#(js:Warning)";
+         case "error": return "_#(js:Error)";
+         default: return value;
       }
    }
    constructor(private dialog: MatDialog) {

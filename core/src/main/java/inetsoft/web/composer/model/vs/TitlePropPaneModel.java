@@ -19,8 +19,10 @@ package inetsoft.web.composer.model.vs;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
+import java.io.Serializable;
+
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class TitlePropPaneModel {
+public class TitlePropPaneModel implements Serializable {
    public boolean isVisible() {
       return visible;
    }

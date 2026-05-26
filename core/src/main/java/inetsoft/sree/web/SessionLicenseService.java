@@ -24,7 +24,6 @@ import inetsoft.sree.ClientInfo;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
 import inetsoft.util.Catalog;
-import inetsoft.util.SingletonManager;
 import inetsoft.util.profile.Profile;
 
 import java.util.*;
@@ -32,35 +31,11 @@ import java.util.function.Supplier;
 
 public abstract class SessionLicenseService implements SessionLicenseManager {
    /**
-    * Gets an instance of a session license service, depending on the server
-    * runtime license key. Returns null if the license is not a session license.
-    * @return an instance of a session license service, or null if the service
-    * cannot be provided.
-    */
-   public static SessionLicenseManager getSessionLicenseService() {
-      return SingletonManager.getInstance(SessionLicenseManager.class);
-   }
-
-   /**
-    * Gets a LicenseManager for managing Exploratory Analyzer sessions. Returns
-    * null if the server does not have a viewer 'W' key.
-    */
-   public static SessionLicenseManager getViewerLicenseService() {
-      return SingletonManager.getInstance(ViewerSessionService.class);
-   }
-
-   public static void resetServices() {
-      SingletonManager.reset(SessionLicenseManager.class);
-      SingletonManager.reset(ViewerSessionService.class);
-   }
-
-   /**
     * Concurrent session LicenseManager. A pool of licenses is used. No more
     * than pool.size() sessions may be active at one time.
     */
-   private static class ConcurrentSessionService extends AbstractSessionService {
-
-      private ConcurrentSessionService(Supplier<Integer> maxSessions) {
+   static class ConcurrentSessionService extends AbstractSessionService {
+      ConcurrentSessionService(Supplier<Integer> maxSessions) {
          this(maxSessions, true);
       }
 
@@ -70,8 +45,7 @@ public abstract class SessionLicenseService implements SessionLicenseManager {
        * @param logoutAfterFailure Whether to log the user out after a
        *                           LicenseException
        */
-      private ConcurrentSessionService(Supplier<Integer> maxSessions,
-                                       boolean logoutAfterFailure) {
+      ConcurrentSessionService(Supplier<Integer> maxSessions, boolean logoutAfterFailure) {
          this.maxSessions = maxSessions;
          this.principals = new HashSet<>();
          this.logoutAfterFailure = logoutAfterFailure;
@@ -108,6 +82,11 @@ public abstract class SessionLicenseService implements SessionLicenseManager {
             if(principals.size() > getMaxSessions()) {
                principals.remove(srPrincipal);
 
+               if(OrganizationManager.getInstance().isSiteAdmin(srPrincipal)) {
+                  throw new SessionsExceededException(
+                     "Session limit reached", buildActiveSessionInfoList());
+               }
+
                if(logoutAfterFailure) {
                   SUtil.logout(srPrincipal);
                }
@@ -121,6 +100,55 @@ public abstract class SessionLicenseService implements SessionLicenseManager {
                throw new LicenseException(msg);
             }
          }
+      }
+
+      /**
+       * {@inheritDoc}
+       */
+      @Override
+      public synchronized void newSession(SRPrincipal srPrincipal, String sessionIdToReplace) {
+         if(sessionIdToReplace != null && !sessionIdToReplace.isEmpty()) {
+            SRPrincipal toTerminate = null;
+
+            for(SRPrincipal p : principals) {
+               if(sessionIdToReplace.equals(p.getSessionID())) {
+                  toTerminate = p;
+                  break;
+               }
+            }
+
+            if(toTerminate != null) {
+               // SUtil.logout() will fire SessionListeners, which will call releaseSession()
+               // on this manager via AbstractSessionService.loggedOut(). Java synchronized is
+               // reentrant so this is safe on the same thread.
+               SUtil.logout(toTerminate);
+            }
+         }
+
+         newSession(srPrincipal);
+      }
+
+      private List<ActiveSessionInfo> buildActiveSessionInfoList() {
+         List<ActiveSessionInfo> list = new ArrayList<>();
+
+         for(SRPrincipal p : principals) {
+            String sessionId = p.getSessionID();
+            String username = IdentityID.getIdentityIDFromKey(p.getName()).getName();
+            long loginTime = 0;
+            String loginTimeStr = p.getProperty(SUtil.LONGON_TIME);
+
+            if(loginTimeStr != null && !loginTimeStr.isEmpty()) {
+               try {
+                  loginTime = Long.parseLong(loginTimeStr);
+               }
+               catch(NumberFormatException ignore) {
+               }
+            }
+
+            list.add(new ActiveSessionInfo(sessionId, username, loginTime));
+         }
+
+         return list;
       }
 
       /**
@@ -167,8 +195,8 @@ public abstract class SessionLicenseService implements SessionLicenseManager {
     * If both these conditions pass, the manager delegates to a
     * ConcurrentSessionService.
     */
-   private static class NamedSessionService implements SessionLicenseManager {
-      private NamedSessionService() {
+   static class NamedSessionService implements SessionLicenseManager {
+      NamedSessionService() {
          logoutAfterFailure = true;
 
          // The named users are limited in the implementation of newSession() in this class. Make
@@ -182,7 +210,7 @@ public abstract class SessionLicenseService implements SessionLicenseManager {
          }
       }
 
-      private NamedSessionService(Supplier<Integer> maxSessions, boolean logoutAfterFailure) {
+      NamedSessionService(Supplier<Integer> maxSessions, boolean logoutAfterFailure) {
          this.logoutAfterFailure = logoutAfterFailure;
 
          if(SUtil.isCluster()) {
@@ -242,10 +270,48 @@ public abstract class SessionLicenseService implements SessionLicenseManager {
          try {
             sessionService.newSession(srPrincipal);
          }
+         catch(SessionsExceededException se) {
+            throw se;
+         }
          catch(LicenseException le) {
             sessionError(srPrincipal, le);
          }
 
+      }
+
+      /**
+       * {@inheritDoc}
+       */
+      @Override
+      public void newSession(SRPrincipal srPrincipal, String sessionIdToReplace) {
+         Set<IdentityID> namedUsers = LicenseManager.getInstance().getNamedUsers();
+         ClientInfo info = srPrincipal.getUser();
+         IdentityID loginUser = info.getLoginUserID();
+
+         if(loginUser.equalsIgnoreCase(info.getUserIdentity())) {
+            loginUser = info.getUserIdentity();
+         }
+
+         if(namedUsers != null && !namedUsers.contains(loginUser)) {
+            if(logoutAfterFailure) {
+               SUtil.logout(srPrincipal);
+            }
+
+            LicenseManager.getInstance().addKeyViolation(
+               "Named user exception - " + loginUser, null);
+            throw new UnlicensedUserNameException(Catalog.getCatalog(srPrincipal).
+               getString("Named User Not Allowed", loginUser.getName()));
+         }
+
+         try {
+            sessionService.newSession(srPrincipal, sessionIdToReplace);
+         }
+         catch(SessionsExceededException se) {
+            throw se;
+         }
+         catch(LicenseException le) {
+            sessionError(srPrincipal, le);
+         }
       }
 
       /**
@@ -288,9 +354,9 @@ public abstract class SessionLicenseService implements SessionLicenseManager {
       private final boolean logoutAfterFailure;
    }
 
-   private static class HostedSessionService extends AbstractSessionService {
+   static class HostedSessionService extends AbstractSessionService {
 
-      private HostedSessionService() {
+      HostedSessionService() {
          this(true);
       }
 
@@ -381,119 +447,5 @@ public abstract class SessionLicenseService implements SessionLicenseManager {
 
       private final boolean logoutAfterFailure;
       private final Set<SRPrincipal> principals;
-   }
-
-   public static final class Reference
-      extends SingletonManager.Reference<SessionLicenseManager>
-   {
-      @Override
-      public synchronized SessionLicenseManager get(Object ... parameters) {
-         if(manager == null) {
-            LicenseManager licenseManager = LicenseManager.getInstance();
-
-            if(licenseManager.isHostedLicense()) {
-               manager = new HostedSessionService();
-            }
-            else {
-               final int sessions =
-                  licenseManager.getConcurrentSessionCount() +
-                  licenseManager.getViewerSessionCount();
-               final Set<IdentityID> namedUsers = licenseManager.getNamedUsers();
-
-               if(sessions > 0) {
-                  if(SUtil.isCluster()) {
-                     manager =
-                        new ConcurrentSessionClusterService(Reference::getAllowedViewerInstances);
-                  }
-                  else {
-                     manager = new ConcurrentSessionService(Reference::getAllowedViewerInstances);
-                  }
-               }
-               else if(namedUsers != null) {
-                  manager = new NamedSessionService();
-               }
-            }
-         }
-
-         return manager;
-      }
-
-      @Override
-      public synchronized void dispose() {
-         if(manager != null) {
-            manager.dispose();
-            manager = null;
-         }
-      }
-
-      private static int getAllowedViewerInstances() {
-         LicenseManager licenseManager = LicenseManager.getInstance();
-         return licenseManager.getConcurrentSessionCount() + licenseManager.getViewerSessionCount()
-                 + licenseManager.getNamedUserViewerSessionCount();
-      }
-
-      private SessionLicenseManager manager;
-   }
-
-   public static final class ViewerReference
-      extends SingletonManager.Reference<ViewerSessionService>
-   {
-      @Override
-      public synchronized ViewerSessionService get(Object ... parameters) {
-         if(service == null) {
-            if(getAllowedVCInstances() > 0 || isViewerOnlyLicense()) {
-               SessionLicenseManager manager;
-
-               if(SUtil.isCluster()) {
-                  manager = new ConcurrentSessionClusterService(
-                     ViewerReference::getAllowedVCInstances, false, "viewer_licenses.dat");
-               }
-               else {
-                  manager = new ConcurrentSessionService(
-                     ViewerReference::getAllowedVCInstances, false);
-               }
-
-               service = new ViewerSessionService(manager);
-            }
-            else if(LicenseManager.getInstance().getNamedUserViewerSessionCount() > 0) {
-               SessionLicenseManager manager = new NamedSessionService(
-                  ViewerReference::getAllowedVCNamedUsers, false);
-               service = new ViewerSessionService(manager);
-            }
-         }
-
-         return service;
-      }
-
-      @Override
-      public synchronized void dispose() {
-         if(service != null) {
-            service.dispose();
-            service = null;
-         }
-      }
-
-      private static int getAllowedVCInstances() {
-         return LicenseManager.getInstance().getConcurrentSessionCount();
-      }
-
-      private static int getAllowedVCNamedUsers() {
-         return LicenseManager.getInstance().getNamedUserCount();
-      }
-
-      private static boolean isViewerOnlyLicense() {
-         LicenseManager licenseManager = LicenseManager.getInstance();
-         int sessions = licenseManager.getConcurrentSessionCount();
-         int viewerSessions = licenseManager.getViewerSessionCount();
-
-         if(sessions == 0 && viewerSessions == 0) {
-            sessions = licenseManager.getNamedUserCount();
-            viewerSessions = licenseManager.getNamedUserViewerSessionCount();
-         }
-
-         return sessions == 0 && viewerSessions > 0;
-      }
-
-      private ViewerSessionService service;
    }
 }

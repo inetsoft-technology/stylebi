@@ -34,12 +34,12 @@ import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.TableDateComparisonFormat;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.CoreTool;
-import inetsoft.util.Tool;
 import inetsoft.web.viewsheet.service.VSExportService;
 import org.apache.commons.lang3.StringUtils;
 
 import java.awt.*;
 import java.io.*;
+import java.util.Optional;
 import java.util.regex.Pattern;
 
 public class CSVUtil {
@@ -53,23 +53,26 @@ public class CSVUtil {
          return false;
       }
 
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
       Viewsheet vs = rvs.getViewsheet();
-      vs.updateCSSFormat("xlsx", null, box);
 
-      try {
-         for(Assembly assembly : vs.getAssemblies()) {
-            if(assembly instanceof TableDataVSAssembly) {
-               TableLens lens = box.getVSTableLens(assembly.getAbsoluteName(), false);
+      if(box.isPresent()) {
+         vs.updateCSSFormat("xlsx", null, box.get());
 
-               // if the table has a lot of rows, use csv format to save memory
-               if(lens != null && lens.moreRows(VSExportService.EXCEL_MAX_ROW)) {
-                  return true;
+         try {
+            for(Assembly assembly : vs.getAssemblies()) {
+               if(assembly instanceof TableDataVSAssembly) {
+                  TableLens lens = box.get().getVSTableLens(assembly.getAbsoluteName(), false);
+
+                  // if the table has a lot of rows, use csv format to save memory
+                  if(lens != null && lens.moreRows(VSExportService.EXCEL_MAX_ROW)) {
+                     return true;
+                  }
                }
             }
          }
-      }
-      catch(Exception ignore) {
+         catch(Exception ignore) {
+         }
       }
 
       return false;
