@@ -24,6 +24,7 @@
         [autoClose]="false"
         [closeOnOutsideClick]="true"
         [disabled]="isDisabled"
+        [attr.disabled]="isDisabled ? '' : null"
         [attr.id]="id"
         [attr.data-test]="dataTest"
         [attr.aria-expanded]="open"
