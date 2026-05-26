@@ -121,6 +121,17 @@ public class RawDataService {
             throw new RuntimeException("No columns found for table: " + tableEntry.getPath());
          }
 
+         // Entries unavailable; build the selection directly from field metadata
+         JDBCSelection selection = (JDBCSelection) sql.getSelection();
+         String tableName = sql.getTableAlias(0);
+
+         for(XField field : fieldList) {
+            String path = tableName + "." + field.getName();
+            selection.addColumn(path);
+            selection.setTable(path, tableName);
+            selection.setType(path, field.getType() != null ? field.getType() : XField.STRING_TYPE);
+         }
+
          LOG.warn("Could not retrieve column entries for table: {}. Proceeding with existing field list.",
             tableEntry.getPath());
       }
