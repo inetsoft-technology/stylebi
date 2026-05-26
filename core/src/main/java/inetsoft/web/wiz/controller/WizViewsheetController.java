@@ -57,6 +57,13 @@ public class WizViewsheetController {
       return wizAutoBindingService.autoBinding(request, user);
    }
 
+   @PostMapping(value = "/viewsheet/changeType", produces = MediaType.APPLICATION_JSON_VALUE)
+   public CreateViewsheetResult changeType(@RequestBody ChangeTypeRequest request,
+                                           Principal user) throws Exception
+   {
+      return wizAutoBindingService.changeType(request, user);
+   }
+
    @DeleteMapping("/viewsheet")
    public void deleteViewsheet(@RequestParam("identifier") String identifier,
                                Principal user) throws Exception

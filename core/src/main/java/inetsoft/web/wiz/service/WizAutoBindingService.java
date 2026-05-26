@@ -76,7 +76,10 @@ public class WizAutoBindingService {
 
       if(Tool.isEmptyString(autoBindingRuntimeId)) {
          Viewsheet.WizInfo wizInfo = new Viewsheet.WizInfo(true, null, null);
-         autoBindingRuntimeId = viewsheetService.openTemporaryViewsheet(null, null, user, wizInfo);
+         AssetEntry wsEntry = !Tool.isEmptyString(worksheetId)
+            ? new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.WORKSHEET, worksheetId, null)
+            : null;
+         autoBindingRuntimeId = viewsheetService.openTemporaryViewsheet(null, wsEntry, user, wizInfo);
          createdAutoBindingRvs = true;
       }
 
@@ -152,6 +155,7 @@ public class WizAutoBindingService {
          ChartPreference pref = buildChartPreference(explicitBindings);
          VSWizardData wizardData = new VSWizardData(entries, tempInfo, pref);
          VSRecommendationModel model = defaultRecommendationFactory.recommend(wizardData, rvs, user);
+         tempInfo.setRecommendationModel(model);
 
          // Phase 2: compute recommendations and primary binding.
          List<VSObjectRecommendation> recommendations = Collections.emptyList();
@@ -661,8 +665,9 @@ public class WizAutoBindingService {
       return null;
    }
 
-   private PrimaryBinding findPrimaryBindingByType(String vizType, VSRecommendationModel model,
-                                                   AssetEntry[] entries)
+   /** Package-private so {@code changeType()} can select a binding from a cached model. */
+   PrimaryBinding findPrimaryBindingByType(String vizType, VSRecommendationModel model,
+                                           AssetEntry[] entries)
    {
       for(VSObjectRecommendation rec : model.getRecommendationList()) {
          if(isChartVizType(vizType) && rec instanceof VSChartRecommendation cr) {
@@ -981,6 +986,110 @@ public class WizAutoBindingService {
       }
 
       return config;
+   }
+
+   /**
+    * Changes the visualization type of an existing wizard viewsheet without re-running queries.
+    *
+    * <p>The recommendation model previously computed by {@link #autoBinding} is read from the
+    * {@code autoBindingRuntimeId} RVS.  If it is absent the service falls back to a full
+    * {@link #autoBinding} call (which also handles placing the primary and returning the result).
+    * Otherwise the matching {@link PrimaryBinding} is selected and placed in the
+    * {@code wizRuntimeId} RVS without executing the sandbox, so the response is fast and does
+    * not carry row data.
+    */
+   public CreateViewsheetResult changeType(ChangeTypeRequest request, Principal user)
+      throws Exception
+   {
+      String autoBindingRuntimeId = request.getAutoBindingRuntimeId();
+      String visualizationType = request.getVisualizationType();
+      String wizRuntimeId = request.getWizRuntimeId();
+      String worksheetId = request.getWorksheetId();
+      String viewsheetIdentifier = request.getViewsheetIdentifier();
+
+      // 1. Try to get the recommendation model stored by a prior autoBinding call.
+      VSRecommendationModel model = null;
+
+      if(!Tool.isEmptyString(autoBindingRuntimeId)) {
+         try {
+            RuntimeViewsheet autoBindingRvs = viewsheetService.getViewsheet(autoBindingRuntimeId, user);
+
+            if(autoBindingRvs != null) {
+               VSTemporaryInfo tempInfo = autoBindingRvs.getVSTemporaryInfo();
+
+               if(tempInfo != null) {
+                  model = tempInfo.getRecommendationModel();
+               }
+            }
+         }
+         catch(Exception e) {
+            LOG.warn("Could not read recommendation model from autoBindingRuntimeId {}: {}",
+                     autoBindingRuntimeId, e.getMessage());
+         }
+      }
+
+      // 2. Model missing — fall back to full autoBinding (handles placement too).
+      if(model == null) {
+         AutoBindingRequest fallback = new AutoBindingRequest();
+         fallback.setWorksheetId(worksheetId);
+         fallback.setVisualizationType(visualizationType);
+         // Do not forward autoBindingRuntimeId: if it was non-empty but invalid (expired RVS),
+         // autoBinding() would skip creating a new RVS and fail on the same dead id again.
+         fallback.setWizRuntimeId(wizRuntimeId);
+         fallback.setViewsheetIdentifier(viewsheetIdentifier);
+         AutoBindingResponse resp = autoBinding(fallback, user);
+         CreateViewsheetResult result = resp.getVisualizationResult();
+
+         if(result == null) {
+            result = new CreateViewsheetResult();
+         }
+
+         // Forward the newly created autoBindingRuntimeId so the client can use the fast
+         // path on subsequent changeType calls instead of triggering another full autoBinding.
+         result.setAutoBindingRuntimeId(resp.getAutoBindingRuntimeId());
+         return result;
+      }
+
+      // 3. Select the primary binding for the requested type.
+      PrimaryBinding primaryBinding = findPrimaryBindingByType(visualizationType, model, null);
+
+      if(primaryBinding == null) {
+         List<VSObjectRecommendation> recs = model.getRecommendationList().stream()
+            .filter(r -> !(r instanceof VSFilterRecommendation))
+            .collect(Collectors.toList());
+
+         if(!recs.isEmpty()) {
+            primaryBinding = toPrimaryBinding(recs.get(0), null);
+         }
+      }
+
+      if(primaryBinding == null || Tool.isEmptyString(worksheetId) || Tool.isEmptyString(wizRuntimeId)) {
+         LOG.warn("changeType skipped: primaryBinding={}, worksheetId='{}', wizRuntimeId='{}'",
+                  primaryBinding, worksheetId, wizRuntimeId);
+         return new CreateViewsheetResult();
+      }
+
+      // 4. Place the new primary in wizRuntimeId without executing the sandbox.
+      VisualizationConfig sourceConfig = new VisualizationConfig();
+      VisualizationConfig.DataSource ds = new VisualizationConfig.DataSource();
+      ds.setSource(worksheetId);
+      sourceConfig.setData(ds);
+
+      CreateVisualizationModel vsModel = new CreateVisualizationModel();
+      vsModel.setConfig(sourceConfig);
+      vsModel.setPrimaryBinding(primaryBinding);
+      vsModel.setRuntimeId(wizRuntimeId);
+      vsModel.setViewsheetIdentifier(viewsheetIdentifier);
+
+      CreateViewsheetResult result = wizVsService.createViewsheetSkipExecution(vsModel, user);
+
+      if(Tool.isEmptyString(result.getRuntimeId())) {
+         result.setRuntimeId(wizRuntimeId);
+      }
+
+      // Echo the autoBindingRuntimeId back so the client can reuse it on the next call.
+      result.setAutoBindingRuntimeId(autoBindingRuntimeId);
+      return result;
    }
 
    private static final Logger LOG = LoggerFactory.getLogger(WizAutoBindingService.class);
