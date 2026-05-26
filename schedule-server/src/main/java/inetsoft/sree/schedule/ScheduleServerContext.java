@@ -29,13 +29,14 @@ import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationContextAware;
-import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.*;
 
 /**
  * Spring configuration for the standalone schedule server process. Handles RMI
  * registry binding and scheduler lifecycle after the application context starts.
  */
 @Configuration
+@Lazy(false)
 public class ScheduleServerContext implements ApplicationRunner, ApplicationContextAware {
    @Override
    public void setApplicationContext(ApplicationContext applicationContext) throws BeansException {

@@ -471,7 +471,13 @@ public class SUtil {
       }
 
       if(cp.isEmpty() || ".".equals(cp)) {
-         return System.getProperty("java.class.path", ".");
+         cp = System.getProperty("java.class.path", ".");
+      }
+
+      String extraCp = System.getProperty("scheduler.extra.classpath");
+
+      if(extraCp != null && !extraCp.isEmpty()) {
+         cp = cp + File.pathSeparator + extraCp;
       }
 
       return cp;
