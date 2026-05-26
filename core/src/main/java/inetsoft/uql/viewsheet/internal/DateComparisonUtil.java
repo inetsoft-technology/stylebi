@@ -1071,6 +1071,7 @@ public class DateComparisonUtil {
       }
 
       cal.setTime(date);
+      int refYear = cal.get(Calendar.YEAR);
       List<XDimensionRef> mergedRefs = cell.getMergedRefs();
 
       for(int i = 0; i < mergedRefs.size(); i++) {
@@ -1141,6 +1142,14 @@ public class DateComparisonUtil {
                cal.set(Calendar.DAY_OF_WEEK, value);
             }
          }
+      }
+
+      // Partial week at year start (e.g. Dec 28-Jan 3) may land in the previous year; advance one week.
+      if(cal.get(Calendar.YEAR) < refYear) {
+         cal.add(Calendar.DATE, 7);
+      }
+      else if(cal.get(Calendar.YEAR) > refYear) {
+         cal.add(Calendar.DATE, -7);
       }
 
       Format dateFmt = fmt != null ? fmt : XUtil.getDefaultDateFormat(formatLevel);

@@ -439,13 +439,6 @@ public class SRPrincipal extends XPrincipal implements Serializable, Externaliza
          return false;
       }
 
-      boolean this_fake = "true".equals(getProperty("__FAKE__"));
-      boolean that_fake = "true".equals(that.getProperty("__FAKE__"));
-
-      if(this_fake || that_fake) {
-         return Tool.equals(getName(), that.getName());
-      }
-
       if(super.equals(that) &&
          this.client.equals(that.client) &&
          this.getSecureID() == that.getSecureID())
@@ -463,10 +456,6 @@ public class SRPrincipal extends XPrincipal implements Serializable, Externaliza
     */
    @Override
    public int hashCode() {
-      if("true".equals(getProperty("__FAKE__"))) {
-         return getName().hashCode();
-      }
-
       return super.hashCode() + client.hashCode();
    }
 

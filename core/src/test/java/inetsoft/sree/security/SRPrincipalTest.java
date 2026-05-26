@@ -24,7 +24,7 @@ package inetsoft.sree.security;
  * [CreateUser: internal]         principal marked as internal                                        -> createUser() returns null
  * [CreateUser: no-membership]    principal has no groups and no roles                                -> createUser() returns null
  * [Copy: constructor]            copy constructor receives a fully populated principal               -> all copied fields are reproduced in the new instance
- * [Equals: non-fake]             non-fake principals with same identity, client, and secureID        -> equal; differing secureID or null argument → not equal
+ * [Equals]                        principals with same identity, client, and secureID               -> equal; differing secureID or null argument → not equal
  * [Locale: property-sync]        setLocale writes LOCALE property when absent, skips when present   -> getProperty(LOCALE) reflects the first locale set; later calls do not overwrite it
  * [Session: valid-states]        sref null (no session set) or sref pointing to a live object       -> isValid() is true in both cases; getSession() returns the live object
  * [Identifier: internal]         principal marked as __internal__                                   -> toIdentifier() returns plain name with no SSO encoding
@@ -122,10 +122,10 @@ class SRPrincipalTest {
       }
    }
 
-   // [Equals: non-fake] same name + same client + same secureID → equal;
-   //                    differing secureID or null argument → not equal
+   // [Equals] same name + same client + same secureID → equal;
+   //          differing secureID or null argument → not equal
    @Test
-   void equals_nonFakePrincipals_equalByIdentityClientAndSecureID() {
+   void equals_principalsEqualByIdentityClientAndSecureID() {
       try(MockedStatic<XSessionService> sessionService = mockSessionService()) {
          ClientInfo client = new ClientInfo(new IdentityID("alice", ORG_A), "10.0.0.1", "s1");
          SRPrincipal a = new SRPrincipal(client, new IdentityID[0], new String[0], ORG_A, 42L);
@@ -295,24 +295,6 @@ class SRPrincipalTest {
             "<secureID>42</secureID><age>0</age><accessed>0</accessed>" +
             "<sessionID><![CDATA[]]></sessionID>" +
             "</principal>", "properties");
-      }
-   }
-
-   // [Suspect 1] fake principals that compare equal should also share the same hashCode
-   @Test
-   void fakePrincipalsEqualByName_haveSameHashCode() {
-      try(MockedStatic<XSessionService> sessionService = mockSessionService()) {
-         SRPrincipal first = new SRPrincipal(
-            new ClientInfo(new IdentityID("alice", ORG_A), "10.0.0.1", "session-1"),
-            new IdentityID[0], new String[0], ORG_A, 1L);
-         SRPrincipal second = new SRPrincipal(
-            new ClientInfo(new IdentityID("alice", ORG_A), "10.0.0.2", "session-2"),
-            new IdentityID[0], new String[0], ORG_A, 2L);
-         first.setProperty("__FAKE__", "true");
-         second.setProperty("__FAKE__", "true");
-
-         assertEquals(first, second);
-         assertEquals(first.hashCode(), second.hashCode());
       }
    }
 

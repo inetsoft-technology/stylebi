@@ -23,26 +23,20 @@
  *   Group 1 [Risk 3]  — changeDataSourcesTree: always returns false — ancestor nodes at depth ≥ 2
  *                       never receive expanded=true (it.fails — confirmed bug)
  *   Group 2 [Risk 3]  — selectNode: type-dispatch routes to the correct Angular route
- *   Group 3 [Risk 3]  — getDataNavigationTree: loading flag lifecycle + HTTP response wiring
+ *   Group 3 [Risk 3]  — getDataNavigationTree: loading flag lifecycle + HTTP response wiring (including error path)
  *   Group 4 [Risk 2]  — hasMenuFunction: permission-gated menu display for model/VPM node types
  *   Group 5 [Risk 2]  — isVpmVisible: enterprise gate + ^SELF identifier guard
  *   Group 6 [Risk 2]  — canCreateChildren / canRename / canDelete: property-based permission guards
  *   Group 7 [Risk 2]  — getAssetIcon: CSS class dispatch per node type
  *   Group 8 [Risk 2]  — getNodePath / splitModelName: path parsing boundary cases
  *
- * Confirmed bugs (it.fails — remove wrapper once fixed):
+ * Confirmed bugs (it.fails — remove wrapper once fixed Issue #75149):
  *
  *   Bug A — changeDataSourcesTree-always-returns-false (Group 1):
  *     The method ends with `return false` instead of `return found`. Recursive calls use
  *     `found = this.changeDataSourcesTree(...) || found`, which resolves to `found = false || found`.
  *     Ancestor nodes at depth ≥ 2 never receive `expanded = true`, so navigating to a
  *     deeply nested node leaves intermediate folders visually collapsed.
- *
- *   Bug B — getDataNavigationTree missing error handler (Group 3):
- *     The subscribe() call at line ~409 has no error callback. When the HTTP request fails,
- *     `loading` is set to true before the request but the error path never resets it to false,
- *     leaving the tree spinner running indefinitely. Fix: add an error callback that sets
- *     `loading = false`.
  *
  * KEY contracts:
  *   selectNode: guarded by gettingStartedService.isProcessing() && isEditWs() — early return before routing.
@@ -213,6 +207,10 @@ async function renderComponent(opts: { enterprise?: boolean; routerUrl?: string 
    return { comp, mockRouter, fixture };
 }
 
+afterEach(() => {
+   jest.restoreAllMocks();
+});
+
 // ---------------------------------------------------------------------------
 // Group 1 — changeDataSourcesTree: always returns false [Risk 3] (confirmed bug)
 // ---------------------------------------------------------------------------
@@ -291,7 +289,7 @@ describe("DataSourcesTreeViewComponent — selectNode — route dispatch [Group 
       comp.selectNode([node]);
 
       expect(mockRouter.navigate).toHaveBeenCalledWith(
-         ["/portal/tab/data/datasources/database", expect.any(String)],
+         ["/portal/tab/data/datasources/database", encodeURIComponent("mydb")],
          expect.objectContaining({ relativeTo: expect.anything() })
       );
    });
@@ -366,9 +364,9 @@ describe("DataSourcesTreeViewComponent — getDataNavigationTree — loading + r
       expect(comp.loading).toBe(false);
    });
 
-   // Bug B — subscribe() has no error callback; loading stays true indefinitely on HTTP failure.
-   // Fix: add error handler that sets loading = false.
-   it.failing("should reset loading to false when the HTTP request errors", async () => {
+   // 🔁 Regression-sensitive: loading must be reset to false on error; a missing error handler
+   //    leaves the spinner running indefinitely after a network failure.
+   it("should reset loading to false when the HTTP request errors", async () => {
       const { comp } = await renderComponent();
 
       server.use(
@@ -415,8 +413,11 @@ describe("DataSourcesTreeViewComponent — getDataNavigationTree — loading + r
       // Wait for the reload to complete: loading goes true→false only after the HTTP response is processed.
       await waitFor(() => expect(comp.loading).toBe(false));
       // selectedNodes must now point to the new tree's equivalent node, not the stale old reference.
+      // Reference equality is impossible after JSON round-trip (MSW → HttpClient deserializes to a new object),
+      // so verify by identifier — the same field updateSelectedNodes uses for matching.
       expect(comp.selectedNodes).not.toContain(oldChild);
       expect(comp.selectedNodes).toHaveLength(1);
+      expect(comp.selectedNodes[0].data.identifier).toBe(IDENTIFIER);
    });
 });
 
@@ -628,6 +629,7 @@ describe("DataSourcesTreeViewComponent — getNodePath / splitModelName — path
 
       expect(result).not.toBeNull();
       expect(result.database).toBe("db");
+      expect(result.folder).toBeNull();
       expect(result.name).toBe("model");
    });
 

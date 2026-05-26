@@ -1761,6 +1761,7 @@ public class ChartVSAQuery extends CubeVSAQuery implements BindableVSAQuery {
    private MirrorTableAssembly createMirrorTableAssembly(TableAssembly table, String vname) {
       String mname = Assembly.TABLE_VS + vname + "_mirror";
       Worksheet ws = table.getWorksheet();
+      ws.addAssembly(table);
       MirrorTableAssembly mtable = new MirrorTableAssembly(ws, mname, null, false, table);
 
       normalizeTable(mtable);
