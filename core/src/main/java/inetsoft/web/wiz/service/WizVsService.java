@@ -56,6 +56,23 @@ public class WizVsService {
    }
 
    public CreateViewsheetResult createViewsheet(CreateVisualizationModel model, Principal user) throws Exception {
+      return createViewsheetInternal(model, user, false);
+   }
+
+   /**
+    * Places the primary assembly without executing the sandbox.
+    * Returns a {@link CreateViewsheetResult} with binding and assembly metadata but no row data.
+    */
+   CreateViewsheetResult createViewsheetSkipExecution(CreateVisualizationModel model, Principal user)
+      throws Exception
+   {
+      return createViewsheetInternal(model, user, true);
+   }
+
+   private CreateViewsheetResult createViewsheetInternal(CreateVisualizationModel model,
+                                                         Principal user,
+                                                         boolean skipExecution) throws Exception
+   {
       String runtimeId = model.getRuntimeId();
       boolean createdRuntimeId = false;
 
@@ -165,6 +182,7 @@ public class WizVsService {
          AssetEntry wsEntry = null;
          Worksheet originWs = null;
          boolean wsModified = false;
+         boolean removedPreviousPrimary = false;
 
          try {
             // All mutations happen inside this try so the catch can roll back everything
@@ -211,14 +229,29 @@ public class WizVsService {
                targetVs.reloadBaseWorksheet(engine, user);
             }
 
-            CreateViewsheetResult result = executeAndExtract(rvs, assembly);
+            CreateViewsheetResult result;
+
+            if(skipExecution) {
+               result = new CreateViewsheetResult();
+            }
+            else {
+               result = executeAndExtract(rvs, assembly);
+               boolean metadataMode = rvs.getViewsheet().getViewsheetInfo().isMetadata();
+               result.setHasData(!metadataMode && result.getRows() != null && !result.getRows().isEmpty());
+            }
+
             result.setBinding(binding);
             result.setAssemblyName(assembly.getName());
-            boolean metadataMode = rvs.getViewsheet().getViewsheetInfo().isMetadata();
-            result.setHasData(!metadataMode && result.getRows() != null && !result.getRows().isEmpty());
 
             if(createdRuntimeId) {
                result.setRuntimeId(runtimeId);
+            }
+
+            // For skipExecution (changeType): remove the displaced primary before persisting
+            // so the stored viewsheet contains only the new assembly.
+            if(skipExecution && previousPrimaryAssembly != null && !createdRuntimeId) {
+               targetVs.removeAssembly(previousPrimaryAssembly.getName());
+               removedPreviousPrimary = true;
             }
 
             String identifierToUse = model.getViewsheetIdentifier();
@@ -248,6 +281,11 @@ public class WizVsService {
 
                if(previousPrimaryAssembly != null) {
                   previousPrimaryAssembly.setPrimary(true);
+
+                  // Re-add the old primary if it was removed by the skipExecution path.
+                  if(removedPreviousPrimary) {
+                     previousVs.addAssembly(previousPrimaryAssembly);
+                  }
                }
 
                if(!modificationOnly) {
@@ -1105,24 +1143,30 @@ public class WizVsService {
       TableVSAssembly table = new TableVSAssembly(vs, name);
       table.initDefaultFormat();
 
-      if(columns != null && entries != null) {
-         Map<String, AssetEntry> entryByName = Arrays.stream(entries)
-            .collect(Collectors.toMap(WizardRecommenderUtil::getFieldName, e -> e, (a, b) -> a));
-         ColumnSelection typedColumns = new ColumnSelection();
+      if(columns != null) {
+         if(entries != null) {
+            Map<String, AssetEntry> entryByName = Arrays.stream(entries)
+               .collect(Collectors.toMap(WizardRecommenderUtil::getFieldName, e -> e, (a, b) -> a));
+            ColumnSelection typedColumns = new ColumnSelection();
 
-         for(int i = 0; i < columns.getAttributeCount(); i++) {
-            DataRef attr = columns.getAttribute(i);
-            AttributeRef attributeRef = new AttributeRef(null, attr.getAttribute());
-            AssetEntry entry = entryByName.get(attr.getAttribute());
+            for(int i = 0; i < columns.getAttributeCount(); i++) {
+               DataRef attr = columns.getAttribute(i);
+               AttributeRef attributeRef = new AttributeRef(null, attr.getAttribute());
+               AssetEntry entry = entryByName.get(attr.getAttribute());
 
-            if(entry != null) {
-               attributeRef.setDataType(entry.getProperty("dtype"));
+               if(entry != null) {
+                  attributeRef.setDataType(entry.getProperty("dtype"));
+               }
+
+               typedColumns.addAttribute(new ColumnRef(attributeRef));
             }
 
-            typedColumns.addAttribute(new ColumnRef(attributeRef));
+            table.setColumnSelection(typedColumns);
          }
-
-         table.setColumnSelection(typedColumns);
+         else {
+            // No entries available; use ColumnRefs as-is (dtypes already set during recommendation).
+            table.setColumnSelection(columns);
+         }
       }
 
       return table;
