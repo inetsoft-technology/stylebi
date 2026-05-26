@@ -615,7 +615,7 @@ public abstract class BlobStorage<T extends Serializable> implements AutoCloseab
    }
 
    public boolean isClosed() {
-      return isClosed;
+      return isClosed || storage.isClosed();
    }
 
    public static <T extends Serializable> BlobStorage<T> createBlobStorage(String id,
