@@ -163,12 +163,12 @@ public class ChartAdvancedPaneModel {
       // runtime bar conversion, so it incorrectly resets barRoundAllCorners=false.
       // Re-apply the user's value only when DC will actually create bars (mirrors the
       // visibility guard in the constructor).
-      DateComparisonInfo updateDcInfo = chartAssemblyInfo.getDateComparisonInfo();
+      DateComparisonInfo dcInfo = chartAssemblyInfo.getDateComparisonInfo();
 
       if(chartAssemblyInfo.isDateComparisonEnabled() &&
          DateComparisonUtil.isDateComparisonDefined(chartAssemblyInfo) &&
          DateComparisonUtil.supportDateComparison(info, true) &&
-         updateDcInfo != null && !updateDcInfo.isValueOnly() &&
+         dcInfo != null && !dcInfo.isValueOnly() &&
          !GraphTypeUtil.checkType(info, ctype ->
             GraphTypes.isBar(ctype) || GraphTypes.isInterval(ctype)))
       {
