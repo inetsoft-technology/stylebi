@@ -401,6 +401,7 @@
             <java.net.preferIPv4Stack>true</java.net.preferIPv4Stack>
             <inetsoftClusterDir>${project.build.directory}/server/cluster</inetsoftClusterDir>
             <spring.aot.enabled>true</spring.aot.enabled>
+            <scheduler.extra.classpath>${basedir}/../schedule-server/target/inetsoft-schedule-server-${project.version}.jar</scheduler.extra.classpath>
           </systemPropertyVariables>
           <jvmArguments>
             -server -Xmx2g -Xmx2g -XX:InitialCodeCacheSize=100M -XX:ReservedCodeCacheSize=200m
@@ -440,7 +441,6 @@
             <element>${basedir}/../web/target/generated-resources/gulp</element>
             <element>${basedir}/../web/target/generated-resources/ng</element>
             <element>${basedir}/src/test/config/orders.jar</element>
-            <element>${basedir}/../schedule-server/target/inetsoft-schedule-server-${project.version}.jar}</element>
           </additionalClasspathElements>
         </configuration>
       </plugin>

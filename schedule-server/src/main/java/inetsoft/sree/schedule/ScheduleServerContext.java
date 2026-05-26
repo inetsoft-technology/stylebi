@@ -30,12 +30,16 @@ import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationContextAware;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Lazy;
 
 /**
  * Spring configuration for the standalone schedule server process. Handles RMI
  * registry binding and scheduler lifecycle after the application context starts.
  */
+// @Lazy(false) overrides the global lazy-initialization=true so that
+// setApplicationContext() fires before SmartLifecycle beans start.
 @Configuration
+@Lazy(false)
 public class ScheduleServerContext implements ApplicationRunner, ApplicationContextAware {
    @Override
    public void setApplicationContext(ApplicationContext applicationContext) throws BeansException {
