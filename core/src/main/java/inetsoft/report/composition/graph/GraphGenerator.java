@@ -1669,6 +1669,7 @@ public abstract class GraphGenerator {
                // "Symbol Size" set on a DC chart legend (CompositeVisualFrame)
                // is actually applied to the rendered legend.
                gspec.setSymbolSize(legend.getSymbolSize());
+               gspec.setSymbolRoundCorners(legend.isSymbolRoundCorners());
             }
          }
 
@@ -6338,6 +6339,7 @@ public abstract class GraphGenerator {
       String fld = frame.getField();
       legend.setTitleVisible(desc.isTitleVisible());
       legend.setSymbolSize(desc.getSymbolSize());
+      legend.setSymbolRoundCorners(desc.isSymbolRoundCorners());
 
       if(desc.isNotShowNull()) {
          frame.setScaleOption(Scale.NO_NULL);

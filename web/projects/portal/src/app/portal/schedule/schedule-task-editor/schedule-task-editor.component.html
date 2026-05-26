@@ -15,9 +15,9 @@
   ~ You should have received a copy of the GNU Affero General Public License
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
-<div class="container-fluid p-1" *ngIf="!!model">
+<div class="schedule-task-editor-shell" *ngIf="!!model">
   <form [formGroup]="form">
-    <div class="form-row-float-label row">
+    <div class="form-row-float-label row schedule-task-editor-shell__name-row">
       <div class="col form-floating">
           <input type="text" class="form-control" id="taskName"
                  [attr.disabled]="model.internalTask ? '' : null"
@@ -39,22 +39,22 @@
       </div>
     </div>
   </form>
-  <ul role="tablist" class="nav nav-tabs justify-content-start">
+  <ul role="tablist" class="nav nav-tabs justify-content-start schedule-task-editor-shell__tabs">
     <li class="nav-item">
-      <a class="nav-link" [class.active]="selectedTab === 'condition'" role="tab"
+      <a class="nav-link schedule-task-editor-shell__tab-link" [class.active]="selectedTab === 'condition'" role="tab"
          (click)="selectedTab = 'condition'; resetConditionListView();">
         _#(Condition)
       </a>
     </li>
     <li class="nav-item">
-      <a class="nav-link" [class.active]="selectedTab === 'action'" role="tab"
+      <a class="nav-link schedule-task-editor-shell__tab-link" [class.active]="selectedTab === 'action'" role="tab"
          [class.disabled]="model.internalTask"
          (click)="!model.internalTask ? (selectedTab = 'action') : null">
         _#(Action)
       </a>
     </li>
     <li class="nav-item">
-      <a class="nav-link" [class.active]="selectedTab === 'options'" role="tab"
+      <a class="nav-link schedule-task-editor-shell__tab-link" [class.active]="selectedTab === 'options'" role="tab"
          (click)="selectedTab = 'options'">
         _#(Options)
       </a>

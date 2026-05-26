@@ -61,6 +61,7 @@
   justify-content: flex-start;
   align-items: stretch;
   flex: 1;
+  min-width: 0;
 }
 
 .sheet-tab-selector-container {
@@ -117,11 +118,13 @@
   align-items: stretch;
   flex: 1;
   height: 100%;
+  min-width: 0;
 }
 
 .editor-pane-container > .composer-tab-content > * {
-  flex-grow: 1;
-  width: 0;
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
 }
 
 .composer-tab-content-body {

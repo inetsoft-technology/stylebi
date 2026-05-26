@@ -16,8 +16,8 @@
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
 <form [formGroup]="form">
-  <div class="container-fluid">
-    <div class="form-row-float-label row mt-2">
+  <div class="task-options-pane">
+    <div class="form-row-float-label row task-options-pane__row">
       <div class="col">
         <div class="form-check">
           <input class="form-check-input" type="checkbox" [(ngModel)]="_model.enabled" id="enabled"
@@ -38,19 +38,19 @@
         </div>
       </div>
     </div>
-    <div class="form-row-float-label row form-group">
+    <div class="form-row-float-label row form-group task-options-pane__row">
       <div class="col">
         <div class="form-floating">
-          <div class="input-group">
+          <div class="input-group task-options-pane__date-group">
             <input class="form-control date-picker-input" readOnly placeholder="yyyy-mm-dd"
                    name="startDate"
                    ngbDatepicker #startDatePicker="ngbDatepicker" placement="bottom-right"
                    container="body" [formControl]="form.get('start')">
-            <button class="input-group-btn-addon btn btn-icon form-control"
+            <button class="input-group-btn-addon btn icon-hover-bg task-options-pane__icon-button"
                     (click)="startDatePicker.toggle(); endDatePicker.close()" type="button">
               <span class="calendar-icon icon-size-medium align-middle"></span>
             </button>
-            <button type="button" class="input-group-button btn btn-default"
+            <button type="button" class="input-group-button btn btn-default task-options-pane__action-button"
                     (click)="clearStartDate()">
               _#(Clear)
             </button>
@@ -59,20 +59,20 @@
         </div>
       </div>
     </div>
-    <div class="form-row-float-label row form-group">
+    <div class="form-row-float-label row form-group task-options-pane__row">
       <div class="col">
         <div class="form-floating">
-          <div class="input-group">
+          <div class="input-group task-options-pane__date-group">
             <input class="form-control date-picker-input" readOnly placeholder="yyyy-mm-dd"
                    name="endDate"
                    ngbDatepicker #endDatePicker="ngbDatepicker" placement="bottom-right"
                    container="body" [formControl]="form.get('stop')"
                    [class.is-invalid]="!form.valid && form.dirty">
-            <button class="input-group-btn-addon btn btn-icon form-control"
+            <button class="input-group-btn-addon btn icon-hover-bg task-options-pane__icon-button"
                     (click)="endDatePicker.toggle(); startDatePicker.close()" type="button">
               <span class="calendar-icon icon-size-medium align-middle"></span>
             </button>
-            <button type="button" class="input-group-button btn btn-default"
+            <button type="button" class="input-group-button btn btn-default task-options-pane__action-button"
                   (click)="clearEndDate()">
             _#(Clear)
             </button>
@@ -85,7 +85,7 @@
       </div>
     </div>
 
-    <div class="form-row-float-label row form-group">
+    <div class="form-row-float-label row form-group task-options-pane__row">
       <div class="col form-floating">
         <select class="form-control" [ngModel]="localTimeZoneId" formControlName="timeZone">
           <option *ngFor="let tz of timeZoneOptions" [value]="tz.timeZoneId" [title]="tz.timeZoneId">{{ tz.hourOffset + " " + tz.label }}</option>
@@ -93,9 +93,9 @@
         <label>_#(Time Zone)</label>
       </div>
     </div>
-    <div class="form-row-float-label row form-group">
+    <div class="form-row-float-label row form-group task-options-pane__row">
       <div class="col form-floating">
-          <div class="input-group btn-group">
+          <div class="input-group btn-group task-options-pane__execute-as-group">
             <select class="form-control w-auto" [disabled]="disableExecuteAs()" [(ngModel)]="executeAsType" [ngModelOptions]="{standalone: true}">
               <option [value]="type.value" *ngFor="let type of executeAsTypes">{{type.label}}</option>
             </select>
@@ -106,15 +106,15 @@
                 <i class="loading-icon--spin icon-size-large loading-icon" aria-hidden="true"></i>
               </div>
             </div>
-            <button type="button" class="input-group-button btn btn-default"
+            <button type="button" class="input-group-button btn btn-default task-options-pane__action-button"
                     (click)="clearUser()" [disabled]="disableExecuteAs()">_#(Clear)</button>
-            <button type="button" class="input-group-button btn btn-default"
+            <button type="button" class="input-group-button btn btn-secondary task-options-pane__action-button"
                     [disabled]="disableExecuteAs()" (click)="openExecuteAsDialog()">_#(Select)</button>
           </div>
           <label>_#(Execute As)</label>
       </div>
     </div>
-    <div class="form-row-float-label row form-group">
+    <div class="form-row-float-label row form-group task-options-pane__row">
       <div class="col form-floating">
           <select class="form-control" [(ngModel)]="locale" [ngModelOptions]="{standalone: true}">
             <option [value]="'Default'">_#(Default)</option>
@@ -123,29 +123,29 @@
           <label>_#(Locale)</label>
       </div>
     </div>
-    <div class="form-row-float-label row form-group" [style.display]="_model.securityEnabled ? null : 'none'">
+    <div class="form-row-float-label row form-group task-options-pane__row" [style.display]="_model.securityEnabled ? null : 'none'">
       <div class="col form-floating">
           <input class="form-control" [ngModel]="_model.ownerAlias ? _model.ownerAlias : _model.owner"
                  [disabled]="true" [ngModelOptions]="{standalone: true}">
           <label>_#(Owner)</label>
       </div>
     </div>
-    <div class="form-row-float-label row form-group">
+    <div class="form-row-float-label row form-group task-options-pane__row">
       <div class="col form-floating">
           <input type="text" class="form-control" [(ngModel)]="_model.description"
                  [ngModelOptions]="{standalone: true}">
           <label>_#(Description)</label>
       </div>
     </div>
-    <div class="form-group">
+    <div class="form-group task-options-pane__footer">
       <button type="button" class="btn btn-primary" (click)="save()"
               [disabled]="!form.valid || !parentForm.valid">
         _#(Save)
       </button>
-      <button type="button" class="btn btn-default ms-2" (click)="closeEditor.emit(_model)">
+      <button type="button" class="btn btn-default" (click)="closeEditor.emit(_model)">
         _#(Close)
       </button>
-      <button *ngIf="newTask" type="button" class="btn btn-default ms-2" (click)="cancelTask.emit()">
+      <button *ngIf="newTask" type="button" class="btn btn-default" (click)="cancelTask.emit()">
         _#(Cancel)
       </button>
     </div>

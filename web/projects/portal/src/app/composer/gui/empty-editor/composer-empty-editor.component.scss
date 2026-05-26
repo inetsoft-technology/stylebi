@@ -16,7 +16,10 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 :host {
+  display: block;
   height: 100%;
+  width: 100%;
+  min-width: 0;
 }
 
 div {
@@ -27,8 +30,11 @@ div {
 
 span {
   font-size: 14px;
-  width: 100%;
-  word-break: break-all;
+  flex: 1 1 auto;
+  min-width: 0;
+  width: auto;
+  word-break: normal;
+  overflow-wrap: anywhere;
 }
 
 .hint-container {
@@ -41,7 +47,9 @@ span {
 }
 
 ul {
-  max-width: 80%;
+  width: min(80%, 640px);
+  min-width: min(320px, 100%);
+  max-width: 100%;
 }
 
 ul.hint-menu {
@@ -51,8 +59,9 @@ ul.hint-menu {
   flex-direction: column;
 
   li {
-    display: inline-flex;
+    display: flex;
     align-items: center;
+    width: 100%;
 
     .hint-icon {
       display: flex;

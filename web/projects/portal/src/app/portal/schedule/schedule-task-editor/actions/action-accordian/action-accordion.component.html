@@ -16,10 +16,9 @@
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
 <ng-container *ngIf="action && form">
-  <div class="action-accordion-content">
-    <form [formGroup]="form">
-      <div class="card m-1" *ngIf="isDashboard">
-        <div class="card-body">
+  <form [formGroup]="form" class="action-accordion-form">
+      <div class="card action-accordion-card" *ngIf="isDashboard">
+        <div class="card-body action-accordion-card__body">
           <label class="form-check-label card-title">_#(Bookmarks)</label>
           <div class="form-row-float-label row align-items-start">
             <div class="col form-floating">
@@ -32,22 +31,22 @@
                 <label>_#(Bookmark)</label>
             </div>
           </div>
-          <div class="form-row-float-label row align-items-start">
-            <div class="col-10">
+          <div class="form-row-float-label row align-items-start action-accordion-bookmark-row">
+            <div class="col-10 action-accordion-bookmark-list-col">
               <generic-selectable-list [itemList]="bookmarkList"
                                        [selectedIndex]="selectedBookmarkListIndex"
                                        (selectedIndexChange)="editBookmark($event)"></generic-selectable-list>
             </div>
-            <div class="col-2">
-              <button type="button" class="btn btn-default w-100 mb-2" (click)="addBookmark()"
+            <div class="col-2 action-accordion-bookmark-actions-col">
+              <button type="button" class="btn btn-secondary w-100 mb-2" (click)="addBookmark()"
                       [disabled]="bookmarks.length < 1">
                 _#(Add)
               </button>
-              <button type="button" class="btn btn-default w-100 mb-2" (click)="modifyBookmark()"
+              <button type="button" class="btn btn-secondary w-100 mb-2" (click)="modifyBookmark()"
                       [disabled]="selectedBookmarkListIndex < 0 || bookmarks.length < 1">
                 _#(Modify)
               </button>
-              <button type="button" class="btn btn-default w-100 delete_file_id mb-2"
+              <button type="button" class="btn btn-secondary w-100 delete_file_id mb-2"
                       [disabled]="selectedBookmarkListIndex < 0 || bookmarkList.length <= 1" (click)="removeBookmark()">
                 _#(Remove)
               </button>
@@ -55,8 +54,8 @@
           </div>
         </div>
       </div>
-      <div class="card m-1" *ngIf="model.notificationEmailEnabled">
-        <div class="card-body">
+      <div class="card action-accordion-card" *ngIf="model.notificationEmailEnabled">
+        <div class="card-body action-accordion-card__body">
           <div class="form-check form-check-inline form-row-float-label">
             <input class="form-check-input" type="checkbox" id="notification"
                    [ngModelOptions]="{standalone: true}"
@@ -79,7 +78,7 @@
                            [resultTemplate]="emailAutocompleteResult"
                            [inputFormatter]="formatEmails"
                            (ngModelChange)="updateNotificationEmails($event)">
-                    <button *ngIf="model.emailButtonVisible && model.securityEnabled" type="button" class="btn btn-default"
+                    <button *ngIf="model.emailButtonVisible && model.securityEnabled" type="button" class="btn btn-secondary"
                             title="_#(Email Browser)"
                             (click)="openEmailDialogNotify()">...</button>
                   </div>
@@ -124,8 +123,8 @@
           </fieldset>
         </div>
       </div>
-      <div class="card m-1" *ngIf="model.emailDeliveryEnabled">
-        <div class="card-body">
+      <div class="card action-accordion-card" *ngIf="model.emailDeliveryEnabled">
+        <div class="card-body action-accordion-card__body">
           <div class="form-check form-check-inline form-row-float-label">
             <input class="form-check-input" type="checkbox" id="deliverEmail"
                    [ngModelOptions]="{standalone: true}"
@@ -159,7 +158,7 @@
                            [resultTemplate]="emailAutocompleteResult"
                            [inputFormatter]="formatEmails"
                            title="_#(viewer.schedule.action.emailTooltip)">
-                     <button *ngIf="model.emailButtonVisible && model.securityEnabled" type="button" class="btn btn-default"
+                     <button *ngIf="model.emailButtonVisible && model.securityEnabled" type="button" class="btn btn-secondary"
                              title="_#(Email Browser)"
                              (click)="openEmailDialogTo()">...</button>
                   </div>
@@ -195,7 +194,7 @@
                     <span class="invalid-feedback" *ngIf="form.controls['cc'].errors && form.controls['cc'].errors['email']">
                       _#(viewer.schedule.action.emailFormat)
                     </span>
-                    <button *ngIf="model.emailButtonVisible && model.securityEnabled" type="button" class="btn btn-default"
+                    <button *ngIf="model.emailButtonVisible && model.securityEnabled" type="button" class="btn btn-secondary"
                             title="_#(Email Browser)"
                             (click)="openEmailDialogCC()">...</button>
                   </div>
@@ -213,7 +212,7 @@
                     <span class="invalid-feedback" *ngIf="form.controls['bcc'].errors && form.controls['bcc'].errors['email']">
                       _#(viewer.schedule.action.emailFormat)
                     </span>
-                    <button *ngIf="model.emailButtonVisible && model.securityEnabled" type="button" class="btn btn-default"
+                    <button *ngIf="model.emailButtonVisible && model.securityEnabled" type="button" class="btn btn-secondary"
                             title="_#(Email Browser)"
                             (click)="openEmailDialogCC(true)">...</button>
                   </div>
@@ -410,8 +409,8 @@
         </div>
       </div>
 
-      <div class="card m-1" *ngIf="model.saveToDiskEnabled">
-        <div class="card-body">
+      <div class="card action-accordion-card" *ngIf="model.saveToDiskEnabled">
+        <div class="card-body action-accordion-card__body">
           <div class="form-check form-check-inline form-row-float-label">
             <input class="form-check-input" type="checkbox" id="saveToServer"
                    [ngModelOptions]="{standalone: true}"
@@ -526,15 +525,15 @@
                 </div>
               </div>
               <div class="col-2">
-                <button type="button" class="btn btn-default w-100 mb-2" (click)="addFile()"
+                <button type="button" class="btn btn-secondary w-100 mb-2" (click)="addFile()"
                         [disabled]="!filePath || hasLocations && !locationPath || !isVSCSVFileValid()">
                   _#(Add)
                 </button>
-                <button type="button" class="btn btn-default w-100 delete_file_id mb-2"
+                <button type="button" class="btn btn-secondary w-100 delete_file_id mb-2"
                         [disabled]="selectedFormatIndex < 0" (click)="deleteFile()">
                   _#(Delete)
                 </button>
-                <button type="button" class="btn btn-default w-100" (click)="modifyFile()"
+                <button type="button" class="btn btn-secondary w-100" (click)="modifyFile()"
                         [disabled]="selectedFormatIndex < 0 || !filePath || hasLocations && !locationPath">
                   _#(Modify)
                 </button>
@@ -603,8 +602,8 @@
         </div>
       </div>
 
-      <div class="card m-1">
-        <div class="card-body">
+      <div class="card action-accordion-card">
+        <div class="card-body action-accordion-card__body">
           <label class="form-check-label card-title">_#(Creation Parameters)</label>
           <parameter-table [(parameters)]="parameters"
                            [parameterNames]="allParameters"
@@ -623,8 +622,8 @@
         </div>
       </div>
 
-      <div class="card m-1" *ngIf="!!highlights && highlights.length > 0">
-        <div class="card-body">
+      <div class="card action-accordion-card" *ngIf="!!highlights && highlights.length > 0">
+        <div class="card-body action-accordion-card__body">
           <label class="form-check-label card-title">_#(Alert)</label>
           <div class="form-check">
             <input class="form-check-input" type="checkbox" name="underHighlightCondition"
@@ -634,9 +633,9 @@
               _#(schedule.alert.enabled)
             </label>
           </div>
-          <div class="form-group" *ngIf="action.highlightsSelected">
-            <table class="table table-bordered table-sm w-100">
-              <thead class="thead-default">
+          <div class="action-accordion-highlights" *ngIf="action.highlightsSelected">
+            <table class="table table-sm w-100 action-accordion-alert-table">
+              <thead class="action-accordion-alert-table__head">
                 <tr>
                   <th>_#(Select)</th>
                   <th>_#(Assembly)</th>
@@ -672,8 +671,7 @@
           </div>
         </div>
       </div>
-    </form>
-  </div>
+  </form>
 </ng-container>
 <ng-template #emailAddrDialog let-close="close" let-dismiss="dismiss">
   <email-addr-dialog (onCommit)="close($event)" (onCancel)="dismiss($event)"

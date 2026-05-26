@@ -66,6 +66,8 @@ public class LegendScriptable extends PropertyScriptable {
                      LegendDescriptor.class);
          addProperty("symbolSize", "getSymbolSize", "setSymbolSize", int.class,
                      LegendDescriptor.class);
+         addProperty("symbolRoundCorners", "isSymbolRoundCorners",
+                     "setSymbolRoundCorners", boolean.class, LegendDescriptor.class);
       }
       catch(Exception ex) {
          LOG.error("Failed to register legend properties", ex);

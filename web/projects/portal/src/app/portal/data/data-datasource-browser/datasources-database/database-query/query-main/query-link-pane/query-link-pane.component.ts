@@ -20,6 +20,7 @@ import { Component, EventEmitter, Input, OnInit, Output, ViewChild } from "@angu
 import { Observable } from "rxjs";
 import { GuiTool } from "../../../../../../../common/util/gui-tool";
 import { TreeNodeModel } from "../../../../../../../widget/tree/tree-node-model";
+import { AssetEntry } from "../../../../../../../../../../shared/data/asset-entry";
 import {
    QueryLinkPaneModel
 } from "../../../../../model/datasources/database/query/query-link-pane-model";
@@ -90,6 +91,10 @@ export class QueryLinkPaneComponent implements OnInit {
 
    nodeClicked(node: TreeNodeModel): void {
       this.selectNode(node);
+   }
+
+   updateSelectedNodes(nodes: TreeNodeModel[]): void {
+      this.selectedNodes = nodes || [];
    }
 
    iconFunction(node: TreeNodeModel): string {
@@ -172,5 +177,35 @@ export class QueryLinkPaneComponent implements OnInit {
       }
 
       return false;
+   }
+
+   canAddSelectedTables(): boolean {
+      return !this.isJoinEditView() &&
+         !!this.getSelectedTableEntries().length;
+   }
+
+   addSelectedTables(): void {
+      const tables = this.getSelectedTableEntries();
+
+      if(tables.length > 0) {
+         this.graphPane?.addTablesAtViewportCenter(tables);
+      }
+   }
+
+   canRemoveSelectedTables(): boolean {
+      return !this.isJoinEditView() &&
+         (this.graphPane?.hasSelectedRemovableTables() ?? false);
+   }
+
+   removeSelectedTables(): void {
+      if(this.canRemoveSelectedTables()) {
+         this.graphPane.removeSelectedTables();
+      }
+   }
+
+   private getSelectedTableEntries(): AssetEntry[] {
+      return (this.selectedNodes || [])
+         .filter(node => node?.leaf && !!node.data)
+         .map(node => node.data as AssetEntry);
    }
 }

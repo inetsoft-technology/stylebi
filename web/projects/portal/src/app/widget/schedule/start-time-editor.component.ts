@@ -57,6 +57,7 @@ export class StartTimeEditor implements OnInit, ControlValueAccessor {
    }
 
    @Output() modelChange = new EventEmitter<StartTimeData>();
+   @Output() serverTimeZoneChange = new EventEmitter<boolean>();
    form: UntypedFormGroup;
    private onChange: any;
    private onTouched: any;
@@ -218,6 +219,10 @@ export class StartTimeEditor implements OnInit, ControlValueAccessor {
 
          return null;
       };
+   }
+
+   changeServerTimeZone(value: boolean): void {
+      this.serverTimeZoneChange.emit(value);
    }
 
    public startTimeSelected(): boolean {

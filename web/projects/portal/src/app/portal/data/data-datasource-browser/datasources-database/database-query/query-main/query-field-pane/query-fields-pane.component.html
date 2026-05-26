@@ -15,128 +15,122 @@
   ~ You should have received a copy of the GNU Affero General Public License
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
-<div class="row form-row-float-label mt-2">
-  <div class="col-6 pe-0">_#(Database Fields)</div>
-  <div class="col-1"></div>
-  <div class="col ps-0">_#(Query Fields)</div>
-  <div class="col-auto pe-0 query-toolbar-btn" title="_#(Move Up)">
-    <i class="icon-size-medium shape-arrow-up-bold-icon action-color"
-       [class.icon-disabled]="isUpDisabled()" (click)="moveUp()">
-    </i>
-  </div>
-  <div class="col-auto ps-2 pe-0 query-toolbar-btn" title="_#(Move Down)">
-    <i class="icon-size-medium shape-arrow-down-bold-icon action-color"
-       [class.icon-disabled]="isDownDisabled()" (click)="moveDown()">
-    </i>
-  </div>
-  <div class="col-auto ps-2 pe-0 query-toolbar-btn" title="_#(Add Expression)" *ngIf="model?.expressionAllowed">
-    <i class="icon-size-medium formula-icon action-color"
-       [class.icon-disabled]="!model || !databaseFieldsTree" (click)="addExpression()">
-    </i>
-  </div>
-  <div class="col-auto ps-2 pe-0 query-toolbar-btn" title="_#(Edit Expression)" *ngIf="model?.expressionAllowed">
-    <i class="icon-size-medium formula-edit-icon action-color"
-       [class.icon-disabled]="!selectedField || selectedFieldIndexes?.length > 1"
-       (click)="editExpression()">
-    </i>
-  </div>
-  <div *ngIf="showDataTypeIcon()"
-       class="col-auto ps-2 pe-0 query-toolbar-btn" title="_#(Data Type)">
-    <i class="icon-size-medium action-color"
-       [ngClass]="getDataTypeIconClass()"
-       (click)="showEditDataTypeDialog()">
-    </i>
-  </div>
-  <div class="col-auto ps-2 query-toolbar-btn" title="_#(Browse Data)">
-    <i class="icon-size-medium value-list-icon action-color"
-       [class.icon-disabled]="!selectedField || selectedFieldIndexes?.length > 1"
-       (click)="browseColumnData()">
-    </i>
-  </div>
-</div>
-<div class="row">
-  <div class="col-6 pe-0">
-    <div class="bordered-box bd-gray"
-         (dragover)="$event.preventDefault()"
-         (drop)="drop($event, true)">
-      <tree *ngIf="databaseFieldsTree" [root]="databaseFieldsTree"
-            [showTooltip]="true" [multiSelect]="true" [selectOnClick]="true"
-            [showRoot]="false" [draggable]="true" [iconFunction]="iconFunction"
-            [selectedNodes]="selectedNodes" (nodesSelected)="selectNodes($event)"
-            (dblclickNode)="dbClickToAdd($event)"
-            (nodeDrop)="drop($event, true)">
-      </tree>
-    </div>
-  </div>
-  <div class="col-1 btn-container-vertical">
-    <button type="button" class="fields-button btn btn-default"
-            [disabled]="!databaseFieldsTree" (click)="addAll()">
-      <i class="forward-fast-icon" title="_#(Add All)"></i>
-    </button>
-    <button type="button" class="fields-button btn btn-default"
-            [disabled]="!selectedNodes || selectedNodes.length == 0" (click)="add()">
-      <i class="forward-icon" title="_#(Add)"></i>
-    </button>
-    <button type="button" class="fields-button btn btn-default"
-            [disabled]="!selectedFieldIndexes || selectedFieldIndexes.length == 0" (click)="remove()">
-      <i class="backward-icon" title="_#(Remove)"></i>
-    </button>
-    <button type="button" class="fields-button btn btn-default"
-            [disabled]="!model.fields || model.fields.length == 0" (click)="removeAll()">
-      <i class="backward-fast-icon" title="_#(Remove All)" ></i>
-    </button>
-  </div>
-  <div class="col-5 ps-0 pe-0">
-    <div class="row g-0">
-      <div class="col-12">
-        <div class="bordered-box-right-top bd-gray field-list"
-             (dragover)="$event.preventDefault()"
-             (drop)="drop($event)">
-          <ng-container *ngIf="model && model.fields">
-            <div class="field-item" *ngFor="let field of model.fields; let i = index"
-                 [title]="field.name" [draggable]="true"
-                 (mousedown)="selectField($event, i)"
-                 (dblclick)="removeField(i)"
-                 [class.selected]="isSelectedField(i)">
-              <div class="field-label">{{ field.name }}</div>
-              <div class="field-icons">
-                <span *ngIf="field.drillInfo?.paths?.length > 0" class="icon-size-small drill-up-icon"></span>
-                <span *ngIf="field.format?.format" class="icon-size-small format-icon" ></span>
-              </div>
-            </div>
-          </ng-container>
-        </div>
+<div class="query-fields-pane">
+  <div class="query-fields-pane__header">
+    <div class="query-fields-pane__heading">_#(Database Fields)</div>
+    <div class="query-fields-pane__heading query-fields-pane__heading--right">_#(Query Fields)</div>
+    <div class="query-fields-pane__toolbar">
+      <div class="query-toolbar-btn" title="_#(Move Up)">
+        <i class="icon-size-medium shape-arrow-up-bold-icon action-color"
+           [class.icon-disabled]="isUpDisabled()" (click)="moveUp()">
+        </i>
+      </div>
+      <div class="query-toolbar-btn" title="_#(Move Down)">
+        <i class="icon-size-medium shape-arrow-down-bold-icon action-color"
+           [class.icon-disabled]="isDownDisabled()" (click)="moveDown()">
+        </i>
+      </div>
+      <div class="query-toolbar-btn" title="_#(Add Expression)" *ngIf="model?.expressionAllowed">
+        <i class="icon-size-medium formula-icon action-color"
+           [class.icon-disabled]="!model || !databaseFieldsTree" (click)="addExpression()">
+        </i>
+      </div>
+      <div class="query-toolbar-btn" title="_#(Edit Expression)" *ngIf="model?.expressionAllowed">
+        <i class="icon-size-medium formula-edit-icon action-color"
+           [class.icon-disabled]="!selectedField || selectedFieldIndexes?.length > 1"
+           (click)="editExpression()">
+        </i>
+      </div>
+      <div *ngIf="showDataTypeIcon()"
+           class="query-toolbar-btn" title="_#(Data Type)">
+        <i class="icon-size-medium action-color"
+           [ngClass]="getDataTypeIconClass()"
+           (click)="showEditDataTypeDialog()">
+        </i>
+      </div>
+      <div class="query-toolbar-btn" title="_#(Browse Data)">
+        <i class="icon-size-medium value-list-icon action-color"
+           [class.icon-disabled]="!selectedField || selectedFieldIndexes?.length > 1"
+           (click)="browseColumnData()">
+        </i>
       </div>
     </div>
-    <div class="row g-0">
-      <div class="col-12">
-        <div class="bordered-box-right-bottom" *ngIf="!!selectedField">
-          <div class="form-group form-floating">
-            <input type="text" class="form-control"
-                   [ngModel]="selectedField.alias" (change)="updateAlias($event)"/>
-            <label><span>_#(Field Alias)</span></label>
-          </div>
-           <div class="form-group form-floating">
-             <dropdown-view #formatDropdown [label]="formatString" (closed)="updateFormat()">
-                <attribute-formatting-pane *ngIf="!!selectedField.format"
-                                           [formatModel]="selectedField.format"
-                                           (onApply)="updateFormat(); formatDropdown.close()">
-                </attribute-formatting-pane>
-             </dropdown-view>
-             <label><span>_#(Format)</span></label>
-          </div>
-          <div class="form-group input-group">
-            <div class="form-floating">
-              <input type="text" class="form-control" [ngModel]="drillString()" [readOnly]="true"
-                     [ngModelOptions]="{standalone: true}"/>
-              <label><span>_#(Auto Drill)</span></label>
+  </div>
+  <div class="query-fields-pane__body">
+    <div class="query-fields-pane__column">
+      <div class="bordered-box bd-gray"
+           (dragover)="$event.preventDefault()"
+           (drop)="drop($event, true)">
+        <tree *ngIf="databaseFieldsTree" [root]="databaseFieldsTree"
+              [showTooltip]="true" [multiSelect]="true" [selectOnClick]="true"
+              [showRoot]="false" [draggable]="true" [iconFunction]="iconFunction"
+              [selectedNodes]="selectedNodes" (nodesSelected)="selectNodes($event)"
+              (dblclickNode)="dbClickToAdd($event)"
+              (nodeDrop)="drop($event, true)">
+        </tree>
+      </div>
+    </div>
+    <div class="query-fields-pane__actions" aria-label="_#(Field actions)">
+      <button type="button" class="fields-button btn btn-default"
+              [disabled]="!databaseFieldsTree" (click)="addAll()">
+        <i class="forward-fast-icon" title="_#(Add All)"></i>
+      </button>
+      <button type="button" class="fields-button btn btn-default"
+              [disabled]="!selectedNodes || selectedNodes.length == 0" (click)="add()">
+        <i class="forward-icon" title="_#(Add)"></i>
+      </button>
+      <button type="button" class="fields-button btn btn-default"
+              [disabled]="!selectedFieldIndexes || selectedFieldIndexes.length == 0" (click)="remove()">
+        <i class="backward-icon" title="_#(Remove)"></i>
+      </button>
+      <button type="button" class="fields-button btn btn-default"
+              [disabled]="!model.fields || model.fields.length == 0" (click)="removeAll()">
+        <i class="backward-fast-icon" title="_#(Remove All)" ></i>
+      </button>
+    </div>
+    <div class="query-fields-pane__column query-fields-pane__column--details">
+      <div class="bordered-box-right-top bd-gray field-list"
+           (dragover)="$event.preventDefault()"
+           (drop)="drop($event)">
+        <ng-container *ngIf="model && model.fields">
+          <div class="field-item" *ngFor="let field of model.fields; let i = index"
+               [title]="field.name" [draggable]="true"
+               (mousedown)="selectField($event, i)"
+               (dblclick)="removeField(i)"
+               [class.selected]="isSelectedField(i)">
+            <div class="field-label">{{ field.name }}</div>
+            <div class="field-icons">
+              <span *ngIf="field.drillInfo?.paths?.length > 0" class="icon-size-small drill-up-icon"></span>
+              <span *ngIf="field.format?.format" class="icon-size-small format-icon" ></span>
             </div>
-            <button class="btn btn-secondary" type="button" [attr.title]="'_#(Edit Auto Drill)'"
-                    (click)="openAutoDrillDialog()">
-              ...
-            </button>
           </div>
-
+        </ng-container>
+      </div>
+      <div class="bordered-box-right-bottom" *ngIf="!!selectedField">
+        <div class="form-group form-floating">
+          <input type="text" class="form-control"
+                 [ngModel]="selectedField.alias" (change)="updateAlias($event)"/>
+          <label><span>_#(Field Alias)</span></label>
+        </div>
+         <div class="form-group form-floating">
+           <dropdown-view #formatDropdown [label]="formatString" (closed)="updateFormat()">
+              <attribute-formatting-pane *ngIf="!!selectedField.format"
+                                         [formatModel]="selectedField.format"
+                                         (onApply)="updateFormat(); formatDropdown.close()">
+              </attribute-formatting-pane>
+           </dropdown-view>
+           <label><span>_#(Format)</span></label>
+        </div>
+        <div class="form-group input-group">
+          <div class="form-floating">
+            <input type="text" class="form-control" [ngModel]="drillString()" [readOnly]="true"
+                   [ngModelOptions]="{standalone: true}"/>
+            <label><span>_#(Auto Drill)</span></label>
+          </div>
+          <button class="btn btn-secondary" type="button" [attr.title]="'_#(Edit Auto Drill)'"
+                  (click)="openAutoDrillDialog()">
+            ...
+          </button>
         </div>
       </div>
     </div>

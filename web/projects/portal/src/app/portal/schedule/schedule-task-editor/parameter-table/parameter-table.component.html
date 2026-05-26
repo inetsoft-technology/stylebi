@@ -15,33 +15,37 @@
   ~ You should have received a copy of the GNU Affero General Public License
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
-<table class="table table-bordered table-sm w-100" wScrollableFlexTable>
-  <thead class="thead-default">
-    <tr>
-      <th>_#(Name)</th>
-      <th>_#(Value)</th>
-      <th>_#(Data Type)</th>
-      <th>_#(Action)</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr *ngFor="let param of parameters; let i = index">
-      <td>{{ param.name }}</td>
-      <td [title]="getParamValue(param)">{{ getParamValue(param) }}</td>
-      <td>{{ param.array ? "Array" : param.type | titlecase }}</td>
-      <td>
-        <span class="icon-hover-bg edit-icon icon-size-medium icon-color-default" aria-label="_#(Edit)" title="_#(Edit)" (click)="openParameterDialog(i)"></span>
-        <span class="icon-hover-bg trash-icon icon-size-medium icon-color-default" aria-label="_#(Delete)" title="_#(Delete)" (click)="removeParameter(i)"></span>
-      </td>
-    </tr>
-    <tr *ngIf="!parameters || parameters.length == 0">
-      <td class="text-center align-middle" colspan="4">_#(Empty)</td>
-    </tr>
-  </tbody>
-</table>
-<button type="button" class="btn btn-default" (click)="openParameterDialog()">_#(Add)</button>
-<button type="button" class="btn btn-default clear_all_id ms-2" (click)="clearAllParameters()"
-        [disabled]="!parameters || parameters.length == 0">_#(Clear All)</button>
+<div class="parameter-table-shell">
+  <table class="table table-sm w-100 parameter-table-grid" wScrollableFlexTable>
+    <thead class="parameter-table-grid__head">
+      <tr>
+        <th>_#(Name)</th>
+        <th>_#(Value)</th>
+        <th>_#(Data Type)</th>
+        <th>_#(Action)</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr *ngFor="let param of parameters; let i = index">
+        <td>{{ param.name }}</td>
+        <td [title]="getParamValue(param)">{{ getParamValue(param) }}</td>
+        <td>{{ param.array ? "Array" : param.type | titlecase }}</td>
+        <td>
+          <span class="icon-hover-bg edit-icon icon-size-medium icon-color-default" aria-label="_#(Edit)" title="_#(Edit)" (click)="openParameterDialog(i)"></span>
+          <span class="icon-hover-bg trash-icon icon-size-medium icon-color-default" aria-label="_#(Delete)" title="_#(Delete)" (click)="removeParameter(i)"></span>
+        </td>
+      </tr>
+      <tr *ngIf="!parameters || parameters.length == 0">
+        <td class="text-center align-middle" colspan="4">_#(Empty)</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+<div class="parameter-table-actions">
+  <button type="button" class="btn btn-secondary" (click)="openParameterDialog()">_#(Add)</button>
+  <button type="button" class="btn btn-secondary clear_all_id" (click)="clearAllParameters()"
+          [disabled]="!parameters || parameters.length == 0">_#(Clear All)</button>
+</div>
 
 <ng-template #addParameterDialog let-close="close" let-dismiss="dismiss">
   <add-parameter-dialog [parameterNames]="parameterNames"

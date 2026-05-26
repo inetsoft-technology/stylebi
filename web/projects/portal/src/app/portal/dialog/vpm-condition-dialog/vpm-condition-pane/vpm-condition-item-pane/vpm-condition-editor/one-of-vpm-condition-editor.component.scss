@@ -15,11 +15,25 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+.one-of-editor,
+.one-of-editor__content {
+  width: 100%;
+}
+
 .value-list-container {
   display: flex;
   align-items: stretch;
+  gap: var(--inet-space-3, 6px);
+  margin-top: var(--inet-space-3, 6px);
 
   .value-list {
     flex-grow: 1;
   }
+}
+
+.one-of-editor__actions {
+  display: flex;
+  flex: 0 0 120px;
+  flex-direction: column;
+  gap: var(--inet-space-2, 4px);
 }

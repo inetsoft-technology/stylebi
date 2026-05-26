@@ -32,7 +32,8 @@ import { TreeNodeModel } from "../../../../widget/tree/tree-node-model";
 
 @Component({
    selector: "select-dashboard-dialog",
-   templateUrl: "select-dashboard-dialog.component.html"
+   templateUrl: "select-dashboard-dialog.component.html",
+   styleUrls: ["./select-dashboard-dialog.component.scss"]
 })
 export class SelectDashboardDialog implements OnInit {
    @Input() path: string;
