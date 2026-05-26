@@ -289,7 +289,7 @@ describe("DataSourcesTreeViewComponent — selectNode — route dispatch [Group 
       comp.selectNode([node]);
 
       expect(mockRouter.navigate).toHaveBeenCalledWith(
-         ["/portal/tab/data/datasources/database", expect.any(String)],
+         ["/portal/tab/data/datasources/database", encodeURIComponent("mydb")],
          expect.objectContaining({ relativeTo: expect.anything() })
       );
    });

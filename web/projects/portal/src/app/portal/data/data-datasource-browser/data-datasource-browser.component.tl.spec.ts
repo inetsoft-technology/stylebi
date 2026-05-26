@@ -152,6 +152,7 @@ function makeAsset(path: string, type: AssetType): AssetEntry {
       alias: null,
       identifier: `0^${type}^admin^${path}`,
       properties: {},
+      description: `${path} description`,
       organization: "org"
    };
 }
