@@ -791,7 +791,15 @@ public final class XSwapper {
    // In case the OOM still occurs, this property can be used to raise
    // the free ratio (e.g. 0.2) to avoid OOM.
    static {
-      String str = SreeEnv.getProperty("swapper.free.ratio");
+      String str = null;
+
+      try {
+         str = SreeEnv.getProperty("swapper.free.ratio");
+      }
+      catch(Exception ignored) {
+         // singleton manager unavailable (e.g. during test teardown); use default ratio
+      }
+
       double ratio = 0.20;
 
       if(str != null) {
