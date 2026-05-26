@@ -248,9 +248,9 @@ public class ChartPropertyDialogController {
          tipCustomizeDialogModel.setCombinedTip(true);
       }
 
-      tipCustomizeDialogModel.setTooltipStyle(vsChartInfo.getTooltipStyle());
+      tipCustomizeDialogModel.setTooltipStyle(vsChartInfo.getTooltipStyleValue());
 
-      tipCustomizeDialogModel.setSnapTooltip(vsChartInfo.isSnapTooltip());
+      tipCustomizeDialogModel.setSnapTooltip(vsChartInfo.getSnapTooltipValue());
       tipCustomizeDialogModel.setSnapSupported(vsChartInfo.supportsSnapTooltip());
       tipCustomizeDialogModel.setCombinedSupported(vsChartInfo.supportsCombinedTooltip());
 
@@ -471,11 +471,11 @@ public class ChartPropertyDialogController {
          vsChartInfo.setCombinedToolTipValue(tipModel.isCombinedTip());
       }
 
-      vsChartInfo.setTooltipStyle(tipModel.getTooltipStyle());
+      vsChartInfo.setTooltipStyleValue(tipModel.getTooltipStyle());
 
       // Snap requires a tooltip and a supported chart shape; clamp to false
       // otherwise so a stale flag isn't carried across re-binds.
-      vsChartInfo.setSnapTooltip(
+      vsChartInfo.setSnapTooltipValue(
          tipModel.getCustomRB() != TipCustomizeDialogModel.TipFormat.NONE
             && tipModel.isSnapTooltip()
             && vsChartInfo.supportsSnapTooltip());

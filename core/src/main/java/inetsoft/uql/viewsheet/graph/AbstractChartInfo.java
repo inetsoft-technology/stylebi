@@ -79,6 +79,13 @@ public abstract class AbstractChartInfo implements ChartInfo, AssetObject {
       rxrefs = new ChartRef[0];
       ryrefs = new ChartRef[0];
       rgrefs = new ChartRef[0];
+      clearTooltipRuntimeValues();
+   }
+
+   /** Reset rvalue overlay so the next render starts from dvalue. */
+   public void clearTooltipRuntimeValues() {
+      snapTooltip.setRValue(null);
+      tooltipStyle.setRValue(null);
    }
 
    /**
@@ -2249,6 +2256,14 @@ public abstract class AbstractChartInfo implements ChartInfo, AssetObject {
          obj.yrefs = Tool.deepCloneSynchronizedList(yrefs, new ArrayList<>());
          obj.grefs = Tool.deepCloneSynchronizedList(grefs, new ArrayList<>());
 
+         if(tooltipStyle != null) {
+            obj.tooltipStyle = (DynamicValue2) tooltipStyle.clone();
+         }
+
+         if(snapTooltip != null) {
+            obj.snapTooltip = (DynamicValue2) snapTooltip.clone();
+         }
+
          return obj;
       }
       catch(Exception ex) {
@@ -2415,8 +2430,8 @@ public abstract class AbstractChartInfo implements ChartInfo, AssetObject {
       }
 
       return tooltipVisible == chartInfo.tooltipVisible
-         && tooltipStyle == chartInfo.tooltipStyle
-         && snapTooltip == chartInfo.snapTooltip;
+         && Tool.equals(tooltipStyle, chartInfo.tooltipStyle)
+         && Tool.equals(snapTooltip, chartInfo.snapTooltip);
    }
 
    /**
@@ -2451,8 +2466,8 @@ public abstract class AbstractChartInfo implements ChartInfo, AssetObject {
       writer.print(" heightResized=\"" + isHeightResized() + "\"");
       writer.print(" donut=\"" + donut + "\" ");
       writer.print(" tooltipVisible=\"" + tooltipVisible + "\" ");
-      writer.print(" tooltipStyle=\"" + tooltipStyle.name() + "\" ");
-      writer.print(" snapTooltip=\"" + snapTooltip + "\" ");
+      writer.print(" tooltipStyle=\"" + getTooltipStyleValue().name() + "\" ");
+      writer.print(" snapTooltip=\"" + getSnapTooltipValue() + "\" ");
 
       if(mapType != null && !"null".equals(mapType)) {
          writer.print(" mapType=\"" + mapType + "\" ");
@@ -2717,18 +2732,10 @@ public abstract class AbstractChartInfo implements ChartInfo, AssetObject {
       // round-tripped through an older server will also lose its CARD setting,
       // since the older writer strips the unknown attribute.
       String tooltipStyleAttr = Tool.getAttribute(elem, "tooltipStyle");
-      tooltipStyle = TooltipStyle.DEFAULT;
-
-      if(tooltipStyleAttr != null) {
-         try {
-            tooltipStyle = TooltipStyle.valueOf(tooltipStyleAttr);
-         }
-         catch(IllegalArgumentException ignore) {
-            // Unknown value from a future version: fall back to DEFAULT.
-         }
-      }
+      tooltipStyle.setDValue(tooltipStyleAttr == null
+                                ? TooltipStyle.DEFAULT.name() : tooltipStyleAttr);
       // Absent attribute = off (legacy charts preserve no-snap behavior).
-      snapTooltip = "true".equals(Tool.getAttribute(elem, "snapTooltip"));
+      snapTooltip.setDValue("true".equals(Tool.getAttribute(elem, "snapTooltip")) + "");
    }
 
    /**
@@ -3599,22 +3606,56 @@ public abstract class AbstractChartInfo implements ChartInfo, AssetObject {
 
    @Override
    public TooltipStyle getTooltipStyle() {
-      return tooltipStyle;
+      Object rval = tooltipStyle.getRValue();
+      return parseTooltipStyle(rval != null ? rval.toString() : tooltipStyle.getDValue());
    }
 
    @Override
-   public void setTooltipStyle(TooltipStyle tooltipStyle) {
-      this.tooltipStyle = tooltipStyle == null ? TooltipStyle.DEFAULT : tooltipStyle;
+   public void setTooltipStyle(TooltipStyle style) {
+      tooltipStyle.setRValue(style == null ? TooltipStyle.DEFAULT : style);
+   }
+
+   @Override
+   public TooltipStyle getTooltipStyleValue() {
+      return parseTooltipStyle(tooltipStyle.getDValue());
+   }
+
+   @Override
+   public void setTooltipStyleValue(TooltipStyle style) {
+      tooltipStyle.setDValue(style == null ? TooltipStyle.DEFAULT.name() : style.name());
    }
 
    @Override
    public boolean isSnapTooltip() {
-      return snapTooltip;
+      return snapTooltip.getBooleanValue(false, getSnapTooltipValue());
    }
 
    @Override
-   public void setSnapTooltip(boolean snapTooltip) {
-      this.snapTooltip = snapTooltip;
+   public void setSnapTooltip(boolean snap) {
+      snapTooltip.setRValue(snap);
+   }
+
+   @Override
+   public boolean getSnapTooltipValue() {
+      return snapTooltip.getBooleanValue(true, false);
+   }
+
+   @Override
+   public void setSnapTooltipValue(boolean snap) {
+      snapTooltip.setDValue(snap + "");
+   }
+
+   private static TooltipStyle parseTooltipStyle(String name) {
+      if(name == null || name.isEmpty()) {
+         return TooltipStyle.DEFAULT;
+      }
+
+      try {
+         return TooltipStyle.valueOf(name);
+      }
+      catch(IllegalArgumentException e) {
+         return TooltipStyle.DEFAULT;
+      }
    }
 
    /**
@@ -3899,8 +3940,8 @@ public abstract class AbstractChartInfo implements ChartInfo, AssetObject {
    private transient ChartDescriptor chartDescriptor;
    private String customTooltip;
    private boolean tooltipVisible = true;
-   private TooltipStyle tooltipStyle = TooltipStyle.CARD;
-   private boolean snapTooltip = false;
+   private DynamicValue2 tooltipStyle = new DynamicValue2("CARD", XSchema.STRING);
+   private DynamicValue2 snapTooltip = new DynamicValue2("false", XSchema.BOOLEAN);
    private HighlightGroup highlightGroup;
    private HighlightGroup textHL;
 
