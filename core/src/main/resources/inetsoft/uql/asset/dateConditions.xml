@@ -266,13 +266,13 @@
 <name><![CDATA[Last December]]></name>
 <label><![CDATA[Last December]]></label>
 </xCondition>
-<xCondition class="inetsoft.uql.asset.DateCondition$WeekCondition" type="date" negated="false" operation="11" equal="false" week="0">
-<name><![CDATA[This week]]></name>
-<label><![CDATA[This week]]></label>
-</xCondition>
 <xCondition class="inetsoft.uql.asset.DateCondition$WeekCondition" type="date" negated="false" operation="11" equal="false" week="1">
 <name><![CDATA[Last week]]></name>
 <label><![CDATA[Last week]]></label>
+</xCondition>
+<xCondition class="inetsoft.uql.asset.DateCondition$WeekCondition" type="date" negated="false" operation="11" equal="false" week="0">
+<name><![CDATA[This week]]></name>
+<label><![CDATA[This week]]></label>
 </xCondition>
 <xCondition class="inetsoft.uql.asset.DateCondition$WeekCondition" type="date" negated="false" operation="11" equal="false" week="-1">
 <name><![CDATA[Next week]]></name>
