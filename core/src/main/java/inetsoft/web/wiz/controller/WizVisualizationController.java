@@ -29,6 +29,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.security.Principal;
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -64,8 +65,29 @@ public class WizVisualizationController {
       }
       catch(Exception e) {
          LOG.error("Failed to save visualization", e);
-         return ResponseEntity.internalServerError()
-            .body(Map.of("error", "An unexpected error occurred. Please try again."));
+         return ResponseEntity.internalServerError().body(Map.of("error", "An unexpected error occurred. Please try again."));
+      }
+   }
+
+   @DeleteMapping(
+      value = "/delete",
+      consumes = MediaType.APPLICATION_JSON_VALUE,
+      produces = MediaType.APPLICATION_JSON_VALUE
+   )
+   public ResponseEntity<?> deleteVisualizations(@RequestBody List<String> identifiers,
+                                                 Principal principal)
+   {
+      if(identifiers == null || identifiers.isEmpty()) {
+         return ResponseEntity.badRequest().body(Map.of("error", "identifiers are required"));
+      }
+
+      try {
+         wizVisualizationService.deleteVisualizations(identifiers, principal);
+         return ResponseEntity.ok(Map.of("deleted", identifiers.size()));
+      }
+      catch(Exception e) {
+         LOG.error("Failed to delete visualizations", e);
+         return ResponseEntity.internalServerError().body(Map.of("error", "An unexpected error occurred. Please try again."));
       }
    }
 
