@@ -109,6 +109,14 @@ public class CreateViewsheetResult {
       this.hasData = hasData;
    }
 
+   public String getAutoBindingRuntimeId() {
+      return autoBindingRuntimeId;
+   }
+
+   public void setAutoBindingRuntimeId(String autoBindingRuntimeId) {
+      this.autoBindingRuntimeId = autoBindingRuntimeId;
+   }
+
    private List<String> headers;
    private List<Map<String, Object>> rows;
    private FlatBinding binding;
@@ -117,6 +125,8 @@ public class CreateViewsheetResult {
    private String assemblyName;
    private String viewsheetIdentifier;
    private Boolean hasData;
+   /** Echoed back so the client can reuse the recommendation RVS on the next changeType call. */
+   private String autoBindingRuntimeId;
 
    // -------------------------------------------------------------------------
    // Nested model

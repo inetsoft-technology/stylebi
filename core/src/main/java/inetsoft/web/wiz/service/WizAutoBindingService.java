@@ -665,6 +665,7 @@ public class WizAutoBindingService {
       return null;
    }
 
+   /** Package-private so {@code changeType()} can select a binding from a cached model. */
    PrimaryBinding findPrimaryBindingByType(String vizType, VSRecommendationModel model,
                                            AssetEntry[] entries)
    {
@@ -1027,7 +1028,7 @@ public class WizAutoBindingService {
          }
       }
 
-      // 3. Model missing — fall back to full autoBinding (handles placement too).
+      // 2. Model missing — fall back to full autoBinding (handles placement too).
       if(model == null) {
          AutoBindingRequest fallback = new AutoBindingRequest();
          fallback.setWorksheetId(worksheetId);
@@ -1038,10 +1039,18 @@ public class WizAutoBindingService {
          fallback.setViewsheetIdentifier(viewsheetIdentifier);
          AutoBindingResponse resp = autoBinding(fallback, user);
          CreateViewsheetResult result = resp.getVisualizationResult();
-         return result != null ? result : new CreateViewsheetResult();
+
+         if(result == null) {
+            result = new CreateViewsheetResult();
+         }
+
+         // Forward the newly created autoBindingRuntimeId so the client can use the fast
+         // path on subsequent changeType calls instead of triggering another full autoBinding.
+         result.setAutoBindingRuntimeId(resp.getAutoBindingRuntimeId());
+         return result;
       }
 
-      // 4. Select the primary binding for the requested type.
+      // 3. Select the primary binding for the requested type.
       PrimaryBinding primaryBinding = findPrimaryBindingByType(visualizationType, model, null);
 
       if(primaryBinding == null) {
@@ -1055,10 +1064,12 @@ public class WizAutoBindingService {
       }
 
       if(primaryBinding == null || Tool.isEmptyString(worksheetId) || Tool.isEmptyString(wizRuntimeId)) {
+         LOG.warn("changeType skipped: primaryBinding={}, worksheetId='{}', wizRuntimeId='{}'",
+                  primaryBinding, worksheetId, wizRuntimeId);
          return new CreateViewsheetResult();
       }
 
-      // 5. Place the new primary in wizRuntimeId without executing the sandbox.
+      // 4. Place the new primary in wizRuntimeId without executing the sandbox.
       VisualizationConfig sourceConfig = new VisualizationConfig();
       VisualizationConfig.DataSource ds = new VisualizationConfig.DataSource();
       ds.setSource(worksheetId);
@@ -1076,6 +1087,8 @@ public class WizAutoBindingService {
          result.setRuntimeId(wizRuntimeId);
       }
 
+      // Echo the autoBindingRuntimeId back so the client can reuse it on the next call.
+      result.setAutoBindingRuntimeId(autoBindingRuntimeId);
       return result;
    }
 
