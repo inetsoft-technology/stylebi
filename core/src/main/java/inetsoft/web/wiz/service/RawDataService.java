@@ -111,11 +111,12 @@ public class RawDataService {
       AssetEntry[] entries = assetRepository.getEntries(
          tableEntry, principal, ResourceAction.READ, selector);
 
-      if(entries == null || entries.length == 0) {
-         throw new RuntimeException("No columns found.");
+      if(entries != null && entries.length > 0) {
+         setupColumns(query, entries);
       }
-
-      setupColumns(query, entries);
+      else if(sql.getFieldList() == null || sql.getFieldList().length == 0) {
+         throw new RuntimeException("No columns found for table: " + tableEntry.getPath());
+      }
 
       XDataService service = XRepository.getRepository();
       XNode result = service.execute(principal.getName(), query, null, principal, true, null);
