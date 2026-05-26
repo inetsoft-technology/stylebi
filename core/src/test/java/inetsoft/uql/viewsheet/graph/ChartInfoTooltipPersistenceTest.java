@@ -114,6 +114,19 @@ class ChartInfoTooltipPersistenceTest {
    }
 
    @Test
+   void cloneRetainsItsOwnRuntimeOverlay() {
+      VSChartInfo original = new VSChartInfo();
+      original.setSnapTooltipValue(false);
+      original.setSnapTooltip(true);
+
+      VSChartInfo copy = (VSChartInfo) original.clone();
+      original.clearTooltipRuntimeValues();
+
+      assertTrue(copy.isSnapTooltip(), "clone keeps its own rvalue snapshot");
+      assertFalse(original.isSnapTooltip(), "original falls back to dvalue after clear");
+   }
+
+   @Test
    void scriptStyleNameAcceptsCaseInsensitiveAndUnknownValues() {
       VSChartInfo info = new VSChartInfo();
       info.setTooltipStyleValue(ChartInfo.TooltipStyle.DEFAULT);

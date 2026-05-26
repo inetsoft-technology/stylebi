@@ -79,7 +79,6 @@ public abstract class AbstractChartInfo implements ChartInfo, AssetObject {
       rxrefs = new ChartRef[0];
       ryrefs = new ChartRef[0];
       rgrefs = new ChartRef[0];
-      clearTooltipRuntimeValues();
    }
 
    /** Reset rvalue overlay so the next render starts from dvalue. */
@@ -3606,13 +3605,12 @@ public abstract class AbstractChartInfo implements ChartInfo, AssetObject {
 
    @Override
    public TooltipStyle getTooltipStyle() {
-      Object rval = tooltipStyle.getRValue();
-      return parseTooltipStyle(rval != null ? rval.toString() : tooltipStyle.getDValue());
+      return parseTooltipStyle(tooltipStyle.getStringValue(false, tooltipStyle.getDValue()));
    }
 
    @Override
    public void setTooltipStyle(TooltipStyle style) {
-      tooltipStyle.setRValue(style == null ? TooltipStyle.DEFAULT : style);
+      tooltipStyle.setRValue(style == null ? TooltipStyle.DEFAULT.name() : style.name());
    }
 
    @Override
