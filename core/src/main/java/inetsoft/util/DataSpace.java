@@ -74,6 +74,12 @@ public class DataSpace implements AutoCloseable {
 
             if(old != null && old.isClosed()) {
                BlobStorage<Metadata> fresh = blobStorageManager.<Metadata>getStorage("dataSpace", false);
+
+               if(fresh == null) {
+                  LOG.error("Failed to obtain a fresh DataSpace blob storage after eviction");
+                  return blobStorage;
+               }
+
                fresh.addListener(listeners);
                blobStorage = fresh;
 
@@ -519,11 +525,15 @@ public class DataSpace implements AutoCloseable {
     * Dispose the data space.
     */
    public void dispose() {
-      try {
-         blobStorage.close();
-      }
-      catch(Exception e) {
-         LOG.warn("Failed to close blob storage", e);
+      BlobStorage<Metadata> s = blobStorage;
+
+      if(s != null) {
+         try {
+            s.close();
+         }
+         catch(Exception e) {
+            LOG.warn("Failed to close blob storage", e);
+         }
       }
    }
 

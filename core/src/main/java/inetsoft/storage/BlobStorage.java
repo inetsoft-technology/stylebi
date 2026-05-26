@@ -609,8 +609,16 @@ public abstract class BlobStorage<T extends Serializable> implements AutoCloseab
    @Override
    public void close() throws Exception {
       eventExecutor.shutdown();
-      storage.removeListener(listener);
-      storage.close();
+
+      // Guard against double-close: when KeyValueStorageManager LRU-evicts the inner
+      // LocalKeyValueStorage, its close() is already called by the eviction listener.
+      // Calling removeListener/close a second time is unsafe (removes a listener that is
+      // already gone). Skip both if the inner storage is already closed.
+      if(!storage.isClosed()) {
+         storage.removeListener(listener);
+         storage.close();
+      }
+
       isClosed = true;
    }
 
@@ -655,7 +663,7 @@ public abstract class BlobStorage<T extends Serializable> implements AutoCloseab
    private final Set<Listener<T>> listeners =
       new ConcurrentSkipListSet<>(Comparator.comparing(Listener::hashCode));
    private final String lockHost;
-   private boolean isClosed = false;
+   private volatile boolean isClosed = false;
    private final ExecutorService eventExecutor =
       Executors.newSingleThreadExecutor(r -> new GroupedThread(r, "BlobStorageEvent"));
    private static final Logger LOG = LoggerFactory.getLogger(BlobStorage.class);
