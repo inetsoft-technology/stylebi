@@ -125,8 +125,12 @@ public class RawDataService {
          JDBCSelection selection = (JDBCSelection) sql.getSelection();
          String tableName = sql.getTableAlias(0);
 
+         if(tableName == null) {
+            throw new RuntimeException("No table alias found for query on: " + tableEntry.getPath());
+         }
+
          for(XField field : fieldList) {
-            String path = tableName + "." + field.getName();
+            String path = tableName + "." + String.valueOf(field.getName());
             selection.addColumn(path);
             selection.setTable(path, tableName);
             selection.setType(path, field.getType() != null ? field.getType() : XField.STRING_TYPE);
@@ -194,8 +198,13 @@ public class RawDataService {
       UniformSQL sql = (UniformSQL) query.getSQLDefinition();
       JDBCSelection selection = (JDBCSelection) sql.getSelection();
 
+      String table = sql.getTableAlias(0);
+
+      if(table == null) {
+         throw new RuntimeException("No table alias found for query.");
+      }
+
       for(AssetEntry entry : entries) {
-         String table = sql.getTableAlias(0);
          String path = Tool.buildString(table, ".", entry.getProperty("attribute"));
          selection.addColumn(path);
          selection.setTable(path, table);
