@@ -114,8 +114,15 @@ public class RawDataService {
       if(entries != null && entries.length > 0) {
          setupColumns(query, entries);
       }
-      else if(sql.getFieldList() == null || sql.getFieldList().length == 0) {
-         throw new RuntimeException("No columns found for table: " + tableEntry.getPath());
+      else {
+         XField[] fieldList = sql.getFieldList();
+
+         if(fieldList == null || fieldList.length == 0) {
+            throw new RuntimeException("No columns found for table: " + tableEntry.getPath());
+         }
+
+         LOG.warn("Could not retrieve column entries for table: {}. Proceeding with existing field list.",
+            tableEntry.getPath());
       }
 
       XDataService service = XRepository.getRepository();
