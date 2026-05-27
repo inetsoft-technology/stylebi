@@ -64,12 +64,14 @@ public class ChartAdvancedPaneModel {
 
       // design-time info has no DC runtime state, so barCornerRadiusVisible is false
       // for non-bar charts even when DC will convert them to bars at runtime.
-      // Exclude value-only DC since it doesn't add comparison bars.
+      // Exclude value-only DC (no comparison bars) and chart types DC can't run on
+      // (icicle/treemap/etc. — DC silently no-ops, no bars are ever created).
       DateComparisonInfo dcInfo = chartAssemblyInfo.getDateComparisonInfo();
 
       if(!chartPlotOptionsPaneModel.isBarCornerRadiusVisible() &&
          chartAssemblyInfo.isDateComparisonEnabled() &&
          DateComparisonUtil.isDateComparisonDefined(chartAssemblyInfo) &&
+         this.dateComparisonSupport &&
          dcInfo != null && !dcInfo.isValueOnly())
       {
          chartPlotOptionsPaneModel.setBarCornerRadiusVisible(true);
@@ -159,9 +161,14 @@ public class ChartAdvancedPaneModel {
 
       // updateChartPlotOptionsPaneModel uses design-time checkType which doesn't see DC's
       // runtime bar conversion, so it incorrectly resets barRoundAllCorners=false.
-      // Re-apply the user's value when DC is defined and chart type isn't natively bar/interval.
+      // Re-apply the user's value only when DC will actually create bars (mirrors the
+      // visibility guard in the constructor).
+      DateComparisonInfo dcInfo = chartAssemblyInfo.getDateComparisonInfo();
+
       if(chartAssemblyInfo.isDateComparisonEnabled() &&
          DateComparisonUtil.isDateComparisonDefined(chartAssemblyInfo) &&
+         DateComparisonUtil.supportDateComparison(info, true) &&
+         dcInfo != null && !dcInfo.isValueOnly() &&
          !GraphTypeUtil.checkType(info, ctype ->
             GraphTypes.isBar(ctype) || GraphTypes.isInterval(ctype)))
       {
