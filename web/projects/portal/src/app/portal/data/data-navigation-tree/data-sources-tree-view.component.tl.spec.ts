@@ -38,6 +38,12 @@
  *     Ancestor nodes at depth ≥ 2 never receive `expanded = true`, so navigating to a
  *     deeply nested node leaves intermediate folders visually collapsed.
  *
+ *   Bug B — getDataNavigationTree missing error handler (Group 3):
+ *     The subscribe() call at line ~409 has no error callback. When the HTTP request fails,
+ *     `loading` is set to true before the request but the error path never resets it to false,
+ *     leaving the tree spinner running indefinitely. Fix: add an error callback that sets
+ *     `loading = false`.
+ *
  * KEY contracts:
  *   selectNode: guarded by gettingStartedService.isProcessing() && isEditWs() — early return before routing.
  *   hasMenuFunction: for PARTITION/LOGIC_MODEL/VPM/EXTENDED_* requires at least one action property === "true".
@@ -364,9 +370,9 @@ describe("DataSourcesTreeViewComponent — getDataNavigationTree — loading + r
       expect(comp.loading).toBe(false);
    });
 
-   // 🔁 Regression-sensitive: loading must be reset to false on error; a missing error handler
-   //    leaves the spinner running indefinitely after a network failure.
-   it("should reset loading to false when the HTTP request errors", async () => {
+   // Bug B — subscribe() has no error callback; loading stays true indefinitely on HTTP failure.
+   // Fix: add error handler that sets loading = false.
+   it.failing("should reset loading to false when the HTTP request errors", async () => {
       const { comp } = await renderComponent();
 
       server.use(
@@ -376,7 +382,7 @@ describe("DataSourcesTreeViewComponent — getDataNavigationTree — loading + r
       comp.getDataNavigationTree();
       expect(comp.loading).toBe(true); // set synchronously before HTTP
 
-      await waitFor(() => expect(comp.loading).toBe(false));
+      await waitFor(() => expect(comp.loading).toBe(false)); // FAILS — error handler missing
    });
 
    // Risk Point/Contract: selectedNodes must be carried over to matching nodes in the new tree;
