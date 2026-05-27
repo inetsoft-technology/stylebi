@@ -15,8 +15,8 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Component, OnDestroy, OnInit, ViewEncapsulation } from "@angular/core";
-import { UntypedFormControl, Validators } from "@angular/forms";
+import { Component, HostBinding, OnDestroy, OnInit, ViewEncapsulation } from "@angular/core";
+import { UntypedFormControl, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { ActivatedRoute, Router } from "@angular/router";
 import { HttpClient, HttpHeaders } from "@angular/common/http";
 import { TimeZoneService } from "../../../../../../shared/schedule/time-zone.service";
@@ -29,7 +29,7 @@ import {
    TimeConditionType
 } from "../../../../../../shared/schedule/model/time-condition-model";
 import { ScheduleConditionModel } from "../../../../../../shared/schedule/model/schedule-condition-model";
-import { TaskConditionChanges } from "../task-condition-pane/task-condition-pane.component";
+import { TaskConditionChanges, TaskConditionPaneComponent } from "../task-condition-pane/task-condition-pane.component";
 import { MatDialog } from "@angular/material/dialog";
 import { MatSnackBar } from "@angular/material/snack-bar";
 import { MessageDialog, MessageDialogType } from "../../../common/util/message-dialog";
@@ -38,6 +38,17 @@ import { Tool } from "../../../../../../shared/util/tool";
 import { FormValidators } from "../../../../../../shared/util/form-validators";
 import { COPY_PASTE_CONTEXT_SCHEDULE } from "../../security/resource-permission/copy-paste-context";
 import { Subscription } from "rxjs";
+import { ResourcePermissionComponent } from "../../security/resource-permission/resource-permission.component";
+import { ScheduleCycleOptionsPaneComponent } from "../schedule-cycle-options-pane/schedule-cycle-options-pane.component";
+import { MatButton } from "@angular/material/button";
+import { MatTooltip } from "@angular/material/tooltip";
+import { MatNavList, MatListItem } from "@angular/material/list";
+import { MatCard, MatCardContent, MatCardActions } from "@angular/material/card";
+import { MatTabGroup, MatTab } from "@angular/material/tabs";
+import { MatInput } from "@angular/material/input";
+import { MatFormField, MatLabel, MatError } from "@angular/material/form-field";
+import { NgIf, NgFor } from "@angular/common";
+import { EditorPanelComponent } from "../../../common/util/editor-panel/editor-panel.component";
 
 const GET_DATA_CYCLE_DIALOG_MODEL_URI = "../api/em/schedule/cycle-dialog-model/";
 const EDIT_DATA_CYCLE_URI = "../api/em/schedule/edit-cycle";
@@ -47,15 +58,15 @@ const EDIT_DATA_CYCLE_URI = "../api/em/schedule/edit-cycle";
    link: "EMSettingsScheduleCycle"
 })
 @Component({
-   selector: "em-schedule-cycle-editor-page",
-   templateUrl: "./schedule-cycle-editor-page.component.html",
-   styleUrls: ["./schedule-cycle-editor-page.component.scss"],
-   encapsulation: ViewEncapsulation.None,
-   host: { // eslint-disable-line @angular-eslint/no-host-metadata-property
-      "class": "schedule-cycle-editor"
-   }
+    selector: "em-schedule-cycle-editor-page",
+    templateUrl: "./schedule-cycle-editor-page.component.html",
+    styleUrls: ["./schedule-cycle-editor-page.component.scss"],
+    encapsulation: ViewEncapsulation.None,
+    standalone: true,
+    imports: [EditorPanelComponent, NgIf, MatFormField, MatLabel, MatInput, FormsModule, ReactiveFormsModule, MatError, MatTabGroup, MatTab, MatCard, MatCardContent, MatNavList, NgFor, MatListItem, MatTooltip, MatCardActions, MatButton, TaskConditionPaneComponent, ScheduleCycleOptionsPaneComponent, ResourcePermissionComponent]
 })
 export class ScheduleCycleEditorPageComponent implements OnInit, OnDestroy {
+   @HostBinding("class") hostClass = "schedule-cycle-editor";
    model: ScheduleCycleDialogModel;
    originalModel: ScheduleCycleDialogModel;
    name: UntypedFormControl;

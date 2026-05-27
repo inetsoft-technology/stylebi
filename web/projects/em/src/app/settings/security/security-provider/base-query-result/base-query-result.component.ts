@@ -20,10 +20,14 @@ import { MAT_BOTTOM_SHEET_DATA, MatBottomSheetRef } from "@angular/material/bott
 import { SortOptions } from "../../../../../../../shared/util/sort/sort-options";
 import { SortTypes } from "../../../../../../../shared/util/sort/sort-types";
 import { Tool } from "../../../../../../../shared/util/tool";
+import { MatNavList, MatListItem } from "@angular/material/list";
+import { NgIf, NgFor } from "@angular/common";
 
 @Component({
-   selector: "em-base-query-result",
-   templateUrl: "./base-query-result.component.html"
+    selector: "em-base-query-result",
+    templateUrl: "./base-query-result.component.html",
+    standalone: true,
+    imports: [NgIf, MatNavList, NgFor, MatListItem]
 })
 export class BaseQueryResult {
    queryResult: string[];

@@ -25,9 +25,7 @@ describe("FileChooserComponent", () => {
 
    beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
-         declarations: [
-            FileChooserComponent
-         ],
+         imports: [FileChooserComponent],
          schemas: [
             NO_ERRORS_SCHEMA
          ]

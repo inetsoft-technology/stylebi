@@ -16,15 +16,22 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, HostListener, Inject, OnInit } from "@angular/core";
-import { UntypedFormBuilder, FormControl, UntypedFormGroup, Validators } from "@angular/forms";
+import { UntypedFormBuilder, FormControl, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { HttpClient, HttpParams } from "@angular/common/http";
-import { MAT_DIALOG_DATA, MatDialogRef } from "@angular/material/dialog";
+import { MAT_DIALOG_DATA, MatDialogRef, MatDialogContent, MatDialogActions } from "@angular/material/dialog";
 import { LocalizationModel } from "../localization-settings-model";
+import { MatButton } from "@angular/material/button";
+import { NgIf } from "@angular/common";
+import { MatInput } from "@angular/material/input";
+import { MatFormField, MatLabel, MatError } from "@angular/material/form-field";
+import { ModalHeaderComponent } from "../../../../common/util/modal-header/modal-header.component";
 
 @Component({
-   selector: "em-localization-dialog",
-   templateUrl: "./localization-dialog.component.html",
-   styleUrls: ["./localization-dialog.component.scss"]
+    selector: "em-localization-dialog",
+    templateUrl: "./localization-dialog.component.html",
+    styleUrls: ["./localization-dialog.component.scss"],
+    standalone: true,
+    imports: [ModalHeaderComponent, MatDialogContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatInput, NgIf, MatError, MatDialogActions, MatButton]
 })
 export class LocalizationDialogComponent implements OnInit {
    form: UntypedFormGroup;

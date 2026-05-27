@@ -38,8 +38,8 @@ describe("LoggingSettingsViewComponent", () => {
 
    beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
-         declarations: [LoggingSettingsViewComponent, LoggingLevelTableComponent],
          imports: [
+            LoggingSettingsViewComponent, LoggingLevelTableComponent,
             NoopAnimationsModule,
             MatFormFieldModule,
             MatCheckboxModule,

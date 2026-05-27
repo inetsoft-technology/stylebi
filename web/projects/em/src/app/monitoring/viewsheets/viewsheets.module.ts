@@ -33,27 +33,25 @@ import { ViewsheetMonitoringViewComponent } from "./viewsheet-monitoring-view/vi
 import { ViewsheetsRoutingModule } from "./viewsheets-routing.module";
 
 @NgModule({
-   imports: [
-      CommonModule,
-      MatCardModule,
-      MatCheckboxModule,
-      MatExpansionModule,
-      MatPaginatorModule,
-      MatTableModule,
-      MatSelectModule,
-      CollapsibleContainerModule,
-      ViewsheetsRoutingModule,
-      TableViewModule,
-      ClusterSelectorModule,
-      MatTabsModule,
-   ],
-   declarations: [
-      ViewsheetMonitoringPageComponent,
-      ViewsheetMonitoringViewComponent
-   ],
-   providers: [
-      ClusterNodesService
-   ]
+    imports: [
+        CommonModule,
+        MatCardModule,
+        MatCheckboxModule,
+        MatExpansionModule,
+        MatPaginatorModule,
+        MatTableModule,
+        MatSelectModule,
+        CollapsibleContainerModule,
+        ViewsheetsRoutingModule,
+        TableViewModule,
+        ClusterSelectorModule,
+        MatTabsModule,
+        ViewsheetMonitoringPageComponent,
+        ViewsheetMonitoringViewComponent,
+    ],
+    providers: [
+        ClusterNodesService
+    ]
 })
 export class ViewsheetsModule {
 }

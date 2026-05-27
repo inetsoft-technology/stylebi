@@ -67,14 +67,8 @@ describe("RepositoryViewsheetSettingsViewComponent", () => {
             MatTableModule,
             MatTabsModule,
             LoadingSpinnerModule,
-            ResourcePermissionModule
-         ],
-         declarations: [
-            AnalyzeMvPageComponent,
-            RepositorySheetSettingsViewComponent,
-            RepositoryViewsheetSettingsViewComponent,
-            TableView
-         ],
+            ResourcePermissionModule,
+            AnalyzeMvPageComponent, RepositorySheetSettingsViewComponent, RepositoryViewsheetSettingsViewComponent, TableView],
          schemas: [
             NO_ERRORS_SCHEMA
          ]

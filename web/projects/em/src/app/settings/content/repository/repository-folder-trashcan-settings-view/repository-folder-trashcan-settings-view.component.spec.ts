@@ -44,9 +44,9 @@ describe("RepositoryFolderTrashcanSettingsViewComponent", () => {
          imports: [HttpClientTestingModule, RouterModule.forRoot([]), MatCardModule, MatDialogModule,
             MatButtonModule, MatInputModule, MatSelectModule, NoopAnimationsModule,
             MatOptionModule, MatTabsModule, MatFormFieldModule, FormsModule, ReactiveFormsModule,
-            MatRadioModule, MatCheckboxModule, ResourcePermissionModule, TableViewModule],
-         declarations: [RepositoryFolderTrashcanSettingsViewComponent, EditorPanelComponent]
-      })
+            MatRadioModule, MatCheckboxModule, ResourcePermissionModule, TableViewModule,
+            RepositoryFolderTrashcanSettingsViewComponent, EditorPanelComponent]
+         })
          .compileComponents();
 
       fixture = TestBed.createComponent(RepositoryFolderTrashcanSettingsViewComponent);

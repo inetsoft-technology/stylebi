@@ -33,27 +33,25 @@ import { ClusterNodesService } from "../cluster/cluster-nodes.service";
 import { ClusterSelectorModule } from "../cluster-selector/cluster-selector.module";
 
 @NgModule({
-   imports: [
-      CommonModule,
-      SummaryRoutingModule,
-      MatButtonModule,
-      MatSelectModule,
-      MatCardModule,
-      MatGridListModule,
-      TableViewModule,
-      MatDividerModule,
-      ClusterSelectorModule,
-      ResizedDirective
-   ],
-   declarations: [
-      SummaryMonitoringPageComponent,
-      SummaryMonitoringChartViewComponent,
-      SummaryMonitoringTableViewComponent,
-      DebugMonitoringPageComponent,
-   ],
-   providers: [
-      ClusterNodesService
-   ]
+    imports: [
+        CommonModule,
+        SummaryRoutingModule,
+        MatButtonModule,
+        MatSelectModule,
+        MatCardModule,
+        MatGridListModule,
+        TableViewModule,
+        MatDividerModule,
+        ClusterSelectorModule,
+        ResizedDirective,
+        SummaryMonitoringPageComponent,
+        SummaryMonitoringChartViewComponent,
+        SummaryMonitoringTableViewComponent,
+        DebugMonitoringPageComponent
+    ],
+    providers: [
+        ClusterNodesService
+    ]
 })
 export class SummaryModule {
 }

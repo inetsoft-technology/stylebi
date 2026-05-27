@@ -29,21 +29,33 @@ import {
    Output,
    SimpleChanges
 } from "@angular/core";
-import { UntypedFormBuilder, UntypedFormGroup } from "@angular/forms";
+import { UntypedFormBuilder, UntypedFormGroup, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { BehaviorSubject, Subject } from "rxjs";
 import { debounceTime, distinctUntilChanged, map, takeUntil } from "rxjs/operators";
 import { RepositoryEntryType } from "../../../../../../../shared/data/repository-entry-type.enum";
 import { FlatTreeNode, FlatTreeNodeMenuItem } from "../../../../common/util/tree/flat-tree-model";
-import { FlatTreeSelectNodeEvent } from "../../../../common/util/tree/flat-tree-view.component";
+import { FlatTreeSelectNodeEvent, FlatTreeViewComponent } from "../../../../common/util/tree/flat-tree-view.component";
 import { RepositoryTreeDataSource } from "../repository-tree-data-source";
 import { RepositoryFlatNode } from "../repository-tree-node";
 import { LicensedComponents } from "./licensed-components";
+import { MatCheckbox } from "@angular/material/checkbox";
+import { MatProgressBar } from "@angular/material/progress-bar";
+import { TopScrollDirective } from "../../../../top-scroll/top-scroll.directive";
+import { MatMenuTrigger, MatMenu, MatMenuItem } from "@angular/material/menu";
+import { NgIf, NgFor, AsyncPipe } from "@angular/common";
+import { MatInput } from "@angular/material/input";
+import { MatFormField, MatLabel, MatSuffix } from "@angular/material/form-field";
+import { MatIcon } from "@angular/material/icon";
+import { MatIconButton } from "@angular/material/button";
+import { MatToolbar } from "@angular/material/toolbar";
 
 @Component({
-   selector: "em-repository-tree-view",
-   templateUrl: "./repository-tree-view.component.html",
-   styleUrls: ["./repository-tree-view.component.scss"],
-   changeDetection: ChangeDetectionStrategy.OnPush
+    selector: "em-repository-tree-view",
+    templateUrl: "./repository-tree-view.component.html",
+    styleUrls: ["./repository-tree-view.component.scss"],
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    standalone: true,
+    imports: [MatToolbar, MatIconButton, MatIcon, MatFormField, MatLabel, MatInput, FormsModule, MatSuffix, NgIf, MatMenuTrigger, TopScrollDirective, MatProgressBar, FlatTreeViewComponent, NgFor, MatMenu, MatMenuItem, ReactiveFormsModule, MatCheckbox, AsyncPipe]
 })
 export class RepositoryTreeViewComponent implements OnInit, OnDestroy, OnChanges {
    @Input() dataSource: RepositoryTreeDataSource;

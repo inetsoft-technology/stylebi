@@ -27,11 +27,14 @@ import {
    DataSourceSettingsPage
 } from "../../../../../../../shared/util/datasource/data-source-settings-page";
 import { Tool } from "../../../../../../../shared/util/tool";
+import { RepositoryDataSourceSettingsViewComponent } from "../repository-data-source-settings-view/repository-data-source-settings-view.component";
 
 @Component({
-   selector: "em-repository-data-source-settings-page",
-   templateUrl: "./repository-data-source-settings-page.component.html",
-   styleUrls: ["./repository-data-source-settings-page.component.scss"]
+    selector: "em-repository-data-source-settings-page",
+    templateUrl: "./repository-data-source-settings-page.component.html",
+    styleUrls: ["./repository-data-source-settings-page.component.scss"],
+    standalone: true,
+    imports: [RepositoryDataSourceSettingsViewComponent]
 })
 export class RepositoryDataSourceSettingsPageComponent extends DataSourceSettingsPage implements OnInit, OnChanges {
    @Input() model: DataSourceEditorModel;

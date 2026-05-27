@@ -17,11 +17,19 @@
  */
 import { Component, EventEmitter, Input, OnChanges, Output, SimpleChanges } from "@angular/core";
 import { DashboardOption } from "./dashboard-option";
+import { MatIcon } from "@angular/material/icon";
+import { MatIconButton } from "@angular/material/button";
+import { FormsModule } from "@angular/forms";
+import { MatCheckbox } from "@angular/material/checkbox";
+import { MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow } from "@angular/material/table";
+import { MatCard, MatCardSubtitle, MatCardContent } from "@angular/material/card";
 
 @Component({
-   selector: "em-dashboards-settings-sortable-table-view",
-   templateUrl: "./dashboards-settings-sortable-table-view.component.html",
-   styleUrls: ["./dashboards-settings-sortable-table-view.component.scss"]
+    selector: "em-dashboards-settings-sortable-table-view",
+    templateUrl: "./dashboards-settings-sortable-table-view.component.html",
+    styleUrls: ["./dashboards-settings-sortable-table-view.component.scss"],
+    standalone: true,
+    imports: [MatCard, MatCardSubtitle, MatCardContent, MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatCheckbox, FormsModule, MatIconButton, MatIcon, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow]
 })
 export class DashboardsSettingsSortableTableViewComponent implements OnChanges {
    @Input() dataSource: DashboardOption[];

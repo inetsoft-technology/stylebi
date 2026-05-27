@@ -32,10 +32,9 @@ describe("PresentationDashboardSettingsViewComponent", () => {
             ReactiveFormsModule,
             NoopAnimationsModule,
             MatCardModule,
-            MatCheckboxModule
-         ],
-         declarations: [PresentationDashboardSettingsViewComponent]
-      })
+            MatCheckboxModule,
+            PresentationDashboardSettingsViewComponent]
+         })
          .compileComponents();
    }));
 

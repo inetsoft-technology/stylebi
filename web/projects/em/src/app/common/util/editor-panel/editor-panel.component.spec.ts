@@ -29,11 +29,8 @@ describe("EditorPanelComponent", () => {
       TestBed.configureTestingModule({
          imports: [
             MaterialTestingModule,
-            RouterModule.forRoot([])
-         ],
-         declarations: [
-            EditorPanelComponent
-         ],
+            RouterModule.forRoot([]),
+            EditorPanelComponent],
          schemas: [
             NO_ERRORS_SCHEMA
          ]

@@ -16,20 +16,27 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, EventEmitter, Input, Output } from "@angular/core";
-import { UntypedFormBuilder, UntypedFormGroup } from "@angular/forms";
+import { UntypedFormBuilder, UntypedFormGroup, FormsModule } from "@angular/forms";
 import { PresentationSettingsChanges } from "../presentation-settings-view/presentation-settings-view.component";
 import { PresentationTimeSettingsModel } from "./presentation-time-settings-model";
 import { PresentationSettingsType } from "../presentation-settings-view/presentation-settings-type.enum";
 import { ContextHelp } from "../../../context-help";
+import { MatCheckbox } from "@angular/material/checkbox";
+import { MatInput } from "@angular/material/input";
+import { MatFormField, MatLabel } from "@angular/material/form-field";
+import { MatCard, MatCardTitle, MatCardContent } from "@angular/material/card";
+import { NgIf } from "@angular/common";
 
 @ContextHelp({
    route: "/settings/presentation/settings#time-settings",
    link: "EMTimeSettings"
 })
 @Component({
-  selector: "em-presentation-time-settings-view",
-  templateUrl: "./presentation-time-settings-view.component.html",
-  styleUrls: ["./presentation-time-settings-view.component.scss"]
+    selector: "em-presentation-time-settings-view",
+    templateUrl: "./presentation-time-settings-view.component.html",
+    styleUrls: ["./presentation-time-settings-view.component.scss"],
+    standalone: true,
+    imports: [NgIf, MatCard, MatCardTitle, MatCardContent, MatFormField, MatLabel, MatInput, FormsModule, MatCheckbox]
 })
 export class PresentationTimeSettingsViewComponent {
    @Input() isSysAdmin: boolean;

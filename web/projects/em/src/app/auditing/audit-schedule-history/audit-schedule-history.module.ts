@@ -26,9 +26,6 @@ import {MatOptionModule} from "@angular/material/core";
 import {MatSelectModule} from "@angular/material/select";
 
 @NgModule({
-   declarations: [
-      AuditScheduleHistoryComponent
-   ],
     imports: [
         CommonModule,
         AuditScheduleHistoryRoutingModule,
@@ -37,7 +34,8 @@ import {MatSelectModule} from "@angular/material/select";
         MatFormFieldModule,
         MatOptionModule,
         MatSelectModule,
-        ReactiveFormsModule
+        ReactiveFormsModule,
+        AuditScheduleHistoryComponent
     ]
 })
 export class AuditScheduleHistoryModule {

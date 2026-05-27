@@ -27,22 +27,20 @@ import {
    Output,
    SimpleChanges
 } from "@angular/core";
-import {
-   ControlValueAccessor,
-   UntypedFormBuilder,
-   UntypedFormControl,
-   UntypedFormGroup,
-   NG_VALUE_ACCESSOR,
-   ValidationErrors,
-   ValidatorFn,
-   Validators
-} from "@angular/forms";
-import { MatTreeFlatDataSource, MatTreeFlattener } from "@angular/material/tree";
+import { ControlValueAccessor, UntypedFormBuilder, UntypedFormControl, UntypedFormGroup, NG_VALUE_ACCESSOR, ValidationErrors, ValidatorFn, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
+import { MatTreeFlatDataSource, MatTreeFlattener, MatTree, MatTreeNodeDef, MatTreeNode, MatTreeNodeToggle, MatTreeNodePadding } from "@angular/material/tree";
 import { Observable, of as observableOf } from "rxjs";
 import { ExpandStringDirective } from "../../../../../../../portal/src/app/widget/expand-string/expand-string.directive";
 import { ScheduleTaskModel } from "../../../../../../../shared/schedule/model/schedule-task-model";
 import { removeOrganization } from "../../../security/users/identity-id";
 import { ScheduleTaskListComponent } from "../../schedule-task-list/schedule-task-list.component";
+import { MatIcon } from "@angular/material/icon";
+import { NgIf } from "@angular/common";
+import { MatIconButton } from "@angular/material/button";
+import { MatOption } from "@angular/material/core";
+import { MatSelect } from "@angular/material/select";
+import { MatFormField, MatLabel, MatError } from "@angular/material/form-field";
+import { MatCard, MatCardContent } from "@angular/material/card";
 
 export const SCHEDULE_TASK_SELECT_VALUE_ACCESSOR: any = {
    provide: NG_VALUE_ACCESSOR,
@@ -65,10 +63,12 @@ export class ScheduleTaskFlatNode {
 }
 
 @Component({
-   selector: "em-schedule-task-select",
-   templateUrl: "./schedule-task-select.component.html",
-   styleUrls: ["./schedule-task-select.component.scss"],
-   providers: [SCHEDULE_TASK_SELECT_VALUE_ACCESSOR]
+    selector: "em-schedule-task-select",
+    templateUrl: "./schedule-task-select.component.html",
+    styleUrls: ["./schedule-task-select.component.scss"],
+    providers: [SCHEDULE_TASK_SELECT_VALUE_ACCESSOR],
+    standalone: true,
+    imports: [MatCard, MatCardContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatSelect, MatOption, MatTree, MatTreeNodeDef, MatTreeNode, MatTreeNodeToggle, MatTreeNodePadding, MatIconButton, NgIf, MatIcon, MatError]
 })
 export class ScheduleTaskSelectComponent implements OnInit, OnChanges, ControlValueAccessor {
    @Input() tasks: ScheduleTaskModel[];

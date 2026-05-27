@@ -26,6 +26,16 @@ import { EditPortalTabDialogComponent } from "./edit-portal-tab-dialog/edit-port
 import { PortalIntegrationSettingsModel } from "./portal-integration-settings-model";
 import { PortalTabModel } from "./portal-tab-model";
 import { ContextHelp } from "../../../context-help";
+import { MatInput } from "@angular/material/input";
+import { MatFormField, MatLabel } from "@angular/material/form-field";
+import { MatDivider } from "@angular/material/divider";
+import { MatIcon } from "@angular/material/icon";
+import { MatTooltip } from "@angular/material/tooltip";
+import { MatMiniFabButton, MatIconButton } from "@angular/material/button";
+import { FormsModule } from "@angular/forms";
+import { MatCheckbox } from "@angular/material/checkbox";
+import { MatCard, MatCardTitle, MatCardContent, MatCardSubtitle } from "@angular/material/card";
+import { NgIf, NgFor } from "@angular/common";
 
 @Searchable({
    route: "/settings/presentation/settings#portal-integration",
@@ -40,9 +50,11 @@ import { ContextHelp } from "../../../context-help";
    link: "EMPresentationPortalIntegration"
 })
 @Component({
-   selector: "em-portal-integration-view",
-   templateUrl: "./portal-integration-view.component.html",
-   styleUrls: ["./portal-integration-view.component.scss"]
+    selector: "em-portal-integration-view",
+    templateUrl: "./portal-integration-view.component.html",
+    styleUrls: ["./portal-integration-view.component.scss"],
+    standalone: true,
+    imports: [NgIf, MatCard, MatCardTitle, MatCardContent, MatCheckbox, FormsModule, MatMiniFabButton, MatTooltip, MatIcon, NgFor, MatCardSubtitle, MatIconButton, MatDivider, MatFormField, MatLabel, MatInput]
 })
 export class PortalIntegrationViewComponent {
    @Input() model: PortalIntegrationSettingsModel;

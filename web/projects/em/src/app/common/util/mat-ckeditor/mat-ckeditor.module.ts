@@ -22,18 +22,16 @@ import { CkeditorWrapperComponent } from "../../../../../../shared/ckeditor-wrap
 import { MatCkeditorComponent } from "./mat-ckeditor.component";
 
 @NgModule({
-   declarations: [
-      MatCkeditorComponent
-   ],
-   exports: [
-      MatCkeditorComponent
-   ],
-   imports: [
-      CommonModule,
-      FormsModule,
-      ReactiveFormsModule,
-      CkeditorWrapperComponent
-   ]
+    exports: [
+        MatCkeditorComponent
+    ],
+    imports: [
+        CommonModule,
+        FormsModule,
+        ReactiveFormsModule,
+        CkeditorWrapperComponent,
+        MatCkeditorComponent
+    ]
 })
 export class MatCkeditorModule {
 }

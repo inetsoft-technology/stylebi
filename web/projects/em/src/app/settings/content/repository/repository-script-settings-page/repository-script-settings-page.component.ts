@@ -17,20 +17,29 @@
  */
 import {RepositoryEditorModel} from "../../../../../../../shared/util/model/repository-editor-model";
 import {Component, EventEmitter, Input, OnChanges, OnInit, Output, SimpleChanges} from "@angular/core";
-import {UntypedFormControl, UntypedFormGroup, Validators} from "@angular/forms";
+import { UntypedFormControl, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import {FormValidators} from "../../../../../../../shared/util/form-validators";
 import {ScriptSettingsModel} from "./script-settings.model";
 import {HttpClient, HttpParams} from "@angular/common/http";
 import {Tool} from "../../../../../../../shared/util/tool";
 import { COPY_PASTE_CONTEXT_REPOSITORY } from "../../../security/resource-permission/copy-paste-context";
+import { ResourcePermissionComponent } from "../../../security/resource-permission/resource-permission.component";
+import { MatInput } from "@angular/material/input";
+import { MatFormField, MatLabel, MatError } from "@angular/material/form-field";
+import { MatCard, MatCardContent } from "@angular/material/card";
+import { NgIf } from "@angular/common";
+import { MatTabGroup, MatTab, MatTabContent } from "@angular/material/tabs";
+import { EditorPanelComponent } from "../../../../common/util/editor-panel/editor-panel.component";
 
 export interface RepositoryScriptEditorModel extends RepositoryEditorModel {
    scriptSettings: ScriptSettingsModel;
 }
 
 @Component({
-   selector: "em-repository-script-settings-page",
-   templateUrl: "repository-script-settings-page.component.html"
+    selector: "em-repository-script-settings-page",
+    templateUrl: "repository-script-settings-page.component.html",
+    standalone: true,
+    imports: [EditorPanelComponent, MatTabGroup, MatTab, MatTabContent, NgIf, MatCard, MatCardContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatInput, MatError, ResourcePermissionComponent]
 })
 export class RepositoryScriptSettingsPageComponent implements OnInit, OnChanges {
    @Input() selectedTab = 0;

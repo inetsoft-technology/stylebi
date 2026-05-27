@@ -17,16 +17,25 @@
  */
 import { HttpClient } from "@angular/common/http";
 import { Component, Inject } from "@angular/core";
-import { MAT_DIALOG_DATA, MatDialogRef } from "@angular/material/dialog";
+import { MAT_DIALOG_DATA, MatDialogRef, MatDialogContent } from "@angular/material/dialog";
 import { PropertyModel } from "../property-table-view/property-model";
-import { UntypedFormBuilder, UntypedFormGroup, Validators } from "@angular/forms";
+import { UntypedFormBuilder, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { FormValidators } from "../../../../../../shared/util/form-validators";
 import { DataSpaceTreeNode } from "../../content/data-space/data-space-tree-node";
+import { MatButton } from "@angular/material/button";
+import { MatInput } from "@angular/material/input";
+import { NgIf } from "@angular/common";
+import { MatOption } from "@angular/material/core";
+import { MatSelect } from "@angular/material/select";
+import { MatFormField, MatLabel, MatError } from "@angular/material/form-field";
+import { ModalHeaderComponent } from "../../../common/util/modal-header/modal-header.component";
 
 @Component({
-  selector: "em-organization-property-dialog",
-  templateUrl: "./organization-property-dialog.component.html",
-  styleUrls: ["./organization-property-dialog.component.scss"]
+    selector: "em-organization-property-dialog",
+    templateUrl: "./organization-property-dialog.component.html",
+    styleUrls: ["./organization-property-dialog.component.scss"],
+    standalone: true,
+    imports: [ModalHeaderComponent, MatDialogContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatSelect, MatOption, NgIf, MatError, MatInput, MatButton]
 })
 export class OrganizationPropertyDialogComponent {
    propertyName: string;

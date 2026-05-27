@@ -131,7 +131,16 @@
 
   Run `npm run build` until it exits with no `error TS` lines.
 
-- [ ] **Step 4: Run portal tests**
+- [ ] **Step 4: Run lint**
+
+  ```bash
+  npm run lint
+  npm run lint -- --project=em
+  ```
+
+  Expected: Both pass with no errors. Common lint failure caused by the schematic: `@angular-eslint/no-host-metadata-property` — the schematic sometimes writes `host: { "class": "..." }` in `@Component`. Fix by removing the `host` property and adding `@HostBinding("class") hostClass = "..."` to the class body (also add `HostBinding` to the `@angular/core` import).
+
+- [ ] **Step 5: Run portal tests**
 
   ```bash
   npm run test
@@ -139,7 +148,7 @@
 
   Expected: All tests pass. Standalone component test failures show as `NullInjectorError` (missing provider) or `Can't bind to 'X'` (missing import in component `imports` array). Fix by adding the missing module or provider to the component decorator's `imports` array.
 
-- [ ] **Step 5: Run em tests**
+- [ ] **Step 6: Run em tests**
 
   ```bash
   npm run test:em
@@ -147,7 +156,7 @@
 
   Expected: All tests pass.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Commit**
 
   ```bash
   git add -A
@@ -212,19 +221,28 @@
 
   Expected: Zero TypeScript errors.
 
-- [ ] **Step 5: Run portal tests**
+- [ ] **Step 5: Run lint**
+
+  ```bash
+  npm run lint
+  npm run lint -- --project=em
+  ```
+
+  Expected: Both pass with no errors. Fix any `@angular-eslint/no-host-metadata-property` errors as described in Task 2 Step 4.
+
+- [ ] **Step 6: Run portal tests**
 
   ```bash
   npm run test
   ```
 
-- [ ] **Step 6: Run em tests**
+- [ ] **Step 7: Run em tests**
 
   ```bash
   npm run test:em
   ```
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 8: Commit**
 
   ```bash
   git add -A
@@ -303,7 +321,15 @@
   @NgModule({ imports: [SomeStandaloneComponent] })
   ```
 
-- [ ] **Step 5: Run em tests**
+- [ ] **Step 5: Run lint**
+
+  ```bash
+  npm run lint -- --project=em
+  ```
+
+  Expected: No errors. The schematic may generate `host: { "class": "..." }` in `@Component` decorators, which triggers `@angular-eslint/no-host-metadata-property`. For each affected file: remove the `host` property from `@Component`, add `HostBinding` to the `@angular/core` import, and add `@HostBinding("class") hostClass = "..."` as a class property.
+
+- [ ] **Step 6: Run em tests**
 
   ```bash
   npm run test:em
@@ -311,13 +337,13 @@
 
   Fix any failures: standalone component test failures show as `NullInjectorError` or template binding errors. Add the missing module or provider to the component's `imports` array.
 
-- [ ] **Step 6: Run portal tests (regression check)**
+- [ ] **Step 7: Run portal tests (regression check)**
 
   ```bash
   npm run test
   ```
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 8: Commit**
 
   ```bash
   git add -A
@@ -419,19 +445,27 @@
 
   Repeat `npm run build` until zero errors.
 
-- [ ] **Step 6: Run em tests**
+- [ ] **Step 6: Run lint**
+
+  ```bash
+  npm run lint -- --project=em
+  ```
+
+  Expected: No errors. Fix any `@angular-eslint/no-host-metadata-property` errors as described in Task 4 Step 5.
+
+- [ ] **Step 7: Run em tests**
 
   ```bash
   npm run test:em
   ```
 
-- [ ] **Step 7: Run portal tests (regression check)**
+- [ ] **Step 8: Run portal tests (regression check)**
 
   ```bash
   npm run test
   ```
 
-- [ ] **Step 8: Commit**
+- [ ] **Step 9: Commit**
 
   ```bash
   git add -A
@@ -500,7 +534,16 @@
 
   After fixing all categories: run `npm run build` and regenerate the error file until it is empty.
 
-- [ ] **Step 4: Run portal tests**
+- [ ] **Step 4: Run lint**
+
+  ```bash
+  npm run lint
+  npm run lint -- --project=em
+  ```
+
+  Expected: Both pass with no errors. Fix any `@angular-eslint/no-host-metadata-property` errors as described in Task 4 Step 5.
+
+- [ ] **Step 5: Run portal tests**
 
   ```bash
   npm run test
@@ -508,13 +551,13 @@
 
   Fix any failures before continuing.
 
-- [ ] **Step 5: Run em tests (regression check)**
+- [ ] **Step 6: Run em tests (regression check)**
 
   ```bash
   npm run test:em
   ```
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Commit**
 
   ```bash
   git add -A
@@ -714,7 +757,16 @@
 
   Repeat `npm run build` until zero errors.
 
-- [ ] **Step 10: Verify Angular Elements builds specifically**
+- [ ] **Step 10: Run lint**
+
+  ```bash
+  npm run lint
+  npm run lint -- --project=em
+  ```
+
+  Expected: Both pass with no errors. Fix any `@angular-eslint/no-host-metadata-property` errors as described in Task 4 Step 5.
+
+- [ ] **Step 12: Verify Angular Elements builds specifically**
 
   The `elements` and `viewer-element` build targets must also pass. Look for their output in the build log:
 
@@ -728,26 +780,26 @@
   ```
   Expected: `function`
 
-- [ ] **Step 11: Run portal tests**
+- [ ] **Step 13: Run portal tests**
 
   ```bash
   npm run test
   ```
 
-- [ ] **Step 12: Run em tests (regression check)**
+- [ ] **Step 14: Run em tests (regression check)**
 
   ```bash
   npm run test:em
   ```
 
-- [ ] **Step 13: Commit**
+- [ ] **Step 15: Commit**
 
   ```bash
   git add -A
   git commit -m "feat: prune portal NgModules, migrate bootstrap, and migrate Angular Elements"
   ```
 
-- [ ] **Step 14: Push and open PR**
+- [ ] **Step 16: Push and open PR**
 
   ```bash
   git push -u origin feature-<issue>-portal-prune

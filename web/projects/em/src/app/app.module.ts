@@ -89,24 +89,22 @@ export const httpInterceptorProviders = [
         DownloadTargetComponent,
         MessageDialogModule,
         ModalHeaderModule,
-        MatSelectModule
+        MatSelectModule,
+        ChangePasswordFormComponent,
+        ManageFavoritesComponent,
+        NavbarComponent,
+        PasswordComponent,
+        SendNotificationDialogComponent
     ],
-   providers: [
-      SsoHeartbeatService,
-      httpInterceptorProviders,
-      ScheduleUsersService,
-      ScheduleTaskNamesService,
-      { provide: RouteReuseStrategy, useClass: CustomRouteReuseStrategy }
-   ],
-   declarations: [
-      AppComponent,
-      ChangePasswordFormComponent,
-      ManageFavoritesComponent,
-      NavbarComponent,
-      PasswordComponent,
-      SendNotificationDialogComponent
-   ],
-   bootstrap: [AppComponent]
+    providers: [
+        SsoHeartbeatService,
+        httpInterceptorProviders,
+        ScheduleUsersService,
+        ScheduleTaskNamesService,
+        { provide: RouteReuseStrategy, useClass: CustomRouteReuseStrategy }
+    ],
+    declarations: [AppComponent],
+    bootstrap: [AppComponent]
 })
 export class AppModule {
 }

@@ -23,8 +23,9 @@ import { Secured } from "../../../secured";
 import { LogSettingsModel } from "../log-settings-model";
 import { HttpClient } from "@angular/common/http";
 import { Observable } from "rxjs";
-import { LogSettingsChanges } from "../logging-settings-view/logging-settings-view.component";
+import { LogSettingsChanges, LoggingSettingsViewComponent } from "../logging-settings-view/logging-settings-view.component";
 import { Tool } from "../../../../../../shared/util/tool";
+import { EditorPanelComponent } from "../../../common/util/editor-panel/editor-panel.component";
 
 @Secured({
    route: "/settings/logging",
@@ -40,9 +41,11 @@ import { Tool } from "../../../../../../shared/util/tool";
    link: "EMSettingsLogging"
 })
 @Component({
-   selector: "em-logging-settings-page",
-   templateUrl: "./logging-settings-page.component.html",
-   styleUrls: ["./logging-settings-page.component.scss"]
+    selector: "em-logging-settings-page",
+    templateUrl: "./logging-settings-page.component.html",
+    styleUrls: ["./logging-settings-page.component.scss"],
+    standalone: true,
+    imports: [EditorPanelComponent, LoggingSettingsViewComponent]
 })
 export class LoggingSettingsPageComponent implements OnInit {
    model: LogSettingsModel;

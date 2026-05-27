@@ -39,10 +39,9 @@ describe("PresentationFormatsSettingsViewComponent", () => {
             MatFormFieldModule,
             MatInputModule,
             MatSelectModule,
-            MatDividerModule
-         ],
-         declarations: [PresentationFormatsSettingsViewComponent]
-      })
+            MatDividerModule,
+            PresentationFormatsSettingsViewComponent]
+         })
          .compileComponents();
    }));
 

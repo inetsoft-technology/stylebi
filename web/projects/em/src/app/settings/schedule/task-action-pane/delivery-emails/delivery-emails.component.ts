@@ -16,21 +16,24 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, EventEmitter, Input, OnInit, OnChanges, Output, SimpleChanges } from "@angular/core";
-import {
-   FormGroupDirective,
-   NgForm,
-   UntypedFormBuilder,
-   UntypedFormControl,
-   UntypedFormGroup,
-   Validators
-} from "@angular/forms";
-import {ErrorStateMatcher} from "@angular/material/core";
+import { FormGroupDirective, NgForm, UntypedFormBuilder, UntypedFormControl, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
+import { ErrorStateMatcher, MatOption } from "@angular/material/core";
 import {GuiTool} from "../../../../../../../portal/src/app/common/util/gui-tool";
 import {CSVConfigModel} from "../../../../../../../shared/schedule/model/csv-config-model";
 import {ExportFormatModel} from "../../../../../../../shared/schedule/model/export-format-model";
 import {FormValidators} from "../../../../../../../shared/util/form-validators";
 import {DashboardOptions} from "../../model/dashboard-options";
 import {ReportOptions} from "../../model/reports-options";
+import { MatCkeditorComponent } from "../../../../common/util/mat-ckeditor/mat-ckeditor.component";
+import { EmCSVConfigPaneComponent } from "../em-csv-config-pane.component";
+import { MatRadioGroup, MatRadioButton } from "@angular/material/radio";
+import { MatSelect } from "@angular/material/select";
+import { EmailPickerComponent } from "../../../email-picker/email-picker.component";
+import { MatInput } from "@angular/material/input";
+import { MatFormField, MatLabel, MatError } from "@angular/material/form-field";
+import { NgIf, NgFor } from "@angular/common";
+import { MatCheckbox } from "@angular/material/checkbox";
+import { MatCard, MatCardHeader, MatCardTitle, MatCardContent } from "@angular/material/card";
 
 export interface DeliveryEmails {
    valid: boolean;
@@ -56,9 +59,11 @@ export interface DeliveryEmails {
 }
 
 @Component({
-   selector: "em-delivery-emails",
-   templateUrl: "./delivery-emails.component.html",
-   styleUrls: ["./delivery-emails.component.scss"]
+    selector: "em-delivery-emails",
+    templateUrl: "./delivery-emails.component.html",
+    styleUrls: ["./delivery-emails.component.scss"],
+    standalone: true,
+    imports: [MatCard, MatCardHeader, MatCardTitle, MatCheckbox, FormsModule, NgIf, MatCardContent, ReactiveFormsModule, MatFormField, MatLabel, MatInput, MatError, EmailPickerComponent, MatSelect, NgFor, MatOption, MatRadioGroup, MatRadioButton, EmCSVConfigPaneComponent, MatCkeditorComponent]
 })
 export class DeliveryEmailsComponent implements OnInit, OnChanges {
    @Input() enabled: boolean = false;

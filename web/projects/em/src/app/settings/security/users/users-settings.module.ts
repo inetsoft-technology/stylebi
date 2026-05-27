@@ -79,20 +79,18 @@ import { UsersSettingsViewComponent } from "./users-settings-view/users-settings
         MatSlideToggleModule,
         MatAutocompleteModule,
         ModalHeaderModule,
-        LoadingSpinnerModule
+        LoadingSpinnerModule,
+        EditIdentityPaneComponent,
+        IdentityTablesPaneComponent,
+        UsersSettingsPageComponent,
+        UsersSettingsViewComponent,
+        EditIdentityViewComponent,
+        CreateOrganizationDialogComponent
     ],
-   declarations: [
-      EditIdentityPaneComponent,
-      IdentityTablesPaneComponent,
-      UsersSettingsPageComponent,
-      UsersSettingsViewComponent,
-      EditIdentityViewComponent,
-      CreateOrganizationDialogComponent
-   ],
-   providers: [
-      SecurityTreeService,
-      ErrorHandlerService,
-   ]
+    providers: [
+        SecurityTreeService,
+        ErrorHandlerService,
+    ]
 })
 export class UsersSettingsModule {
 }

@@ -32,27 +32,25 @@ import { RegularTableComponent } from "./regular-table/regular-table.component";
 import { ExpandableRowTableComponent } from "./expandable-row-table/expandable-row-table.component";
 
 @NgModule({
-   imports: [
-      CommonModule,
-      FormsModule,
-      MatTableModule,
-      MatSortModule,
-      MatButtonModule,
-      MatCardModule,
-      MatCheckboxModule,
-      MatExpansionModule,
-      MatFormFieldModule,
-      CollapsibleContainerModule,
-      MatListModule
-   ],
-   exports: [
-      TableView
-   ],
-   declarations: [
-      TableView,
-      RegularTableComponent,
-      ExpandableRowTableComponent
-   ]
+    imports: [
+        CommonModule,
+        FormsModule,
+        MatTableModule,
+        MatSortModule,
+        MatButtonModule,
+        MatCardModule,
+        MatCheckboxModule,
+        MatExpansionModule,
+        MatFormFieldModule,
+        CollapsibleContainerModule,
+        MatListModule,
+        TableView,
+        RegularTableComponent,
+        ExpandableRowTableComponent
+    ],
+    exports: [
+        TableView
+    ]
 })
 export class TableViewModule {
 }

@@ -22,6 +22,9 @@ import { PageHeaderService } from "../../../page-header/page-header.service";
 import { Searchable } from "../../../searchable";
 import { PluginsModel } from "../../../../../../shared/util/model/plugins-model";
 import { Secured } from "../../../secured";
+import { PluginsViewComponent } from "../drivers-and-plugins/plugins-view/plugins-view.component";
+import { NgIf } from "@angular/common";
+import { TopScrollDirective } from "../../../top-scroll/top-scroll.directive";
 
 @Secured({
    route: "/settings/content/drivers-and-plugins",
@@ -38,9 +41,11 @@ import { Secured } from "../../../secured";
    link: "EMSettingsContentDriversPlugins"
 })
 @Component({
-   selector: "em-content-drivers-and-plugins-view",
-   templateUrl: "./content-drivers-and-plugins-view.component.html",
-   styleUrls: ["./content-drivers-and-plugins-view.component.scss"]
+    selector: "em-content-drivers-and-plugins-view",
+    templateUrl: "./content-drivers-and-plugins-view.component.html",
+    styleUrls: ["./content-drivers-and-plugins-view.component.scss"],
+    standalone: true,
+    imports: [TopScrollDirective, NgIf, PluginsViewComponent]
 })
 export class ContentDriversAndPluginsViewComponent implements OnInit {
    pluginsModel: PluginsModel;

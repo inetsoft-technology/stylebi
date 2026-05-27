@@ -35,11 +35,8 @@ describe("ScheduleAlertsComponent", () => {
             NoopAnimationsModule,
             MatCardModule,
             MatCheckboxModule,
-            MatTableModule
-         ],
-         declarations: [
-            ScheduleAlertsComponent
-         ],
+            MatTableModule,
+            ScheduleAlertsComponent],
          schemas: [
             NO_ERRORS_SCHEMA
          ]

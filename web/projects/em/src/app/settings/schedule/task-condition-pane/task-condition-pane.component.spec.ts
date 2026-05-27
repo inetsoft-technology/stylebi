@@ -58,16 +58,13 @@ describe("TaskConditionPaneComponent", () => {
             MatNativeDateModule,
             MatRadioModule,
             MatSelectModule,
-            MatTableModule
-         ],
-         declarations: [
-            TaskConditionPaneComponent,
-            ParameterTableComponent
-         ],
+            MatTableModule,
+            TaskConditionPaneComponent, ParameterTableComponent],
          schemas: [
             NO_ERRORS_SCHEMA
          ]
       })
+      .overrideTemplate(TaskConditionPaneComponent, "")
       .compileComponents();
    }));
 

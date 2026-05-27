@@ -37,11 +37,8 @@ describe("CompletionConditionEditorComponent", () => {
             NoopAnimationsModule,
             MatFormFieldModule,
             MatSelectModule,
-            HttpClientTestingModule
-         ],
-         declarations: [
-            CompletionConditionEditorComponent
-         ],
+            HttpClientTestingModule,
+            CompletionConditionEditorComponent],
          providers: [ScheduleTaskNamesService],
          schemas: [
             NO_ERRORS_SCHEMA

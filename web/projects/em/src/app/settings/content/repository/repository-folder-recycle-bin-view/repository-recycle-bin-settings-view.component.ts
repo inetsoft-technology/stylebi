@@ -16,15 +16,24 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, EventEmitter, Input, OnInit, Output } from "@angular/core";
-import { UntypedFormBuilder, UntypedFormGroup } from "@angular/forms";
+import { UntypedFormBuilder, UntypedFormGroup, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { TableInfo } from "../../../../common/util/table/table-info";
 import { TableModel } from "../../../../common/util/table/table-model";
 import { RepositoryRecycleBinTableModel } from "../repository-folder-recycle-bin-page/repository-folder-recycle-bin-table-model";
+import { MatButton } from "@angular/material/button";
+import { TableView } from "../../../../common/util/table/table-view.component";
+import { MatCheckbox } from "@angular/material/checkbox";
+import { MatCard } from "@angular/material/card";
+import { MatTabGroup, MatTab, MatTabContent } from "@angular/material/tabs";
+import { EditorPanelComponent } from "../../../../common/util/editor-panel/editor-panel.component";
+import { NgIf } from "@angular/common";
 
 @Component({
-   selector: "em-repository-recycle-bin-settings-view",
-   templateUrl: "./repository-recycle-bin-settings-view.component.html",
-   styleUrls: ["./repository-recycle-bin-settings-view.component.scss"]
+    selector: "em-repository-recycle-bin-settings-view",
+    templateUrl: "./repository-recycle-bin-settings-view.component.html",
+    styleUrls: ["./repository-recycle-bin-settings-view.component.scss"],
+    standalone: true,
+    imports: [NgIf, EditorPanelComponent, MatTabGroup, MatTab, MatTabContent, MatCard, FormsModule, ReactiveFormsModule, MatCheckbox, TableView, MatButton]
 })
 export class RepositoryRecycleBinSettingsViewComponent implements OnInit {
    @Input() model: RepositoryRecycleBinTableModel[];

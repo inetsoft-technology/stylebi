@@ -38,8 +38,7 @@ describe("ContentDriversAndPluginsViewComponent", () => {
             MatButtonModule,
             MatIconModule,
             MatListModule,
-         ],
-         declarations: [ContentDriversAndPluginsViewComponent],
+            ContentDriversAndPluginsViewComponent],
          schemas: [NO_ERRORS_SCHEMA]
       })
          .compileComponents();

@@ -26,18 +26,16 @@ import { ClusterRoutingModule } from "./cluster-routing.module";
 import { ClusterMonitoringViewComponent } from "./cluster-monitoring-view/cluster-monitoring-view.component";
 
 @NgModule({
-   imports: [
-      CommonModule,
-      MatCardModule,
-      MatIconModule,
-      TableViewModule,
-      MatButtonModule,
-      ClusterRoutingModule,
-   ],
-   declarations: [
-      ClusterMonitoringPageComponent,
-      ClusterMonitoringViewComponent
-   ]
+    imports: [
+        CommonModule,
+        MatCardModule,
+        MatIconModule,
+        TableViewModule,
+        MatButtonModule,
+        ClusterRoutingModule,
+        ClusterMonitoringPageComponent,
+        ClusterMonitoringViewComponent,
+    ]
 })
 export class ClusterModule {
 }

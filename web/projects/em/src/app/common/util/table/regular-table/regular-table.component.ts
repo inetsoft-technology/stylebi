@@ -17,15 +17,19 @@
  */
 import { SelectionModel } from "@angular/cdk/collections";
 import { AfterViewInit, Component, EventEmitter, Input, Output, ViewChild } from "@angular/core";
-import { MatSort } from "@angular/material/sort";
-import { MatTableDataSource } from "@angular/material/table";
+import { MatSort, MatSortHeader } from "@angular/material/sort";
+import { MatTableDataSource, MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow } from "@angular/material/table";
 import { TableInfo } from "../table-info";
 import { TableModel } from "../table-model";
+import { MatCheckbox } from "@angular/material/checkbox";
+import { NgIf, NgFor } from "@angular/common";
 
 @Component({
-   selector: "em-regular-table",
-   templateUrl: "./regular-table.component.html",
-   styleUrls: ["./regular-table.component.scss"]
+    selector: "em-regular-table",
+    templateUrl: "./regular-table.component.html",
+    styleUrls: ["./regular-table.component.scss"],
+    standalone: true,
+    imports: [NgIf, MatTable, MatSort, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCheckbox, MatCellDef, MatCell, NgFor, MatSortHeader, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow]
 })
 export class RegularTableComponent<T extends TableModel> implements AfterViewInit {
    @Input() maxHeight: number;

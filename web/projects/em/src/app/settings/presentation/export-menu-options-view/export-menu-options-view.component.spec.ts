@@ -57,11 +57,8 @@ describe("ExportMenuOptionsViewComponent", () => {
             MatSnackBarModule,
             MatIconModule,
             MatTableModule,
-            MatTooltipModule
-         ],
-         declarations: [
-            ExportMenuOptionsViewComponent
-         ],
+            MatTooltipModule,
+            ExportMenuOptionsViewComponent],
          schemas: [NO_ERRORS_SCHEMA]
       })
          .compileComponents();

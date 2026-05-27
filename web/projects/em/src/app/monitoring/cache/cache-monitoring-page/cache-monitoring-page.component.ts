@@ -28,6 +28,9 @@ import { Secured } from "../../../secured";
 import { MonitorLevel, MonitorLevelService } from "../../monitor-level.service";
 import { MonitoringDataService } from "../../monitoring-data.service";
 import { CacheMonitoringTableModel } from "../cache-monitoring-table-model";
+import { CacheMonitoringViewComponent } from "../cache-monitoring-view/cache-monitoring-view.component";
+import { NgIf } from "@angular/common";
+import { ClusterSelectorComponent } from "../../cluster-selector/cluster-selector.component";
 
 @Secured({
    route: "/monitoring/cache",
@@ -47,11 +50,13 @@ import { CacheMonitoringTableModel } from "../cache-monitoring-table-model";
    link: "EMMonitoringCache"
 })
 @Component({
-   selector: "em-cache-monitoring-page",
-   templateUrl: "./cache-monitoring-page.component.html",
-   styleUrls: ["./cache-monitoring-page.component.scss"],
-   encapsulation: ViewEncapsulation.None,
-   host: { "class": "em-cache-monitoring-page" } // eslint-disable-line @angular-eslint/no-host-metadata-property
+    selector: "em-cache-monitoring-page",
+    templateUrl: "./cache-monitoring-page.component.html",
+    styleUrls: ["./cache-monitoring-page.component.scss"],
+    encapsulation: ViewEncapsulation.None,
+    host: { "class": "em-cache-monitoring-page" }, // eslint-disable-line @angular-eslint/no-host-metadata-property
+    standalone: true,
+    imports: [ClusterSelectorComponent, NgIf, CacheMonitoringViewComponent]
 })
 export class CacheMonitoringPageComponent implements OnInit, OnDestroy {
    dataGridVisible = false;

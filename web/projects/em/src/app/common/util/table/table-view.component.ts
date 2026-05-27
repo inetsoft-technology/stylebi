@@ -20,17 +20,25 @@ import { MatTableDataSource } from "@angular/material/table";
 import { TableModel } from "./table-model";
 import { TableInfo } from "./table-info";
 import { SelectionModel } from "@angular/cdk/collections";
-import { DeviceType } from "./expandable-row-table/expandable-row-table.component";
+import { DeviceType, ExpandableRowTableComponent } from "./expandable-row-table/expandable-row-table.component";
 import { CustomSortDataSource } from "./custom-sort-data-source";
+import { RegularTableComponent } from "./regular-table/regular-table.component";
+import { MatExpansionPanel, MatExpansionPanelHeader, MatExpansionPanelTitle } from "@angular/material/expansion";
+import { MatButton } from "@angular/material/button";
+import { MatError } from "@angular/material/form-field";
+import { MatCard, MatCardTitle, MatCardContent, MatCardActions } from "@angular/material/card";
+import { NgIf, NgTemplateOutlet } from "@angular/common";
 
 export enum TableAction {
    DELETE, EDIT, ADD
 }
 
 @Component({
-   selector: "em-table-view",
-   templateUrl: "./table-view.component.html",
-   styleUrls: ["./table-view.component.scss"]
+    selector: "em-table-view",
+    templateUrl: "./table-view.component.html",
+    styleUrls: ["./table-view.component.scss"],
+    standalone: true,
+    imports: [NgIf, MatCard, MatCardTitle, MatCardContent, NgTemplateOutlet, MatError, MatCardActions, MatButton, MatExpansionPanel, MatExpansionPanelHeader, MatExpansionPanelTitle, RegularTableComponent, ExpandableRowTableComponent]
 })
 export class TableView<T extends TableModel> implements OnChanges {
    TableAction = TableAction;

@@ -52,6 +52,9 @@ import {DeleteIdentitiesResponse} from "./delete-identities-response";
 import {SecurityEnabledEvent} from "../../security-settings-page/security-enabled-event";
 import {ScheduleUsersService} from "../../../../../../../shared/schedule/schedule-users.service";
 import { convertToKey, equalsIdentity, IdentityId } from "../identity-id";
+import { LoadingSpinnerComponent } from "../../../../common/util/loading-spinner/loading-spinner.component";
+import { UsersSettingsViewComponent } from "../users-settings-view/users-settings-view.component";
+import { NgIf, AsyncPipe } from "@angular/common";
 
 @Secured({
    route: "/settings/security/users",
@@ -67,9 +70,11 @@ import { convertToKey, equalsIdentity, IdentityId } from "../identity-id";
    link: "EMSettingsSecurityUsers"
 })
 @Component({
-   selector: "em-users-settings-page",
-   templateUrl: "./users-settings-page.component.html",
-   styleUrls: ["./users-settings-page.component.scss"]
+    selector: "em-users-settings-page",
+    templateUrl: "./users-settings-page.component.html",
+    styleUrls: ["./users-settings-page.component.scss"],
+    standalone: true,
+    imports: [NgIf, UsersSettingsViewComponent, LoadingSpinnerComponent, AsyncPipe]
 })
 export class UsersSettingsPageComponent implements OnInit, OnDestroy {
    public treeData: Observable<SecurityTreeNode[]>;

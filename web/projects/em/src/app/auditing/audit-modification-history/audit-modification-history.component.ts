@@ -17,7 +17,7 @@
  */
 import { HttpClient, HttpParams } from "@angular/common/http";
 import { Component, OnDestroy, OnInit } from "@angular/core";
-import { FormBuilder, FormGroup } from "@angular/forms";
+import { FormBuilder, FormGroup, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { catchError, tap } from "rxjs/operators";
 import { ErrorHandlerService } from "../../common/util/error/error-handler.service";
 import { ContextHelp } from "../../context-help";
@@ -35,6 +35,10 @@ import {
 import { of, Subscription } from "rxjs";
 import { ActivatedRoute } from "@angular/router";
 import { Tool } from "../../../../../shared/util/tool";
+import { MatOption } from "@angular/material/core";
+import { MatSelect } from "@angular/material/select";
+import { MatFormField, MatLabel } from "@angular/material/form-field";
+import { NgIf, NgFor } from "@angular/common";
 
 @Secured({
    route: "/auditing/modification-history",
@@ -50,9 +54,11 @@ import { Tool } from "../../../../../shared/util/tool";
    link: "EMViewAudit"
 })
 @Component({
-  selector: "em-audit-modification-history",
-  templateUrl: "./audit-modification-history.component.html",
-  styleUrls: ["./audit-modification-history.component.scss"]
+    selector: "em-audit-modification-history",
+    templateUrl: "./audit-modification-history.component.html",
+    styleUrls: ["./audit-modification-history.component.scss"],
+    standalone: true,
+    imports: [AuditTableViewComponent, FormsModule, ReactiveFormsModule, NgIf, MatFormField, MatLabel, MatSelect, NgFor, MatOption]
 })
 export class AuditModificationHistoryComponent implements OnInit, OnDestroy {
    users: string[] = [];

@@ -16,12 +16,16 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, EventEmitter, Input, Output } from "@angular/core";
-import { MatTableDataSource } from "@angular/material/table";
+import { MatTableDataSource, MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow } from "@angular/material/table";
 import { ContextHelp } from "../../../context-help";
 import { Searchable } from "../../../searchable";
 import { GeneralSettingsChanges } from "../general-settings-page/general-settings-page.component";
 import { GeneralSettingsType } from "../general-settings-page/general-settings-type.enum";
 import { LicenseKeyModel, LicenseKeySettingsModel } from "./license-key-settings-model";
+import { MatCard, MatCardTitle, MatCardContent } from "@angular/material/card";
+import { ApiKeyComponent } from "./api-key/api-key.component";
+import { LicenseKeyListComponent } from "./license-key-list/license-key-list.component";
+import { NgIf } from "@angular/common";
 
 export interface ClusterLicense {
    server: string;
@@ -42,9 +46,11 @@ export interface ClusterLicense {
    link: "EMGeneralLicense"
 })
 @Component({
-   selector: "em-license-key-settings-view",
-   templateUrl: "./license-key-settings-view.component.html",
-   styleUrls: ["./license-key-settings-view.component.scss"]
+    selector: "em-license-key-settings-view",
+    templateUrl: "./license-key-settings-view.component.html",
+    styleUrls: ["./license-key-settings-view.component.scss"],
+    standalone: true,
+    imports: [NgIf, LicenseKeyListComponent, ApiKeyComponent, MatCard, MatCardTitle, MatCardContent, MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow]
 })
 export class LicenseKeySettingsViewComponent {
    @Input() isEnterprise: boolean;

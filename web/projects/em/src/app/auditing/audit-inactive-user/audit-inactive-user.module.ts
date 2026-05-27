@@ -26,18 +26,16 @@ import { AuditInactiveUserRoutingModule } from "./audit-inactive-user-routing.mo
 import { AuditInactiveUserComponent } from "./audit-inactive-user.component";
 
 @NgModule({
-   declarations: [
-      AuditInactiveUserComponent
-   ],
-   imports: [
-      CommonModule,
-      AuditInactiveUserRoutingModule,
-      AuditTableViewModule,
-      ReactiveFormsModule,
-      MatFormFieldModule,
-      MatSelectModule,
-      MatInputModule
-   ]
+    imports: [
+        CommonModule,
+        AuditInactiveUserRoutingModule,
+        AuditTableViewModule,
+        ReactiveFormsModule,
+        MatFormFieldModule,
+        MatSelectModule,
+        MatInputModule,
+        AuditInactiveUserComponent
+    ]
 })
 export class AuditInactiveUserModule {
 }

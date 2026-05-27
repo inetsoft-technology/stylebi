@@ -25,13 +25,21 @@ import {
 import { ScheduleUsersService } from "../../../../../../shared/schedule/schedule-users.service";
 import { IdentityId } from "../../security/users/identity-id";
 import { CycleInfo } from "../model/schedule-cycle-dialog-model";
-import { UntypedFormBuilder, UntypedFormGroup, Validators } from "@angular/forms";
+import { UntypedFormBuilder, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { FormValidators } from "../../../../../../shared/util/form-validators";
+import { MatInput } from "@angular/material/input";
+import { MatFormField, MatLabel, MatError } from "@angular/material/form-field";
+import { EmailPickerComponent } from "../../email-picker/email-picker.component";
+import { MatCheckbox } from "@angular/material/checkbox";
+import { MatCard, MatCardHeader, MatCardTitle, MatCardContent } from "@angular/material/card";
+import { NgIf } from "@angular/common";
 
 @Component({
-   selector: "em-schedule-cycle-options-pane",
-   templateUrl: "./schedule-cycle-options-pane.component.html",
-   styleUrls: ["./schedule-cycle-options-pane.component.scss"]
+    selector: "em-schedule-cycle-options-pane",
+    templateUrl: "./schedule-cycle-options-pane.component.html",
+    styleUrls: ["./schedule-cycle-options-pane.component.scss"],
+    standalone: true,
+    imports: [NgIf, FormsModule, ReactiveFormsModule, MatCard, MatCardHeader, MatCardTitle, MatCheckbox, MatCardContent, EmailPickerComponent, MatFormField, MatLabel, MatInput, MatError]
 })
 export class ScheduleCycleOptionsPaneComponent implements OnInit {
    @Input() info: CycleInfo;

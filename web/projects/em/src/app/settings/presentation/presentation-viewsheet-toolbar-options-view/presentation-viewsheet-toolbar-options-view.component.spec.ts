@@ -54,13 +54,9 @@ describe("PresentationViewsheetToolbarOptionsViewComponent", () => {
             MatCheckboxModule,
             MatSnackBarModule,
             MatIconModule,
-            MatTableModule
-         ],
-         declarations: [
-            PresentationViewsheetToolbarOptionsViewComponent,
-            ToolbarOptionsTableViewComponent
-         ]
-      })
+            MatTableModule,
+            PresentationViewsheetToolbarOptionsViewComponent, ToolbarOptionsTableViewComponent]
+         })
          .compileComponents();
    }));
 

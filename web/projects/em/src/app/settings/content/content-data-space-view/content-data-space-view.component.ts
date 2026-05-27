@@ -27,12 +27,15 @@ import { PageHeaderService } from "../../../page-header/page-header.service";
 import { Searchable } from "../../../searchable";
 import { Secured } from "../../../secured";
 import { TopScrollService } from "../../../top-scroll/top-scroll.service";
-import { DataSpaceFileChange } from "../data-space/data-space-editor-page/data-space-editor-page.component";
+import { DataSpaceFileChange, DataSpaceEditorPageComponent } from "../data-space/data-space-editor-page/data-space-editor-page.component";
 import { DataSpaceTreeDataSource } from "../data-space/data-space-tree-data-source";
 import { DataSpaceTreeNode } from "../data-space/data-space-tree-node";
 import { DataSpaceUploadDialogComponent } from "./data-space-upload-dialog/data-space-upload-dialog.component";
 import { MessageDialog, MessageDialogType } from "../../../common/util/message-dialog";
 import { DeleteDataSpaceTreeNodesRequest } from "../data-space/model/delete-data-space-tree-nodes-request";
+import { MultiSelectTreeNodeDirective } from "../../../common/util/tree/multi-select-tree-node.directive";
+import { DataSpaceTreeViewComponent } from "../data-space/data-space-tree-view/data-space-tree-view.component";
+import { MatDrawerContainer, MatDrawer, MatDrawerContent } from "@angular/material/sidenav";
 
 const SMALL_WIDTH_BREAKPOINT = 720;
 
@@ -51,10 +54,12 @@ const SMALL_WIDTH_BREAKPOINT = 720;
    link: "EMSettingsContentDataSpace"
 })
 @Component({
-   selector: "em-content-data-space-view",
-   templateUrl: "./content-data-space-view.component.html",
-   styleUrls: ["./content-data-space-view.component.scss"],
-   providers: [DataSpaceTreeDataSource]
+    selector: "em-content-data-space-view",
+    templateUrl: "./content-data-space-view.component.html",
+    styleUrls: ["./content-data-space-view.component.scss"],
+    providers: [DataSpaceTreeDataSource],
+    standalone: true,
+    imports: [MatDrawerContainer, MatDrawer, DataSpaceTreeViewComponent, MultiSelectTreeNodeDirective, MatDrawerContent, DataSpaceEditorPageComponent]
 })
 export class ContentDataSpaceViewComponent implements OnInit {
    selectedNodes: FlatTreeNode<DataSpaceTreeNode>[] = [];

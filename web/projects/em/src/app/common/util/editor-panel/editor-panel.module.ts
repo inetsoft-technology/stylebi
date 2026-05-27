@@ -23,18 +23,16 @@ import { TopScrollModule } from "../../../top-scroll/top-scroll.module";
 import { EditorPanelComponent } from "./editor-panel.component";
 
 @NgModule({
-   imports: [
-      CommonModule,
-      MatButtonModule,
-      MatCardModule,
-      TopScrollModule
-   ],
-   declarations: [
-      EditorPanelComponent
-   ],
-   exports: [
-      EditorPanelComponent
-   ]
+    imports: [
+        CommonModule,
+        MatButtonModule,
+        MatCardModule,
+        TopScrollModule,
+        EditorPanelComponent
+    ],
+    exports: [
+        EditorPanelComponent
+    ]
 })
 export class EditorPanelModule {
 }

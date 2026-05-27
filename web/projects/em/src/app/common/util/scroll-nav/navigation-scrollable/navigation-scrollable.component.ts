@@ -29,11 +29,15 @@ import {
 import { Subject } from "rxjs";
 import { takeUntil } from "rxjs/operators";
 import { NavigationScrollableItemDirective } from "../navigation-scrollable-item/navigation-scrollable-item.directive";
+import { TopScrollDirective } from "../../../../top-scroll/top-scroll.directive";
+import { CdkScrollable as CdkScrollableDirective } from "@angular/cdk/scrolling";
 
 @Component({
-   selector: "em-navigation-scrollable",
-   templateUrl: "./navigation-scrollable.component.html",
-   styleUrls: ["./navigation-scrollable.component.scss"]
+    selector: "em-navigation-scrollable",
+    templateUrl: "./navigation-scrollable.component.html",
+    styleUrls: ["./navigation-scrollable.component.scss"],
+    standalone: true,
+    imports: [CdkScrollableDirective, TopScrollDirective]
 })
 export class NavigationScrollableComponent implements OnInit, OnDestroy {
    @ViewChild(CdkScrollable, { static: true }) scrollable: CdkScrollable;

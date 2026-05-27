@@ -38,13 +38,23 @@ import {
 import { SecurityTreeViewComponent } from "../../security-tree-view/security-tree-view.component";
 import { MatSlideToggleChange } from "@angular/material/slide-toggle";
 import { CreateOrganizationDialogComponent } from "./create-organization-dialog.component";
+import { EditIdentityPaneComponent } from "../edit-identity-pane/edit-identity-pane.component";
+import { MatButton } from "@angular/material/button";
+import { TopScrollDirective } from "../../../../top-scroll/top-scroll.directive";
+import { MatDrawerContainer, MatDrawer, MatDrawerContent } from "@angular/material/sidenav";
+import { MatOption } from "@angular/material/core";
+import { MatSelect } from "@angular/material/select";
+import { MatFormField, MatLabel } from "@angular/material/form-field";
+import { NgIf, NgFor } from "@angular/common";
 
 const SMALL_WIDTH_BREAKPOINT = 720;
 
 @Component({
-   selector: "em-users-settings-view",
-   templateUrl: "./users-settings-view.component.html",
-   styleUrls: ["./users-settings-view.component.scss"]
+    selector: "em-users-settings-view",
+    templateUrl: "./users-settings-view.component.html",
+    styleUrls: ["./users-settings-view.component.scss"],
+    standalone: true,
+    imports: [NgIf, MatFormField, MatLabel, MatSelect, NgFor, MatOption, MatDrawerContainer, MatDrawer, TopScrollDirective, SecurityTreeViewComponent, MatButton, MatDrawerContent, EditIdentityPaneComponent]
 })
 export class UsersSettingsViewComponent implements OnInit {
    @Input() treeData: SecurityTreeNode[];

@@ -47,13 +47,9 @@ describe("PresentationDataSourceVisibilitySettingsViewComponent", () => {
             MatSelectModule,
             MatDividerModule,
             MatCheckboxModule,
-            MatDialogModule
-         ],
-         declarations: [
-            PresentationDataSourceVisibilitySettingsViewComponent,
-            AddDataSourceTypeDialogComponent
-         ]
-      })
+            MatDialogModule,
+            PresentationDataSourceVisibilitySettingsViewComponent, AddDataSourceTypeDialogComponent]
+         })
          .compileComponents();
    }));
 

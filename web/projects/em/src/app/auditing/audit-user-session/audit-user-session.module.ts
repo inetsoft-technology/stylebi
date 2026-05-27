@@ -26,18 +26,16 @@ import { AuditUserSessionRoutingModule } from "./audit-user-session-routing.modu
 import { AuditUserSessionComponent } from "./audit-user-session.component";
 
 @NgModule({
-   declarations: [
-      AuditUserSessionComponent
-   ],
-   imports: [
-      CommonModule,
-      AuditUserSessionRoutingModule,
-      AuditTableViewModule,
-      ReactiveFormsModule,
-      MatFormFieldModule,
-      MatSelectModule,
-      MatInputModule
-   ]
+    imports: [
+        CommonModule,
+        AuditUserSessionRoutingModule,
+        AuditTableViewModule,
+        ReactiveFormsModule,
+        MatFormFieldModule,
+        MatSelectModule,
+        MatInputModule,
+        AuditUserSessionComponent
+    ]
 })
 export class AuditUserSessionModule {
 }

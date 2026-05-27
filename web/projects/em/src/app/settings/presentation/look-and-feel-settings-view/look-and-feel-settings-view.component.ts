@@ -16,15 +16,8 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, EventEmitter, Input, OnDestroy, OnInit, Output } from "@angular/core";
-import {
-   UntypedFormBuilder,
-   UntypedFormControl,
-   UntypedFormGroup,
-   FormGroupDirective,
-   NgForm,
-   ValidationErrors
-} from "@angular/forms";
-import { ErrorStateMatcher } from "@angular/material/core";
+import { UntypedFormBuilder, UntypedFormControl, UntypedFormGroup, FormGroupDirective, NgForm, ValidationErrors, FormsModule, ReactiveFormsModule } from "@angular/forms";
+import { ErrorStateMatcher, MatOption } from "@angular/material/core";
 import { MatDialog, MatDialogConfig } from "@angular/material/dialog";
 import { Subject } from "rxjs";
 import { takeUntil } from "rxjs/operators";
@@ -40,6 +33,14 @@ import { Tool } from "../../../../../../shared/util/tool";
 import { HttpClient, HttpParams } from "@angular/common/http";
 import { DataSpaceTreeDataSource } from "../../content/data-space/data-space-tree-data-source";
 import { GuiTool } from "../../../../../../portal/src/app/common/util/gui-tool";
+import { MatButton } from "@angular/material/button";
+import { MatIcon } from "@angular/material/icon";
+import { FileChooserComponent } from "../../../common/util/file-chooser/file-chooser/file-chooser.component";
+import { MatCheckbox } from "@angular/material/checkbox";
+import { MatSelect } from "@angular/material/select";
+import { MatFormField, MatLabel, MatSuffix, MatError } from "@angular/material/form-field";
+import { MatCard, MatCardTitle, MatCardContent } from "@angular/material/card";
+import { NgIf } from "@angular/common";
 
 @Searchable({
    route: "/settings/presentation/settings#look-and-feel",
@@ -54,10 +55,12 @@ import { GuiTool } from "../../../../../../portal/src/app/common/util/gui-tool";
    link: "EMPresentationLookandFeel"
 })
 @Component({
-   selector: "em-look-and-feel-settings-view",
-   templateUrl: "./look-and-feel-settings-view.component.html",
-   styleUrls: ["./look-and-feel-settings-view.component.scss"],
-   providers: [DataSpaceTreeDataSource]
+    selector: "em-look-and-feel-settings-view",
+    templateUrl: "./look-and-feel-settings-view.component.html",
+    styleUrls: ["./look-and-feel-settings-view.component.scss"],
+    providers: [DataSpaceTreeDataSource],
+    standalone: true,
+    imports: [NgIf, FormsModule, ReactiveFormsModule, MatCard, MatCardTitle, MatCardContent, MatFormField, MatLabel, MatSelect, MatOption, MatCheckbox, FileChooserComponent, MatIcon, MatSuffix, MatError, MatButton]
 })
 export class LookAndFeelSettingsViewComponent implements OnInit, OnDestroy {
    @Input() securityEnabled: boolean = false;

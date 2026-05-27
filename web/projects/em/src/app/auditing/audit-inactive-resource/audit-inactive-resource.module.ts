@@ -26,18 +26,16 @@ import { AuditInactiveResourceRoutingModule } from "./audit-inactive-resource-ro
 import { AuditInactiveResourceComponent } from "./audit-inactive-resource.component";
 
 @NgModule({
-   declarations: [
-      AuditInactiveResourceComponent
-   ],
-   imports: [
-      CommonModule,
-      AuditInactiveResourceRoutingModule,
-      AuditTableViewModule,
-      ReactiveFormsModule,
-      MatFormFieldModule,
-      MatSelectModule,
-      MatInputModule
-   ]
+    imports: [
+        CommonModule,
+        AuditInactiveResourceRoutingModule,
+        AuditTableViewModule,
+        ReactiveFormsModule,
+        MatFormFieldModule,
+        MatSelectModule,
+        MatInputModule,
+        AuditInactiveResourceComponent
+    ]
 })
 export class AuditInactiveResourceModule {
 }

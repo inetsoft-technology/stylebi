@@ -73,11 +73,8 @@ describe("UserMonitoringViewComponent", () => {
             CollapsibleContainerModule,
             MessageDialogModule,
             TableViewModule,
-            UsersRoutingModule
-         ],
-         declarations: [
-            UserMonitoringViewComponent
-         ],
+            UsersRoutingModule,
+            UserMonitoringViewComponent],
          providers: [
             {provide: MonitoringDataService, useValue: monitoringDataService},
             {provide: MonitorLevelService, useValue: mockMonitorLevelService},

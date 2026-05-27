@@ -48,6 +48,13 @@ import { SummaryChartInfo } from "../summary-monitoring-view/summary-monitoring-
 import { SummaryChartLegend } from "../summary-monitoring-view/summary-monitoring-chart-view/summary-chart-legend";
 import { HeapDumpRequest } from "./heap-dump-request";
 import { ServerSummaryModel } from "./server-summary-model";
+import { MatCard } from "@angular/material/card";
+import { SummaryMonitoringTableViewComponent } from "../summary-monitoring-view/summary-monitoring-table-view/summary-monitoring-table-view.component";
+import { SummaryMonitoringChartViewComponent } from "../summary-monitoring-view/summary-monitoring-chart-view/summary-monitoring-chart-view.component";
+import { MatGridList, MatGridTile } from "@angular/material/grid-list";
+import { MatButton } from "@angular/material/button";
+import { NgIf, NgFor, KeyValuePipe } from "@angular/common";
+import { ClusterSelectorComponent } from "../../cluster-selector/cluster-selector.component";
 
 const SMALL_WIDTH_BREAKPOINT = 720;
 
@@ -87,9 +94,11 @@ export interface ChartInfo {
    link: "EMMonitoringSummary"
 })
 @Component({
-   selector: "em-summary-monitoring-page",
-   templateUrl: "./summary-monitoring-page.component.html",
-   styleUrls: ["./summary-monitoring-page.component.scss"]
+    selector: "em-summary-monitoring-page",
+    templateUrl: "./summary-monitoring-page.component.html",
+    styleUrls: ["./summary-monitoring-page.component.scss"],
+    standalone: true,
+    imports: [ClusterSelectorComponent, NgIf, MatButton, MatGridList, MatGridTile, SummaryMonitoringChartViewComponent, SummaryMonitoringTableViewComponent, MatCard, NgFor, KeyValuePipe]
 })
 export class SummaryMonitoringPageComponent implements OnInit, OnDestroy, AfterContentChecked {
    @ViewChild("summaryPageContainer", { static: true }) pageContainer;

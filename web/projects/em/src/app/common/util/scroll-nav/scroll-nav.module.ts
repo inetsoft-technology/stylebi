@@ -23,19 +23,17 @@ import { NavigationScrollableItemDirective } from "./navigation-scrollable-item/
 import { NavigationScrollableComponent } from "./navigation-scrollable/navigation-scrollable.component";
 
 @NgModule({
-   imports: [
-      CommonModule,
-      ScrollingModule,
-      TopScrollModule
-   ],
-   declarations: [
-      NavigationScrollableComponent,
-      NavigationScrollableItemDirective
-   ],
-   exports: [
-      NavigationScrollableComponent,
-      NavigationScrollableItemDirective
-   ]
+    imports: [
+        CommonModule,
+        ScrollingModule,
+        TopScrollModule,
+        NavigationScrollableComponent,
+        NavigationScrollableItemDirective
+    ],
+    exports: [
+        NavigationScrollableComponent,
+        NavigationScrollableItemDirective
+    ]
 })
 export class ScrollNavModule {
 }

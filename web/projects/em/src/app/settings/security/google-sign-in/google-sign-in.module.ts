@@ -8,16 +8,14 @@ import { MatSlideToggleModule } from "@angular/material/slide-toggle";
 import { SSOSettingsModule } from "../sso/sso-settings.module";
 
 @NgModule({
-  declarations: [
-     GoogleSignInSettingComponent
-  ],
     imports: [
-       CommonModule,
-       GoogleSignInRoutingModule,
-       EditorPanelModule,
-       MatCardModule,
-       MatSlideToggleModule,
-       SSOSettingsModule
+        CommonModule,
+        GoogleSignInRoutingModule,
+        EditorPanelModule,
+        MatCardModule,
+        MatSlideToggleModule,
+        SSOSettingsModule,
+        GoogleSignInSettingComponent
     ]
 })
 export class GoogleSignInModule { }

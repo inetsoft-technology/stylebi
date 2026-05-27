@@ -16,13 +16,23 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import {Component, EventEmitter, Input, OnDestroy, OnInit, Output} from "@angular/core";
-import {UntypedFormBuilder, UntypedFormControl, UntypedFormGroup, ValidationErrors, Validators} from "@angular/forms";
+import { UntypedFormBuilder, UntypedFormControl, UntypedFormGroup, ValidationErrors, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import {Observable, Subscription} from "rxjs";
 import {map, startWith, take} from "rxjs/operators";
 import {ConnectionStatus} from "../security-provider-model/connection-status";
 import {DatabaseAuthenticationProviderModel} from "../security-provider-model/database-authentication-provider-model";
 import {SecurityProviderService} from "../security-provider.service";
 import {Tool} from "../../../../../../../shared/util/tool";
+import { MatIcon } from "@angular/material/icon";
+import { QueryItemViewComponent } from "./query-item-view/query-item-view.component";
+import { MatButton, MatIconButton } from "@angular/material/button";
+import { MatOption } from "@angular/material/core";
+import { MatAutocompleteTrigger, MatAutocomplete } from "@angular/material/autocomplete";
+import { MatCheckbox } from "@angular/material/checkbox";
+import { NgIf, NgFor, AsyncPipe } from "@angular/common";
+import { MatInput } from "@angular/material/input";
+import { MatFormField, MatLabel, MatHint, MatError, MatSuffix } from "@angular/material/form-field";
+import { MatCard, MatCardContent } from "@angular/material/card";
 
 const HASH_ALGORITHMS: string[] = ["BCRYPT", "MD2", "MD4", "MD5",
    "GOST3411", "GOST3411-2012-256", "GOST3411-2012-512",
@@ -39,9 +49,11 @@ const HASH_ALGORITHMS: string[] = ["BCRYPT", "MD2", "MD4", "MD5",
    "DSTU7564-256", "DSTU7564-384", "DSTU7564-512", "None"];
 
 @Component({
-   selector: "em-database-provider-view",
-   templateUrl: "./database-provider-view.component.html",
-   styleUrls: ["./database-provider-view.component.scss"]
+    selector: "em-database-provider-view",
+    templateUrl: "./database-provider-view.component.html",
+    styleUrls: ["./database-provider-view.component.scss"],
+    standalone: true,
+    imports: [FormsModule, ReactiveFormsModule, MatCard, MatCardContent, MatFormField, MatLabel, MatInput, MatHint, NgIf, MatError, MatCheckbox, MatAutocompleteTrigger, MatAutocomplete, NgFor, MatOption, MatButton, QueryItemViewComponent, MatIconButton, MatSuffix, MatIcon, AsyncPipe]
 })
 export class DatabaseProviderViewComponent implements OnInit, OnDestroy {
    @Input() form: UntypedFormGroup;

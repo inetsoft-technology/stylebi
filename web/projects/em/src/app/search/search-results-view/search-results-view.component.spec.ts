@@ -31,9 +31,8 @@ describe("SearchResultsViewComponent", () => {
       const route = new ActivatedRouteStub({}, {}, {});
       TestBed.configureTestingModule({
          imports: [
-            MaterialTestingModule
-         ],
-         declarations: [SearchResultsComponent, SearchResultsViewComponent],
+            MaterialTestingModule,
+            SearchResultsComponent, SearchResultsViewComponent],
          providers: [
             { provide: ActivatedRoute, useValue: route }
          ],

@@ -25,17 +25,15 @@ import { AuditBookmarkHistoryRoutingModule } from "./audit-bookmark-history-rout
 import { AuditBookmarkHistoryComponent } from "./audit-bookmark-history.component";
 
 @NgModule({
-   declarations: [
-      AuditBookmarkHistoryComponent
-   ],
-   imports: [
-      CommonModule,
-      AuditBookmarkHistoryRoutingModule,
-      AuditTableViewModule,
-      ReactiveFormsModule,
-      MatFormFieldModule,
-      MatSelectModule
-   ]
+    imports: [
+        CommonModule,
+        AuditBookmarkHistoryRoutingModule,
+        AuditTableViewModule,
+        ReactiveFormsModule,
+        MatFormFieldModule,
+        MatSelectModule,
+        AuditBookmarkHistoryComponent
+    ]
 })
 export class AuditBookmarkHistoryModule {
 }

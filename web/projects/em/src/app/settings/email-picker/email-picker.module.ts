@@ -32,29 +32,27 @@ import { EmailListDialogComponent } from "./email-list-dialog/email-list-dialog.
 import { EmailPickerComponent } from "./email-picker.component";
 
 @NgModule({
-   imports: [
-      CommonModule,
-      MatDialogModule,
-      MatButtonModule,
-      FormsModule,
-      ReactiveFormsModule,
-      MatInputModule,
-      MatIconModule,
-      MatTreeModule,
-      MatSelectModule,
-      MatListModule,
-      MatDividerModule,
-      MatAutocompleteModule,
-      ModalHeaderModule
-   ],
-   declarations: [
-      EmailPickerComponent,
-      EmailListDialogComponent
-   ],
-   exports: [
-      EmailPickerComponent,
-      EmailListDialogComponent
-   ]
+    imports: [
+        CommonModule,
+        MatDialogModule,
+        MatButtonModule,
+        FormsModule,
+        ReactiveFormsModule,
+        MatInputModule,
+        MatIconModule,
+        MatTreeModule,
+        MatSelectModule,
+        MatListModule,
+        MatDividerModule,
+        MatAutocompleteModule,
+        ModalHeaderModule,
+        EmailPickerComponent,
+        EmailListDialogComponent
+    ],
+    exports: [
+        EmailPickerComponent,
+        EmailListDialogComponent
+    ]
 })
 export class EmailPickerModule {
 }

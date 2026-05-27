@@ -36,9 +36,7 @@ describe("MultiFileChooserComponent", () => {
             FormsModule,
             MatButtonModule,
             MatCardModule,
-            MatListModule
-         ],
-         declarations: [
+            MatListModule,
             FileChooserComponent,
             MultiFileChooserComponent
          ],

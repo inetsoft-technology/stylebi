@@ -31,29 +31,27 @@ import { MultiFileChooserComponent } from "./multi-file-chooser/multi-file-choos
 import { StagedFileChooserComponent } from "./staged-file-chooser/staged-file-chooser.component";
 
 @NgModule({
-   imports: [
-      CommonModule,
-      FormsModule,
-      ReactiveFormsModule,
-      MatButtonModule,
-      MatCardModule,
-      MatFormFieldModule,
-      MatIconModule,
-      MatInputModule,
-      MatListModule,
-      MatProgressBarModule,
-      MatSnackBarModule
-   ],
-   declarations: [
-      FileChooserComponent,
-      MultiFileChooserComponent,
-      StagedFileChooserComponent
-   ],
-   exports: [
-      FileChooserComponent,
-      MultiFileChooserComponent,
-      StagedFileChooserComponent
-   ]
+    imports: [
+        CommonModule,
+        FormsModule,
+        ReactiveFormsModule,
+        MatButtonModule,
+        MatCardModule,
+        MatFormFieldModule,
+        MatIconModule,
+        MatInputModule,
+        MatListModule,
+        MatProgressBarModule,
+        MatSnackBarModule,
+        FileChooserComponent,
+        MultiFileChooserComponent,
+        StagedFileChooserComponent
+    ],
+    exports: [
+        FileChooserComponent,
+        MultiFileChooserComponent,
+        StagedFileChooserComponent
+    ]
 })
 export class FileChooserModule {
 }

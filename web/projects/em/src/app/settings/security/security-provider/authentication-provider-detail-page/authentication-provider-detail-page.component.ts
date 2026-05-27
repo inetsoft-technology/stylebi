@@ -28,6 +28,8 @@ import { ProviderDetailPage } from "../provider-detail-page";
 import { AuthenticationProviderModel } from "../security-provider-model/authentication-provider-model";
 import { SecurityProviderService } from "../security-provider.service";
 import { Tool } from "../../../../../../../shared/util/tool";
+import { AsyncPipe } from "@angular/common";
+import { AuthenticationProviderDetailViewComponent } from "../authentication-provider-detail-view/authentication-provider-detail-view.component";
 
 const GET_PROVIDER_INFO = "../api/em/security/get-authentication-provider/";
 
@@ -43,9 +45,11 @@ const GET_PROVIDER_INFO = "../api/em/security/get-authentication-provider/";
    link: "EMSettingsSecurityProviderAuthentication"
 })
 @Component({
-   selector: "em-authentication-provider-detail-page",
-   templateUrl: "./authentication-provider-detail-page.component.html",
-   styleUrls: ["./authentication-provider-detail-page.component.scss"]
+    selector: "em-authentication-provider-detail-page",
+    templateUrl: "./authentication-provider-detail-page.component.html",
+    styleUrls: ["./authentication-provider-detail-page.component.scss"],
+    standalone: true,
+    imports: [AuthenticationProviderDetailViewComponent, AsyncPipe]
 })
 export class AuthenticationProviderDetailPageComponent extends ProviderDetailPage
    implements OnInit

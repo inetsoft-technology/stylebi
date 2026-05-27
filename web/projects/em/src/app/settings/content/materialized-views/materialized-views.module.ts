@@ -37,34 +37,32 @@ import { MvManagementViewComponent } from "./mv-management-view/mv-management-vi
 import { EditorPanelModule } from "../../../common/util/editor-panel/editor-panel.module";
 
 @NgModule({
-   imports: [
-      CommonModule,
-      FormsModule,
-      LoadingSpinnerModule,
-      MatButtonModule,
-      MatCardModule,
-      MatCheckboxModule,
-      MatDialogModule,
-      MatFormFieldModule,
-      MatIconModule,
-      MatInputModule,
-      MatSelectModule,
-      MatSortModule,
-      MatTableModule,
-      MessageDialogModule,
-      ReactiveFormsModule,
-      MaterializedViewsRoutingModule,
-      TableViewModule,
-      EditorPanelModule,
-   ],
-   declarations: [
-      ContentMaterializedViewsViewComponent,
-      MvManagementViewComponent
-   ],
-   providers: [
-      {provide: MAT_FORM_FIELD_DEFAULT_OPTIONS, useValue: {float: "always"}}
-   ],
-   schemas: [ NO_ERRORS_SCHEMA ]
+    imports: [
+        CommonModule,
+        FormsModule,
+        LoadingSpinnerModule,
+        MatButtonModule,
+        MatCardModule,
+        MatCheckboxModule,
+        MatDialogModule,
+        MatFormFieldModule,
+        MatIconModule,
+        MatInputModule,
+        MatSelectModule,
+        MatSortModule,
+        MatTableModule,
+        MessageDialogModule,
+        ReactiveFormsModule,
+        MaterializedViewsRoutingModule,
+        TableViewModule,
+        EditorPanelModule,
+        ContentMaterializedViewsViewComponent,
+        MvManagementViewComponent,
+    ],
+    providers: [
+        { provide: MAT_FORM_FIELD_DEFAULT_OPTIONS, useValue: { float: "always" } }
+    ],
+    schemas: [NO_ERRORS_SCHEMA]
 })
 export class MaterializedViewsModule {
 }

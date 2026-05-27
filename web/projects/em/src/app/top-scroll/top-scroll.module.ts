@@ -20,15 +20,13 @@ import { NgModule } from "@angular/core";
 import { TopScrollDirective } from "./top-scroll.directive";
 
 @NgModule({
-   declarations: [
-      TopScrollDirective
-   ],
-   imports: [
-      CommonModule
-   ],
-   exports: [
-      TopScrollDirective
-   ]
+    imports: [
+        CommonModule,
+        TopScrollDirective
+    ],
+    exports: [
+        TopScrollDirective
+    ]
 })
 export class TopScrollModule {
 }

@@ -16,14 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, EventEmitter, Input, OnDestroy, Output, } from "@angular/core";
-import {
-   UntypedFormBuilder,
-   UntypedFormControl,
-   UntypedFormGroup,
-   FormGroupDirective,
-   NgForm,
-   Validators
-} from "@angular/forms";
+import { UntypedFormBuilder, UntypedFormControl, UntypedFormGroup, FormGroupDirective, NgForm, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { ErrorStateMatcher } from "@angular/material/core";
 import { Subscription } from "rxjs";
 import { ServerLocation } from "../../../../../../shared/schedule/model/server-location";
@@ -34,6 +27,16 @@ import { IdentityId } from "../../security/users/identity-id";
 import { ScheduleConfigurationModel } from "../model/schedule-configuration-model";
 import { MatDialog } from "@angular/material/dialog";
 import { ScheduleClasspathDialogComponent } from "./schedule-classpath-dialog/schedule-classpath-dialog.component";
+import { ServerLocationsViewComponent } from "../schedule-configuration-page/server-locations-view/server-locations-view.component";
+import { TimeRangesViewComponent } from "../schedule-configuration-page/time-ranges-view/time-ranges-view.component";
+import { EmailPickerComponent } from "../../email-picker/email-picker.component";
+import { MatDivider } from "@angular/material/divider";
+import { MatCheckbox } from "@angular/material/checkbox";
+import { MatButton } from "@angular/material/button";
+import { NgIf } from "@angular/common";
+import { MatInput } from "@angular/material/input";
+import { MatFormField, MatLabel, MatError, MatHint } from "@angular/material/form-field";
+import { MatCard, MatCardTitle, MatCardContent, MatCardActions } from "@angular/material/card";
 
 export interface ScheduleConfiguration {
    model: ScheduleConfigurationModel;
@@ -41,9 +44,11 @@ export interface ScheduleConfiguration {
 }
 
 @Component({
-   selector: "em-schedule-configuration-view",
-   templateUrl: "./schedule-configuration-view.component.html",
-   styleUrls: ["./schedule-configuration-view.component.scss"]
+    selector: "em-schedule-configuration-view",
+    templateUrl: "./schedule-configuration-view.component.html",
+    styleUrls: ["./schedule-configuration-view.component.scss"],
+    standalone: true,
+    imports: [FormsModule, ReactiveFormsModule, MatCard, MatCardTitle, MatCardContent, MatFormField, MatLabel, MatInput, MatError, NgIf, MatCardActions, MatButton, MatCheckbox, MatHint, MatDivider, EmailPickerComponent, TimeRangesViewComponent, ServerLocationsViewComponent]
 })
 export class ScheduleConfigurationViewComponent implements OnDestroy {
    @Output() onChange = new EventEmitter<ScheduleConfiguration>();

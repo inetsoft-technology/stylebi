@@ -34,27 +34,27 @@ import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { LocalizedMatPaginator } from "../../../../../shared/util/localized-mat-paginator";
 
 @NgModule({
-   imports: [
-      CommonModule,
-      CdkTableModule,
-      FormsModule,
-      MatAutocompleteModule,
-      MatButtonModule,
-      MatInputModule,
-      MatTableModule,
-      MatPaginatorModule,
-      MatSortModule,
-      MatIconModule,
-      MatTooltipModule,
-      PropertiesRoutingModule,
-      ReactiveFormsModule,
-      TopScrollModule
-   ],
-   providers: [
-      PropertySettingsDatasourceService,
-      {provide: MatPaginatorIntl, useClass: LocalizedMatPaginator }
-   ],
-   declarations: [PropertySettingsViewComponent]
+    imports: [
+        CommonModule,
+        CdkTableModule,
+        FormsModule,
+        MatAutocompleteModule,
+        MatButtonModule,
+        MatInputModule,
+        MatTableModule,
+        MatPaginatorModule,
+        MatSortModule,
+        MatIconModule,
+        MatTooltipModule,
+        PropertiesRoutingModule,
+        ReactiveFormsModule,
+        TopScrollModule,
+        PropertySettingsViewComponent
+    ],
+    providers: [
+        PropertySettingsDatasourceService,
+        { provide: MatPaginatorIntl, useClass: LocalizedMatPaginator }
+    ]
 })
 export class PropertiesModule {
 }

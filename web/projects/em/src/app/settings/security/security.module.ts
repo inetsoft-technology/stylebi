@@ -52,8 +52,8 @@ import {MatSelectModule} from "@angular/material/select";
         MatFormFieldModule,
         MatOptionModule,
         MatSelectModule,
-    ],
-   declarations: [SecuritySettingsPageComponent]
+        SecuritySettingsPageComponent,
+    ]
 })
 export class SecurityModule {
 }

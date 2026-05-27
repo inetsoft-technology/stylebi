@@ -19,7 +19,7 @@ import { Component, EventEmitter, Input, Output } from "@angular/core";
 import {
    PresentationViewsheetToolbarOptionsModel
 } from "./presentation-viewsheet-toolbar-options-model";
-import { ToolbarOption } from "../toolbar-options-table-view/toolbar-options-table-view.component";
+import { ToolbarOption, ToolbarOptionsTableViewComponent } from "../toolbar-options-table-view/toolbar-options-table-view.component";
 import { Searchable } from "../../../searchable";
 import { PresentationSettingsChanges } from "../presentation-settings-view/presentation-settings-view.component";
 import { PresentationSettingsType } from "../presentation-settings-view/presentation-settings-type.enum";
@@ -38,9 +38,11 @@ import { ContextHelp } from "../../../context-help";
    link: "EMPresentationDashboardToolbar"
 })
 @Component({
-   selector: "em-presentation-viewsheet-toolbar-options-view",
-   templateUrl: "./presentation-viewsheet-toolbar-options-view.component.html",
-   styleUrls: ["./presentation-viewsheet-toolbar-options-view.component.scss"]
+    selector: "em-presentation-viewsheet-toolbar-options-view",
+    templateUrl: "./presentation-viewsheet-toolbar-options-view.component.html",
+    styleUrls: ["./presentation-viewsheet-toolbar-options-view.component.scss"],
+    standalone: true,
+    imports: [ToolbarOptionsTableViewComponent]
 })
 export class PresentationViewsheetToolbarOptionsViewComponent {
    @Input() model: PresentationViewsheetToolbarOptionsModel;

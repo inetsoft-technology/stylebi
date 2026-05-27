@@ -16,12 +16,17 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, EventEmitter, Input, Output } from "@angular/core";
-import { UntypedFormBuilder, UntypedFormGroup, Validators } from "@angular/forms";
+import { UntypedFormBuilder, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { ContextHelp } from "../../../context-help";
 import { Searchable } from "../../../searchable";
 import { PresentationSettingsType } from "../presentation-settings-view/presentation-settings-type.enum";
 import { PresentationSettingsChanges } from "../presentation-settings-view/presentation-settings-view.component";
 import { WelcomePageSettingsModel, WelcomeType } from "./welcome-page-settings-model";
+import { MatInput } from "@angular/material/input";
+import { MatFormField, MatLabel, MatError } from "@angular/material/form-field";
+import { MatRadioGroup, MatRadioButton } from "@angular/material/radio";
+import { MatCard, MatCardTitle, MatCardContent } from "@angular/material/card";
+import { NgIf } from "@angular/common";
 
 @Searchable({
    route: "/settings/presentation/settings#welcome-page",
@@ -33,9 +38,11 @@ import { WelcomePageSettingsModel, WelcomeType } from "./welcome-page-settings-m
    link: "EMPresentationWelcomePage"
 })
 @Component({
-   selector: "em-welcome-page-settings-view",
-   templateUrl: "./welcome-page-settings-view.component.html",
-   styleUrls: ["./welcome-page-settings-view.component.scss"]
+    selector: "em-welcome-page-settings-view",
+    templateUrl: "./welcome-page-settings-view.component.html",
+    styleUrls: ["./welcome-page-settings-view.component.scss"],
+    standalone: true,
+    imports: [NgIf, MatCard, MatCardTitle, MatCardContent, FormsModule, ReactiveFormsModule, MatRadioGroup, MatRadioButton, MatFormField, MatLabel, MatInput, MatError]
 })
 export class WelcomePageSettingsViewComponent {
    @Output() modelChanged = new EventEmitter<PresentationSettingsChanges>();

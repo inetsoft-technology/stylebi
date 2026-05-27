@@ -55,9 +55,8 @@ describe("LogMonitoringPageComponent", () => {
             MatSelectModule,
             DownloadTargetComponent,
             NoopAnimationsModule,
-            ScrollingModule
-         ],
-         declarations: [LogMonitoringPageComponent, LogMonitoringViewComponent],
+            ScrollingModule,
+            LogMonitoringPageComponent, LogMonitoringViewComponent],
          providers: [
             {provide: MonitoringDataService, useValue: monitoringDataService}
          ]

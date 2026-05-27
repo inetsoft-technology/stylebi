@@ -43,50 +43,48 @@ import { DefaultCodemirrorService } from "../../../../shared/util/codemirror/def
 import { SessionExpirationDialog } from "./dialog/session-expiration-dialog/session-expiration-dialog.component";
 
 @NgModule({
-   imports: [
-      CommonModule,
-      FormsModule,
-      ReactiveFormsModule,
-      MatAutocompleteModule,
-      MatButtonModule,
-      MatMenuModule,
-      MatIconModule,
-      MatInputModule,
-      ModalHeaderModule,
-      MatDialogModule,
-      MatGridListModule,
-      MatTooltipModule,
-      FlatTreeModule,
-      MatProgressBarModule,
-      MatDatepickerModule,
-      DatepickerModule
-   ],
-   exports: [
-      MatButtonModule,
-      MatButtonToggleModule,
-      MatGridListModule,
-      DynamicValueEditorComponent,
-      DynamicComboBoxComponent,
-      FormulaEditorDialogComponent,
-      ScriptPaneComponent,
-      ScriptTreeViewComponent
-   ],
-   declarations: [
-      DynamicValueEditorComponent,
-      DynamicComboBoxComponent,
-      FormulaEditorDialogComponent,
-      ScriptPaneComponent,
-      ScriptTreeViewComponent,
-      SessionExpirationDialog
-   ],
-   providers: [
-      FormulaEditorService,
-      {
-         provide: CodemirrorService,
-         useClass: DefaultCodemirrorService,
-         deps: []
-      }
-   ]
+    imports: [
+        CommonModule,
+        FormsModule,
+        ReactiveFormsModule,
+        MatAutocompleteModule,
+        MatButtonModule,
+        MatMenuModule,
+        MatIconModule,
+        MatInputModule,
+        ModalHeaderModule,
+        MatDialogModule,
+        MatGridListModule,
+        MatTooltipModule,
+        FlatTreeModule,
+        MatProgressBarModule,
+        MatDatepickerModule,
+        DatepickerModule,
+        DynamicValueEditorComponent,
+        DynamicComboBoxComponent,
+        FormulaEditorDialogComponent,
+        ScriptPaneComponent,
+        ScriptTreeViewComponent,
+        SessionExpirationDialog
+    ],
+    exports: [
+        MatButtonModule,
+        MatButtonToggleModule,
+        MatGridListModule,
+        DynamicValueEditorComponent,
+        DynamicComboBoxComponent,
+        FormulaEditorDialogComponent,
+        ScriptPaneComponent,
+        ScriptTreeViewComponent
+    ],
+    providers: [
+        FormulaEditorService,
+        {
+            provide: CodemirrorService,
+            useClass: DefaultCodemirrorService,
+            deps: []
+        }
+    ]
 })
 export class WidgetModule {
 }

@@ -16,20 +16,27 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import {Component, EventEmitter, Input, OnInit, Output} from "@angular/core";
-import {UntypedFormBuilder, UntypedFormGroup, Validators} from "@angular/forms";
+import { UntypedFormBuilder, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import {TimeConditionModel, TimeRange} from "../../../../../../../shared/schedule/model/time-condition-model";
 import {TimeZoneModel} from "../../../../../../../shared/schedule/model/time-zone-model";
 import {FormValidators} from "../../../../../../../shared/util/form-validators";
 import {Tool} from "../../../../../../../shared/util/tool";
 import {DateTimeService} from "../date-time.service";
-import {StartTimeChange, StartTimeData} from "../start-time-editor/start-time-editor.component";
+import { StartTimeChange, StartTimeData, StartTimeEditorComponent } from "../start-time-editor/start-time-editor.component";
 import {TaskConditionChanges} from "../task-condition-pane.component";
-import {TimeZoneValue} from "../time-zone-select/time-zone-select-component";
+import { TimeZoneValue, TimeZoneSelectComponent } from "../time-zone-select/time-zone-select-component";
+import { MatInput } from "@angular/material/input";
+import { MatFormField, MatLabel, MatError, MatHint } from "@angular/material/form-field";
+import { NgIf } from "@angular/common";
+import { MatCheckbox } from "@angular/material/checkbox";
+import { MatCard, MatCardContent } from "@angular/material/card";
 
 @Component({
-   selector: "em-daily-condition-editor",
-   templateUrl: "./daily-condition-editor.component.html",
-   styleUrls: ["./daily-condition-editor.component.scss"]
+    selector: "em-daily-condition-editor",
+    templateUrl: "./daily-condition-editor.component.html",
+    styleUrls: ["./daily-condition-editor.component.scss"],
+    standalone: true,
+    imports: [MatCard, MatCardContent, FormsModule, ReactiveFormsModule, StartTimeEditorComponent, TimeZoneSelectComponent, MatCheckbox, NgIf, MatFormField, MatLabel, MatInput, MatError, MatHint]
 })
 export class DailyConditionEditorComponent implements OnInit {
    @Input() timeZone: string;

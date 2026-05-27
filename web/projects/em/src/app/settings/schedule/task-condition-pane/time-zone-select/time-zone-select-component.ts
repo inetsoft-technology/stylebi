@@ -18,6 +18,10 @@
 import { Component, EventEmitter, forwardRef, Input, OnInit, Output } from "@angular/core";
 import { ControlValueAccessor, NG_VALUE_ACCESSOR, } from "@angular/forms";
 import { TimeZoneModel } from "../../../../../../../shared/schedule/model/time-zone-model";
+import { MatOption } from "@angular/material/core";
+import { MatSelect } from "@angular/material/select";
+import { MatFormField, MatLabel } from "@angular/material/form-field";
+import { NgIf, NgFor } from "@angular/common";
 
 export interface TimeZoneValue {
    timeZoneId: string;
@@ -25,16 +29,18 @@ export interface TimeZoneValue {
 }
 
 @Component({
-   selector: "em-time-zone-select",
-   templateUrl: "./time-zone-select-component.html",
-   styleUrls: ["./time-zone-select-component.scss"],
-   providers: [
-      {
-         provide: NG_VALUE_ACCESSOR,
-         useExisting: forwardRef(() => TimeZoneSelectComponent),
-         multi: true
-      }
-   ]
+    selector: "em-time-zone-select",
+    templateUrl: "./time-zone-select-component.html",
+    styleUrls: ["./time-zone-select-component.scss"],
+    providers: [
+        {
+            provide: NG_VALUE_ACCESSOR,
+            useExisting: forwardRef(() => TimeZoneSelectComponent),
+            multi: true
+        }
+    ],
+    standalone: true,
+    imports: [NgIf, MatFormField, MatLabel, MatSelect, NgFor, MatOption]
 })
 export class TimeZoneSelectComponent implements OnInit, ControlValueAccessor {
    selectedTimeZone: TimeZoneModel;

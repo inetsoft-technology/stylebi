@@ -45,9 +45,7 @@ describe("MonitoringSidenavComponent", () => {
          imports: [
             HttpClientTestingModule,
             RouterModule.forRoot([]),
-            MatIconModule
-         ],
-         declarations: [
+            MatIconModule,
             MonitoringSidenavComponent
          ],
          providers: [
@@ -57,7 +55,9 @@ describe("MonitoringSidenavComponent", () => {
          schemas: [
             NO_ERRORS_SCHEMA
          ]
-      }).compileComponents();
+      })
+      .overrideTemplate(MonitoringSidenavComponent, "")
+      .compileComponents();
    }));
 
    beforeEach(() => {

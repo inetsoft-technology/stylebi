@@ -17,7 +17,7 @@
  */
 import { HttpClient, HttpParams } from "@angular/common/http";
 import { Component, OnDestroy, OnInit } from "@angular/core";
-import { FormBuilder, FormGroup } from "@angular/forms";
+import { FormBuilder, FormGroup, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { ActivatedRoute } from "@angular/router";
 import { of, Subscription } from "rxjs";
 import { catchError, tap } from "rxjs/operators";
@@ -29,6 +29,10 @@ import { Secured } from "../../secured";
 import { IdentityId } from "../../settings/security/users/identity-id";
 import { AuditTableViewComponent } from "../audit-table-view/audit-table-view.component";
 import { IdentityInfo, IdentityInfoList, IdentityInfoParameters } from "./identity-info";
+import { MatOption } from "@angular/material/core";
+import { MatSelect } from "@angular/material/select";
+import { MatFormField, MatLabel } from "@angular/material/form-field";
+import { NgIf, NgFor } from "@angular/common";
 
 @Secured({
    route: "/auditing/identity-info",
@@ -44,9 +48,11 @@ import { IdentityInfo, IdentityInfoList, IdentityInfoParameters } from "./identi
    link: "EMViewAudit"
 })
 @Component({
-   selector: "em-audit-identity-info",
-   templateUrl: "./audit-identity-info.component.html",
-   styleUrls: ["./audit-identity-info.component.scss"]
+    selector: "em-audit-identity-info",
+    templateUrl: "./audit-identity-info.component.html",
+    styleUrls: ["./audit-identity-info.component.scss"],
+    standalone: true,
+    imports: [AuditTableViewComponent, FormsModule, ReactiveFormsModule, NgIf, MatFormField, MatLabel, MatSelect, NgFor, MatOption]
 })
 export class AuditIdentityInfoComponent implements OnInit, OnDestroy {
    types = [ "u", "g", "r", "o" ];

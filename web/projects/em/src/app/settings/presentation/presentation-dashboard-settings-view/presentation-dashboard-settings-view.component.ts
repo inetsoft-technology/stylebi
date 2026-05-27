@@ -16,12 +16,14 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, EventEmitter, Input, Output } from "@angular/core";
-import { UntypedFormBuilder, UntypedFormGroup } from "@angular/forms";
+import { UntypedFormBuilder, UntypedFormGroup, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { PresentationSettingsChanges } from "../presentation-settings-view/presentation-settings-view.component";
 import { PresentationDashboardSettingsModel } from "./presentation-dashboard-settings-model";
 import { Searchable } from "../../../searchable";
 import { PresentationSettingsType } from "../presentation-settings-view/presentation-settings-type.enum";
 import { ContextHelp } from "../../../context-help";
+import { MatCheckbox } from "@angular/material/checkbox";
+import { MatCard, MatCardTitle, MatCardContent } from "@angular/material/card";
 
 @Searchable({
    route: "/settings/presentation/settings#dashboard-settings",
@@ -33,9 +35,11 @@ import { ContextHelp } from "../../../context-help";
    link: "EMPresentationDashboardSettings"
 })
 @Component({
-  selector: "em-presentation-dashboard-settings-view",
-  templateUrl: "./presentation-dashboard-settings-view.component.html",
-  styleUrls: ["./presentation-dashboard-settings-view.component.scss"]
+    selector: "em-presentation-dashboard-settings-view",
+    templateUrl: "./presentation-dashboard-settings-view.component.html",
+    styleUrls: ["./presentation-dashboard-settings-view.component.scss"],
+    standalone: true,
+    imports: [MatCard, MatCardTitle, MatCardContent, FormsModule, ReactiveFormsModule, MatCheckbox]
 })
 export class PresentationDashboardSettingsViewComponent {
    private _model: PresentationDashboardSettingsModel;

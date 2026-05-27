@@ -46,11 +46,8 @@ describe("RepositoryDataSourceSettingsViewComponent", () => {
             MatOptionModule,
             MatSelectModule,
             MatSnackBarModule,
-            FileChooserModule
-         ],
-         declarations: [
-            RepositoryDataSourceSettingsViewComponent
-         ],
+            FileChooserModule,
+            RepositoryDataSourceSettingsViewComponent],
          schemas: [
             NO_ERRORS_SCHEMA
          ]

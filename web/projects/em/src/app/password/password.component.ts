@@ -22,6 +22,7 @@ import { Searchable } from "../searchable";
 import { ChangePasswordService } from "./change-password.service";
 import { PageHeaderService } from "../page-header/page-header.service";
 import { MessageDialog, MessageDialogType } from "../common/util/message-dialog";
+import { ChangePasswordFormComponent } from "./change-password-form.component";
 
 @Searchable({
    route: "/password",
@@ -33,9 +34,11 @@ import { MessageDialog, MessageDialogType } from "../common/util/message-dialog"
    link: "EMPassword"
 })
 @Component({
-   selector: "em-password",
-   templateUrl: "./password.component.html",
-   styleUrls: ["./password.component.scss"]
+    selector: "em-password",
+    templateUrl: "./password.component.html",
+    styleUrls: ["./password.component.scss"],
+    standalone: true,
+    imports: [ChangePasswordFormComponent]
 })
 export class PasswordComponent implements OnInit {
    loading = false;

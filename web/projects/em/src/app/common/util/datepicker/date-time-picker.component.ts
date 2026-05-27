@@ -19,11 +19,18 @@ import { Component, EventEmitter, Input, OnInit, Output } from "@angular/core";
 import { XSchema } from "../../../../../../portal/src/app/common/data/xschema";
 import { DateTypeFormatter } from "../../../../../../shared/util/date-type-formatter";
 import { TimeInstant } from "../../../../../../portal/src/app/common/data/time-instant";
+import { FormsModule } from "@angular/forms";
+import { MatInput } from "@angular/material/input";
+import { MatFormField, MatLabel } from "@angular/material/form-field";
+import { MatCalendar } from "@angular/material/datepicker";
+import { NgIf } from "@angular/common";
 
 @Component({
-   selector: "em-date-time-picker",
-   templateUrl: "date-time-picker.component.html",
-   styleUrls: ["date-time-picker.component.scss"]
+    selector: "em-date-time-picker",
+    templateUrl: "date-time-picker.component.html",
+    styleUrls: ["date-time-picker.component.scss"],
+    standalone: true,
+    imports: [NgIf, MatCalendar, MatFormField, MatLabel, MatInput, FormsModule]
 })
 export class DateTimePickerComponent implements OnInit {
    @Input() value: string;

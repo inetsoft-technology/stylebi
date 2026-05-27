@@ -32,21 +32,21 @@ import { LogMonitoringViewComponent } from "./log-monitoring-view/log-monitoring
 import { LogRoutingModule } from "./log-routing.module";
 
 @NgModule({
-   imports: [
-      CommonModule,
-      MatButtonModule,
-      MatCheckboxModule,
-      MatDividerModule,
-      MatInputModule,
-      MatListModule,
-      MatOptionModule,
-      MatSelectModule,
-      ScrollingModule,
-      LogRoutingModule,
-      MatCardModule,
-      MatIconModule
-   ],
-   declarations: [LogMonitoringViewComponent, LogMonitoringPageComponent]
+    imports: [
+        CommonModule,
+        MatButtonModule,
+        MatCheckboxModule,
+        MatDividerModule,
+        MatInputModule,
+        MatListModule,
+        MatOptionModule,
+        MatSelectModule,
+        ScrollingModule,
+        LogRoutingModule,
+        MatCardModule,
+        MatIconModule,
+        LogMonitoringViewComponent, LogMonitoringPageComponent
+    ]
 })
 export class LogModule {
 }

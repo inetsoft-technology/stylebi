@@ -52,9 +52,7 @@ import { ExportTaskDialogComponent } from "./export-task-dialog/export-task-dial
         MatTableModule,
         FileChooserModule,
         FlatTreeModule,
-        MessageDialogModule
-    ],
-    declarations: [
+        MessageDialogModule,
         ImportTaskDialogComponent,
         ExportTaskDialogComponent
     ],

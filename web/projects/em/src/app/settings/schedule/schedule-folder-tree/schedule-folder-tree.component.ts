@@ -26,7 +26,7 @@ import { ScheduleTaskList } from "../../../../../../shared/schedule/model/schedu
 import { ScheduleTaskModel } from "../../../../../../shared/schedule/model/schedule-task-model";
 import { MessageDialog, MessageDialogType } from "../../../common/util/message-dialog";
 import { FlatTreeNode, FlatTreeNodeMenuItem } from "../../../common/util/tree/flat-tree-model";
-import { FlatTreeSelectNodeEvent } from "../../../common/util/tree/flat-tree-view.component";
+import { FlatTreeSelectNodeEvent, FlatTreeViewComponent } from "../../../common/util/tree/flat-tree-view.component";
 import {
    RepositoryFlatNode,
    RepositoryTreeNode
@@ -38,6 +38,8 @@ import { TaskListModel } from "../model/task-list-model";
 import { ScheduleTaskDragService } from "../schedule-task-list/schedule-task-drag.service";
 import { StompClientConnection } from "../../../../../../shared/stomp/stomp-client-connection";
 import { EmScheduleChangeService } from "../schedule-task-list/em-schedule-change.service";
+import { MultiSelectTreeNodeDirective } from "../../../common/util/tree/multi-select-tree-node.directive";
+import { TopScrollDirective } from "../../../top-scroll/top-scroll.directive";
 
 const TASKS_CHECK_FOLDER_URI = "../api/em/schedule/check-folder";
 const TASKS_MOVE_FOLDER_URI = "../api/em/schedule/move-folder";
@@ -49,9 +51,11 @@ const REMOVE_FOLDER_URI = "../api/em/schedule/folder/remove";
 const CHECK_ADD_DUPLICATE_URI = "../api/em/schedule/add/checkDuplicate";
 
 @Component({
-  selector: "em-schedule-folder-tree",
-  templateUrl: "./schedule-folder-tree.component.html",
-  styleUrls: ["./schedule-folder-tree.component.scss"]
+    selector: "em-schedule-folder-tree",
+    templateUrl: "./schedule-folder-tree.component.html",
+    styleUrls: ["./schedule-folder-tree.component.scss"],
+    standalone: true,
+    imports: [TopScrollDirective, FlatTreeViewComponent, MultiSelectTreeNodeDirective]
 })
 export class ScheduleFolderTreeComponent implements OnInit, OnDestroy {
    @Input() treeControl: FlatTreeControl<RepositoryFlatNode>;

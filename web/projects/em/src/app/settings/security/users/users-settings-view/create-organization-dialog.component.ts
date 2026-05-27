@@ -18,18 +18,29 @@
 
 import { HttpClient, HttpParams } from "@angular/common/http";
 import { Component, HostListener, Inject, OnDestroy, OnInit } from "@angular/core";
-import { UntypedFormControl, Validators } from "@angular/forms";
-import { MAT_DIALOG_DATA, MatDialog, MatDialogRef } from "@angular/material/dialog";
+import { UntypedFormControl, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
+import { MAT_DIALOG_DATA, MatDialog, MatDialogRef, MatDialogActions } from "@angular/material/dialog";
 import { BehaviorSubject, Subscription } from "rxjs";
 import { debounceTime, distinctUntilChanged } from "rxjs/operators";
 import { FormValidators } from "../../../../../../../shared/util/form-validators";
 import { MessageDialog, MessageDialogType } from "../../../../common/util/message-dialog";
 import { convertToKey, IdentityId } from "../identity-id";
+import { MatSelect } from "@angular/material/select";
+import { MatOption } from "@angular/material/core";
+import { MatAutocompleteTrigger, MatAutocomplete } from "@angular/material/autocomplete";
+import { MatInput } from "@angular/material/input";
+import { MatFormField, MatLabel, MatSuffix, MatError } from "@angular/material/form-field";
+import { NgIf, NgFor } from "@angular/common";
+import { MatIcon } from "@angular/material/icon";
+import { MatIconButton, MatButton } from "@angular/material/button";
+import { ModalHeaderComponent } from "../../../../common/util/modal-header/modal-header.component";
 
 @Component({
-   selector: "em-create-organization-dialog",
-   templateUrl: "./create-organization-dialog.component.html",
-   styleUrls: ["./create-organization-dialog.component.scss"]
+    selector: "em-create-organization-dialog",
+    templateUrl: "./create-organization-dialog.component.html",
+    styleUrls: ["./create-organization-dialog.component.scss"],
+    standalone: true,
+    imports: [ModalHeaderComponent, MatIconButton, MatIcon, NgIf, MatFormField, MatLabel, MatInput, FormsModule, MatAutocompleteTrigger, MatSuffix, MatAutocomplete, NgFor, MatOption, MatSelect, ReactiveFormsModule, MatError, MatDialogActions, MatButton]
 })
 export class CreateOrganizationDialogComponent implements OnInit, OnDestroy {
    existingOrganizations: string[] = [];

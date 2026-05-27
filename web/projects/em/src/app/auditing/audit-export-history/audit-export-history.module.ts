@@ -25,17 +25,15 @@ import { AuditExportHistoryRoutingModule } from "./audit-export-history-routing.
 import { AuditExportHistoryComponent } from "./audit-export-history.component";
 
 @NgModule({
-   declarations: [
-      AuditExportHistoryComponent
-   ],
-   imports: [
-      CommonModule,
-      AuditExportHistoryRoutingModule,
-      AuditTableViewModule,
-      ReactiveFormsModule,
-      MatFormFieldModule,
-      MatSelectModule
-   ]
+    imports: [
+        CommonModule,
+        AuditExportHistoryRoutingModule,
+        AuditTableViewModule,
+        ReactiveFormsModule,
+        MatFormFieldModule,
+        MatSelectModule,
+        AuditExportHistoryComponent
+    ]
 })
 export class AuditExportHistoryModule {
 }

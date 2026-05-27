@@ -19,7 +19,7 @@ import { HttpClient } from "@angular/common/http";
 import { Component, ElementRef, OnDestroy, OnInit } from "@angular/core";
 import { MatDialog } from "@angular/material/dialog";
 import { MatSnackBar, MatSnackBarConfig } from "@angular/material/snack-bar";
-import { ActivatedRoute } from "@angular/router";
+import { ActivatedRoute, RouterLink } from "@angular/router";
 import { Subject, Subscription } from "rxjs";
 import { filter, takeUntil } from "rxjs/operators";
 import { AppInfoService } from "../../../../../../shared/util/app-info.service";
@@ -29,6 +29,19 @@ import { PageHeaderService } from "../../../page-header/page-header.service";
 import { Secured } from "../../../secured";
 import { GeneralSettingsPageModel } from "./general-settings-page-model";
 import { GeneralSettingsType } from "./general-settings-type.enum";
+import { LoadingSpinnerComponent } from "../../../common/util/loading-spinner/loading-spinner.component";
+import { MatNavList, MatListItem } from "@angular/material/list";
+import { PerformanceSettingsViewComponent } from "../performance-settings-view/performance-settings-view.component";
+import { EmailSettingsViewComponent } from "../email-settings-view/email-settings-view.component";
+import { CacheSettingsViewComponent } from "../cache-settings-view/cache-settings-view.component";
+import { MVSettingsViewComponent } from "../mv-settings-view/mv-settings-view.component";
+import { LocalizationSettingsViewComponent } from "../localization-settings-view/localization-settings-view.component";
+import { LicenseKeySettingsViewComponent } from "../license-key-settings-view/license-key-settings-view.component";
+import { DataSpaceSettingsViewComponent } from "../data-space-settings-view/data-space-settings-view.component";
+import { NavigationScrollableItemDirective } from "../../../common/util/scroll-nav/navigation-scrollable-item/navigation-scrollable-item.directive";
+import { NavigationScrollableComponent } from "../../../common/util/scroll-nav/navigation-scrollable/navigation-scrollable.component";
+import { EditorPanelComponent } from "../../../common/util/editor-panel/editor-panel.component";
+import { NgIf, NgFor } from "@angular/common";
 
 const GENERAL_SETTINGS_PAGE_MODEL_URI = "../api/em/general/settings/model";
 
@@ -52,9 +65,11 @@ export class GeneralSettingsNavLink {
    link: "EMSettingsGeneral"
 })
 @Component({
-   selector: "em-general-settings-page",
-   templateUrl: "./general-settings-page.component.html",
-   styleUrls: ["./general-settings-page.component.scss"]
+    selector: "em-general-settings-page",
+    templateUrl: "./general-settings-page.component.html",
+    styleUrls: ["./general-settings-page.component.scss"],
+    standalone: true,
+    imports: [NgIf, EditorPanelComponent, NavigationScrollableComponent, NavigationScrollableItemDirective, DataSpaceSettingsViewComponent, LicenseKeySettingsViewComponent, LocalizationSettingsViewComponent, MVSettingsViewComponent, CacheSettingsViewComponent, EmailSettingsViewComponent, PerformanceSettingsViewComponent, MatNavList, NgFor, MatListItem, RouterLink, LoadingSpinnerComponent]
 })
 export class GeneralSettingsPageComponent implements OnInit, OnDestroy {
    model: GeneralSettingsPageModel;

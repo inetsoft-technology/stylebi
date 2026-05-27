@@ -31,25 +31,23 @@ import {
    OrganizationPropertyDialogModule
 } from "../organization-property-dialog/organization-property-dialog.module";
 @NgModule({
-   imports: [
-      CommonModule,
-      FormsModule,
-      MatTableModule,
-      MatSortModule,
-      MatButtonModule,
-      MatCheckboxModule,
-      MatCardModule,
-      MatIconModule,
-      SecurityTreeDialogModule,
-      OrganizationPropertyDialogModule,
-      MatPaginatorModule
-   ],
-   exports: [
-      PropertyTableViewComponent
-   ],
-   declarations: [
-      PropertyTableViewComponent
-   ]
+    imports: [
+        CommonModule,
+        FormsModule,
+        MatTableModule,
+        MatSortModule,
+        MatButtonModule,
+        MatCheckboxModule,
+        MatCardModule,
+        MatIconModule,
+        SecurityTreeDialogModule,
+        OrganizationPropertyDialogModule,
+        MatPaginatorModule,
+        PropertyTableViewComponent
+    ],
+    exports: [
+        PropertyTableViewComponent
+    ]
 })
 export class PropertyTableViewModule {
 }

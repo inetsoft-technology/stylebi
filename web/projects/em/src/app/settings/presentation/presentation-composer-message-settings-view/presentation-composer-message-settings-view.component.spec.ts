@@ -36,9 +36,8 @@ describe("PresentationComposerMessageSettingsViewComponent", () => {
         MatFormFieldModule,
         MatInputModule,
         MatCardModule,
-      ],
-      declarations: [ PresentationComposerMessageSettingsViewComponent ]
-    })
+            PresentationComposerMessageSettingsViewComponent]
+         })
     .compileComponents();
   });
 

@@ -26,22 +26,20 @@ import { MatInputModule } from "@angular/material/input";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 
 @NgModule({
-   imports: [
-      CommonModule,
-      FormsModule,
-      ReactiveFormsModule,
-      MatDatepickerModule,
-      MatFormFieldModule,
-      MatIconModule,
-      MatInputModule,
-      DatepickerModule
-   ],
-   exports: [
-      DateTimeEditorComponent
-   ],
-   declarations: [
-      DateTimeEditorComponent
-   ]
+    imports: [
+        CommonModule,
+        FormsModule,
+        ReactiveFormsModule,
+        MatDatepickerModule,
+        MatFormFieldModule,
+        MatIconModule,
+        MatInputModule,
+        DatepickerModule,
+        DateTimeEditorComponent
+    ],
+    exports: [
+        DateTimeEditorComponent
+    ]
 })
 export class CustomValueAccessorModule {
 }

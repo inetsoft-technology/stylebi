@@ -54,11 +54,8 @@ describe("ToolbarOptionsTableViewComponent", () => {
             MatCheckboxModule,
             MatSnackBarModule,
             MatIconModule,
-            MatTableModule
-         ],
-         declarations: [
-            ToolbarOptionsTableViewComponent
-         ],
+            MatTableModule,
+            ToolbarOptionsTableViewComponent],
          schemas: [NO_ERRORS_SCHEMA]
       })
          .compileComponents();

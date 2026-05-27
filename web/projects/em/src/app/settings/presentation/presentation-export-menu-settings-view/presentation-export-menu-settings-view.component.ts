@@ -21,6 +21,9 @@ import { Searchable } from "../../../searchable";
 import { PresentationSettingsChanges } from "../presentation-settings-view/presentation-settings-view.component";
 import { PresentationSettingsType } from "../presentation-settings-view/presentation-settings-type.enum";
 import { ContextHelp } from "../../../context-help";
+import { ExportMenuOptionsViewComponent } from "../export-menu-options-view/export-menu-options-view.component";
+import { NgIf } from "@angular/common";
+import { MatCard, MatCardTitle, MatCardContent } from "@angular/material/card";
 
 @Searchable({
    route: "/settings/presentation/settings#export-menu",
@@ -34,9 +37,11 @@ import { ContextHelp } from "../../../context-help";
    link: "EMExportMenu"
 })
 @Component({
-   selector: "em-presentation-report-export-menu-settings-view",
-   templateUrl: "./presentation-export-menu-settings-view.component.html",
-   styleUrls: ["./presentation-export-menu-settings-view.component.scss"]
+    selector: "em-presentation-report-export-menu-settings-view",
+    templateUrl: "./presentation-export-menu-settings-view.component.html",
+    styleUrls: ["./presentation-export-menu-settings-view.component.scss"],
+    standalone: true,
+    imports: [MatCard, MatCardTitle, NgIf, MatCardContent, ExportMenuOptionsViewComponent]
 })
 export class PresentationExportMenuSettingsViewComponent {
    @Output() modelChanged: EventEmitter<PresentationSettingsChanges> = new EventEmitter();

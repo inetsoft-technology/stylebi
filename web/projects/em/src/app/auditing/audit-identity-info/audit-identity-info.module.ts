@@ -25,17 +25,15 @@ import { AuditIdentityInfoRoutingModule } from "./audit-identity-info-routing.mo
 import { AuditIdentityInfoComponent } from "./audit-identity-info.component";
 
 @NgModule({
-   declarations: [
-      AuditIdentityInfoComponent
-   ],
-   imports: [
-      CommonModule,
-      AuditIdentityInfoRoutingModule,
-      AuditTableViewModule,
-      ReactiveFormsModule,
-      MatFormFieldModule,
-      MatSelectModule
-   ]
+    imports: [
+        CommonModule,
+        AuditIdentityInfoRoutingModule,
+        AuditTableViewModule,
+        ReactiveFormsModule,
+        MatFormFieldModule,
+        MatSelectModule,
+        AuditIdentityInfoComponent
+    ]
 })
 export class AuditIdentityInfoModule {
 }

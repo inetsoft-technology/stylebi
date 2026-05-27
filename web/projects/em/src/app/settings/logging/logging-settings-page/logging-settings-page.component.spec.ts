@@ -41,12 +41,8 @@ describe("LoggingSettingsPageComponent", () => {
 
    beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
-         declarations: [
-            LoggingSettingsPageComponent,
-            LoggingSettingsViewComponent,
-            LoggingLevelTableComponent
-         ],
          imports: [
+            LoggingSettingsPageComponent, LoggingSettingsViewComponent, LoggingLevelTableComponent,
             HttpClientTestingModule,
             FormsModule,
             ReactiveFormsModule,

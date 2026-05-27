@@ -46,9 +46,8 @@ describe("TableViewComponent", () => {
             MatTooltipModule,
             MatCheckboxModule,
             MatExpansionModule,
-            MatFormFieldModule
-         ],
-         declarations: [TableView],
+            MatFormFieldModule,
+            TableView],
          schemas: [NO_ERRORS_SCHEMA]
       }).compileComponents();
    }));

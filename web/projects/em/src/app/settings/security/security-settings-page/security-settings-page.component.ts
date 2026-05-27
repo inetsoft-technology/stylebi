@@ -18,7 +18,7 @@
 import { HttpClient } from "@angular/common/http";
 import { Component, OnDestroy, OnInit } from "@angular/core";
 import { MatDialog } from "@angular/material/dialog";
-import { MatSlideToggleChange } from "@angular/material/slide-toggle";
+import { MatSlideToggleChange, MatSlideToggle } from "@angular/material/slide-toggle";
 import { finalize, takeUntil } from "rxjs/operators";
 import { ScheduleUsersService } from "../../../../../../shared/schedule/schedule-users.service";
 import { AuthorizationService } from "../../../authorization/authorization.service";
@@ -30,15 +30,23 @@ import { SecurityEnabledEvent } from "./security-enabled-event";
 import { OrganizationDropdownService } from "../../../navbar/organization-dropdown.service";
 import { AppInfoService } from "../../../../../../shared/util/app-info.service";
 import { Subject } from "rxjs";
+import { RouterLinkActive, RouterLink, RouterOutlet } from "@angular/router";
+import { MatTabNav, MatTabLink, MatTabNavPanel } from "@angular/material/tabs";
+import { MatOption } from "@angular/material/core";
+import { MatSelect } from "@angular/material/select";
+import { MatHint, MatFormField, MatLabel } from "@angular/material/form-field";
+import { NgIf, NgFor } from "@angular/common";
 
 @Secured({
    route: "/settings/security",
    label: "Security"
 })
 @Component({
-   selector: "em-security-settings-page",
-   templateUrl: "./security-settings-page.component.html",
-   styleUrls: ["./security-settings-page.component.scss"]
+    selector: "em-security-settings-page",
+    templateUrl: "./security-settings-page.component.html",
+    styleUrls: ["./security-settings-page.component.scss"],
+    standalone: true,
+    imports: [NgIf, MatSlideToggle, MatHint, MatFormField, MatLabel, MatSelect, NgFor, MatOption, MatTabNav, MatTabLink, RouterLinkActive, RouterLink, MatTabNavPanel, RouterOutlet]
 })
 export class SecuritySettingsPageComponent implements OnInit, OnDestroy {
    securityEnabled = false;

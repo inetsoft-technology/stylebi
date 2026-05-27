@@ -16,14 +16,20 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, OnInit, ViewChild } from "@angular/core";
-import { MatDialogRef } from "@angular/material/dialog";
+import { MatDialogRef, MatDialogContent, MatDialogActions } from "@angular/material/dialog";
 import { StagedFileChooserComponent } from "../../../../common/util/file-chooser/staged-file-chooser/staged-file-chooser.component";
 import { DeleteDialog } from "../../data-space/data-space-file-settings-view/data-space-file-settings-view.component";
+import { MatButton } from "@angular/material/button";
+import { FormsModule } from "@angular/forms";
+import { MatCheckbox } from "@angular/material/checkbox";
+import { ModalHeaderComponent } from "../../../../common/util/modal-header/modal-header.component";
 
 @Component({
-   selector: "em-data-space-upload-dialog",
-   templateUrl: "./data-space-upload-dialog.component.html",
-   styleUrls: ["./data-space-upload-dialog.component.scss"]
+    selector: "em-data-space-upload-dialog",
+    templateUrl: "./data-space-upload-dialog.component.html",
+    styleUrls: ["./data-space-upload-dialog.component.scss"],
+    standalone: true,
+    imports: [ModalHeaderComponent, MatDialogContent, MatCheckbox, FormsModule, StagedFileChooserComponent, MatDialogActions, MatButton]
 })
 export class DataSpaceUploadDialogComponent implements OnInit {
    @ViewChild("fileChooser", { static: true }) fileChooser: StagedFileChooserComponent;

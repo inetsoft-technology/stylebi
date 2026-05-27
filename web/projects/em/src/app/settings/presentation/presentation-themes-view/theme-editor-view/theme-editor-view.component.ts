@@ -16,17 +16,23 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, EventEmitter, Input, OnInit, Output, ViewChild } from "@angular/core";
-import { MatTabChangeEvent } from "@angular/material/tabs";
+import { MatTabChangeEvent, MatTabGroup, MatTab } from "@angular/material/tabs";
 import { Tool } from "../../../../../../../shared/util/tool";
 import { CustomThemeModel } from "../custom-theme-model";
 import { ThemeCssEditorModel } from "../theme-css-view/theme-css-editor-model";
 import { ThemeCssViewComponent } from "../theme-css-view/theme-css-view.component";
 import { ThemePropertiesModel } from "../theme-properties-view/theme-properties-model";
+import { MatButton } from "@angular/material/button";
+import { ThemePropertiesViewComponent } from "../theme-properties-view/theme-properties-view.component";
+import { EditorPanelComponent } from "../../../../common/util/editor-panel/editor-panel.component";
+import { NgIf } from "@angular/common";
 
 @Component({
-   selector: "em-theme-editor-view",
-   templateUrl: "./theme-editor-view.component.html",
-   styleUrls: ["./theme-editor-view.component.scss"]
+    selector: "em-theme-editor-view",
+    templateUrl: "./theme-editor-view.component.html",
+    styleUrls: ["./theme-editor-view.component.scss"],
+    standalone: true,
+    imports: [NgIf, EditorPanelComponent, MatTabGroup, MatTab, ThemePropertiesViewComponent, ThemeCssViewComponent, MatButton]
 })
 export class ThemeEditorViewComponent implements OnInit {
    @Input() get theme(): CustomThemeModel {

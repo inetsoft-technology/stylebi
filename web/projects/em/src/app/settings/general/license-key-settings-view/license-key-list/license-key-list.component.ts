@@ -19,7 +19,7 @@ import { SelectionModel } from "@angular/cdk/collections";
 import { Component, EventEmitter, Input, OnInit, Output, ViewChild } from "@angular/core";
 import { MatDialog } from "@angular/material/dialog";
 import { MatPaginator } from "@angular/material/paginator";
-import { MatTableDataSource } from "@angular/material/table";
+import { MatTableDataSource, MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow } from "@angular/material/table";
 import { Observable } from "rxjs";
 import {
    EditLicenseKeyDialogData,
@@ -27,11 +27,16 @@ import {
 } from "../edit-license-key-dialog/edit-license-key-dialog-data";
 import { EditLicenseKeyDialogComponent } from "../edit-license-key-dialog/edit-license-key-dialog.component";
 import { LicenseKeyModel } from "../license-key-settings-model";
+import { MatButton } from "@angular/material/button";
+import { MatCheckbox } from "@angular/material/checkbox";
+import { MatCard, MatCardTitle, MatCardContent, MatCardActions } from "@angular/material/card";
 
 @Component({
-   selector: "em-license-key-list",
-   templateUrl: "./license-key-list.component.html",
-   styleUrls: ["./license-key-list.component.scss"]
+    selector: "em-license-key-list",
+    templateUrl: "./license-key-list.component.html",
+    styleUrls: ["./license-key-list.component.scss"],
+    standalone: true,
+    imports: [MatCard, MatCardTitle, MatCardContent, MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCheckbox, MatCellDef, MatCell, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, MatPaginator, MatCardActions, MatButton]
 })
 export class LicenseKeyListComponent implements OnInit {
    @Input() title: string;

@@ -49,10 +49,9 @@ describe("PresentationPdfGenerationSettingsViewComponent", () => {
             MatInputModule,
             MatCheckboxModule,
             MatSnackBarModule,
-            MatIconModule
-         ],
-         declarations: [PresentationPdfGenerationSettingsViewComponent]
-      })
+            MatIconModule,
+            PresentationPdfGenerationSettingsViewComponent]
+         })
          .compileComponents();
    }));
 

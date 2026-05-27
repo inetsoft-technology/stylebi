@@ -16,11 +16,14 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component } from "@angular/core";
+import { MatCard, MatCardContent } from "@angular/material/card";
 
 @Component({
-   selector: "em-monitoring-off-view",
-   templateUrl: "./monitoring-off-view.component.html",
-   styleUrls: ["./monitoring-off-view.component.scss"]
+    selector: "em-monitoring-off-view",
+    templateUrl: "./monitoring-off-view.component.html",
+    styleUrls: ["./monitoring-off-view.component.scss"],
+    standalone: true,
+    imports: [MatCard, MatCardContent]
 })
 export class MonitoringOffViewComponent {
 }

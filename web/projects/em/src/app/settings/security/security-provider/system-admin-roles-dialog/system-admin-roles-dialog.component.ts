@@ -16,15 +16,25 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, Inject, OnDestroy, OnInit } from "@angular/core";
-import { MAT_DIALOG_DATA, MatDialogRef } from "@angular/material/dialog";
+import { MAT_DIALOG_DATA, MatDialogRef, MatDialogContent, MatDialogActions } from "@angular/material/dialog";
 import { MatSnackBar } from "@angular/material/snack-bar";
-import { UntypedFormControl } from "@angular/forms";
+import { UntypedFormControl, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { AppInfoService } from "../../../../../../../shared/util/app-info.service";
 import { FormValidators } from "../../../../../../../shared/util/form-validators";
 import { BehaviorSubject, Observable, Subscription } from "rxjs";
 import { map } from "rxjs/operators";
 import { Tool } from "../../../../../../../shared/util/tool";
 import { convertToKey, IdentityId } from "../../users/identity-id";
+import { MatDivider } from "@angular/material/divider";
+import { MatList, MatListItem } from "@angular/material/list";
+import { MatOption } from "@angular/material/core";
+import { NgIf, NgFor, AsyncPipe } from "@angular/common";
+import { MatIcon } from "@angular/material/icon";
+import { MatIconButton, MatButton } from "@angular/material/button";
+import { MatAutocompleteTrigger, MatAutocomplete } from "@angular/material/autocomplete";
+import { MatInput } from "@angular/material/input";
+import { MatFormField, MatLabel, MatSuffix, MatError } from "@angular/material/form-field";
+import { ModalHeaderComponent } from "../../../../common/util/modal-header/modal-header.component";
 
 export interface SystemAdminRolesData {
    currentRoles: string[];
@@ -33,9 +43,11 @@ export interface SystemAdminRolesData {
 }
 
 @Component({
-   selector: "em-system-admin-roles-dialog",
-   templateUrl: "./system-admin-roles-dialog.component.html",
-   styleUrls: ["./system-admin-roles-dialog.component.scss"]
+    selector: "em-system-admin-roles-dialog",
+    templateUrl: "./system-admin-roles-dialog.component.html",
+    styleUrls: ["./system-admin-roles-dialog.component.scss"],
+    standalone: true,
+    imports: [ModalHeaderComponent, MatDialogContent, MatFormField, MatLabel, MatInput, FormsModule, MatAutocompleteTrigger, ReactiveFormsModule, MatIconButton, MatSuffix, MatIcon, NgIf, MatError, MatAutocomplete, NgFor, MatOption, MatList, MatListItem, MatDivider, MatDialogActions, MatButton, AsyncPipe]
 })
 export class SystemAdminRolesDialogComponent implements OnInit, OnDestroy {
    adminRoles: string[];

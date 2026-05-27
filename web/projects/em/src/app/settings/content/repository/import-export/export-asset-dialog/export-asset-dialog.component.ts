@@ -16,9 +16,9 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import {HttpClient, HttpErrorResponse} from "@angular/common/http";
-import {Component, HostListener, Inject, OnInit, ViewEncapsulation} from "@angular/core";
-import {UntypedFormBuilder, UntypedFormGroup, Validators} from "@angular/forms";
-import {MAT_DIALOG_DATA, MatDialog, MatDialogRef} from "@angular/material/dialog";
+import {Component, HostBinding, HostListener, Inject, OnInit, ViewEncapsulation} from "@angular/core";
+import { UntypedFormBuilder, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
+import { MAT_DIALOG_DATA, MatDialog, MatDialogRef, MatDialogContent } from "@angular/material/dialog";
 import {Observable, throwError} from "rxjs";
 import {catchError} from "rxjs/operators";
 import {DownloadService} from "../../../../../../../../shared/download/download.service";
@@ -31,21 +31,30 @@ import {RequiredAssetModel} from "../required-asset-model";
 import {SelectAssetsDialogComponent} from "../select-assets-dialog/select-assets-dialog.component";
 import {SelectedAssetModel} from "../selected-asset-model";
 import {CommonKVModel} from "../../../../../../../../portal/src/app/common/data/common-kv-model";
+import { MatProgressBar } from "@angular/material/progress-bar";
+import { RequiredAssetListComponent } from "../required-asset-list/required-asset-list.component";
+import { MatButton } from "@angular/material/button";
+import { SelectedAssetListComponent } from "../selected-asset-list/selected-asset-list.component";
+import { MatCheckbox } from "@angular/material/checkbox";
+import { NgIf } from "@angular/common";
+import { MatInput } from "@angular/material/input";
+import { MatFormField, MatLabel, MatError } from "@angular/material/form-field";
+import { ModalHeaderComponent } from "../../../../../common/util/modal-header/modal-header.component";
 
 export interface ExportAssetDialogData {
    selectedNodes: FlatTreeNode<RepositoryTreeNode>[];
 }
 
 @Component({
-   selector: "em-export-asset-dialog",
-   templateUrl: "./export-asset-dialog.component.html",
-   styleUrls: ["./export-asset-dialog.component.scss"],
-   encapsulation: ViewEncapsulation.None,
-   host: { // eslint-disable-line @angular-eslint/no-host-metadata-property
-      "class": "export-asset-dialog"
-   }
+    selector: "em-export-asset-dialog",
+    templateUrl: "./export-asset-dialog.component.html",
+    styleUrls: ["./export-asset-dialog.component.scss"],
+    encapsulation: ViewEncapsulation.None,
+    standalone: true,
+    imports: [ModalHeaderComponent, MatDialogContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatInput, NgIf, MatError, MatCheckbox, SelectedAssetListComponent, MatButton, RequiredAssetListComponent, MatProgressBar]
 })
 export class ExportAssetDialogComponent implements OnInit {
+   @HostBinding("class") hostClass = "export-asset-dialog";
    entities: SelectedAssetModel[] = [];
    selectedEntities: SelectedAssetModel[] = [];
    dependencies: RequiredAssetModel[] = [];

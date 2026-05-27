@@ -37,15 +37,22 @@ import { DeleteDialog } from "../data-space-file-settings-view/data-space-file-s
 import { DataSpaceTreeNode } from "../data-space-tree-node";
 import { DataSpaceFolderSettingsModel } from "./data-space-folder-settings-model";
 import { DataSpaceFileChange } from "../data-space-editor-page/data-space-editor-page.component";
-import { UntypedFormControl, Validators } from "@angular/forms";
+import { UntypedFormControl, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { FormValidators } from "../../../../../../../shared/util/form-validators";
 import { GuiTool } from "../../../../../../../portal/src/app/common/util/gui-tool";
 import { DownloadService } from "../../../../../../../shared/download/download.service";
+import { MatButton } from "@angular/material/button";
+import { MatInput } from "@angular/material/input";
+import { MatFormField, MatLabel, MatError } from "@angular/material/form-field";
+import { NgIf } from "@angular/common";
+import { MatCard, MatCardTitle, MatCardContent } from "@angular/material/card";
 
 @Component({
-   selector: "em-data-space-folder-settings-view",
-   templateUrl: "./data-space-folder-settings-view.component.html",
-   styleUrls: ["./data-space-folder-settings-view.component.scss"]
+    selector: "em-data-space-folder-settings-view",
+    templateUrl: "./data-space-folder-settings-view.component.html",
+    styleUrls: ["./data-space-folder-settings-view.component.scss"],
+    standalone: true,
+    imports: [EditorPanelComponent, MatCard, MatCardTitle, MatCardContent, NgIf, MatFormField, MatLabel, MatInput, FormsModule, ReactiveFormsModule, MatError, MatButton]
 })
 export class DataSpaceFolderSettingsViewComponent implements OnInit, OnChanges, OnDestroy {
    @Input() data: DataSpaceTreeNode;

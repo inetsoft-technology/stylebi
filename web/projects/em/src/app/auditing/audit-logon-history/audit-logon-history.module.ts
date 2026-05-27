@@ -25,17 +25,15 @@ import { AuditLogonHistoryRoutingModule } from "./audit-logon-history-routing.mo
 import { AuditLogonHistoryComponent } from "./audit-logon-history.component";
 
 @NgModule({
-   declarations: [
-      AuditLogonHistoryComponent
-   ],
-   imports: [
-      CommonModule,
-      AuditLogonHistoryRoutingModule,
-      AuditTableViewModule,
-      ReactiveFormsModule,
-      MatFormFieldModule,
-      MatSelectModule
-   ]
+    imports: [
+        CommonModule,
+        AuditLogonHistoryRoutingModule,
+        AuditTableViewModule,
+        ReactiveFormsModule,
+        MatFormFieldModule,
+        MatSelectModule,
+        AuditLogonHistoryComponent
+    ]
 })
 export class AuditLogonHistoryModule {
 }

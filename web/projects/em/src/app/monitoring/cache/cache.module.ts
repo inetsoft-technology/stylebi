@@ -28,22 +28,20 @@ import { ClusterNodesService } from "../cluster/cluster-nodes.service";
 import { ClusterSelectorModule } from "../cluster-selector/cluster-selector.module";
 
 @NgModule({
-   imports: [
-      CommonModule,
-      CacheRoutingModule,
-      MatSelectModule,
-      MatCardModule,
-      TableViewModule,
-      CollapsibleContainerModule,
-      ClusterSelectorModule
-   ],
-   declarations: [
-      CacheMonitoringViewComponent,
-      CacheMonitoringPageComponent
-   ],
-   providers: [
-      ClusterNodesService
-   ]
+    imports: [
+        CommonModule,
+        CacheRoutingModule,
+        MatSelectModule,
+        MatCardModule,
+        TableViewModule,
+        CollapsibleContainerModule,
+        ClusterSelectorModule,
+        CacheMonitoringViewComponent,
+        CacheMonitoringPageComponent
+    ],
+    providers: [
+        ClusterNodesService
+    ]
 })
 export class CacheModule {
 }

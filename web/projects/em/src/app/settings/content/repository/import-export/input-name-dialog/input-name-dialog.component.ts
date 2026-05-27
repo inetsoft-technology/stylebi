@@ -16,14 +16,21 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, HostListener, Input, OnInit } from "@angular/core";
-import { UntypedFormBuilder, UntypedFormGroup, Validators } from "@angular/forms";
-import { MatDialogRef } from "@angular/material/dialog";
+import { UntypedFormBuilder, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
+import { MatDialogRef, MatDialogContent, MatDialogActions } from "@angular/material/dialog";
 import { FormValidators } from "../../../../../../../../shared/util/form-validators";
+import { MatButton } from "@angular/material/button";
+import { NgIf } from "@angular/common";
+import { MatInput } from "@angular/material/input";
+import { MatFormField, MatLabel, MatError } from "@angular/material/form-field";
+import { ModalHeaderComponent } from "../../../../../common/util/modal-header/modal-header.component";
 
 @Component({
-  selector: "em-input-name-dialog",
-  templateUrl: "./input-name-dialog.component.html",
-  styleUrls: ["./input-name-dialog.component.scss"]
+    selector: "em-input-name-dialog",
+    templateUrl: "./input-name-dialog.component.html",
+    styleUrls: ["./input-name-dialog.component.scss"],
+    standalone: true,
+    imports: [ModalHeaderComponent, MatDialogContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatInput, NgIf, MatError, MatDialogActions, MatButton]
 })
 export class InputNameDialogComponent implements OnInit {
   @Input() title: string;

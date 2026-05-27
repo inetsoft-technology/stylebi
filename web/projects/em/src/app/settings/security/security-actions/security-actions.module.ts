@@ -34,26 +34,24 @@ import { SecurityActionsRoutingModule } from "./security-actions-routing.module"
 import { SecurityActionsTreeComponent } from "./security-actions-tree/security-actions-tree.component";
 
 @NgModule({
-   imports: [
-      CommonModule,
-      MatButtonModule,
-      MatCardModule,
-      MatIconModule,
-      MatSnackBarModule,
-      MatTreeModule,
-      EditorPanelModule,
-      SecurityActionsRoutingModule,
-      ResourcePermissionModule,
-      MatSidenavModule,
-      MatDialogModule,
-      MessageDialogModule,
-      TopScrollModule,
-   ],
-   declarations: [
-      SecurityActionsPageComponent,
-      SecurityActionsTreeComponent,
-      SecurityActionsPermissionsComponent
-   ],
+    imports: [
+        CommonModule,
+        MatButtonModule,
+        MatCardModule,
+        MatIconModule,
+        MatSnackBarModule,
+        MatTreeModule,
+        EditorPanelModule,
+        SecurityActionsRoutingModule,
+        ResourcePermissionModule,
+        MatSidenavModule,
+        MatDialogModule,
+        MessageDialogModule,
+        TopScrollModule,
+        SecurityActionsPageComponent,
+        SecurityActionsTreeComponent,
+        SecurityActionsPermissionsComponent,
+    ],
 })
 export class SecurityActionsModule {
 }

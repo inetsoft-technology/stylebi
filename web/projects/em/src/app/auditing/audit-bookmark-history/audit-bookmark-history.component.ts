@@ -17,7 +17,7 @@
  */
 import { HttpClient, HttpParams } from "@angular/common/http";
 import { Component, OnDestroy, OnInit } from "@angular/core";
-import { FormBuilder, FormGroup } from "@angular/forms";
+import { FormBuilder, FormGroup, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { ActivatedRoute } from "@angular/router";
 import { of, Subscription } from "rxjs";
 import { catchError, tap } from "rxjs/operators";
@@ -32,6 +32,10 @@ import {
    BookmarkHistoryList,
    BookmarkHistoryParameters
 } from "./bookmark-history";
+import { MatOption } from "@angular/material/core";
+import { NgFor } from "@angular/common";
+import { MatSelect } from "@angular/material/select";
+import { MatFormField, MatLabel } from "@angular/material/form-field";
 
 @Secured({
    route: "/auditing/bookmark-history",
@@ -47,9 +51,11 @@ import {
    link: "EMViewAudit"
 })
 @Component({
-   selector: "em-audit-bookmark-history",
-   templateUrl: "./audit-bookmark-history.component.html",
-   styleUrls: ["./audit-bookmark-history.component.scss"]
+    selector: "em-audit-bookmark-history",
+    templateUrl: "./audit-bookmark-history.component.html",
+    styleUrls: ["./audit-bookmark-history.component.scss"],
+    standalone: true,
+    imports: [AuditTableViewComponent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatSelect, NgFor, MatOption]
 })
 export class AuditBookmarkHistoryComponent implements OnInit, OnDestroy {
    users: string[] = [];

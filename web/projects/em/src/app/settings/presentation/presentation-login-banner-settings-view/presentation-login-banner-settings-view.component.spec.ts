@@ -36,10 +36,9 @@ describe("PresentationLoginBannerSettingsViewComponent", () => {
           MatFormFieldModule,
           MatInputModule,
           MatCardModule,
-          MatSelectModule
-       ],
-      declarations: [ PresentationLoginBannerSettingsViewComponent ]
-    })
+          MatSelectModule,
+            PresentationLoginBannerSettingsViewComponent]
+         })
     .compileComponents();
   }));
 

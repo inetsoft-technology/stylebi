@@ -21,16 +21,14 @@ import { MatProgressSpinnerModule } from "@angular/material/progress-spinner";
 import {LoadingSpinnerComponent} from "./loading-spinner.component";
 
 @NgModule({
-   imports: [
-      CommonModule,
-      MatProgressSpinnerModule
-   ],
-   exports: [
-      LoadingSpinnerComponent
-   ],
-   declarations: [
-      LoadingSpinnerComponent,
-   ]
+    imports: [
+        CommonModule,
+        MatProgressSpinnerModule,
+        LoadingSpinnerComponent
+    ],
+    exports: [
+        LoadingSpinnerComponent
+    ]
 })
 export class LoadingSpinnerModule {
 }

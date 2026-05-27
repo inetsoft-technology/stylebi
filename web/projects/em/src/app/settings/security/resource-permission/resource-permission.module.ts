@@ -32,23 +32,23 @@ import { SecurityTreeDialogModule } from "../security-tree-dialog/security-tree-
 import { MessageDialogModule } from "../../../common/util/message-dialog.module";
 
 @NgModule({
-   imports: [
-      CommonModule,
-      FormsModule,
-      MatButtonModule,
-      MatCardModule,
-      MatCheckboxModule,
-      MatIconModule,
-      MatRadioModule,
-      SecurityTreeViewModule,
-      SecurityTableViewModule,
-      PermissionsTableModule,
-      SecurityTreeDialogModule,
-      MessageDialogModule,
-   ],
-   exports: [ResourcePermissionComponent],
-   declarations: [ResourcePermissionComponent],
-   providers: [SecurityTreeService]
+    imports: [
+        CommonModule,
+        FormsModule,
+        MatButtonModule,
+        MatCardModule,
+        MatCheckboxModule,
+        MatIconModule,
+        MatRadioModule,
+        SecurityTreeViewModule,
+        SecurityTableViewModule,
+        PermissionsTableModule,
+        SecurityTreeDialogModule,
+        MessageDialogModule,
+        ResourcePermissionComponent,
+    ],
+    exports: [ResourcePermissionComponent],
+    providers: [SecurityTreeService]
 })
 export class ResourcePermissionModule {
 }

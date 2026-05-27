@@ -21,11 +21,14 @@ import { BehaviorSubject, Observable, Subject } from "rxjs";
 import { map, takeUntil } from "rxjs/operators";
 import { PageHeaderService } from "../../page-header/page-header.service";
 import { SearchResult } from "../search-result";
+import { SearchResultsComponent } from "../search-results/search-results.component";
 
 @Component({
-   selector: "em-search-results-view",
-   templateUrl: "./search-results-view.component.html",
-   styleUrls: ["./search-results-view.component.scss"]
+    selector: "em-search-results-view",
+    templateUrl: "./search-results-view.component.html",
+    styleUrls: ["./search-results-view.component.scss"],
+    standalone: true,
+    imports: [SearchResultsComponent]
 })
 export class SearchResultsViewComponent implements OnInit, OnDestroy {
    private _results = new BehaviorSubject<SearchResult[]>([]);

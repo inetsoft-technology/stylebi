@@ -33,7 +33,7 @@ import {
    Output,
    Self
 } from "@angular/core";
-import { ControlValueAccessor, FormGroupDirective, NgControl, NgForm } from "@angular/forms";
+import { ControlValueAccessor, FormGroupDirective, NgControl, NgForm, FormsModule } from "@angular/forms";
 import {
    ErrorStateMatcher,
    mixinDisabled,
@@ -43,6 +43,7 @@ import {
 } from "@angular/material/core";
 import { MatFormFieldControl } from "@angular/material/form-field";
 import { Subject } from "rxjs";
+import { CkeditorWrapperComponent } from "../../../../../../shared/ckeditor-wrapper/ckeditor-wrapper.component";
 
 export class MatCkeditorBase {
    stateChanges = new Subject<void>();
@@ -58,12 +59,14 @@ export const _MatCkEditorMixinBase =
    mixinDisableRipple(mixinTabIndex(mixinDisabled(mixinErrorState(MatCkeditorBase))));
 
 @Component({
-   selector: "em-mat-ckeditor",
-   templateUrl: "./mat-ckeditor.component.html",
-   styleUrls: ["./mat-ckeditor.component.scss"],
-   providers: [
-      { provide: MatFormFieldControl, useExisting: MatCkeditorComponent}
-   ]
+    selector: "em-mat-ckeditor",
+    templateUrl: "./mat-ckeditor.component.html",
+    styleUrls: ["./mat-ckeditor.component.scss"],
+    providers: [
+        { provide: MatFormFieldControl, useExisting: MatCkeditorComponent }
+    ],
+    standalone: true,
+    imports: [CkeditorWrapperComponent, FormsModule]
 })
 export class MatCkeditorComponent
    extends _MatCkEditorMixinBase

@@ -18,6 +18,7 @@
 import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { MatTableModule } from "@angular/material/table";
+import { NoopAnimationsModule } from "@angular/platform-browser/animations";
 import { SelectedAssetListComponent } from "./selected-asset-list.component";
 
 describe("SelectedAssetListComponent", () => {
@@ -27,11 +28,9 @@ describe("SelectedAssetListComponent", () => {
    beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
-            MatTableModule
-         ],
-         declarations: [
-            SelectedAssetListComponent
-         ],
+            MatTableModule,
+            NoopAnimationsModule,
+            SelectedAssetListComponent],
          schemas: [
             NO_ERRORS_SCHEMA
          ]

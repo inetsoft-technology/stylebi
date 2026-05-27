@@ -33,11 +33,8 @@ describe("PresentationNavViewComponent", () => {
          imports: [
             NoopAnimationsModule,
             HttpClientTestingModule,
-            RouterModule.forRoot([])
-         ],
-         declarations: [
-            PresentationNavViewComponent
-         ],
+            RouterModule.forRoot([]),
+            PresentationNavViewComponent],
          providers: [
             AppInfoService
          ],

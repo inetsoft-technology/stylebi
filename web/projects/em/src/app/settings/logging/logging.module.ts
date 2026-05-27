@@ -37,30 +37,28 @@ import { LoggingSettingsPageComponent } from "./logging-settings-page/logging-se
 import { LoggingSettingsViewComponent } from "./logging-settings-view/logging-settings-view.component";
 
 @NgModule({
-   imports: [
-      CommonModule,
-      FormsModule,
-      ReactiveFormsModule,
-      MatFormFieldModule,
-      MatCheckboxModule,
-      MatInputModule,
-      MatButtonModule,
-      MatSelectModule,
-      MatCardModule,
-      MatDialogModule,
-      MatDividerModule,
-      LoggingRoutingModule,
-      EditorPanelModule,
-      MessageDialogModule,
-      TableViewModule,
-      ModalHeaderModule
-   ],
-   declarations: [
-      LoggingSettingsPageComponent,
-      LoggingSettingsViewComponent,
-      LoggingLevelTableComponent,
-      AddLoggingLevelDialogComponent
-   ],
+    imports: [
+        CommonModule,
+        FormsModule,
+        ReactiveFormsModule,
+        MatFormFieldModule,
+        MatCheckboxModule,
+        MatInputModule,
+        MatButtonModule,
+        MatSelectModule,
+        MatCardModule,
+        MatDialogModule,
+        MatDividerModule,
+        LoggingRoutingModule,
+        EditorPanelModule,
+        MessageDialogModule,
+        TableViewModule,
+        ModalHeaderModule,
+        LoggingSettingsPageComponent,
+        LoggingSettingsViewComponent,
+        LoggingLevelTableComponent,
+        AddLoggingLevelDialogComponent
+    ],
 })
 export class LoggingModule {
 }

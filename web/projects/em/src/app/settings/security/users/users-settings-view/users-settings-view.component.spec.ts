@@ -53,11 +53,8 @@ describe("UsersSettingsViewComponent", () => {
             MatFormFieldModule,
             FormsModule,
             ReactiveFormsModule,
-            SecurityTableViewModule
-         ],
-         declarations: [
-            UsersSettingsViewComponent
-         ],
+            SecurityTableViewModule,
+            UsersSettingsViewComponent],
          providers: [
             AppInfoService
          ],

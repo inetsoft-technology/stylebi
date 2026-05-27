@@ -32,11 +32,23 @@ import { CustomRouteReuseStrategy } from "../custom-route-reuse-strategy";
 import { OrganizationDropdownService } from "../navbar/organization-dropdown.service";
 import { EmPageHeaderModel } from "./em-page-header-model";
 import { PageHeaderService } from "./page-header.service";
+import { MatSelect } from "@angular/material/select";
+import { MatOption } from "@angular/material/core";
+import { MatAutocompleteTrigger, MatAutocomplete } from "@angular/material/autocomplete";
+import { FormsModule } from "@angular/forms";
+import { MatInput } from "@angular/material/input";
+import { MatFormField, MatLabel, MatSuffix } from "@angular/material/form-field";
+import { NgIf, NgFor } from "@angular/common";
+import { MatIcon } from "@angular/material/icon";
+import { MatIconButton } from "@angular/material/button";
+import { MatToolbar } from "@angular/material/toolbar";
 
 @Component({
-   selector: "em-page-header",
-   templateUrl: "./page-header.component.html",
-   styleUrls: ["./page-header.component.scss"]
+    selector: "em-page-header",
+    templateUrl: "./page-header.component.html",
+    styleUrls: ["./page-header.component.scss"],
+    standalone: true,
+    imports: [MatToolbar, MatIconButton, MatIcon, NgIf, MatFormField, MatLabel, MatInput, FormsModule, MatAutocompleteTrigger, MatSuffix, MatAutocomplete, NgFor, MatOption, MatSelect]
 })
 export class PageHeaderComponent implements OnInit, OnDestroy {
    @Input() title: string;

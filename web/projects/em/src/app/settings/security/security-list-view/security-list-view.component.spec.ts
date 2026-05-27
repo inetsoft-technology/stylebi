@@ -34,10 +34,9 @@ describe("SecurityListViewComponent", () => {
           MatCardModule,
           MatIconModule,
           MatButtonModule,
-          MatProgressSpinnerModule
-       ],
-      declarations: [ SecurityListViewComponent ]
-    })
+          MatProgressSpinnerModule,
+            SecurityListViewComponent]
+         })
     .compileComponents();
   }));
 

@@ -17,14 +17,23 @@
  */
 import { BreakpointObserver } from "@angular/cdk/layout";
 import { Component, NgZone, OnDestroy, OnInit, ViewChild } from "@angular/core";
-import { MatSidenav } from "@angular/material/sidenav";
-import { Router } from "@angular/router";
+import { MatSidenav, MatSidenavContainer, MatSidenavContent } from "@angular/material/sidenav";
+import { Router, RouterLink, RouterLinkActive, RouterOutlet } from "@angular/router";
 import { Subject, Subscription } from "rxjs";
 import { takeUntil } from "rxjs/operators";
 import { AppInfoService } from "../../../../../shared/util/app-info.service";
 import { AuthorizationService } from "../../authorization/authorization.service";
 import { PageHeaderService } from "../../page-header/page-header.service";
 import { Secured } from "../../secured";
+import { TopScrollDirective } from "../../top-scroll/top-scroll.directive";
+import { NgIf } from "@angular/common";
+import { MatNavList, MatListItem } from "@angular/material/list";
+import { MatIcon } from "@angular/material/icon";
+import { MatIconButton } from "@angular/material/button";
+import { FormsModule } from "@angular/forms";
+import { MatInput } from "@angular/material/input";
+import { MatFormField, MatSuffix } from "@angular/material/form-field";
+import { PageHeaderComponent } from "../../page-header/page-header.component";
 
 const SMALL_WIDTH_BREAKPOINT = 720;
 
@@ -33,9 +42,11 @@ const SMALL_WIDTH_BREAKPOINT = 720;
    label: "Monitoring"
 })
 @Component({
-   selector: "em-monitoring-sidenav",
-   templateUrl: "./monitoring-sidenav.component.html",
-   styleUrls: ["./monitoring-sidenav.component.scss"]
+    selector: "em-monitoring-sidenav",
+    templateUrl: "./monitoring-sidenav.component.html",
+    styleUrls: ["./monitoring-sidenav.component.scss"],
+    standalone: true,
+    imports: [PageHeaderComponent, MatSidenavContainer, MatSidenav, MatFormField, MatInput, FormsModule, MatIconButton, MatSuffix, MatIcon, MatNavList, NgIf, MatListItem, RouterLink, RouterLinkActive, MatSidenavContent, TopScrollDirective, RouterOutlet]
 })
 export class MonitoringSidenavComponent implements OnInit, OnDestroy {
    @ViewChild(MatSidenav, { static: true }) sidenav: MatSidenav;

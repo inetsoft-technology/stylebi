@@ -21,6 +21,12 @@ import { ContextHelp } from "../../../context-help";
 import { PresentationSettingsChanges } from "../presentation-settings-view/presentation-settings-view.component";
 import { PresentationSettingsType } from "../presentation-settings-view/presentation-settings-type.enum";
 import { PresentationAISettingsModel } from "./presentation-ai-settings-model";
+import { MatInput } from "@angular/material/input";
+import { MatFormField, MatLabel, MatHint } from "@angular/material/form-field";
+import { FormsModule } from "@angular/forms";
+import { MatCheckbox } from "@angular/material/checkbox";
+import { MatCard, MatCardTitle, MatCardContent } from "@angular/material/card";
+import { NgIf } from "@angular/common";
 
 @Searchable({
    route: "/settings/presentation/settings#ai-integration",
@@ -32,8 +38,10 @@ import { PresentationAISettingsModel } from "./presentation-ai-settings-model";
    link: "EMPresentationAIIntegration"
 })
 @Component({
-   selector: "em-presentation-ai-settings-view",
-   templateUrl: "./presentation-ai-settings-view.component.html"
+    selector: "em-presentation-ai-settings-view",
+    templateUrl: "./presentation-ai-settings-view.component.html",
+    standalone: true,
+    imports: [NgIf, MatCard, MatCardTitle, MatCardContent, MatCheckbox, FormsModule, MatFormField, MatLabel, MatInput, MatHint]
 })
 export class PresentationAISettingsViewComponent {
    @Input() model: PresentationAISettingsModel;

@@ -27,26 +27,24 @@ import { DateTimePickerComponent } from "./date-time-picker.component";
 import { FirstDayOfWeekService } from "../../../../../../portal/src/app/common/services/first-day-of-week.service";
 
 @NgModule({
-   imports: [
-      CommonModule,
-      FormsModule,
-      ReactiveFormsModule,
-      MatDatepickerModule,
-      MatFormFieldModule,
-      MatIconModule,
-      MatInputModule
-   ],
-   declarations: [
-      DatepickerComponent,
-      DateTimePickerComponent
-   ],
-   providers: [
-     FirstDayOfWeekService
-   ],
-   exports: [
-      DatepickerComponent,
-      DateTimePickerComponent
-   ]
+    imports: [
+        CommonModule,
+        FormsModule,
+        ReactiveFormsModule,
+        MatDatepickerModule,
+        MatFormFieldModule,
+        MatIconModule,
+        MatInputModule,
+        DatepickerComponent,
+        DateTimePickerComponent
+    ],
+    providers: [
+        FirstDayOfWeekService
+    ],
+    exports: [
+        DatepickerComponent,
+        DateTimePickerComponent
+    ]
 })
 export class DatepickerModule {
 }

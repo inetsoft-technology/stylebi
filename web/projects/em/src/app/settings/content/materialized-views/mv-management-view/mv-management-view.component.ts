@@ -39,14 +39,26 @@ import {MVManagementModel} from "./mv-management-model";
 import {DeviceType} from "../../../../common/util/table/expandable-row-table/expandable-row-table.component";
 import {SortTypes} from "../../../../../../../shared/util/sort/sort-types";
 import {MVChangeService} from "./mv-change.service";
+import { LoadingSpinnerComponent } from "../../../../common/util/loading-spinner/loading-spinner.component";
+import { MatButton } from "@angular/material/button";
+import { FormsModule } from "@angular/forms";
+import { MatCheckbox } from "@angular/material/checkbox";
+import { TableView } from "../../../../common/util/table/table-view.component";
+import { MatOption } from "@angular/material/core";
+import { NgFor, NgIf } from "@angular/common";
+import { MatSelect } from "@angular/material/select";
+import { MatFormField, MatLabel } from "@angular/material/form-field";
+import { EditorPanelComponent } from "../../../../common/util/editor-panel/editor-panel.component";
 
 @Component({
-   selector: "em-mv-management-view",
-   templateUrl: "./mv-management-view.component.html",
-   styleUrls: ["./mv-management-view.component.scss"],
-   providers: [
-      MVChangeService
-   ]
+    selector: "em-mv-management-view",
+    templateUrl: "./mv-management-view.component.html",
+    styleUrls: ["./mv-management-view.component.scss"],
+    providers: [
+        MVChangeService
+    ],
+    standalone: true,
+    imports: [EditorPanelComponent, MatFormField, MatLabel, MatSelect, NgFor, MatOption, TableView, MatCheckbox, FormsModule, NgIf, MatButton, LoadingSpinnerComponent]
 })
 export class MvManagementViewComponent implements OnInit, OnDestroy {
    // Table

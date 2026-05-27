@@ -16,12 +16,16 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, EventEmitter, Input, Output } from "@angular/core";
-import { UntypedFormBuilder, UntypedFormGroup, Validators } from "@angular/forms";
+import { UntypedFormBuilder, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { PresentationFormatsSettingsModel } from "./presentation-formats-settings-model";
 import { PresentationSettingsChanges } from "../presentation-settings-view/presentation-settings-view.component";
 import { Searchable } from "../../../searchable";
 import { PresentationSettingsType } from "../presentation-settings-view/presentation-settings-type.enum";
 import { ContextHelp } from "../../../context-help";
+import { MatInput } from "@angular/material/input";
+import { MatFormField, MatLabel, MatHint } from "@angular/material/form-field";
+import { NgIf } from "@angular/common";
+import { MatCard, MatCardTitle, MatCardContent } from "@angular/material/card";
 
 @Searchable({
    route: "/settings/presentation/settings#general-format",
@@ -33,9 +37,11 @@ import { ContextHelp } from "../../../context-help";
    link: "EMSettingsPresentation"
 })
 @Component({
-   selector: "em-presentation-formats-settings-view",
-   templateUrl: "./presentation-formats-settings-view.component.html",
-   styleUrls: ["./presentation-formats-settings-view.component.scss"]
+    selector: "em-presentation-formats-settings-view",
+    templateUrl: "./presentation-formats-settings-view.component.html",
+    styleUrls: ["./presentation-formats-settings-view.component.scss"],
+    standalone: true,
+    imports: [MatCard, MatCardTitle, MatCardContent, NgIf, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatInput, MatHint]
 })
 export class PresentationFormatsSettingsViewComponent {
    DATE_REGEX = "^(?:(?:(?:full)|(?:long)|(?:medium)|(?:short))|(?:(?:[^A-Za-z]+)|(?:[GyYMwWDdFEuaHkKhmsSzZX]+)|(?:'[^']*'))*)$";

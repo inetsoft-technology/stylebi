@@ -25,12 +25,14 @@ import { ServerPathInfoModel } from "../../../../../../../portal/src/app/vsobjec
 import { TaskActionPaneModel } from "../../../../../../../shared/schedule/model/task-action-pane-model";
 import { TaskActionChanges } from "../task-action-pane.component";
 import { BackupActionModel } from "../../../../../../../shared/schedule/model/backup-action-model";
-import { BackupPathsSave } from "../backup-file/backup-file.component";
+import { BackupPathsSave, BackupFileComponent } from "../backup-file/backup-file.component";
 
 @Component({
-   selector: "em-backup-action-editor",
-   templateUrl: "./backup-action-editor.component.html",
-   styleUrls: ["./backup-action-editor.component.scss"]
+    selector: "em-backup-action-editor",
+    templateUrl: "./backup-action-editor.component.html",
+    styleUrls: ["./backup-action-editor.component.scss"],
+    standalone: true,
+    imports: [BackupFileComponent]
 })
 export class BackupActionEditorComponent {
    @Output() modelChanged = new EventEmitter<TaskActionChanges>();
