@@ -18,8 +18,8 @@
 import { CommonModule } from "@angular/common";
 import { Injector, NgModule, Optional } from "@angular/core";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
-import { DownloadModule } from "../../../../../shared/download/download.module";
-import { AngularResizeEventModule } from "../../../../../shared/resize-event/angular-resize-event.module";
+
+
 import { DndService } from "../../common/dnd/dnd.service";
 import { VSDndService } from "../../common/dnd/vs-dnd.service";
 import { FullScreenService } from "../../common/services/full-screen.service";
@@ -57,19 +57,21 @@ import { MiniToolbarModule } from "../../vsobjects/objects/mini-toolbar/mini-too
 import { createCustomElement } from "@angular/elements";
 import { InteractModule } from "../../widget/interact/interact.module";
 import { AdhocFilterService } from "../../vsobjects/objects/data-tip/adhoc-filter.service";
+import { DownloadTargetComponent } from "../../../../../shared/download/download-target.component";
+import { ResizedDirective } from "../../../../../shared/resize-event/resized.directive";
 
 
 @NgModule({
    imports: [
-      CommonModule,
-      DownloadModule,
-      EmbedChartRoutingModule,
-      VSChartModule,
-      DataTipDirectivesModule,
-      MiniToolbarModule,
-      AngularResizeEventModule,
-      InteractModule,
-   ],
+    CommonModule,
+    EmbedChartRoutingModule,
+    VSChartModule,
+    DataTipDirectivesModule,
+    MiniToolbarModule,
+    InteractModule,
+    DownloadTargetComponent,
+    ResizedDirective,
+],
    declarations: [EmbedChartComponent],
    providers: [
       DataTipService,

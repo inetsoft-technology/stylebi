@@ -19,7 +19,8 @@ import { CommonModule } from "@angular/common";
 import { NgModule } from "@angular/core";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { NgbNavModule, NgbTypeaheadModule } from "@ng-bootstrap/ng-bootstrap";
-import { CkeditorWrapperModule } from "../../../../../shared/ckeditor-wrapper/ckeditor-wrapper.module";
+import { CkeditorWrapperComponent } from "../../../../../shared/ckeditor-wrapper/ckeditor-wrapper.component";
+
 import { AssetTreeModule } from "../asset-tree/asset-tree.module";
 import { WidgetDirectivesModule } from "../directive/widget-directives.module";
 import { IdentityTreeModule } from "../identity-tree/identity-tree.module";
@@ -33,19 +34,19 @@ import { QueryEmailPane } from "./query-email-pane.component";
 
 @NgModule({
    imports: [
-      CommonModule,
-      ModalHeaderModule,
-      NgbNavModule,
-      WidgetDirectivesModule,
-      ReactiveFormsModule,
-      NgbTypeaheadModule,
-      FormsModule,
-      IdentityTreeModule,
-      ScrollableTableModule,
-      ShuffleListModule,
-      AssetTreeModule,
-      CkeditorWrapperModule,
-   ],
+    CommonModule,
+    ModalHeaderModule,
+    NgbNavModule,
+    WidgetDirectivesModule,
+    ReactiveFormsModule,
+    NgbTypeaheadModule,
+    FormsModule,
+    IdentityTreeModule,
+    ScrollableTableModule,
+    ShuffleListModule,
+    AssetTreeModule,
+    CkeditorWrapperComponent,
+],
    declarations: [
       EmailAddrDialog,
       EmailPane,

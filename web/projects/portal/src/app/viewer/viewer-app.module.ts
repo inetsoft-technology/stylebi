@@ -17,8 +17,9 @@
  */
 import { CommonModule } from "@angular/common";
 import { NgModule } from "@angular/core";
-import { DownloadModule } from "../../../../shared/download/download.module";
-import { AiAssistantModule } from "../../../../shared/ai-assistant/ai-assistant.module";
+import { AiAssistantPanelComponent } from "../../../../shared/ai-assistant/ai-assistant-panel.component";
+import { DownloadTargetComponent } from "../../../../shared/download/download-target.component";
+
 import { UIContextService } from "../common/services/ui-context.service";
 import { HideNavService } from "../portal/services/hide-nav.service";
 import { VSTrapService } from "../vsobjects/util/vs-trap.service";
@@ -34,13 +35,13 @@ import { WidgetParameterModule } from "../widget/parameter/widget-parameter.modu
 
 @NgModule({
    imports: [
-      CommonModule,
-      DownloadModule,
-      ViewerViewModule,
-      ViewerAppRoutingModule,
-      WidgetParameterModule,
-      AiAssistantModule
-   ],
+    CommonModule,
+    ViewerViewModule,
+    ViewerAppRoutingModule,
+    WidgetParameterModule,
+    AiAssistantPanelComponent,
+    DownloadTargetComponent
+],
    providers: [
       VSTrapService,
       UIContextService,

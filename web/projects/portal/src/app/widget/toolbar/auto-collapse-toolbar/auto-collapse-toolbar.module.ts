@@ -17,16 +17,16 @@
  */
 import {CommonModule} from "@angular/common";
 import {NgModule} from "@angular/core";
-import { AngularResizeEventModule } from "../../../../../../shared/resize-event/angular-resize-event.module";
+import { ResizedDirective } from "../../../../../../shared/resize-event/resized.directive";
 import {AutoCollapseToolbarComponent} from "./auto-collapse-toolbar.component";
 import {FixedDropdownModule} from "../../fixed-dropdown/fixed-dropdown.module";
 
 @NgModule({
    imports: [
-      CommonModule,
-      AngularResizeEventModule,
-      FixedDropdownModule,
-   ],
+    CommonModule,
+    FixedDropdownModule,
+    ResizedDirective,
+],
    declarations: [
       AutoCollapseToolbarComponent
    ],

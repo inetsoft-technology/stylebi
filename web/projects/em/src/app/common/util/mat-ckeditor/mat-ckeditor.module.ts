@@ -18,7 +18,7 @@
 import { CommonModule } from "@angular/common";
 import { NgModule } from "@angular/core";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
-import { CkeditorWrapperModule } from "../../../../../../shared/ckeditor-wrapper/ckeditor-wrapper.module";
+import { CkeditorWrapperComponent } from "../../../../../../shared/ckeditor-wrapper/ckeditor-wrapper.component";
 import { MatCkeditorComponent } from "./mat-ckeditor.component";
 
 @NgModule({
@@ -32,7 +32,7 @@ import { MatCkeditorComponent } from "./mat-ckeditor.component";
       CommonModule,
       FormsModule,
       ReactiveFormsModule,
-      CkeditorWrapperModule
+      CkeditorWrapperComponent
    ]
 })
 export class MatCkeditorModule {

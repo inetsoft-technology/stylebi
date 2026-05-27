@@ -27,7 +27,7 @@ import { MatInputModule } from "@angular/material/input";
 import { MatSelectModule } from "@angular/material/select";
 import { NoopAnimationsModule } from "@angular/platform-browser/animations";
 import { RouterModule } from "@angular/router";
-import { DownloadModule } from "../../../../../../shared/download/download.module";
+import { DownloadTargetComponent } from "../../../../../../shared/download/download-target.component";
 import { AppInfoService } from "../../../../../../shared/util/app-info.service";
 import { EditorPanelModule } from "../../../common/util/editor-panel/editor-panel.module";
 import { TableViewModule } from "../../../common/util/table/table-view.module";
@@ -59,7 +59,7 @@ describe("LoggingSettingsPageComponent", () => {
             MatInputModule,
             MatSelectModule,
             NoopAnimationsModule,
-            DownloadModule,
+            DownloadTargetComponent,
             EditorPanelModule,
             TableViewModule
          ],

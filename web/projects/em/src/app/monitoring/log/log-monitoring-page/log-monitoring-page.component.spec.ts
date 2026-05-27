@@ -27,7 +27,7 @@ import { MatListModule } from "@angular/material/list";
 import { MatSelectModule } from "@angular/material/select";
 import { NoopAnimationsModule } from "@angular/platform-browser/animations";
 import { of as observableOf } from "rxjs";
-import { DownloadModule } from "../../../../../../shared/download/download.module";
+import { DownloadTargetComponent } from "../../../../../../shared/download/download-target.component";
 import { MonitoringDataService } from "../../monitoring-data.service";
 import { LogMonitoringViewComponent } from "../log-monitoring-view/log-monitoring-view.component";
 import { LogMonitoringPageComponent } from "./log-monitoring-page.component";
@@ -53,7 +53,7 @@ describe("LogMonitoringPageComponent", () => {
             MatListModule,
             MatOptionModule,
             MatSelectModule,
-            DownloadModule,
+            DownloadTargetComponent,
             NoopAnimationsModule,
             ScrollingModule
          ],

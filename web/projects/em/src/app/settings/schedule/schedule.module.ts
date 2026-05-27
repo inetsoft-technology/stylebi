@@ -48,7 +48,7 @@ import { MatTabsModule } from "@angular/material/tabs";
 import { MatToolbarModule } from "@angular/material/toolbar";
 import { MatTooltipModule } from "@angular/material/tooltip";
 import { MatTreeModule } from "@angular/material/tree";
-import { AngularResizeEventModule } from "../../../../../shared/resize-event/angular-resize-event.module";
+import { ResizedDirective } from "../../../../../shared/resize-event/resized.directive";
 import { LocalizedMatPaginator } from "../../../../../shared/util/localized-mat-paginator";
 import { CustomValueAccessorModule } from "../../common/custom-value-accessor/custom-value-accessor.module";
 import { CustomNativeDateAdapter } from "../../common/util/datepicker/custom-native-date-adapter.service";
@@ -151,7 +151,7 @@ import { TaskOptionsPane } from "./task-options-pane/task-options-pane.component
       MatTabsModule,
       MatTooltipModule,
       MatTreeModule,
-      AngularResizeEventModule,
+      ResizedDirective,
       CustomValueAccessorModule,
       DatepickerModule,
       ScheduleRoutingModule,

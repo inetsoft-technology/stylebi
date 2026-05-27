@@ -17,17 +17,18 @@
  */
 import { CommonModule } from "@angular/common";
 import { NgModule } from "@angular/core";
-import { AngularResizeEventModule } from "../../../../../shared/resize-event/angular-resize-event.module";
+import { ResizedDirective } from "../../../../../shared/resize-event/resized.directive";
+
 import { VSObjectModule } from "../../vsobjects/vs-object.module";
 import { ViewerViewComponent } from "./viewer-view.component";
 import { PageTabComponent } from "./page-tab.component";
 
 @NgModule({
    imports: [
-      CommonModule,
-      VSObjectModule,
-      AngularResizeEventModule,
-   ],
+    CommonModule,
+    VSObjectModule,
+    ResizedDirective,
+],
    declarations: [
       ViewerViewComponent,
       PageTabComponent
