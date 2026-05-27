@@ -350,7 +350,7 @@ public class SaveViewsheetDialogService {
       return null;
    }
 
-
+   private void ensureParentFolderExists(AssetEntry folder, Principal principal) {
       try {
          if(!assetRepository.containsEntry(folder)) {
             assetRepository.addFolder(folder, principal);
