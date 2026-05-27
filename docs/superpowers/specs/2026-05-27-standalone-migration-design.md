@@ -176,8 +176,16 @@ After each schematic run, fix these categories of errors before opening a PR:
 
 4. **Angular Elements entry points** — Covered above; portal PR 3B only.
 
+## Prerequisites
+
+All `npm` and `ng` commands must be run from `community/web/` with Node 18 active:
+```bash
+cd community/web
+nvm use v18
+```
+
 ## Success criteria per PR
 
 - `npm run build` exits with no TypeScript errors
-- `npm run test` passes with no failures
+- `npm run test` passes with no failures (runs portal tests; use `npm run test:em` for em)
 - No regressions in any other build target (`elements`, `viewer-element` builds for portal PR 3B)
