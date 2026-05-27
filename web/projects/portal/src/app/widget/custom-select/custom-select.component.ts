@@ -245,7 +245,6 @@ export class CustomSelectComponent implements ControlValueAccessor, AfterViewIni
    }
 
    onMenuMouseDown(event: MouseEvent): void {
-      const target = event.target as HTMLElement;
       const optionButton = this.findOptionButton(event);
       const optionIndex = Number(optionButton?.dataset?.optionIndex);
 

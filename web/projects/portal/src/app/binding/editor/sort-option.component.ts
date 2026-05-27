@@ -72,6 +72,7 @@ export class SortOption implements OnInit {
    @Input() set dimension(dim: BDimensionRef) {
       this._dimension = dim;
       this.sortOrders = this.getSortOrders();
+      this.updateSortOrderSelectOptions();
    }
 
    get dimension() {
@@ -96,6 +97,7 @@ export class SortOption implements OnInit {
    valueLabelList: ValueLabelModel[];
    manualOrders: string[];
    sortOrders: any[];
+   sortOrderSelectOptions: CustomSelectOption<any>[] = [];
    rankingOptions: any[];
    public ValueMode = ValueMode;
    aggregates: any[] = [];
@@ -112,6 +114,7 @@ export class SortOption implements OnInit {
    ngOnInit(): void {
       this.initAggrs();
       this.sortOrders = this.getSortOrders();
+      this.updateSortOrderSelectOptions();
       this.rankingOptions = RANKING_OPTIONS;
       this.fixSortOrder();
       this.fixSortByCol();
@@ -246,8 +249,8 @@ export class SortOption implements OnInit {
       return !this.aggregates || this.aggregates.length == 0;
    }
 
-   get sortOrderSelectOptions(): CustomSelectOption<any>[] {
-      return (this.getSortOrders() || [])
+   private updateSortOrderSelectOptions(): void {
+      this.sortOrderSelectOptions = (this.sortOrders || [])
          .filter((sort) => this.sortItemVisible(sort))
          .map((sort) => ({
             value: sort.value,
