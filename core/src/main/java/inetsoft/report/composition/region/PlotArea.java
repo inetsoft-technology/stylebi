@@ -1751,8 +1751,18 @@ public class PlotArea extends GridContainerArea implements GraphComponentArea, R
          tooltip.removeTooltip(xKey);
       }
 
-      // OHL stay at tier-2; aesthetics past them drop to tier-3.
-      int auxCount = Math.max(0, tipMeasures.length - 1);
+      // Count only entries that actually landed in the tooltip — skips OHLC names
+      // dropped by the allfields filter so aesthetics don't get promoted to tier-2.
+      int auxCount = 0;
+
+      for(int i = 1; i < tipMeasures.length; i++) {
+         String label = tips.get(tipMeasures[i]);
+
+         if(label != null && tooltip.containsTooltip(palette.put(label))) {
+            auxCount++;
+         }
+      }
+
       tooltip.setTier2GroupSize(auxCount);
    }
 
