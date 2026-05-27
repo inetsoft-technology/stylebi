@@ -16,25 +16,12 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-import { CommonModule } from "@angular/common";
 import { NgModule } from "@angular/core";
-import { FormsModule, ReactiveFormsModule } from "@angular/forms";
-import { CKEditorModule } from "@ckeditor/ckeditor5-angular";
 import { CkeditorWrapperComponent } from "./ckeditor-wrapper.component";
 
 @NgModule({
-   declarations: [
-      CkeditorWrapperComponent
-   ],
-   exports: [
-      CkeditorWrapperComponent
-   ],
-   imports: [
-      CommonModule,
-      FormsModule,
-      ReactiveFormsModule,
-      CKEditorModule
-   ],
+    exports: [CkeditorWrapperComponent],
+    imports: [CkeditorWrapperComponent],
 })
 export class CkeditorWrapperModule {
 }

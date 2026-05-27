@@ -16,16 +16,14 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-import { CommonModule } from "@angular/common";
 import { CUSTOM_ELEMENTS_SCHEMA, NgModule } from "@angular/core";
 import { AiAssistantDialogComponent } from "./ai-assistant-dialog.component";
 import { AiAssistantPanelComponent } from "./ai-assistant-panel.component";
 
 @NgModule({
-   imports: [ CommonModule ],
-   exports: [ AiAssistantDialogComponent, AiAssistantPanelComponent ],
-   declarations: [ AiAssistantDialogComponent, AiAssistantPanelComponent ],
-   schemas: [CUSTOM_ELEMENTS_SCHEMA]
+    imports: [AiAssistantDialogComponent, AiAssistantPanelComponent],
+    exports: [AiAssistantDialogComponent, AiAssistantPanelComponent],
+    schemas: [CUSTOM_ELEMENTS_SCHEMA]
 })
 export class AiAssistantModule {
 }

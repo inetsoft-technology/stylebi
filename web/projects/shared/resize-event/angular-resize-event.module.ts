@@ -19,13 +19,10 @@ import { NgModule } from "@angular/core";
 import { ResizedDirective } from "./resized.directive";
 
 @NgModule({
-   declarations: [
-      ResizedDirective
-   ],
-   imports: [],
-   exports: [
-      ResizedDirective
-   ]
+    imports: [ResizedDirective],
+    exports: [
+        ResizedDirective
+    ]
 })
 export class AngularResizeEventModule {
 }
