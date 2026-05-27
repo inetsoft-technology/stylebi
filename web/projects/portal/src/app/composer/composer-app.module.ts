@@ -30,7 +30,6 @@ import {
 } from "@ng-bootstrap/ng-bootstrap";
 
 
-import { AiAssistantDialogComponent } from "../../../../shared/ai-assistant/ai-assistant-dialog.component";
 import { AiAssistantPanelComponent } from "../../../../shared/ai-assistant/ai-assistant-panel.component";
 import { DownloadTargetComponent } from "../../../../shared/download/download-target.component";
 import { ResizedDirective } from "../../../../shared/resize-event/resized.directive";
@@ -381,7 +380,6 @@ import { LineAnchorService } from "./services/line-anchor.service";
     VSObjectDirectivesModule,
     CodemirrorModule,
     ScrollingModule,
-    AiAssistantDialogComponent,
     AiAssistantPanelComponent,
     DownloadTargetComponent,
     ResizedDirective,

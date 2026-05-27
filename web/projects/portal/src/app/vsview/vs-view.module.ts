@@ -18,7 +18,6 @@
 import { CommonModule } from "@angular/common";
 import { NgModule } from "@angular/core";
 import { FormsModule } from "@angular/forms";
-import { AiAssistantDialogComponent } from "../../../../shared/ai-assistant/ai-assistant-dialog.component";
 import { AiAssistantPanelComponent } from "../../../../shared/ai-assistant/ai-assistant-panel.component";
 import { BindingModule } from "../binding/binding.module";
 import { VSChartModule } from "../vsobjects/objects/chart/vs-chart.module";
@@ -53,7 +52,6 @@ import { MiniToolbarModule } from "../vsobjects/objects/mini-toolbar/mini-toolba
     NotificationsModule,
     WidgetDirectivesModule,
     MiniToolbarModule,
-    AiAssistantDialogComponent,
     AiAssistantPanelComponent
 ],
    declarations: [

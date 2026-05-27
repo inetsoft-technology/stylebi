@@ -17,7 +17,6 @@
  */
 import { CommonModule } from "@angular/common";
 import { NgModule } from "@angular/core";
-import { AiAssistantDialogComponent } from "../../../../shared/ai-assistant/ai-assistant-dialog.component";
 import { AiAssistantPanelComponent } from "../../../../shared/ai-assistant/ai-assistant-panel.component";
 import { DownloadTargetComponent } from "../../../../shared/download/download-target.component";
 
@@ -40,7 +39,6 @@ import { WidgetParameterModule } from "../widget/parameter/widget-parameter.modu
     ViewerViewModule,
     ViewerAppRoutingModule,
     WidgetParameterModule,
-    AiAssistantDialogComponent,
     AiAssistantPanelComponent,
     DownloadTargetComponent
 ],

@@ -34,7 +34,6 @@ import { MonitoringDataService } from "../../../../em/src/app/monitoring/monitor
 
 import { ScheduleTaskNamesService } from "../../../../shared/schedule/schedule-task-names.service";
 import { PORTAL, ScheduleUsersService } from "../../../../shared/schedule/schedule-users.service";
-import { AiAssistantDialogComponent } from "../../../../shared/ai-assistant/ai-assistant-dialog.component";
 import { AiAssistantPanelComponent } from "../../../../shared/ai-assistant/ai-assistant-panel.component";
 import { CkeditorWrapperComponent } from "../../../../shared/ckeditor-wrapper/ckeditor-wrapper.component";
 import { CodemirrorService } from "../../../../shared/util/codemirror/codemirror.service";
@@ -359,7 +358,6 @@ import { PortalTabsService } from "./services/portal-tabs.service";
     DataConditionModule,
     DynamicComboBoxModule,
     SimpleTableModule,
-    AiAssistantDialogComponent,
     AiAssistantPanelComponent,
     CkeditorWrapperComponent,
 ],

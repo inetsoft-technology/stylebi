@@ -60,8 +60,6 @@ import {
    VSLoadingDisplayModule
 } from "../../vsobjects/objects/vs-loading-display/vs-loading-display.module";
 import { DownloadTargetComponent } from "../../../../../shared/download/download-target.component";
-import { ResizedDirective } from "../../../../../shared/resize-event/resized.directive";
-
 
 @NgModule({
    imports: [
@@ -72,7 +70,6 @@ import { ResizedDirective } from "../../../../../shared/resize-event/resized.dir
     VSObjectModule,
     VSLoadingDisplayModule,
     DownloadTargetComponent,
-    ResizedDirective,
 ],
    declarations: [EmbedViewerComponent],
    providers: [
