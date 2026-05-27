@@ -21,8 +21,10 @@ import inetsoft.graph.*;
 import inetsoft.graph.data.DataSet;
 import inetsoft.graph.data.DataSetIndex;
 import inetsoft.graph.element.RelationElement;
+import inetsoft.graph.geometry.RelationGeometry;
 import inetsoft.graph.guide.axis.Axis;
 import inetsoft.graph.scale.Scale;
+import inetsoft.graph.visual.RelationVO;
 
 import java.awt.geom.*;
 import java.util.Map;
@@ -203,10 +205,47 @@ public class RelationCoord extends Coordinate {
     */
    @Override
    public double getUnitMinHeight() {
+      // Horizontal mode: read natural mxcell bounds directly. Visual bounds union scaled node
+      // positions with fixed-pixel text labels; back-dividing then amplifies the label
+      // contribution by 1/scaleY, padding each cell well beyond the rotated tree's actual
+      // extent when facet rows shrink scaleY.
+      if(isFirstElementHorizontal()) {
+         Rectangle2D natural = getNaturalLayoutBounds();
+
+         if(natural != null) {
+            return natural.getHeight() + GAP * 2;
+         }
+      }
+
       Rectangle2D box = getVisualObjectBounds();
-      // preferred size should be unscaled size
+
+      if(box == null) {
+         return 100;
+      }
+
       double scaleY = Math.abs(getVGraph().getScreenTransform().getScaleY());
-      return box != null ? (box.getMaxY() - box.getY()) / scaleY + GAP * 2 : 100;
+      return (box.getMaxY() - box.getY()) / scaleY + GAP * 2;
+   }
+
+   private Rectangle2D getNaturalLayoutBounds() {
+      VGraph vgraph = getVGraph();
+
+      if(vgraph == null) {
+         return null;
+      }
+
+      Rectangle2D bounds = null;
+
+      for(int i = 0; i < vgraph.getVisualCount(); i++) {
+         if(vgraph.getVisual(i) instanceof RelationVO vo
+            && vo.getGeometry() instanceof RelationGeometry geo)
+         {
+            Rectangle2D rect = geo.getMxCell().getGeometry().getRectangle();
+            bounds = bounds == null ? rect : bounds.createUnion(rect);
+         }
+      }
+
+      return bounds;
    }
 
    /**

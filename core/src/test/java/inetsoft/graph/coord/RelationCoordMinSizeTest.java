@@ -23,8 +23,15 @@ import inetsoft.graph.VGraph;
 import inetsoft.graph.aesthetic.StaticSizeFrame;
 import inetsoft.graph.data.DefaultDataSet;
 import inetsoft.graph.element.RelationElement;
+import inetsoft.test.BaseTestConfiguration;
+import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.awt.geom.AffineTransform;
 
@@ -36,7 +43,11 @@ import static org.junit.jupiter.api.Assertions.*;
  * skips the back-divide (X is depth, scaleX is Y-binding-driven, dividing would over-report
  * X and force the chart canvas to widen unnecessarily).
  */
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome
+@Tag("core")
 class RelationCoordMinSizeTest {
    @Test
    void horizontalModeSkipsBackDivideVerticalDoesNot() {
@@ -61,23 +72,21 @@ class RelationCoordMinSizeTest {
    }
 
    @Test
-   void heightBackDivideAppliesInBothOrientations() {
-      // getUnitMinHeight intentionally does not gate on the horizontal flag — toggling
-      // the flag must not change Y's formula.
+   void heightInHorizontalModeIsInvariantToScreenScale() {
+      // Horizontal mode reads the natural mxgraph layout bounds directly, so artificial
+      // changes to the screen transform must not affect the reported height. Vertical mode
+      // still goes through visual bounds + back-divide and so is scale-sensitive.
       RelationCoord coord = treeCoord(false);
       RelationElement elem = (RelationElement) coord.getVGraph().getEGraph().getElement(0);
 
-      coord.getVGraph().concat(AffineTransform.getScaleInstance(0.5, 0.5), true);
-
       elem.setHorizontal(true);
-      double horizMinH = coord.getUnitMinHeight();
+      double horizBefore = coord.getUnitMinHeight();
+      coord.getVGraph().concat(AffineTransform.getScaleInstance(0.5, 0.05), true);
+      double horizAfter = coord.getUnitMinHeight();
 
-      elem.setHorizontal(false);
-      double vertMinH = coord.getUnitMinHeight();
-
-      assertEquals(horizMinH, vertMinH, 0.5,
-         "getUnitMinHeight must back-divide in both orientations (horiz=" + horizMinH
-            + ", vert=" + vertMinH + ")");
+      assertEquals(horizBefore, horizAfter, 0.5,
+         "horizontal-mode unitMinHeight must be invariant to screen-transform scaling "
+            + "(before=" + horizBefore + ", after=" + horizAfter + ")");
    }
 
    private static RelationCoord treeCoord(boolean horizontal) {
