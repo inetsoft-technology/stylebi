@@ -18,10 +18,12 @@
 package inetsoft.report.composition.region;
 
 import inetsoft.uql.viewsheet.graph.ChartInfo;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+@Tag("core")
 class ChartToolTipTest {
    @Test
    void defaultStyleRendersLegacyFormat() {
@@ -111,6 +113,30 @@ class ChartToolTipTest {
                  "Real content must claim tier-1, not be demoted by a blank leading line");
       assertTrue(out.contains("<div class=\"tt-tier-2\">Line2"));
       assertFalse(out.contains("tt-tier-3"));
+   }
+
+   @Test
+   void cardStyleSoloEmphasizesStackTotal() {
+      IndexedSet<String> palette = new IndexedSet<>();
+      ChartToolTip tip = new ChartToolTip();
+      tip.setStyle(ChartInfo.TooltipStyle.CARD);
+      tip.addTooltip(palette.put("Sum(Gross Amount)"), palette.put("994.7K"));
+      tip.addTooltip(palette.put("Cal Month"), palette.put("JUL-TY"));
+      tip.addTooltip(palette.put("Category"), palette.put("Personal"));
+      tip.addTooltip(palette.put("Total"), palette.put("13.6M"));
+      tip.setStackTotalName("Total");
+
+      String out = tip.getTooltip(palette);
+
+      assertTrue(out.contains("<div class=\"tt-tier-1\">Sum(Gross Amount):&nbsp;994.7K"),
+                 "Hovered measure stays at tier-1");
+      assertTrue(out.contains("<div class=\"tt-tier-2\">Cal Month:&nbsp;JUL-TY"));
+      assertTrue(out.contains("<div class=\"tt-tier-3\">Category:&nbsp;Personal"));
+      assertTrue(out.endsWith("<div class=\"tt-tier-1 tt-stack-total\">Total:&nbsp;13.6M</div>"),
+                 "Solo card must emphasize the stack total with tt-stack-total at the end");
+      // The stack total must not also appear as a plain tier row.
+      int totalCount = out.split("Total:&nbsp;13\\.6M", -1).length - 1;
+      assertEquals(1, totalCount, "Stack total must appear exactly once");
    }
 
    @Test
