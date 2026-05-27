@@ -447,8 +447,10 @@ public class MVAction implements AssetSupport, Cloneable, XMLSerializable, Cance
          future.cancel(true);
       }
 
-      if(runningCreators.get(mvname) != null) {
-         runningCreators.get(mvname).cancel();
+      MVCreator creator = runningCreators.get(mvname);
+
+      if(creator != null) {
+         creator.cancel();
       }
    }
 
