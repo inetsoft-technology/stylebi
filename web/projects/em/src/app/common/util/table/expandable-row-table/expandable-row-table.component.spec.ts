@@ -50,7 +50,8 @@ describe("ExpandableRowTableComponent", () => {
             MatExpansionModule,
             MatFormFieldModule,
             MatListModule,
-            ExpandableRowTableComponent],
+            ExpandableRowTableComponent
+         ],
          schemas: [NO_ERRORS_SCHEMA]
       }).compileComponents();
    }));

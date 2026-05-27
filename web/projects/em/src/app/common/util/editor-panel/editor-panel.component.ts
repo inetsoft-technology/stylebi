@@ -44,8 +44,7 @@ const SMALL_WIDTH_BREAKPOINT = 720;
     styleUrls: ["./editor-panel.component.scss"],
     encapsulation: ViewEncapsulation.None,
     providers: [TopScrollSupport],
-    host: { "class": "editor-panel" } // eslint-disable-line @angular-eslint/no-host-metadata-property
-    ,
+    host: { "class": "editor-panel" }, // eslint-disable-line @angular-eslint/no-host-metadata-property
     standalone: true,
     imports: [NgStyle, NgClass, MatCard, MatCardContent, NgIf, MatButton]
 })

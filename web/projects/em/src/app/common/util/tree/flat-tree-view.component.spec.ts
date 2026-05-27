@@ -77,7 +77,8 @@ describe("FlatTreeViewComponent", () => {
             MatButtonModule,
             MatIconModule,
             ScrollingModule,
-            TestContentTreeView],
+            TestContentTreeView
+         ],
          schemas: [
             NO_ERRORS_SCHEMA
          ]

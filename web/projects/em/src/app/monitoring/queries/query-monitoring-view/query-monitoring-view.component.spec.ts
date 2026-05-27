@@ -38,7 +38,8 @@ describe("QueryMonitoringViewComponent", () => {
          imports: [
             NoopAnimationsModule,
             MatButtonModule,
-            QueryMonitoringViewComponent],
+            QueryMonitoringViewComponent
+         ],
          schemas: [NO_ERRORS_SCHEMA]
       })
          .compileComponents();

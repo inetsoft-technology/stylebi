@@ -43,7 +43,8 @@ describe("RegularTableComponent", () => {
             MatExpansionModule,
             MatFormFieldModule,
             MatListModule,
-            RegularTableComponent],
+            RegularTableComponent
+         ],
          schemas: [NO_ERRORS_SCHEMA]
       })
          .compileComponents();

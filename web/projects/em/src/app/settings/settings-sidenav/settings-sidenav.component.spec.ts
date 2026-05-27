@@ -38,7 +38,8 @@ describe("SettingsSidenavComponent", () => {
             RouterModule.forRoot([]),
             MatIconModule,
             HttpClientTestingModule,
-            SettingsSidenavComponent],
+            SettingsSidenavComponent
+         ],
          providers: [
             { provide: AuthorizationService, useValue: authzService }
          ],

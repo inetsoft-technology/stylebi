@@ -46,7 +46,8 @@ describe("MonitoringSidenavComponent", () => {
             HttpClientTestingModule,
             RouterModule.forRoot([]),
             MatIconModule,
-            MonitoringSidenavComponent],
+            MonitoringSidenavComponent
+         ],
          providers: [
             AppInfoService,
             { provide: AuthorizationService, useValue: authzService }

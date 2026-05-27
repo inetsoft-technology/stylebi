@@ -37,7 +37,8 @@ describe("ChangePasswordFormComponent", () => {
          imports: [
             ReactiveFormsModule,
             MaterialTestingModule,
-            ChangePasswordFormComponent],
+            ChangePasswordFormComponent
+         ],
          providers: [
             { provide: ChangePasswordService, useValue: pwdService}
          ],
