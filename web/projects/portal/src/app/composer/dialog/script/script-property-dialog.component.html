@@ -23,13 +23,14 @@
    <fieldset>
       <legend>_#(Font)</legend>
       <div class="form-row-float-label row">
-         <div class="col">
-            <div class="form-floating" [formGroup]="form">
-               <input type="number" class="form-control" formControlName="fontSize"
-                      [class.is-invalid]="form.get('fontSize').invalid"/>
-               <label>_#(Font Size)</label>
-               <span class="invalid-feedback">_#(composer.script.fontSize)</span>
-            </div>
+         <div class="col" [formGroup]="form">
+            <label class="form-label">_#(Font Size)</label>
+            <number-stepper formControlName="fontSize" [min]="1"
+                            [invalid]="form.get('fontSize').invalid">
+            </number-stepper>
+            <span class="invalid-feedback d-block" *ngIf="form.get('fontSize').invalid">
+               _#(composer.script.fontSize)
+            </span>
          </div>
       </div>
       <legend>_#(Content)</legend>

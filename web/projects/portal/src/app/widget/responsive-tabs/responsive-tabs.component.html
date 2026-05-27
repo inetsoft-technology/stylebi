@@ -19,7 +19,7 @@
   <ng-container *ngFor="let tab of tabs; let i = index">
     <li *ngIf="firstTabDropdownIndex === -1 || i < firstTabDropdownIndex" class="nav-item tab"
         (click)="selectTab(i)"
-        [class.hover-bg-secondary]="!mobile"
+        [class.hover-bg-neutral]="!mobile"
         [class.active]="i === selectedIndex"
         [class.bb-highlight-filler]="i !== selectedIndex"
         [class.bb-highlight-primary]="i === selectedIndex">
@@ -29,7 +29,7 @@
       </a>
     </li>
   </ng-container>
-  <li *ngIf="firstTabDropdownIndex >= 0" class="nav-item tab hover-bg-secondary" [fixedDropdown]="dropdown"
+  <li *ngIf="firstTabDropdownIndex >= 0" class="nav-item tab hover-bg-neutral" [fixedDropdown]="dropdown"
       dropdownPlacement="bottom" [class.active]="selectedIndex >= firstTabDropdownIndex">
     <a class="nav-link menu-horizontal-icon icon-size-small"></a>
   </li>

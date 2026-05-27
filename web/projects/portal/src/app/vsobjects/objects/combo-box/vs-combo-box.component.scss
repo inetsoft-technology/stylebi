@@ -154,10 +154,7 @@ input[type="number"] {
 }
 
 .dropdown-container {
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  background: white;
-  box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+  overflow: hidden;
 }
 
 .dropdown-viewport {
@@ -168,14 +165,17 @@ input[type="number"] {
 .dropdown-item {
   padding: 8px 12px;
   cursor: pointer;
+  color: var(--inet-text-color);
 
   &:hover {
-    background-color: #f5f5f5;
+    background-color: var(--inet-hover-primary-bg-color);
+    color: var(--inet-text-color);
   }
 
   &.selected {
-    background-color: #e0e0e0;
-    font-weight: bold;
+    background-color: var(--inet-selected-item-bg-color);
+    color: var(--inet-selected-item-text-color);
+    font-weight: 600;
   }
 }
 

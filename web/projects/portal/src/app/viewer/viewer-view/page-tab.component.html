@@ -26,7 +26,7 @@
        [class.scroll-buttons-visible]="scrollButtonsVisible"
        (scroll)="refreshScroll()">
     <ul class="nav nav-tabs tabs-bottom" *ngIf="tabs.length > 1">
-      <li class="nav-item hover-bg-secondary" *ngFor="let tab of tabs"
+      <li class="nav-item hover-bg-neutral" *ngFor="let tab of tabs"
           [title]="tab.tooltip"
           [class.active]="tab.isFocused"
           [class.bt-highlight-filler]="!tab.isFocused"

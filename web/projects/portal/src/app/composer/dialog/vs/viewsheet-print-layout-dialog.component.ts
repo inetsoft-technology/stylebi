@@ -105,6 +105,13 @@ export class ViewsheetPrintLayoutDialog implements OnInit {
       }));
    }
 
+   get scaleFontOptions(): CustomSelectOption<number>[] {
+      return this.scaleOptions.map((scale) => ({
+         label: `${scale}`,
+         value: scale
+      }));
+   }
+
    ngOnInit() {
       if(!this.model) {
          this.model = {
@@ -232,6 +239,7 @@ export class ViewsheetPrintLayoutDialog implements OnInit {
 
    selectScaleFont(value: number): void {
       this.model.scaleFont = value;
+      this.formPrint.controls?.scaleFont?.setValue(value);
    }
 
    unitChanged(units: string) {
@@ -273,6 +281,13 @@ export class ViewsheetPrintLayoutDialog implements OnInit {
          this.model.headerFromEdge = header;
          this.model.footerFromEdge = footer;
          this.model.units = units;
+
+         this.formPrint.patchValue({
+            marginTop: top,
+            marginLeft: left,
+            marginBottom: bottom,
+            marginRight: right
+         });
       }
    }
 }

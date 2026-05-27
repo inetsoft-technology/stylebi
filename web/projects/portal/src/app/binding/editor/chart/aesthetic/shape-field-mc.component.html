@@ -22,7 +22,7 @@
         <!--shape cells-->
         <div [fixedDropdown]="dropdownMenu" [autoClose]="false" [zIndex]="10000"
              [class.field-icon--open]="dropdownOpen"
-             class="field-icon hover-bg-secondary" (openChange)="openChanged($event)">
+             class="field-icon hover-bg-neutral" (openChange)="openChanged($event)">
           <div *ngIf="_isEditEnabled" class="visual-cell-container" title="_#(Edit Shape)">
             <div class="visual-cell no-caret"
                  [style.margin-left.px]="i > 0 ? 2 : 0"

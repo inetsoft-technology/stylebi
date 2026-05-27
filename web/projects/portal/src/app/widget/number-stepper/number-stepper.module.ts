@@ -1,4 +1,4 @@
-/*!
+/*
  * This file is part of StyleBI.
  * Copyright (C) 2024  InetSoft Technology
  *
@@ -15,42 +15,22 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-:host {
-    display: block;
-    height: 100%;
-    width: 100%;
-    overflow: auto;
-//    padding: 5px;
-}
+import { CommonModule } from "@angular/common";
+import { NgModule } from "@angular/core";
+import { FormsModule } from "@angular/forms";
+import { NumberStepperComponent } from "./number-stepper.component";
 
-.intro {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    position: absolute;
-    width: 100%;
-    height: 100%;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background-color: transparent;
-    z-index: 0;
-
-    .intro-content {
-      font-size: 20px;
-      padding: 15px;
-
-      i {
-        vertical-align: -15%;
-      }
-    }
-
-    .intro-content--muted {
-      color: var(--inet-text-muted-color);
-    }
-}
-
-.ws-assembly-graph-pane {
-  z-index: 1;
+@NgModule({
+   imports: [
+      CommonModule,
+      FormsModule,
+   ],
+   declarations: [
+      NumberStepperComponent,
+   ],
+   exports: [
+      NumberStepperComponent,
+   ],
+})
+export class NumberStepperModule {
 }

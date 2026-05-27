@@ -96,23 +96,6 @@ div.CodeMirror {
 }
 
 .composer-header {
-  .btn:focus,.btn:active {
-    box-shadow: none !important;
-  }
-
-  .btn-default, .btn-default:active {
-    background-color: unset;
-    color: unset;
-    &:disabled {
-      background-color: unset;
-      color: unset;
-    }
-    &:hover {
-      background-color: unset;
-      color: unset;
-    }
-  }
-
   .btn-toolbar-pull-right {
      position: absolute;
      right: 10px;
@@ -121,7 +104,8 @@ div.CodeMirror {
   .btn-toolbar .btn {
     min-width: 58px;
     max-width: 92px;
-    height: var(--inet-control-height-lg);
+    min-height: var(--inet-control-height-lg);
+    height: auto;
   }
 
   .btn-toolbar .btn > i {
@@ -159,16 +143,6 @@ div.CodeMirror {
 /*Execute only on IE browser.*/
 @media screen and (-ms-high-contrast:active),(-ms-high-contrast:none) {
    .composer-header {
-     .btn-default, .btn-default:active {
-       color: white;
-       &:disabled {
-         color: white;
-       }
-       &:hover {
-         background-color: rgba(255, 255, 255, 0);
-         color: white;
-       }
-     }
    }
 }
 
@@ -188,44 +162,8 @@ div.CodeMirror {
   margin-left: 3px;
 }
 
-/*made icon color the same as btn color*/
-.btn-icon-color {
-  color: inherit;
-}
-
-.btn-secondary, .btn-default, .btn-primary {
-  &:focus {
-    box-shadow: var(--inet-focus-ring);
-    outline: var(--inet-focus-ring-outline);
-  }
-}
-
 .btn-wide {
   width: 100% !important;
-}
-
-.btn-icon {
-  padding: 2px;
-}
-
-.icon-hover-bg {
-  //  background: transparent; leave the background alone
-  //  border: none;
-  display: inline-flex;
-  align-items: center;
-
-  &:focus {
-    outline: none !important;
-  }
-}
-
-.toolbar-btn {
-  font-size: 13px;
-  border-radius: var(--inet-radius-sm);
-  flex-direction: column;
-  justify-content: flex-start;
-  align-items: center;
-  border-width: 0 !important;
 }
 
 .img-button {

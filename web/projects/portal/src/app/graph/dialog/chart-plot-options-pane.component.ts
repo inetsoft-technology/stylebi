@@ -69,17 +69,17 @@ export class ChartPlotOptionsPaneComponent implements OnInit {
 
       if(this.model.contourEnabled) {
          this.form.addControl("contourLevels" , new UntypedFormControl(
-            {value: this.model.contourLevels},
+            this.model.contourLevels,
             [FormValidators.positiveNonZeroIntegerInRange, FormValidators.isInteger()]
          ));
 
          this.form.addControl("contourBandwidth" , new UntypedFormControl(
-            {value: this.model.contourBandwidth},
+            this.model.contourBandwidth,
             [FormValidators.positiveNonZeroIntegerInRange, FormValidators.isInteger()]
          ));
 
          this.form.addControl("contourCellSize" , new UntypedFormControl(
-            {value: this.model.contourCellSize},
+            this.model.contourCellSize,
             [FormValidators.positiveNonZeroIntegerInRange, FormValidators.isInteger()]
          ));
       }
@@ -98,7 +98,7 @@ export class ChartPlotOptionsPaneComponent implements OnInit {
 
       if(this.model.wordCloud) {
          this.form.addControl("fontScale" , new UntypedFormControl(
-            {value: this.model.wordCloudFontScale},
+            this.model.wordCloudFontScale,
             [control => !(control.value >= 1 && control.value <= 5)
              ? { multiplierRange: true} : null,
              FormValidators.isFloat()]
@@ -107,7 +107,7 @@ export class ChartPlotOptionsPaneComponent implements OnInit {
 
       if(this.model.explodedPieVisible) {
          this.form.addControl("pieRatio" , new UntypedFormControl(
-            {value: this.model.pieRatio},
+            this.model.pieRatio,
             [control => control.value != null && !(control.value >= 0.1 && control.value <= 1)
              ? { pieRatioRange: true} : null,
              FormValidators.isFloat()]
@@ -116,7 +116,7 @@ export class ChartPlotOptionsPaneComponent implements OnInit {
 
       if(this.model.barCornerRadiusVisible) {
          this.form.addControl("barCornerRadius", new UntypedFormControl(
-            {value: this.model.barCornerRadius},
+            this.model.barCornerRadius,
             [control => control.value != null && !(control.value >= 0 && control.value <= 0.5)
              ? { barCornerRadiusRange: true } : null,
              FormValidators.isFloat()]
@@ -125,7 +125,7 @@ export class ChartPlotOptionsPaneComponent implements OnInit {
 
       if(this.model.nodeCornerRadiusVisible) {
          this.form.addControl("nodeCornerRadius", new UntypedFormControl(
-            {value: this.model.nodeCornerRadius},
+            this.model.nodeCornerRadius,
             [control => control.value != null && !(control.value >= 0 && control.value <= 0.5)
              ? { nodeCornerRadiusRange: true } : null,
              FormValidators.isFloat()]

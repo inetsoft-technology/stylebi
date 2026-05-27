@@ -57,10 +57,11 @@
       </div>
     </div>
     <div class="form-row-float-label row">
-      <div class="col form-floating">
-        <input type="number" min="0" max="1000" id="tableCols" class="form-control"
-               formControlName="cols" placeholder="_#(Columns)">
-        <label><span>_#(Columns)</span></label>
+      <div class="col d-flex flex-column">
+        <label class="form-label">_#(Columns)</label>
+        <number-stepper formControlName="cols" [min]="0" [max]="1000"
+                        [invalid]="!form.controls['cols'].valid && !form.controls['cols'].pristine">
+        </number-stepper>
       </div>
       <div class="col-12">
         <div *ngIf="form.controls['cols'].errors && !form.controls['cols'].pristine"

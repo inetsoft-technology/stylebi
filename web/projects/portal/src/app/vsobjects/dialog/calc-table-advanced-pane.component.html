@@ -20,23 +20,31 @@
     <legend>_#(Options)</legend>
     <div class="form-row-float-label row">
       <div class="col form-floating" [ngClass]="{ 'has-error' : !form.controls['headerRowCount'].valid}">
-          <input class="form-control" type="number" min="0" formControlName="headerRowCount"
-                 [(ngModel)]="model.headerRowCount" placeholder="_#(Header Rows)">
+          <number-stepper formControlName="headerRowCount" [min]="0"
+                          (valueChange)="model.headerRowCount = $event"
+                          [invalid]="!form.controls['headerRowCount'].valid">
+          </number-stepper>
           <label>_#(Header Rows)</label>
       </div>
       <div class="col form-floating" [ngClass]="{ 'has-error' : !form.controls['headerColCount'].valid}">
-          <input class="form-control" type="number" min="0" formControlName="headerColCount"
-                 [(ngModel)]="model.headerColCount" placeholder="_#(Header Columns)">
+          <number-stepper formControlName="headerColCount" [min]="0"
+                          (valueChange)="model.headerColCount = $event"
+                          [invalid]="!form.controls['headerColCount'].valid">
+          </number-stepper>
           <label>_#(Header Columns)</label>
       </div>
       <div class="col form-floating" [ngClass]="{ 'has-error' : !form.controls['trailerRowCount'].valid}">
-          <input class="form-control" type="number" min="0" formControlName="trailerRowCount"
-                 [(ngModel)]="model.trailerRowCount" placeholder="_#(Trailer Rows)">
+          <number-stepper formControlName="trailerRowCount" [min]="0"
+                          (valueChange)="model.trailerRowCount = $event"
+                          [invalid]="!form.controls['trailerRowCount'].valid">
+          </number-stepper>
           <label>_#(Trailer Rows)</label>
       </div>
       <div class="col form-floating" [ngClass]="{ 'has-error' : !form.controls['trailerColCount'].valid}">
-          <input class="form-control" type="number" min="0" formControlName="trailerColCount"
-                 [(ngModel)]="model.trailerColCount" placeholder="_#(Trailer Columns)">
+          <number-stepper formControlName="trailerColCount" [min]="0"
+                          (valueChange)="model.trailerColCount = $event"
+                          [invalid]="!form.controls['trailerColCount'].valid">
+          </number-stepper>
           <label>_#(Trailer Columns)</label>
       </div>
     </div>

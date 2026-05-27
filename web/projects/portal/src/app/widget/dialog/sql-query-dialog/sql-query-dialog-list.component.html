@@ -18,7 +18,7 @@
 <div class="bordered-box bd-gray scroll-pane" (dragover)="dragOverContainer($event)"
      (dragleave)="dragLeave()" (drop)="drop($event, insertPositionDragOverContainer($event))">
   <div #item *ngFor="let _item of items; let _i = index;"
-       class="item-entry unhighlightable text-overflow hover-bg-secondary"
+       class="item-entry unhighlightable text-overflow hover-bg-neutral"
        [ngClass]="{'selected': selectedIndexes.indexOf(_i) >= 0,
                    'bb-highlight-thin': insertPosition === _i + 1,
                    'bt-highlight-thin': _i === 0 && insertPosition === 0,

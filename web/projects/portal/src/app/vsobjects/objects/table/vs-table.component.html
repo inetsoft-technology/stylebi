@@ -52,28 +52,28 @@
          [style.border-bottom]="model.objectFormat.border.bottom"
          [style.border-right]="model.objectFormat.border.right"
          [style.border-radius.px]="model.objectFormat.roundCorner"></div>
-    <div *ngIf="dropIndex != -1" class="drop-line top-bottom border-success"
+    <div *ngIf="dropIndex != -1" class="drop-line drop-line--success top-bottom"
          outOfZone (onDragover)="$event.preventDefault()"
          [style.height.px]="1"
          [style.width.px]="dropRect.width"
          [style.top.px]="dropRect.top"
          [style.left.px]="dropRect.left">
     </div>
-    <div *ngIf="dropIndex != -1" class="drop-line left-right border-success"
+    <div *ngIf="dropIndex != -1" class="drop-line drop-line--success left-right"
          outOfZone (onDragover)="$event.preventDefault()"
          [style.width.px]="1"
          [style.height.px]="dropRect.height"
          [style.top.px]="dropRect.top"
          [style.left.px]="dropRect.left">
     </div>
-    <div *ngIf="dropIndex != -1" class="drop-line top-bottom border-success"
+    <div *ngIf="dropIndex != -1" class="drop-line drop-line--success top-bottom"
          outOfZone (onDragover)="$event.preventDefault()"
          [style.height.px]="1"
          [style.width.px]="dropRect.width + 3"
          [style.top.px]="dropRect.top + dropRect.height"
          [style.left.px]="dropRect.left">
     </div>
-    <div *ngIf="dropIndex != -1" class="drop-line left-right border-success"
+    <div *ngIf="dropIndex != -1" class="drop-line drop-line--success left-right"
          outOfZone (onDragover)="$event.preventDefault()"
          [style.width.px]="1"
          [style.height.px]="dropRect.height"

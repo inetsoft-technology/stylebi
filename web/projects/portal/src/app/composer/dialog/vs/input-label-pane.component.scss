@@ -1,0 +1,18 @@
+.input-label-pane__control-row {
+  align-items: flex-start;
+}
+
+.input-label-pane__gap-col {
+  position: relative;
+}
+
+.input-label-pane__gap-label {
+  position: absolute;
+  top: -0.6rem;
+  left: calc(var(--bs-gutter-x) * 0.5 + 0.65rem);
+  z-index: 1;
+  margin: 0;
+  padding: 0 0.2rem;
+  background: var(--inet-dialog-bg-color, #fff);
+  line-height: 1.1;
+}

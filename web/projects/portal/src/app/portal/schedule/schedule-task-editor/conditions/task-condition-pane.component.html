@@ -68,10 +68,11 @@
                 </div>
               </div>
               <div class="col">
-                <div class="input-group scheduler-form">
-                  <input type="number" class="form-control" id="dailyInterval" formControlName="interval"
-                         [(ngModel)]="timeCondition.interval">
-                  <div class="input-group-text">_#(Day_s)</div>
+                <div class="d-inline-flex align-items-center gap-2">
+                  <number-stepper formControlName="interval" [min]="1"
+                                 (valueChange)="timeCondition.interval = $event">
+                  </number-stepper>
+                  <span>_#(Day_s)</span>
                 </div>
               </div>
             </div>
@@ -128,10 +129,11 @@
             <div class="form-row-float-label row">
               <div class="col form-floating">
                   <div class="input-group scheduler-form">
-                    <input type="number" class="form-control" id="weeklyInterval" [(ngModel)]="timeCondition.interval"
-                           formControlName="interval"
-                           [class.is-invalid]="!form.controls['interval'].valid">
-                    <div class="input-group-text">_#(Week_s)</div>
+                    <number-stepper formControlName="interval" [min]="1"
+                                   (valueChange)="timeCondition.interval = $event"
+                                   [invalid]="!form.controls['interval'].valid">
+                    </number-stepper>
+                    <span class="input-group-text">_#(Week_s)</span>
                   </div>
                   <label>_#(Every)</label>
                   <span class="invalid-feedback"
@@ -343,10 +345,11 @@
             <div class="form-row-float-label row">
               <div class="col form-floating">
                   <div class="input-group scheduler-form">
-                    <input type="number" class="form-control" id="interval"
-                           formControlName="interval" [(ngModel)]="timeCondition.hourlyInterval"
-                           [class.is-invalid]="!form.controls['interval'].valid">
-                    <div class="input-group-text">_#(Hour_s)</div>
+                    <number-stepper formControlName="interval" [min]="1"
+                                   (valueChange)="timeCondition.hourlyInterval = $event"
+                                   [invalid]="!form.controls['interval'].valid">
+                    </number-stepper>
+                    <span class="input-group-text">_#(Hour_s)</span>
                   </div>
                   <label>_#(Every)</label>
                   <span class="invalid-feedback"

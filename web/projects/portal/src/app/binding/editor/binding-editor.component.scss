@@ -139,6 +139,11 @@
   justify-content: flex-end;
 }
 
+.console-count-badge {
+  color: var(--inet-button-light-text-color);
+  background-color: var(--inet-button-light-bg-color);
+}
+
 .status-bar {
   position: absolute;
   right: 75px;

@@ -198,6 +198,23 @@
   max-width: 100%;
 }
 
+// When scheduler-form wraps a stepper + suffix/addon, shrink the input-group to
+// its content width. Shared input-group-text sizing now comes from global form
+// control normalization.
+.scheduler-form.input-group {
+  width: fit-content;
+  border-radius: var(--inet-radius-md);
+}
+
+.scheduler-form.input-group:focus-within {
+  box-shadow: var(--inet-focus-ring);
+  outline: var(--inet-focus-ring-outline);
+}
+
+.scheduler-form.input-group:focus-within .input-group-text {
+  border-color: var(--inet-primary-color);
+}
+
 .sm-dropdown {
   width: 100px;
 }

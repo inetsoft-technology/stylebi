@@ -37,7 +37,7 @@
       <span class="invalid-feedback" *ngIf="parentControl.getError('required')">
         _#(data.logicalmodel.parentEntityRequired)
       </span>
-      <div ngbDropdownMenu class="logical-model-attribute-dialog__dropdown-menu"
+      <div ngbDropdownMenu class="dropdown-pane logical-model-attribute-dialog__dropdown-menu"
            [style.width.px]="entityTrigger.offsetWidth"
            [style.min-width.px]="entityTrigger.offsetWidth">
         <button *ngFor="let entity of entities; let i = index"

@@ -46,15 +46,13 @@
         <ng-container *ngIf="dataType == 'physical'">
           <div class="form-group">
             <div class="form-floating">
-              <input type="number" #orderPriorityCtrl="ngModel"
-                     name="orderPriority"
-                     class="form-control"
-                     [class.is-invalid]="orderPriorityCtrl.dirty && orderPriorityCtrl.invalid"
-                     [(ngModel)]="selectedJoinOrderPriority"
-                     (ngModelChange)="validateOrderPriority(orderPriorityCtrl.valid)"
-                     [minNumber]="1"
-                     [maxNumber]="2147483647"
-                     required/>
+              <number-stepper #orderPriorityCtrl="ngModel"
+                              name="orderPriority"
+                              [(ngModel)]="selectedJoinOrderPriority"
+                              (valueChange)="validateOrderPriority($event >= 1)"
+                              [min]="1"
+                              [invalid]="orderPriorityCtrl.dirty && orderPriorityCtrl.invalid">
+              </number-stepper>
               <label>_#(Order Priority)</label>
               <span class="invalid-feedback" *ngIf="orderPriorityCtrl.hasError('required')">
               _#(data.physicalmodel.joinOrderPriorityRequired)

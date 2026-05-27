@@ -105,77 +105,75 @@
             </div>
           </div>
           <div class="form-row-float-label form-row">
-            <div ngbDropdown #scaleFontDropdown="ngbDropdown" class="col-12 form-floating">
-              <input class="form-control no-spinner" type="number" placeholder="_#(Scale Font)"
-                     ngbDropdownToggle [(ngModel)]="model.scaleFont" formControlName="scaleFont"
-                     [class.is-invalid]="formPrint.controls?.scaleFont.errors && !formPrint.controls?.scaleFont.pristine"/>
+            <div class="col-12 form-floating">
+              <custom-select formControlName="scaleFont"
+                             [options]="scaleFontOptions"
+                             ariaLabel="_#(Scale Font)"
+                             [invalid]="formPrint.controls?.scaleFont.errors && !formPrint.controls?.scaleFont.pristine"
+                             (selectionChange)="selectScaleFont($event)">
+              </custom-select>
               <label><span>_#(Scale Font)</span></label>
               <span class="invalid-feedback">_#(layout.vsLayout.scaleFont)</span>
-              <i class="caret-down-icon dropdown-caret"
-                 (click)="$event.stopPropagation(); scaleFontDropdown.toggle()">
-              </i>
-              <ul ngbDropdownMenu>
-                <li *ngFor="let scale of scaleOptions" (click)="selectScaleFont(scale)"
-                    class="dropdown-item" [class.selected]="model.scaleFont == scale">
-                  {{scale}}
-                </li>
-              </ul>
             </div>
           </div>
         </fieldset>
         <fieldset>
           <legend>_#(Margin)</legend>
           <div class="form-row-float-label form-row">
-            <div class="form-floating col">
-              <input class="form-control" type="number" [(ngModel)]="model.marginTop"
-                     formControlName="marginTop" placeholder="_#(Top)"
-                     [class.is-invalid]="formPrint.controls.marginTop.errors || isVerticalMarginTooLarge()"/>
-              <label><span>_#(Top)</span></label>
-              <span class="invalid-feedback" *ngIf="formPrint.controls.marginTop.errors">
+            <div class="col d-flex flex-column">
+              <label class="form-label">_#(Top)</label>
+              <number-stepper formControlName="marginTop" [min]="0" [step]="0.1"
+                              (valueChange)="model.marginTop = $event"
+                              [invalid]="!!formPrint.controls.marginTop.errors || isVerticalMarginTooLarge()">
+              </number-stepper>
+              <span class="invalid-feedback d-block" *ngIf="formPrint.controls.marginTop.errors">
                 _#(viewer.viewsheet.layout.pageProp.marginValid)
               </span>
-              <span class="invalid-feedback"
+              <span class="invalid-feedback d-block"
                     *ngIf="!!!formPrint.controls.marginTop.errors && isVerticalMarginTooLarge()">
                 _#(viewer.viewsheet.layout.pageProp.marginTooLarge)
               </span>
             </div>
-            <div class="form-floating col">
-              <input class="form-control" type="number" [(ngModel)]="model.marginLeft"
-                     formControlName="marginLeft" placeholder="_#(Left)"
-                     [class.is-invalid]="formPrint.controls.marginLeft.errors || isHorizontalMarginTooLarge()"/>
-              <label><span>_#(Left)</span></label>
-              <span class="invalid-feedback" *ngIf="formPrint.controls.marginLeft.errors">
+            <div class="col d-flex flex-column">
+              <label class="form-label">_#(Left)</label>
+              <number-stepper formControlName="marginLeft" [min]="0" [step]="0.1"
+                              (valueChange)="model.marginLeft = $event"
+                              [invalid]="!!formPrint.controls.marginLeft.errors || isHorizontalMarginTooLarge()">
+              </number-stepper>
+              <span class="invalid-feedback d-block" *ngIf="formPrint.controls.marginLeft.errors">
                 _#(viewer.viewsheet.layout.pageProp.marginValid)
               </span>
-              <span class="invalid-feedback"
+              <span class="invalid-feedback d-block"
                     *ngIf="!!!formPrint.controls.marginLeft.errors && isHorizontalMarginTooLarge()">
                 _#(viewer.viewsheet.layout.pageProp.marginTooLarge)
               </span>
             </div>
           </div>
           <div class="form-row-float-label form-row">
-            <div class="form-floating col">
-              <input class="form-control" type="number" [(ngModel)]="model.marginBottom"
-                     formControlName="marginBottom" placeholder="_#(Bottom)"
-                     [class.is-invalid]="formPrint.controls.marginBottom.errors || isVerticalMarginTooLarge()"/>
-              <label><span>_#(Bottom)</span></label>
-              <span class="invalid-feedback" *ngIf="formPrint.controls.marginBottom.errors">
+            <div class="col d-flex flex-column">
+              <label class="form-label">_#(Bottom)</label>
+              <number-stepper formControlName="marginBottom" [min]="0" [step]="0.1"
+                              (valueChange)="model.marginBottom = $event"
+                              [invalid]="!!formPrint.controls.marginBottom.errors || isVerticalMarginTooLarge()">
+              </number-stepper>
+              <span class="invalid-feedback d-block" *ngIf="formPrint.controls.marginBottom.errors">
                 _#(viewer.viewsheet.layout.pageProp.marginValid)
               </span>
-              <span class="invalid-feedback"
+              <span class="invalid-feedback d-block"
                     *ngIf="!!!formPrint.controls.marginBottom.errors && isVerticalMarginTooLarge()">
                 _#(viewer.viewsheet.layout.pageProp.marginTooLarge)
               </span>
             </div>
-            <div class="form-floating col">
-              <input class="form-control" type="number" [(ngModel)]="model.marginRight"
-                     formControlName="marginRight" placeholder="_#(Right)"
-                     [class.is-invalid]="formPrint.controls.marginRight.errors || isHorizontalMarginTooLarge()"/>
-              <label><span>_#(Right)</span></label>
-              <span class="invalid-feedback" *ngIf="formPrint.controls.marginRight.errors">
+            <div class="col d-flex flex-column">
+              <label class="form-label">_#(Right)</label>
+              <number-stepper formControlName="marginRight" [min]="0" [step]="0.1"
+                              (valueChange)="model.marginRight = $event"
+                              [invalid]="!!formPrint.controls.marginRight.errors || isHorizontalMarginTooLarge()">
+              </number-stepper>
+              <span class="invalid-feedback d-block" *ngIf="formPrint.controls.marginRight.errors">
                 _#(viewer.viewsheet.layout.pageProp.marginValid)
               </span>
-              <span class="invalid-feedback"
+              <span class="invalid-feedback d-block"
                     *ngIf="!!!formPrint.controls.marginRight.errors && isHorizontalMarginTooLarge()">
                 _#(viewer.viewsheet.layout.pageProp.marginTooLarge)
               </span>

@@ -163,6 +163,10 @@ input:focus {
   border: 3px solid;
 }
 
+.drop-line--success {
+  border-color: var(--inet-success-color);
+}
+
 .cell-editor {
   z-index: 20;
 }

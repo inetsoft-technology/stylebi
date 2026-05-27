@@ -21,6 +21,7 @@ import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { FormatModule } from "../format/format.module";
 import { ConsoleDialogModule } from "../widget/console-dialog/console-dialog.module";
 import { CustomSelectModule } from "../widget/custom-select/custom-select.module";
+import { NumberStepperModule } from "../widget/number-stepper/number-stepper.module";
 import { DynamicComboBoxModule } from "../widget/dynamic-combo-box/dynamic-combo-box.module";
 import { ModalHeaderModule } from "../widget/modal-header/modal-header.module";
 import { NotificationsModule } from "../widget/notifications/notifications.module";
@@ -169,7 +170,8 @@ import { TooltipModule } from "../widget/tooltip/tooltip.module";
       TooltipModule,
       StatusBarModule,
       ConsoleDialogModule,
-      CustomSelectModule
+      CustomSelectModule,
+      NumberStepperModule
    ],
    declarations: [
       AestheticPane,

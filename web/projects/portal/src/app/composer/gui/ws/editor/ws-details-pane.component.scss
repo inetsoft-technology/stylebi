@@ -20,6 +20,11 @@
   align-items: center;
 }
 
+.console-count-badge {
+  color: var(--inet-button-light-text-color);
+  background-color: var(--inet-button-light-bg-color);
+}
+
 .ws-details-dropdown-button {
   border: none;
   overflow: hidden;
@@ -42,7 +47,7 @@
   cursor: default;
 }
 
-.dropdown-menu.table-modes-dropdown {
+.table-modes-dropdown {
   min-width: 0;
 }
 

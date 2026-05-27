@@ -124,7 +124,7 @@
                 <div class="drill-dropdown-arrow icon-size-small"
                      [class.chevron-down-icon]="!dropdown.isOpen()"
                      [class.chevron-up-icon]="dropdown.isOpen()"></div>
-                <div ngbDropdownMenu class="drill-tree-dropdown-menu">
+                <div ngbDropdownMenu class="dropdown-pane drill-tree-dropdown-menu">
                   <repository-tree #repositoryTree
                                    [root]="assetTreeRoot"
                                    [autoExpandToSelectedNode]="true"

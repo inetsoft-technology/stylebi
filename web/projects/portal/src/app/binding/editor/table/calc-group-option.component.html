@@ -58,12 +58,11 @@
         <label><span>_#(Ranking)</span></label>
       </div>
     </div>
-    <div class="col-2 ps-1">
-      <div class="form-floating topn_label_id">
-        <input type="number" class="form-control" [(ngModel)]="topN.topn" placeholder="_#(N)"
-               [disabled]="topN.type == 0 || isDisableRanking()">
-        <label><span>_#(N)</span></label>
-      </div>
+    <div class="col-2 ps-1 d-flex flex-column topn_label_id">
+      <label class="form-label">_#(N)</label>
+      <number-stepper [(ngModel)]="topN.topn" [min]="1"
+                      [disabled]="topN.type == 0 || isDisableRanking()">
+      </number-stepper>
     </div>
     <div class="col">
       <div class="form-floating of_label_id">
@@ -117,13 +116,11 @@
       </div>
 
     </div>
-    <div class="col">
-      <div class="form-floating periods_label_id">
-        <input type="number" class="form-control" [(ngModel)]="order.interval"
-               min="1" [max]="getMaxForLevel()"
-               [disabled]="isDateIntervalDisabled() || cellBinding.timeSeries">
-        <label><span>_#(Periods)</span></label>
-      </div>
+    <div class="col d-flex flex-column periods_label_id">
+      <label class="form-label">_#(Periods)</label>
+      <number-stepper [(ngModel)]="order.interval" [min]="1" [max]="getMaxForLevel()"
+                      [disabled]="isDateIntervalDisabled() || cellBinding.timeSeries">
+      </number-stepper>
     </div>
     <div class="col-auto">
       <div class="form-check">

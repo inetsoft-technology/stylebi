@@ -43,10 +43,10 @@
         </div>
       </div>
       <div class="row form-row-float-label">
-        <div class="col-auto form-floating">
-          <input class="form-control" type="number" [(ngModel)]="num"
-                 (focusout)="changeNum($event)" [min]="1"/>
-          <label><span>_#(Number)</span></label>
+        <div class="col-auto d-flex flex-column">
+          <label class="form-label">_#(Number)</label>
+          <number-stepper [(ngModel)]="num" [min]="1">
+          </number-stepper>
         </div>
       </div>
       <div class="alert alert-danger warning"

@@ -72,6 +72,8 @@ $stacking-order: (
   }
 
   .resize-handle {
+    // Intentional local hit area: the transparent 6px edge makes narrow table
+    // column grips easier to grab without changing the visible divider.
     height: 100%;
     box-sizing: border-box;
     position: absolute;
@@ -145,7 +147,7 @@ table.scrollable-table {
 
 .report-viewer.explorerVisible {
   .gutter-horizontal {
-    width: var(--inet-panel-border-zero, 4px) !important;
+    width: var(--inet-panel-border-zero, var(--inet-panel-gutter-width-compact)) !important;
   }
 }
 
@@ -209,7 +211,7 @@ table.scrollable-table {
   background-color: var(--inet-dialog-bg-color);
   border-radius: 1px;
   box-shadow: var(--inet-shadow-low);
-  padding: 4px 6px;
+  padding: var(--inet-space-2) var(--inet-space-3);
   border: 1px solid var(--inet-default-border-color);
   margin: 3px;
   //display: flex;
@@ -227,9 +229,11 @@ table.scrollable-table {
   border: 1px solid var(--inet-default-border-color);
   border-radius: 8px;
   box-shadow: var(--inet-shadow-low);
-  padding: 12px 16px;
+  padding: var(--inet-space-5) var(--inet-space-6);
   margin: 3px;
 
+  // Intentional local tooltip/card hierarchy: these sizes are tuned for
+  // compact multi-line hover summaries rather than the global type scale.
   .tt-tier-1 { font-size: 16px; font-weight: 600; line-height: 1.2; }
   .tt-tier-2 { font-size: 13px; margin-top: 6px; opacity: 0.9; }
   .tt-tier-3 { font-size: 11px; margin-top: 4px; opacity: 0.7; }
@@ -287,7 +291,7 @@ table.scrollable-table {
   background-color: var(--inet-dialog-bg-color);
   border-radius: 1px;
   box-shadow: var(--inet-shadow-low);
-  padding: 4px 6px;
+  padding: var(--inet-space-2) var(--inet-space-3);
   border: 1px solid var(--inet-default-border-color);
   margin: 3px;
   //display: flex;

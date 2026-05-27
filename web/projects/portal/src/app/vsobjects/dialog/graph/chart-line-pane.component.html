@@ -117,19 +117,15 @@
           <label>_#(For Measures)</label>
         </div>
       </div>
-      <div class="col-6">
-        <div class="form-floating">
-          <input class="form-control project_forward_id" required type="number"
-                 (keypress)="onInputProjectForward($event)"
-                 placeholder="_#(Project Forward)"
-                 [(ngModel)]="model.projectForward" formControlName="projectForward"
-                 [disabled]="projectForwardDisabled"
-                 [class.is-invalid]="form.controls['projectForward']?.errors">
-          <label>_#(Project Forward)</label>
-          <span class="invalid-feedback project-forward-invalid">
-             _#(project.forward.required)
-          </span>
-        </div>
+      <div class="col-6 d-flex flex-column project_forward_id">
+        <label class="form-label">_#(Project Forward)</label>
+        <number-stepper formControlName="projectForward" [min]="0"
+                        (valueChange)="model.projectForward = $event"
+                        [invalid]="!!form.controls['projectForward']?.errors">
+        </number-stepper>
+        <span class="invalid-feedback d-block" *ngIf="form.controls['projectForward']?.errors">
+           _#(project.forward.required)
+        </span>
       </div>
     </div>
     <div class="form-row-float-label row">

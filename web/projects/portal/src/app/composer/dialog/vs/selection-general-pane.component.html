@@ -61,12 +61,12 @@
           </div>
         </fieldset>
       </div>
-      <div class="col-4 form-floating" [style.margin-top]="'0.5em'"
-           [ngClass]="{ 'has-error' : !form.controls['listHeight'].valid}">
-        <input id="listHeight" [attr.disabled]="model.showType != 1 ? '' : null"
-               placeholder="_#(Height)" class="form-control" type="number"
-               min="1" formControlName="listHeight" [(ngModel)]="model.listHeight"/>
-        <label><span>_#(Height)</span></label>
+      <div class="col-4 d-flex flex-column" [style.margin-top]="'0.5em'">
+        <label class="form-label">_#(Height)</label>
+        <number-stepper formControlName="listHeight" [min]="1"
+                        (valueChange)="model.listHeight = $event"
+                        [invalid]="!form.controls['listHeight'].valid">
+        </number-stepper>
         <div *ngIf="form.controls['listHeight'].errors && form.controls['listHeight'].errors['required']" class="alert alert-danger">_#(Height is required)</div>
         <div *ngIf="form.controls['listHeight'].errors && !form.controls['listHeight'].errors['required'] && form.controls['listHeight'].errors['lessThanEqualToZero']" class="alert alert-danger">_#(height.positive.nonZero)</div>
       </div>

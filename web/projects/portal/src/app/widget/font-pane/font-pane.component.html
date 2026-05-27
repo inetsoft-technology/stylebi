@@ -31,11 +31,9 @@
   </ul>
   <div class="row">
     <div class="col">
-      <div class="input-group">
-        <input [(ngModel)]="font_size" (ngModelChange)="changeFontSize()" type="number"
-               min="1" class="form-control font-size"/>
-        <div class="input-group-text">_#(px)</div>
-      </div>
+      <number-stepper [ngModel]="+font_size" (valueChange)="font_size = $event; changeFontSize()"
+                      [min]="1" [unit]="'px'">
+      </number-stepper>
     </div>
     <div class="col">
       <div class="input-group">

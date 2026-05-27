@@ -20,6 +20,7 @@ import { NgModule } from "@angular/core";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { NgbDropdownModule } from "@ng-bootstrap/ng-bootstrap";
 import { CustomSelectModule } from "../custom-select/custom-select.module";
+import { NumberStepperModule } from "../number-stepper/number-stepper.module";
 import { WidgetDirectivesModule } from "../directive/widget-directives.module";
 import { AlphaDropdown } from "./alpha-dropdown.component";
 import { FormatCSSPane } from "./format-css-pane.component";
@@ -39,6 +40,7 @@ import { MouseEventModule } from "../mouse-event/mouse-event.module";
       ReactiveFormsModule,
       FormsModule,
       CustomSelectModule,
+      NumberStepperModule,
       NgbDropdownModule,
       FixedDropdownModule,
       MouseEventModule,

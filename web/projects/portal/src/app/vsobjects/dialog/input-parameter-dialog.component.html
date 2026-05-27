@@ -30,7 +30,7 @@
                      [class.input-dropdown--open]="nameDropdown.isOpen()"
                      [class.is-invalid]="form.controls['name'].invalid"
                      class="form-control" placeholder="_#(Parameter Name)" ngbDropdownToggle>
-              <div ngbDropdownMenu class="form-control viewsheet-parameters-dropdown-menu"
+              <div ngbDropdownMenu class="dropdown-pane viewsheet-parameters-dropdown-menu"
                    [ngClass]="!hasViewsheetParameters() ? 'hidden-menu' : ''">
                 <ng-container *ngIf="hasViewsheetParameters()">
                   <li *ngFor="let parameter of viewsheetParameters">

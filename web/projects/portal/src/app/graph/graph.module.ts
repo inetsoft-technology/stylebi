@@ -22,6 +22,7 @@ import { NgbNavModule } from "@ng-bootstrap/ng-bootstrap";
 import { ChartLinePane } from "../vsobjects/dialog/graph/chart-line-pane.component";
 import { ColorPickerModule } from "../widget/color-picker/color-picker.module";
 import { CustomSelectModule } from "../widget/custom-select/custom-select.module";
+import { NumberStepperModule } from "../widget/number-stepper/number-stepper.module";
 import { WidgetDirectivesModule } from "../widget/directive/widget-directives.module";
 import { DynamicComboBoxModule } from "../widget/dynamic-combo-box/dynamic-combo-box.module";
 import { WidgetFormatModule } from "../widget/format/widget-format.module";
@@ -65,6 +66,7 @@ import { ChartTitleArea } from "./objects/chart-title-area.component";
       WidgetFormatModule,
       ColorPickerModule,
       CustomSelectModule,
+      NumberStepperModule,
       MultiSelectModule,
       DynamicComboBoxModule,
       ModalHeaderModule,

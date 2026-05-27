@@ -53,31 +53,37 @@
       <legend>_#(Banding)</legend>
       <div class="form-row-float-label row">
          <div *ngIf="model.bandingXVisible" class="banding-container col">
-            <div class="form-floating">
-               <color-dropdown [(color)]="model.bandingXColor"
-                               [isBg]="true" [transEnabled]="true"
-                               [enabled]="model.hasXDimension"></color-dropdown>
-               <label>_#(X)</label>
+            <div class="d-flex flex-column">
+               <label class="form-label">_#(X)</label>
+               <div class="banding-color-wrap">
+                  <color-dropdown [(color)]="model.bandingXColor"
+                                  [isBg]="true" [transEnabled]="true"
+                                  [enabled]="model.hasXDimension"></color-dropdown>
+               </div>
             </div>
-            <div class="ms-1 form-floating">
-              <input class="form-control number-input" type="number" min="0"
-                     [(ngModel)]="model.bandingXSize" placeholder="_#(Size)"
-                     formControlName="bandingXSize">
-              <label><span>_#(Size)</span></label>
+            <div class="ms-1 d-flex flex-column">
+               <label class="form-label">_#(Size)</label>
+               <number-stepper formControlName="bandingXSize" [min]="0"
+                               (valueChange)="model.bandingXSize = $event"
+                               [invalid]="form.controls['bandingXSize']?.invalid">
+               </number-stepper>
             </div>
          </div>
          <div *ngIf="model.bandingYVisible" class="banding-container col">
-            <div class="form-floating">
-               <color-dropdown [(color)]="model.bandingYColor"
-                               [isBg]="true" [transEnabled]="true"
-                               [enabled]="model.hasYDimension"></color-dropdown>
-               <label>_#(Y)</label>
+            <div class="d-flex flex-column">
+               <label class="form-label">_#(Y)</label>
+               <div class="banding-color-wrap">
+                  <color-dropdown [(color)]="model.bandingYColor"
+                                  [isBg]="true" [transEnabled]="true"
+                                  [enabled]="model.hasYDimension"></color-dropdown>
+               </div>
             </div>
-            <div class="ms-1 form-floating">
-              <input class="form-control number-input" type="number" min="0"
-                     [(ngModel)]="model.bandingYSize" placeholder="_#(Size)"
-                     formControlName="bandingYSize">
-              <label><span>_#(Size)</span></label>
+            <div class="ms-1 d-flex flex-column">
+               <label class="form-label">_#(Size)</label>
+               <number-stepper formControlName="bandingYSize" [min]="0"
+                               (valueChange)="model.bandingYSize = $event"
+                               [invalid]="form.controls['bandingYSize']?.invalid">
+               </number-stepper>
             </div>
          </div>
       </div>
@@ -232,21 +238,19 @@
             <label><span>_#(Layout Direction)</span></label>
          </div>
          <div class="col-auto form-floating" *ngIf="model.wordCloud">
-           <input class="form-control number-input font-multiplier"
-                  type="number" min="1" max="5" step="0.1"
-                  placeholder="_#(Font Scale)"
-                  [(ngModel)]="model.wordCloudFontScale"
-                  formControlName="fontScale">
+           <number-stepper formControlName="fontScale" [min]="1" [max]="5" [step]="0.1"
+                           (valueChange)="model.wordCloudFontScale = $event"
+                           [invalid]="form.controls['fontScale']?.invalid">
+           </number-stepper>
            <label><span>_#(Font Scale)</span></label>
          </div>
       </div>
       <div class="form-row-float-label row" *ngIf="model.barCornerRadiusVisible">
          <div class="col-auto form-floating">
-           <input class="form-control number-input corner-radius"
-                  type="number" min="0" max="0.5" step="0.05"
-                  placeholder="0.3"
-                  [(ngModel)]="model.barCornerRadius"
-                  formControlName="barCornerRadius">
+           <number-stepper formControlName="barCornerRadius" [min]="0" [max]="0.5" [step]="0.05"
+                           (valueChange)="model.barCornerRadius = $event"
+                           [invalid]="form.controls['barCornerRadius']?.invalid">
+           </number-stepper>
            <label><span>_#(Bar Corner Radius)</span></label>
          </div>
          <div class="col-auto" *ngIf="model.barRoundAllCornersVisible && model.barCornerRadius">
@@ -262,11 +266,10 @@
       </div>
       <div class="form-row-float-label row" *ngIf="model.nodeCornerRadiusVisible">
          <div class="col-auto form-floating">
-           <input class="form-control number-input corner-radius"
-                  type="number" min="0" max="0.5" step="0.05"
-                  placeholder="0.3"
-                  [(ngModel)]="model.nodeCornerRadius"
-                  formControlName="nodeCornerRadius">
+           <number-stepper formControlName="nodeCornerRadius" [min]="0" [max]="0.5" [step]="0.05"
+                           (valueChange)="model.nodeCornerRadius = $event"
+                           [invalid]="form.controls['nodeCornerRadius']?.invalid">
+           </number-stepper>
            <label><span>_#(Node Corner Radius)</span></label>
          </div>
       </div>
@@ -287,15 +290,17 @@
       <legend>_#(Density Contour)</legend>
       <div class="form-row-float-label row">
          <div class="col-3 form-floating">
-           <input class="form-control number-input" type="number" min="1"
-                  [(ngModel)]="model.contourLevels" placeholder="_#(Levels)"
-                  formControlName="contourLevels">
+           <number-stepper formControlName="contourLevels" [min]="1"
+                           (valueChange)="model.contourLevels = $event"
+                           [invalid]="form.controls['contourLevels']?.invalid">
+           </number-stepper>
            <label><span>_#(Levels)</span></label>
          </div>
          <div class="col-3 form-floating">
-           <input class="form-control number-input" type="number" min="1"
-                  [(ngModel)]="model.contourBandwidth" placeholder="_#(Bandwidth)"
-                  formControlName="contourBandwidth">
+           <number-stepper formControlName="contourBandwidth" [min]="1"
+                           (valueChange)="model.contourBandwidth = $event"
+                           [invalid]="form.controls['contourBandwidth']?.invalid">
+           </number-stepper>
            <label><span>_#(Bandwidth)</span></label>
          </div>
          <div class="col-3 banding-container">
@@ -306,9 +311,10 @@
             </div>
          </div>
          <div class="col-3 form-floating">
-           <input class="form-control number-input" type="number" min="1"
-                  [(ngModel)]="model.contourCellSize" placeholder="_#(Cell Size)"
-                  formControlName="contourCellSize">
+           <number-stepper formControlName="contourCellSize" [min]="1"
+                           (valueChange)="model.contourCellSize = $event"
+                           [invalid]="form.controls['contourCellSize']?.invalid">
+           </number-stepper>
            <label><span>_#(Cell Size)</span></label>
          </div>
       </div>

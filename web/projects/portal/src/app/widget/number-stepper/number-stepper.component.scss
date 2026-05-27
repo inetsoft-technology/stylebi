@@ -1,0 +1,224 @@
+/*!
+ * This file is part of StyleBI.
+ * Copyright (C) 2024  InetSoft Technology
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
+// Host = the number-stepper container
+:host {
+   display: inline-flex;
+   align-items: stretch;
+   align-self: stretch;
+   width: max-content;
+}
+
+// ── Step buttons ──────────────────────────────────────────────────────────────
+
+.ns-btn {
+   appearance: none;
+   font-family: var(--inet-font-family);
+   width: var(--inet-control-height-md);
+   height: var(--inet-control-height-md);
+   padding: 0;
+   border: 1px solid var(--inet-input-border-color);
+   background: var(--inet-input-bg-color);
+   color: var(--inet-text-muted-color);
+   cursor: pointer;
+   display: flex;
+   align-items: center;
+   justify-content: center;
+   transition: background-color 100ms ease, color 100ms ease;
+   flex-shrink: 0;
+
+   svg {
+      width: 12px;
+      height: 12px;
+   }
+
+   &:not(:disabled):hover {
+      background: var(--inet-ui-neutral-hover-bg-color);
+      color: var(--inet-text-color);
+   }
+
+   &:disabled {
+      color: var(--inet-text-subtle-color);
+      cursor: not-allowed;
+      opacity: 0.6;
+   }
+
+   &:first-child {
+      border-radius: var(--inet-radius-md) 0 0 var(--inet-radius-md);
+      border-right-width: 0;
+   }
+
+   &:last-child {
+      border-radius: 0 var(--inet-radius-md) var(--inet-radius-md) 0;
+      border-left-width: 0;
+   }
+}
+
+// ── Input wrapper ─────────────────────────────────────────────────────────────
+
+.ns-input-wrap {
+   position: relative;
+   display: flex;
+   flex: 1 1 auto;
+   min-width: 0;
+}
+
+// :host prefix raises specificity above Bootstrap's .form-floating .form-control:not(textarea) rule
+:host .form-control {
+   height: var(--inet-control-height-md);
+}
+
+.form-control {
+   border-radius: 0;
+   width: 80px;
+   text-align: center;
+   font-variant-numeric: tabular-nums;
+   padding-top: 0;
+   padding-bottom: 0;
+   padding-right: var(--inet-space-2);
+   padding-left: var(--inet-space-2);
+
+   // Suppress native browser spinners
+   appearance: textfield;
+   -moz-appearance: textfield;
+
+   &::-webkit-inner-spin-button,
+   &::-webkit-outer-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+   }
+
+   // No individual focus ring — the host handles it via :focus-within
+   &:focus {
+      box-shadow: none;
+   }
+}
+
+// ── Unit suffix ───────────────────────────────────────────────────────────────
+
+.ns-unit {
+   position: absolute;
+   top: 50%;
+   transform: translateY(-50%);
+   right: 8px;
+   font-size: 11px;
+   color: var(--inet-text-muted-color);
+   font-variant-numeric: tabular-nums;
+   pointer-events: none;
+   user-select: none;
+}
+
+:host(.has-unit) .form-control {
+   text-align: right;
+   padding-right: 24px;
+}
+
+// ── Group-level focus ring ────────────────────────────────────────────────────
+// Drawn on the host wrapper so all three segments share one visible ring.
+
+:host(:focus-within) {
+   box-shadow: var(--inet-focus-ring);
+   border-radius: var(--inet-radius-md);
+   outline: var(--inet-focus-ring-outline);
+}
+
+// When nested inside a Bootstrap input-group, the parent handles the focus ring.
+// Suppress only the host-level shadow/outline; border-color changes still apply.
+:host-context(.input-group):focus-within {
+   box-shadow: none;
+   outline: none;
+}
+
+:host(:focus-within) .ns-btn,
+:host(:focus-within) .form-control {
+   border-color: var(--inet-primary-color);
+}
+
+// ── Sizes ─────────────────────────────────────────────────────────────────────
+
+:host(.sm) {
+   .ns-btn {
+      width: var(--inet-control-height-sm);
+      height: var(--inet-control-height-sm);
+
+      svg {
+         width: 10px;
+         height: 10px;
+      }
+   }
+
+   .form-control {
+      width: 68px;
+      height: var(--inet-control-height-sm);
+      font-size: 12px;
+   }
+
+   .ns-unit {
+      font-size: 10.5px;
+      right: 6px;
+   }
+}
+
+:host(.lg) {
+   .ns-btn {
+      width: var(--inet-control-height-lg);
+      height: var(--inet-control-height-lg);
+
+      svg {
+         width: 14px;
+         height: 14px;
+      }
+   }
+
+   .form-control {
+      width: 92px;
+      height: var(--inet-control-height-lg);
+      font-size: 14px;
+   }
+
+   .ns-unit {
+      font-size: 12px;
+      right: 10px;
+   }
+}
+
+:host(.sm.has-unit) .form-control {
+   width: 64px;
+   padding-right: 22px;
+}
+
+:host(.lg.has-unit) .form-control {
+   width: 92px;
+   padding-right: 28px;
+}
+
+// ── Error state ───────────────────────────────────────────────────────────────
+
+:host(.is-invalid) .ns-btn,
+:host(.is-invalid) .form-control {
+   border-color: var(--inet-danger-color);
+}
+
+// ── Disabled state ────────────────────────────────────────────────────────────
+
+:host(.disabled) .ns-btn,
+:host(.disabled) .form-control {
+   background: var(--inet-input-disabled-bg-color);
+   opacity: var(--inet-input-disabled-opacity);
+   pointer-events: none;
+}

@@ -21,29 +21,37 @@
     <div class="row form-row-float-label">
       <div class="col">
         <div class="form-floating">
-          <input type="number" class="form-control" formControlName="top" [(ngModel)]="model.top"
-                 placeholder="_#(Top)">
+          <number-stepper formControlName="top" [min]="0"
+                          (valueChange)="model.top = $event"
+                          [invalid]="form.controls['top'].invalid">
+          </number-stepper>
           <label>_#(Top)</label>
         </div>
       </div>
       <div class="col">
         <div class="form-floating">
-          <input type="number" class="form-control" formControlName="left" [(ngModel)]="model.left"
-                 placeholder="_#(Left)">
+          <number-stepper formControlName="left" [min]="0"
+                          (valueChange)="model.left = $event"
+                          [invalid]="form.controls['left'].invalid">
+          </number-stepper>
           <label>_#(Left)</label>
         </div>
       </div>
       <div class="col">
         <div class="form-floating">
-          <input type="number" class="form-control" formControlName="bottom" [(ngModel)]="model.bottom"
-                 placeholder="_#(Bottom)">
+          <number-stepper formControlName="bottom" [min]="0"
+                          (valueChange)="model.bottom = $event"
+                          [invalid]="form.controls['bottom'].invalid">
+          </number-stepper>
           <label>_#(Bottom)</label>
         </div>
       </div>
       <div class="col">
         <div class="form-floating">
-          <input type="number" class="form-control" formControlName="right" [(ngModel)]="model.right"
-                 placeholder="_#(Right)">
+          <number-stepper formControlName="right" [min]="0"
+                          (valueChange)="model.right = $event"
+                          [invalid]="form.controls['right'].invalid">
+          </number-stepper>
           <label>_#(Right)</label>
         </div>
       </div>

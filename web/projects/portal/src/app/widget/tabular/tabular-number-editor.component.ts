@@ -94,12 +94,14 @@ export class TabularNumberEditor implements OnInit, OnChanges {
    }
 
    valueChanged() {
-      if(this.valueControl.pristine || this.lastValue !== this.value) {
-         this.lastValue = this.value;
+      const currentValue = this.valueControl.value;
+
+      if(this.valueControl.pristine || this.lastValue !== currentValue) {
+         this.lastValue = currentValue;
          this.validChange.emit(this.valueControl.valid || !this.enabled);
 
          if(this.valueControl.dirty) {
-            this.valueChange.emit(this.value);
+            this.valueChange.emit(currentValue);
          }
       }
    }

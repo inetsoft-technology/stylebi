@@ -107,7 +107,7 @@
           </button>
         </div>
       </div>
-      <div class="row form-row-float-label form-check">
+      <div class="row form-row-float-label form-check viewsheet-options-pane__size-row">
         <div class="form-floating col-6">
           <div class="input-group">
             <input type="number" class="form-control" formControlName="maxRows"
@@ -117,14 +117,15 @@
           </div>
           <label><span>_#(Design mode sample data size)</span></label>
         </div>
-        <div class="form-floating col-6">
-          <div class="input-group">
-            <input type="number" class="form-control" step="5" formControlName="snapGrid"
-                   [(ngModel)]="model.snapGrid"
-                   [class.is-invalid]="form.controls['snapGrid'].errors"/>
-            <span class="invalid-feedback">_#(composer.vs.options.snapGrid)</span>
-          </div>
-          <label><span>_#(Snap Grid)</span></label>
+        <div class="col-6 d-flex flex-column viewsheet-options-pane__snap-grid">
+          <label class="form-label viewsheet-options-pane__snap-grid-label">_#(Snap Grid)</label>
+          <number-stepper formControlName="snapGrid" [min]="1" [step]="5"
+                          (valueChange)="model.snapGrid = $event"
+                          [invalid]="!!form.controls['snapGrid'].errors">
+          </number-stepper>
+          <span class="invalid-feedback d-block" *ngIf="form.controls['snapGrid'].errors">
+            _#(composer.vs.options.snapGrid)
+          </span>
         </div>
       </div>
     </fieldset>

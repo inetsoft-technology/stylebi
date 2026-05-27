@@ -146,14 +146,24 @@ $inet-drop-highlight: $drag-drop-highlight;
 
 
 /***
- * Override Bootstrap variables to coordinate with inet theme
+ * Bootstrap bridge variables
+ *
+ * These Sass variables exist for compile-time Bootstrap customization and
+ * Sass math consumed by Bootstrap mixins and _bootstrap-override.scss.
+ * They are not the runtime theme API.
+ *
+ * Prefer the corresponding --inet-* custom properties in :root for new
+ * app/component styling whenever runtime theming is possible.
  */
 $font-family-sans-serif: $inet-font-name;
+// Bootstrap compile-time text scale. Runtime app typography uses --inet-font-size-base below.
 $font-size-base: .75rem !default;
 $font-size-lg:   1rem !default;
 $font-size-sm:   .66rem !default;
 $font-size-xs:   .56rem !default;
+// Bootstrap/build-time modal width input. Keep in Sass for arithmetic such as $modal-lg - 30px.
 $modal-lg:        850px !default;
+// Bootstrap compile-time radii. Keep aligned with the runtime --inet-radius-* tokens below.
 $border-radius-sm: 2px !default;
 $border-radius: 3px !default;
 $border-radius-lg: 4px !default;
@@ -203,7 +213,20 @@ $sqrt2: 1.41421356;
 
 // css variables
 :root {
+  /***
+   * Runtime design tokens
+   *
+   * These --inet-* variables are the app-facing theme contract consumed by
+   * _themeable.scss and, where possible, by _bootstrap-override.scss.
+   *
+   * If a concept exists in both Sass and CSS-variable form:
+   * - the Sass variable is the Bootstrap/build-time bridge
+   * - the CSS variable is the runtime styling token
+   * - nearby comments should note intentional divergence where values differ
+   */
+
   // font
+  // Runtime body/app text size. Intentionally independent from Bootstrap's compile-time $font-size-base.
   --inet-font-size-base: 13px;
   --inet-font-family: #{inspect($inet-font-name)};
   --inet-text-color: #{$shell-text-default};
@@ -241,6 +264,10 @@ $sqrt2: 1.41421356;
   //--inet-side-panel-bg-color // not set by default to get different side panel colors in portal/composer in the default theme
   //--inet-panel-border // not set by default, used to create borders between panels
   //--inet-panel-border-zero // needs to be set to 0 when panel border is set
+  --inet-panel-border-default: 1px solid var(--inet-default-border-color);
+  --inet-panel-border-reserved: 0.5rem solid transparent;
+  --inet-panel-gutter-width-compact: 4px;
+  --inet-panel-gutter-width: 6px;
 
   --inet-portal-main-panel-bg-color: var(--inet-main-panel-bg-color);
   --inet-portal-side-panel-bg-color: var(--inet-side-panel-bg-color, var(--inet-shell-surface-subtle));
@@ -318,7 +345,6 @@ $sqrt2: 1.41421356;
   // -> dialogs/slide outs
   --inet-dialog-bg-color: var(--inet-shell-surface-default);
   --inet-dialog-title-text-transform: none;
-  --inet-dialog-title-font-size: 14px;
 
   // -> inputs
   --inet-input-bg-color: var(--inet-shell-surface-default);
@@ -422,6 +448,12 @@ $sqrt2: 1.41421356;
   --inet-ui-neutral-hover-color: var(--inet-text-color);
   --inet-shell-selected-bg-color: #{$shell-selected-bg};
 
+  // typography
+  --inet-dialog-title-font-size: 14px;
+  --inet-btn-xs-font-size: 0.875rem;
+  --inet-feedback-font-size: 11px;
+  --inet-badge-font-size: 10px;
+
   // sizing
   --inet-control-height-sm: 24px;
   --inet-control-height-md: 30px;
@@ -429,6 +461,17 @@ $sqrt2: 1.41421356;
   --inet-row-height-md: 34px;
   --inet-tab-height: 32px;
   --inet-pill-height: 26px;
+  --inet-switch-width: 36px;
+  --inet-switch-height: 20px;
+  --inet-datepicker-nav-select-height: 32px;
+  --inet-calendar-nav-control-height: 26px;
+  --inet-date-value-nav-select-height: 36px;
+  --inet-toolbar-height-md: 40px;
+  --inet-modal-content-gutter: 30px;
+  --inet-navbar-height: 44px;
+  --inet-navbar-item-min-width: 36px;
+  --inet-navbar-icon-size: 20px;
+  --inet-navbar-account-icon-size: 24px;
 
   // spacing
   --inet-space-1: 2px;
@@ -438,8 +481,22 @@ $sqrt2: 1.41421356;
   --inet-space-5: 12px;
   --inet-space-6: 16px;
   --inet-space-8: 24px;
+  --inet-btn-close-padding: 0.05rem;
+  // Composite dialog chrome tokens. These intentionally bundle asymmetric
+  // top/bottom spacing instead of mapping 1:1 to a single space scale step.
+  --inet-modal-header-padding: 14px 16px 12px;
+  --inet-modal-body-padding: 14px 16px;
+  --inet-modal-footer-padding: 10px 16px;
+  --inet-feedback-padding-y: 2px;
+  --inet-form-check-gap: 0.5rem;
+  --inet-btn-xs-padding-x: 0.25rem;
+  --inet-input-group-addon-padding-y: 5px;
+  --inet-input-group-addon-padding-x: 12px;
+  --inet-account-user-padding: 8px 16px;
+  --inet-navbar-logo-icon-padding-x: 5px;
 
   // radius
+  // Runtime radii used by app/component styles. Keep aligned with the Bootstrap bridge Sass radii above.
   --inet-radius-sm: 2px;
   --inet-radius-md: 3px;
   --inet-radius-lg: 4px;

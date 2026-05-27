@@ -17,6 +17,16 @@
  */
 .banding-container {
   display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+// Forces the color-dropdown's layout height to match the stepper (30px).
+// The control may overflow by a pixel or two but is visually flush.
+.banding-color-wrap {
+  height: var(--inet-control-height-md);
+  display: flex;
+  align-items: center;
 }
 
 fieldset > legend {

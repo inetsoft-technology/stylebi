@@ -16,12 +16,9 @@
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
 <form [formGroup]="form">
-  <div class="input-group">
-    <input type="number" class="form-control" formControlName="radius"
-            data-test="radius-input"
-            disableDrop>
-    <div class="input-group-text">_#(px)</div>
-  </div>
+  <number-stepper formControlName="radius" [unit]="'px'" data-test="radius-input"
+                  [invalid]="!disabled && form.get('radius').invalid">
+  </number-stepper>
   <div class="alert alert-danger" *ngIf="!disabled && !!form.get('radius').getError('requiredNumber')">_#(common.sree.needValidNum)</div>
   <div class="alert alert-danger" *ngIf="!disabled && !!!form.get('radius').getError('requiredNumber') && form.get('radius').errors">_#(common.forbiddenDiameterInterval)</div>
 </form>

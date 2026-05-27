@@ -117,13 +117,12 @@
             </label>
           </div>
         </div>
-        <div class="col-auto">
-          <div class="form-floating">
-          <input type="number" class="form-control" id="header" formControlName="headerCols"
-                 min="0" placeholder="_#(Header Columns)">
-          <label><span>_#(Header Columns)</span></label>
+        <div class="col-auto d-flex flex-column">
+          <label class="form-label">_#(Header Columns)</label>
+          <number-stepper formControlName="headerCols" [min]="0"
+                          [invalid]="form.controls['headerCols'].invalid">
+          </number-stepper>
         </div>
-          </div>
       </div>
       <div *ngIf="form.controls['headerCols'].errors && form.controls['headerCols'].errors['min']"
            class="alert alert-danger">

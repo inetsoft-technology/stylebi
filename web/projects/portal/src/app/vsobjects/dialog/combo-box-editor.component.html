@@ -162,7 +162,7 @@
                         [model]="model.variableListDialogModel"></variable-list-dialog>
 </ng-template>
 <ng-template #dropdownOptions>
-  <div class="dropdown-container dropdown-menu show" [style.min-width.px]="dropdownMinWidth">
+  <div class="dropdown-container dropdown-pane" [style.min-width.px]="dropdownMinWidth">
     <cdk-virtual-scroll-viewport [itemSize]="35" class="dropdown-viewport">
       <div class="dropdown-item dropdown-item-label"
            *cdkVirtualFor="let entry of valueList"

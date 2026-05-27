@@ -23,7 +23,7 @@
         <div [fixedDropdown]="dropdownMenu" [autoClose]="false" [zIndex]="10000"
              [closeOnEsc]="!dialogOpened"
              [class.field-icon--open]="dropdownOpen"
-             class="field-icon hover-bg-secondary" (openChange)="openChanged($event)">
+             class="field-icon hover-bg-neutral" (openChange)="openChanged($event)">
           <div *ngIf="_isEditEnabled && (field || frames.length > 1 || isContour())"
             title="_#(Edit Color)" class="visual-cell-container">
             <div class="visual-cell no-caret"

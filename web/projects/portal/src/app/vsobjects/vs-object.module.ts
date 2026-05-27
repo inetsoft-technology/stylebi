@@ -49,6 +49,7 @@ import { AutoCompleteModule } from "../widget/auto-complete/auto-complete.module
 import { ColorPickerModule } from "../widget/color-picker/color-picker.module";
 import { ConditionModule } from "../widget/condition/condition.module";
 import { CustomSelectModule } from "../widget/custom-select/custom-select.module";
+import { NumberStepperModule } from "../widget/number-stepper/number-stepper.module";
 import { DateTypeEditorModule } from "../widget/date-type-editor/date-type-editor.module";
 import { AdditionalTableSelectionPaneModule } from "../widget/dialog/additional-table-selection-pane/additional-table-selection-pane.module";
 import { AutoDrillDialogModule } from "../widget/dialog/auto-drill-dialog/auto-drill-dialog.module";
@@ -241,6 +242,7 @@ import { VsToolbarButtonDirective } from "./vs-toolbar-button.directive";
       FixedDropdownModule,
       ColorPickerModule,
       CustomSelectModule,
+      NumberStepperModule,
       DynamicComboBoxModule,
       TreeModule,
       ModalHeaderModule,

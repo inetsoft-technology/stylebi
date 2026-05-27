@@ -97,15 +97,11 @@
 }
 
 .drill-tree-dropdown-menu {
-  border: 1px solid var(--inet-default-border-color);
   max-height: 300px;
   min-width: 200px;
   width: 100%;
   overflow-y: auto;
   padding: 0.25rem;
-  border-radius: var(--inet-radius-md);
-  background: var(--inet-shell-surface-default);
-  box-shadow: var(--inet-shadow-md);
 }
 
 .drill-link-picker {

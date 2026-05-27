@@ -42,7 +42,7 @@
         <label><span>_#(Label Text)</span></label>
       </div>
     </div>
-    <div class="form-row-float-label row" *ngIf="model.showLabel">
+    <div class="form-row-float-label row input-label-pane__control-row" *ngIf="model.showLabel">
       <div class="col-6 form-floating mb-2">
         <custom-select [options]="positionOptions"
                        [(ngModel)]="model.labelPosition"
@@ -50,13 +50,14 @@
         </custom-select>
         <label for="labelPosition"><span>_#(Label Position)</span></label>
       </div>
-      <div class="col-6 form-floating mb-2">
-        <input class="form-control" type="number" [(ngModel)]="model.labelGap"
-               placeholder="_#(Gap)" id="labelGap" min="0" max="1000" #gap="ngModel"
-               (ngModelChange)="onGapChange()">
-        <label for="labelGap"><span>_#(Gap px)</span></label>
+      <div class="col-6 mb-2 d-flex flex-column input-label-pane__gap-col">
+        <label class="form-label input-label-pane__gap-label">_#(Gap px)</label>
+        <number-stepper [(ngModel)]="model.labelGap" #gap="ngModel"
+                        [min]="0" [max]="1000" (valueChange)="onGapChange()"
+                        [invalid]="gap.invalid && gap.touched">
+        </number-stepper>
       </div>
-        <div class="col form-floating">
+        <div class="col">
           <div class="alert alert-danger" *ngIf="gap.invalid && gap.touched">
             _#(Gap must be a number between 0 and 1000)
           </div>

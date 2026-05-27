@@ -94,7 +94,7 @@ slide-out div.sort-column-dialog.slide-out-content-container {
 
 slide-out div.preview-table-dialog.slide-out-content-container {
   max-width: 1250px;
-  width: calc(100% - 30px); // 30px is hard-coded in slide-out.component.scss
+  width: calc(100% - var(--inet-modal-content-gutter));
 }
 
 slide-out div.formula-dialog.slide-out-content-container {
@@ -327,6 +327,9 @@ div.ws-grouping-property-dialog.slide-out-content-container {
   height: 1px;
 }
 
+// Intentional local geometry: these line-style previews mirror the rendered arrow and
+// dash patterns used in dialogs. The repeated 24px, 10px, 6px, and 2px values are
+// tightly coupled to preview legibility rather than the global spacing/control scale.
 .line-style-SOLID_ARROW,
 .line-style-OPEN_ARROW,
 .line-style-CLOSED_ARROW {

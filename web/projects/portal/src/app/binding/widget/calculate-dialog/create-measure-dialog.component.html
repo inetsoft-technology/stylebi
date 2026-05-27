@@ -27,7 +27,7 @@
 
           <!-- Client chose Detail radio button -->
           <ng-template [ngSwitchCase]="'detail'">
-            <form [formGroup]="form" class="form-inline">
+            <form [formGroup]="form" class="shell-inline-form">
               <div class="form-row-float-label">
                 <label for="nameDetail">_#(Name):</label>
                 <input type="text" class="form-control" id="nameDetail" trim
@@ -74,7 +74,7 @@
 
           <!-- Client choose Aggregate radio button -->
           <ng-template [ngSwitchCase]="'aggregate'">
-            <form [formGroup]="form" class="form-inline">
+            <form [formGroup]="form" class="shell-inline-form">
               <div class="row form-row-float-label">
                 <div class="col form-floating">
                   <input type="text" class="form-control" id="nameAggregate" trim

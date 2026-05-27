@@ -22,7 +22,7 @@
       <div [fixedDropdown]="dropdownMenu" [autoClose]="false" [zIndex]="10000"
            [disabled]="!isFrameEditEnabled()"
            [class.field-icon--open]="dropdownOpen"
-           class="field-icon hover-bg-secondary" (openChange)="openChanged($event)">
+           class="field-icon hover-bg-neutral" (openChange)="openChanged($event)">
         <!--size cells-->
         <div *ngIf="isFrameEditEnabled()" class="visual-cell-container">
           <div class="visual-cell no-caret"

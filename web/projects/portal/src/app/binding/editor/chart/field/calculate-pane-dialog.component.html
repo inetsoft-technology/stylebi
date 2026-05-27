@@ -115,12 +115,10 @@
          </div>
 
          <div  class="row form-row-float-label" *ngIf="npVisible">
-           <div class="col">
-             <div class="form-floating">
-               <input type="number" min="1" class="form-control" [(ngModel)]="n"
-                      placeholder="{{npLabel}}" required>
-               <label><span>{{npLabel}}</span></label>
-             </div>
+           <div class="col d-flex flex-column">
+             <label class="form-label">{{npLabel}}</label>
+             <number-stepper [(ngModel)]="n" [min]="1" [invalid]="!isNValid()">
+             </number-stepper>
            </div>
          </div>
       </div>
@@ -195,22 +193,16 @@
            </div>
          </div>
          <div class="row form-row-float-label">
-           <div class="col">
-             <div class="form-floating">
-               <input type="number" [(ngModel)]="movingCalculator.previous"
-                      class="form-control" placeholder="_#(Previous)"
-                      onkeyup="value=value.replace(/[^0-9]/g,'')"/>
-               <label><span>_#(Previous)</span></label>
-             </div>
+           <div class="col d-flex flex-column">
+             <label class="form-label">_#(Previous)</label>
+             <number-stepper [(ngModel)]="movingCalculator.previous" [min]="0">
+             </number-stepper>
            </div>
-            <div class="col">
-              <div class="form-floating">
-                <input type="number" class="form-control" [(ngModel)]="movingCalculator.next"
-                       placeholder="_#(Next)"
-                       onkeyup="value=value.replace(/[^0-9]/g,'')"/>
-                <label><span>_#(Next)</span></label>
-              </div>
-            </div>
+           <div class="col d-flex flex-column">
+             <label class="form-label">_#(Next)</label>
+             <number-stepper [(ngModel)]="movingCalculator.next" [min]="0">
+             </number-stepper>
+           </div>
          </div>
          <div class="row form-row-float-label">
             <div class="col">

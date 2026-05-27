@@ -34,7 +34,7 @@
          type='number' [ngModel]="value" (focusout)="updateValue($event)"
          [readonly]="!editable" ngbDropdownToggle>
   <!--[ngClass]="getDisplayClass(choice)"-->
-  <ul ngbDropdownMenu *ngIf="values" class="dropdown-container">
+  <ul ngbDropdownMenu *ngIf="values" class="dropdown-container dropdown-pane">
     <li *ngFor="let choice of values; let i = index">
       <div *ngIf="isValueEnabled(choice)" class="dropdown-item"
          [class.fade-assembly]="choice == promptString  ? 'fade' : '' ||

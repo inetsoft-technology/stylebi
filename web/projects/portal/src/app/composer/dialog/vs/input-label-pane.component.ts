@@ -22,7 +22,8 @@ import { CustomSelectOption } from "../../../widget/custom-select/custom-select.
 
 @Component({
    selector: "input-label-pane",
-   templateUrl: "input-label-pane.component.html"
+   templateUrl: "input-label-pane.component.html",
+   styleUrls: ["./input-label-pane.component.scss"]
 })
 export class InputLabelPane implements OnInit {
    @Input() model: InputLabelPaneModel;
