@@ -432,7 +432,9 @@ public class MVAction implements AssetSupport, Cloneable, XMLSerializable, Cance
 
    @Override
    public void cancel() {
-      if(mvFuture != null) {
+      Future<String> future = mvFuture;
+
+      if(future != null) {
          MVCancelledMessage mvCancelledMessage = new MVCancelledMessage(mvname);
 
          try {
@@ -442,7 +444,7 @@ public class MVAction implements AssetSupport, Cloneable, XMLSerializable, Cance
             LOG.debug("Failed to send MV cancelled message", e);
          }
 
-         mvFuture.cancel(true);
+         future.cancel(true);
       }
 
       if(runningCreators.get(mvname) != null) {
@@ -550,7 +552,7 @@ public class MVAction implements AssetSupport, Cloneable, XMLSerializable, Cance
    private MVDef mv;
    private volatile boolean reloadMv = false;
    private String email;
-   private Future<String> mvFuture;
+   private volatile Future<String> mvFuture;
    private static final Map<String, MVCreator> runningCreators = new ConcurrentHashMap<>();
    private static final Logger LOG = LoggerFactory.getLogger(MVAction.class);
 }
