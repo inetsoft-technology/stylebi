@@ -48,7 +48,6 @@ import inetsoft.web.composer.vs.VSObjectTreeService;
 import inetsoft.web.composer.vs.command.*;
 import inetsoft.web.composer.vs.event.CloseSheetEvent;
 import inetsoft.web.composer.vs.event.NewViewsheetEvent;
-import inetsoft.web.composer.wiz.service.VisualizationService;
 import inetsoft.web.composer.ws.event.SaveSheetEvent;
 import inetsoft.web.viewsheet.command.*;
 import inetsoft.web.viewsheet.controller.VSRefreshController;
@@ -73,8 +72,7 @@ public class ComposerViewsheetService {
                                       VSLayoutService vsLayoutService,
                                       VSObjectModelFactoryService objectModelService,
                                       VSCompositionService vsCompositionService,
-                                      MVManager mvManager, XSessionService sessionService,
-                                      VisualizationService visualizationService)
+                                      MVManager mvManager, XSessionService sessionService)
    {
       this.runtimeViewsheetManager = runtimeViewsheetManager;
       this.coreLifecycleService = coreLifecycleService;
@@ -86,7 +84,6 @@ public class ComposerViewsheetService {
       this.vsCompositionService = vsCompositionService;
       this.mvManager = mvManager;
       this.sessionService = sessionService;
-      this.visualizationService = visualizationService;
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
@@ -118,8 +115,6 @@ public class ComposerViewsheetService {
       VSObjectTreeNode tree = vsObjectTreeService.getObjectTree(rvs);
       PopulateVSObjectTreeCommand treeCommand = new PopulateVSObjectTreeCommand(tree);
       commandDispatcher.sendCommand(treeCommand);
-      visualizationService.sendDetailsCommandIfWiz(rvs.getViewsheet(), commandDispatcher);
-
       return null;
    }
 
@@ -680,6 +675,5 @@ public class ComposerViewsheetService {
    private final VSCompositionService vsCompositionService;
    private final MVManager mvManager;
    private final XSessionService sessionService;
-   private final VisualizationService visualizationService;
    private final Logger LOG = LoggerFactory.getLogger(ComposerViewsheetService.class);
 }

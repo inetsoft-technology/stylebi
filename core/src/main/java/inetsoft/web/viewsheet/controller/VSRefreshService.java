@@ -40,7 +40,6 @@ import inetsoft.web.binding.handler.VSChartDataHandler;
 import inetsoft.web.composer.vs.VSObjectTreeNode;
 import inetsoft.web.composer.vs.VSObjectTreeService;
 import inetsoft.web.composer.vs.command.PopulateVSObjectTreeCommand;
-import inetsoft.web.composer.wiz.service.VisualizationService;
 import inetsoft.web.embed.EmbedAssemblyInfo;
 import inetsoft.web.viewsheet.command.*;
 import inetsoft.web.viewsheet.controller.table.BaseTableService;
@@ -69,8 +68,7 @@ public class VSRefreshService {
                            VSObjectTreeService vsObjectTreeService,
                            VSBookmarkService vsBookmarkService,
                            ParameterService parameterService,
-                           XSessionService sessionService,
-                           VisualizationService visualizationService)
+                           XSessionService sessionService)
    {
       this.coreLifecycleService = coreLifecycleService;
       this.viewsheetService = viewsheetService;
@@ -78,7 +76,6 @@ public class VSRefreshService {
       this.vsBookmarkService = vsBookmarkService;
       this.parameterService = parameterService;
       this.sessionService = sessionService;
-      this.visualizationService = visualizationService;
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
@@ -333,7 +330,6 @@ public class VSRefreshService {
             commandDispatcher.sendCommand(treeCommand);
          }
 
-         visualizationService.sendDetailsCommandIfWiz(vs, commandDispatcher);
       }
       finally {
          box.get().setRefreshing(false);
@@ -545,7 +541,6 @@ public class VSRefreshService {
    private final VSBookmarkService vsBookmarkService;
    private final ParameterService parameterService;
    private final XSessionService sessionService;
-   private final VisualizationService visualizationService;
    private final ConcurrentMap<String, Boolean> pending = new ConcurrentHashMap<>();
 
    private static final Logger LOG = LoggerFactory.getLogger(VSRefreshService.class);

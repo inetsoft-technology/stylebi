@@ -27,7 +27,6 @@ import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.WizUtil;
 import inetsoft.util.Tool;
 import inetsoft.web.composer.model.TreeNodeModel;
-import inetsoft.web.composer.wiz.service.VisualizationService;
 import inetsoft.web.service.BinaryTransferService;
 import inetsoft.web.viewsheet.controller.AssemblyImageService;
 import inetsoft.web.viewsheet.service.ExportResponse;
