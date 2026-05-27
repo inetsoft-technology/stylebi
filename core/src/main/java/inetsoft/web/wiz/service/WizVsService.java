@@ -1775,6 +1775,18 @@ public class WizVsService {
          ref.setFormulaValue(field.getAggregateFormula());
       }
 
+      if(field.getSecondaryField() != null) {
+         ref.setSecondaryColumnValue(field.getSecondaryField());
+      }
+
+      if(field.getCalculateInfo() != null) {
+         Calculator calc = field.getCalculateInfo().toCalculator();
+
+         if(calc != null) {
+            ref.setCalculator(calc);
+         }
+      }
+
       return ref;
    }
 
@@ -1832,6 +1844,18 @@ public class WizVsService {
 
       if(field.getAggregateFormula() != null) {
          ref.setFormulaValue(field.getAggregateFormula());
+      }
+
+      if(field.getSecondaryField() != null) {
+         ref.setSecondaryColumnValue(field.getSecondaryField());
+      }
+
+      if(field.getCalculateInfo() != null) {
+         Calculator calc = field.getCalculateInfo().toCalculator();
+
+         if(calc != null) {
+            ref.setCalculator(calc);
+         }
       }
 
       return ref;
