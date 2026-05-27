@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { HammerModule, bootstrapApplication, BrowserModule } from "@angular/platform-browser";
+import { HammerModule, bootstrapApplication } from "@angular/platform-browser";
 import { provideAnimations } from "@angular/platform-browser/animations";
 import { provideRouter, withInMemoryScrolling, withRouterConfig } from "@angular/router";
 import { provideHttpClient, withInterceptorsFromDi } from "@angular/common/http";
@@ -44,7 +44,7 @@ import { httpInterceptorProviders } from "./app/http-interceptor-providers";
 
 bootstrapApplication(AppComponent, {
    providers: [
-      importProvidersFrom(BrowserModule, ReactiveFormsModule, HammerModule, LayoutModule,
+      importProvidersFrom(ReactiveFormsModule, HammerModule, LayoutModule,
          MatButtonModule, MatCardModule, MatDialogModule, MatFormFieldModule, MatIconModule,
          MatInputModule, MatMenuModule, MatSnackBarModule, MatTableModule, MatToolbarModule,
          MatSelectModule),

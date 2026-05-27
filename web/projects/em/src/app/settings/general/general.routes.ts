@@ -17,7 +17,6 @@
  */
 import { Routes } from "@angular/router";
 import { MatPaginatorIntl } from "@angular/material/paginator";
-import { MatDatepickerModule } from "@angular/material/datepicker";
 import { LocalizedMatPaginator } from "../../../../../shared/util/localized-mat-paginator";
 import { ErrorHandlerService } from "../../common/util/error/error-handler.service";
 import { generalSaveGuard } from "./general-settings-page/general-save.guard";
@@ -30,7 +29,6 @@ export const GENERAL_ROUTES: Routes = [
       canDeactivate: [generalSaveGuard],
       providers: [
          ErrorHandlerService,
-         MatDatepickerModule,
          { provide: MatPaginatorIntl, useClass: LocalizedMatPaginator }
       ]
    }

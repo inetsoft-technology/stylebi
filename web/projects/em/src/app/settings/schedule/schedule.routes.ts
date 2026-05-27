@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Routes } from "@angular/router";
-import { DateAdapter, ErrorStateMatcher, MatNativeDateModule } from "@angular/material/core";
+import { DateAdapter, ErrorStateMatcher } from "@angular/material/core";
 import { MatPaginatorIntl } from "@angular/material/paginator";
 import { LocalizedMatPaginator } from "../../../../../shared/util/localized-mat-paginator";
 import { authorizationGuard } from "../../authorization/authorization-guard.service";
