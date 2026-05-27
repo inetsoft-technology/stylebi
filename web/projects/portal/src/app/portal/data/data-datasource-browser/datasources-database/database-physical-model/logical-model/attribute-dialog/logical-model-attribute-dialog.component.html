@@ -21,7 +21,7 @@
 </modal-header>
 <div class="modal-body logical-model-attribute-dialog">
   <form [formGroup]="form" class="logical-model-attribute-dialog__form">
-    <div class="form-group form-floating" #entityDropdown="ngbDropdown" ngbDropdown [autoClose]="true">
+    <div class="shell-form-group form-floating" #entityDropdown="ngbDropdown" ngbDropdown [autoClose]="true">
       <input #entityTrigger type="text" class="form-control input-dropdown"
              [class.input-dropdown--open]="entityDropdown.isOpen()"
              [value]="selectedEntityName"
@@ -49,7 +49,7 @@
         </button>
       </div>
     </div>
-    <div class="form-group">
+    <div class="shell-form-group">
       <div class="form-floating">
         <div class="logical-model-attribute-dialog__tree-shell">
           <div class="physical-table-tree">

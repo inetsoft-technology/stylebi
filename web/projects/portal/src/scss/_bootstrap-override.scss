@@ -498,11 +498,6 @@ ngb-datepicker {
  * shell work does not accrete here by default.
  ***********************************************************************************************/
 
-.col-xs-12 > textarea, .col-xs-12 > * > textarea {
-  height: 100%;
-  width: 100%;
-}
-
 //enhance/override .modal from bootstrap. seems to only be used in app-error-message.component
 div.modal.fade.first-child.in {
   overflow: visible;
@@ -868,10 +863,6 @@ a:not([href]) {
   }
 }
 
-.btn.btn-block {
-  display: block;
-}
-
 .list-group-item {
   &.active {
     color: var(--inet-text-color);
@@ -891,10 +882,6 @@ a:not([href]) {
       color: var(--inet-text-color);
     }
   }
-}
-
-.close, .close:hover {
-  color: var(--inet-text-color);
 }
 
 .table-hover tbody tr:hover {

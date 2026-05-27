@@ -59,7 +59,7 @@
   <div class="split">
     <ng-container *ngIf="!!editingCondition">
       <div class="container-fluid hidden-column-container">
-        <div class="form-group mt-2 form-floating">
+        <div class="shell-form-group mt-2 form-floating">
             <input type="text" #nameCtrl="ngModel"
                    name="name"
                    class="form-control"
@@ -105,7 +105,7 @@
                   </div>
                 </div>
                 <div class="row">
-                  <div class="col form-group mt-2">
+                  <div class="col shell-form-group mt-2">
                     <div class="input-group">
                       <div class="form-floating">
                         <input readonly type="text"
@@ -125,7 +125,7 @@
                 </div>
                 <div class="row">
                   <div class="col">
-                <div class="form-group">
+                <div class="shell-form-group">
                   <div class="bordered-box bordered-box-md bd-gray">
                     <div *ngIf="editingCondition.clauses.length == 0"
                          class="unhighlightable">

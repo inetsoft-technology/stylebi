@@ -37,14 +37,14 @@
           <label>_#(Join)</label>
         </div>
 
-        <div class="form-group form-floating">
+        <div class="shell-form-group form-floating">
             <custom-select [options]="joinTypeSelectOptions"
                            [(ngModel)]="joinModel.type">
             </custom-select>
             <label>_#(Join Type)</label>
         </div>
         <ng-container *ngIf="dataType == 'physical'">
-          <div class="form-group">
+          <div class="shell-form-group">
             <div class="form-floating">
               <number-stepper #orderPriorityCtrl="ngModel"
                               name="orderPriority"
@@ -87,7 +87,7 @@
               </div>
             </div>
           </div>
-          <div class="form-group">
+          <div class="shell-form-group">
             <div class="join-properties__section-title">_#(Cardinality)</div>
             <div class="join-properties__choice-grid">
               <div class="join-properties__choice">
@@ -128,7 +128,7 @@
               </div>
             </div>
           </div>
-          <div class="form-group">
+          <div class="shell-form-group">
             <label class="join-properties__choice-label">
               <input class="form-check-input join-properties__choice-input" type="checkbox"
                      [(ngModel)]="joinModel.weak">

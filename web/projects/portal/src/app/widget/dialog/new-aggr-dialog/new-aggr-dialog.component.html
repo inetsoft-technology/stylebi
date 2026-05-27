@@ -23,7 +23,7 @@
 <!-- Modal Body -->
 <div class="modal-body" *ngIf="model && form">
   <form [formGroup]="form" class="form-horizontal col-offset-1">
-    <div class="row form-group new-aggr-dialog__row">
+    <div class="row shell-form-row shell-form-group new-aggr-dialog__row">
       <label for="field" class="col-2">_#(Field):</label>
       <div class="col-sm-6 new-aggr-dialog__control-col"
            [ngClass]="{ 'has-error' : !form.controls['field'].valid}">
@@ -36,7 +36,7 @@
         <div *ngIf="form.controls['field'].errors && form.controls['field'].errors['required']" class="alert alert-danger">_#(field.required)</div>
       </div>
     </div>
-    <div class="row form-group new-aggr-dialog__row">
+    <div class="row shell-form-row shell-form-group new-aggr-dialog__row">
       <label for="aggregate" class="col-2">_#(Aggregate):</label>
       <div class="col-sm-6 new-aggr-dialog__control-col">
         <custom-select id="aggregate"
@@ -47,7 +47,7 @@
         </custom-select>
       </div>
     </div>
-    <div class="row form-group new-aggr-dialog__row">
+    <div class="row shell-form-row shell-form-group new-aggr-dialog__row">
       <label for="with" class="col-2">_#(With)</label>
       <div class="col-sm-6 new-aggr-dialog__control-col">
         <custom-select id="with"
@@ -58,7 +58,7 @@
         </custom-select>
       </div>
     </div>
-    <div class="row form-group new-aggr-dialog__row">
+    <div class="row shell-form-row shell-form-group new-aggr-dialog__row">
       <label for="np" class="col-2">{{getNPLabel()}}</label>
       <div class="col-sm-6 new-aggr-dialog__control-col">
         <input id="np" type="text" class="form-control" [ngModelOptions]="{standalone:true}" [disabled]="!hasN()" [(ngModel)]="nStr">

@@ -38,7 +38,7 @@
 </div>
 <div *ngIf="isMergeable()" class="form-row-float-label row unhighlightable mt-3">
   <div class="col-4">
-    <div class="form-group form-floating">
+    <div class="shell-form-group form-floating">
       <div class="bordered-box bd-gray form-control" id="compatibleTables">
         <div *ngFor="let _table of compatibleTables; let _i = index"
              [class.selected]="compatibleTableSelection.isSelected(_i)"
@@ -60,7 +60,7 @@
     </button>
   </div>
   <div class="col-4">
-    <div class="form-group form-floating">
+    <div class="shell-form-group form-floating">
       <div class="bordered-box bd-gray form-control" id="additionalTables">
         <div *ngFor="let _table of additionalTables; let _i = index"
              [class.selected]="additionalTableSelection.isSelected(_i)"

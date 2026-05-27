@@ -22,7 +22,7 @@
 <form ngNoForm (submit)="$event.preventDefault()" class="form-horizontal">
 
   <!-- Multiple Radios (inline) -->
-  <div class="form-group row">
+  <div class="shell-form-group row shell-form-row">
     <label class="col-2"></label>
 
     <div class="col-3">
@@ -57,7 +57,7 @@
   </div>
 
   <!-- Multiple Radios (inline) -->
-  <div class="form-group row">
+  <div class="shell-form-group row shell-form-row">
     <label class="col-2"></label>
 
     <div class="col-3">
@@ -98,7 +98,7 @@
   <!-- User selects "Date" Radio Box-->
   <ng-template [ngSwitchCase]="'Date'">
     <form ngNoForm (submit)="$event.preventDefault()" class="form-horizontal">
-      <div class="form-group">
+      <div class="shell-form-group">
         <label class="col-2" for="formatDate">_#(Format):</label>
         <div class="col-3">
           <select id="formatDate" name="select" class="form-control" [(ngModel)]="model.dateFormat">
@@ -117,7 +117,7 @@
   <!-- User selects "Text" Radio Box-->
   <ng-template [ngSwitchCase]="'Text'">
     <form ngNoForm (submit)="$event.preventDefault()" class="form-horizontal">
-      <div class="form-group">
+      <div class="shell-form-group">
         <label class="col-2" for="formatText">_#(Format):</label>
         <div class="col-9">
           <input type="text" class="form-control" id="formatText" [(ngModel)]="model.format">
@@ -129,7 +129,7 @@
   <!-- User selects "Number" Radio Box-->
   <ng-template [ngSwitchCase]="'Number'">
     <form ngNoForm (submit)="$event.preventDefault()" class="form-horizontal">
-      <div class="form-group">
+      <div class="shell-form-group">
         <label class="col-2" for="formatNumber">_#(Format):</label>
         <div class="col-9">
           <select id="formatNumber" name="select" class="form-control" [(ngModel)]="model.format">
@@ -148,7 +148,7 @@
 <!-- Presenter title Bar -->
 <div class="title-bar">_#(Presenter)</div>
 <form ngNoForm (submit)="$event.preventDefault()" class="form-horizontal">
-  <div class="form-group">
+  <div class="shell-form-group">
     <label class="col-2" for="formatPresenter">_#(Presenter):</label>
     <div class="col-9">
       <select id="formatPresenter" name="select" class="form-control">

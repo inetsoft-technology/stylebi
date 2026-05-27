@@ -17,14 +17,14 @@
   -->
 <div class="container-fluid">
   <div class="row form-row-float-label">
-    <div class="col-xs-12 col-sm-6">
+    <div class="col-12 col-sm-6">
       <div class="text-truncate">_#(Select an Image)</div>
       <div class="bordered-box bd-gray">
         <tree [root]="model.imageTree" [showRoot]="false" [selectedNodes]="selectedNodes"
               (nodesSelected)="selectImage($event[0])"></tree>
       </div>
     </div>
-    <div class="col-xs-12 col-sm-6">
+    <div class="col-12 col-sm-6">
       <span>_#(Image Path): {{selectedImageNode.label ? selectedImageNode.label : "emptyimage.gif" }}</span>
       <div contenteditable="false" tabindex="1" class="bordered-box bd-gray"
            [style.background-color]="blackBackground ? 'black' : 'transparent'">

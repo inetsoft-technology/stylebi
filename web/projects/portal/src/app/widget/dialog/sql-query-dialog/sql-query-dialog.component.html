@@ -23,7 +23,7 @@
      (keydown.escape)="checkIfNotSaved($event)"
      (onEnter)="ok()">
   <div class="container-fluid d-flex flex-column h-100">
-    <div class="row form-group" *ngIf="!subQuery" >
+    <div class="row shell-form-row shell-form-group" *ngIf="!subQuery" >
       <div class="col">
         <div class="form-check form-switch">
           <input class="form-check-input" type="checkbox" role="switch" id="switchEditMode"
@@ -51,7 +51,7 @@
         </div>
       </div>
     </div>
-    <div class="row form-group">
+    <div class="row shell-form-row shell-form-group">
       <div class="col">
         <custom-select *ngIf="model.dataSources?.length > 1"
                        [options]="dataSourceSelectOptions"

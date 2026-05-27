@@ -66,7 +66,7 @@
       </div>
         <div class="auto-drill-panel__body">
           <form [formGroup]="form" *ngIf="!!editDrill">
-            <div class="form-group form-floating">
+            <div class="shell-form-group form-floating">
               <input type="text" class="form-control" formControlName="name"
                      [class.is-invalid]="!nameControl.valid">
               <label><span>_#(Name)</span></label>
@@ -74,14 +74,14 @@
                 {{getFirstErrorMessage(nameControl)}}
               </span>
             </div>
-            <div class="form-group form-floating">
+            <div class="shell-form-group form-floating">
               <input type="text"
                      class="form-control"
                      [(ngModel)]="editDrill.tip"
                      [ngModelOptions]="{standalone: true}">
               <label><span>_#(Tooltip)</span></label>
             </div>
-            <div class="form-group">
+            <div class="shell-form-group">
               <div class="form-check form-check-inline">
                 <input class="form-check-input" type="radio" id="assetLink"
                        [ngModel]="editDrill.linkType"
@@ -99,7 +99,7 @@
                 <label class="form-check-label" for="webLink">_#(Web Link)</label>
               </div>
             </div>
-            <div *ngIf="editDrill.linkType == LinkType.WEB_LINK" class="form-group form-floating">
+            <div *ngIf="editDrill.linkType == LinkType.WEB_LINK" class="shell-form-group form-floating">
               <input type="text"
                      class="form-control"
                      formControlName="link"
@@ -109,7 +109,7 @@
                 _#(data.logicalmodel.drillLinkRequired)
               </span>
             </div>
-            <div *ngIf="editDrill.linkType !== LinkType.WEB_LINK" class="form-group">
+            <div *ngIf="editDrill.linkType !== LinkType.WEB_LINK" class="shell-form-group">
               <div #dropdown="ngbDropdown" ngbDropdown [autoClose]="'outside'" class="drill-link-picker">
                 <div class="form-floating drill-link-picker__field">
                   <input #drillLinkTrigger ngbDropdownToggle type="text" readonly
@@ -136,7 +136,7 @@
                 </div>
               </div>
             </div>
-            <div class="form-group form-floating">
+            <div class="shell-form-group form-floating">
               <div class="input-group">
                 <input type="text" class="form-control"
                        [disabled]="targetSelf"
@@ -151,7 +151,7 @@
               </div>
               <label><span>_#(Target Frame)</span></label>
             </div>
-            <div class="form-group">
+            <div class="shell-form-group">
               <div class="input-group">
                 <div class="form-floating">
                   <input type="text" class="form-control" [ngModel]="getDrillWorksheet()"
@@ -164,7 +164,7 @@
                 </button>
               </div>
             </div>
-            <div class="form-group">
+            <div class="shell-form-group">
               <div class="form-check">
                 <input type="checkbox" class="form-check-input"
                        [(ngModel)]="editDrill.passParams"
@@ -174,7 +174,7 @@
                 </label>
               </div>
             </div>
-            <div class="form-group">
+            <div class="shell-form-group">
               <div class="form-check">
                 <input type="checkbox" class="form-check-input"
                        [(ngModel)]="editDrill.disablePrompting"
@@ -184,7 +184,7 @@
                 </label>
               </div>
             </div>
-            <div class="form-group">
+            <div class="shell-form-group">
               <div class="auto-drill-parameter-panel parameter-list">
                 <div class="auto-drill-parameter-panel__header">
                   <span>_#(Parameters)</span>

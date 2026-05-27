@@ -28,9 +28,9 @@
         </div>
       </div>
       <div class="col-3">
-        <button type="button" class="btn btn-sm btn-secondary btn-block mb-1 w-100" [disabled]="!model.supportsTarget" (click)="addTarget()">_#(Add)</button>
-        <button type="button" class="btn btn-sm btn-default btn-block mb-1 w-100" [disabled]="!selectedIndexes || selectedIndexes.length == 0" (click)="deleteTarget()">_#(Delete)</button>
-        <button type="button" class="btn btn-sm btn-default btn-block w-100" [disabled]="!selectedIndexes || selectedIndexes.length == 0" (click)="editTarget()">_#(Edit)</button>
+        <button type="button" class="btn btn-sm btn-secondary d-block mb-1 w-100" [disabled]="!model.supportsTarget" (click)="addTarget()">_#(Add)</button>
+        <button type="button" class="btn btn-sm btn-default d-block mb-1 w-100" [disabled]="!selectedIndexes || selectedIndexes.length == 0" (click)="deleteTarget()">_#(Delete)</button>
+        <button type="button" class="btn btn-sm btn-default d-block w-100" [disabled]="!selectedIndexes || selectedIndexes.length == 0" (click)="editTarget()">_#(Edit)</button>
       </div>
     </div>
   </fieldset>

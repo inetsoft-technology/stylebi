@@ -349,6 +349,10 @@ body {
   }
 }
 
+.shell-form-group {
+  margin-bottom: var(--inet-space-5);
+}
+
 .hover-bd-selectable {
   &.bd-selected {
     border: 2px solid var(--inet-selected-item-bg-color);

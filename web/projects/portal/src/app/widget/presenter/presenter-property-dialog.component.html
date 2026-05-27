@@ -19,7 +19,7 @@
 </modal-header>
 <div class="modal-body container-fluid" *ngIf="model">
   <ng-container *ngFor="let descriptor of model.descriptors; let i = index">
-    <div class="form-group row">
+    <div class="shell-form-group row">
       <label class="col-3">{{descriptor.displayName}}:</label>
       <div class="col-9 descriptor-div">
         <ng-container [ngSwitch]="descriptor.editor">
