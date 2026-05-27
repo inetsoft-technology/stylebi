@@ -32,7 +32,6 @@ import { ClusterNodesService } from "../../cluster/cluster-nodes.service";
 import { CollapsibleContainerComponent } from "../../collapsible-container/collapsible-container.component";
 import { MonitorLevelService } from "../../monitor-level.service";
 import { MonitoringDataService } from "../../monitoring-data.service";
-import { UsersRoutingModule } from "../users-routing.module";
 import { UserMonitoringViewComponent } from "./user-monitoring-view.component";
 
 const mockTableInfo: ExpandableRowTableInfo = {
@@ -73,7 +72,6 @@ describe("UserMonitoringViewComponent", () => {
             CollapsibleContainerComponent,
             MessageDialog,
             TableView,
-            UsersRoutingModule,
             UserMonitoringViewComponent],
          providers: [
             {provide: MonitoringDataService, useValue: monitoringDataService},

@@ -15,52 +15,51 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import {platformBrowserDynamic} from "@angular/platform-browser-dynamic";
-
-import { httpInterceptorProviders } from "./app/app.module";
+import { HammerModule, bootstrapApplication, BrowserModule } from "@angular/platform-browser";
+import { provideAnimations } from "@angular/platform-browser/animations";
+import { provideRouter, withInMemoryScrolling, withRouterConfig } from "@angular/router";
+import { provideHttpClient, withInterceptorsFromDi } from "@angular/common/http";
 import { importProvidersFrom } from "@angular/core";
-import { AppComponent } from "./app/app.component";
-import { MatSelectModule } from "@angular/material/select";
-import { AppRoutingModule } from "./app/app-routing.module";
-import { PageHeaderModule } from "./app/page-header/page-header.module";
-import { MatToolbarModule } from "@angular/material/toolbar";
-import { MatTableModule } from "@angular/material/table";
-import { MatSnackBarModule } from "@angular/material/snack-bar";
-import { MatMenuModule } from "@angular/material/menu";
-import { MatInputModule } from "@angular/material/input";
-import { MatIconModule } from "@angular/material/icon";
-import { MatFormFieldModule } from "@angular/material/form-field";
-import { MatDialogModule } from "@angular/material/dialog";
-import { MatCardModule } from "@angular/material/card";
-import { MatButtonModule } from "@angular/material/button";
 import { LayoutModule } from "@angular/cdk/layout";
 import { ReactiveFormsModule } from "@angular/forms";
-import { provideAnimations } from "@angular/platform-browser/animations";
-import { BrowserModule, HammerModule, bootstrapApplication } from "@angular/platform-browser";
-import { CustomRouteReuseStrategy } from "./app/custom-route-reuse-strategy";
+import { MatButtonModule } from "@angular/material/button";
+import { MatCardModule } from "@angular/material/card";
+import { MatDialogModule } from "@angular/material/dialog";
+import { MatFormFieldModule } from "@angular/material/form-field";
+import { MatIconModule } from "@angular/material/icon";
+import { MatInputModule } from "@angular/material/input";
+import { MatMenuModule } from "@angular/material/menu";
+import { MatSelectModule } from "@angular/material/select";
+import { MatSnackBarModule } from "@angular/material/snack-bar";
+import { MatTableModule } from "@angular/material/table";
+import { MatToolbarModule } from "@angular/material/toolbar";
 import { RouteReuseStrategy } from "@angular/router";
 import { ScheduleTaskNamesService } from "../../shared/schedule/schedule-task-names.service";
 import { ScheduleUsersService } from "../../shared/schedule/schedule-users.service";
-import { SsoHeartbeatInterceptor } from "../../shared/sso/sso-heartbeat-interceptor";
-import { EmClientInterceptor } from "../../portal/src/app/common/services/emclient-interceptor";
-import { InvalidSessionInterceptor } from "./app/invalid-session-interceptor";
-import { RequestedWithInterceptor } from "../../portal/src/app/common/services/requested-with-interceptor";
-import { HttpParamsCodecInterceptor } from "../../portal/src/app/common/services/http-params-codec-interceptor";
-import { CsrfInterceptor } from "./app/csrf-interceptor";
-import { HTTP_INTERCEPTORS, withInterceptorsFromDi, provideHttpClient } from "@angular/common/http";
 import { SsoHeartbeatService } from "../../shared/sso/sso-heartbeat.service";
-
+import { AppComponent } from "./app/app.component";
+import { APP_ROUTES } from "./app/app.routes";
+import { CustomRouteReuseStrategy } from "./app/custom-route-reuse-strategy";
+import { httpInterceptorProviders } from "./app/http-interceptor-providers";
 
 bootstrapApplication(AppComponent, {
-    providers: [
-        importProvidersFrom(BrowserModule, ReactiveFormsModule, HammerModule, LayoutModule, MatButtonModule, MatCardModule, MatDialogModule, MatFormFieldModule, MatIconModule, MatInputModule, MatMenuModule, MatSnackBarModule, MatTableModule, MatToolbarModule, PageHeaderModule, AppRoutingModule, MatSelectModule),
-        SsoHeartbeatService,
-        httpInterceptorProviders,
-        ScheduleUsersService,
-        ScheduleTaskNamesService,
-        { provide: RouteReuseStrategy, useClass: CustomRouteReuseStrategy },
-        provideAnimations(),
-        provideHttpClient(withInterceptorsFromDi())
-    ]
+   providers: [
+      importProvidersFrom(BrowserModule, ReactiveFormsModule, HammerModule, LayoutModule,
+         MatButtonModule, MatCardModule, MatDialogModule, MatFormFieldModule, MatIconModule,
+         MatInputModule, MatMenuModule, MatSnackBarModule, MatTableModule, MatToolbarModule,
+         MatSelectModule),
+      SsoHeartbeatService,
+      httpInterceptorProviders,
+      ScheduleUsersService,
+      ScheduleTaskNamesService,
+      { provide: RouteReuseStrategy, useClass: CustomRouteReuseStrategy },
+      provideAnimations(),
+      provideHttpClient(withInterceptorsFromDi()),
+      provideRouter(
+         APP_ROUTES,
+         withRouterConfig({ onSameUrlNavigation: "reload" }),
+         withInMemoryScrolling({ anchorScrolling: "enabled" })
+      )
+   ]
 })
    .catch(err => console.error(err));

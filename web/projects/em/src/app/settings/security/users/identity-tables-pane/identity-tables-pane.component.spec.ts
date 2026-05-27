@@ -28,7 +28,7 @@ import { MatListModule } from "@angular/material/list";
 import { MatSelectModule } from "@angular/material/select";
 import { NoopAnimationsModule } from "@angular/platform-browser/animations";
 import { IdentityClipboardService } from "../../security-table-view/identity-clipboard.service";
-import { SecurityTableViewModule } from "../../security-table-view/security-table-view.module";
+import { SecurityTableViewComponent } from "../../security-table-view/security-table-view.component";
 import { SecurityTreeDialogComponent } from "../../security-tree-dialog/security-tree-dialog.component";
 import { IdentityTablesPaneComponent } from "./identity-tables-pane.component";
 import { PropertyTableViewComponent } from "../../property-table-view/property-table-view.component";
@@ -59,7 +59,7 @@ describe("IdentityTablesPaneComponent", () => {
             MatInputModule,
             MatSelectModule,
             FormsModule,
-            SecurityTableViewModule,
+            SecurityTableViewComponent,
             PropertyTableViewComponent,
             SecurityTreeDialogComponent,
             IdentityTablesPaneComponent
