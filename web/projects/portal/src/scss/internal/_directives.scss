@@ -264,6 +264,14 @@ table.scrollable-table {
 
   .tt-tier-1:not(:first-child) { margin-top: 10px; }
 
+  // Must follow .tt-tier-1:not(:first-child) — equal specificity, later rule wins (10px → 2px margin).
+  .tt-tier-1.tt-subtitle {
+    font-size: 14px;
+    font-weight: 400;
+    margin-top: 2px;
+    letter-spacing: 0.02em;
+  }
+
   // Stack total sits at the bottom as the summary headline; bump it slightly
   // above the regular tier-1 size so it reads as the punch line.
   .tt-stack-total { font-size: 20px; }
