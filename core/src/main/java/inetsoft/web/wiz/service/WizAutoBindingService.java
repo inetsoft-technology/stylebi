@@ -106,12 +106,14 @@ public class WizAutoBindingService {
 
                   if(primary instanceof TableAssembly ta) {
                      tableName = primary.getName();
-                     ColumnSelection cs = ta.getColumnSelection();
+                     // Use private selection so visibility flags set by applyFieldVisibility
+                     // (which writes to the private selection) are correctly reflected.
+                     ColumnSelection cs = ta.getColumnSelection(false);
 
                      for(int i = 0; i < cs.getAttributeCount(); i++) {
                         DataRef ref = cs.getAttribute(i);
 
-                        if(ref instanceof ColumnRef colRef) {
+                        if(ref instanceof ColumnRef colRef && colRef.isVisible()) {
                            worksheetColumns.add(colRef);
                         }
                      }
