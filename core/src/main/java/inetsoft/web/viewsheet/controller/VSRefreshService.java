@@ -97,6 +97,33 @@ public class VSRefreshService {
          coreLifecycleService.setViewsheetInfo(rvs, linkUri, dispatcher);
       }
 
+      if(event.getAssemblySize() != null) {
+         final Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+         if(box.isPresent()) {
+            box.get().lockWrite();
+
+            try {
+               EmbedAssemblyInfo embedAssemblyInfo = rvs.getEmbedAssemblyInfo();
+
+               // Only create embed assembly metadata during the explicit embed refresh path.
+               // Resize events may omit embed=true and should only update existing state.
+               if(embedAssemblyInfo == null && event.getEmbed()) {
+                  embedAssemblyInfo = new EmbedAssemblyInfo();
+                  embedAssemblyInfo.setAssemblyName(event.getAssemblyName());
+                  rvs.setEmbedAssemblyInfo(embedAssemblyInfo);
+               }
+
+               if(embedAssemblyInfo != null) {
+                  embedAssemblyInfo.setAssemblySize(event.getAssemblySize());
+               }
+            }
+            finally {
+               box.get().unlockWrite();
+            }
+         }
+      }
+
       // reset the assembly and dependencies.
       if(assembly != null) {
          refreshAssemblyAndDependencies(rvs, assembly, linkUri, dispatcher);

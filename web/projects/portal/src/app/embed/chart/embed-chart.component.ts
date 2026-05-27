@@ -249,6 +249,15 @@ export class EmbedChartComponent extends CommandProcessor implements OnInit, OnD
       this.viewsheetClient.runtimeId = command.runtimeId;
       this.runtimeId = command.runtimeId;
 
+      // A newly opened embedded assembly may need an explicit refresh to apply the
+      // requested assembly size after the runtime is established.
+      if(this.assemblyName && !this.inputRuntimeId) {
+         // The fresh-open path only needs the targeted refresh; a full onResize() here
+         // would be redundant because it would see the same current dimensions.
+         this.refreshEmbedAssembly();
+         return;
+      }
+
       // call onResize in case the element was resized while the server was processing
       // open viewsheet event
       this.onResize();
@@ -409,13 +418,18 @@ export class EmbedChartComponent extends CommandProcessor implements OnInit, OnD
 
    private refreshEmbedAssembly(): void {
       this.setAppSize();
+      if(this.assemblySize == null || this.assemblySize.width == 0 || this.assemblySize.height == 0) {
+         return;
+      }
+
       // queryParams are intentionally not forwarded: the caller-owned viewsheet was
       // already opened with its parameters applied; re-sending them on refresh would
       // override any runtime state the caller has set since opening.
       const refreshEvent: RefreshVsAssemblyEvent = {
          vsRuntimeId: this.runtimeId,
          assemblyName: this.assemblyName,
-         embed: true
+         embed: true,
+         assemblySize: this.assemblySize
       };
       this.viewsheetClient.sendEvent("/events/vs/refresh/assembly", refreshEvent);
    }
@@ -428,6 +442,7 @@ export class EmbedChartComponent extends CommandProcessor implements OnInit, OnD
       let event: OpenViewsheetEvent = new OpenViewsheetEvent(
          this.assetId, this.appSize.width, this.appSize.height, this.mobileDevice,
          window.navigator.userAgent);
+      event.embed = true;
       event.embedAssemblyName = this.assemblyName;
       event.embedAssemblySize = this.assemblySize;
       event.disableParameterSheet = true;
@@ -574,7 +589,10 @@ export class EmbedChartComponent extends CommandProcessor implements OnInit, OnD
          if(this.inputRuntimeId) {
             const refreshEvent: RefreshVsAssemblyEvent = {
                vsRuntimeId: this.runtimeId,
-               assemblyName: this.assemblyName
+               assemblyName: this.assemblyName,
+               // Intentionally omit embed=true here: resize should update an existing
+               // embedded assembly session, not create embed metadata on the server.
+               assemblySize: this.assemblySize
             };
             this.viewsheetClient.sendEvent("/events/vs/refresh/assembly", refreshEvent);
          }
