@@ -59,6 +59,7 @@ public class OpenViewsheetController {
                                   LicenseService licenseService,
                                   OpenViewsheetServiceProxy serviceProxy,
                                   ViewsheetService viewsheetService,
+                                  SecurityEngine securityEngine,
                                   WizViewsheetServiceProxy wizViewsheetServiceProxy)
    {
       this.runtimeViewsheetRef = runtimeViewsheetRef;
@@ -67,6 +68,7 @@ public class OpenViewsheetController {
       this.licenseService = licenseService;
       this.serviceProxy = serviceProxy;
       this.viewsheetService = viewsheetService;
+      this.securityEngine = securityEngine;
       this.wizViewsheetServiceProxy = wizViewsheetServiceProxy;
    }
 
@@ -213,5 +215,6 @@ public class OpenViewsheetController {
    private final LicenseService licenseService;
    private final OpenViewsheetServiceProxy serviceProxy;
    private final ViewsheetService viewsheetService;
+   private final SecurityEngine securityEngine;
    private final WizViewsheetServiceProxy wizViewsheetServiceProxy;
 }
