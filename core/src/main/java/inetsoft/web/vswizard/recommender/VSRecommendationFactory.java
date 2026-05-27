@@ -17,6 +17,7 @@
  */
 package inetsoft.web.vswizard.recommender;
 
+import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.web.vswizard.model.VSWizardData;
 import inetsoft.web.vswizard.model.recommender.VSRecommendationModel;
 
@@ -28,4 +29,15 @@ public interface VSRecommendationFactory extends VSExtensibleRecommendationFacto
     */
    VSRecommendationModel recommend(VSWizardData wizardData, Principal principal)
       throws Exception;
+
+   /**
+    * Recommend with a directly supplied RuntimeViewsheet.
+    * Use when the caller already holds an open RuntimeViewsheet to avoid a redundant lookup.
+    */
+   default VSRecommendationModel recommend(VSWizardData wizardData,
+                                           RuntimeViewsheet rvs,
+                                           Principal principal) throws Exception
+   {
+      return recommend(wizardData, principal);
+   }
 }

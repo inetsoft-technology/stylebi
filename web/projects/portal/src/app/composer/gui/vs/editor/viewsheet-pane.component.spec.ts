@@ -190,7 +190,7 @@ describe("Viewsheet Pane Test", () => {
 
       aiAssistantService = { loadCurrentUser: jest.fn() };
       aiAssistantDialogService = { setViewsheetScriptContext: jest.fn() };
-      wizService = { showingWiz: false };
+      wizService = { wizComposer: false, wizVizIds: [], onRefreshFilters: jest.fn() };
 
       viewsheetPane = new VSPane(
          aiAssistantService, aiAssistantDialogService,

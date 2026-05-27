@@ -32,17 +32,33 @@
     
     <!-- Oracle -->
     <database type="1">
+        <schema>APPQOSSYS</schema>
+        <schema>AUDSYS</schema>
         <schema>AURORA$JIS$UTILITY$</schema>
         <schema>AURORA$ORB$UNAUTHENTICATED</schema>
         <schema>CTXSYS</schema>
         <schema>DBSNMP</schema>
+        <schema>DIP</schema>
+        <schema>DVF</schema>
+        <schema>DVSYS</schema>
+        <schema>GSMADMIN_INTERNAL</schema>
+        <schema>GSMCATUSER</schema>
+        <schema>GSMUSER</schema>
+        <schema>LBACSYS</schema>
         <schema>MDSYS</schema>
+        <schema>OJVMSYS</schema>
+        <schema>OLAPSYS</schema>
+        <schema>ORDDATA</schema>
         <schema>ORDPLUGINS</schema>
         <schema>ORDSYS</schema>
         <schema>OSE$HTTP$ADMIN</schema>
         <schema>OUTLN</schema>
+        <schema>SI_INFORMTN_SCHEMA</schema>
+        <schema>SPATIAL_CSW_ADMIN_USR</schema>
+        <schema>SPATIAL_WFS_ADMIN_USR</schema>
         <schema>SYS</schema>
         <schema>SYSTEM</schema>
+        <schema>WMSYS</schema>
         <schema>XDB</schema>
         <!-- APEX_xxxxxx and FLOWS_xxxxxx are versioned Oracle Application Express schemas -->
         <schema>APEX_*</schema>
@@ -51,31 +67,73 @@
     
     <!-- Sybase -->
     <database type="2">
+        <schema>INFORMATION_SCHEMA</schema>
+        <schema>sys</schema>
     </database>
     
     <!-- Informix -->
     <database type="3">
+        <catalog>sysmaster</catalog>
+        <schema>informix</schema>
+        <schema>sysadmin</schema>
+        <schema>syscdr</schema>
+        <schema>sysutils</schema>
+        <schema>sysuser</schema>
     </database>
     
     <!-- DB2 -->
     <database type="4">
+        <schema>NULLID</schema>
+        <schema>SQLJ</schema>
+        <schema>SYSCAT</schema>
+        <schema>SYSFUN</schema>
+        <schema>SYSIBM</schema>
+        <schema>SYSIBMADM</schema>
+        <schema>SYSPROC</schema>
+        <schema>SYSSTAT</schema>
+        <schema>SYSTOOLS</schema>
     </database>
     
     <!-- MySQL -->
     <database type="5">
         <catalog>mysql</catalog>
+        <catalog>information_schema</catalog>
+        <catalog>performance_schema</catalog>
+        <catalog>sys</catalog>
     </database>
     
     <!-- MS Access -->
     <database type="6">
     </database>
+
+    <!-- Cloudscape / Derby -->
+    <database type="9">
+        <schema>INFORMATION_SCHEMA</schema>
+        <schema>SYS</schema>
+    </database>
     
     <!-- MS SQL Server -->
     <database type="7">
         <catalog>master</catalog>
+        <catalog>model</catalog>
         <catalog>msdb</catalog>
+        <catalog>tempdb</catalog>
         <schema>sys</schema>
         <schema>INFORMATION_SCHEMA</schema>
+    </database>
+
+    <!-- PostgreSQL -->
+    <database type="11">
+        <schema>information_schema</schema>
+        <schema>pg_catalog</schema>
+        <schema>pg_toast</schema>
+        <schema>pg_toast_temp_*</schema>
+        <schema>pg_temp_*</schema>
+    </database>
+
+    <!-- ClickHouse -->
+    <database type="20">
+        <catalog>system</catalog>
     </database>
 </tablefilter>
 

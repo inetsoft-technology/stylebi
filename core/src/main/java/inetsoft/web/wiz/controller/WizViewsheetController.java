@@ -18,8 +18,8 @@
 
 package inetsoft.web.wiz.controller;
 
-import inetsoft.web.wiz.model.CreateVisualizationModel;
-import inetsoft.web.wiz.model.CreateViewsheetResult;
+import inetsoft.web.wiz.model.*;
+import inetsoft.web.wiz.service.WizAutoBindingService;
 import inetsoft.web.wiz.service.WizVsService;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
@@ -29,8 +29,11 @@ import java.security.Principal;
 @RestController
 @RequestMapping("/api/wiz")
 public class WizViewsheetController {
-   public WizViewsheetController(WizVsService wizVsService) {
+   public WizViewsheetController(WizVsService wizVsService,
+                                  WizAutoBindingService wizAutoBindingService)
+   {
       this.wizVsService = wizVsService;
+      this.wizAutoBindingService = wizAutoBindingService;
    }
 
    @PostMapping(value = "/viewsheet/create", produces = MediaType.APPLICATION_JSON_VALUE)
@@ -47,6 +50,20 @@ public class WizViewsheetController {
       wizVsService.validateBinding(model, user);
    }
 
+   @PostMapping(value = "/viewsheet/autoBinding", produces = MediaType.APPLICATION_JSON_VALUE)
+   public AutoBindingResponse autoBinding(@RequestBody AutoBindingRequest request,
+                                          Principal user) throws Exception
+   {
+      return wizAutoBindingService.autoBinding(request, user);
+   }
+
+   @PostMapping(value = "/viewsheet/changeType", produces = MediaType.APPLICATION_JSON_VALUE)
+   public CreateViewsheetResult changeType(@RequestBody ChangeTypeRequest request,
+                                           Principal user) throws Exception
+   {
+      return wizAutoBindingService.changeType(request, user);
+   }
+
    @DeleteMapping("/viewsheet")
    public void deleteViewsheet(@RequestParam("identifier") String identifier,
                                Principal user) throws Exception
@@ -55,4 +72,5 @@ public class WizViewsheetController {
    }
 
    private final WizVsService wizVsService;
+   private final WizAutoBindingService wizAutoBindingService;
 }

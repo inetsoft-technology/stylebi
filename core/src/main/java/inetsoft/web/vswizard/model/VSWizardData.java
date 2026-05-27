@@ -19,6 +19,7 @@ package inetsoft.web.vswizard.model;
 
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.web.vswizard.model.recommender.VSTemporaryInfo;
+import inetsoft.web.vswizard.recommender.chart.ChartPreference;
 
 public class VSWizardData {
    public VSWizardData() {
@@ -27,6 +28,14 @@ public class VSWizardData {
    public VSWizardData(AssetEntry[] selectedEntries, VSTemporaryInfo vsTemporaryInfo) {
       this.selectedEntries = selectedEntries;
       this.vsTemporaryInfo = vsTemporaryInfo;
+   }
+
+   public VSWizardData(AssetEntry[] selectedEntries, VSTemporaryInfo vsTemporaryInfo,
+                       ChartPreference preferenceInfo)
+   {
+      this.selectedEntries = selectedEntries;
+      this.vsTemporaryInfo = vsTemporaryInfo;
+      this.preferenceInfo = preferenceInfo;
    }
 
    public AssetEntry[] getSelectedEntries() {
@@ -45,6 +54,15 @@ public class VSWizardData {
       this.vsTemporaryInfo = vsTemporaryInfo;
    }
 
+   public ChartPreference getPreferenceInfo() {
+      return preferenceInfo;
+   }
+
+   public void setPreferenceInfo(ChartPreference preferenceInfo) {
+      this.preferenceInfo = preferenceInfo;
+   }
+
    private AssetEntry[] selectedEntries;
    private VSTemporaryInfo vsTemporaryInfo;
+   private ChartPreference preferenceInfo;
 }

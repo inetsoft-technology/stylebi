@@ -62,9 +62,18 @@ public class CreateVisualizationModel {
       this.conditionModel = conditionModel;
    }
 
+   public PrimaryBinding getPrimaryBinding() {
+      return primaryBinding;
+   }
+
+   public void setPrimaryBinding(PrimaryBinding primaryBinding) {
+      this.primaryBinding = primaryBinding;
+   }
+
    private String visualizationType;
    private VisualizationConfig config;
    private String runtimeId;
    private String viewsheetIdentifier;
    private VisualizationConditionModel conditionModel;
+   private transient PrimaryBinding primaryBinding;
 }

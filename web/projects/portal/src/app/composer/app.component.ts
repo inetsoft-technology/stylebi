@@ -26,6 +26,7 @@ import { SetPrincipalCommand } from "../vsobjects/command/set-principal-command"
 import { DragService } from "../widget/services/drag.service";
 import { ResizeHandlerService } from "./gui/resize-handler.service";
 import { ComposerRecentService } from "./gui/composer-recent.service";
+import { WizService } from "./gui/wiz/services/wiz.service";
 
 @Component({
    selector: "composer-app",
@@ -54,7 +55,8 @@ export class ComposerAppComponent implements OnInit, OnDestroy {
                private titleService: Title,
                private modalService: NgbModal,
                private firstDayOfWeekService: FirstDayOfWeekService,
-               private composerRecentService: ComposerRecentService)
+               private composerRecentService: ComposerRecentService,
+               private wizService: WizService)
    {
       titleService.setTitle("_#(js:Visual Composer)");
       // Need to set a default min and max date otherwise the range is only 20 years.
@@ -104,6 +106,30 @@ export class ComposerAppComponent implements OnInit, OnDestroy {
          searchParams.has("runtimeId") ? searchParams.get("runtimeId")[0] : null;
       this.deployed =
          searchParams.has("deployed") && searchParams.get("deployed")[0] === "true";
+      const wizComposer =
+         searchParams.has("wizComposer") && searchParams.get("wizComposer")[0] === "true";
+
+      if(wizComposer) {
+         this.wizService.wizComposer = wizComposer;
+         const wizVizIdsKey = searchParams.has("wizVizIdsKey") ? searchParams.get("wizVizIdsKey")[0] : null;
+
+         if(wizVizIdsKey) {
+            const raw = localStorage.getItem(wizVizIdsKey);
+            localStorage.removeItem(wizVizIdsKey);
+
+            if(raw) {
+               try {
+                  this.wizService.wizVizIds = JSON.parse(raw);
+               }
+               catch(e) {
+                  this.wizService.wizVizIds = [];
+               }
+            }
+            else {
+               this.wizService.wizVizIds = [];
+            }
+         }
+      }
 
       this.firstDayOfWeekService.getFirstDay().subscribe((model) => {
          this.ngbDatepickerConfig.firstDayOfWeek = model.isoFirstDay;

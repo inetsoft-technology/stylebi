@@ -17,6 +17,7 @@
  */
 package inetsoft.web.vswizard.recommender.object;
 
+import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.web.vswizard.model.VSWizardData;
 import inetsoft.web.vswizard.model.recommender.VSObjectRecommendation;
 
@@ -27,4 +28,13 @@ public interface VSObjectRecommendationFactory<M extends VSObjectRecommendation>
     * Return the VSRecommendObject list for target selections.
     */
    M recommend(VSWizardData wizardData, Principal principal);
+
+   /**
+    * Variant that accepts a pre-fetched {@link RuntimeViewsheet}.
+    * Implementations may use it to avoid a second lookup; the default delegates to
+    * {@link #recommend(VSWizardData, Principal)} with a null principal.
+    */
+   default M recommend(VSWizardData wizardData, RuntimeViewsheet rvs, Principal principal) {
+      return recommend(wizardData, principal);
+   }
 }

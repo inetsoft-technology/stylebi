@@ -41,7 +41,7 @@ import inetsoft.web.*;
 import inetsoft.web.admin.content.repository.model.LicensedComponents;
 import inetsoft.web.admin.schedule.ScheduleTaskFolderService;
 import inetsoft.web.admin.security.SSOType;
-import inetsoft.web.composer.wiz.service.VisualizationService;
+import inetsoft.web.wiz.service.WizVisualizationService;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 import org.slf4j.Logger;
@@ -671,8 +671,8 @@ public class ContentRepositoryTreeService {
       }
 
       if(node.path() != null &&
-         (node.path().equals(VisualizationService.VISUALIZATION_ROOT_FOLDER_PATH) ||
-          node.path().startsWith(VisualizationService.VISUALIZATION_ROOT_FOLDER_PATH + "/")))
+         (node.path().equals(WizVisualizationService.VISUALIZATION_ROOT_FOLDER_PATH) ||
+          node.path().startsWith(WizVisualizationService.VISUALIZATION_ROOT_FOLDER_PATH + "/")))
       {
          return Optional.of(ContentRepositoryTreeNode.builder()
             .from(node)
@@ -939,7 +939,7 @@ public class ContentRepositoryTreeService {
          .filter(entry -> entry.getScope() == AssetRepository.GLOBAL_SCOPE)
          .filter(entry -> (entry.isRoot() &&
                   (entry.isRepositoryFolder() || entry.isWorksheetFolder())) ||
-               VisualizationService.VISUALIZATION_ROOT_FOLDER_PATH.equals(entry.getPath()))
+               WizVisualizationService.VISUALIZATION_ROOT_FOLDER_PATH.equals(entry.getPath()))
          .sorted(Comparator.comparing(AssetEntry::getType).reversed())
          .map(parent -> getSubTree(parent, parentEntries))
          .collect(Collectors.toList());
@@ -1071,7 +1071,7 @@ public class ContentRepositoryTreeService {
                name = Catalog.getCatalog().getString("Repository");
                icon = "shared-report-icon";
             }
-            else if(VisualizationService.VISUALIZATION_ROOT_FOLDER_PATH.equals(entry.getPath())) {
+            else if(WizVisualizationService.VISUALIZATION_ROOT_FOLDER_PATH.equals(entry.getPath())) {
                name = Catalog.getCatalog().getString("Wiz Chats");
                icon = "shared-report-icon";
             }
@@ -1087,8 +1087,8 @@ public class ContentRepositoryTreeService {
          description : entry.getDescription();
 
       boolean wizEntry = entry.getPath() != null &&
-         (entry.getPath().equals(VisualizationService.VISUALIZATION_ROOT_FOLDER_PATH) ||
-          entry.getPath().startsWith(VisualizationService.VISUALIZATION_ROOT_FOLDER_PATH + "/"));
+         (entry.getPath().equals(WizVisualizationService.VISUALIZATION_ROOT_FOLDER_PATH) ||
+          entry.getPath().startsWith(WizVisualizationService.VISUALIZATION_ROOT_FOLDER_PATH + "/"));
 
       return ContentRepositoryTreeNode.builder()
          .label(name)

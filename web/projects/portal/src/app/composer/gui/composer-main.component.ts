@@ -135,6 +135,7 @@ import { ComposerObjectService } from "./vs/composer-object.service";
 import { CloseSheetEvent } from "./vs/event/close-sheet-event";
 import { LayoutUndoRedoEvent } from "./vs/event/layout-undo-redo-event";
 import { SaveSheetEvent } from "./ws/socket/save-sheet-event";
+import { WizService } from "./wiz/services/wiz.service";
 
 export enum SidebarTab {
    ASSET_TREE,
@@ -143,7 +144,8 @@ export enum SidebarTab {
    COMPONENTS,
    FORMAT,
    WORKSHEET_COMPOSITE_TABLE_SIDEBAR,
-   REGIONS
+   REGIONS,
+   VISUALIZATIONS
 }
 
 /** Worksheet URIs */
@@ -326,7 +328,8 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
       private scriptService: ScriptService,
       private fontService: FontService,
       private aiAssistantService: AiAssistantService,
-      private aiAssistantDialogService: AiAssistantDialogService)
+      private aiAssistantDialogService: AiAssistantDialogService,
+      private wizService: WizService)
    {
       this.aiAssistantService.loadCurrentUser();
       GuiTool.isTouchDevice().then((value: boolean) => {
@@ -387,6 +390,10 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
       }
 
       this.setKeydownListener();
+
+      if(this.wizComposer) {
+         this.openNewViewsheet(null);
+      }
 
       const bc = new BroadcastChannel("composer");
       bc.onmessage = (evt) => this.handleMessageEvent(evt);
@@ -462,6 +469,10 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
       setTimeout(() => {
          this.tabContentEleToChild = this.tabContentEle;
       });
+   }
+
+   get wizComposer(): boolean {
+      return this.wizService.wizComposer;
    }
 
    get focusedSheet(): Sheet {
@@ -680,7 +691,10 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
             this.formatPaneDisabled = isWorksheet;
             this.toolboxDisabled = isWorksheet;
 
-            if(isWorksheet) {
+            if(this.wizComposer) {
+               this.selectedTab = SidebarTab.VISUALIZATIONS;
+            }
+            else if(isWorksheet) {
                const worksheet = sheet as Worksheet;
 
                if(worksheet.isCompositeView()) {
@@ -2914,6 +2928,13 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
    }
 
    newViewsheet(gettingStarted?: boolean): void {
+      if(this.wizComposer) {
+         this.scriptDisabled = true;
+         this.regionsDisabled = true;
+         this.openNewViewsheet(null);
+         return;
+      }
+
       let dialog = ComponentTool.showDialog(this.modalService, NewViewsheetDialog,
          (model: NewViewsheetDialogModel) => {
             if(!model.openWizard) {

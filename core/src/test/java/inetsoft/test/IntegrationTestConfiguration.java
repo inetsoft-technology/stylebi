@@ -56,7 +56,6 @@ import inetsoft.web.binding.service.DataRefModelFactory;
 import inetsoft.web.binding.service.DataRefModelFactoryService;
 import inetsoft.web.composer.vs.VSObjectTreeService;
 import inetsoft.web.composer.vs.controller.VSLayoutService;
-import inetsoft.web.composer.wiz.service.VisualizationService;
 import inetsoft.web.wiz.service.WizViewsheetService;
 import inetsoft.web.wiz.service.WizViewsheetServiceProxy;
 import inetsoft.web.messaging.MessageAttributes;
@@ -345,13 +344,8 @@ public class IntegrationTestConfiguration {
    }
 
    @Bean
-   public VisualizationService visualizationService(ViewsheetService viewsheetService, AnalyticRepository analyticRepository) {
-      return new VisualizationService(viewsheetService, analyticRepository.unwrap(AssetRepository.class));
-   }
-
-   @Bean
-   public VSLifecycleControllerService vsLifecycleControllerService(ViewsheetService viewsheetService, CoreLifecycleService coreLifecycleService, VSBookmarkService vsBookmarkService, VisualizationService visualizationService) {
-      return new VSLifecycleControllerService(viewsheetService, coreLifecycleService, vsBookmarkService, visualizationService);
+   public VSLifecycleControllerService vsLifecycleControllerService(ViewsheetService viewsheetService, CoreLifecycleService coreLifecycleService, VSBookmarkService vsBookmarkService) {
+      return new VSLifecycleControllerService(viewsheetService, coreLifecycleService, vsBookmarkService);
    }
 
    @Bean

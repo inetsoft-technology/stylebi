@@ -20,7 +20,6 @@ import { CommonModule } from "@angular/common";
 import { HttpClient } from "@angular/common/http";
 import { CUSTOM_ELEMENTS_SCHEMA, NgModule } from "@angular/core";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
-import { AiAssistantModule } from "../../../../shared/ai-assistant/ai-assistant.module";
 import {
    NgbDropdownModule,
    NgbModal,
@@ -28,6 +27,7 @@ import {
    NgbProgressbarModule,
    NgbTooltipModule
 } from "@ng-bootstrap/ng-bootstrap";
+import { AiAssistantModule } from "../../../../shared/ai-assistant/ai-assistant.module";
 import { DownloadModule } from "../../../../shared/download/download.module";
 import { AngularResizeEventModule } from "../../../../shared/resize-event/angular-resize-event.module";
 import { CodemirrorService } from "../../../../shared/util/codemirror/codemirror.service";
@@ -282,14 +282,7 @@ import { EventQueueService } from "./gui/vs/event-queue.service";
 import { LayoutObject } from "./gui/vs/layouts/layout-object.component";
 import { LayoutPane } from "./gui/vs/layouts/layout-pane.component";
 import { ComposerSelectionContainerChildren } from "./gui/vs/objects/selection/composer-selection-container-children.component";
-import { NewVisualizationDialog } from "./gui/wiz/new-visualization-dialog/new-visualization-dialog.component";
-import { SaveWizVisualizationDialog } from "./gui/wiz/save-wiz-visualization-dialog/save-wiz-visualization-dialog.component";
 import { WizComponentsPane } from "./gui/wiz/wiz-components-pane/wiz-components-pane.component";
-import { WizPane } from "./gui/wiz/wiz-main/wiz-pane.component";
-import { WizEditorPane } from "./gui/wiz/wiz-editor-pane/wiz-editor-pane.component";
-import { WizObject } from "./gui/wiz/wiz-object/wiz-object.component";
-import { WizVisualizationPane } from "./gui/wiz/wiz-visualization-pane/wiz-visualization-pane.component";
-import { WizVsPreview } from "./gui/wiz/wiz-vs-preview/wiz-vs-preview.component";
 import { ConcatRelationConnectorComponent } from "./gui/ws/editor/concatenation/concat-relation-connector.component";
 import { ConcatRelationDescriptorComponent } from "./gui/ws/editor/concatenation/concat-relation-descriptor.component";
 import { ConcatenatedTableThumbnailComponent } from "./gui/ws/editor/concatenation/concatenated-table-thumbnail.component";
@@ -587,14 +580,7 @@ import { LineAnchorService } from "./services/line-anchor.service";
       ShowHideColumnsDialogComponent,
       ScriptEditPaneComponent,
       SaveScriptDialog,
-      NewVisualizationDialog,
-      SaveWizVisualizationDialog,
       WizComponentsPane,
-      WizPane,
-      WizEditorPane,
-      WizObject,
-      WizVisualizationPane,
-      WizVsPreview
    ],
    providers: [
       ClipboardService,

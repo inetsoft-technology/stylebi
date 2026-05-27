@@ -70,6 +70,7 @@ import { Observable } from "rxjs";
 import { map } from "rxjs/operators";
 import { OpenLibraryAssetEvent } from "../../data/open-libraryAsset-event";
 import { ComposerTabModel } from "../composer-tab-model";
+import { WizService } from "../wiz/services/wiz.service";
 
 const ADD_FOLDER_URI = "../api/composer/asset-tree/add-folder";
 const REMOVE_ASSET_URI = "../api/composer/asset-tree/remove-asset";
@@ -121,8 +122,13 @@ export class AssetTreePane implements OnChanges, OnInit {
                private domService: DomService,
                private http: HttpClient,
                private contextProvider: ContextProvider,
-               private composerRecentService: ComposerRecentService)
+               private composerRecentService: ComposerRecentService,
+               private wizService: WizService)
    {
+   }
+
+   get wizComposer(): boolean {
+      return this.wizService.wizComposer;
    }
 
    ngOnChanges(changes: SimpleChanges) {
@@ -180,9 +186,8 @@ export class AssetTreePane implements OnChanges, OnInit {
             });
          }
          else if(entry.type === AssetType.VIEWSHEET) {
-            const wiz = entry.properties.isWizSheet == "true";
             this.addRecentlyViewed(entry);
-            this.onOpenSheet.emit({type: wiz ? "wiz" : "viewsheet", assetId: entry.identifier, meta: meta});
+            this.onOpenSheet.emit({type: "viewsheet", assetId: entry.identifier, meta: meta});
          }
          else if(entry.type === AssetType.SCRIPT) {
             this.addRecentlyViewed(entry);
@@ -504,17 +509,6 @@ export class AssetTreePane implements OnChanges, OnInit {
          enabled: () => !Tool.isAuditNode(node),
          visible: () => true,
          action: () => this.onNewScript.emit()
-      };
-   }
-
-   private createNewWizAction(entry: AssetEntry): AssemblyAction {
-      return {
-         id: () => "wiz-new",
-         label: () => "_#(js:New Wiz)",
-         icon: () => "",
-         enabled: () => true,
-         visible: () => true,
-         action: () => this.onNewViewsheet.emit(entry)
       };
    }
 
