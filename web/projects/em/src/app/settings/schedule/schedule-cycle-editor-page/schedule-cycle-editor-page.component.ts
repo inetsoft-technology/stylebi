@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Component, OnDestroy, OnInit, ViewEncapsulation } from "@angular/core";
+import { Component, HostBinding, OnDestroy, OnInit, ViewEncapsulation } from "@angular/core";
 import { UntypedFormControl, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { ActivatedRoute, Router } from "@angular/router";
 import { HttpClient, HttpHeaders } from "@angular/common/http";
@@ -62,13 +62,11 @@ const EDIT_DATA_CYCLE_URI = "../api/em/schedule/edit-cycle";
     templateUrl: "./schedule-cycle-editor-page.component.html",
     styleUrls: ["./schedule-cycle-editor-page.component.scss"],
     encapsulation: ViewEncapsulation.None,
-    host: {
-        "class": "schedule-cycle-editor"
-    },
     standalone: true,
     imports: [EditorPanelComponent, NgIf, MatFormField, MatLabel, MatInput, FormsModule, ReactiveFormsModule, MatError, MatTabGroup, MatTab, MatCard, MatCardContent, MatNavList, NgFor, MatListItem, MatTooltip, MatCardActions, MatButton, TaskConditionPaneComponent, ScheduleCycleOptionsPaneComponent, ResourcePermissionComponent]
 })
 export class ScheduleCycleEditorPageComponent implements OnInit, OnDestroy {
+   @HostBinding("class") hostClass = "schedule-cycle-editor";
    model: ScheduleCycleDialogModel;
    originalModel: ScheduleCycleDialogModel;
    name: UntypedFormControl;

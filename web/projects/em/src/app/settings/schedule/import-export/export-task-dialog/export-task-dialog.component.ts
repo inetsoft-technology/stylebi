@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { HttpClient } from "@angular/common/http";
-import { Component, HostListener, Inject, Input, ViewEncapsulation } from "@angular/core";
+import { Component, HostBinding, HostListener, Inject, Input, ViewEncapsulation } from "@angular/core";
 import { UntypedFormBuilder } from "@angular/forms";
 import { MAT_DIALOG_DATA, MatDialog, MatDialogRef, MatDialogTitle, MatDialogContent, MatDialogActions } from "@angular/material/dialog";
 import { MatTableDataSource, MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow } from "@angular/material/table";
@@ -32,13 +32,11 @@ import { MatCard, MatCardTitle, MatCardContent } from "@angular/material/card";
     templateUrl: "./export-task-dialog.component.html",
     styleUrls: ["./export-task-dialog.component.scss"],
     encapsulation: ViewEncapsulation.None,
-    host: {
-        "class": "export-task-dialog"
-    },
     standalone: true,
     imports: [MatDialogTitle, MatDialogContent, MatCard, MatCardTitle, MatCardContent, MatTable, MatSort, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCheckbox, MatCellDef, MatCell, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, MatDialogActions, MatButton]
 })
 export class ExportTaskDialogComponent {
+   @HostBinding("class") hostClass = "export-task-dialog";
    displayColumns = ["selected", "task", "requiredBy"];
    dataSource = new MatTableDataSource<TaskDependencyModel>([]);
    selection = new SelectionModel<TaskDependencyModel>(true);

@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Component, ElementRef, Inject, OnInit, ViewChild, ViewEncapsulation } from "@angular/core";
+import { Component, ElementRef, HostBinding, Inject, OnInit, ViewChild, ViewEncapsulation } from "@angular/core";
 import { MAT_DIALOG_DATA, MatDialog, MatDialogRef, MatDialogContent, MatDialogActions, MatDialogClose } from "@angular/material/dialog";
 import { MatSnackBar, MatSnackBarConfig } from "@angular/material/snack-bar";
 import { Tool } from "../../../../../../../shared/util/tool";
@@ -39,13 +39,11 @@ const PATH_ITEM_HEIGHT: number = 41;
     templateUrl: "./schedule-classpath-dialog.component.html",
     styleUrls: ["./schedule-classpath-dialog.component.scss"],
     encapsulation: ViewEncapsulation.None,
-    host: {
-        "class": "schedule-classpath-dialog"
-    },
     standalone: true,
     imports: [ModalHeaderComponent, MatDialogContent, MatGridList, MatGridTile, MatCard, MatCardContent, MatFormField, MatLabel, MatInput, FormsModule, MatIconButton, MatSuffix, MatIcon, MatList, NgFor, NgIf, MatListItem, MatDivider, MatButton, MatDialogActions, MatDialogClose]
 })
 export class ScheduleClasspathDialogComponent implements OnInit {
+  @HostBinding("class") hostClass = "schedule-classpath-dialog";
   @ViewChild("scrollViewport", { static: true }) scrollViewport: ElementRef<any>;
   @ViewChild("pathEditInput") pathInput: ElementRef;
   title: string;

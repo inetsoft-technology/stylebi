@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { HttpClient, HttpErrorResponse } from "@angular/common/http";
-import { Component, HostListener, Inject, ViewEncapsulation } from "@angular/core";
+import { Component, HostBinding, HostListener, Inject, ViewEncapsulation } from "@angular/core";
 import { UntypedFormBuilder, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { MAT_DIALOG_DATA, MatDialog, MatDialogRef, MatDialogTitle, MatDialogContent, MatDialogActions } from "@angular/material/dialog";
 import { catchError } from "rxjs/operators";
@@ -41,13 +41,11 @@ import { NgIf } from "@angular/common";
     templateUrl: "./import-task-dialog.component.html",
     styleUrls: ["./import-task-dialog.component.scss"],
     encapsulation: ViewEncapsulation.None,
-    host: {
-        "class": "import-task-dialog"
-    },
     standalone: true,
     imports: [MatDialogTitle, MatDialogContent, NgIf, FormsModule, ReactiveFormsModule, MatCard, MatCardContent, MatFormField, MatLabel, FileChooserComponent, MatIcon, MatSuffix, MatError, MatCheckbox, MatCardTitle, MatTable, MatSort, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, MatDialogActions, MatButton]
 })
 export class ImportTaskDialogComponent {
+   @HostBinding("class") hostClass = "import-task-dialog";
    uploadForm: UntypedFormGroup;
    importForm: UntypedFormGroup;
    uploaded = false;

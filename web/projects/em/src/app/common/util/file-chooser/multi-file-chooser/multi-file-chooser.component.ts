@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Component, forwardRef, Input, OnInit } from "@angular/core";
+import { Component, forwardRef, HostBinding, Input, OnInit } from "@angular/core";
 import { ControlValueAccessor, NG_VALUE_ACCESSOR, FormsModule } from "@angular/forms";
 import { FileData } from "../../../../../../../shared/util/model/file-data";
 import { FileChooserComponent } from "../file-chooser/file-chooser.component";
@@ -37,13 +37,11 @@ import { MatCard, MatCardHeader, MatCardContent, MatCardActions } from "@angular
             multi: true
         }
     ],
-    host: {
-        "class": "em-multi-file-chooser"
-    },
     standalone: true,
     imports: [MatCard, NgIf, MatCardHeader, MatCardContent, MatList, NgFor, MatListItem, MatIconButton, MatIcon, MatDivider, MatCardActions, FileChooserComponent, FormsModule, MatButton]
 })
 export class MultiFileChooserComponent implements OnInit, ControlValueAccessor {
+   @HostBinding("class") hostClass = "em-multi-file-chooser";
    @Input() header: string;
    @Input() accept: string;
    @Input() disabled = false;

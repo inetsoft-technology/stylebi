@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import {HttpClient, HttpErrorResponse} from "@angular/common/http";
-import {Component, HostListener, Inject, OnInit, ViewEncapsulation} from "@angular/core";
+import {Component, HostBinding, HostListener, Inject, OnInit, ViewEncapsulation} from "@angular/core";
 import { UntypedFormBuilder, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { MAT_DIALOG_DATA, MatDialog, MatDialogRef, MatDialogContent } from "@angular/material/dialog";
 import {Observable, throwError} from "rxjs";
@@ -50,13 +50,11 @@ export interface ExportAssetDialogData {
     templateUrl: "./export-asset-dialog.component.html",
     styleUrls: ["./export-asset-dialog.component.scss"],
     encapsulation: ViewEncapsulation.None,
-    host: {
-        "class": "export-asset-dialog"
-    },
     standalone: true,
     imports: [ModalHeaderComponent, MatDialogContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatInput, NgIf, MatError, MatCheckbox, SelectedAssetListComponent, MatButton, RequiredAssetListComponent, MatProgressBar]
 })
 export class ExportAssetDialogComponent implements OnInit {
+   @HostBinding("class") hostClass = "export-asset-dialog";
    entities: SelectedAssetModel[] = [];
    selectedEntities: SelectedAssetModel[] = [];
    dependencies: RequiredAssetModel[] = [];

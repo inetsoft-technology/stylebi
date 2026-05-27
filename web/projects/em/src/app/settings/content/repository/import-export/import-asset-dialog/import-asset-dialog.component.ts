@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { HttpClient, HttpErrorResponse, HttpParams } from "@angular/common/http";
-import { Component, HostListener, Inject, OnDestroy, ViewEncapsulation } from "@angular/core";
+import { Component, HostBinding, HostListener, Inject, OnDestroy, ViewEncapsulation } from "@angular/core";
 import { UntypedFormBuilder, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { MAT_DIALOG_DATA, MatDialog, MatDialogRef, MatDialogContent, MatDialogActions } from "@angular/material/dialog";
 import { Observable, throwError, timer } from "rxjs";
@@ -49,13 +49,11 @@ import { ModalHeaderComponent } from "../../../../../common/util/modal-header/mo
     templateUrl: "./import-asset-dialog.component.html",
     styleUrls: ["./import-asset-dialog.component.scss"],
     encapsulation: ViewEncapsulation.None,
-    host: {
-        "class": "import-asset-dialog"
-    },
     standalone: true,
     imports: [ModalHeaderComponent, MatDialogContent, NgIf, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, FileChooserComponent, MatIcon, MatSuffix, MatError, MatInput, MatIconButton, MatCheckbox, SelectedAssetListComponent, RequiredAssetListComponent, MatProgressBar, MatDialogActions, MatButton]
 })
 export class ImportAssetDialogComponent implements OnDestroy {
+   @HostBinding("class") hostClass = "import-asset-dialog";
    uploadForm: UntypedFormGroup;
    importForm: UntypedFormGroup;
    selected: RequiredAssetModel[] = [];

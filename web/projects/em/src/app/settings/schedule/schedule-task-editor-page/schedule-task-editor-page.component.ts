@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { HttpErrorResponse } from "@angular/common/http";
-import { Component, OnInit, ViewEncapsulation } from "@angular/core";
+import { Component, HostBinding, OnInit, ViewEncapsulation } from "@angular/core";
 import { UntypedFormBuilder, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { MatDialog } from "@angular/material/dialog";
 import { MatSnackBar } from "@angular/material/snack-bar";
@@ -72,13 +72,11 @@ export class TaskItem {
     templateUrl: "./schedule-task-editor-page.component.html",
     styleUrls: ["./schedule-task-editor-page.component.scss"],
     encapsulation: ViewEncapsulation.None,
-    host: {
-        "class": "schedule-task-editor"
-    },
     standalone: true,
     imports: [EditorPanelComponent, MatFormField, FormsModule, ReactiveFormsModule, MatLabel, MatInput, NgIf, MatError, MatTabGroup, MatTab, MatCard, MatCardContent, MatNavList, NgFor, MatListItem, MatTooltip, MatCardActions, MatButton, TaskConditionPaneComponent, MatTabContent, TaskActionPaneComponent, TaskOptionsPane, LoadingSpinnerComponent]
 })
 export class ScheduleTaskEditorPageComponent implements OnInit {
+   @HostBinding("class") hostClass = "schedule-task-editor";
    originalModel: ScheduleTaskDialogModel;
    model: ScheduleTaskDialogModel;
 

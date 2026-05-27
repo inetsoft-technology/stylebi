@@ -22,7 +22,7 @@ import {
    HttpRequest,
    HttpResponse
 } from "@angular/common/http";
-import { ChangeDetectorRef, Component, Input, OnInit } from "@angular/core";
+import { ChangeDetectorRef, Component, HostBinding, Input, OnInit } from "@angular/core";
 import { MatSnackBar } from "@angular/material/snack-bar";
 import { Observable, Subject } from "rxjs";
 import { UploadFilesResponse } from "./upload-files-response";
@@ -41,13 +41,11 @@ import { MatCard, MatCardHeader, MatCardContent, MatCardActions } from "@angular
     selector: "em-staged-file-chooser",
     templateUrl: "./staged-file-chooser.component.html",
     styleUrls: ["./staged-file-chooser.component.scss"],
-    host: {
-        "class": "em-staged-file-chooser"
-    },
     standalone: true,
     imports: [MatCard, NgIf, MatCardHeader, MatCardContent, MatList, NgFor, MatListItem, MatIconButton, MatIcon, MatDivider, FormsModule, MatFormField, MatInput, MatProgressBar, MatCardActions, MatButton]
 })
 export class StagedFileChooserComponent implements OnInit {
+   @HostBinding("class") hostClass = "em-staged-file-chooser";
    @Input() header: string;
    @Input() accept: string;
    @Input() disabled = false;
