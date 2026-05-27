@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-import { Component, OnDestroy, OnInit } from "@angular/core";
+import { CUSTOM_ELEMENTS_SCHEMA, Component, OnDestroy, OnInit } from "@angular/core";
 import { Subscription } from "rxjs";
 import { AiAssistantService } from "./ai-assistant.service";
 
@@ -24,7 +24,8 @@ import { AiAssistantService } from "./ai-assistant.service";
     selector: "ai-assistant-dialog",
     templateUrl: "./ai-assistant-dialog.component.html",
     styleUrls: ["./ai-assistant-dialog.component.scss"],
-    standalone: true
+    standalone: true,
+    schemas: [CUSTOM_ELEMENTS_SCHEMA]
 })
 export class AiAssistantDialogComponent implements OnInit, OnDestroy {
    userEmail: string = "";
