@@ -49,11 +49,13 @@ public class AssetTreeController {
    @Autowired
    public AssetTreeController(AssetRepository assetRepository,
                               AssetTreeService assetTreeService,
+                              AssetTreeServiceProxy assetTreeServiceProxy,
                               XRepository xRepository,
                               LibManagerProvider libManagerProvider)
    {
       this.assetRepository = assetRepository;
       this.assetTreeService = assetTreeService;
+      this.assetTreeServiceProxy = assetTreeServiceProxy;
       this.libManagerProvider = libManagerProvider;
       this.xRepository = xRepository;
    }
@@ -65,7 +67,7 @@ public class AssetTreeController {
       @RequestBody(required = false) AssetEntry entry,
       Principal principal) throws Exception
    {
-      return assetTreeService.getConnectionParameters(rid, cubeData, entry, principal);
+      return assetTreeServiceProxy.getConnectionParameters(rid, cubeData, entry, principal);
    }
 
    /**
@@ -225,6 +227,7 @@ public class AssetTreeController {
 
    private final AssetRepository assetRepository;
    private final AssetTreeService assetTreeService;
+   private final AssetTreeServiceProxy assetTreeServiceProxy;
    private final LibManagerProvider libManagerProvider;
    private final XRepository xRepository;
 }
