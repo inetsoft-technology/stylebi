@@ -35,15 +35,19 @@ import java.util.stream.Collectors;
 @Component
 public class ServerService extends MonitorLevelService implements StatusUpdater {
    @Autowired
-   public ServerService(ServerClusterClient client){
+   public ServerService(ServerClusterClient client, Cluster cluster, LicenseManager licenseManager,
+                        LogManager logManager)
+   {
       super(lowAttrs, new String[0], new String[0]);
       this.client = client;
+      this.cluster = cluster;
+      this.licenseManager = licenseManager;
+      this.logManager = logManager;
       this.calculator = new ServerMetricsCalculator(client, StatusMetricsType.SERVER_METRICS);
    }
 
    @PostConstruct
    public void addListener() {
-      cluster = Cluster.getInstance();
       serverServiceMessageListener = new ServerServiceMessageListener(cluster);
       cluster.addMessageListener(serverServiceMessageListener);
    }
@@ -67,21 +71,21 @@ public class ServerService extends MonitorLevelService implements StatusUpdater 
     * Add a license key to the server.
     */
    public void addLicense(String license) throws Exception {
-      LicenseManager.getInstance().addLicense(license);
+      licenseManager.addLicense(license);
    }
 
    /**
     * Get the count of license.
     */
    public int getLicenseCount() {
-      return LicenseManager.getInstance().getInstalledLicenses().size();
+      return licenseManager.getInstalledLicenses().size();
    }
 
    /**
     * Get array of LicenseInfo.
     */
    public List<LicenseInfo> getLicenseInfos() {
-      return LicenseManager.getInstance().getInstalledLicenses().stream()
+      return licenseManager.getInstalledLicenses().stream()
          .map(License::key)
          .map(LicenseInfo::new)
          .collect(Collectors.toList());
@@ -91,7 +95,7 @@ public class ServerService extends MonitorLevelService implements StatusUpdater 
     * Remove a license key from the server.
     */
    public void removeLicense(String license) throws Exception {
-      LicenseManager.getInstance().removeLicense(license);
+      licenseManager.removeLicense(license);
    }
 
    /**
@@ -137,6 +141,10 @@ public class ServerService extends MonitorLevelService implements StatusUpdater 
       return getHistory(clusterNode, ServerMetricsCalculator.HistoryType.GC);
    }
 
+   public List<OffHeapHistory> getOffHeapHistory(String clusterNode) {
+      return getHistory(clusterNode, ServerMetricsCalculator.HistoryType.OFF_HEAP);
+   }
+
    public long getMaxHeapSize(String clusterNode) {
       ServerClusterStatus status = getServerClusterStatus(clusterNode);
 
@@ -146,6 +154,21 @@ public class ServerService extends MonitorLevelService implements StatusUpdater 
 
          if(metrics != null) {
             return metrics.maxHeapSize();
+         }
+      }
+
+      return 0L;
+   }
+
+   public long getMaxOffHeapSize(String clusterNode) {
+      ServerClusterStatus status = getServerClusterStatus(clusterNode);
+
+      if(status != null) {
+         ServerMetrics metrics =
+            client.getMetrics(StatusMetricsType.SERVER_METRICS, status.getAddress());
+
+         if(metrics != null) {
+            return metrics.maxOffHeapSize();
          }
       }
 
@@ -237,7 +260,7 @@ public class ServerService extends MonitorLevelService implements StatusUpdater 
     * current log file is created and a new log file is started.
     */
    public void rotateLogFile() {
-      LogManager.getInstance().rotateLogFile();
+      logManager.rotateLogFile();
    }
 
    public String getThreadDump() {
@@ -248,11 +271,11 @@ public class ServerService extends MonitorLevelService implements StatusUpdater 
       return serverServiceMessageListener.isHeapDumpComplete(heapId, clusterNode);
    }
 
-   public int getHeapDumpLength(String heapId, String clusterNode) throws Exception {
+   public long getHeapDumpLength(String heapId, String clusterNode) throws Exception {
       return serverServiceMessageListener.getHeapDumpLength(heapId, clusterNode);
    }
 
-   public int getHeapDumpLength(String heapId) {
+   public long getHeapDumpLength(String heapId) {
       return serverServiceMessageListener.getHeapDumpLength(heapId);
    }
 
@@ -264,7 +287,7 @@ public class ServerService extends MonitorLevelService implements StatusUpdater 
       return serverServiceMessageListener.isHeapDumpComplete(id);
    }
 
-   public byte[] getHeapDumpContent(String id, int offset, int length) {
+   public byte[] getHeapDumpContent(String id, long offset, int length) {
       return serverServiceMessageListener.getHeapDumpContent(id, offset, length);
    }
 
@@ -272,7 +295,7 @@ public class ServerService extends MonitorLevelService implements StatusUpdater 
       serverServiceMessageListener.disposeHeapDump(id);
    }
 
-   public byte[] getHeapDumpContent(String heapId, int offset,
+   public byte[] getHeapDumpContent(String heapId, long offset,
                                     int toRead, String clusterNode) throws Exception
    {
       return serverServiceMessageListener.getHeapDumpContent(heapId, offset, toRead, clusterNode);
@@ -287,8 +310,10 @@ public class ServerService extends MonitorLevelService implements StatusUpdater 
    }
 
    private final ServerClusterClient client;
+   private final Cluster cluster;
+   private final LicenseManager licenseManager;
+   private final LogManager logManager;
    private ServerServiceMessageListener serverServiceMessageListener;
-   private Cluster cluster;
    private final ServerMetricsCalculator calculator;
 
    private static final String[] lowAttrs = {"startDate"};

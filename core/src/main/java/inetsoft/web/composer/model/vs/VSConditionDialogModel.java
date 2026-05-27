@@ -23,7 +23,9 @@ import inetsoft.web.binding.drm.DataRefModel;
 import inetsoft.web.composer.model.condition.ConditionModel;
 import inetsoft.web.composer.model.condition.JunctionOperatorModel;
 
-public class VSConditionDialogModel {
+import java.io.Serializable;
+
+public class VSConditionDialogModel implements Serializable {
    public Object[] getConditionList() {
       return conditionList;
    }

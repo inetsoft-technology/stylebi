@@ -20,9 +20,11 @@ package inetsoft.sree.schedule;
 import inetsoft.mv.*;
 import inetsoft.mv.fs.FSService;
 import inetsoft.mv.fs.internal.ClusterUtil;
+import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.Mailer;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.internal.cluster.SimpleMessage;
+import inetsoft.sree.security.OrganizationContextHolder;
 import inetsoft.sree.security.OrganizationManager;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.util.*;
@@ -254,10 +256,26 @@ public class MVAction implements AssetSupport, Cloneable, XMLSerializable, Cance
          boolean exists = mv.hasData();
 
          if(createInScheduler) {
+            long timeout;
+
+            try {
+               timeout = Long.parseLong(SreeEnv.getProperty("schedule.task.timeout"));
+            }
+            catch(NumberFormatException e) {
+               timeout = 600000L;
+            }
+
             try {
                MVCallable creator = new MVCallable(mv, principal);
                mvFuture = Cluster.getInstance().submit(creator, true);
-               String message = mvFuture.get(10L, TimeUnit.MINUTES);
+               String message;
+
+               if(timeout > 0) {
+                  message = mvFuture.get(timeout, TimeUnit.MILLISECONDS);
+               }
+               else {
+                  message = mvFuture.get();
+               }
 
                if(message != null) {
                   throw new RuntimeException(message);
@@ -266,6 +284,11 @@ public class MVAction implements AssetSupport, Cloneable, XMLSerializable, Cance
                   thisMv.setSuccess(true);
                   thisMv.setUpdated(exists);
                }
+            }
+            catch(TimeoutException ex) {
+               mvFuture.cancel(true);
+               throw new RuntimeException("MV creation timed out after " + (timeout / 1000) +
+                                             "s: " + mv.getName(), ex);
             }
             finally {
                mvFuture = null;
@@ -461,6 +484,11 @@ public class MVAction implements AssetSupport, Cloneable, XMLSerializable, Cance
 
             if(principal != null) {
                ThreadContext.setContextPrincipal(principal);
+               String orgId = OrganizationManager.getInstance().getCurrentOrgID(principal);
+
+               if(orgId != null) {
+                  OrganizationContextHolder.setCurrentOrgId(orgId);
+               }
             }
 
             if(isCanceled()) {
@@ -498,6 +526,9 @@ public class MVAction implements AssetSupport, Cloneable, XMLSerializable, Cance
          catch(Exception ex) {
             LOG.error("Failed to create MV: {}", mv.getName(), ex);
             throw new Exception("MV Creation failed: " + mv.getName() + " [" + ex + "]");
+         }
+         finally {
+            OrganizationContextHolder.clear();
          }
       }
 

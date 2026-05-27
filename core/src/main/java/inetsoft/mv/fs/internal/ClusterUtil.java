@@ -25,6 +25,7 @@ import inetsoft.sree.security.OrganizationManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.*;
 
@@ -93,6 +94,8 @@ public final class ClusterUtil {
             String file = MVStorage.getFile(mv);
             MVStorage.getInstance().remove(file);
             addRemovedMVFile(file);
+         }
+         catch(FileNotFoundException ignore) {
          }
          catch(Exception e) {
             LOG.error("Failed to delete MV file: {}", mv, e);

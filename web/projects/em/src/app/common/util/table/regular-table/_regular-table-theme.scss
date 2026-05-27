@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-@import '../../../../../../../../node_modules/@angular/material/theming';
+@use '@angular/material' as mat;
 
 @mixin regular-table-theme($theme) {
   $is-dark: map-get($theme, is-dark);
@@ -28,17 +28,17 @@
   .em-regular-table {
     .table-header-row {
       @if $is-dark {
-        background-color: mat-color($primary);
-        color: mat-contrast($primary, default);
+        background-color: mat.get-color-from-palette($primary);
+        color: mat.get-contrast-color-from-palette($primary, default);
       }
       @else {
-        background-color: mat-color($primary, 100);
-        color: mat-contrast($primary, 100);
+        background-color: mat.get-color-from-palette($primary, 100);
+        color: mat.get-contrast-color-from-palette($primary, 100);
       }
     }
 
     .table-body {
-      border-bottom-color: mat-color($primary, 100);
+      border-bottom-color: mat.get-color-from-palette($primary, 100);
       border-bottom-width: 1px;
       border-bottom-style: solid;
     }
@@ -49,7 +49,7 @@
   .em-regular-table {
     .mat-sort-header-button {
       font: {
-        size: mat-font-size($config, body-2);
+        size: mat.font-size($config, body-2);
       }
     }
   }

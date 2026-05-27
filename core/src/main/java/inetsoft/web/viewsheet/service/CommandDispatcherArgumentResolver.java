@@ -23,7 +23,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.MethodParameter;
 import org.springframework.messaging.Message;
 import org.springframework.messaging.handler.invocation.HandlerMethodArgumentResolver;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.session.FindByIndexNameSessionRepository;
 import org.springframework.session.Session;
@@ -44,14 +43,12 @@ public class CommandDispatcherArgumentResolver implements HandlerMethodArgumentR
    public Object resolveArgument(MethodParameter parameter, Message<?> message) {
       MessageAttributes attributes = MessageContextHolder.currentMessageAttributes();
       StompHeaderAccessor headerAccessor = attributes.getHeaderAccessor();
-      return new CommandDispatcher(headerAccessor, messagingTemplate, sessionRepository);
+      return new CommandDispatcher(headerAccessor, dispatcherService, sessionRepository);
    }
 
    @Autowired
-   public void setMessagingTemplate(
-      @SuppressWarnings("SpringJavaInjectionPointsAutowiringInspection") SimpMessagingTemplate messagingTemplate)
-   {
-      this.messagingTemplate = messagingTemplate;
+   public void setCommandDispatcherService(CommandDispatcherService dispatcherService) {
+      this.dispatcherService = dispatcherService;
    }
 
    @Autowired
@@ -59,6 +56,6 @@ public class CommandDispatcherArgumentResolver implements HandlerMethodArgumentR
       this.sessionRepository = sessionRepository;
    }
 
-   private SimpMessagingTemplate messagingTemplate;
+   private CommandDispatcherService dispatcherService;
    private FindByIndexNameSessionRepository<? extends Session> sessionRepository;
 }

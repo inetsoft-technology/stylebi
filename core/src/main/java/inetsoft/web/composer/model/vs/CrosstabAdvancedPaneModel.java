@@ -18,7 +18,9 @@
 package inetsoft.web.composer.model.vs;
 
 
-public class CrosstabAdvancedPaneModel {
+import java.io.Serializable;
+
+public class CrosstabAdvancedPaneModel implements Serializable {
    public boolean isFillBlankWithZero() {
       return fillBlankWithZero;
    }

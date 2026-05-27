@@ -88,6 +88,7 @@ export class AuditLogonErrorComponent implements OnInit, OnDestroy {
             catchError(error => this.errorService.showSnackBar(error, "_#(js:Failed to get query parameters)", () => of({
                users: [],
                hosts: [],
+               systemAdministrator: false,
                startTime: 0,
                endTime: 0
             }))),

@@ -32,7 +32,11 @@
       justify-content: flex-start;
       align-items: center;
       padding: 1.25em;
-      gap: 5rem;
+      gap: 2rem;
+
+      .button-row {
+        padding: 0;
+      }
     }
 
     > .tab-container {
@@ -56,4 +60,13 @@
   .multitenancy-disabled-hint {
     display: block;
   }
+}
+
+:host ::ng-deep .mat-mdc-slide-toggle, :host ::ng-deep .mdc-label {
+  --mdc-form-field-label-text-size: 12px !important;
+  --mdc-form-field-label-text-line-height: 16px !important;
+}
+:host ::ng-deep .mdc-label {
+  font-size: 12px !important;
+  line-height: 16px !important;
 }

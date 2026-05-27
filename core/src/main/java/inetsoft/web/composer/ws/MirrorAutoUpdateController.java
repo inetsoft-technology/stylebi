@@ -17,10 +17,6 @@
  */
 package inetsoft.web.composer.ws;
 
-import inetsoft.report.composition.RuntimeWorksheet;
-import inetsoft.uql.asset.MirrorAssembly;
-import inetsoft.uql.asset.Worksheet;
-import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
 import inetsoft.web.composer.ws.event.WSAssemblyEvent;
 import inetsoft.web.viewsheet.LoadingMask;
 import inetsoft.web.viewsheet.Undoable;
@@ -33,6 +29,10 @@ import java.security.Principal;
 
 @Controller
 public class MirrorAutoUpdateController extends WorksheetController {
+   public MirrorAutoUpdateController(MirrorAutoUpdateServiceProxy mirrorAutoUpdateService) {
+      this.mirrorAutoUpdateService = mirrorAutoUpdateService;
+   }
+
    @Undoable
    @LoadingMask
    @MessageMapping("/composer/worksheet/mirror-auto-update")
@@ -40,14 +40,8 @@ public class MirrorAutoUpdateController extends WorksheetController {
       @Payload WSAssemblyEvent event, Principal principal,
       CommandDispatcher commandDispatcher) throws Exception
    {
-      RuntimeWorksheet rws = super.getRuntimeWorksheet(principal);
-      Worksheet ws = rws.getWorksheet();
-      String name = event.getAssemblyName();
-      MirrorAssembly assembly = (MirrorAssembly) ws.getAssembly(name);
-
-      if(assembly != null) {
-         assembly.setAutoUpdate(!assembly.isAutoUpdate());
-         WorksheetEventUtil.refreshAssembly(rws, name, false, commandDispatcher, principal);
-      }
+      mirrorAutoUpdateService.toggleAutoUpdate(getRuntimeId(), event, principal, commandDispatcher);
    }
+
+   private final MirrorAutoUpdateServiceProxy mirrorAutoUpdateService;
 }

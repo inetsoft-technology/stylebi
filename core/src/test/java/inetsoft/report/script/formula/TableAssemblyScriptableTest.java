@@ -1,23 +1,36 @@
 package inetsoft.report.script.formula;
 
+import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.AppenderBase;
-import ch.qos.logback.classic.Logger;
 import inetsoft.report.composition.execution.AssetQuerySandbox;
+import inetsoft.test.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.util.DefaultTable;
 import inetsoft.uql.util.XEmbeddedTable;
 import inetsoft.util.script.ScriptUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.Tag;
 import org.mozilla.javascript.Scriptable;
 import org.slf4j.LoggerFactory;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.util.*;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@SreeHome
+@Tag("core")
 class TableAssemblyScriptableTest {
    private TableAssemblyScriptable tableAssemblyScriptable;
    private AssetQuerySandbox mockSandbox;

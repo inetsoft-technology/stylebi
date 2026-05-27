@@ -22,7 +22,7 @@
   <parent>
     <groupId>com.inetsoft.stylebi</groupId>
     <artifactId>inetsoft-stylebi</artifactId>
-    <version>1.1.0-SNAPSHOT</version>
+    <version>1.2.0-SNAPSHOT</version>
   </parent>
 
   <artifactId>inetsoft-core</artifactId>
@@ -182,6 +182,18 @@
     </dependency>
 
     <dependency>
+      <groupId>com.github.luben</groupId>
+      <artifactId>zstd-jni</artifactId>
+      <scope>compile</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>com.davidehrmann.vcdiff</groupId>
+      <artifactId>vcdiff-core</artifactId>
+      <scope>compile</scope>
+    </dependency>
+
+    <dependency>
       <groupId>org.roaringbitmap</groupId>
       <artifactId>RoaringBitmap</artifactId>
       <scope>compile</scope>
@@ -256,6 +268,12 @@
     <dependency>
       <groupId>org.apache.ignite</groupId>
       <artifactId>ignite-core</artifactId>
+      <scope>compile</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>org.apache.ignite</groupId>
+      <artifactId>ignite-slf4j</artifactId>
       <scope>compile</scope>
     </dependency>
 
@@ -733,6 +751,14 @@
     </dependency>
 
     <dependency>
+      <groupId>com.inetsoft.stylebi.build</groupId>
+      <artifactId>cluster-proxy-annotations</artifactId>
+      <version>${project.version}</version>
+      <scope>provided</scope>
+      <classifier>shaded</classifier>
+    </dependency>
+
+    <dependency>
       <groupId>io.soabase.record-builder</groupId>
       <artifactId>record-builder-processor</artifactId>
       <scope>provided</scope>
@@ -748,6 +774,12 @@
       <groupId>info.picocli</groupId>
       <artifactId>picocli</artifactId>
       <scope>provided</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>org.apache.avro</groupId>
+      <artifactId>avro</artifactId>
+      <scope>compile</scope>
     </dependency>
 
     <dependency>
@@ -843,7 +875,7 @@
       <plugin>
         <groupId>com.inetsoft.stylebi.build</groupId>
         <artifactId>antlr2-maven-plugin</artifactId>
-        <version>1.1.0-SNAPSHOT</version>
+        <version>1.2.0-SNAPSHOT</version>
         <executions>
           <execution>
             <id>antlr2</id>
@@ -949,17 +981,17 @@
         <artifactId>maven-surefire-plugin</artifactId>
         <version>3.2.5</version>
         <configuration>
-          <excludedGroups>rest-api-doc,penetration,integration,slow</excludedGroups>
+          <groups>core</groups>
           <workingDirectory>${project.build.directory}/test-workdir</workingDirectory>
+          <argLine>-Xmx2g --add-opens=java.base/jdk.internal.access=ALL-UNNAMED --add-opens=java.base/jdk.internal.misc=ALL-UNNAMED --add-opens=java.base/sun.nio.ch=ALL-UNNAMED --add-opens=java.base/sun.util.calendar=ALL-UNNAMED --add-opens=java.management/com.sun.jmx.mbeanserver=ALL-UNNAMED --add-opens=jdk.internal.jvmstat/sun.jvmstat.monitor=ALL-UNNAMED --add-opens=java.base/sun.reflect.generics.reflectiveObjects=ALL-UNNAMED --add-opens=jdk.management/com.sun.management.internal=ALL-UNNAMED --add-opens=java.base/java.io=ALL-UNNAMED --add-opens=java.base/java.nio=ALL-UNNAMED --add-opens=java.base/java.net=ALL-UNNAMED --add-opens=java.base/java.util=ALL-UNNAMED --add-opens=java.base/java.util.concurrent=ALL-UNNAMED --add-opens=java.base/java.util.concurrent.locks=ALL-UNNAMED --add-opens=java.base/java.util.concurrent.atomic=ALL-UNNAMED --add-opens=java.base/java.lang=ALL-UNNAMED --add-opens=java.base/java.lang.invoke=ALL-UNNAMED --add-opens=java.base/java.math=ALL-UNNAMED --add-opens=java.sql/java.sql=ALL-UNNAMED --add-opens=java.base/java.lang.reflect=ALL-UNNAMED --add-opens=java.base/java.time=ALL-UNNAMED --add-opens=java.base/java.text=ALL-UNNAMED --add-opens=java.management/sun.management=ALL-UNNAMED --add-opens=java.desktop/java.awt=ALL-UNNAMED --add-opens=java.desktop/java.beans=ALL-UNNAMED -Djava.awt.headless=true -Duser.language=en -Duser.country=US -Duser.timezone=America/New_York</argLine>
           <environmentVariables>
             <INETSOFT_ADMIN_PASSWORD>Test@Admin1</INETSOFT_ADMIN_PASSWORD>
           </environmentVariables>
-          <argLine>-Xmx2g --add-opens=java.base/jdk.internal.access=ALL-UNNAMED --add-opens=java.base/jdk.internal.misc=ALL-UNNAMED --add-opens=java.base/sun.nio.ch=ALL-UNNAMED --add-opens=java.base/sun.util.calendar=ALL-UNNAMED --add-opens=java.management/com.sun.jmx.mbeanserver=ALL-UNNAMED --add-opens=jdk.internal.jvmstat/sun.jvmstat.monitor=ALL-UNNAMED --add-opens=java.base/sun.reflect.generics.reflectiveObjects=ALL-UNNAMED --add-opens=jdk.management/com.sun.management.internal=ALL-UNNAMED --add-opens=java.base/java.io=ALL-UNNAMED --add-opens=java.base/java.nio=ALL-UNNAMED --add-opens=java.base/java.net=ALL-UNNAMED --add-opens=java.base/java.util=ALL-UNNAMED --add-opens=java.base/java.util.concurrent=ALL-UNNAMED --add-opens=java.base/java.util.concurrent.locks=ALL-UNNAMED --add-opens=java.base/java.util.concurrent.atomic=ALL-UNNAMED --add-opens=java.base/java.lang=ALL-UNNAMED --add-opens=java.base/java.lang.invoke=ALL-UNNAMED --add-opens=java.base/java.math=ALL-UNNAMED --add-opens=java.sql/java.sql=ALL-UNNAMED --add-opens=java.base/java.lang.reflect=ALL-UNNAMED --add-opens=java.base/java.time=ALL-UNNAMED --add-opens=java.base/java.text=ALL-UNNAMED --add-opens=java.management/sun.management=ALL-UNNAMED -Duser.language=en -Duser.country=US -Duser.timezone=America/New_York</argLine>
           <systemPropertyVariables>
             <disable.updateAssetDependencies>true</disable.updateAssetDependencies>
             <kryo.unsafe>false</kryo.unsafe>
             <show.license.exception>true</show.license.exception>
-            <inetsoft.sree.internal.cluster.implementation>inetsoft.test.TestCluster</inetsoft.sree.internal.cluster.implementation>
+            <inetsoft.sree.internal.cluster.implementation>inetsoft.sree.internal.cluster.MockCluster</inetsoft.sree.internal.cluster.implementation>
             <sree.home>${project.build.directory}/test-workdir</sree.home>
             <jdbc.driver.dir>${project.build.directory}/jdbc-drivers</jdbc.driver.dir>
             <junit.jupiter.extensions.autodetection.enabled>true</junit.jupiter.extensions.autodetection.enabled>
@@ -992,8 +1024,8 @@
           <quiet>true</quiet>
           <additionalJOption>--allow-script-in-comments</additionalJOption>
           <detectJavaApiLink>true</detectJavaApiLink>
-          <windowtitle>StyleBI API, 1.1.0</windowtitle>
-          <doctitle>StyleBI API, 1.1.0</doctitle>
+          <windowtitle>StyleBI API, 1.2.0</windowtitle>
+          <doctitle>StyleBI API, 1.2.0</doctitle>
           <sourcepath>src/main/java;target/generated-sources/annotations;target/generated-sources/antlr;target/generated-sources/javacc</sourcepath>
           <sourceFileIncludes>
             <include>inetsoft/graph/*.java</include>

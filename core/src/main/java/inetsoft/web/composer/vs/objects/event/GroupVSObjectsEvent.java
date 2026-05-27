@@ -19,12 +19,14 @@ package inetsoft.web.composer.vs.objects.event;
 
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import org.immutables.serial.Serial;
 import org.immutables.value.Value;
 
 import java.util.ArrayList;
 import java.util.List;
 
 @Value.Immutable
+@Serial.Structural
 @JsonSerialize(as = ImmutableGroupVSObjectsEvent.class)
 @JsonDeserialize(builder = GroupVSObjectsEvent.Builder.class)
 public abstract class GroupVSObjectsEvent {

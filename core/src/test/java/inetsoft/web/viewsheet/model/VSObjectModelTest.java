@@ -18,12 +18,17 @@
 package inetsoft.web.viewsheet.model;
 
 import com.fasterxml.jackson.annotation.JsonSubTypes;
-import inetsoft.test.SreeHome;
+import inetsoft.test.*;
 import inetsoft.web.viewsheet.model.annotation.VSAnnotationModel;
 import inetsoft.web.viewsheet.model.calendar.VSCalendarModel;
 import inetsoft.web.viewsheet.model.chart.VSChartModel;
 import inetsoft.web.viewsheet.model.table.*;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.Tag;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -31,7 +36,11 @@ import java.util.stream.Collectors;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome()
+@Tag("core")
 class VSObjectModelTest {
    @Test
    void checkSubTypes() throws Exception {

@@ -28,8 +28,8 @@ import inetsoft.uql.viewsheet.internal.DateComparisonUtil;
 import inetsoft.util.Tool;
 
 import java.awt.*;
-import java.util.ArrayList;
-import java.util.Hashtable;
+import java.io.*;
+import java.util.*;
 
 /**
  * This filter performs remapping of column numbers. The columns can be
@@ -103,6 +103,10 @@ public class ColumnMapFilter extends AbstractTableLens
     */
    @Override
    public int getBaseColIndex(int col) {
+      if(!isColInRange(col)) {
+         return -1;
+      }
+
       return map[col];
    }
 
@@ -141,6 +145,8 @@ public class ColumnMapFilter extends AbstractTableLens
       // optimization
       headerRows = (short) table.getHeaderRowCount();
       headers = null;
+      stringHeaders = null;
+
       resetIdentifiers();
    }
 
@@ -187,7 +193,7 @@ public class ColumnMapFilter extends AbstractTableLens
     */
    @Override
    public void setComparer(int col, Comparer comp) {
-      if(table instanceof SortedTable) {
+      if(table instanceof SortedTable && isColInRange(col)) {
          ((SortedTable) table).setComparer(map[col], comp);
       }
    }
@@ -198,7 +204,7 @@ public class ColumnMapFilter extends AbstractTableLens
     */
    @Override
    public Comparer getComparer(int col) {
-      if(table instanceof SortedTable) {
+      if(table instanceof SortedTable && isColInRange(col)) {
          return ((SortedTable) table).getComparer(map[col]);
       }
       else {
@@ -335,6 +341,10 @@ public class ColumnMapFilter extends AbstractTableLens
     */
    @Override
    public Class getColType(int col) {
+      if(!isColInRange(col)) {
+         return null;
+      }
+
       return table.getColType(map[col]);
    }
 
@@ -344,6 +354,10 @@ public class ColumnMapFilter extends AbstractTableLens
     */
    @Override
    public final boolean isPrimitive(int col) {
+      if(!isColInRange(col)) {
+         return false;
+      }
+
       return table.isPrimitive(map[col]);
    }
 
@@ -405,6 +419,10 @@ public class ColumnMapFilter extends AbstractTableLens
     */
    @Override
    public Insets getInsets(int r, int c) {
+      if(!isColInRange(c)) {
+         return null;
+      }
+
       return table.getInsets(r, map[c]);
    }
 
@@ -420,6 +438,10 @@ public class ColumnMapFilter extends AbstractTableLens
     */
    @Override
    public Dimension getSpan(int r, int c) {
+      if(!isColInRange(c)) {
+         return null;
+      }
+
       return table.getSpan(r, map[c]);
    }
 
@@ -431,6 +453,10 @@ public class ColumnMapFilter extends AbstractTableLens
     */
    @Override
    public int getAlignment(int r, int c) {
+      if(!isColInRange(c)) {
+         return (H_LEFT | V_CENTER);
+      }
+
       return table.getAlignment(r, map[c]);
    }
 
@@ -442,6 +468,10 @@ public class ColumnMapFilter extends AbstractTableLens
     */
    @Override
    public Font getFont(int r, int c) {
+      if(!isColInRange(c)) {
+         return null;
+      }
+
       return table.getFont(r, map[c]);
    }
 
@@ -455,6 +485,10 @@ public class ColumnMapFilter extends AbstractTableLens
     */
    @Override
    public boolean isLineWrap(int r, int c) {
+      if(!isColInRange(c)) {
+         return false;
+      }
+
       return table.isLineWrap(r, map[c]);
    }
 
@@ -467,6 +501,10 @@ public class ColumnMapFilter extends AbstractTableLens
     */
    @Override
    public Color getForeground(int r, int c) {
+      if(!isColInRange(c)) {
+         return null;
+      }
+
       return table.getForeground(r, map[c]);
    }
 
@@ -479,11 +517,19 @@ public class ColumnMapFilter extends AbstractTableLens
     */
    @Override
    public Color getBackground(int r, int c) {
+      if(!isColInRange(c)) {
+         return null;
+      }
+
       return table.getBackground(r, map[c]);
    }
 
    @Override
    public int getAlpha(int r, int c) {
+      if(!isColInRange(c)) {
+         return -1;
+      }
+
       return table.getAlpha(r, map[c]);
    }
 
@@ -496,6 +542,10 @@ public class ColumnMapFilter extends AbstractTableLens
    @Override
    public final boolean isNull(int r, int c) {
       if(r == 0 && headers != null && headers[c] != null) {
+         return false;
+      }
+
+      if(!isColInRange(c)) {
          return false;
       }
 
@@ -542,6 +592,10 @@ public class ColumnMapFilter extends AbstractTableLens
     */
    @Override
    public final double getDouble(int r, int c) {
+      if(!isColInRange(c)) {
+         return Tool.NULL_DOUBLE;
+      }
+
       return table.getDouble(r, map[c]);
    }
 
@@ -553,6 +607,10 @@ public class ColumnMapFilter extends AbstractTableLens
     */
    @Override
    public final float getFloat(int r, int c) {
+      if(!isColInRange(c)) {
+         return Tool.NULL_FLOAT;
+      }
+
       return table.getFloat(r, map[c]);
    }
 
@@ -564,6 +622,10 @@ public class ColumnMapFilter extends AbstractTableLens
     */
    @Override
    public final long getLong(int r, int c) {
+      if(!isColInRange(c)) {
+         return Tool.NULL_LONG;
+      }
+
       return table.getLong(r, map[c]);
    }
 
@@ -575,6 +637,10 @@ public class ColumnMapFilter extends AbstractTableLens
     */
    @Override
    public final int getInt(int r, int c) {
+      if(!isColInRange(c)) {
+         return Tool.NULL_INTEGER;
+      }
+
       return table.getInt(r, map[c]);
    }
 
@@ -586,6 +652,10 @@ public class ColumnMapFilter extends AbstractTableLens
     */
    @Override
    public final short getShort(int r, int c) {
+      if(!isColInRange(c)) {
+         return Tool.NULL_SHORT;
+      }
+
       return table.getShort(r, map[c]);
    }
 
@@ -597,6 +667,10 @@ public class ColumnMapFilter extends AbstractTableLens
     */
    @Override
    public final byte getByte(int r, int c) {
+      if(!isColInRange(c)) {
+         return Tool.NULL_BYTE;
+      }
+
       return table.getByte(r, map[c]);
    }
 
@@ -608,6 +682,10 @@ public class ColumnMapFilter extends AbstractTableLens
     */
    @Override
    public final boolean getBoolean(int r, int c) {
+      if(!isColInRange(c)) {
+         return false;
+      }
+
       return table.getBoolean(r, map[c]);
    }
 
@@ -625,10 +703,21 @@ public class ColumnMapFilter extends AbstractTableLens
          }
 
          headers[c] = v;
+
+         if(v instanceof String) {
+            if(stringHeaders == null) {
+               stringHeaders = new String[map.length];
+            }
+
+            stringHeaders[c] = (String) v;
+         }
+
          return;
       }
 
-      table.setObject(r, map[c], v);
+      if(isColInRange(c)) {
+         table.setObject(r, map[c], v);
+      }
    }
 
    /**
@@ -733,6 +822,29 @@ public class ColumnMapFilter extends AbstractTableLens
 
    public Object[] getHeaders() {
       return headers;
+   }
+
+   @Serial
+   private void writeObject(ObjectOutputStream out) throws IOException {
+      out.defaultWriteObject();
+   }
+
+   @Serial
+   private void readObject(ObjectInputStream in) throws ClassNotFoundException, IOException {
+      in.defaultReadObject();
+      String[] oldStringHeaders = stringHeaders;
+
+      setTable(table);
+
+      if(oldStringHeaders != null) {
+         stringHeaders = oldStringHeaders;
+         headers = new Object[map.length];
+         System.arraycopy(stringHeaders, 0, headers, 0, map.length);
+      }
+   }
+
+   private boolean isColInRange(int col) {
+      return col >= 0 && col < map.length;
    }
 
    /**
@@ -961,8 +1073,9 @@ public class ColumnMapFilter extends AbstractTableLens
 
    private TableLens table;
    private int[] map; // column mapping
-   private Object[] headers; // column header
-   private String[] identifiers;
-   private int[] duptimes; // header's duplicated times
-   private short headerRows = 1;
+   private String[] stringHeaders;  // serializable string headers
+   private transient Object[] headers; // column header
+   private transient String[] identifiers;
+   private transient int[] duptimes; // header's duplicated times
+   private transient short headerRows = 1;
 }

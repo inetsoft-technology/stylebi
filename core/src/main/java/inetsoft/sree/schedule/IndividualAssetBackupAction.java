@@ -17,7 +17,7 @@
  */
 package inetsoft.sree.schedule;
 
-import inetsoft.report.LibManager;
+import inetsoft.report.LibManagerProvider;
 import inetsoft.report.internal.Util;
 import inetsoft.sree.internal.HttpXMLSerializable;
 import inetsoft.sree.internal.SUtil;
@@ -142,14 +142,14 @@ public class IndividualAssetBackupAction implements ScheduleAction, HttpXMLSeria
          else if(asset instanceof TableStyleAsset) {
             String id = ((TableStyleAsset) asset).getStyleID();
 
-            if(LibManager.getManager().getTableStyle(id) == null) {
+            if(LibManagerProvider.getInstance().getManager().getTableStyle(id) == null) {
                failedAssets.add(asset);
             }
          }
          else if(asset instanceof ScriptAsset) {
             String name = asset.getPath();
 
-            if(LibManager.getManager().getScript(name) == null) {
+            if(LibManagerProvider.getInstance().getManager().getScript(name) == null) {
                failedAssets.add(asset);
             }
          }

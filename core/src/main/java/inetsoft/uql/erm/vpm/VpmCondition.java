@@ -170,7 +170,7 @@ public class VpmCondition extends VpmObject {
 
       if(partition != null) {
          XDataModel model = source == null ? null :
-            XFactory.getRepository().getDataModel(source.getFullName());
+            XRepository.getRepository().getDataModel(source.getFullName());
          xpart = model == null ? null : model.getPartition(partition, user);
 
          if(xpart != null) {

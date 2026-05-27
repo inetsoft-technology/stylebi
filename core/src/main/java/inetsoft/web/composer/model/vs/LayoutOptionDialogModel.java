@@ -20,6 +20,7 @@ package inetsoft.web.composer.model.vs;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import inetsoft.uql.asset.AssetEntry;
 
+import java.io.Serializable;
 import java.util.List;
 
 /**
@@ -27,7 +28,7 @@ import java.util.List;
  * layout option dialog
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class LayoutOptionDialogModel {
+public class LayoutOptionDialogModel implements Serializable {
    public int getSelectedValue() {
       return selectedValue;
    }

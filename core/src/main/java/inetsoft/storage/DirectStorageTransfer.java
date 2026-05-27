@@ -62,20 +62,23 @@ public class DirectStorageTransfer extends AbstractStorageTransfer {
    protected void exportStore(String id, JsonGenerator kvGenerator, JsonGenerator blobGenerator,
                               Path blobDir)
    {
+      // Do not back up the plugins, initialization will install/upgrade plugins
+      // Don't back up the table cache store, this is an ephemeral cache
+      if("plugins".equals(id) || id != null && id.endsWith("__tableCacheStore")) {
+         return;
+      }
+
       AtomicBoolean first = new AtomicBoolean(true);
       AtomicBoolean blob = new AtomicBoolean(false);
       AtomicBoolean empty = new AtomicBoolean(true);
 
       keyValueEngine.stream(id).forEach(pair -> {
          try {
-            // Do not back up the plugins, initialization will install/upgrade plugins
-            if(!id.equals("plugins")) {
-               export(id, pair, first.get(), kvGenerator, blobGenerator, blobDir);
+            export(id, pair, first.get(), kvGenerator, blobGenerator, blobDir);
 
-               if(first.compareAndSet(true, false)) {
-                  blob.set(pair.getValue() instanceof Blob);
-                  empty.set(false);
-               }
+            if(first.compareAndSet(true, false)) {
+               blob.set(pair.getValue() instanceof Blob);
+               empty.set(false);
             }
          }
          catch(RuntimeException e) {
@@ -130,15 +133,28 @@ public class DirectStorageTransfer extends AbstractStorageTransfer {
    private void exportBlob(String id, String key, Blob<?> blob, JsonGenerator generator, Path dir)
       throws IOException
    {
-      generator.writeObjectField(key, blob);
       String digest = blob.getDigest();
 
       if(digest != null) {
          String path = digest.substring(0, 2) + "/" + digest.substring(2);
          Path file = dir.resolve(path);
-         Files.createDirectories(file.getParent());
-         blobEngine.read(id, digest, file);
+
+         if(!Files.exists(file)) {
+            Files.createDirectories(file.getParent());
+
+            try {
+               blobEngine.read(id, digest, file);
+            }
+            catch(IOException e) {
+               Files.deleteIfExists(file);
+               LoggerFactory.getLogger(DirectStorageTransfer.class)
+                  .warn("Skipping blob '{}' in store '{}': {}", key, id, e.getMessage());
+               return;
+            }
+         }
       }
+
+      generator.writeObjectField(key, blob);
    }
 
    @Override

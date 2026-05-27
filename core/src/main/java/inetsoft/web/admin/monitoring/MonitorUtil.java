@@ -83,13 +83,14 @@ public class MonitorUtil {
     * @param max    the maximum value of the y-axis.
     */
    public static Graphics2D createMonitorImage(Object[][] datum, int width, int height,
-                                                  int type, String format, String title, long max)
+                                                  int type, String format, String title, long max,
+                                               CustomThemesManager customThemesManager)
    {
       if(datum == null || datum.length == 0) {
          return null;
       }
 
-      boolean isDarkEM = CustomThemesManager.getManager().isEMDarkTheme();
+      boolean isDarkEM = customThemesManager.isEMDarkTheme();
       DataSet data = new DefaultDataSet(datum);
 
       // hide the titles
@@ -171,7 +172,7 @@ public class MonitorUtil {
       GraphGenerator gen = GraphGenerator.getGenerator(info, desc, null, null, data,
                                                        new VariableTable(), sourceType, null);
       EGraph egraph = gen.createEGraph();
-      fixFormatSpec(egraph);
+      fixFormatSpec(egraph, customThemesManager);
 
       // workaround to keep the points on the chart connected
       for(int i = 0; i < egraph.getElementCount(); i++) {
@@ -299,8 +300,8 @@ public class MonitorUtil {
       return data;
    }
 
-   private static void fixFormatSpec(EGraph egraph) {
-      boolean isDarkEM = CustomThemesManager.getManager().isEMDarkTheme();
+   private static void fixFormatSpec(EGraph egraph, CustomThemesManager customThemesManager) {
+      boolean isDarkEM = customThemesManager.isEMDarkTheme();
       Color fgColor = isDarkEM ? Color.lightGray : GDefaults.DEFAULT_TEXT_COLOR;
       RectCoord coord = (RectCoord) egraph.getCoordinate();
       Scale[] scales = coord.getScales();

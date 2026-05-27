@@ -17,7 +17,9 @@
  */
 package inetsoft.web.composer.vs.event;
 
-public class CloseSheetEvent {
+import java.io.Serializable;
+
+public class CloseSheetEvent implements Serializable {
    public boolean isDeleteAutosave() {
       return deleteAutosave;
    }

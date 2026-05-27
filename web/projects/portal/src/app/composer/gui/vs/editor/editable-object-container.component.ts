@@ -271,7 +271,7 @@ export class EditableObjectContainer extends AbstractActionComponent
       if((<any> vsObject).dropdown && !SelectionBaseController.isHidden(<any> vsObject) ||
          (<any> vsObject).dropdownCalendar && (<any> vsObject).calendarsShown)
       {
-         zIndex += 9999;
+         zIndex += 100000;
       }
 
       return zIndex;

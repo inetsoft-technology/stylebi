@@ -28,6 +28,7 @@ import inetsoft.sree.security.*;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.util.Identity;
 import inetsoft.util.*;
+import inetsoft.web.admin.content.repository.MVSupportService;
 import org.slf4j.*;
 import org.w3c.dom.*;
 
@@ -529,13 +530,43 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
       List<Future> futures = new ArrayList<>();
       boolean waited = false;
       long startTime = System.currentTimeMillis();
+      long timeout;
+
+      try {
+         timeout = Long.parseLong(SreeEnv.getProperty("schedule.task.timeout"));
+      }
+      catch(NumberFormatException e) {
+         timeout = 600000L;
+      }
 
       for(int i = 0; i < acts.size(); i++) {
          final ScheduleAction act = acts.elementAt(i);
 
          if(!waited && act instanceof MVAction && ((MVAction) act).isSequenced()) {
             for(Future future : futures) {
-               future.get();
+               try {
+                  if(timeout > 0) {
+                     long remaining = timeout - (System.currentTimeMillis() - startTime);
+
+                     if(remaining <= 0) {
+                        throw new TimeoutException("Schedule task timeout exceeded waiting for MV actions");
+                     }
+
+                     future.get(remaining, TimeUnit.MILLISECONDS);
+                  }
+                  else {
+                     future.get();
+                  }
+               }
+               catch(TimeoutException ex) {
+                  for(Future f : futures) {
+                     f.cancel(true);
+                  }
+
+                  cancel();
+                  throw new RuntimeException("Schedule Task Timeout exceeded waiting for MV actions: " +
+                                                getName(), ex);
+               }
             }
 
             waited = true;
@@ -595,7 +626,6 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
       int threshold = (cycleInfo != null && cycleInfo.isExceedNotify())
          ? cycleInfo.getThreshold() : 0;
       int time = 0;
-      long timeout = Long.parseLong(SreeEnv.getProperty("schedule.task.timeout"));
 
       // only after all the replet actions are over, should the task be over
       synchronized(this) {

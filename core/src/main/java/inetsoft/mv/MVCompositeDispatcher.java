@@ -29,6 +29,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
+import java.security.Principal;
 import java.util.List;
 import java.util.UUID;
 
@@ -43,9 +44,10 @@ class MVCompositeDispatcher extends MVDispatcher implements Runnable {
    /**
     * Create an instanceof MVCompositeDispatcher.
     */
-   public MVCompositeDispatcher(MVDef def, VariableTable vars) {
+   public MVCompositeDispatcher(MVDef def, VariableTable vars, Principal principal) {
       super(def);
       this.vars = vars;
+      this.principal = principal;
    }
 
    @Override
@@ -67,6 +69,8 @@ class MVCompositeDispatcher extends MVDispatcher implements Runnable {
    @Override
    public void run() {
       try {
+         ThreadContext.setContextPrincipal(principal);
+
          synchronized(lock) {
             try {
                dispatch0();
@@ -79,6 +83,9 @@ class MVCompositeDispatcher extends MVDispatcher implements Runnable {
       }
       catch(Exception ex) {
          exception = ex;
+      }
+      finally {
+         ThreadContext.setContextPrincipal(null);
       }
    }
 
@@ -245,6 +252,7 @@ class MVCompositeDispatcher extends MVDispatcher implements Runnable {
    private VariableTable vars;
    private boolean completed = false;
    private Exception exception;
+   private Principal principal;
    private transient Object lock = new Object();
    private static final Logger LOG =
       LoggerFactory.getLogger(MVCompositeDispatcher.class);

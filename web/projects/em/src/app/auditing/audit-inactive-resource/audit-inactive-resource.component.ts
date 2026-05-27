@@ -32,7 +32,6 @@ import {
 } from "./inactive-resource";
 import { ActivatedRoute } from "@angular/router";
 import { of, Subscription } from "rxjs";
-import { Tool } from "../../../../../shared/util/tool";
 import { ResourceType } from "./resource-type";
 
 @Secured({
@@ -67,7 +66,7 @@ export class AuditInactiveResourceComponent implements OnInit, OnDestroy {
    displayedColumns = [ "objectName", "objectType", "lastAccessTime", "duration", "server"];
    columnRenderers = [
       { name: "objectName", label: "_#(js:Object Name)", value: (r: InactiveResource) => r.objectName },
-      { name: "objectType", label: "_#(js:Object Type)", value: (r: InactiveResource) => r.objectType },
+      { name: "objectType", label: "_#(js:Object Type)", value: (r: InactiveResource) => this.getAssetTypeLabel(r.objectType) },
       { name: "lastAccessTime", label: "_#(js:Last Access Time)", value: (r: InactiveResource) => AuditTableViewComponent.getDisplayDate(r.lastAccessTime, r.dateFormat) },
       { name: "duration", label: "_#(js:Duration)", value: (r: InactiveResource) => r.duration },
       { name: "server", label: "_#(js:Server)", value: (r: InactiveResource) => r.server },
@@ -181,7 +180,92 @@ export class AuditInactiveResourceComponent implements OnInit, OnDestroy {
    }
 
    getAssetTypeLabel(value: string): string {
-      return Tool.startCase(value);
+      const normalized = value?.toLowerCase() || "";
+
+      if(normalized === "dashboard") {
+         return "_#(js:Dashboard)";
+      }
+      else if(normalized === "identity") {
+         return "_#(js:Identity)";
+      }
+      else if(normalized === "permission") {
+         return "_#(js:Permission)";
+      }
+      else if(normalized === "properties") {
+         return "_#(js:Properties)";
+      }
+      else if(normalized === "folder") {
+         return "_#(js:Folder)";
+      }
+      else if(normalized === "task") {
+         return "_#(js:Task)";
+      }
+      else if(normalized === "cycle") {
+         return "_#(js:Cycle)";
+      }
+      else if(normalized === "datasource") {
+         return "_#(js:Datasource)";
+      }
+      else if(normalized === "device") {
+         return "_#(js:Device)";
+      }
+      else if(normalized === "viewsheet") {
+         return "_#(js:Viewsheet)";
+      }
+      else if(normalized === "worksheet") {
+         return "_#(js:Worksheet)";
+      }
+      else if(normalized === "script") {
+         return "_#(js:Script)";
+      }
+      else if(normalized === "table style") {
+         return "_#(js:Table Style)";
+      }
+      else if(normalized === "logical model") {
+         return "_#(js:Logical Model)";
+      }
+      else if(normalized === "physical view") {
+         return "_#(js:Physical View)";
+      }
+      else if(normalized === "vpm") {
+         return "_#(js:VPM)";
+      }
+      else if(normalized === "file") {
+         return "_#(js:File)";
+      }
+      else if(normalized === "query") {
+         return "_#(js:Query)";
+      }
+      else if(normalized === "report") {
+         return "_#(js:Report)";
+      }
+      else if(normalized === "theme") {
+         return "_#(js:Theme)";
+      }
+      else if(normalized === "snapshot") {
+         return "_#(js:Snapshot)";
+      }
+      else if(normalized === "plugin") {
+         return "_#(js:Plugin)";
+      }
+      else if(normalized === "storage") {
+         return "_#(js:Storage)";
+      }
+      else if(normalized === "security provider") {
+         return "_#(js:Security Provider)";
+      }
+      else if(normalized === "password") {
+         return "_#(js:Password)";
+      }
+      else if(normalized === "asset") {
+         return "_#(js:Asset)";
+      }
+      else if(normalized === "prototype") {
+         return "_#(js:Prototype)";
+      }
+      else {
+         return value;
+      }
    }
 
    ngOnDestroy(): void {

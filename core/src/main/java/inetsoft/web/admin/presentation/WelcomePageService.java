@@ -23,15 +23,19 @@ import inetsoft.sree.security.OrganizationManager;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.web.admin.presentation.model.WelcomePageSettingsModel;
 import inetsoft.web.viewsheet.Audited;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 @Service
 public class WelcomePageService {
+   @Autowired
+   private PortalThemesManager portalThemesManager;
+
    public WelcomePageSettingsModel getModel(boolean global) {
       int type;
       String source;
 
-      PortalThemesManager manager = PortalThemesManager.getManager();
+      PortalThemesManager manager = portalThemesManager;
       manager.loadThemes();
       PortalWelcomePage welcomePage = manager.getWelcomePage() ;
       String currentOrgID = OrganizationManager.getInstance().getCurrentOrgID();
@@ -55,7 +59,7 @@ public class WelcomePageService {
       objectType = ActionRecord.OBJECT_TYPE_EMPROPERTY
    )
    public void setModel(WelcomePageSettingsModel model, boolean globalSettings) {
-      PortalThemesManager manager = PortalThemesManager.getManager();
+      PortalThemesManager manager = portalThemesManager;
 
       if(globalSettings) {
          if(manager.getWelcomePage() == null) {
@@ -87,7 +91,7 @@ public class WelcomePageService {
       objectType = ActionRecord.OBJECT_TYPE_EMPROPERTY
    )
    public void resetSettings(boolean globalSettings) {
-      PortalThemesManager manager = PortalThemesManager.getManager();
+      PortalThemesManager manager = portalThemesManager;
 
       if(globalSettings) {
          manager.setWelcomePage(new PortalWelcomePage(0, ""));

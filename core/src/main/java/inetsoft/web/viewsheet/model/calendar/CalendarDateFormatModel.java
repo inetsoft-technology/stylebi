@@ -17,7 +17,9 @@
  */
 package inetsoft.web.viewsheet.model.calendar;
 
-public class CalendarDateFormatModel  {
+import java.io.Serializable;
+
+public class CalendarDateFormatModel implements Serializable {
    public CalendarDateFormatModel() {
    }
 

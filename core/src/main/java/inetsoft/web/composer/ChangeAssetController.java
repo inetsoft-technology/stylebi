@@ -19,14 +19,14 @@ package inetsoft.web.composer;
 
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.LibManager;
+import inetsoft.report.LibManagerProvider;
 import inetsoft.report.composition.RuntimeSheet;
 import inetsoft.report.composition.event.AssetEventUtil;
 import inetsoft.report.internal.Util;
 import inetsoft.report.style.XTableStyle;
 import inetsoft.sree.RepositoryEntry;
 import inetsoft.sree.internal.SUtil;
-import inetsoft.sree.security.ResourceAction;
-import inetsoft.sree.security.ResourceType;
+import inetsoft.sree.security.*;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.sync.DependencyTransformer;
@@ -52,10 +52,12 @@ public class ChangeAssetController {
     */
    @Autowired
    public ChangeAssetController(AssetRepository assetRepository,
-                                ViewsheetService viewsheetService)
+                                ViewsheetService viewsheetService,
+                                LibManagerProvider libManagerProvider)
    {
       this.assetRepository = assetRepository;
       this.viewsheetService = viewsheetService;
+      this.libManagerProvider = libManagerProvider;
    }
 
    @PostMapping("api/composer/asset-tree/change-asset")
@@ -266,7 +268,7 @@ public class ChangeAssetController {
    }
 
    private void changeTableStyle(AssetEntry parent, AssetEntry entry, Principal principal) throws Exception {
-      LibManager manager = LibManager.getManager();
+      LibManager manager = libManagerProvider.getManager(principal);
       XTableStyle tableStyle = manager.getTableStyle(entry.getName());
       String folder = parent.getProperty("folder");
 
@@ -304,7 +306,7 @@ public class ChangeAssetController {
    }
 
    private void changeTableStyleFolder(AssetEntry parent, AssetEntry entry, Principal principal) {
-      LibManager manager = LibManager.getManager();
+      LibManager manager = libManagerProvider.getManager(principal);
       String pfolder = parent.getProperty("folder");
       String folder = entry.getProperty("folder");
 
@@ -370,7 +372,7 @@ public class ChangeAssetController {
    /**
     * Sort entries.
     */
-   private static class EntriesComparator implements Comparator {
+   private static final class EntriesComparator implements Comparator {
       @Override
       public int compare(Object v1, Object v2) {
          int type1 = ((AssetEntry) v1).getType().id();
@@ -382,4 +384,5 @@ public class ChangeAssetController {
 
    private final AssetRepository assetRepository;
    private final ViewsheetService viewsheetService;
+   private final LibManagerProvider libManagerProvider;
 }

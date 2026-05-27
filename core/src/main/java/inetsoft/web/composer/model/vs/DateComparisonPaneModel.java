@@ -22,7 +22,9 @@ import inetsoft.uql.viewsheet.graph.aesthetic.VisualFrameWrapper;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.web.binding.model.graph.aesthetic.VisualFrameModel;
 
-public class DateComparisonPaneModel {
+import java.io.Serializable;
+
+public class DateComparisonPaneModel implements Serializable {
    public DateComparisonPaneModel() {
    }
 

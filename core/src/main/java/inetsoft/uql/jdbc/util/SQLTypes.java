@@ -657,7 +657,7 @@ public class SQLTypes {
                                         String additional)
    {
       try {
-         XRepository repository = XFactory.getRepository();
+         XRepository repository = XRepository.getRepository();
          Object session = System.getProperty("user.name");
          XSessionManager.getSessionManager().bind(session);
 

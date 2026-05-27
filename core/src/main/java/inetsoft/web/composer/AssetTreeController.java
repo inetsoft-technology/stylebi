@@ -17,25 +17,19 @@
  */
 package inetsoft.web.composer;
 
-import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.mv.MVManager;
 import inetsoft.report.LibManager;
+import inetsoft.report.LibManagerProvider;
 import inetsoft.report.composition.AssetTreeModel;
-import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.event.AssetEventUtil;
-import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.report.style.XTableStyle;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
-import inetsoft.uql.jdbc.JDBCDataSource;
 import inetsoft.uql.schema.UserVariable;
 import inetsoft.uql.util.XUtil;
-import inetsoft.uql.viewsheet.Viewsheet;
-import inetsoft.uql.viewsheet.ViewsheetInfo;
-import inetsoft.uql.xmla.XMLADataSource;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
 import inetsoft.web.RecycleUtils;
@@ -63,9 +57,17 @@ public class AssetTreeController {
     * @param assetRepository the asset repository.
     */
    @Autowired
-   public AssetTreeController(AssetRepository assetRepository, ViewsheetService viewsheetService) {
+   public AssetTreeController(AssetRepository assetRepository,
+                              AssetTreeServiceProxy assetTreeServiceProxy,
+                              SecurityEngine securityEngine,
+                              LibManagerProvider libManagerProvider,
+                              XRepository xRepository)
+   {
       this.assetRepository = assetRepository;
-      this.viewsheetService = viewsheetService;
+      this.assetTreeServiceProxy = assetTreeServiceProxy;
+      this.securityEngine = securityEngine;
+      this.libManagerProvider = libManagerProvider;
+      this.xRepository = xRepository;
    }
 
    @PostMapping("/api/vs/bindingtree/getConnectionParameters")
@@ -75,78 +77,7 @@ public class AssetTreeController {
       @RequestBody(required = false) AssetEntry entry,
       Principal principal) throws Exception
    {
-      if(rid == null || "".equals(rid)) {
-         return null;
-      }
-
-      LoadAssetTreeNodesValidator result = null;
-      RuntimeViewsheet rvs = viewsheetService.getViewsheet(rid, principal);
-      Viewsheet vs = rvs.getViewsheet();
-
-      if(entry != null && "true".equals(entry.getProperty("CUBE_TABLE")) || cubeData != null) {
-         String source;
-         String name;
-
-         if(cubeData == null) {
-            source = entry.getParentPath();
-            name = entry.getName();
-         }
-         else {
-            if(!cubeData.startsWith(Assembly.CUBE_VS)) {
-               return null;
-            }
-
-            String path = cubeData.substring(Assembly.CUBE_VS.length());
-            int index = path.lastIndexOf("/");
-            source = path.substring(0, index);
-            name = path.substring(index + 1);
-         }
-
-         XRepository rep = XFactory.getRepository();
-         ViewsheetInfo vinfo = vs.getViewsheetInfo();
-
-         if(vinfo != null && vinfo.isDisableParameterSheet()) {
-            return result;
-         }
-
-         XDataSource ds = rep.getDataSource(source);
-
-         if(!(ds instanceof JDBCDataSource) && !(ds instanceof XMLADataSource))
-         {
-            return result;
-         }
-
-         VariableTable vtbl = new VariableTable();
-         XUtil.copyDBCredentials((XPrincipal)principal, vtbl);
-
-         if(vtbl.contains(XUtil.DB_USER_PREFIX + source)) {
-            rep.connect(assetRepository.getSession(), ":" + source, vtbl);
-            return result;
-         }
-
-         try{
-            UserVariable[] vars = rep.getConnectionParameters(
-               assetRepository.getSession(), ":" + name);
-
-            if(vars != null && vars.length > 0) {
-               AssetUtil.validateAlias(vars);
-               List<VariableAssemblyModelInfo> parameters =
-                  Arrays.stream(vars)
-                        .map(VariableAssemblyModelInfo::new)
-                        .collect(Collectors.toList());
-
-               result = LoadAssetTreeNodesValidator.builder()
-                  .parameters(parameters)
-                  .treeNodeModel(TreeNodeModel.builder().build())
-                  .build();
-            }
-         }
-         catch(RemoteException re) {
-            //Expand the node directly if can't get connection parameters.
-         }
-      }
-
-      return result;
+      return assetTreeServiceProxy.getConnectionParameters(rid, cubeData, entry, principal);
    }
 
    /**
@@ -173,7 +104,7 @@ public class AssetTreeController {
          includeTableStyles, includeScripts, includeLibrary, reportRepositoryEnabled, readOnly,
          physical, event, principal, readOnly || assetRepository.checkPermission(
             principal, ResourceType.WORKSHEET, "*", EnumSet.of(ResourceAction.ACCESS)),
-            SecurityEngine.getSecurity().checkPermission(
+            securityEngine.checkPermission(
             principal, ResourceType.PHYSICAL_TABLE, "*", ResourceAction.ACCESS),
             readOnly || assetRepository.checkPermission(
             principal, ResourceType.VIEWSHEET, "*", EnumSet.of(ResourceAction.ACCESS)));
@@ -258,7 +189,6 @@ public class AssetTreeController {
          AssetTreeModel.Node atmNode = new AssetTreeModel.Node(expandedEntry);
 
          if(!"cubeRoot".equals(expandedEntry.getProperty("entryName"))) {
-            XRepository rep = XFactory.getRepository();
             Set<UserVariable> list = new HashSet<>();
 
             if("true".equals(expandedEntry.getProperty("CUBE_TABLE")) ||
@@ -267,8 +197,8 @@ public class AssetTreeController {
                UserVariable[] vars = null;
 
                try {
-                  vars = rep.getConnectionParameters(
-                     assetRepository.getSession(), ":" + expandedEntry.getName());
+                  vars = xRepository.getConnectionParameters(
+                     assetRepository.getSession(), ":" + expandedEntry.getPath());
                }
                catch(RemoteException re) {
                   //Expand the node directly if can't get connection parameters.
@@ -573,16 +503,15 @@ public class AssetTreeController {
          }
 
          Object session = assetRepository.getSession();
-         XRepository rep = XFactory.getRepository();
          Iterator iterator = dbs.iterator();
 
          while(iterator.hasNext()) {
             String db = (String) iterator.next();
-            XDataSource ds = rep.getDataSource(db);
+            XDataSource ds = xRepository.getDataSource(db);
 
             if(db != null) {
                try {
-                  rep.testDataSource(session, ds, vtable);
+                  xRepository.testDataSource(session, ds, vtable);
                }
                catch(Exception ex) {
                   message = ex.getMessage();
@@ -602,7 +531,7 @@ public class AssetTreeController {
                                                   pass);
                }
 
-               rep.connect(session, ":" + db, vtable);
+               xRepository.connect(session, ":" + db, vtable);
             }
          }
       }
@@ -644,7 +573,7 @@ public class AssetTreeController {
          assets = Arrays.stream(assets).filter(asset -> {
             try {
                if(!assetRepository.containsEntry(asset)) {
-                  LibManager manager = LibManager.getManager();
+                  LibManager manager = libManagerProvider.getManager();
 
                   if(asset.isTableStyle()) {
                      XTableStyle style = manager.getTableStyleByName(asset.getProperty("styleName"));
@@ -1137,7 +1066,10 @@ public class AssetTreeController {
    }
 
    private final AssetRepository assetRepository;
-   private final ViewsheetService viewsheetService;
+   private final AssetTreeServiceProxy assetTreeServiceProxy;
+   private final SecurityEngine securityEngine;
+   private final LibManagerProvider libManagerProvider;
+   private final XRepository xRepository;
    private static final String TABLE_STYLE = "Table Style";
    private static final String SCRIPT = "Script Function";
    private static final Catalog catalog = Catalog.getCatalog();

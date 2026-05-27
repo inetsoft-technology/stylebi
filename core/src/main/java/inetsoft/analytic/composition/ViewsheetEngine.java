@@ -17,22 +17,26 @@
  */
 package inetsoft.analytic.composition;
 
-import inetsoft.analytic.AnalyticAssistant;
 import inetsoft.report.composition.*;
-import inetsoft.report.composition.execution.*;
+import inetsoft.report.composition.execution.AssetQuerySandbox;
+import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.sree.UserEnv;
 import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.internal.cluster.AffinityCallable;
+import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.*;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.uql.viewsheet.vslayout.*;
-import inetsoft.util.SingletonManager;
+import inetsoft.util.ThreadContext;
 import inetsoft.util.Tool;
+import inetsoft.web.ServiceProxyContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.Serializable;
 import java.rmi.RemoteException;
 import java.security.Principal;
 import java.util.*;
@@ -49,17 +53,9 @@ public class ViewsheetEngine extends WorksheetEngine implements ViewsheetService
    /**
     * Constructor.
     */
-   public ViewsheetEngine() throws RemoteException {
-      this((AssetRepository) AnalyticAssistant.getAnalyticAssistant()
-         .getAnalyticRepository());
-      setServer(true);
-   }
-
-   /**
-    * Constructor.
-    */
-   public ViewsheetEngine(AssetRepository engine) throws RemoteException {
-      super(engine);
+   public ViewsheetEngine(AssetRepository engine, ViewsheetLifecycleMessageChannel lifecycleMessageService, Cluster cluster) throws RemoteException {
+      super(engine, cluster);
+      this.lifecycleMessageService = lifecycleMessageService;
    }
 
    /**
@@ -68,7 +64,7 @@ public class ViewsheetEngine extends WorksheetEngine implements ViewsheetService
     * @return the viewsheet engine.
     */
    public static ViewsheetService getViewsheetEngine() {
-      return SingletonManager.getInstance(ViewsheetService.class);
+      return ViewsheetService.getInstance();
    }
 
    /**
@@ -84,8 +80,7 @@ public class ViewsheetEngine extends WorksheetEngine implements ViewsheetService
       throws Exception
    {
       if(entry.isViewsheet()) {
-         if(sheet instanceof VSSnapshot) {
-            VSSnapshot snapshot = (VSSnapshot) sheet;
+         if(sheet instanceof VSSnapshot snapshot) {
             sheet = snapshot.createViewsheet(engine, user);
          }
 
@@ -175,28 +170,22 @@ public class ViewsheetEngine extends WorksheetEngine implements ViewsheetService
 
       ws.addAssembly(data);
 
-      return openPreviewWorksheet(ws, entry, name, user);
+      return openPreviewWorksheet(id, ws, entry, name, user);
    }
 
    /**
     * Open a temporary viewsheet.
+    *
     * @param wentry the specified base worksheet entry.
-    * @param user the specified user.
-    * @param rid the specified report id.
+    * @param user   the specified user.
+    *
     * @return the viewsheet id.
     */
    @Override
-   public String openTemporaryViewsheet(AssetEntry wentry, Principal user,
-                                        String rid)
-      throws Exception
-   {
-      Viewsheet vs = new Viewsheet(wentry);
+   public String openTemporaryViewsheet(String originalId, AssetEntry wentry, Principal user) {
       AssetEntry entry = getTemporaryAssetEntry(user, AssetEntry.Type.VIEWSHEET);
-      vs.update(engine, entry, user);
-      RuntimeViewsheet rvs = new RuntimeViewsheet(entry, vs, user, engine, this,
-                                                  null, false);
-      rvs.setEditable(false);
-      return createTemporarySheetId(entry, rvs, user);
+      String nextId = originalId == null ? getNextID(entry, user) : getNextTemporaryID(originalId);
+      return OpenTemporaryViewsheetTask.openTemporaryViewsheet(this, wentry, entry, user, nextId);
    }
 
    /**
@@ -219,14 +208,14 @@ public class ViewsheetEngine extends WorksheetEngine implements ViewsheetService
       RuntimeViewsheet orvs = getViewsheet(id, user);
       AssetEntry oentry = orvs.getEntry();
       Viewsheet vs = orvs.getViewsheet();
-      vs = (Viewsheet) vs.clone();
+      vs = vs.clone();
       VSUtil.resetRuntimeValues(vs, true);
       vs.update(engine, oentry, user);
       AssetEntry entry = new AssetEntry(oentry.getScope(), oentry.getType(),
                                         oentry.getPath(), oentry.getUser(), oentry.getOrgID());
       entry.copyProperties(oentry);
 
-      if(oentry.getAlias() != null && oentry.getAlias().length() > 0) {
+      if(oentry.getAlias() != null && !oentry.getAlias().isEmpty()) {
          entry.setAlias(oentry.getAlias());
       }
 
@@ -243,9 +232,10 @@ public class ViewsheetEngine extends WorksheetEngine implements ViewsheetService
       rvs.setEditable(false);
       rvs.setOriginalID(id);
 
-      ViewsheetSandbox ovbox = orvs.getViewsheetSandbox();
-      AssetQuerySandbox oBox = ovbox != null ? ovbox.getAssetQuerySandbox() : null;
-      AssetQuerySandbox nBox = rvs.getViewsheetSandbox().getAssetQuerySandbox();
+      Optional<ViewsheetSandbox> ovbox = orvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> nvbox = rvs.getViewsheetSandbox();
+      AssetQuerySandbox oBox = ovbox.map(ViewsheetSandbox::getAssetQuerySandbox).orElse(null);
+      AssetQuerySandbox nBox = nvbox.map(ViewsheetSandbox::getAssetQuerySandbox).orElse(null);
 
       // the new RuntimeViewsheet's VariableTable is based on vs,
       // we should synchronize it with orws
@@ -253,31 +243,26 @@ public class ViewsheetEngine extends WorksheetEngine implements ViewsheetService
          nBox.refreshVariableTable(oBox.getVariableTable());
       }
 
-      synchronized(amap) {
-         final String newRvsId;
-         final int oldIndex;
+      final String newRvsId;
+      boolean closeFirst = false;
 
-         if(previewId == null) {
-            newRvsId = getNextID(PREVIEW_VIEWSHEET);
-            oldIndex = -1;
-         }
-         else {
-            newRvsId = previewId;
-            oldIndex = amap.indexOf(previewId);
-         }
-
-         rvs.setID(newRvsId);
-
-         if(oldIndex == -1) {
-            amap.put(newRvsId, rvs);
-         }
-         else {
-            closeViewsheet(previewId, user);
-            amap.put(oldIndex, newRvsId, rvs);
-         }
-
-         return newRvsId;
+      if(previewId == null) {
+         newRvsId = getNextPreviewID(id, PREVIEW_VIEWSHEET);
       }
+      else {
+         newRvsId = previewId;
+         closeFirst = true;
+      }
+
+      rvs.setID(newRvsId);
+
+      if(closeFirst) {
+         closeViewsheet(previewId, user);
+      }
+
+      amap.put(newRvsId, rvs);
+
+      return newRvsId;
    }
 
    /**
@@ -311,19 +296,14 @@ public class ViewsheetEngine extends WorksheetEngine implements ViewsheetService
       return true;
    }
 
-   /**
-    * Open an existing viewsheet.
-    * @param entry the specified asset entry.
-    * @param user the specified user.
-    * @param viewer <tt>true</tt> if is viewer, <tt>false</tt> otherwise.
-    * @return the viewsheet id.
-    */
    @Override
-   public String openViewsheet(AssetEntry entry, Principal user, boolean viewer)
+   public String openViewsheet(String originalId, AssetEntry entry, Principal user, boolean viewer)
       throws Exception
    {
       String id = null;
+      String nextId = originalId == null ? getNextID(entry, user) : getNextTemporaryID(originalId);
       boolean orgTempDefaultForGloballyVisible = false;
+      String originalOrg = OrganizationContextHolder.getCurrentOrgId();
 
       try {
          //if globally visible default org asset, run in org scope
@@ -334,24 +314,14 @@ public class ViewsheetEngine extends WorksheetEngine implements ViewsheetService
 
          // @by yuz, fix bug1246261678219, should use viewer any time
          entry.setProperty("viewer", "" + viewer);
-         id = openSheet(entry, user);
-
-         if(user != null) {
-            RuntimeViewsheet rvs = getViewsheet(id, user);
-
-            // add user to var table so the query key used for caching would match
-            // the subsequent queries where the user is in vars.
-            if(rvs != null) {
-               rvs.getViewsheetSandbox().getVariableTable().put("__principal__", user);
-            }
-         }
+         id = OpenViewsheetTask.openViewsheet(this, entry, user, nextId);
       }
       finally {
          entry.setProperty("viewer",  null);
          lifecycleMessageService.viewsheetOpened(id);
 
          if(orgTempDefaultForGloballyVisible) {
-            OrganizationContextHolder.clear();
+            OrganizationContextHolder.setCurrentOrgId(originalOrg);
          }
       }
 
@@ -421,41 +391,37 @@ public class ViewsheetEngine extends WorksheetEngine implements ViewsheetService
       RuntimeSheet closeSheet;
 
       // only name available? try finding the runtime viewsheet to be closed
-      synchronized(amap) {
-         if(!amap.containsKey(id) && user != null) {
-            String prefix = id + "-";
+      if(!amap.containsKey(id) && user != null) {
+         String prefix = id + "-";
 
-            for(Map.Entry<String, RuntimeSheet> e : amap.entrySet()) {
-               String vid = e.getKey();
-               RuntimeSheet sheet = e.getValue();
+         for(Map.Entry<String, RuntimeSheet> e : amap.entrySet()) {
+            String vid = e.getKey();
+            RuntimeSheet sheet = e.getValue();
 
-               if(!vid.startsWith(prefix)) {
-                  continue;
-               }
+            if(!vid.startsWith(prefix)) {
+               continue;
+            }
 
-               String suffix = vid.substring(prefix.length());
+            String suffix = vid.substring(prefix.length());
 
-               if(suffix.matches("^.*\\d.*$")) {
-                  continue;
-               }
+            if(suffix.matches("^.*\\d.*$")) {
+               continue;
+            }
 
-               if(!(sheet instanceof RuntimeViewsheet)) {
-                  continue;
-               }
+            if(!(sheet instanceof RuntimeViewsheet rvs)) {
+               continue;
+            }
 
-               RuntimeViewsheet rvs = (RuntimeViewsheet) sheet;
-
-               // this does not consider global scope and user scope. If required,
-               // we can add more logic to support this function per requirement
-               if(rvs.matches(user)) {
-                  id = vid;
-                  break;
-               }
+            // this does not consider global scope and user scope. If required,
+            // we can add more logic to support this function per requirement
+            if(rvs.matches(user)) {
+               id = vid;
+               break;
             }
          }
-
-         closeSheet = amap.get(id);
       }
+
+      closeSheet = amap.get(id);
 
       if(closeSheet != null && "true".equals(closeSheet.getProperty("__EXPORTING__"))) {
          closeSheet.setProperty("_CLOSE_AFTER_EXPORT_", "true");
@@ -472,17 +438,25 @@ public class ViewsheetEngine extends WorksheetEngine implements ViewsheetService
     */
    @Override
    public RuntimeViewsheet[] getRuntimeViewsheets(Principal user) {
-      List<RuntimeSheet> sheets;
-
-      synchronized(amap) {
-         sheets = new ArrayList<>(amap.values());
-      }
+      List<RuntimeSheet> sheets = new ArrayList<>(amap.values());
 
       return sheets.stream()
          .filter(sheet -> sheet instanceof RuntimeViewsheet)
          .map(sheet -> (RuntimeViewsheet) sheet)
          .filter(rvs -> user == null || rvs.matches(user))
          .toArray(RuntimeViewsheet[]::new);
+   }
+
+   @Override
+   public boolean hasAtLeastRuntimeViewsheets(Principal user, int n) {
+      // amap.hasAtLeast scans the distributed Ignite cache across all nodes but short-circuits
+      // as soon as the threshold is reached, avoiding a full scan.
+      return amap.hasAtLeast(user, CompressedSheetState.SheetType.VIEWSHEET, n);
+   }
+
+   @Override
+   public <T extends Serializable> List<T> invokeOnAll(Task<T> task) {
+      return cluster.affinityCallAll(CACHE_NAME, new InvokeAllTask<>(task));
    }
 
    /**
@@ -548,20 +522,14 @@ public class ViewsheetEngine extends WorksheetEngine implements ViewsheetService
          Assembly assembly = vs.getBaseWorksheet().getAssembly(tname);
          Assembly assembly1 = rws.getWorksheet().getAssembly(tname);
 
-         if(assembly instanceof SnapshotEmbeddedTableAssembly &&
-            assembly1 instanceof SnapshotEmbeddedTableAssembly)
+         if(assembly instanceof SnapshotEmbeddedTableAssembly setable &&
+            assembly1 instanceof SnapshotEmbeddedTableAssembly setable1)
          {
-            SnapshotEmbeddedTableAssembly setable =
-               (SnapshotEmbeddedTableAssembly) assembly;
-            SnapshotEmbeddedTableAssembly setable1 =
-               (SnapshotEmbeddedTableAssembly) assembly1;
             setable1.setTable(setable.getTable());
          }
-         else if(assembly instanceof EmbeddedTableAssembly &&
-            assembly1 instanceof EmbeddedTableAssembly)
+         else if(assembly instanceof EmbeddedTableAssembly etable &&
+            assembly1 instanceof EmbeddedTableAssembly etable1)
          {
-            EmbeddedTableAssembly etable = (EmbeddedTableAssembly) assembly;
-            EmbeddedTableAssembly etable1 = (EmbeddedTableAssembly) assembly1;
             etable1.setEmbeddedData(etable.getEmbeddedData());
          }
       }
@@ -571,16 +539,10 @@ public class ViewsheetEngine extends WorksheetEngine implements ViewsheetService
                             Map<String, List<ConditionList>> conditions,
                             List<String> etables)
    {
-      boolean copy = false;
-
-      if(Tool.equals(vs.getBaseEntry(), rws.getEntry())) {
-         copy = true;
-      }
+      boolean copy = Tool.equals(vs.getBaseEntry(), rws.getEntry());
 
       for(Assembly assembly : rws.getWorksheet().getAssemblies()) {
-         if(assembly instanceof MirrorAssembly) {
-            MirrorAssembly mirror = (MirrorAssembly) assembly;
-
+         if(assembly instanceof MirrorAssembly mirror) {
             if(Tool.equals(vs.getBaseEntry(), mirror.getEntry())) {
                copy = true;
                break;
@@ -593,14 +555,12 @@ public class ViewsheetEngine extends WorksheetEngine implements ViewsheetService
       }
 
       for(Assembly assembly : vs.getAssemblies(true)) {
-         if(assembly instanceof Viewsheet) {
-            Viewsheet vs1 = (Viewsheet) assembly;
+         if(assembly instanceof Viewsheet vs1) {
             copyResource(vs1, rws, conditions, etables);
             continue;
          }
 
-         if(assembly instanceof EmbeddedTableVSAssembly) {
-            EmbeddedTableVSAssembly et = (EmbeddedTableVSAssembly) assembly;
+         if(assembly instanceof EmbeddedTableVSAssembly et) {
             String tname = et.getTableName();
 
             if(!etables.contains(tname)) {
@@ -608,11 +568,10 @@ public class ViewsheetEngine extends WorksheetEngine implements ViewsheetService
             }
          }
 
-         if(!(assembly instanceof SelectionVSAssembly)) {
+         if(!(assembly instanceof SelectionVSAssembly obj1)) {
             continue;
          }
 
-         SelectionVSAssembly obj1 = (SelectionVSAssembly) assembly;
          String tname = obj1.getTableName();
          ConditionList condition = obj1.getConditionList();
 
@@ -620,13 +579,7 @@ public class ViewsheetEngine extends WorksheetEngine implements ViewsheetService
             continue;
          }
 
-         List<ConditionList> list = conditions.get(tname);
-
-         if(list == null) {
-            list = new ArrayList<>();
-            conditions.put(tname, list);
-         }
-
+         List<ConditionList> list = conditions.computeIfAbsent(tname, k -> new ArrayList<>());
          list.add(condition);
       }
    }
@@ -747,8 +700,7 @@ public class ViewsheetEngine extends WorksheetEngine implements ViewsheetService
             AbstractSheet sheet = engine.getSheet(entry, null, false,
                                                   AssetContent.ALL);
 
-            if(sheet instanceof Viewsheet) {
-               Viewsheet vsheet = (Viewsheet) sheet;
+            if(sheet instanceof Viewsheet vsheet) {
                ViewsheetInfo vinfo = vsheet.getViewsheetInfo();
                long touchInterval = vinfo.getTouchInterval() * 1000L;// s -> ms
 
@@ -813,8 +765,8 @@ public class ViewsheetEngine extends WorksheetEngine implements ViewsheetService
     * @param id the specified viewsheet id.
     */
    public void addExecution(String id) {
-      synchronized(amap) {
-         if(isValidExecutingObject(id)) {
+      if(isValidExecutingObject(id)) {
+         synchronized(emap) {
             Vector<ThreadDef> threads = emap.get(id);
 
             if(threads == null) {
@@ -839,14 +791,14 @@ public class ViewsheetEngine extends WorksheetEngine implements ViewsheetService
     * @param id the specified viewsheet id.
     */
    public void removeExecution(String id) {
-      synchronized(amap) {
-         if(isValidExecutingObject(id)) {
+      if(isValidExecutingObject(id)) {
+         synchronized(emap) {
             Vector<ThreadDef> threads = emap.get(id);
 
             if(threads != null) {
-               threads.remove(threads.size() -1);
+               threads.removeLast();
 
-               if(threads.size() == 0) {
+               if(threads.isEmpty()) {
                   emap.remove(id);
                }
             }
@@ -859,25 +811,246 @@ public class ViewsheetEngine extends WorksheetEngine implements ViewsheetService
    }
 
    public RuntimeViewsheet[] getAllRuntimeViewsheets() {
-      synchronized(amap) {
-         return amap.values().stream()
-            .filter(sheet -> sheet instanceof RuntimeViewsheet)
-            .map(sheet -> (RuntimeViewsheet) sheet)
-            .toArray(RuntimeViewsheet[]::new);
+      return amap.values().stream()
+         .filter(sheet -> sheet instanceof RuntimeViewsheet)
+         .map(sheet -> (RuntimeViewsheet) sheet)
+         .toArray(RuntimeViewsheet[]::new);
+   }
+
+   @Override
+   public boolean switchToHostOrgForGlobalShareAsset(String sheetRuntimeId, Principal principal) {
+      if(sheetRuntimeId == null) {
+         return false;
       }
+
+      return SwitchToHostOrgForGlobalShareAssetTask.switchTOHostOrg(this, principal, sheetRuntimeId);
    }
 
    private RuntimeViewsheet[] getRuntimeViewsheets(AssetEntry entry) {
       return Arrays.stream(getAllRuntimeViewsheets())
-         .filter(vs -> vs != null)
+         .filter(Objects::nonNull)
          .filter(vs -> Tool.equals(entry, vs.getEntry()))
          .toArray(RuntimeViewsheet[]::new);
    }
 
    private static final int NEED_SHRINK_COUNT = 100;
    private static final Logger LOG = LoggerFactory.getLogger(ViewsheetEngine.class);
-   private final ViewsheetLifecycleMessageChannel lifecycleMessageService =
-      SingletonManager.getInstance(ViewsheetLifecycleMessageChannel.class);
+   private final ViewsheetLifecycleMessageChannel lifecycleMessageService;
    private int dataChangeCount;
-   private Map<AssetEntry, Long> dataChangeMap = new HashMap<>();
+   private final Map<AssetEntry, Long> dataChangeMap = new HashMap<>();
+
+   private static final class InvokeAllTask<T extends Serializable> implements AffinityCallable<T> {
+      public InvokeAllTask(Task<T> task) {
+         this.task = task;
+      }
+
+      @Override
+      public T call() throws Exception {
+         proxyContext.preprocess();
+
+         try {
+            ViewsheetService service = ViewsheetEngine.getViewsheetEngine();
+            return task.apply(service);
+         }
+         finally {
+            proxyContext.postprocess();
+         }
+      }
+
+      private final Task<T> task;
+      private final ServiceProxyContext proxyContext = new ServiceProxyContext(false);
+   }
+
+   private static final class OpenViewsheetTask implements AffinityCallable<String> {
+      public OpenViewsheetTask(AssetEntry entry, Principal user, String id) {
+         this.entry = entry;
+         this.user = user;
+         this.id = id;
+      }
+
+      @Override
+      public String call() throws Exception {
+         ViewsheetEngine engine = (ViewsheetEngine) ViewsheetEngine.getViewsheetEngine();
+         proxyContext.preprocess();
+
+         try {
+            return doOpenViewsheet(engine, entry, user, id);
+         }
+         finally {
+            proxyContext.postprocess();
+         }
+      }
+
+      public static String openViewsheet(ViewsheetEngine engine, AssetEntry entry, Principal user,
+                                         String id) throws Exception
+      {
+         if(engine.amap.isLocal(id)) {
+            return doOpenViewsheet(engine, entry, user, id);
+         }
+         else {
+            OpenViewsheetTask task = new OpenViewsheetTask(entry, user, id);
+            return engine.affinityCall(id, task);
+         }
+      }
+
+      private static String doOpenViewsheet(ViewsheetEngine engine, AssetEntry entry, Principal user, String id) throws Exception {
+         Principal oldPrincipal = ThreadContext.getPrincipal();
+         ThreadContext.setContextPrincipal(user);
+
+         try {
+            String rid = engine.openSheet(entry, user, id);
+
+            if(user != null) {
+               RuntimeViewsheet rvs = engine.getViewsheet(rid, user);
+
+               // add user to var table so the query key used for caching would match
+               // the subsequent queries where the user is in vars.
+               if(rvs != null) {
+                  rvs.getViewsheetSandbox().ifPresent(
+                     box -> box.getVariableTable().put("__principal__", user));
+               }
+            }
+
+            return rid;
+         }
+         finally {
+            ThreadContext.setContextPrincipal(oldPrincipal);
+         }
+      }
+
+      private final AssetEntry entry;
+      private final Principal user;
+      private final String id;
+      private final ServiceProxyContext proxyContext = new ServiceProxyContext(false);
+   }
+
+   private static final class OpenTemporaryViewsheetTask implements AffinityCallable<String> {
+      public OpenTemporaryViewsheetTask(AssetEntry wentry, AssetEntry entry, Principal user, String id) {
+         this.wentry = wentry;
+         this.entry = entry;
+         this.user = user;
+         this.id = id;
+      }
+
+      @Override
+      public String call() {
+         proxyContext.preprocess();
+
+         try {
+            ViewsheetEngine engine = (ViewsheetEngine) ViewsheetEngine.getViewsheetEngine();
+            String originalOrg = OrganizationContextHolder.getCurrentOrgId();
+            String entryOrgId = entry.getOrgID();
+            OrganizationContextHolder.setCurrentOrgId(entryOrgId);
+
+            try {
+               return doOpenTemporaryViewsheet(engine, wentry, entry, user, id);
+            }
+            finally {
+               OrganizationContextHolder.setCurrentOrgId(originalOrg);
+            }
+         }
+         finally {
+            proxyContext.postprocess();
+         }
+      }
+
+      public static String openTemporaryViewsheet(ViewsheetEngine engine, AssetEntry wentry,
+                                                  AssetEntry entry, Principal user, String id)
+      {
+         if(engine.amap.isLocal(id)) {
+            return doOpenTemporaryViewsheet(engine, wentry, entry, user, id);
+         }
+         else {
+            OpenTemporaryViewsheetTask task = new OpenTemporaryViewsheetTask(wentry, entry, user, id);
+            return engine.affinityCall(id, task);
+         }
+      }
+
+      private static String doOpenTemporaryViewsheet(ViewsheetEngine engine, AssetEntry wentry,
+                                                     AssetEntry entry, Principal user, String id)
+      {
+         Viewsheet vs = new Viewsheet(wentry);
+         vs.update(engine.engine, entry, user);
+         RuntimeViewsheet rvs = new RuntimeViewsheet(entry, vs, user, engine.engine, engine,
+                                                     null, false);
+         rvs.setEditable(false);
+         engine.setTemporarySheetId(id, rvs);
+         return id;
+      }
+
+      private final AssetEntry wentry;
+      private final AssetEntry entry;
+      private final Principal user;
+      private final String id;
+      private final ServiceProxyContext proxyContext = new ServiceProxyContext(false);
+   }
+
+   private static final class SwitchToHostOrgForGlobalShareAssetTask implements AffinityCallable<Boolean> {
+      public SwitchToHostOrgForGlobalShareAssetTask(Principal principal, String runtimeId) {
+         this.principal = principal;
+         this.runtimeId = runtimeId;
+      }
+
+      @Override
+      public Boolean call() {
+         proxyContext.preprocess();
+
+         try {
+            ViewsheetEngine service = (ViewsheetEngine) ViewsheetEngine.getViewsheetEngine();
+            return doSwitchToHostOrg(service, principal, runtimeId);
+         }
+         finally {
+            proxyContext.postprocess();
+         }
+      }
+
+      public static boolean switchTOHostOrg(ViewsheetEngine service, Principal principal,
+                                            String runtimeId)
+      {
+         if(service.isLocal(runtimeId)) {
+            return doSwitchToHostOrg(service, principal, runtimeId);
+         }
+         else {
+            SwitchToHostOrgForGlobalShareAssetTask task =
+               new SwitchToHostOrgForGlobalShareAssetTask(principal, runtimeId);
+            return service.affinityCall(runtimeId, task);
+         }
+      }
+
+      private static boolean doSwitchToHostOrg(ViewsheetEngine service, Principal principal,
+                                               String runtimeId)
+      {
+         try {
+            RuntimeSheet runtimeSheet = service.getSheet(runtimeId, principal);
+
+            if(runtimeSheet == null || runtimeSheet.getEntry() == null ||
+               !(runtimeSheet instanceof RuntimeViewsheet))
+            {
+               return false;
+            }
+
+            AssetEntry entry = runtimeSheet.getEntry();
+
+            if(SUtil.isDefaultVSGloballyVisible(principal) &&
+               !Tool.equals(((XPrincipal) principal).getOrgId(), entry.getOrgID()) &&
+               Tool.equals(entry.getOrgID(), Organization.getDefaultOrganizationID()))
+            {
+               return true;
+            }
+         }
+         catch(ExpiredSheetException ignored) {
+            // no-op
+         }
+         catch(Exception ignored) {
+            LOG.warn("Can't get runtime viewsheet by id: {}", runtimeId);
+         }
+
+         return false;
+      }
+
+      private final ServiceProxyContext proxyContext = new ServiceProxyContext(false);
+
+      private final Principal principal;
+      private final String runtimeId;
+   }
 }

@@ -18,7 +18,6 @@
 
 package inetsoft.sree.schedule;
 
-import inetsoft.analytic.composition.ViewsheetEngine;
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.analytic.composition.event.VSEventUtil;
 import inetsoft.sree.RepletRequest;
@@ -26,78 +25,34 @@ import inetsoft.uql.VariableTable;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.util.XSessionService;
 import inetsoft.util.*;
-import inetsoft.web.composer.vs.controller.VSLayoutService;
 import inetsoft.web.viewsheet.event.OpenViewsheetEvent;
-import inetsoft.web.viewsheet.model.*;
-import inetsoft.web.viewsheet.model.annotation.VSAnnotationModel;
-import inetsoft.web.viewsheet.model.calendar.VSCalendarModel;
-import inetsoft.web.viewsheet.model.chart.VSChartModel;
-import inetsoft.web.viewsheet.model.table.*;
-import inetsoft.web.viewsheet.service.*;
+import inetsoft.web.viewsheet.service.CommandDispatcher;
+import inetsoft.web.viewsheet.service.CoreLifecycleService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.stereotype.Service;
 
 import java.security.Principal;
-import java.util.*;
+import java.util.Enumeration;
 
-@SingletonManager.Singleton
+@Service
+@Lazy
 public class ScheduleViewsheetService {
    /**
     * Get the schedule viewsheet service.
     */
    public static ScheduleViewsheetService getInstance() {
-      return SingletonManager.getInstance(ScheduleViewsheetService.class);
+      return ConfigurationContext.getContext().getSpringBean(ScheduleViewsheetService.class);
    }
 
-   public ScheduleViewsheetService() {
-      this.engine = ViewsheetEngine.getViewsheetEngine();
-      this.coreLifecycleService = createCoreLifecycleService();
-   }
-
-   /**
-    * Only for use within the scheduler
-    */
-   private CoreLifecycleService createCoreLifecycleService() {
-      List<VSObjectModelFactory<?, ?>> modelFactories = Arrays.asList(
-         new VSAnnotationModel.VSAnnotationModelFactory(),
-         new VSCalcTableModel.VSCalcTableModelFactory(),
-         new VSCalendarModel.VSCalendarModelFactory(),
-         new VSChartModel.VSChartModelFactory(),
-         new VSCheckBoxModel.VSCheckBoxModelFactory(),
-         new VSComboBoxModel.VSComboBoxModelFactory(),
-         new VSCrosstabModel.VSCrosstabModelFactory(),
-         new VSCylinderModel.VSCylinderModelFactory(),
-         new VSEmbeddedTableModel.VSEmbeddedTableModelFactory(),
-         new VSGaugeModel.VSGaugeModelFactory(),
-         new VSGroupContainerModel.VSGaugeModelFactory(),
-         new VSImageModel.VSImageModelFactory(),
-         new VSLineModel.VSLineModelFactory(),
-         new VSOvalModel.VSOvalModelFactory(),
-         new VSPageBreakModel.VSPageBreakModelFactory(),
-         new VSRadioButtonModel.VSRadioButtonModelFactory(),
-         new VSRangeSliderModel.VSRangeSliderModelFactory(),
-         new VSRectangleModel.VSRectangleModelFactory(),
-         new VSSelectionContainerModel.VSSelectionContainerModelFactory(),
-         new VSSelectionListModel.VSSelectionListModelFactory(),
-         new VSSelectionTreeModel.VSSelectionTreeModelFactory(),
-         new VSSliderModel.VSSliderModelFactory(),
-         new VSSlidingScaleModel.VSThermometerModelFactory(),
-         new VSSpinnerModel.VSSpinnerModelFactory(),
-         new VSSubmitModel.VSSubmitModelFactory(),
-         new VSTableModel.VSTableModelFactory(),
-         new VSTabModel.VSTabModelFactory(),
-         new VSTextInputModel.VSTextInputModelFactory(),
-         new VSTextModel.VSTextModelFactory(),
-         new VSThermometerModel.VSThermometerModelFactory(),
-         new VSViewsheetModel.VSViewsheetModelFactory()
-      );
-      VSObjectModelFactoryService objectModelFactoryService =
-         new VSObjectModelFactoryService(modelFactories);
-      VSLayoutService vsLayoutService = new VSLayoutService(objectModelFactoryService);
-      ParameterService parameterService = new ParameterService(engine);
-      VSCompositionService vsCompositionService = new VSCompositionService();
-      return new CoreLifecycleService(objectModelFactoryService, engine, vsLayoutService,
-                                      parameterService, vsCompositionService);
+   public ScheduleViewsheetService(ViewsheetService engine,
+                                   CoreLifecycleService coreLifecycleService,
+                                   XSessionService sessionService)
+   {
+      this.engine = engine;
+      this.coreLifecycleService = coreLifecycleService;
+      this.sessionService = sessionService;
    }
 
    public String openViewsheet(AssetEntry entry, RepletRequest repletRequest, Principal principal)
@@ -110,12 +65,15 @@ public class ScheduleViewsheetService {
 
       VariableTable vt = buildParameters(repletRequest);
       String execSessionId =
-         XSessionService.createSessionID(XSessionService.EXPORE_VIEW, entry.getName());
+         sessionService.createSessionID(XSessionService.EXPORE_VIEW, entry.getName());
 
-      return CommandDispatcher.withDummyDispatcher(principal, d -> coreLifecycleService.openViewsheet(
+      return CommandDispatcher.withDummyDispatcher(principal, d -> {
+         CoreLifecycleService.ProcessSheetResult result = coreLifecycleService.openViewsheet(
          engine, openViewsheetEvent, principal, null, null, entry, d, null,
          null, true, openViewsheetEvent.getDrillFrom(), vt,
-         openViewsheetEvent.getFullScreenId(), execSessionId));
+         openViewsheetEvent.getFullScreenId(), execSessionId);
+         return result.getId();
+      });
    }
 
    public void closeViewsheet(String runtimeId, Principal principal) {
@@ -149,5 +107,6 @@ public class ScheduleViewsheetService {
 
    private final ViewsheetService engine;
    private final CoreLifecycleService coreLifecycleService;
+   private final XSessionService sessionService;
    private final static Logger LOG = LoggerFactory.getLogger(ScheduleViewsheetService.class);
 }

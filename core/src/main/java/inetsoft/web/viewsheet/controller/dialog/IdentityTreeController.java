@@ -33,9 +33,10 @@ import java.util.List;
 @RestController
 public class IdentityTreeController {
    @Autowired
-   public IdentityTreeController(IdentityTreeService identityTreeService) {
+   public IdentityTreeController(IdentityTreeService identityTreeService,
+                                 SecurityEngine securityEngine) {
       this.identityTreeService = identityTreeService;
-
+      this.securityEngine = securityEngine;
    }
    /**
     * Get sub identity ndoes from folder
@@ -56,7 +57,7 @@ public class IdentityTreeController {
       @RequestParam(value = "hideOrgName", defaultValue = "true") boolean hideOrgName,
       Principal principal)
    {
-      SecurityEngine engine = SecurityEngine.getSecurity();
+      SecurityEngine engine = securityEngine;
       SecurityProvider provider = engine.getSecurityProvider();
       List<TreeNodeModel> treeNodeModels = new ArrayList<>();
       IdentityID id = IdentityID.getIdentityIDFromKey(name);
@@ -87,6 +88,7 @@ public class IdentityTreeController {
 
 
    private final IdentityTreeService identityTreeService;
+   private final SecurityEngine securityEngine;
    private static final Logger LOG =
       LoggerFactory.getLogger(IdentityTreeController.class);
 }

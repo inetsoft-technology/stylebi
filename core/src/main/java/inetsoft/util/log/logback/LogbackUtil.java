@@ -79,13 +79,16 @@ public class LogbackUtil {
    }
 
    public static void resetLog() throws Exception {
-      if(!LicenseManager.getInstance().isEnterprise()) {
+      if(!LicenseManager.isEnterprise()) {
          return;
       }
 
       Class forwardServiceClass = Class.forName("inetsoft.enterprise.log.fluentd.ForwardService");
       Object forwardService = forwardServiceClass.getMethod("getInstance").invoke(null);
-      Method reset = forwardServiceClass.getMethod("reset");
-      reset.invoke(forwardService);
+
+      if(forwardService != null) {
+         Method reset = forwardServiceClass.getMethod("reset");
+         reset.invoke(forwardService);
+      }
    }
 }

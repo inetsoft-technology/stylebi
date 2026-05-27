@@ -323,7 +323,7 @@ public class XLogicalModelAsset extends AbstractXAsset implements
 
       if(!StringUtils.isEmpty(model.getFolder())) {
          getModel().addFolder(model.getFolder());
-         XFactory.getRepository().updateDataModel(getModel());
+         XRepository.getRepository().updateDataModel(getModel());
       }
 
       if(extended == null) {

@@ -53,7 +53,8 @@ public class PhysicalModelController {
                                   PhysicalModelService physicalModelService,
                                   DataSourceService dataSourceService,
                                   XRepository repository,
-                                  PhysicalModelManagerService physicalModelManager)
+                                  PhysicalModelManagerService physicalModelManager,
+                                  SecurityEngine securityEngine)
    {
       this.databaseTreeService = databaseTreeService;
       this.runtimePartitionService = runtimePartitionService;
@@ -61,6 +62,7 @@ public class PhysicalModelController {
       this.dataSourceService = dataSourceService;
       this.repository = repository;
       this.physicalModelManager = physicalModelManager;
+      this.securityEngine = securityEngine;
    }
 
    @Secured(@RequiredPermission(
@@ -293,6 +295,11 @@ public class PhysicalModelController {
       runtimeId = Tool.byteDecode(runtimeId);
       WarningModel result = new WarningModel();
       XPartition partition = this.runtimePartitionService.getPartition(runtimeId);
+
+      if(partition == null) {
+         return null;
+      }
+
       Catalog catalog = Catalog.getCatalog(principal);
       partition = partition.applyAutoAliases();
       int status = partition.getStatus();
@@ -303,7 +310,7 @@ public class PhysicalModelController {
             boolean allowed;
 
             try {
-               allowed = SecurityEngine.getSecurity().checkPermission(
+               allowed = securityEngine.checkPermission(
                   principal, ResourceType.CROSS_JOIN, "*", ResourceAction.ACCESS);
             }
             catch(Exception e) {
@@ -781,5 +788,6 @@ public class PhysicalModelController {
    private final DataSourceService dataSourceService;
    private final XRepository repository;
    private final PhysicalModelManagerService physicalModelManager;
+   private final SecurityEngine securityEngine;
 
 }

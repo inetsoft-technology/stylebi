@@ -67,12 +67,18 @@ public class DataSetService {
    public DataSetService(SecurityProvider securityProvider,
                          SecurityEngine securityEngine,
                          AssetRepository assetRepository,
-                         DataSetSearchService dataSetSearchService)
+                         DataSetSearchService dataSetSearchService,
+                         RecycleBin recycleBin,
+                         DependencyHandler dependencyHandler,
+                         RenameTransformHandler renameTransformHandler)
    {
       this.securityProvider = securityProvider;
       this.securityEngine = securityEngine;
       this.assetRepository = assetRepository;
       this.dataSetSearchService = dataSetSearchService;
+      this.recycleBin = recycleBin;
+      this.dependencyHandler = dependencyHandler;
+      this.renameTransformHandler = renameTransformHandler;
    }
 
    /**
@@ -1296,7 +1302,6 @@ public class DataSetService {
       newEntry.setCreatedDate(oldEntry.getCreatedDate());
       newEntry.setCreatedUsername(oldEntry.getCreatedUsername());
       assetRepository.changeFolder(oldEntry, newEntry, principal, true);
-      RecycleBin recycleBin = RecycleBin.getRecycleBin();
       recycleBin.renameFolder(oldPath, newEntry.getPath());
       securityEngine.setPermission(ResourceType.ASSET, oldPath, oldPermission);
       worksheetRootTableAssembliesCache.invalidateAll();
@@ -1349,7 +1354,6 @@ public class DataSetService {
                             String path, int scope, Principal principal)
       throws Exception
    {
-      RecycleBin recycleBin = RecycleBin.getRecycleBin();
       IdentityID user = getUser(principal, scope);
       AssetEntry entry = new AssetEntry(scope, AssetEntry.Type.FOLDER, path, user);
 
@@ -1418,7 +1422,6 @@ public class DataSetService {
          assetRepository.removeSheet(entry, principal, true);
          securityProvider.removePermission(ResourceType.ASSET, path);
 
-         RecycleBin recycleBin = RecycleBin.getRecycleBin();
          recycleBin.removeEntry(entry.getPath());
          invalidateWorksheetMetadata(entry);
       }
@@ -1585,8 +1588,8 @@ public class DataSetService {
       assetRepository.changeSheet(oldEntry, newEntry, principal, true);
       RenameInfo rinfo = new RenameInfo(oldEntry.toIdentifier(),
          newEntry.toIdentifier(), (RenameInfo.ASSET | RenameInfo.SOURCE));
-      RenameTransformHandler.getTransformHandler().addTransformTask(rinfo);
-      DependencyHandler.getInstance().renameDependencies(oldEntry, newEntry);
+      renameTransformHandler.addTransformTask(rinfo);
+      dependencyHandler.renameDependencies(oldEntry, newEntry);
       securityEngine.setPermission(ResourceType.ASSET, newPath, oldPermission);
       invalidateWorksheetMetadata(oldEntry);
       invalidateWorksheetMetadata(newEntry);
@@ -1678,7 +1681,6 @@ public class DataSetService {
       securityProvider.setPermission(ResourceType.ASSET, newEntry.getPath(), permission);
       SecurityEngine.touch();
 
-      RecycleBin recycleBin = RecycleBin.getRecycleBin();
       recycleBin.addEntry(newEntry.getPath(), oldEntry.getPath(), oldEntry.getName(), permission,
                           RepositoryEntry.WORKSHEET, oldEntry.getScope(), oldEntry.getUser());
    }
@@ -1698,6 +1700,9 @@ public class DataSetService {
    private final SecurityEngine securityEngine;
    private final AssetRepository assetRepository;
    private final DataSetSearchService dataSetSearchService;
+   private final RecycleBin recycleBin;
+   private final DependencyHandler dependencyHandler;
+   private final RenameTransformHandler renameTransformHandler;
    private final Cache<String, WorksheetRootTableAssembliesMetadata> worksheetRootTableAssembliesCache =
       Caffeine.newBuilder()
          .maximumSize(1_000)

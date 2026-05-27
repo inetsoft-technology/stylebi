@@ -20,3 +20,13 @@
 mat-radio-button {
   margin: 0.25em;
 }
+
+/* Target the radio button component to override the theme tokens */
+:host ::ng-deep .mat-mdc-radio-button, :host ::ng-deep .mdc-label {
+  --mdc-form-field-label-text-size: 12px !important;
+  --mdc-form-field-label-text-line-height: 16px !important;
+}
+:host ::ng-deep .mdc-label {
+  font-size: 12px !important;
+  line-height: 16px !important;
+}

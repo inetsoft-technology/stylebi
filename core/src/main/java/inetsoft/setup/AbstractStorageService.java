@@ -37,6 +37,10 @@ public abstract class AbstractStorageService implements AutoCloseable {
       config = InetsoftConfig.load(file.toPath());
    }
 
+   AbstractStorageService(InetsoftConfig config) {
+      this.config = config;
+   }
+
    final KeyValueEngine createKeyValueEngine() {
       String type = config.getKeyValue().getType();
       KeyValueEngine engine = null;

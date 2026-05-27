@@ -17,7 +17,7 @@
  */
 import { NgModule } from "@angular/core";
 import { RouterModule, Routes, UrlMatchResult, UrlSegment } from "@angular/router";
-import { CanDeactivateGuard } from "../../common/services/can-deactivate-guard.service";
+import { canDeactivateGuard } from "../../common/services/can-deactivate-guard.service";
 import { EmbedChartComponent } from "./embed-chart.component";
 
 
@@ -100,7 +100,7 @@ export function EMBED_CHART_URL_MATCHER(url: UrlSegment[]): UrlMatchResult {
 const routes: Routes = [
    {
       component: EmbedChartComponent,
-      canDeactivate: [CanDeactivateGuard],
+      canDeactivate: [canDeactivateGuard],
       matcher: EMBED_CHART_URL_MATCHER
    }
 ];

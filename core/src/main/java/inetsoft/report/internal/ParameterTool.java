@@ -19,6 +19,7 @@ package inetsoft.report.internal;
 
 import inetsoft.report.ReportSheet;
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.uql.VariableTable;
 import inetsoft.util.*;
 
@@ -77,14 +78,18 @@ public class ParameterTool {
       params.add("_USER_");
       params.add("__principal__");
 
-      VariableTable vtable = rvs.getViewsheetSandbox().getVariableTable();
-      Enumeration<String> iter = vtable.keys();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
-      while(iter.hasMoreElements()) {
-         String key = iter.nextElement();
+      if(box.isPresent()) {
+         VariableTable vtable = box.get().getVariableTable();
+         Enumeration<String> iter = vtable.keys();
 
-         if(!params.contains(key)) {
-            params.add(key);
+         while(iter.hasMoreElements()) {
+            String key = iter.nextElement();
+
+            if(!params.contains(key)) {
+               params.add(key);
+            }
          }
       }
 

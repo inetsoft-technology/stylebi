@@ -19,7 +19,9 @@ package inetsoft.web.composer.model.ws;
 
 import inetsoft.uql.asset.AssetEntry;
 
-public class AssetRepositoryPaneModel {
+import java.io.Serializable;
+
+public class AssetRepositoryPaneModel implements Serializable {
    public String getName() {
       return name;
    }

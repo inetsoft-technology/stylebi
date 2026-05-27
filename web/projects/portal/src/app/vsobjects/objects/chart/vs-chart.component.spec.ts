@@ -17,7 +17,7 @@
  */
 import { HttpClientTestingModule } from "@angular/common/http/testing";
 import { Component, NO_ERRORS_SCHEMA, Optional } from "@angular/core";
-import { async, TestBed } from "@angular/core/testing";
+import { waitForAsync, TestBed } from "@angular/core/testing";
 import { FormsModule } from "@angular/forms";
 import { By } from "@angular/platform-browser";
 import { NgbModule } from "@ng-bootstrap/ng-bootstrap";
@@ -73,7 +73,7 @@ describe("VSChart Tests", () => {
    let vSTabService: any;
    let fullscreenService: any;
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       let modelService: any = { getModel: jest.fn() };
       let viewsheetClientService: any = { sendEvent: jest.fn() };
       viewsheetClientService.commands = observableOf([]);

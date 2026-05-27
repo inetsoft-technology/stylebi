@@ -25,10 +25,12 @@ import inetsoft.report.internal.table.TableFormat;
 import inetsoft.uql.XConstants;
 import inetsoft.util.Tool;
 
+import java.io.Serializable;
+
 @JsonTypeInfo(
    use = JsonTypeInfo.Id.CLASS,
    property = "type")
-public class FormatInfoModel {
+public class FormatInfoModel implements Serializable {
    public FormatInfoModel() {
    }
 

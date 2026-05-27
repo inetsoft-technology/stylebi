@@ -15,19 +15,19 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { NO_ERRORS_SCHEMA } from "@angular/core";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { NO_ERRORS_SCHEMA, Renderer2 } from "@angular/core";
+import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { ReactiveFormsModule } from "@angular/forms";
-import { MatCardModule } from "@angular/material/card";
 import { ChangePasswordFormComponent } from "./change-password-form.component";
 import { ChangePasswordService } from "./change-password.service";
+import { MaterialTestingModule } from "../testing/material-testing.module";
 
 describe("ChangePasswordFormComponent", () => {
    let component: ChangePasswordFormComponent;
    let fixture: ComponentFixture<ChangePasswordFormComponent>;
    let pwdService: any;
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       pwdService = {
          verifyOldPassword: jest.fn(),
          notify: jest.fn()
@@ -36,7 +36,7 @@ describe("ChangePasswordFormComponent", () => {
       TestBed.configureTestingModule({
          imports: [
             ReactiveFormsModule,
-            MatCardModule
+            MaterialTestingModule
          ],
          providers: [
             { provide: ChangePasswordService, useValue: pwdService}

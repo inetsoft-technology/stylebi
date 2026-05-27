@@ -20,12 +20,12 @@ package inetsoft.web.viewsheet.service;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.util.Catalog;
 
-import java.io.File;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Set;
 
 public interface ImportXLSService {
-   void updateViewsheet(File excelFile, String type, RuntimeViewsheet rvs, String linkUri,
+   void updateViewsheet(Path excelPath, String type, RuntimeViewsheet rvs, String linkUri,
                         CommandDispatcher dispatcher, CoreLifecycleService coreLifecycleService,
                         Catalog catalog, List<String> assemblies, Set<String> notInRange)
       throws Exception;

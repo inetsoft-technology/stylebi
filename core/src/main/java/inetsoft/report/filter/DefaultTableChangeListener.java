@@ -21,6 +21,8 @@ import inetsoft.report.TableFilter;
 import inetsoft.report.event.TableChangeEvent;
 import inetsoft.report.event.TableChangeListener;
 
+import java.io.Serializable;
+
 /**
  * Define a default object which listens for TableChangeEvents. When it is
  * notified that the source table changes, it will invalidate the specified
@@ -29,7 +31,7 @@ import inetsoft.report.event.TableChangeListener;
  * @version 6.1
  * @author InetSoft Technology Corp
  */
-public class DefaultTableChangeListener implements TableChangeListener {
+public class DefaultTableChangeListener implements TableChangeListener, Serializable {
    /**
     * Create a default table change listener.
     *

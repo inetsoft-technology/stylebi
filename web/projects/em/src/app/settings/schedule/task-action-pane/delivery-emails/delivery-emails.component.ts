@@ -31,7 +31,6 @@ import {ExportFormatModel} from "../../../../../../../shared/schedule/model/expo
 import {FormValidators} from "../../../../../../../shared/util/form-validators";
 import {DashboardOptions} from "../../model/dashboard-options";
 import {ReportOptions} from "../../model/reports-options";
-import {BurstEmailDialogData} from "../burst-email-dialog/burst-email-dialog.component";
 
 export interface DeliveryEmails {
    valid: boolean;
@@ -39,8 +38,6 @@ export interface DeliveryEmails {
    sender: string;
    recipients: string;
    subject: string;
-   burstEmails: string;
-   burstQueryType: string;
    bundledAsZip: boolean;
    useCredential: boolean;
    secretId: string;
@@ -96,15 +93,6 @@ export class DeliveryEmailsComponent implements OnInit, OnChanges {
 
    get bccAddress(): string {
       return this.form.get("bccAddress").value;
-   }
-
-   @Input()
-   set burstEmails(burstEmails: string) {
-      this.form.get("burstEmails").setValue(!burstEmails ? null : burstEmails);
-   }
-
-   get burstEmails(): string {
-      return this.form.get("burstEmails").value;
    }
 
    @Input()
@@ -279,14 +267,12 @@ export class DeliveryEmailsComponent implements OnInit, OnChanges {
    form: UntypedFormGroup;
    isIE = GuiTool.isIE();
    errorStateMatcher: ErrorStateMatcher;
-   burstQueryType: string;
 
    constructor(fb: UntypedFormBuilder, defaultErrorMatcher: ErrorStateMatcher) {
       this.form = fb.group(
          {
             sender: ["", [Validators.required, Validators.email]],
             recipients: [""],
-            burstEmails: [""],
             subject: [""],
             format: ["", [Validators.required]],
             emailMatchLayout: [true],
@@ -421,18 +407,18 @@ export class DeliveryEmailsComponent implements OnInit, OnChanges {
       this.togglePasswordForm(true);
    }
 
-   changeEmails(data: string | BurstEmailDialogData) {
-      this.recipients = <string> data;
+   changeEmails(data: string) {
+      this.recipients = data;
       this.fireDeliveryChanged();
    }
 
-   changeCCEmails(data: string | BurstEmailDialogData) {
-      this.ccAddress = <string> data;
+   changeCCEmails(data: string) {
+      this.ccAddress = data;
       this.fireDeliveryChanged();
    }
 
-   changeBCCEmails(data: string | BurstEmailDialogData) {
-      this.bccAddress = <string> data;
+   changeBCCEmails(data: string) {
+      this.bccAddress = data;
       this.fireDeliveryChanged();
    }
 
@@ -444,8 +430,6 @@ export class DeliveryEmailsComponent implements OnInit, OnChanges {
          enabled: this.enabled,
          sender: this.sender,
          recipients: this.recipients,
-         burstEmails: !this.enabled ? null : this.burstEmails,
-         burstQueryType: this.burstQueryType,
          subject: this.subject,
          bundledAsZip: this.bundledAsZip,
          useCredential: this.useCredential,
@@ -466,13 +450,17 @@ export class DeliveryEmailsComponent implements OnInit, OnChanges {
    }
 
    private isValid(): boolean {
-      if(this.format == "CSV" && this.type === "viewsheet" &&
+      if(!this.enabled) {
+         return true;
+      }
+
+      if(this.format === "CSV" && this.type === "viewsheet" &&
          this.csvExportModel?.selectedAssemblies?.length == 0)
       {
          return false;
       }
 
-      return !this.enabled || this.form.valid;
+      return this.form.valid;
    }
 
    private initVerifyZipPassword() {

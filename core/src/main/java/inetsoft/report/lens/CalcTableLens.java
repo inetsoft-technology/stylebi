@@ -220,7 +220,6 @@ public class CalcTableLens extends DefaultTableLens {
       super.invalidate();
       tableScope = null;
       formulaCache = null;
-      alignment = new HashMap<>();
    }
 
    public RuntimeCalcTableLens process() {
@@ -3369,7 +3368,7 @@ public class CalcTableLens extends DefaultTableLens {
 
    private List<CalcAttr> attrs = new ArrayList<>();
    private int editMode = DEFAULT_MODE; // DEFAULT_MODE, NAME_MODE,FORMULA_MODE
-   private TableDataDescriptor cdescriptor;
+   private transient TableDataDescriptor cdescriptor;
    private final byte[] descLock = new byte[0];
    protected FormulaTable elem; //containing element
    private ReportSheet report;
@@ -3379,7 +3378,6 @@ public class CalcTableLens extends DefaultTableLens {
    private final Object spanMapLock = new byte[0];
    private transient SparseMatrix formulaCache = null; // formula result cache
    private transient boolean cancelled = false;
-   private transient Map<Point, Integer> alignment = new HashMap<>();
    private transient TableLens dataTable;
    private boolean fillwithzero = false;
    private int appliedMaxRows = -1;

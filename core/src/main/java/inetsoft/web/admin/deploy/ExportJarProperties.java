@@ -27,6 +27,8 @@ import java.io.Serializable;
 public interface ExportJarProperties extends Serializable {
    String zipFilePath();
 
+   String exportID();
+
    static Builder builder() {
       return new Builder();
    }

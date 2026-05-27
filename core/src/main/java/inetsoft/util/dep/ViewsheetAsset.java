@@ -20,6 +20,7 @@ package inetsoft.util.dep;
 import inetsoft.report.*;
 import inetsoft.report.internal.binding.AssetNamedGroupInfo;
 import inetsoft.sree.RepletRegistry;
+import inetsoft.sree.RepletRegistryManager;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
 import inetsoft.uql.XPrincipal;
@@ -88,20 +89,20 @@ public class ViewsheetAsset extends AbstractSheetAsset implements FolderChangeab
 
       try {
          assetKeys = IndexedStorage.getIndexedStorage().getKeys(null);
-         registry = RepletRegistry.getRegistry();
+         registry = RepletRegistryManager.getInstance().getRegistry();
          AssetEntry assetEntry = getAssetEntry();
 
          if(assetEntry != null &&
             assetEntry.getUser() != null && !StringUtils.isEmpty(assetEntry.getUser().name))
          {
-            userRegistry = RepletRegistry.getRegistry(assetEntry.getUser());
+            userRegistry = RepletRegistryManager.getInstance().getRegistry(assetEntry.getUser());
          }
          else {
             Principal user = ThreadContext.getPrincipal();
             IdentityID uId = IdentityID.getIdentityIDFromKey(user.getName());
 
             if(user != null) {
-               userRegistry = RepletRegistry.getRegistry(uId);
+               userRegistry = RepletRegistryManager.getInstance().getRegistry(uId);
             }
          }
       }
@@ -377,7 +378,8 @@ public class ViewsheetAsset extends AbstractSheetAsset implements FolderChangeab
    @Override
    public void parseIdentifier(String path, IdentityID userIdentity) {
       int scope = userIdentity != null ? AssetRepository.USER_SCOPE : AssetRepository.GLOBAL_SCOPE;
-      entry = new AssetEntry(scope, AssetEntry.Type.VIEWSHEET, path, userIdentity);
+      String orgID = userIdentity != null ? userIdentity.getOrgID() : null;
+      entry = new AssetEntry(scope, AssetEntry.Type.VIEWSHEET, path, userIdentity, orgID);
    }
 
    /**
@@ -500,6 +502,10 @@ public class ViewsheetAsset extends AbstractSheetAsset implements FolderChangeab
    protected synchronized void writeContent0(AbstractSheet sheet0, PrintWriter writer)
       throws Exception
    {
+      if(isSnapshot() && sheet0 instanceof Viewsheet vs) {
+         vs.setSnapshotExport(true);
+      }
+
       AssetRepository engine = AssetUtil.getAssetRepository(false);
       writer.println("<viewsheet>");
       sheet0.writeXML(writer);

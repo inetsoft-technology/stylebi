@@ -18,7 +18,9 @@
 package inetsoft.sree.internal;
 
 import inetsoft.sree.schedule.TestableRemote;
-import inetsoft.util.*;
+import inetsoft.util.GroupedThread;
+import inetsoft.util.Tool;
+import org.apache.commons.lang3.SystemUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -38,7 +40,7 @@ public class RMICallThread extends GroupedThread {
    public RMICallThread() {
       super();
 
-      if(OperatingSystem.isUnix()) {
+      if(SystemUtils.IS_OS_UNIX) {
          System.setProperty("java.rmi.server.hostname", Tool.getIP());
       }
    }

@@ -17,7 +17,9 @@
  */
 package inetsoft.web.composer.model.ws;
 
-public class SortColumnDialogModel {
+import java.io.Serializable;
+
+public class SortColumnDialogModel implements Serializable {
    public String getName() {
       return name;
    }

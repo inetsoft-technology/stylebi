@@ -39,6 +39,11 @@ public class AuthorizationChain
       initialize();
    }
 
+   AuthorizationChain(boolean readOnly) {
+      super(readOnly);
+      initialize();
+   }
+
    @Override
    public void setPermission(ResourceType type, String resource, Permission perm) {
       setPermission(type, resource, perm, null);
@@ -63,14 +68,7 @@ public class AuthorizationChain
          changedProvider = getProviderList().get(0);
       }
       finally {
-         try {
-            if(changedProvider != null && changedProvider.contentInConfig()) {
-               saveConfiguration();
-            }
-         }
-         catch(IOException e) {
-            throw new RuntimeException(e);
-         }
+         saveConfigurationIfNeeded(changedProvider);
       }
    }
 
@@ -82,16 +80,24 @@ public class AuthorizationChain
    @Override
    public void setPermission(ResourceType type, IdentityID identityID, Permission perm, String orgID) {
       final String org_id = fixOrgID(orgID);
+      AuthorizationProvider changedProvider = null;
 
-      for(AuthorizationProvider provider : getProviderList()) {
-         if(provider.getPermission(type, identityID, org_id) != null) {
-            provider.setPermission(type, identityID, perm, org_id);
-            return;
+      try {
+         for(AuthorizationProvider provider : getProviderList()) {
+            if(provider.getPermission(type, identityID, org_id) != null) {
+               provider.setPermission(type, identityID, perm, org_id);
+               changedProvider = provider;
+               return;
+            }
          }
-      }
 
-      // not found in any provider, set it on the first
-      getProviderList().get(0).setPermission(type, identityID, perm, org_id);
+         // not found in any provider, set it on the first
+         getProviderList().get(0).setPermission(type, identityID, perm, org_id);
+         changedProvider = getProviderList().get(0);
+      }
+      finally {
+         saveConfigurationIfNeeded(changedProvider);
+      }
    }
 
    @Override
@@ -102,9 +108,18 @@ public class AuthorizationChain
    @Override
    public void removePermission(ResourceType type, String resource, String orgID) {
       final String org_id = fixOrgID(orgID);
+      final boolean[] configBackedChanged = {false};
 
       stream()
-         .forEach(p -> p.removePermission(type, resource, org_id));
+         .forEach(p -> {
+            p.removePermission(type, resource, org_id);
+
+            if(p.contentInConfig()) {
+               configBackedChanged[0] = true;
+            }
+         });
+
+      saveConfigurationIfNeeded(configBackedChanged[0]);
    }
 
    @Override
@@ -115,9 +130,18 @@ public class AuthorizationChain
    @Override
    public void removePermission(ResourceType type, IdentityID resourceID, String orgID) {
       final String org_id = fixOrgID(orgID);
+      final boolean[] configBackedChanged = {false};
 
       stream()
-         .forEach(p -> p.removePermission(type, resourceID, org_id));
+         .forEach(p -> {
+            p.removePermission(type, resourceID, org_id);
+
+            if(p.contentInConfig()) {
+               configBackedChanged[0] = true;
+            }
+         });
+
+      saveConfigurationIfNeeded(configBackedChanged[0]);
    }
 
    @Override
@@ -244,6 +268,23 @@ public class AuthorizationChain
    @Override
    public long getCacheAge() {
       return stream().mapToLong(AuthorizationProvider::getCacheAge).max().orElse(0L);
+   }
+
+   private void saveConfigurationIfNeeded(AuthorizationProvider changedProvider) {
+      saveConfigurationIfNeeded(changedProvider != null && changedProvider.contentInConfig());
+   }
+
+   private void saveConfigurationIfNeeded(boolean saveNeeded) {
+      if(!saveNeeded) {
+         return;
+      }
+
+      try {
+         saveConfiguration();
+      }
+      catch(IOException e) {
+         throw new RuntimeException(e);
+      }
    }
 
    private String chainName = "Authorization Chain";

@@ -17,13 +17,22 @@
  */
 package inetsoft.uql.rest.json;
 
+import inetsoft.test.*;
 import inetsoft.uql.tabular.HttpParameter;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
 
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class, CredentialTestConfig.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@SreeHome
 class RestJsonDataSourceTest {
    @Test
    void nullSerialization() {

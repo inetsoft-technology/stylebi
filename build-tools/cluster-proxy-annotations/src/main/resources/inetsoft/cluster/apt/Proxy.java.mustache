@@ -1,0 +1,88 @@
+{{#packageName}}package {{packageName}};{{/packageName}}
+
+@javax.annotation.processing.Generated("inetsoft.cluster.apt.ClusterAnnotationProcessor")
+@org.springframework.stereotype.Service
+public class {{proxySimpleName}} {
+   private final inetsoft.sree.internal.cluster.Cluster _cluster;
+   private final inetsoft.report.composition.WorksheetService _wsService;
+   private final {{targetClass}} _localService;
+
+   public {{proxySimpleName}}(inetsoft.sree.internal.cluster.Cluster _cluster, inetsoft.report.composition.WorksheetService _wsService, {{targetClass}} _localService) {
+      this._cluster = _cluster;
+      this._wsService = _wsService;
+      this._localService = _localService;
+   }
+
+{{#methods}}
+
+   public static final class {{callableClassName}} implements inetsoft.sree.internal.cluster.AffinityCallable<{{{returnType}}}> {
+      private final boolean async;
+   {{#parameters}}
+      {{#value.transferred}}private final {{{value.type}}} {{value.name}};{{/value.transferred}}
+   {{/parameters}}
+      private final inetsoft.web.ServiceProxyContext serviceProxyContext;
+
+      public {{callableClassName}}(boolean async{{#parameters}}, {{{value.type}}} {{value.name}}{{/parameters}}) {
+         this.async = async;
+         this.serviceProxyContext = new inetsoft.web.ServiceProxyContext(async);
+      {{#parameters}}
+         {{#value.transferred}}this.{{value.name}} = {{value.name}};{{/value.transferred}}
+      {{/parameters}}
+      }
+
+      public {{{returnType}}} call() throws Exception {
+         serviceProxyContext.preprocess();
+
+         try {
+            {{targetClass}} service = inetsoft.util.ConfigurationContext.getContext().lookupProxyTarget({{targetClass}}.class);
+            return service.{{name}}({{#parameters}}{{^first}}, {{/first}}{{value.getter}}{{/parameters}});
+         }
+         finally {
+            serviceProxyContext.postprocess();
+
+            if(async) {
+               serviceProxyContext.apply();
+            }
+         }
+      }
+   }
+
+   public {{{returnType}}} {{name}}({{#parameters}}{{^first}}, {{/first}}{{{value.type}}} {{value.name}}{{/parameters}}){{#exceptions}}{{#first}} throws {{/first}}{{^first}}, {{/first}}{{value}}{{/exceptions}} {
+      {{#worksheetCache}}
+      boolean _local = _wsService.isLocal({{keyParam}});
+      {{/worksheetCache}}
+      {{^worksheetCache}}
+      boolean _local = _cluster.isLocalCacheKey("{{cacheName}}", {{keyParam}}) || _cluster.isLocalCall();
+      {{/worksheetCache}}
+
+      if(_local) {
+         return _localService.{{name}}({{#parameters}}{{^first}}, {{/first}}{{value.name}}{{/parameters}});
+      }
+
+      {{callableClassName}} _serviceProxyCallable = new {{callableClassName}}(false{{#parameters}}, {{value.name}}{{/parameters}});
+
+      try {
+         {{#worksheetCache}}
+         return _wsService.affinityCall({{keyParam}}, _serviceProxyCallable);
+         {{/worksheetCache}}
+         {{^worksheetCache}}
+         return _cluster.affinityCall("{{cacheName}}", {{keyParam}}, _serviceProxyCallable);
+         {{/worksheetCache}}
+      }
+      finally {
+         _serviceProxyCallable.serviceProxyContext.apply();
+      }
+   }
+
+   public java.util.concurrent.Future<{{{returnType}}}> {{name}}Async({{#parameters}}{{^first}}, {{/first}}{{{value.type}}} {{value.name}}{{/parameters}}){{#exceptions}}{{#first}} throws {{/first}}{{^first}}, {{/first}}{{value}}{{/exceptions}} {
+      {{callableClassName}} _serviceProxyCallable = new {{callableClassName}}(true{{#parameters}}, {{value.name}}{{/parameters}});
+
+      {{#worksheetCache}}
+      return _wsService.affinityCallAsync({{keyParam}}, _serviceProxyCallable);
+      {{/worksheetCache}}
+      {{^worksheetCache}}
+      return _cluster.affinityCallAsync("{{cacheName}}", {{keyParam}}, _serviceProxyCallable);
+      {{/worksheetCache}}
+   }
+{{/methods}}
+}

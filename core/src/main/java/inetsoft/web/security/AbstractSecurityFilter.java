@@ -22,15 +22,12 @@ import inetsoft.report.internal.UnlicensedUserNameException;
 import inetsoft.sree.*;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
-import inetsoft.sree.web.SessionLicenseManager;
-import inetsoft.sree.web.SessionLicenseService;
+import inetsoft.sree.web.*;
 import inetsoft.uql.XPrincipal;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
-import inetsoft.web.viewsheet.service.LinkUriArgumentResolver;
 import jakarta.servlet.*;
 import jakarta.servlet.http.*;
-import org.apache.hc.core5.net.InetAddressUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.util.AntPathMatcher;
@@ -38,7 +35,6 @@ import org.springframework.util.StringUtils;
 
 import java.io.IOException;
 import java.lang.reflect.Method;
-import java.net.URI;
 import java.security.Principal;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -51,6 +47,13 @@ import java.util.stream.Stream;
 public abstract class AbstractSecurityFilter
    implements Filter, SessionAccessDispatcher.SessionAccessListener
 {
+   public AbstractSecurityFilter(SessionLicenseServiceProvider sessionLicenseServiceProvider,
+                                 AuthenticationService authenticationService)
+   {
+      this.sessionLicenseServiceProvider = sessionLicenseServiceProvider;
+      this.authenticationService = authenticationService;
+   }
+
    @Override
    public void init(FilterConfig config) throws ServletException {
       try {
@@ -104,7 +107,7 @@ public abstract class AbstractSecurityFilter
       RequestUriInfo uriInfo = new RequestUriInfo(httpRequest);
 
       try {
-         principal = (SRPrincipal) AuthenticationService.getInstance().authenticate(
+         principal = (SRPrincipal) authenticationService.authenticate(
             userID, loginAsUser, password, request.getRemoteHost(), uriInfo.getRemoteIp(),
             httpRequest.getServerName(), locale, request.getLocale(), false, true, httpRequest.getSession(true).getId(),
             uriInfo.getRequestedUri());
@@ -146,7 +149,7 @@ public abstract class AbstractSecurityFilter
       IdentityID anonID = new IdentityID(ClientInfo.ANONYMOUS,
          getCookieRecordedOrgID((HttpServletRequest) request));
       ClientInfo info = createClientInfo(anonID, request);
-      return (SRPrincipal) AuthenticationService.getInstance().authenticate(info, null);
+      return (SRPrincipal) authenticationService.authenticate(info, null);
    }
 
    protected String getCookieRecordedOrgID(HttpServletRequest request) {
@@ -181,7 +184,7 @@ public abstract class AbstractSecurityFilter
       final ClientInfo info = createClientInfo(principal.getIdentityID(), request);
       principal = new SRPrincipal(principal, info);
       createSession(request, principal);
-      AuthenticationService.getInstance().authenticate(info, principal);
+      authenticationService.authenticate(info, principal);
       SUtil.loginRecord(request, pId, true, null);
       return principal;
    }
@@ -197,11 +200,30 @@ public abstract class AbstractSecurityFilter
    protected void createSession(ServletRequest request, SRPrincipal principal)
       throws AuthenticationFailureException
    {
+      createSession(request, principal, null);
+   }
+
+   /**
+    * Creates a session for the specified user and request, optionally terminating an existing
+    * session first if the session limit is reached.
+    *
+    * @param request            the HTTP request object.
+    * @param principal          a principal that identifies the remote user.
+    * @param sessionIdToReplace the session ID (as returned by
+    *                           {@link inetsoft.uql.XPrincipal#getSessionID()}) of an existing
+    *                           session to terminate when the limit is reached, or {@code null}
+    *                           for standard behaviour.
+    *
+    * @throws AuthenticationFailureException if a session could not be created.
+    */
+   protected void createSession(ServletRequest request, SRPrincipal principal,
+                                String sessionIdToReplace)
+      throws AuthenticationFailureException
+   {
       HttpServletRequest httpRequest = (HttpServletRequest) request;
       HttpSession session = httpRequest.getSession(true);
-      AuthenticationService authentication = AuthenticationService.getInstance();
       SessionLicenseManager sessionLicenseManager =
-         SessionLicenseService.getSessionLicenseService();
+         sessionLicenseServiceProvider.getSessionLicenseManager();
 
       try {
          if(sessionLicenseManager != null) {
@@ -218,14 +240,33 @@ public abstract class AbstractSecurityFilter
                   long userLastAccess = userSession.getLastAccess();
 
                   if(System.currentTimeMillis() - userLastAccess > userSessionTimeout) {
-                     authentication.logout(userSession, request.getRemoteHost(), "", true);
+                     authenticationService.logout(userSession, request.getRemoteHost(), "", true);
                   }
                }
             }
          }
 
-         authentication.addSession(principal);
+         if(sessionIdToReplace != null) {
+            authenticationService.addSession(principal, sessionIdToReplace);
+         }
+         else {
+            authenticationService.addSession(principal);
+         }
+
          session.setAttribute(RepletRepository.PRINCIPAL_COOKIE, principal);
+
+         // Mark anonymous sessions as fresh so they can be invalidated on error responses
+         if(principal != null && principal.getName() != null &&
+            principal.getName().startsWith(ClientInfo.ANONYMOUS))
+         {
+            session.setAttribute(FRESH_ANONYMOUS_SESSION_ATTR, Boolean.TRUE);
+         }
+      }
+      catch(SessionsExceededException e) {
+         throw new AuthenticationFailureException(
+            AuthenticationFailureReason.SESSION_EXCEEDED_ADMIN,
+            "Session limit reached",
+            e.getActiveSessions());
       }
       catch(UnlicensedUserNameException e) {
          throw new AuthenticationFailureException(
@@ -241,8 +282,8 @@ public abstract class AbstractSecurityFilter
       }
       catch(Exception thrown) {
          throw new AuthenticationFailureException(
-            AuthenticationFailureReason.SESSION_EXCEEDED,
-            Catalog.getCatalog(principal).getString("login.error.sessions.exceeded"), thrown);
+            AuthenticationFailureReason.GENERIC_ERROR,
+            Catalog.getCatalog(principal).getString("login.error.sessions.failed"), thrown);
       }
 
       if(isNonlocalClient(principal)) {
@@ -267,7 +308,7 @@ public abstract class AbstractSecurityFilter
 
          if(sameClientPrincipals.size() >= maxSessions) {
             sameClientPrincipals.subList(0, sameClientPrincipals.size() - (maxSessions - 1))
-               .forEach(authentication::logout);
+               .forEach(authenticationService::logout);
          }
       }
    }
@@ -290,7 +331,7 @@ public abstract class AbstractSecurityFilter
          return null;
       }
 
-      final HttpSession session = request.getSession();
+      final HttpSession session = request.getSession(false);
 
       if(session != null) {
          try {
@@ -328,7 +369,7 @@ public abstract class AbstractSecurityFilter
             (Principal) session.getAttribute(RepletRepository.PRINCIPAL_COOKIE);
 
          if(principal != null) {
-            AuthenticationService.getInstance().logout(principal, uriInfo.getRemoteIp(), "");
+            authenticationService.logout(principal, uriInfo.getRemoteIp(), "");
          }
 
          if(invalidate) {
@@ -414,8 +455,16 @@ public abstract class AbstractSecurityFilter
    @SuppressWarnings("WeakerAccess")
    protected ClientInfo createClientInfo(IdentityID userID, ServletRequest request) {
       HttpServletRequest httpRequest = (HttpServletRequest) request;
-      String remoteAddress = httpRequest.getHeader("X-Forwarded-For");
-      remoteAddress = remoteAddress == null ? httpRequest.getRemoteAddr() : remoteAddress;
+      String remoteAddress = httpRequest.getHeader("X-Original-Forwarded-For");
+
+      if(!StringUtils.hasText(remoteAddress)) {
+         remoteAddress = httpRequest.getHeader("X-Forwarded-For");
+      }
+
+      if(!StringUtils.hasText(remoteAddress)) {
+         remoteAddress = httpRequest.getRemoteAddr();
+      }
+
       return new ClientInfo(userID, remoteAddress,
                             httpRequest.getSession(true).getId(), request.getLocale());
    }
@@ -664,6 +713,13 @@ public abstract class AbstractSecurityFilter
       return "true".equals(securityAllowIframe.get());
    }
 
+   protected AuthenticationService getAuthenticationService() {
+      return authenticationService;
+   }
+
+   private final SessionLicenseServiceProvider sessionLicenseServiceProvider;
+   private final AuthenticationService authenticationService;
+
    private final AntPathMatcher pathMatcher = new AntPathMatcher();
    private boolean sessionAccessRegistered = false;
 
@@ -703,7 +759,14 @@ public abstract class AbstractSecurityFilter
       "/js/**",
       "/webjars/**",
       "/sso/jwks",
+      "/robots.txt",
    };
    protected static final String ORG_COOKIE = "X-INETSOFT-ORGID";
+   /**
+    * Session attribute to mark fresh anonymous sessions that can be invalidated on error responses.
+    * Set by {@link AbstractSecurityFilter} during anonymous session creation, read and cleared by
+    * {@link DefaultAuthorizationFilter} after processing the request.
+    */
+   protected static final String FRESH_ANONYMOUS_SESSION_ATTR = "inetsoft.fresh.anonymous.session";
    private static final Logger LOG = LoggerFactory.getLogger(AbstractSecurityFilter.class);
 }

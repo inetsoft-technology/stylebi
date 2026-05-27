@@ -26,6 +26,7 @@ import inetsoft.sree.security.OrganizationManager;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.util.Tool;
 import inetsoft.web.admin.monitoring.*;
+import inetsoft.web.admin.schedule.ScheduleMetrics;
 import inetsoft.web.admin.schedule.ScheduleViewsheetsStatus;
 import inetsoft.web.admin.user.UserResourceCalculator;
 import inetsoft.web.cluster.ServerClusterClient;
@@ -38,12 +39,12 @@ import java.util.stream.Collectors;
 
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
+import org.apache.commons.lang3.ObjectUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import org.springframework.util.ObjectUtils;
-import org.springframework.util.StringUtils;
 
 @Service
 public class ViewsheetService
@@ -52,32 +53,38 @@ public class ViewsheetService
 
    @Autowired
    public ViewsheetService(inetsoft.analytic.composition.ViewsheetService engine,
+                           ScheduleClient scheduleClient,
                            ServerClusterClient client,
                            ViewsheetLifecycleMessageChannel viewsheetLifecycleMessageChannel,
-                           MonitoringDataService monitoringDataService)
+                           MonitoringDataService monitoringDataService,
+                           Cluster cluster)
    {
       super(lowAttrs, medAttrs, new String[0]);
       this.engine = engine;
+      this.scheduleClient = scheduleClient;
       this.client = client;
       this.viewsheetLifecycleMessageChannel = viewsheetLifecycleMessageChannel;
       this.monitoringDataService = monitoringDataService;
+      this.cluster = cluster;
       listener = this::onViewsheetLifecycle;
    }
 
    @PostConstruct
    public void addListener() {
-      cluster = Cluster.getInstance();
       cluster.addMessageListener(this);
       viewsheetLifecycleMessageChannel.subscribe(listener);
    }
 
    @PreDestroy
    public void removeListener() {
-      if(cluster != null) {
+      try {
          cluster.removeMessageListener(this);
-      }
 
-      viewsheetLifecycleMessageChannel.unsubscribe(listener);
+         viewsheetLifecycleMessageChannel.unsubscribe(listener);
+      }
+      catch(Exception e) {
+         LOG.debug("Failed to remove listener during shutdown", e);
+      }
    }
 
    @Override
@@ -239,7 +246,7 @@ public class ViewsheetService
          throw new IllegalArgumentException("One or more viewsheet IDs is required");
       }
 
-      if(StringUtils.isEmpty(address)) {
+      if(StringUtils.isBlank(address)) {
          for(String id : ids) {
             destroy(id);
          }
@@ -253,18 +260,21 @@ public class ViewsheetService
     * Get the executing thread infos.
     */
    public List<ViewsheetThreadModel> getThreads(String id) {
+      return getThreads(id, engine);
+   }
+
+   private static List<ViewsheetThreadModel> getThreads(String id, inetsoft.analytic.composition.ViewsheetService service) {
       if(id == null || id.trim().isEmpty()) {
          throw new IllegalArgumentException("The viewsheet ID is required");
       }
 
-
-      if(engine == null) {
+      if(service == null) {
          return Collections.emptyList();
       }
 
-      checkVSExisted(id);
+      checkVSExisted(id, service);
 
-      Vector<?> threads = engine.getExecutingThreads(id);
+      Vector<?> threads = service.getExecutingThreads(id);
 
       // synchronize on returned vector to prevent concurrent modification exception
       synchronized(threads) {
@@ -304,19 +314,30 @@ public class ViewsheetService
       }
 
       RuntimeViewsheet[] viewsheets = engine.getRuntimeViewsheets(null);
-      List<ViewsheetModel> results = new ArrayList<>();
+      ArrayList<ViewsheetModel> results = new ArrayList<>();
 
       for(RuntimeViewsheet rvs : viewsheets) {
-         List<ViewsheetThreadModel> threads = getThreads(rvs.getID());
+         List<ViewsheetThreadModel> threads;
+
+         try {
+            threads = getThreads(rvs.getID(), engine);
+         }
+         catch(IllegalArgumentException e) {
+            // Viewsheet expired between getRuntimeViewsheets() and getThreads() (TOCTOU
+            // race); skip this entry. Logged at debug so the skip is visible if needed.
+            LOG.debug("Viewsheet {} expired before threads could be fetched; skipping.",
+                      rvs.getID(), e);
+            continue;
+         }
 
          if(state == ViewsheetModel.State.OPEN ||
             !threads.isEmpty() && state == ViewsheetModel.State.EXECUTING)
          {
             results.add(ViewsheetModel.builder()
-               .from(rvs)
-               .threads(threads)
-               .state(state)
-               .build());
+                           .from(rvs)
+                           .threads(threads)
+                           .state(state)
+                           .build());
          }
       }
 
@@ -330,7 +351,7 @@ public class ViewsheetService
       List<ViewsheetModel> viewsheets = new ArrayList<>();
       ScheduleViewsheetsStatus scheduleViewsheets = null;
 
-      if(!ScheduleClient.getScheduleClient().isCloud()) {
+      if(!scheduleClient.isCloud()) {
          scheduleViewsheets = getScheduleViewsheets(node);
       }
 
@@ -347,7 +368,7 @@ public class ViewsheetService
          }
 
          // Filter viewsheets
-         String orgID = OrganizationManager.getInstance().getInstance().getCurrentOrgID();
+         String orgID = OrganizationManager.getInstance().getCurrentOrgID();
          viewsheets = viewsheets.stream()
             .filter(vs -> vs.monitorUser() != null &&
                Tool.equals(vs.monitorUser().getOrgID(), orgID))
@@ -378,7 +399,7 @@ public class ViewsheetService
       }
 
       // Filter viewsheets
-      String orgID = OrganizationManager.getInstance().getInstance().getCurrentOrgID();
+      String orgID = OrganizationManager.getInstance().getCurrentOrgID();
       viewsheets = viewsheets.stream()
          .filter(vs -> vs.monitorUser() != null &&
             Tool.equals(vs.monitorUser().getOrgID(), orgID))
@@ -393,7 +414,7 @@ public class ViewsheetService
    {
       List<ViewsheetMonitoringTableModel> tableModels = new ArrayList<>();
       List<IdentityID> users = getOrgUsers(principal);
-      String currentOrgID = OrganizationManager.getInstance().getInstance().getCurrentOrgID(principal);
+      String currentOrgID = OrganizationManager.getInstance().getCurrentOrgID(principal);
 
       for(ViewsheetModel info : getViewsheets(ViewsheetModel.State.EXECUTING, server)) {
          if(info.user() == null || !Tool.equals(info.user().orgID, currentOrgID)) {
@@ -415,7 +436,7 @@ public class ViewsheetService
    }
 
    List<ViewsheetMonitoringTableModel> getOpenViewsheets(String server, Principal principal) {
-      String orgID = OrganizationManager.getInstance().getInstance().getCurrentOrgID();
+      String orgID = OrganizationManager.getInstance().getCurrentOrgID();
 
       return getViewsheets(ViewsheetModel.State.OPEN, server).stream()
          .filter(vs -> vs.user() != null && Tool.equals(vs.user().getOrgID(), orgID))
@@ -435,11 +456,15 @@ public class ViewsheetService
    }
 
    private void checkVSExisted(String id) {
-      if(engine == null) {
+      checkVSExisted(id, engine);
+   }
+
+   private static void checkVSExisted(String id, inetsoft.analytic.composition.ViewsheetService service) {
+      if(service == null) {
          throw new IllegalStateException("The viewsheet engine has not been initialized");
       }
 
-      if(engine.getSheet(id, null) == null) {
+      if(!service.sheetExists(id)) {
          throw new IllegalArgumentException("No viewsheet with ID \"" + id + "\" exists");
       }
    }
@@ -464,29 +489,32 @@ public class ViewsheetService
    private ScheduleViewsheetsStatus getScheduleViewsheets(String address) {
       return getScheduleMetrics(
          address,
+         scheduleClient,
          client,
          server -> {
             try {
-               return ScheduleClient.getViewsheets(null, server);
+               return scheduleClient.getViewsheets(null, server);
             }
             catch(RemoteException e) {
                throw new RuntimeException(e);
             }
          },
-         metrics -> metrics.getViewsheets());
+         ScheduleMetrics::getViewsheets);
    }
 
    private final inetsoft.analytic.composition.ViewsheetService engine;
+   private final ScheduleClient scheduleClient;
    private final ServerClusterClient client;
    private final ViewsheetLifecycleMessageChannel viewsheetLifecycleMessageChannel;
    private final ViewsheetLifecycleEventListener listener;
    private final MonitoringDataService monitoringDataService;
-   private Cluster cluster;
+   private final Cluster cluster;
    private final Map<String, Integer> executingViewsheets = new HashMap<>();
 
    private static final String[] medAttrs = { "dateAccessed" };
    private static final String[] lowAttrs = {
       "count", "id", "state", "threadId", "name", "user", "dateCreated"
    };
+
    private static final Logger LOG = LoggerFactory.getLogger(ViewsheetService.class);
 }

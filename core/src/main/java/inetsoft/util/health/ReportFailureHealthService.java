@@ -18,23 +18,29 @@
 package inetsoft.util.health;
 
 import inetsoft.sree.SreeEnv;
-import inetsoft.util.SingletonManager;
+import inetsoft.util.ConfigurationContext;
 import inetsoft.util.audit.ExecutionRecord;
 import inetsoft.util.audit.ExecutionRecordDispatcher;
+import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.stereotype.Service;
 
 import java.util.HashMap;
 import java.util.Map;
 
+@Service
+@Lazy
 public class ReportFailureHealthService
    implements AutoCloseable, ExecutionRecordDispatcher.ExecutionRecordListener
 {
-   public ReportFailureHealthService() {
-      dispatcher = ExecutionRecordDispatcher.getInstance();
-      dispatcher.addListener(this);
+   public ReportFailureHealthService(ExecutionRecordDispatcher dispatcher) {
+      this.dispatcher = dispatcher;
    }
 
-   public static ReportFailureHealthService getInstance() {
-      return SingletonManager.getInstance(ReportFailureHealthService.class);
+   @PostConstruct
+   public void addDispatcherListener() {
+      dispatcher.addListener(this);
    }
 
    public ReportFailureStatus getStatus() {
@@ -63,6 +69,7 @@ public class ReportFailureHealthService
    }
 
    @Override
+   @PreDestroy
    public void close() throws Exception {
       dispatcher.removeListener(this);
    }

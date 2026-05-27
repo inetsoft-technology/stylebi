@@ -17,12 +17,6 @@
  */
 package inetsoft.web.viewsheet.controller.chart;
 
-import inetsoft.analytic.composition.ViewsheetService;
-import inetsoft.graph.GraphConstants;
-import inetsoft.graph.internal.DimensionD;
-import inetsoft.report.composition.graph.GraphUtil;
-import inetsoft.uql.viewsheet.graph.LegendDescriptor;
-import inetsoft.uql.viewsheet.graph.LegendsDescriptor;
 import inetsoft.web.viewsheet.LoadingMask;
 import inetsoft.web.viewsheet.Undoable;
 import inetsoft.web.viewsheet.event.chart.VSChartLegendResizeEvent;
@@ -32,18 +26,16 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Controller;
-
-import java.awt.*;
 import java.security.Principal;
 
 @Controller
-public class VSChartResizeLegendController extends VSChartController<VSChartLegendResizeEvent> {
+public class VSChartResizeLegendController {
    @Autowired
    public VSChartResizeLegendController(RuntimeViewsheetRef runtimeViewsheetRef,
-                                        CoreLifecycleService coreLifecycleService,
-                                        ViewsheetService viewsheetService)
+                                        VSChartResizeLegendServiceProxy serviceProxy)
    {
-      super(runtimeViewsheetRef, coreLifecycleService, viewsheetService);
+      this.runtimeViewsheetRef = runtimeViewsheetRef;
+      this.serviceProxy = serviceProxy;
    }
 
    /**
@@ -63,59 +55,9 @@ public class VSChartResizeLegendController extends VSChartController<VSChartLege
                             Principal principal,
                             CommandDispatcher dispatcher) throws Exception
    {
-      processEvent(event, principal, linkUri, dispatcher, chartState -> {
-         LegendsDescriptor legendsDes = chartState.getLegendsDes();
-
-         //use at least one pixel by one pixel
-         if(legendsDes != null && legendsDes.getLayout() != LegendsDescriptor.IN_PLACE) {
-            try {
-               Dimension maxSize = chartState.getChartAssemblyInfo().getMaxSize();
-               int maxWidth = 1;
-               int maxHeight = 1;
-
-               if(maxSize != null) {
-                  maxWidth = maxSize.width;
-                  maxHeight = maxSize.height;
-               }
-
-               double width = event.getLegendWidth() / maxWidth;
-               double height = event.getLegendHeight() / maxHeight;
-               int layout = legendsDes.getLayout();
-
-               if(layout == GraphConstants.RIGHT || layout == GraphConstants.LEFT) {
-                  width += legendsDes.getGap();
-               }
-               else if(layout == GraphConstants.BOTTOM || layout == GraphConstants.TOP) {
-                  height += legendsDes.getGap();
-               }
-
-               DimensionD size = new DimensionD(width, height);
-               legendsDes.setPreferredSize(size);
-            }
-            catch(Exception ex) {
-               throw new RuntimeException(ex);
-            }
-         }
-         else {
-            LegendDescriptor ldesc = GraphUtil.getLegendDescriptor(
-               chartState.getChartInfo(), legendsDes, event.getField(),
-               event.getTargetFields(), event.getLegendType(), event.isNodeAesthetic());
-
-            if(ldesc != null) {
-               double nw = event.getLegendWidth();
-               double nh = event.getLegendHeight();
-               Dimension maxSize = event.getMaxSize();
-
-               if(maxSize != null) {
-                  ldesc.setPreferredSize(new DimensionD(nw / maxSize.width, nh / maxSize.height));
-               }
-               else {
-                  ldesc.setPreferredSize(new DimensionD(nw, nh));
-               }
-            }
-         }
-
-         return -1;
-      });
+      serviceProxy.eventHandler(runtimeViewsheetRef.getRuntimeId(), event, linkUri, principal, dispatcher);
    }
+
+   private final RuntimeViewsheetRef runtimeViewsheetRef;
+   private final VSChartResizeLegendServiceProxy serviceProxy;
 }

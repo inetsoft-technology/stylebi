@@ -27,6 +27,7 @@ import inetsoft.uql.XPrincipal;
 import inetsoft.util.Catalog;
 import inetsoft.web.admin.monitoring.*;
 import inetsoft.web.admin.server.*;
+import inetsoft.web.admin.viewsheet.ViewsheetHistory;
 import inetsoft.web.cluster.ServerClusterClient;
 import inetsoft.web.cluster.ServerClusterStatus;
 import jakarta.annotation.PostConstruct;
@@ -47,58 +48,74 @@ public class SchedulerMonitoringService
 {
    @Autowired
    public SchedulerMonitoringService(ScheduleManager scheduleManager, DataCycleManager cycleManager,
-                                     SecurityProvider securityProvider, ServerClusterClient client)
+                                     SecurityProvider securityProvider, ServerClusterClient client,
+                                     Cluster cluster, SecurityEngine securityEngine,
+                                     ScheduleClient scheduleClient)
    {
       super(lowAttrs, new String[0], new String[0]);
       this.scheduleManager = scheduleManager;
       this.cycleManager = cycleManager;
       this.securityProvider = securityProvider;
       this.client = client;
+      this.cluster = cluster;
+      this.securityEngine = securityEngine;
+      this.scheduleClient = scheduleClient;
    }
 
    @PostConstruct
    public void addListener() {
-      cluster = Cluster.getInstance();
       cluster.addMessageListener(this);
    }
 
    @PreDestroy
    public void removeListener() {
-      if(cluster != null) {
-         cluster.removeMessageListener(this);
+      try {
+         if(cluster != null) {
+            cluster.removeMessageListener(this);
+         }
+      }
+      catch(Exception e) {
+         LOG.debug("Failed to remove listener during shutdown", e);
       }
    }
 
    @Override
    public void updateStatus(long timestamp) {
-      String[] scheduleServers = ScheduleClient.getScheduleClient().getScheduleServers();
+      String[] scheduleServers = scheduleClient.getScheduleServers();
+
+      // Evict entries for servers no longer in the active set (e.g. after a pod restart
+      // in Kubernetes where the scheduler gets a new IP address).
       metricsMap.keySet().retainAll(new HashSet<>(Arrays.asList(scheduleServers)));
 
       for(String server : scheduleServers) {
          ScheduleMetrics old = metricsMap.get(server);
 
-         if(ScheduleClient.getScheduleClient().isReady(server)) {
-            try {
+         try {
+            if(scheduleClient.isReady(server)) {
                ServerMetrics serverMetrics = old == null ? null : old.getServerMetrics();
                ScheduleViewsheetsStatus viewsheets = old == null ? null : old.getViewsheets();
                ScheduleQueriesStatus queries = old == null ? null : old.getQueries();
+
                ServerClusterStatus status = getServerClusterStatus(server);
-               String address = status == null ? server : Objects.toString(status.getAddress(), server);
+               String address = status != null
+                  ? Objects.toString(status.getAddress(), server)
+                  : server;
+
                ScheduleMetrics metrics = getCurrentMetrics(serverMetrics, viewsheets, queries,
                                                            timestamp, server, address);
-
                if(metrics != null) {
                   client.setMetrics(StatusMetricsType.SCHEDULE_METRICS, metrics);
                   metricsMap.put(server, metrics);
+                  trackViewsheetHistory(metrics, timestamp, address);
                }
             }
-            catch(Exception e) {
-               if(LOG.isDebugEnabled()) {
-                  LOG.warn("Error getting schedule metrics for {}, status not updated", server, e);
-               }
-               else {
-                  LOG.warn("Error getting schedule metrics for {}, status not updated", server);
-               }
+         }
+         catch(Exception e) {
+            if(LOG.isDebugEnabled()) {
+               LOG.warn("Error getting schedule metrics for server {}, status not updated", server, e);
+            }
+            else {
+               LOG.warn("Error getting schedule metrics for server {}, status not updated", server);
             }
          }
       }
@@ -116,7 +133,7 @@ public class SchedulerMonitoringService
 
       metrics.setCycleCount(getCycleCount());
       metrics.setCycleInfo(getCycleInfo());
-      Date startDate = ScheduleClient.getScheduleStartDate(server);
+      Date startDate = scheduleClient.getScheduleStartDate(server);
       metrics.setStartDate(startDate);
       metrics.setUpTime(startDate == null ? -1L : timestamp - startDate.getTime());
       metrics.setTaskCount(getTaskCount(activities));
@@ -125,10 +142,10 @@ public class SchedulerMonitoringService
       ScheduleViewsheetsStatus newViewsheets = viewsheets;
       ScheduleQueriesStatus newQueries = queries;
 
-      if(ScheduleClient.getScheduleClient().isReady(server)) {
-         newServerMetrics = ScheduleClient.getServerMetrics(serverMetrics, timestamp, address);
-         newViewsheets = ScheduleClient.getViewsheets(viewsheets, server);
-         newQueries = ScheduleClient.getQueries(queries, server);
+      if(scheduleClient.isReady(server)) {
+         newServerMetrics = scheduleClient.getServerMetrics(serverMetrics, timestamp, address);
+         newViewsheets = scheduleClient.getViewsheets(viewsheets, server);
+         newQueries = scheduleClient.getQueries(queries, server);
       }
 
       metrics.setServerMetrics(newServerMetrics);
@@ -228,11 +245,11 @@ public class SchedulerMonitoringService
          return null;
       }
 
-      if(!ScheduleClient.getScheduleClient().isReady()) {
+      if(!scheduleClient.isReady()) {
          return null;
       }
 
-      return ScheduleClient.getScheduleStartDate();
+      return scheduleClient.getScheduleStartDate();
    }
 
    /**
@@ -269,10 +286,25 @@ public class SchedulerMonitoringService
          return 0;
       }
 
-      Vector<ScheduleTask> allTasks = scheduleManager.getScheduleTasks();
       int count = 0;
+      Vector<ScheduleTask> allTasks = scheduleManager.getScheduleTasks();
+      String orgID;
 
-      String orgID = OrganizationManager.getInstance().getCurrentOrgID(getSystemPrincipal());
+      try {
+         orgID = OrganizationManager.getInstance().getCurrentOrgID(getSystemPrincipal());
+      }
+      catch(Exception ex) {
+         SecurityProvider provider = securityEngine.getSecurityProvider();
+         Organization organization =
+            provider.getOrganization(OrganizationManager.getInstance().getCurrentOrgID());
+
+         // org has already be removed.
+         if(organization == null) {
+            return count;
+         }
+
+         throw ex;
+      }
 
       for(String taskName : activities.keySet()) {
          if(allTasks.contains(scheduleManager.getScheduleTask(taskName, orgID))) {
@@ -307,8 +339,7 @@ public class SchedulerMonitoringService
          return new ScheduleTaskInfo[0];
       }
 
-      ScheduleClient client = ScheduleClient.getScheduleClient();
-      boolean running = client.isReady();
+      boolean running = scheduleClient.isReady();
       String curOrgID = OrganizationManager.getInstance().getCurrentOrgID(principal);
       Map<String, ScheduleTask> tasks = new HashMap<>();
 
@@ -393,17 +424,17 @@ public class SchedulerMonitoringService
       boolean supportsSecurity =
          !"".equals(SreeEnv.getProperty("security.provider"));
 
-      if(name == null || "".equals(name.trim())){
+      if(name == null || name.trim().isEmpty()){
          throw new Exception(Catalog.getCatalog()
                                 .getString("em.schedule.task.nameOrOwnerEmpty"));
       }
 
-      if(supportsSecurity && (owner == null || "".equals(owner.trim()))) {
+      if(supportsSecurity && (owner == null || owner.trim().isEmpty())) {
          throw new Exception(Catalog.getCatalog()
                                 .getString("em.schedule.task.nameOrOwnerEmpty"));
       }
 
-      if(!supportsSecurity && owner != null && !"".equals(owner.trim())) {
+      if(!supportsSecurity && owner != null && !owner.trim().isEmpty()) {
          throw new Exception(Catalog.getCatalog()
                                 .getString("em.schedule.task.ownerNotEmpty"));
       }
@@ -431,9 +462,7 @@ public class SchedulerMonitoringService
       cluster.exchangeMessages(node, message, e -> {
          Boolean result = null;
 
-         if(e.getMessage() instanceof RunTaskCompleteMessage) {
-            RunTaskCompleteMessage msg = (RunTaskCompleteMessage) e.getMessage();
-
+         if(e.getMessage() instanceof RunTaskCompleteMessage msg) {
             if(msg.getTaskName().equals(taskName)) {
                result = true;
             }
@@ -448,9 +477,7 @@ public class SchedulerMonitoringService
     * @param taskName the task name.
     */
    public void runTask(String taskName) throws Exception {
-      ScheduleClient client = ScheduleClient.getScheduleClient();
-
-      if(!client.isReady()) {
+      if(!scheduleClient.isReady()) {
          throw new Exception(
             Catalog.getCatalog().getString("em.scheduler.notStarted"));
       }
@@ -463,7 +490,7 @@ public class SchedulerMonitoringService
       }
 
       try {
-         client.runNow(taskName);
+         scheduleClient.runNow(taskName);
       }
       catch(Throwable ex) {
          throw new Exception(Catalog.getCatalog().
@@ -480,9 +507,7 @@ public class SchedulerMonitoringService
          return;
       }
 
-      ScheduleClient client = ScheduleClient.getScheduleClient();
-
-      if(!client.isReady()) {
+      if(!scheduleClient.isReady()) {
          throw new Exception(Catalog.getCatalog().
             getString("em.schedule.task.failedStop", taskName));
       }
@@ -495,7 +520,7 @@ public class SchedulerMonitoringService
          }
 
          try {
-            client.stopNow(taskName);
+            scheduleClient.stopNow(taskName);
          }
          catch(Throwable ex) {
             throw new Exception(Catalog.getCatalog().
@@ -534,15 +559,44 @@ public class SchedulerMonitoringService
       return getHistory(ServerMetricsCalculator.HistoryType.GC, server);
    }
 
+   public List<OffHeapHistory> getOffHeapHistory(String server) {
+      return getHistory(ServerMetricsCalculator.HistoryType.OFF_HEAP, server);
+   }
+
+   public List<ViewsheetHistory> getViewsheetHistory(String server) {
+      ServerClusterStatus status = getServerClusterStatus(server);
+      String address = status != null ? Objects.toString(status.getAddress(), server) : server;
+      Queue<ViewsheetHistory> history = client
+         .getStatusHistory(StatusMetricsType.SCHEDULE_METRICS, address, VIEWSHEET_HISTORY);
+      return history == null ? Collections.emptyList() : new ArrayList<>(history);
+   }
+
+   private void trackViewsheetHistory(ScheduleMetrics metrics, long timestamp, String address) {
+      ScheduleViewsheetsStatus viewsheetsStatus = metrics.getViewsheets();
+      int executingCount = viewsheetsStatus != null
+         ? viewsheetsStatus.getExecutingViewsheets().size() : 0;
+      ViewsheetHistory vsHistory = ViewsheetHistory.builder()
+         .timestamp(timestamp)
+         .executingViewsheets(executingCount)
+         .build();
+      client.addStatusHistory(StatusMetricsType.SCHEDULE_METRICS, address, VIEWSHEET_HISTORY, vsHistory);
+   }
+
    public long getMaxHeapSize(String server) {
       ScheduleMetrics metrics = metricsMap.get(server);
       ServerMetrics serverMetrics = metrics == null ? null : metrics.getServerMetrics();
       return serverMetrics == null ? 0L : serverMetrics.maxHeapSize();
    }
 
+   public long getMaxOffHeapSize(String server) {
+      ScheduleMetrics metrics = metricsMap.get(server);
+      ServerMetrics serverMetrics = metrics == null ? null : metrics.getServerMetrics();
+      return serverMetrics == null ? 0L : serverMetrics.maxOffHeapSize();
+   }
+
    public Optional<ServerMetrics> getServerMetrics() {
       ScheduleMetrics metrics =
-         client.getMetrics(StatusMetricsType.SERVER_METRICS, Cluster.getInstance().getLocalMember());
+         client.getMetrics(StatusMetricsType.SERVER_METRICS, cluster.getLocalMember());
       return Optional.ofNullable(metrics == null ? null : metrics.getServerMetrics());
    }
 
@@ -586,9 +640,12 @@ public class SchedulerMonitoringService
    private final ScheduleManager scheduleManager;
    private final SecurityProvider securityProvider;
    private final ServerClusterClient client;
-   private Cluster cluster;
+   private final Cluster cluster;
+   private final SecurityEngine securityEngine;
+   private final ScheduleClient scheduleClient;
    private final Map<String, ScheduleMetrics> metricsMap = new ConcurrentHashMap<>();
 
+   private static final String VIEWSHEET_HISTORY = "VIEWSHEETHISTORY";
    private static final String[] lowAttrs = {"taskInfo", "taskCount", "cycleCount", "cycleInfo", "startDate"};
    private static final Logger LOG =
       LoggerFactory.getLogger(SchedulerMonitoringService.class);

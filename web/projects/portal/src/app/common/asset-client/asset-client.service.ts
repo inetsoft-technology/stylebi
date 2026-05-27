@@ -62,7 +62,7 @@ export class AssetClientService {
     */
    private subscribe(): void {
       this.connection.subscribe("/user/asset-changed", (message) => {
-         const event: AssetChangeEvent = JSON.parse(message.frame.body);
+         const event: AssetChangeEvent = !!message.frame.body ? JSON.parse(message.frame.body) : null;
 
          this.zone.run(() => {
             this.assetChangedSubject.next(event);
@@ -70,7 +70,7 @@ export class AssetClientService {
       });
 
       this.connection.subscribe("/user/dependency-changed", (message) => {
-         const event: RenameEventModel = JSON.parse(message.frame.body);
+         const event: RenameEventModel = !!message.frame.body ? JSON.parse(message.frame.body) : null;
 
          this.zone.run(() => {
             this.renameTransformFinishedSubject.next(event);

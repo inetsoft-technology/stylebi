@@ -17,13 +17,7 @@
  */
 package inetsoft.web.viewsheet.controller;
 
-import inetsoft.analytic.composition.ViewsheetService;
-import inetsoft.report.composition.ChangedAssemblyList;
-import inetsoft.report.composition.RuntimeViewsheet;
-import inetsoft.report.composition.execution.ViewsheetSandbox;
-import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.viewsheet.LoadingMask;
-import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.event.CancelViewsheetLoadingEvent;
 import inetsoft.web.viewsheet.service.*;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -36,11 +30,9 @@ import java.security.Principal;
 @Controller
 public class CancelViewsheetLoadingController {
    @Autowired
-   public CancelViewsheetLoadingController(ViewsheetService viewsheetService,
-                                           CoreLifecycleService coreLifecycleService)
+   public CancelViewsheetLoadingController(CancelViewsheetLoadingServiceProxy cancelViewsheetLoadingServiceProxy)
    {
-      this.viewsheetService = viewsheetService;
-      this.coreLifecycleService = coreLifecycleService;
+      this.cancelViewsheetLoadingServiceProxy = cancelViewsheetLoadingServiceProxy;
    }
 
    @LoadingMask
@@ -50,26 +42,8 @@ public class CancelViewsheetLoadingController {
                                Principal principal,
                                CommandDispatcher dispatcher) throws Exception
    {
-      RuntimeViewsheet rvs = viewsheetService.getViewsheet(event.getRuntimeViewsheetId(),
-                                                           principal);
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
-      Viewsheet vs = rvs.getViewsheet();
-      box.cancelAllQueries();
-
-      if(event.isMeta() && !vs.getViewsheetInfo().isMetadata()) {
-         vs.getViewsheetInfo().setMetadata(true);
-         coreLifecycleService.refreshViewsheet(rvs, rvs.getID(), linkUri, dispatcher,
-                                               false, true, true, new ChangedAssemblyList());
-      }
-
-      if(event.isIniting() && event.isPreview()) {
-         MessageCommand cancelMessageCommand = new MessageCommand();
-         cancelMessageCommand.setMessage("Viewsheet preview cancelled");
-         cancelMessageCommand.setType(MessageCommand.Type.INFO);
-         dispatcher.sendCommand(cancelMessageCommand);
-      }
+      cancelViewsheetLoadingServiceProxy.cancelViewsheet(event.getRuntimeViewsheetId(), event, linkUri, principal, dispatcher);
    }
 
-   private ViewsheetService viewsheetService;
-   private final CoreLifecycleService coreLifecycleService;
+   private CancelViewsheetLoadingServiceProxy cancelViewsheetLoadingServiceProxy;
 }

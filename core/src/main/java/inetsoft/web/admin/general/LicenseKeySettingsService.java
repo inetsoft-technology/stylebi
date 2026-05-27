@@ -19,25 +19,47 @@ package inetsoft.web.admin.general;
 
 import inetsoft.report.internal.license.License;
 import inetsoft.report.internal.license.LicenseManager;
-import inetsoft.sree.internal.cluster.Cluster;
+import inetsoft.sree.internal.cluster.*;
 import inetsoft.sree.security.AuthenticationService;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.web.admin.general.model.LicenseKeyModel;
 import inetsoft.web.admin.general.model.LicenseKeySettingsModel;
 import inetsoft.web.viewsheet.AuditUser;
 import inetsoft.web.viewsheet.Audited;
+import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import java.io.Serializable;
 import java.security.Principal;
 import java.util.*;
-import java.util.concurrent.Callable;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 @Service
 public class LicenseKeySettingsService {
+   @Autowired
+   public LicenseKeySettingsService(LicenseManager licenseManager, Cluster cluster,
+                                    AuthenticationService authenticationService)
+   {
+      this.licenseManager = licenseManager;
+      this.cluster = cluster;
+      this.authenticationService = authenticationService;
+   }
+
+   @PostConstruct
+   public void registerListeners() {
+      messageListener = this::messageReceived;
+      cluster.addMessageListener(messageListener);
+   }
+
+   @PreDestroy
+   public void unregisterListeners() {
+      if(messageListener != null) {
+         cluster.removeMessageListener(messageListener);
+      }
+   }
 
    public LicenseKeySettingsModel getModel() {
       return LicenseKeySettingsModel.builder()
@@ -55,17 +77,24 @@ public class LicenseKeySettingsService {
       throws Exception
    {
       setServerKeys(model.serverKeys());
-      Cluster.getInstance().submitAll(new LicenseKeyResetCallable());
+      cluster.sendMessage(new ResetLicenseKeyMessage());
+      authenticationService.reset();
+   }
+
+   public void messageReceived(MessageEvent event) {
+      if(event.getMessage() instanceof ResetLicenseKeyMessage) {
+         authenticationService.reset();
+      }
    }
 
    private List<LicenseKeyModel> getServerLicenseData() {
-      return LicenseManager.getInstance().getInstalledLicenses().stream()
+      return licenseManager.getInstalledLicenses().stream()
          .map(this::createLicenseKeyModel)
          .collect(Collectors.toList());
    }
 
    private Map<String, String> getClusterLicenseData() {
-      return LicenseManager.getInstance().getClaimedNodeLicenses();
+      return licenseManager.getClaimedNodeLicenses();
    }
 
    private LicenseKeyModel createLicenseKeyModel(License license) {
@@ -73,7 +102,7 @@ public class LicenseKeySettingsService {
    }
 
    private void setServerKeys(List<LicenseKeyModel> licenses) {
-      LicenseManager manager = LicenseManager.getInstance();
+      LicenseManager manager = licenseManager;
       Set<License> installed = manager.getInstalledLicenses();
       updateKeys(
          licenses, installed, manager::addLicense, manager::replaceLicense, manager::removeLicense);
@@ -111,14 +140,11 @@ public class LicenseKeySettingsService {
    }
 
    LicenseKeyModel getSingleServerLicenseKey(String requestedKey) {
-      return createLicenseKeyModel(LicenseManager.getInstance().parseLicense(requestedKey));
+      return createLicenseKeyModel(licenseManager.parseLicense(requestedKey));
    }
 
-   private static final class LicenseKeyResetCallable implements Callable<Void>, Serializable {
-      @Override
-      public Void call() throws Exception {
-         AuthenticationService.getInstance().reset();
-         return null;
-      }
-   }
+   private final LicenseManager licenseManager;
+   private final Cluster cluster;
+   private final AuthenticationService authenticationService;
+   private MessageListener messageListener;
 }

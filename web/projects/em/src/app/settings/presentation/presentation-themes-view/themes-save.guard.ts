@@ -15,34 +15,28 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Injectable } from "@angular/core";
+import { inject } from "@angular/core";
 import { MatDialog } from "@angular/material/dialog";
-import { ActivatedRouteSnapshot, CanDeactivate, RouterStateSnapshot } from "@angular/router";
+import { ActivatedRouteSnapshot, CanDeactivateFn, RouterStateSnapshot } from "@angular/router";
 import { Observable, of } from "rxjs";
 import { map } from "rxjs/operators";
 import { MessageDialog, MessageDialogType } from "../../../common/util/message-dialog";
 import { PresentationThemesViewComponent } from "./presentation-themes-view.component";
 
-@Injectable()
-export class ThemesSaveGuard implements CanDeactivate<PresentationThemesViewComponent> {
-   constructor(private dialog: MatDialog) {
+export const themesSaveGuard: CanDeactivateFn<PresentationThemesViewComponent> = (component: PresentationThemesViewComponent, currentRoute: ActivatedRouteSnapshot, currentState: RouterStateSnapshot, nextState: RouterStateSnapshot): Observable<boolean> => {
+   const dialog = inject(MatDialog);
+
+   if(component.themeModified) {
+      const ref = dialog.open(MessageDialog, {
+         data: {
+            title: "_#(js:Confirm)",
+            content: "_#(js:em.presentation.theme.confirm)",
+            type: MessageDialogType.CONFIRMATION
+         }
+      });
+
+      return ref.afterClosed().pipe(map(result => !!result));
    }
 
-   canDeactivate(component: PresentationThemesViewComponent, currentRoute: ActivatedRouteSnapshot,
-                 currentState: RouterStateSnapshot, nextState?: RouterStateSnapshot): Observable<boolean>
-   {
-      if(component.themeModified) {
-         const ref = this.dialog.open(MessageDialog, {
-            data: {
-               title: "_#(js:Confirm)",
-               content: "_#(js:em.presentation.theme.confirm)",
-               type: MessageDialogType.CONFIRMATION
-            }
-         });
-
-         return ref.afterClosed().pipe(map(result => !!result));
-      }
-
-      return of(true);
-   }
-}
+   return of(true);
+};

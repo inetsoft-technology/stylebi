@@ -26,6 +26,7 @@ import inetsoft.util.audit.ActionRecord;
 import inetsoft.web.admin.presentation.model.PortalIntegrationSettingsModel;
 import inetsoft.web.admin.presentation.model.PortalTabModel;
 import inetsoft.web.viewsheet.Audited;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
@@ -33,6 +34,8 @@ import java.util.*;
 
 @Service
 public class PortalIntegrationViewSettingsService {
+   @Autowired
+   private PortalThemesManager portalThemesManager;
    public PortalIntegrationSettingsModel getModel(Principal principal, boolean globalProperty) {
       List<PortalTabModel> tabs = new ArrayList<>();
       boolean help = false;
@@ -43,6 +46,8 @@ public class PortalIntegrationViewSettingsService {
       String customLoadingText = SreeEnv.getProperty("portal.customLoadingText", false, !globalProperty);
       String homeLink = SreeEnv.getProperty("portal.home.link", false, !globalProperty);
       String emHomeLink = SreeEnv.getProperty("em.home.link", false, !globalProperty);
+
+      PortalThemesManager manager = getManager();
 
       if(manager.isButtonVisible(PortalThemesManager.HELP_BUTTON)) {
          help = true;
@@ -123,6 +128,7 @@ public class PortalIntegrationViewSettingsService {
    public void setModel(PortalIntegrationSettingsModel model, Principal principal, boolean globalSettings)
       throws Exception
    {
+      PortalThemesManager manager = getManager();
       manager.loadThemes();
       manager.setButtonVisible(PortalThemesManager.HELP_BUTTON, model.help());
       manager.setButtonVisible(PortalThemesManager.PREFERENCES_BUTTON,
@@ -178,6 +184,7 @@ public class PortalIntegrationViewSettingsService {
       throws Exception
    {
       if(globalSettings) {
+         PortalThemesManager manager = getManager();
          List<PortalTab> portalTabs = manager.getPortalTabs();
          List<PortalTab> newPortalTabs = new ArrayList<>();
 
@@ -226,5 +233,7 @@ public class PortalIntegrationViewSettingsService {
       SreeEnv.save();
    }
 
-   private PortalThemesManager manager = PortalThemesManager.getManager();
+   private PortalThemesManager getManager() {
+      return portalThemesManager;
+   }
 }

@@ -17,29 +17,47 @@
  */
 package inetsoft.sree.portal;
 
+import inetsoft.sree.SreeEnv;
+import inetsoft.storage.KeyValueStorageManager;
 import inetsoft.util.*;
+import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.stereotype.Service;
 import org.w3c.dom.*;
 
 import java.io.*;
+import java.lang.reflect.Constructor;
 import java.security.Principal;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 
 /**
  *
  * @version 14.0, 05/15/2024
  * @author InetSoft Technology Corp
  */
-@SingletonManager.Singleton(CustomThemesManager.Reference.class)
+@Service
+@Lazy
 public class CustomThemesManager implements XMLSerializable, AutoCloseable {
    public static synchronized CustomThemesManager getManager() {
-      return SingletonManager.getInstance(CustomThemesManager.class);
+      return ConfigurationContext.getContext().getSpringBean(CustomThemesManager.class);
    }
 
-   public CustomThemesManager() {
+   public CustomThemesManager(KeyValueStorageManager keyValueStorageManager, DataSpace dataSpace) {
+      this.keyValueStorageManager = keyValueStorageManager;
+      this.dataSpace = dataSpace;
+
       try {
-         impl = (CustomThemesImpl) Class.forName("inetsoft.enterprise.theme.CustomThemesImpl").newInstance();
+         Class<?> clazz = Class.forName("inetsoft.enterprise.theme.CustomThemesImpl");
+         Constructor<?> cstr = clazz.getConstructor(KeyValueStorageManager.class);
+         impl = (CustomThemesImpl) cstr.newInstance(keyValueStorageManager);
+         String name = SreeEnv.getPath("custom.themes.file", "customthemes.xml");
+
+         dataSpace.addChangeListener(null, name, event -> {
+            debouncer.debounce("themes", 500L, TimeUnit.MILLISECONDS, this::loadThemes);
+         });
       }
       catch(Exception ex) {
          impl = new CustomThemesImpl();
@@ -58,63 +76,124 @@ public class CustomThemesManager implements XMLSerializable, AutoCloseable {
       return impl.getSelectedTheme();
    }
 
-   public void setSelectedTheme(String selectedTheme) {
-      impl.setSelectedTheme(selectedTheme);
+   public String getGlobalSelectedTheme() {
+      return impl.getGlobalSelectedTheme();
+   }
+
+   public String getOrgSelectedTheme() {
+      return impl.getOrgSelectedTheme();
+   }
+
+   public void setGlobalSelectedTheme(String selectedTheme) {
+      impl.setGlobalSelectedTheme(selectedTheme);
+   }
+
+   public void setOrgSelectedTheme(String selectedTheme) {
+      impl.setOrgSelectedTheme(selectedTheme);
+   }
+
+   public void setOrgSelectedTheme(String selectedTheme, String orgID) {
+      impl.setOrgSelectedTheme(selectedTheme, orgID);
+   }
+
+   public void removeSelectedTheme(String selectedTheme) {
+      impl.removeSelectedTheme(selectedTheme);
    }
 
    public boolean isCustomThemeApplied() {
-      return impl.isCustomThemeApplied();
+      return impl.isCustomThemeApplied(this);
    }
 
    public boolean isEMDarkTheme() {
-      return impl.isEMDarkTheme();
+      return impl.isEMDarkTheme(this);
    }
 
    public String getScriptThemeCssPath(boolean portal) {
-      return impl.getScriptThemeCssPath(portal);
+      return impl.getScriptThemeCssPath(portal, this);
    }
 
    public String getSelectedTheme(Principal user) {
-      return impl.getSelectedTheme(user);
+      return impl.getSelectedTheme(user, this);
    }
 
-   public void save() {
-      impl.save();
-   }
+   /**
+    * Updates the jarPath of any theme whose JAR path matches oldPath exactly or starts
+    * with oldPath as a folder prefix, keeping KV store metadata in sync with the physical
+    * file location after a file or folder rename in the DataSpace.
+    */
+   public void renameThemeJar(String oldPath, String newPath) {
+      Set<CustomTheme> allThemes = getCustomThemes();
 
-   public void loadThemes() {
-      impl.loadThemes();
+      if(allThemes == null || allThemes.isEmpty()) {
+         return;
+      }
+
+      Set<CustomTheme> themes = new HashSet<>(allThemes);
+      boolean changed = false;
+      String oldPathPrefix = oldPath + "/";
+
+      for(CustomTheme theme : new ArrayList<>(themes)) {
+         String jarPath = theme.getJarPath();
+
+         if(jarPath == null) {
+            continue;
+         }
+
+         String updatedPath = null;
+
+         if(oldPath.equals(jarPath)) {
+            updatedPath = newPath;
+         }
+         else if(jarPath.startsWith(oldPathPrefix)) {
+            updatedPath = newPath + jarPath.substring(oldPath.length());
+         }
+
+         if(updatedPath != null) {
+            themes.remove(theme);
+            theme.setJarPath(updatedPath);
+            themes.add(theme);
+            changed = true;
+         }
+      }
+
+      if(changed) {
+         setCustomThemes(themes);
+      }
    }
 
    public void reloadThemes(String path) {
-      if(getCustomThemes() == null || getCustomThemes().isEmpty()) {
+      Set<CustomTheme> themes = getCustomThemes();
+
+      if(themes == null || themes.isEmpty()) {
          return;
       }
 
       Set<CustomTheme> newThemes = new HashSet<>();
+      String pathPrefix = path + "/";
 
-      getCustomThemes().forEach(theme -> {
+      themes.forEach(theme -> {
          String jarPath = theme.getJarPath();
 
-         if(jarPath != null && jarPath.startsWith(path)) {
-            CustomTheme newTheme = (CustomTheme) theme.clone();
-            newTheme.setEMDark(false);
-            newTheme.setPortalScript(null);
-            newTheme.setEmScript(null);
-            newThemes.add(newTheme);
-         }
-         else {
+         if(jarPath == null || (!jarPath.equals(path) && !jarPath.startsWith(pathPrefix))) {
             newThemes.add(theme);
          }
       });
 
+      themes.stream()
+         .filter(t -> !newThemes.contains(t))
+         .forEach(t -> removeSelectedTheme(t.getId()));
+
       setCustomThemes(newThemes);
-      save();
    }
 
    @Override
+   @PreDestroy
    public void close() throws Exception {
       impl.close();
+   }
+
+   public void loadThemes() {
+      impl.loadThemes();
    }
 
    @Override
@@ -127,35 +206,14 @@ public class CustomThemesManager implements XMLSerializable, AutoCloseable {
       impl.parseXML(tag);
    }
 
+   public KeyValueStorageManager getKeyValueStorageManager() {
+      return keyValueStorageManager;
+   }
+
+   private final KeyValueStorageManager keyValueStorageManager;
+   private final DataSpace dataSpace;
    private CustomThemesImpl impl;
    private static final Logger LOG = LoggerFactory.getLogger(CustomThemesManager.class);
 
-   @SingletonManager.ShutdownOrder()
-   public static final class Reference extends SingletonManager.Reference<CustomThemesManager> {
-      @Override
-      public synchronized CustomThemesManager get(Object... parameters) {
-         if(manager == null) {
-            manager = new CustomThemesManager();
-            manager.loadThemes();
-         }
-
-         return manager;
-      }
-
-      @Override
-      public void dispose() {
-         if(manager != null) {
-            try {
-               manager.close();
-            }
-            catch(Exception e) {
-               LOG.warn("Failed to close theme manager", e);
-            }
-
-            manager = null;
-         }
-      }
-
-      private CustomThemesManager manager;
-   }
+   private final Debouncer<String> debouncer = new DefaultDebouncer<>();
 }

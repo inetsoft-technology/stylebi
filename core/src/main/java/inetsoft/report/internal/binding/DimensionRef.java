@@ -264,7 +264,7 @@ public class DimensionRef extends AbstractDataRef implements Field {
       // @by tonyy, bug1170060521593, try fixing unknown scope (old version)
       if(scope == UNKNOWN_SCOPE) {
          try {
-            XRepository repository = XFactory.getRepository();
+            XRepository repository = XRepository.getRepository();
             XDomain domain = repository.getDomain(getDataSource());
             XCube cube = domain.getCube(getCube());
             XDimension xdim = cube.getDimension(getName());

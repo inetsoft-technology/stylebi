@@ -35,7 +35,7 @@ import inetsoft.report.composition.graph.calc.PercentCalc;
 import inetsoft.report.composition.region.*;
 import inetsoft.report.filter.*;
 import inetsoft.report.internal.*;
-import inetsoft.report.internal.graph.*;
+import inetsoft.report.internal.graph.MapData;
 import inetsoft.report.internal.table.ParamTableLens;
 import inetsoft.report.internal.table.TableFormat;
 import inetsoft.sree.SreeEnv;
@@ -52,19 +52,18 @@ import inetsoft.uql.viewsheet.graph.aesthetic.*;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.*;
 import inetsoft.web.binding.model.graph.OriginalDescriptor;
+import org.apache.commons.lang3.ArrayUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.awt.*;
 import java.awt.geom.Dimension2D;
 import java.awt.geom.Point2D;
 import java.text.Format;
-import java.util.List;
 import java.util.*;
+import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
-import org.apache.commons.lang3.ArrayUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * Utilities for graph.

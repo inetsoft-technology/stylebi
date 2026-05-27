@@ -19,8 +19,10 @@ package inetsoft.web.composer.model.vs;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
+import java.io.Serializable;
+
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class GroupContainerPropertyDialogModel {
+public class GroupContainerPropertyDialogModel implements Serializable {
    public GroupContainerGeneralPaneModel getGroupContainerGeneralPane() {
       if(groupContainerGeneralPane == null) {
          groupContainerGeneralPane = new GroupContainerGeneralPaneModel();

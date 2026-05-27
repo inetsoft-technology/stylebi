@@ -195,7 +195,7 @@ export class SecurityProviderService {
    }
 
    parseAdminRoles(rolesString: string): string[] {
-      return !rolesString ? [] : rolesString.split(",").map(role => role.trim());
+      return !rolesString ? [] : rolesString.split(",").map(role => role.trim()).filter(Boolean);
    }
 
    formatAdminRolesString(rolesList: string[]): string {

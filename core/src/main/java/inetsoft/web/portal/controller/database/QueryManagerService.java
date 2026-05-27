@@ -62,12 +62,14 @@ public class QueryManagerService {
    public QueryManagerService(RuntimeQueryService runtimeQueryService,
                               XRepository repository,
                               DataSourceService dataSourceService,
-                              SecurityEngine securityEngine)
+                              SecurityEngine securityEngine,
+                              ColumnCache columnCache)
    {
       this.runtimeQueryService = runtimeQueryService;
       this.repository = repository;
       this.dataSourceService = dataSourceService;
       this.securityEngine = securityEngine;
+      this.columnCache = columnCache;
    }
 
    public void updateQuery(String runtimeId, BasicSQLQueryModel queryModel,
@@ -78,11 +80,13 @@ public class QueryManagerService {
          runtimeQueryService.getRuntimeQuery(runtimeId);
 
       if(runtimeQuery == null) {
-         throw new RuntimeException("runtime query do not exist");
+         throw new MessageException(
+            Catalog.getCatalog().getString("common.sqlquery.sessionExpired"));
       }
 
       JDBCQuery query = createQueryByBaseModel(queryModel, datasource, principal);
       runtimeQuery.setQuery(query);
+      runtimeQueryService.saveRuntimeQuery(runtimeQuery);
    }
 
    public JDBCQuery createQueryByBaseModel(BasicSQLQueryModel queryModel, String dataSource,
@@ -107,7 +111,18 @@ public class QueryManagerService {
       query.setDataSource(jdbcDataSource);
 
       if(queryModel.isSqlEdited()) {
-         sql.setSQLString(queryModel.getSqlString());
+         synchronized(sql) {
+            sql.setSQLString(queryModel.getSqlString());
+
+            // it is waiting for the parser finish parsing the sql string.
+            if(!Tool.equals(queryModel.getSqlString(), sql.getSQLString()) && sql.isParseSQL()) {
+               try {
+                  sql.wait();
+               }
+               catch(InterruptedException e) {
+               }
+            }
+         }
       }
 
       query.setSQLDefinition(sql);
@@ -118,7 +133,13 @@ public class QueryManagerService {
                            String tab, boolean all)
       throws Exception
    {
-      JDBCQuery query = getQuery(runtimeId);
+      RuntimeQueryService.RuntimeXQuery runtimeQuery = getRuntimeQuery(runtimeId);
+
+      if(runtimeQuery == null) {
+         return;
+      }
+
+      JDBCQuery query = runtimeQuery.getQuery();
 
       if(query == null || query.getSQLDefinition() == null) {
          return;
@@ -213,6 +234,8 @@ public class QueryManagerService {
             setQueryCondition(sql, filterNode, CONDITION_HAVING);
          }
       }
+
+      saveRuntimeQuery(runtimeQuery);
    }
 
    public AdvancedSQLQueryModel getQueryModel(String runtimeId, Principal principal) {
@@ -278,7 +301,7 @@ public class QueryManagerService {
       boolean expressionAllowed = true;
 
       try {
-         expressionAllowed = SecurityEngine.getSecurity().checkPermission(
+         expressionAllowed = securityEngine.checkPermission(
             principal, ResourceType.WORKSHEET_EXPRESSION_COLUMN, "*", ResourceAction.ACCESS);
       }
       catch(SecurityException e) {
@@ -399,11 +422,9 @@ public class QueryManagerService {
          model.setSimpleModel(basicModel);
       }
 
-      SecurityEngine security = SecurityEngine.getSecurity();
-
       for(String dsName : repository.getDataSourceFullNames()) {
          if(repository.getDataSource(dsName) instanceof JDBCDataSource) {
-            if(security.checkPermission(principal, ResourceType.DATA_SOURCE, dsName,
+            if(securityEngine.checkPermission(principal, ResourceType.DATA_SOURCE, dsName,
                ResourceAction.READ))
             {
                model.getDataSources().add(dsName);
@@ -447,7 +468,13 @@ public class QueryManagerService {
       }
 
       int max = Util.getOrganizationMaxColumn();
-      JDBCQuery query = getQuery(runtimeId);
+      RuntimeQueryService.RuntimeXQuery runtimeQuery = getRuntimeQuery(runtimeId);
+
+      if(runtimeQuery == null) {
+         return result;
+      }
+
+      JDBCQuery query = runtimeQuery.getQuery();
 
       if(query == null) {
          return result;
@@ -488,6 +515,7 @@ public class QueryManagerService {
 
       sql.clearSQLString();
       result.setColumnMap(nameAliasMap);
+      saveRuntimeQuery(runtimeQuery);
 
       return result;
    }
@@ -497,7 +525,13 @@ public class QueryManagerService {
          return;
       }
 
-      JDBCQuery query = getQuery(event.getRuntimeId());
+      RuntimeQueryService.RuntimeXQuery runtimeQuery = getRuntimeQuery(event.getRuntimeId());
+
+      if(runtimeQuery == null) {
+         return;
+      }
+
+      JDBCQuery query = runtimeQuery.getQuery();
 
       if(query == null) {
          return;
@@ -536,6 +570,7 @@ public class QueryManagerService {
       }
 
       sql.clearSQLString();
+      saveRuntimeQuery(runtimeQuery);
    }
 
    public void updateColumn(String runtimeId, QueryFieldModel column, String type, String oldAlias)
@@ -610,13 +645,21 @@ public class QueryManagerService {
 
          metaInfo.setXFormatInfo(formatInfo);
       }
+
+      runtimeQueryService.saveRuntimeQuery(runtimeQuery);
    }
 
    public List<String> browseColumnData(String runtimeId, String col, boolean aliasColumn,
                                         boolean quote)
    {
       List<String> values = new ArrayList<>();
-      JDBCQuery query = getQuery(runtimeId);
+      RuntimeQueryService.RuntimeXQuery runtimeQuery = getRuntimeQuery(runtimeId);
+
+      if(runtimeQuery == null) {
+         return values;
+      }
+
+      JDBCQuery query = runtimeQuery.getQuery();
 
       if(query == null) {
          return values;
@@ -689,8 +732,7 @@ public class QueryManagerService {
       query.setSQLDefinition(browseSql);
       query.setDataSource(xds);
 
-      ColumnCache cache = ColumnCache.getColumnCache();
-      String[][] data = cache.getColumnDataString(
+      String[][] data = columnCache.getColumnDataString(
          query, tableName, colPath, columnType, null, null, quote);
 
       if(XSchema.STRING.equals(columnType)) {
@@ -738,6 +780,7 @@ public class QueryManagerService {
       UniformSQL sql = (UniformSQL) query.getSQLDefinition();
       JDBCUtil.fixTableLocation(sql);
       fixUniformSQLInfo(sql, (JDBCDataSource) query.getDataSource(), principal);
+      runtimeQueryService.saveRuntimeQuery(runtimeQuery);
 
       model.setRuntimeId(runtimeQuery.getId());
       model.setDataSource(query.getDataSource() == null ? null :
@@ -763,11 +806,9 @@ public class QueryManagerService {
       model.setDataSource(dataSource);
       model.setVariableNames(getVariableList(rws, principal));
 
-      SecurityEngine security = SecurityEngine.getSecurity();
-
       for(String dsName : repository.getDataSourceFullNames()) {
          if(repository.getDataSource(dsName) instanceof JDBCDataSource) {
-            if(security.checkPermission(principal, ResourceType.DATA_SOURCE, dsName,
+            if(securityEngine.checkPermission(principal, ResourceType.DATA_SOURCE, dsName,
                ResourceAction.READ))
             {
                model.getDataSources().add(dsName);
@@ -909,6 +950,11 @@ public class QueryManagerService {
       RuntimeQueryService.RuntimeXQuery runtimeQuery =
          runtimeQueryService.getRuntimeQuery(model.getRuntimeId());
 
+      if(runtimeQuery == null) {
+         throw new MessageException(
+            Catalog.getCatalog().getString("common.sqlquery.sessionExpired"));
+      }
+
       JDBCQuery query = createNewQuery(name, database);
       runtimeQuery.setQuery(query);
       TableAssembly assembly = (TableAssembly) rws.getWorksheet().getAssembly(model.getName());
@@ -936,6 +982,7 @@ public class QueryManagerService {
       }
       else {
          parseSqlString(model.getRuntimeId(), simpleModel.getSqlString(), false, true, principal);
+         runtimeQuery = runtimeQueryService.getRuntimeQuery(model.getRuntimeId());
       }
 
       AdvancedSQLQueryModel sqlQueryModel = getAdvancedQueryModel(runtimeQuery, principal);
@@ -945,11 +992,18 @@ public class QueryManagerService {
          sqlQueryModel.setConditionPaneModel(oldSqlQueryModel.getConditionPaneModel());
       }
 
+      runtimeQueryService.saveRuntimeQuery(runtimeQuery);
       return sqlQueryModel;
    }
 
    public boolean isExpression(String runtimeId, String column) {
-      JDBCQuery query = getQuery(runtimeId);
+      RuntimeQueryService.RuntimeXQuery runtimeQuery = getRuntimeQuery(runtimeId);
+
+      if(runtimeQuery == null) {
+         return false;
+      }
+
+      JDBCQuery query = runtimeQuery.getQuery();
 
       if(query == null) {
          return false;
@@ -995,7 +1049,13 @@ public class QueryManagerService {
          return null;
       }
 
-      JDBCQuery query = getQuery(runtimeId);
+      RuntimeQueryService.RuntimeXQuery runtimeQuery = getRuntimeQuery(runtimeId);
+
+      if(runtimeQuery == null) {
+         return null;
+      }
+
+      JDBCQuery query = runtimeQuery.getQuery();
 
       if(query == null) {
          return null;
@@ -1004,14 +1064,18 @@ public class QueryManagerService {
       expression = expression.trim();
       UniformSQL sql = (UniformSQL) query.getSQLDefinition();
       JDBCSelection selection = (JDBCSelection) sql.getSelection();
+      String[] result;
 
       if(add) {
-         return addExpression(sql, selection, expression, (JDBCDataSource) query.getDataSource(),
+         result = addExpression(sql, selection, expression, (JDBCDataSource) query.getDataSource(),
             principal);
       }
       else {
-         return editExpression(sql, selection, expression, columnName, columnAlias);
+         result =  editExpression(sql, selection, expression, columnName, columnAlias);
       }
+
+      saveRuntimeQuery(runtimeQuery);
+      return result;
    }
 
    public String[] addExpression(UniformSQL sql, JDBCSelection selection, String expression,
@@ -1132,6 +1196,12 @@ public class QueryManagerService {
    private BasicSQLQueryModel processConvertToSimpleQuery(String runtimeQueryId) {
       RuntimeQueryService.RuntimeXQuery runtimeQuery =
          runtimeQueryService.getRuntimeQuery(runtimeQueryId);
+
+      if(runtimeQuery == null) {
+         throw new MessageException(
+            Catalog.getCatalog().getString("common.sqlquery.sessionExpired"));
+      }
+
       JDBCQuery query = runtimeQuery.getQuery();
       BasicSQLQueryModel model = new BasicSQLQueryModel();
 
@@ -1152,6 +1222,7 @@ public class QueryManagerService {
          selection.setXMetaInfo(i, new XMetaInfo());
       }
 
+      runtimeQueryService.saveRuntimeQuery(runtimeQuery);
       return model;
    }
 
@@ -1202,18 +1273,12 @@ public class QueryManagerService {
       return entry.getProperty("dtype") != null ? entry.getProperty("dtype") : type;
    }
 
-   public JDBCQuery getQuery(String runtimeId) {
-      RuntimeQueryService.RuntimeXQuery runtimeQuery = getRuntimeQuery(runtimeId);
-
-      if(runtimeQuery == null) {
-         return null;
-      }
-
-      return runtimeQuery.getQuery();
-   }
-
    public RuntimeQueryService.RuntimeXQuery getRuntimeQuery(String runtimeId) {
       return runtimeQueryService.getRuntimeQuery(runtimeId);
+   }
+
+   public void saveRuntimeQuery(RuntimeQueryService.RuntimeXQuery runtimeQuery) {
+      runtimeQueryService.saveRuntimeQuery(runtimeQuery);
    }
 
    private AutoDrillInfo getAutoDrillInfo(XMetaInfo metaInfo) {
@@ -1323,6 +1388,7 @@ public class QueryManagerService {
             synchronized(sql) {
                XJoin[] joins = sql.getJoins();
                sql.setWhere(filterNode);
+               sql.clearSQLString();
 
                if(joins != null) {
                   for(int i = 0; i < joins.length; i++) {
@@ -1334,6 +1400,7 @@ public class QueryManagerService {
             }
          case CONDITION_HAVING:
             sql.setHaving(filterNode);
+            sql.clearSQLString();
             break;
       }
    }
@@ -1447,6 +1514,11 @@ public class QueryManagerService {
    {
       RuntimeQueryService.RuntimeXQuery runtimeQuery =
          runtimeQueryService.getRuntimeQuery(runtimeId);
+
+      if(runtimeQuery == null) {
+         return null;
+      }
+
       JDBCQuery query = runtimeQuery.getQuery();
 
       if(!StringUtils.isEmpty(nSqlString)) {
@@ -1457,8 +1529,7 @@ public class QueryManagerService {
          nsql.setSQLString(!StringUtils.isEmpty(nSqlString) ? nSqlString : query.getSQLAsString());
       }
 
-      XDataService service = XFactory.getDataService();
-      UserVariable[] vars = service.getQueryParameters(principal.getName(), query, true);
+      UserVariable[] vars = repository.getQueryParameters(principal.getName(), query, true);
 
       if(vars == null) {
          return null;
@@ -1491,8 +1562,14 @@ public class QueryManagerService {
       throws Exception
    {
       RuntimeQueryService.RuntimeXQuery runtimeQuery = runtimeQueryService.getRuntimeQuery(runtimeId);
+
+      if(runtimeQuery == null) {
+         return;
+      }
+
       VariableTable vtable = runtimeQuery.getVariables();
       vtable.addAll(VariableAssemblyModelInfo.getVariableTable(variables));
+      runtimeQueryService.saveRuntimeQuery(runtimeQuery);
    }
 
    public GetColumnInfoResult refreshColumnInfo(GetColumnInfoEvent event,
@@ -1501,6 +1578,12 @@ public class QueryManagerService {
    {
       RuntimeQueryService.RuntimeXQuery runtimeQuery =
          runtimeQueryService.getRuntimeQuery(event.getRuntimeId());
+
+      if(runtimeQuery == null) {
+         throw new MessageException(
+            Catalog.getCatalog().getString("common.sqlquery.sessionExpired"));
+      }
+
       String sqlString = event.getSqlString();
       JDBCQuery query = runtimeQuery.getQuery();
       JDBCQuery nquery = query.clone();
@@ -1551,6 +1634,7 @@ public class QueryManagerService {
       }
 
       initQuerySelectedTables(runtimeQuery);
+      runtimeQueryService.saveRuntimeQuery(runtimeQuery);
 
       return result;
    }
@@ -1558,10 +1642,16 @@ public class QueryManagerService {
    public void clearColumnInfo(String runtimeId) {
       RuntimeQueryService.RuntimeXQuery runtimeQuery =
          runtimeQueryService.getRuntimeQuery(runtimeId);
+
+      if(runtimeQuery == null) {
+         return;
+      }
+
       JDBCQuery query = runtimeQuery.getQuery();
       SQLDefinition sqlDefinition = query.getSQLDefinition();
       UniformSQL sql = (UniformSQL) sqlDefinition;
       sql.setColumnInfo(null);
+      runtimeQueryService.saveRuntimeQuery(runtimeQuery);
    }
 
    public String setFreeFormSQLPaneModel(UpdateFreeFormSQLPaneEvent event, Principal principal) {
@@ -1579,6 +1669,12 @@ public class QueryManagerService {
    {
       RuntimeQueryService.RuntimeXQuery runtimeQuery =
          runtimeQueryService.getRuntimeQuery(runtimeId);
+
+      if(runtimeQuery == null) {
+         throw new MessageException(
+            Catalog.getCatalog().getString("common.sqlquery.sessionExpired"));
+      }
+
       JDBCQuery query = runtimeQuery.getQuery();
       SQLDefinition sqlDefinition = query.getSQLDefinition();
       UniformSQL sql = (UniformSQL) sqlDefinition;
@@ -1610,6 +1706,7 @@ public class QueryManagerService {
          sql.getParseResult() != -1 && !executeQuery &&
          sql.getParseResult() != UniformSQL.PARSE_FAILED)
       {
+         runtimeQueryService.saveRuntimeQuery(runtimeQuery);
          return null;
       }
 
@@ -1617,13 +1714,13 @@ public class QueryManagerService {
       if(StringUtils.isEmpty(nsqlString) && !executeQuery) {
          sql.setSQLString(null);
          sql.setParseResult(UniformSQL.PARSE_FAILED);
+         runtimeQueryService.saveRuntimeQuery(runtimeQuery);
          return null;
       }
 
       JDBCDataSource xds = (JDBCDataSource) query.getDataSource();
 
       try {
-         XRepository repository = XFactory.getRepository();
          XNode node = new XNode();
          node.setAttribute("type", "DBPROPERTIES");
          node = repository.getMetaData(
@@ -1674,11 +1771,10 @@ public class QueryManagerService {
       */
 
       try {
-         XRepository repository = XFactory.getRepository();
-
          // run query to get column info
          if(sql.getParseResult() == UniformSQL.PARSE_FAILED || executeQuery) {
             if(!executeQuery) {
+               runtimeQueryService.saveRuntimeQuery(runtimeQuery);
                return Catalog.getCatalog().getString("designer.qb.jdbc.unableParseSql");
             }
 
@@ -1705,6 +1801,7 @@ public class QueryManagerService {
          JDBCUtil.fixUniformSQLSelection(osql, sql);
          JDBCUtil.fixTableLocation(sql);
          initQuerySelectedTables(runtimeQuery);
+         runtimeQueryService.saveRuntimeQuery(runtimeQuery);
       }
       catch(Exception e) {
          LOG.error(e.getMessage(), e);
@@ -1717,14 +1814,13 @@ public class QueryManagerService {
     * Execute a query.
     */
    private XNode execute(XQuery xquery, VariableTable variableTable, String user) throws Exception {
-      XDataService service = XFactory.getDataService();
       XNode result = null;
       int maxRows = 0;
 
       try {
          maxRows = xquery.getMaxRows();
          xquery.setMaxRows(1);
-         result = service.execute(user, xquery, variableTable,
+         result = repository.execute(user, xquery, variableTable,
             ThreadContext.getContextPrincipal(), false, null);
       }
       finally {
@@ -1740,6 +1836,12 @@ public class QueryManagerService {
    {
       RuntimeQueryService.RuntimeXQuery runtimeQuery =
          runtimeQueryService.getRuntimeQuery(runtimeId);
+
+      if(runtimeQuery == null) {
+         throw new MessageException(
+            Catalog.getCatalog().getString("common.sqlquery.sessionExpired"));
+      }
+
       JDBCQuery query = runtimeQuery.getQuery();
 
       if(sqlString != null) {
@@ -1773,8 +1875,8 @@ public class QueryManagerService {
          vtable.put(XQuery.HINT_MAX_ROWS, "" + maxRow);
       }
 
-      XDataService service = XFactory.getDataService();
-      XNode result = service.execute(principal.getName(), query, vtable,
+      runtimeQueryService.saveRuntimeQuery(runtimeQuery);
+      XNode result = repository.execute(principal.getName(), query, vtable,
          principal, true, null);
 
       if(result == null) {
@@ -2156,7 +2258,13 @@ public class QueryManagerService {
     * @return true if is, false otherwise
     */
    public boolean isValidGroupBy(String runtimeId, String[] groups) {
-      JDBCQuery query = getQuery(runtimeId);
+      RuntimeQueryService.RuntimeXQuery runtimeQuery = getRuntimeQuery(runtimeId);
+
+      if(runtimeQuery == null) {
+         return true;
+      }
+
+      JDBCQuery query = runtimeQuery.getQuery();
 
       if(query == null || groups == null) {
          return true;
@@ -2222,6 +2330,7 @@ public class QueryManagerService {
          String tableName = null;
          String tablePath = null;
          String pathArray = null;
+         String additional = null;
 
          if(name instanceof UniformSQL) {
             tableName = tablePath = selectTable.getAlias();
@@ -2229,6 +2338,23 @@ public class QueryManagerService {
          else {
             tableName = String.valueOf(selectTable.getName());
             XNode node = metaData.getTable(tableName, XUtil.OUTER_MOSE_LAYER_DATABASE);
+
+            if(node == null) {
+               // Table not found in base datasource, search linked (additional) datasources
+               String[] additionalNames = jdbcDataSource.getDataSourceNames();
+
+               if(additionalNames != null) {
+                  for(String additionalName : additionalNames) {
+                     XNode additionalNode = metaData.getTable(tableName, additionalName);
+
+                     if(additionalNode != null) {
+                        node = additionalNode;
+                        additional = additionalName;
+                        break;
+                     }
+                  }
+               }
+            }
 
             if(node != null) {
                tablePath = JDBCUtil.getTablePath(jdbcDataSource, node);
@@ -2251,6 +2377,10 @@ public class QueryManagerService {
          entry.setProperty(XSourceInfo.CATALOG, selectTable.getCatalog());
          entry.setProperty(XSourceInfo.SCHEMA, selectTable.getSchema());
          entry.setProperty("source_with_no_quote", tableName);
+
+         if(additional != null) {
+            entry.setProperty(XUtil.DATASOURCE_ADDITIONAL, additional);
+         }
 
          if(root != null) {
             entry.setProperty("hasSchema", Tool.toString(root.getAttribute("hasSchema")));
@@ -2528,6 +2658,7 @@ public class QueryManagerService {
                .build());
          });
 
+         runtimeQueryService.saveRuntimeQuery(runtimeQuery);
          return TreeNodeModel.builder()
             .label(Catalog.getCatalog().getString("Database fields"))
             .expanded(sort)
@@ -2662,5 +2793,6 @@ public class QueryManagerService {
    private final XRepository repository;
    private final SecurityEngine securityEngine;
    private final DataSourceService dataSourceService;
+   private final ColumnCache columnCache;
    private static final Logger LOG = LoggerFactory.getLogger(QueryManagerService.class);
 }

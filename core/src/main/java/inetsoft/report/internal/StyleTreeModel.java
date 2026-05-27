@@ -18,6 +18,7 @@
 package inetsoft.report.internal;
 
 import inetsoft.report.LibManager;
+import inetsoft.report.LibManagerProvider;
 import inetsoft.report.style.TableStyle;
 import inetsoft.report.style.XTableStyle;
 import inetsoft.util.*;
@@ -64,11 +65,22 @@ public class StyleTreeModel implements XMLSerializable {
     * @param folder the folder name to be added.
     */
    public static void addFolder(String folder) {
+      addFolder(folder, true);
+   }
+
+   /**
+    * Add a folder.
+    * @param folder the folder name to be added.
+    * @param save whether to save the library immediately.
+    */
+   public static void addFolder(String folder, boolean save) {
       try {
-         LibManager mgr = LibManager.getManager();
-         mgr.refresh(false);
+         LibManager mgr = LibManagerProvider.getInstance().getManager();
          mgr.addTableStyleFolder(folder);
-         mgr.save();
+
+         if(save) {
+            mgr.save();
+         }
       }
       catch(Exception ex) {
          LOG.error("Failed to add folder: " + folder, ex);
@@ -82,7 +94,7 @@ public class StyleTreeModel implements XMLSerializable {
     */
    public static String getTableStyleID(String name) {
       Objects.requireNonNull(name);
-      LibManager mgr = LibManager.getManager();
+      LibManager mgr = LibManagerProvider.getInstance().getManager();
       Enumeration<String> styles = mgr.getTableStyles();
 
       while(styles.hasMoreElements()) {
@@ -104,11 +116,11 @@ public class StyleTreeModel implements XMLSerializable {
     * @return table style.
     */
    public static TableStyle get(String name) {
-      return LibManager.getManager().getTableStyle(name);
+      return LibManagerProvider.getInstance().getManager().getTableStyle(name);
    }
 
    public static TableStyle get(String name, String orgID) {
-      return LibManager.getManager().getTableStyle(name, orgID);
+      return LibManagerProvider.getInstance().getManager(orgID).getTableStyle(name);
    }
 
    /**

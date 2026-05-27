@@ -35,12 +35,15 @@ import inetsoft.uql.util.QueryManager;
 import inetsoft.uql.util.XUtil;
 import inetsoft.util.*;
 import inetsoft.util.script.ScriptEnv;
+import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
 import inetsoft.web.admin.monitoring.MonitorLevelService;
 import inetsoft.web.messaging.MessageAttributes;
 import inetsoft.web.messaging.MessageContextHolder;
 import inetsoft.web.vswizard.recommender.execution.WizardDataExecutor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
 
 import java.beans.PropertyChangeListener;
 import java.security.Principal;
@@ -59,7 +62,6 @@ import java.util.stream.Collectors;
  * @version 8.5
  * @author InetSoft Technology Corp
  */
-@SingletonManager.Singleton(AssetDataCache.Reference.class)
 public class AssetDataCache extends DataCache<DataKey, TableLens> {
    /**
     * Get the data. If the data doesn't exist, execute the query and add to
@@ -69,8 +71,8 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
     * @param box the specified asset query sandbox.
     * @param qmgr the specified query manager.
     */
-   public static TableLens getData(String id, TableAssembly table,
-                                   AssetQuerySandbox box, QueryManager qmgr)
+   public TableLens getData(String id, TableAssembly table,
+                            AssetQuerySandbox box, QueryManager qmgr)
       throws Exception
    {
       return getData(id, table, box, null, AssetQuerySandbox.RUNTIME_MODE, true, -1, qmgr);
@@ -88,14 +90,13 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
     * @param ts if > 0, the creation timestamp of data. data older than the timestamp is discarded.
     * @param qmgr the specified query manager.
     */
-   public static TableLens getData(String id, TableAssembly table,
-                                   AssetQuerySandbox box, Set ignoredVars,
-                                   int mode, boolean limit, long ts,
-                                   QueryManager qmgr)
+   public TableLens getData(String id, TableAssembly table,
+                            AssetQuerySandbox box, Set ignoredVars,
+                            int mode, boolean limit, long ts,
+                            QueryManager qmgr)
       throws Exception
    {
-      AssetDataCache cache = getCache();
-      return cache.getData0(id, table, box, ignoredVars, mode, limit, ts, qmgr);
+      return getData0(id, table, box, ignoredVars, mode, limit, ts, qmgr);
    }
 
    /**
@@ -104,16 +105,14 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
     * @param ts if > 0, the creation timestamp of data. data older than the timestamp is discarded.
     * @return cached data or null if cache doesn't exist.
     */
-   public static TableLens getCachedData(DataKey key, long ts) {
-      AssetDataCache cache = getCache();
-
+   public TableLens getCachedData(DataKey key, long ts) {
       // if the cache is cleared for the depended data source, don't use cached data.
       // run a new query to fetch fresh data
-      if(!cache.dependenceMap.containsKey(key)) {
-         cache.remove(key);
+      if(!dependenceMap.containsKey(key)) {
+         remove(key);
       }
 
-      TableFilter2 filter = (TableFilter2) cache.get(key, ts);
+      TableFilter2 filter = (TableFilter2) get(key, ts);
 
       if(filter != null && (filter.isChanged() || isCancelled(filter) ||
          isFailedQueryDefaultMetaTable(filter)))
@@ -121,7 +120,7 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
          filter = null;
       }
 
-      return filter == null ? null : (TableFilter2) filter.clone();
+      return filter == null ? null : filter.clone();
    }
 
    private static boolean isFailedQueryDefaultMetaTable(XTable lens) {
@@ -169,15 +168,14 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
     * @param data to add to the cache.
     * @param table the specified table assembly.
     */
-   public static TableLens setCachedData(DataKey key, TableLens data, TableAssembly table) {
+   public TableLens setCachedData(DataKey key, TableLens data, TableAssembly table) {
       if(key == null || table instanceof DataTableAssembly) {
          return data;
       }
 
-      AssetDataCache cache = getCache();
       data = new TableFilter2(data);
       resetMV(table, (TableFilter2) data);
-      addCache(cache, key, data, table);
+      addCache(key, data, table);
       return data;
    }
 
@@ -185,9 +183,8 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
     * Remove a data item from the cache.
     * @param key the data key in the cache.
     */
-   public static Object removeCachedData(DataKey key) {
-      AssetDataCache cache = getCache();
-      return removeCache(cache, key);
+   public Object removeCachedData(DataKey key) {
+      return removeCache(key);
    }
 
    /**
@@ -196,7 +193,7 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
     * !! is modified from input vs assembly. enhancements may be needed if it's
     * !! used for more general cases.
     */
-   public static void removeCacheDependence(TableAssembly table) {
+   public void removeCacheDependence(TableAssembly table) {
       if(table == null) {
          return;
       }
@@ -219,18 +216,36 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
     * @param source name of the query or table assembly AssemblyEntry.
     * @return the entries that is removed from the cache.
     */
-   public static List<AssemblyEntry> removeCacheDependence(String source) {
-      AssetDataCache cache = getCache();
+   public List<AssemblyEntry> removeCacheDependence(String source) {
+      DistributedTableCacheStore store = distributedTableCacheStoreProvider.getObject();
 
       // find entries matching the source
-      List<DataKey> entries = cache.dependenceMap.entrySet().stream()
+      List<DataKey> entries = dependenceMap.entrySet().stream()
          .filter(entry -> source != null && source.equals(entry.getValue()))
          .map(entry -> entry.getKey())
          .collect(Collectors.toList());
 
       // remove the entries
       entries.stream().forEach(key -> {
-         cache.dependenceMap.remove(key);
+         dependenceMap.remove(key);
+         Principal keyPrincipal = principalMap.get(key);
+         Principal oldPrincipal = ThreadContext.getContextPrincipal();
+
+         try {
+            if(keyPrincipal != null) {
+               ThreadContext.setContextPrincipal(keyPrincipal);
+            }
+
+            if(store.exists(key)) {
+               store.remove(key);
+            }
+         }
+         finally {
+            if(keyPrincipal != null) {
+               ThreadContext.setContextPrincipal(oldPrincipal);
+            }
+         }
+
          // recursively remove the parent dependency
          removeCacheDependence(key.getAssemblyEntry().toString());
       });
@@ -238,40 +253,55 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
       return entries.stream().map(key -> key.getAssemblyEntry()).collect(Collectors.toList());
    }
 
-   private static void addCache(AssetDataCache cache, DataKey key, TableLens data,
-                                TableAssembly table)
-   {
-      cache.put(key, data, key.getTimeout());
-      cache.putDependence(key, table);
+   private void addCache(DataKey key, TableLens data, TableAssembly table) {
+      put(key, data, key.getTimeout());
+      putDependence(key, table);
    }
 
-   private static Object removeCache(AssetDataCache cache, DataKey key) {
-      cache.dependenceMap.remove(key);
-      return cache.remove(key);
+   private Object removeCache(DataKey key) {
+      DistributedTableCacheStore store = distributedTableCacheStoreProvider.getObject();
+      Principal keyPrincipal = principalMap.get(key);
+      Principal oldPrincipal = ThreadContext.getContextPrincipal();
+
+      try {
+         if(keyPrincipal != null) {
+            ThreadContext.setContextPrincipal(keyPrincipal);
+         }
+
+         if(store.exists(key)) {
+            store.remove(key);
+         }
+      }
+      finally {
+         if(keyPrincipal != null) {
+            ThreadContext.setContextPrincipal(oldPrincipal);
+         }
+      }
+
+      dependenceMap.remove(key);
+      principalMap.remove(key);
+      return remove(key);
    }
 
    /**
     * Cancel the pending queries for id.
     */
-   public static void cancel(String id) {
-      AssetDataCache cache = getCache();
-      cache.cancel0(id, true);
+   public void cancel(String id) {
+      cancel0(id, true);
    }
 
    /**
     * Cancel the pending queries for id.
     */
-   public static void cancel(String id, boolean force) {
-      AssetDataCache cache = getCache();
-      cache.cancel0(id, force);
+   public void cancel(String id, boolean force) {
+      cancel0(id, force);
    }
 
    /**
     * Clear the cached data.
     */
-   public static void clearCache() {
-      AssetDataCache cache = getCache();
-      cache.clear();
+   public void clearCache() {
+      clear();
    }
 
    /**
@@ -435,9 +465,61 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
     * Get the data cache.
     * @return the data cache.
     */
-   public static synchronized AssetDataCache getCache() {
-      return SingletonManager.getInstance(AssetDataCache.class);
+   public static AssetDataCache getCache() {
+      return ConfigurationContext.getContext().getSpringBean(AssetDataCache.class);
    }
+
+   @PostConstruct
+   public void initAfterCreate() {
+      dataSourceRegistry.addRefreshedListener(registryListener);
+      dataSourceRegistry.addModifiedListener(registryListener);
+   }
+
+   @PreDestroy
+   public void closeCache() {
+      dataSourceRegistry.removeRefreshedListener(registryListener);
+      dataSourceRegistry.removeModifiedListener(registryListener);
+      clear();
+      principalMap.clear();
+   }
+
+   /**
+    * Returns all valid entries from the local in-memory cache. Used by
+    * {@link DistributedTableCacheStore#flushLocalCache()} to replicate data to the distributed
+    * store on node shutdown or in response to a {@link TableCacheReplicationRequest} from a new
+    * node. Cancelled, changed, or already-evicted entries are excluded.
+    */
+   public Map<DataKey, TableLens> getLocalEntries() {
+      Map<DataKey, TableLens> result = new LinkedHashMap<>();
+
+      for(DataKey key : keySet()) {
+         TableLens data = getCachedData(key, -1);
+
+         if(data != null) {
+            result.put(key, data);
+         }
+      }
+
+      return result;
+   }
+
+   /**
+    * Returns the principal that was active when the given key was cached, or {@code null} if not
+    * recorded. Used during distributed cache flush to write to the correct org-scoped storage.
+    */
+   public Principal getPrincipalForKey(DataKey key) {
+      return principalMap.get(key);
+   }
+
+   private void recordPrincipal(DataKey key) {
+      Principal principal = ThreadContext.getContextPrincipal();
+
+      if(principal != null) {
+         principalMap.put(key, principal);
+      }
+   }
+
+   private final java.beans.PropertyChangeListener registryListener = evt -> clearCache();
 
    /**
     * <p>This method should be invoked prior to executing a query if the cache is active.
@@ -463,14 +545,13 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
     *
     * @throws InterruptedException if this thread is interrupted while waiting.
     */
-   static TableLens getOrMarkExecutingOrWait(DataKey key, long touchTime)
+   TableLens getOrMarkExecutingOrWait(DataKey key, long touchTime)
       throws InterruptedException
    {
       if(key == null) {
          return null;
       }
 
-      final AssetDataCache cache = getCache();
       // Check cache before locking to avoid needless lock contention.
       TableLens data = getCachedData(key, touchTime);
 
@@ -478,7 +559,7 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
          return data;
       }
 
-      final Lock lock = cache.dataKeyLocks.get(key);
+      final Lock lock = dataKeyLocks.get(key);
       boolean locked = true;
       lock.lock();
 
@@ -487,12 +568,31 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
          // condition.
          data = getCachedData(key, touchTime);
 
+         // check for distributed cache data
+         if(data == null) {
+            DistributedTableCacheStore store = distributedTableCacheStoreProvider.getObject();
+
+            if(store.exists(key)) {
+               try {
+                  data = store.get(key, touchTime);
+
+                  if(data != null) {
+                     put(key, data);
+                  }
+               }
+               catch(Exception e) {
+                  LOG.warn("Failed to load table lens from distributed table cache store", e);
+                  remove(key);
+               }
+            }
+         }
+
          if(data != null) {
             return data;
          }
 
-         if(cache.isExecuting(key)) {
-            final DataKey executingKey = cache.getExecutingKey(key);
+         if(isExecuting(key)) {
+            final DataKey executingKey = getExecutingKey(key);
 
             synchronized(executingKey) {
                lock.unlock();
@@ -504,7 +604,7 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
                   do {
                      executingKey.wait(EXECUTION_WAIT_TIME.toMillis());
                   }
-                  while(cache.isExecuting(executingKey) && Instant.now().isBefore(timeout));
+                  while(isExecuting(executingKey) && Instant.now().isBefore(timeout));
                }
                catch(InterruptedException e) {
                   LOG.error("Interrupted while waiting for executing key: {}", key);
@@ -523,7 +623,7 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
             }
          }
          else {
-            cache.markExecuting(key);
+            markExecuting(key);
          }
       }
       finally {
@@ -540,21 +640,20 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
     *
     * @param key the data key to mark finished.
     */
-   static void markExecutingFinished(DataKey key) {
+   void markExecutingFinished(DataKey key) {
       if(key == null) {
          return;
       }
 
-      final AssetDataCache cache = getCache();
-      final Lock lock = cache.dataKeyLocks.get(key);
+      final Lock lock = dataKeyLocks.get(key);
       lock.lock();
 
       try {
-         final DataKey executingKey = cache.getExecutingKey(key);
+         final DataKey executingKey = getExecutingKey(key);
 
          if(executingKey != null) {
             synchronized(executingKey) {
-               cache.unmarkExecuting(executingKey);
+               unmarkExecuting(executingKey);
                executingKey.notifyAll();
             }
          }
@@ -630,8 +729,11 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
    /**
     * Create an asset data cache.
     */
-   private AssetDataCache() {
-      super();
+   public AssetDataCache(DataSourceRegistry dataSourceRegistry,
+                         ObjectProvider<DistributedTableCacheStore> distributedTableCacheStoreProvider)
+   {
+      this.dataSourceRegistry = dataSourceRegistry;
+      this.distributedTableCacheStoreProvider = distributedTableCacheStoreProvider;
       String prop = SreeEnv.getProperty("query.cache.limit", "100");
 
       if(prop != null) {
@@ -1189,6 +1291,7 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
    {
       CacheEntry<DataKey, TableLens> entry = super.put(key, data, timeout);
       lockEntries.get().monitor(entry);
+      recordPrincipal(key);
       return entry;
    }
 
@@ -1209,6 +1312,7 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
    protected boolean demote(CacheEntry<DataKey, TableLens> entry) {
       // clean up when corresponding entry removed from cache
       dependenceMap.remove(entry.getKey());
+      principalMap.remove(entry.getKey());
       return super.demote(entry);
    }
 
@@ -1244,6 +1348,9 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
       private final List<CacheEntry<DataKey, TableLens>> entries = new ArrayList<>();
    }
 
+   private final DataSourceRegistry dataSourceRegistry;
+   private final ObjectProvider<DistributedTableCacheStore> distributedTableCacheStoreProvider;
+
    private boolean cache = true;
    private long lts = System.currentTimeMillis();
 
@@ -1253,6 +1360,8 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
    // key -> source (e.g. data source name)
    // if a key doesn't exist in dependenceMap (removed), then its cache is invalid.
    private final Map<DataKey, String> dependenceMap = new ConcurrentHashMap<>();
+   // key -> principal active when the entry was cached (for org-scoped distributed store writes)
+   private final Map<DataKey, Principal> principalMap = new ConcurrentHashMap<>();
    private final ThreadPool pool;
    private final AtomicInteger hits = new AtomicInteger();
    private final AtomicInteger noHits = new AtomicInteger();
@@ -1263,34 +1372,4 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
       ThreadLocal.withInitial(() -> Boolean.FALSE);
    private static final Logger LOG = LoggerFactory.getLogger(AssetDataCache.class);
 
-   public static final class Reference extends SingletonManager.Reference<AssetDataCache> {
-      @Override
-      public synchronized AssetDataCache get(Object ... parameters) {
-         if(cache == null) {
-            cache = new AssetDataCache();
-
-            dataSourceRegistry = DataSourceRegistry.getRegistry();
-            dataSourceRegistry.addRefreshedListener(listener);
-            dataSourceRegistry.addModifiedListener(listener);
-         }
-
-         return cache;
-      }
-
-      @Override
-      public synchronized void dispose() {
-         if(cache != null) {
-            dataSourceRegistry.removeRefreshedListener(listener);
-            dataSourceRegistry.removeModifiedListener(listener);
-            dataSourceRegistry = null;
-
-            cache.clear();
-            cache = null;
-         }
-      }
-
-      private AssetDataCache cache;
-      private DataSourceRegistry dataSourceRegistry;
-      private final PropertyChangeListener listener = evt -> clearCache();
-   }
 }

@@ -142,7 +142,11 @@ public class LargeDataExcelWSExporter implements WSExporter {
    }
 
    private void setColumnWidthsAsync(Sheet sheet, int colnum) {
-      ExecutorService executor = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
+      ExecutorService executor = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors(), r -> {
+         Thread thread = new Thread(r, "LargeDataExcelWSExporter");
+         thread.setDaemon(true);
+         return thread;
+      });
       short defWidth = (short) (AssetUtil.defw * ExcelVSUtil.EXCEL_PIXEL_WIDTH_FACTOR);
       CompletableFuture<Void>[] futures = new CompletableFuture[colnum];
 

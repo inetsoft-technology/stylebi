@@ -18,20 +18,28 @@
 package inetsoft.web.viewsheet.model;
 
 import inetsoft.analytic.composition.VSCSSUtil;
-import inetsoft.test.SreeHome;
+import inetsoft.test.*;
 import inetsoft.uql.viewsheet.internal.TextVSAssemblyInfo;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.Tag;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.awt.*;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.when;
 
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome()
 @ExtendWith(MockitoExtension.class)
+@Tag("core")
 class VSFormatModelTest {
    @Test
    void canApplyHighlightFormat() throws Exception {

@@ -20,10 +20,11 @@ package inetsoft.web.composer.model.ws;
 import inetsoft.web.binding.drm.ColumnRefModel;
 import inetsoft.web.binding.model.AggregateInfoModel;
 
+import java.io.Serializable;
 import java.util.HashMap;
 import java.util.Map;
 
-public class AggregateDialogModel {
+public class AggregateDialogModel implements Serializable {
    public int getMaxCol() {
       return maxCol;
    }

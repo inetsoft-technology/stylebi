@@ -17,7 +17,9 @@
  */
 package inetsoft.web.composer.model.vs;
 
-public class SliderAdvancedPaneModel {
+import java.io.Serializable;
+
+public class SliderAdvancedPaneModel implements Serializable {
    public SliderLabelPaneModel getSliderLabelPaneModel() {
       if(sliderLabelPaneModel == null) {
          sliderLabelPaneModel = new SliderLabelPaneModel();

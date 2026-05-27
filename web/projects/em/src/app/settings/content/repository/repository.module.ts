@@ -21,8 +21,7 @@ import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { MatButtonModule } from "@angular/material/button";
 import { MatCardModule } from "@angular/material/card";
 import { MatCheckboxModule } from "@angular/material/checkbox";
-import { MatNativeDateModule } from "@angular/material/core";
-import { MatOptionModule } from "@angular/material/core";
+import { MatNativeDateModule, MatOptionModule } from "@angular/material/core";
 import { MatDatepickerModule } from "@angular/material/datepicker";
 import { MatDialogModule } from "@angular/material/dialog";
 import { MatFormFieldModule } from "@angular/material/form-field";
@@ -57,8 +56,11 @@ import { TopScrollModule } from "../../../top-scroll/top-scroll.module";
 import { ParameterTableModule } from "../../schedule/parameter-table/parameter-table.module";
 import { ResourcePermissionModule } from "../../security/resource-permission/resource-permission.module";
 import { AnalyzeMvPageComponent } from "./analyze-mv-page/analyze-mv-page.component";
+import { AutoSaveFolderPageComponent } from "./auto-save-recycle-bin/auto-save-folder-page.component";
+import { AutoSaveRecycleBinPageComponent } from "./auto-save-recycle-bin/auto-save-recycle-bin-page.component";
+import { AutoSaveRecycleBinComponent } from "./auto-save-recycle-bin/auto-save-recycle-bin.component";
+import { RestoreAssetDialogComponent } from "./auto-save-recycle-bin/restore-asset-dialog.component";
 import { ContentRepositoryPageComponent } from "./content-repository-page/content-repository-page.component";
-import { ContentRepositorySaveGuard } from "./content-repository-page/content-repository-save.guard";
 import { RepositoryFolderDashboardSettingsPageComponent } from "./dashboard/repository-dashboard-folder-settings-page/repository-folder-dashboard-settings-page.component";
 import { RepositoryFolderDashboardSettingsViewComponent } from "./dashboard/repository-dashboard-folder-settings-view/repository-folder-dashboard-settings-view.component";
 import { RepositoryDashboardSettingsPageComponent } from "./dashboard/repository-dashboard-settings-page/repository-dashboard-settings-page.component";
@@ -80,25 +82,17 @@ import { RepositoryFolderTrashcanSettingsPageComponent } from "./repository-fold
 import { RepositoryFolderTrashcanSettingsViewComponent } from "./repository-folder-trashcan-settings-view/repository-folder-trashcan-settings-view.component";
 import { RepositoryPermissionEditorPageComponent } from "./repository-permission-editor-page/repository-permission-editor-page.component";
 import { RepositoryRecycleBinPageComponent } from "./repository-recycle-bin-page/repository-recycle-bin-page.component";
-import { AutoSaveRecycleBinComponent } from "./auto-save-recycle-bin/auto-save-recycle-bin.component";
-import { AutoSaveRecycleBinPageComponent } from "./auto-save-recycle-bin/auto-save-recycle-bin-page.component";
 import { RepositoryRecycleBinViewComponent } from "./repository-recycle-bin-view/repository-recycle-bin-view.component";
 import { RepositoryRoutingModule } from "./repository-routing.module";
+import { RepositoryScheduleTaskFolderSettingsPageComponent } from "./repository-schedule-task-folder-settings-page/repository-schedule-task-folder-settings-page.component";
+import { RepositoryScheduleTaskFolderSettingsViewComponent } from "./repository-schedule-task-folder-settings-view/repository-schedule-task-folder-settings-view.component";
+import { RepositoryScriptSettingsPageComponent } from "./repository-script-settings-page/repository-script-settings-page.component";
 import { RepositorySheetSettingsViewComponent } from "./repository-sheet-settings-view/repository-sheet-settings-view.component";
 import { RepositoryTreeViewComponent } from "./repository-tree-view/repository-tree-view.component";
 import { RepositoryViewsheetSettingsPageComponent } from "./repository-viewsheet-settings-page/repository-viewsheet-settings-page.component";
 import { RepositoryViewsheetSettingsViewComponent } from "./repository-viewsheet-settings-view/repository-viewsheet-settings-view.component";
 import { RepositoryWorksheetSettingsPageComponent } from "./repository-worksheet-settings-page/repository-worksheet-settings-page.component";
 import { RepositoryWorksheetSettingsViewComponent } from "./repository-worksheet-settings-view/repository-worksheet-settings-view.component";
-import { RestoreAssetDialogComponent } from "./auto-save-recycle-bin/restore-asset-dialog.component";
-import { AutoSaveFolderPageComponent } from "./auto-save-recycle-bin/auto-save-folder-page.component";
-import {
-   RepositoryScheduleTaskFolderSettingsViewComponent
-} from "./repository-schedule-task-folder-settings-view/repository-schedule-task-folder-settings-view.component";
-import {
-   RepositoryScheduleTaskFolderSettingsPageComponent
-} from "./repository-schedule-task-folder-settings-page/repository-schedule-task-folder-settings-page.component";
-import { RepositoryScriptSettingsPageComponent } from "./repository-script-settings-page/repository-script-settings-page.component";
 
 @NgModule({
    imports: [
@@ -185,7 +179,6 @@ import { RepositoryScriptSettingsPageComponent } from "./repository-script-setti
    ],
    providers: [
       ErrorHandlerService,
-      ContentRepositorySaveGuard
    ],
    exports: [
       RepositoryTreeViewComponent

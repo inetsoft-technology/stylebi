@@ -17,8 +17,14 @@
  */
 package inetsoft.uql.jdbc.drivers;
 
+import inetsoft.test.*;
 import org.hamcrest.Matchers;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.Tag;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -26,6 +32,11 @@ import java.lang.reflect.Method;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.jupiter.api.Assertions.*;
 
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@SreeHome
+@Tag("core")
 class DriverServiceGeneratorTests {
    private final DriverServiceGenerator generator = new DriverServiceGenerator();
 

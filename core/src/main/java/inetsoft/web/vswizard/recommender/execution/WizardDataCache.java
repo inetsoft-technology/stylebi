@@ -32,14 +32,15 @@ import java.util.concurrent.locks.ReentrantLock;
  * @version 13.2
  * @author InetSoft Technology Corp
  */
-@SingletonManager.Singleton(WizardDataCache.Reference.class)
+@org.springframework.stereotype.Service
+@org.springframework.context.annotation.Lazy
 public class WizardDataCache extends DataCache<String, WizardDataMap> {
    /**
     * Creates a new instance of <tt>WizardDataCache</tt>.
     *
     * @since 10.3
     */
-   private WizardDataCache() {
+   WizardDataCache() {
       try {
          String val = SreeEnv.getProperty("wizard.cache.file.timeout");
 
@@ -59,7 +60,7 @@ public class WizardDataCache extends DataCache<String, WizardDataMap> {
     * @return the data cache.
     */
    public static synchronized WizardDataCache getCache() {
-      return SingletonManager.getInstance(WizardDataCache.class);
+      return ConfigurationContext.getContext().getSpringBean(WizardDataCache.class);
    }
 
    /**
@@ -214,26 +215,6 @@ public class WizardDataCache extends DataCache<String, WizardDataMap> {
 
    protected WizardDataMap createWizardDataMap() {
       return new WizardDataMap();
-   }
-
-   public static final class Reference extends SingletonManager.Reference<WizardDataCache> {
-      @Override
-      public synchronized WizardDataCache get(Object ... parameters) {
-         if(cache == null) {
-            cache = new WizardDataCache();
-         }
-
-         return cache;
-      }
-
-      @Override
-      public synchronized void dispose() {
-         if(cache != null) {
-            cache = null;
-         }
-      }
-
-      private WizardDataCache cache;
    }
 
    private long fileTimeout = 3600000 * 24L * 7; // expiration period, ms

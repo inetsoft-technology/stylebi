@@ -17,6 +17,7 @@
  */
 package inetsoft.web.admin.schedule;
 
+import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.sree.schedule.*;
 import inetsoft.sree.security.*;
@@ -30,9 +31,7 @@ import inetsoft.util.Tool;
 import inetsoft.web.admin.content.repository.ContentRepositoryTreeService;
 import inetsoft.web.admin.schedule.model.*;
 import inetsoft.web.portal.model.QueryColumnsModel;
-import inetsoft.web.security.PermissionUser;
-import inetsoft.web.security.RequiredPermission;
-import inetsoft.web.security.Secured;
+import inetsoft.web.security.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -49,16 +48,20 @@ public class EMScheduleBatchActionController {
    public EMScheduleBatchActionController(AssetRepository assetRepository,
                                           ScheduleService scheduleService,
                                           ScheduleManager scheduleManager,
-                                          ScheduleTaskActionService actionService,
                                           ContentRepositoryTreeService contentRepositoryTreeService,
-                                          SecurityEngine securityEngine)
+                                          SecurityEngine securityEngine,
+                                          ViewsheetService viewsheetService,
+                                          ScheduleTaskActionServiceProxy actionServiceProxy,
+                                          EMScheduleTaskActionServiceProxy emActionServiceProxy)
    {
       this.assetRepository = assetRepository;
       this.scheduleService = scheduleService;
       this.scheduleManager = scheduleManager;
-      this.actionService = actionService;
       this.contentRepositoryTreeService = contentRepositoryTreeService;
       this.securityEngine = securityEngine;
+      this.viewsheetService = viewsheetService;
+      this.actionServiceProxy = actionServiceProxy;
+      this.emActionServiceProxy = emActionServiceProxy;
    }
 
    @Secured(
@@ -95,7 +98,7 @@ public class EMScheduleBatchActionController {
             String id = task.getTaskId();
             String label = id;
 
-            if(!LicenseManager.getInstance().isEnterprise()) {
+            if(!LicenseManager.isEnterprise()) {
                int index = id.indexOf(":");
 
                if(index != -1) {
@@ -159,8 +162,12 @@ public class EMScheduleBatchActionController {
          ScheduleAction action = task.getAction(i);
 
          if(action instanceof ViewsheetAction) {
+            String identifier = ((ViewsheetAction) action).getViewsheet();
+            AssetEntry entry = AssetEntry.createAssetEntry(identifier);
+            String runtimeId = viewsheetService.openViewsheet(entry, null, false);
             List<String> vsParameters =
-               actionService.getViewsheetParameters(((ViewsheetAction) action).getViewsheet(), principal);
+               actionServiceProxy.getViewsheetParameters(runtimeId, principal);
+            emActionServiceProxy.closeViewsheet(identifier, null);
             parameterNames.addAll(vsParameters);
             parameterNames.addAll(findVariablesInScheduleAction((ViewsheetAction) action));
          }
@@ -350,10 +357,12 @@ public class EMScheduleBatchActionController {
    }
 
    private final AssetRepository assetRepository;
-   private ScheduleService scheduleService;
+   private final ScheduleService scheduleService;
    private final ScheduleManager scheduleManager;
-   private final ScheduleTaskActionService actionService;
    private final ContentRepositoryTreeService contentRepositoryTreeService;
    private final SecurityEngine securityEngine;
+   private final ViewsheetService viewsheetService;
+   private final ScheduleTaskActionServiceProxy actionServiceProxy;
+   private final EMScheduleTaskActionServiceProxy emActionServiceProxy;
    private static final Logger LOG = LoggerFactory.getLogger(EMScheduleBatchActionController.class);
 }

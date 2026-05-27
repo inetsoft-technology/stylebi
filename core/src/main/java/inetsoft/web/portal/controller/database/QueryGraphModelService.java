@@ -17,10 +17,10 @@
  */
 package inetsoft.web.portal.controller.database;
 
-import inetsoft.uql.erm.vpm.VpmProcessor;
 import inetsoft.uql.XNode;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.erm.XDataModel;
+import inetsoft.uql.erm.vpm.VpmProcessor;
 import inetsoft.uql.jdbc.*;
 import inetsoft.uql.jdbc.util.JDBCUtil;
 import inetsoft.uql.jdbc.util.SQLTypes;
@@ -39,8 +39,8 @@ import org.springframework.util.StringUtils;
 
 import java.awt.*;
 import java.security.Principal;
-import java.util.List;
 import java.util.*;
+import java.util.List;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
@@ -52,11 +52,13 @@ public class QueryGraphModelService {
    @Autowired
    public QueryGraphModelService(RuntimeQueryService runtimeQueryService,
                                  DataSourceService dataSourceService,
-                                 QueryManagerService queryService)
+                                 QueryManagerService queryService,
+                                 DataSourceRegistry dataSourceRegistry)
    {
       this.runtimeQueryService = runtimeQueryService;
       this.dataSourceService = dataSourceService;
       this.queryService = queryService;
+      this.dataSourceRegistry = dataSourceRegistry;
    }
 
    public JoinGraphModel getQueryGraphModel(String runtimeID, TableJoinInfo joinInfo,
@@ -70,13 +72,20 @@ public class QueryGraphModelService {
       if(query != null) {
          UniformSQL sql = (UniformSQL) query.getSQLDefinition();
          String database = query.getDataSource().getFullName();
+         JoinGraphModel graphModel = null;
 
          if(joinInfo == null) {
-            return buildGraphViewModel(runtimeQuery, sql, database, principal);
+            graphModel = buildGraphViewModel(runtimeQuery, sql, database, principal);
+            runtimeQueryService.saveRuntimeQuery(runtimeQuery);
+
+            return graphModel;
          }
 
-         return buildJoinEditPaneModel(
+         graphModel = buildJoinEditPaneModel(
             runtimeQuery, sql, joinInfo, runtimeID, database, query.getName(), principal);
+         runtimeQueryService.saveRuntimeQuery(runtimeQuery);
+
+         return graphModel;
       }
 
       return null;
@@ -87,24 +96,30 @@ public class QueryGraphModelService {
          return;
       }
 
-      JDBCQuery query = getQuery(id);
+      RuntimeQueryService.RuntimeXQuery runtimeQuery =
+         runtimeQueryService.getRuntimeQuery(id);
 
-      if(query != null) {
-         SQLDefinition sql = query.getSQLDefinition();
+      if(runtimeQuery != null) {
+         JDBCQuery query = runtimeQuery.getQuery();
 
-         if(sql == null) {
-            sql = new UniformSQL();
-            query.setSQLDefinition(sql);
+         if(query != null) {
+            SQLDefinition sql = query.getSQLDefinition();
+
+            if(sql == null) {
+               sql = new UniformSQL();
+               query.setSQLDefinition(sql);
+            }
+
+            for(int i = 0; i < tables.size(); i++) {
+               String tableAlias =
+                  queryService.addTable((UniformSQL) sql, tables.get(i), getPosition(position, i));
+               runtimeQuery.addSelectedTable(tableAlias, tables.get(i));
+            }
+
+            queryService.fixUniformSQLInfo((UniformSQL) sql, (JDBCDataSource) query.getDataSource(),
+                                           principal);
+            runtimeQueryService.saveRuntimeQuery(runtimeQuery);
          }
-
-         for(int i = 0; i < tables.size(); i++) {
-            String tableAlias =
-               queryService.addTable((UniformSQL) sql, tables.get(i), getPosition(position, i));
-            runtimeQueryService.getRuntimeQuery(id).addSelectedTable(tableAlias, tables.get(i));
-         }
-
-         queryService.fixUniformSQLInfo((UniformSQL) sql, (JDBCDataSource) query.getDataSource(),
-            principal);
       }
    }
 
@@ -115,55 +130,69 @@ public class QueryGraphModelService {
          return;
       }
 
-      JDBCQuery query = getQuery(runtimeId);
+      RuntimeQueryService.RuntimeXQuery runtimeQuery =
+         runtimeQueryService.getRuntimeQuery(runtimeId);
 
-      if(query != null) {
-         UniformSQL sql = (UniformSQL) query.getSQLDefinition();
+      if(runtimeQuery != null) {
+         JDBCQuery query = runtimeQuery.getQuery();
 
-         for(RemoveGraphTableEvent.RemoveTableInfo table : tables) {
-            String tableName = table.getFullName();
-            sql.removeTable(tableName);
-            runtimeQueryService.getRuntimeQuery(runtimeId).removeSelectedTable(tableName);
+         if(query != null) {
+            UniformSQL sql = (UniformSQL) query.getSQLDefinition();
+
+            for(RemoveGraphTableEvent.RemoveTableInfo table : tables) {
+               String tableName = table.getFullName();
+               sql.removeTable(tableName);
+               runtimeQuery.removeSelectedTable(tableName);
+            }
+
+            // if no more table, clear the query
+            if(sql.getTableCount() == 0) {
+               sql.setWhere(null);
+               sql.setHaving(null);
+               sql.removeAllOrderByFields();
+               sql.setGroupBy(null);
+               sql.removeAllFields();
+               sql.getSelection().clear();
+               runtimeQueryService.saveRuntimeQuery(runtimeQuery);
+               return;
+            }
+
+            Hashtable<String, String> aliasMap = new Hashtable<>();
+
+            for(SelectTable selectTable : sql.getSelectTable()) {
+               aliasMap.put(selectTable.getAlias(), selectTable.getAlias());
+            }
+
+            sql.syncTableAlias(aliasMap);
+            queryService.fixUniformSQLInfo(sql, (JDBCDataSource) query.getDataSource(), principal);
+            sql.syncTable();
+            runtimeQueryService.saveRuntimeQuery(runtimeQuery);
          }
-
-         // if no more table, clear the query
-         if(sql.getTableCount() == 0) {
-            sql.setWhere(null);
-            sql.setHaving(null);
-            sql.removeAllOrderByFields();
-            sql.setGroupBy(null);
-            sql.removeAllFields();
-            sql.getSelection().clear();
-            return;
-         }
-
-         Hashtable<String, String> aliasMap = new Hashtable<>();
-
-         for(SelectTable selectTable : sql.getSelectTable()) {
-            aliasMap.put(selectTable.getAlias(), selectTable.getAlias());
-         }
-
-         sql.syncTableAlias(aliasMap);
-         queryService.fixUniformSQLInfo(sql, (JDBCDataSource) query.getDataSource(), principal);
-         sql.syncTable();
       }
    }
 
    public void moveTable(String runtimeId, String tableName, Rectangle rectangle) {
-      JDBCQuery query = getQuery(runtimeId);
+      RuntimeQueryService.RuntimeXQuery runtimeQuery =
+         runtimeQueryService.getRuntimeQuery(runtimeId);
 
-      if(query != null) {
-         SQLDefinition sql = query.getSQLDefinition();
-         SelectTable table = null;
+      if(runtimeQuery != null) {
+         JDBCQuery query = runtimeQuery.getQuery();
 
-         if(sql instanceof UniformSQL) {
-            table = getSelectTable((UniformSQL) sql, tableName);
-         }
+         if(query != null) {
+            SQLDefinition sql = query.getSQLDefinition();
+            SelectTable table = null;
 
-         if(table != null) {
-            int x = (int) Math.round(rectangle.getX());
-            int y = (int) Math.round(rectangle.getY());
-            table.setLocation(new Point(x, y));
+            if(sql instanceof UniformSQL) {
+               table = getSelectTable((UniformSQL) sql, tableName);
+            }
+
+            if(table != null) {
+               int x = (int) Math.round(rectangle.getX());
+               int y = (int) Math.round(rectangle.getY());
+               table.setLocation(new Point(x, y));
+            }
+
+            runtimeQueryService.saveRuntimeQuery(runtimeQuery);
          }
       }
    }
@@ -183,6 +212,8 @@ public class QueryGraphModelService {
          newQuery.setSQLDefinition(new UniformSQL());
          runtimeQuery.setQuery(newQuery);
       }
+
+      runtimeQueryService.saveRuntimeQuery(runtimeQuery);
    }
 
    public void editQueryTableProperties(EditQueryTableEvent event, Principal principal) {
@@ -193,35 +224,41 @@ public class QueryGraphModelService {
       String runtimeId = event.getId();
       QueryTableModel table = event.getTables().get(0);
       String oldName = event.getOldName();
-      JDBCQuery query = getQuery(runtimeId);
+      RuntimeQueryService.RuntimeXQuery runtimeQuery =
+         runtimeQueryService.getRuntimeQuery(runtimeId);
 
-      if(query == null || !(query.getSQLDefinition() instanceof UniformSQL)) {
-         return;
-      }
+      if(runtimeQuery != null) {
+         JDBCQuery query = runtimeQuery.getQuery();
 
-      UniformSQL sql = (UniformSQL) query.getSQLDefinition();
-      Hashtable<String, String> aliasMap = new Hashtable<>();
-
-      for(int i = 0; i < sql.getTableCount(); i++) {
-         SelectTable selectTable = sql.getSelectTable(i);
-         aliasMap.put(selectTable.getAlias(), selectTable.getAlias());
-
-         if(table.getName().equals(selectTable.getName()) &&
-            oldName.equals(selectTable.getAlias()))
-         {
-            aliasMap.put(selectTable.getAlias(), table.getAlias());
-            selectTable.setAlias(table.getAlias());
-            UniformSQL newSql = processRenameJoins(sql, oldName, table.getAlias());
-            query.setSQLDefinition(newSql);
-            runtimeQueryService.getRuntimeQuery(runtimeId).renameSelectedTable(table.getAlias(),
-               oldName);
+         if(query == null || !(query.getSQLDefinition() instanceof UniformSQL)) {
+            return;
          }
-      }
 
-      sql = (UniformSQL) query.getSQLDefinition();
-      sql.syncTableAlias(aliasMap);
-      queryService.fixUniformSQLInfo(sql, (JDBCDataSource) query.getDataSource(), principal);
-      sql.syncTable();
+         UniformSQL sql = (UniformSQL) query.getSQLDefinition();
+         Hashtable<String, String> aliasMap = new Hashtable<>();
+
+         for(int i = 0; i < sql.getTableCount(); i++) {
+            SelectTable selectTable = sql.getSelectTable(i);
+            aliasMap.put(selectTable.getAlias(), selectTable.getAlias());
+
+            if(table.getName().equals(selectTable.getName()) &&
+               oldName.equals(selectTable.getAlias()))
+            {
+               aliasMap.put(selectTable.getAlias(), table.getAlias());
+               selectTable.setAlias(table.getAlias());
+               UniformSQL newSql = processRenameJoins(sql, oldName, table.getAlias());
+               query.setSQLDefinition(newSql);
+               runtimeQuery.renameSelectedTable(table.getAlias(), oldName);
+            }
+         }
+
+         sql = (UniformSQL) query.getSQLDefinition();
+         sql.syncTableAlias(aliasMap);
+         sql.clearSQLString();
+         queryService.fixUniformSQLInfo(sql, (JDBCDataSource) query.getDataSource(), principal);
+         sql.syncTable();
+         runtimeQueryService.saveRuntimeQuery(runtimeQuery);
+      }
    }
 
    public void createJoin(TableDetailJoinInfo joinInfo) throws Exception {
@@ -229,18 +266,25 @@ public class QueryGraphModelService {
          return;
       }
 
-      JDBCQuery query = getQuery(joinInfo.getRuntimeId());
+      RuntimeQueryService.RuntimeXQuery runtimeQuery =
+         runtimeQueryService.getRuntimeQuery(joinInfo.getRuntimeId());
 
-      if(query != null) {
-         SQLDefinition sql = query.getSQLDefinition();
-         String database = query.getDataSource().getFullName();
-         DefaultMetaDataProvider metaData = getMetaDataProvider(database);
-         JoinModel joinModel = makeDefaultJoin(joinInfo.getSourceTable(),
-            joinInfo.getSourceColumn(), joinInfo.getTargetTable(),
-            joinInfo.getTargetColumn(), metaData);
+      if(runtimeQuery != null) {
+         JDBCQuery query = runtimeQuery.getQuery();
 
-         if(sql instanceof UniformSQL) {
-            ((UniformSQL) sql).addJoin(createXJoin(joinModel));
+         if(query != null) {
+            SQLDefinition sql = query.getSQLDefinition();
+            String database = query.getDataSource().getFullName();
+            DefaultMetaDataProvider metaData = getMetaDataProvider(database);
+            JoinModel joinModel = makeDefaultJoin(joinInfo.getSourceTable(),
+                                                  joinInfo.getSourceColumn(), joinInfo.getTargetTable(),
+                                                  joinInfo.getTargetColumn(), metaData);
+
+            if(sql instanceof UniformSQL) {
+               ((UniformSQL) sql).addJoin(createXJoin(joinModel));
+            }
+
+            runtimeQueryService.saveRuntimeQuery(runtimeQuery);
          }
       }
    }
@@ -253,14 +297,20 @@ public class QueryGraphModelService {
          return;
       }
 
-      JDBCQuery query = getQuery(detailJoinInfo.getRuntimeId());
+      RuntimeQueryService.RuntimeXQuery runtimeQuery =
+         runtimeQueryService.getRuntimeQuery(detailJoinInfo.getRuntimeId());
 
-      if(query != null) {
-         SQLDefinition sql = query.getSQLDefinition();
+      if(runtimeQuery != null) {
+         JDBCQuery query = runtimeQuery.getQuery();
 
-         if(sql instanceof UniformSQL) {
-            UniformSQL newSql = processEditJoin((UniformSQL) sql, detailJoinInfo, joinModel);
-            query.setSQLDefinition(newSql);
+         if(query != null) {
+            SQLDefinition sql = query.getSQLDefinition();
+
+            if(sql instanceof UniformSQL) {
+               UniformSQL newSql = processEditJoin((UniformSQL) sql, detailJoinInfo, joinModel);
+               query.setSQLDefinition(newSql);
+               runtimeQueryService.saveRuntimeQuery(runtimeQuery);
+            }
          }
       }
    }
@@ -270,24 +320,36 @@ public class QueryGraphModelService {
          return;
       }
 
-      JDBCQuery query = getQuery(joinInfo.getRuntimeId());
+      RuntimeQueryService.RuntimeXQuery runtimeQuery =
+         runtimeQueryService.getRuntimeQuery(joinInfo.getRuntimeId());
 
-      if(query != null) {
-         SQLDefinition sql = query.getSQLDefinition();
+      if(runtimeQuery != null) {
+         JDBCQuery query = runtimeQuery.getQuery();
 
-         if(sql instanceof UniformSQL) {
-            UniformSQL newSql = processDeleteJoins((UniformSQL) sql, joinInfo);
-            query.setSQLDefinition(newSql);
+         if(query != null) {
+            SQLDefinition sql = query.getSQLDefinition();
+
+            if(sql instanceof UniformSQL) {
+               UniformSQL newSql = processDeleteJoins((UniformSQL) sql, joinInfo);
+               query.setSQLDefinition(newSql);
+               runtimeQueryService.saveRuntimeQuery(runtimeQuery);
+            }
          }
       }
    }
 
    public void clearJoins(String runtimeId) {
-      JDBCQuery query = getQuery(runtimeId);
+      RuntimeQueryService.RuntimeXQuery runtimeQuery =
+         runtimeQueryService.getRuntimeQuery(runtimeId);
 
-      if(query != null) {
-         UniformSQL sql = (UniformSQL) query.getSQLDefinition();
-         sql.removeAllJoins();
+      if(runtimeQuery != null) {
+         JDBCQuery query = runtimeQuery.getQuery();
+
+         if(query != null) {
+            UniformSQL sql = (UniformSQL) query.getSQLDefinition();
+            sql.removeAllJoins();
+            runtimeQueryService.saveRuntimeQuery(runtimeQuery);
+         }
       }
    }
 
@@ -381,10 +443,18 @@ public class QueryGraphModelService {
          JDBCUtil.fixTableLocation(sql);
       }
 
+      String additionalDatasource = ConnectionProcessor.getInstance().getAdditionalDatasource(principal, database, null);
+
       for(int i = 0; i < sql.getTableCount(); i++) {
          GraphModel graphModel = new GraphModel();
          SelectTable selectTable = sql.getSelectTable(i);
          AssetEntry entry = getSelectTableEntry(runtimeQuery, selectTable);
+
+         if(entry == null) {
+            continue;
+         }
+
+         entry.setProperty(XUtil.DATASOURCE_ADDITIONAL, additionalDatasource);
          graphModel.setNode(buildGraphNodeModel(entry, selectTable, database));
          graphModel.setEdge(buildGraphNodeEdge(sql, selectTable, database));
          graphModel.setCols(buildColumns(entry, selectTable, database, principal));
@@ -602,8 +672,7 @@ public class QueryGraphModelService {
    public TableNode getTableNode(AssetEntry entry, String database)
       throws Exception
    {
-      DataSourceRegistry registry = DataSourceRegistry.getRegistry();
-      JDBCDataSource xds = (JDBCDataSource) registry.getDataSource(database);
+      JDBCDataSource xds = (JDBCDataSource) dataSourceRegistry.getDataSource(database);
       String name = entry.getProperty("source");
       SQLTypes sqlTypes = SQLTypes.getSQLTypes(xds);
       XNode node = sqlTypes.getQualifiedTableNode(
@@ -616,6 +685,12 @@ public class QueryGraphModelService {
 
       if(entry.getProperty("supportCatalog") != null) {
          node.setAttribute("supportCatalog", entry.getProperty("supportCatalog"));
+      }
+
+      String additional = entry.getProperty(XUtil.DATASOURCE_ADDITIONAL);
+
+      if(StringUtils.hasText(additional) && !XUtil.OUTER_MOSE_LAYER_DATABASE.equals(additional)) {
+         node.setAttribute(XUtil.DATASOURCE_ADDITIONAL, additional);
       }
 
       DefaultMetaDataProvider metaDataProvider = getMetaDataProvider(database);
@@ -853,17 +928,6 @@ public class QueryGraphModelService {
       return clone;
    }
 
-   private JDBCQuery getQuery(String runtimeId) {
-      RuntimeQueryService.RuntimeXQuery runtimeQuery =
-         runtimeQueryService.getRuntimeQuery(runtimeId);
-
-      if(runtimeQuery == null) {
-         return null;
-      }
-
-      return runtimeQuery.getQuery();
-   }
-
    private Point getPosition(Point position, int index) {
       int x = Math.max(position.x, 0);
       int y = Math.max(position.y - GRAPH_NODE_HEIGHT / 2, 0);
@@ -878,6 +942,7 @@ public class QueryGraphModelService {
    private final RuntimeQueryService runtimeQueryService;
    private final DataSourceService dataSourceService;
    private final QueryManagerService queryService;
+   private final DataSourceRegistry dataSourceRegistry;
    private static final int JOIN_EDIT_PANE_TABLE_PADDING_TOP = 15;
    private static final int JOIN_EDIT_PANE_TABLE_PADDING_LEFT = 30;
    private static final int JOIN_EDIT_PANE_TABLE_SPACE = 180;

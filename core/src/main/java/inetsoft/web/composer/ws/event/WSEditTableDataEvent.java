@@ -17,7 +17,9 @@
  */
 package inetsoft.web.composer.ws.event;
 
-public class WSEditTableDataEvent {
+import java.io.Serializable;
+
+public class WSEditTableDataEvent implements Serializable {
    public String getTableName() {
       return tableName;
    }

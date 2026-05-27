@@ -19,9 +19,13 @@ package inetsoft.sree.security.ldap;
 
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.security.*;
-import inetsoft.test.SreeHome;
+import inetsoft.test.*;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import javax.naming.directory.*;
 import javax.naming.ldap.LdapContext;
@@ -31,6 +35,9 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome()
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 @Tag("slow")

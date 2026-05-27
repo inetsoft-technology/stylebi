@@ -27,6 +27,7 @@ import org.slf4j.LoggerFactory;
 
 import java.lang.invoke.MethodHandles;
 import java.util.*;
+import java.util.concurrent.locks.ReadWriteLock;
 
 public class ScriptLogicalLibrary extends AbstractLogicalLibrary<ScriptEntry> {
    protected ScriptLogicalLibrary(LibrarySecurity security) {
@@ -35,10 +36,11 @@ public class ScriptLogicalLibrary extends AbstractLogicalLibrary<ScriptEntry> {
 
    @Override
    public Enumeration<String> toSecureEnumeration() {
+      ReadWriteLock lock = getLock();
       lock.readLock().lock();
 
       try {
-         final List<String> names = new ArrayList<>(getNameToEntryMap(null).keySet());
+         final List<String> names = new ArrayList<>(getNameToEntryMap().keySet());
          Collections.sort(names);
          return new FilteredEnumeration(
             value -> checkPermission(getResourceType(), value, ResourceAction.READ),

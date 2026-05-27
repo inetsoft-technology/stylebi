@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { MatButtonModule } from "@angular/material/button";
 import { MatIconModule } from "@angular/material/icon";
 import { HttpClientTestingModule } from "@angular/common/http/testing";
@@ -33,7 +33,7 @@ describe("DataSpaceEditorPageComponent", () => {
    let component: DataSpaceEditorPageComponent;
    let fixture: ComponentFixture<DataSpaceEditorPageComponent>;
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
             HttpClientTestingModule,

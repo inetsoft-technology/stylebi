@@ -37,12 +37,10 @@ import java.security.Principal;
 public class WizardObjectResizeController {
    @Autowired
    public WizardObjectResizeController(RuntimeViewsheetRef runtimeViewsheetRef,
-                                       ViewsheetService engine,
-                                       WizardVSObjectService wizardVSObjectService)
+                                       WizardObjectResizeServiceProxy wizardObjectResizeServiceProxy)
    {
       this.runtimeViewsheetRef = runtimeViewsheetRef;
-      this.engine = engine;
-      this.wizardVSObjectService = wizardVSObjectService;
+      this.wizardObjectResizeServiceProxy = wizardObjectResizeServiceProxy;
    }
 
    @Undoable
@@ -51,24 +49,9 @@ public class WizardObjectResizeController {
                             Principal principal, CommandDispatcher commandDispatcher)
       throws Exception
    {
-      RuntimeViewsheet rvs = engine.getViewsheet(runtimeViewsheetRef.getRuntimeId(), principal);
-
-      if(rvs == null) {
-         return;
-      }
-
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
-      box.lockRead();
-
-      try {
-         this.wizardVSObjectService.resizeVSObject(rvs, event, linkUri, principal, commandDispatcher);
-      }
-      finally {
-         box.unlockRead();
-      }
+      wizardObjectResizeServiceProxy.resizeObject(runtimeViewsheetRef.getRuntimeId(), event, linkUri, principal, commandDispatcher);
    }
 
    private final RuntimeViewsheetRef runtimeViewsheetRef;
-   private final ViewsheetService engine;
-   private final WizardVSObjectService wizardVSObjectService;
+   private final WizardObjectResizeServiceProxy wizardObjectResizeServiceProxy;
 }

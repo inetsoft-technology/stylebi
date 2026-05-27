@@ -18,7 +18,8 @@
 package inetsoft.web.admin.content.repository;
 
 import inetsoft.sree.security.*;
-import inetsoft.util.*;
+import inetsoft.util.Catalog;
+import inetsoft.util.InvalidOrgException;
 import inetsoft.web.adhoc.DecodeParam;
 import inetsoft.web.security.RequiredPermission;
 import inetsoft.web.security.Secured;
@@ -30,9 +31,11 @@ import java.security.Principal;
 @RestController
 public class RepositoryFolderController {
    @Autowired
-   public RepositoryFolderController(RepositoryFolderService repositoryFolderService)
+   public RepositoryFolderController(RepositoryFolderService repositoryFolderService,
+                                     SecurityEngine securityEngine)
    {
       this.repositoryFolderService = repositoryFolderService;
+      this.securityEngine = securityEngine;
    }
 
    @Secured(
@@ -52,7 +55,7 @@ public class RepositoryFolderController {
    {
       String currOrgID = OrganizationManager.getInstance().getCurrentOrgID();
 
-      if(SecurityEngine.getSecurity().getSecurityProvider().getOrganization(currOrgID) == null) {
+      if(securityEngine.getSecurityProvider().getOrganization(currOrgID) == null) {
          throw new InvalidOrgException(Catalog.getCatalog().getString("em.security.invalidOrganizationPassed"));
       }
 
@@ -79,4 +82,5 @@ public class RepositoryFolderController {
    }
 
    private final RepositoryFolderService repositoryFolderService;
+   private final SecurityEngine securityEngine;
 }

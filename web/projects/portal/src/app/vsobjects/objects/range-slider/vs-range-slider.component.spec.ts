@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { NO_ERRORS_SCHEMA } from "@angular/core";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { By } from "@angular/platform-browser";
 import { NgbModal, NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { NEVER } from "rxjs";
@@ -36,6 +36,7 @@ import { GlobalSubmitService } from "../../util/global-submit.service";
 import { AdhocFilterService } from "../data-tip/adhoc-filter.service";
 import { DataTipService } from "../data-tip/data-tip.service";
 import { PopComponentService } from "../data-tip/pop-component.service";
+import { TimerService } from "../data-tip/timer.service";
 import { VSPopComponentDirective } from "../data-tip/vs-pop-component.directive";
 import { MiniToolbar } from "../mini-toolbar/mini-toolbar.component";
 import { VSRangeSlider } from "./vs-range-slider.component";
@@ -62,8 +63,13 @@ describe("VSRangeSlider Test", () => {
    };
    const contextProvider = {};
    dialogService = { open: jest.fn() };
+   const timerService = {
+      defer: jest.fn((fn) => {
+         fn();
+      })
+   };
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       adhocFilterService = {
          adhocFilterShowing: jest.fn(),
          showFilter: jest.fn()
@@ -90,7 +96,8 @@ describe("VSRangeSlider Test", () => {
             { provide: DialogService, useValue: dialogService },
             { provide: AdhocFilterService, useValue: adhocFilterService },
             { provide: FixedDropdownService, useValue: dropdownService},
-            { provide: GlobalSubmitService, useValue: globalSubmitService }
+            { provide: GlobalSubmitService, useValue: globalSubmitService },
+            { provide: TimerService, useValue: timerService },
          ],
          schemas: [ NO_ERRORS_SCHEMA ]
       });
@@ -101,7 +108,7 @@ describe("VSRangeSlider Test", () => {
       fixture.detectChanges();
    }));
 
-   it("should have \"..\" between the range values when the upperInclusive checkbox is checked and \"->\" when the upperInclusive checkbox is unchecked", async(() => {
+   it("should have \"..\" between the range values when the upperInclusive checkbox is checked and \"->\" when the upperInclusive checkbox is unchecked", waitForAsync(() => {
       // set mock labels. They needed to not be set before to run previous tests as if right after onInit/before data selected
       fixture.componentInstance.model.labels = ["1", "2", "3", "4", "5"];
       fixture.detectChanges();

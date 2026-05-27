@@ -17,7 +17,7 @@
  */
 import { HttpClientTestingModule } from "@angular/common/http/testing";
 import { NO_ERRORS_SCHEMA, Renderer2 } from "@angular/core";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormsModule } from "@angular/forms";
 import { BrowserModule, By } from "@angular/platform-browser";
 import { NgbModule } from "@ng-bootstrap/ng-bootstrap";
@@ -33,6 +33,13 @@ import { VSSelection } from "./vs-selection.component";
 import { ComposerContextProviderFactory, ContextProvider } from "../../context-provider.service";
 
 describe("Selection List Cell Test", () => {
+   beforeAll(() => {
+      jest.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({
+         font: "",
+         measureText: (_text: string) => ({ width: 0 })
+      } as any);
+   });
+
    const createModel: () => SelectionValueModel = () => {
       return {
          formatIndex: 0,
@@ -125,7 +132,7 @@ describe("Selection List Cell Test", () => {
    let cell: any;
    let fixture: ComponentFixture<SelectionListCell>;
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       vsSelectionComponent = {
          getMarginSize: jest.fn(),
          setQuickSwitchHover: jest.fn(),
@@ -290,13 +297,13 @@ describe("Selection List Cell Test", () => {
          expect(selectionListCell.quickSwitchAllowed).toBe(false);
       });
 
-      it("should set quickSwitchAllowed to false on mobile even in viewer context", () => {
+      it("should set quickSwitchAllowed to true on mobile in viewer context", () => {
          vsSelectionComponent.model.quickSwitchAllowed = true;
          selectionListCell.contextProvider = viewerContext();
          selectionListCell.mobile = true;
          selectionListCell.ngOnInit();
 
-         expect(selectionListCell.quickSwitchAllowed).toBe(false);
+         expect(selectionListCell.quickSwitchAllowed).toBe(true);
       });
 
       // Long-press timer cancellation

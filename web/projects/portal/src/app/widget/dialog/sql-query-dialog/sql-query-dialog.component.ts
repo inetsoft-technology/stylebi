@@ -411,10 +411,19 @@ export class SQLQueryDialog implements OnInit {
          .set("runtimeWsId", runtimeId)
          .set("runtimeQueryId", this.model.runtimeId)
          .set("advancedEdit", advancedEdit);
+      const advancedSqlString = this.model.advancedModel?.freeFormSQLPaneModel?.sqlString;
 
       this.http.post<SqlQueryDialogModel>(CHANGE_EDIT_MODE_URI, this.model, {params: params})
          .subscribe(data => {
             this.model = data;
+
+            if(!advancedEdit && this.model.simpleModel?.sqlEdited &&
+               !this.model.simpleModel.sqlString && advancedSqlString)
+            {
+               this.model.simpleModel.sqlString = advancedSqlString;
+               this.model.simpleModel.sqlParseResult = null;
+            }
+
             this.loadDataSourceTree(true);
          });
    }

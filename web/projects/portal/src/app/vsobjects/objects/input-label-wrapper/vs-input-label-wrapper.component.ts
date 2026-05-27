@@ -26,6 +26,7 @@ import { VSInputLabelModel } from "../../model/vs-input-label-model";
 export class VSInputLabelWrapper {
    @Input() labelModel: VSInputLabelModel;
    @Input() labelSelected: boolean = false;
+   @Input() disabled: boolean = false;
    @Input() objectHeight: number | undefined;
    @Input() contentOverflow: string = "hidden";
    @Output() selectLabel = new EventEmitter<MouseEvent>();

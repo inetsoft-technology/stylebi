@@ -116,8 +116,9 @@ public class VSSnapshotAsset extends AbstractSheetAsset {
    public void parseIdentifier(String path, IdentityID userIdentity) {
       int scope = userIdentity != null ?
          AssetRepository.USER_SCOPE : AssetRepository.GLOBAL_SCOPE;
+      String orgID = userIdentity != null ? userIdentity.getOrgID() : null;
       entry = new AssetEntry(scope,
-         AssetEntry.Type.VIEWSHEET_SNAPSHOT, path, userIdentity);
+         AssetEntry.Type.VIEWSHEET_SNAPSHOT, path, userIdentity, orgID);
    }
 
    /**

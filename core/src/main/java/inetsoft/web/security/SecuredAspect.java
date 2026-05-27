@@ -19,11 +19,11 @@ package inetsoft.web.security;
 
 import inetsoft.sree.AnalyticRepository;
 import inetsoft.sree.internal.SUtil;
-import inetsoft.sree.security.SecurityException;
 import inetsoft.sree.security.*;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.asset.internal.AssetUtil;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.util.Tool;
 import inetsoft.web.admin.authz.ComponentAuthorizationService;
 import inetsoft.web.admin.authz.ViewComponent;
@@ -33,6 +33,8 @@ import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
 import org.aspectj.lang.reflect.MethodSignature;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.expression.Expression;
 import org.springframework.expression.spel.standard.SpelExpressionParser;
@@ -41,14 +43,10 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.lang.annotation.Annotation;
 import java.lang.invoke.MethodHandles;
 import java.lang.reflect.Method;
 import java.security.Principal;
-import java.util.Objects;
 
 /**
  * Aspect used to authorize access to a method annotated with {@link Secured}.
@@ -62,10 +60,10 @@ public class SecuredAspect {
     * Creates a new instance of <tt>SecuredAspect</tt>.
     */
    @Autowired
-   public SecuredAspect(ResourcePermissionService resourcePermissionService,
+   public SecuredAspect(DataSourceRegistry dataSourceRegistry,
                         ComponentAuthorizationService componentAuthorizationService)
    {
-      this.resourcePermissionService = resourcePermissionService;
+      this.dataSourceRegistry = dataSourceRegistry;
       this.componentAuthorizationService = componentAuthorizationService;
    }
 
@@ -181,7 +179,7 @@ public class SecuredAspect {
             }
             else if(path != null) {
                if(resourceType == ResourceType.DATA_SOURCE) {
-                  path = resourcePermissionService.getDataSourceResourceName(path);
+                  path = ResourcePermissionService.getDataSourceResourceName(path, dataSourceRegistry);
                }
 
                check = checkPermission(permission.resourceType(), path, permission.actions(), user);
@@ -209,7 +207,7 @@ public class SecuredAspect {
       }
 
       if(!check) {
-         throw new SecurityException(
+         throw new java.lang.SecurityException(
             "Unauthorized access to resource \"" + uri + "\" by user " + user);
       }
 
@@ -283,7 +281,7 @@ public class SecuredAspect {
    }
 
    private final SpelExpressionParser expressionParser = new SpelExpressionParser();
-   private final ResourcePermissionService resourcePermissionService;
+   private final DataSourceRegistry dataSourceRegistry;
    private final ComponentAuthorizationService componentAuthorizationService;
    private static final Logger LOG = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 }

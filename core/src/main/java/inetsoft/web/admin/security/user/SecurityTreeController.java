@@ -19,7 +19,8 @@ package inetsoft.web.admin.security.user;
 
 import inetsoft.sree.security.*;
 import inetsoft.uql.util.Identity;
-import inetsoft.util.*;
+import inetsoft.util.Catalog;
+import inetsoft.util.InvalidOrgException;
 import inetsoft.web.admin.security.AuthenticationProviderService;
 import inetsoft.web.factory.DecodePathVariable;
 import inetsoft.web.security.RequiredPermission;
@@ -33,10 +34,12 @@ import java.security.Principal;
 public class SecurityTreeController {
    @Autowired
    public SecurityTreeController(AuthenticationProviderService service,
-                                 IdentityThemeService themeService)
+                                 IdentityThemeService themeService,
+                                 SecurityEngine securityEngine)
    {
       this.service = service;
       this.themeService = themeService;
+      this.securityEngine = securityEngine;
    }
 
    @Secured(
@@ -55,7 +58,7 @@ public class SecurityTreeController {
 
       String currOrgID = OrganizationManager.getInstance().getCurrentOrgID();
 
-      if(SecurityEngine.getSecurity().getSecurityProvider().getOrganization(currOrgID) == null) {
+      if(securityEngine.getSecurityProvider().getOrganization(currOrgID) == null) {
          throw new InvalidOrgException(Catalog.getCatalog().getString("em.security.invalidOrganizationPassed"));
       }
 
@@ -89,4 +92,5 @@ public class SecurityTreeController {
 
    private final AuthenticationProviderService service;
    private final IdentityThemeService themeService;
+   private final SecurityEngine securityEngine;
 }

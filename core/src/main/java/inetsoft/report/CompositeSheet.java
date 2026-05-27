@@ -18,6 +18,7 @@
 package inetsoft.report;
 
 import inetsoft.report.internal.*;
+import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.schema.UserVariable;
 import org.slf4j.Logger;
@@ -42,7 +43,8 @@ public class CompositeSheet extends ReportSheet {
    /**
     * Create a composite report.
     */
-   public CompositeSheet(ReportSheet[] sheets) {
+   public CompositeSheet(ReportSheet[] sheets, LibManagerProvider libManagerProvider, Cluster cluster) {
+      super(libManagerProvider, cluster);
       this.sheets = sheets;
 
       if(sheets.length == 0) {
@@ -60,8 +62,8 @@ public class CompositeSheet extends ReportSheet {
    /**
     * Create a composite report, specifying if contiguous page numbers.
     */
-   public CompositeSheet(ReportSheet[] sheets, boolean contiguous) {
-      this(sheets);
+   public CompositeSheet(ReportSheet[] sheets, LibManagerProvider libManagerProvider, Cluster cluster, boolean contiguous) {
+      this(sheets, libManagerProvider, cluster);
       this.contiguous = contiguous;
    }
 

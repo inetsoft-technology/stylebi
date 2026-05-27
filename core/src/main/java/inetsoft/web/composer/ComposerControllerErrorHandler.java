@@ -23,6 +23,7 @@ import inetsoft.report.composition.execution.BoundTableNotFoundException;
 import inetsoft.uql.asset.ConfirmException;
 import inetsoft.uql.asset.InvalidDependencyException;
 import inetsoft.uql.viewsheet.ColumnNotFoundException;
+import inetsoft.sree.security.SecurityException;
 import inetsoft.util.*;
 import inetsoft.util.log.LogLevel;
 import inetsoft.util.log.LogManager;
@@ -65,10 +66,25 @@ public class ComposerControllerErrorHandler {
       sendMessageCommand(e, commandDispatcher, MessageCommand.Type.ERROR);
    }
 
+   @ExceptionHandler({SecurityException.class, java.lang.SecurityException.class})
+   public ResponseEntity<Map<String, String>> handleSecurityException(Exception e) {
+      if(logManager.isDebugEnabled(LOG.getName())) {
+         logManager.logException(LOG, LogLevel.WARN, "Unauthorized access", e);
+      }
+      else {
+         logManager.logException(LOG, LogLevel.WARN, "Unauthorized access: " + e.getMessage(), null);
+      }
+
+      Map<String, String> payload = new HashMap<>();
+      payload.put("error", "Forbidden");
+      payload.put("message", Catalog.getCatalog().getString("http.error.unauthorized"));
+      return new ResponseEntity<>(payload, null, HttpStatus.FORBIDDEN);
+   }
+
    @ExceptionHandler(MessageException.class)
    public ResponseEntity<Map<String, String>> handleMessageException(MessageException e) {
       MessageException thrown = e.isDumpStack() ? e : null;
-      LogManager.getInstance().logException(LOG, e.getLogLevel(), e.getMessage(), thrown);
+      logManager.logException(LOG, e.getLogLevel(), e.getMessage(), thrown);
 
       Map<String, String> payload = new HashMap<>();
       payload.put("error", "messageException");
@@ -79,7 +95,7 @@ public class ComposerControllerErrorHandler {
    @ExceptionHandler(InvalidUserException.class)
    public ResponseEntity<Map<String, String>> handleInvalidUserException(InvalidUserException e) {
       InvalidUserException thrown = e.isDumpStack() ? e : null;
-      LogManager.getInstance().logException(LOG, e.getLogLevel(), e.getMessage(), thrown);
+      logManager.logException(LOG, e.getLogLevel(), e.getMessage(), thrown);
 
       // inform the user that the page needs to be reloaded
       this.notificationService.sendNotificationToUser(
@@ -97,7 +113,7 @@ public class ComposerControllerErrorHandler {
                                              CommandDispatcher commandDispatcher)
    {
       ColumnNotFoundException thrown = LOG.isDebugEnabled() ? e : null;
-      LogManager.getInstance().logException(LOG, e.getLogLevel(), e.getMessage(), thrown);
+      logManager.logException(LOG, e.getLogLevel(), e.getMessage(), thrown);
       sendMessageCommand(e, commandDispatcher, MessageCommand.Type.ERROR);
    }
 
@@ -106,7 +122,7 @@ public class ComposerControllerErrorHandler {
                                                  CommandDispatcher commandDispatcher)
    {
       BoundTableNotFoundException thrown = LOG.isDebugEnabled() ? e : null;
-      LogManager.getInstance().logException(LOG, LogLevel.WARN, e.getMessage(), thrown);
+      logManager.logException(LOG, LogLevel.WARN, e.getMessage(), thrown);
       sendMessageCommand(e, commandDispatcher, MessageCommand.Type.ERROR);
    }
 
@@ -123,7 +139,7 @@ public class ComposerControllerErrorHandler {
          sendMessageCommand(e, commandDispatcher, MessageCommand.Type.fromCode(e.getWarningLevel()));
 
          MessageException thrown = e.isDumpStack() ? e : null;
-         LogManager.getInstance().logException(LOG, e.getLogLevel(), e.getMessage(), thrown);
+         logManager.logException(LOG, e.getLogLevel(), e.getMessage(), thrown);
       }
    }
 
@@ -136,10 +152,9 @@ public class ComposerControllerErrorHandler {
    public void handleConfirmException(ConfirmException e, CommandDispatcher dispatcher,
                                       Principal principal) throws Exception
    {
-      RuntimeViewsheet rvs =
-         viewsheetService.getViewsheet(runtimeViewsheetRef.getRuntimeId(), principal);
+      boolean waitForMV = serviceProxy.confirmExceptionWaitForMV(runtimeViewsheetRef.getRuntimeId(), e, dispatcher, principal);
 
-      if(!coreLifecycleService.waitForMV(e, rvs, dispatcher)) {
+      if(!waitForMV) {
          sendMessageCommand(e, dispatcher, MessageCommand.Type.CONFIRM);
          throw e;
       }
@@ -181,7 +196,7 @@ public class ComposerControllerErrorHandler {
       InvalidDependencyException e)
    {
       InvalidDependencyException thrown = LOG.isDebugEnabled() ? e : null;
-      LogManager.getInstance().logException(LOG, e.getLogLevel(), e.getMessage(), thrown);
+      logManager.logException(LOG, e.getLogLevel(), e.getMessage(), thrown);
 
       Map<String, String> payload = new HashMap<>();
       payload.put("error", "invalidDependencyException");
@@ -194,11 +209,10 @@ public class ComposerControllerErrorHandler {
       InvalidDependencyException e, Principal principal,
       CommandDispatcher commandDispatcher)
    {
-      RuntimeSheet rs = viewsheetService.getSheet(runtimeViewsheetRef.getRuntimeId(), principal);
-      rs.rollback();
+      serviceProxy.handleInvalidDependencyRollback(runtimeViewsheetRef.getRuntimeId(), principal);
 
       InvalidDependencyException thrown = LOG.isDebugEnabled() ? e : null;
-      LogManager.getInstance().logException(LOG, e.getLogLevel(), e.getMessage(), thrown);
+      logManager.logException(LOG, e.getLogLevel(), e.getMessage(), thrown);
 
       sendMessageCommand(e, commandDispatcher, MessageCommand.Type.WARNING);
    }
@@ -241,9 +255,21 @@ public class ComposerControllerErrorHandler {
       this.notificationService = notificationService;
    }
 
+   @Autowired
+   public void setComposerControllerErrorHandlerServiceProxy(ComposerControllerErrorHandlerServiceProxy serviceProxy) {
+      this.serviceProxy = serviceProxy;
+   }
+
+   @Autowired
+   public void setLogManager(LogManager logManager) {
+      this.logManager = logManager;
+   }
+
    private RuntimeViewsheetRef runtimeViewsheetRef;
    private ViewsheetService viewsheetService;
    private CoreLifecycleService coreLifecycleService;
    private NotificationService notificationService;
+   private ComposerControllerErrorHandlerServiceProxy serviceProxy;
+   private LogManager logManager;
    private static final Logger LOG = LoggerFactory.getLogger(ComposerControllerErrorHandler.class);
 }

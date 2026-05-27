@@ -1293,6 +1293,15 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
       if(cubeType != null) {
          writer.print(" cubeType=\"" + cubeType + "\"");
       }
+
+      if(maxModeZIndex != -1) {
+         writer.print(" maxModeZIndex=\"" + maxModeZIndex + "\"");
+      }
+
+      if(maxSize != null) {
+         writer.print(" maxSizeWidth=\"" + maxSize.width + "\"");
+         writer.print(" maxSizeHeight=\"" + maxSize.height + "\"");
+      }
    }
 
    /**
@@ -1314,6 +1323,19 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
       setSummarySortValValue(Integer.parseInt(prop));
 
       cubeType = Tool.getAttribute(element, "cubeType");
+
+      String maxModeZIndexString = Tool.getAttribute(element, "maxModeZIndex");
+
+      if(maxModeZIndexString != null) {
+         maxModeZIndex = Integer.parseInt(maxModeZIndexString);
+      }
+
+      String maxSizeWidth = Tool.getAttribute(element, "maxSizeWidth");
+      String maxSizeHeight = Tool.getAttribute(element, "maxSizeHeight");
+
+      if(maxSizeWidth != null && maxSizeHeight != null) {
+         maxSize = new Dimension(Integer.parseInt(maxSizeWidth), Integer.parseInt(maxSizeHeight));
+      }
    }
 
    /**

@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { EventEmitter, NO_ERRORS_SCHEMA } from "@angular/core";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { By } from "@angular/platform-browser";
 import { NgbModal, NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { AssemblyActionEvent } from "../../../../common/action/assembly-action-event";
@@ -65,7 +65,7 @@ describe("EditableObjectContainer", () => {
    let miniToolbarService: any;
    let composerVsSearchService: any;
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       selectionContainerChildrenService = { pushModel: jest.fn() };
       composerObjectService = {
          getNewObject: jest.fn(),
@@ -281,6 +281,45 @@ describe("EditableObjectContainer", () => {
 
       let element = fixture.nativeElement.querySelector("div.object-editor");
       expect(element.classList).toContain("fade-assembly");
+   });
+
+   // Bug #75075: inner objects of the 11th+ embedded viewsheet were assigned z-indexes that
+   // exceeded the composer-overlay CSS z-index (was 9998, now 99997), blocking
+   // right-click access to Properties. The VIEWSHEET_ZINDEX_GAP of 1000 means the Nth
+   // embedded viewsheet gets outer z-index 1 + (N-1)*1000, and its inner objects start
+   // at that value + 1. For N=11 the inner objects start at 10002, which now sits well
+   // below the raised overlay threshold.
+   describe("calculateZIndex", () => {
+      // Must match .composer-overlay z-index in vs-viewsheet.component.scss.
+      const COMPOSER_OVERLAY_ZINDEX = 99997;
+      const VIEWSHEET_ZINDEX_GAP = 1000;
+
+      it("should return the object z-index when the object has no container", () => {
+         const obj = TestUtils.createMockVSObjectModel("VSText", "Text1");
+         obj.objectFormat.zIndex = 42;
+         expect(EditableObjectContainer.calculateZIndex(obj, viewsheet)).toBe(42);
+      });
+
+      it("should return inner object z-index below composer overlay for 11th embedded viewsheet", () => {
+         // 11th embedded viewsheet gets outer z-index 10001; its inner objects start at 10002.
+         const embeddedZIndex = 1 + 10 * VIEWSHEET_ZINDEX_GAP; // 10001
+         const obj = TestUtils.createMockVSObjectModel("VSText", "Text1");
+         obj.objectFormat.zIndex = embeddedZIndex + 1; // 10002
+         const zIndex = EditableObjectContainer.calculateZIndex(obj, viewsheet);
+         expect(zIndex).toBe(embeddedZIndex + 1);
+         expect(zIndex).toBeLessThan(COMPOSER_OVERLAY_ZINDEX);
+      });
+
+      it("should keep inner object z-indexes below composer overlay for up to 100 embedded viewsheets", () => {
+         for(let n = 1; n <= 100; n++) {
+            const embeddedZIndex = 1 + (n - 1) * VIEWSHEET_ZINDEX_GAP;
+            const obj = TestUtils.createMockVSObjectModel("VSText", "Text" + n);
+            obj.objectFormat.zIndex = embeddedZIndex + 1;
+
+            const zIndex = EditableObjectContainer.calculateZIndex(obj, viewsheet);
+            expect(zIndex).toBeLessThan(COMPOSER_OVERLAY_ZINDEX);
+         }
+      });
    });
 
    //Bug #21294, Bug #23392 should not hide selected assembly in tab when tab is invisible in design

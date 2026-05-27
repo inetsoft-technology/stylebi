@@ -20,12 +20,14 @@ package inetsoft.web.binding.event;
 import inetsoft.web.binding.model.table.CellBindingInfo;
 import inetsoft.web.binding.model.table.TableCell;
 
+import java.io.Serializable;
+
 /**
  * Class that encapsulates the parameters for applying a selection.
  *
  * @since 12.3
  */
-public class SetCellBindingEvent {
+public class SetCellBindingEvent implements Serializable {
    /**
     * Get the assembly name.
     * @return assembly name.

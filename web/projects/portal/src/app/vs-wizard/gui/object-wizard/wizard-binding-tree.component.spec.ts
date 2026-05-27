@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { NO_ERRORS_SCHEMA } from "@angular/core";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { of as observableOf } from "rxjs";
 import { BindingTreeService } from "../../../binding/widget/binding-tree/binding-tree.service";
 import { ViewsheetClientService } from "../../../common/viewsheet-client";
@@ -30,7 +30,7 @@ describe("WizardBindingTre", () => {
    let component: WizardBindingTree;
    let fixture: ComponentFixture<WizardBindingTree>;
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       const bindingTreeService = {
          refreshSubject: observableOf(null),
          recommenderSubject: observableOf(null),

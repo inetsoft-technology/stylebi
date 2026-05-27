@@ -17,12 +17,14 @@
  */
 package inetsoft.web.admin.deploy;
 
+import org.immutables.serial.Serial;
 import org.immutables.value.Value;
 
 import java.util.List;
 import java.util.Map;
 
 @Value.Immutable
+@Serial.Structural
 public interface ImportJarProperties {
    String unzipFolderPath();
    List<String> fileOrders();

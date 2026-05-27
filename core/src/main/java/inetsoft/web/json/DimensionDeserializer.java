@@ -44,8 +44,8 @@ public class DimensionDeserializer extends StdDeserializer<Dimension> {
       throws IOException
    {
       JsonNode node = jsonParser.getCodec().readTree(jsonParser);
-      int width = node.get("width").intValue();
-      int height  = node.get("height").intValue();
+      int width = node.path("width").intValue();
+      int height = node.path("height").intValue();
       return new Dimension(width, height);
    }
 }

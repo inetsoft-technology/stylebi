@@ -20,7 +20,8 @@ package inetsoft.web.viewsheet.model;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.viewsheet.*;
-import inetsoft.uql.viewsheet.internal.*;
+import inetsoft.uql.viewsheet.internal.TabVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.web.binding.model.BaseFormatModel;
 import org.springframework.stereotype.Component;
 

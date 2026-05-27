@@ -19,7 +19,9 @@ package inetsoft.web.composer.ws.event;
 
 import inetsoft.web.binding.drm.ColumnRefModel;
 
-public class WSResizeColumnEvent {
+import java.io.Serializable;
+
+public class WSResizeColumnEvent implements Serializable {
 
    public String getTableName() {
       return tableName;

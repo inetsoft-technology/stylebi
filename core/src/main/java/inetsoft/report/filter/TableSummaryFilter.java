@@ -1008,7 +1008,7 @@ public class TableSummaryFilter extends AbstractTableLens
    private boolean def;
    private boolean sonly;
    private Font sumFont; // summary row font
-   private TableDataDescriptor tdescriptor;
+   private transient TableDataDescriptor tdescriptor;
    private Hashtable mmap = new Hashtable(); // xmeta info
    private boolean cancelled = false;
 }

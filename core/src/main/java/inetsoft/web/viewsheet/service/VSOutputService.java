@@ -32,6 +32,7 @@ import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
+import inetsoft.web.binding.handler.VSColumnHandler;
 import inetsoft.web.composer.model.TreeNodeModel;
 import inetsoft.web.composer.model.vs.OutputColumnRefModel;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -46,10 +47,8 @@ public class VSOutputService {
     * Created a new instance of VSOutputService
     */
    @Autowired
-   public VSOutputService(
-      VSInputService vsInputService,
-      ViewsheetService viewsheetService) {
-      this.vsInputService = vsInputService;
+   public VSOutputService(VSColumnHandler vsColumnHandler, ViewsheetService viewsheetService) {
+      this.vsColumnHandler = vsColumnHandler;
       this.viewsheetService = viewsheetService;
    }
 
@@ -596,8 +595,8 @@ public class VSOutputService {
                                                 boolean includeCalc, Principal principal)
       throws Exception
    {
-      return vsInputService.getTableColumns(rvs, table, null, null, null, false,
-                                            false, includeCalc, false, false, false, principal);
+      return vsColumnHandler.getTableColumns(rvs, table, null, null, null, false,
+                                             false, includeCalc, false, false, false, principal);
    }
 
    /**
@@ -613,10 +612,8 @@ public class VSOutputService {
                                                     boolean measureOnly, Principal principal)
       throws Exception
    {
-      ColumnSelection columnSelection = vsInputService.getTableColumns(rvs, table, null, null, null, false,
-                                            measureOnly, true, false, false, false, principal);
-
-      return columnSelection;
+      return vsColumnHandler.getTableColumns(rvs, table, null, null, null, false, measureOnly,
+                                             true, false, false, false, principal);
    }
 
    private String getEntryType(AssetEntry entry) {
@@ -638,6 +635,6 @@ public class VSOutputService {
       return table;
    }
 
-   private final VSInputService vsInputService;
+   private final VSColumnHandler vsColumnHandler;
    private final ViewsheetService viewsheetService;
 }

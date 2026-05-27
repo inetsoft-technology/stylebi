@@ -189,9 +189,9 @@ public class CSSDictionary {
       if(dictionary != null) {
          long now = System.currentTimeMillis();
 
-         // optimization, avoid repeatedly checking for last modified time. allow 3s for
+         // optimization, avoid repeatedly checking for last modified time. allow 10s for
          // css dictionary change to become effective.
-         if(dictionary.lastCheck + 3000 < now) {
+         if(dictionary.lastCheck + 10000 < now) {
             long lastModified = getLastModified(cssDir, cssFile, isReport);
             dictionary.lastCheck = now;
 
@@ -251,19 +251,36 @@ public class CSSDictionary {
          return System.currentTimeMillis();
       }
 
+      String orgID = OrganizationManager.getInstance().getCurrentOrgID();
+      long now = System.currentTimeMillis();
+      Long lastCheck = ORG_LAST_CHECK.get(orgID);
+
+      if(lastCheck != null && now - lastCheck <= 10000) {
+         return ORG_LAST_MODIFIED.getOrDefault(orgID, -1L);
+      }
+
       Map<String, String> cssEntries = PortalThemesManager.getManager().getCssEntries();
-      String orgFile = cssEntries.get(OrganizationManager.getInstance().getCurrentOrgID());
+      String orgFile = cssEntries.get(orgID);
       List<String> otherFiles = new ArrayList<>();
-      otherFiles.add(orgFile);
+
+      if(orgFile != null) {
+         otherFiles.add(orgFile);
+      }
 
       if(!Tool.equals(otherFiles, dict.otherFiles)) {
-         return System.currentTimeMillis();
+         ORG_LAST_CHECK.put(orgID, now);
+         ORG_LAST_MODIFIED.put(orgID, now);
+         return now;
       }
 
       long orgLastModified = getLastModified(dict.cssDir, orgFile, false);
       long globalLastModified = getLastModified(dict.cssDir, "format.css", false);
+      long result = Math.max(orgLastModified, globalLastModified);
 
-      return Math.max(orgLastModified, globalLastModified);
+      ORG_LAST_CHECK.put(orgID, now);
+      ORG_LAST_MODIFIED.put(orgID, result);
+
+      return result;
    }
 
    // get css file last modified time
@@ -2224,7 +2241,8 @@ public class CSSDictionary {
          }
 
          MapKey mapKey = (MapKey) o;
-         return (isReport == mapKey.isReport && Objects.equals(orgId, mapKey.orgId) || !isReport) &&
+         return isReport == mapKey.isReport &&
+            Objects.equals(orgId, mapKey.orgId) &&
             Objects.equals(cssDir, mapKey.cssDir) &&
             Objects.equals(cssFile, mapKey.cssFile);
       }
@@ -2245,7 +2263,7 @@ public class CSSDictionary {
    private final Map<String, Set<String>> idMap = new HashMap<>();
    private final Map<String, Set<String>> classMap = new HashMap<>();
 
-   private CascadingStyleSheet css;
+   private volatile CascadingStyleSheet css;
    private String cssDir;
    private String cssFile;
    private final List<String> otherFiles;
@@ -2261,6 +2279,8 @@ public class CSSDictionary {
    private static final ReadWriteLock DICTIONARIES_LOCK =
       new ReentrantReadWriteLock(true);
    private static Map<String, CascadingStyleSheet> styleSheets = new ConcurrentHashMap<>();
+   private static final ConcurrentHashMap<String, Long> ORG_LAST_CHECK = new ConcurrentHashMap<>();
+   private static final ConcurrentHashMap<String, Long> ORG_LAST_MODIFIED = new ConcurrentHashMap<>();
 
    private static final Logger LOG = LoggerFactory.getLogger(CSSDictionary.class);
 }

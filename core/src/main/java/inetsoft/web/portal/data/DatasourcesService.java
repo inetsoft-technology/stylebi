@@ -20,6 +20,7 @@ package inetsoft.web.portal.data;
 import inetsoft.sree.security.SecurityEngine;
 import inetsoft.uql.XDataSource;
 import inetsoft.uql.XRepository;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.tabular.TabularUtil;
 import inetsoft.uql.util.Config;
 import inetsoft.web.portal.service.datasource.DataSourceStatusService;
@@ -32,10 +33,12 @@ import org.springframework.stereotype.Service;
 public class DatasourcesService extends DatasourcesBaseService {
    @Autowired
    public DatasourcesService(XRepository repository,
-                             SecurityEngine SecurityEngine,
-                             DataSourceStatusService dataSourceStatusService)
+                             SecurityEngine securityEngine,
+                             DataSourceStatusService dataSourceStatusService,
+                             DataSourceRegistry dataSourceRegistry,
+                             Config uqlConfig)
    {
-      super(repository, SecurityEngine, dataSourceStatusService);
+      super(repository, securityEngine, dataSourceStatusService, dataSourceRegistry, uqlConfig);
    }
 
    /**
@@ -62,10 +65,10 @@ public class DatasourcesService extends DatasourcesBaseService {
          definition.getParentPath());
 
       if(ds == null) {
-         String dsClass = Config.getDataSourceClass(definition.getType());
+         String dsClass = getUqlConfig().getDataSourceClass(definition.getType());
 
          try {
-            ds = (XDataSource) Config.getClass(definition.getType(), dsClass)
+            ds = (XDataSource) getUqlConfig().getClass(definition.getType(), dsClass)
                .getConstructor().newInstance();
          }
          catch(Exception e) {

@@ -25,6 +25,7 @@ import inetsoft.uql.XMetaInfo;
 import inetsoft.uql.XTable;
 import inetsoft.uql.asset.ConfirmException;
 import inetsoft.uql.asset.internal.ColumnIndexMap;
+import inetsoft.uql.avro.AvroXTableSerializer;
 import inetsoft.uql.util.XIdentifierContainer;
 import inetsoft.uql.util.XUtil;
 import inetsoft.util.Catalog;
@@ -34,7 +35,7 @@ import inetsoft.util.swap.XSwapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.File;
+import java.io.*;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -48,7 +49,7 @@ import java.util.concurrent.locks.*;
  * @version 9.1
  * @author InetSoft Technology Corp
  */
-public class XSwappableTable implements XTable {
+public class XSwappableTable implements XTable, Externalizable {
    /**
     * Constuctor.
     */
@@ -57,7 +58,7 @@ public class XSwappableTable implements XTable {
 
       creators = new XTableColumnCreator[0];
       this.tables = new XTableFragment[10];
-      this.monitor = XSwapper.getMonitor();
+      this.monitor = XSwapper.getSwapper().getMonitor();
       this.pos = 0;
 
       if(monitor != null) {
@@ -1119,6 +1120,16 @@ public class XSwappableTable implements XTable {
       return Arrays.stream(this.tables).allMatch(table -> !table.isDataPathFileExist());
    }
 
+   @Override
+   public void writeExternal(ObjectOutput out) throws IOException {
+      AvroXTableSerializer.writeTable(out, this);
+   }
+
+   @Override
+   public void readExternal(ObjectInput in) throws IOException, ClassNotFoundException {
+      AvroXTableSerializer.readTable(in, this);
+   }
+
    /**
     * Table data descriptor.
     */
@@ -1193,7 +1204,7 @@ public class XSwappableTable implements XTable {
    private int lastRow = -1;
    private boolean exceedLimit = false;
    private boolean textExceedLimit = false;
-   private TableDataDescriptor descriptor; // table data descriptor
+   private transient TableDataDescriptor descriptor; // table data descriptor
    private final Properties prop = new Properties(); // properties
    private transient XTableFragment table; // current table fragment
    private final transient XSwappableMonitor monitor;

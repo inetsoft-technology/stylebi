@@ -23,10 +23,11 @@ import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.viewsheet.VSSnapshot;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.vslayout.AbstractLayout;
-import inetsoft.util.SingletonManager;
+import inetsoft.util.ConfigurationContext;
 
-import java.rmi.RemoteException;
+import java.io.Serializable;
 import java.security.Principal;
+import java.util.List;
 
 /**
  * Viewsheet service, includes a viewsheet repository to be the server
@@ -36,8 +37,17 @@ import java.security.Principal;
  * @version 8.5
  * @author InetSoft Technology Corp
  */
-@SingletonManager.Singleton(ViewsheetService.Reference.class)
 public interface ViewsheetService extends WorksheetService {
+   /**
+    * Gets the shared instance of the viewsheet service.
+    *
+    * @return the viewsheet service.
+    */
+   static ViewsheetService getInstance() {
+      return ConfigurationContext.getContext().getSpringBean(ViewsheetService.class);
+   }
+
+
    /**
     * Preview viewsheet.
     */
@@ -45,13 +55,26 @@ public interface ViewsheetService extends WorksheetService {
 
    /**
     * Open a temporary viewsheet.
+    *
     * @param entry the specified base viewsheet entry.
-    * @param user the specified user.
-    * @param rid the specified report id.
+    * @param user  the specified user.
+    *
     * @return the viewsheet id.
     */
-   String openTemporaryViewsheet(AssetEntry entry, Principal user, String rid)
-      throws Exception;
+   default String openTemporaryViewsheet(AssetEntry entry, Principal user) throws Exception {
+      return openTemporaryViewsheet(null, entry, user);
+   }
+
+   /**
+    * Open a temporary viewsheet.
+    *
+    * @param originalId the ID of the original runtime sheet.
+    * @param entry the specified base viewsheet entry.
+    * @param user  the specified user.
+    *
+    * @return the viewsheet id.
+    */
+   String openTemporaryViewsheet(String originalId, AssetEntry entry, Principal user) throws Exception;
 
    /**
     * Open a preview viewsheet.
@@ -90,7 +113,19 @@ public interface ViewsheetService extends WorksheetService {
     * @param viewer <tt>true</tt> if is viewer, <tt>false</tt> otherwise.
     * @return the viewsheet id.
     */
-   String openViewsheet(AssetEntry entry, Principal user, boolean viewer)
+   default String openViewsheet(AssetEntry entry, Principal user, boolean viewer) throws Exception {
+      return openViewsheet(null, entry, user, viewer);
+   }
+
+   /**
+    * Open an existing viewsheet.
+    * @param originalId the runtime ID of the original runtime sheet.
+    * @param entry the specified asset entry.
+    * @param user the specified user.
+    * @param viewer <tt>true</tt> if is viewer, <tt>false</tt> otherwise.
+    * @return the viewsheet id.
+    */
+   String openViewsheet(String originalId, AssetEntry entry, Principal user, boolean viewer)
       throws Exception;
 
    /**
@@ -136,13 +171,13 @@ public interface ViewsheetService extends WorksheetService {
     * Add excution id to map.
     * @param id the specified viewsheet id.
     */
-   public void addExecution(String id);
+   void addExecution(String id);
 
    /**
     * Delete the excution id from map.
     * @param id the specified viewsheet id.
     */
-   public void removeExecution(String id);
+   void removeExecution(String id);
 
    /**
     * Get the runtime viewsheets.
@@ -151,35 +186,25 @@ public interface ViewsheetService extends WorksheetService {
    RuntimeViewsheet[] getRuntimeViewsheets(Principal user);
 
    /**
+    * Returns true if the user has at least {@code n} viewsheets open across all cluster nodes.
+    * Scans the distributed cache but short-circuits as soon as the threshold is reached,
+    * avoiding a full scan when used as a cheap guard (e.g. n=2 before a cluster broadcast).
+    */
+   boolean hasAtLeastRuntimeViewsheets(Principal user, int n);
+
+   <T extends Serializable> List<T> invokeOnAll(Task<T> task);
+
+   /**
     * Update the all runtime viewsheet bookmark based on entry.
     *
     * @param viewsheet
     */
    void updateBookmarks(AssetEntry viewsheet);
 
-   final class Reference extends SingletonManager.Reference<ViewsheetService> {
-      @Override
-      public synchronized ViewsheetService get(Object ... parameters) {
-         if(engine == null) {
-            try {
-               engine = new ViewsheetEngine();
-            }
-            catch(RemoteException e) {
-               throw new RuntimeException("Failed to create viewsheet engine", e);
-            }
-         }
+   boolean switchToHostOrgForGlobalShareAsset(String sheetRuntimeId, Principal principal);
 
-         return engine;
-      }
-
-      @Override
-      public synchronized void dispose() {
-         if(engine != null) {
-            engine.dispose();
-            engine = null;
-         }
-      }
-
-      private ViewsheetEngine engine;
+   @FunctionalInterface
+   interface Task<T extends Serializable> extends Serializable {
+      T apply(ViewsheetService service) throws Exception;
    }
 }

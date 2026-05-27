@@ -24,18 +24,15 @@ import com.veracode.annotation.CRLFCleanser;
 import com.veracode.annotation.XSSCleanser;
 import inetsoft.report.*;
 import inetsoft.report.filter.ReversedComparer;
-import inetsoft.sree.PropertiesEngine;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.uql.XDataSource;
-import inetsoft.uql.asset.*;
+import inetsoft.uql.asset.DateRangeRef;
 import inetsoft.uql.asset.internal.AssemblyInfo;
-import inetsoft.uql.jdbc.*;
+import inetsoft.uql.jdbc.JDBCDataSource;
 import inetsoft.uql.schema.XSchema;
-import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.tabular.TabularDataSource;
-import inetsoft.uql.viewsheet.BindableVSAssembly;
 import inetsoft.uql.viewsheet.VSCrosstabInfo;
 import inetsoft.uql.viewsheet.internal.CrosstabVSAssemblyInfo;
 import inetsoft.uql.xmla.XMLADataSource;
@@ -98,9 +95,6 @@ import java.util.zip.ZipOutputStream;
  * @author InetSoft Technology Corp
  */
 public final class Tool extends CoreTool {
-   static {
-      PropertiesEngine.getInstance().addPropertyChangeListener("string.compare.casesensitive", evt -> invalidateCaseSensitive());
-   }
    /**
     * User defined type.
     */
@@ -2125,7 +2119,7 @@ public final class Tool extends CoreTool {
          return mapper.readTree(credential);
       }
       catch(Exception e) {
-         throw new RuntimeException("Failed to load credential by secret ID '" + secretId + "'");
+         throw new RuntimeException("Failed to load credential by secret ID '" + secretId + "'", e);
       }
    }
 
@@ -2244,7 +2238,7 @@ public final class Tool extends CoreTool {
     * @return Style Report version.
     */
    public static String getReportVersion() {
-      return "1.1.0";
+      return "1.2.0";
    }
 
    /**
@@ -3531,7 +3525,7 @@ public final class Tool extends CoreTool {
       }
 
       if((name != null && name.length() > 0 && !name.startsWith("localhost")) ||
-         !OperatingSystem.isUnix())
+         !SystemUtils.IS_OS_UNIX)
       {
          return name;
       }
@@ -3593,7 +3587,7 @@ public final class Tool extends CoreTool {
       }
 
       if(phyip != null && phyip.length() > 0 && !phyip.equals("127.0.0.1") ||
-         !OperatingSystem.isUnix())
+         !SystemUtils.IS_OS_UNIX)
       {
          return phyip;
       }
@@ -3603,7 +3597,7 @@ public final class Tool extends CoreTool {
       //bug1407894598896
       //if the os is unix/mac and the network is unavailable
       //the return ip is null, try to avoid it
-      if(phyip == null && OperatingSystem.isUnix()) {
+      if(phyip == null && SystemUtils.IS_OS_UNIX) {
          try {
             phyip = InetAddress.getLocalHost().getHostAddress();
          }
@@ -3623,10 +3617,21 @@ public final class Tool extends CoreTool {
     * the sree.properties file, in which case it returns "localhost").
     */
    public static String getRmiIP() {
-      final String rmilocalhostip = SreeEnv.getProperty("rmi.localhost.ip");
+      return getRmiIP(false);
+   }
 
-      if(rmilocalhostip != null && rmilocalhostip.length() > 0 &&
-         rmilocalhostip.trim().equalsIgnoreCase("true"))
+   public static String getRmiIP(boolean early) {
+      String rmiLocalhostIp;
+
+      if(early) {
+         rmiLocalhostIp = SreeEnv.getEarlyLoadedProperty("rmi.localhost.ip");
+      }
+      else {
+         rmiLocalhostIp = SreeEnv.getProperty("rmi.localhost.ip");
+      }
+
+      if(rmiLocalhostIp != null && !rmiLocalhostIp.isEmpty() &&
+         rmiLocalhostIp.trim().equalsIgnoreCase("true"))
       {
          return "localhost";
       }
@@ -3659,19 +3664,38 @@ public final class Tool extends CoreTool {
     * @throws IOException if an I/O error occurs.
     */
    private static InetAddress getLocalIP0() throws IOException {
+      // In containerized Linux environments (e.g. AKS), eth0 is the primary pod
+      // interface. Prefer it explicitly to avoid secondary bridge or tunnel interfaces
+      // (e.g. Azure CNI bridge) whose IPs may sort lexicographically before the pod's
+      // actual IP, causing incorrect IP selection.
+      try {
+         NetworkInterface eth0 = NetworkInterface.getByName("eth0");
+
+         if(eth0 != null && eth0.isUp() && !eth0.isLoopback()) {
+            Enumeration<InetAddress> addrs = eth0.getInetAddresses();
+
+            while(addrs.hasMoreElements()) {
+               InetAddress addr = addrs.nextElement();
+
+               if(addr instanceof Inet4Address && !addr.isLoopbackAddress()) {
+                  return addr;
+               }
+            }
+         }
+      }
+      catch(Exception ignored) {
+      }
+
+      // Fall back to existing behavior on non-Linux or when eth0 is not available.
       InetAddress[] addresses = getIPAddresses(true);
-      InetAddress address;
 
       if(addresses.length == 0) {
          // Fall back to the JVM default, this is non-deterministic on machines
          // with multiple network interfaces.
-         address = InetAddress.getLocalHost();
-      }
-      else {
-         address = addresses[0];
+         return InetAddress.getLocalHost();
       }
 
-      return address;
+      return addresses[0];
    }
 
    /**
@@ -4260,7 +4284,7 @@ public final class Tool extends CoreTool {
       String uri = SreeEnv.getProperty("help.url");
 
       if(uri == null || uri.equals("")) {
-         uri = "https://www.inetsoft.com/docs/stylebi/index.html";
+         uri = InetsoftUserDocumentation.getUserDocumentationIndexBaseUrl();
       }
 
       return uri;
@@ -4777,7 +4801,7 @@ public final class Tool extends CoreTool {
                future.completeExceptionally(e);
             }
          }
-      });
+      }, ThreadContext.getContextPrincipal());
       reference.set(thread);
       thread.start();
       return future;
@@ -4964,6 +4988,17 @@ public final class Tool extends CoreTool {
          }
       }
       catch(Exception ignore) {
+      }
+   }
+
+   /**
+    * Close an iterator if it implements AutoCloseable.
+    *
+    * @param iter the iterator to close
+    */
+   public static void closeIterator(Iterator<?> iter) {
+      if(iter instanceof AutoCloseable) {
+         closeQuietly((AutoCloseable) iter);
       }
    }
 

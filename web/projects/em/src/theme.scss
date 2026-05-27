@@ -57,3 +57,28 @@ body {
   font-weight: 400;
   line-height: 20px;
 }
+
+// Fix radio button label font size to match checkbox (12px)
+.mat-mdc-radio-button {
+  --mdc-form-field-label-text-size: 12px;
+}
+
+// Fix font size and alignment for tree nodes in select dropdowns (CDK overlay)
+.select-viewsheet-tree .mat-tree-node,
+.select-report-tree .mat-tree-node {
+  > span {
+    display: flex;
+    align-items: center;
+    font-size: 12px;
+
+    .mat-icon {
+      margin-right: 4px;
+      display: flex;
+      align-items: center;
+    }
+  }
+
+  .mat-mdc-option {
+    font-size: 12px;
+  }
+}

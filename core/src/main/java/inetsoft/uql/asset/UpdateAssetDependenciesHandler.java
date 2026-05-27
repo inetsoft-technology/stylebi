@@ -31,6 +31,7 @@ import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.xmla.XMLADataSource;
 import inetsoft.util.*;
 import inetsoft.util.dep.*;
+import jakarta.annotation.PreDestroy;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -47,12 +48,15 @@ import static inetsoft.util.dep.XAssetEnumeration.getXAssetEnumeration;
  * of file 'sree.properties' to provider asset updated flag.
  */
 public final class UpdateAssetDependenciesHandler implements AutoCloseable {
-   public UpdateAssetDependenciesHandler() {
-      Cluster cluster = Cluster.getInstance();
+   public UpdateAssetDependenciesHandler(Cluster cluster, DataSourceRegistry dataSourceRegistry,
+                                         XRepository repository) {
+      this.dataSourceRegistry = dataSourceRegistry;
+      this.repository = repository;
       state = cluster.getLong(STATE_NAME);
       lock = cluster.getLock(LOCK_NAME);
    }
 
+   @PreDestroy
    @Override
    public void close() {
       lock.lock();
@@ -74,7 +78,7 @@ public final class UpdateAssetDependenciesHandler implements AutoCloseable {
     * Get UpdateAssetDependenciesHandler instance.
     */
    public static UpdateAssetDependenciesHandler getInstance() {
-      return SingletonManager.getInstance(UpdateAssetDependenciesHandler.class);
+      return ConfigurationContext.getContext().getSpringBean(UpdateAssetDependenciesHandler.class);
    }
 
    /**
@@ -95,6 +99,17 @@ public final class UpdateAssetDependenciesHandler implements AutoCloseable {
       }
       catch(Exception e) {
          LOG.error(catalog.getString("maintain.dependencies.failed"), e);
+         // Reset the distributed state so subsequent rebuild() calls are not blocked
+         // indefinitely waiting for a STATE_UPDATING that will never clear.
+         lock.lock();
+         try {
+            if(state.get() == STATE_UPDATING) {
+               state.set(0L);
+            }
+         }
+         finally {
+            lock.unlock();
+         }
       }
       finally {
          rebuilding = false;
@@ -324,8 +339,7 @@ public final class UpdateAssetDependenciesHandler implements AutoCloseable {
    }
 
    private void fixDatasourceDependencies() {
-      DataSourceRegistry registry = DataSourceRegistry.getRegistry();
-      String[] names = registry.getDataSourceFullNames();
+      String[] names = dataSourceRegistry.getDataSourceFullNames();
 
       if(names == null || names.length == 0) {
          return;
@@ -341,8 +355,7 @@ public final class UpdateAssetDependenciesHandler implements AutoCloseable {
          return;
       }
 
-      DataSourceRegistry registry = DataSourceRegistry.getRegistry();
-      XDataModel model = registry.getDataModel(dsFullName);
+      XDataModel model = dataSourceRegistry.getDataModel(dsFullName);
 
       if(model != null) {
          for(String lname : model.getLogicalModelNames()) {
@@ -351,13 +364,13 @@ public final class UpdateAssetDependenciesHandler implements AutoCloseable {
          }
       }
 
-      XDataSource ds = registry.getDataSource(dsFullName);
+      XDataSource ds = dataSourceRegistry.getDataSource(dsFullName);
 
       if(ds instanceof XMLADataSource) {
          XDomain domain = null;
 
          try {
-            domain = XFactory.getRepository().getDomain(dsFullName);
+            domain = repository.getDomain(dsFullName);
          }
          catch(RemoteException ex) {
             LOG.error(ex.getMessage(), ex);
@@ -371,7 +384,11 @@ public final class UpdateAssetDependenciesHandler implements AutoCloseable {
     * Get a cached thread pool.
     */
    private ExecutorService newFixedThreadPool() {
-      return Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
+      return Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors(), r -> {
+         Thread t = new Thread(r, "UpdateAssetDependencies");
+         t.setDaemon(true);
+         return t;
+      });
    }
 
    /**
@@ -420,13 +437,14 @@ public final class UpdateAssetDependenciesHandler implements AutoCloseable {
                timedOut = false;
                break;
             }
-            else {
-               Thread.sleep(1000L);
-            }
          }
          finally {
             lock.unlock();
          }
+
+         // Sleep outside the lock so other cluster nodes can update the state
+         // (e.g., so the running node can call assetUpdated() to set STATE_UPDATED).
+         Thread.sleep(1000L);
       }
 
       if(timedOut) {
@@ -498,6 +516,9 @@ public final class UpdateAssetDependenciesHandler implements AutoCloseable {
    private String getUpdateKey() {
       return PROPERTY;
    }
+
+   private final DataSourceRegistry dataSourceRegistry;
+   private final XRepository repository;
 
    private Catalog catalog = Catalog.getCatalog();
    private GroupedThread thread;

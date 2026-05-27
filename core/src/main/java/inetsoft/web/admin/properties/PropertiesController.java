@@ -19,33 +19,35 @@ package inetsoft.web.admin.properties;
 
 import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.report.internal.table.TableFormat;
-import inetsoft.sree.*;
+import inetsoft.sree.SreeEnv;
 import inetsoft.sree.security.*;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.util.Tool;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.log.*;
-import inetsoft.web.MapSessionRepository;
 import inetsoft.web.admin.security.PropertyModel;
-import inetsoft.sree.security.ResourceAction;
-import inetsoft.sree.security.ResourceType;
 import inetsoft.web.security.RequiredPermission;
 import inetsoft.web.security.Secured;
 import inetsoft.web.viewsheet.AuditObjectName;
 import inetsoft.web.viewsheet.Audited;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.bind.annotation.*;
 
 import java.io.IOException;
 import java.security.Principal;
 import java.util.List;
 import java.util.Properties;
 
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.*;
-
 @RestController
 public class PropertiesController {
    @Autowired
-   private AssetRepository assetRepository;
+   public PropertiesController(AssetRepository assetRepository,
+                               LogManager logManager, SecurityEngine securityEngine)
+   {
+      this.assetRepository = assetRepository;
+      this.logManager = logManager;
+      this.securityEngine = securityEngine;
+   }
 
    @Audited(
       actionName = ActionRecord.ACTION_NAME_DELETE,
@@ -135,7 +137,7 @@ public class PropertiesController {
    public Properties getProperties() {
       Properties properties = SreeEnv.getProperties();
 
-      if(!LicenseManager.getInstance().isEnterprise()) {
+      if(!LicenseManager.isEnterprise()) {
          removeUnuseProperties(properties);
       }
 
@@ -153,7 +155,7 @@ public class PropertiesController {
    public Properties getDefaultProperties() {
       Properties properties = SreeEnv.getDefaultProperties();
 
-      if(!LicenseManager.getInstance().isEnterprise()) {
+      if(!LicenseManager.isEnterprise()) {
          removeUnuseProperties(properties);
       }
 
@@ -189,14 +191,13 @@ public class PropertiesController {
          return;
       }
 
-      LogManager logManager = LogManager.getInstance();
       List<LogLevelSetting> logLevels = logManager.getContextLevels();
 
       boolean found = logLevels.stream().anyMatch(logLevel -> {
          String name = logLevel.getName();
 
          if(logLevel.getOrgName() != null) {
-            String orgId = SecurityEngine.getSecurity()
+            String orgId = securityEngine
                .getSecurityProvider()
                .getOrgIdFromName(logLevel.getOrgName());
             name = Tool.buildString(name, "^", orgId);
@@ -213,6 +214,7 @@ public class PropertiesController {
       }
    }
 
-   @Autowired
-   private MapSessionRepository mapSessionRepository;
+   private final AssetRepository assetRepository;
+   private final LogManager logManager;
+   private final SecurityEngine securityEngine;
 }

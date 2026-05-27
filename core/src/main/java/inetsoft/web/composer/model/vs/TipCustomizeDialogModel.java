@@ -20,8 +20,10 @@ package inetsoft.web.composer.model.vs;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import inetsoft.uql.viewsheet.graph.ChartInfo;
 
+import java.io.Serializable;
+
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class TipCustomizeDialogModel {
+public class TipCustomizeDialogModel implements Serializable {
    public enum TipFormat { DEFAULT, CUSTOM, NONE };
 
    public boolean isChart() {

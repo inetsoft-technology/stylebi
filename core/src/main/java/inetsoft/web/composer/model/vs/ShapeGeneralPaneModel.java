@@ -19,8 +19,10 @@ package inetsoft.web.composer.model.vs;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
+import java.io.Serializable;
+
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class ShapeGeneralPaneModel {
+public class ShapeGeneralPaneModel implements Serializable {
    public BasicGeneralPaneModel getBasicGeneralPaneModel() {
       if(basicGeneralPaneModel == null) {
          basicGeneralPaneModel = new BasicGeneralPaneModel();

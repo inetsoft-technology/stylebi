@@ -38,6 +38,10 @@ import java.util.*;
  * @author InetSoft Technology Corp
  */
 public abstract class AbstractModelTrapContext extends AbstractModelContext {
+   protected AbstractModelTrapContext(DataSourceRegistry dataSourceRegistry) {
+      this.dataSourceRegistry = dataSourceRegistry;
+   }
+
    /**
     * Initialize.
     */
@@ -67,8 +71,7 @@ public abstract class AbstractModelTrapContext extends AbstractModelContext {
     */
    protected void init(XSourceInfo source, Principal user, boolean checkbase) {
       if(source != null && source.getType() == XSourceInfo.MODEL) {
-         DataSourceRegistry dsr = DataSourceRegistry.getRegistry();
-         XDataModel xdm = dsr.getDataModel(source.getPrefix());
+         XDataModel xdm = dataSourceRegistry.getDataModel(source.getPrefix());
          lm = xdm == null ? null : xdm.getLogicalModel(source.getSource(), user);
          init(user, xdm, checkbase);
       }
@@ -570,6 +573,7 @@ public abstract class AbstractModelTrapContext extends AbstractModelContext {
       public DataRef agg;
    }
 
+   protected final DataSourceRegistry dataSourceRegistry;
    protected XPartition partition;
    protected String[] tables;
    protected String[] otables;

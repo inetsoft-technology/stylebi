@@ -32,8 +32,8 @@ import org.w3c.dom.NodeList;
 import java.awt.*;
 import java.awt.geom.Point2D;
 import java.io.PrintWriter;
-import java.util.List;
 import java.util.*;
+import java.util.List;
 
 /**
  * AbstractLayout is base class for ViewsheetLayout and PrintLayout.

@@ -47,7 +47,8 @@ import java.util.*;
  */
 public final class ChartRecommenderUtil {
    public static ChartRef createChartRef(AssetEntry entry, RuntimeViewsheet rvs,
-                                         VSTemporaryInfo tempInfo, Map<String, VSFormat> formatMap)
+                                         VSTemporaryInfo tempInfo, Map<String, VSFormat> formatMap,
+                                         AnalyticAssistant analyticAssistant)
    {
       String columnValue = WizardRecommenderUtil.getFieldName(entry);
       ChartVSAssembly tempChart = tempInfo.getTempChart();
@@ -95,7 +96,7 @@ public final class ChartRecommenderUtil {
          }
          else {
             try {
-               AnalyticRepository analyticRepository = AnalyticAssistant.getAnalyticAssistant().getAnalyticRepository();
+               AnalyticRepository analyticRepository = analyticAssistant.getAnalyticRepository();
                String formula = VSBindingHelper.getModelDefaultFormula(entry, sinfo, rvs, analyticRepository);
 
                if(formula != null) {

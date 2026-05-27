@@ -19,10 +19,11 @@ package inetsoft.web.composer.model.ws;
 
 import inetsoft.web.portal.model.database.AdvancedSQLQueryModel;
 
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
 
-public class SQLQueryDialogModel {
+public class SQLQueryDialogModel implements Serializable {
    public SQLQueryDialogModel() {
    }
 

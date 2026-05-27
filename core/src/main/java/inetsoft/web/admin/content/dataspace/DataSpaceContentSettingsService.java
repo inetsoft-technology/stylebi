@@ -24,8 +24,6 @@ import inetsoft.sree.internal.HTMLUtil;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.portal.CustomThemesManager;
 import inetsoft.sree.security.*;
-import inetsoft.uql.XPrincipal;
-import inetsoft.uql.util.XSessionService;
 import inetsoft.uql.viewsheet.graph.aesthetic.ImageShapes;
 import inetsoft.util.*;
 import inetsoft.util.audit.ActionRecord;
@@ -39,6 +37,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.io.*;
@@ -49,8 +48,16 @@ import java.util.*;
 
 @Service
 public class DataSpaceContentSettingsService {
+   @Autowired
+   public DataSpaceContentSettingsService(CustomThemesManager customThemesManager,
+                                          DataSpace dataSpace)
+   {
+      this.customThemesManager = customThemesManager;
+      this.dataSpace = dataSpace;
+   }
+
    public DataSpaceTreeModel getTree(String parentPath) throws Exception {
-      DataSpace space = DataSpace.getDataSpace();
+      DataSpace space = this.dataSpace;
       String[] childEntries = space.list(parentPath);
       childEntries = sortEntry(parentPath, childEntries, space);
       List<DataSpaceTreeNodeModel> nodes = new ArrayList<>();
@@ -86,7 +93,7 @@ public class DataSpaceContentSettingsService {
 
 
    public DataSpaceTreeModel getTree(String parentPath, List<String> expandNodes) throws Exception {
-      DataSpace space = DataSpace.getDataSpace();
+      DataSpace space = this.dataSpace;
       String[] childEntries = space.list(parentPath);
       childEntries = sortEntry(parentPath, childEntries, space);
       List<DataSpaceTreeNodeModel> nodes = new ArrayList<>();
@@ -133,7 +140,7 @@ public class DataSpaceContentSettingsService {
    }
 
    private List<DataSpaceTreeNodeModel> getSubTree(String folderPath, List<String> expandNodes) throws Exception {
-      DataSpace space = DataSpace.getDataSpace();
+      DataSpace space = this.dataSpace;
       String[] childEntries = space.list(folderPath);
       childEntries = sortEntry(folderPath, childEntries, space);
       List<DataSpaceTreeNodeModel> children = new ArrayList<>();
@@ -178,7 +185,7 @@ public class DataSpaceContentSettingsService {
 
 
    public DataSpaceTreeNodeModel getTreeNode(String path) {
-      DataSpace space = DataSpace.getDataSpace();
+      DataSpace space = this.dataSpace;
       return DataSpaceTreeNodeModel.builder()
          .label(getFileName(path))
          .path(path)
@@ -207,7 +214,7 @@ public class DataSpaceContentSettingsService {
     * @param path The path used to navigate to data space node
     */
    public void deleteDataSpaceNode(String path, boolean isFolder) {
-      DataSpace dataSpace = DataSpace.getDataSpace();
+      DataSpace dataSpace = this.dataSpace;
       Principal principal = ThreadContext.getContextPrincipal();
       String objectType = isFolder ? ActionRecord.OBJECT_TYPE_FOLDER :
          ActionRecord.OBJECT_TYPE_FILE;
@@ -229,8 +236,16 @@ public class DataSpaceContentSettingsService {
          ImageShapes.clearShapes();
       }
 
-      CustomThemesManager.getManager().reloadThemes(path);
+      customThemesManager.reloadThemes(path);
       Audit.getInstance().auditAction(actionRecord, principal);
+   }
+
+   /**
+    * Notifies dependent managers when a DataSpace file or folder is renamed, so that
+    * any metadata referencing the old path can be updated to the new path.
+    */
+   public void onFileRenamed(String oldPath, String newPath) {
+      customThemesManager.renameThemeJar(oldPath, newPath);
    }
 
    // refresh last modified for the directory
@@ -313,7 +328,7 @@ public class DataSpaceContentSettingsService {
    public void downloadFile(String path, @AuditObjectName String name, HttpServletResponse response,
                             HttpServletRequest request) throws Exception
    {
-      DataSpace space = DataSpace.getDataSpace();
+      DataSpace space = this.dataSpace;
       OutputStream out = response.getOutputStream();
       String mime = "application/octet-stream";
       String suffix = "";
@@ -400,7 +415,7 @@ public class DataSpaceContentSettingsService {
    }
 
    public String getDisplayName(String fullName) {
-      if(LicenseManager.getInstance().isEnterprise()) {
+      if(LicenseManager.isEnterprise()) {
          return fullName;
       }
 
@@ -429,7 +444,7 @@ public class DataSpaceContentSettingsService {
    public String getNewPath(String oldPath, String oldName, String newName) {
       String oldPrefix = oldPath.substring(0, oldPath.lastIndexOf(oldName));
 
-      if(LicenseManager.getInstance().isEnterprise() || newName == null) {
+      if(LicenseManager.isEnterprise() || newName == null) {
          return oldPrefix + newName;
       }
 
@@ -450,7 +465,7 @@ public class DataSpaceContentSettingsService {
    }
 
    public String getDisplayPath(String path, String originalName, String displayName) {
-      if(LicenseManager.getInstance().isEnterprise() || path == null) {
+      if(LicenseManager.isEnterprise() || path == null) {
          return path;
       }
 
@@ -493,6 +508,8 @@ public class DataSpaceContentSettingsService {
       }
    }
 
+   private final CustomThemesManager customThemesManager;
+   private final DataSpace dataSpace;
    private static final String DEFAULT_ORG_FOLDER = "portal/" + Organization.getDefaultOrganizationID();
    private static final Logger LOG = LoggerFactory.getLogger(DataSpaceContentSettingsService.class);
 }

@@ -73,6 +73,7 @@ public class VSWizardTemporaryInfoService {
 
          // if creating temporaryInfo, setting it to rvs when temporaryInfo has prepared.
          rvs.setVSTemporaryInfo(temporaryInfo);
+         viewsheetService.flushRuntimeSheet(vsId);
       }
       finally {
          TEMP_INFO_LOCK.writeLock().unlock();

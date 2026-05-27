@@ -21,10 +21,11 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import inetsoft.web.binding.drm.DataRefModel;
 import inetsoft.web.composer.model.TreeNodeModel;
 
+import java.io.Serializable;
 import java.util.List;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class SelectionListPaneModel {
+public class SelectionListPaneModel implements Serializable {
    public SelectionMeasurePaneModel getSelectionMeasurePaneModel() {
       if(selectionMeasurePaneModel == null) {
          selectionMeasurePaneModel = new SelectionMeasurePaneModel();

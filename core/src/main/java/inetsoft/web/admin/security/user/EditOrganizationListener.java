@@ -26,9 +26,12 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import java.util.EventListener;
 
 public class EditOrganizationListener implements EventListener {
-   public EditOrganizationListener(SimpMessagingTemplate messagingTemplate) {
+   public EditOrganizationListener(SimpMessagingTemplate messagingTemplate,
+                                   SecurityEngine securityEngine)
+   {
       super();
       this.messagingTemplate = messagingTemplate;
+      this.securityEngine = securityEngine;
    }
 
    /**
@@ -43,7 +46,7 @@ public class EditOrganizationListener implements EventListener {
    }
 
    private String getMessage(EditOrganizationEvent event) {
-      SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+      SecurityProvider provider = securityEngine.getSecurityProvider();
       String fromOrgName = provider.getOrgNameFromID(event.getFromOrgID());
 
       if(event.getStatus() == EditOrganizationEvent.STARTED) {
@@ -57,5 +60,6 @@ public class EditOrganizationListener implements EventListener {
    }
 
    private SimpMessagingTemplate messagingTemplate;
+   private final SecurityEngine securityEngine;
    private Catalog catalog = Catalog.getCatalog();
 }

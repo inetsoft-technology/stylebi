@@ -23,12 +23,13 @@ import inetsoft.uql.VariableTable;
 import inetsoft.uql.schema.UserVariable;
 import inetsoft.util.Tool;
 
+import java.io.Serializable;
 import java.util.Arrays;
 import java.util.List;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 // Sourced from CollectVariablesCommand.VariableInfo
-public class VariableAssemblyModelInfo {
+public class VariableAssemblyModelInfo implements Serializable {
    public VariableAssemblyModelInfo() {}
 
    public VariableAssemblyModelInfo(UserVariable variable) {

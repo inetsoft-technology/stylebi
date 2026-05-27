@@ -17,14 +17,13 @@
  */
 package inetsoft.report.composition;
 
+import inetsoft.sree.internal.cluster.AffinityCallable;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.sync.RenameInfo;
-import inetsoft.util.SingletonManager;
-
-import java.rmi.RemoteException;
 import java.security.Principal;
 import java.util.List;
 import java.util.Vector;
+import java.util.concurrent.Future;
 
 /**
  * Worksheet service, includes an asset repository to be the server of
@@ -34,7 +33,6 @@ import java.util.Vector;
  * @version 8.0
  * @author InetSoft Technology Corp
  */
-@SingletonManager.Singleton(WorksheetService.Reference.class)
 public interface WorksheetService {
    /**
     * Preview prefix.
@@ -61,6 +59,8 @@ public interface WorksheetService {
     * @param engine the specified asset repository.
     */
    void setAssetRepository(AssetRepository engine);
+
+   void putRuntimeSheet(String id, RuntimeSheet rs);
 
    /**
     * Dispose the worksheet service.
@@ -111,6 +111,13 @@ public interface WorksheetService {
    RuntimeSheet getSheet(String id, Principal user);
 
    RuntimeSheet getSheet(String id, Principal user, boolean touch);
+
+   /**
+    * Check if a sheet with the specified runtime id exists
+    * @param id runtime id
+    * @return true if it exists, false if it doesn't
+    */
+   boolean sheetExists(String id);
 
    /**
     * Save the worksheet.
@@ -219,48 +226,43 @@ public interface WorksheetService {
     */
    void fixRenameDepEntry(String rid, AssetObject newEntry);
 
-   final class Reference extends SingletonManager.Reference<WorksheetService> {
-      @SuppressWarnings("unchecked")
-      @Override
-      public synchronized WorksheetService get(Object ... parameters) {
-         if(service == null) {
-            Class<? extends WorksheetService> implementation = null;
+   /**
+    * Flush the runtime sheet to cluster cache.
+    * @param rid runtime id.
+    */
+   void flushRuntimeSheet(String rid);
 
-            try {
-               implementation = (Class<? extends WorksheetService>)
-                  Class.forName("inetsoft.analytic.composition.ViewsheetEngine");
-               implementation =
-                  (Class<? extends WorksheetService>)
-                  Class.forName("inetsoft.analytic.composition.ViewsheetService");
-            }
-            catch(Exception ignore) {
-            }
+   /**
+    * Determines if the runtime sheet with the given identifier is local to this instance.
+    *
+    * @param rid the runtime sheet identifier.
+    *
+    * @return {@code true} if local or {@code false} otherwise.
+    */
+   boolean isLocal(String rid);
 
-            if(implementation == null) {
-               try {
-                  service = new WorksheetEngine();
-               }
-               catch(RemoteException e) {
-                  throw new RuntimeException("Failed to create worksheet service", e);
-               }
-            }
-            else {
-               // if the viewsheet engine is available, use that
-               service = SingletonManager.getInstance(implementation);
-            }
-         }
+   /**
+    * Executes a job on the instance that owns the specified runtime sheet.
+    *
+    * @param rid the identifier of the runtime sheet.
+    * @param job the job to execute.
+    *
+    * @return the result of the job.
+    *
+    * @param <T> the return type of the job.
+    */
+   <T> T affinityCall(String rid, AffinityCallable<T> job);
 
-         return service;
-      }
+   /**
+    * Asynchronously executes a job on the instance that owns the specified runtime sheet.
+    *
+    * @param rid the identifier of the runtime sheet.
+    * @param job the job to execute.
+    *
+    * @return the future.
+    *
+    * @param <T> the return type of the job.
+    */
+   <T> Future<T> affinityCallAsync(String rid, AffinityCallable<T> job);
 
-      @Override
-      public synchronized void dispose() {
-         if(service != null) {
-            service.dispose();
-            service = null;
-         }
-      }
-
-      private WorksheetService service;
-   }
 }

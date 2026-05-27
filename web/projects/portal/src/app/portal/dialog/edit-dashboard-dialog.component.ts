@@ -123,31 +123,41 @@ export class EditDashboardDialog implements OnInit {
          }
 
          this.http.get<boolean>(DASHBOARD_DUPLICATE_URI + encodeURIComponent(newDashboard.name))
-            .subscribe((duplicate) => {
-               if(duplicate) {
-                  ComponentTool.showMessageDialog(this.modalService, "_#(js:Error)",
-                     "_#(js:viewer.dashboard.nameValid)");
-               }
-               else {
-                  this.http.post<DashboardModel>(NEW_DASHBOARD_URI, newDashboard)
-                     .subscribe(
-                        (dashboard: DashboardModel) => {
-                           if(this.compose) {
-                              const composerUrl = "composer";
-                              GuiTool.openBrowserTab(composerUrl,
-                                 new HttpParams()
-                                    .set("vsId", dashboard.identifier)
-                                    .set("deployed", "true")
-                              );
-                           }
+            .subscribe(
+               (duplicate) => {
+                  if(duplicate) {
+                     ComponentTool.showMessageDialog(this.modalService, "_#(js:Error)",
+                        "_#(js:viewer.dashboard.nameValid)");
+                  }
+                  else {
+                     this.http.post<DashboardModel>(NEW_DASHBOARD_URI, newDashboard)
+                        .subscribe(
+                           (dashboard: DashboardModel) => {
+                              if(this.compose) {
+                                 const composerUrl = "composer";
+                                 GuiTool.openBrowserTab(composerUrl,
+                                    new HttpParams()
+                                       .set("vsId", dashboard.identifier)
+                                       .set("deployed", "true")
+                                 );
+                              }
 
-                           this.onCommit.emit(dashboard);
-                        },
-                        (err: any) => {
-                        }
-                     );
+                              this.onCommit.emit(dashboard);
+                           },
+                           (err: any) => {
+                              ComponentTool.showMessageDialog(this.modalService, "_#(js:Error)",
+                                 "_#(js:common.noPermission)")
+                                 .then(() => this.onCancel.emit("cancel"));
+                           }
+                        );
+                  }
+               },
+               (err) => {
+                  ComponentTool.showMessageDialog(this.modalService, "_#(js:Error)",
+                     "_#(js:common.noPermission)")
+                     .then(() => this.onCancel.emit("cancel"));
                }
-            });
+            );
       }
       // edit existing dashboard
       else {
@@ -157,15 +167,22 @@ export class EditDashboardDialog implements OnInit {
 
          if(this.oldName !== newDashboard.name) {
             this.http.get<boolean>(DASHBOARD_DUPLICATE_URI + encodeURIComponent(newDashboard.name))
-               .subscribe((duplicate) => {
-                  if(duplicate) {
+               .subscribe(
+                  (duplicate) => {
+                     if(duplicate) {
+                        ComponentTool.showMessageDialog(this.modalService, "_#(js:Error)",
+                           "_#(js:viewer.nameValid)");
+                     }
+                     else {
+                        this.editDashboard(newDashboard);
+                     }
+                  },
+                  (err) => {
                      ComponentTool.showMessageDialog(this.modalService, "_#(js:Error)",
-                        "_#(js:viewer.nameValid)");
+                        "_#(js:common.noPermission)")
+                        .then(() => this.onCancel.emit("cancel"));
                   }
-                  else {
-                     this.editDashboard(newDashboard);
-                  }
-               });
+               );
          }
          else {
             this.editDashboard(newDashboard);
@@ -189,7 +206,9 @@ export class EditDashboardDialog implements OnInit {
                this.onCommit.emit(dashboard);
             },
             (err: any) => {
-               console.error("Dashboard edit was unsuccessful.");
+               ComponentTool.showMessageDialog(this.modalService, "_#(js:Error)",
+                  "_#(js:common.noPermission)")
+                  .then(() => this.onCancel.emit("cancel"));
             }
          );
    }

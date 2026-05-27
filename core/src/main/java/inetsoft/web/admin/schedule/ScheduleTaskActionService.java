@@ -17,36 +17,34 @@
  */
 package inetsoft.web.admin.schedule;
 
-import inetsoft.analytic.AnalyticAssistant;
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.analytic.composition.event.VSEventUtil;
-import inetsoft.report.ReportElement;
-import inetsoft.report.ReportSheet;
+import inetsoft.cluster.*;
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.report.composition.WorksheetEngine;
 import inetsoft.report.composition.event.AssetEventUtil;
 import inetsoft.report.composition.execution.AssetQuerySandbox;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.filter.Highlight;
 import inetsoft.report.filter.HighlightGroup;
-import inetsoft.report.internal.*;
 import inetsoft.report.internal.table.TableHighlightAttr;
 import inetsoft.report.io.viewsheet.excel.CSVUtil;
-import inetsoft.sree.*;
+import inetsoft.sree.RepletRegistry;
+import inetsoft.sree.RepletRegistryManager;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.schedule.*;
-import inetsoft.sree.security.SecurityException;
 import inetsoft.sree.security.*;
+import inetsoft.sree.security.SecurityException;
 import inetsoft.uql.VariableTable;
-import inetsoft.uql.XRepository;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.schema.UserVariable;
 import inetsoft.uql.viewsheet.*;
-import inetsoft.uql.viewsheet.graph.*;
+import inetsoft.uql.viewsheet.graph.HighlightRef;
+import inetsoft.uql.viewsheet.graph.VSChartInfo;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.*;
 import inetsoft.web.RecycleUtils;
-import inetsoft.web.admin.content.repository.RepletRegistryManager;
 import inetsoft.web.admin.schedule.model.*;
 import inetsoft.web.viewsheet.model.VSBookmarkInfoModel;
 import org.apache.commons.lang3.ArrayUtils;
@@ -60,20 +58,22 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
+@ClusterProxy
 public class ScheduleTaskActionService {
    @Autowired
-   public ScheduleTaskActionService(AnalyticRepository analyticRepository,
-                                    ScheduleManager scheduleManager,
+   public ScheduleTaskActionService(ScheduleManager scheduleManager,
                                     ScheduleService scheduleService,
-                                    ViewsheetService viewsheetService, XRepository xRepository,
-                                    SecurityEngine securityEngine)
+                                    ViewsheetService viewsheetService,
+                                    SecurityEngine securityEngine,
+                                    IndexedStorage indexedStorage,
+                                    RepletRegistryManager repletRegistryManager)
    {
-      this.analyticRepository = analyticRepository;
       this.scheduleManager = scheduleManager;
       this.scheduleService = scheduleService;
       this.viewsheetService = viewsheetService;
-      this.xRepository = xRepository;
       this.securityEngine = securityEngine;
+      this.indexedStorage = indexedStorage;
+      this.repletRegistryManager = repletRegistryManager;
    }
 
    public List<VSBookmarkInfoModel> getBookmarks(String id, boolean em, Principal principal) {
@@ -85,29 +85,26 @@ public class ScheduleTaskActionService {
          .collect(Collectors.toList());
    }
 
-   public boolean hasPrintLayout(String identifier, Principal principal) throws Exception {
+   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   public Boolean hasPrintLayout(@ClusterProxyKey String runtimeId, Principal principal) throws Exception {
       boolean result = false;
       ViewsheetService engine = viewsheetService;
-      AssetEntry entry = AssetEntry.createAssetEntry(identifier);
-      String id = engine.openViewsheet(entry, principal, false);
-      RuntimeViewsheet rvs = engine.getViewsheet(id, principal);
+
+      RuntimeViewsheet rvs = engine.getViewsheet(runtimeId, principal);
 
       if(rvs != null && rvs.getViewsheet() != null && rvs.getViewsheet().getLayoutInfo() != null) {
          result = rvs.getViewsheet().getLayoutInfo().getPrintLayout() != null;
       }
 
-      engine.closeViewsheet(id, principal);
-
       return result;
    }
 
-   public List<ScheduleAlertModel> getViewsheetHighlights(String identifier, Principal principal)
+   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   public List<ScheduleAlertModel> getViewsheetHighlights(@ClusterProxyKey String runtimeId, Principal principal)
       throws Exception
    {
       ViewsheetService engine = viewsheetService;
-      AssetEntry entry = AssetEntry.createAssetEntry(identifier);
-      String id = engine.openViewsheet(entry, principal, false);
-      RuntimeViewsheet rvs = engine.getViewsheet(id, principal);
+      RuntimeViewsheet rvs = engine.getViewsheet(runtimeId, principal);
       Map<String, ScheduleAlertModel> alerts = new HashMap<>();
 
       for(Assembly assembly : rvs.getViewsheet().getAssemblies(true)) {
@@ -200,8 +197,6 @@ public class ScheduleTaskActionService {
          }
       }
 
-      engine.closeViewsheet(id, principal);
-
       return alerts.values().stream()
          .sorted(Comparator.comparing(ScheduleAlertModel::element)
                     .thenComparing(ScheduleAlertModel::highlight))
@@ -253,18 +248,22 @@ public class ScheduleTaskActionService {
       }
    }
 
-   public List<String> getViewsheetParameters(String identifier, Principal principal)
+   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   public List<String> getViewsheetParameters(@ClusterProxyKey String runtimeId, Principal principal)
       throws Exception
    {
-      AssetEntry entry = AssetEntry.createAssetEntry(identifier);
-      String runtimeId = viewsheetService.openViewsheet(entry, null, false);
+
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
       List<UserVariable> vars = new ArrayList<>();
       addSchedulerOnlyParameters(vars, rvs);
-      VSEventUtil.refreshParameters(viewsheetService, rvs.getViewsheetSandbox(),
-                                    rvs.getViewsheet(), false, null, vars);
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box.isPresent()) {
+         VSEventUtil.refreshParameters(viewsheetService, box.get(),
+                                       rvs.getViewsheet(), false, null, vars);
+      }
+
       addSchedulerOnlyParameters(vars, rvs);
-      viewsheetService.closeViewsheet(identifier, null);
       List<String> parameters = new ArrayList<>();
 
       for(UserVariable var : vars) {
@@ -275,9 +274,14 @@ public class ScheduleTaskActionService {
    }
 
    private void addSchedulerOnlyParameters(List list, RuntimeViewsheet rvs) throws Exception {
-      ViewsheetSandbox vbox = rvs.getViewsheetSandbox();
-      String vsName = vbox.getSheetName();
-      AssetQuerySandbox box = vbox.getAssetQuerySandbox();
+      Optional<ViewsheetSandbox> vbox = rvs.getViewsheetSandbox();
+
+      if(vbox.isEmpty()) {
+         return;
+      }
+
+      String vsName = vbox.get().getSheetName();
+      AssetQuerySandbox box = vbox.get().getAssetQuerySandbox();
       VariableTable vart = box.getVariableTable();
 
       UserVariable[] vars = AssetEventUtil.executeVariables(
@@ -306,11 +310,10 @@ public class ScheduleTaskActionService {
       }
    }
 
-   public List<String> getViewsheetTableDataAssemblies(String identifier, Principal principal)
+   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   public List<String> getViewsheetTableDataAssemblies(@ClusterProxyKey String runtimeId, Principal principal)
       throws Exception
    {
-      AssetEntry entry = AssetEntry.createAssetEntry(identifier);
-      String runtimeId = viewsheetService.openViewsheet(entry, null, false);
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
       List<String> tableDataAssemblies = new ArrayList<>();
 
@@ -323,15 +326,13 @@ public class ScheduleTaskActionService {
          });
       }
 
-      viewsheetService.closeViewsheet(identifier, null);
-
       return tableDataAssemblies;
    }
 
    public ViewsheetTreeListModel getViewsheetTree(Principal user) throws Exception {
       ViewsheetTreeListModel.Builder builder = ViewsheetTreeListModel.builder();
       LinkedHashMap<AssetEntry, ModifiableViewsheetTreeModel> tree = new LinkedHashMap<>();
-      Set<String> keys = IndexedStorage.getIndexedStorage().getKeys(this::isViewsheetTreeEntry);
+      Set<String> keys = indexedStorage.getKeys(this::isViewsheetTreeEntry);
       boolean myReportsAvailable = user != null &&
          securityEngine.checkPermission(user, ResourceType.MY_DASHBOARDS, "*", ResourceAction.READ);
       List<AssetEntry> entries = new ArrayList<>();
@@ -340,9 +341,11 @@ public class ScheduleTaskActionService {
          .filter(Objects::nonNull)
          .filter(AssetEntry::isViewsheet)
          .filter(e -> checkViewsheetPermission(e, user))
-         .sorted(Comparator.comparing((AssetEntry e) ->
-            !e.toIdentifier().startsWith(Tool.toString(AssetRepository.USER_SCOPE)))
-            .thenComparing(AssetEntry::compareTo))
+         .sorted(
+            Comparator.<AssetEntry, Boolean>comparing(
+                  e -> !(e.getParentPath().contains("/") && !"/".equals(e.getParentPath())))
+               .thenComparing(AssetEntry::getPath)
+               .thenComparing(AssetEntry::compareTo))
          .collect(Collectors.toList()));
 
       HashMap<String, AssetEntry[]> subEntriesMap = new HashMap<>();
@@ -465,7 +468,7 @@ public class ScheduleTaskActionService {
       }
       else if(entry.getType() == AssetEntry.Type.REPOSITORY_FOLDER) {
          try {
-            alias = RepletRegistry.getRegistry(entry.getUser()).getFolderAlias(entry.getPath());
+            alias = repletRegistryManager.getRegistry(entry.getUser()).getFolderAlias(entry.getPath());
          }
          catch(Exception e) {
             throw new RuntimeException("Failed to get replet registry", e);
@@ -540,13 +543,18 @@ public class ScheduleTaskActionService {
       return builder.build();
    }
 
-   private final AnalyticRepository analyticRepository;
+   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   public Void closeViewsheet(@ClusterProxyKey String id, Principal user) throws Exception {
+      viewsheetService.closeViewsheet(id, user);
+      return null;
+   }
+
    private final ScheduleManager scheduleManager;
    private final ScheduleService scheduleService;
    private final ViewsheetService viewsheetService;
-   private final XRepository xRepository;
    private final SecurityEngine securityEngine;
-   private final RepletRegistryManager registryManager = new RepletRegistryManager();
+   private final IndexedStorage indexedStorage;
+   private final RepletRegistryManager repletRegistryManager;
 
    private static final Logger LOG = LoggerFactory.getLogger(ScheduleTaskActionService.class);
 }

@@ -39,12 +39,14 @@ import java.util.*;
 public class SSOSettingsService {
    @Autowired
    public SSOSettingsService(SecurityEngine engine, OpenIDConfig openIDConfig,
-                             CustomSSOConfig customConfig, SSOFilterPublisher publisher)
+                             CustomSSOConfig customConfig, SSOFilterPublisher publisher,
+                             Cluster cluster)
    {
       this.engine = engine;
       this.openIDConfig = openIDConfig;
       this.customConfig = customConfig;
       this.publisher = publisher;
+      this.cluster = cluster;
    }
 
    /**
@@ -259,7 +261,7 @@ public class SSOSettingsService {
 
          if(ssoType != activeFilterType) {
             try {
-               Cluster.getInstance().sendMessage(new SSOTypeChangedMessage(activeFilterType, ssoType));
+               cluster.sendMessage(new SSOTypeChangedMessage(activeFilterType, ssoType));
             }
             catch(Exception ex) {
                LOG.debug("Failed to send sso type changed message", ex);
@@ -304,4 +306,5 @@ public class SSOSettingsService {
    private final OpenIDConfig openIDConfig;
    private final CustomSSOConfig customConfig;
    private final SSOFilterPublisher publisher;
+   private final Cluster cluster;
 }

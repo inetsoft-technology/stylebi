@@ -18,12 +18,11 @@
 package inetsoft.web.security;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import inetsoft.sree.security.AuthenticationService;
 import inetsoft.sree.security.SRPrincipal;
+import inetsoft.sree.web.SessionLicenseServiceProvider;
 import inetsoft.util.ThreadContext;
-import inetsoft.web.security.auth.UnauthorizedAccessError;
-import inetsoft.web.security.auth.UnauthorizedAccessException;
-import inetsoft.web.security.auth.MissingTokenException;
-import inetsoft.web.security.auth.JwtService;
+import inetsoft.web.security.auth.*;
 import jakarta.servlet.*;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -53,6 +52,12 @@ import java.util.Locale;
  * @see <a href="https://tools.ietf.org/html/rfc6750#section-2.1">HTTP Bearer Authorization</a>
  */
 public class JWTFilter extends AbstractSecurityFilter {
+   public JWTFilter(SessionLicenseServiceProvider sessionLicenseServiceProvider,
+                    AuthenticationService authenticationService)
+   {
+      super(sessionLicenseServiceProvider, authenticationService);
+   }
+
    @Override
    public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain)
       throws IOException, ServletException
@@ -60,6 +65,7 @@ public class JWTFilter extends AbstractSecurityFilter {
       HttpServletRequest httpRequest = (HttpServletRequest) request;
       Principal oldPrincipal = ThreadContext.getContextPrincipal();
       Locale oldLocale = ThreadContext.getLocale();
+      Boolean oldProfiling = ThreadContext.isProfiling();
 
       if(!isPageRequested(LOGIN_URI, httpRequest) && !isDocumentationResource(httpRequest) &&
          isPublicApi(httpRequest) || isTeamWebsocketEndpoint(httpRequest))
@@ -86,8 +92,8 @@ public class JWTFilter extends AbstractSecurityFilter {
          }
 
          try {
-            SRPrincipal principal = service.getPrincipal(
-               request.getRemoteHost(), header, request.getLocale());
+            SRPrincipal principal = service.getPrincipal(request.getRemoteHost(), header);
+            principal.setIgnoreLogin(true);
             httpRequest = new AuthenticatedRequest(httpRequest, principal);
             ThreadContext.setContextPrincipal(principal);
             ThreadContext.setLocale(principal.getLocale());
@@ -113,6 +119,7 @@ public class JWTFilter extends AbstractSecurityFilter {
       finally {
          ThreadContext.setContextPrincipal(oldPrincipal);
          ThreadContext.setLocale(oldLocale);
+         ThreadContext.setProfiling(oldProfiling);
       }
    }
 

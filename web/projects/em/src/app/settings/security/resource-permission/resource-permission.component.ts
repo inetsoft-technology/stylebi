@@ -170,7 +170,10 @@ export class ResourcePermissionComponent implements OnInit, OnChanges, OnDestroy
    }
 
    onTableSelectionChange(selection: ResourcePermissionTableModel[]): void {
-      this.tableSelected = selection.length > 0 && this.model.permissions.length > 0;
+      // Defensive: permissions can be null when "derive permissions from parent" is enabled.
+      // Even though the table is typically hidden in that state, selection-change events may still
+      // fire during change detection / teardown. Treat null as an empty list to avoid crashing.
+      this.tableSelected = selection.length > 0 && (this.model.permissions?.length ?? 0) > 0;
    }
 
    copyPermissions(table: PermissionsTableComponent): void {

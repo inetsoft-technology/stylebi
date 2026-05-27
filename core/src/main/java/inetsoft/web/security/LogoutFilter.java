@@ -17,6 +17,8 @@
  */
 package inetsoft.web.security;
 
+import inetsoft.sree.security.AuthenticationService;
+import inetsoft.sree.web.SessionLicenseServiceProvider;
 import jakarta.servlet.*;
 import jakarta.servlet.http.*;
 
@@ -26,6 +28,12 @@ import java.io.IOException;
  * Filter that handles logging the user out of the application.
  */
 public class LogoutFilter extends AbstractLogoutFilter {
+   public LogoutFilter(SessionLicenseServiceProvider sessionLicenseServiceProvider,
+                       AuthenticationService authenticationService)
+   {
+      super(sessionLicenseServiceProvider, authenticationService);
+   }
+
    @Override
    public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain)
       throws IOException, ServletException

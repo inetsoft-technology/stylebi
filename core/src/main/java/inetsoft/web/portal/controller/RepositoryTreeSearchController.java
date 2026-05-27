@@ -54,12 +54,16 @@ public class RepositoryTreeSearchController {
     */
    @Autowired
    public RepositoryTreeSearchController(AnalyticRepository analyticRepository,
-      RepositoryTreeService repositoryTreeService,
-      RepositoryEntryModelFactoryService repositoryEntryModelFactoryService)
+                                         RepositoryTreeService repositoryTreeService,
+                                         RepositoryEntryModelFactoryService repositoryEntryModelFactoryService,
+                                         PortalThemesManager portalThemesManager,
+                                         RepletRegistryManager repletRegistryManager)
    {
       this.analyticRepository = analyticRepository;
       this.repositoryTreeService = repositoryTreeService;
       this.repositoryEntryModelFactoryService = repositoryEntryModelFactoryService;
+      this.portalThemesManager = portalThemesManager;
+      this.repletRegistryManager = repletRegistryManager;
    }
 
    /**
@@ -80,7 +84,7 @@ public class RepositoryTreeSearchController {
       Principal principal)
       throws Exception
    {
-      if(!PortalThemesManager.getManager().isButtonVisible(PortalThemesManager.SEARCH_BUTTON)) {
+      if(!portalThemesManager.isButtonVisible(PortalThemesManager.SEARCH_BUTTON)) {
          Catalog catalog = Catalog.getCatalog();
          throw new SecurityException(catalog.getString("em.common.security.no.permission",
                                                        catalog.getString("Search")));
@@ -165,11 +169,12 @@ public class RepositoryTreeSearchController {
       RepositoryEntry[] entries = null;
 
       if(hostOrgGlobalRepo) {
-         entries = ((AnalyticEngine) analyticRepository).getDefaultOrgRepositoryEntries(principal);
+         entries = analyticRepository.unwrap(AnalyticEngine.class)
+            .getDefaultOrgRepositoryEntries(principal);
       }
       else {
          entries = VSEventUtil.getRepositoryEntries(
-            (AnalyticEngine) analyticRepository, principal, ResourceAction.READ,
+            analyticRepository.unwrap(AnalyticEngine.class), principal, ResourceAction.READ,
             RepositoryEntry.ALL, "", new RepositoryEntry[]{parentEntry}, isDefaultOrgAsset);
       }
 
@@ -189,7 +194,7 @@ public class RepositoryTreeSearchController {
             if(exactMatch) {
                // add all the files from this folder
                RepositoryEntry[] childEntries = VSEventUtil.getRepositoryEntries(
-                  (AnalyticEngine) analyticRepository, principal, ResourceAction.READ,
+                  analyticRepository.unwrap(AnalyticEngine.class), principal, ResourceAction.READ,
                   RepositoryEntry.ALL & (~RepositoryEntry.FOLDER),
                   "", new RepositoryEntry[]{entry}, isDefaultOrgAsset);
 
@@ -271,8 +276,8 @@ public class RepositoryTreeSearchController {
          String dragName = null;
 
          RepletRegistry registry = SUtil.isMyReport(folder.path) ?
-            RepletRegistry.getRegistry(pId) :
-            RepletRegistry.getRegistry();
+            repletRegistryManager.getRegistry(pId) :
+            repletRegistryManager.getRegistry();
 
          dragName = "RepositoryEntry";
 
@@ -308,8 +313,8 @@ public class RepositoryTreeSearchController {
       }
       else {
          RepletRegistry registry = SUtil.isMyReport(folder.path) ?
-            RepletRegistry.getRegistry(pId) :
-            RepletRegistry.getRegistry();
+            repletRegistryManager.getRegistry(pId) :
+            repletRegistryManager.getRegistry();
 
          label = registry.getFolderAlias(folder.path);
 
@@ -396,6 +401,8 @@ public class RepositoryTreeSearchController {
    private final AnalyticRepository analyticRepository;
    private final RepositoryTreeService repositoryTreeService;
    private final RepositoryEntryModelFactoryService repositoryEntryModelFactoryService;
+   private final PortalThemesManager portalThemesManager;
+   private final RepletRegistryManager repletRegistryManager;
    private static final Logger LOG =
       LoggerFactory.getLogger(RepositoryTreeSearchController.class);
 

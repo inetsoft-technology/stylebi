@@ -100,7 +100,7 @@ public class BouncyCastleSSLCertificateHelper implements SSLCertificateHelper {
 
       JcaX509CertificateHolder issuerHolder = new JcaX509CertificateHolder(issuerCertificate);
       X500Name issuerName = issuerHolder.getSubject();
-      X500Name certName = new X500Name(getChildDN(issuerCertificate, Tool.getIP()));
+      X500Name certName = new X500Name(subjectDN);
       BigInteger serialNumber = BigInteger.valueOf(System.currentTimeMillis());
       Date validFrom = new Date(System.currentTimeMillis());
       Date validUntil = issuerHolder.getNotAfter();

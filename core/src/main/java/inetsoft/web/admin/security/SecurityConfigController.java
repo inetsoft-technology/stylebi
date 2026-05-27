@@ -24,34 +24,33 @@ import inetsoft.sree.security.*;
 import inetsoft.sree.security.ldap.LdapAuthenticationProvider;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.service.DataSourceRegistry;
-import inetsoft.util.*;
+import inetsoft.util.Catalog;
+import inetsoft.util.Tool;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.config.*;
-import inetsoft.web.admin.security.action.ActionPermissionService;
 import inetsoft.web.portal.model.CurrentUserModel;
+import inetsoft.web.security.*;
 import inetsoft.web.viewsheet.Audited;
-import inetsoft.web.security.DeniedMultiTenancyOrgUser;
-import inetsoft.web.security.RequiredPermission;
-import inetsoft.web.security.Secured;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.web.bind.annotation.*;
 
-import java.net.HttpURLConnection;
-import java.net.URL;
 import java.security.Principal;
-import java.util.*;
+import java.util.Arrays;
+import java.util.Locale;
 
 @RestController
 public class SecurityConfigController {
-   public SecurityConfigController(SecurityEngine securityEngine, ActionPermissionService actionPermissionService) {
+   public SecurityConfigController(SecurityEngine securityEngine,
+                                   LicenseManager licenseManager,
+                                    DataSourceRegistry dataSourceRegistry)
+   {
       this.securityEngine = securityEngine;
-      this.actionPermissionService = actionPermissionService;
+      this.licenseManager = licenseManager;
+      this.dataSourceRegistry = dataSourceRegistry;
    }
 
    @Audited(
       actionName = ActionRecord.ACTION_NAME_EDIT,
-      objectName = "Security-Security",
+      objectName = "Security Settings",
       objectType = ActionRecord.OBJECT_TYPE_EMPROPERTY
    )
    @DeniedMultiTenancyOrgUser
@@ -109,7 +108,7 @@ public class SecurityConfigController {
       if(event.enable()) {
          SUtil.setMultiTenant(true);
 
-         if(LicenseManager.getInstance().hasNamedUserKeys()) {
+         if(licenseManager.hasNamedUserKeys()) {
             warning = Catalog.getCatalog().getString("em.security.namedUserKeyError");
          }
       }
@@ -133,7 +132,7 @@ public class SecurityConfigController {
    }
 
    private boolean hasAddedOrganizations() {
-      SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+      SecurityProvider provider = securityEngine.getSecurityProvider();
 
       for(String orgID : provider.getOrganizationIDs()) {
          if(!orgID.equals(Organization.getDefaultOrganizationID()) &&
@@ -146,7 +145,7 @@ public class SecurityConfigController {
    }
 
    private boolean selfOrganizationHasUsers() {
-      SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+      SecurityProvider provider = securityEngine.getSecurityProvider();
 
       return Arrays.stream(provider.getUsers())
          .anyMatch(u -> Tool.equals(u.orgID, Organization.getSelfOrganizationID()));
@@ -207,7 +206,7 @@ public class SecurityConfigController {
       }
       IdentityID pId = principal == null ? null : IdentityID.getIdentityIDFromKey(principal.getName());
 
-      SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+      SecurityProvider provider = securityEngine.getSecurityProvider();
 
       return CurrentUserModel.builder()
          .anonymous(principal == null || principal.getName().equals(XPrincipal.ANONYMOUS))
@@ -222,7 +221,8 @@ public class SecurityConfigController {
    @Audited(
       actionName = ActionRecord.ACTION_NAME_EDIT,
       objectName = "Enable-Self-Signup",
-      objectType = ActionRecord.OBJECT_TYPE_EMPROPERTY
+      objectType = ActionRecord.OBJECT_TYPE_EMPROPERTY,
+      defaultOrg = true
    )
    @DeniedMultiTenancyOrgUser
    @Secured(
@@ -287,7 +287,7 @@ public class SecurityConfigController {
    @GetMapping("/api/em/security/get-api-key")
    public String getOpenSourceLicenseKey()
    {
-      if(!LicenseManager.getInstance().isEnterprise()) {
+      if(!LicenseManager.isEnterprise()) {
          return SreeEnv.getProperty("license.key");
       }
       return null;
@@ -303,7 +303,7 @@ public class SecurityConfigController {
    @PostMapping("/api/em/security/set-api-key")
    public void setOpenSourceLicenseKey(@RequestBody(required = false) String key)
    {
-      if(!LicenseManager.getInstance().isEnterprise()) {
+      if(!LicenseManager.isEnterprise()) {
          SreeEnv.setProperty("license.key", key);
       }
    }
@@ -334,7 +334,7 @@ public class SecurityConfigController {
 
    private String getDataSourceResourceName(String resourcePath) {
       if(resourcePath.contains("/")) {
-         for(String ds : DataSourceRegistry.getRegistry().getDataSourceFullNames()) {
+         for(String ds : dataSourceRegistry.getDataSourceFullNames()) {
             if(resourcePath.startsWith(ds + "/")) {
                resourcePath = ds + "::" + resourcePath.substring(ds.length() + 1);
                break;
@@ -345,7 +345,7 @@ public class SecurityConfigController {
       return resourcePath;
    }
 
-   private SecurityEngine securityEngine;
-   private ActionPermissionService actionPermissionService;
-   private final Logger LOG = LoggerFactory.getLogger(SecurityConfigController.class);
+   private final SecurityEngine securityEngine;
+   private final LicenseManager licenseManager;
+   private final DataSourceRegistry dataSourceRegistry;
 }

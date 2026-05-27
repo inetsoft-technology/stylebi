@@ -180,7 +180,7 @@ public class XQueryAsset extends AbstractXAsset {
 
    private XPartition getXPartition(String datasource, String name) {
       try {
-         XRepository repository = XFactory.getRepository();
+         XRepository repository = XRepository.getRepository();
          XDataModel model = repository.getDataModel(datasource);
 
          if(model == null) {

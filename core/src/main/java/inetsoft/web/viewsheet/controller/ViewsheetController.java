@@ -18,8 +18,6 @@
 package inetsoft.web.viewsheet.controller;
 
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
-import inetsoft.web.viewsheet.service.RuntimeViewsheetManager;
-import inetsoft.web.viewsheet.service.VSLifecycleService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.stereotype.Controller;
@@ -39,12 +37,10 @@ public class ViewsheetController {
     */
    @Autowired
    public ViewsheetController(RuntimeViewsheetRef runtimeViewsheetRef,
-                              RuntimeViewsheetManager runtimeViewsheetManager,
-                              VSLifecycleService vsLifecycleService)
+                              ViewsheetControllerServiceProxy viewsheetControllerServiceProxy)
    {
       this.runtimeViewsheetRef = runtimeViewsheetRef;
-      this.runtimeViewsheetManager = runtimeViewsheetManager;
-      this.vsLifecycleService = vsLifecycleService;
+      this.viewsheetControllerServiceProxy = viewsheetControllerServiceProxy;
    }
 
    /**
@@ -55,12 +51,10 @@ public class ViewsheetController {
    @MessageMapping("/close")
    public void closeViewsheet(Principal principal) {
       if(runtimeViewsheetRef.getRuntimeId() != null) {
-         vsLifecycleService.closeViewsheet(
-            runtimeViewsheetRef.getRuntimeId(), principal, runtimeViewsheetManager);
+      viewsheetControllerServiceProxy.closeViewsheet(runtimeViewsheetRef.getRuntimeId(), principal);
       }
    }
 
    private final RuntimeViewsheetRef runtimeViewsheetRef;
-   private final RuntimeViewsheetManager runtimeViewsheetManager;
-   private final VSLifecycleService vsLifecycleService;
+   private ViewsheetControllerServiceProxy viewsheetControllerServiceProxy;
 }

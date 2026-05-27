@@ -37,11 +37,12 @@ import java.util.stream.Collectors;
 public class UsageHistoryService {
    @Autowired
    public UsageHistoryService(ServerService serverService, ViewsheetService viewsheetService,
-                              QueryService queryService)
+                              QueryService queryService, Cluster cluster)
    {
       this.serverService = serverService;
       this.viewsheetService = viewsheetService;
       this.queryService = queryService;
+      this.cluster = cluster;
    }
 
    @Secured({
@@ -55,7 +56,7 @@ public class UsageHistoryService {
       @SuppressWarnings("unused") @PermissionUser Principal principal)
    {
       if(clusterNode == null) {
-         clusterNode = ServerClusterClient.getLocalServer(Cluster.getInstance());
+         clusterNode = ServerClusterClient.getLocalServer(cluster);
       }
 
       String host = clusterNode;
@@ -108,4 +109,5 @@ public class UsageHistoryService {
    private final ServerService serverService;
    private final ViewsheetService viewsheetService;
    private final QueryService queryService;
+   private final Cluster cluster;
 }

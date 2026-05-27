@@ -20,6 +20,7 @@ package inetsoft.web.viewsheet.event;
 import inetsoft.uql.asset.AssetEntry;
 
 import java.awt.*;
+import java.io.Serializable;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -28,7 +29,7 @@ import java.util.Map;
  *
  * @since 12.3
  */
-public class OpenViewsheetEvent {
+public class OpenViewsheetEvent implements Serializable {
    /**
     * Gets the asset entry identifier of the viewsheet.
     *

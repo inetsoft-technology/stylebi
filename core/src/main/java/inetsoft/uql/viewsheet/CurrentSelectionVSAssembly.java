@@ -318,8 +318,13 @@ public class CurrentSelectionVSAssembly extends AbstractContainerVSAssembly
       String[] arr = getAssemblies();
 
       for(int i = 0; i < arr.length; i++) {
-         writer.println("<oneAssembly>");
          Assembly assembly = getViewsheet().getAssembly(arr[i]);
+
+         if(assembly == null) {
+            continue;
+         }
+
+         writer.println("<oneAssembly>");
          assembly.writeXML(writer);
          writer.println("</oneAssembly>");
       }

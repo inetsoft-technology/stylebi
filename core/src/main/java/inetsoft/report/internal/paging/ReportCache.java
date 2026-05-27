@@ -884,6 +884,7 @@ public class ReportCache implements Serializable {
       public void run() {
          try {
             ThreadContext.setLocale(null);
+            ThreadContext.setProfiling(null);
 
             if(report != null) {
                final ReportSheet locked = report;

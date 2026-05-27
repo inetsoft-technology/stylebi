@@ -23,6 +23,7 @@ import inetsoft.report.internal.StyleCore;
 import inetsoft.report.io.Builder;
 import inetsoft.report.style.XTableStyle;
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.util.Tool;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -182,7 +183,7 @@ public class ReportHelper {
     * @return StyleSheet object.
     */
    protected ReportSheet createSheet() {
-      ReportSheet report = new TabularSheet();
+      ReportSheet report = new TabularSheet(LibManagerProvider.getInstance(), Cluster.getInstance());
       return report;
    }
 

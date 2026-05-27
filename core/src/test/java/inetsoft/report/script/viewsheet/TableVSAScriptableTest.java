@@ -18,9 +18,9 @@
 
 package inetsoft.report.script.viewsheet;
 
-import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.Hyperlink;
-import inetsoft.report.composition.*;
+import inetsoft.report.composition.FormTableRow;
+import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.internal.binding.BaseField;
 import inetsoft.report.lens.AttributeTableLens;
@@ -30,36 +30,43 @@ import inetsoft.report.script.TableRow;
 import inetsoft.test.*;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.asset.ColumnRef;
-import inetsoft.uql.viewsheet.*;
+import inetsoft.uql.viewsheet.TableVSAssembly;
+import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.TableVSAssemblyInfo;
-
 import inetsoft.web.viewsheet.event.OpenViewsheetEvent;
-import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.RegisterExtension;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
-import org.mockito.Mock;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.awt.*;
-import java.security.Principal;
 import java.util.*;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 import static org.mockito.MockitoAnnotations.openMocks;
 
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class, IntegrationTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome(importResources = "TableVSAScriptableTest.vso")
+@Tag("core")
+@Tag("integration")
 public class TableVSAScriptableTest {
    private ViewsheetSandbox viewsheetSandbox ;
    private TableVSAScriptable tableVSAScriptable, tableVSAScriptable2;
    private TableVSAssemblyInfo tableVSAssemblyInfo;
    private TableVSAssembly tableVSAssembly, tableVSAssembly2;
    private VSAScriptable vsaScriptable;
-
-   @Mock
-   ViewsheetService viewsheetService;
 
    @BeforeEach
    void setUp() {
@@ -369,10 +376,7 @@ public class TableVSAScriptableTest {
     */
    private void processAssembly(String assemblyName) throws Exception {
       RuntimeViewsheet rvs = viewsheetResource.getRuntimeViewsheet();
-      ViewsheetSandbox sandbox = rvs.getViewsheetSandbox();
-      Principal principal = mock(Principal.class);
-      when(viewsheetService.getViewsheet(viewsheetResource.getRuntimeId(), principal))
-         .thenReturn(viewsheetResource.getRuntimeViewsheet());
+      ViewsheetSandbox sandbox = rvs.getViewsheetSandbox().orElseThrow();
 
       tableVSAssembly2 = (TableVSAssembly) viewsheetResource
          .getRuntimeViewsheet().getViewsheet().getAssembly(assemblyName);
@@ -383,11 +387,6 @@ public class TableVSAScriptableTest {
    public static final String ASSET_ID = "1^128^__NULL__^TableVSAScriptableTest";
 
    @RegisterExtension
-   @Order(1)
-   ControllersExtension controllers = new ControllersExtension();
-
-   @RegisterExtension
-   @Order(2)
    RuntimeViewsheetExtension viewsheetResource =
-      new RuntimeViewsheetExtension(createOpenViewsheetEvent(), controllers);
+      new RuntimeViewsheetExtension(createOpenViewsheetEvent());
 }

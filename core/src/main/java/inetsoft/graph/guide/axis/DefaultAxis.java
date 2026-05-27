@@ -1882,10 +1882,18 @@ public class DefaultAxis extends Axis {
          .filter(label -> label.getZIndex() >= 0)
          .collect(Collectors.toList());
 
+      // Map each label to its index in vlabels (== its index in scale.getTicks()),
+      // so that dupTicks bits correspond to the original tick array positions.
+      Map<VDimensionLabel, Integer> tickIndex = new IdentityHashMap<>();
+
+      for(int k = 0; k < vlabels.length; k++) {
+         tickIndex.put(vlabels[k], k);
+      }
+
       for(int i = 1; i < labels.size(); i++) {
          if(labels.get(i).getText().equals(labels.get(i - 1).getText())) {
             if(!spec.isAllTicks()) {
-               dupTicks.set(i);
+               dupTicks.set(tickIndex.get(labels.get(i)));
             }
 
             labels.get(i).setZIndex(-1);

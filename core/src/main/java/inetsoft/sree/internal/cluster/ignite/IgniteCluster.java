@@ -17,21 +17,25 @@
  */
 package inetsoft.sree.internal.cluster.ignite;
 
-import inetsoft.sree.internal.SUtil;
+import inetsoft.report.composition.ExpiredSheetException;
+import inetsoft.report.composition.WorksheetEngine;
 import inetsoft.sree.internal.cluster.*;
 import inetsoft.sree.security.AuthenticationService;
+import inetsoft.uql.asset.ConfirmException;
 import inetsoft.util.*;
 import inetsoft.util.config.*;
 import org.apache.ignite.*;
 import org.apache.ignite.cache.*;
+import org.apache.ignite.cache.affinity.Affinity;
 import org.apache.ignite.cache.query.FieldsQueryCursor;
 import org.apache.ignite.cache.query.SqlFieldsQuery;
-import org.apache.ignite.cluster.ClusterGroup;
-import org.apache.ignite.cluster.ClusterNode;
+import org.apache.ignite.cluster.*;
 import org.apache.ignite.configuration.*;
 import org.apache.ignite.events.*;
+import org.apache.ignite.failure.StopNodeFailureHandler;
 import org.apache.ignite.internal.NodeStoppingException;
 import org.apache.ignite.lang.*;
+import org.apache.ignite.logger.slf4j.Slf4jLogger;
 import org.apache.ignite.services.*;
 import org.apache.ignite.spi.communication.tcp.TcpCommunicationSpi;
 import org.apache.ignite.spi.discovery.tcp.TcpDiscoverySpi;
@@ -44,8 +48,9 @@ import org.apache.ignite.transactions.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.cache.Cache;
+import javax.cache.expiry.ExpiryPolicy;
 import java.io.*;
-import java.lang.invoke.MethodHandles;
 import java.net.UnknownHostException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -59,7 +64,6 @@ import java.util.concurrent.locks.Lock;
 import java.util.function.*;
 import java.util.stream.Collectors;
 
-@SingletonManager.ShutdownOrder(after = AuthenticationService.class)
 public final class IgniteCluster implements inetsoft.sree.internal.cluster.Cluster {
    /**
     * Creates a new instance of <tt>Cluster</tt>.
@@ -72,20 +76,46 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       System.out.format("Joining cluster on %s/24%n", Tool.getIP());
       ignite = createIgniteInstance(config);
       ignite.message().localListen(MESSAGE_TOPIC, new MessageDispatcher());
+      ignite.message().localListen(AFFINITY_TOPIC, new AffinityCallProcessor());
+      ignite.message().localListen(ServiceTaskExecutorImpl.RESULT_TOPIC, new ServiceTaskResultListener());
       ignite.events().localListen(new MembershipDispatcher(), EventType.EVT_NODE_JOINED, EventType.EVT_NODE_LEFT);
       clusterFileTransfer = new ClusterFileTransfer();
+      messageExecutor = Executors.newFixedThreadPool(
+         Runtime.getRuntime().availableProcessors(),
+         r -> new GroupedThread(r, "IgniteMessages"));
+      affinityExecutor = Executors.newFixedThreadPool(
+         Runtime.getRuntime().availableProcessors(),
+         r -> new GroupedThread(r, "IgniteMessages"));
+      listenerExecutor = Executors.newSingleThreadExecutor(
+         r -> new GroupedThread(r, "IgniteMapEvents"));
 
       if(!config.isClientMode()) {
          initLockTimer();
          ignite.getOrCreateCache(getCacheConfiguration(RW_MAP_NAME));
       }
+
+      if("reportServer".equals(System.getProperty("inetsoft.cluster.node.type"))) {
+         setLocalNodeProperty("reportServer", "true");
+      }
+
+      registerSpringProxyPartitionedCache(WorksheetEngine.CACHE_NAME);
    }
 
    public static IgniteConfiguration getDefaultConfig(Path workDir) {
       ClusterConfig clusterConfig = InetsoftConfig.getInstance().getCluster();
       IgniteConfiguration config = new IgniteConfiguration();
+      DataStorageConfiguration storageCfg = new DataStorageConfiguration();
+      DataRegionConfiguration defaultRegion = storageCfg.getDefaultDataRegionConfiguration();
+      defaultRegion.setPersistenceEnabled(false);
+      config.setDataStorageConfiguration(storageCfg);
+
       config.setMetricsLogFrequency(0);
       config.setPeerClassLoadingEnabled(true);
+      config.setGridLogger(new Slf4jLogger());
+
+      if("true".equals(System.getProperty("inetsoftStorageInitializing"))) {
+         config.setFailureHandler(new StopNodeFailureHandler());
+      }
 
       // atomic data structures like distributed long
       AtomicConfiguration atomicConfiguration = new AtomicConfiguration();
@@ -147,6 +177,9 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
          int[] includedEvents = new int[]{
             EventType.EVT_CACHE_OBJECT_PUT,
             EventType.EVT_CACHE_OBJECT_REMOVED,
+            EventType.EVT_CACHE_OBJECT_EXPIRED,
+            EventType.EVT_CACHE_ENTRY_EVICTED,
+            EventType.EVT_CACHE_REBALANCE_STOPPED,
             EventType.EVT_NODE_JOINED,
             EventType.EVT_NODE_LEFT
          };
@@ -170,7 +203,7 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
          tcpCommunicationSpi.setAddressResolver(addressResolver);
          tcpCommunicationSpi.setLocalAddress(localIP);
 
-         if(clusterConfig.getOutboundPortNumber() != 0){
+         if(clusterConfig.getOutboundPortNumber() != 0) {
             tcpCommunicationSpi.setLocalPort(clusterConfig.getOutboundPortNumber());
          }
 
@@ -227,7 +260,7 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       }
 
       config.setExecutorConfiguration(executePools);
-      SUtil.configBinaryTypes(config);
+      IgniteUtils.configBinaryTypes(config);
 
       return config;
    }
@@ -254,8 +287,7 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
          LOG.error("Failed to get the DiscoveryFinderFactory", ex);
       }
 
-      LOG.error("Failed to get the DiscoveryFinderFactory with type:" + type);
-
+      LOG.error("Failed to get the DiscoveryFinderFactory with type: {}", type);
       return null;
    }
 
@@ -277,7 +309,7 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
 
          try {
             nodeCertificate =
-               helper.generateCertificate(certificate, privateKey, Tool.getIP(), password);
+               helper.generateCertificate(certificate, privateKey, helper.getChildDN(certificate, Tool.getIP()), password);
          }
          catch(Exception e) {
             LOG.error("Failed to generate node SSL certificate", e);
@@ -401,16 +433,34 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       return getCacheConfiguration(name, getDefaultCacheMode(), getDefaultBackupCount());
    }
 
-   private static <K, V> CacheConfiguration<K, V> getCacheConfiguration(String name, CacheMode mode,
-                                                                       int backupCount)
+   @Override
+   public void registerSpringProxyPartitionedCache(String cacheName) {
+      SPRING_PROXY_PARTITIONED_CACHES.add(cacheName);
+   }
+
+   private static boolean isSpringProxyPartitionedCache(String cacheName) {
+      return SPRING_PROXY_PARTITIONED_CACHES.contains(cacheName);
+   }
+
+   private static <K, V> CacheConfiguration<K, V> getCacheConfiguration(
+      String name, CacheMode mode, int backupCount)
    {
+
       CacheConfiguration<K, V> cacheConfiguration = new CacheConfiguration<>(name);
       cacheConfiguration.setBackups(backupCount);
       cacheConfiguration.setCacheMode(mode);
       cacheConfiguration.setAtomicityMode(CacheAtomicityMode.TRANSACTIONAL);
       cacheConfiguration.setRebalanceMode(CacheRebalanceMode.SYNC);
       cacheConfiguration.setWriteSynchronizationMode(CacheWriteSynchronizationMode.FULL_SYNC);
-      cacheConfiguration.setGroupName("inetsoft-cache-" + mode.toString().toLowerCase());
+
+      if(isSpringProxyPartitionedCache(name)) {
+         cacheConfiguration.setGroupName("inetsoft-cache-spring-proxy-" + mode.toString().toLowerCase());
+         cacheConfiguration.setNodeFilter(SPRING_PROXY_NODE_FILTER);
+      }
+      else {
+         cacheConfiguration.setGroupName("inetsoft-cache-" + mode.toString().toLowerCase());
+      }
+
       return cacheConfiguration;
    }
 
@@ -479,6 +529,7 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
     * Gets the name of the specified member node.
     *
     * @param node the node.
+    *
     * @return the node name.
     */
    private String getNodeName(ClusterNode node) {
@@ -508,6 +559,51 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
          .stream()
          .map(this::getNodeName)
          .collect(Collectors.toSet());
+   }
+
+   @Override
+   public boolean isClusterReady() {
+      try {
+         org.apache.ignite.IgniteCluster cluster = ignite.cluster();
+
+         // Check if cluster is active
+         if(cluster.state() != ClusterState.ACTIVE) {
+            LOG.debug("Cluster is not active, state: {}", cluster.state());
+            return false;
+         }
+
+         // Check if we have server nodes
+         if(cluster.forServers().nodes().isEmpty()) {
+            LOG.debug("No server nodes in cluster");
+            return false;
+         }
+
+         // Try to get affinity for the RW_MAP cache to verify partition exchange is complete
+         // This will fail with NPE if topology version is not ready
+         try {
+            IgniteCache<Object, Object> cache = ignite.cache(RW_MAP_NAME);
+
+            if(cache != null) {
+               ignite.affinity(RW_MAP_NAME).partition(0);
+            }
+         }
+         catch(NullPointerException e) {
+            // AffinityTopologyVersion is null - partition exchange not complete
+            LOG.debug("Partition exchange not complete: {}", e.getMessage());
+            return false;
+         }
+         catch(Exception e) {
+            // Other errors during affinity check
+            LOG.debug("Error checking affinity: {}", e.getMessage());
+            return false;
+         }
+
+         return true;
+      }
+      catch(Exception e) {
+         LOG.debug("Error checking cluster readiness: {}", e.getMessage());
+         return false;
+      }
    }
 
    @Override
@@ -615,22 +711,15 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
 
    @Override
    public Lock getLock(String name) {
-      return DISTRIBUTED_LOCK_MAP.compute(name, (k, existingProxy) -> {
-         DistributedLockProxy wrapper = (existingProxy != null) ? existingProxy :
-            new DistributedLockProxy(name);
-
-         Lock lock = ignite.reentrantLock(name, true, false, true);
-         wrapper.setRealLock(lock);
-         return wrapper;
-      });
+      return new DistributedLockProxy(name, ignite.reentrantLock(name, true, false, true));
    }
 
    @Override
    public void destroyLock(String name) {
-      try(IgniteLock lock = ignite.reentrantLock(name, true, false, false)) {
-         if(lock != null) {
-            lock.unlock();
-         }
+      IgniteLock lock = ignite.reentrantLock(name, true, false, false);
+
+      if(lock != null) {
+         lock.close();
       }
    }
 
@@ -700,17 +789,21 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       Lock lock = getLock(writeKeyName);
       lock.lock();
 
-      Integer cnt = (Integer) map.get(readKeyName);
+      try {
+         Integer cnt = (Integer) map.get(readKeyName);
 
-      if(cnt == null) {
-         cnt = 1;
-      }
-      else {
-         cnt = cnt + 1;
-      }
+         if(cnt == null) {
+            cnt = 1;
+         }
+         else {
+            cnt = cnt + 1;
+         }
 
-      map.put(readKeyName, cnt);
-      unlockLock(writeKeyName);
+         map.put(readKeyName, cnt);
+      }
+      finally {
+         unlockLock(writeKeyName);
+      }
    }
 
    @Override
@@ -723,19 +816,22 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       Lock lock = getLock(writeKeyName);
       lock.lock();
 
-      Integer cnt = (Integer) map.get(readKeyName);
+      try {
+         Integer cnt = (Integer) map.get(readKeyName);
 
-      if(cnt != null) {
-         if(cnt <= 1) {
-            map.remove(readKeyName);
-         }
-         else {
-            cnt = cnt - 1;
-            map.put(readKeyName, cnt);
+         if(cnt != null) {
+            if(cnt <= 1) {
+               map.remove(readKeyName);
+            }
+            else {
+               cnt = cnt - 1;
+               map.put(readKeyName, cnt);
+            }
          }
       }
-
-      unlockLock(writeKeyName);
+      finally {
+         unlockLock(writeKeyName);
+      }
    }
 
    @SuppressWarnings("BusyWait")
@@ -756,17 +852,27 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       // lock on write
       Lock lock = getLock(writeKeyName);
       lock.lock();
+      boolean success = false;
 
-      while(map.containsKey(readKeyName)) {
-         lock.unlock();
+      try {
+         while(map.containsKey(readKeyName)) {
+            lock.unlock();
 
-         try {
-            Thread.sleep(100);
+            try {
+               Thread.sleep(100);
+            }
+            catch(Exception ignore) {
+            }
+
+            lock.lock();
          }
-         catch(Exception ignore) {
-         }
 
-         lock.lock();
+         success = true;
+      }
+      finally {
+         if(!success) {
+            unlockLock(writeKeyName);
+         }
       }
    }
 
@@ -782,7 +888,6 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
          getCacheConfiguration(name)));
    }
 
-
    public <K, V> IgniteMultiMap<K, V> getMultiMap(String name) {
       CacheConfiguration<K, Collection<V>> cacheConfiguration = getCacheConfiguration(name);
       return new IgniteMultiMap<>(ignite.getOrCreateCache(cacheConfiguration));
@@ -794,38 +899,37 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
    }
 
    @Override
-   public void addMapListener(String name, MapChangeListener<?, ?> l) {
-      UUID id = ignite.events()
-         .remoteListen(new MapListenerAdapter<>(l), new MapEventFilter(name),
-                       EventType.EVT_CACHE_OBJECT_PUT, EventType.EVT_CACHE_OBJECT_REMOVED);
-      mapListeners.put(l, id);
+   public <K, V> void addMapListener(String name, MapChangeListener<K, V> l) {
+      IgniteCache<K, V> cache = ignite.cache(name);
+
+      if(cache == null) {
+         getMap(name);
+         cache = ignite.cache(name);
+      }
+
+      addCacheEventListener(cache, l);
    }
 
    @Override
    public void removeMapListener(String name, MapChangeListener<?, ?> l) {
-      UUID id = mapListeners.remove(l);
-
-      if(id != null) {
-         ignite.events(ignite.cluster().forRemotes()).stopRemoteListen(id);
-      }
+      removeCacheEventListener(name, l);
    }
 
    @Override
    public <K, V> void addMultiMapListener(String name, MapChangeListener<K, Collection<V>> l) {
-      UUID id = ignite.events().remoteListen(new MapListenerAdapter<>(l),
-                                             new MapEventFilter(name),
-                                             EventType.EVT_CACHE_OBJECT_PUT,
-                                             EventType.EVT_CACHE_OBJECT_REMOVED);
-      multiMapListeners.put(l, id);
+      IgniteCache<K, Collection<V>> cache = ignite.cache(name);
+
+      if(cache == null) {
+         getMultiMap(name);
+         cache = ignite.cache(name);
+      }
+
+      addCacheEventListener(cache, l);
    }
 
    @Override
    public void removeMultiMapListener(String name, MapChangeListener<?, ?> l) {
-      UUID id = multiMapListeners.get(l);
-
-      if(id != null) {
-         ignite.events().stopRemoteListen(id);
-      }
+      removeCacheEventListener(name, l);
    }
 
    @Override
@@ -836,38 +940,257 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
    }
 
    @Override
+   public <K, V> IgniteMultiMap<K, V> getReplicatedMultiMap(String name) {
+      // backup count doesn't matter for replicated cache
+      CacheConfiguration<K, Collection<V>> cacheConfiguration =
+         getCacheConfiguration(name, CacheMode.REPLICATED, DEFAULT_BACKUP_COUNT);
+      return new IgniteMultiMap<>(ignite.getOrCreateCache(cacheConfiguration));
+   }
+
+   @Override
    public void destroyReplicatedMap(String name) {
       ignite.destroyCache(name);
    }
 
    @Override
    public <K, V> void addReplicatedMapListener(String name, MapChangeListener<K, V> l) {
-      UUID id = ignite.events().remoteListen(new MapListenerAdapter<>(l),
-                                             new MapEventFilter(name),
-                                             EventType.EVT_CACHE_OBJECT_PUT,
-                                             EventType.EVT_CACHE_OBJECT_REMOVED);
-      replicatedMapListeners.put(l, id);
+      IgniteCache<K, V> cache = ignite.cache(name);
+
+      if(cache == null) {
+         getReplicatedMap(name);
+         cache = ignite.cache(name);
+      }
+
+      addCacheEventListener(cache, l);
    }
 
    @Override
    public void removeReplicatedMapListener(String name, MapChangeListener<?, ?> l) {
+      removeCacheEventListener(name, l);
+   }
+
+   @Override
+   public boolean mapExists(String name) {
+      return ignite.cacheNames().contains(name);
+   }
+
+   @Override
+   public <K, V> Cache<K, V> getCache(String name, boolean replicated, ExpiryPolicy expiryPolicy) {
+      CacheConfiguration<K, V> config;
+
+      if(replicated) {
+         config = getCacheConfiguration(name, CacheMode.REPLICATED, DEFAULT_BACKUP_COUNT);
+      }
+      else {
+         config = getCacheConfiguration(name);
+      }
+
+      config = config.setEagerTtl(expiryPolicy != null);
+      IgniteCache<K, V> cache = ignite.getOrCreateCache(config);
+
+      if(expiryPolicy != null) {
+         cache = cache.withExpiryPolicy(expiryPolicy);
+      }
+
+      return cache;
+   }
+
+   @Override
+   public <K, V> Collection<K> getLocalCacheKeys(Cache<K, V> cache, Collection<K> keys) {
+      Affinity<K> affinity = ignite.affinity(cache.getName());
+      ClusterNode localNode = ignite.cluster().localNode();
+      return keys.stream()
+         .filter(k -> affinity.isPrimary(localNode, k))
+         .toList();
+   }
+
+   @Override
+   public <K> boolean isLocalCacheKey(String cache, K key) {
+      Affinity<K> affinity = ignite.affinity(cache);
+      ClusterNode localNode = ignite.cluster().localNode();
+      return affinity.isPrimary(localNode, key);
+   }
+
+   @Override
+   public boolean isLocalCall() {
+      ClusterNode localNode = ignite.cluster().localNode();
+      return localNode.isClient() || Boolean.TRUE.equals(localNode.attribute("scheduler"));
+   }
+
+   @Override
+   public <T> T affinityCall(String cache, Object key, AffinityCallable<T> job) {
+      String id = UUID.randomUUID().toString();
+      ClusterNode node = ignite.affinity(cache).mapKeyToNode(key);
+      LOG.debug("AFFINITY CALL START: cache={}, key={}, node={}, id={}", cache, key, node, id);
+
+      if(Objects.equals(node, ignite.cluster().localNode())) {
+         LOG.debug("AFFINITY CALL DIRECT: cache={}, key={}, node={}, id={}", cache, key, node, id);
+
+         try {
+            return job.call();
+         }
+         catch(RuntimeException ex) {
+            throw ex;
+         }
+         catch(Exception ex) {
+            throw new RuntimeException(ex);
+         }
+      }
+
+      AffinityCallRequest<T> request = new AffinityCallRequest<>(
+         id, getNodeName(ignite.cluster().localNode()), getNodeName(node), job);
+      CompletableFuture<T> future = new CompletableFuture<>();
+      affinityFutures.put(id, future);
+
       try {
-         UUID id = replicatedMapListeners.get(l);
-
-         if(id != null) {
-            ignite.events().stopRemoteListen(id);
-         }
+         LOG.debug("AFFINITY CALL SENDING: cache={}, key={}, node={}, id={}, request={}", cache, key, node, id, request);
+         ignite.message().sendOrdered(AFFINITY_TOPIC, request, 0);
       }
-      catch(IgniteIllegalStateException ignore) {
-         // already shutting down cluster, can't remove listener
+      catch(Exception e) {
+         LOG.error("Failed to send affinity call request: cache={}, key={}, node={}, id={}, exception={}", cache, key, node, id, e);
       }
-      catch(IgniteException ex) {
-         if(isNodeStoppingException(ex)) {
-            // node already stoped, cannot remove listener.
-            return;
-         }
 
+      try {
+         return future.get(5L, TimeUnit.MINUTES);
+      }
+      catch(RuntimeException ex) {
+         affinityFutures.remove(id);
          throw ex;
+      }
+      catch(ExecutionException ex) {
+         affinityFutures.remove(id);
+
+         switch(ex.getCause()) {
+         case ExpiredSheetException ese -> throw ese;
+         case MessageException me -> throw me;
+         case ConfirmException ce -> throw ce;
+         default -> throw new RuntimeException(ex);
+         }
+      }
+      catch(Exception e) {
+         affinityFutures.remove(id);
+         throw new RuntimeException(e);
+      }
+      finally {
+         LOG.debug("AFFINITY CALL COMPLETED: cache={}, key={}, node={}, id={}", cache, key, node, id);
+      }
+   }
+
+   @Override
+   public <T> Future<T> affinityCallAsync(String cache, Object key, AffinityCallable<T> job) {
+      String id = UUID.randomUUID().toString();
+      ClusterNode node = ignite.affinity(cache).mapKeyToNode(key);
+      LOG.debug("AFFINITY CALL ASYNC START: cache={}, key={}, node={}, id={}", cache, key, node, id);
+
+      if(Objects.equals(node, ignite.cluster().localNode())) {
+         LOG.debug("AFFINITY CALL ASYNC DIRECT: cache={}, key={}, node={}, id={}", cache, key, node, id);
+
+         return CompletableFuture.supplyAsync(() -> {
+            try {
+               return job.call();
+            }
+            catch(RuntimeException ex) {
+               throw ex;
+            }
+            catch(Exception ex) {
+               throw new RuntimeException(ex);
+            }
+         }, affinityExecutor);
+      }
+
+      AffinityCallRequest<T> request = new AffinityCallRequest<>(
+         id, getNodeName(ignite.cluster().localNode()), getNodeName(node), job);
+      CompletableFuture<T> future = new CompletableFuture<>();
+      affinityFutures.put(id, future);
+
+      try {
+         LOG.debug("AFFINITY CALL ASYNC SENDING: cache={}, key={}, node={}, id={}, request={}", cache, key, node, id, request);
+         ignite.message().sendOrdered(AFFINITY_TOPIC, request, 0);
+      }
+      catch(Exception e) {
+         LOG.error("Failed to send affinity call async request: cache={}, key={}, node={}, id={}, exception={}", cache, key, node, id, e);
+      }
+
+      LOG.debug("AFFINITY CALL ASYNC COMPLETED: cache={}, key={}, node={}, id={}", cache, key, node, id);
+      return future;
+   }
+
+   @Override
+   public <T> List<T> affinityCallAll(String cache, AffinityCallable<T> job) {
+      Set<ClusterNode> nodes = new HashSet<>();
+      Affinity<?> affinity = ignite.affinity(cache);
+
+      for(int i = 0; i < affinity.partitions(); i++) {
+         nodes.add(affinity.mapPartitionToNode(i));
+      }
+
+      List<CompletableFuture<T>> futures = new ArrayList<>(nodes.size());
+      List<String> futureIds = new ArrayList<>(nodes.size());
+      List<T> results = new ArrayList<>();
+
+      try {
+         for(ClusterNode node : nodes) {
+            if(Objects.equals(ignite.cluster().localNode(), node)) {
+               results.add(job.call());
+            }
+            else if(!node.isClient()) {
+               String id = UUID.randomUUID().toString();
+               AffinityCallRequest<T> request = new AffinityCallRequest<>(
+                  id, getNodeName(ignite.cluster().localNode()), getNodeName(node), job);
+               CompletableFuture<T> future = new CompletableFuture<>();
+               affinityFutures.put(id, future);
+               futures.add(future);
+               futureIds.add(id);
+               ignite.message(ignite.cluster().forServers()).sendOrdered(AFFINITY_TOPIC, request, 0);
+            }
+         }
+      }
+      catch(Exception e) {
+         futureIds.forEach(affinityFutures::remove);
+         throw new RuntimeException(e);
+      }
+
+      // Wait for all remote futures under a single shared timeout so that N failed
+      // nodes cost at most 5 minutes total rather than N × 5 minutes.
+      try {
+         CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]))
+            .get(5L, TimeUnit.MINUTES);
+      }
+      catch(RuntimeException ex) {
+         futureIds.forEach(affinityFutures::remove);
+         throw ex;
+      }
+      catch(ExecutionException ex) {
+         futureIds.forEach(affinityFutures::remove);
+         throw new RuntimeException(ex);
+      }
+      catch(Exception e) {
+         futureIds.forEach(affinityFutures::remove);
+         throw new RuntimeException(e);
+      }
+
+      for(CompletableFuture<T> future : futures) {
+         results.add(future.getNow(null));
+      }
+
+      return results;
+   }
+
+   @Override
+   public void addCacheRebalanceListener(String cacheName, CacheRebalanceListener listener) {
+      UUID id = ignite.events()
+         .remoteListen(new RebalanceListenerAdapter(listener),
+                       new RebalanceEventFilter(cacheName),
+                       EventType.EVT_CACHE_REBALANCE_STOPPED);
+      rebalanceListeners.put(listener, id);
+   }
+
+   @Override
+   public void removeCacheRebalanceListener(String cacheName, CacheRebalanceListener listener) {
+      UUID id = rebalanceListeners.remove(listener);
+
+      if(id != null) {
+         ignite.events(ignite.cluster().forRemotes()).stopRemoteListen(id);
       }
    }
 
@@ -972,8 +1295,8 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
    private <T> Future<T> submit0(int level, Callable<T> task, boolean scheduler) {
       // Do not use lambda expression to submit the task to ignite, it can not run with JDK21.
       ClusterGroup clusterGroup = scheduler ? ignite.cluster().forPredicate(SCHEDULE_SELECTOR) :
-         ignite.cluster().forServers();
-      IgniteTaskCallable<T> igniteTask  = new IgniteTaskCallable<>(task, level);
+         ignite.cluster().forServers().forPredicate(WEB_SERVER_NODE_FILTER);
+      IgniteTaskCallable<T> igniteTask = new IgniteTaskCallable<>(task, level);
       return new IgniteFutureWrapper<>(getIgniteCompute(ignite, clusterGroup, level).callAsync(igniteTask));
    }
 
@@ -1044,7 +1367,7 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
    @Override
    public String getServiceOwner(String serviceId) {
       // make sure the service has been deployed or else this will be null
-      IgniteCluster.deployAndGetService(ignite, serviceId);
+      ensureServiceDeployed(serviceId);
       Collection<ServiceDescriptor> services = ignite.services().serviceDescriptors();
 
       for(ServiceDescriptor service : services) {
@@ -1065,52 +1388,59 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
 
    @Override
    public <T extends Serializable> Future<T> submit(String serviceId, SingletonCallableTask<T> task) {
-      return submit0(getNextTaskLevel(), serviceId, task);
-   }
+      ensureServiceDeployed(serviceId);
+      String taskId = UUID.randomUUID().toString();
+      CompletableFuture<Serializable> future = new CompletableFuture<>();
+      // Timeout prevents futures from hanging forever if the executor node dies mid-task
+      // and the result message is never delivered.
+      future.orTimeout(SERVICE_TASK_TIMEOUT_MINUTES, TimeUnit.MINUTES)
+         .whenComplete((r, ex) -> pendingServiceTasks.remove(taskId));
+      pendingServiceTasks.put(taskId, future);
+      BlockingQueue<ServiceTaskRequest> queue =
+         getQueue(ServiceTaskExecutorImpl.QUEUE_PREFIX + serviceId);
 
-   public <T extends Serializable> Future<T> submit0(int level, String serviceId, SingletonCallableTask<T> task) {
-      return CompletableFuture.supplyAsync(
-         new IgniteServiceCallableTask<>(ignite, serviceId, task, level),
-         getExecutorService(level));
+      if(!queue.offer(new ServiceTaskRequest(taskId, ignite.cluster().localNode().id(), task))) {
+         // completeExceptionally triggers the whenComplete callback which removes from
+         // pendingServiceTasks, so no explicit remove is needed here.
+         future.completeExceptionally(
+            new IllegalStateException("Task queue full for service: " + serviceId));
+      }
+
+      //noinspection unchecked
+      return (CompletableFuture<T>) future;
    }
 
    @Override
    public Future<?> submit(String serviceId, SingletonRunnableTask task) {
-      return submit0(getNextTaskLevel(), serviceId, task);
-   }
+      ensureServiceDeployed(serviceId);
+      String taskId = UUID.randomUUID().toString();
+      CompletableFuture<Serializable> future = new CompletableFuture<>();
+      future.orTimeout(SERVICE_TASK_TIMEOUT_MINUTES, TimeUnit.MINUTES)
+         .whenComplete((r, ex) -> pendingServiceTasks.remove(taskId));
+      pendingServiceTasks.put(taskId, future);
+      BlockingQueue<ServiceTaskRequest> queue =
+         getQueue(ServiceTaskExecutorImpl.QUEUE_PREFIX + serviceId);
 
-   private Future<?> submit0(int level, String serviceId, SingletonRunnableTask task) {
-      return CompletableFuture.supplyAsync(new IgniteServiceRunnableTask(ignite, serviceId, task, level),
-         getExecutorService(level));
+      if(!queue.offer(new ServiceTaskRequest(taskId, ignite.cluster().localNode().id(), task))) {
+         future.completeExceptionally(
+            new IllegalStateException("Task queue full for service: " + serviceId));
+      }
+
+      return future;
    }
 
    /**
-    * get the ExecutorService for the current task level.
+    * Ensures the singleton service executor for the given serviceId is deployed, creating the
+    * backing distributed queue first so that {@link ServiceTaskExecutorImpl#init()} can find it.
     */
-   private ExecutorService getExecutorService(int level) {
-      return executorServiceMap
-         .computeIfAbsent(level, k -> Executors.newFixedThreadPool(
-            Runtime.getRuntime().availableProcessors()));
-   }
+   private void ensureServiceDeployed(String serviceId) {
+      boolean deployed = ignite.services().serviceDescriptors().stream()
+         .anyMatch(s -> s.name().equals(serviceId));
 
-   private static ServiceTaskExecutor deployAndGetService(Ignite ignite, String serviceId) {
-      Collection<ServiceDescriptor> services = ignite.services().serviceDescriptors();
-      boolean deployed = false;
-
-      for(ServiceDescriptor service : services) {
-         if(service.name().equals(serviceId)) {
-            // service found, no need to do anything
-            deployed = true;
-            break;
-         }
-      }
-
-      // deploy a new service
       if(!deployed) {
+         getQueue(ServiceTaskExecutorImpl.QUEUE_PREFIX + serviceId);
          ignite.services().deployClusterSingleton(serviceId, new ServiceTaskExecutorImpl(serviceId));
       }
-
-      return ignite.services().serviceProxy(serviceId, ServiceTaskExecutor.class, false);
    }
 
    @Override
@@ -1168,6 +1498,28 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
                                                       Function<MessageEvent, T> matcher)
       throws Exception
    {
+      return exchangeMessages(address, outgoingMessage, matcher, 30, TimeUnit.SECONDS);
+   }
+
+   @Override
+   public <T extends Serializable> T exchangeMessages(String address, Serializable outgoingMessage,
+                                                      Class<T> responseType)
+      throws Exception
+   {
+      return exchangeMessages(address, outgoingMessage, responseType, 30, TimeUnit.SECONDS);
+   }
+
+   @Override
+   public <T extends Serializable> T exchangeMessages(String address, Serializable outgoingMessage,
+                                                      Function<MessageEvent, T> matcher,
+                                                      long timeout, TimeUnit unit)
+      throws Exception
+   {
+      // Check if target node is still in the cluster before attempting to send
+      if(!getClusterNodes(true).contains(address)) {
+         throw new InterruptedException("Target node is not in the cluster: " + address);
+      }
+
       CountDownLatch latch = new CountDownLatch(1);
       AtomicReference<T> result = new AtomicReference<>(null);
 
@@ -1182,17 +1534,39 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
          }
       };
 
+      // Add a membership listener to release the latch if the target node leaves
+      MembershipListener membershipListener = new MembershipListener() {
+         @Override
+         public void memberAdded(MembershipEvent event) {
+            // no-op
+         }
+
+         @Override
+         public void memberRemoved(MembershipEvent event) {
+            if(address.equals(event.getMember())) {
+               latch.countDown();
+            }
+         }
+      };
+
       addMessageListener(listener);
+      addMembershipListener(membershipListener);
 
       try {
          sendMessage(address, outgoingMessage);
 
-         if(!latch.await(30, TimeUnit.SECONDS)) {
+         if(!latch.await(timeout, unit)) {
             throw new InterruptedException("Timed out waiting for response from " + address);
+         }
+
+         // Check if the result is null (which would happen if the node left)
+         if(result.get() == null && !getClusterNodes(true).contains(address)) {
+            throw new InterruptedException("Target node left the cluster: " + address);
          }
       }
       finally {
          removeMessageListener(listener);
+         removeMembershipListener(membershipListener);
       }
 
       return result.get();
@@ -1200,12 +1574,13 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
 
    @Override
    public <T extends Serializable> T exchangeMessages(String address, Serializable outgoingMessage,
-                                                      Class<T> responseType)
+                                                      Class<T> responseType,
+                                                      long timeout, TimeUnit unit)
       throws Exception
    {
       return exchangeMessages(address, outgoingMessage, e ->
          e.getMessage() != null && responseType.isAssignableFrom(e.getMessage().getClass()) ?
-            responseType.cast(e.getMessage()) : null);
+            responseType.cast(e.getMessage()) : null, timeout, unit);
    }
 
    public boolean isMasterScheduler() {
@@ -1231,8 +1606,28 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
    public void close() {
       fireLifecycleEvent(ClusterLifecycleEvent.Type.CLOSED);
       lifecycleListeners.clear();
+
+      if(!closed) {
+         synchronized(mapListeners) {
+            for(MapListenerRegistration registration : mapListeners.values()) {
+               if(registration.replicated()) {
+                  ignite.events().stopLocalListen(registration.adapter(),
+                                                  EventType.EVT_CACHE_OBJECT_PUT,
+                                                  EventType.EVT_CACHE_OBJECT_REMOVED,
+                                                  EventType.EVT_CACHE_OBJECT_EXPIRED);
+               }
+               else {
+                  ignite.events().stopRemoteListen(registration.remoteListenerId());
+               }
+            }
+
+            mapListeners.clear();
+         }
+      }
+
       clusterFileTransfer.close();
       ignite.close();
+      closed = true;
       timer.cancel();
 
       for(ExecutorService value : executorServiceMap.values()) {
@@ -1242,6 +1637,19 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       }
 
       executorServiceMap.clear();
+
+      for(CompletableFuture<Serializable> future : pendingServiceTasks.values()) {
+         future.completeExceptionally(new RuntimeException("Cluster is closing"));
+      }
+
+      pendingServiceTasks.clear();
+      messageExecutor.shutdownNow();
+      affinityExecutor.shutdownNow();
+      listenerExecutor.shutdownNow();
+   }
+
+   public void setClosed(boolean closed) {
+      this.closed = closed;
    }
 
    /**
@@ -1375,22 +1783,96 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       }
    }
 
+   @SuppressWarnings({ "unchecked", "rawtypes" })
+   private <K, V> void addCacheEventListener(IgniteCache<K, V> cache, MapChangeListener<K, V> l) {
+      if(cache != null) {
+         synchronized(mapListeners) {
+            MapListenerRegistration registration = mapListeners.get(cache.getName());
+
+            if(registration == null) {
+               CacheConfiguration<?, ?> cacheConfig = cache.getConfiguration(CacheConfiguration.class);
+               boolean replicated = cacheConfig.getCacheMode() == CacheMode.REPLICATED;
+
+               CacheEventListenerAdapter<K, V> adapter =
+                  new CacheEventListenerAdapter<>(cache.getName(), listenerExecutor);
+
+               UUID remoteListenerId = null;
+
+               if(replicated) {
+                  ignite.events().localListen(adapter,
+                     EventType.EVT_CACHE_OBJECT_PUT,
+                     EventType.EVT_CACHE_OBJECT_REMOVED,
+                     EventType.EVT_CACHE_OBJECT_EXPIRED);
+               }
+               else {
+                  remoteListenerId = ignite.events().remoteListen(
+                     adapter, new CacheEventFilter(cache.getName()),
+                     EventType.EVT_CACHE_OBJECT_PUT,
+                     EventType.EVT_CACHE_OBJECT_REMOVED,
+                     EventType.EVT_CACHE_OBJECT_EXPIRED);
+               }
+
+               registration = new MapListenerRegistration(adapter, replicated, remoteListenerId);
+               mapListeners.put(cache.getName(), registration);
+            }
+
+            registration.adapter().addListener((MapChangeListener) l);
+         }
+      }
+   }
+
+   @SuppressWarnings({ "rawtypes", "unchecked" })
+   private <K, V> void removeCacheEventListener(String name, MapChangeListener<K, V> l) {
+      synchronized(mapListeners) {
+         MapListenerRegistration registration = mapListeners.get(name);
+
+         if(registration != null) {
+            if(registration.adapter().removeListener((MapChangeListener) l)) {
+               if(!closed) {
+                  if(registration.replicated()) {
+                     ignite.events().stopLocalListen(registration.adapter(),
+                        EventType.EVT_CACHE_OBJECT_PUT,
+                        EventType.EVT_CACHE_OBJECT_REMOVED,
+                        EventType.EVT_CACHE_OBJECT_EXPIRED);
+                  }
+                  else {
+                     ignite.events().stopRemoteListen(registration.remoteListenerId());
+                  }
+               }
+
+               mapListeners.remove(name);
+            }
+         }
+      }
+   }
+
+   private record MapListenerRegistration(CacheEventListenerAdapter<?, ?> adapter, boolean replicated,
+                                          UUID remoteListenerId)
+   {
+   }
+
    private final Ignite ignite;
+   private volatile boolean closed;
    private final Set<inetsoft.sree.internal.cluster.MessageListener> messageListeners = new CopyOnWriteArraySet<>();
    private final Set<inetsoft.sree.internal.cluster.MembershipListener> membershipListeners = new CopyOnWriteArraySet<>();
-   private final Map<MapChangeListener<?, ?>, UUID> mapListeners = new ConcurrentHashMap<>();
-   private final Map<MapChangeListener<?, ?>, UUID> multiMapListeners = new ConcurrentHashMap<>();
-   private final Map<MapChangeListener<?, ?>, UUID> replicatedMapListeners = new ConcurrentHashMap<>();
+   private final Map<String, MapListenerRegistration> mapListeners = new HashMap<>();
+   private final Map<CacheRebalanceListener, UUID> rebalanceListeners = new ConcurrentHashMap<>();
    private final Set<ClusterLifecycleListener> lifecycleListeners =
       new CopyOnWriteArraySet<>();
    private final Map<String, LockInfo> lockInfos = new ConcurrentHashMap<>();
+   private final Map<String, CompletableFuture<?>> affinityFutures = new ConcurrentHashMap<>();
    private final Timer timer = new Timer();
    private final ClusterFileTransfer clusterFileTransfer;
    private final Map<Integer, ExecutorService> executorServiceMap = new ConcurrentHashMap<>();
+   private final Map<String, CompletableFuture<Serializable>> pendingServiceTasks = new ConcurrentHashMap<>();
+   private final ExecutorService messageExecutor;
+   private final ExecutorService affinityExecutor;
+   private final ExecutorService listenerExecutor;
 
    private static final int DEFAULT_BACKUP_COUNT = 2;
    private static final long MIN_LOCK_DURATION_MILLIS = Duration.ofMinutes(10).toMillis();
    private static final String MESSAGE_TOPIC = IgniteCluster.class.getName() + ".messageTopic";
+   private static final String AFFINITY_TOPIC = IgniteCluster.class.getName() + ".affinityTopic";
    private static final String RW_MAP_NAME = IgniteCluster.class.getName() + ".rwMap";
    private static final IgnitePredicate<ClusterNode> SCHEDULE_SELECTOR = node -> {
       // select any node when config has cloud runner, because the separate scheduler server do not exist.
@@ -1400,12 +1882,173 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
 
       return Boolean.TRUE.equals(node.attribute("scheduler"));
    };
+   private static final IgnitePredicate<ClusterNode> WEB_SERVER_NODE_FILTER =
+      node -> !Boolean.TRUE.equals(node.attribute("scheduler"));
+   private static final IgnitePredicate<ClusterNode> SPRING_PROXY_NODE_FILTER = new SpringProxyNodeFilter();
    private static final ThreadLocal<Integer> TASK_EXECUTE_LEVEL = new ThreadLocal<>();
    private static final String IGNITE_EXECUTE_POOL = "IGNITE_EXECUTE_POOL";
    private static final int IGNITE_EXECUTE_POOL_COUNT = 2;
-   private static final Map<String, DistributedLockProxy> DISTRIBUTED_LOCK_MAP = new ConcurrentHashMap<>();
+   private static final long SERVICE_TASK_TIMEOUT_MINUTES = 5;
+   private static final Logger LOG = LoggerFactory.getLogger(IgniteCluster.class);
 
-   private static final Logger LOG = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
+   private static final Set<String> SPRING_PROXY_PARTITIONED_CACHES = Collections.synchronizedSet(new HashSet<>());
+
+   private final class AffinityCallProcessor implements IgniteBiPredicate<UUID, Serializable> {
+      @SuppressWarnings({ "rawtypes", "unchecked" })
+      @Override
+      public boolean apply(UUID uuid, Serializable message) {
+         LOG.debug("RECEIVED MESSAGE ON AFFINITY TOPIC: id={}, message={}", uuid, message);
+         if(message instanceof AffinityCallRequest request) {
+            LOG.debug("RECEIVED AFFINITY REQUEST: {}", request);
+            if(getNodeName(ignite.cluster().localNode()).equals(request.getRecipient())) {
+               LOG.debug("SUBMITTED AFFINITY REQUEST: {}", request);
+               affinityExecutor.submit(new AffinityCallRequestTask(request));
+            }
+         }
+         else if(message instanceof AffinityCallResponse response) {
+            LOG.debug("RECEIVED AFFINITY RESPONSE: {}", response);
+            if(getNodeName(ignite.cluster().localNode()).equals(response.getRecipient())) {
+               CompletableFuture future = affinityFutures.remove(response.getId());
+               LOG.debug("COMPLETING AFFINITY FUTURE: response={}, future={}", response, future);
+
+               if(future != null) {
+                  if(response.getError() != null) {
+                     future.completeExceptionally(response.getError());
+                  }
+                  else {
+                     future.complete(response.getResult());
+                  }
+               }
+            }
+         }
+
+         return true;
+      }
+   }
+
+   private static final class AffinityCallRequest<T> implements Serializable {
+      public AffinityCallRequest(String id, String sender, String recipient, AffinityCallable<T> callable) {
+         this.id = id;
+         this.sender = sender;
+         this.recipient = recipient;
+         this.callable = callable;
+      }
+
+      public String getId() {
+         return id;
+      }
+
+      public String getSender() {
+         return sender;
+      }
+
+      public String getRecipient() {
+         return recipient;
+      }
+
+      public AffinityCallable<T> getCallable() {
+         return callable;
+      }
+
+      @Override
+      public String toString() {
+         return "AffinityCallRequest{" +
+            "id='" + id + '\'' +
+            ", sender='" + sender + '\'' +
+            ", recipient='" + recipient + '\'' +
+            ", callable=" + callable +
+            '}';
+      }
+
+      private final String id;
+      private final String sender;
+      private final String recipient;
+      private final AffinityCallable<T> callable;
+   }
+
+   private static final class AffinityCallResponse<T extends Serializable> implements Serializable {
+      public AffinityCallResponse(String id, String recipient, T result, Throwable error) {
+         this.id = id;
+         this.recipient = recipient;
+         this.result = result;
+         this.error = error;
+      }
+
+      public String getId() {
+         return id;
+      }
+
+      public String getRecipient() {
+         return recipient;
+      }
+
+      public T getResult() {
+         return result;
+      }
+
+      public Throwable getError() {
+         return error;
+      }
+
+      @Override
+      public String toString() {
+         return "AffinityCallResponse{" +
+            "id='" + id + '\'' +
+            ", recipient='" + recipient + '\'' +
+            ", result=" + result +
+            ", error=" + error +
+            '}';
+      }
+
+      private final String id;
+      private final String recipient;
+      private final T result;
+      private final Throwable error;
+   }
+
+   private static final class AffinityCallRequestTask<T extends Serializable> implements Runnable {
+      public AffinityCallRequestTask(AffinityCallRequest<T> request) {
+         this.request = request;
+      }
+
+      @Override
+      public void run() {
+         LOG.debug("PROCESSING AFFINITY REQUEST: {}", request);
+         T result = null;
+         Throwable error = null;
+
+         try {
+            // If the Spring application context has not been initialized yet (race between
+            // Ignite cluster join and Spring startup on a newly scaled pod), wait for it
+            // before executing the callable.  The affinity caller's own timeout (5 min) bounds
+            // the end-to-end wait, so 2 minutes here gives Spring plenty of time to start
+            // without risking an indefinite hang.
+            CompletableFuture<Void> ready = ConfigurationContext.getContext().getSpringContextReady();
+
+            if(!ready.isDone()) {
+               LOG.warn("Affinity request waiting for Spring context to initialize: {}", request);
+               ready.get(2L, TimeUnit.MINUTES);
+            }
+
+            result = request.getCallable().call();
+         }
+         catch(InterruptedException e) {
+            Thread.currentThread().interrupt();
+            error = e;
+         }
+         catch(Exception e) {
+            error = e;
+         }
+
+         AffinityCallResponse<T> response =
+            new AffinityCallResponse<>(request.getId(), request.getSender(), result, error);
+         IgniteCluster cluster = (IgniteCluster) Cluster.getInstance();
+         LOG.debug("SENDING AFFINITY RESPONSE: {}", response);
+         cluster.ignite.message().sendOrdered(AFFINITY_TOPIC, response, 0);
+      }
+
+      private final AffinityCallRequest<T> request;
+   }
 
    private final class MessageDispatcher
       implements IgniteBiPredicate<UUID, Serializable>
@@ -1435,11 +2078,37 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
                      Objects.equals(senderNode, localNode), message);
                }
 
-               listener.messageReceived(event);
+               messageExecutor.submit(new MessageDispatchTask(listener, event));
             }
          }
 
          return true;
+      }
+   }
+
+   private record MessageDispatchTask(MessageListener listener, MessageEvent event)
+      implements Runnable
+   {
+      @Override
+      public void run() {
+         try {
+            listener.messageReceived(event);
+         }
+         catch(Exception e) {
+            if(Thread.currentThread().isInterrupted()) {
+               LOG.debug("Message dispatch interrupted, ignoring", e);
+            }
+            else {
+               IgniteState state = Ignition.state();
+
+               if(state == IgniteState.STOPPED) {
+                  LOG.debug("Ignite state is STOPPED, message dispatch aborted and exception ignored", e);
+               }
+               else {
+                  LOG.error("Failed to dispatch message", e);
+               }
+            }
+         }
       }
    }
 
@@ -1467,7 +2136,7 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
    private final class MembershipDispatcher implements IgnitePredicate<Event> {
       @Override
       public boolean apply(Event event) {
-         ExecutorService executor = getExecutorService(Integer.MAX_VALUE);
+         ExecutorService executor = listenerExecutor;
 
          if(event.type() == EventType.EVT_NODE_JOINED) {
             MembershipEvent membershipEvent = new MembershipEvent(
@@ -1516,42 +2185,126 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       }
    }
 
-   private static final class MapListenerAdapter<K, V> implements IgniteBiPredicate<UUID, CacheEvent> {
-      MapListenerAdapter(MapChangeListener<K, V> listener) {
-         this.listener = listener;
+   /**
+    * Event-based cache listener.
+    *
+    * Implements both IgnitePredicate (for localListen with replicated caches)
+    * and IgniteBiPredicate (for remoteListen with partitioned caches).
+    */
+   private static final class CacheEventListenerAdapter<K, V>
+      implements IgnitePredicate<CacheEvent>, IgniteBiPredicate<UUID, CacheEvent>
+   {
+      CacheEventListenerAdapter(String cacheName, ExecutorService executor) {
+         this.cacheName = cacheName;
+         this.executor = executor;
+      }
+
+      @Override
+      public boolean apply(CacheEvent event) {
+         return handleEvent(event);
+      }
+
+      @Override
+      public boolean apply(UUID nodeId, CacheEvent event) {
+         return handleEvent(event);
       }
 
       @SuppressWarnings({ "rawtypes", "unchecked" })
-      @Override
-      public boolean apply(UUID nodeId, CacheEvent event) {
-         EntryEvent entryEvent = new EntryEvent<>(event.cacheName(), event.key(), event.oldValue(),
-                                                  event.newValue());
+      private boolean handleEvent(CacheEvent event) {
+         if(!cacheName.equals(event.cacheName())) {
+            return true;
+         }
+
+         EntryEvent entryEvent = new EntryEvent<>(
+            cacheName, (K) event.key(), (V) event.oldValue(), (V) event.newValue());
 
          if(event.type() == EventType.EVT_CACHE_OBJECT_PUT) {
             if(event.oldValue() == null) {
-               listener.entryAdded(entryEvent);
+               executor.submit(() -> listeners.forEach(l -> l.entryAdded(entryEvent)));
             }
             else {
-               listener.entryUpdated(entryEvent);
+               executor.submit(() -> listeners.forEach(l -> l.entryUpdated(entryEvent)));
             }
          }
          else if(event.type() == EventType.EVT_CACHE_OBJECT_REMOVED) {
-            listener.entryRemoved(entryEvent);
+            executor.submit(() -> listeners.forEach(l -> l.entryRemoved(entryEvent)));
+         }
+         else if(event.type() == EventType.EVT_CACHE_OBJECT_EXPIRED) {
+            executor.submit(() -> listeners.forEach(l -> l.entryExpired(entryEvent)));
          }
 
          return true;
       }
 
-      private final MapChangeListener<K, V> listener;
+      public void addListener(MapChangeListener<K, V> listener) {
+         synchronized(listeners) {
+            listeners.add(listener);
+         }
+      }
+
+      public boolean removeListener(MapChangeListener<K, V> listener) {
+         synchronized(listeners) {
+            listeners.remove(listener);
+            return listeners.isEmpty();
+         }
+      }
+
+      private final String cacheName;
+      private final Set<MapChangeListener<K, V>> listeners = new LinkedHashSet<>();
+      private final ExecutorService executor;
    }
 
-   private static class MapEventFilter implements IgnitePredicate<CacheEvent> {
-      public MapEventFilter(String cacheName) {
+   private static class CacheEventFilter implements IgnitePredicate<CacheEvent> {
+      CacheEventFilter(String cacheName) {
          this.cacheName = cacheName;
       }
 
       @Override
       public boolean apply(CacheEvent event) {
+         return Objects.equals(event.cacheName(), cacheName);
+      }
+
+      private final String cacheName;
+   }
+
+   /**
+    * Node filter that excludes scheduler nodes from holding cache partitions for Spring proxy caches.
+    */
+   private static final class SpringProxyNodeFilter implements IgnitePredicate<ClusterNode> {
+      @Override
+      public boolean apply(ClusterNode node) {
+         return WEB_SERVER_NODE_FILTER.apply(node);
+      }
+   }
+
+   private static final class RebalanceListenerAdapter
+      implements IgniteBiPredicate<UUID, CacheRebalancingEvent>
+   {
+      RebalanceListenerAdapter(CacheRebalanceListener listener) {
+         this.listener = listener;
+      }
+
+      @Override
+      public boolean apply(UUID nodeId, CacheRebalancingEvent event) {
+         if(event.type() == EventType.EVT_CACHE_REBALANCE_STOPPED) {
+            CacheRebalanceEvent newEvent = new CacheRebalanceEvent(
+               this, event.cacheName(), event.timestamp(), event.partition());
+            listener.cacheRebalanced(newEvent);
+         }
+
+         return true;
+      }
+
+      private final CacheRebalanceListener listener;
+   }
+
+   private static class RebalanceEventFilter implements IgnitePredicate<CacheRebalancingEvent> {
+      public RebalanceEventFilter(String cacheName) {
+         this.cacheName = cacheName;
+      }
+
+      @Override
+      public boolean apply(CacheRebalancingEvent event) {
          return Objects.equals(event.cacheName(), cacheName);
       }
 
@@ -1626,7 +2379,13 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
          try {
             return igniteFuture.get();
          }
-         catch (Exception e) {
+         catch(IgniteInterruptedException e) {
+            Thread.currentThread().interrupt();
+            InterruptedException ie = new InterruptedException(e.getMessage());
+            ie.initCause(e);
+            throw ie;
+         }
+         catch(Exception e) {
             throw new ExecutionException(e);
          }
       }
@@ -1638,7 +2397,18 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
          try {
             return igniteFuture.get(timeout, unit);
          }
-         catch (Exception e) {
+         catch(IgniteFutureTimeoutException e) {
+            java.util.concurrent.TimeoutException te = new java.util.concurrent.TimeoutException(e.getMessage());
+            te.initCause(e);
+            throw te;
+         }
+         catch(IgniteInterruptedException e) {
+            Thread.currentThread().interrupt();
+            InterruptedException ie = new InterruptedException(e.getMessage());
+            ie.initCause(e);
+            throw ie;
+         }
+         catch(Exception e) {
             throw new ExecutionException(e);
          }
       }
@@ -1669,94 +2439,24 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       private final int level;
    }
 
-   private static class IgniteServiceRunnableTask extends IgniteServiceTask
-      implements Supplier<Object>
-   {
-      public IgniteServiceRunnableTask(Ignite ignite, String service, SingletonRunnableTask task,
-                                       int level)
-      {
-         super(ignite, service);
-         this.runnableTask = new SingletonRunnableTaskProxy(task, level);
-      }
-
+   private final class ServiceTaskResultListener implements IgniteBiPredicate<UUID, Serializable> {
       @Override
-      public Object get() {
-         IgniteCluster.deployAndGetService(ignite, service).submitTask(runnableTask);
-         return null;
-      }
+      public boolean apply(UUID nodeId, Serializable message) {
+         if(message instanceof ServiceTaskResult result) {
+            CompletableFuture<Serializable> future = pendingServiceTasks.remove(result.getTaskId());
 
-      private final SingletonRunnableTask runnableTask;
-   }
-
-   private static class IgniteServiceCallableTask<T extends Serializable> extends IgniteServiceTask
-      implements Supplier<T>
-   {
-      public IgniteServiceCallableTask(Ignite ignite, String service, SingletonCallableTask<T> task,
-                                       int level)
-      {
-         super(ignite, service);
-         this.task = new SingletonCallableTaskProxy<>(task, level);
-      }
-
-      @Override
-      public T get() {
-         return IgniteCluster.deployAndGetService(ignite, service).submitTask(task);
-      }
-
-      private final SingletonCallableTask<T> task;
-   }
-
-   private static class SingletonCallableTaskProxy<T extends Serializable>
-      implements SingletonCallableTask<T>
-   {
-      private SingletonCallableTaskProxy(SingletonCallableTask<T> task, int level) {
-         this.task = task;
-         this.level = level;
-      }
-
-      @Override
-      public T call() throws Exception {
-         try {
-            TASK_EXECUTE_LEVEL.set(level);
-            return task.call();
+            if(future != null) {
+               if(result.isSuccess()) {
+                  future.complete(result.getResult());
+               }
+               else {
+                  future.completeExceptionally(result.getException());
+               }
+            }
          }
-         finally {
-            TASK_EXECUTE_LEVEL.remove();
-         }
-      }
 
-      private final SingletonCallableTask<T> task;
-      private final int level;
+         return true; // keep listening
+      }
    }
 
-   private static class SingletonRunnableTaskProxy implements SingletonRunnableTask {
-      private SingletonRunnableTaskProxy(SingletonRunnableTask task, int level) {
-         this.task = task;
-         this.level = level;
-      }
-
-      @Override
-      public void run() {
-         try {
-            TASK_EXECUTE_LEVEL.set(level);
-            task.run();
-         }
-         finally {
-            TASK_EXECUTE_LEVEL.remove();
-         }
-      }
-
-      private final SingletonRunnableTask task;
-      private final int level;
-   }
-
-   private static class IgniteServiceTask {
-      public IgniteServiceTask(Ignite ignite, String service) {
-         this.ignite = ignite;
-         this.service = service;
-      }
-
-      protected String service;
-      protected Ignite ignite;
-   }
 }

@@ -18,21 +18,13 @@
 package inetsoft.web.vswizard.controller;
 
 import inetsoft.analytic.composition.ViewsheetService;
-import inetsoft.report.composition.ChangedAssemblyList;
-import inetsoft.report.composition.RuntimeViewsheet;
-import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.sree.security.*;
 import inetsoft.sree.security.SecurityException;
-import inetsoft.uql.asset.AssetEntry;
 import inetsoft.util.Catalog;
-import inetsoft.web.binding.service.VSBindingService;
 import inetsoft.web.viewsheet.LoadingMask;
-import inetsoft.web.viewsheet.command.*;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.service.*;
 import inetsoft.web.vswizard.event.*;
-import inetsoft.web.vswizard.service.VSWizardTemporaryInfoService;
-import inetsoft.web.vswizard.service.WizardViewsheetService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
@@ -44,20 +36,16 @@ import java.security.Principal;
 public class VSWizardDialogController {
    @Autowired
    public VSWizardDialogController(ViewsheetService viewsheetService,
-                                   CoreLifecycleService coreLifecycleService,
-                                   RuntimeViewsheetRef runtimeViewsheetRef,
                                    RuntimeViewsheetManager runtimeViewsheetManager,
-                                   WizardViewsheetService wizardVSService,
-                                   VSBindingService vsBindingService,
-                                   VSWizardTemporaryInfoService temporaryInfoService)
+                                   RuntimeViewsheetRef runtimeViewsheetRef,
+                                   VSWizardDialogServiceProxy vsWizardDialogServiceProxy,
+                                   SecurityEngine securityEngine)
    {
       this.viewsheetService = viewsheetService;
-      this.runtimeViewsheetRef = runtimeViewsheetRef;
       this.runtimeViewsheetManager = runtimeViewsheetManager;
-      this.wizardVSService = wizardVSService;
-      this.coreLifecycleService = coreLifecycleService;
-      this.vsBindingService = vsBindingService;
-      this.temporaryInfoService = temporaryInfoService;
+      this.runtimeViewsheetRef = runtimeViewsheetRef;
+      this.vsWizardDialogServiceProxy = vsWizardDialogServiceProxy;
+      this.securityEngine = securityEngine;
    }
 
    @LoadingMask
@@ -68,38 +56,23 @@ public class VSWizardDialogController {
                                   Principal principal)
       throws Exception
    {
-      if(!SecurityEngine.getSecurity().checkPermission(principal, ResourceType.VIEWSHEET,
+      if(!securityEngine.checkPermission(principal, ResourceType.VIEWSHEET,
                                                        "*", ResourceAction.ACCESS))
       {
          throw new SecurityException(Catalog.getCatalog().getString(
             "composer.authorization.permissionDenied"));
       }
 
-      String id = viewsheetService.openTemporaryViewsheet(event.getEntry(), principal, null);
-      RuntimeViewsheet rvs = viewsheetService.getViewsheet(id, principal);
-      rvs.setSocketSessionId(dispatcher.getSessionId());
-      rvs.setSocketUserName(dispatcher.getUserName());
-      AssetEntry vsEntry = rvs.getEntry();
-      rvs.setWizardViewsheet(true);
-
-      if(runtimeViewsheetRef != null) {
-         runtimeViewsheetRef.setRuntimeId(id);
-      }
+      String runtimeId = viewsheetService.openTemporaryViewsheet(event.getEntry(), principal);
+      vsWizardDialogServiceProxy.createRuntimeSheet(runtimeId, linkUri, dispatcher, principal);
 
       if(runtimeViewsheetManager != null) {
-         runtimeViewsheetManager.sheetOpened(id);
+         runtimeViewsheetManager.sheetOpened(principal, runtimeId);
       }
 
-      SetRuntimeIdCommand runtimeIdcommand = new SetRuntimeIdCommand(id);
-      dispatcher.sendCommand(runtimeIdcommand);
-      SetViewsheetInfoCommand setVSInfoCommand = new SetViewsheetInfoCommand();
-      setVSInfoCommand.setLinkUri(linkUri);
-      setVSInfoCommand.setAssetId(vsEntry.toIdentifier());
-      dispatcher.sendCommand(setVSInfoCommand);
-
-      ChangedAssemblyList clist = coreLifecycleService.createList(true, dispatcher, rvs, linkUri);
-      coreLifecycleService.refreshViewsheet(rvs, vsEntry.toIdentifier(), linkUri,
-                                            dispatcher, true, false, false, clist);
+      if(runtimeViewsheetRef != null) {
+         runtimeViewsheetRef.setRuntimeId(runtimeId);
+      }
    }
 
    @GetMapping("/api/vswizard/dialog/open")
@@ -109,17 +82,12 @@ public class VSWizardDialogController {
                                      Principal principal)
       throws Exception
    {
-      String nrid = this.vsBindingService.createRuntimeSheet(
-         runtimeId, viewer, temporarySheet, principal, null);
-      RuntimeViewsheet rvs = viewsheetService.getViewsheet(nrid, principal);
-      rvs.setWizardViewsheet(true);
-
-      return nrid;
+      return vsWizardDialogServiceProxy.createRuntimeSheet0(runtimeId, viewer, temporarySheet, principal);
    }
 
    @LoadingMask
    @MessageMapping("/vswizard/dialog/update-runtimeid")
-   public void updateRuntimeId(@Payload UpdateRuntimeIdEvent event, CommandDispatcher dispatcher) {
+   public void updateRuntimeId(@Payload UpdateRuntimeIdEvent event, CommandDispatcher dispatcher, Principal principal) {
       String id = event.getRuntimeId();
 
       if(runtimeViewsheetRef != null) {
@@ -127,7 +95,7 @@ public class VSWizardDialogController {
       }
 
       if(runtimeViewsheetManager != null) {
-         runtimeViewsheetManager.sheetOpened(id);
+         runtimeViewsheetManager.sheetOpened(principal, id);
       }
    }
 
@@ -136,48 +104,14 @@ public class VSWizardDialogController {
                              CommandDispatcher dispatcher, Principal principal)
       throws Exception
    {
-      RuntimeViewsheet rvs = viewsheetService.getViewsheet(
-         runtimeViewsheetRef.getRuntimeId(), principal);
-      AssetEntry entry = rvs.getEntry();
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
-
-      box.lockWrite();
-
-      try {
-         rvs.setVSTemporaryInfo(null);
-      }
-      finally {
-         box.unlockWrite();
-      }
-
-      /*
-      if(VSWizardEditModes.WIZARD_DASHBOARD.equals(event.getEditMode())) {
-         // click on finishEditing and fullEdit to go back to viewsheet pane
-         // and binding pane without executing relayout viewsheet
-         if(event.getWizardGridRows() != 0) {
-            //wizardVSService.relayoutViewsheet(rvs, event.getWizardGridRows(), dispatcher);
-            // add margin
-            Arrays.stream(rvs.getViewsheet().getAssemblies())
-               .forEach(a -> {
-                  Point offset = a.getPixelOffset();
-                  a.setPixelOffset(new Point(offset.x + 20, offset.y + 20));
-               });
-         }
-      }
-      */
-
-      SaveSheetCommand command = SaveSheetCommand.builder()
-         .savePoint(rvs.getSavePoint())
-         .id(entry.toIdentifier())
-         .build();
-      dispatcher.sendCommand(command);
+      vsWizardDialogServiceProxy.closeVSWizard(runtimeViewsheetRef.getRuntimeId(), event,
+                                               dispatcher, principal);
    }
 
-   private final ViewsheetService viewsheetService;
-   private final CoreLifecycleService coreLifecycleService;
    private final RuntimeViewsheetRef runtimeViewsheetRef;
+   private final SecurityEngine securityEngine;
+   private final VSWizardDialogServiceProxy vsWizardDialogServiceProxy;
    private final RuntimeViewsheetManager runtimeViewsheetManager;
-   private final WizardViewsheetService wizardVSService;
-   private final VSBindingService vsBindingService;
-   private final VSWizardTemporaryInfoService temporaryInfoService;
+   private final ViewsheetService viewsheetService;
+
 }

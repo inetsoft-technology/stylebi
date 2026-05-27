@@ -15,13 +15,13 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Component, NgModule, NO_ERRORS_SCHEMA } from "@angular/core";
-import { async, TestBed, ComponentFixture } from "@angular/core/testing";
+import { NO_ERRORS_SCHEMA } from "@angular/core";
+import { ComponentFixture, TestBed, waitForAsync } from "@angular/core/testing";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
-import { NgbModule, NgbModal } from "@ng-bootstrap/ng-bootstrap";
+import { NgbModule } from "@ng-bootstrap/ng-bootstrap";
+import { StaticColorModel } from "../../../../common/data/visual-frame-model";
 import { CombinedColorPane } from "./combined-color-pane.component";
 import { StaticColorEditor } from "./static-color-editor.component";
-import { StaticColorModel } from "../../../../common/data/visual-frame-model";
 
 describe("Combined Color Pane Unit Test", () => {
    let createMockStaticColorModel: (color: string) => StaticColorModel = (color: string) => {
@@ -40,7 +40,7 @@ describe("Combined Color Pane Unit Test", () => {
    let fixture: ComponentFixture<CombinedColorPane>;
    let combinedColorPane: CombinedColorPane;
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
             FormsModule, ReactiveFormsModule, NgbModule

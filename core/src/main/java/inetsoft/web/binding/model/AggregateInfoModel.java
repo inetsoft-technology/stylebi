@@ -19,10 +19,11 @@ package inetsoft.web.binding.model;
 
 import inetsoft.web.binding.drm.AggregateRefModel;
 
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
 
-public class AggregateInfoModel {
+public class AggregateInfoModel implements Serializable {
    public AggregateInfoModel() {
    }
 

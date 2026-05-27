@@ -92,7 +92,7 @@ public class ClusterService extends MonitorLevelService implements StatusUpdater
 
    public ClusterEnabledModel getClusterEnabled() {
       return ClusterEnabledModel.builder()
-         .enabled(LicenseManager.getInstance().isEnterprise())
+         .enabled(LicenseManager.isEnterprise())
          .pauseEnabled("true".equals(SreeEnv.getProperty("cluster.pause.enabled", "false")))
          .build();
    }

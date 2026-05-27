@@ -44,10 +44,6 @@ import { DebounceService } from "../../../widget/services/debounce.service";
       FixedDropdownComponent,
       FixedDropdownContextmenuComponent
    ],
-   entryComponents: [
-      FixedDropdownComponent,
-      FixedDropdownContextmenuComponent
-   ]
 })
 class TestModule {}
 

@@ -19,7 +19,9 @@ package inetsoft.web.composer.ws.event;
 
 import inetsoft.web.composer.ws.assembly.ColumnInfoModel;
 
-public class WSSortColumnEvent {
+import java.io.Serializable;
+
+public class WSSortColumnEvent implements Serializable {
 
    public String getTableName() {
       return tableName;

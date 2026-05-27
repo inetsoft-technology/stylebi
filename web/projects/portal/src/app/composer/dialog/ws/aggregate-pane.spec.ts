@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { async, TestBed } from "@angular/core/testing";
+import { waitForAsync, TestBed } from "@angular/core/testing";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { ColumnRef } from "../../../binding/data/column-ref";
@@ -64,7 +64,7 @@ describe("Aggregate Pane Unit Test", () => {
    };
    let dateLevelExamplesService = { loadDateLevelExamples: jest.fn(() => observableOf()) };
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
             NgbModule, ReactiveFormsModule, FormsModule

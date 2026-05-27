@@ -145,7 +145,7 @@ public abstract class MigrateDocumentTask implements MigrateTask {
    public void updateNameProcess() {
       AssetEntry entry = getEntry();
       String key = entry.toIdentifier();
-      Document document = getIndexStorage().getDocument(key, null);
+      Document document = getIndexStorage().getDocument(key, entry.getOrgID());
 
       if(document == null) {
          return;
@@ -179,7 +179,7 @@ public abstract class MigrateDocumentTask implements MigrateTask {
          }
       }
 
-      getIndexStorage().putDocument(newKey, document, getAssetClassName(entry));
+      getIndexStorage().putDocument(newKey, document, getAssetClassName(entry), entry.getOrgID());
 
       if(!Tool.equals(key, newKey)) {
          getIndexStorage().remove(key);

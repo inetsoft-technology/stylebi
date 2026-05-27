@@ -17,22 +17,28 @@
  */
 package inetsoft.web.security;
 
+import inetsoft.sree.security.AuthenticationService;
+import inetsoft.sree.web.SessionLicenseServiceProvider;
+import inetsoft.web.ThreadLocalCleanupFilter;
 import inetsoft.web.cluster.PauseClusterFilter;
 import org.springframework.web.filter.ForwardedHeaderFilter;
 
 import java.util.Arrays;
 
 public class SecurityFilterChain extends DelegatingFilterChain {
-   public SecurityFilterChain() {
+   public SecurityFilterChain(SessionLicenseServiceProvider sessionLicenseServiceProvider,
+                              AuthenticationService authenticationService)
+   {
       super(Arrays.asList(
          new ForwardedHeaderFilter(),
-         new SessionRefreshDisabledFilter(),
-         new SecurityHeaderFilter(),
-         new PauseClusterFilter(),
+         new ThreadLocalCleanupFilter(),
+         new SessionRefreshDisabledFilter(sessionLicenseServiceProvider, authenticationService),
+         new SecurityHeaderFilter(sessionLicenseServiceProvider, authenticationService),
+         new PauseClusterFilter(sessionLicenseServiceProvider, authenticationService),
          createFilterProxy("invalidateSessionFilter"),
          new AuthenticationFilterChain(),
-         new CSRFFilter(),
-         new RequestPrincipalFilter())
+         new CSRFFilter(sessionLicenseServiceProvider, authenticationService),
+         new RequestPrincipalFilter(sessionLicenseServiceProvider, authenticationService))
       );
    }
 }

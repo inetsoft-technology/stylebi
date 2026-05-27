@@ -81,6 +81,7 @@ export class AnalyzeMvPageComponent implements OnInit, OnDestroy {
    cycles: NameLabelTuple[] = [];
    securityEnabled = false;
    enterprise: boolean;
+   analysisId: string;
 
    get hideData(): boolean {
       return this._hideData;
@@ -145,7 +146,7 @@ export class AnalyzeMvPageComponent implements OnInit, OnDestroy {
          mvNames: this.selection.map(m => m.name),
          cycle: this.mvCycle
       };
-      this.http.post("../api/em/content/repository/mv/set-cycle", request)
+      this.http.post("../api/em/content/repository/mv/set-cycle/" + this.analysisId, request)
          .subscribe(() => this.refreshAnalyzedResult());
    }
 
@@ -235,8 +236,9 @@ export class AnalyzeMvPageComponent implements OnInit, OnDestroy {
             nodes: this.nodesToAnalyze
          };
 
-         this.http.post("../api/em/content/repository/mv/analyze", request).subscribe(
-            () => {
+         this.http.post<AnalyzeMVResponse>("../api/em/content/repository/mv/analyze", request).subscribe(
+            (response) => {
+               this.analysisId = response.analysisId;
             },
             (error) => {
                this.errorService.showSnackBar(error);
@@ -253,7 +255,7 @@ export class AnalyzeMvPageComponent implements OnInit, OnDestroy {
    }
 
    checkCompleted(retryDelayMillis: number = 500) {
-      this.http.get("../api/em/content/materialized-view/check-analysis")
+      this.http.get("../api/em/content/materialized-view/check-analysis/" + this.analysisId)
          .subscribe((response: AnalyzeMVResponse) => {
             this.processAnalyzeResult(response, retryDelayMillis);
          });
@@ -271,7 +273,7 @@ export class AnalyzeMvPageComponent implements OnInit, OnDestroy {
       this.loading = false;
 
       if(response.exception) {
-         this.http.get("../api/em/content/repository/mv/exceptions").subscribe((exceptions: MVExceptionResponse) => {
+         this.http.get("../api/em/content/repository/mv/exceptions/" + this.analysisId).subscribe((exceptions: MVExceptionResponse) => {
             //navigate to exception page
             const ref = this.dialog.open(MvExceptionsDialogComponent, <MatDialogConfig>{
                data: {
@@ -320,7 +322,7 @@ export class AnalyzeMvPageComponent implements OnInit, OnDestroy {
       let params = new HttpParams()
          .set("hideData", String(this.hideData))
          .set("hideExist", String(this.hideExist));
-      this.http.get("../api/em/content/repository/mv/get-model", {params})
+      this.http.get("../api/em/content/repository/mv/get-model/" + this.analysisId, {params})
          .subscribe((response: AnalyzeMVResponse) => {
             response.status.map(mv => {
                if(mv.lastModifiedTimestamp != 0) {
@@ -368,7 +370,12 @@ export class AnalyzeMvPageComponent implements OnInit, OnDestroy {
          cycle: this.mvCycle
       };
       const createId = Tool.generateRandomUUID();
-      const options = { params: new HttpParams().set("createId", createId) };
+      const options =
+         {
+            params: new HttpParams()
+               .set("createId", createId)
+               .set("analysisId", this.analysisId)
+         };
 
       timer(0, 2000)
          .pipe(
@@ -402,7 +409,7 @@ export class AnalyzeMvPageComponent implements OnInit, OnDestroy {
          mvNames: this.selection.map(m => m.name)
       };
 
-      this.http.post("../api/em/content/repository/mv/show-plan", request)
+      this.http.post("../api/em/content/repository/mv/show-plan/" + this.analysisId, request)
          .subscribe((plan: string) => {
             this.dialog.open(MessageDialog, <MatDialogConfig>{
                data: {

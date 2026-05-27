@@ -17,20 +17,18 @@
  */
 package inetsoft.storage;
 
-import inetsoft.util.SingletonManager;
-import inetsoft.util.config.InetsoftConfig;
-import org.slf4j.LoggerFactory;
+import inetsoft.util.ConfigurationContext;
+import org.springframework.context.ApplicationContext;
 
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.nio.file.Path;
-import java.util.ServiceLoader;
+import java.util.Set;
 
 /**
  * {@code BlobEngine} is an interface for classes that handle loading and saving blobs to some
  * persistent storage.
  */
-@SingletonManager.Singleton(BlobEngine.Reference.class)
 public interface BlobEngine extends AutoCloseable {
    /**
     * Determines if the blob with the specified digest exists in storage.
@@ -75,6 +73,20 @@ public interface BlobEngine extends AutoCloseable {
    void delete(String id, String digest) throws IOException;
 
    /**
+    * Deletes multiple blobs from storage.
+    *
+    * @param id      the unique identifier of the storage.
+    * @param digests the MD5 digests of the blobs as hexadecimal strings.
+    *
+    * @throws IOException if an I/O error occurs.
+    */
+   default void deleteAll(String id, Set<String> digests) throws IOException {
+      for(String digest : digests) {
+         delete(id, digest);
+      }
+   }
+
+   /**
     * List all the blobs from storage.
     *
     * @param id     the unique identifier of the storage.
@@ -88,51 +100,8 @@ public interface BlobEngine extends AutoCloseable {
    default void close() throws Exception {
    }
 
-   /**
-    * Gets the shared instance of the blob storage engine.
-    *
-    * @return the singleton instance.
-    */
    static BlobEngine getInstance() {
-      return SingletonManager.getInstance(BlobEngine.class);
+      return ConfigurationContext.getContext().getSpringBean(BlobEngine.class);
    }
 
-   final class Reference extends SingletonManager.Reference<BlobEngine> {
-      @Override
-      public BlobEngine get(Object... parameters) {
-         if(engine == null) {
-            InetsoftConfig config = InetsoftConfig.getInstance();
-            String type = "local".equals(config.getBlob().getType()) ? "filesystem" : config.getBlob().getType();
-
-            for(BlobEngineFactory factory : ServiceLoader.load(BlobEngineFactory.class)) {
-               if(factory.getType().equals(type)) {
-                  engine = factory.createEngine(config);
-                  break;
-               }
-            }
-
-            if(engine == null) {
-               throw new RuntimeException(
-                  "Failed to get blob engine of type '" + config.getBlob().getType() + "'");
-            }
-         }
-
-         return engine;
-      }
-
-      @Override
-      public void dispose() {
-         if(engine != null) {
-            try {
-               engine.close();
-            }
-            catch(Exception e) {
-               LoggerFactory.getLogger(BlobEngine.class)
-                  .warn("Failed to close blob storage engine", e);
-            }
-         }
-      }
-
-      private BlobEngine engine;
-   }
 }

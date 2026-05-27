@@ -21,15 +21,11 @@ import inetsoft.report.ReportElement;
 import inetsoft.report.ReportSheet;
 import inetsoft.report.internal.BaseElement;
 import inetsoft.sree.internal.SUtil;
-import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.util.ThreadContext;
-import inetsoft.util.Tool;
 import inetsoft.util.audit.*;
-
-import java.security.Principal;
 
 public final class ProfileUtils {
    /**
@@ -137,15 +133,7 @@ public final class ProfileUtils {
          return;
       }
 
-      Principal principal = ThreadContext.getContextPrincipal();
-
-      if(!(principal instanceof XPrincipal)) {
-         return;
-      }
-
-      boolean profiling = ((XPrincipal) principal).isProfiling();
-
-      if(!profiling) {
+      if(!ThreadContext.isProfiling()) {
          return;
       }
 

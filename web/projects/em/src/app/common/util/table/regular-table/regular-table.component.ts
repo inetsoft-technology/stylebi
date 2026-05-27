@@ -79,6 +79,10 @@ export class RegularTableComponent<T extends TableModel> implements AfterViewIni
       }
    }
 
+   get columns() {
+      return this.tableInfo.columns;
+   }
+
    get fields(): string[] {
       return this.tableInfo.columns.map((col) => col.field);
    }

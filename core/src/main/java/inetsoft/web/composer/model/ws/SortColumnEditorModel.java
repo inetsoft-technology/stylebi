@@ -17,9 +17,10 @@
  */
 package inetsoft.web.composer.model.ws;
 
+import java.io.Serializable;
 import java.util.Map;
 
-public class SortColumnEditorModel {
+public class SortColumnEditorModel implements Serializable {
    public String[] getAvailableColumns() {
       return availableColumns;
    }

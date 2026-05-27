@@ -17,24 +17,20 @@
  */
 package inetsoft.web.viewsheet.event.calendar;
 
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import org.immutables.serial.Serial;
+import org.immutables.value.Value;
+
 /**
  * Class that encapsulates the parameters for toggling year view.
  *
  * @since 12.3
  */
-public class ToggleYearViewEvent extends CalendarSelectionEvent {
-   public boolean isYearView() {
-      return yearView;
-   }
-
-   public void setYearView(boolean yearView) {
-      this.yearView = yearView;
-   }
-
-   @Override
-   public String toString() {
-      return "{yearView:" + yearView + "}";
-   }
-
-   private boolean yearView;
+@Value.Immutable
+@Serial.Structural
+@JsonSerialize(as = ImmutableToggleYearViewEvent.class)
+@JsonDeserialize(as = ImmutableToggleYearViewEvent.class)
+public abstract class ToggleYearViewEvent extends CalendarSelectionEvent {
+   public abstract boolean yearView();
 }

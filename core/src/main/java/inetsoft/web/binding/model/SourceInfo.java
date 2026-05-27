@@ -192,7 +192,7 @@ public class SourceInfo {
 
       try {
          String dsName = sinfo == null ? null : sinfo.getPrefix();
-         XRepository xrep = XFactory.getRepository();
+         XRepository xrep = XRepository.getRepository();
          XDataSource dx = xrep == null ? null : xrep.getDataSource(dsName);
          sourceType = dx == null ? null : dx.getType();
       }

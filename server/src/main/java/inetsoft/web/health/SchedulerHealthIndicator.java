@@ -32,10 +32,13 @@ import java.util.Optional;
 
 @Component
 public class SchedulerHealthIndicator implements HealthIndicator {
+   public SchedulerHealthIndicator(ScheduleClient client, StatusDumpService statusDumpService) {
+      this.client = client;
+      this.statusDumpService = statusDumpService;
+   }
+
    @Override
    public Health health() {
-      ScheduleClient client = ScheduleClient.getScheduleClient();
-
       if(client.isCloud() || client.isAutoStart()) {
          try {
             Optional<HealthStatus> status = client.getHealthStatus();
@@ -46,7 +49,7 @@ public class SchedulerHealthIndicator implements HealthIndicator {
                if(!health.isHealthy()) {
                   LoggerFactory.getLogger(getClass()).error(
                      "SchedulerHealthIndicator DOWN: status={}", health);
-                  StatusDumpService.getInstance().dumpStatus();
+                  statusDumpService.dumpStatus();
                   return Health.down()
                      .withDetail("started", health.isStarted())
                      .withDetail("shutdown", health.isShutdown())
@@ -65,4 +68,7 @@ public class SchedulerHealthIndicator implements HealthIndicator {
 
       return Health.up().build();
    }
+
+   private final ScheduleClient client;
+   private final StatusDumpService statusDumpService;
 }

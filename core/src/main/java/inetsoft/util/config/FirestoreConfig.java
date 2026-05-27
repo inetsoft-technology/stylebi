@@ -85,6 +85,28 @@ public class FirestoreConfig implements Serializable {
       this.collection = collection;
    }
 
+   /**
+    * The Google Cloud project identifier.
+    */
+   public String getProjectId() {
+      return projectId;
+   }
+
+   public void setProjectId(String projectId) {
+      this.projectId = projectId;
+   }
+
+   /**
+    * The Firestore database identifier.
+    */
+   public String getDatabaseId() {
+      return databaseId;
+   }
+
+   public void setDatabaseId(String databaseId) {
+      this.databaseId = databaseId;
+   }
+
    @CRDProperty(description = "The path to the service account JSON file")
    private String serviceAccountFile;
    @CRDProperty(description = "The base-64 encoded service account JSON", secret = true)
@@ -93,4 +115,8 @@ public class FirestoreConfig implements Serializable {
    private String emulatorHost;
    @CRDProperty(description = "The name of the collection")
    private String collection;
+   @CRDProperty(description = "The Google Cloud project identifier")
+   private String projectId;
+   @CRDProperty(description = "The identifier of the Firestore database")
+   private String databaseId;
 }

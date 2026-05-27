@@ -17,8 +17,6 @@
  */
 package inetsoft.web.composer.ws;
 
-import inetsoft.report.composition.RuntimeWorksheet;
-import inetsoft.report.composition.event.AssetEventUtil;
 import inetsoft.report.internal.Util;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
@@ -26,7 +24,6 @@ import inetsoft.uql.asset.internal.*;
 import inetsoft.uql.erm.*;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
-import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
 import inetsoft.web.composer.ws.event.WSRenameColumnEvent;
 import inetsoft.web.composer.ws.event.WSRenameColumnEventValidator;
 import inetsoft.web.viewsheet.*;
@@ -49,6 +46,10 @@ import java.util.function.Function;
  */
 @Controller
 public class RenameColumnController extends WorksheetController {
+   public RenameColumnController(RenameColumnServiceProxy renameColumnService) {
+      this.renameColumnService = renameColumnService;
+   }
+
    /**
     * Rename column.
     */
@@ -200,22 +201,6 @@ public class RenameColumnController extends WorksheetController {
 
       table.setColumnSelection(columns);
       return false;
-   }
-
-   private boolean canRenameColumn(Worksheet ws, TableAssembly table, ColumnRef column,
-                                   CommandDispatcher dispatcher)
-   {
-      if(!allowsDeletion(ws, table, column)) {
-         MessageCommand command = new MessageCommand();
-         command.setMessage(Catalog.getCatalog().getString(
-            "common.columnDependency", column.getAttribute()));
-         command.setType(MessageCommand.Type.WARNING);
-         command.setAssemblyName(table.getName());
-         dispatcher.sendCommand(command);
-         return false;
-      }
-
-      return true;
    }
 
    public static String createColumnConflictErrorMessage(String name, ColumnRef conflictingColumn) {
@@ -670,25 +655,7 @@ public class RenameColumnController extends WorksheetController {
       Principal principal) throws Exception
    {
       runtimeId = Tool.byteDecode(runtimeId);
-      RuntimeWorksheet rws = super.getWorksheetEngine().getWorksheet(runtimeId, principal);
-      Worksheet ws = rws.getWorksheet();
-      String tname = event.tableName();
-      TableAssembly table = (TableAssembly) ws.getAssembly(tname);
-      HashSet<String> nameset = new HashSet<>();
-      nameset.add(tname);
-
-      if(table != null &&
-         AssetEventUtil.hasDependent(table, ws, nameset))
-      {
-         String message =
-            Catalog.getCatalog().getString("assembly.rename.dependency");
-
-         return WSRenameColumnEventValidator.builder()
-            .modifyDependencies(message)
-            .build();
-      }
-
-      return null;
+      return renameColumnService.validateOpen(runtimeId, event, principal);
    }
 
    /**
@@ -702,36 +669,7 @@ public class RenameColumnController extends WorksheetController {
       @Payload WSRenameColumnEvent event, Principal principal,
       CommandDispatcher commandDispatcher) throws Exception
    {
-      RuntimeWorksheet rws = super.getRuntimeWorksheet(principal);
-      Worksheet ws = rws.getWorksheet();
-      String tname = event.tableName();
-      String alias = event.newAlias();
-      TableAssembly table = (TableAssembly) ws.getAssembly(tname);
-      ColumnRef column = (ColumnRef) table.getColumnSelection()
-         .getAttribute(event.columnName());
-
-      if(column == null) {
-         return;
-      }
-
-      HashSet<String> nameset = new HashSet<>();
-      nameset.add(tname);
-
-      // Choose to not modify dependent columns
-      if(!event.modifyDependencies() && AssetEventUtil.hasDependent(table, ws, nameset)) {
-         return;
-      }
-
-      if(!canRenameColumn(ws, table, column, commandDispatcher)) {
-         return;
-      }
-
-      renameColumn(ws, commandDispatcher, table, column, alias);
-      WorksheetEventUtil.refreshColumnSelection(rws, tname, true);
-      WorksheetEventUtil.loadTableData(rws, tname, true, true);
-      WorksheetEventUtil.refreshAssembly(rws, tname, true, commandDispatcher, principal);
-
-      AssetEventUtil.refreshTableLastModified(ws, tname, true);
+      renameColumnService.renameColumn(getRuntimeId(), event, principal, commandDispatcher);
    }
 
    /**
@@ -917,4 +855,6 @@ public class RenameColumnController extends WorksheetController {
       String exp = column.getExpression();
       column.setExpression(Util.renameScriptRefDepended(oname, nname, exp, acceptFunc));
    }
+
+   private final RenameColumnServiceProxy renameColumnService;
 }

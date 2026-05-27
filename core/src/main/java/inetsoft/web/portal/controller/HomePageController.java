@@ -25,6 +25,7 @@ import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.util.DataSpace;
 import inetsoft.util.Tool;
+import inetsoft.web.assistant.AIAssistantController;
 import inetsoft.web.viewsheet.service.LinkUri;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -51,16 +52,20 @@ import java.util.stream.Collectors;
 @Controller
 public class HomePageController {
    @Autowired
-   public HomePageController(DataSpace dataSpace) {
+   public HomePageController(DataSpace dataSpace, SecurityEngine securityEngine,
+                             CustomThemesManager customThemesManager)
+   {
       this.dataSpace = dataSpace;
+      this.securityEngine = securityEngine;
       this.webAssetsExist = dataSpace.isDirectory("web-assets");
+      this.customThemesManager = customThemesManager;
    }
 
    @GetMapping({
       "/app", "/app/", "/app/index.html", "/app/adhoc", "/app/composer",
       "/app/portal", "/app/portal/**", "/app/viewer", "/app/viewer/**",
       "/app/wizard", "/app/wizard/**", "/app/reportviewer", "/app/reportviewer/**",
-      "/app/embed/**", "/app/reload"
+      "/app/embed/**"
    })
    public ModelAndView showHomePage(HttpServletRequest request, HttpServletResponse response,
                                     @LinkUri String linkUri)
@@ -81,7 +86,7 @@ public class HomePageController {
 
       if(OrganizationManager.getInstance().getCurrentOrgID() != null) {
          String orgId = OrganizationManager.getInstance().getCurrentOrgID();
-         SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+         SecurityProvider provider = securityEngine.getSecurityProvider();
 
          if(provider.getOrganization(orgId) != null &&
             !Tool.isEmptyString(provider.getOrganization(orgId).getTheme()) &&
@@ -91,12 +96,11 @@ public class HomePageController {
          }
       }
 
-      CustomThemesManager themes = CustomThemesManager.getManager();
       String customLoadingText = SreeEnv.getProperty("portal.customLoadingText").replaceAll("\\s", " ");
       ModelAndView model = new ModelAndView("app/index");
       model.addObject("linkUri", linkUri);
-      model.addObject("customTheme", themes.isCustomThemeApplied() || hasOrgTheme);
-      model.addObject("scriptThemeCssPath", themes.getScriptThemeCssPath(true));
+      model.addObject("customTheme", customThemesManager.isCustomThemeApplied() || hasOrgTheme);
+      model.addObject("scriptThemeCssPath", customThemesManager.getScriptThemeCssPath(true));
       model.addObject("customLoadingText", customLoadingText);
       model.addObject("customLoadingLogo", SreeEnv.getProperty("portal.customLoadingLogo"));
       model.addObject("customCss", SreeEnv.getProperty("portal.customCss"));
@@ -258,15 +262,15 @@ public class HomePageController {
       }
    }
 
+   @SuppressWarnings({ "unchecked", "rawtypes" })
    private void addAdditionalTags(ModelAndView model, String key, String property, String linkUri) {
       if(property != null) {
-         List<String> tags = Arrays.stream(property.split(","))
+         List tags = (List) model.getModel().computeIfAbsent(key, k -> new ArrayList<>());
+         Arrays.stream(property.split(","))
             .map(String::trim)
             .filter(t -> !t.isEmpty())
             .map(t -> resolveTagLink(t, linkUri))
-            .collect(Collectors.toList());
-
-         model.addObject(key, tags);
+            .forEach(tags::add);
       }
    }
 
@@ -370,6 +374,8 @@ public class HomePageController {
 
 
    private final DataSpace dataSpace;
+   private final SecurityEngine securityEngine;
+   private final CustomThemesManager customThemesManager;
    private final boolean webAssetsExist;
    private final Lock imageLock = new ReentrantLock();
    private volatile OpenGraphImage cachedImage;

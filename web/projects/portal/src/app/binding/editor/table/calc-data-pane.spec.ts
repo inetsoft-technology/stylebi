@@ -27,6 +27,13 @@ import { VSCalcTableEditorService } from "../../services/table/vs-calc-table-edi
 import { CalcDataPane } from "./calc-data-pane.component";
 
 describe("Calc Data Pane Unit Test", () => {
+   beforeAll(() => {
+      jest.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({
+         font: "",
+         measureText: (_text: string) => ({ width: 0 })
+      } as any);
+   });
+
    let createMockCellBindingInfo: (name?: string) => CellBindingInfo = (name?: string) => {
       let cellBinding = TestUtils.createMockCellBindingInfo(name);
       if(!name) {
@@ -56,7 +63,7 @@ describe("Calc Data Pane Unit Test", () => {
          setCellBinding: jest.fn(),
          getSelectCells: jest.fn(),
          getCellNamesWithDefaults: jest.fn(),
-         changeColumnValue: jest.fn()
+         changeColumnValue: jest.fn(),
       };
       bindingService = { isGrayedOutField: jest.fn() };
       dialogService = { open: jest.fn() };

@@ -19,7 +19,7 @@ import { CommonModule } from "@angular/common";
 import { HttpClient } from "@angular/common/http";
 import { HttpClientTestingModule, HttpTestingController } from "@angular/common/http/testing";
 import { NO_ERRORS_SCHEMA, Renderer2 } from "@angular/core";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { Router } from "@angular/router";
 import { NgbModule } from "@ng-bootstrap/ng-bootstrap";
@@ -50,6 +50,7 @@ import { CheckFormDataService } from "../../util/check-form-data.service";
 import { AdhocFilterService } from "../data-tip/adhoc-filter.service";
 import { DataTipService } from "../data-tip/data-tip.service";
 import { PopComponentService } from "../data-tip/pop-component.service";
+import { TimerService } from "../data-tip/timer.service";
 import { VSTableCell } from "./vs-table-cell.component";
 import { VSTable } from "./vs-table.component";
 import { VSTabService } from "../../util/vs-tab.service";
@@ -199,8 +200,9 @@ describe("VSTable Unit Tests", () => {
    let router: any;
    let richTextService: any;
    let vsTabService: any;
+   let timerService: any;
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       viewsheetClientService = { sendEvent: jest.fn() };
       viewsheetClientService.commands = observableOf([]);
       viewsheetClientService.runtimeId = "vs1_111";
@@ -224,6 +226,11 @@ describe("VSTable Unit Tests", () => {
       vsTabService.tabDeselected = observableOf(null);
 
       verticalScrollTooltip = { isOpen: jest.fn() };
+      timerService = {
+         defer: jest.fn((fn) => {
+            fn();
+         })
+      };
 
       TestBed.configureTestingModule({
          imports: [
@@ -258,7 +265,8 @@ describe("VSTable Unit Tests", () => {
             {provide: DragService, useValue: null},
             {provide: RichTextService, useValue: richTextService},
             {provide: VSTabService, useValue: vsTabService},
-            AppInfoService
+            AppInfoService,
+            {provide: TimerService, useValue: timerService},
          ]
       });
       TestBed.compileComponents();

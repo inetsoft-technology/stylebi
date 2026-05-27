@@ -22,11 +22,13 @@ import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import inetsoft.web.composer.model.TreeNodeModel;
+import org.immutables.serial.Serial;
 import org.immutables.value.Value;
 
 import javax.annotation.Nullable;
 
 @Value.Immutable
+@Serial.Structural
 @JsonSerialize(as = ImmutableExpressionDialogModel.class)
 @JsonDeserialize(as = ImmutableExpressionDialogModel.class)
 public interface ExpressionDialogModel {

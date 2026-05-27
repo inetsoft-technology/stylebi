@@ -186,6 +186,69 @@ export class AuditModificationHistoryComponent implements OnInit, OnDestroy {
       else if(value === "cycle") {
          return "_#(js:Cycle)";
       }
+      else if(value === "datasource") {
+         return "_#(js:Datasource)";
+      }
+      else if(value === "device") {
+         return "_#(js:Device)";
+      }
+      else if(value === "viewsheet") {
+         return "_#(js:Viewsheet)";
+      }
+      else if(value === "worksheet") {
+         return "_#(js:Worksheet)";
+      }
+      else if(value === "script") {
+         return "_#(js:Script)";
+      }
+      else if(value === "table style") {
+         return "_#(js:Table Style)";
+      }
+      else if(value === "logical model") {
+         return "_#(js:Logical Model)";
+      }
+      else if(value === "physical view") {
+         return "_#(js:Physical View)";
+      }
+      else if(value === "vpm") {
+         return "_#(js:VPM)";
+      }
+      else if(value === "file") {
+         return "_#(js:File)";
+      }
+      else if(value === "shape") {
+         return "_#(js:Shape)";
+      }
+      else if(value === "query") {
+         return "_#(js:Query)";
+      }
+      else if(value === "report") {
+         return "_#(js:Report)";
+      }
+      else if(value === "theme") {
+         return "_#(js:Theme)";
+      }
+      else if(value === "snapshot") {
+         return "_#(js:Snapshot)";
+      }
+      else if(value === "plugin") {
+         return "_#(js:Plugin)";
+      }
+      else if(value === "storage") {
+         return "_#(js:Storage)";
+      }
+      else if(value === "security provider") {
+         return "_#(js:Security Provider)";
+      }
+      else if(value === "password") {
+         return "_#(js:Password)";
+      }
+      else if(value === "asset") {
+         return "_#(js:Asset)";
+      }
+      else if(value === "prototype") {
+         return "_#(js:Prototype)";
+      }
       else {
          return value;
       }

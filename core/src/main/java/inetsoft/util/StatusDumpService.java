@@ -30,15 +30,17 @@ import inetsoft.sree.security.SRPrincipal;
 import inetsoft.storage.ExternalStorageService;
 import inetsoft.uql.util.*;
 import inetsoft.util.log.LogManager;
-import inetsoft.web.MapSessionRepository;
 import inetsoft.web.admin.query.QueryModel;
 import inetsoft.web.admin.server.ServerServiceMessageListener;
 import inetsoft.web.admin.user.SessionModel;
 import inetsoft.web.admin.viewsheet.ViewsheetModel;
 import inetsoft.web.admin.viewsheet.ViewsheetThreadModel;
+import inetsoft.web.session.IgniteSessionRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationContext;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.stereotype.Service;
 
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -53,18 +55,25 @@ import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
+@Service
+@Lazy
 public class StatusDumpService {
-   public StatusDumpService() {
+   public StatusDumpService(LogManager logManager, FileSystemService fileSystemService,
+                            ExternalStorageService externalStorageService)
+   {
+      this.logManager = logManager;
+      this.fileSystemService = fileSystemService;
+      this.externalStorageService = externalStorageService;
       mapper = new ObjectMapper();
       mapper.registerModule(new JavaTimeModule());
    }
 
    public static StatusDumpService getInstance() {
-      return SingletonManager.getInstance(StatusDumpService.class);
+      return ConfigurationContext.getContext().getSpringBean(StatusDumpService.class);
    }
 
    public void dumpStatus() {
-      Path file = FileSystemService.getInstance().getCacheTempFile("status-dump", ".zip").toPath();
+      Path file = fileSystemService.getCacheTempFile("status-dump", ".zip").toPath();
 
       try {
          try(ZipOutputStream zip = new ZipOutputStream(Files.newOutputStream(file))) {
@@ -83,7 +92,7 @@ public class StatusDumpService {
 
          try {
             String externalPath = getDumpName();
-            ExternalStorageService.getInstance().write(externalPath, file);
+            externalStorageService.write(externalPath, file);
             LOG.info("Wrote status dump to {}", externalPath);
          }
          catch(Exception e) {
@@ -118,7 +127,7 @@ public class StatusDumpService {
    }
 
    private List<ViewsheetModel> getDashboards() {
-      ViewsheetService service = SingletonManager.getInstance(ViewsheetService.class);
+      ViewsheetService service = ViewsheetService.getInstance();
       return Arrays.stream(service.getRuntimeViewsheets(null))
          .filter(rvs -> rvs.getID() != null && !rvs.getID().isEmpty())
          .map(rvs -> createModel(rvs, service))
@@ -204,7 +213,7 @@ public class StatusDumpService {
 
    private List<SessionModel> getUsers() {
       List<SessionModel> infos = new ArrayList<>();
-      MapSessionRepository sessionRepository = getSessionRepository();
+      IgniteSessionRepository sessionRepository = getSessionRepository();
 
       if(sessionRepository == null) {
          SRPrincipal principal = (SRPrincipal) ThreadContext.getContextPrincipal();
@@ -243,12 +252,12 @@ public class StatusDumpService {
       return infos;
    }
 
-   private MapSessionRepository getSessionRepository() {
+   private IgniteSessionRepository getSessionRepository() {
       if(applicationContext == null) {
          return null;
       }
 
-      return applicationContext.getBean(MapSessionRepository.class);
+      return applicationContext.getBean(IgniteSessionRepository.class);
    }
 
    private SessionModel createModel(SRPrincipal principal) {
@@ -303,7 +312,7 @@ public class StatusDumpService {
    }
 
    private void writeLogs(ZipOutputStream zip) throws IOException {
-      LogManager.getInstance().zipLogs(zip);
+      logManager.zipLogs(zip);
    }
 
    private void writeMetrics(ZipOutputStream zip) {
@@ -377,6 +386,9 @@ public class StatusDumpService {
    }
 
    private ApplicationContext applicationContext;
+   private final LogManager logManager;
+   private final FileSystemService fileSystemService;
+   private final ExternalStorageService externalStorageService;
    private final ObjectMapper mapper;
    private static final Logger LOG = LoggerFactory.getLogger(StatusDumpService.class);
 

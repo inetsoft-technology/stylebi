@@ -17,6 +17,8 @@
  */
 package inetsoft.sree.security;
 
+import org.springframework.context.ApplicationEvent;
+
 import java.security.Principal;
 import java.util.EventObject;
 
@@ -25,7 +27,7 @@ import java.util.EventObject;
  *
  * @since 12.3
  */
-public class SessionEvent extends EventObject {
+public abstract class SessionEvent extends ApplicationEvent {
    /**
     * Creates a new instance of <tt>SessionEvent</tt>.
     *

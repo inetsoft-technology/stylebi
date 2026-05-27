@@ -58,6 +58,6 @@ gulp.task("sass:watch", gulp.series(["sass"], function() {
    return gulp.watch([
       "projects/portal/src/scss/**/*.scss",
       "projects/portal/src/assets/ineticons/*.scss",
-      "projects/em/src/**.scss"],
+      "projects/em/src/**/*.scss"],
       gulp.series(["sass"]))
 }));

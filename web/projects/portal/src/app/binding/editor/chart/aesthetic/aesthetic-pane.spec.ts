@@ -17,7 +17,7 @@
  */
 import { HttpClientTestingModule } from "@angular/common/http/testing";
 import { NO_ERRORS_SCHEMA } from "@angular/core";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { By } from "@angular/platform-browser";
 import { NgbModal, NgbModule } from "@ng-bootstrap/ng-bootstrap";
@@ -57,6 +57,14 @@ import { TextFieldMc } from "./text-field-mc.component";
 import { TextureItem } from "./texture-item.component";
 
 describe("Aesthetic Pane Unit Test", () => {
+   beforeAll(() => {
+      jest.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({
+         font: "",
+         clearRect: jest.fn(),
+         fillRect: jest.fn(),
+         measureText: (_text: string) => ({ width: 0 })
+      } as any);
+   });
    let createMockChartAggregateRef: (name?: string) => ChartAggregateRef = (name?: string) => {
       let aggRef = TestUtils.createMockChartAggregateRef(name);
       aggRef.formula = "Sum";
@@ -136,7 +144,7 @@ describe("Aesthetic Pane Unit Test", () => {
    let aestheticPane: AestheticPane;
    let bindingModel: ChartBindingModel;
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
             FormsModule, ReactiveFormsModule, NgbModule, HttpClientTestingModule, DropDownTestModule

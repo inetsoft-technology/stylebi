@@ -17,13 +17,19 @@
  */
 package inetsoft.report.internal.license;
 
+import com.google.common.base.Suppliers;
+import inetsoft.sree.ApplicationPropertiesChangedEvent;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.cluster.MessageEvent;
 import inetsoft.sree.internal.cluster.MessageListener;
 import inetsoft.sree.security.IdentityID;
-import inetsoft.util.SingletonManager;
+import inetsoft.util.ConfigurationContext;
+import jakarta.annotation.PreDestroy;
+import org.springframework.context.ConfigurableApplicationContext;
+import org.springframework.context.event.EventListener;
 
 import java.util.*;
+import java.util.function.Supplier;
 
 /**
  * {@code LicenseManager} manages the installed license keys and provides information about them.
@@ -60,7 +66,34 @@ public class LicenseManager implements AutoCloseable, MessageListener {
     * @return the manager instance.
     */
    public static LicenseManager getInstance() {
-      return SingletonManager.getInstance(LicenseManager.class);
+      return ConfigurationContext.getContext().getSpringBean(LicenseManager.class);
+   }
+
+   /**
+    * Returns {@code true} if CPU affinity is configured in the license, or {@code false} if the
+    * {@code LicenseManager} bean is not yet available in the Spring context.
+    *
+    * <p>This method is safe to call from threads that may run while Spring is still initializing
+    * beans (e.g. {@link inetsoft.util.GroupedThread} tasks submitted by cluster services). Calling
+    * {@link #getInstance()} from such threads can deadlock because Spring's singleton creation lock
+    * may be held by the thread that spawned the cluster task. This method avoids that by checking
+    * whether the bean is already in the singleton cache before attempting to retrieve it.</p>
+    */
+   public static boolean isAffinityEnabledSafe() {
+      try {
+         var ctx = ConfigurationContext.getContext().getApplicationContext();
+
+         if(ctx instanceof ConfigurableApplicationContext cac &&
+            !cac.getBeanFactory().containsSingleton("licenseManager"))
+         {
+            return false;
+         }
+
+         return getInstance().isAffinitySet();
+      }
+      catch(Exception ignore) {
+         return false;
+      }
    }
 
    /**
@@ -91,20 +124,8 @@ public class LicenseManager implements AutoCloseable, MessageListener {
    /**
     * Check if the enterprise features are included.
     */
-   public boolean isEnterprise() {
-      if(enterprise != null) {
-         return enterprise;
-      }
-
-      try {
-         Class.forName("inetsoft.enterprise.EnterpriseConfig");
-         enterprise = true;
-         return true;
-      }
-      catch(Exception ex) {
-         enterprise = false;
-         return false;
-      }
+   public static boolean isEnterprise() {
+      return enterprise.get();
    }
 
    /**
@@ -261,6 +282,11 @@ public class LicenseManager implements AutoCloseable, MessageListener {
       strategy.replaceLicense(oldKey, newKey);
    }
 
+   @EventListener(ApplicationPropertiesChangedEvent.class)
+   public void handleApplicationPropertiesChanged(ApplicationPropertiesChangedEvent event) {
+      reload();
+   }
+
    /**
     * Reloads the licenses from the properties file.
     */
@@ -305,6 +331,7 @@ public class LicenseManager implements AutoCloseable, MessageListener {
    }
 
    @Override
+   @PreDestroy
    public void close() throws Exception {
       strategy.close();
    }
@@ -426,5 +453,13 @@ public class LicenseManager implements AutoCloseable, MessageListener {
    }
 
    private LicenseStrategy strategy;
-   private Boolean enterprise;
+   private static final Supplier<Boolean> enterprise = Suppliers.memoize(() -> {
+      try {
+         Class.forName("inetsoft.enterprise.EnterpriseConfig");
+         return true;
+      }
+      catch(Exception ignore) {
+         return false;
+      }
+   });
 }

@@ -15,13 +15,12 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { NoopAnimationsModule } from "@angular/platform-browser/animations";
-import { TestBed, async, ComponentFixture } from "@angular/core/testing";
+import { ComponentFixture, TestBed, waitForAsync } from "@angular/core/testing";
 import { NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { NotificationsComponent } from "./notifications.component";
 
 describe("NotificationsComponent Integration Tests", () => {
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
             // NoopAnimationsModule,

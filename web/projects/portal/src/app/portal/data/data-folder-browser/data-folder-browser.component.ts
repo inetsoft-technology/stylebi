@@ -476,7 +476,7 @@ export class DataFolderBrowserComponent extends CommandProcessor implements OnIn
     * Attempt to delete the currently selected items.
     */
    deleteSelected(): void {
-      if(this.selectedItems.length === 0) {
+      if(this.selectedItems.length === 0 || !this.isSelectionDeletable()) {
          return;
       }
 

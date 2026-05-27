@@ -240,16 +240,17 @@ export class ScheduleTaskListComponent implements OnInit, OnDestroy, AfterConten
       return this._selectAllChecked && this.selectedItems.length == this.tasks.length;
    }
 
+   private isFullName(id: string, owner: IdentityId): boolean {
+      return owner ? id.includes(convertToKey(owner)) : true;
+   }
+
    private mergeChange(change: ScheduleTaskChange): void {
       const list = this.tasks.slice();
+      let fullChangeName = !this.securityEnabled && !this.isFullName(change.name, change.task?.owner) ?
+         this.convertTaskOwner(change.task?.owner || { name: "anonymous", orgID: "host-org" }) + ":" + change.name : change.name;
+
       const index = list.findIndex(t => {
-         if(this.securityEnabled) {
-            return t.name === change.name;
-         }
-         else {
-            let taskFullName = convertToKey(t.owner) + ":" + t.name;
-            return taskFullName === change.name;
-         }
+         return t.name === fullChangeName;
       });
 
       if(index >= 0) {
@@ -257,6 +258,10 @@ export class ScheduleTaskListComponent implements OnInit, OnDestroy, AfterConten
             list.splice(index, 1);
          }
          else {
+            if(!this.securityEnabled && change.task) {
+               change.task.name = fullChangeName;
+            }
+
             list[index] = change.task;
          }
       }
@@ -266,6 +271,11 @@ export class ScheduleTaskListComponent implements OnInit, OnDestroy, AfterConten
             (!change?.task?.path || change?.task?.path == "/") ||
             this.currentFolder.path == change?.task?.path)
          {
+
+            if(!this.securityEnabled && change.task) {
+               change.task.name = fullChangeName;
+            }
+
             list.push(change.task);
          }
       }
@@ -339,6 +349,13 @@ export class ScheduleTaskListComponent implements OnInit, OnDestroy, AfterConten
    }
 
    initTaskList(list: ScheduleTaskList) {
+      if(!this.securityEnabled) {
+         for(let t of list.tasks) {
+            if(!this.isFullName(t.name, t.owner))
+            t.name = this.convertTaskOwner(t.owner) + ":" + t.name;
+         }
+      }
+
       this.tasks = list.tasks;
       this.originalOrder = this.tasks.map(task => task.name);
       this.showOwners = list.showOwners;
@@ -348,6 +365,17 @@ export class ScheduleTaskListComponent implements OnInit, OnDestroy, AfterConten
          if(!!task.status && !!task.status.lastRunEnd) {
             task.lastRunTime = DateTypeFormatter.format(task.status.lastRunEnd, list.dateTimeFormat, true);
          }
+      }
+   }
+
+   //when security is disabled, tasks require appending owner for consistency
+   private convertTaskOwner(id: IdentityId): string {
+      if(id.name === "admin") {
+         return convertToKey(id);
+      }
+      else {
+         let newid: IdentityId = {name: "anonymous", "orgID": id.orgID};
+         return convertToKey(newid);
       }
    }
 

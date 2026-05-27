@@ -30,21 +30,44 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.io.File;
 import java.io.IOException;
 import java.security.Principal;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.*;
+import java.util.concurrent.TimeUnit;
 import java.util.zip.ZipOutputStream;
 
 @Service
 public class LogMonitoringService implements MessageListener {
-   public LogMonitoringService() {
-      this.logManager = LogManager.getInstance();
-      this.cluster = Cluster.getInstance();
+   /**
+    * Timeout for fetching log content from cluster nodes. Kept short so that a node under heavy
+    * load does not block the monitoring subscription thread (and the lock in
+    * BaseSubscribeChangeHandler) for an extended period. If the node cannot respond within this
+    * window the log viewer returns empty for that refresh cycle and retries on the next one.
+    * A GC pause or transient overload is typically resolved within a few seconds; 20s provides
+    * a reasonable buffer without risking thread starvation under sustained concurrent load.
+    */
+   private static final long LOG_FETCH_TIMEOUT_SECONDS = 20L;
+
+   /**
+    * Timeout for listing log files from cluster nodes. Listing is a lightweight operation so a
+    * short timeout prevents the UI from blocking for N×20 seconds when nodes are joining or
+    * unresponsive during autoscaling events.
+    */
+   private static final long LOG_LIST_TIMEOUT_SECONDS = 10L;
+
+   @Autowired
+   public LogMonitoringService(LogManager logManager, Cluster cluster)
+   {
+      this.logManager = logManager;
+      this.cluster = cluster;
    }
 
    @PostConstruct
@@ -54,10 +77,7 @@ public class LogMonitoringService implements MessageListener {
 
    @PreDestroy
    public void removeListener() {
-      if(cluster != null) {
-         cluster.removeMessageListener(this);
-      }
-
+      cluster.removeMessageListener(this);
       executor.shutdownNow();
    }
 
@@ -70,9 +90,18 @@ public class LogMonitoringService implements MessageListener {
       if(SUtil.isCluster() && !cluster.getLocalMember().equals(clusterNode)) {
          try {
             GetLogRequest request = new GetLogRequest(logFileName, offset, length);
-            GetLogResponse response =
-               cluster.exchangeMessages(clusterNode, request, GetLogResponse.class);
-            return response.getContent();
+            GetLogResponse response = cluster.exchangeMessages(
+               clusterNode, request, GetLogResponse.class,
+               LOG_FETCH_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+            List<String> content = response.getContent();
+            return content != null ? content : List.of();
+         }
+         catch(InterruptedException e) {
+            // Expected during AKS pod restarts: the target node has left the cluster or
+            // timed out responding. Log at WARN (no stack trace) since this is a normal
+            // transient condition and the caller already receives an empty list.
+            LOG.warn("Failed to get log file {} from {}: {}", logFileName, clusterNode,
+                     e.getMessage());
          }
          catch(Exception e) {
             LOG.error("Failed to get log file {} from {}", logFileName, clusterNode, e);
@@ -82,7 +111,7 @@ public class LogMonitoringService implements MessageListener {
          return getLocalLog(logFileName, offset, length);
       }
 
-      return null;
+      return List.of();
    }
 
    private List<String> getLocalLog(String logFileName, int offset, int length) {
@@ -100,7 +129,7 @@ public class LogMonitoringService implements MessageListener {
          LOG.error("Failed to read log file: {}", logFileName, exc);
       }
 
-      return null;
+      return List.of();
    }
 
    public LogMonitoringModel getLogs() {
@@ -121,40 +150,85 @@ public class LogMonitoringService implements MessageListener {
          selectedLog = logFiles.isEmpty() ? null : logFiles.getFirst();
       }
 
-      List<Future<?>> futures = new ArrayList<>();
+      // Set deadline before submitting futures so that any time elapsed during
+      // the submission loop is counted against the overall budget.
+      long deadline = System.currentTimeMillis() + LOG_LIST_TIMEOUT_SECONDS * 1000;
+
+      // Keyed by future so the wait loop can include the node name in log messages.
+      Map<Future<List<LogFileModel>>, String> futures = new LinkedHashMap<>();
 
       for(String clusterNode : cluster.getClusterNodes(false)) {
          if(!clusterNode.equals(cluster.getLocalMember())) {
-            futures.add(executor.submit(() -> {
+            futures.put(executor.submit(() -> {
                try {
                   GetLogFilesResponse response = cluster.exchangeMessages(
-                     clusterNode, new GetLogFilesRequest(), GetLogFilesResponse.class);
+                     clusterNode, new GetLogFilesRequest(), GetLogFilesResponse.class,
+                     LOG_LIST_TIMEOUT_SECONDS, TimeUnit.SECONDS);
 
-                  if(LicenseManager.getInstance().isEnterprise()) {
-                     for(LogFileModel logfile : response.getLogFiles()) {
-                        boolean exists = logFiles.stream().anyMatch(f -> f.getLogFile().equals(logfile.getLogFile()));
-
-                        if(!exists) {
-                           logFiles.add(logfile);
-                        }
-                     }
+                  if(LicenseManager.isEnterprise()) {
+                     return response.getLogFiles();
                   }
+               }
+               catch(InterruptedException e) {
+                  // The outer wait loop cancelled this future (deadline or per-node timeout).
+                  // This is expected during transient conditions such as a node that just
+                  // joined the cluster and hasn't finished initializing its message listeners
+                  // yet. Restore the interrupt flag and log at WARN; the outer loop already
+                  // records the timeout event.
+                  Thread.currentThread().interrupt();
+                  LOG.warn("Log file list fetch interrupted for node {}, " +
+                           "node may still be initializing", clusterNode);
                }
                catch(Exception e) {
                   LOG.error("Failed to get log files from {}", clusterNode, e);
                }
-            }));
+
+               return List.<LogFileModel>of();
+            }), clusterNode);
          }
       }
 
-      // wait for all tasks to complete
-      for(Future<?> future : futures) {
+      int skipped = 0;
+
+      for(Map.Entry<Future<List<LogFileModel>>, String> entry : futures.entrySet()) {
+         Future<List<LogFileModel>> future = entry.getKey();
+         String clusterNode = entry.getValue();
+         long remaining = deadline - System.currentTimeMillis();
+
+         // Only abandon a future that has not yet completed. If it is already
+         // done its result is available instantly (FutureTask.get() returns
+         // immediately for a completed task regardless of the timeout value),
+         // so collecting it does not consume any remaining budget.
+         if(remaining <= 0 && !future.isDone()) {
+            future.cancel(true);
+            skipped++;
+            continue;
+         }
+
          try {
-            future.get();
+            List<LogFileModel> remoteLogFiles = future.get(remaining, TimeUnit.MILLISECONDS);
+
+            for(LogFileModel logfile : remoteLogFiles) {
+               boolean exists = logFiles.stream()
+                  .anyMatch(f -> f.getLogFile().equals(logfile.getLogFile()));
+
+               if(!exists) {
+                  logFiles.add(logfile);
+               }
+            }
+         }
+         catch(TimeoutException e) {
+            future.cancel(true);
+            LOG.warn("Timed out waiting for log file list from node {}, skipping", clusterNode);
          }
          catch(Exception e) {
-            LOG.error("Error while waiting for a log file", e);
+            LOG.error("Error while waiting for log file list from node {}", clusterNode, e);
          }
+      }
+
+      if(skipped > 0) {
+         LOG.warn("Overall timeout reached; skipped {} remote node(s) waiting for log file lists",
+                  skipped);
       }
 
       return new LogMonitoringModel(selectedLog, logFiles, true, true, 500);
@@ -164,6 +238,7 @@ public class LogMonitoringService implements MessageListener {
       return new ArrayList<>(logManager.getLogFiles().stream()
                                 .map(File::getName)
                                 .map(f -> new LogFileModel(getClusterNode(f), f, logManager.isRotateSupported(f)))
+                                .distinct()
                                 .toList());
    }
 
@@ -317,6 +392,13 @@ public class LogMonitoringService implements MessageListener {
 
    private final LogManager logManager;
    private final Cluster cluster;
-   private final ExecutorService executor = Executors.newFixedThreadPool(4);
+   // CachedThreadPool allows all cluster nodes to be queried concurrently regardless of cluster
+   // size. The thread count is bounded by the number of cluster nodes per request (a small,
+   // operator-controlled value), so there is no unbounded thread growth risk.
+   private final ExecutorService executor = Executors.newCachedThreadPool(r -> {
+      Thread t = new Thread(r, "LogMonitoringService");
+      t.setDaemon(true);
+      return t;
+   });
    private static final Logger LOG = LoggerFactory.getLogger(LogMonitoringService.class);
 }

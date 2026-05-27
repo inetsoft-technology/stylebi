@@ -19,7 +19,8 @@ package inetsoft.uql.viewsheet.internal;
 
 import inetsoft.analytic.composition.VSPortalHelper;
 import inetsoft.analytic.composition.ViewsheetService;
-import inetsoft.analytic.composition.event.*;
+import inetsoft.analytic.composition.event.ChartVSSelectionUtil;
+import inetsoft.analytic.composition.event.VSEventUtil;
 import inetsoft.graph.VGraph;
 import inetsoft.graph.data.DataSet;
 import inetsoft.graph.internal.DimensionD;
@@ -29,9 +30,7 @@ import inetsoft.report.composition.*;
 import inetsoft.report.composition.execution.*;
 import inetsoft.report.composition.graph.*;
 import inetsoft.report.composition.graph.calc.*;
-import inetsoft.report.filter.CrossTabFilterUtil;
-import inetsoft.report.filter.Highlight;
-import inetsoft.report.filter.HighlightGroup;
+import inetsoft.report.filter.*;
 import inetsoft.report.gui.viewsheet.VSLine;
 import inetsoft.report.internal.*;
 import inetsoft.report.internal.binding.BaseField;
@@ -63,7 +62,6 @@ import inetsoft.util.*;
 import inetsoft.util.audit.AuditRecordUtils;
 import inetsoft.util.audit.BookmarkRecord;
 import inetsoft.util.graphics.SVGSupport;
-import inetsoft.util.script.JavaScriptEngine;
 import inetsoft.web.binding.dnd.BindingDropTarget;
 import inetsoft.web.binding.handler.CrosstabConstants;
 import inetsoft.web.viewsheet.model.table.DrillLevel;
@@ -84,8 +82,8 @@ import java.lang.reflect.Array;
 import java.net.URL;
 import java.security.Principal;
 import java.text.SimpleDateFormat;
-import java.util.List;
 import java.util.*;
+import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
@@ -889,15 +887,27 @@ public final class VSUtil {
     */
    public static List<VSAssembly> getSharedVSAssemblies(Viewsheet tvs, VSAssembly fassembly) {
       Viewsheet fvs = fassembly.getViewsheet();
-      ViewsheetInfo fvinfo = fvs.getViewsheetInfo();
+      ViewsheetInfo fvinfo = fvs != null ? fvs.getViewsheetInfo() : tvs.getViewsheetInfo();
       String fname = fassembly.getName();
       String fid = fvinfo.getFilterID(fname);
+      return getSharedVSAssemblies(tvs, fassembly, fid);
+   }
+
+   public static List<VSAssembly> getSharedVSAssemblies(Viewsheet tvs, VSAssembly fassembly,
+                                                         String fid)
+   {
       List<VSAssembly> list = new ArrayList<>();
 
       if(fid == null) {
          return list;
       }
 
+      // VSAssemblyInfo.vs is transient: when fassembly is deserialized on a remote cluster
+      // node, getViewsheet() returns null. The self-exclusion guard (tvs == fvs) therefore
+      // never fires on remote nodes, which is safe — a remote node's tvs is never the same
+      // object as null, so no assembly is incorrectly skipped.
+      Viewsheet fvs = fassembly.getViewsheet();
+      String fname = fassembly.getName();
       ViewsheetInfo tvinfo = tvs.getViewsheetInfo();
       List<String> tnames = tvinfo.getFilterColumns(fid);
 
@@ -905,7 +915,6 @@ public final class VSUtil {
          Assembly tassembly = tvs.getAssembly(tname);
 
          // ignore self
-
          if(tvs == fvs && tname.equals(fname)) {
             continue;
          }
@@ -2820,13 +2829,15 @@ public final class VSUtil {
          cols = (ColumnSelection) tableAssembly.getColumnSelection(true).clone();
       }
       else {
-         ViewsheetSandbox box = rvs.getViewsheetSandbox();
+         Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
          TableLens lens = null;
 
-         try {
-            lens = box.getTableData(tableName);
-         }
-         catch(Exception e) {
+         if(box.isPresent()) {
+            try {
+               lens = box.get().getTableData(tableName);
+            }
+            catch(Exception e) {
+            }
          }
 
          if(lens == null) {
@@ -5399,9 +5410,9 @@ public final class VSUtil {
       }
 
       Worksheet ws = tip.getWorksheet();
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
-      if(box == null) {
+      if(box.isEmpty()) {
          return VSAssembly.NONE_CHANGED;
       }
 
@@ -5412,8 +5423,13 @@ public final class VSUtil {
             ("common.notTable", tbl));
       }
 
-      tobj = box.getBoundTable(tobj, tip.getName(), false);
+      tobj = box.get().getBoundTable(tobj, tip.getName(), false);
       Viewsheet vs = rvs.getViewsheet();
+
+      if(vs == null) {
+         return VSAssembly.NONE_CHANGED;
+      }
+
       VSAssembly comp = vs.getAssembly(objName);
 
       if(VSUtil.createWsWrapper(rvs.getViewsheet(), comp)) {
@@ -5427,16 +5443,12 @@ public final class VSUtil {
 
       ColumnSelection columns = tobj.getColumnSelection(false);
 
-      if(vs == null) {
-         return VSAssembly.NONE_CHANGED;
-      }
-
       if(conds == null && comp instanceof ChartVSAssembly) {
          ChartVSAssembly chart = (ChartVSAssembly) comp;
          String aname = chart.getAbsoluteName();
-         VSDataSet alens = (VSDataSet) box.getData(aname, true, DataMap.ZOOM);
+         VSDataSet alens = (VSDataSet) box.get().getData(aname, true, DataMap.ZOOM);
          VSChartInfo cinfo = chart.getVSChartInfo();
-         VGraphPair pair = box.getVGraphPair(aname);
+         VGraphPair pair = box.get().getVGraphPair(aname);
          VGraph vgraph = (pair == null) ? null : pair.getRealSizeVGraph();
 
          if(vgraph == null) {
@@ -5445,7 +5457,7 @@ public final class VSUtil {
 
          DataSet vdset = vgraph.getCoordinate().getDataSet();
          VSDataSet lens = vdset instanceof VSDataSet
-            ? (VSDataSet) vdset : (VSDataSet) box.getData(aname);
+            ? (VSDataSet) vdset : (VSDataSet) box.get().getData(aname);
 
          if(lens == null) {
             return VSAssembly.NONE_CHANGED;
@@ -5522,15 +5534,15 @@ public final class VSUtil {
    {
       CrosstabDataVSAssemblyInfo cinfo = (CrosstabDataVSAssemblyInfo) crosstab.getInfo();
       VSCrosstabInfo vinfo = cinfo.getVSCrosstabInfo();
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
       Viewsheet vs = rvs.getViewsheet();
       DataVSAssembly data = (DataVSAssembly) vs.getAssembly(crosstab.getAbsoluteName());
 
-      if(box == null) {
+      if(box.isEmpty()) {
          return new ConditionList();
       }
 
-      TableLens lens = (TableLens) box.getData(crosstab.getAbsoluteName());
+      TableLens lens = (TableLens) box.get().getData(crosstab.getAbsoluteName());
       DataRef[] rheaders = vinfo.getRuntimeRowHeaders();
       DataRef[] cheaders = vinfo.getRuntimeColHeaders();
       boolean period = vinfo.getPeriodRuntimeRowHeaders().length >
@@ -5594,10 +5606,15 @@ public final class VSUtil {
    private static ConditionList getConditionList(RuntimeViewsheet rvs,
       CalcTableVSAssembly calc, String value) throws Exception
    {
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box.isEmpty()) {
+         return new ConditionList();
+      }
+
       int[][] rowcols = getRowColumns(value);
       return TableConditionUtil.createCalcTableConditions(calc, rowcols,
-         calc.getAbsoluteName(), box);
+         calc.getAbsoluteName(), box.get());
    }
 
    /**
@@ -5606,13 +5623,13 @@ public final class VSUtil {
    private static ConditionList getConditionList(RuntimeViewsheet rvs,
       TableVSAssembly table, String value, boolean afterGroup) throws Exception
    {
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
-      if(box == null) {
+      if(box.isEmpty()) {
          return new ConditionList();
       }
 
-      TableLens lens = (TableLens) box.getData(table.getAbsoluteName());
+      TableLens lens = (TableLens) box.get().getData(table.getAbsoluteName());
       ConditionList conds = new ConditionList();
 
       String[] pairs = Tool.split(value, ';');
@@ -6783,6 +6800,10 @@ public final class VSUtil {
     * Get viewsheet bookmark owner alias.
     */
    public static String getUserAlias(IdentityID owner) {
+      if(owner == null) {
+         return null;
+      }
+
       SecurityProvider securityProvider = SecurityEngine.getSecurity().getSecurityProvider();
 
       if(securityProvider == null || securityProvider.isVirtual()) {
@@ -6962,11 +6983,11 @@ public final class VSUtil {
     * @param bookmarkName bookmark name the viewsheet will goto.
     * @param rep AssetRepository to update the bookmark.
     */
-   public static Viewsheet vsGotoBookmark(Viewsheet vs, VSBookmark bookmark, String bookmarkName, AssetRepository rep)
+   public static Viewsheet vsGotoBookmark(Viewsheet vs, VSBookmark bookmark, String bookmarkName, AssetRepository rep, Principal principal)
    {
       vs = bookmark.getBookmark(bookmarkName, vs);
       AuditRecordUtils.executeBookmarkRecord(
-         vs, bookmark.getBookmarkInfo(bookmarkName), BookmarkRecord.ACTION_TYPE_ACCESS);
+         vs, bookmark.getBookmarkInfo(bookmarkName), BookmarkRecord.ACTION_TYPE_ACCESS, principal);
       VSBookmarkInfo bookmarkInfo = bookmark.getBookmarkInfo(bookmarkName);
 
       if(!VSBookmark.HOME_BOOKMARK.equals(bookmarkName) && !VSBookmark.INITIAL_STATE.equals(bookmarkName) &&
@@ -6974,9 +6995,16 @@ public final class VSUtil {
       {
          String debounceKey = VSBookmark.getLockKey(bookmark.getIdentifier(), bookmarkInfo.getOwner().convertToKey())
             + "_" + bookmarkName;
+         final Principal contextPrincipal = ThreadContext.getContextPrincipal();
          getDebouncer().debounce(debounceKey, 2L, TimeUnit.SECONDS, () -> {
-            updateBookmarkLastAccessedTime(bookmark.getIdentifier(), bookmarkName,
-                                           bookmarkInfo.getOwner(), rep);
+            try {
+               ThreadContext.setContextPrincipal(contextPrincipal);
+               updateBookmarkLastAccessedTime(bookmark.getIdentifier(), bookmarkName,
+                                              bookmarkInfo.getOwner(), rep);
+            }
+            finally {
+               ThreadContext.setContextPrincipal(null);
+            }
          });
       }
 
@@ -8753,7 +8781,7 @@ public final class VSUtil {
       String orgId = ((XPrincipal) principal).getOrgId();
 
       return SUtil.isDefaultVSGloballyVisible(principal) &&
-         !orgId.equals(Organization.getDefaultOrganizationID()) &&
+         !Tool.equals(orgId,Organization.getDefaultOrganizationID()) &&
          Tool.equals(entry.getOrgID(), Organization.getDefaultOrganizationID());
    }
 
@@ -8790,39 +8818,8 @@ public final class VSUtil {
    public static boolean switchToHostOrgForGlobalShareAsset(String sheetRuntimeId,
                                                          Principal principal)
    {
-
-      if(sheetRuntimeId == null) {
-         return false;
-      }
-
-      ViewsheetService service = SingletonManager.getInstance(ViewsheetService.class);
-
-      try {
-         RuntimeSheet runtimeSheet = service.getSheet(sheetRuntimeId, principal);
-
-         if(runtimeSheet == null || runtimeSheet.getEntry() == null ||
-            !(runtimeSheet instanceof RuntimeViewsheet))
-         {
-            return false;
-         }
-
-         AssetEntry entry = runtimeSheet.getEntry();
-
-         if(SUtil.isDefaultVSGloballyVisible(principal) &&
-            !Tool.equals(((XPrincipal) principal).getOrgId(), entry.getOrgID()) &&
-            Tool.equals(entry.getOrgID(), Organization.getDefaultOrganizationID()))
-         {
-            return true;
-         }
-      }
-      catch(ExpiredSheetException ignored) {
-         // no-op
-      }
-      catch(Exception ignored) {
-         LOG.warn("Can't get runtime viewsheet by id: " + sheetRuntimeId);
-      }
-
-      return false;
+      ViewsheetService service = ViewsheetService.getInstance();
+      return service.switchToHostOrgForGlobalShareAsset(sheetRuntimeId, principal);
    }
 
    private static InheritableThreadLocal<Boolean> IGNORE_CSS = new InheritableThreadLocal<>();

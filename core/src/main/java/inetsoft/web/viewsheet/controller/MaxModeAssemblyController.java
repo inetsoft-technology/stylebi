@@ -17,8 +17,6 @@
  */
 package inetsoft.web.viewsheet.controller;
 
-import inetsoft.analytic.composition.ViewsheetService;
-import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.web.viewsheet.LoadingMask;
 import inetsoft.web.viewsheet.Undoable;
 import inetsoft.web.viewsheet.event.MaxObjectEvent;
@@ -33,13 +31,11 @@ import java.security.Principal;
 @Controller
 public class MaxModeAssemblyController {
    @Autowired
-   public MaxModeAssemblyController(ViewsheetService viewsheetService,
-                                    RuntimeViewsheetRef runtimeViewsheetRef,
-                                    MaxModeAssemblyService maxModeAssemblyService)
+   public MaxModeAssemblyController(MaxModeAssemblyServiceProxy maxModeAssemblyServiceProxy,
+                                    RuntimeViewsheetRef runtimeViewsheetRef)
    {
-      this.viewsheetService = viewsheetService;
       this.runtimeViewsheetRef = runtimeViewsheetRef;
-      this.maxModeAssemblyService = maxModeAssemblyService;
+      this.maxModeAssemblyServiceProxy = maxModeAssemblyServiceProxy;
    }
 
    @Undoable
@@ -50,13 +46,10 @@ public class MaxModeAssemblyController {
                               @LinkUri String linkUri)
       throws Exception
    {
-      final RuntimeViewsheet rvs =
-         viewsheetService.getViewsheet(runtimeViewsheetRef.getRuntimeId(), principal);
-      maxModeAssemblyService.toggleMaxMode(rvs, event.assemblyName(), event.maxSize(), dispatcher,
-         linkUri);
+      maxModeAssemblyServiceProxy.toggleMaxMode(runtimeViewsheetRef.getRuntimeId(), event.assemblyName(),
+                                           event.maxSize(), dispatcher, linkUri, principal);
    }
 
-   private ViewsheetService viewsheetService;
    private RuntimeViewsheetRef runtimeViewsheetRef;
-   private MaxModeAssemblyService maxModeAssemblyService;
+   private MaxModeAssemblyServiceProxy maxModeAssemblyServiceProxy;
 }

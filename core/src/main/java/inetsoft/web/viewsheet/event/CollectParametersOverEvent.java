@@ -21,6 +21,7 @@ package inetsoft.web.viewsheet.event;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import inetsoft.web.composer.ws.assembly.VariableAssemblyModelInfo;
+import org.immutables.serial.Serial;
 import org.immutables.value.Value;
 
 import java.util.ArrayList;
@@ -32,6 +33,7 @@ import java.util.List;
  * @since 12.3
  */
 @Value.Immutable
+@Serial.Structural
 @JsonSerialize(as = ImmutableCollectParametersOverEvent.class)
 @JsonDeserialize(builder = CollectParametersOverEvent.Builder.class)
 public abstract class CollectParametersOverEvent {

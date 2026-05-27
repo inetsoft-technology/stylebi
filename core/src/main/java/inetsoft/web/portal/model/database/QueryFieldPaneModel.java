@@ -17,9 +17,10 @@
  */
 package inetsoft.web.portal.model.database;
 
+import java.io.Serializable;
 import java.util.List;
 
-public class QueryFieldPaneModel {
+public class QueryFieldPaneModel implements Serializable {
    public List<QueryFieldModel> getFields() {
       return fields;
    }

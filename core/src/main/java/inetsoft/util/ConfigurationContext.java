@@ -17,14 +17,18 @@
  */
 package inetsoft.util;
 
-import inetsoft.util.config.InetsoftConfig;
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.NoSuchBeanDefinitionException;
+import org.springframework.context.ApplicationContext;
 
 import java.beans.PropertyChangeListener;
 import java.beans.PropertyChangeSupport;
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 
@@ -32,7 +36,6 @@ import java.util.function.Function;
  * Class that stores information that is specific configuration home directory.
  */
 @SuppressWarnings("unchecked")
-@SingletonManager.ShutdownOrder(after = InetsoftConfig.class)
 public class ConfigurationContext implements AutoCloseable {
    /**
     * Gets the shared instance of the configuration context.
@@ -40,7 +43,15 @@ public class ConfigurationContext implements AutoCloseable {
     * @return the configuration context.
     */
    public static ConfigurationContext getContext() {
-      return SingletonManager.getInstance(ConfigurationContext.class);
+      if(INSTANCE == null) {
+         synchronized(ConfigurationContext.class) {
+            if(INSTANCE == null) {
+               INSTANCE = new ConfigurationContext();
+            }
+         }
+      }
+
+      return INSTANCE;
    }
 
    /**
@@ -153,6 +164,118 @@ public class ConfigurationContext implements AutoCloseable {
       support.removePropertyChangeListener(propertyName, listener);
    }
 
+   public void setApplicationContext(ApplicationContext applicationContext) {
+      beanCache.invalidateAll();
+      this.applicationContext = applicationContext;
+
+      if(applicationContext != null) {
+         springContextReady.complete(null);
+      }
+   }
+
+   public ApplicationContext getApplicationContext() {
+      return applicationContext;
+   }
+
+   /**
+    * Returns a future that completes the first time the Spring application context is initialized.
+    * This future is never reset, so it remains done even if the context is later refreshed or
+    * replaced. Callers running in non-Spring threads (e.g. Ignite affinity executors) can await
+    * this future to avoid racing against Spring startup on a newly joined cluster node.
+    */
+   public CompletableFuture<Void> getSpringContextReady() {
+      return springContextReady;
+   }
+
+   public <T> T lookupProxyTarget(Class<T> type) {
+      return getSpringBean(type);
+   }
+
+   public <T> T getSpringBean(Class<T> type) {
+      if(applicationContext == null) {
+         throw new ShutdownException();
+      }
+
+      if(IN_CACHE_LOAD.get()) {
+         Object cached = beanCache.getIfPresent(type);
+
+         if(cached != null && cached != MISSING_BEAN) {
+            return type.cast(cached);
+         }
+
+         return applicationContext.getBean(type);
+      }
+
+      return type.cast(beanCache.get(type, t -> {
+         IN_CACHE_LOAD.set(true);
+
+         try {
+            return applicationContext.getBean(t);
+         }
+         finally {
+            IN_CACHE_LOAD.remove();
+         }
+      }));
+   }
+
+   /**
+    * Gets an optional Spring bean by type. Returns {@code null} if the bean is not registered
+    * (e.g., the providing {@code @Configuration} was excluded by a {@code @Conditional}).
+    * Falls back to reflection-based instantiation when not running in Spring.
+    */
+   public <T> T getOptionalSpringBean(Class<T> type) {
+      if(applicationContext == null) {
+         return null;
+      }
+
+      if(IN_CACHE_LOAD.get()) {
+         Object cached = beanCache.getIfPresent(type);
+
+         if(cached != null) {
+            return cached == MISSING_BEAN ? null : type.cast(cached);
+         }
+
+         try {
+            return applicationContext.getBean(type);
+         }
+         catch(NoSuchBeanDefinitionException e) {
+            return null;
+         }
+      }
+
+      Object cached = beanCache.get(type, t -> {
+         IN_CACHE_LOAD.set(true);
+
+         try {
+            return applicationContext.getBean(t);
+         }
+         catch(NoSuchBeanDefinitionException e) {
+            return MISSING_BEAN;
+         }
+         finally {
+            IN_CACHE_LOAD.remove();
+         }
+      });
+
+      return cached == MISSING_BEAN ? null : type.cast(cached);
+   }
+
+   public Object getSpringBean(String name) {
+      if(applicationContext == null) {
+         throw new ShutdownException();
+      }
+
+      return applicationContext.getBean(name);
+   }
+
+   public <T> T getSpringBean(String name, Class<T> type) {
+      if(applicationContext == null) {
+         throw new ShutdownException();
+      }
+
+      return applicationContext.getBean(name, type);
+   }
+
    @Override
    public void close() throws IOException {
       for(Iterator<Object> it = data.values().iterator(); it.hasNext();) {
@@ -172,7 +295,17 @@ public class ConfigurationContext implements AutoCloseable {
    }
 
    private final Map<String, Object> data = new ConcurrentHashMap<>();
+   private final Cache<Class<?>, Object> beanCache = Caffeine.newBuilder()
+      .maximumSize(500L)
+      .build();
    private final PropertyChangeSupport support = new PropertyChangeSupport(this);
    private volatile String home = ".";
+   private ApplicationContext applicationContext;
+   private final CompletableFuture<Void> springContextReady = new CompletableFuture<>();
+   private static volatile ConfigurationContext INSTANCE;
+   private static final Object MISSING_BEAN = new Object();
+   // Prevents ConcurrentHashMap recursive update when Spring bean initialization
+   // triggers a nested getSpringBean/getOptionalSpringBean call on the same thread.
+   private static final ThreadLocal<Boolean> IN_CACHE_LOAD = ThreadLocal.withInitial(() -> false);
    private static final Logger LOG = LoggerFactory.getLogger(ConfigurationContext.class);
 }

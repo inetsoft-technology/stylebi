@@ -39,6 +39,8 @@ import inetsoft.uql.xmla.XMLADataSource;
 import inetsoft.util.*;
 import inetsoft.web.cluster.ClearLocalNodeMetaDataCacheMessage;
 import inetsoft.web.cluster.RefreshMetaDataMessage;
+import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -61,9 +63,17 @@ public class XEngine implements XRepository, XQueryRepository {
    /**
     * Create an query engine.u
     */
-   public XEngine() {
-      super();
-      cluster = Cluster.getInstance();
+   public XEngine(Cluster cluster, Config uqlConfig, DataSourceRegistry dataSourceRegistry,
+                  ConnectionPoolFactory connectionPoolFactory)
+   {
+      this.cluster = cluster;
+      this.uqlConfig = uqlConfig;
+      this.dataSourceRegistry = dataSourceRegistry;
+      this.connectionPoolFactory = connectionPoolFactory;
+   }
+
+   @PostConstruct
+   public void setMessageListener() {
       cluster.addMessageListener(messageListener);
    }
 
@@ -71,7 +81,7 @@ public class XEngine implements XRepository, XQueryRepository {
     * Load data source meta data in background.
     */
    private void loadMetaData(final String dx) {
-      GroupedThread thread = new GroupedThread() {
+      GroupedThread thread = new GroupedThread(ThreadContext.getContextPrincipal()) {
          @Override
          protected void doRun() {
             setPrincipal(ThreadContext.getContextPrincipal());
@@ -334,7 +344,7 @@ public class XEngine implements XRepository, XQueryRepository {
 
          RenameDependencyInfo dinfo =
             DependencyTransformer.createDependencyInfo(dx, oname, dx.getFullName());
-         XFactory.getRepository().renameTransform(dinfo);
+         renameTransform(dinfo);
       }
 
       if(dx instanceof AdditionalConnectionDataSource) {
@@ -992,34 +1002,6 @@ public class XEngine implements XRepository, XQueryRepository {
       return dx.getParameters();
    }
 
-   private void closeInvalidConnection(Object session, XQuery xquery) throws RemoteException {
-      if(xquery == null) {
-         throw new RemoteException("Query not found!");
-      }
-
-      XDataSource dx = xquery.getDataSource();
-
-      dx = ConnectionProcessor.getInstance().getAdditionalConnection(dx);
-
-      Pair pair = new Pair(session, dx);
-      XHandler handler = sessionrun.get(pair);
-
-      if(handler instanceof JDBCHandler) {
-         JDBCDataSource connectionDx = ((JDBCHandler) handler).getDataSource();
-
-         if(connectionDx != null && connectionDx.isRequireLogin() && connectionDx.getUser() == null) {
-            try {
-               handler.close();
-            }
-            catch(Exception ex) {
-               LOG.error("Failed to close handler for {}", pair, ex);
-            }
-
-            this.sessionrun.remove(pair);
-         }
-      }
-   }
-
    /**
     * Get the parameters for a query. The parameters should be filled in
     * and passed to execute().
@@ -1048,7 +1030,6 @@ public class XEngine implements XRepository, XQueryRepository {
    private void populateVariables(Object session, XQuery xquery, List<UserVariable> vars,
                                   boolean promptOnly) throws RemoteException
    {
-      closeInvalidConnection(session, xquery);
       appendArrayToVector(vars, getConnectionParameters(session, xquery));
       appendArrayToVector(vars, VpmProcessor.getInstance().getVPMParameters(xquery, ThreadContext.getContextPrincipal(), promptOnly));
 
@@ -1094,13 +1075,13 @@ public class XEngine implements XRepository, XQueryRepository {
       // close(session);
 
       String type = dx.getType();
-      String cls = Config.getHandlerClass(type);
+      String cls = uqlConfig.getHandlerClass(type);
 
       if(cls == null) {
          throw new Exception("Data source not supported: " + dx.getName());
       }
 
-      XHandler handler = (XHandler) Config.getClass(type, cls).newInstance();
+      XHandler handler = (XHandler) uqlConfig.getClass(type, cls).newInstance();
 
       handler.setSession(session);
       handler.testDataSource(dx, params);
@@ -1157,13 +1138,13 @@ public class XEngine implements XRepository, XQueryRepository {
       // ignore if already connected
       if(handler == null) {
          String type = dx.getType();
-         String cls = Config.getHandlerClass(type);
+         String cls = uqlConfig.getHandlerClass(type);
 
          if(cls == null) {
             throw new Exception("Data source not supported: " + dx.getName());
          }
 
-         handler = (XHandler) Config.getClass(type, cls).newInstance();
+         handler = (XHandler) uqlConfig.getClass(type, cls).newInstance();
          handler.setSession(session);
          handler.setRepository(this);
          handler.connect(dx, params);
@@ -1730,12 +1711,6 @@ public class XEngine implements XRepository, XQueryRepository {
          if(getConnectionParameters(session, dx) != null) {
             vars = new VariableTable();
             Principal principal = ThreadContext.getContextPrincipal();
-            boolean resetParameters = dx instanceof JDBCDataSource &&
-               ((JDBCDataSource) dx).isRequireLogin() && !((JDBCDataSource) dx).isRequireSave();
-
-            if(resetParameters) {
-               ((JDBCDataSource) dx).setUser(null);
-            }
 
             if(principal instanceof XPrincipal) {
                Object username = ((XPrincipal) principal).getParameter(
@@ -1786,7 +1761,7 @@ public class XEngine implements XRepository, XQueryRepository {
       }
 
       MetaDataLoader loader = new MetaDataLoader(session, dx, mtype, clone);
-      new GroupedThread(loader).start();
+      new GroupedThread(loader, ThreadContext.getContextPrincipal()).start();
       long last = System.currentTimeMillis();
       String msg = "";
 
@@ -1831,6 +1806,7 @@ public class XEngine implements XRepository, XQueryRepository {
    }
 
    @Override
+   @PreDestroy
    public void close() throws Exception {
       clearCache();
 
@@ -1859,13 +1835,22 @@ public class XEngine implements XRepository, XQueryRepository {
     */
    @Override
    public void refreshMetaData() {
+      clearLocalMetaDataCache();
+      processClusterNodes(null);
+   }
+
+   /**
+    * Clear local meta data cache without broadcasting to cluster nodes.
+    * This method should be used when handling cluster messages to avoid
+    * infinite message loops.
+    */
+   public void clearLocalMetaDataCache() {
       File cacheFile = getMetaDataDir();
 
       if(cacheFile.isDirectory()) {
          Tool.deleteFile(cacheFile);
       }
 
-      processClusterNodes(null);
       metaDataCache.clear();
 
       // reset all XHandler for this data source because query parameters
@@ -1875,7 +1860,7 @@ public class XEngine implements XRepository, XQueryRepository {
          handler.reset();
       }
 
-      JDBCHandler.getConnectionPoolFactory().closeAllConnectionsPools();
+      connectionPoolFactory.closeAllConnectionsPools();
    }
 
    /**
@@ -1920,8 +1905,7 @@ public class XEngine implements XRepository, XQueryRepository {
       XDataSource dx = xquery.getDataSource();
 
       if(xquery instanceof TabularQuery && dx != null) {
-         final XDataSource upToDateDatasource =
-            DataSourceRegistry.getRegistry().getDataSource(dx.getFullName());
+         final XDataSource upToDateDatasource = dataSourceRegistry.getDataSource(dx.getFullName());
 
          if(dx.getClass().equals(upToDateDatasource.getClass())) {
             dx = upToDateDatasource;
@@ -1982,7 +1966,7 @@ public class XEngine implements XRepository, XQueryRepository {
    private void writeMetaDataCache(final String key, final XNode meta) {
       metaDataCache.put(key, meta);
 
-      (new GroupedThread() {
+      (new GroupedThread(ThreadContext.getContextPrincipal()) {
          {
             setPriority(Thread.MIN_PRIORITY);
          }
@@ -2056,12 +2040,7 @@ public class XEngine implements XRepository, XQueryRepository {
     * @return the data source registry.
     */
    private DataSourceRegistry getDSRegistry() {
-      try {
-         return DataSourceRegistry.getRegistry();
-      }
-      catch(Exception ex) {
-         throw new RuntimeException("Failed to get data source registry", ex);
-      }
+      return dataSourceRegistry;
    }
 
    /**
@@ -2069,7 +2048,6 @@ public class XEngine implements XRepository, XQueryRepository {
     */
    private void processClusterNodes(String dxname) {
       String currentOrgID = OrganizationManager.getInstance().getCurrentOrgID();
-      Cluster cluster = Cluster.getInstance();
       boolean clusterEnabled = "server_cluster".equals(SreeEnv.getProperty("server.type"));
 
       if(!clusterEnabled) {
@@ -2116,7 +2094,7 @@ public class XEngine implements XRepository, XQueryRepository {
          .filter(JDBCHandler.class::isInstance)
          .map(JDBCHandler.class::cast)
          .forEach(JDBCHandler::resetConnection);
-      JDBCHandler.getConnectionPoolFactory().closeAllConnectionsPools();
+      connectionPoolFactory.closeAllConnectionsPools();
    }
 
    public class MetaDataLoader implements Runnable {
@@ -2162,8 +2140,11 @@ public class XEngine implements XRepository, XQueryRepository {
    private final Object lock = new Object();
    // special value used to mark a meta data as pending
    private final XNode pendingFlag = new XNode();
-   private Cluster cluster;
-   private DefaultDebouncer<DataSourceRegistry.DataSourceConnectionChangedMessage>
+   private final Cluster cluster;
+   private final Config uqlConfig;
+   private final DataSourceRegistry dataSourceRegistry;
+   private final ConnectionPoolFactory connectionPoolFactory;
+   private final DefaultDebouncer<DataSourceRegistry.DataSourceConnectionChangedMessage>
    changeDebouncer = new DefaultDebouncer<>();
 
    private static final Logger LOG = LoggerFactory.getLogger(XEngine.class);

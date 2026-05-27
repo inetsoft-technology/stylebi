@@ -18,6 +18,7 @@
 package inetsoft.report.script;
 
 import inetsoft.report.LibManager;
+import inetsoft.report.LibManagerProvider;
 import inetsoft.sree.security.OrganizationManager;
 import inetsoft.util.Cleaner;
 import inetsoft.util.Tool;
@@ -46,7 +47,7 @@ public class LibScriptable extends ScriptableObject {
       this.funcScope = funcScope;
       loadScripts();
 
-      LibManager manager = LibManager.getManager();
+      LibManager manager = LibManagerProvider.getInstance().getManager();
       ChangeListener listener = new ChangeListener(this);
       manager.addActionListener(listener);
       Cleaner.add(new LibScriptableReference(this, manager, listener));
@@ -78,7 +79,7 @@ public class LibScriptable extends ScriptableObject {
     * Add all functions.
     */
    private void loadScripts() {
-      LibManager mgr = LibManager.getManager();
+      LibManager mgr = LibManagerProvider.getInstance().getManager();
       Enumeration names = mgr.getScripts();
 
       while(names.hasMoreElements()) {

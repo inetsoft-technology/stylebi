@@ -57,13 +57,13 @@ export class PreferencesDialog implements OnInit {
       this.modelService.getModel(PREFERENCES_DIALOG_MODEL_URI).subscribe(
          (data) => {
             this.model = <PreferencesDialogModel>data;
+
+            if(this.model.disable) {
+               this.emailControl.disable();
+            }
          },
          (error) => {
             this.closeDialog();
-
-            if(this.model.disable) {
-               this.emailControl.disable()
-            }
          }
       );
 

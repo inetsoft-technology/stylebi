@@ -18,6 +18,7 @@
 <app-error-message></app-error-message>
 <vs-input-label-wrapper *ngIf="model" [labelModel]="model.labelModel"
      [labelSelected]="model.labelSelected"
+     [disabled]="!model.enabled"
      [style.display]="getVisible() ? null : 'none'"
      [class.fade-assembly]="!viewer && !model.visible"
      [style.top.px]="viewer || embeddedVS ? model.objectFormat.top : null"

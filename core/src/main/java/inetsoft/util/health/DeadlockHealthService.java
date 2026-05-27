@@ -17,14 +17,18 @@
  */
 package inetsoft.util.health;
 
-import inetsoft.util.SingletonManager;
+import inetsoft.util.ConfigurationContext;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.stereotype.Service;
 
 import java.lang.management.ManagementFactory;
 import java.lang.management.ThreadMXBean;
 
+@Service
+@Lazy
 public class DeadlockHealthService {
    public static DeadlockHealthService getInstance() {
-      return SingletonManager.getInstance(DeadlockHealthService.class);
+      return ConfigurationContext.getContext().getSpringBean(DeadlockHealthService.class);
    }
 
    public DeadlockStatus getStatus() {

@@ -19,6 +19,7 @@ package inetsoft.sree.schedule;
 
 import inetsoft.mv.MVTool;
 import inetsoft.report.internal.LicenseException;
+import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.UserEnv;
 import inetsoft.sree.internal.DataCycleManager;
@@ -33,6 +34,7 @@ import inetsoft.util.config.CloudRunnerConfig;
 import inetsoft.util.config.InetsoftConfig;
 import inetsoft.util.health.SchedulerHealthService;
 import inetsoft.util.health.SchedulerStatus;
+import inetsoft.util.log.LogManager;
 import inetsoft.web.admin.logviewer.LogMonitoringService;
 import inetsoft.web.admin.server.ServerServiceMessageListener;
 import org.quartz.*;
@@ -42,8 +44,8 @@ import org.quartz.simpl.SimpleThreadPool;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.Calendar;
 import java.util.*;
+import java.util.Calendar;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.Lock;
@@ -190,16 +192,17 @@ public class Scheduler {
       }
 
       startTime = null;
-      Cluster cluster = Cluster.getInstance();
-
-      if(listeners != null) {
-         listeners.forEach(cluster::removeMessageListener);
-         listeners.clear();
-      }
 
       // only shutdown the cluster when running in a separate process
       if("true".equals(System.getProperty("ScheduleServer"))) {
          try {
+            Cluster cluster = Cluster.getInstance();
+
+            if(listeners != null) {
+               listeners.forEach(cluster::removeMessageListener);
+               listeners.clear();
+            }
+
             cluster.close();
          }
          catch(Exception ex) {
@@ -551,16 +554,21 @@ public class Scheduler {
 
          loadTasks();
          first = false;
-         listeners = new ArrayList<>();
-         MessageListener listener = MVTool.newMVMessageHandler();
 
-         if(listener != null) {
-            listeners.add(listener);
+         // Only add listeners if running as standalone scheduler.
+         // Otherwise, we get duplicate messages
+         if("true".equals(System.getProperty("ScheduleServer"))) {
+            listeners = new ArrayList<>();
+            MessageListener listener = MVTool.newMVMessageHandler();
+
+            if(listener != null) {
+               listeners.add(listener);
+            }
+
+            listeners.add(new ServerServiceMessageListener(cluster));
+            listeners.add(new LogMonitoringService(LogManager.getInstance(), cluster));
+            listeners.forEach(cluster::addMessageListener);
          }
-
-         listeners.add(new ServerServiceMessageListener(cluster));
-         listeners.add(new LogMonitoringService());
-         listeners.forEach(cluster::addMessageListener);
       }
    }
 
@@ -654,7 +662,7 @@ public class Scheduler {
       }
 
       Cluster cluster = Cluster.getInstance();
-      Set<String> clusterNodes = cluster.getClusterNodes();
+      Set<String> clusterNodes = cluster.getClusterNodes(true);
 
       if(clusterNodes == null) {
          return false;

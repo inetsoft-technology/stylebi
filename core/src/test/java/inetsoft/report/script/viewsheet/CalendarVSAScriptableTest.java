@@ -19,20 +19,31 @@
 package inetsoft.report.script.viewsheet;
 
 import inetsoft.report.composition.execution.ViewsheetSandbox;
+import inetsoft.test.*;
 import inetsoft.uql.viewsheet.CalendarVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.CalendarVSAssemblyInfo;
-
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.Tag;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
+
 import java.text.SimpleDateFormat;
-import java.util.Arrays;
 import java.util.Date;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 import static org.mockito.MockitoAnnotations.openMocks;
 
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@SreeHome
+@Tag("core")
 public class CalendarVSAScriptableTest {
    private ViewsheetSandbox viewsheetSandbox ;
    private CalendarVSAScriptable calendarVSAScriptable;
@@ -124,6 +135,15 @@ public class CalendarVSAScriptableTest {
 
    @Test
    void testSetSelectedObjectsOnWeek() {
+      // Set the selectedObjects property to an array containing a Date object and assert that it is not null
+      // check isPeriod is false, week selected, date, exited Issue #70543.
+      /*Object[] dateArrarys = new Object[2];
+      dateArrarys[0] = new Date(125, 1, 2);
+      dateArrarys[1] = new Date(125, 1, 4);;
+      calendarVSAScriptable.setSelectedObjects(dateArrarys);
+      Object[] res1 = calendarVSAScriptable.getSelectedObjects();
+      assert printObject(res1).equals("[w2025-2-2, w2025-2-16]");*/
+
       //check isPeriod is false, week selected, string
       Object[] arrs2 = new Object[2];
       arrs2[0] = "w2025-1-2";
@@ -131,6 +151,7 @@ public class CalendarVSAScriptableTest {
       calendarVSAScriptable.setSelectedObjects(arrs2);
       assertArrayEquals(arrs2, calendarVSAScriptable.getSelectedObjects());
 
+      //check isPeriod is true, value is Date, To Do, see Issue #70543
       //check isPeriod is true, value is string
       calendarVSAssemblyInfo.setPeriod(true);
       String[] range1 = new String[2];

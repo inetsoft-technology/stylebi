@@ -17,40 +17,25 @@
  */
 package inetsoft.web.composer.vs.dialog;
 
-import inetsoft.analytic.composition.ViewsheetService;
-import inetsoft.analytic.composition.event.VSEventUtil;
-import inetsoft.report.composition.RuntimeViewsheet;
-import inetsoft.sree.security.ResourceAction;
-import inetsoft.uql.ColumnSelection;
-import inetsoft.uql.asset.*;
 import inetsoft.uql.util.XEmbeddedTable;
-import inetsoft.uql.viewsheet.InputVSAssembly;
-import inetsoft.uql.viewsheet.Viewsheet;
-import inetsoft.uql.viewsheet.internal.CheckBoxVSAssemblyInfo;
-import inetsoft.uql.viewsheet.internal.InputVSAssemblyInfo;
 import inetsoft.util.Tool;
 import inetsoft.web.factory.RemainingPath;
-import inetsoft.web.viewsheet.service.VSInputService;
 import org.springframework.beans.factory.annotation.Autowired;
+import inetsoft.web.viewsheet.service.VSInputServiceProxy;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
 
+import java.io.Serializable;
 import java.security.Principal;
 import java.util.*;
 
 @Controller
 public class DataInputController {
-   /**
-    * @param vsInputService      VSInputService instance
-    * @param viewsheetService
-    */
+
    @Autowired
-   public DataInputController(
-      VSInputService vsInputService,
-      ViewsheetService viewsheetService)
+   public DataInputController(VSInputServiceProxy vsInputServiceProxy)
    {
-      this.vsInputService = vsInputService;
-      this.viewsheetService = viewsheetService;
+      this.vsInputServiceProxy = vsInputServiceProxy;
    }
 
    @RequestMapping(
@@ -63,23 +48,8 @@ public class DataInputController {
                                    Principal principal)
       throws Exception
    {
-      RuntimeViewsheet rvs = viewsheetService.getViewsheet(Tool.byteDecode(runtimeId), principal);
-      ColumnSelection selection = this.vsInputService.getTableColumns(rvs,
-                                                                      Tool.byteDecode(table), true, principal);
-      String[] columnList = new String[selection.getAttributeCount()];
-      String[] descriptionList = new String[selection.getAttributeCount()];
-
-      for(int i = 0; i < selection.getAttributeCount(); i++) {
-         ColumnRef columnref = (ColumnRef) selection.getAttribute(i);
-         columnList[i] = columnref.getName();
-         descriptionList[i] = columnref.getDescription();
-      }
-
-      Map<String, String[]> result = new HashMap<>();
-      result.put("columnlist", columnList);
-      result.put("descriptionlist", descriptionList);
-
-      return result;
+      runtimeId = Tool.byteDecode(runtimeId);
+      return vsInputServiceProxy.getTableColumns(runtimeId, table, principal);
    }
 
    @RequestMapping(
@@ -88,40 +58,13 @@ public class DataInputController {
    )
    @ResponseBody
    public String[] getColumnRows(@PathVariable("runtimeId") String runtimeId,
-                                 @PathVariable("table") String table,
-                                 @PathVariable("column") String column,
-                                 Principal principal)
+                                  @PathVariable("table") String table,
+                                  @PathVariable("column") String column,
+                                  Principal principal)
       throws Exception
    {
       runtimeId = Tool.byteDecode(runtimeId);
-      table = Tool.byteDecode(table);
-      column = Tool.byteDecode(column);
-      ViewsheetService engine = viewsheetService;
-      RuntimeViewsheet rvs = engine.getViewsheet(runtimeId, principal);
-      Viewsheet viewsheet = rvs.getViewsheet();
-
-      if(column.startsWith("$")) {
-         String variableAssembly = column.substring(2, column.length() - 1);
-
-         InputVSAssembly assembly = (InputVSAssembly) viewsheet.getAssembly(variableAssembly);
-         InputVSAssemblyInfo assemblyInfo = (InputVSAssemblyInfo) assembly.getVSAssemblyInfo();
-         String selectedColumn = null;
-
-         if(assemblyInfo instanceof CheckBoxVSAssemblyInfo) {
-            Object[] objects =  assemblyInfo.getSelectedObjects();
-
-            if(objects.length > 0) {
-               selectedColumn = assemblyInfo.getSelectedObjects()[0].toString();
-            }
-         }
-         else {
-            selectedColumn = Objects.toString(assemblyInfo.getSelectedObject(), null);
-         }
-
-         return this.vsInputService.getColumnRows(rvs, table, selectedColumn, principal);
-      }
-
-      return this.vsInputService.getColumnRows(rvs, table, column, principal);
+      return vsInputServiceProxy.getColumnRows(runtimeId, table, column, principal);
    }
 
    @RequestMapping(
@@ -134,36 +77,10 @@ public class DataInputController {
                                            Principal principal)
       throws Exception
    {
-      PopupEmbeddedTable result = new PopupEmbeddedTable();
-      ViewsheetService engine = viewsheetService;
-      RuntimeViewsheet rvs = engine.getViewsheet(runtimeId, principal);
-      Viewsheet vs = rvs.getViewsheet();
-
-      if(vs == null) {
-         return result;
-      }
-
-      Worksheet ws = vs.getBaseWorksheet();
-
-      if(ws != null && VSEventUtil.checkBaseWSPermission(
-         vs, principal, engine.getAssetRepository(), ResourceAction.READ))
-      {
-         TableAssembly tableAssembly = (TableAssembly) ws.getAssembly(table);
-
-         if(tableAssembly instanceof SnapshotEmbeddedTableAssembly) {
-            result = new PopupEmbeddedTable(
-               ((SnapshotEmbeddedTableAssembly)tableAssembly).getEmbeddedData(), table);
-         }
-         else if(tableAssembly instanceof EmbeddedTableAssembly) {
-            result = new PopupEmbeddedTable(
-               VSEventUtil.getVSEmbeddedData((EmbeddedTableAssembly) tableAssembly), table);
-         }
-      }
-
-      return result;
+      return vsInputServiceProxy.getPopupTable(runtimeId, table, principal);
    }
 
-   public static final class PopupEmbeddedTable {
+   public static final class PopupEmbeddedTable implements Serializable {
       public PopupEmbeddedTable() {}
 
       public PopupEmbeddedTable(XEmbeddedTable xTable, String tableName) {
@@ -223,6 +140,5 @@ public class DataInputController {
       private String[][] rowData;
    }
 
-   private final VSInputService vsInputService;
-   private final ViewsheetService viewsheetService;
+   private final VSInputServiceProxy vsInputServiceProxy;
 }

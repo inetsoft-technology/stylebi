@@ -17,12 +17,14 @@
  */
 package inetsoft.web.composer.vs.objects.event;
 
+import java.io.Serializable;
+
 /**
  * Class that encapsulates the parameters for removing an object.
  *
  * @since 12.3
  */
-public class RemoveVSObjectEvent extends VSObjectEvent {
+public class RemoveVSObjectEvent extends VSObjectEvent implements Serializable {
    @Override
    public String toString() {
       return "RemoveVSObjectEvent{" +

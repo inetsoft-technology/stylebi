@@ -67,30 +67,30 @@
         </mat-select>
         <mat-error *ngIf="form.controls.format?.errors?.required">_#(em.schedule.action.formatRequired)</mat-error>
       </mat-form-field>
-      <mat-radio-group class="flex-col" *ngIf="dataSizeOptionVisible" formControlName="emailMatchLayout"
+      <mat-radio-group class="flex-col left-padding" *ngIf="dataSizeOptionVisible" formControlName="emailMatchLayout"
                        (change)="fireDeliveryChanged()">
-        <mat-radio-button class="mat-checkbox-field"[value]="true">_#(Match Layout)</mat-radio-button>
-        <mat-radio-button class="mat-checkbox-field" [value]="false"
+        <mat-radio-button [value]="true">_#(Match Layout)</mat-radio-button>
+        <mat-radio-button [value]="false"
                           [disabled]="!expandEnabled">_#(Expand Components)</mat-radio-button>
       </mat-radio-group>
       <div class="full-width">
-        <mat-checkbox class="mat-checkbox-field" *ngIf="dataSizeOptionVisible"
+        <mat-checkbox class="left-padding" *ngIf="dataSizeOptionVisible"
                       formControlName="emailExpandSelections"
                       (change)="fireDeliveryChanged()">
           _#(Expand Selection List/Tree)
         </mat-checkbox>
-        <mat-checkbox class="mat-checkbox-field" *ngIf="type == 'viewsheet' && format == 'Excel'"
+        <mat-checkbox class="left-padding" *ngIf="type == 'viewsheet' && format == 'Excel'"
                       formControlName="emailOnlyDataComponents"
                       (change)="fireDeliveryChanged()">_#(Only Data Elements)
         </mat-checkbox>
       </div>
-      <mat-checkbox class="mat-checkbox-field" *ngIf="type == 'viewsheet' && format == 'Excel'"
+      <mat-checkbox class="left-padding" *ngIf="type == 'viewsheet' && format == 'Excel'"
                     formControlName="exportAllTabbedTables"
                     (change)="fireDeliveryChanged()">_#(Export All Tabbed Tables)</mat-checkbox>
-      <mat-checkbox class="mat-checkbox-field"
+      <mat-checkbox class="left-padding"
                     formControlName="bundledAsZip"
                     (change)="togglePasswordForm(true)">_#(Bundled as zip)</mat-checkbox>
-      <mat-checkbox class="mat-checkbox-field" *ngIf="cloudSecrets && passwordVisible"
+      <mat-checkbox class="left-padding" *ngIf="cloudSecrets && passwordVisible"
                     formControlName="useCredential"
                     (change)="fireDeliveryChanged()">_#(Use Secret ID)</mat-checkbox>
       <div class="zip-password" *ngIf="passwordVisible">
@@ -134,7 +134,7 @@
         <mat-label>_#(Message)</mat-label>
         <textarea class="plain-textarea" formControlName="message"></textarea>
       </ng-template>
-      <mat-checkbox formControlName="deliverLink" (change)="fireDeliveryChanged()">_#(Include Link)</mat-checkbox>
+      <mat-checkbox class="left-padding" formControlName="deliverLink" (change)="fireDeliveryChanged()">_#(Include Link)</mat-checkbox>
     </div>
   </mat-card-content>
 </mat-card>

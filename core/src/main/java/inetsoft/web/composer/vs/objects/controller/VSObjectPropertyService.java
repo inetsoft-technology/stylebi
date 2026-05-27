@@ -37,6 +37,7 @@ import inetsoft.uql.asset.internal.AssemblyInfo;
 import inetsoft.uql.erm.*;
 import inetsoft.uql.schema.XValueNode;
 import inetsoft.uql.script.VariableScriptable;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.util.XTableTableNode;
 import inetsoft.uql.util.XUtil;
 import inetsoft.uql.viewsheet.*;
@@ -46,6 +47,7 @@ import inetsoft.util.*;
 import inetsoft.util.script.ScriptEnv;
 import inetsoft.util.script.ScriptException;
 import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
+import inetsoft.web.binding.handler.VSColumnHandler;
 import inetsoft.web.composer.model.vs.*;
 import inetsoft.web.composer.vs.VSObjectTreeNode;
 import inetsoft.web.composer.vs.VSObjectTreeService;
@@ -53,7 +55,7 @@ import inetsoft.web.composer.vs.command.ExpandTreeNodesCommand;
 import inetsoft.web.composer.vs.command.PopulateVSObjectTreeCommand;
 import inetsoft.web.composer.vs.objects.command.RenameVSObjectCommand;
 import inetsoft.web.viewsheet.command.MessageCommand;
-import inetsoft.web.viewsheet.controller.table.BaseTableController;
+import inetsoft.web.viewsheet.controller.table.BaseTableService;
 import inetsoft.web.viewsheet.service.*;
 import inetsoft.web.vswizard.model.VSWizardConstants;
 import inetsoft.web.vswizard.model.recommender.VSTemporaryInfo;
@@ -66,8 +68,8 @@ import org.springframework.stereotype.Component;
 
 import java.awt.*;
 import java.security.Principal;
-import java.util.List;
 import java.util.*;
+import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -77,27 +79,26 @@ public class VSObjectPropertyService {
     * Creates a new instance of <tt>VSObjectPropertyController</tt>.
     *
     * @param coreLifecycleService CoreLifecycleService instance
-    * @param viewsheetService
     */
    @Autowired
    public VSObjectPropertyService(
       CoreLifecycleService coreLifecycleService,
-      VSInputService vsInputService,
+      VSColumnHandler vsColumnHandler,
       VSObjectTreeService vsObjectTreeService,
       VSAssemblyInfoHandler infoHander,
-      ViewsheetService viewsheetService,
       VSWizardTemporaryInfoService temporaryInfoService,
       VSCompositionService vsCompositionService,
-      SharedFilterService sharedFilterService)
+      SharedFilterService sharedFilterService,
+      DataSourceRegistry dataSourceRegistry)
    {
       this.coreLifecycleService = coreLifecycleService;
-      this.vsInputService = vsInputService;
+      this.vsColumnHandler = vsColumnHandler;
       this.vsObjectTreeService = vsObjectTreeService;
       this.infoHander = infoHander;
-      this.viewsheetService = viewsheetService;
       this.temporaryInfoService = temporaryInfoService;
       this.vsCompositionService = vsCompositionService;
       this.sharedFilterService = sharedFilterService;
+      this.dataSourceRegistry = dataSourceRegistry;
    }
 
    public void editObjectProperty(RuntimeViewsheet rvs, VSAssemblyInfo info, String oldName,
@@ -243,7 +244,7 @@ public class VSObjectPropertyService {
 
       AbstractVSAssembly assembly = (AbstractVSAssembly) vsAssembly;
       VSAssemblyInfo oinfo = assembly.getVSAssemblyInfo().clone();
-      VSModelTrapContext context = new VSModelTrapContext(rvs);
+      VSModelTrapContext context = new VSModelTrapContext(rvs, dataSourceRegistry);
       AbstractModelTrapContext.TrapInfo tinfo = context.isCheckTrap() ?
          context.checkTrap(oinfo, info) : null;
 
@@ -384,27 +385,27 @@ public class VSObjectPropertyService {
          ((TableDataVSAssemblyInfo) assembly.getVSAssemblyInfo()).resetSizeInfo();
       }
 
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
-      if(box == null) {
+      if(box.isEmpty()) {
          return;
       }
 
       //first process selection by script
       if(oscript == null && assembly instanceof SelectionVSAssembly) {
-         box.executeScript(assembly);
+         box.get().executeScript(assembly);
       }
 
       // reset embedded data for the table/row/cell might be changed
       if(infoChanged && assembly instanceof InputVSAssembly) {
-         new InputVSAQuery(box, oassembly.getName()).resetEmbeddedData(false, oassembly);
+         new InputVSAQuery(box.get(), oassembly.getName()).resetEmbeddedData(false, oassembly);
       }
 
       if(assembly instanceof ChartVSAssembly) {
          ChartDescriptor ode = ((ChartVSAssemblyInfo) oinfo).getChartDescriptor();
          ChartDescriptor nde = ((ChartVSAssemblyInfo) info).getChartDescriptor();
 
-         VSDataSet lens = (VSDataSet) box.getData(assembly.getAbsoluteName());
+         VSDataSet lens = (VSDataSet) box.get().getData(assembly.getAbsoluteName());
          VSChartInfo cinfo = ((ChartVSAssemblyInfo) info).getVSChartInfo();
          VSDataRef[] drefs = cinfo.getFields();
 
@@ -433,7 +434,7 @@ public class VSObjectPropertyService {
          if(infoChanged || ode.getPlotDescriptor().isValuesVisible() !=
             nde.getPlotDescriptor().isValuesVisible())
          {
-            box.updateAssembly(assembly.getAbsoluteName());
+            box.get().updateAssembly(assembly.getAbsoluteName());
             this.coreLifecycleService.refreshVSAssembly(rvs, assembly, commandDispatcher);
          }
       }
@@ -469,8 +470,8 @@ public class VSObjectPropertyService {
             }
          }
 
-         box.getVariableTable().remove(XQuery.HINT_MAX_ROWS);
-         box.processChange(name, hint, clist);
+         box.get().getVariableTable().remove(XQuery.HINT_MAX_ROWS);
+         box.get().processChange(name, hint, clist);
 
          // Propagate Calendar Period change
          if(assembly instanceof CalendarVSAssembly) {
@@ -493,8 +494,8 @@ public class VSObjectPropertyService {
             int mode = 0;
             int num = 100;
             int start = ((TableDataVSAssembly) assembly).getLastStartRow();
-            rvs.getViewsheetSandbox().resetDataMap(name);
-            BaseTableController.loadTableData(rvs, name, mode, start, num, linkUri, commandDispatcher, true);
+            box.get().resetDataMap(name);
+            BaseTableService.loadTableData(rvs, name, mode, start, num, linkUri, commandDispatcher, true);
          }
 
          if(assembly.getVSAssemblyInfo() instanceof PopVSAssemblyInfo) {
@@ -596,10 +597,10 @@ public class VSObjectPropertyService {
 
       list.addAll(scriptObjs);
 
-      if(list.size() > 0) {
+      if(!list.isEmpty()) {
          Assembly[] arr = new Assembly[list.size()];
          list.toArray(arr);
-         box.reset(null, arr, clist, false, false, null);
+         box.get().reset(null, arr, clist, false, false, null);
          this.coreLifecycleService.execute(rvs, name, linkUri, clist, commandDispatcher, false);
       }
 
@@ -626,7 +627,7 @@ public class VSObjectPropertyService {
             AssemblyEntry entry = refs[i].getEntry();
 
             if(entry.isVSAssembly()) {
-               box.executeView(entry.getAbsoluteName(), true);
+               box.get().executeView(entry.getAbsoluteName(), true);
                this.coreLifecycleService.refreshVSAssembly(rvs, entry.getAbsoluteName(),
                                                            commandDispatcher);
             }
@@ -708,8 +709,13 @@ public class VSObjectPropertyService {
    // check if script is grammatically correct.
    // @return error message if failed to compile.
    public String checkScript(RuntimeViewsheet rvs, String script) {
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
-      ScriptEnv env = box.getScope().getScriptEnv();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box.isEmpty()) {
+         return null;
+      }
+
+      ScriptEnv env = box.get().getScope().getScriptEnv();
 
       try {
          env.compile(script);
@@ -818,20 +824,23 @@ public class VSObjectPropertyService {
          container.getAbsoluteName() : "";
 
       if(vs.renameAssembly(oldName, newName)) {
-         rvs.getViewsheetSandbox().resetRuntime();
-         // prevent applyParameterToInput() from overwriting input values after rename
-         rvs.getViewsheetSandbox().markParametersApplied();
-         commandDispatcher.sendCommand(containerName, new RenameVSObjectCommand(oldName, newName));
-         renameChildAssemblies(oldNames, newName, vs);
-         ViewsheetSandbox box = rvs.getViewsheetSandbox();
-         ViewsheetScope scope = box.getScope();
-         VariableScriptable vscriptable = scope.getVariableScriptable();
-         VariableTable vtable = (VariableTable) vscriptable.unwrap();
+         Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
-         if(vtable != null && vtable.contains(oldName)) {
-            Object value = vtable.get(oldName);
-            vtable.remove(oldName);
-            vtable.put(newName, value);
+         if(box.isPresent()) {
+            box.get().resetRuntime();
+            // prevent applyParameterToInput() from overwriting input values after rename
+            box.get().markParametersApplied();
+            commandDispatcher.sendCommand(containerName, new RenameVSObjectCommand(oldName, newName));
+            renameChildAssemblies(oldNames, newName, vs);
+            ViewsheetScope scope = box.get().getScope();
+            VariableScriptable vscriptable = scope.getVariableScriptable();
+            VariableTable vtable = (VariableTable) vscriptable.unwrap();
+
+            if(vtable != null && vtable.contains(oldName)) {
+               Object value = vtable.get(oldName);
+               vtable.remove(oldName);
+               vtable.put(newName, value);
+            }
          }
 
          if(vs.getAssembly(newName) instanceof InputVSAssembly) {
@@ -1352,9 +1361,9 @@ public class VSObjectPropertyService {
    private void annotationEdited(RuntimeViewsheet rvs, Assembly assembly) {
       if(assembly instanceof AnnotationRectangleVSAssembly) {
          Viewsheet vs = rvs.getViewsheet();
-         ViewsheetSandbox box = rvs.getViewsheetSandbox();
+         Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
-         if (vs == null || box == null) {
+         if(vs == null || box.isEmpty()) {
             return;
          }
 
@@ -1383,10 +1392,10 @@ public class VSObjectPropertyService {
 
             try {
                if(base instanceof TableDataVSAssembly) {
-                  lens = box.getTableData(base.getAbsoluteName());
+                  lens = box.get().getTableData(base.getAbsoluteName());
                }
                else if(base instanceof ChartVSAssembly) {
-                  lens = ((VSDataSet)box.getData(base.getAbsoluteName())).getTable();
+                  lens = ((VSDataSet) box.get().getData(base.getAbsoluteName())).getTable();
                   row += 1; //chart's row seems to be off by one
                   measureName = ((ChartDataValue) ainfo.getValue()).getMeasureName();
                }
@@ -1432,7 +1441,7 @@ public class VSObjectPropertyService {
 
          while(iter.hasNext()) {
             AnnotationListener service = iter.next();
-            service.annotationEdited(rvs.getUser(), box.getAssetEntry(), baseAssembly,
+            service.annotationEdited(rvs.getUser(), box.get().getAssetEntry(), baseAssembly,
                                      column, txt, annotationData);
          }
       }
@@ -1682,7 +1691,7 @@ public class VSObjectPropertyService {
                                                         RuntimeViewsheet rvs, Principal principal)
       throws Exception
    {
-      ColumnSelection selection = vsInputService.getTableColumns(
+      ColumnSelection selection = vsColumnHandler.getTableColumns(
          rvs, table, null, null, dimensionOf, false, false, true, false, false, true, principal);
       List<OutputColumnRefModel> columnList = new ArrayList<>();
 
@@ -2215,14 +2224,13 @@ public class VSObjectPropertyService {
    }
 
    private final CoreLifecycleService coreLifecycleService;
-   private final VSInputService vsInputService;
+   private final VSColumnHandler vsColumnHandler;
    private final VSObjectTreeService vsObjectTreeService;
    private final VSAssemblyInfoHandler infoHander;
-   private final ViewsheetService viewsheetService;
    private final VSWizardTemporaryInfoService temporaryInfoService;
    private final VSCompositionService vsCompositionService;
    private final SharedFilterService sharedFilterService;
-   private final static String VIEWSHEET_FLAG = Catalog.getCatalog().getString("Current viewsheet");
+   private final DataSourceRegistry dataSourceRegistry;
 
    private final Logger LOG = LoggerFactory.getLogger(VSObjectPropertyService.class);
 }

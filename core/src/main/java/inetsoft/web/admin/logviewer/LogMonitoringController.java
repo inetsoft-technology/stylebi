@@ -17,9 +17,7 @@
  */
 package inetsoft.web.admin.logviewer;
 
-import inetsoft.sree.security.ResourceAction;
-import inetsoft.sree.security.ResourceType;
-import inetsoft.sree.security.SecurityEngine;
+import inetsoft.sree.security.*;
 import inetsoft.sree.security.SecurityException;
 import inetsoft.web.admin.monitoring.MonitoringDataService;
 import inetsoft.web.security.RequiredPermission;
@@ -38,9 +36,12 @@ import java.util.List;
 public class LogMonitoringController {
    @Autowired
    public LogMonitoringController(LogMonitoringService logMonitoringService,
-                                  MonitoringDataService monitoringDataService) {
+                                  MonitoringDataService monitoringDataService,
+                                  SecurityEngine securityEngine)
+   {
       this.logMonitoringService = logMonitoringService;
       this.monitoringDataService = monitoringDataService;
+      this.securityEngine = securityEngine;
    }
 
    @Secured(
@@ -80,7 +81,7 @@ public class LogMonitoringController {
                                        Principal principal)
       throws SecurityException
    {
-      if(!SecurityEngine.getSecurity().getSecurityProvider().checkPermission(
+      if(!securityEngine.getSecurityProvider().checkPermission(
          principal, ResourceType.EM_COMPONENT, "monitoring/log", ResourceAction.ACCESS))
       {
          throw new SecurityException("Unauthorized access to log viewer by user " + principal.getName());
@@ -156,4 +157,5 @@ public class LogMonitoringController {
 
    private final LogMonitoringService logMonitoringService;
    private final MonitoringDataService monitoringDataService;
+   private final SecurityEngine securityEngine;
 }

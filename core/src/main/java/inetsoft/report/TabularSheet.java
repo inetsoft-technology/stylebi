@@ -22,6 +22,7 @@ import inetsoft.report.internal.*;
 import inetsoft.report.lens.DefaultTextLens;
 import inetsoft.report.painter.*;
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
 import org.slf4j.Logger;
@@ -54,7 +55,8 @@ public class TabularSheet extends ReportSheet {
     /**
     * Create an empty TabularSheet.
     */
-   public TabularSheet() {
+   public TabularSheet(LibManagerProvider libManagerProvider, Cluster cluster) {
+      super(libManagerProvider, cluster);
    }
 
    /**

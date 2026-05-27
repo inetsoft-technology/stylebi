@@ -26,8 +26,10 @@ import inetsoft.util.ImageHashService;
 import inetsoft.web.composer.model.vs.HyperlinkModel;
 import org.springframework.stereotype.Component;
 
+import java.io.Serializable;
+
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class VSImageModel extends VSOutputModel<ImageVSAssembly> {
+public class VSImageModel extends VSOutputModel<ImageVSAssembly> implements Serializable {
    public VSImageModel(ImageVSAssembly assembly, RuntimeViewsheet rvs) {
       super(assembly, rvs);
       ImageVSAssemblyInfo assemblyInfo =

@@ -19,7 +19,9 @@ package inetsoft.web.composer.model.vs;
 
 import inetsoft.uql.viewsheet.internal.*;
 
-public class PeriodPaneModel {
+import java.io.Serializable;
+
+public class PeriodPaneModel implements Serializable {
    public PeriodPaneModel() {
       super();
    }

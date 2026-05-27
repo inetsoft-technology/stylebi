@@ -19,60 +19,94 @@ package inetsoft.web.composer.vs.objects.controller;
 
 import inetsoft.analytic.AnalyticAssistant;
 import inetsoft.analytic.composition.ViewsheetEngine;
+import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.analytic.composition.event.VSEventUtil;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
-import inetsoft.test.SreeHome;
+import inetsoft.test.*;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.viewsheet.*;
-import inetsoft.uql.viewsheet.internal.CalendarVSAssemblyInfo;
-import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.Tool;
 import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
-import inetsoft.web.binding.service.VSBindingService;
+import inetsoft.web.binding.service.*;
 import inetsoft.web.composer.vs.VSObjectTreeService;
 import inetsoft.web.composer.vs.command.PopulateVSObjectTreeCommand;
 import inetsoft.web.composer.vs.objects.event.ChangeVSObjectBindingEvent;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
-import inetsoft.web.viewsheet.service.CommandDispatcher;
-import inetsoft.web.viewsheet.service.CoreLifecycleService;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
+import inetsoft.web.viewsheet.model.VSObjectModelFactoryService;
+import inetsoft.web.viewsheet.service.*;
+import inetsoft.web.vswizard.service.VSWizardTemporaryInfoService;
+import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
+import org.mockito.*;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.security.Principal;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.anyInt;
+import static org.mockito.Mockito.anyList;
+import static org.mockito.Mockito.eq;
 
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome()
-@ExtendWith(MockitoExtension.class)
+@ExtendWith({MockitoExtension.class})
 @MockitoSettings(strictness = Strictness.LENIENT)
+@Tag("core")
 class ComposerBindingControllerTest {
 
+   @SuppressWarnings("unchecked")
    @BeforeEach
    void setup() throws Exception {
-      controller = spy(new ComposerBindingController(runtimeViewsheetRef,
-              coreLifecycleService,
-                                                     groupingService,
-                                                     viewsheetEngine,
-                                                     vsObjectTreeService,
-                                                     trapService,
-                                                     assemblyHandler,
-                                                     vsBindingService,
-                                                     analyticAssistant));
+      vsutil = Mockito.mockStatic(VSUtil.class);
+
+      vsBindService = new VSBindingService(trapService, vsTableService, groupingService,
+                                           viewsheetService, factories, dataRefService,
+                                           objectModelService, wizardTemporaryInfoService,
+                                           vsSelectionContainerService, analyticAssistant,
+                                           assemblyHandler, vsObjectTreeService, coreLifecycleService);
 
       when(runtimeViewsheetRef.getRuntimeId()).thenReturn("Viewsheet1");
       when(viewsheetEngine.getViewsheet(anyString(), nullable(Principal.class))).thenReturn(rvs);
+      when(viewsheetService.getViewsheet(any(), any())).thenReturn(rvs);
       when(rvs.getViewsheet()).thenReturn(viewsheet);
+
+      SelectionListVSAssembly mockAssembly = mock(SelectionListVSAssembly.class);
+      VSAssemblyInfo listInfoSpy = spy(new SelectionListVSAssemblyInfo());
+      when(vsTableService.createSelectionVSAssembly(
+         nullable(Viewsheet.class), anyInt(), anyString(), anyString(), anyList(),
+         nullable(ColumnSelection.class)))
+         .thenReturn(mockAssembly);
+      when(mockAssembly.getInfo()).thenReturn(listInfoSpy);
+      TableVSAssembly mockTableAssembly = mock(TableVSAssembly.class);
+      when(vsTableService.createTable(nullable(RuntimeViewsheet.class), nullable(ViewsheetService.class),
+                                      nullable(AssetEntry.class), anyInt(), anyInt()))
+         .thenReturn(mockTableAssembly);
+      VSAssemblyInfo infoSpy = spy(new TableVSAssemblyInfo());
+      when(mockTableAssembly.getInfo()).thenReturn(infoSpy);
+      when(vsBindingService.getNewAssemblyFromBindings(
+         nullable(List.class), anyInt(), anyInt(), nullable(RuntimeViewsheet.class),
+         nullable(Principal.class)))
+         .thenReturn(mockAssembly);
+      VSAssembly vsAssembly = mock(VSAssembly.class);
+      VSAssemblyInfo vsAssemblyInfo = mock(VSAssemblyInfo.class);
+      when(vsAssembly.getInfo()).thenReturn(vsAssemblyInfo);
+   }
+
+   @AfterEach
+   void afterEach() throws Exception {
+      vsutil.close();
    }
 
    @Test
@@ -99,13 +133,12 @@ class ComposerBindingControllerTest {
       when(vsBindingService.getNewAssemblyFromBindings(
          eventModel.getBinding(), 0, 0, rvs, null)).thenReturn(rangeSliderAssembly);
 
-      controller.changeBinding(eventModel, null, dispatcher, linkUri);
+      vsBindService.changeBinding("Viewsheet1", eventModel, null, dispatcher, linkUri);
 
       verify(infoSpy).setTableName(anyString());
    }
 
    // Bug #16854 Populate object tree after creating assembly from binding
-   @SuppressWarnings("unchecked")
    @Test
    void populateObjectTree() throws Exception {
       ChangeVSObjectBindingEvent eventModel = new ChangeVSObjectBindingEvent();
@@ -119,16 +152,8 @@ class ComposerBindingControllerTest {
       bindingEntry.setProperty("caption", "");
       bindingEntry.setProperty("dtype", Tool.DATE);
       eventModel.setBinding(entries);
-      when(vsTableService.createSelectionVSAssembly(
-         nullable(Viewsheet.class), anyInt(), anyString(), anyString(), anyList(),
-         nullable(ColumnSelection.class)))
-         .thenReturn(new SelectionListVSAssembly());
-      when(vsBindingService.getNewAssemblyFromBindings(
-         nullable(List.class), anyInt(), anyInt(), nullable(RuntimeViewsheet.class),
-         nullable(Principal.class)))
-         .thenReturn(new SelectionListVSAssembly());
 
-      controller.changeBinding(eventModel, null, dispatcher, linkUri);
+      vsBindService.changeBinding("Viewsheet1", eventModel, null, dispatcher, linkUri);
 
       verify(dispatcher).sendCommand(any(PopulateVSObjectTreeCommand.class));
    }
@@ -160,7 +185,7 @@ class ComposerBindingControllerTest {
       when(vsBindingService.getNewAssemblyFromBindings(
          eventModel.getBinding(), 0, 0, rvs, null)).thenReturn(rangeSliderAssembly);
 
-      controller.checkVSTrap(eventModel, "Viewsheet1", linkUri, null);
+      vsBindService.checkVSTrap("Viewsheet1", eventModel, linkUri, null);
 
       verify(viewsheet, never()).addAssembly(nullable(VSAssembly.class));
    }
@@ -184,7 +209,7 @@ class ComposerBindingControllerTest {
 
       Worksheet worksheet = spy(new Worksheet());
       when(viewsheet.getBaseWorksheet()).thenReturn(worksheet);
-      when(rvs.getViewsheetSandbox()).thenReturn(viewsheetSandbox);
+      when(rvs.getViewsheetSandbox()).thenReturn(Optional.of(viewsheetSandbox));
       AssetVariable variable = new AssetVariable();
       VariableAssembly variableAssembly =
          new DefaultVariableAssembly(worksheet, "Variable");
@@ -192,7 +217,7 @@ class ComposerBindingControllerTest {
       when(worksheet.getAssembly(anyString()))
          .thenReturn(variableAssembly);
 
-      controller.changeBinding(eventModel, null, dispatcher, "");
+      vsBindService.changeBinding("Viewsheet1", eventModel, null, dispatcher, "");
 
       verify(coreLifecycleService)
          .execute(eq(rvs), anyString(), eq(""), anyInt(), eq(dispatcher));
@@ -213,7 +238,14 @@ class ComposerBindingControllerTest {
    @Mock VSAssemblyInfoHandler assemblyHandler;
    @Mock VSBindingService vsBindingService;
    @Mock AnalyticAssistant analyticAssistant;
+   @Mock ViewsheetService viewsheetService;
+   @Mock List<VSBindingFactory<?, ?>> factories;
+   @Mock DataRefModelFactoryService dataRefService;
+   @Mock VSObjectModelFactoryService objectModelService;
+   @Mock VSWizardTemporaryInfoService wizardTemporaryInfoService;
+   @Mock VSSelectionContainerService vsSelectionContainerService;
+   MockedStatic<VSUtil> vsutil;
 
-   private ComposerBindingController controller;
+   private VSBindingService vsBindService;
    private final String linkUri = "http://localhost:18080/sree/";
 }

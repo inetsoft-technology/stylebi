@@ -20,9 +20,10 @@ package inetsoft.web.composer.model.vs;
 import inetsoft.web.binding.drm.DataRefModel;
 import inetsoft.web.composer.model.TreeNodeModel;
 
+import java.io.Serializable;
 import java.util.List;
 
-public class RangeSliderDataPaneModel {
+public class RangeSliderDataPaneModel implements Serializable {
    public String getSelectedTable() {
       return selectedTable;
    }

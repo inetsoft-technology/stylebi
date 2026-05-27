@@ -24,6 +24,8 @@ import inetsoft.util.*;
 import org.apache.commons.codec.digest.DigestUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.event.EventListener;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import org.springframework.core.io.support.ResourcePatternResolver;
@@ -50,6 +52,27 @@ import java.util.stream.Stream;
  */
 @Component
 public class LocalizationService {
+   @Autowired
+   public LocalizationService(FileSystemService fileSystemService) {
+      this.fileSystemService = fileSystemService;
+      this.i18nCacheDir = fileSystemService.getPath(Tool.getCacheDirectory(), "i18n");
+   }
+
+   @EventListener(ClearCacheFilesEvent.class)
+   public void onClearCacheFiles(ClearCacheFilesEvent event) {
+      try {
+         clearI18nCache();
+      }
+      catch(IOException e) {
+         if(LOG.isDebugEnabled()) {
+            LOG.warn("Failed to delete I18n cache", e);
+         }
+         else {
+            LOG.warn("Failed to delete I18n cache");
+         }
+      }
+   }
+
    /**
     * Clears the i18n cache.
     */
@@ -59,10 +82,10 @@ public class LocalizationService {
       Tool.lock(cacheDir);
 
       try {
-         if(Files.exists(I18N_CACHE_DIR)) {
+         if(Files.exists(i18nCacheDir)) {
             boolean success;
 
-            try(Stream<Path> stream = Files.walk(I18N_CACHE_DIR)) {
+            try(Stream<Path> stream = Files.walk(i18nCacheDir)) {
                success = stream
                   .sorted(Comparator.reverseOrder())
                   .map(Path::toFile)
@@ -75,7 +98,7 @@ public class LocalizationService {
             }
          }
 
-         Files.createDirectories(I18N_CACHE_DIR);
+         Files.createDirectories(i18nCacheDir);
          rebuildCache();
       }
       finally {
@@ -409,7 +432,6 @@ public class LocalizationService {
    }
 
    private Path getPath(String pathString, String suffix) {
-      final FileSystemService fileSystemService = FileSystemService.getInstance();
       final String oldResolvedPath = fileSystemService.getPath(pathString).toString();
 
       final int extIndex = oldResolvedPath.lastIndexOf('.');
@@ -636,20 +658,19 @@ public class LocalizationService {
     * @return the i18n cache directory path string
     */
    public Path getI18nCacheDirectory() {
-      return I18N_CACHE_DIR;
+      return i18nCacheDir;
    }
 
    public ReadWriteLock getI18nLock() {
       return I18N_LOCK;
    }
 
+   private final FileSystemService fileSystemService;
+   private final Path i18nCacheDir;
    private final Map<Path, String> checksums = new HashMap<>();
    private final ReentrantReadWriteLock I18N_LOCK = new ReentrantReadWriteLock();
    private final Map<Locale, Locale> supportedLocales = new ConcurrentHashMap<>();
    private final Map<CachedPathKey, Path> cachedPaths = new ConcurrentHashMap<>();
-
-   private static final Path I18N_CACHE_DIR = FileSystemService.getInstance().getPath(
-      Tool.getCacheDirectory(), "i18n");
    private static final String RESOURCES_DIR = "/inetsoft/web/resources";
    private static final String[] TRANSLATED_RESOURCES = {
       "classpath*:/inetsoft/web/resources/app/*.js",

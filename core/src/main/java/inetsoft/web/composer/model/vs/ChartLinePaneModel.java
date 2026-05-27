@@ -23,10 +23,11 @@ import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.util.Tool;
 
 import java.awt.*;
+import java.io.Serializable;
 import java.util.List;
 import java.util.*;
 
-public class ChartLinePaneModel {
+public class ChartLinePaneModel implements Serializable {
    public ChartLinePaneModel() {
    }
 

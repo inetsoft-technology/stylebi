@@ -800,12 +800,12 @@ public class SelectionList extends XSwappable implements AssetObject, DataSerial
       // given the current usage, where a SelectionValue would be updated immediately
       // after swapping, it should be safe. we will need to make SelectionValue
       // immutable to make it completely safe.
-      if(!completed || !valid || XSwapper.cur < lastAccess + 5000) {
+      if(!completed || !valid || getSwapper().cur < lastAccess + 5000) {
          return 0;
       }
 
       // allow SelectionList to be swapped. but don't do it unless really necessary.
-      return getAgePriority(XSwapper.cur - lastAccess, alive * 3L);
+      return getAgePriority(getSwapper().cur - lastAccess, alive * 3L);
    }
 
    @Override
@@ -890,7 +890,7 @@ public class SelectionList extends XSwappable implements AssetObject, DataSerial
 
    private List<SelectionValue> getList() {
       ArrayList<SelectionValue> list = this.list;
-      lastAccess = XSwapper.cur;
+      lastAccess = getSwapper().cur;
 
       if(!valid) {
          synchronized(this) {

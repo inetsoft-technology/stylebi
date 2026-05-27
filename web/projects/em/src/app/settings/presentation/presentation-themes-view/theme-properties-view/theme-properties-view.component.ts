@@ -131,6 +131,10 @@ export class ThemePropertiesViewComponent implements OnInit, OnDestroy {
       return this.orgId == "host-org";
    }
 
+   get jarHidden(): boolean {
+      return this._isMultiTenant && !this._isSiteAdmin && !!this._theme?.global;
+   }
+
    private updateFormState(): void {
       if(!this.form || !this.theme) {
          return;

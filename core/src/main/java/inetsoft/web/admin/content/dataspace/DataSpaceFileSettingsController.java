@@ -17,19 +17,13 @@
  */
 package inetsoft.web.admin.content.dataspace;
 
-import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
-import inetsoft.sree.web.dashboard.DashboardRegistry;
-import inetsoft.uql.XPrincipal;
-import inetsoft.uql.asset.ConfirmException;
-import inetsoft.uql.util.XSessionService;
-import inetsoft.uql.util.XUtil;
+import inetsoft.sree.security.ResourceAction;
+import inetsoft.sree.security.ResourceType;
 import inetsoft.util.*;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
-import inetsoft.sree.security.ResourceAction;
-import inetsoft.sree.security.ResourceType;
 import inetsoft.web.adhoc.DecodeParam;
 import inetsoft.web.admin.content.dataspace.model.*;
 import inetsoft.web.security.RequiredPermission;
@@ -55,8 +49,11 @@ import java.util.stream.Collectors;
 @RestController
 public class DataSpaceFileSettingsController {
    @Autowired
-   public DataSpaceFileSettingsController(DataSpaceContentSettingsService dataSpaceContentSettingsService) {
+   public DataSpaceFileSettingsController(DataSpaceContentSettingsService dataSpaceContentSettingsService,
+                                          DataSpace dataSpace)
+   {
       this.dataSpaceContentSettingsService = dataSpaceContentSettingsService;
+      this.dataSpace = dataSpace;
    }
 
    @Secured(
@@ -71,7 +68,7 @@ public class DataSpaceFileSettingsController {
       @DecodeParam(value = "path") String path,
       @DecodeParam(value = "timeZone") String timeZone)
    {
-      DataSpace space = DataSpace.getDataSpace();
+      DataSpace space = this.dataSpace;
       Date time = new Date(space.getLastModified(null, path));
       SimpleDateFormat sformat = new SimpleDateFormat(SreeEnv.getProperty("format.date.time"));
       sformat.setTimeZone(TimeZone.getTimeZone(timeZone));
@@ -134,7 +131,7 @@ public class DataSpaceFileSettingsController {
 
       String path = request.path();
 
-      DataSpace space = DataSpace.getDataSpace();
+      DataSpace space = this.dataSpace;
       Catalog catalog = Catalog.getCatalog();
       String objectType = ActionRecord.OBJECT_TYPE_FILE;
       Timestamp actionTimestamp = new Timestamp(System.currentTimeMillis());
@@ -174,8 +171,8 @@ public class DataSpaceFileSettingsController {
             }
             else {
                actionRecord.setActionName(ActionRecord.ACTION_NAME_EDIT);
+               dataSpaceContentSettingsService.onFileRenamed(path, npath);
                path = npath;
-
             }
          }
       }
@@ -225,7 +222,7 @@ public class DataSpaceFileSettingsController {
    )
    @PostMapping("/api/em/content/data-space/file/content")
    public void saveFileContent(@RequestBody DataSpaceFileContentModel model) {
-      DataSpace dataSpace = DataSpace.getDataSpace();
+      DataSpace dataSpace = this.dataSpace;
       InputStream in = new ByteArrayInputStream(model.content().getBytes(StandardCharsets.UTF_8));
 
       try {
@@ -279,7 +276,7 @@ public class DataSpaceFileSettingsController {
    }
 
    private boolean probeContentType(String path) throws IOException {
-      DataSpace ds = DataSpace.getDataSpace();
+      DataSpace ds = this.dataSpace;
 
       if(path.endsWith("db") || path.endsWith("dat")) {
          return false;
@@ -305,7 +302,7 @@ public class DataSpaceFileSettingsController {
    }
 
    private String getContentFromPath(String path, boolean preview) {
-      DataSpace dataSpace = DataSpace.getDataSpace();
+      DataSpace dataSpace = this.dataSpace;
       String content = "";
 
       try(InputStream in = dataSpace.getInputStream(null, path)) {
@@ -336,5 +333,6 @@ public class DataSpaceFileSettingsController {
    }
 
    private final DataSpaceContentSettingsService dataSpaceContentSettingsService;
+   private final DataSpace dataSpace;
    private static final Logger LOG = LoggerFactory.getLogger(DataSpaceFileSettingsController.class);
 }

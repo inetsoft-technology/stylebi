@@ -340,7 +340,7 @@ export class DataInputPane implements OnInit, OnChanges {
       return -1;
    }
 
-   updateSelectedRow(val: string): void {
+   updateSelectedRow(val: string | null): void {
       this.selectedRow = val;
 
       if(val != null) {

@@ -24,7 +24,17 @@ import org.immutables.value.Value;
 @Serial.Structural
 public abstract class CacheMetrics {
    @Value.Default
+   public int sheetMemoryCount() {
+      return 0;
+   }
+
+   @Value.Default
    public int dataMemoryCount() {
+      return 0;
+   }
+
+   @Value.Default
+   public int sheetDiskCount() {
       return 0;
    }
 
@@ -34,7 +44,17 @@ public abstract class CacheMetrics {
    }
 
    @Value.Default
+   public long sheetBytesRead() {
+      return 0L;
+   }
+
+   @Value.Default
    public long dataBytesRead() {
+      return 0L;
+   }
+
+   @Value.Default
+   public long sheetBytesWritten() {
       return 0L;
    }
 
@@ -44,7 +64,17 @@ public abstract class CacheMetrics {
    }
 
    @Value.Default
+   public int sheetHits() {
+      return 0;
+   }
+
+   @Value.Default
    public int dataHits() {
+      return 0;
+   }
+
+   @Value.Default
+   public int sheetMisses() {
       return 0;
    }
 

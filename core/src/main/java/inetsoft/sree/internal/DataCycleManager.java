@@ -17,24 +17,32 @@
  */
 package inetsoft.sree.internal;
 
-import inetsoft.mv.*;
+import inetsoft.mv.MVDef;
+import inetsoft.mv.MVManager;
 import inetsoft.report.internal.Util;
 import inetsoft.sree.*;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.schedule.*;
 import inetsoft.sree.security.*;
 import inetsoft.uql.XPrincipal;
+import inetsoft.uql.asset.AssetEntry;
+import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.util.Identity;
 import inetsoft.util.*;
+import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
+import org.apache.commons.lang3.StringUtils;
 import org.owasp.encoder.Encode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.stereotype.Service;
 import org.w3c.dom.*;
 
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 import java.io.*;
-import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.Lock;
@@ -46,19 +54,35 @@ import java.util.function.Consumer;
  * @since 7.0
  * @author InetSoft Technology Corp
  */
-@SingletonManager.Singleton(DataCycleManager.Reference.class)
-public class DataCycleManager implements ScheduleExt, PropertyChangeListener {
+@Service
+@Lazy
+public class DataCycleManager
+   implements ScheduleExt, PropertyChangeListener, StorageRefreshListener, AutoCloseable
+{
    /**
     * Data Cycle task.
     */
    public static final String TASK_PREFIX = "DataCycle Task: ";
 
    /**
-    * Creates a new instance of DataCycleManager.
+    * Spring constructor — ScheduleManager and IndexedStorage are injected, ensuring correct
+    * initialization order without requiring the distributed INIT_LOCK.
     */
-   public DataCycleManager() {
-      ScheduleManager.getScheduleManager().addScheduleExt(this);
+   @Autowired
+   public DataCycleManager(ScheduleManager scheduleManager, IndexedStorage indexedStorage,
+                           SecurityEngine securityEngine, Cluster cluster, MVManager mvManager,
+                           DataSpace dataSpace, RepletRegistryManager repletRegistryManager)
+   {
+      this.scheduleManager = scheduleManager;
+      this.indexedStorage = indexedStorage;
+      this.securityEngine = securityEngine;
+      this.cluster = cluster;
+      this.mvManager = mvManager;
+      this.dataSpace = dataSpace;
+      this.repletRegistryManager = repletRegistryManager;
+      scheduleManager.addScheduleExt(this);
       init();
+      indexedStorage.addStorageRefreshListener(this);
    }
 
    /**
@@ -67,7 +91,33 @@ public class DataCycleManager implements ScheduleExt, PropertyChangeListener {
     * @return the DataCycleManager instance.
     */
    public static DataCycleManager getDataCycleManager() {
-      return SingletonManager.getInstance(DataCycleManager.class);
+      return ConfigurationContext.getContext().getSpringBean(DataCycleManager.class);
+   }
+
+   /**
+    * Spring post-construction: finalize initialization that requires ScheduleManager and
+    * RepletRegistry to be fully operational. In the non-Spring path this is done by
+    * Reference.get() after acquiring INIT_LOCK.
+    */
+   @PostConstruct
+   public void initAfterCreate() {
+      loadOldConfig();
+      getScheduleManager().initialize();
+
+      try {
+         repletRegistryManager.getRegistry().addPropertyChangeListener(this);
+      }
+      catch(Exception ex) {
+         LOG.error("Failed to add property change listener to replet registry", ex);
+      }
+
+      mvManager.addPropertyChangeListener(this);
+   }
+
+   @PreDestroy
+   @Override
+   public void close() throws Exception {
+      getIndexedStorage().removeStorageRefreshListener(this);
    }
 
    /**
@@ -76,95 +126,10 @@ public class DataCycleManager implements ScheduleExt, PropertyChangeListener {
    private void init() {
       // read in the properties specified for cycles in the EM
       try {
-         load();
          generateTasks(false);
       }
       catch(Exception ex) {
          LOG.error("Failed to initialize data cycle manager", ex);
-      }
-   }
-
-   /**
-    * Load data cycle file cycle.xml described by the property cycle.file.
-    */
-   public synchronized void load() throws Exception {
-      String afile = getCycleFileName();
-      Document doc = null;
-      DataSpace space = DataSpace.getDataSpace();
-
-      try(InputStream fis = space.getInputStream(null, afile)) {
-         dmgr.addChangeListener(space, null, afile, changeListener);
-
-         if(fis != null) {
-            doc = Tool.parseXML(fis);
-         }
-      }
-
-      if(doc == null) {
-         return;
-      }
-
-      Element dcycleNode = (Element) doc.getElementsByTagName("dcycle").item(0);
-      this.dcycle = Tool.getValue(dcycleNode);
-      NodeList cycles = doc.getElementsByTagName("DataCycle");
-
-      for(int i = 0; i < cycles.getLength(); i++) {
-         Element elem = (Element) cycles.item(i);
-         String name = elem.getAttribute("name");
-         String orgId = elem.getAttribute("orgId");
-         boolean enabled = "false".equals(elem.getAttribute("enabled"));
-
-         if(name == null) {
-            throw new IOException("DataCycle Name missing in XML: " + afile);
-         }
-
-         if(orgId == null || orgId.isEmpty()) {
-            orgId = OrganizationManager.getInstance().getCurrentOrgID();
-         }
-
-         NodeList cnodes = Tool.getChildNodesByTagName(elem, "Condition");
-
-         if(cnodes.getLength() == 0) {
-            LOG.info("No condition in data cycle, ignored: " + name);
-            continue;
-         }
-
-         Vector<ScheduleCondition> conds = new Vector<>();
-
-         for(int j = 0; j < cnodes.getLength(); j++) {
-            Element cond = (Element) cnodes.item(j);
-            String type = cond.getAttribute("type");
-
-            if(type == null) {
-               throw new IOException("Condition type missing in XML: " + afile);
-            }
-
-            ScheduleCondition condition;
-
-            if(type.equals("TimeCondition")) {
-               condition = new TimeCondition();
-               ((TimeCondition) condition).parseXML(cond);
-            }
-            else {
-               throw new IOException("Unknown condition type: " + type);
-            }
-
-            conds.add(condition);
-         }
-
-         DataCycleId cycleId = new DataCycleId(name, orgId);
-         dataCycleMap.put(cycleId, conds);
-         cycleStatusMap.put(cycleId, !enabled);
-
-         Element cinfo = Tool.getChildNodeByTagName(elem, "CycleInfo");
-         CycleInfo cycleInfo = new CycleInfo(name, orgId);
-
-         if(cinfo != null) {
-            cycleInfo.parseXML(cinfo);
-            cycleInfo.setName(name);
-         }
-
-         cycleInfoMap.put(cycleId, cycleInfo);
       }
    }
 
@@ -303,23 +268,44 @@ public class DataCycleManager implements ScheduleExt, PropertyChangeListener {
             return;
          }
 
-         List<ScheduleTask> tasks = new ArrayList<>();
-         Map<DataCycleId, Boolean> cycleStatusMap = new HashMap(this.cycleStatusMap);
-         Enumeration<DataCycleId> cycles = getDataCycles(norg);
+         // cloud-runner nodes are short-lived task executors; they don't maintain
+         // pregenerated tasks and their Ignite client may be shutting down when this
+         // is triggered by an MVChangedMessage after task completion
+         if(System.getProperty("ScheduleTaskRunner") != null) {
+            return;
+         }
 
-         while(cycles.hasMoreElements()) {
-            DataCycleId cycle = cycles.nextElement();
-            String orgId = cycle.orgId;
+      IndexedStorage storage = getIndexedStorage();
+      List<ScheduleTask> tasks = new ArrayList<>();
+
+      for(String orgId : securityEngine.getSecurityProvider().getOrganizationIDs()) {
+         Set<String> assetIds = storage.getKeys(key -> {
+            AssetEntry entry = AssetEntry.createAssetEntry(key);
+            return entry != null && entry.getType() == AssetEntry.Type.DATA_CYCLE;
+         }, orgId);
+
+         for(String assetId : assetIds) {
+            DataCycleAsset asset;
+
+            try {
+               asset = (DataCycleAsset) storage.getXMLSerializable(assetId, null, orgId);
+            }
+            catch(Exception e) {
+               LOG.error("Failed to load data cycle {}", assetId, e);
+               continue;
+            }
+
+            if(asset == null) {
+               continue;
+            }
+
+            DataCycleId cycle = new DataCycleId(asset.getName(), asset.getOrgId());
             IdentityID identityID = new IdentityID(XPrincipal.SYSTEM, orgId);
             ScheduleTask task = new ScheduleTask(
                TASK_PREFIX + cycle.name, ScheduleTask.Type.CYCLE_TASK);
             task.setEditable(false);
             task.setRemovable(false);
-
-            if(cycleStatusMap.containsKey(cycle)) {
-               task.setEnabled(cycleStatusMap.get(cycle));
-            }
-
+            task.setEnabled(asset.isEnabled());
             task.setOwner(identityID);
             task.setCycleInfo(getCycleInfo(cycle.name, cycle.orgId));
 
@@ -335,6 +321,7 @@ public class DataCycleManager implements ScheduleExt, PropertyChangeListener {
 
             tasks.add(task);
          }
+      }
 
          synchronized(this) {
             if(replace && oorg != null) {
@@ -355,7 +342,8 @@ public class DataCycleManager implements ScheduleExt, PropertyChangeListener {
 
                if(!taskList.contains(task)) {
                   taskList.add(task);
-                  taskAdded(task);
+                  // Message sending moved to ScheduleManager.reloadExtensions0() to ensure
+                  // the task is in extensionTasks before the UI receives the notification.
                }
             }
          }
@@ -365,24 +353,7 @@ public class DataCycleManager implements ScheduleExt, PropertyChangeListener {
       }
 
       if(reloadExtensions) {
-         ScheduleManager.getScheduleManager().reloadExtensions(currOrgID);
-      }
-   }
-
-   /**
-    * Send a message when cycle task is created so it will show up in EM.
-    */
-   private void taskAdded(ScheduleTask task) {
-      ScheduleTaskMessage message = new ScheduleTaskMessage();
-      message.setTaskName(task.getTaskId());
-      message.setTask(task);
-      message.setAction(ScheduleTaskMessage.Action.ADDED);
-
-      try {
-         Cluster.getInstance().sendMessage(message);
-      }
-      catch(Exception ex) {
-         LOG.debug("Failed to send task message", ex);
+         getScheduleManager().reloadExtensions(currOrgID);
       }
    }
 
@@ -392,7 +363,7 @@ public class DataCycleManager implements ScheduleExt, PropertyChangeListener {
    private void generateMVActions(ScheduleTask task, String cycle, List<ScheduleTask> tasks,
                                   String orgId)
    {
-      MVManager manager = MVManager.getManager();
+      MVManager manager = mvManager;
       MVDef[] mvs = null;
 
       if(orgId == null) {
@@ -435,14 +406,14 @@ public class DataCycleManager implements ScheduleExt, PropertyChangeListener {
    }
 
    private String[] getNewOrgIds(String oldId, String newId) {
-      SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+      SecurityProvider provider = securityEngine.getSecurityProvider();
       List<String> orgIds = new ArrayList<>();
 
       for(String orgId : provider.getOrganizationIDs()) {
          orgIds.add(Tool.equals(oldId, orgId) ? newId : orgId);
       }
 
-      return orgIds.toArray(new String[orgIds.size()]);
+      return orgIds.toArray(new String[0]);
    }
 
    /**
@@ -458,7 +429,20 @@ public class DataCycleManager implements ScheduleExt, PropertyChangeListener {
     */
    @Override
    public boolean setEnable(String name, String orgId, boolean enable) {
-      cycleStatusMap.put(new DataCycleId(name, orgId), enable);
+      IndexedStorage storage = getIndexedStorage();
+      String entry = getCycleEntry(name, orgId).toIdentifier();
+
+      if(storage.contains(entry, orgId)) {
+         try {
+            DataCycleAsset asset = (DataCycleAsset) storage.getXMLSerializable(entry, null, orgId);
+            asset.setEnabled(enable);
+            storage.putXMLSerializable(entry, asset);
+         }
+         catch(Exception e) {
+            LOG.error("Failed to set enabled state", e);
+         }
+      }
+
       return false;
    }
 
@@ -467,8 +451,20 @@ public class DataCycleManager implements ScheduleExt, PropertyChangeListener {
     */
    @Override
    public boolean isEnable(String name, String orgId) {
-      Boolean enabled = cycleStatusMap.get(new DataCycleId(name, orgId));
-      return enabled == null ? containsTask(name, orgId) : enabled;
+      IndexedStorage storage = getIndexedStorage();
+      String entry = getCycleEntry(name, orgId).toIdentifier();
+
+      if(storage.contains(entry, orgId)) {
+         try {
+            DataCycleAsset asset = (DataCycleAsset) storage.getXMLSerializable(entry, null, orgId);
+            return asset.isEnabled();
+         }
+         catch(Exception e) {
+            LOG.error("Failed to check enabled state", e);
+         }
+      }
+
+      return false;
    }
 
    /**
@@ -479,101 +475,107 @@ public class DataCycleManager implements ScheduleExt, PropertyChangeListener {
       return findTask(name, orgId) != null;
    }
 
-   /**
-    * Get the cycle file name, cycle.xml, described by the property cycle.file.
-    * @return the cycle file as a File.
-    */
-   @SuppressWarnings("WeakerAccess")
-   public static String getCycleFileName() {
-      return SreeEnv.getProperty("cycle.file");
-   }
+   private void loadOldConfig() {
+      Lock lock = cluster.getLock(getClass().getName() + ".loadOldConfig");
+      lock.lock();
 
-   public synchronized void save() throws Exception {
-      save(null, null, true);
-   }
+      try {
+         if(getDataCycleCount() > 0) {
+            return;
+         }
 
-   /**
-    * Save a list of cycles to the 'cycle.file'.
-    */
-   private synchronized void save(Organization oorg, Organization norg, boolean replace) throws Exception {
-      String afile = getCycleFileName();
-      DataSpace space = DataSpace.getDataSpace();
-      dmgr.removeChangeListener(space, null, afile, changeListener);
+         String afile = SreeEnv.getProperty("cycle.file");
 
-      try(DataSpace.Transaction tx = space.beginTransaction();
-          OutputStream output = tx.newStream(null, afile))
-      {
-         PrintWriter writer = createWriter(output);
-         writer.println("<?xml version=\"1.0\"?>");
-         writer.println("<DataCycles>");
-         writer.println("<Version>" + FileVersions.CYCLE + "</Version>");
+         if(!dataSpace.exists(null, afile)) {
+            return;
+         }
 
-         for(DataCycleId cycleId : dataCycleMap.keySet()) {
-            String name = cycleId.name;
-            String orgId = cycleId.orgId;
-            ScheduleTask task = findTask(TASK_PREFIX + name, orgId);
-            Boolean enabled = cycleStatusMap.get(new DataCycleId(name, orgId));
-            boolean init = task == null && enabled == null;
+         Document doc;
 
-            if(init) {
-               cycleStatusMap.put(cycleId, Boolean.TRUE);
-               enabled = cycleStatusMap.get(new DataCycleId(name, orgId));
-            }
-            else if(task != null) {
-               //cycleStatusMap.put(name, task.isEnabled());
-               enabled = !cycleStatusMap.containsKey(new DataCycleId(name, orgId)) ||
-                  cycleStatusMap.get(new DataCycleId(name, orgId));
+         try(InputStream fis = dataSpace.getInputStream(null, afile)) {
+            doc = Tool.parseXML(fis);
+         }
+
+         IndexedStorage storage = getIndexedStorage();
+         dataSpace.rename(afile, "cycle.xml.old");
+
+         Element dcycleNode = (Element) doc.getElementsByTagName("dcycle").item(0);
+         setDefaultCycle(Tool.getValue(dcycleNode));
+         NodeList cycles = doc.getElementsByTagName("DataCycle");
+
+         for(int i = 0; i < cycles.getLength(); i++) {
+            Element elem = (Element) cycles.item(i);
+            String name = elem.getAttribute("name");
+            String orgId = elem.getAttribute("orgId");
+            boolean enabled = !"false".equals(elem.getAttribute("enabled"));
+
+            if(StringUtils.isEmpty(name)) {
+               throw new IOException("DataCycle Name missing in XML: " + afile);
             }
 
-            String encodedName = Encode.forXmlAttribute(name);
-            String encodedOrgId = Encode.forXmlAttribute(orgId);
-            String encodedEnabled = Encode.forXmlAttribute(enabled.toString());
-            writer.println("<DataCycle name=\"" + encodedName + "\"" +
-               " orgId=\"" + encodedOrgId + "\"" +
-               " enabled=\"" + encodedEnabled + "\">");
+            if(StringUtils.isEmpty(orgId)) {
+               orgId = OrganizationManager.getInstance().getCurrentOrgID();
+            }
 
-            for(int i = 0; i < getConditionCount(name, orgId); i++) {
-               ScheduleCondition cond = getCondition(name, orgId, i);
+            NodeList cnodes = Tool.getChildNodesByTagName(elem, "Condition");
 
-               if(cond instanceof TimeCondition) {
-                  ((TimeCondition) cond).writeXML(writer);
+            if(cnodes.getLength() == 0) {
+               LOG.info("No condition in data cycle, ignored: {}", name);
+               continue;
+            }
+
+            List<ScheduleCondition> conds = new ArrayList<>();
+
+            for(int j = 0; j < cnodes.getLength(); j++) {
+               Element cond = (Element) cnodes.item(j);
+               String type = cond.getAttribute("type");
+
+               if(StringUtils.isEmpty(type)) {
+                  throw new IOException("Condition type missing in XML: " + afile);
                }
+
+               TimeCondition condition;
+
+               if(type.equals("TimeCondition")) {
+                  condition = new TimeCondition();
+                  condition.parseXML(cond);
+               }
+               else {
+                  throw new IOException("Unknown condition type: " + type);
+               }
+
+               conds.add(condition);
             }
 
-            CycleInfo cycleInfo = cycleInfoMap.get(new DataCycleId(name, orgId));
+            Element cinfo = Tool.getChildNodeByTagName(elem, "CycleInfo");
+            CycleInfo cycleInfo = new CycleInfo(name, orgId);
 
-            if(cycleInfo != null) {
-               cycleInfo.writeXML(writer);
+            if(cinfo != null) {
+               cycleInfo.parseXML(cinfo);
+               cycleInfo.setName(name);
             }
 
-            writer.println("</DataCycle>");
-         }
+            DataCycleAsset asset = new DataCycleAsset();
+            asset.setName(name);
+            asset.setOrgId(orgId);
+            asset.setEnabled(enabled);
+            asset.setConditions(conds);
+            asset.setInfo(cycleInfo);
 
-         if(dcycle != null) {
-            writer.println("<dcycle>");
-            writer.print("<![CDATA[" + Encode.forCDATA(dcycle) + "]]>");
-            writer.println("</dcycle>");
+            getIndexedStorage()
+               .putXMLSerializable(getCycleEntry(name, orgId).toIdentifier(), asset);
          }
-
-         writer.println("</DataCycles>");
-         writer.flush();
-         tx.commit();
       }
-      catch(Throwable ex) {
-         init();
-         throw new Exception("Failed to save data cycle file", ex);
+      catch(Exception e) {
+         LOG.error("Failed to load old data cycle config", e);
       }
       finally {
-         if(space != null) {
-            dmgr.addChangeListener(space, null, afile, changeListener);
-         }
+         lock.unlock();
       }
-
-      generateTasks(oorg, norg, true, replace);
    }
 
-   private PrintWriter createWriter(OutputStream output) {
-      return new PrintWriter(new OutputStreamWriter(output, StandardCharsets.UTF_8));
+   public void save() throws Exception {
+      generateTasks(null, null, true, false);
    }
 
    /**
@@ -599,82 +601,87 @@ public class DataCycleManager implements ScheduleExt, PropertyChangeListener {
     * Add condition to specified data cycle.
     */
    public void addCondition(String name, String orgId, ScheduleCondition sc) {
-      Vector<ScheduleCondition> conds = dataCycleMap.get(new DataCycleId(name, orgId));
+      IndexedStorage storage = getIndexedStorage();
+      String entry = getCycleEntry(name, orgId).toIdentifier();
+      DataCycleAsset asset;
 
-      if(conds == null) {
-         conds = new Vector<>();
-         dataCycleMap.put(new DataCycleId(name, orgId), conds);
-      }
-
-      conds.add(sc);
-   }
-
-   public void copyCycleInfo(String name, String orgId, String fromOrgId, boolean replace) {
-      CycleInfo cycleInfo = (CycleInfo) (cycleInfoMap.get(new DataCycleId(name, fromOrgId))).clone();
-
-      if(cycleInfo != null) {
-         cycleInfo.setOrgId(orgId);
-         cycleInfoMap.put(new DataCycleId(name, orgId), cycleInfo);
-
-         if(replace) {
-            cycleInfoMap.remove(new DataCycleId(name, fromOrgId));
+      try {
+         if(storage.contains(entry, orgId)) {
+            asset = (DataCycleAsset) storage.getXMLSerializable(entry, null, orgId);
          }
+         else {
+            asset = new DataCycleAsset();
+            asset.setName(name);
+            asset.setOrgId(orgId);
+            asset.setEnabled(true);
+         }
+
+         if(asset.getConditions() == null) {
+            asset.setConditions(new ArrayList<>());
+         }
+
+         asset.getConditions().add(sc);
+         storage.putXMLSerializable(entry, asset);
+      }
+      catch(Exception e) {
+         LOG.error("Failed to add condition", e);
       }
    }
 
    public void setConditions(String name, String orgId, List<ScheduleCondition> conditions) {
-      Vector<ScheduleCondition> conditionVector = new Vector<>();
-
-      for(ScheduleCondition condition : conditions) {
-         conditionVector.add(condition);
-      }
-
+      Vector<ScheduleCondition> conditionVector = new Vector<>(conditions);
       setConditions(name, orgId, conditionVector);
    }
    /**
     * Set conditions to specified data cycle.
     */
    public void setConditions(String name, String orgId, Vector<ScheduleCondition> conds) {
-      dataCycleMap.put(new DataCycleId(name, orgId), conds);
+      IndexedStorage storage = getIndexedStorage();
+      String entry = getCycleEntry(name, orgId).toIdentifier();
+      DataCycleAsset asset;
+
+      try {
+         if(storage.contains(entry, orgId)) {
+            asset = (DataCycleAsset) storage.getXMLSerializable(entry, null, orgId);
+         }
+         else {
+            asset = new DataCycleAsset();
+            asset.setName(name);
+            asset.setOrgId(orgId);
+            asset.setEnabled(true);
+         }
+
+         asset.setConditions(new ArrayList<>(conds));
+         storage.putXMLSerializable(entry, asset);
+      }
+      catch(Exception e) {
+         LOG.error("Failed to set conditions", e);
+      }
    }
 
    /**
-    * Set a condition to specified data cycle..
+    * Set a condition to specified data cycle.
     */
    public void setCondition(String name, String orgId, ScheduleCondition cond, int index) {
-      getConditions(name, orgId).setElementAt(cond, index);
+      Vector<ScheduleCondition> conditions =  getConditions(name, orgId);
+      conditions.setElementAt(cond, index);
+      setConditions(name, orgId, conditions);
    }
 
    /**
     * Remove the data cycle with specified name from the data cycle map.
     */
    public void removeDataCycle(String name, String orgId) {
-      DataCycleId id = new DataCycleId(name, orgId);
-      dataCycleMap.remove(id);
-      cycleStatusMap.remove(id);
-      cycleInfoMap.remove(id);
-   }
+      IndexedStorage storage = getIndexedStorage();
+      String entry = getCycleEntry(name, orgId).toIdentifier();
 
-   /**
-    * Remove the data cycle with specified name from the data cycle map.
-    * @param checkDependency if checkDependency when remove dataCycle.
-    */
-   public void removeDataCycle(String name, String orgId, boolean checkDependency)
-      throws Exception
-   {
-      if(name != null && !name.trim().equals("") && checkDependency) {
-         if(!hasPregeneratedDependency(name)) {
-            removeDataCycle(name, orgId);
+      if(storage.contains(entry, orgId)) {
+         try {
+            storage.remove(entry);
          }
-         // warning if some replet uses the cycle
-         else {
-            throw new Exception(Catalog.getCatalog().getString(
-               "em.scheduler.deleteCycleError"));
+         catch(Exception e) {
+            LOG.error("Failed to remove data cycle", e);
          }
-      }
-      else {
-         throw new Exception(Catalog.getCatalog().getString(
-            "designer.property.emptyNullError"));
       }
    }
 
@@ -686,9 +693,8 @@ public class DataCycleManager implements ScheduleExt, PropertyChangeListener {
          return false;
       }
 
-      MVManager manager = MVManager.getManager();
       String orgid = OrganizationManager.getInstance().getCurrentOrgID();
-      MVDef[] mvs = manager.list(false);
+      MVDef[] mvs = mvManager.list(false);
 
       for(MVDef mv : mvs) {
          if(cycle.equals(mv.getCycle()) && orgid.equals(mv.getEntry().getOrgID())) {
@@ -703,7 +709,7 @@ public class DataCycleManager implements ScheduleExt, PropertyChangeListener {
     * Get all the data cycles.
     */
    public Enumeration<DataCycleId> getDataCycles() {
-      return Collections.enumeration(dataCycleMap.keySet());
+      return Collections.enumeration(getDataCycleIds());
    }
 
    /**
@@ -711,36 +717,73 @@ public class DataCycleManager implements ScheduleExt, PropertyChangeListener {
     */
    public Enumeration<DataCycleId> getDataCycles(Organization org) {
       String orgId = org != null ? org.getId() : OrganizationManager.getInstance().getCurrentOrgID();
-
-      return Collections.enumeration(
-         dataCycleMap.keySet().stream()
-            .filter(id -> id.orgId.equals(orgId))
-            .toList());
+      return Collections.enumeration(getDataCycleIds(orgId));
    }
 
    /**
     * Get the data cycles in an organization.
     */
    public Enumeration<String> getDataCycles(String orgID) {
-      return Collections.enumeration(
-         dataCycleMap.keySet().stream()
-            .filter(id -> id.orgId.equals(orgID))
-            .map(DataCycleId::name)
-            .toList());
+      return Collections.enumeration(getDataCycleIds(orgID).stream()
+                                        .map(DataCycleId::name)
+                                        .toList());
+   }
+
+   private Set<DataCycleId> getDataCycleIds() {
+      Set<DataCycleId> ids = new HashSet<>();
+
+      for(String orgId : securityEngine.getOrganizations()) {
+         ids.addAll(getDataCycleIds(orgId));
+      }
+
+      return ids;
+   }
+
+   private Set<DataCycleId> getDataCycleIds(String orgId) {
+      IndexedStorage storage = getIndexedStorage();
+      Set<DataCycleId> ids = new HashSet<>();
+      Set<String> assetIds = storage.getKeys(key -> {
+         AssetEntry entry = AssetEntry.createAssetEntry(key);
+         return entry != null && entry.getType() == AssetEntry.Type.DATA_CYCLE;
+      });
+
+      for(String assetId : assetIds) {
+         AssetEntry entry = AssetEntry.createAssetEntry(assetId);
+         String name = entry.getName().substring(PREFIX.length() - 1);
+         ids.add(new DataCycleId(name, orgId));
+      }
+
+      return ids;
    }
 
    /**
     * Get the time conditions of the specified data cycle.
     */
    public Vector<ScheduleCondition> getConditions(String name, String orgId) {
-      return dataCycleMap.get(new DataCycleId(name, orgId));
+      IndexedStorage storage = getIndexedStorage();
+      String entry = getCycleEntry(name, orgId).toIdentifier();
+
+      if(storage.contains(entry, orgId)) {
+         try {
+            DataCycleAsset asset = (DataCycleAsset) storage.getXMLSerializable(entry, null, orgId);
+
+            if(asset != null && asset.getConditions() != null) {
+               return new Vector<>(asset.getConditions());
+            }
+         }
+         catch(Exception e) {
+            LOG.error("Failed to set conditions", e);
+         }
+      }
+
+      return new Vector<>();
    }
 
    /**
     * Get the total number of the data cycles.
     */
    public int getDataCycleCount() {
-      return dataCycleMap.size();
+      return getDataCycleIds().size();
    }
 
    /**
@@ -754,7 +797,9 @@ public class DataCycleManager implements ScheduleExt, PropertyChangeListener {
     * Remove the specified condition.
     */
    public void removeCondition(String name, String orgId, int index) {
-      getConditions(name, orgId).removeElementAt(index);
+      Vector<ScheduleCondition> conditions =  getConditions(name, orgId);
+      conditions.removeElementAt(index);
+      setConditions(name, orgId, conditions);
    }
 
    /**
@@ -769,14 +814,48 @@ public class DataCycleManager implements ScheduleExt, PropertyChangeListener {
     * Get the specified cycle info.
     */
    public CycleInfo getCycleInfo(String name, String orgId) {
-      return cycleInfoMap.get(new DataCycleId(name, orgId));
+      IndexedStorage storage = getIndexedStorage();
+      String entry = getCycleEntry(name, orgId).toIdentifier();
+
+      if(storage.contains(entry, orgId)) {
+         try {
+            DataCycleAsset asset = (DataCycleAsset) storage.getXMLSerializable(entry, null, orgId);
+            return asset.getInfo();
+         }
+         catch(Exception e) {
+            LOG.error("Failed get cycle info", e);
+         }
+      }
+
+      return null;
    }
 
    /**
-    * Set cycle info for an cycle.
+    * Set cycle info for a cycle.
     */
    public void setCycleInfo(String name, String orgId, CycleInfo cycleInfo) {
-      cycleInfoMap.put(new DataCycleId(name, orgId), cycleInfo);
+      IndexedStorage storage = getIndexedStorage();
+      String entry = getCycleEntry(name, orgId).toIdentifier();
+
+      try {
+         DataCycleAsset asset;
+
+         if(storage.contains(entry, orgId)) {
+            asset = (DataCycleAsset) storage.getXMLSerializable(entry, null, orgId);
+         }
+         else {
+            asset = new DataCycleAsset();
+            asset.setName(name);
+            asset.setOrgId(orgId);
+            asset.setEnabled(true);
+         }
+
+         asset.setInfo(cycleInfo);
+         storage.putXMLSerializable(entry, asset);
+      }
+      catch(Exception e) {
+         LOG.error("Failed to set cycle info", e);
+      }
    }
 
    /**
@@ -785,37 +864,27 @@ public class DataCycleManager implements ScheduleExt, PropertyChangeListener {
    public void migrateDataCycles(Organization oorg, Organization norg, boolean replace)
       throws Exception
    {
-      List<DataCycleId> oldIds = dataCycleMap.keySet().stream()
-         .filter(id -> id.orgId.equals(oorg.getId()))
-         .toList();
+      IndexedStorage storage = getIndexedStorage();
+      Set<DataCycleId> oldIds = getDataCycleIds(oorg.getId());
       boolean idChanged = !Tool.equals(oorg.getId(), norg.getId());
 
-      for(DataCycleId oid : oldIds) {
-         DataCycleId nid = idChanged ? new DataCycleId(oid.name, norg.getId()) : oid;
-
-         if(idChanged) {
-            Vector<ScheduleCondition> conditions =
-               replace ? dataCycleMap.remove(oid) : dataCycleMap.get(oid);
-            dataCycleMap.put(nid, conditions);
-            Boolean value = replace ? cycleStatusMap.remove(oid) : cycleStatusMap.get(nid);
-            cycleStatusMap.put(nid, value);
-
-            CycleInfo cycleInfo = cycleInfoMap.get(oid);
-
-            if(!replace && cycleInfo != null) {
-               cycleInfo = (CycleInfo) cycleInfo.clone();
-            }
-
-            migrateCycleInfo(cycleInfo, oorg, norg);
-            cycleInfoMap.put(nid, cycleInfo);
+      if(idChanged) {
+         for(DataCycleId oid : oldIds) {
+            String oldEntry = getCycleEntry(oid.name, oid.orgId).toIdentifier();
+            String newEntry = getCycleEntry(oid.name, norg.getId()).toIdentifier();
+            DataCycleAsset asset = (DataCycleAsset)
+               storage.getXMLSerializable(oldEntry, null, oorg.getId());
+            asset.setOrgId(norg.getId());
+            migrateCycleInfo(asset.getInfo(), oorg, norg);
+            storage.putXMLSerializable(newEntry, asset);
 
             if(replace) {
-               cycleInfoMap.remove(oid);
+               storage.remove(oldEntry);
             }
          }
       }
 
-      save(oorg, norg, replace);
+      generateTasks(oorg, norg, false, replace);
    }
 
    public void updateCycleInfoNotify(String oldIdentity , String newIdentity, boolean isUser) throws Exception {
@@ -889,15 +958,13 @@ public class DataCycleManager implements ScheduleExt, PropertyChangeListener {
    }
 
    public void clearDataCycles(String orgId) {
-      Iterator<DataCycleId> iterator = dataCycleMap.keySet().iterator();
+      IndexedStorage storage = getIndexedStorage();
 
-      while(iterator.hasNext()) {
-         DataCycleId id = iterator.next();
+      for(DataCycleId id : getDataCycleIds(orgId)) {
+         String entry = getCycleEntry(id.name(), id.orgId()).toIdentifier();
 
-         if(Tool.equals(orgId, id.orgId)) {
-            iterator.remove();
-            cycleInfoMap.remove(id);
-            cycleStatusMap.remove(id);
+         if(storage.contains(entry, orgId)) {
+            storage.remove(entry);
          }
       }
    }
@@ -906,24 +973,9 @@ public class DataCycleManager implements ScheduleExt, PropertyChangeListener {
     * Refreshes the cycle data.
     */
    public void refresh() {
-      synchronized(cycleStatusMap) {
-         dataCycleMap = new LinkedHashMap<>();
-         cycleStatusMap = new LinkedHashMap<>();
-         init();
-         MVManager.getManager().setDefaultCycle(dcycle);
-      }
+      init();
+      mvManager.setDefaultCycle(getDefaultCycle());
    }
-
-   /**
-    * Listener added to be notified if cycle.file is changed on disk.
-    */
-   private DataChangeListener changeListener = new DataChangeListener() {
-      @Override
-      public void dataChanged(DataChangeEvent e) {
-         LOG.debug(e.toString());
-         refresh();
-      }
-   };
 
    /**
     * Triggered when identity removed.
@@ -948,15 +1000,62 @@ public class DataCycleManager implements ScheduleExt, PropertyChangeListener {
     * Set the default cycle.
     */
    public void setDefaultCycle(String dcycle) {
-      this.dcycle = dcycle;
+      SreeEnv.setProperty("default.data.cycle", dcycle);
    }
 
    /**
     * Get the default cycle.
     */
    public String getDefaultCycle() {
-      return dcycle;
+      return SreeEnv.getProperty("default.data.cycle");
    }
+
+   private AssetEntry getCycleEntry(String name, String orgId) {
+      return new AssetEntry(
+         AssetRepository.GLOBAL_SCOPE,
+         AssetEntry.Type.DATA_CYCLE, PREFIX + name,
+         null, orgId);
+   }
+
+   @Override
+   public void storageRefreshed(StorageRefreshEvent event) {
+      boolean changed = false;
+
+      for(TimestampIndexChange change : event.getChanges()) {
+         if(change.getKey() != null) {
+            AssetEntry entry = AssetEntry.createAssetEntry(change.getKey());
+
+            if(entry != null && entry.getType() == AssetEntry.Type.DATA_CYCLE) {
+               changed = true;
+            }
+         }
+      }
+
+      if(changed) {
+         refresh();
+      }
+   }
+
+   private ScheduleManager getScheduleManager() {
+      return scheduleManager;
+   }
+
+   private IndexedStorage getIndexedStorage() {
+      return indexedStorage;
+   }
+
+   private final ScheduleManager scheduleManager;
+   private final IndexedStorage indexedStorage;
+   private final SecurityEngine securityEngine;
+   private final Cluster cluster;
+   private final MVManager mvManager;
+   private final DataSpace dataSpace;
+   private final RepletRegistryManager repletRegistryManager;
+   private final Map<String, Boolean> orgPregeneratedTaskLoadedStatus = new ConcurrentHashMap<>();
+   private final Map<String, Vector<ScheduleTask>> pregeneratedTasksMap = new HashMap<>();
+   private static final Logger LOG = LoggerFactory.getLogger(DataCycleManager.class);
+
+   private final String PREFIX = "/__DATA_CYCLE__";
 
    public static class CycleInfo implements Cloneable, XMLSerializable, Serializable {
       public CycleInfo() {
@@ -1139,7 +1238,7 @@ public class DataCycleManager implements ScheduleExt, PropertyChangeListener {
          exceedEmail = Tool.getAttribute(tag, "exceedEmail");
          failureNotify = "true".equals(Tool.getAttribute(tag, "failureNotify"));
          failureEmail = Tool.getAttribute(tag, "failureEmail");
-         threshold = Integer.parseInt(Tool.getAttribute(tag, "threshold"));
+         threshold = Integer.parseInt(Objects.requireNonNull(Tool.getAttribute(tag, "threshold")));
          createdBy = Tool.getAttribute(tag, "createdBy");
          modifiedBy = Tool.getAttribute(tag, "modifiedBy");
          String val = Tool.getAttribute(tag, "created");
@@ -1228,61 +1327,104 @@ public class DataCycleManager implements ScheduleExt, PropertyChangeListener {
       private String modifiedBy;
    }
 
-   private static final Logger LOG =
-      LoggerFactory.getLogger(DataCycleManager.class);
-   private static DataChangeListenerManager dmgr =
-      new DataChangeListenerManager();
+   public static final class DataCycleAsset implements Serializable, XMLSerializable {
+      public List<ScheduleCondition> getConditions() {
+         return conditions;
+      }
 
-   private Map<DataCycleId, Vector<ScheduleCondition>> dataCycleMap =
-      new LinkedHashMap<>();
-   private Map<DataCycleId, Boolean> cycleStatusMap = new LinkedHashMap<>();
-   private Map<String, Boolean> orgPregeneratedTaskLoadedStatus = new ConcurrentHashMap<>();
-   private Map<String, Vector<ScheduleTask>> pregeneratedTasksMap = new HashMap<>();
-   private Map<DataCycleId, CycleInfo> cycleInfoMap = new HashMap<>();
-   private String dcycle;
+      public String getName() {
+         return name;
+      }
 
-   public record DataCycleId(String name, String orgId) {}
+      public void setName(String name) {
+         this.name = name;
+      }
 
-   public static final class Reference
-      extends SingletonManager.Reference<DataCycleManager>
-   {
+      public String getOrgId() {
+         return orgId;
+      }
+
+      public void setOrgId(String orgId) {
+         this.orgId = orgId;
+      }
+
+      public void setConditions(List<ScheduleCondition> conditions) {
+         this.conditions = conditions;
+      }
+
+      public boolean isEnabled() {
+         return enabled;
+      }
+
+      public void setEnabled(boolean enabled) {
+         this.enabled = enabled;
+      }
+
+      public CycleInfo getInfo() {
+         return info;
+      }
+
+      public void setInfo(CycleInfo info) {
+         this.info = info;
+      }
+
       @Override
-      public DataCycleManager get(Object... parameters) {
-         // prevent deadlock caused by scheduler manager and replet engine initialization
-         SingletonManager.getInstance(ScheduleManager.class);
+      public void writeXML(PrintWriter writer) {
+         writer.format(
+            "<DataCycle name=\"%s\" orgId=\"%s\" enabled=\"%s\">%n",
+            Encode.forXmlAttribute(name), Encode.forXmlAttribute(orgId), enabled);
+         writer.println("<conditions>");
 
-         if(manager == null) {
-            Lock lock = Cluster.getInstance().getLock(Scheduler.INIT_LOCK);
-            lock.lock();
-
-            try {
-               if(manager == null) {
-                  manager = new DataCycleManager();
-                  ScheduleManager.getScheduleManager().initialize();
-
-                  try {
-                     RepletRegistry.getRegistry().addPropertyChangeListener(manager);
-                  }
-                  catch(Exception ex) {
-                     LOG.error("Failed to add property change listener to replet registry", ex);
-                  }
-
-                  MVManager.getManager().addPropertyChangeListener(manager);
+         if(conditions != null) {
+            for(ScheduleCondition condition : conditions) {
+               if(condition instanceof TimeCondition tc) {
+                  tc.writeXML(writer);
                }
-            }
-            finally {
-               lock.unlock();
             }
          }
 
-         return manager;
+         writer.println("</conditions>");
+
+         if(info != null) {
+            info.writeXML(writer);
+         }
+
+         writer.println("</DataCycle>");
       }
 
       @Override
-      public void dispose() {
-         manager = null;
+      public void parseXML(Element tag) throws Exception {
+         name = Tool.getAttribute(tag, "name");
+         orgId = Tool.getAttribute(tag, "orgId");
+         enabled = !"false".equals(Tool.getAttribute(tag, "enabled"));
+         conditions = new ArrayList<>();
+         info = null;
+
+         Element element;
+
+         if((element = Tool.getChildNodeByTagName(tag, "conditions")) != null) {
+            NodeList nodes = Tool.getChildNodesByTagName(element, "Condition");
+
+            for(int i = 0; i < nodes.getLength(); i++) {
+               TimeCondition condition = new TimeCondition();
+               condition.parseXML((Element) nodes.item(i));
+               conditions.add(condition);
+            }
+         }
+
+         if((element = Tool.getChildNodeByTagName(tag, "CycleInfo")) != null) {
+            info = new CycleInfo();
+            info.parseXML(element);
+         }
       }
 
-      private DataCycleManager manager;
+      private String name;
+      private String orgId;
+      private boolean enabled;
+      private List<ScheduleCondition> conditions = new ArrayList<>();
+      private CycleInfo info;
    }
+
+   public record DataCycleId(String name, String orgId) {}
+
 }

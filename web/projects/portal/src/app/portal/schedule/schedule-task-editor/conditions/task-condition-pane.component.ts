@@ -419,6 +419,8 @@ export class TaskConditionPane implements OnInit, OnChanges {
    private userSetStartTime(time: NgbTimeStruct): void {
       this.setStartTime(time);
       this.model.taskDefaultTime = !!time;
+      this.form?.controls["startTime"]?.setValue(time,
+         {emitEvent: false, emitModelToViewChange: false});
    }
 
    private onStartTimeDataChanged(data: StartTimeData): void {
@@ -663,7 +665,7 @@ export class TaskConditionPane implements OnInit, OnChanges {
       this.model.conditions.push(copy);
       this.conditionIndex = this.model.conditions.length - 1;
       this.selectedConditions = [this.conditionIndex];
-      this.listView = true;
+      this.editCondition();
    }
 
    public deleteCondition(): void {

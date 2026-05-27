@@ -17,16 +17,15 @@
  */
 package inetsoft.web.admin.content.plugins;
 
-import inetsoft.web.admin.content.plugins.model.*;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
+import inetsoft.web.admin.content.plugins.model.*;
 import inetsoft.web.security.RequiredPermission;
 import inetsoft.web.security.Secured;
-
-import java.security.Principal;
-
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
+
+import java.security.Principal;
 
 @RestController
 public class PluginsController {

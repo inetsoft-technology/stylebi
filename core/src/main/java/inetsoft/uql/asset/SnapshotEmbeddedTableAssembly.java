@@ -18,30 +18,15 @@
 package inetsoft.uql.asset;
 
 import inetsoft.report.TableDataPath;
-import inetsoft.sree.SreeEnv;
-import inetsoft.uql.ColumnSelection;
-import inetsoft.uql.XMetaInfo;
-import inetsoft.uql.XTable;
-import inetsoft.uql.asset.internal.AssetUtil;
+import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.internal.cluster.Cluster;
+import inetsoft.sree.security.Organization;
+import inetsoft.sree.security.OrganizationManager;
+import inetsoft.uql.*;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.table.*;
 import inetsoft.uql.util.XEmbeddedTable;
 import inetsoft.util.*;
-
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
-import java.io.*;
-import java.lang.ref.Reference;
-import java.lang.ref.WeakReference;
-import java.lang.reflect.Method;
-import java.nio.file.FileAlreadyExistsException;
-import java.util.*;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.locks.ReentrantLock;
-import java.util.jar.JarOutputStream;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipException;
-
 import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.groovy.io.StringBuilderWriter;
 import org.slf4j.Logger;
@@ -49,14 +34,26 @@ import org.slf4j.LoggerFactory;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 
+import java.io.*;
+import java.lang.ref.Reference;
+import java.lang.ref.WeakReference;
+import java.lang.reflect.Method;
+import java.nio.file.FileAlreadyExistsException;
+import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
+import java.util.jar.JarOutputStream;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipException;
+
 /**
  * Embedded table assembly for snapshot, mainly deal with large data.
  *
  * @version 10.3
  * @author InetSoft Technology Corp
  */
-public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly
-   implements ActionListener, AssetChangeListener {
+public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
 
    /**
     * Constructor.
@@ -78,7 +75,6 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly
    public SnapshotEmbeddedTableAssembly(Worksheet ws, String name) {
       super(ws, name);
       init();
-      addAssetChangeListener(ws);
    }
 
    /**
@@ -89,8 +85,6 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly
    @Override
    public void setWorksheet(Worksheet ws) {
       super.setWorksheet(ws);
-
-      addAssetChangeListener(ws);
    }
 
    /**
@@ -110,35 +104,6 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly
       writer.print(",rowCnt:" + rowCnt);
 
       return true;
-   }
-
-   /**
-    * Add asset change listener. Delete external data file when thw whole
-    * worksheet is removed.
-    */
-   private void addAssetChangeListener(Worksheet ws) {
-      ws.removeActionListener(this);
-      ws.addActionListener(this);
-
-      AssetRepository rep = getAssetRepository();
-
-      if(rep != null) {
-         rep.removeAssetChangeListener(this);
-         rep.addAssetChangeListener(this);
-      }
-   }
-
-   @Override
-   protected void finalize() throws Throwable {
-      super.finalize();
-
-      ws.removeActionListener(this);
-
-      AssetRepository rep = getAssetRepository();
-
-      if(rep != null) {
-         rep.removeAssetChangeListener(this);
-      }
    }
 
    /**
@@ -169,8 +134,6 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly
          this.rowCnt = -1;
          this.fileDirty = true;
       }
-
-      data.addDataChangeListener(this);
    }
 
    /**
@@ -188,10 +151,14 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly
 
    @Override
    public synchronized void pasted() {
+      super.pasted();
       // make sure data files are saved to a new file instead of sharing with original assembly
       this.dataPaths = null;
       this.fileDirty = true;
       prefix = count.getAndIncrement();
+
+      // don't delete data files of the original assembly
+      dataPathsPendingDelete.clear();
    }
 
    /**
@@ -277,11 +244,13 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly
       }
    }
 
-   @Override
-   public void actionPerformed(ActionEvent e) {
+   public void deleteDataFiles(String reason) {
+      deleteDataFiles(dataPaths, reason);
+      dataPaths = null;
+      fileDirty = false;
    }
 
-   public void deleteDataFiles(String reason) {
+   public void deleteDataFiles(String[] dataPaths, String reason) {
       try {
          for(int i = 0; dataPaths != null && i < dataPaths.length; i++) {
             String path = dataPaths[i] + "_s.tdat";
@@ -303,53 +272,10 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly
                }
             }
          }
-
-         dataPaths = null;
-         fileDirty = false;
       }
       catch(Exception ex) {
          LOG.debug("Failed to delete data file", ex);
       }
-   }
-
-   @Override
-   public void assetChanged(AssetChangeEvent event) {
-      if(event == null) {
-         return;
-      }
-
-      int changeType = event.getChangeType();
-      AssetRepository rep = getAssetRepository();
-
-      if(changeType != AssetChangeEvent.ASSET_DELETED || rep == null) {
-         return;
-      }
-
-      try {
-         AbstractSheet sheet = event.getSheet();
-
-         if(sheet == null || sheet != getSheet()) {
-            return;
-         }
-
-         deleteDataFiles("Worksheet deleted: " + getName() + " " + event.getReason());
-      }
-      catch(Exception ex) {
-         LOG.debug("Failed to delete data file", ex);
-      }
-   }
-
-   private AssetRepository getAssetRepository() {
-      AssetRepository rep = null;
-
-      try {
-         rep = AssetUtil.getAssetRepository(false);
-      }
-      catch(Exception ex) {
-         LOG.debug("Failed to get asset repository", ex);
-      }
-
-      return rep;
    }
 
    /**
@@ -359,6 +285,15 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly
    @Override
    protected synchronized void writeEmbeddedData(PrintWriter writer) {
       try {
+         // If undo was done, especially after a "save as" action then
+         // there is a chance that two tables from different worksheets could share
+         // the same data files. To prevent that, rename the data files when writing to xml
+         // to be safe.
+         if(undo && !Worksheet.isTemp()) {
+            pasted();
+            undo = false;
+         }
+
          XSwappableTable stable = getTable();
 
          // make sure table is inited
@@ -373,7 +308,9 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly
                .anyMatch(p -> getLastModified(p, Long.MAX_VALUE) > dataTS);
          }
 
-         if(dataPaths == null || fileDirty) {
+         boolean writeDateFile = dataPaths == null || fileDirty;
+
+         if(writeDateFile) {
             writeDataFiles(stable);
          }
 
@@ -414,7 +351,7 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly
             }
          }
 
-         if(creators == null) {
+         if(creators == null || writeDateFile) {
             XTableColumnCreator[] xcreators = stable.getCreators();
             creators = new String[xcreators.length];
 
@@ -528,61 +465,55 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly
             }
          }
 
+         EmbeddedTableStorage storage = EmbeddedTableStorage.getInstance();
+
          for(int i = 0; i < dataPaths.length; i++) {
-            if(!dataFileExist(dataPaths[i])) {
+            String fileName = dataPaths[i] + "_s.tdat";
+
+            // save the table regardless if it's temp or not
+            if(!dataFileExist(fileName)) {
                try(InputStream input = new FileInputStream(files.get(i))) {
-                  EmbeddedTableStorage.getInstance().writeTable(dataPaths[i] + "_s.tdat", input);
+                  storage.writeTable(fileName, input, Worksheet.isTemp());
+                  dataTS = System.currentTimeMillis();
+               }
+            }
+            // when worksheet is saved, remove the temp flag on the table files
+            else if(!Worksheet.isTemp() && storage.isTempTable(fileName)) {
+               try(InputStream input = new FileInputStream(files.get(i))) {
+                  storage.writeTable(fileName, input, false);
                   dataTS = System.currentTimeMillis();
                }
             }
          }
 
          // don't change the original datafiles when save worksheet for autosave.
-         if(!Worksheet.isTemp() && shouldDeleteOldFiles && this.dataPaths != null &&
+         if(shouldDeleteOldFiles && this.dataPaths != null &&
             !Arrays.equals(dataPaths, this.dataPaths) &&
             dataPaths.length == this.dataPaths.length)
          {
-            String[] odataPaths = this.dataPaths;
-            // only delete file if different files are written. (50334)
-            deleteDataFiles("Data file overwritten: " + getName() + " files: " +
-                               Arrays.toString(this.dataPaths) + " replaced by: " +
-                               Arrays.toString(dataPaths));
-
-            /* replacing data file with newly updated file is problematic. if an existing
-               column is swapped out, when it's swapped back in, it will read from the new
-               file, which may be out of sync with the existing column (e.g. length).
-               since the new storage based implementation copies the data into a local cache
-               file, there is no need to keep the old data file.
-
-               @by anton: The column types may also be out of sync. For example, the old column may
-               be an XObjectColumn and the new one a XStringColumn, with incompatible serialization.
-
-            if(LOG.isDebugEnabled()) {
-               LOG.debug("Reuse data files: " + Arrays.toString(odataPaths));
-            }
-
-            // if new files are written, reuse the same file names if possible so open
-            // ws won't find the data files missing. this is not fool-prove which would
-            // require the old files not removed until all reference are gone, possibly
-            // through some form of reference counting. (50334)
-            for(int i = 0; i < dataPaths.length; i++) {
-               try {
-                  EmbeddedTableStorage.getInstance().renameTable(
-                     dataPaths[i] + "_s.tdat", odataPaths[i] + "_s.tdat");
-                  dataPaths[i] = odataPaths[i];
-               }
-               catch(IOException e) {
-                  LOG.warn("Failed to rename table", e);
-               }
-            }
-            */
-
-            updateDataFiles(stable, dataPaths, odataPaths);
+            dataPathsPendingDelete.add(this.dataPaths);
          }
+      }
+
+      // if worksheet is saved, then delete the old files (including non-temp)
+      if(!Worksheet.isTemp() && !dataPathsPendingDelete.isEmpty()) {
+         deleteOldFiles(dataPaths);
       }
 
       this.dataPaths = dataPaths;
       shouldDeleteOldFiles = true;
+   }
+
+   private void deleteOldFiles(String[] newDataPaths) {
+      for(String[] oldDataPaths : dataPathsPendingDelete) {
+         // only delete file if different files are written. (50334)
+         deleteDataFiles(oldDataPaths, "Data file overwritten: " + getName() + " files: " +
+                                       Arrays.toString(oldDataPaths) + " replaced by: " +
+                                       Arrays.toString(newDataPaths));
+         updateDataFiles(stable, newDataPaths, oldDataPaths);
+      }
+
+      dataPathsPendingDelete.clear();
    }
 
    // the snapshot assembly may be cloned in CompositeTableAssembly.getTableAssemblies(true)
@@ -874,7 +805,16 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly
                   paths[i] = file.getAbsolutePath();
                   paths[i] = paths[i].substring(0, paths[i].lastIndexOf("_s.tdat"));
 
-                  try(InputStream in = EmbeddedTableStorage.getInstance().readTable(path)) {
+                  String orgId = OrganizationManager.getInstance().getCurrentOrgID();
+
+                  if(!EmbeddedTableStorage.getInstance().tableExists(path) &&
+                     SUtil.isDefaultVSGloballyVisible())
+                  {
+                     // Filenames are unique. Checking across organizations should be fine.
+                     orgId = Organization.getDefaultOrganizationID();
+                  }
+
+                  try(InputStream in = EmbeddedTableStorage.getInstance().readTable(path, orgId)) {
                      if(in != null) {
                         // if cache file doesn't exist then just copy
                         if(!file.exists()) {
@@ -926,9 +866,7 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly
                XSwappableTable stable = new XSwappableTable();
 
                if(!tempFiles.isEmpty()) {
-                  synchronized(fileReferences) {
-                     Cleaner.add(new EmbeddedTableReference(stable, tempFiles.toArray(new File[0])));
-                  }
+                  Cleaner.add(new EmbeddedTableReference(stable, tempFiles.toArray(new File[0])));
                }
 
                XTableColumnCreator[] xcreators = new XTableColumnCreator[creators.length];
@@ -1013,8 +951,14 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly
    public boolean isUndoable() {
       EmbeddedTableStorage embeddedTableStorage = EmbeddedTableStorage.getInstance();
 
-      return dataPaths == null || Arrays.stream(dataPaths).map(p -> p + "_s.tdat")
+      boolean undoable = dataPaths == null || Arrays.stream(dataPaths).map(p -> p + "_s.tdat")
          .allMatch((p -> embeddedTableStorage.tableExists(p)));
+
+      if(undoable) {
+         undo = true;
+      }
+
+      return undoable;
    }
 
    public void setShouldDeleteOldFiles(boolean shouldDeleteOldFiles) {
@@ -1040,42 +984,64 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly
    // dirty file will be removed when new files are written or
    // sheet is saved and the delete flag is true
    private String[] dataPaths = null;
+   private Set<String[]> dataPathsPendingDelete = new HashSet<>();
    private Map<String, String> dataPathsLoadVersion = new HashMap<>();
    private Map<String, XMetaInfo> metaInfoMap = null;
    private long dataTS = 0;
    private boolean fileDirty = false;
    private boolean deleted = false;
+   private boolean undo = false;
    private transient boolean shouldDeleteOldFiles = true;
    private transient boolean dataPathsUpdated;
 
-   private static final Map<String, Integer> fileReferences = new HashMap<>();
+   public static final String FILE_REFERENCES_MAP = "inetsoft.snapshot.file.map";
+   public static final String FILE_REFERENCES_MAP_LOCK = "inetsoft.snapshot.file.map.lock";
    private static final List<Reference<SnapshotEmbeddedTableAssembly>> snapshots = new ArrayList<>();
 
    private static final class EmbeddedTableReference extends Cleaner.Reference<XSwappableTable> {
       EmbeddedTableReference(XSwappableTable referent, File[] files) {
          super(referent);
          this.files = Arrays.stream(files).map(File::getAbsolutePath).toArray(String[]::new);
+         Cluster cluster = Cluster.getInstance();
+         Lock lock = cluster.getLock(FILE_REFERENCES_MAP_LOCK);
+         lock.lock();
 
-         for(String file : this.files) {
-            int count = fileReferences.getOrDefault(file, 0) + 1;
-            fileReferences.put(file, count);
+         try {
+            Map<String, Integer> map = cluster.getMap(FILE_REFERENCES_MAP);
+
+            for(String file : this.files) {
+               int count = map.getOrDefault(file, 0) + 1;
+               map.put(file, count);
+            }
+         }
+         finally {
+            lock.unlock();
          }
       }
 
       @Override
       public void close() throws Exception {
-         synchronized(fileReferences) {
+         Cluster cluster = Cluster.getInstance();
+         Lock lock = cluster.getLock(FILE_REFERENCES_MAP_LOCK);
+         lock.lock();
+
+         try {
+            Map<String, Integer> map = cluster.getMap(FILE_REFERENCES_MAP);
+
             for(String file : files) {
-               int count = fileReferences.getOrDefault(file, 1) - 1;
+               int count = map.getOrDefault(file, 1) - 1;
 
                if(count == 0) {
-                  fileReferences.remove(file);
+                  map.remove(file);
                   new File(file).delete();
                }
                else {
-                  fileReferences.put(file, count);
+                  map.put(file, count);
                }
             }
+         }
+         finally {
+            lock.unlock();
          }
       }
 

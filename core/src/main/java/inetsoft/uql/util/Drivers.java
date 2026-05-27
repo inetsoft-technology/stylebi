@@ -22,6 +22,7 @@ import inetsoft.uql.tabular.*;
 import inetsoft.util.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.event.EventListener;
 
 import java.net.URL;
 import java.sql.*;
@@ -31,8 +32,13 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.stream.Collectors;
 
 public class Drivers {
+   public Drivers(Plugins plugins, ConnectionPoolFactory connectionPoolFactory) {
+      this.plugins = plugins;
+      this.connectionPoolFactory = connectionPoolFactory;
+   }
+
    public static Drivers getInstance() {
-      return SingletonManager.getInstance(Drivers.class);
+      return ConfigurationContext.getContext().getSpringBean(Drivers.class);
    }
 
    /**
@@ -80,7 +86,7 @@ public class Drivers {
          if(driverServices == null) {
             driverServices = new HashMap<>();
 
-            for(Plugin plugin : Plugins.getInstance().getPlugins()) {
+            for(Plugin plugin : plugins.getPlugins()) {
                List<DriverService> services = plugin.getServices(DriverService.class);
 
                if(!services.isEmpty()) {
@@ -125,6 +131,11 @@ public class Drivers {
       return a.getClass().getSimpleName().compareTo(b.getClass().getSimpleName());
    }
 
+   @EventListener(PluginAddedEvent.class)
+   public void onPluginAdded(PluginAddedEvent event) {
+      pluginAdded(event.getPluginId());
+   }
+
    public void pluginAdded(String pluginId) {
       initDriverServices();
       driverServicesLock.writeLock().lock();
@@ -142,6 +153,11 @@ public class Drivers {
       }
    }
 
+   @EventListener(PluginRemovedEvent.class)
+   public void onPluginRemoved(PluginRemovedEvent event) {
+      pluginRemoved(event.getPluginId());
+   }
+
    public void pluginRemoved(String pluginId) {
       Objects.requireNonNull(pluginId);
       initDriverServices();
@@ -156,9 +172,8 @@ public class Drivers {
                .flatMap(d -> d.getDrivers().stream())
                .collect(Collectors.toSet());
 
-            ConnectionPoolFactory factory = JDBCHandler.getConnectionPoolFactory();
-            factory.closeConnectionPools(
-               ds -> drivers.stream().anyMatch(d -> factory.isDriverUsed(ds, d)));
+            connectionPoolFactory.closeConnectionPools(
+               ds -> drivers.stream().anyMatch(d -> connectionPoolFactory.isDriverUsed(ds, d)));
             Set<Driver> deregistered = DriverManager.drivers()
                .filter(d -> drivers.contains(d.getClass().getName()))
                .collect(Collectors.toSet());
@@ -244,7 +259,7 @@ public class Drivers {
     * Check if Hive data model is supported.
     */
    public boolean isHiveEnabled() {
-      return Plugins.getInstance().getServices(
+      return plugins.getServices(
          inetsoft.uql.jdbc.DriverService.class, "inetsoft.driver.hive") != null;
    }
 
@@ -284,6 +299,8 @@ public class Drivers {
       return provider;
    }
 
+   private final Plugins plugins;
+   private final ConnectionPoolFactory connectionPoolFactory;
    private DriverProvider provider;
    private final ReadWriteLock driverServicesLock = new ReentrantReadWriteLock();
    private Map<String, List<DriverService>> driverServices = null;

@@ -17,7 +17,8 @@
  */
 package inetsoft.analytic.composition.event;
 
-import inetsoft.report.*;
+import inetsoft.report.TableDataPath;
+import inetsoft.report.TableLens;
 import inetsoft.report.composition.*;
 import inetsoft.report.composition.AssetTreeModel.Node;
 import inetsoft.report.composition.event.AssetEventUtil;
@@ -30,10 +31,12 @@ import inetsoft.report.lens.CalcTableLens;
 import inetsoft.sree.*;
 import inetsoft.sree.internal.AnalyticEngine;
 import inetsoft.sree.internal.SUtil;
-import inetsoft.sree.security.*;
+import inetsoft.sree.security.IdentityID;
+import inetsoft.sree.security.ResourceAction;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
-import inetsoft.uql.asset.internal.*;
+import inetsoft.uql.asset.internal.AssemblyInfo;
+import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.erm.*;
 import inetsoft.uql.schema.UserVariable;
 import inetsoft.uql.schema.XSchema;
@@ -54,8 +57,8 @@ import java.awt.*;
 import java.awt.geom.Point2D;
 import java.io.*;
 import java.security.Principal;
-import java.util.List;
 import java.util.*;
+import java.util.List;
 
 /**
  * Utility methods for viewsheet event.
@@ -86,13 +89,13 @@ public final class VSEventUtil {
    public static List fixAssemblySize(RuntimeViewsheet rvs) throws Exception {
       List list = new ArrayList();
       Viewsheet vs = rvs.getViewsheet();
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
-      if(vs == null || box == null) {
+      if(vs == null || box.isEmpty()) {
          return list;
       }
 
-      fixAssemblySize0(vs, box, list);
+      fixAssemblySize0(vs, box.get(), list);
       return list;
    }
 
@@ -346,6 +349,12 @@ public final class VSEventUtil {
       VSAssemblyInfo info = assembly.getVSAssemblyInfo();
       info.setScaledPosition(null);
       info.setScaledSize(null);
+
+      // Clear runtime column widths set by applyAssemblyScale so that export
+      // uses design-time column widths consistently (bookmark vs current view).
+      if(info instanceof TableDataVSAssemblyInfo tableDataInfo) {
+         tableDataInfo.resetRColumnWidths();
+      }
 
       if(assembly instanceof Viewsheet) {
          for(Assembly child : ((Viewsheet) assembly).getAssemblies()) {
@@ -1270,12 +1279,34 @@ public final class VSEventUtil {
    {
       VSAssemblyInfo tabInfo = (VSAssemblyInfo) assembly.getInfo();
       boolean bottomTabs = ((TabVSAssemblyInfo) tabInfo).isBottomTabs();
+      String[] assemblies = assembly.getAssemblies();
+
+      // Re-anchor the tab for the current bottomTabs value. AbstractLayout.applyTab
+      // baked in the design-time value, so runtime toggles need this on every
+      // refresh/resize. Master-pixel-space semantics: tab moves, children stay.
+      Point tabLayoutPos = tabInfo.getLayoutPosition(false);
+      Dimension tabLayoutSize = tabInfo.getLayoutSize(false);
+
+      if(tabLayoutPos != null && tabLayoutSize != null) {
+         TabVSAssemblyInfo.ChildExtent extent = TabVSAssemblyInfo.scanChildExtent(
+            assemblies, viewsheet,
+            c -> c.getVSAssemblyInfo().getLayoutPosition(false),
+            c -> c.getVSAssemblyInfo().getLayoutSize(false));
+
+         if(extent != null) {
+            int newTabLayoutY = bottomTabs
+               ? extent.maxBottom()
+               : Math.max(0, extent.minTop() - tabLayoutSize.height);
+            int newTabScaledX = (int) Math.floor(tabLayoutPos.x * scaleRatio.x);
+            int newTabScaledY = (int) Math.floor(newTabLayoutY * scaleRatio.y);
+            tabInfo.setScaledPosition(new Point(newTabScaledX, newTabScaledY));
+         }
+      }
 
       // for bottom tabs, getLayoutPosition() returns the tab bar position
       // (set by AbstractLayout.applyTab as npos.y + contentHeight)
       Point tabPos = tabInfo.getLayoutPosition();
       Dimension tabSize = tabInfo.getLayoutSize();
-      String[] assemblies = assembly.getAssemblies();
       // when apply tab scale, the tab height is not scale, so it's children
       // scale size is (pixelsize * scaleRadio + repairH).
       double repairH = tabSize.height * scaleRatio.y - tabSize.height;
@@ -1689,12 +1720,14 @@ public final class VSEventUtil {
       throws Exception
    {
       info.setClassName(assembly.getClass().getName());
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> boxOpt = rvs.getViewsheetSandbox();
       Viewsheet vs = rvs.getViewsheet();
 
-      if(vs == null || box == null) {
+      if(vs == null || boxOpt.isEmpty()) {
          return;
       }
+
+      ViewsheetSandbox box = boxOpt.get();
 
       if(rvs.getMode() == RuntimeViewsheet.VIEWSHEET_RUNTIME_MODE &&
          ((VSUtil.isTipView(info.getAbsoluteName(), vs) ||
@@ -3973,9 +4006,12 @@ public final class VSEventUtil {
 
       if(sinfo.getType() == SourceInfo.VS_ASSEMBLY) {
          try {
-            CrosstabVSAQuery query = new CrosstabVSAQuery(rvs.getViewsheetSandbox(),
-                                         cass.getAbsoluteName(), false);
-            tbl = query.createAssemblyTable(sinfo.getSource());
+            Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+            if(box.isPresent()) {
+               CrosstabVSAQuery query = new CrosstabVSAQuery(box.get(), cass.getAbsoluteName(), false);
+               tbl = query.createAssemblyTable(sinfo.getSource());
+            }
          }
          catch(Exception e) {
          }

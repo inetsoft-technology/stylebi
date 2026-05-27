@@ -17,13 +17,8 @@
  */
 package inetsoft.web.viewsheet.controller.annotation;
 
-import inetsoft.report.composition.RuntimeViewsheet;
-import inetsoft.uql.viewsheet.*;
-import inetsoft.uql.viewsheet.internal.AnnotationVSAssemblyInfo;
-import inetsoft.uql.viewsheet.internal.AnnotationVSUtil;
 import inetsoft.web.viewsheet.LoadingMask;
 import inetsoft.web.viewsheet.Undoable;
-import inetsoft.web.viewsheet.command.AnnotationChangedCommand;
 import inetsoft.web.viewsheet.event.annotation.RemoveAnnotationEvent;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.service.*;
@@ -38,10 +33,10 @@ import java.security.Principal;
 @MessageMapping("/annotation")
 public class VSAnnotationRemoveController {
    @Autowired
-   public VSAnnotationRemoveController(VSObjectService service,
+   public VSAnnotationRemoveController(VSAnnotationRemoveServiceProxy vsAnnotationRemoveServiceProxy,
                                        RuntimeViewsheetRef runtimeViewsheetRef)
    {
-      this.service = service;
+      this.vsAnnotationRemoveServiceProxy = vsAnnotationRemoveServiceProxy;
       this.runtimeViewsheetRef = runtimeViewsheetRef;
    }
 
@@ -53,40 +48,10 @@ public class VSAnnotationRemoveController {
                                 Principal principal,
                                 CommandDispatcher dispatcher) throws Exception
    {
-      // Get properties from event object
-      final String[] names = event.getNames();
-      final RuntimeViewsheet rvs =
-         service.getRuntimeViewsheet(runtimeViewsheetRef.getRuntimeId(), principal);
-      final Viewsheet vs = rvs.getViewsheet();
-
-      for(String name : names) {
-         final VSAssembly annotation = (AnnotationVSAssembly) vs.getAssembly(name);
-         final AnnotationVSAssemblyInfo ainfo =
-            (AnnotationVSAssemblyInfo) annotation.getVSAssemblyInfo();
-         final VSAssembly annotationRectangle =
-            (AnnotationRectangleVSAssembly) vs.getAssembly(ainfo.getRectangle());
-         final VSAssembly annotationLine =
-            (AnnotationLineVSAssembly) vs.getAssembly(ainfo.getLine());
-
-         // Remove annotation, rectangle, and line
-         service.removeVSAssembly(rvs, annotation, linkUri, dispatcher);
-
-         if(annotationRectangle != null) {
-            service.removeVSAssembly(rvs, annotationRectangle, linkUri, dispatcher);
-         }
-
-         if(annotationLine != null) {
-            service.removeVSAssembly(rvs, annotationLine, linkUri, dispatcher);
-         }
-      }
-
-      if(!AnnotationVSUtil.isAnnotated(vs)) {
-         service.setViewsheetInfo(rvs, linkUri, dispatcher);
-      }
-
-      dispatcher.sendCommand(AnnotationChangedCommand.of(true));
+      vsAnnotationRemoveServiceProxy.removeAnnotation(runtimeViewsheetRef.getRuntimeId(), event,
+                                                      linkUri, principal, dispatcher);
    }
 
-   private final VSObjectService service;
+   private VSAnnotationRemoveServiceProxy vsAnnotationRemoveServiceProxy;
    private final RuntimeViewsheetRef runtimeViewsheetRef;
 }

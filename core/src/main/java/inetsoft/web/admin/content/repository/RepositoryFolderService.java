@@ -18,13 +18,13 @@
 package inetsoft.web.admin.content.repository;
 
 import inetsoft.report.internal.Util;
-import inetsoft.sree.RepletRegistry;
-import inetsoft.sree.RepositoryEntry;
+import inetsoft.sree.*;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
 import inetsoft.util.*;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
+import inetsoft.web.RecycleBin;
 import inetsoft.web.admin.security.ResourcePermissionModel;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
@@ -39,10 +39,17 @@ import java.util.stream.Collectors;
 @Service
 public class RepositoryFolderService {
    @Autowired
-   public RepositoryFolderService(ResourcePermissionService permissionService,
-                                  ContentRepositoryTreeService treeService) {
+   public RepositoryFolderService(RepletRegistryService registryManager,
+                                  ResourcePermissionService permissionService,
+                                  ContentRepositoryTreeService treeService,
+                                  RecycleBin recycleBin,
+                                  RepletRegistryManager repletRegistryManager)
+   {
+      this.registryManager = registryManager;
       this.permissionService = permissionService;
       this.treeService = treeService;
+      this.recycleBin = recycleBin;
+      this.repletRegistryManager = repletRegistryManager;
    }
 
    public RepositoryFolderSettingsModel getSettings(String path, boolean isWorksheetFolder,
@@ -52,7 +59,7 @@ public class RepositoryFolderService {
       owner = owner != null && owner.name.length() > 0 ? owner : null;
       ResourceType resourceType = isWorksheetFolder ? ResourceType.ASSET : ResourceType.REPORT;
       registryManager.checkPermission(path, resourceType, ResourceAction.ADMIN, principal);
-      RepletRegistry registry = RepletRegistry.getRegistry(owner);
+      RepletRegistry registry = repletRegistryManager.getRegistry(owner);
       String folderName = "/".equals(path) ? "/" : registryManager.getName(path);
       int idx = path.lastIndexOf(folderName);
       String parentFolder = idx == 0 ? "/" : path.substring(0, idx - 1);
@@ -222,10 +229,10 @@ public class RepositoryFolderService {
                                                      model.permissionTableModel(), principal);
          }
       }
-      catch(RepletRegistryManager.DuplicateNameException e) {
+      catch(RepletRegistryService.DuplicateNameException e) {
          LOG.warn(Catalog.getCatalog().getString("em.viewsheet.duplicateName"));
       }
-      catch(RepletRegistryManager.RenameFailedException e) {
+      catch(RepletRegistryService.RenameFailedException e) {
          LOG.warn(e.getMessage());
       }
       finally {
@@ -318,9 +325,11 @@ public class RepositoryFolderService {
       return buffer.toString();
    }
 
-   private final RepletRegistryManager registryManager = new RepletRegistryManager();
+   private final RepletRegistryService registryManager;
    private final ResourcePermissionService permissionService;
    private final ContentRepositoryTreeService treeService;
+   private final RecycleBin recycleBin;
+   private final RepletRegistryManager repletRegistryManager;
    private final Catalog catalog = Catalog.getCatalog();
    private static final Logger LOG = LoggerFactory.getLogger(RepositoryFolderService.class);
 }

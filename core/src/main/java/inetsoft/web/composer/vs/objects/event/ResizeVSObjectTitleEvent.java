@@ -17,12 +17,14 @@
  */
 package inetsoft.web.composer.vs.objects.event;
 
+import java.io.Serializable;
+
 /**
  * Class that encapsulates the parameters for resizing an object title.
  *
  * @since 12.3
  */
-public class ResizeVSObjectTitleEvent extends ResizeVSObjectEvent {
+public class ResizeVSObjectTitleEvent extends ResizeVSObjectEvent implements Serializable {
    /**
     * Gets the height of the object title.
     *

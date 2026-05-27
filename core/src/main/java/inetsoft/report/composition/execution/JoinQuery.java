@@ -151,6 +151,15 @@ public class JoinQuery extends AssetQuery {
     */
    @Override
    protected boolean isSourceMergeable() throws Exception {
+      if(sourceMergeable != null) {
+         return sourceMergeable;
+      }
+
+      sourceMergeable = computeIsSourceMergeable();
+      return sourceMergeable;
+   }
+
+   private boolean computeIsSourceMergeable() throws Exception {
       if(!super.isSourceMergeable()) {
          return false;
       }
@@ -1030,6 +1039,7 @@ public class JoinQuery extends AssetQuery {
       @Override
       public Thread newThread(Runnable r) {
          GroupedThread thread = new GroupedThread(r);
+         thread.setPrincipal(ThreadContext.getContextPrincipal());
          thread.setDaemon(true);
          return thread;
       }
@@ -1057,6 +1067,7 @@ public class JoinQuery extends AssetQuery {
    private AssetQuery[] queries; // base queries
    private JDBCQuery nquery; // new query
    private final Set<String> colset; // columns
+   private transient Boolean sourceMergeable;
 
    private static final Logger LOG = LoggerFactory.getLogger(JoinQuery.class);
 }

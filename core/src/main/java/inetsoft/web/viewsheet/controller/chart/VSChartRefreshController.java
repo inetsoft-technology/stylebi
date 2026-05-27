@@ -17,16 +17,6 @@
  */
 package inetsoft.web.viewsheet.controller.chart;
 
-
-import inetsoft.analytic.composition.ViewsheetService;
-import inetsoft.report.composition.RuntimeViewsheet;
-import inetsoft.report.composition.execution.ViewsheetSandbox;
-import inetsoft.uql.viewsheet.ChartVSAssembly;
-import inetsoft.uql.viewsheet.Viewsheet;
-import inetsoft.web.viewsheet.command.ClearChartLoadingCommand;
-import inetsoft.web.viewsheet.command.RefreshVSObjectCommand;
-import inetsoft.web.viewsheet.controller.VSRefreshController;
-import inetsoft.web.viewsheet.event.VSRefreshEvent;
 import inetsoft.web.viewsheet.event.chart.VSChartRefreshEvent;
 import inetsoft.web.viewsheet.model.*;
 import inetsoft.web.viewsheet.service.*;
@@ -38,73 +28,24 @@ import org.springframework.stereotype.Controller;
 import java.security.Principal;
 
 @Controller
-public class VSChartRefreshController extends VSChartController<VSChartRefreshEvent> {
+public class VSChartRefreshController {
    @Autowired
    public VSChartRefreshController(RuntimeViewsheetRef runtimeViewsheetRef,
-                                   CoreLifecycleService coreLifecycleService,
-                                   VSObjectModelFactoryService objectModelService,
-                                   ViewsheetService viewsheetService,
-                                   VSRefreshController vsRefreshController)
+                                   VSChartRefreshServiceProxy serviceProxy)
    {
-      super(runtimeViewsheetRef, coreLifecycleService, viewsheetService);
-      this.objectModelService = objectModelService;
-      this.vsRefreshController = vsRefreshController;
+      this.runtimeViewsheetRef = runtimeViewsheetRef;
+      this.serviceProxy = serviceProxy;
    }
 
-   @Override
    @MessageMapping("/vschart/refresh-chart")
    public void eventHandler(@Payload VSChartRefreshEvent event,
                             @LinkUri String linkUri,
                             Principal principal,
                             CommandDispatcher dispatcher) throws Exception
    {
-      this.processEvent(event, principal, chartState -> {
-         try {
-            refreshChart(chartState, dispatcher, linkUri, principal);
-         }
-         catch(Exception e) {
-            throw new RuntimeException(e);
-         }
-         finally {
-            // clear chart loading mask after refresh finished
-            dispatcher.sendCommand(event.getChartName(), new ClearChartLoadingCommand());
-         }
-      });
+      serviceProxy.eventHandler(runtimeViewsheetRef.getRuntimeId(), event, linkUri, principal, dispatcher);
    }
 
-   private void refreshChart(VSChartStateInfo chartState, CommandDispatcher dispatcher,
-                             String linkUri, Principal principal) throws Exception
-   {
-      String name = chartState.getChartAssemblyInfo().getAbsoluteName();
-      RuntimeViewsheet rvs = chartState.getRuntimeViewsheet();
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
-
-      if(rvs.getEmbedAssemblyInfo() != null) {
-         VSRefreshEvent refresh = VSRefreshEvent.builder()
-            .confirmed(true)
-            .initing(false)
-            .build();
-         this.vsRefreshController.refreshViewsheet(refresh, principal, dispatcher, linkUri);
-         return;
-      }
-
-      box.lockRead();
-
-      try {
-         Viewsheet vs = rvs.getViewsheet();
-         ChartVSAssembly chart = (ChartVSAssembly) vs.getAssembly(name);
-         VSObjectModel model = objectModelService.createModel(chart, rvs);
-         RefreshVSObjectCommand rcommand = new RefreshVSObjectCommand();
-         rcommand.setInfo(model);
-         rcommand.setForce(true);
-         rcommand.setWizardTemporary(chart.isWizardTemporary());
-         dispatcher.sendCommand(rcommand);
-      }
-      finally {
-         box.unlockRead();
-      }
-   }
-
-   private final VSObjectModelFactoryService objectModelService;
-   private final VSRefreshController vsRefreshController;
+   private final RuntimeViewsheetRef runtimeViewsheetRef;
+   private final VSChartRefreshServiceProxy serviceProxy;
 }

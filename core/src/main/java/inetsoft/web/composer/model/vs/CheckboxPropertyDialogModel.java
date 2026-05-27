@@ -19,12 +19,14 @@ package inetsoft.web.composer.model.vs;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
+import java.io.Serializable;
+
 /**
  * Data transfer object that represents the {@link CheckboxPropertyDialogModel} for the
  * checkbox property dialog
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class CheckboxPropertyDialogModel {
+public class CheckboxPropertyDialogModel implements Serializable {
    public CheckboxGeneralPaneModel getCheckboxGeneralPaneModel() {
       if(checkboxGeneralPaneModel == null) {
          checkboxGeneralPaneModel = new CheckboxGeneralPaneModel();

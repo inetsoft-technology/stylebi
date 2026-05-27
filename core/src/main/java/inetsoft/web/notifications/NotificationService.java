@@ -21,6 +21,8 @@ import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.*;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Component;
@@ -30,20 +32,23 @@ import java.security.Principal;
 @Component
 public class NotificationService implements MessageListener {
    @Autowired
-   public NotificationService(SimpMessagingTemplate messagingTemplate) {
+   public NotificationService(SimpMessagingTemplate messagingTemplate, Cluster cluster) {
       this.messagingTemplate = messagingTemplate;
+      this.cluster = cluster;
    }
 
    @PostConstruct
    public void addListener() {
-      cluster = Cluster.getInstance();
       cluster.addMessageListener(this);
    }
 
    @PreDestroy
    public void removeListener() {
-      if(cluster != null) {
+      try {
          cluster.removeMessageListener(this);
+      }
+      catch(Exception e) {
+         LOG.debug("Failed to remove listener during shutdown", e);
       }
    }
 
@@ -57,7 +62,7 @@ public class NotificationService implements MessageListener {
 
    public void sendNotification(String message) throws Exception {
       NotificationMessage notification = NotificationMessage.builder().message(message).build();
-      Cluster.getInstance().sendMessage(notification);
+      cluster.sendMessage(notification);
    }
 
    public void sendNotificationToUser(String message, Principal principal) {
@@ -67,5 +72,6 @@ public class NotificationService implements MessageListener {
    }
 
    private final SimpMessagingTemplate messagingTemplate;
-   private Cluster cluster;
+   private final Cluster cluster;
+   private static final Logger LOG = LoggerFactory.getLogger(NotificationService.class);
 }

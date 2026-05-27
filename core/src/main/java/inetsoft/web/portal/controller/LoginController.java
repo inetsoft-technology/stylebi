@@ -20,7 +20,6 @@ package inetsoft.web.portal.controller;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import inetsoft.report.internal.license.LicenseManager;
-import inetsoft.sree.RepletRepository;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.portal.*;
@@ -32,6 +31,7 @@ import inetsoft.web.viewsheet.service.LinkUri;
 import jakarta.servlet.http.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.CacheControl;
 import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Controller;
@@ -47,6 +47,16 @@ import java.util.*;
 
 @Controller
 public class LoginController {
+   @Autowired
+   public LoginController(SecurityEngine securityEngine,
+                          CustomThemesManager customThemesManager,
+                          PortalThemesManager portalThemesManager)
+   {
+      this.securityEngine = securityEngine;
+      this.customThemesManager = customThemesManager;
+      this.portalThemesManager = portalThemesManager;
+   }
+
    /**
     * Shows the login page.
     *
@@ -62,8 +72,7 @@ public class LoginController {
       model.addObject("requestedUrl", requestedUrl);
       model.addObject("enterpriseManagerLogin", isEnterpriseManagerRequest(requestedUrl));
 
-      PortalThemesManager manager = PortalThemesManager.getManager();
-      CustomThemesManager themes = CustomThemesManager.getManager();
+      PortalThemesManager manager = portalThemesManager;
       String recordedOrgID = getRecordedOrgId(request);
       recordedOrgID = recordedOrgID == null ? Organization.getDefaultOrganizationID() : recordedOrgID;
       PortalWelcomePage welcomePage = manager.getWelcomePage();
@@ -82,8 +91,8 @@ public class LoginController {
       // this page, but the subsequent requests will be unauthenticated, so if the current user has
       // a theme assigned, it will end up trying to load theme-variables.css from the "default"
       // theme, which doesn't exist. To avoid this, just check if the global theme is custom.
-      boolean isCustomTheme = !Tool.isEmptyString(themes.getSelectedTheme()) &&
-                              !"default".equals(themes.getSelectedTheme());
+      boolean isCustomTheme = !Tool.isEmptyString(customThemesManager.getSelectedTheme()) &&
+                              !"default".equals(customThemesManager.getSelectedTheme());
       model.addObject("customTheme", isCustomTheme);
 
       if(welcomePage != null) {
@@ -122,13 +131,12 @@ public class LoginController {
 
       }
 
-      SecurityEngine security = SecurityEngine.getSecurity();
       model.addObject("locales", localeModels);
 
       model.addObject("loginAs", "on".equals(SreeEnv.getProperty("login.loginAs")));
       model.addObject("selfSignUpEnabled",
-                      security.isSecurityEnabled() && security.isSelfSignupEnabled() &&
-                      LicenseManager.getInstance().isEnterprise());
+                      securityEngine.isSecurityEnabled() && securityEngine.isSelfSignupEnabled() &&
+                      LicenseManager.isEnterprise());
       model.addObject("isNotTenantServer", isNotTenantServer(request));
 
       boolean googleSignInEnabled = SreeEnv.getBooleanProperty("security.googleSignIn.enabled");
@@ -170,7 +178,7 @@ public class LoginController {
 
    private boolean isNotTenantServer(HttpServletRequest request) {
       String recordedOrgID = getRecordedOrgId(request);
-      String recordedOrgName = recordedOrgID == null ? null : SecurityEngine.getSecurity().getSecurityProvider().getOrgNameFromID(recordedOrgID);
+      String recordedOrgName = recordedOrgID == null ? null : securityEngine.getSecurityProvider().getOrgNameFromID(recordedOrgID);
 
       return recordedOrgName == null  || Tool.equals(recordedOrgName, Organization.getDefaultOrganizationName());
    }
@@ -202,6 +210,9 @@ public class LoginController {
          (requestedUrl.equals("/em") || requestedUrl.startsWith("/em/"));
    }
 
+   private final SecurityEngine securityEngine;
+   private final CustomThemesManager customThemesManager;
+   private final PortalThemesManager portalThemesManager;
    private static final String ORG_COOKIE = "X-INETSOFT-ORGID";
    public static final String LOGIN_ONLOAD_ERROR = "LOGIN_ONLOAD_ERROR";
    private static final Logger LOG = LoggerFactory.getLogger(LoginController.class);

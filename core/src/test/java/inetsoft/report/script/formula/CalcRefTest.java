@@ -20,9 +20,15 @@ package inetsoft.report.script.formula;
 
 import inetsoft.report.internal.table.*;
 import inetsoft.report.script.viewsheet.CalcTableVSAScriptable;
+import inetsoft.test.*;
 import inetsoft.util.script.FormulaContext;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.Tag;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.awt.*;
 
@@ -30,6 +36,11 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@SreeHome
+@Tag("core")
 public class CalcRefTest {
    private CalcRef calcRef;
    private CalcTableVSAScriptable mockCalcTableVSAScriptable;

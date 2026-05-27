@@ -341,7 +341,7 @@ export namespace TestUtils {
          dateComparisonDefined: false,
          appliedDateComparison: false,
          dateComparisonDescription: "",
-         dataTipOnClick: false
+         dataTipOnClick: false,
       }, createMockVSObjectModel("VSChart", name));
    }
 
@@ -491,7 +491,7 @@ export namespace TestUtils {
          isHighlightCopied: false,
          maxMode: false,
          editedByWizard: false,
-         isTipOnClick: false
+         isTipOnClick: false,
       }, createMockVSObjectModel("VSTable", name));
    }
 
@@ -1312,7 +1312,7 @@ export namespace TestUtils {
          activeFormat: createMockVSFormatModel(),
          roundTopCornersOnly: true,
          roundBottomCornersOnly: false,
-         bottomTabs: false
+         bottomTabs: false,
       }, createMockVSObjectModel("VSTab", name));
    }
 

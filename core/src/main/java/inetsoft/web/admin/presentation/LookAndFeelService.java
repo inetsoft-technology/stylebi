@@ -50,7 +50,7 @@ public class LookAndFeelService {
     * @return LookAndFeelSettingsModel
     */
    public LookAndFeelSettingsModel getModel(Principal principal, boolean globalProperty) {
-      final PortalThemesManager manager = PortalThemesManager.getManager();
+      final PortalThemesManager manager = portalThemesManager;
       manager.loadThemes(); // to get past change listener bug
       final String orgID = OrganizationManager.getInstance().getCurrentOrgID();
 
@@ -153,7 +153,7 @@ public class LookAndFeelService {
       objectType = ActionRecord.OBJECT_TYPE_EMPROPERTY
    )
    public void setModel(LookAndFeelSettingsModel model, Principal principal, boolean globalSettings) throws Exception {
-      PortalThemesManager manager = PortalThemesManager.getManager();
+      PortalThemesManager manager = portalThemesManager;
 
       String sort = model.ascending() ? "Ascending" : "Descending";
       int repoTree = model.repositoryTree() ? 0 : 1;
@@ -163,7 +163,6 @@ public class LookAndFeelService {
       manager.setAutoExpand(model.expand());
 
       String dir = "portal";
-      DataSpace dataSpace = DataSpace.getDataSpace();
 
       final boolean defaultViewsheet = model.defaultViewsheet();
       final boolean defaultLogo = model.defaultLogo();
@@ -240,7 +239,7 @@ public class LookAndFeelService {
       objectType = ActionRecord.OBJECT_TYPE_EMPROPERTY
    )
    public void resetSettings(Principal principal, boolean globalSettings) throws Exception {
-      PortalThemesManager manager = PortalThemesManager.getManager();
+      PortalThemesManager manager = portalThemesManager;
       Properties defaultProp = SreeEnv.getDefaultProperties();
 
       if(globalSettings) {
@@ -255,7 +254,6 @@ public class LookAndFeelService {
       }
 
       String dir = "portal";
-      DataSpace dataSpace = DataSpace.getDataSpace();
       setViewsheet(null, dataSpace, dir, principal, globalSettings);
       setLogo(null, dataSpace, dir, principal, globalSettings);
       setFavicon(null, dataSpace, dir, principal, globalSettings);
@@ -268,7 +266,6 @@ public class LookAndFeelService {
          updateFonts(
             Collections.emptyList(), Collections.emptyList(), Collections.emptyList(), Collections.emptyList(),
             true, dataSpace, principal);
-         dataSpace.delete(null, "userformat.xml");
          resetUserFormatFile();
       }
       else {
@@ -289,7 +286,7 @@ public class LookAndFeelService {
       DataSpace space;
 
       try {
-         space = DataSpace.getDataSpace();
+         space = dataSpace;
       }
       catch(Exception ex) {
          LOG.error("Failed to get dataspace", ex);
@@ -312,7 +309,7 @@ public class LookAndFeelService {
                             List<UserFontModel> newFontFaces, boolean defaultFont, DataSpace space, Principal principal)
       throws Exception
    {
-      PortalThemesManager ptm = PortalThemesManager.getManager();
+      PortalThemesManager ptm = portalThemesManager;
       String fontPath = SreeEnv.getProperty("sree.home") + "/portal/font";
 
       if(defaultFont || userFonts.isEmpty()) {
@@ -496,7 +493,7 @@ public class LookAndFeelService {
    }
 
    private void setLogo(FileData logo, DataSpace space, String directory, Principal principal, boolean globalSettings) throws Exception {
-      final PortalThemesManager manager = PortalThemesManager.getManager();
+      final PortalThemesManager manager = portalThemesManager;
       final String orgID = OrganizationManager.getInstance().getCurrentOrgID();
 
       if(logo == null) { // in the case that the logo file does not exist, clear logo
@@ -546,7 +543,7 @@ public class LookAndFeelService {
    }
 
    private void setFavicon(FileData favi, DataSpace space, String directory, Principal principal, boolean globalSettings) throws Exception {
-      final PortalThemesManager manager = PortalThemesManager.getManager();
+      final PortalThemesManager manager = portalThemesManager;
       final String orgID = OrganizationManager.getInstance().getCurrentOrgID();
 
       if(favi != null) {
@@ -596,7 +593,7 @@ public class LookAndFeelService {
    }
 
    private void setViewsheet(FileData vs, DataSpace space, String directory, Principal principal, boolean globalSettings) throws Exception {
-      PortalThemesManager manager = PortalThemesManager.getManager();
+      PortalThemesManager manager = portalThemesManager;
       String cssName = "format.css";
       byte[] cssData;
 
@@ -654,6 +651,10 @@ public class LookAndFeelService {
 
    @Autowired
    private NotificationService notificationService;
+   @Autowired
+   private PortalThemesManager portalThemesManager;
+   @Autowired
+   private DataSpace dataSpace;
 
    private static final Logger LOG = LoggerFactory.getLogger(LookAndFeelService.class);
 }

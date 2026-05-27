@@ -17,11 +17,7 @@
  */
 package inetsoft.web.viewsheet.controller;
 
-import inetsoft.analytic.composition.VSPortalHelper;
-import inetsoft.analytic.composition.ViewsheetService;
-import inetsoft.graph.internal.DimensionD;
 import inetsoft.report.StyleConstants;
-import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.gui.viewsheet.VSFaceUtil;
 import inetsoft.report.gui.viewsheet.VSImageable;
 import inetsoft.report.gui.viewsheet.cylinder.VSCylinder;
@@ -29,16 +25,19 @@ import inetsoft.report.gui.viewsheet.gauge.VSGauge;
 import inetsoft.report.gui.viewsheet.slidingscale.VSSlidingScale;
 import inetsoft.report.gui.viewsheet.thermometer.VSThermometer;
 import inetsoft.uql.asset.AbstractSheet;
-import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
-import inetsoft.uql.viewsheet.vslayout.*;
-import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
-import inetsoft.web.composer.vs.controller.VSLayoutService;
+import inetsoft.util.cachefs.BinaryTransfer;
+import inetsoft.web.service.BinaryTransferService;
 import inetsoft.web.viewsheet.HandleAssetExceptions;
 import inetsoft.web.viewsheet.InGroupedThread;
+import jakarta.servlet.ServletOutputStream;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.tuple.Pair;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -46,8 +45,9 @@ import org.springframework.web.bind.annotation.PathVariable;
 
 import java.awt.*;
 import java.awt.image.BufferedImage;
+import java.io.IOException;
 import java.security.Principal;
-import java.util.Optional;
+import java.util.zip.GZIPOutputStream;
 
 /**
  * This class handles image retrieval from the server.  It was extaccted from
@@ -60,14 +60,15 @@ import java.util.Optional;
 @Controller
 public class GetImageController {
    @Autowired
-   public GetImageController(
-      VSLayoutService vsLayoutService,
-      ViewsheetService viewsheetService,
-      AssemblyImageService imageService)
+   public GetImageController(BinaryTransferService binaryTransferService,
+                             AssemblyImageService imageService,
+                             AssemblyImageServiceProxy imageServiceProxy,
+                             GetImageServiceProxy serviceProxy)
    {
-      this.vsLayoutService = vsLayoutService;
-      this.viewsheetService = viewsheetService;
       this.imageService = imageService;
+      this.binaryTransferService = binaryTransferService;
+      this.imageServiceProxy = imageServiceProxy;
+      this.serviceProxy = serviceProxy;
    }
 
    /**
@@ -92,8 +93,17 @@ public class GetImageController {
       HttpServletRequest request,
       HttpServletResponse response) throws Exception
    {
-      imageService.downloadAssemblyImage(vid, aid, width, height, width, height, svg,
-                                         principal, request, response);
+      vid = Tool.byteDecode(vid);
+
+      String suffix = svg ? ".svg" : ".png";
+
+      response.setHeader("Content-Disposition", "attachment; filename=" + StringUtils.normalizeSpace(aid) + suffix);
+
+      AssemblyImageService.ImageRenderResult result = imageServiceProxy.downloadAssemblyImage(Tool.byteDecode(vid),
+                                                                                              aid, width, height, width,
+                                                                                              height, svg, principal);
+
+      imageService.processImageRenderResult(result, request, response);
    }
 
    /**
@@ -119,8 +129,10 @@ public class GetImageController {
       HttpServletRequest request,
       HttpServletResponse response) throws Exception
    {
-      imageService.processGetAssemblyImage(vid, aid, width, height, 0, 0, null, 0, 0, 0,
-                                           principal, request, response, true, false);
+      vid = Tool.byteDecode(vid);
+      AssemblyImageService.ImageRenderResult result = imageServiceProxy.processGetAssemblyImage(
+         vid, aid, width, height, 0, 0, null, 0, 0, 0, principal, true, false);
+      imageService.processImageRenderResult(result, request, response);
    }
 
    /**
@@ -139,7 +151,9 @@ public class GetImageController {
       HttpServletRequest request,
       HttpServletResponse response) throws Exception
    {
-      imageService.processImageFromHash(vid, hash, principal, request, response);
+      AssemblyImageService.ImageRenderResult result =
+         imageServiceProxy.processImageFromHash(Tool.byteDecode(vid), hash, principal);
+      imageService.processImageRenderResult(result, request, response);
    }
 
    /**
@@ -174,13 +188,12 @@ public class GetImageController {
       HttpServletRequest request,
       HttpServletResponse response) throws Exception
    {
-      VSUtil.globalShareVsRunInHostScope(Tool.byteDecode(vid), principal,
-         () -> {
-            imageService.processGetAssemblyImage(vid, aid, width, height, maxWidth, maxHeight, aname,
-                                           index, row, col, principal, request, response, svg,
-                                           false);
-            return null;
-         });
+         AssemblyImageService.ImageRenderResult result =
+            imageServiceProxy.processGetAssemblyImageInHostScope(Tool.byteDecode(vid), aid, width,
+                                                                 height, maxWidth, maxHeight, aname,
+                                                                 index, row, col, principal, svg,
+                                                                 false);
+         imageService.processImageRenderResult(result, request, response);
    }
 
    /**
@@ -207,108 +220,20 @@ public class GetImageController {
       HttpServletRequest request,
       HttpServletResponse response) throws Exception
    {
-      ViewsheetService vservice = viewsheetService;
-      RuntimeViewsheet rvs = vservice.getViewsheet(Tool.byteDecode(vid), principal);
-      RuntimeViewsheet parentRvs = rvs.getOriginalID() == null ? rvs :
-         vservice.getViewsheet(rvs.getOriginalID(), principal);
-      Viewsheet vs = parentRvs.getViewsheet();
-      AbstractLayout layout;
-      LayoutInfo layoutInfo = vs.getLayoutInfo();
-      assemblyName = Tool.byteDecode(assemblyName);
-      String vslayoutName = layoutName == null ? null : Tool.byteDecode(layoutName);
+      Pair<Boolean, BinaryTransfer> layoutResults = serviceProxy.processGetLayoutImage(Tool.byteDecode(vid), layoutName, region,
+                                                                                       assemblyName, width, height, principal);
 
-      if(Catalog.getCatalog().getString("Print Layout").equals(vslayoutName)) {
-         layout = layoutInfo.getPrintLayout();
-      }
-      else {
-         layout = layoutInfo.getViewsheetLayouts()
-            .stream()
-            .filter(l -> l.getName().equals(vslayoutName))
-            .findFirst()
-            .orElse(null);
+      boolean isSvg = layoutResults.getLeft();
+      byte[] buf = binaryTransferService.getData(layoutResults.getRight());
+
+      if(buf != null && response != null) {
+         response.setContentType(isSvg ? "image/svg+xml" : "image/png");
+         response.getOutputStream().write(buf);
       }
 
-      int layoutRegion;
-
-      switch(region) {
-      case "HEADER":
-         layoutRegion = VSLayoutService.HEADER;
-         break;
-      case "CONTENT":
-         layoutRegion = VSLayoutService.CONTENT;
-         break;
-      default:
-         layoutRegion = VSLayoutService.FOOTER;
+      else if(buf == null) {
+         processGetAssemblyImage(vid, assemblyName, width, height, principal, request, response);
       }
-
-      VSAssembly vsassembly = vs.getAssembly(assemblyName);
-
-      if(layoutRegion == VSLayoutService.CONTENT && vsassembly == null) {
-         return;
-      }
-
-      VSAssembly container = getTopContainer(vsassembly);
-      Optional<VSAssemblyLayout> assemblyLayout = vsLayoutService.findAssemblyLayout(
-         layout, container == null ? assemblyName : container.getAbsoluteName(), layoutRegion);
-
-      if(assemblyLayout.isPresent()) {
-         if(assemblyLayout.get() instanceof VSEditableAssemblyLayout) {
-            //Header or Footer toolbox Image
-            Optional<ImageVSAssemblyInfo> imageVSAssemblyInfo = assemblyLayout
-               .map(l -> (ImageVSAssemblyInfo) ((VSEditableAssemblyLayout) l).getInfo());
-
-            if(imageVSAssemblyInfo.isPresent()) {
-               ImageVSAssemblyInfo imageAssemblyInfo = imageVSAssemblyInfo.get();
-               ImageVSAssembly assembly = new ImageVSAssembly(vs, assemblyName);
-               assembly.setVSAssemblyInfo(imageAssemblyInfo);
-               Dimension pixelSize = imageAssemblyInfo.getPixelSize();
-               DimensionD scale = new DimensionD(width / pixelSize.width,
-                                                 height / pixelSize.height);
-               assembly.setScalingRatio(scale);
-               byte[] buf;
-               String path = assembly.getImage();
-               boolean isSvg = path.toLowerCase().endsWith(".svg");
-
-               if(((ImageVSAssemblyInfo) assembly.getInfo()).isAnimateGIF() || isSvg) {
-                  buf = VSUtil.getVSImageBytes(
-                     null, path, vs, -1, -1, null,
-                     new VSPortalHelper());
-               }
-               else {
-                  BufferedImage image = imageService.getAssemblyImage(assembly);
-                  buf = VSUtil.getImageBytes(image, 72);
-               }
-
-               if(buf != null && response != null) {
-                  response.setContentType(isSvg ? "image/svg+xml" : "image/png");
-                  response.getOutputStream().write(buf);
-               }
-            }
-         }
-         else {
-            //Assembly Image
-            processGetAssemblyImage(vid, assemblyName, width, height, principal, request, response);
-         }
-      }
-   }
-
-   /**
-    * Get the top container of the target assembly.
-    */
-   private VSAssembly getTopContainer(VSAssembly assembly) {
-      if(assembly == null) {
-         return null;
-      }
-
-      VSAssembly topContainer = null;
-      VSAssembly container = assembly.getContainer();
-
-      while(container != null) {
-         topContainer = container;
-         container = container.getContainer();
-      }
-
-      return topContainer;
    }
 
    /**
@@ -370,7 +295,9 @@ public class GetImageController {
       }
    }
 
-   private final VSLayoutService vsLayoutService;
-   private final ViewsheetService viewsheetService;
+   private final BinaryTransferService binaryTransferService;
+   private final AssemblyImageServiceProxy imageServiceProxy;
    private final AssemblyImageService imageService;
+   private final GetImageServiceProxy serviceProxy;
+   private static final Logger LOG = LoggerFactory.getLogger(GetImageController.class);
 }

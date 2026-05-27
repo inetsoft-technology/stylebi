@@ -30,7 +30,7 @@ import { MatSelectModule } from "@angular/material/select";
 import { MatTableModule } from "@angular/material/table";
 import { MatTabsModule } from "@angular/material/tabs";
 import { NoopAnimationsModule } from "@angular/platform-browser/animations";
-import { RouterTestingModule } from "@angular/router/testing";
+import { RouterModule } from "@angular/router";
 import { LoadingSpinnerModule } from "../../../../common/util/loading-spinner/loading-spinner.module";
 import { TableView } from "../../../../common/util/table/table-view.component";
 import { ResourcePermissionModule } from "../../../security/resource-permission/resource-permission.module";
@@ -44,7 +44,7 @@ describe("RepositoryWorksheetSettingsViewComponent", () => {
 
    beforeEach(() => {
       TestBed.configureTestingModule({
-         imports: [HttpClientTestingModule, RouterTestingModule, MatCardModule,
+         imports: [HttpClientTestingModule, RouterModule.forRoot([]), MatCardModule,
             MatButtonModule, MatInputModule, MatSelectModule, NoopAnimationsModule,
             MatOptionModule, MatTabsModule, MatFormFieldModule, FormsModule, ReactiveFormsModule,
             MatRadioModule, MatCheckboxModule, ResourcePermissionModule, LoadingSpinnerModule,

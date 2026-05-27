@@ -1,10 +1,10 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`CalendarActions check status of menu actions and toolbar actions of calendar in composer 1`] = `
-Array [
+[
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -12,7 +12,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -25,8 +25,8 @@ Array [
     "label": [Function],
   },
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -34,7 +34,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -42,7 +42,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -50,7 +50,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -58,7 +58,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -71,8 +71,8 @@ Array [
     "label": [Function],
   },
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -80,7 +80,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -88,7 +88,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -96,7 +96,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -112,10 +112,10 @@ Array [
 `;
 
 exports[`CalendarActions check status of menu actions and toolbar actions of calendar in composer 2`] = `
-Array [
+[
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -128,8 +128,8 @@ Array [
     "label": [Function],
   },
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -137,7 +137,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -145,7 +145,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -153,7 +153,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -161,7 +161,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -169,7 +169,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -182,8 +182,8 @@ Array [
     "label": [Function],
   },
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "childAction": [Function],
         "enabled": [Function],
@@ -200,10 +200,10 @@ Array [
 `;
 
 exports[`CalendarActions check status of menu actions and toolbar actions of calendar in viewer and preview 1`] = `
-Array [
+[
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -211,7 +211,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -224,8 +224,8 @@ Array [
     "label": [Function],
   },
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -233,7 +233,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -241,7 +241,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -249,7 +249,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -257,7 +257,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -270,8 +270,8 @@ Array [
     "label": [Function],
   },
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -279,7 +279,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -287,7 +287,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -295,7 +295,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -311,10 +311,10 @@ Array [
 `;
 
 exports[`CalendarActions check status of menu actions and toolbar actions of calendar in viewer and preview 2`] = `
-Array [
+[
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -327,8 +327,8 @@ Array [
     "label": [Function],
   },
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -336,7 +336,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -344,7 +344,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -352,7 +352,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -360,7 +360,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -368,7 +368,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -381,8 +381,8 @@ Array [
     "label": [Function],
   },
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "childAction": [Function],
         "enabled": [Function],
@@ -399,10 +399,10 @@ Array [
 `;
 
 exports[`CalendarActions check status of menu actions and toolbar actions of calendar in viewer and preview 3`] = `
-Array [
+[
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -410,7 +410,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -423,8 +423,8 @@ Array [
     "label": [Function],
   },
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -432,7 +432,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -440,7 +440,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -448,7 +448,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -456,7 +456,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -469,8 +469,8 @@ Array [
     "label": [Function],
   },
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -478,7 +478,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -486,7 +486,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -494,7 +494,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -510,10 +510,10 @@ Array [
 `;
 
 exports[`CalendarActions check status of menu actions and toolbar actions of calendar in viewer and preview 4`] = `
-Array [
+[
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -526,8 +526,8 @@ Array [
     "label": [Function],
   },
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -535,7 +535,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -543,7 +543,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -551,7 +551,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -559,7 +559,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -567,7 +567,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -580,8 +580,8 @@ Array [
     "label": [Function],
   },
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "childAction": [Function],
         "enabled": [Function],
@@ -598,10 +598,10 @@ Array [
 `;
 
 exports[`CalendarActions check status of toolbar actions of calendar in composer when is dropdown or double calendar 1`] = `
-Array [
+[
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -614,8 +614,8 @@ Array [
     "label": [Function],
   },
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -623,7 +623,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -631,7 +631,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -639,7 +639,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -647,7 +647,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -655,7 +655,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -668,8 +668,8 @@ Array [
     "label": [Function],
   },
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "childAction": [Function],
         "enabled": [Function],
@@ -686,10 +686,10 @@ Array [
 `;
 
 exports[`CalendarActions check status of toolbar actions of calendar in composer when is dropdown or double calendar 2`] = `
-Array [
+[
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -702,8 +702,8 @@ Array [
     "label": [Function],
   },
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -711,7 +711,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -719,7 +719,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -727,7 +727,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -735,7 +735,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -743,7 +743,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -756,8 +756,8 @@ Array [
     "label": [Function],
   },
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "childAction": [Function],
         "enabled": [Function],

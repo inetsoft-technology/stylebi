@@ -39,6 +39,7 @@ import { DropdownOptions } from "../../../widget/fixed-dropdown/dropdown-options
 import { FixedDropdownService } from "../../../widget/fixed-dropdown/fixed-dropdown.service";
 import { AbstractVSActions } from "../../action/abstract-vs-actions";
 import { AssemblyActionFactory } from "../../action/assembly-action-factory.service";
+import { ChartActions } from "../../action/chart-actions";
 import { AddVSObjectCommand } from "../../command/add-vs-object-command";
 import { RefreshEmbeddedVSCommand } from "../../command/refresh-embeddedvs-command";
 import { RefreshVSObjectCommand } from "../../command/refresh-vs-object-command";
@@ -88,6 +89,7 @@ export class VSViewsheet extends NavigationComponent<VSViewsheetModel> implement
    @Output() onOpenHighlightDialog = new EventEmitter<BaseTableModel>();
    @Output() onOpenAnnotationDialog = new EventEmitter<MouseEvent>();
    public vsObjectActions: AbstractVSActions<any>[] = [];
+   contextMenu: ActionsContextmenuComponent;
    preview: boolean;
    composer: boolean;
    href: string;
@@ -175,9 +177,21 @@ export class VSViewsheet extends NavigationComponent<VSViewsheetModel> implement
       // Recreating all actions would break subscriptions held by components (e.g. vs-chart)
       // that subscribed to onAssemblyActionEvent on the old instance.
       const actionMap = new Map<string, AbstractVSActions<any>>();
-      this.vsObjects.forEach((obj, i) => actionMap.set(obj.absoluteName, this.vsObjectActions[i]));
+      this.vsObjects.forEach((obj, i) => {
+         obj.sheetMaxMode = command.model.sheetMaxMode;
+         actionMap.set(obj.absoluteName, this.vsObjectActions[i]);
+      })
       this.vsObjects.sort((a, b) => a.objectFormat.zIndex - b.objectFormat.zIndex);
-      this.vsObjectActions = this.vsObjects.map(model => actionMap.get(model.absoluteName) ?? this.actionFactory.createActions(model));
+      this.vsObjectActions = this.vsObjects.map(model => {
+         let actions = actionMap.get(model.absoluteName) ?? this.actionFactory.createActions(model);
+
+         //ensure contextMenu contains updated actions
+         if(this.contextMenu && this.contextMenu?.assemblyName === actions?.getModel()?.absoluteName) {
+            this.contextMenu.actions = actions.menuActions;
+         }
+
+         return actions;
+      });
 
       this.dataTipService.clearDataTips(command.name);
       this.dataTipService.registerDataTip(command.model.dataTip, command.name);
@@ -241,6 +255,11 @@ export class VSViewsheet extends NavigationComponent<VSViewsheetModel> implement
             this.vsObjects[i] = VSUtil.replaceObject(Tool.clone(this.vsObjects[i]), vsObject);
             this.vsObjectActions[i].updateModel(this.vsObjects[i]);
 
+            //ensure contextMenu contains updated actions
+            if(this.contextMenu && this.contextMenu?.assemblyName === this.vsObjectActions[i]?.getModel()?.absoluteName) {
+               this.contextMenu.actions = this.vsObjectActions[i].menuActions;
+            }
+
             if(!!this.mySelectedAssemblies && this.mySelectedAssemblies.indexOf(this.vsObjects[i].absoluteName) >= 0) {
                const myIndex = this.vsInfo.vsObjects.indexOf(this.model);
                this.onSelectedAssemblyChanged.emit([myIndex, this.vsObjectActions[i], null]);
@@ -277,6 +296,11 @@ export class VSViewsheet extends NavigationComponent<VSViewsheetModel> implement
             object.objectFormat.zIndex = command.zIndexes[i];
             this.vsObjects[idx] = object;
             this.vsObjectActions[idx] = this.actionFactory.createActions(object);
+
+            //ensure contextMenu contains updated actions
+            if(this.contextMenu && this.contextMenu?.assemblyName === this.vsObjectActions[idx]?.getModel()?.absoluteName) {
+               this.contextMenu.actions = this.vsObjectActions[idx].menuActions;
+            }
          }
       }
 
@@ -312,9 +336,10 @@ export class VSViewsheet extends NavigationComponent<VSViewsheetModel> implement
       };
 
       let dropdownRef = this.dropdownService.open(ActionsContextmenuComponent, options);
-      let contextmenu: ActionsContextmenuComponent = dropdownRef.componentInstance;
-      contextmenu.sourceEvent = event;
-      contextmenu.actions = payload.actions.menuActions;
+      this.contextMenu = dropdownRef.componentInstance;
+      this.contextMenu.sourceEvent = event;
+      this.contextMenu.actions = payload.actions.menuActions;
+      this.contextMenu.assemblyName = payload.actions.getModel().absoluteName;
       event.preventDefault();
    }
 

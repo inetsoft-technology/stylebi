@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Component, OnDestroy, OnInit, ViewChild } from "@angular/core";
+import { AfterViewInit, Component, OnDestroy, OnInit, ViewChild } from "@angular/core";
 import { NavigationEnd, Router } from "@angular/router";
 import { Subscription } from "rxjs";
 import {
@@ -33,7 +33,7 @@ import { DataPhysicalModelService } from "./services/data-physical-model.service
    styleUrls: ["./data-tab.component.scss"],
    providers: [RepositoryClientService, DataDetailsPaneService]
 })
-export class DataTabComponent implements OnInit, OnDestroy {
+export class DataTabComponent implements AfterViewInit, OnInit, OnDestroy {
    @ViewChild(SplitPane) splitPane: SplitPane;
 
    readonly INIT_TREE_PANE_SIZE = 25;
@@ -55,6 +55,10 @@ export class DataTabComponent implements OnInit, OnDestroy {
          this.treePaneCollapsed = fullScreen;
          this.updateDataTreePane();
       });
+   }
+
+   ngAfterViewInit(): void {
+      this.updateDataTreePane();
    }
 
    ngOnInit(): void {
@@ -100,6 +104,10 @@ export class DataTabComponent implements OnInit, OnDestroy {
    }
 
    updateDataTreePane(): void {
+      if(!this.splitPane) {
+         return;
+      }
+
       if(!this.treePaneCollapsed) {
          this.splitPane.setSizes([this.treePaneSize, 100 - this.treePaneSize]);
       }

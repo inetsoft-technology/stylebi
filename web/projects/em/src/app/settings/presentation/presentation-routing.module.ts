@@ -16,15 +16,15 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { NgModule } from "@angular/core";
-import { Routes, RouterModule } from "@angular/router";
-import { AuthorizationGuard } from "../../authorization/authorization-guard.service";
+import { RouterModule, Routes } from "@angular/router";
+import { authorizationGuard } from "../../authorization/authorization-guard.service";
 import { PresentationNavViewComponent } from "./presentation-nav-view/presentation-nav-view.component";
-import { PresentationOrgSaveGuard } from "./presentation-settings-view/presentation-org-save-guard";
+import { presentationOrgSaveGuard } from "./presentation-settings-view/presentation-org-save-guard";
 import { PresentationOrgSettingsViewComponent } from "./presentation-settings-view/presentation-org-settings-view.component";
-import { PresentationSaveGuard } from "./presentation-settings-view/presentation-save.guard";
+import { presentationSaveGuard } from "./presentation-settings-view/presentation-save.guard";
 import { PresentationSettingsViewComponent } from "./presentation-settings-view/presentation-settings-view.component";
 import { PresentationThemesViewComponent } from "./presentation-themes-view/presentation-themes-view.component";
-import { ThemesSaveGuard } from "./presentation-themes-view/themes-save.guard";
+import { themesSaveGuard } from "./presentation-themes-view/themes-save.guard";
 
 const routes: Routes = [
    {
@@ -34,8 +34,8 @@ const routes: Routes = [
          {
             path: "settings",
             component: PresentationSettingsViewComponent,
-            canActivate: [AuthorizationGuard],
-            canDeactivate: [PresentationSaveGuard],
+            canActivate: [authorizationGuard],
+            canDeactivate: [presentationSaveGuard],
             data: {
                permissionParentPath: "settings/presentation",
                permissionChild: "settings"
@@ -44,8 +44,8 @@ const routes: Routes = [
          {
             path: "org-settings",
             component: PresentationOrgSettingsViewComponent,
-            canActivate: [AuthorizationGuard],
-            canDeactivate: [PresentationOrgSaveGuard],
+            canActivate: [authorizationGuard],
+            canDeactivate: [presentationOrgSaveGuard],
             data: {
                permissionParentPath: "settings/presentation",
                permissionChild: "org-settings"
@@ -54,8 +54,8 @@ const routes: Routes = [
          {
             path: "themes",
             component: PresentationThemesViewComponent,
-            canActivate: [AuthorizationGuard],
-            canDeactivate: [ThemesSaveGuard],
+            canActivate: [authorizationGuard],
+            canDeactivate: [themesSaveGuard],
             data: {
                permissionParentPath: "settings/presentation",
                permissionChild: "themes"

@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 
 import { SharedLayoutComponent } from "./shared-layout.component";
 
@@ -23,7 +23,7 @@ describe("SharedLayoutComponent", () => {
   let component: SharedLayoutComponent;
   let fixture: ComponentFixture<SharedLayoutComponent>;
 
-  beforeEach(async(() => {
+  beforeEach(waitForAsync(() => {
     TestBed.configureTestingModule({
       declarations: [ SharedLayoutComponent ]
     })

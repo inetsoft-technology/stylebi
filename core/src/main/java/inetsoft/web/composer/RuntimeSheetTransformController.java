@@ -21,7 +21,6 @@ import inetsoft.analytic.composition.ViewsheetEngine;
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeSheet;
 import inetsoft.report.composition.RuntimeViewsheet;
-import inetsoft.sree.AnalyticRepository;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.*;
 import inetsoft.sree.security.IdentityID;
@@ -31,33 +30,44 @@ import inetsoft.uql.asset.sync.*;
 import inetsoft.util.Tool;
 import inetsoft.web.composer.model.RenameEventModel;
 import inetsoft.web.composer.model.TransformFinishedEventModel;
+import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Scope;
-import org.springframework.context.annotation.ScopedProxyMode;
+import org.springframework.context.event.EventListener;
+import org.springframework.messaging.Message;
+import org.springframework.messaging.MessageHeaders;
+import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.messaging.simp.annotation.SubscribeMapping;
+import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.stereotype.Controller;
+import org.springframework.web.socket.messaging.*;
 
 import java.security.Principal;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Controller
-@Scope(value = "websocket", proxyMode = ScopedProxyMode.TARGET_CLASS)
 public class RuntimeSheetTransformController implements MessageListener {
    @Autowired
-   public RuntimeSheetTransformController(AnalyticRepository repository,
-                                          ViewsheetService viewsheetService,
-                                          SimpMessagingTemplate messagingTemplate)
+   public RuntimeSheetTransformController(ViewsheetService viewsheetService,
+                                          SimpMessagingTemplate messagingTemplate,
+                                          RuntimeSheetTransformServiceProxy runtimeSheetTransformService,
+                                          Cluster clusterInstance)
    {
-      this.repository = repository;
       this.viewsheetService = viewsheetService;
       this.messagingTemplate = messagingTemplate;
-      clusterInstance = Cluster.getInstance();
+      this.runtimeSheetTransformService = runtimeSheetTransformService;
+      this.clusterInstance = clusterInstance;
+   }
+
+   @PostConstruct
+   public void addListener() {
+      clusterInstance.addMessageListener(this);
    }
 
    @PreDestroy
-   public void preDestroy() {
+   public void removeListener() {
       clusterInstance.removeMessageListener(this);
    }
 
@@ -72,14 +82,12 @@ public class RuntimeSheetTransformController implements MessageListener {
          return;
       }
 
-      String currOrgID = getSubscriberOrgID();
-
       if(event.getMessage() instanceof ViewsheetBookmarkChangedEvent bkChangedEvent) {
          AssetEntry asset = bkChangedEvent.getAssetEntry();
          String id = bkChangedEvent.rvsID;
          viewsheetService.updateBookmarks(asset);
 
-         if(Tool.equals(currOrgID, bkChangedEvent.orgID) && bkChangedEvent.deleted) {
+         if(bkChangedEvent.deleted) {
             String bookmark = ((ViewsheetBookmarkChangedEvent) event.getMessage()).bookmark;
             handleMessageForBookmarks(asset, id, bookmark, true);
          }
@@ -90,10 +98,7 @@ public class RuntimeSheetTransformController implements MessageListener {
             handleRenameBookmark(asset, id, oname, nname, owner);
          }
       }
-      else if(event.getMessage() instanceof RenameTransformFinishedEvent finshedEvent &&
-         Tool.equals(currOrgID, finshedEvent.getOrgID()))
-      {
-         RenameTransformFinishedEvent renameEvent = (RenameTransformFinishedEvent) event.getMessage();
+      else if(event.getMessage() instanceof RenameTransformFinishedEvent renameEvent) {
          AssetObject asset = renameEvent.getEntry();
          RenameDependencyInfo dependencyInfo = renameEvent.getDependencyInfo();
          List<RenameInfo> infos = dependencyInfo.getRenameInfo(asset);
@@ -102,18 +107,15 @@ public class RuntimeSheetTransformController implements MessageListener {
             handleMessageForAssets((AssetEntry) asset, infos, renameEvent.isReload());
          }
       }
-      else if(event.getMessage() instanceof RenameSheetEvent) {
-         RenameSheetEvent renameEvent = (RenameSheetEvent) event.getMessage();
+      else if(event.getMessage() instanceof RenameSheetEvent renameEvent) {
          AssetObject asset = renameEvent.getEntry();
 
          if(asset instanceof AssetEntry) {
             handleSheetChangeMessageForWs((AssetEntry) asset, renameEvent.getRenameInfo());
          }
       }
-      else if(event.getMessage() instanceof TransformAssetFinishedEvent finishedEvent &&
-         Tool.equals(currOrgID, finishedEvent.getOrgID()))
-      {
-         handleAssetTransformFinished((TransformAssetFinishedEvent) event.getMessage());
+      else if(event.getMessage() instanceof TransformAssetFinishedEvent finishedEvent) {
+         handleAssetTransformFinished(finishedEvent);
       }
    }
 
@@ -133,26 +135,31 @@ public class RuntimeSheetTransformController implements MessageListener {
          return;
       }
 
-      for(int i = 0; i < sheets.length; i++) {
-         RuntimeSheet rs = sheets[i];
-
-         if(Tool.equals(rs.getEntry(), event.getEntry())); {
-            sendTransformFinsihedMessage(rs.getID());
+      for(RuntimeSheet rs : sheets) {
+         if(Tool.equals(rs.getEntry(), event.getEntry())) {
+            sendTransformFinsihedMessage(rs.getID(), event.getOrgID());
          }
       }
    }
 
-   private void sendTransformFinsihedMessage(String id) {
-      messagingTemplate.convertAndSendToUser(destination, "/transform-finished",
-         new TransformFinishedEventModel(id));
+   private boolean isSameOrgId(String orgId, Principal principal) {
+      return Objects.equals(orgId, OrganizationManager.getInstance().getCurrentOrgID(principal));
+   }
+
+   private void sendTransformFinsihedMessage(String id, String orgId) {
+      for(Principal subscription : subscriptions.values()) {
+         if(isSameOrgId(orgId, subscription)) {
+            messagingTemplate.convertAndSendToUser(
+               SUtil.getUserDestination(subscription), "/transform-finished",
+               new TransformFinishedEventModel(id));
+         }
+      }
    }
 
    private void handleMessageForAssets(AssetEntry entry, List<RenameInfo> infos, boolean reload) {
       RuntimeSheet[] sheets = null;
 
-      if(viewsheetService instanceof ViewsheetEngine) {
-         ViewsheetEngine engine = (ViewsheetEngine) viewsheetService;
-
+      if(viewsheetService instanceof ViewsheetEngine engine) {
          if(entry.isWorksheet()) {
             sheets = engine.getAllRuntimeWorksheetSheets();
          }
@@ -173,12 +180,12 @@ public class RuntimeSheetTransformController implements MessageListener {
               });
    }
 
-   private void handleMessageForBookmarks(AssetEntry entry, String id, String bookmark, boolean reload) {
+   private void handleMessageForBookmarks(AssetEntry entry, String id, String bookmark,
+                                          boolean reload)
+   {
       RuntimeViewsheet[] sheets = null;
 
-      if(viewsheetService instanceof ViewsheetEngine) {
-         ViewsheetEngine engine = (ViewsheetEngine) viewsheetService;
-
+      if(viewsheetService instanceof ViewsheetEngine engine) {
          if(entry.isViewsheet()) {
             sheets = engine.getAllRuntimeViewsheets();
          }
@@ -199,17 +206,20 @@ public class RuntimeSheetTransformController implements MessageListener {
                .reload(reload)
                .entry(entry)
                .build();
-            messagingTemplate.convertAndSendToUser(destination, "/dependency-changed", model);
+
+            for(Principal subscription : subscriptions.values()) {
+               messagingTemplate.convertAndSendToUser(
+                  SUtil.getUserDestination(subscription), "/dependency-changed", model);
+            }
          });
    }
 
    private void handleRenameBookmark(AssetEntry entry, String id, String oname, String nname,
-                                          IdentityID owner) {
+                                     IdentityID owner)
+   {
       RuntimeViewsheet[] sheets = null;
 
-      if(viewsheetService instanceof ViewsheetEngine) {
-         ViewsheetEngine engine = (ViewsheetEngine) viewsheetService;
-
+      if(viewsheetService instanceof ViewsheetEngine engine) {
          if(entry.isViewsheet()) {
             sheets = engine.getAllRuntimeViewsheets();
          }
@@ -219,9 +229,7 @@ public class RuntimeSheetTransformController implements MessageListener {
          return;
       }
 
-      for(int i = 0; i < sheets.length; i++) {
-         RuntimeViewsheet sheet = sheets[i];
-
+      for(RuntimeViewsheet sheet : sheets) {
          if(Tool.equals(entry, sheet.getEntry()) && !Tool.equals(sheet.getID(), id)) {
             if(sheet.getOpenedBookmark() != null &&
                Tool.equals(oname, sheet.getOpenedBookmark().getName()))
@@ -242,8 +250,7 @@ public class RuntimeSheetTransformController implements MessageListener {
    private void handleSheetChangeMessageForWs(AssetEntry entry, RenameInfo renameInfo) {
       RuntimeSheet[] sheets = null;
 
-      if(viewsheetService instanceof ViewsheetEngine) {
-         ViewsheetEngine engine = (ViewsheetEngine) viewsheetService;
+      if(viewsheetService instanceof ViewsheetEngine engine) {
 
          if(entry.isWorksheet()) {
             sheets = engine.getAllRuntimeWorksheetSheets();
@@ -257,20 +264,22 @@ public class RuntimeSheetTransformController implements MessageListener {
       List<AssetEntry> entryList = new ArrayList<>();
 
 
-      for(int i = 0; i < sheets.length; i++) {
-         entryList.add(sheets[i].getEntry());
+      for(RuntimeSheet runtimeSheet : sheets) {
+         entryList.add(runtimeSheet.getEntry());
       }
 
       List<AssetObject> depAssets = DependencyTransformer.getDependencies(entry.toIdentifier());
 
       if(entry.isWorksheet() && (depAssets.isEmpty() ||
-         !depAssets.stream().anyMatch(depAsset -> entryList.contains(depAsset)))) {
+         depAssets.stream().noneMatch(entryList::contains)))
+      {
 
          Arrays.stream(sheets).filter(sheet -> isChangeInfo(sheet, renameInfo.getOldName()))
             .forEach(sheet -> {
                ArrayList<RenameInfo> renameInfos = new ArrayList<>();
                renameInfos.add(renameInfo);
-               viewsheetService.updateRenameInfos(sheet.getID(), sheet.getEntry(), renameInfos);
+               runtimeSheetTransformService.updateRenameInfos(sheet.getID(),
+                                                              sheet.getEntry(), renameInfos);
                sendMessage(sheet.getID(), sheet.getEntry(), false);
             });
       }
@@ -293,7 +302,7 @@ public class RuntimeSheetTransformController implements MessageListener {
    }
 
    private void sendMessage(String id, AssetEntry entry, boolean reload) {
-      if(entry == null || !Tool.equals(getSubscriberOrgID(), entry.getOrgID())) {
+      if(entry == null) {
          return;
       }
 
@@ -302,24 +311,42 @@ public class RuntimeSheetTransformController implements MessageListener {
          .reload(reload)
          .entry(entry)
          .build();
-      messagingTemplate.convertAndSendToUser(destination, "/dependency-changed", model);
+
+      for(Principal subscription : subscriptions.values()) {
+         if(isSameOrgId(entry.getOrgID(), subscription)) {
+            messagingTemplate.convertAndSendToUser(
+               SUtil.getUserDestination(subscription), "/dependency-changed", model);
+         }
+      }
    }
 
    @SubscribeMapping("/dependency-changed")
-   public void subscribeToDependency(Principal principal) {
-      this.principal = principal;
-      destination = SUtil.getUserDestination(principal);
-      clusterInstance.addMessageListener(this);
+   public void subscribeToDependency(StompHeaderAccessor header, Principal principal) {
+      final MessageHeaders messageHeaders = header.getMessageHeaders();
+      final String sessionId =
+         (String) messageHeaders.get(SimpMessageHeaderAccessor.SESSION_ID_HEADER);
+      subscriptions.put(sessionId, principal);
    }
 
-   private String getSubscriberOrgID() {
-      return OrganizationManager.getInstance().getCurrentOrgID(principal);
+   @EventListener(SessionDisconnectEvent.class)
+   public void handleDisconnect(SessionDisconnectEvent event) {
+      removeSubscription(event);
    }
 
-   private String destination;
-   private Principal principal;
-   private Cluster clusterInstance;
-   private AnalyticRepository repository;
-   private ViewsheetService viewsheetService;
-   private SimpMessagingTemplate messagingTemplate;
+   private void removeSubscription(AbstractSubProtocolEvent event) {
+      final Message<byte[]> message = event.getMessage();
+      final MessageHeaders headers = message.getHeaders();
+      final String sessionId =
+         (String) headers.get(SimpMessageHeaderAccessor.SESSION_ID_HEADER);
+
+      if(sessionId != null) {
+         subscriptions.remove(sessionId);
+      }
+   }
+
+   private final Cluster clusterInstance;
+   private final ViewsheetService viewsheetService;
+   private final SimpMessagingTemplate messagingTemplate;
+   private final RuntimeSheetTransformServiceProxy runtimeSheetTransformService;
+   private final Map<String, Principal> subscriptions = new ConcurrentHashMap<>();
 }

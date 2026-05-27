@@ -58,7 +58,7 @@ export class ComposerClientService {
    private subscribe(): void {
       this.connection.subscribe("/user/composer-client", (message) => {
          this.zone.run(() => {
-            let event: any = JSON.parse(message.frame.body);
+            let event: any = !!message.frame.body ? JSON.parse(message.frame.body) : null;
             this.editComposerAssetSubject.next(event);
          });
       });

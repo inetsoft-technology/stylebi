@@ -19,7 +19,7 @@ package inetsoft.web.portal.data;
 
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
-import inetsoft.uql.XFactory;
+import inetsoft.uql.XDataSource;
 import inetsoft.uql.XRepository;
 import inetsoft.uql.service.XEngine;
 import inetsoft.uql.util.XUtil;
@@ -29,6 +29,7 @@ import inetsoft.web.admin.content.repository.DataSourceSettingsModel;
 import inetsoft.web.admin.content.repository.DatabaseDatasourcesService;
 import inetsoft.web.admin.security.ConnectionStatus;
 import inetsoft.web.factory.RemainingPath;
+import inetsoft.web.portal.controller.database.DataSourceService;
 import inetsoft.web.portal.controller.database.DatabaseModelBrowserService;
 import inetsoft.web.portal.model.database.StringWrapper;
 import inetsoft.web.portal.model.database.events.CheckDependenciesEvent;
@@ -45,11 +46,15 @@ public class DatabaseDatasourcesController {
    @Autowired
    public DatabaseDatasourcesController(DatabaseDatasourcesService databaseDatasourcesService,
                                         DatabaseModelBrowserService databaseModelBrowserService,
-                                        DataModelFolderManagerService folderManagerService)
+                                        DataModelFolderManagerService folderManagerService,
+                                        DataSourceService dataSourceService,
+                                        XRepository xRepository)
    {
       this.databaseDatasourcesService = databaseDatasourcesService;
       this.databaseModelBrowserService = databaseModelBrowserService;
       this.folderManagerService = folderManagerService;
+      this.dataSourceService = dataSourceService;
+      this.xRepository = xRepository;
    }
 
 
@@ -120,13 +125,15 @@ public class DatabaseDatasourcesController {
    @GetMapping("/api/portal/data/datasource/refresh-metadata")
    public boolean refreshMetadata(@RequestParam("dataSource") String dataSource) {
       try {
-         XRepository repository = XFactory.getRepository();
+         if(dataSource != null && xRepository instanceof XEngine) {
+            xRepository.refreshMetaData(dataSource);
+            XDataSource ds = xRepository.getDataSource(dataSource);
 
-         if(dataSource != null && repository instanceof XEngine) {
-            repository.refreshMetaData(dataSource);
+            if(ds != null) {
+               dataSourceService.removeDefaultMetaDataProviderCache(ds);
+            }
          }
 
-         XFactory.clear();
          return true;
       }
       catch(Exception ignored) {
@@ -173,7 +180,7 @@ public class DatabaseDatasourcesController {
     * @throws Exception if the repository could not be obtained.
     */
    protected XRepository getXRepository() throws Exception {
-      return XFactory.getRepository();
+      return xRepository;
    }
 
    /**
@@ -277,4 +284,6 @@ public class DatabaseDatasourcesController {
    private final DatabaseDatasourcesService databaseDatasourcesService;
    private final DatabaseModelBrowserService databaseModelBrowserService;
    private final DataModelFolderManagerService folderManagerService;
+   private final DataSourceService dataSourceService;
+   private final XRepository xRepository;
 }

@@ -697,8 +697,8 @@ public final class RecycleUtils {
       throws Exception
    {
       return SUtil.isMyReport(name) ?
-         RepletRegistry.getRegistry(owner) :
-         RepletRegistry.getRegistry();
+         RepletRegistryManager.getInstance().getRegistry(owner) :
+         RepletRegistryManager.getInstance().getRegistry();
    }
 
    /**

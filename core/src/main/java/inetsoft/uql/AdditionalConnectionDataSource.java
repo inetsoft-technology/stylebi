@@ -133,7 +133,7 @@ public abstract class AdditionalConnectionDataSource<SELF extends AdditionalConn
       XRepository repository;
 
       try {
-         repository = XFactory.getRepository();
+         repository = XRepository.getRepository();
 
          if(repository instanceof XEngine) {
             ((XEngine) repository).removeMetaDataFiles(getFullName() + "^_^" + name);

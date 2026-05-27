@@ -17,17 +17,25 @@
  */
 package inetsoft.uql;
 
+import com.fasterxml.jackson.core.*;
+import com.fasterxml.jackson.databind.*;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.fasterxml.jackson.databind.deser.std.StdDeserializer;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.fasterxml.jackson.databind.ser.std.StdSerializer;
 import inetsoft.sree.schedule.ScheduleParameterScope;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.SRPrincipal;
 import inetsoft.uql.schema.*;
 import inetsoft.uql.util.XUtil;
 import inetsoft.util.*;
+import org.immutables.serial.Serial;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.PrintWriter;
-import java.io.Serializable;
+import java.io.*;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -41,6 +49,9 @@ import java.util.concurrent.ConcurrentHashMap;
  * @version 5.1, 9/20/2003
  * @author InetSoft Technology Corp
  */
+@JsonSerialize(using = VariableTable.Serializer.class)
+@JsonDeserialize(using = VariableTable.Deserializer.class)
+@Serial.Structural
 public class VariableTable implements ContentObject, Serializable, Cloneable {
    /**
     * The name for the HttpServletRequest parameter. This parameter is
@@ -116,11 +127,7 @@ public class VariableTable implements ContentObject, Serializable, Cloneable {
     * Copy the parameters set in user principal.
     */
    public void copyParameters(XPrincipal user) {
-      Enumeration params = user.getParameterNames();
-
-      while(params.hasMoreElements()) {
-         String name = (String) params.nextElement();
-
+      for(String name : user.getParameterNames()) {
          // parameters in user should have a lower priority than variables
          // set in the onload or defined in report
          // if parameter in principal changed from the last time the values
@@ -893,4 +900,134 @@ public class VariableTable implements ContentObject, Serializable, Cloneable {
    private long copyParameterTS = 0;
 
    private static final Logger LOG = LoggerFactory.getLogger(VariableTable.class);
+
+   public static final class Serializer extends StdSerializer<VariableTable> {
+      public Serializer() {
+         super(VariableTable.class);
+      }
+
+      @Override
+      public void serialize(VariableTable table, JsonGenerator generator,
+                            SerializerProvider provider) throws IOException
+      {
+         generator.writeStartObject();
+
+         if(table.session == null) {
+            generator.writeNullField("session");
+         }
+         else {
+            generator.writeStringField("session", String.valueOf(table.session));
+         }
+
+         if(table.vartable != null) {
+            generator.writeObjectFieldStart("vartable");
+
+            for(Map.Entry<String, Object> entry : table.vartable.entrySet()) {
+               if(entry.getValue() == null) {
+                  generator.writeNullField(entry.getKey());
+               }
+               else {
+                  generator.writeObjectFieldStart(entry.getKey());
+                  generator.writeStringField("type", entry.getValue().getClass().getName());
+                  generator.writeObjectField("value", entry.getValue());
+                  generator.writeEndObject();
+               }
+            }
+
+            generator.writeEndObject(); // vartable
+         }
+         else {
+            generator.writeNullField("vartable");
+         }
+
+         generator.writeArrayFieldStart("notIgnoreNull");
+         Set<String> notIgnoreNull = table.notIgnoreNull;
+
+         for(String value : notIgnoreNull) {
+            generator.writeString(value);
+         }
+
+         generator.writeEndArray(); // notIgnoreNull
+
+         Set<String> asIs = table.asIs;
+
+         if(asIs != null && !asIs.isEmpty()) {
+            generator.writeArrayFieldStart("asIs");
+
+            for(String value : asIs) {
+               generator.writeString(value);
+            }
+
+            generator.writeEndArray(); // asIs
+         }
+
+         generator.writeObjectField("basetable", table.basetable);
+         generator.writeBooleanField("runtimeValue", table.runtimeValue);
+         generator.writeNumberField("copyParameterTS", table.copyParameterTS);
+         generator.writeEndObject();
+      }
+   }
+
+   public static final class Deserializer extends StdDeserializer<VariableTable> {
+      public Deserializer() {
+         super(VariableTable.class);
+      }
+
+      @Override
+      public VariableTable deserialize(JsonParser parser, DeserializationContext context)
+         throws IOException, JacksonException
+      {
+         JsonNode node = parser.getCodec().readTree(parser);
+         VariableTable table = new VariableTable();
+         table.session = node.get("session") != null ? node.get("session").asText() : null;
+         ObjectNode object = (ObjectNode) node.get("vartable");
+
+         for(Map.Entry<String, JsonNode> e : object.properties()) {
+            if(e.getValue().isNull()) {
+               table.vartable.put(e.getKey(), null);
+            }
+            else if(e.getValue().get("type") != null) {
+               String type = e.getValue().get("type").asText();
+               Class<?> valueClass;
+
+               try {
+                  valueClass = Class.forName(type);
+               }
+               catch(Exception ex) {
+                  throw new JsonMappingException(parser, "Failed to create class " + type, ex);
+               }
+
+               JsonNode valueNode = e.getValue().get("value");
+               Object value = ((ObjectMapper) parser.getCodec()).convertValue(valueNode, valueClass);
+               table.vartable.put(e.getKey(), value);
+            }
+         }
+
+         ArrayNode array = (ArrayNode) node.get("notIgnoreNull");
+
+         for(JsonNode child : array) {
+            table.notIgnoreNull.add(child.asText());
+         }
+
+         array = (ArrayNode) node.get("asIs");
+
+         if(array != null) {
+            if(table.asIs == null) {
+               table.asIs = new HashSet<>();
+            }
+
+            for(JsonNode child : array) {
+               table.asIs.add(child.asText());
+            }
+         }
+
+         if(!node.get("basetable").isNull()) {
+            table.basetable = ((ObjectMapper) parser.getCodec())
+               .convertValue(node.get("basetable"), VariableTable.class);
+         }
+
+         table.copyParameterTS = node.get("copyParameterTS").asLong();
+         return table;
+      }
+   }
 }

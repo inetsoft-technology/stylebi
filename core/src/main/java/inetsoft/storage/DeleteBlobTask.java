@@ -36,14 +36,12 @@ public class DeleteBlobTask<T extends Serializable> extends BlobTask<T>
    /**
     * Creates a new instance of {@code DeleteBlobTask}.
     *
-    * @param id    the unique identifier of the blob store.
-    * @param key   the path to the file to delete.
-    * @param local if the local engine is being used.
+    * @param id  the unique identifier of the blob store.
+    * @param key the path to the file to delete.
     */
-   public DeleteBlobTask(String id, String key, boolean local) {
+   public DeleteBlobTask(String id, String key) {
       super(id);
       this.key = key;
-      this.local = local;
    }
 
    @Override
@@ -61,9 +59,9 @@ public class DeleteBlobTask<T extends Serializable> extends BlobTask<T>
             boolean exists = refs.remove(key);
 
             if(refs.isEmpty()) {
-               refMap.remove(key);
+               refMap.remove(blob.getDigest());
 
-               if(exists && !local) {
+               if(exists) {
                   BlobEngine.getInstance().delete(getId(), blob.getDigest());
                   Cluster.getInstance()
                      .sendMessage(new ClearBlobCacheMessage(getId(), blob.getDigest()));
@@ -84,5 +82,4 @@ public class DeleteBlobTask<T extends Serializable> extends BlobTask<T>
    }
 
    private final String key;
-   private final boolean local;
 }

@@ -66,6 +66,21 @@ public class XPrincipal implements Principal, Serializable, Cloneable {
    public static final String SYSTEM = "INETSOFT_SYSTEM";
 
    /**
+    * No-arg constructor for Externalizable deserialization only.
+    * Does not call XSessionService to prevent a deadlock when Ignite deserializes
+    * an SRPrincipal on a stripe worker while Spring is still initializing: the
+    * XSessionService lookup acquires Spring's singleton creation lock, which is held
+    * by the main thread waiting for Ignite's partition exchange to complete, causing
+    * a circular deadlock. All fields are populated by the subclass readExternal().
+    */
+   protected XPrincipal() {
+      this.roles = new IdentityID[0];
+      this.groups = new String[0];
+      this.prop = new ConcurrentHashMap<>();
+      this.params = new ConcurrentHashMap<>();
+   }
+
+   /**
     * Creates a new instance of XPrincipal.
     *
     * @param identityID the name of the user.
@@ -81,14 +96,22 @@ public class XPrincipal implements Principal, Serializable, Cloneable {
     * @param roles      the roles assigned to the user.
     */
    public XPrincipal(IdentityID identityID, IdentityID[] roles, String[] groups, String orgId) {
-      this.name = identityID.convertToKey();
+      this.name = identityID != null ? identityID.convertToKey() : null;
       this.roles = roles == null ? new IdentityID[0] : roles;
       this.groups = groups == null ? new String[0] : groups;
-      this.orgId = orgId == null ? identityID.getOrgID() : orgId;
+
+      if(orgId == null) {
+         this.orgId = identityID != null ? identityID.getOrgID() : null;
+      }
+      else {
+         this.orgId = orgId;
+      }
+
       this.sessionID =
-         XSessionService.createSessionID(XSessionService.USER, identityID.convertToKey());
+         XSessionService.getService().createSessionID(XSessionService.USER,
+                                         identityID != null ? identityID.convertToKey() : null);
       this.prop = new ConcurrentHashMap<>();
-      this.params = new Hashtable();
+      this.params = new ConcurrentHashMap<>();
    }
 
    /**
@@ -100,8 +123,8 @@ public class XPrincipal implements Principal, Serializable, Cloneable {
       this.groups = principal.groups.clone();
       this.orgId = principal.orgId;
       this.prop = new ConcurrentHashMap<>(principal.prop);
-      this.params = (Hashtable) principal.params.clone();
-      this.paramTS = (HashMap) principal.paramTS.clone();
+      this.params = new ConcurrentHashMap<>(principal.params);
+      this.paramTS = new ConcurrentHashMap<>(principal.paramTS);
       this.ignoreLogin = principal.ignoreLogin;
       this.sessionID = principal.sessionID;
    }
@@ -224,9 +247,9 @@ public class XPrincipal implements Principal, Serializable, Cloneable {
    /**
     * Get all attribute names.
     */
-   public Enumeration<String> getPropertyNames() {
+   public Set<String> getPropertyNames() {
       // Bug #57296, use JDK enumeration and prevent concurrent modification
-      return Collections.enumeration(new HashSet<>(prop.keySet()));
+      return new HashSet<>(prop.keySet());
    }
 
    /**
@@ -238,13 +261,11 @@ public class XPrincipal implements Principal, Serializable, Cloneable {
     *         otherwise.
     */
    public boolean equals(Object another) {
-      if(!(another instanceof Principal)) {
+      if(!(another instanceof Principal principal)) {
          return false;
       }
 
-      if(another instanceof XPrincipal) {
-         XPrincipal p = (XPrincipal) another;
-
+      if(another instanceof XPrincipal p) {
          if(Identity.UNKNOWN_USER.equals(name)) {
             return Tool.equals(p.getName(), name) &&
                Tool.equals(p.roles, roles) &&
@@ -252,7 +273,7 @@ public class XPrincipal implements Principal, Serializable, Cloneable {
          }
       }
 
-      return ((Principal) another).getName().equals(name);
+      return Objects.equals(getName(), principal.getName());
    }
 
    /**
@@ -366,6 +387,7 @@ public class XPrincipal implements Principal, Serializable, Cloneable {
 
       if(users != null && users.getLength() > 0) {
          name = Tool.getValue(users.item(0));
+         orgId = IdentityID.getIdentityIDFromKey(name).orgID;
       }
 
       Element rsnode = Tool.getChildNodeByTagName(elem, "roles");
@@ -451,12 +473,16 @@ public class XPrincipal implements Principal, Serializable, Cloneable {
     * @param value the value of the parameter.
     */
    public void setParameter(String name, Object value) {
+      setParameter(name, value, System.currentTimeMillis());
+   }
+
+   protected void setParameter(String name, Object value, long ts) {
       if(value == null) {
          params.remove(name);
       }
       else {
          params.put(name, JavaScriptEngine.unwrap(value));
-         paramTS.put(name, System.currentTimeMillis());
+         paramTS.put(name, ts);
       }
    }
 
@@ -484,8 +510,8 @@ public class XPrincipal implements Principal, Serializable, Cloneable {
     * @return all the parameter names.
     * @hidden
     */
-   public Enumeration getParameterNames() {
-      return params.keys();
+   public Set<String> getParameterNames() {
+      return params.keySet();
    }
 
    /**
@@ -616,10 +642,10 @@ public class XPrincipal implements Principal, Serializable, Cloneable {
    protected String orgId;
    protected String sessionID;
    protected Map<String, String> prop;
-   private Hashtable params;
-   private HashMap<String, Long> paramTS = new HashMap<>();
-   private boolean ignoreLogin = false;
-   private boolean profiling = false;
+   protected Map<String, Object> params;
+   protected Map<String, Long> paramTS = new ConcurrentHashMap<>();
+   protected boolean ignoreLogin = false;
+   protected boolean profiling = false;
 
    private static long TIMEOUT = 10000;
    private transient IdentityID[] allRoles;

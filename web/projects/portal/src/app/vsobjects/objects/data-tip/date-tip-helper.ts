@@ -17,6 +17,9 @@
  */
 const POP_UP_BACKGROUND_ZINDEX = 9996;
 const POP_DIM_COLOR: string = "rgba(0, 0, 0, 0.2)";
+// Added to an object's natural z-index to place it above the dim canvas (POP_UP_BACKGROUND_ZINDEX).
+// Must be large enough to exceed POP_UP_BACKGROUND_ZINDEX even from the highest natural z-index.
+const POP_UP_CONTENT_BOOST_ZINDEX = 99999;
 
 export class DateTipHelper {
    public static get popDimColor() {
@@ -29,6 +32,10 @@ export class DateTipHelper {
 
    public static getPopUpSourceZIndex(): number {
       return POP_UP_BACKGROUND_ZINDEX + 1;
+   }
+
+   public static getPopUpContentBoostZIndex(): number {
+      return POP_UP_CONTENT_BOOST_ZINDEX;
    }
 }
 

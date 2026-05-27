@@ -35,6 +35,7 @@ import { CheckFormDataService } from "../../util/check-form-data.service";
 import { FormInputService } from "../../util/form-input.service";
 import { DataTipService } from "../data-tip/data-tip.service";
 import { PopComponentService } from "../data-tip/pop-component.service";
+import { TimerService } from "../data-tip/timer.service";
 import { VSPopComponentDirective } from "../data-tip/vs-pop-component.directive";
 import { VSCheckBox } from "./vs-check-box.component";
 
@@ -48,9 +49,10 @@ describe("vs check box component unit case", () => {
    let dialogService: any;
    let modelService: any;
    let ssoHeartbeatService: any;
+   let timerService: any;
 
    beforeEach(() => {
-      socket = { sendEvent: jest.fn() };
+      socket = {sendEvent: jest.fn()};
       interactService = {
          addInteractable: jest.fn(),
          notify: jest.fn(),
@@ -62,12 +64,17 @@ describe("vs check box component unit case", () => {
          addObject: jest.fn(),
          replaceObject: jest.fn()
       };
-      debounceService = { debounce: jest.fn((key, fn, delay, args) => fn(...args)) };
-      dataTipService = { isDataTip: jest.fn() };
+      debounceService = {debounce: jest.fn((key, fn, delay, args) => fn(...args))};
+      dataTipService = {isDataTip: jest.fn()};
       const contextProvider = {};
-      dialogService = { open: jest.fn() };
-      modelService = { getModel: jest.fn() };
-      ssoHeartbeatService = { heartbeat: jest.fn() };
+      dialogService = {open: jest.fn()};
+      modelService = {getModel: jest.fn()};
+      ssoHeartbeatService = {heartbeat: jest.fn()};
+      timerService = {
+         defer: jest.fn((fn) => {
+            fn();
+         })
+      };
 
       TestBed.configureTestingModule({
          imports: [ReactiveFormsModule, FormsModule, NgbModule, HttpClientTestingModule],
@@ -82,14 +89,15 @@ describe("vs check box component unit case", () => {
             ViewsheetClientService,
             StompClientService,
             PopComponentService,
-            { provide: ContextProvider, useValue: contextProvider },
-            { provide: InteractService, useValue: interactService },
-            { provide: CheckFormDataService, useValue: formDataService },
-            { provide: DebounceService, useValue: debounceService },
-            { provide: DataTipService, useValue: dataTipService },
-            { provide: DialogService, useValue: dialogService },
-            { provide: ModelService, useValue: modelService },
-            { provide: SsoHeartbeatService, useValue: ssoHeartbeatService }
+            {provide: ContextProvider, useValue: contextProvider},
+            {provide: InteractService, useValue: interactService},
+            {provide: CheckFormDataService, useValue: formDataService},
+            {provide: DebounceService, useValue: debounceService},
+            {provide: DataTipService, useValue: dataTipService},
+            {provide: DialogService, useValue: dialogService},
+            {provide: ModelService, useValue: modelService},
+            {provide: SsoHeartbeatService, useValue: ssoHeartbeatService},
+            {provide: TimerService, useValue: timerService},
          ]
       }).compileComponents();
 

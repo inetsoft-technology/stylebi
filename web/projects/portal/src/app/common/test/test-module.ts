@@ -26,10 +26,6 @@ import { DropdownStackService } from "../../widget/fixed-dropdown/dropdown-stack
       FixedDropdownComponent,
       FixedDropdownContextmenuComponent,
    ],
-   entryComponents: [
-      FixedDropdownComponent,
-      FixedDropdownContextmenuComponent
-   ],
    providers: [
       FixedDropdownService,
       DropdownStackService

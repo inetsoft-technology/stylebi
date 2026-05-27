@@ -56,7 +56,8 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
    /**
     * Creates a new instance of {@code BlobIndexedStorage}.
     */
-   public BlobIndexedStorage() {
+   public BlobIndexedStorage(BlobStorageManager blobStorageManager) {
+      this.blobStorageManager = blobStorageManager;
    }
 
    private BlobStorage<Metadata> getMetadataStorage(String orgID) {
@@ -75,8 +76,7 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
       }
 
       String storeID = orgID.toLowerCase() + "__" + "indexedStorage";
-      return SingletonManager.getInstance(BlobStorage.class, storeID,
-                                          true, changeListener);
+      return blobStorageManager.getStorage(storeID, true, changeListener);
    }
    @Override
    public XMLSerializable getXMLSerializable(String key, TransformListener trans) throws Exception {
@@ -398,8 +398,7 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
 
       for(String orgID : provider.getOrganizationIDs()) {
          String storeID = orgID.toLowerCase() + "__" + "indexedStorage";
-         storages.add(SingletonManager.getInstance(BlobStorage.class, storeID,
-                                             true, changeListener));
+         storages.add(blobStorageManager.getStorage(storeID, true, changeListener));
       }
 
       return storages;
@@ -456,7 +455,11 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
    @Override
    public void migrateStorageData(String oname, String nname) throws Exception {
       int numThreads = Runtime.getRuntime().availableProcessors();
-      ExecutorService executor = Executors.newFixedThreadPool(numThreads);
+      ExecutorService executor = Executors.newFixedThreadPool(numThreads, r -> {
+         Thread t = new Thread(r, "BlobStorageMigrateUser");
+         t.setDaemon(true);
+         return t;
+      });
       Organization currOrg = SecurityEngine.getSecurity().getSecurityProvider()
                               .getOrganization(OrganizationManager.getInstance().getCurrentOrgID());
 
@@ -595,7 +598,11 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
       String nId = norg instanceof Organization ? ((Organization) norg).getId() :
          OrganizationManager.getInstance().getCurrentOrgID();
       int numThreads = Runtime.getRuntime().availableProcessors();
-      ExecutorService executor = Executors.newFixedThreadPool(numThreads);
+      ExecutorService executor = Executors.newFixedThreadPool(numThreads, r -> {
+         Thread t = new Thread(r, "BlobStorageMigrateOrg");
+         t.setDaemon(true);
+         return t;
+      });
 
       for(String key : getKeys(null, oId)) {
          final AssetEntry entry = AssetEntry.createAssetEntry(key);
@@ -615,22 +622,25 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
          else if(entry.isDomain()) {
             executor.submit(() -> new MigrateCubeTask(entry, oorg, norg).process());
          }
-         else if(entry.isScheduleTask() && !ScheduleManager.isInternalTask(entry.getName())) {
-            XMLSerializable result = getXMLSerializable(key, null, oId);
+         else if(entry.isScheduleTask()) {
+            //ignore internal tasks, but do not let them pass to be generically handled
+            if(!ScheduleManager.isInternalTask(entry.getName())) {
+               XMLSerializable result = getXMLSerializable(key, null, oId);
 
-            if(result instanceof ScheduleTask) {
-               ScheduleTask task = (ScheduleTask) result;
-               boolean usedTimeRange = task.getConditionStream()
-                  .filter(cond -> cond instanceof TimeCondition && ((TimeCondition) cond).getTimeRange() != null)
-                  .findFirst()
-                  .isPresent();
+               if(result instanceof ScheduleTask) {
+                  ScheduleTask task = (ScheduleTask) result;
+                  boolean usedTimeRange = task.getConditionStream()
+                     .filter(cond -> cond instanceof TimeCondition && ((TimeCondition) cond).getTimeRange() != null)
+                     .findFirst()
+                     .isPresent();
 
-               if(usedTimeRange) {
-                  continue;
+                  if(usedTimeRange) {
+                     continue;
+                  }
                }
-            }
 
-            executor.submit(() -> new MigrateScheduleTask(entry, oorg, norg).process());
+               executor.submit(() -> new MigrateScheduleTask(entry, oorg, norg).process());
+            }
          }
          else if(entry.getType() == AssetEntry.Type.MV_DEF || entry.getType() == AssetEntry.Type.MV_DEF_FOLDER) {
             // done by mv manager.
@@ -643,7 +653,10 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
                AssetFolder folder = (AssetFolder) data;
 
                for(AssetEntry folderEntry : folder.getEntries()) {
-                  newEntries.add(folderEntry.cloneAssetEntry((Organization) norg));
+                  if(!ScheduleManager.isInternalTask(folderEntry.getName())) {
+                     newEntries.add(folderEntry.cloneAssetEntry((Organization) norg));
+                  }
+
                   folder.removeEntry(folderEntry);
                }
 
@@ -684,11 +697,12 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
 
    @Override
    public void removeStorage(String orgID) throws Exception  {
+      cachedOrgIDs.remove(orgID);
       BlobStorage<Metadata> metadataStorage = getMetadataStorage(orgID);
       metadataStorage.deleteBlobStorage();
-      cachedOrgIDs.remove(orgID);
    }
 
+   private final BlobStorageManager blobStorageManager;
    private Set<String> cachedOrgIDs = new HashSet<>();
    private static final Logger LOG = LoggerFactory.getLogger(BlobIndexedStorage.class);
 

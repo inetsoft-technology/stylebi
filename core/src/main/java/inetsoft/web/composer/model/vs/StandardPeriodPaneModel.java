@@ -21,7 +21,9 @@ import inetsoft.uql.XConstants;
 import inetsoft.uql.viewsheet.internal.DateComparisonPeriods;
 import inetsoft.uql.viewsheet.internal.StandardPeriods;
 
-public class StandardPeriodPaneModel {
+import java.io.Serializable;
+
+public class StandardPeriodPaneModel implements Serializable {
    public StandardPeriodPaneModel() {
       super();
    }

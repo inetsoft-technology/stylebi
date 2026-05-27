@@ -93,7 +93,7 @@ public class ComponentAuthorizationController {
 
    private boolean checkPermission(String resource, Principal principal) {
       boolean authorized = false;
-      boolean enterprise = LicenseManager.getInstance().isEnterprise();
+      boolean enterprise = LicenseManager.isEnterprise();
 
       try {
          if(securityEngine.checkPermission(

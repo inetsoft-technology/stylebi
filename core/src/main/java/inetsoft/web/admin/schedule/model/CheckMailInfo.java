@@ -21,27 +21,16 @@ import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import org.immutables.value.Value;
 
-import javax.annotation.Nullable;
-
 @Value.Immutable
 @JsonSerialize(as = ImmutableCheckMailInfo.class)
 @JsonDeserialize(as = ImmutableCheckMailInfo.class)
 public abstract class CheckMailInfo {
-   @Nullable
-   public abstract String sourceInfo();
-
-   @Nullable
-   public abstract String userColumn();
-
-   @Nullable
-   public abstract String emailColumn();
-
    @Value.Default
    public String toAddresses() {
       return "";
    }
 
-   @Nullable
+   @javax.annotation.Nullable
    public abstract String resultMessage();
 
    public static CheckMailInfo.Builder builder() {

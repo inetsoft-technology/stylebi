@@ -59,7 +59,7 @@ public interface UserSessionMonitoringTableModel {
    }
 
    class Builder extends ImmutableUserSessionMonitoringTableModel.Builder {
-      public Builder from(SessionModel info, boolean lastAccessEnabled, Catalog catalog) {
+      public Builder from(SessionModel info, boolean lastAccessEnabled) {
          sessionID(info.id());
          sessionLabel(IdentityID.getIdentityIDFromKey(info.id()).name);
          user(info.user().name);
@@ -67,12 +67,10 @@ public interface UserSessionMonitoringTableModel {
          age(Util.formatAge(new Date(info.dateCreated()), false));
          accessed(lastAccessEnabled ? Util.formatAge(new Date(info.dateAccessed()), false) : null);
          roles(info.roles().stream()
-                  .map(r -> catalog.getString(r.getName()))
+                  .map(IdentityID::getName)
                   .collect(Collectors.joining(", ")));
-         groups(info.groups().stream()
-                   .map(catalog::getString)
-                   .collect(Collectors.joining(", ")));
-         organization(catalog.getString(info.organization()));
+         groups(String.join(", ", info.groups()));
+         organization(info.organization());
          userName(info.user().name);
 
          return this;

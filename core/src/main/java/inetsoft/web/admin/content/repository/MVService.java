@@ -24,12 +24,15 @@ import inetsoft.mv.fs.*;
 import inetsoft.sree.RepositoryEntry;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.DataCycleManager;
+import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.*;
+import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.util.Identity;
-import inetsoft.util.Catalog;
-import inetsoft.util.Tool;
+import inetsoft.util.*;
+import inetsoft.util.audit.ActionRecord;
+import inetsoft.util.audit.Audit;
 import inetsoft.web.admin.content.repository.model.*;
 import inetsoft.web.admin.model.NameLabelTuple;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -46,9 +49,193 @@ import static inetsoft.web.admin.schedule.ScheduleCycleService.getCyclePermissio
 @Service
 public class MVService {
    @Autowired
-   public MVService(ContentRepositoryTreeService treeService, MVSupportService support) {
+   public MVService(ContentRepositoryTreeService treeService, MVSupportService support,
+                    Cluster cluster, MVManager mvManager, DataCycleManager dataCycleManager,
+                    SecurityEngine securityEngine, MVStorage mvStorage)
+   {
       this.treeService = treeService;
       this.support = support;
+      this.cluster = cluster;
+      this.mvManager = mvManager;
+      this.dataCycleManager = dataCycleManager;
+      this.securityEngine = securityEngine;
+      this.mvStorage = mvStorage;
+      createMVMap = cluster.getMap(CREATE_MV_STATUS_MAP);
+      updateMVMap = cluster.getMap(UPDATE_MV_STATUS_MAP);
+   }
+
+   public CreateMVResponse create(String createId, String analysisId,
+                                  CreateUpdateMVRequest createUpdateMVRequest,
+                                  Principal principal)
+      throws Throwable
+   {
+      if(createId != null) {
+         CreateMVResponse createMVResponse = createMVMap.get(createId);
+
+         if(createMVResponse != null) {
+            if(createMVResponse.complete()) {
+               createMVMap.remove(createId);
+            }
+
+            if(createMVResponse.failed()) {
+               throw new RuntimeException(createMVResponse.error());
+            }
+
+            return createMVResponse;
+         }
+      }
+
+      if(createId == null) {
+         create0(analysisId, createUpdateMVRequest, principal);
+         return CreateMVResponse.builder().complete(true).build();
+      }
+      else if(createMVMap.get(createId) == null) {
+         createMVMap.put(createId, CreateMVResponse.builder().complete(false).build());
+         ThreadPool.addOnDemand(() -> {
+            Principal oPrincipal = ThreadContext.getPrincipal();
+            ThreadContext.setPrincipal(principal);
+
+            try {
+               create0(analysisId, createUpdateMVRequest, principal);
+               createMVMap.put(createId, CreateMVResponse.builder().complete(true).build());
+            }
+            catch(Throwable e) {
+               createMVMap.put(createId, CreateMVResponse.builder()
+                  .complete(true)
+                  .failed(true)
+                  .error(e.getMessage())
+                  .build());
+            }
+            finally {
+               ThreadContext.setPrincipal(oPrincipal);
+
+               try {
+                  Thread.sleep(20_000);
+                  createMVMap.remove(createId);
+               }
+               catch(InterruptedException ignore) {
+               }
+            }
+         });
+      }
+
+      return CreateMVResponse.builder().complete(false).build();
+   }
+
+   public void create0(String analysisId, CreateUpdateMVRequest createUpdateMVRequest,
+                       Principal principal)
+      throws Throwable
+   {
+      ActionRecord actionRecord = SUtil.getActionRecord(
+         principal, ActionRecord.ACTION_NAME_CREATE,
+         (DataCycleManager.TASK_PREFIX + createUpdateMVRequest.cycle()).trim(),
+         ActionRecord.OBJECT_TYPE_TASK);
+
+      try {
+         IdentityID user = IdentityID.getIdentityIDFromKey(principal.getName());
+
+         if(createUpdateMVRequest.runInBackground() && cluster.isSchedulerRunning() &&
+            !SUtil.getRepletRepository().checkPermission(
+               principal, ResourceType.SCHEDULER, "*", ResourceAction.ACCESS))
+         {
+            throw new RuntimeException("User '" + user.getName() + "' doesn't have schedule permission.");
+         }
+
+         String orgId = OrganizationManager.getInstance().getCurrentOrgID(principal);
+         List<MVSupportService.MVStatus> mvstatus = support.getMVStatusList(analysisId);
+         dataCycleManager.setEnable(createUpdateMVRequest.cycle(), orgId, true);
+
+         if(principal instanceof XPrincipal) {
+            principal = (XPrincipal) ((XPrincipal) principal).clone();
+         }
+
+         String exception = support.createMV(createUpdateMVRequest.mvNames(), mvstatus,
+                                             createUpdateMVRequest.runInBackground(),
+                                             createUpdateMVRequest.noData(),
+                                             principal);
+
+         if(exception != null) {
+            throw new RuntimeException(exception);
+         }
+      }
+      catch(Exception e) {
+         actionRecord.setActionStatus(ActionRecord.ACTION_STATUS_FAILURE);
+         actionRecord.setActionError(e.getMessage());
+         throw e;
+      }
+      finally {
+         if(actionRecord != null) {
+            actionRecord.setObjectUser(XPrincipal.SYSTEM);
+            Audit.getInstance().auditAction(actionRecord, principal);
+         }
+      }
+   }
+
+   public CreateMVResponse update(String updateId, String[] mvNames,
+                                  boolean runInBackground, Principal principal)
+      throws Throwable
+   {
+      if(updateId != null) {
+         CreateMVResponse cached = updateMVMap.get(updateId);
+
+         if(cached != null) {
+            if(cached.complete()) {
+               updateMVMap.remove(updateId);
+            }
+
+            if(cached.failed()) {
+               throw new RuntimeException(cached.error());
+            }
+
+            return cached;
+         }
+      }
+
+      if(updateId == null) {
+         update0(mvNames, runInBackground, principal);
+         return CreateMVResponse.builder().complete(true).build();
+      }
+      else if(updateMVMap.get(updateId) == null) {
+         updateMVMap.put(updateId, CreateMVResponse.builder().complete(false).build());
+         ThreadPool.addOnDemand(() -> {
+            Principal oPrincipal = ThreadContext.getPrincipal();
+            ThreadContext.setPrincipal(principal);
+
+            try {
+               update0(mvNames, runInBackground, principal);
+               updateMVMap.put(updateId, CreateMVResponse.builder().complete(true).build());
+            }
+            catch(Throwable e) {
+               updateMVMap.put(updateId, CreateMVResponse.builder()
+                  .complete(true)
+                  .failed(true)
+                  .error(e.getMessage())
+                  .build());
+            }
+            finally {
+               ThreadContext.setPrincipal(oPrincipal);
+
+               try {
+                  Thread.sleep(20_000);
+                  updateMVMap.remove(updateId);
+               }
+               catch(InterruptedException ignore) {
+               }
+            }
+         });
+      }
+
+      return CreateMVResponse.builder().complete(false).build();
+   }
+
+   private void update0(String[] mvNames, boolean runInBackground, Principal principal)
+      throws Throwable
+   {
+      String msg = support.recreateMV(mvNames, runInBackground, principal);
+
+      if(msg != null) {
+         throw new RuntimeException(msg);
+      }
    }
 
    public MVSupportService.AnalysisResult analyze(AnalyzeMVRequest analyzeMVRequest,
@@ -61,7 +248,7 @@ public class MVService {
       if(!SreeEnv.getBooleanProperty("ws.mv.enabled")) {
          nodesToAnalyze = nodesToAnalyze.stream()
             .filter(node -> !toAssetEntry(node).isWorksheet())
-            .collect(Collectors.toList());
+            .toList();
       }
 
       List<String> identifiers = nodesToAnalyze.stream()
@@ -196,7 +383,13 @@ public class MVService {
       return info;
    }
 
-   public AnalyzeMVResponse checkAnalyzeStatus(MVSupportService.AnalysisResult jobs,
+   public AnalyzeMVResponse checkAnalyzeStatus(String analysisId, Principal principal)
+      throws Exception
+   {
+      return checkAnalyzeStatus(new MVSupportService.AnalysisResult(analysisId), principal);
+   }
+
+   public AnalyzeMVResponse checkAnalyzeStatus(MVSupportService.AnalysisResult analysisResult,
                                                Principal principal)
       throws Exception
    {
@@ -206,19 +399,19 @@ public class MVService {
 
       boolean onDemand = "true".equals(SreeEnv.getProperty("mv.ondemand"));
       boolean runInBackground = "true".equals(SreeEnv.getProperty("mv.run.background"));
-      String defaultCycle = MVManager.getManager().getDefaultCycle();
+      String defaultCycle = mvManager.getDefaultCycle();
       defaultCycle = defaultCycle == null ? "" : defaultCycle;
       List<NameLabelTuple> cycles = getDataCycles(principal);
 
-      if(!jobs.isCompleted()) {
+      if(!analysisResult.isCompleted()) {
          completed = false;
       }
-      else if(!jobs.getExceptions().isEmpty()) {
+      else if(!analysisResult.getExceptions().isEmpty()) {
          exception = true;
       }
 
-      if(jobs.isCompleted()) {
-         status = getMaterializedModel(jobs.getStatus());
+      if(analysisResult.isCompleted()) {
+         status = getMaterializedModel(analysisResult.getStatus());
       }
 
       return AnalyzeMVResponse.builder()
@@ -230,6 +423,7 @@ public class MVService {
          .defaultCycle(defaultCycle)
          .runInBackground(runInBackground)
          .dateFormat(Tool.getDateFormatPattern())
+         .analysisId(analysisResult.getId())
          .build();
    }
 
@@ -240,14 +434,13 @@ public class MVService {
          throw new RuntimeException(catalog.getString("em.mv.notDataServer"));
       }
 
-      MVManager manager = MVManager.getManager();
       boolean isShowAges = "true".equals(SreeEnv.getProperty("mvmanager.dates.ages", "false"));
       List<MaterializedModel> mvs = new ArrayList<>();
       List<NameLabelTuple> dataCycles = getDataCycles(principal);
       List<MVDef> defs = new ArrayList<>();
 
       if(ids != null) {
-         for(MVDef def : manager.list(true, null, principal)) {
+         for(MVDef def : mvManager.list(true, null, principal)) {
             for(String sheetId : ids) {
                if(def.isUsedBy(sheetId)) {
                   defs.add(def);
@@ -257,13 +450,13 @@ public class MVService {
          }
       }
       else {
-         defs = Arrays.asList(manager.list(true, null, principal));
+         defs = Arrays.asList(mvManager.list(true, null, principal));
       }
 
       for(MVDef def : defs) {
          String sheets = getSheetNames(def);
 
-         if(sheets.length() != 0) {
+         if(!sheets.isEmpty()) {
             mvs.add(
                MaterializedModel.builder()
                   .name(def.getName())
@@ -337,7 +530,7 @@ public class MVService {
    private String getTableNames(MVMetaData data) {
       Map<String, Set<String>> tableNameMap = data.getTableNameMap();
 
-      if(tableNameMap.values().isEmpty()) {
+      if(tableNameMap.isEmpty()) {
          return "";
       }
 
@@ -357,16 +550,15 @@ public class MVService {
    }
 
    private String getUsers(MVDef def) {
-      Catalog catalog = Catalog.getCatalog();
       StringBuilder usersBuilder = new StringBuilder();
 
       if(def.getUsers() != null) {
          for(int i = 0; i < def.getUsers().length; i++) {
             Identity identity = def.getUsers()[i];
             IdentityID identityID = IdentityID.getIdentityIDFromKey(identity.getName());
-            usersBuilder.append(catalog.getString(
+            usersBuilder.append(
                identity.getType() == Identity.GROUP ? "Group" :
-                  identity.getType() == Identity.ROLE ? "Role" : "User"))
+                  identity.getType() == Identity.ROLE ? "Role" : "User")
                .append(":").append(identityID.getName());
 
             if(i < def.getUsers().length - 1) {
@@ -380,8 +572,8 @@ public class MVService {
 
    private String getStatus(MVDef def) {
       Catalog catalog = Catalog.getCatalog();
-      Map statusMap = Cluster.getInstance().getMap("inetsoft.mv.status.map");
-      String status = (String) statusMap.get(def.getName());
+      Map<String, String> statusMap = cluster.getMap("inetsoft.mv.status.map");
+      String status = statusMap.get(def.getName());
 
       if(status != null) {
          return catalog.getString(status);
@@ -414,7 +606,7 @@ public class MVService {
       }
 
       String file = MVStorage.getFile(def.getName());
-      size = MVStorage.getInstance().getLength(file) + blength;
+      size = mvStorage.getLength(file) + blength;
 
       return format.format(size / (1024 * 1024.0));
    }
@@ -459,13 +651,12 @@ public class MVService {
    public List<NameLabelTuple> getDataCycles(Principal principal) throws Exception {
       Catalog catalog = Catalog.getCatalog(principal);
       List<NameLabelTuple> dataCycles = new ArrayList<>();
-      DataCycleManager dcmanager = DataCycleManager.getDataCycleManager();
       String orgId = OrganizationManager.getInstance().getCurrentOrgID(principal);
 
-      for(Enumeration<?> cycles = dcmanager.getDataCycles(orgId); cycles.hasMoreElements(); ) {
+      for(Enumeration<?> cycles = dataCycleManager.getDataCycles(orgId); cycles.hasMoreElements(); ) {
          String cycle = (String) cycles.nextElement();
 
-         if(SecurityEngine.getSecurity().checkPermission(principal, ResourceType.SCHEDULE_CYCLE,
+         if(securityEngine.checkPermission(principal, ResourceType.SCHEDULE_CYCLE,
                                                          getCyclePermissionID(cycle, orgId), ResourceAction.ACCESS))
          {
             dataCycles.add(NameLabelTuple.builder().from(cycle, catalog).build());
@@ -479,7 +670,7 @@ public class MVService {
     * Check a mv is avaliable or not.
     */
    private boolean isAvailable(MVDef def) {
-      MVStorage storage = MVStorage.getInstance();
+      MVStorage storage = mvStorage;
       String file = MVStorage.getFile(def.getName());
 
       if(storage.exists(file)) {
@@ -509,4 +700,13 @@ public class MVService {
    private static final long ONE_DAY = 24 * ONE_HOUR;
    private final MVSupportService support;
    private final ContentRepositoryTreeService treeService;
+   private final Cluster cluster;
+   private final MVManager mvManager;
+   private final DataCycleManager dataCycleManager;
+   private final SecurityEngine securityEngine;
+   private final MVStorage mvStorage;
+   private final Map<String, CreateMVResponse> createMVMap;
+   private final Map<String, CreateMVResponse> updateMVMap;
+   private static final String CREATE_MV_STATUS_MAP = "CREATE_MV_STATUS_MAP";
+   private static final String UPDATE_MV_STATUS_MAP = "UPDATE_MV_STATUS_MAP";
 }

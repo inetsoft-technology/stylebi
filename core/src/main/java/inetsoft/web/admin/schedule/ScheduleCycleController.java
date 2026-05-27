@@ -17,9 +17,7 @@
  */
 package inetsoft.web.admin.schedule;
 
-import inetsoft.sree.security.ResourceAction;
-import inetsoft.sree.security.ResourceType;
-import inetsoft.sree.security.SecurityEngine;
+import inetsoft.sree.security.*;
 import inetsoft.sree.security.SecurityException;
 import inetsoft.web.admin.monitoring.MonitoringDataService;
 import inetsoft.web.admin.schedule.model.DataCycleListModel;
@@ -41,10 +39,12 @@ import java.security.Principal;
 public class ScheduleCycleController {
    @Autowired
    ScheduleCycleController(ScheduleCycleService scheduleCycleService,
-                           MonitoringDataService monitoringDataService)
+                           MonitoringDataService monitoringDataService,
+                           SecurityEngine securityEngine)
    {
       this.scheduleCycleService = scheduleCycleService;
       this.monitoringDataService = monitoringDataService;
+      this.securityEngine = securityEngine;
    }
 
    @SubscribeMapping("/schedule/cycles/get-cycle-names")
@@ -52,7 +52,7 @@ public class ScheduleCycleController {
                                                        Principal principal)
       throws SecurityException
    {
-      if(!SecurityEngine.getSecurity().getSecurityProvider().checkPermission(
+      if(!securityEngine.getSecurityProvider().checkPermission(
          principal, ResourceType.EM_COMPONENT, "settings/schedule/cycles", ResourceAction.ACCESS))
       {
          throw new SecurityException(
@@ -136,4 +136,5 @@ public class ScheduleCycleController {
 
    private final ScheduleCycleService scheduleCycleService;
    private final MonitoringDataService monitoringDataService;
+   private final SecurityEngine securityEngine;
 }

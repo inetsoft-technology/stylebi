@@ -18,9 +18,9 @@
 
 package inetsoft.web.composer.vs.objects.controller;
 
-import inetsoft.report.composition.event.AssetEventUtil;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.uql.asset.*;
+import inetsoft.uql.asset.DependencyHandler;
 import inetsoft.uql.viewsheet.vslayout.DeviceInfo;
 import inetsoft.uql.viewsheet.vslayout.DeviceRegistry;
 import inetsoft.util.audit.ActionRecord;
@@ -30,10 +30,14 @@ import org.springframework.web.bind.annotation.*;
 
 import java.security.Principal;
 import java.sql.Timestamp;
-import java.util.UUID;
 
 @RestController
 public class DeviceController {
+   public DeviceController(DeviceRegistry deviceRegistry, DependencyHandler dependencyHandler) {
+      this.deviceRegistry = deviceRegistry;
+      this.dependencyHandler = dependencyHandler;
+   }
+
    @PostMapping("/api/composer/device/new")
    @ResponseBody
    public void newDevice(@RequestBody ScreenSizeDialogModel device, Principal principal) {
@@ -44,7 +48,6 @@ public class DeviceController {
                                                    actionTimestamp, ActionRecord.ACTION_STATUS_SUCCESS,
                                                    null);
 
-      DeviceRegistry registry = DeviceRegistry.getRegistry();
       DeviceInfo deviceInfo = new DeviceInfo();
       deviceInfo.setId(device.getId());
       deviceInfo.setName(device.getLabel());
@@ -53,7 +56,7 @@ public class DeviceController {
       deviceInfo.setMaxWidth(device.getMaxWidth());
       deviceInfo.setLastModified(System.currentTimeMillis());
       deviceInfo.setLastModifiedBy(principal.getName());
-      registry.setDevice(deviceInfo);
+      deviceRegistry.setDevice(deviceInfo);
       Audit.getInstance().auditAction(actionRecord, principal);
    }
 
@@ -67,8 +70,7 @@ public class DeviceController {
                                                    actionTimestamp, ActionRecord.ACTION_STATUS_SUCCESS,
                                                    null);
 
-      DeviceRegistry registry = DeviceRegistry.getRegistry();
-      DeviceInfo deviceInfo = registry.getDevice(device.getId());
+      DeviceInfo deviceInfo = deviceRegistry.getDevice(device.getId());
       deviceInfo.setId(deviceInfo.getId());
       deviceInfo.setName(device.getLabel());
       deviceInfo.setDescription(device.getDescription());
@@ -76,7 +78,7 @@ public class DeviceController {
       deviceInfo.setMaxWidth(device.getMaxWidth());
       deviceInfo.setLastModified(System.currentTimeMillis());
       deviceInfo.setLastModifiedBy(principal.getName());
-      registry.setDevice(deviceInfo);
+      deviceRegistry.setDevice(deviceInfo);
       Audit.getInstance().auditAction(actionRecord, principal);
    }
 
@@ -90,11 +92,13 @@ public class DeviceController {
                                                    actionTimestamp, ActionRecord.ACTION_STATUS_SUCCESS,
                                                    null);
 
-      DeviceRegistry registry = DeviceRegistry.getRegistry();
-      registry.deleteDevice(device.getId());
+      deviceRegistry.deleteDevice(device.getId());
       AssetEntry entry = new AssetEntry(AssetRepository.COMPONENT_SCOPE,
                                         AssetEntry.Type.DEVICE, device.getId(), null);
-      DependencyHandler.getInstance().deleteDependenciesKey(entry);
+      dependencyHandler.deleteDependenciesKey(entry);
       Audit.getInstance().auditAction(actionRecord, principal);
    }
+
+   private final DeviceRegistry deviceRegistry;
+   private final DependencyHandler dependencyHandler;
 }

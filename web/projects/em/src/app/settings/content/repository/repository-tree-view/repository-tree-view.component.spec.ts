@@ -18,13 +18,13 @@
 import { HttpClient } from "@angular/common/http";
 import { HttpClientTestingModule } from "@angular/common/http/testing";
 import { Component, NgZone, NO_ERRORS_SCHEMA, ViewChild } from "@angular/core";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
+import { MatButtonModule } from "@angular/material/button";
+import { MatCheckboxModule } from "@angular/material/checkbox";
 import { MatDialog, MatDialogModule } from "@angular/material/dialog";
 import { MatIconModule } from "@angular/material/icon";
-import { MatLegacyButtonModule } from "@angular/material/legacy-button";
-import { MatLegacyCheckboxModule } from "@angular/material/legacy-checkbox";
-import { MatLegacyMenuModule } from "@angular/material/legacy-menu";
+import { MatMenuModule } from "@angular/material/menu";
 import { NEVER, of as observableOf } from "rxjs";
 import { RepositoryEntryType } from "../../../../../../../shared/data/repository-entry-type.enum";
 import { StompClientService } from "../../../../../../../shared/stomp/stomp-client.service";
@@ -54,7 +54,7 @@ describe("RepositoryTreeViewComponent", () => {
    let component: TestApp;
    let fixture: ComponentFixture<TestApp>;
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       const stompConnection = {
          subscribe: jest.fn(() => NEVER),
          disconnect: jest.fn()
@@ -67,11 +67,11 @@ describe("RepositoryTreeViewComponent", () => {
             HttpClientTestingModule,
             FormsModule,
             ReactiveFormsModule,
-            MatLegacyCheckboxModule,
-            MatLegacyMenuModule,
-            MatLegacyButtonModule,
+            MatCheckboxModule,
+            MatMenuModule,
+            MatButtonModule,
             MatIconModule,
-            MatDialogModule,
+            MatDialogModule
          ],
          declarations: [
             TestApp,
@@ -93,7 +93,8 @@ describe("RepositoryTreeViewComponent", () => {
       const http = fixture.debugElement.injector.get(HttpClient);
       const zone = fixture.debugElement.injector.get(NgZone);
       const dialog = fixture.debugElement.injector.get(MatDialog);
-      component.dataSource = new RepositoryTreeDataSource(http, stompClientService, zone, dialog);
+      component.dataSource = new RepositoryTreeDataSource(http, stompClientService, zone,
+         dialog);
       fixture.detectChanges();
 
       tree = component.treeView;

@@ -17,12 +17,13 @@
  */
 package inetsoft.report.composition;
 
+import java.io.Serializable;
 import java.security.Principal;
 
 /**
  * Exception that is thrown when an expired runtime worksheet or viewsheet is accessed.
  */
-public class ExpiredSheetException extends RuntimeException {
+public class ExpiredSheetException extends RuntimeException implements Serializable {
    /**
     * Creates a new instance of {@code ExpiredSheetException}.
     *

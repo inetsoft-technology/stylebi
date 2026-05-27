@@ -807,7 +807,7 @@ public abstract class LdapAuthenticationProvider
          LdapAuthenticationCache cache = isIgnoreCache() ? this.cache : getCache();
 
          if(cache != null) {
-            cache.load();
+            cache.refresh();
          }
       }
       finally {

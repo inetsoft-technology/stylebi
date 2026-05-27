@@ -2315,7 +2315,7 @@ public class CoreTool {
                if(!num1) {
                   String str = v1.toString();
 
-                  if(NumberUtils.isParsable(str)) {
+                  if(NumberUtils.isCreatable(str)) {
                      try {
                         v1 = Double.parseDouble(str);
                      }
@@ -2328,7 +2328,7 @@ public class CoreTool {
                if(!num2) {
                   String str = v2.toString();
 
-                  if(NumberUtils.isParsable(str)) {
+                  if(NumberUtils.isCreatable(str)) {
                      try {
                         v2 = Double.parseDouble(str);
                      }

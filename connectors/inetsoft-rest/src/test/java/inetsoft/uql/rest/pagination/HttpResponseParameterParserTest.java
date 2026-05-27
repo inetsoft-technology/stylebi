@@ -17,9 +17,13 @@
  */
 package inetsoft.uql.rest.pagination;
 
-import inetsoft.test.TestHttpResponse;
+import inetsoft.test.*;
 import inetsoft.uql.rest.json.JsonTransformer;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.io.IOException;
 import java.net.URL;
@@ -28,6 +32,10 @@ import java.util.LinkedHashMap;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class, CredentialTestConfig.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@SreeHome
 public class HttpResponseParameterParserTest {
    @Test
    public void jsonIntParam() {

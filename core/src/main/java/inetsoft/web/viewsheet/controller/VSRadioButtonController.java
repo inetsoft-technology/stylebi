@@ -17,17 +17,12 @@
  */
 package inetsoft.web.viewsheet.controller;
 
-
-import inetsoft.analytic.composition.ViewsheetService;
-import inetsoft.report.composition.RuntimeViewsheet;
-import inetsoft.uql.viewsheet.VSAssembly;
-import inetsoft.uql.viewsheet.Viewsheet;
-import inetsoft.uql.viewsheet.internal.ListInputVSAssemblyInfo;
 import inetsoft.util.Tool;
 import inetsoft.web.factory.RemainingPath;
 import inetsoft.web.viewsheet.LoadingMask;
 import inetsoft.web.viewsheet.Undoable;
 import inetsoft.web.viewsheet.event.VSListInputSelectionEvent;
+import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.service.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.handler.annotation.MessageMapping;
@@ -48,11 +43,11 @@ public class VSRadioButtonController {
     * Creates a new instance of <tt>VSRadioButtonController</tt>.
     */
    @Autowired
-   public VSRadioButtonController(VSInputService inputService,
-                                  ViewsheetService viewsheetService)
+   public VSRadioButtonController(VSInputServiceProxy inputServiceProxy,
+                                  RuntimeViewsheetRef runtimeViewsheetRef)
    {
-      this.inputService = inputService;
-      this.viewsheetService = viewsheetService;
+      this.inputServiceProxy = inputServiceProxy;
+      this.runtimeViewsheetRef = runtimeViewsheetRef;
    }
 
    /**
@@ -72,8 +67,8 @@ public class VSRadioButtonController {
                               @LinkUri String linkUri)
       throws Exception
    {
-      inputService.singleApplySelection(event.assemblyName(), event.value(),
-                                  principal, dispatcher, linkUri);
+      inputServiceProxy.singleApplySelection(runtimeViewsheetRef.getRuntimeId(), event.assemblyName(), event.value(),
+                                        principal, dispatcher, linkUri);
    }
 
    @RequestMapping(value="/api/composer/vs/setDetailHeight/{aid}/{height}/**",
@@ -86,26 +81,9 @@ public class VSRadioButtonController {
       Principal principal) throws Exception
    {
       runtimeId = Tool.byteDecode(runtimeId);
-      RuntimeViewsheet rvs;
-      Viewsheet vs;
-      VSAssembly assembly;
-      ListInputVSAssemblyInfo assemblyInfo;
-
-      try {
-         rvs = viewsheetService.getViewsheet(runtimeId, principal);
-         vs = rvs.getViewsheet();
-         assembly = vs.getAssembly(objectId);
-         assemblyInfo = (ListInputVSAssemblyInfo) assembly.getVSAssemblyInfo();
-         assemblyInfo.setCellHeight((int) height);
-      }
-      catch(Exception e) {
-         //TODO decide what to do with exception
-         throw e;
-      }
-
-      return null;
+      return inputServiceProxy.setDetailHeight(runtimeId, objectId, height, principal);
    }
 
-   private final VSInputService inputService;
-   private final ViewsheetService viewsheetService;
+   private VSInputServiceProxy inputServiceProxy;
+   private final RuntimeViewsheetRef runtimeViewsheetRef;
 }

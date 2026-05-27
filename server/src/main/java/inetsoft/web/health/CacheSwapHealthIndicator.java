@@ -27,8 +27,9 @@ import org.springframework.stereotype.Component;
 
 @Component
 public class CacheSwapHealthIndicator implements HealthIndicator {
-   public CacheSwapHealthIndicator() {
-      this.service = CacheSwapHealthService.getInstance();
+   public CacheSwapHealthIndicator(CacheSwapHealthService service, StatusDumpService statusDumpService) {
+      this.service = service;
+      this.statusDumpService = statusDumpService;
    }
 
    @Override
@@ -39,7 +40,7 @@ public class CacheSwapHealthIndicator implements HealthIndicator {
          LoggerFactory.getLogger(getClass()).error(
             "CacheSwapHealthIndicator DOWN: excessiveWaiting={}, excessiveWaitingStart={}",
             status.isExcessiveWaiting(), status.getExcessiveWaitingStart());
-         StatusDumpService.getInstance().dumpStatus();
+         statusDumpService.dumpStatus();
          return Health.down()
             .withDetail("excessiveWaiting", status.isExcessiveWaiting())
             .withDetail("excessiveWaitingStart", status.getExcessiveWaitingStart())
@@ -50,4 +51,5 @@ public class CacheSwapHealthIndicator implements HealthIndicator {
    }
 
    private final CacheSwapHealthService service;
+   private final StatusDumpService statusDumpService;
 }

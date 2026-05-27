@@ -19,6 +19,7 @@ package inetsoft.web.viewsheet.model.dialog;
 
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import org.immutables.serial.Serial;
 import org.immutables.value.Value;
 
 /**
@@ -27,6 +28,7 @@ import org.immutables.value.Value;
 @Value.Immutable
 @JsonSerialize(as = ImmutableEmailDialogModel.class)
 @JsonDeserialize(as = ImmutableEmailDialogModel.class)
+@Serial.Structural
 public interface EmailDialogModel {
    @Value.Default
    default boolean historyEnabled() {

@@ -17,6 +17,8 @@
  */
 package inetsoft.web.admin.cache;
 
+import inetsoft.report.composition.RuntimeSheet;
+import inetsoft.report.internal.paging.PageGroup;
 import inetsoft.sree.SreeEnv;
 import inetsoft.uql.table.XTableColumn;
 import inetsoft.uql.table.XTableFragment;
@@ -36,28 +38,34 @@ import java.util.concurrent.atomic.AtomicLong;
 @Service
 public class CacheService extends MonitorLevelService implements XSwappableMonitor, StatusUpdater {
    @Autowired
-   public CacheService(ServerClusterClient clusterClient) {
+   public CacheService(ServerClusterClient clusterClient, XSwapper swapper) {
       super(lowAttrs, medAttrs, highAttrs);
       this.clusterClient = clusterClient;
+      this.swapper = swapper;
    }
 
    @PostConstruct
    public void addListeners() {
-      XSwapper.registerMonitor(this);
+      swapper.registerMonitor(this);
    }
 
    @PreDestroy
    public void removeListeners() {
-      XSwapper.deregisterMonitor(this);
+      swapper.deregisterMonitor(this);
    }
 
    @Override
    public void updateStatus(long timestamp) {
+      AtomicInteger sheetMemory = new AtomicInteger(0);
+      AtomicInteger sheetDisk = new AtomicInteger(0);
       AtomicInteger dataMemory = new AtomicInteger(0);
       AtomicInteger dataDisk = new AtomicInteger(0);
 
-      for(XSwappable swp : XSwapper.getAllSwappables()) {
-         if(swp instanceof XIntFragment || swp instanceof XObjectFragment) {
+      for(XSwappable swp : swapper.getAllSwappables()) {
+         if(swp instanceof RuntimeSheet.XSwappableSheet || swp instanceof PageGroup) {
+            calculateXFragmentCount(swp, sheetMemory, sheetDisk);
+         }
+         else if(swp instanceof XIntFragment || swp instanceof XObjectFragment) {
             calculateXFragmentCount(swp, dataMemory, dataDisk);
          }
          else if(swp instanceof XTableFragment) {
@@ -73,17 +81,29 @@ public class CacheService extends MonitorLevelService implements XSwappableMonit
          builder.from(oldMetrics);
 
          state
+            .sheetMemoryCount(oldMetrics.sheetMemoryCount())
+            .sheetDiskCount(oldMetrics.sheetDiskCount())
+            .sheetBytesRead(oldMetrics.sheetBytesRead())
+            .sheetBytesWritten(oldMetrics.sheetBytesWritten())
             .dataMemoryCount(oldMetrics.dataMemoryCount())
             .dataDiskCount(oldMetrics.dataDiskCount())
             .dataBytesRead(oldMetrics.dataBytesRead())
-            .dataBytesRead(oldMetrics.dataBytesWritten());
+            .dataBytesWritten(oldMetrics.dataBytesWritten());
 
+         builder.sheetHits(oldMetrics.sheetHits() + counts.sheetHits.getAndSet(0));
+         builder.sheetMisses(oldMetrics.sheetMisses() + counts.sheetMisses.getAndSet(0));
+         builder.sheetBytesRead(counts.sheetRead.getAndSet(0));
+         builder.sheetBytesWritten(counts.sheetWritten.getAndSet(0));
          builder.dataHits(oldMetrics.dataHits() + counts.dataHits.getAndSet(0));
          builder.dataMisses(oldMetrics.dataMisses() + counts.dataMisses.getAndSet(0));
          builder.dataBytesRead(counts.dataRead.getAndSet(0));
          builder.dataBytesWritten(counts.dataWritten.getAndSet(0));
       }
       else {
+         builder.sheetHits(counts.sheetHits.getAndSet(0));
+         builder.sheetMisses(counts.sheetMisses.getAndSet(0));
+         builder.sheetBytesRead(counts.sheetRead.getAndSet(0));
+         builder.sheetBytesWritten(counts.sheetWritten.getAndSet(0));
          builder.dataHits(counts.dataHits.getAndSet(0));
          builder.dataMisses(counts.dataMisses.getAndSet(0));
          builder.dataBytesRead(counts.dataRead.getAndSet(0));
@@ -93,7 +113,10 @@ public class CacheService extends MonitorLevelService implements XSwappableMonit
       state.time(timestamp);
       clusterClient.addStatusHistory(StatusMetricsType.CACHE_METRICS, null, null, state.build());
 
-      builder.dataMemoryCount(dataMemory.get())
+      builder
+         .sheetMemoryCount(sheetMemory.get())
+         .sheetDiskCount(sheetDisk.get())
+         .dataMemoryCount(dataMemory.get())
          .dataDiskCount(dataDisk.get());
       clusterClient.setMetrics(StatusMetricsType.CACHE_METRICS, builder.build());
    }
@@ -333,7 +356,7 @@ public class CacheService extends MonitorLevelService implements XSwappableMonit
 
    /**
     * Get the number of bytes which has been restored.
-    * @param type report or cache.
+    * @param type sheet or data.
     */
    public long getRead(int type) {
       CacheMetrics metrics = clusterClient.getMetrics(StatusMetricsType.CACHE_METRICS, null);
@@ -342,25 +365,24 @@ public class CacheService extends MonitorLevelService implements XSwappableMonit
          return 0L;
       }
 
-      switch(type) {
-      case CacheInfo.DATA:
-         return metrics.dataBytesRead();
-      default:
-         throw new IllegalArgumentException(catalog.getString(
-            "The cache type must be report or data."));
-      }
+      return switch(type) {
+         case CacheInfo.SHEET -> metrics.sheetBytesRead();
+         case CacheInfo.DATA -> metrics.dataBytesRead();
+         default -> throw new IllegalArgumentException(catalog.getString(
+            "The cache type must be sheet or data."));
+      };
    }
 
    /**
     * Add the number of bytes which has been restored.
     * @param num the number of bytes.
-    * @param type report or data.
+    * @param type sheet or data.
     */
    @Override
    public void countRead(long num, int type) {
       if(num > 0) {
-         if(type == REPORT) {
-            // no-op
+         if(type == SHEET) {
+            counts.sheetRead.addAndGet(num);
          }
          else {
             counts.dataRead.addAndGet(num);
@@ -376,8 +398,8 @@ public class CacheService extends MonitorLevelService implements XSwappableMonit
    @Override
    public void countWrite(long num, int type) {
       if(num > 0) {
-         if(type == REPORT) {
-            // no-op
+         if(type == SHEET) {
+            counts.sheetWritten.addAndGet(num);
          }
          else {
             counts.dataWritten.addAndGet(num);
@@ -392,8 +414,8 @@ public class CacheService extends MonitorLevelService implements XSwappableMonit
    @Override
    public void countHits(int type, int hits) {
       if(hits > 0) {
-         if(type == REPORT) {
-            // no-op
+         if(type == SHEET) {
+            counts.sheetHits.addAndGet(hits);
          }
          else {
             counts.dataHits.addAndGet(hits);
@@ -408,8 +430,8 @@ public class CacheService extends MonitorLevelService implements XSwappableMonit
    @Override
    public void countMisses(int type, int misses) {
       if(misses > 0) {
-         if(type == REPORT) {
-            // no-op
+         if(type == SHEET) {
+            counts.sheetMisses.addAndGet(misses);
          }
          else {
             counts.dataMisses.addAndGet(misses);
@@ -457,6 +479,7 @@ public class CacheService extends MonitorLevelService implements XSwappableMonit
 
    private final Catalog catalog = Catalog.getCatalog();
    private final ServerClusterClient clusterClient;
+   private final XSwapper swapper;
    private final CacheCounts counts = new CacheCounts();
 
    private static final String[] highAttrs = {"misses", "hits"};
@@ -464,6 +487,10 @@ public class CacheService extends MonitorLevelService implements XSwappableMonit
    private static final String[] lowAttrs = {"type", "location", "count"};
 
    private static final class CacheCounts {
+      final AtomicInteger sheetHits = new AtomicInteger(0);
+      final AtomicInteger sheetMisses = new AtomicInteger(0);
+      final AtomicLong sheetRead = new AtomicLong(0L);
+      final AtomicLong sheetWritten = new AtomicLong(0L);
       final AtomicInteger dataHits = new AtomicInteger(0);
       final AtomicInteger dataMisses = new AtomicInteger(0);
       final AtomicLong dataRead = new AtomicLong(0L);

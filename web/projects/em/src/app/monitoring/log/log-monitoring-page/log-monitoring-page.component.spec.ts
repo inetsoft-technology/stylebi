@@ -17,7 +17,7 @@
  */
 import { ScrollingModule } from "@angular/cdk/scrolling";
 import { HttpClientTestingModule, } from "@angular/common/http/testing";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { MatButtonModule } from "@angular/material/button";
 import { MatCheckboxModule } from "@angular/material/checkbox";
 import { MatOptionModule } from "@angular/material/core";
@@ -36,7 +36,7 @@ describe("LogMonitoringPageComponent", () => {
    let component: LogMonitoringPageComponent;
    let fixture: ComponentFixture<LogMonitoringPageComponent>;
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       const monitoringDataService = {
          connect: jest.fn(() => observableOf()),
          subscribe: jest.fn(),
