@@ -23,11 +23,18 @@ import {
    Output,
    SimpleChanges
 } from "@angular/core";
+import { NgFor } from "@angular/common";
+import { LargeFormFieldComponent } from "../../../widget/large-form-field/large-form-field.component";
+import { FormsModule } from "@angular/forms";
+import { EnterSubmitDirective } from "../../../widget/directive/enter-submit.directive";
+import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
 
 @Component({
-   selector: "reorder-subtables-dialog",
-   templateUrl: "reorder-subtables-dialog.component.html",
-   styleUrls: ["reorder-subtables-dialog.component.scss"]
+    selector: "reorder-subtables-dialog",
+    templateUrl: "reorder-subtables-dialog.component.html",
+    styleUrls: ["reorder-subtables-dialog.component.scss"],
+    standalone: true,
+    imports: [ModalHeaderComponent, EnterSubmitDirective, FormsModule, LargeFormFieldComponent, NgFor]
 })
 export class ReorderSubtablesDialogComponent implements OnChanges {
    @Input() tableNames: string[];

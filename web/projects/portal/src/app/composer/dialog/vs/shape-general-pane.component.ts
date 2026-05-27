@@ -19,10 +19,14 @@ import { Component, Input, OnInit } from "@angular/core";
 import { UntypedFormGroup } from "@angular/forms";
 import { TreeNodeModel } from "../../../widget/tree/tree-node-model";
 import { ShapeGeneralPaneModel } from "../../data/vs/shape-general-pane-model";
+import { SizePositionPane } from "../../../vsobjects/dialog/size-position-pane.component";
+import { BasicGeneralPane } from "../../../vsobjects/dialog/basic-general-pane.component";
 
 @Component({
-   selector: "shape-general-pane",
-   templateUrl: "shape-general-pane.component.html",
+    selector: "shape-general-pane",
+    templateUrl: "shape-general-pane.component.html",
+    standalone: true,
+    imports: [BasicGeneralPane, SizePositionPane],
 })
 export class ShapeGeneralPane implements OnInit {
    @Input() model: ShapeGeneralPaneModel;

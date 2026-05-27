@@ -25,20 +25,18 @@ import {
 } from "../dialog/variable-input-dialog/variable-input-dialog.module";
 
 @NgModule({
-   imports: [
-      CommonModule,
-      TreeModule,
-      VariableInputDialogModule,
-   ],
-   declarations: [
-      AssetTreeComponent
-   ],
-   exports: [
-      AssetTreeComponent
-   ],
-   providers: [
-      AssetTreeService
-   ],
+    imports: [
+        CommonModule,
+        TreeModule,
+        VariableInputDialogModule,
+        AssetTreeComponent,
+    ],
+    exports: [
+        AssetTreeComponent
+    ],
+    providers: [
+        AssetTreeService
+    ],
 })
 export class AssetTreeModule {
 }

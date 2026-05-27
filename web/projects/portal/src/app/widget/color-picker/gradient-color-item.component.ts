@@ -23,11 +23,14 @@ import { DefaultPalette } from "./default-palette";
 import { RecentColorService } from "./recent-color.service";
 import { getColorHex } from "./color-utils";
 import { FixedDropdownDirective } from "../fixed-dropdown/fixed-dropdown.directive";
+import { ColorPane } from "./cp-color-pane.component";
 
 @Component({
-   selector: "gradient-color-item",
-   templateUrl: "gradient-color-item.component.html",
-   styleUrls: ["gradient-color-item.component.scss"]
+    selector: "gradient-color-item",
+    templateUrl: "gradient-color-item.component.html",
+    styleUrls: ["gradient-color-item.component.scss"],
+    standalone: true,
+    imports: [FixedDropdownDirective, ColorPane]
 })
 export class GradientColorItem {
    @Input() height: number = 10;

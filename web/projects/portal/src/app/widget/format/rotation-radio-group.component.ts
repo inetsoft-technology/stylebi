@@ -17,11 +17,14 @@
  */
 import { Component, Input, AfterViewInit } from "@angular/core";
 import { RotationRadioGroupModel } from "./rotation-radio-group-model";
+import { NgFor } from "@angular/common";
 
 @Component({
-   selector: "rotation-radio-group",
-   templateUrl: "rotation-radio-group.component.html",
-   styleUrls: ["rotation-radio-group.component.scss"]
+    selector: "rotation-radio-group",
+    templateUrl: "rotation-radio-group.component.html",
+    styleUrls: ["rotation-radio-group.component.scss"],
+    standalone: true,
+    imports: [NgFor]
 })
 export class RotationRadioGroup implements AfterViewInit {
    @Input() auto: boolean;

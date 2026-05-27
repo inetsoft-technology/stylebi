@@ -17,7 +17,7 @@
  */
 import { Component, OnInit, OnDestroy, ViewChild } from "@angular/core";
 import { HttpClient, HttpParams } from "@angular/common/http";
-import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
+import { NgbModal, NgbCollapse } from "@ng-bootstrap/ng-bootstrap";
 import { ActivatedRoute, ParamMap, Router } from "@angular/router";
 import { VPMDefinitionModel } from "../../../model/datasources/database/vpm/vpm-definition-model";
 import { Tool } from "../../../../../../../../shared/util/tool";
@@ -35,6 +35,11 @@ import { DataRef } from "../../../../../common/data/data-ref";
 import { NameChangeModel } from "../../../model/name-change-model";
 import { DataModelNameChangeService } from "../../../services/data-model-name-change.service";
 import { AssetEntryHelper } from "../../../../../common/data/asset-entry-helper";
+import { VPMTestComponent } from "./vpm-test/vpm-test.component";
+import { VPMLookupComponent } from "./vpm-lookup/vpm-lookup.component";
+import { VPMHiddenColumnsComponent } from "./vpm-hidden-columns/vpm-hidden-columns.component";
+import { VPMConditionsComponent } from "./vpm-conditions/vpm-conditions.component";
+import { NgSwitch, NgSwitchCase } from "@angular/common";
 
 const VPM_URI: string = "../api/data/vpm/";
 const VPM_MODELS_URI: string = "../api/data/vpm/models";
@@ -49,8 +54,10 @@ enum VPMTabs {
 }
 
 @Component({
-   templateUrl: "database-vpm.component.html",
-   styleUrls: ["../database-physical-model/database-model-pane.scss", "database-vpm.component.scss"]
+    templateUrl: "database-vpm.component.html",
+    styleUrls: ["../database-physical-model/database-model-pane.scss", "database-vpm.component.scss"],
+    standalone: true,
+    imports: [NgSwitch, NgSwitchCase, VPMConditionsComponent, VPMHiddenColumnsComponent, VPMLookupComponent, VPMTestComponent, NgbCollapse]
 })
 export class DatabaseVPMComponent implements OnInit, OnDestroy {
    @ViewChild("conditionPane") conditionPane: any;

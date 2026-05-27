@@ -19,11 +19,19 @@ import { Component, EventEmitter, Output, Input, OnChanges, SimpleChanges } from
 import { ContextProvider } from "../../context-provider.service";
 import { VSFormatModel } from "../../model/vs-format-model";
 import { GuiTool } from "../../../common/util/gui-tool";
+import { DefaultFocusDirective } from "../../../widget/directive/default-focus.directive";
+import { FormsModule } from "@angular/forms";
+import { SafeFontDirective } from "../../directives/safe-font.directive";
+import { TooltipIfDirective } from "../../../widget/tooltip/tooltip-if.directive";
+import { NgIf } from "@angular/common";
+import { InteractableDirective } from "../../../widget/interact/interactable.directive";
 
 @Component({
-   selector: "title-cell",
-   templateUrl: "title-cell.component.html",
-   styleUrls: ["title-cell.component.scss"]
+    selector: "title-cell",
+    templateUrl: "title-cell.component.html",
+    styleUrls: ["title-cell.component.scss"],
+    standalone: true,
+    imports: [InteractableDirective, NgIf, TooltipIfDirective, SafeFontDirective, FormsModule, DefaultFocusDirective]
 })
 export class TitleCell implements OnChanges {
    @Input() titleHeight: number;

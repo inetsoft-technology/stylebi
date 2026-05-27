@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, EventEmitter, Input, Output, QueryList, ViewChildren } from "@angular/core";
-import { NgControl } from "@angular/forms";
+import { NgControl, FormsModule } from "@angular/forms";
 import { JoinModel } from "../../../../../../model/datasources/database/physical-model/join-model";
 import { joinMap } from "../../../../../../model/datasources/database/physical-model/join-type.config";
 import { JoinType } from "../../../../../../model/datasources/database/physical-model/join-type.enum";
@@ -24,10 +24,17 @@ import { ValueLabelPair } from "../../../../../../model/datasources/database/val
 import { MergingRule } from "../../../../../../model/datasources/database/physical-model/merging-rule.enum";
 import { Cardinality } from "../../../../../../model/datasources/database/physical-model/cardinality.enum";
 import {DataType} from "../../../../common-components/join-thumbnail.service";
+import { MaxNumberDirective } from "../../../../../../../../widget/directive/max-number-validator.directive";
+import { MinNumberDirective } from "../../../../../../../../widget/directive/min-number-validator.directive";
+import { DefaultFocusDirective } from "../../../../../../../../widget/directive/default-focus.directive";
+import { NgIf, NgFor } from "@angular/common";
+import { ModalHeaderComponent } from "../../../../../../../../widget/modal-header/modal-header.component";
 
 @Component({
-   selector: "edit-join-dialog",
-   templateUrl: "edit-join-dialog.component.html"
+    selector: "edit-join-dialog",
+    templateUrl: "edit-join-dialog.component.html",
+    standalone: true,
+    imports: [ModalHeaderComponent, NgIf, FormsModule, DefaultFocusDirective, NgFor, MinNumberDirective, MaxNumberDirective]
 })
 export class EditJoinDialog {
    @Input() removeEnabled: boolean = true;

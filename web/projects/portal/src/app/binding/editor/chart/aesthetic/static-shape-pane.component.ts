@@ -31,13 +31,18 @@ import { ComponentTool } from "../../../../common/util/component-tool";
 import { ChartConfig } from "../../../../common/util/chart-config";
 import { StyleConstants } from "../../../../common/util/style-constants";
 import { ModelService } from "../../../../widget/services/model.service";
+import { ShapeItem } from "./shape-item.component";
+import { NgIf, NgFor } from "@angular/common";
+import { BlockMouseDirective } from "../../../../widget/mouse-event/block-mouse.directive";
 
 const NUM_SHAPES: number = 16;
 
 @Component({
-   selector: "static-shape-pane",
-   templateUrl: "static-shape-pane.component.html",
-   styleUrls: ["static-shape-pane.component.scss"]
+    selector: "static-shape-pane",
+    templateUrl: "static-shape-pane.component.html",
+    styleUrls: ["static-shape-pane.component.scss"],
+    standalone: true,
+    imports: [BlockMouseDirective, NgIf, NgFor, ShapeItem]
 })
 export class StaticShapePane implements OnInit {
    @Input() nilSupported: boolean = false;

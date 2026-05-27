@@ -22,7 +22,8 @@ import { GuiTool } from "../../../common/util/gui-tool";
 import { DebounceService } from "../../../widget/services/debounce.service";
 
 @Directive({
-   selector: "[VSDataTip]"
+    selector: "[VSDataTip]",
+    standalone: true
 })
 export class VSDataTipDirective implements DoCheck {
    @Input() public dataTipName: string;

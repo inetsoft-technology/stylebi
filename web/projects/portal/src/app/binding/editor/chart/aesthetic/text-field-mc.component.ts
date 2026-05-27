@@ -29,11 +29,18 @@ import { ChartAggregateRef } from "../../../data/chart/chart-aggregate-ref";
 import { ChartEditorService } from "../../../services/chart/chart-editor.service";
 import { GraphUtil } from "../../../util/graph-util";
 import { AestheticFieldMc } from "./aesthetic-field-mc";
+import { TooltipIfDirective } from "../../../../widget/tooltip/tooltip-if.directive";
+import { ChartAestheticMc } from "./chart-aesthetic-mc.component";
+import { NgIf } from "@angular/common";
+import { OutOfZoneDirective } from "../../../../widget/directive/out-of-zone.directive";
+import { DropHighlightDirective } from "../../../widget/drophighlight.directive";
 
 @Component({
-   selector: "text-field-mc",
-   templateUrl: "text-field-mc.component.html",
-   styleUrls: ["aesthetic-field-mc.scss"]
+    selector: "text-field-mc",
+    templateUrl: "text-field-mc.component.html",
+    styleUrls: ["aesthetic-field-mc.scss"],
+    standalone: true,
+    imports: [DropHighlightDirective, OutOfZoneDirective, NgIf, ChartAestheticMc, TooltipIfDirective]
 })
 export class TextFieldMc extends AestheticFieldMc implements OnChanges {
    @Input() chartModel: ChartModel;

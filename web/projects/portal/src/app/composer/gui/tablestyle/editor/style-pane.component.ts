@@ -21,11 +21,16 @@ import { TableStyleFormatModel } from "../../../data/tablestyle/table-style-form
 import { TableStyleModel } from "../../../data/tablestyle/table-style-model";
 import { NotificationsComponent } from "../../../../widget/notifications/notifications.component";
 import { SpecificationModel } from "../../../data/tablestyle/specification-model";
+import { TableStyleFormatPaneComponent } from "./table-style-format-pane.component";
+import { TableStylePreviewPaneComponent } from "./table-style-preview-pane.component";
+import { NgIf } from "@angular/common";
 
 @Component({
-   selector: "style-pane",
-   templateUrl: "style-pane.component.html",
-   styleUrls: ["style-pane.component.scss"]
+    selector: "style-pane",
+    templateUrl: "style-pane.component.html",
+    styleUrls: ["style-pane.component.scss"],
+    standalone: true,
+    imports: [NgIf, TableStylePreviewPaneComponent, TableStyleFormatPaneComponent, NotificationsComponent]
 })
 export class StylePaneComponent {
    @Input() tableStyle: TableStyleModel;

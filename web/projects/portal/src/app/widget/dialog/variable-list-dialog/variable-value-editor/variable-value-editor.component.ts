@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, EventEmitter, Input, OnInit, Output, ViewChild } from "@angular/core";
-import { UntypedFormControl, UntypedFormGroup, Validators } from "@angular/forms";
+import { UntypedFormControl, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 
 import { XSchema } from "../../../../common/data/xschema";
 import { FormValidators } from "../../../../../../../shared/util/form-validators";
@@ -25,11 +25,24 @@ import {
    TimeInstantValueEditorComponent
 } from "../../../date-type-editor/time-instant-value-editor.component";
 import { DateValueEditorComponent } from "../../../date-type-editor/date-value-editor.component";
+import { TimeValueEditorComponent } from "../../../date-type-editor/time-value-editor.component";
+import { NgSwitch, NgSwitchCase, NgIf } from "@angular/common";
 
 @Component({
-   selector: "variable-value-editor",
-   templateUrl: "variable-value-editor.component.html",
-   styleUrls: ["variable-value-editor.component.scss"],
+    selector: "variable-value-editor",
+    templateUrl: "variable-value-editor.component.html",
+    styleUrls: ["variable-value-editor.component.scss"],
+    standalone: true,
+    imports: [
+        NgSwitch,
+        NgSwitchCase,
+        NgIf,
+        FormsModule,
+        ReactiveFormsModule,
+        TimeInstantValueEditorComponent,
+        TimeValueEditorComponent,
+        DateValueEditorComponent,
+    ],
 })
 export class VariableValueEditor implements OnInit {
    @ViewChild(DateValueEditorComponent) dateValueEditor;

@@ -38,9 +38,10 @@ import { Tool } from "../../../../../../../../../../shared/util/tool";
 import { SqlQueryDialogModel } from "../../../../../../../composer/data/ws/sql-query-dialog-model";
 
 @Component({
-   selector: "vpm-subquery-editor",
-   templateUrl: "./vpm-subquery-editor.component.html",
-   styleUrls: ["./vpm-subquery-editor.component.scss"]
+    selector: "vpm-subquery-editor",
+    templateUrl: "./vpm-subquery-editor.component.html",
+    styleUrls: ["./vpm-subquery-editor.component.scss"],
+    standalone: true
 })
 export class VpmSubqueryEditorComponent implements OnInit {
    @Input() isWSQuery: boolean;

@@ -24,21 +24,19 @@ import { WidgetDirectivesModule } from "../../directive/widget-directives.module
 import { FormulaFunctionAnalyzerService } from "./formula-function-analyzer.service";
 
 @NgModule({
-   imports: [
-      CommonModule,
-      TreeModule,
-      NgbTooltipModule,
-      WidgetDirectivesModule,
-   ],
-   declarations: [
-      ScriptPane
-   ],
-   exports: [
-      ScriptPane
-   ],
-   providers: [
-      FormulaFunctionAnalyzerService
-   ],
+    imports: [
+        CommonModule,
+        TreeModule,
+        NgbTooltipModule,
+        WidgetDirectivesModule,
+        ScriptPane,
+    ],
+    exports: [
+        ScriptPane
+    ],
+    providers: [
+        FormulaFunctionAnalyzerService
+    ],
 })
 export class ScriptPaneModule {
 }

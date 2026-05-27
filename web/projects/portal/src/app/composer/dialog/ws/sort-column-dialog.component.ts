@@ -20,11 +20,18 @@ import { Component, EventEmitter, Input, OnInit, Output } from "@angular/core";
 import { Tool } from "../../../../../../shared/util/tool";
 import { ModelService } from "../../../widget/services/model.service";
 import { SortColumnDialogModel } from "../../data/ws/sort-column-dialog-model";
+import { VSLoadingDisplay } from "../../../vsobjects/objects/vs-loading-display/vs-loading-display.component";
+import { SortColumnEditor } from "./sort-column-editor.component";
+import { EnterSubmitDirective } from "../../../widget/directive/enter-submit.directive";
+import { NgIf } from "@angular/common";
+import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
 
 @Component({
-   selector: "sort-column-dialog",
-   templateUrl: "sort-column-dialog.component.html",
-   styleUrls: ["sort-column-dialog.component.scss"]
+    selector: "sort-column-dialog",
+    templateUrl: "sort-column-dialog.component.html",
+    styleUrls: ["sort-column-dialog.component.scss"],
+    standalone: true,
+    imports: [ModalHeaderComponent, NgIf, EnterSubmitDirective, SortColumnEditor, VSLoadingDisplay]
 })
 export class SortColumnDialog implements OnInit {
    @Input() runtimeId: string;

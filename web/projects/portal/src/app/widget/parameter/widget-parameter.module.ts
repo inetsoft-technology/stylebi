@@ -26,21 +26,19 @@ import { DateTimeValueDialog } from "./date-time-value-dialog.component";
 import { DateTypeEditorModule } from "../date-type-editor/date-type-editor.module";
 
 @NgModule({
-   imports: [
-      CommonModule,
-      FormsModule,
-      DateTypeEditorModule,
-   ],
-   declarations: [
-      DateTimeValueDialog,
-      ParameterDialogComponent,
-      ParameterPage
-   ],
-   exports: [
-      ParameterDialogComponent,
-      ParameterPage
-   ],
-   providers: [],
+    imports: [
+        CommonModule,
+        FormsModule,
+        DateTypeEditorModule,
+        DateTimeValueDialog,
+        ParameterDialogComponent,
+        ParameterPage,
+    ],
+    exports: [
+        ParameterDialogComponent,
+        ParameterPage
+    ],
+    providers: [],
 })
 export class WidgetParameterModule {
 }

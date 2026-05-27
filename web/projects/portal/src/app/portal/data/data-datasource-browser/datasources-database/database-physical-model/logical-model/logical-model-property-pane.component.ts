@@ -39,13 +39,23 @@ import { ElementModel } from "../../../../model/datasources/database/physical-mo
 import { LogicalModelService } from "./logical-model-service";
 import { UntypedFormGroup } from "@angular/forms";
 import { CheckDependenciesEvent } from "../../../../model/datasources/database/events/check-dependencies-event";
+import { LogicalModelExpressionEditor } from "./expression-attribute-editor/logical-model-expression-editor.component";
+import { LogicalModelColumnEditor } from "./column-attribute-editor/logical-model-column-editor.component";
+import { LogicalModelEntityEditor } from "./entity-editor/logical-model-entity-editor.component";
+import { LoadingIndicatorPaneComponent } from "../../common-components/loading-indicator-pane/loading-indicator-pane.component";
+import { ElementTreeNode } from "./element-tree-node/element-tree-node.component";
+import { NgFor, NgIf, NgSwitch, NgSwitchCase } from "@angular/common";
+import { FixedDropdownDirective } from "../../../../../../widget/fixed-dropdown/fixed-dropdown.directive";
+import { SplitPane } from "../../../../../../widget/split-pane/split-pane.component";
 
 const LOGICAL_MODEL_CHECK_DEPENDENCIES_URI: string = "../api/data/logicalmodel/checkOuterDependencies";
 
 @Component({
-   selector: "logical-model-property-pane",
-   templateUrl: "logical-model-property-pane.component.html",
-   styleUrls: ["../database-model-pane.scss", "logical-model-property-pane.component.scss"]
+    selector: "logical-model-property-pane",
+    templateUrl: "logical-model-property-pane.component.html",
+    styleUrls: ["../database-model-pane.scss", "logical-model-property-pane.component.scss"],
+    standalone: true,
+    imports: [SplitPane, FixedDropdownDirective, NgFor, ElementTreeNode, LoadingIndicatorPaneComponent, NgIf, NgSwitch, NgSwitchCase, LogicalModelEntityEditor, LogicalModelColumnEditor, LogicalModelExpressionEditor]
 })
 export class LogicalModelPropertyPane implements OnInit {
    @Input() databaseName: string;

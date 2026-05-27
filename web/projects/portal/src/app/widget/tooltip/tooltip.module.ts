@@ -24,24 +24,22 @@ import { TooltipIfDirective } from "./tooltip-if.directive";
 import { TooltipService } from "./tooltip.service";
 
 @NgModule({
-   imports: [
-      CommonModule,
-   ],
-   declarations: [
-      TooltipDirective,
-      TooltipComponent,
-      HideTooltipOnClickDirective,
-      TooltipIfDirective
-   ],
-   exports: [
-      TooltipDirective,
-      TooltipComponent,
-      HideTooltipOnClickDirective,
-      TooltipIfDirective
-   ],
-   providers: [
-      TooltipService
-   ],
+    imports: [
+        CommonModule,
+        TooltipDirective,
+        TooltipComponent,
+        HideTooltipOnClickDirective,
+        TooltipIfDirective,
+    ],
+    exports: [
+        TooltipDirective,
+        TooltipComponent,
+        HideTooltipOnClickDirective,
+        TooltipIfDirective
+    ],
+    providers: [
+        TooltipService
+    ],
 })
 export class TooltipModule {
 }

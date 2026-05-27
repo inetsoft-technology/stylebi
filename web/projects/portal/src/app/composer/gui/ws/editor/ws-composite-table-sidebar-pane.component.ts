@@ -35,16 +35,22 @@ import { AbstractTableAssembly } from "../../../data/ws/abstract-table-assembly"
 import { CompositeTableAssembly } from "../../../data/ws/composite-table-assembly";
 import { ConcatenatedTableAssembly } from "../../../data/ws/concatenated-table-assembly";
 import { Worksheet } from "../../../data/ws/worksheet";
+import { SubtableListComponent } from "./schema/sidebar-pane/subtable-list.component";
+import { WSAssemblyThumbnailTitleComponent } from "./ws-assembly-thumbnail-title.component";
+import { NgIf, NgFor } from "@angular/common";
+import { SplitPane } from "../../../../widget/split-pane/split-pane.component";
 
 export const DRAG_TABLE_ID = "Add table";
 const CONCAT_COMPATIBLE_INSERTION_TABLE_URI = "../api/composer/worksheet/concat/compatible-insertion-tables/";
 const JOIN_COMPATIBLE_INSERTION_TABLE_URI = "../api/composer/worksheet/join/compatible-insertion-tables/";
 
 @Component({
-   selector: "ws-composite-table-sidebar-pane",
-   templateUrl: "ws-composite-table-sidebar-pane.component.html",
-   styleUrls: ["schema/sidebar-pane/subtable-list.component.scss"],
-   changeDetection: ChangeDetectionStrategy.OnPush
+    selector: "ws-composite-table-sidebar-pane",
+    templateUrl: "ws-composite-table-sidebar-pane.component.html",
+    styleUrls: ["schema/sidebar-pane/subtable-list.component.scss"],
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    standalone: true,
+    imports: [SplitPane, NgIf, NgFor, WSAssemblyThumbnailTitleComponent, SubtableListComponent]
 })
 export class WSCompositeTableSidebarPane implements OnChanges, OnDestroy {
    @Input() worksheet: Worksheet;

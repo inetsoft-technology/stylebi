@@ -17,12 +17,15 @@
  */
 import { ChangeDetectionStrategy, Component, Input } from "@angular/core";
 import { Status } from "./status";
+import { NgIf } from "@angular/common";
 
 @Component({
-   selector: "status-bar",
-   templateUrl: "status-bar.component.html",
-   styleUrls: ["status-bar.component.scss"],
-   changeDetection: ChangeDetectionStrategy.OnPush
+    selector: "status-bar",
+    templateUrl: "status-bar.component.html",
+    styleUrls: ["status-bar.component.scss"],
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    standalone: true,
+    imports: [NgIf]
 })
 export class StatusBar {
    @Input() status: Status;

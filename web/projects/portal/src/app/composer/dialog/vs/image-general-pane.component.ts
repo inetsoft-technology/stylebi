@@ -19,10 +19,21 @@ import { Component, Input, OnInit } from "@angular/core";
 import { UntypedFormGroup } from "@angular/forms";
 import { TreeNodeModel } from "../../../widget/tree/tree-node-model";
 import { ImageGeneralPaneModel } from "../../data/vs/image-general-pane-model";
+import { SizePositionPane } from "../../../vsobjects/dialog/size-position-pane.component";
+import { TipPane } from "../../../vsobjects/dialog/graph/tip-pane.component";
+import { StaticImagePane } from "./static-image-pane.component";
+import { OutputGeneralPane } from "./output-general-pane.component";
 
 @Component({
-   selector: "image-general-pane",
-   templateUrl: "image-general-pane.component.html",
+    selector: "image-general-pane",
+    templateUrl: "image-general-pane.component.html",
+    standalone: true,
+    imports: [
+        OutputGeneralPane,
+        StaticImagePane,
+        TipPane,
+        SizePositionPane,
+    ],
 })
 export class ImageGeneralPane implements OnInit {
    @Input() model: ImageGeneralPaneModel;

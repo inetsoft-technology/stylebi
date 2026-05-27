@@ -22,17 +22,15 @@ import { ReactiveFormsModule } from "@angular/forms";
 import { CommonModule } from "@angular/common";
 
 @NgModule({
-   imports: [
-      CommonModule,
-      NgbModule,
-      ReactiveFormsModule
-   ],
-   declarations: [
-      StatusBar
-   ],
-   exports: [
-      StatusBar
-   ]
+    imports: [
+        CommonModule,
+        NgbModule,
+        ReactiveFormsModule,
+        StatusBar
+    ],
+    exports: [
+        StatusBar
+    ]
 })
 export class StatusBarModule {
 }

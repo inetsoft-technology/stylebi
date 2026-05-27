@@ -16,9 +16,10 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, EventEmitter, forwardRef, Input, Output, ViewChild } from "@angular/core";
-import { ControlValueAccessor, NG_VALUE_ACCESSOR } from "@angular/forms";
+import { ControlValueAccessor, NG_VALUE_ACCESSOR, FormsModule } from "@angular/forms";
 import { DateTypeFormatter } from "../../../../../shared/util/date-type-formatter";
 import { DateValueEditorComponent } from "./date-value-editor.component";
+import { TimeValueEditorComponent } from "./time-value-editor.component";
 
 export const TIME_INSTANT_VALUE_ACCESSOR: any = {
    provide: NG_VALUE_ACCESSOR,
@@ -29,10 +30,12 @@ export const TIME_INSTANT_VALUE_ACCESSOR: any = {
 const zeroTime = "00:00:00";
 
 @Component({
-   selector: "time-instant-value-editor",
-   templateUrl: "time-instant-value-editor.component.html",
-   styleUrls: ["time-instant-value-editor.component.scss"],
-   providers: [TIME_INSTANT_VALUE_ACCESSOR]
+    selector: "time-instant-value-editor",
+    templateUrl: "time-instant-value-editor.component.html",
+    styleUrls: ["time-instant-value-editor.component.scss"],
+    providers: [TIME_INSTANT_VALUE_ACCESSOR],
+    standalone: true,
+    imports: [DateValueEditorComponent, FormsModule, TimeValueEditorComponent]
 })
 export class TimeInstantValueEditorComponent implements ControlValueAccessor {
    @ViewChild(DateValueEditorComponent) dateValueEditor;

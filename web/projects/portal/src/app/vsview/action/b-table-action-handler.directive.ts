@@ -30,7 +30,8 @@ import { DialogService } from "../../widget/slide-out/dialog-service.service";
 import { ContextProvider } from "../../vsobjects/context-provider.service";
 
 @Directive({
-   selector: "[bTableActionHandler]"
+    selector: "[bTableActionHandler]",
+    standalone: true
 })
 export class BTableActionHandlerDirective implements OnDestroy {
    @Input() model: VSTableModel;

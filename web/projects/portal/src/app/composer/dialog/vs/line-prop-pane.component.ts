@@ -19,10 +19,18 @@ import { Component, Input, ViewChild } from "@angular/core";
 import { LinePropPaneModel } from "../../data/vs/line-prop-pane-model";
 import { ComboMode } from "../../../widget/dynamic-combo-box/dynamic-combo-box-model";
 import { DynamicComboBox } from "../../../widget/dynamic-combo-box/dynamic-combo-box.component";
+import { StyleDropdown } from "../../../widget/format/style-dropdown.component";
+import { ColorEditor } from "../../../widget/color-picker/color-editor.component";
 
 @Component({
-   selector: "line-prop-pane",
-   templateUrl: "line-prop-pane.component.html",
+    selector: "line-prop-pane",
+    templateUrl: "line-prop-pane.component.html",
+    standalone: true,
+    imports: [
+        DynamicComboBox,
+        ColorEditor,
+        StyleDropdown,
+    ],
 })
 export class LinePropPane {
    @Input() model: LinePropPaneModel;

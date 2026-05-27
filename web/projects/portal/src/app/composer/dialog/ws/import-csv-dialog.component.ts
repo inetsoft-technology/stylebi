@@ -26,8 +26,8 @@ import {
    OnInit,
    Output
 } from "@angular/core";
-import { UntypedFormControl, UntypedFormGroup, Validators } from "@angular/forms";
-import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
+import { UntypedFormControl, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
+import { NgbModal, NgbProgressbar } from "@ng-bootstrap/ng-bootstrap";
 import { Subscription } from "rxjs";
 import { FormValidators } from "../../../../../../shared/util/form-validators";
 import { FileUploadService } from "../../../common/services/file-upload.service";
@@ -42,18 +42,24 @@ import { ImportCSVDialogModel } from "../../data/ws/import-csv-dialog-model";
 import { ImportCSVDialogModelValidator } from "../../data/ws/import-csv-dialog-model-validator";
 import { Worksheet } from "../../data/ws/worksheet";
 import { ComponentTool } from "../../../common/util/component-tool";
+import { PreviewTableComponent } from "../../../vsobjects/objects/table/preview-table.component";
+import { EnterSubmitDirective } from "../../../widget/directive/enter-submit.directive";
+import { NgIf, NgFor } from "@angular/common";
+import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
 
 const MODEL_URI = "../api/composer/ws/import-csv-dialog-model/";
 const SUBMIT_URI = "/events/ws/dialog/import-csv-dialog-model";
 const TOUCH_FILE_URI = "../api/composer/ws/import-csv-dialog-model/touch-file/";
 
 @Component({
-   selector: "import-csv-dialog",
-   templateUrl: "import-csv-dialog.component.html",
-   providers: [{
-      provide: ContextProvider,
-      useFactory: ComposerContextProviderFactory
-   }]
+    selector: "import-csv-dialog",
+    templateUrl: "import-csv-dialog.component.html",
+    providers: [{
+            provide: ContextProvider,
+            useFactory: ComposerContextProviderFactory
+        }],
+    standalone: true,
+    imports: [ModalHeaderComponent, NgIf, EnterSubmitDirective, FormsModule, ReactiveFormsModule, NgbProgressbar, NgFor, PreviewTableComponent]
 })
 export class ImportCSVDialog implements OnInit, AfterViewChecked, OnDestroy {
    @Input() worksheet: Worksheet;

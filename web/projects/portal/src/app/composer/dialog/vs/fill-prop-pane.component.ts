@@ -22,10 +22,22 @@ import { DynamicComboBox } from "../../../widget/dynamic-combo-box/dynamic-combo
 import { DefaultPalette } from "../../../widget/color-picker/default-palette";
 import { VSShape } from "../../../vsobjects/objects/shape/vs-shape";
 import { Tool } from "../../../../../../shared/util/tool";
+import { NgIf } from "@angular/common";
+import { AlphaDropdown } from "../../../widget/format/alpha-dropdown.component";
+import { ColorEditor } from "../../../widget/color-picker/color-editor.component";
+import { FormsModule } from "@angular/forms";
 
 @Component({
-   selector: "fill-prop-pane",
-   templateUrl: "fill-prop-pane.component.html",
+    selector: "fill-prop-pane",
+    templateUrl: "fill-prop-pane.component.html",
+    standalone: true,
+    imports: [
+        DynamicComboBox,
+        FormsModule,
+        ColorEditor,
+        AlphaDropdown,
+        NgIf,
+    ],
 })
 export class FillPropPane implements OnInit {
    @Input() model: FillPropPaneModel;

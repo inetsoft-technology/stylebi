@@ -26,11 +26,15 @@ import { DropdownRef } from "../fixed-dropdown/fixed-dropdown-ref";
 import { DropdownOptions } from "../fixed-dropdown/dropdown-options";
 import { FixedDropdownDirective } from "../fixed-dropdown/fixed-dropdown.directive";
 import { GradientColor } from "../../common/data/base-format-model";
+import { GradientColorPane } from "./gradient-color-pane.component";
+import { NgIf } from "@angular/common";
 
 @Component({
-   selector: "gradient-color-picker",
-   templateUrl: "gradient-color-picker.component.html",
-   styleUrls: ["gradient-color-picker.component.scss"]
+    selector: "gradient-color-picker",
+    templateUrl: "gradient-color-picker.component.html",
+    styleUrls: ["gradient-color-picker.component.scss"],
+    standalone: true,
+    imports: [NgIf, FixedDropdownDirective, GradientColorPane]
 })
 export class GradientColorPicker {
    @Input() gradientColor: GradientColor;

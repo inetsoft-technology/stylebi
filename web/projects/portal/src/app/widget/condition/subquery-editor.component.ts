@@ -27,10 +27,13 @@ import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 
 import { SubqueryTable } from "../../common/data/condition/subquery-table";
 import { SubqueryValue } from "../../common/data/condition/subquery-value";
+import { SubqueryDialog } from "./subquery-dialog.component";
 
 @Component({
-   selector: "subquery-editor",
-   templateUrl: "subquery-editor.component.html"
+    selector: "subquery-editor",
+    templateUrl: "subquery-editor.component.html",
+    standalone: true,
+    imports: [SubqueryDialog]
 })
 export class SubqueryEditor {
    @Input() subqueryTables: SubqueryTable[];

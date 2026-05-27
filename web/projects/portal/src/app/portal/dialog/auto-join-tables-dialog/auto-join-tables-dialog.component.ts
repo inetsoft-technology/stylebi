@@ -32,14 +32,19 @@ import {
    EditJoinEventItem,
    EditJoinsEvent
 } from "../../data/model/datasources/database/events/edit-joins-event";
+import { NgFor } from "@angular/common";
+import { FormsModule } from "@angular/forms";
+import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
 
 const AUTO_JOIN_URI: string = "../api/data/physicalmodel/autoJoin/";
 const JOIN_CARDINALITY_URI: string = "../api/data/physicalmodel/cardinality/";
 const ADD_AUTO_JOIN_URI: string = "../api/data/physicalmodel/add/autoJoin";
 
 @Component({
-   selector: "auto-join-tables-dialog",
-   templateUrl: "auto-join-tables-dialog.component.html"
+    selector: "auto-join-tables-dialog",
+    templateUrl: "auto-join-tables-dialog.component.html",
+    standalone: true,
+    imports: [ModalHeaderComponent, FormsModule, NgFor]
 })
 export class AutoJoinTablesDialog implements OnInit, AfterViewInit {
    @Input() physicalModel: PhysicalModelDefinition;

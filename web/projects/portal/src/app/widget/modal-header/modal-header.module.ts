@@ -22,18 +22,16 @@ import { ModalHeaderComponent } from "./modal-header.component";
 import {HelpLinkModule} from "../help-link/help-link.module";
 
 @NgModule({
-   imports: [
-      CommonModule,
-      HelpLinkModule,
-      WidgetDirectivesModule,
-   ],
-   declarations: [
-      ModalHeaderComponent
-   ],
-   exports: [
-      ModalHeaderComponent
-   ],
-   providers: [],
+    imports: [
+        CommonModule,
+        HelpLinkModule,
+        WidgetDirectivesModule,
+        ModalHeaderComponent,
+    ],
+    exports: [
+        ModalHeaderComponent
+    ],
+    providers: [],
 })
 export class ModalHeaderModule {
 }

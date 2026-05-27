@@ -32,11 +32,17 @@ import { ModalDismissReasons } from "@ng-bootstrap/ng-bootstrap";
 import { DropdownObserver } from "../services/dropdown-observer.service";
 import { DialogService } from "./dialog-service.service";
 import { SlideOutRef } from "./slide-out-ref";
+import { NotificationsComponent } from "../notifications/notifications.component";
+import { FixedDropdownDirective } from "../fixed-dropdown/fixed-dropdown.directive";
+import { BlockMouseDirective } from "../mouse-event/block-mouse.directive";
+import { NgIf, NgFor } from "@angular/common";
 
 @Component({
-   selector: "slide-out",
-   templateUrl: "slide-out.component.html",
-   styleUrls: ["slide-out.component.scss"]
+    selector: "slide-out",
+    templateUrl: "slide-out.component.html",
+    styleUrls: ["slide-out.component.scss"],
+    standalone: true,
+    imports: [NgIf, BlockMouseDirective, FixedDropdownDirective, NgFor, NotificationsComponent]
 })
 export class SlideOutComponent implements AfterViewInit, OnDestroy {
    @Input() limitResize: boolean = true;

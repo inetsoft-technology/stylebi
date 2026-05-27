@@ -18,11 +18,14 @@
 import { Component, EventEmitter, Input, Output } from "@angular/core";
 import { ParameterPageModel } from "../parameter-page-model";
 import { RepletParameterModel } from "../replet-parameter-model";
+import { ParameterPage } from "../parameter-page/parameter-page.component";
 
 @Component({
-   selector: "w-parameter-dialog",
-   templateUrl: "./parameter-dialog.component.html",
-   styleUrls: ["./parameter-dialog.component.scss"]
+    selector: "w-parameter-dialog",
+    templateUrl: "./parameter-dialog.component.html",
+    styleUrls: ["./parameter-dialog.component.scss"],
+    standalone: true,
+    imports: [ParameterPage]
 })
 export class ParameterDialogComponent {
 

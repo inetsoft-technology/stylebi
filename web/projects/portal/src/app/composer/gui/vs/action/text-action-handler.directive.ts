@@ -45,7 +45,8 @@ const HIGHLIGHT_URI: string = "composer/vs/highlight-dialog-model";
 const HYPERLINK_URI: string = "composer/vs/hyperlink-dialog-model";
 
 @Directive({
-   selector: "[cTextActionHandler]"
+    selector: "[cTextActionHandler]",
+    standalone: true
 })
 export class TextActionHandlerDirective extends AbstractActionHandler implements OnDestroy {
    @Input() model: VSTextModel;

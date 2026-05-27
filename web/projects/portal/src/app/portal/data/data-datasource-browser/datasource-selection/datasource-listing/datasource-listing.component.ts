@@ -18,12 +18,15 @@
 import { ChangeDetectionStrategy, Component, HostBinding, Input } from "@angular/core";
 import { DataSourceListing } from "./datasource-listing";
 import { Tool } from "../../../../../../../../shared/util/tool";
+import { NgIf } from "@angular/common";
 
 @Component({
-   selector: "datasource-listing",
-   templateUrl: "datasource-listing.component.html",
-   styleUrls: ["datasource-listing.component.scss"],
-   changeDetection: ChangeDetectionStrategy.OnPush
+    selector: "datasource-listing",
+    templateUrl: "datasource-listing.component.html",
+    styleUrls: ["datasource-listing.component.scss"],
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    standalone: true,
+    imports: [NgIf]
 })
 export class DatasourceListingComponent {
    @Input() listing: DataSourceListing;

@@ -19,11 +19,15 @@ import { Component } from "@angular/core";
 import { VSCalcTableEditorService } from "../../services/table/vs-calc-table-editor.service";
 import { CalcTableBindingModel } from "../../data/table/calc-table-binding-model";
 import { CellBindingInfo } from "../../data/table/cell-binding-info";
+import { DynamicComboBox } from "../../../widget/dynamic-combo-box/dynamic-combo-box.component";
+import { FormsModule } from "@angular/forms";
 
 @Component({
-   selector: "calc-option-pane",
-   templateUrl: "calc-option-pane.component.html",
-   styleUrls: ["calc-option-pane.component.scss"]
+    selector: "calc-option-pane",
+    templateUrl: "calc-option-pane.component.html",
+    styleUrls: ["calc-option-pane.component.scss"],
+    standalone: true,
+    imports: [FormsModule, DynamicComboBox]
 })
 export class CalcOptionPane {
    cells: any[] = [];

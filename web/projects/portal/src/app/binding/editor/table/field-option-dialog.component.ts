@@ -16,10 +16,14 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, Input, Output, EventEmitter } from "@angular/core";
+import { DefaultFocusDirective } from "../../../widget/directive/default-focus.directive";
+import { FormsModule } from "@angular/forms";
 
 @Component({
-   selector: "field-option",
-   templateUrl: "field-option-dialog.component.html",
+    selector: "field-option",
+    templateUrl: "field-option-dialog.component.html",
+    standalone: true,
+    imports: [FormsModule, DefaultFocusDirective],
 })
 
 export class FieldOption {

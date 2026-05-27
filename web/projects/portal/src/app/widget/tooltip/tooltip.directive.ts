@@ -34,8 +34,9 @@ import { TooltipComponent } from "./tooltip.component";
 import { TooltipService } from "./tooltip.service";
 
 @Directive({
-   selector: "[wTooltip]",
-   exportAs: "wTooltip"
+    selector: "[wTooltip]",
+    exportAs: "wTooltip",
+    standalone: true
 })
 export class TooltipDirective implements OnChanges, OnInit, OnDestroy {
    @Input() wTooltip: string | TemplateRef<any> | Function;

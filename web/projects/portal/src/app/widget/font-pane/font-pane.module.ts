@@ -21,17 +21,15 @@ import {FontPane} from "./font-pane.component";
 import {FormsModule} from "@angular/forms";
 
 @NgModule({
-   imports: [
-      CommonModule,
-      FormsModule,
-   ],
-   declarations: [
-      FontPane
-   ],
-   exports: [
-      FontPane
-   ],
-   providers: [],
+    imports: [
+        CommonModule,
+        FormsModule,
+        FontPane,
+    ],
+    exports: [
+        FontPane
+    ],
+    providers: [],
 })
 export class FontPaneModule {
 }

@@ -19,10 +19,21 @@ import { Component, Input, OnInit } from "@angular/core";
 import { UntypedFormGroup } from "@angular/forms";
 import { TreeNodeModel } from "../../../widget/tree/tree-node-model";
 import { CheckboxGeneralPaneModel } from "../../data/vs/checkbox-general-pane-model";
+import { SizePositionPane } from "../../../vsobjects/dialog/size-position-pane.component";
+import { ListValuesPane } from "./list-values-pane.component";
+import { TitlePropPane } from "../../../vsobjects/dialog/title-prop-pane.component";
+import { GeneralPropPane } from "../../../vsobjects/dialog/general-prop-pane.component";
 
 @Component({
-   selector: "checkbox-general-pane",
-   templateUrl: "checkbox-general-pane.component.html",
+    selector: "checkbox-general-pane",
+    templateUrl: "checkbox-general-pane.component.html",
+    standalone: true,
+    imports: [
+        GeneralPropPane,
+        TitlePropPane,
+        ListValuesPane,
+        SizePositionPane,
+    ],
 })
 export class CheckboxGeneralPane implements OnInit {
    @Input() model: CheckboxGeneralPaneModel;

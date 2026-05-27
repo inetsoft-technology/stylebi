@@ -18,11 +18,14 @@
 import { Component, ElementRef, EventEmitter, Input, Output } from "@angular/core";
 import { VSObjectFormatInfoModel } from "../../common/data/vs-object-format-info-model";
 import { VSObjectModel } from "../model/vs-object-model";
+import { VSFormatsPane } from "../format/vs-formats-pane.component";
 
 @Component({
-   selector: "viewer-format-pane",
-   templateUrl: "viewer-format-pane.component.html",
-   styleUrls: ["viewer-format-pane.component.scss"]
+    selector: "viewer-format-pane",
+    templateUrl: "viewer-format-pane.component.html",
+    styleUrls: ["viewer-format-pane.component.scss"],
+    standalone: true,
+    imports: [VSFormatsPane]
 })
 export class ViewerFormatPane {
    @Input() vsId: string;

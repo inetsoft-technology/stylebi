@@ -21,11 +21,14 @@ import { GaugeFaceType } from "../../model/recommender/gauge-face-type";
 import { GraphTypes } from "../../../common/graph-types";
 import { VSFilterType } from "../../model/recommender/vs-filter-type";
 import { VSSubType } from "../../model/recommender/vs-sub-type";
+import { NgIf } from "@angular/common";
 
 @Component({
-   selector: "object-type-icon",
-   templateUrl: "object-type-icon.component.html",
-   styleUrls: ["object-type-icon.component.scss"]
+    selector: "object-type-icon",
+    templateUrl: "object-type-icon.component.html",
+    styleUrls: ["object-type-icon.component.scss"],
+    standalone: true,
+    imports: [NgIf]
 })
 export class ObjectTypeIcon {
    @Input() type: VSSubType = null;

@@ -26,11 +26,37 @@ import { GraphUtil } from "../../../util/graph-util";
 import { GraphTypes } from "../../../../common/graph-types";
 import { AestheticFieldMc } from "./aesthetic-field-mc";
 import { UIContextService } from "../../../../common/services/ui-context.service";
+import { LinearColorPane } from "./linear-color-pane.component";
+import { CategoricalColorPane } from "./categorical-color-pane.component";
+import { CombinedColorPane } from "./combined-color-pane.component";
+import { StaticColorPane } from "./static-color-pane.component";
+import { ChartAestheticMc } from "./chart-aesthetic-mc.component";
+import { ColorCell } from "./color-cell.component";
+import { NgIf, NgFor, NgSwitch, NgSwitchCase } from "@angular/common";
+import { FixedDropdownDirective } from "../../../../widget/fixed-dropdown/fixed-dropdown.directive";
+import { OutOfZoneDirective } from "../../../../widget/directive/out-of-zone.directive";
+import { DropHighlightDirective } from "../../../widget/drophighlight.directive";
 
 @Component({
-   selector: "color-field-mc",
-   templateUrl: "color-field-mc.component.html",
-   styleUrls: ["aesthetic-field-mc.scss"],
+    selector: "color-field-mc",
+    templateUrl: "color-field-mc.component.html",
+    styleUrls: ["aesthetic-field-mc.scss"],
+    standalone: true,
+    imports: [
+        DropHighlightDirective,
+        OutOfZoneDirective,
+        FixedDropdownDirective,
+        NgIf,
+        NgFor,
+        ColorCell,
+        ChartAestheticMc,
+        NgSwitch,
+        NgSwitchCase,
+        StaticColorPane,
+        CombinedColorPane,
+        CategoricalColorPane,
+        LinearColorPane,
+    ],
 })
 export class ColorFieldMc extends AestheticFieldMc {
    constructor(editorService: ChartEditorService, dservice: DndService,

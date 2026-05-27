@@ -24,11 +24,13 @@ import {
    Output,
    SimpleChanges
 } from "@angular/core";
-import { UntypedFormControl } from "@angular/forms";
+import { UntypedFormControl, FormsModule, ReactiveFormsModule } from "@angular/forms";
 
 @Component({
-   selector: "tabular-boolean-editor",
-   templateUrl: "tabular-boolean-editor.component.html"
+    selector: "tabular-boolean-editor",
+    templateUrl: "tabular-boolean-editor.component.html",
+    standalone: true,
+    imports: [FormsModule, ReactiveFormsModule]
 })
 export class TabularBooleanEditor implements OnInit, OnChanges {
    @Input() value: boolean;

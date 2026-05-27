@@ -41,6 +41,12 @@ import { NavigationComponent } from "../abstract-nav-component";
 import { NavigationKeys } from "../navigation-keys";
 import { DebounceService } from "../../../widget/services/debounce.service";
 import { DataTipService } from "../data-tip/data-tip.service";
+import { SafeFontDirective } from "../../directives/safe-font.directive";
+import { OutOfZoneDirective } from "../../../widget/directive/out-of-zone.directive";
+import { VSPopComponentDirective } from "../data-tip/vs-pop-component.directive";
+import { VSDataTipDirective } from "../data-tip/vs-data-tip.directive";
+import { VSInputLabelWrapper } from "../input-label-wrapper/vs-input-label-wrapper.component";
+import { NgIf, NgFor } from "@angular/common";
 
 interface SliderTick {
    left: number;
@@ -54,9 +60,11 @@ const CHANGE_VALUE_URL: string = "/events/composer/viewsheet/vsSlider/changeValu
 const GET_OBJECT_MODEL_URL: string = "/events/vsview/object/model";
 
 @Component({
-   selector: "vs-slider",
-   templateUrl: "vs-slider.component.html",
-   styleUrls: ["vs-slider.component.scss"]
+    selector: "vs-slider",
+    templateUrl: "vs-slider.component.html",
+    styleUrls: ["vs-slider.component.scss"],
+    standalone: true,
+    imports: [NgIf, VSInputLabelWrapper, VSDataTipDirective, VSPopComponentDirective, OutOfZoneDirective, SafeFontDirective, NgFor]
 })
 export class VSSlider extends NavigationComponent<VSSliderModel> implements OnChanges, OnDestroy, AfterViewInit {
    private _selected: boolean = false;

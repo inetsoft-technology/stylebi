@@ -17,11 +17,16 @@
  */
 import { Component, EventEmitter, Input, Output } from "@angular/core";
 import { XSchema } from "../../../../../../../../common/data/xschema";
+import { NgFor } from "@angular/common";
+import { FormsModule } from "@angular/forms";
+import { ModalHeaderComponent } from "../../../../../../../../widget/modal-header/modal-header.component";
 
 @Component({
-   selector: "edit-data-type-dialog",
-   templateUrl: "./edit-data-type-dialog.component.html",
-   styleUrls: ["./edit-data-type-dialog.component.scss"]
+    selector: "edit-data-type-dialog",
+    templateUrl: "./edit-data-type-dialog.component.html",
+    styleUrls: ["./edit-data-type-dialog.component.scss"],
+    standalone: true,
+    imports: [ModalHeaderComponent, FormsModule, NgFor]
 })
 export class EditDataTypeDialogComponent {
    @Input() columnName: string;

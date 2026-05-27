@@ -17,10 +17,14 @@
  */
 import { Component, Input, Output, EventEmitter, ViewChild } from "@angular/core";
 import { FixedDropdownDirective } from "../../../../widget/fixed-dropdown/fixed-dropdown.directive";
+import { StaticShapePane } from "./static-shape-pane.component";
+import { ShapeItem } from "./shape-item.component";
 
 @Component({
-   selector: "shape-combo-box",
-   templateUrl: "shape-combo-box.component.html"
+    selector: "shape-combo-box",
+    templateUrl: "shape-combo-box.component.html",
+    standalone: true,
+    imports: [ShapeItem, FixedDropdownDirective, StaticShapePane]
 })
 export class ShapeComboBox {
    @Input() shapeStr: string;

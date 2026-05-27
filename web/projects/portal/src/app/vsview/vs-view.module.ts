@@ -40,38 +40,36 @@ import { MiniToolbarModule } from "../vsobjects/objects/mini-toolbar/mini-toolba
 
 
 @NgModule({
-   imports: [
-    CommonModule,
-    FormsModule,
-    BindingModule,
-    VSObjectModule,
-    VSChartModule,
-    VSLoadingDisplayModule,
-    FixedDropdownModule,
-    InteractModule,
-    NotificationsModule,
-    WidgetDirectivesModule,
-    MiniToolbarModule,
-    AiAssistantPanelComponent
-],
-   declarations: [
-      CalcTableCellComponent,
-      CalcTableLayoutPane,
-      VSBindingPane,
-      VSObjectView,
-      BCalcTableActionHandlerDirective,
-      BCrosstabActionHandlerDirective,
-      BTableActionHandlerDirective
-   ],
-   exports: [
-      CalcTableCellComponent,
-      CalcTableLayoutPane,
-      VSBindingPane,
-      VSObjectView,
-      BCalcTableActionHandlerDirective,
-      BCrosstabActionHandlerDirective,
-      BTableActionHandlerDirective
-   ]
+    imports: [
+        CommonModule,
+        FormsModule,
+        BindingModule,
+        VSObjectModule,
+        VSChartModule,
+        VSLoadingDisplayModule,
+        FixedDropdownModule,
+        InteractModule,
+        NotificationsModule,
+        WidgetDirectivesModule,
+        MiniToolbarModule,
+        AiAssistantPanelComponent,
+        CalcTableCellComponent,
+        CalcTableLayoutPane,
+        VSBindingPane,
+        VSObjectView,
+        BCalcTableActionHandlerDirective,
+        BCrosstabActionHandlerDirective,
+        BTableActionHandlerDirective
+    ],
+    exports: [
+        CalcTableCellComponent,
+        CalcTableLayoutPane,
+        VSBindingPane,
+        VSObjectView,
+        BCalcTableActionHandlerDirective,
+        BCrosstabActionHandlerDirective,
+        BTableActionHandlerDirective
+    ]
 })
 export class VSViewModule {
 }

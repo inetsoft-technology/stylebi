@@ -34,25 +34,23 @@ import {
 } from "../../date-type-editor/date-type-editor.module";
 
 @NgModule({
-   imports: [
-      CommonModule,
-      ModalHeaderModule,
-      FormsModule,
-      LargeFormFieldModule,
-      ReactiveFormsModule,
-      DateTypeEditorModule,
-   ],
-   declarations: [
-      VariableListDialog,
-      VariableListEditor,
-      VariableValueEditor
-   ],
-   exports: [
-      VariableListDialog,
-      VariableListEditor,
-      VariableValueEditor
-   ],
-   providers: [],
+    imports: [
+        CommonModule,
+        ModalHeaderModule,
+        FormsModule,
+        LargeFormFieldModule,
+        ReactiveFormsModule,
+        DateTypeEditorModule,
+        VariableListDialog,
+        VariableListEditor,
+        VariableValueEditor,
+    ],
+    exports: [
+        VariableListDialog,
+        VariableListEditor,
+        VariableValueEditor
+    ],
+    providers: [],
 })
 export class VariableListDialogModule {
 }

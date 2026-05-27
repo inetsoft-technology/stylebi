@@ -26,20 +26,23 @@ import {
   ViewChild,
   ElementRef
 } from "@angular/core";
-import { UntypedFormControl, UntypedFormGroup, Validators } from "@angular/forms";
+import { UntypedFormControl, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { EditTaskFolderDialogModel } from "../../../../../../../em/src/app/settings/schedule/model/edit-task-folder-dialog-model";
 import { HttpClient } from "@angular/common/http";
 import { Tool } from "../../../../../../../shared/util/tool";
 import { CheckDuplicateResponse } from "../../../data/commands/check-duplicate-response";
 import { FormValidators } from "../../../../../../../shared/util/form-validators";
+import { NgIf } from "@angular/common";
 
 const TASK_FOLDER_CHECK_DUPLICATE_URI: string = "../api/portal/schedule/rename/checkDuplicate";
 
 @Component({
-  selector: "c-edit-task-folder-dialog",
-  templateUrl: "./edit-task-folder-dialog.component.html",
-  styleUrls: ["./edit-task-folder-dialog.component.scss"]
+    selector: "c-edit-task-folder-dialog",
+    templateUrl: "./edit-task-folder-dialog.component.html",
+    styleUrls: ["./edit-task-folder-dialog.component.scss"],
+    standalone: true,
+    imports: [FormsModule, ReactiveFormsModule, NgIf]
 })
 export class EditTaskFolderDialog implements OnInit, OnChanges, AfterViewInit {
   @Input() model: EditTaskFolderDialogModel;

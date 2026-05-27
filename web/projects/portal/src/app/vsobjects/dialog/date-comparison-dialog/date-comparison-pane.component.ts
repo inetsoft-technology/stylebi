@@ -26,11 +26,17 @@ import { AssemblyType } from "../../../composer/gui/vs/assembly-type";
 import { IntervalLevel } from "../../model/interval-pane-model";
 import { DynamicValueModel, ValueTypes } from "../../model/dynamic-value-model";
 import { XConstants } from "../../../common/util/xconstants";
+import { CategoricalColorPane } from "../../../binding/editor/chart/aesthetic/categorical-color-pane.component";
+import { NgFor, NgIf } from "@angular/common";
+import { FormsModule } from "@angular/forms";
+import { NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase } from "@ng-bootstrap/ng-bootstrap";
 
 @Component({
-   selector: "date-comparison-pane",
-   templateUrl: "./date-comparison-pane.component.html",
-   styleUrls: ["./date-comparison-pane.component.scss"]
+    selector: "date-comparison-pane",
+    templateUrl: "./date-comparison-pane.component.html",
+    styleUrls: ["./date-comparison-pane.component.scss"],
+    standalone: true,
+    imports: [NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, DateComparisonPeriodsPaneComponent, DateComparisonIntervalPaneComponent, FormsModule, NgFor, NgIf, CategoricalColorPane]
 })
 export class DateComparisonPaneComponent {
    @Input() dateComparisonPaneModel: DateComparisonPaneModel;

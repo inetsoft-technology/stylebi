@@ -17,7 +17,7 @@
  */
 import { HttpClient } from "@angular/common/http";
 import { Component, OnDestroy, OnInit } from "@angular/core";
-import { ActivatedRoute, NavigationExtras, Router } from "@angular/router";
+import { ActivatedRoute, NavigationExtras, Router, RouterOutlet } from "@angular/router";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { Observable ,  Subscription } from "rxjs";
 import { tap } from "rxjs/operators";
@@ -37,14 +37,21 @@ import { DashboardTabModel } from "./dashboard-tab-model";
 import { DashboardService } from "./dashboard.service";
 import { HideNavService } from "../services/hide-nav.service";
 import { ComponentTool } from "../../common/util/component-tool";
+import { DefaultFocusDirective } from "../../widget/directive/default-focus.directive";
+import { FixedDropdownDirective } from "../../widget/fixed-dropdown/fixed-dropdown.directive";
+import { EnterClickDirective } from "../../widget/directive/enter-click.directive";
+import { ResponsiveTabsComponent } from "../../widget/responsive-tabs/responsive-tabs.component";
+import { NgIf } from "@angular/common";
 
 const DASHBOARD_TAB_MODEL_URI: string = "../api/portal/dashboard-tab-model";
 const DELETE_DASHBOARD_URI: string = "../api/portal/dashboard/deleteDashboard/";
 
 @Component({
-   templateUrl: "dashboard-tab.component.html",
-   styleUrls: ["../portal-tab.component.scss", "dashboard-tab.component.scss"],
-   providers: [ DashboardService ]
+    templateUrl: "dashboard-tab.component.html",
+    styleUrls: ["../portal-tab.component.scss", "dashboard-tab.component.scss"],
+    providers: [DashboardService],
+    standalone: true,
+    imports: [NgIf, ResponsiveTabsComponent, EnterClickDirective, FixedDropdownDirective, DefaultFocusDirective, RouterOutlet]
 })
 export class DashboardTabComponent implements OnInit, OnDestroy {
    model: DashboardTabModel;

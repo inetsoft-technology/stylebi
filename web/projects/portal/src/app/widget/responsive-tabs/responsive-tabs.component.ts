@@ -27,13 +27,17 @@ import {
 } from "@angular/core";
 import { DebounceService } from "../services/debounce.service";
 import { GuiTool } from "../../common/util/gui-tool";
+import { FixedDropdownDirective } from "../fixed-dropdown/fixed-dropdown.directive";
+import { NgFor, NgIf } from "@angular/common";
 
 const DROPDOWN_TAB_WIDTH = 50;
 
 @Component({
-   selector: "responsive-tabs",
-   templateUrl: "responsive-tabs.component.html",
-   styleUrls: ["responsive-tabs.component.scss"]
+    selector: "responsive-tabs",
+    templateUrl: "responsive-tabs.component.html",
+    styleUrls: ["responsive-tabs.component.scss"],
+    standalone: true,
+    imports: [NgFor, NgIf, FixedDropdownDirective]
 })
 export class ResponsiveTabsComponent implements OnInit {
    @ViewChild("tabSet") tabSet: ElementRef;

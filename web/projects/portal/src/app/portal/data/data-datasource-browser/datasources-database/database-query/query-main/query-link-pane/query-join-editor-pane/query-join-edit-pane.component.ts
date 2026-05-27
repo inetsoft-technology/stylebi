@@ -34,15 +34,19 @@ import {
    JoinThumbnailService
 } from "../../../../common-components/join-thumbnail.service";
 import { TableGraphModel } from "../../../../../../model/datasources/database/physical-model/graph/table-graph-model";
+import { EditJoinTableComponent } from "../../../../common-components/edit-join-table.component";
+import { NgIf, NgFor } from "@angular/common";
 
 const HEARTBEAT_URI = "../api/data/query/heartbeat";
 
 @Component({
-   selector: "query-join-edit-pane",
-   templateUrl: "query-join-edit-pane.component.html",
-   styleUrls: ["query-join-edit-pane.component.scss",
-      "../../../../../../../../composer/gui/ws/jsplumb/jsplumb-shared.scss"],
-   providers: [ JoinThumbnailService ]
+    selector: "query-join-edit-pane",
+    templateUrl: "query-join-edit-pane.component.html",
+    styleUrls: ["query-join-edit-pane.component.scss",
+        "../../../../../../../../composer/gui/ws/jsplumb/jsplumb-shared.scss"],
+    providers: [JoinThumbnailService],
+    standalone: true,
+    imports: [NgIf, NgFor, EditJoinTableComponent]
 })
 export class QueryJoinEditPane implements
    OnChanges, OnInit, AfterViewInit, AfterViewChecked, OnDestroy

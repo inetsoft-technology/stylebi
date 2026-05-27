@@ -17,11 +17,15 @@
  */
 import { Component, EventEmitter, HostBinding, Input, Output } from "@angular/core";
 import { VSInputLabelModel } from "../../model/vs-input-label-model";
+import { SafeFontDirective } from "../../directives/safe-font.directive";
+import { NgClass, NgStyle, NgIf } from "@angular/common";
 
 @Component({
-   selector: "vs-input-label-wrapper",
-   templateUrl: "vs-input-label-wrapper.component.html",
-   styleUrls: ["vs-input-label-wrapper.component.scss"]
+    selector: "vs-input-label-wrapper",
+    templateUrl: "vs-input-label-wrapper.component.html",
+    styleUrls: ["vs-input-label-wrapper.component.scss"],
+    standalone: true,
+    imports: [NgClass, NgStyle, NgIf, SafeFontDirective]
 })
 export class VSInputLabelWrapper {
    @Input() labelModel: VSInputLabelModel;

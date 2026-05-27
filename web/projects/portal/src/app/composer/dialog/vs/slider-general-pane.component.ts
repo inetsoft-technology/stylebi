@@ -19,10 +19,19 @@ import { Component, EventEmitter, Input, OnInit, Output } from "@angular/core";
 import { UntypedFormGroup } from "@angular/forms";
 import { TreeNodeModel } from "../../../widget/tree/tree-node-model";
 import { SliderGeneralPaneModel } from "../../data/vs/slider-general-pane-model";
+import { SizePositionPane } from "../../../vsobjects/dialog/size-position-pane.component";
+import { NumericRangePane } from "./numeric-range-pane.component";
+import { GeneralPropPane } from "../../../vsobjects/dialog/general-prop-pane.component";
 
 @Component({
-   selector: "slider-general-pane",
-   templateUrl: "slider-general-pane.component.html",
+    selector: "slider-general-pane",
+    templateUrl: "slider-general-pane.component.html",
+    standalone: true,
+    imports: [
+        GeneralPropPane,
+        NumericRangePane,
+        SizePositionPane,
+    ],
 })
 export class SliderGeneralPane implements OnInit {
    @Input() model: SliderGeneralPaneModel;

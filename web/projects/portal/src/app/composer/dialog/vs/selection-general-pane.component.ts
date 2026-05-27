@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { AfterViewInit, Component, Input, OnInit, ViewChild } from "@angular/core";
-import { UntypedFormControl, UntypedFormGroup, Validators } from "@angular/forms";
+import { UntypedFormControl, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { Tool } from "../../../../../../shared/util/tool";
 import { StyleConstants } from "../../../common/util/style-constants";
 import { FormValidators } from "../../../../../../shared/util/form-validators";
@@ -24,10 +24,25 @@ import { MODE } from "../../../vsobjects/objects/selection/selection-tree-contro
 import { TreeNodeModel } from "../../../widget/tree/tree-node-model";
 import { SelectionGeneralPaneModel } from "../../data/vs/selection-general-pane-model";
 import { SelectionTreePaneModel } from "../../data/vs/selection-tree-pane-model";
+import { SizePositionPane } from "../../../vsobjects/dialog/size-position-pane.component";
+import { NgIf, NgClass, NgFor } from "@angular/common";
+import { TitlePropPane } from "../../../vsobjects/dialog/title-prop-pane.component";
+import { GeneralPropPane } from "../../../vsobjects/dialog/general-prop-pane.component";
 
 @Component({
-   selector: "selection-general-pane",
-   templateUrl: "selection-general-pane.component.html",
+    selector: "selection-general-pane",
+    templateUrl: "selection-general-pane.component.html",
+    standalone: true,
+    imports: [
+        GeneralPropPane,
+        TitlePropPane,
+        FormsModule,
+        ReactiveFormsModule,
+        NgIf,
+        NgClass,
+        NgFor,
+        SizePositionPane,
+    ],
 })
 export class SelectionGeneralPane implements OnInit, AfterViewInit {
    @Input() model: SelectionGeneralPaneModel;

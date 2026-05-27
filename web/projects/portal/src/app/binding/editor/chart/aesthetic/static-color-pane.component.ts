@@ -18,10 +18,13 @@
 import { Component, Input, Output, EventEmitter } from "@angular/core";
 import { ColorFieldPane } from "../../../widget/color-field-pane.component";
 import { StaticColorModel } from "../../../../common/data/visual-frame-model";
+import { NgIf } from "@angular/common";
 
 @Component({
-   selector: "static-color-pane",
-   templateUrl: "static-color-pane.component.html"
+    selector: "static-color-pane",
+    templateUrl: "static-color-pane.component.html",
+    standalone: true,
+    imports: [NgIf, ColorFieldPane]
 })
 export class StaticColorPane {
    @Input() frame: StaticColorModel;

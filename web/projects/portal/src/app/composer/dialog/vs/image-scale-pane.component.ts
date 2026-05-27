@@ -19,6 +19,8 @@ import { Component, Input, OnInit } from "@angular/core";
 import { Tool } from "../../../../../../shared/util/tool";
 import { ImageScalePaneModel } from "../../data/vs/image-scale-pane-model";
 import { getImageName, getImageType } from "../../util/image-util";
+import { NgIf, NgStyle } from "@angular/common";
+import { FormsModule } from "@angular/forms";
 
 declare const window: any;
 
@@ -26,9 +28,11 @@ const IMAGE_URL: string = "../api/image/composer/vs/image-preview-pane/image/";
 const EMPTY_IMAGE: string = "assets/emptyimage.gif";
 
 @Component({
-   selector: "image-scale-pane",
-   templateUrl: "image-scale-pane.component.html",
-   styleUrls: ["image-scale-pane.component.scss"]
+    selector: "image-scale-pane",
+    templateUrl: "image-scale-pane.component.html",
+    styleUrls: ["image-scale-pane.component.scss"],
+    standalone: true,
+    imports: [FormsModule, NgIf, NgStyle]
 })
 export class ImageScalePane implements OnInit {
    @Input() model: ImageScalePaneModel;

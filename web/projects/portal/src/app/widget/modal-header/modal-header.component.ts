@@ -17,11 +17,16 @@
  */
 import { Component, EventEmitter, Input, Output } from "@angular/core";
 import { AiAssistantDialogService } from "../../common/services/ai-assistant-dialog.service";
+import { HelpLinkDirective } from "../help-link/help-link.directive";
+import { EnterClickDirective } from "../directive/enter-click.directive";
+import { NgIf } from "@angular/common";
 
 @Component({
-   selector: "modal-header",
-   templateUrl: "modal-header.component.html",
-   styleUrls: ["./modal-header.component.scss"]
+    selector: "modal-header",
+    templateUrl: "modal-header.component.html",
+    styleUrls: ["./modal-header.component.scss"],
+    standalone: true,
+    imports: [NgIf, EnterClickDirective, HelpLinkDirective]
 })
 export class ModalHeaderComponent {
    @Input() title: string = "";

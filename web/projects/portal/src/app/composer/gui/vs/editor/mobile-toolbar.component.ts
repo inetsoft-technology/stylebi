@@ -29,10 +29,14 @@ import { AssemblyActionFactory } from "../../../../vsobjects/action/assembly-act
 import { VSObjectModel } from "../../../../vsobjects/model/vs-object-model";
 import { Viewsheet } from "../../../data/vs/viewsheet";
 import { AbstractActionComponent } from "./abstract-action-component";
+import { NgbDropdown, NgbDropdownToggle, NgbDropdownMenu } from "@ng-bootstrap/ng-bootstrap";
+import { NgFor, NgIf } from "@angular/common";
 
 @Component({
-   selector: "mobile-toolbar",
-   templateUrl: "mobile-toolbar.component.html"
+    selector: "mobile-toolbar",
+    templateUrl: "mobile-toolbar.component.html",
+    standalone: true,
+    imports: [NgFor, NgIf, NgbDropdown, NgbDropdownToggle, NgbDropdownMenu]
 })
 export class MobileToolbarComponent
    extends AbstractActionComponent implements OnChanges, OnDestroy

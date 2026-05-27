@@ -23,17 +23,22 @@ import {
    OnInit,
    ViewChild
 } from "@angular/core";
-import { NgbDropdown } from "@ng-bootstrap/ng-bootstrap";
+import { NgbDropdown, NgbDropdownToggle, NgbTooltip, NgbDropdownMenu } from "@ng-bootstrap/ng-bootstrap";
 import { Subject } from "rxjs";
 import { takeUntil } from "rxjs/operators";
 import { DropdownObserver } from "../../services/dropdown-observer.service";
 import { ToolbarActionGroup } from "../toolbar-action-group";
 import { ToolbarAction } from "../toolbar-action";
+import { FormsModule } from "@angular/forms";
+import { ToolbarGroupModule } from "./toolbar-group.module";
+import { NgIf, NgClass, NgFor } from "@angular/common";
 
 @Component({
-   selector: "toolbar-group",
-   templateUrl: "toolbar-group.component.html",
-   styleUrls: ["toolbar-group.component.scss"]
+    selector: "toolbar-group",
+    templateUrl: "toolbar-group.component.html",
+    styleUrls: ["toolbar-group.component.scss"],
+    standalone: true,
+    imports: [NgIf, NgbDropdown, NgbDropdownToggle, NgbTooltip, NgClass, NgbDropdownMenu, NgFor, ToolbarGroupModule, FormsModule]
 })
 export class ToolbarGroup implements OnInit, AfterViewInit, OnDestroy {
    @Input() asMenu: boolean = false;

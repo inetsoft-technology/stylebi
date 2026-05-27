@@ -23,19 +23,17 @@ import {Ruler} from "./ruler.component";
 import {Rulers} from "./rulers.component";
 
 @NgModule({
-   imports: [
-    CommonModule,
-    ResizedDirective,
-],
-   declarations: [
-      Ruler,
-      Rulers
-   ],
-   exports: [
-      Ruler,
-      Rulers
-   ],
-   providers: [],
+    imports: [
+        CommonModule,
+        ResizedDirective,
+        Ruler,
+        Rulers,
+    ],
+    exports: [
+        Ruler,
+        Rulers
+    ],
+    providers: [],
 })
 export class RulersModule {
 }

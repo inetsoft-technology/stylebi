@@ -42,12 +42,17 @@ import { SlideOutRef } from "../../../widget/slide-out/slide-out-ref";
 import { TableStylePaneModel } from "../../../widget/table-style/table-style-pane-model";
 import { ContextProvider } from "../../context-provider.service";
 import { BaseHrefService } from "../../../common/services/base-href.service";
+import { TableStyleDialog } from "../../dialog/table-style-dialog.component";
+import { PreviewTableComponent } from "./preview-table.component";
+import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
 
 @Component({
-   selector: "vs-preview-table",
-   templateUrl: "./vs-preview-table.component.html",
-   styleUrls: ["./vs-preview-table.component.scss"],
-   encapsulation: ViewEncapsulation.None
+    selector: "vs-preview-table",
+    templateUrl: "./vs-preview-table.component.html",
+    styleUrls: ["./vs-preview-table.component.scss"],
+    encapsulation: ViewEncapsulation.None,
+    standalone: true,
+    imports: [ModalHeaderComponent, PreviewTableComponent, TableStyleDialog]
 })
 export class VSPreviewTable extends CommandProcessor implements OnDestroy {
    @Input() assemblyName: string;

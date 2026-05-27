@@ -22,18 +22,16 @@ import {ScriptPaneModule} from "../script-pane/script-pane.module";
 import {FormsModule} from "@angular/forms";
 
 @NgModule({
-   imports: [
-      CommonModule,
-      ScriptPaneModule,
-      FormsModule,
-   ],
-   declarations: [
-      VSAssemblyScriptPane
-   ],
-   exports: [
-      VSAssemblyScriptPane
-   ],
-   providers: [],
+    imports: [
+        CommonModule,
+        ScriptPaneModule,
+        FormsModule,
+        VSAssemblyScriptPane,
+    ],
+    exports: [
+        VSAssemblyScriptPane
+    ],
+    providers: [],
 })
 export class VSAssemblyScriptPaneModule {
 }

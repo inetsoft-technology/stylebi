@@ -22,18 +22,16 @@ import {WidgetDirectivesModule} from "../directive/widget-directives.module";
 import {FormsModule} from "@angular/forms";
 
 @NgModule({
-   imports: [
-      CommonModule,
-      WidgetDirectivesModule,
-      FormsModule,
-   ],
-   declarations: [
-      LargeFormFieldComponent
-   ],
-   exports: [
-      LargeFormFieldComponent
-   ],
-   providers: [],
+    imports: [
+        CommonModule,
+        WidgetDirectivesModule,
+        FormsModule,
+        LargeFormFieldComponent,
+    ],
+    exports: [
+        LargeFormFieldComponent
+    ],
+    providers: [],
 })
 export class LargeFormFieldModule {
 }

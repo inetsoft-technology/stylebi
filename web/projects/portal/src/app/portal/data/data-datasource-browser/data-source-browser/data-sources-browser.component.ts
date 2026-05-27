@@ -18,17 +18,20 @@
 import { Component, OnInit, Input, Output, EventEmitter } from "@angular/core";
 import { DataSourceBrowserViewModel } from "../../model/data-source-browser-view-model";
 import { SortTypes } from "../../../../../../../shared/util/sort/sort-types";
-import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
+import { NgbModal, NgbTooltip } from "@ng-bootstrap/ng-bootstrap";
 import { Observable } from "rxjs";
 import { SortOptions } from "../../../../../../../shared/util/sort/sort-options";
 import { Tool } from "../../../../../../../shared/util/tool";
 import { ComponentTool } from "../../../../common/util/component-tool";
 import { DataSourceInfo } from "../../model/data-source-info";
+import { NgIf, NgFor } from "@angular/common";
 
 @Component({
-   selector: "data-sources-browser",
-   templateUrl: "data-sources-browser.component.html",
-   styleUrls: ["data-sources-browser.component.scss"]
+    selector: "data-sources-browser",
+    templateUrl: "data-sources-browser.component.html",
+    styleUrls: ["data-sources-browser.component.scss"],
+    standalone: true,
+    imports: [NgbTooltip, NgIf, NgFor]
 })
 export class DataSourcesBrowser implements OnInit {
    @Input() browserView: DataSourceBrowserViewModel;

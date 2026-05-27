@@ -19,6 +19,7 @@ import { Component, EventEmitter, Input, OnDestroy, OnInit, Output, Renderer2,
          ChangeDetectorRef } from "@angular/core";
 import { SliderOptions } from "./slider-options";
 import { GuiTool } from "../../common/util/gui-tool";
+import { NgFor } from "@angular/common";
 
 interface SliderTick {
    left: string;
@@ -26,9 +27,11 @@ interface SliderTick {
 }
 
 @Component({
-   selector: "slider", // eslint-disable-line @angular-eslint/component-selector
-   templateUrl: "slider.component.html",
-   styleUrls: ["slider.component.scss"]
+    selector: "slider",
+    templateUrl: "slider.component.html",
+    styleUrls: ["slider.component.scss"],
+    standalone: true,
+    imports: [NgFor]
 })
 export class Slider implements OnInit, OnDestroy {
    @Input() model: SliderOptions;

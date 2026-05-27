@@ -24,18 +24,16 @@ import {
 } from "../../scrollable-table/scrollable-table.module";
 
 @NgModule({
-   imports: [
-      CommonModule,
-      MouseEventModule,
-      ScrollableTableModule,
-   ],
-   declarations: [
-      AutoDrillDialog
-   ],
-   exports: [
-      AutoDrillDialog
-   ],
-   providers: [],
+    imports: [
+        CommonModule,
+        MouseEventModule,
+        ScrollableTableModule,
+        AutoDrillDialog,
+    ],
+    exports: [
+        AutoDrillDialog
+    ],
+    providers: [],
 })
 export class AutoDrillDialogModule {
 }

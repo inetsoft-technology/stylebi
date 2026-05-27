@@ -25,11 +25,16 @@ import { Observable, of } from "rxjs";
 import { catchError, debounceTime, distinctUntilChanged, map, switchMap } from "rxjs/operators";
 import { SearchCommand } from "../../../commands/search-command";
 import { HttpClient } from "@angular/common/http";
+import { NgbTypeahead } from "@ng-bootstrap/ng-bootstrap";
+import { FormsModule } from "@angular/forms";
+import { NgIf } from "@angular/common";
 
 @Component({
-   selector: "database-data-model-toolbar",
-   templateUrl: "./database-data-model-toolbar.component.html",
-   styleUrls: ["./database-data-model-toolbar.component.scss"]
+    selector: "database-data-model-toolbar",
+    templateUrl: "./database-data-model-toolbar.component.html",
+    styleUrls: ["./database-data-model-toolbar.component.scss"],
+    standalone: true,
+    imports: [NgIf, FormsModule, NgbTypeahead]
 })
 export class DatabaseDataModelToolbarComponent {
    @Input() database: string;

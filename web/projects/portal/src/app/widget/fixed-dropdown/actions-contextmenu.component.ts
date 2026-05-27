@@ -35,12 +35,16 @@ import { DropdownOptions } from "./dropdown-options";
 import { DropdownRef } from "./fixed-dropdown-ref";
 import { FixedDropdownService } from "./fixed-dropdown.service";
 import { AssemblyAction } from "../../common/action/assembly-action";
+import { OutOfZoneDirective } from "../directive/out-of-zone.directive";
+import { NgIf, NgFor, NgClass } from "@angular/common";
 
 @Component({
-   selector: "actions-contextmenu",
-   templateUrl: "actions-contextmenu.component.html",
-   styleUrls: ["actions-contextmenu.component.scss"],
-   changeDetection: ChangeDetectionStrategy.OnPush
+    selector: "actions-contextmenu",
+    templateUrl: "actions-contextmenu.component.html",
+    styleUrls: ["actions-contextmenu.component.scss"],
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    standalone: true,
+    imports: [NgIf, NgFor, OutOfZoneDirective, NgClass]
 })
 export class ActionsContextmenuComponent implements OnDestroy {
    @Input() sourceEvent: MouseEvent | TouchEvent;

@@ -81,16 +81,32 @@ import { PagingControlModel } from "../../model/paging-control-model";
 import { PagingControlService } from "../../../common/services/paging-control.service";
 import { VSTabService } from "../../util/vs-tab.service";
 import { HyperlinkModel } from "../../../common/data/hyperlink-model";
+import { VSPreviewTable } from "./vs-preview-table.component";
+import { VSLoadingDisplay } from "../vs-loading-display/vs-loading-display.component";
+import { VSAnnotation } from "../annotation/vs-annotation.component";
+import { VSHiddenAnnotation } from "../annotation/vs-hidden-annotation.component";
+import { SelectionBoxDirective } from "../../../widget/directive/selection-box.directive";
+import { TouchScrollDirective } from "../../../widget/scroll/touch-scroll.directive";
+import { SafeFontDirective } from "../../directives/safe-font.directive";
+import { TooltipDirective } from "../../../widget/tooltip/tooltip.directive";
+import { VSTableCell } from "./vs-table-cell.component";
+import { VSTitle } from "../title/vs-title.component";
+import { OutOfZoneDirective } from "../../../widget/directive/out-of-zone.directive";
+import { VSPopComponentDirective } from "../data-tip/vs-pop-component.directive";
+import { VSDataTipDirective } from "../data-tip/vs-data-tip.directive";
+import { NgIf, NgFor } from "@angular/common";
 
 const ADD_DATA_URI: string = "/events/annotation/add-data-annotation";
 const ADD_ASSEMBLY_URI: string = "/events/annotation/add-assembly-annotation";
 const UPDATE_COLUMNS = "/events/vswizard/binding/update-columns";
 
 @Component({
-   selector: "vs-table",
-   templateUrl: "vs-table.component.html",
-   styleUrls: ["base-table.scss", "vs-table.component.scss"],
-   changeDetection: ChangeDetectionStrategy.OnPush
+    selector: "vs-table",
+    templateUrl: "vs-table.component.html",
+    styleUrls: ["base-table.scss", "vs-table.component.scss"],
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    standalone: true,
+    imports: [NgIf, VSDataTipDirective, VSPopComponentDirective, OutOfZoneDirective, VSTitle, NgbTooltip, NgFor, VSTableCell, TooltipDirective, SafeFontDirective, TouchScrollDirective, SelectionBoxDirective, VSHiddenAnnotation, VSAnnotation, VSLoadingDisplay, VSPreviewTable]
 })
 export class VSTable extends BaseTable<VSTableModel> implements OnInit, OnDestroy, AfterViewInit {
    @Input()

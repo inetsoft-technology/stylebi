@@ -18,6 +18,7 @@
 import { Component, EventEmitter, Input, OnDestroy, OnInit, Output, Renderer2,
          ViewChild, ElementRef } from "@angular/core";
 import { RangeSliderOptions } from "./range-slider-options";
+import { NgFor } from "@angular/common";
 
 interface SliderTick {
    left: string;
@@ -27,9 +28,11 @@ interface SliderTick {
 enum Handle { Left, Middle, Right, None }
 
 @Component({
-   selector: "range-slider",
-   templateUrl: "range-slider.component.html",
-   styleUrls: ["range-slider.component.scss"]
+    selector: "range-slider",
+    templateUrl: "range-slider.component.html",
+    styleUrls: ["range-slider.component.scss"],
+    standalone: true,
+    imports: [NgFor]
 })
 export class RangeSlider implements OnInit, OnDestroy {
    @Input() model: RangeSliderOptions;

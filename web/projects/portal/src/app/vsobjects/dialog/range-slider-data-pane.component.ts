@@ -37,6 +37,9 @@ import { RangeSliderDataPaneModel } from "../model/range-slider-data-pane-model"
 import { RangeSliderSizePaneModel } from "../model/range-slider-size-pane-model";
 import { VSUtil } from "../util/vs-util";
 import { DataTreeValidatorService } from "./data-tree-validator.service";
+import { AdditionalTableSelectionPaneComponent } from "../../widget/dialog/additional-table-selection-pane/additional-table-selection-pane.component";
+import { NgIf, NgFor } from "@angular/common";
+import { FormsModule } from "@angular/forms";
 
 interface CompositeNodeInfo {
    readonly label: string;
@@ -44,8 +47,10 @@ interface CompositeNodeInfo {
 }
 
 @Component({
-   selector: "range-slider-data-pane",
-   templateUrl: "range-slider-data-pane.component.html"
+    selector: "range-slider-data-pane",
+    templateUrl: "range-slider-data-pane.component.html",
+    standalone: true,
+    imports: [FormsModule, NgIf, TreeComponent, NgFor, AdditionalTableSelectionPaneComponent]
 })
 export class RangeSliderDataPane extends TreeDataPane implements AfterViewInit {
    @Input() model: RangeSliderDataPaneModel;

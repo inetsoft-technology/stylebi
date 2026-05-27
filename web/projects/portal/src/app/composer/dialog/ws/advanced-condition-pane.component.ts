@@ -29,10 +29,13 @@ import { SubqueryTable } from "../../../common/data/condition/subquery-table";
 import { DataRef } from "../../../common/data/data-ref";
 import { PrePostConditionItemPaneProvider } from "./pre-post-condition-item-pane-provider";
 import { RankingConditionItemPaneProvider } from "./ranking-condition-item-pane-provider";
+import { ConditionList } from "../../../widget/condition/condition-list.component";
 
 @Component({
-   selector: "advanced-condition-pane",
-   templateUrl: "advanced-condition-pane.component.html",
+    selector: "advanced-condition-pane",
+    templateUrl: "advanced-condition-pane.component.html",
+    standalone: true,
+    imports: [ConditionList],
 })
 export class AdvancedConditionPane implements OnInit, OnChanges {
    @Input() runtimeId: string;

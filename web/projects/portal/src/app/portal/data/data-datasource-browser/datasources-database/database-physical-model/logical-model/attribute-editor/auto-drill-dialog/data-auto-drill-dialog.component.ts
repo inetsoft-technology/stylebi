@@ -25,16 +25,13 @@ import {
    ElementRef,
    AfterViewInit
 } from "@angular/core";
-import {
-   UntypedFormGroup, UntypedFormControl, Validators, AbstractControl,
-   ValidationErrors
-} from "@angular/forms";
+import { UntypedFormGroup, UntypedFormControl, Validators, AbstractControl, ValidationErrors, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { XSchema } from "../../../../../../../../common/data/xschema";
 import { AutoDrillInfoModel } from "../../../../../../model/datasources/database/physical-model/logical-model/auto-drill-info-model";
 import { Tool } from "../../../../../../../../../../../shared/util/tool";
 import { TreeNodeModel } from "../../../../../../../../widget/tree/tree-node-model";
 import { HttpClient, HttpParams } from "@angular/common/http";
-import { NgbDropdown, NgbModal } from "@ng-bootstrap/ng-bootstrap";
+import { NgbDropdown, NgbModal, NgbDropdownToggle, NgbDropdownMenu } from "@ng-bootstrap/ng-bootstrap";
 import { AutoDrillPathModel } from "../../../../../../model/datasources/database/physical-model/logical-model/auto-drill-path-model";
 import { DrillParameterModel } from "../../../../../../model/datasources/database/physical-model/logical-model/drill-parameter-model";
 import { ComponentTool } from "../../../../../../../../common/util/component-tool";
@@ -50,6 +47,8 @@ import { createAssetEntry } from "../../../../../../../../../../../shared/data/a
 import {
    QueryFieldModel
 } from "../../../../../../model/datasources/database/query/query-field-model";
+import { NgFor, NgIf } from "@angular/common";
+import { ModalHeaderComponent } from "../../../../../../../../widget/modal-header/modal-header.component";
 
 enum LinkType {
    WEB_LINK = 1,
@@ -60,9 +59,11 @@ const GET_REPOSITORY_TREE_URI: string = "../api/composer/vs/hyperlink-dialog-mod
 const GET_VIEWSHEET_AUTO_DRILL_PARAMETERS: string = "../api/data/logicalModel/vs/autoDrill-parameters";
 
 @Component({
-   selector: "data-auto-drill-dialog",
-   templateUrl: "data-auto-drill-dialog.component.html",
-   styleUrls: ["data-auto-drill-dialog.component.scss"]
+    selector: "data-auto-drill-dialog",
+    templateUrl: "data-auto-drill-dialog.component.html",
+    styleUrls: ["data-auto-drill-dialog.component.scss"],
+    standalone: true,
+    imports: [ModalHeaderComponent, NgFor, NgIf, FormsModule, ReactiveFormsModule, NgbDropdown, NgbDropdownToggle, NgbDropdownMenu, RepositoryTreeComponent]
 })
 export class AutoDrillDialog implements OnInit, AfterViewInit {
    @Input() entities: EntityModel[];

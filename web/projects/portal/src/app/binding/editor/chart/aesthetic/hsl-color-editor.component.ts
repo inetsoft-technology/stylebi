@@ -17,11 +17,16 @@
  */
 import { Component, Input, Output, EventEmitter } from "@angular/core";
 import { HSLColorModel } from "../../../../common/data/visual-frame-model";
+import { ColorCell } from "./color-cell.component";
+import { StaticColorEditor } from "./static-color-editor.component";
+import { NgIf } from "@angular/common";
 
 @Component({
-   selector: "hsl-color-editor",
-   templateUrl: "hsl-color-editor.component.html",
-   styleUrls: ["color-editor.scss"]
+    selector: "hsl-color-editor",
+    templateUrl: "hsl-color-editor.component.html",
+    styleUrls: ["color-editor.scss"],
+    standalone: true,
+    imports: [NgIf, StaticColorEditor, ColorCell]
 })
 
 export class HslColorEditor {

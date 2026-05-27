@@ -44,7 +44,8 @@ const SORTING_URI: string = "composer/vs/vs-sorting-dialog-model";
 const HYPERLINK_URI: string = "composer/vs/hyperlink-dialog-model";
 
 @Directive({
-   selector: "[cCalcTableActionHandler]"
+    selector: "[cCalcTableActionHandler]",
+    standalone: true
 })
 export class CalcTableActionHandlerDirective extends AbstractActionHandler implements OnDestroy {
    @Input() model: VSCalcTableModel;

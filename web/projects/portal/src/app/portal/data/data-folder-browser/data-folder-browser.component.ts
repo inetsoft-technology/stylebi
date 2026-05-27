@@ -25,9 +25,9 @@ import {
    Renderer2,
    ViewChild
 } from "@angular/core";
-import { Validators } from "@angular/forms";
+import { Validators, FormsModule } from "@angular/forms";
 import { ActivatedRoute, ParamMap, Router } from "@angular/router";
-import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
+import { NgbModal, NgbTypeahead, NgbDropdown, NgbDropdownToggle, NgbDropdownMenu } from "@ng-bootstrap/ng-bootstrap";
 import { from, Observable, of, Subscription, throwError } from "rxjs";
 import {
    catchError,
@@ -82,6 +82,9 @@ import {
    DataSourcesTreeActionsService
 } from "../data-navigation-tree/data-sources-tree-actions.service";
 import { AssetConstants } from "../../../common/data/asset-constants";
+import { AssetDescriptionComponent } from "../data-datasource-browser/asset-description/asset-description.component";
+import { DataFolderListViewComponent } from "./data-folder-list-view/data-folder-list-view.component";
+import { NgClass, NgIf } from "@angular/common";
 
 const FOLDER_URI: string = "../api/data/folders";
 const DATA_URI: string = "../api/data/datasets";
@@ -115,10 +118,12 @@ export interface DeleteDataSetResponse {
 }
 
 @Component({
-   selector: "data-folder-browser",
-   templateUrl: "data-folder-browser.component.html",
-   styleUrls: ["data-folder-browser.component.scss"],
-   providers: [ViewsheetClientService]
+    selector: "data-folder-browser",
+    templateUrl: "data-folder-browser.component.html",
+    styleUrls: ["data-folder-browser.component.scss"],
+    providers: [ViewsheetClientService],
+    standalone: true,
+    imports: [NgClass, FormsModule, NgbTypeahead, NgbDropdown, NgIf, NgbDropdownToggle, NgbDropdownMenu, DataFolderListViewComponent, AssetDescriptionComponent, DataNotificationsComponent]
 })
 export class DataFolderBrowserComponent extends CommandProcessor implements OnInit, OnDestroy {
    datasets: WorksheetBrowserInfo[] = [];

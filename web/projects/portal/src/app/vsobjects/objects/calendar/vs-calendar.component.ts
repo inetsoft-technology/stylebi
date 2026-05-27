@@ -61,6 +61,15 @@ import { VSUtil } from "../../util/vs-util";
 import { HttpClient } from "@angular/common/http";
 import { CalendarDateFormatModel } from "../../model/calendar/calendar-date-format-model";
 import { GlobalSubmitService } from "../../util/global-submit.service";
+import { DefaultFocusDirective } from "../../../widget/directive/default-focus.directive";
+import { FormsModule } from "@angular/forms";
+import { TooltipIfDirective } from "../../../widget/tooltip/tooltip-if.directive";
+import { InteractableDirective } from "../../../widget/interact/interactable.directive";
+import { CollapseToggleButton } from "../selection/collapse-toggle-button.component";
+import { NgIf } from "@angular/common";
+import { SafeFontDirective } from "../../directives/safe-font.directive";
+import { VSPopComponentDirective } from "../data-tip/vs-pop-component.directive";
+import { VSDataTipDirective } from "../data-tip/vs-data-tip.directive";
 
 export enum SelectionRegions {
    NONE = -9,
@@ -78,9 +87,24 @@ const FORMATE_SELECTED_STRING = "../api/calendar/formatdates";
 const FORMATE_CALENDAR_TITLE = "../api/calendar/formatTitle";
 
 @Component({
-   selector: "vs-calendar",
-   templateUrl: "vs-calendar.component.html",
-   styleUrls: ["vs-calendar.component.scss"],
+    selector: "vs-calendar",
+    templateUrl: "vs-calendar.component.html",
+    styleUrls: ["vs-calendar.component.scss"],
+    standalone: true,
+    imports: [
+        VSDataTipDirective,
+        VSPopComponentDirective,
+        SafeFontDirective,
+        NgIf,
+        MiniMenu,
+        CollapseToggleButton,
+        InteractableDirective,
+        TooltipIfDirective,
+        FormsModule,
+        DefaultFocusDirective,
+        MonthCalendar,
+        YearCalendar,
+    ],
 })
 export class VSCalendar extends NavigationComponent<VSCalendarModel>
    implements AfterViewInit, DoCheck, OnDestroy, OnChanges, OnInit {

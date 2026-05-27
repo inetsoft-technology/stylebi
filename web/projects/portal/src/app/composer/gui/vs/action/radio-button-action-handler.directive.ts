@@ -35,7 +35,8 @@ import { ContextProvider } from "../../../../vsobjects/context-provider.service"
 const RADIOBUTTON_PROPERTY_URI: string = "composer/vs/radiobutton-property-dialog-model/";
 
 @Directive({
-   selector: "[cRadioButtonActionHandler]"
+    selector: "[cRadioButtonActionHandler]",
+    standalone: true
 })
 export class RadioButtonActionHandlerDirective extends AbstractActionHandler implements OnDestroy {
    @Input() model: VSRadioButtonModel;

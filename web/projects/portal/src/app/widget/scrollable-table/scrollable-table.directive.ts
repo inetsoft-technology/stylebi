@@ -20,7 +20,8 @@ import { Input, AfterContentInit, AfterContentChecked, Directive, ElementRef } f
 declare const window;
 
 @Directive({
-   selector: "table[wScrollableTable]"
+    selector: "table[wScrollableTable]",
+    standalone: true
 })
 export class ScrollableTableDirective implements AfterContentInit, AfterContentChecked {
    @Input() fixedWidths: number[] = null;

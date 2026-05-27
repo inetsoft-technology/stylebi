@@ -21,17 +21,15 @@ import {ElidedCellComponent} from "./elided-cell.component";
 import {TooltipModule} from "../tooltip/tooltip.module";
 
 @NgModule({
-   imports: [
-      CommonModule,
-      TooltipModule,
-   ],
-   declarations: [
-      ElidedCellComponent
-   ],
-   exports: [
-      ElidedCellComponent
-   ],
-   providers: [],
+    imports: [
+        CommonModule,
+        TooltipModule,
+        ElidedCellComponent,
+    ],
+    exports: [
+        ElidedCellComponent
+    ],
+    providers: [],
 })
 export class ElidedCellModule {
 }

@@ -17,10 +17,14 @@
  */
 import { Component, Input } from "@angular/core";
 import { LinePropertyPaneModel } from "../../data/vs/line-property-pane-model";
+import { LineArrowTypeDropdown } from "../../../widget/format/line-arrow-type-dropdown.component";
+import { LinePropPane } from "./line-prop-pane.component";
 
 @Component({
-   selector: "line-property-pane",
-   templateUrl: "line-property-pane.component.html",
+    selector: "line-property-pane",
+    templateUrl: "line-property-pane.component.html",
+    standalone: true,
+    imports: [LinePropPane, LineArrowTypeDropdown],
 })
 export class LinePropertyPane {
    @Input() model: LinePropertyPaneModel;

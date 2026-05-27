@@ -17,11 +17,17 @@
  */
 import { Component, Input, Output, EventEmitter } from "@angular/core";
 import { HideColumnsDialogModel } from "../model/hide-columns-dialog-model";
+import { ApplyButtonComponent } from "../../widget/slide-out/apply-button.component";
+import { EnterSubmitDirective } from "../../widget/directive/enter-submit.directive";
+import { NgIf, NgFor } from "@angular/common";
+import { ModalHeaderComponent } from "../../widget/modal-header/modal-header.component";
 
 @Component({
-   selector: "hide-columns-dialog",
-   templateUrl: "hide-columns-dialog.component.html",
-   styleUrls: ["./hide-columns-dialog.component.scss"]
+    selector: "hide-columns-dialog",
+    templateUrl: "hide-columns-dialog.component.html",
+    styleUrls: ["./hide-columns-dialog.component.scss"],
+    standalone: true,
+    imports: [ModalHeaderComponent, NgIf, EnterSubmitDirective, NgFor, ApplyButtonComponent]
 })
 export class HideColumnsDialog {
    @Input() model: HideColumnsDialogModel;

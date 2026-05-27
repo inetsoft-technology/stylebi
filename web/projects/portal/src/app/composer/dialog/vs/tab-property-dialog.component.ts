@@ -23,10 +23,32 @@ import { UIContextService } from "../../../common/services/ui-context.service";
 import { VSTrapService } from "../../../vsobjects/util/vs-trap.service";
 import { PropertyDialogService } from "../../../vsobjects/util/property-dialog.service";
 import { PropertyDialog } from "./property-dialog.component";
+import { ApplyButtonComponent } from "../../../widget/slide-out/apply-button.component";
+import { VSAssemblyScriptPane } from "../../../widget/dialog/vsassembly-script-pane/vsassembly-script-pane.component";
+import { TabGeneralPane } from "./tab-general-pane.component";
+import { NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, NgbNavOutlet } from "@ng-bootstrap/ng-bootstrap";
+import { EnterSubmitDirective } from "../../../widget/directive/enter-submit.directive";
+import { NgIf } from "@angular/common";
+import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
 
 @Component({
-   selector: "tab-property-dialog",
-   templateUrl: "tab-property-dialog.component.html",
+    selector: "tab-property-dialog",
+    templateUrl: "tab-property-dialog.component.html",
+    standalone: true,
+    imports: [
+        ModalHeaderComponent,
+        NgIf,
+        EnterSubmitDirective,
+        NgbNav,
+        NgbNavItem,
+        NgbNavLink,
+        NgbNavLinkBase,
+        NgbNavContent,
+        TabGeneralPane,
+        VSAssemblyScriptPane,
+        NgbNavOutlet,
+        ApplyButtonComponent,
+    ],
 })
 export class TabPropertyDialog extends PropertyDialog implements OnInit {
    @Input() model: TabPropertyDialogModel;

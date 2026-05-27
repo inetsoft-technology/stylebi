@@ -60,7 +60,7 @@ import { VSImageModel } from "../../../vsobjects/model/output/vs-image-model";
 import { VSObjectModel } from "../../../vsobjects/model/vs-object-model";
 import { PopComponentService } from "../../../vsobjects/objects/data-tip/pop-component.service";
 import { VSUtil } from "../../../vsobjects/util/vs-util";
-import { SelectionBoxEvent } from "../../../widget/directive/selection-box.directive";
+import { SelectionBoxEvent, SelectionBoxDirective } from "../../../widget/directive/selection-box.directive";
 import { FontService } from "../../../widget/services/font.service";
 import { ModelService } from "../../../widget/services/model.service";
 import { SetWizardGridCommand } from "../../model/command/set-wizard-grid-command";
@@ -70,6 +70,13 @@ import { VsWizardEditModes } from "../../model/vs-wizard-edit-modes";
 import { WizardNewObjectModel } from "../objects/wizard-new-object-model";
 import { DragMoveStartOptions } from "./drag-move-start-options";
 import { FollowDirection } from "./follow-direction";
+import { WizardNewObject } from "../objects/wizard-new-object.component";
+import { VsWizardObjectComponent } from "../objects/vs-wizard-object.component";
+import { NgFor } from "@angular/common";
+import { VsWizardGridPaneComponent } from "./vs-wizard-grid-pane.component";
+import { OutOfZoneDirective } from "../../../widget/directive/out-of-zone.directive";
+import { InteractContainerDirective } from "../../../widget/interact/interact-container.directive";
+import { WizardToolBarComponent } from "../wizard-tool-bar/wizard-tool-bar.component";
 
 const UPLOAD_IMAGE_URI = "../api/composer/vswizard/update-image";
 const REMOVE_VS_WIZARD_OBJECT_URI = "/events/composer/vswizard/object/remove";
@@ -80,16 +87,18 @@ const PADDING_H = 15; // Bug 39329
 const PADDING_V = 30; // mini-toolbar should display
 
 @Component({
-   selector: "vs-wizard-pane",
-   templateUrl: "vs-wizard-pane.component.html",
-   styleUrls: ["vs-wizard-pane.component.scss"],
-   providers: [
-      PopComponentService,
-      {
-         provide: ContextProvider,
-         useFactory: VSWizardContextProviderFactory
-      }
-   ]
+    selector: "vs-wizard-pane",
+    templateUrl: "vs-wizard-pane.component.html",
+    styleUrls: ["vs-wizard-pane.component.scss"],
+    providers: [
+        PopComponentService,
+        {
+            provide: ContextProvider,
+            useFactory: VSWizardContextProviderFactory
+        }
+    ],
+    standalone: true,
+    imports: [WizardToolBarComponent, SelectionBoxDirective, InteractContainerDirective, OutOfZoneDirective, VsWizardGridPaneComponent, NgFor, VsWizardObjectComponent, WizardNewObject]
 })
 export class VsWizardPane extends CommandProcessor implements OnInit, AfterViewInit, OnDestroy {
    @Input() currentVSObject: VSObjectModel = null;

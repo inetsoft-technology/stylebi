@@ -27,12 +27,16 @@ import { DropdownOptions } from "../fixed-dropdown/dropdown-options";
 import { FixedDropdownService } from "../fixed-dropdown/fixed-dropdown.service";
 import { RepositoryClientService } from "../../common/repository-client/repository-client.service";
 import { RepositoryEntry } from "../../../../../shared/data/repository-entry";
+import { EnterClickDirective } from "../directive/enter-click.directive";
+import { NgIf, NgFor } from "@angular/common";
 
 @Component({
-   selector: "repository-list",
-   templateUrl: "repository-list.component.html",
-   styleUrls: ["repository-list.component.scss"],
-   providers: [RepositoryClientService]
+    selector: "repository-list",
+    templateUrl: "repository-list.component.html",
+    styleUrls: ["repository-list.component.scss"],
+    providers: [RepositoryClientService],
+    standalone: true,
+    imports: [NgIf, EnterClickDirective, NgFor]
 })
 export class RepositoryListComponent extends RepositoryBaseComponent implements OnInit {
    @Output() nodeSelected = new EventEmitter<TreeNodeModel>();

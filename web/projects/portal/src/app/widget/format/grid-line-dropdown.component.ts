@@ -19,11 +19,15 @@ import { Component, Input, Output, OnInit, EventEmitter, ViewChild, ElementRef
        } from "@angular/core";
 import { StyleConstants } from "../../common/util/style-constants";
 import { ChartConfig } from "../../common/util/chart-config";
+import { NgFor } from "@angular/common";
+import { FixedDropdownDirective } from "../fixed-dropdown/fixed-dropdown.directive";
 
 @Component({
-   selector: "grid-line-dropdown",
-   templateUrl: "grid-line-dropdown.component.html",
-   styleUrls: ["grid-line-dropdown.component.scss"]
+    selector: "grid-line-dropdown",
+    templateUrl: "grid-line-dropdown.component.html",
+    styleUrls: ["grid-line-dropdown.component.scss"],
+    standalone: true,
+    imports: [FixedDropdownDirective, NgFor]
 })
 export class GridLineDropdown implements OnInit {
    @Input() lineStyle: number;

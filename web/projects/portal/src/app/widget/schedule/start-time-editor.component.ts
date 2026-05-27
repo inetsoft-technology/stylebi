@@ -16,28 +16,25 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, EventEmitter, forwardRef, Input, OnInit, Output } from "@angular/core";
-import {
-   ControlValueAccessor,
-   UntypedFormBuilder,
-   UntypedFormGroup,
-   NG_VALUE_ACCESSOR,
-   ValidationErrors,
-   Validators
-} from "@angular/forms";
+import { ControlValueAccessor, UntypedFormBuilder, UntypedFormGroup, NG_VALUE_ACCESSOR, ValidationErrors, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { TimeRange } from "../../../../../shared/schedule/model/time-condition-model";
 import { StartTimeData } from "./start-time-data";
+import { NgbTimepicker } from "@ng-bootstrap/ng-bootstrap";
+import { NgIf, NgFor } from "@angular/common";
 
 @Component({
-   selector: "w-start-time-editor",
-   templateUrl: "./start-time-editor.component.html",
-   styleUrls: ["./start-time-editor.component.scss"],
-   providers: [
-      {
-         provide: NG_VALUE_ACCESSOR,
-         useExisting: forwardRef(() => StartTimeEditor),
-         multi: true
-      }
-   ]
+    selector: "w-start-time-editor",
+    templateUrl: "./start-time-editor.component.html",
+    styleUrls: ["./start-time-editor.component.scss"],
+    providers: [
+        {
+            provide: NG_VALUE_ACCESSOR,
+            useExisting: forwardRef(() => StartTimeEditor),
+            multi: true
+        }
+    ],
+    standalone: true,
+    imports: [FormsModule, ReactiveFormsModule, NgIf, NgbTimepicker, NgFor]
 })
 export class StartTimeEditor implements OnInit, ControlValueAccessor {
    @Input() timeRanges: TimeRange[] = [];

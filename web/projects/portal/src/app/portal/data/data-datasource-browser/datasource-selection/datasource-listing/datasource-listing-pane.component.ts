@@ -17,12 +17,16 @@
  */
 import { ChangeDetectionStrategy, Component, EventEmitter, Input, Output } from "@angular/core";
 import { DataSourceListing } from "./datasource-listing";
+import { DatasourceListingComponent } from "./datasource-listing.component";
+import { NgFor, NgIf } from "@angular/common";
 
 @Component({
-   selector: "datasource-listing-pane",
-   templateUrl: "datasource-listing-pane.component.html",
-   styleUrls: ["datasource-listing-pane.component.scss"],
-   changeDetection: ChangeDetectionStrategy.OnPush
+    selector: "datasource-listing-pane",
+    templateUrl: "datasource-listing-pane.component.html",
+    styleUrls: ["datasource-listing-pane.component.scss"],
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    standalone: true,
+    imports: [NgFor, DatasourceListingComponent, NgIf]
 })
 export class DatasourceListingPaneComponent {
    @Input() listings: DataSourceListing[];

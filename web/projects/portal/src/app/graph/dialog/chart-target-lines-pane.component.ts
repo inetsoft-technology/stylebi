@@ -21,11 +21,15 @@ import { Tool } from "../../../../../shared/util/tool";
 import { ChartConfig } from "../../common/util/chart-config";
 import { TargetInfo } from "../../widget/target/target-info";
 import { ChartTargetLinesPaneModel } from "../model/dialog/chart-target-lines-pane-model";
+import { ChartTargetDialog } from "../../widget/target/chart-target-dialog.component";
+import { NgIf, NgFor } from "@angular/common";
 
 @Component({
-   selector: "chart-target-lines-pane",
-   templateUrl: "chart-target-lines-pane.component.html",
-   styleUrls: ["chart-target-lines-pane.component.scss"]
+    selector: "chart-target-lines-pane",
+    templateUrl: "chart-target-lines-pane.component.html",
+    styleUrls: ["chart-target-lines-pane.component.scss"],
+    standalone: true,
+    imports: [NgIf, NgFor, ChartTargetDialog]
 })
 export class ChartTargetLinesPane implements OnInit {
    @Input() model: ChartTargetLinesPaneModel;

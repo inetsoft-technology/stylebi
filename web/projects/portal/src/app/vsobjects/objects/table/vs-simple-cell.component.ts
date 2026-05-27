@@ -18,16 +18,19 @@
 import { ChangeDetectionStrategy, Component, Input, OnInit } from "@angular/core";
 import { BaseTableCellModel } from "../../model/base-table-cell-model";
 import { Tool } from "../../../../../../shared/util/tool";
+import { NgIf } from "@angular/common";
 
 /**
  * A simple cell for optimization.
  */
 /* eslint-disable */
 @Component({
-   selector: "vs-simple-cell,[vs-simple-cell]",
-   templateUrl: "vs-simple-cell.component.html",
-   styleUrls: ["vs-table-cell.component.scss", "vs-simple-cell.component.scss"],
-   changeDetection: ChangeDetectionStrategy.OnPush,
+    selector: "vs-simple-cell,[vs-simple-cell]",
+    templateUrl: "vs-simple-cell.component.html",
+    styleUrls: ["vs-table-cell.component.scss", "vs-simple-cell.component.scss"],
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    standalone: true,
+    imports: [NgIf],
 })
 /* eslint-enable */
 export class VSSimpleCell implements OnInit {

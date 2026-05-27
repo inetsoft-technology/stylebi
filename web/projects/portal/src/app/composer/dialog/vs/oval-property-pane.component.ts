@@ -21,8 +21,10 @@ import { FillPropPane } from "./fill-prop-pane.component";
 import { OvalPropertyPaneModel } from "../../data/vs/oval-property-pane-model";
 
 @Component({
-   selector: "oval-property-pane",
-   templateUrl: "oval-property-pane.component.html",
+    selector: "oval-property-pane",
+    templateUrl: "oval-property-pane.component.html",
+    standalone: true,
+    imports: [LinePropPane, FillPropPane],
 })
 export class OvalPropertyPane {
    @Input() model: OvalPropertyPaneModel;

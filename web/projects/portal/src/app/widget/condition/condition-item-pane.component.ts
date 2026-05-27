@@ -51,11 +51,21 @@ import { ConditionFieldComboModel } from "./condition-field-combo-model";
 import { SourceInfo } from "../../binding/data/source-info";
 import { BaseField } from "../../binding/data/base-field";
 import { ConditionValue } from "../../common/data/condition/condition-value";
+import { ConditionOperationPipe } from "./condition-operation.pipe";
+import { FormulaEditorDialog } from "../formula-editor/formula-editor-dialog.component";
+import { ConditionEditor } from "./condition-editor.component";
+import { BinaryConditionEditor } from "./binary-condition-editor.component";
+import { OneOfConditionEditor } from "./one-of-condition-editor.component";
+import { NgFor, NgIf, NgSwitch, NgSwitchCase, NgSwitchDefault } from "@angular/common";
+import { FormsModule } from "@angular/forms";
+import { ConditionFieldComboComponent } from "./condition-field-combo.component";
 
 @Component({
-   selector: "condition-item-pane",
-   templateUrl: "condition-item-pane.component.html",
-   styleUrls: ["condition-item-pane.component.scss"]
+    selector: "condition-item-pane",
+    templateUrl: "condition-item-pane.component.html",
+    styleUrls: ["condition-item-pane.component.scss"],
+    standalone: true,
+    imports: [ConditionFieldComboComponent, FormsModule, NgFor, NgIf, NgSwitch, NgSwitchCase, OneOfConditionEditor, BinaryConditionEditor, NgSwitchDefault, ConditionEditor, FormulaEditorDialog, ConditionOperationPipe]
 })
 export class ConditionItemPane implements OnInit, OnChanges {
    public XSchema = XSchema;

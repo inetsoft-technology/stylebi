@@ -29,14 +29,20 @@ import {
    TableJoinInfo
 } from "../../../../../../model/datasources/database/physical-model/graph/table-join-info";
 import { DataQueryModelService } from "../../../data-query-model.service";
+import { LoadingIndicatorPaneComponent } from "../../../../common-components/loading-indicator-pane/loading-indicator-pane.component";
+import { QueryJoinEditPane } from "../query-join-editor-pane/query-join-edit-pane.component";
+import { QueryNetworkGraphPaneComponent } from "../query-network-graph-pane/query-network-graph-pane.component";
+import { NgIf } from "@angular/common";
 
 const CLOSE_JOIN_EDIT_PANE_URI = "../api/data/datasource/query/join-edit/close";
 const QUERY_GRAPH_PANE_MODEL_URI = "../api/data/datasource/query/graph";
 
 @Component({
-   selector: "query-link-graph-pane",
-   templateUrl: "./query-link-graph-pane.component.html",
-   styleUrls: ["./query-link-graph-pane.component.scss"]
+    selector: "query-link-graph-pane",
+    templateUrl: "./query-link-graph-pane.component.html",
+    styleUrls: ["./query-link-graph-pane.component.scss"],
+    standalone: true,
+    imports: [NgIf, QueryNetworkGraphPaneComponent, QueryJoinEditPane, LoadingIndicatorPaneComponent]
 })
 export class QueryLinkGraphPaneComponent implements OnInit, OnDestroy {
    @Input() datasource: string;

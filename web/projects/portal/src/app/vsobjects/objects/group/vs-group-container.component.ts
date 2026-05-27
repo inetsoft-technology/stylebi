@@ -24,11 +24,16 @@ import { ContextProvider } from "../../context-provider.service";
 import { VSGroupContainerModel } from "../../model/vs-group-container-model";
 import { AbstractVSObject } from "../abstract-vsobject.component";
 import { DataTipService } from "../data-tip/data-tip.service";
+import { VSPopComponentDirective } from "../data-tip/vs-pop-component.directive";
+import { VSDataTipDirective } from "../data-tip/vs-data-tip.directive";
+import { NgIf } from "@angular/common";
 
 @Component({
-   selector: "vs-group-container",
-   templateUrl: "vs-group-container.component.html",
-   styleUrls: ["vs-group-container.component.scss"]
+    selector: "vs-group-container",
+    templateUrl: "vs-group-container.component.html",
+    styleUrls: ["vs-group-container.component.scss"],
+    standalone: true,
+    imports: [NgIf, VSDataTipDirective, VSPopComponentDirective]
 })
 export class VSGroupContainer extends AbstractVSObject<VSGroupContainerModel> {
    @Input() selected: boolean = false;

@@ -24,12 +24,15 @@ import {
 } from "@angular/core";
 
 import { XConstants } from "../../../../../common/util/xconstants";
+import { NgSwitch, NgSwitchCase } from "@angular/common";
 
 @Component({
-   selector: "concat-relation-descriptor",
-   templateUrl: "concat-relation-descriptor.component.html",
-   changeDetection: ChangeDetectionStrategy.OnPush,
-   styleUrls: ["concat-relation-descriptor.component.scss"]
+    selector: "concat-relation-descriptor",
+    templateUrl: "concat-relation-descriptor.component.html",
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    styleUrls: ["concat-relation-descriptor.component.scss"],
+    standalone: true,
+    imports: [NgSwitch, NgSwitchCase]
 })
 export class ConcatRelationDescriptorComponent {
    @Input() operation: XConstants;

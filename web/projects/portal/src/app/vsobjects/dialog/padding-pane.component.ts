@@ -17,12 +17,19 @@
  */
 import { Component, Input, OnInit } from "@angular/core";
 import { PaddingPaneModel } from "../model/padding-pane-model";
-import { UntypedFormControl, UntypedFormGroup, Validators } from "@angular/forms";
+import { UntypedFormControl, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { FormValidators } from "../../../../../shared/util/form-validators";
+import { NgIf } from "@angular/common";
 
 @Component({
-   selector: "padding-pane",
-   templateUrl: "padding-pane.component.html",
+    selector: "padding-pane",
+    templateUrl: "padding-pane.component.html",
+    standalone: true,
+    imports: [
+        FormsModule,
+        ReactiveFormsModule,
+        NgIf,
+    ],
 })
 export class PaddingPane implements OnInit {
    @Input() model: PaddingPaneModel;

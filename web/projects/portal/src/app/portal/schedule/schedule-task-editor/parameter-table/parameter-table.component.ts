@@ -21,11 +21,15 @@ import { AddParameterDialog } from "../add-parameter-dialog/add-parameter-dialog
 import { ComponentTool } from "../../../../common/util/component-tool";
 import { ValueTypes } from "../../../../vsobjects/model/dynamic-value-model";
 import { AddParameterDialogModel } from "../../../../../../../shared/schedule/model/add-parameter-dialog-model";
+import { NgFor, NgIf, TitleCasePipe } from "@angular/common";
+import { ScrollableFlexTableDirective } from "../../../../widget/scrollable-table/scrollable-flex-table.directive";
 
 @Component({
-   selector: "parameter-table",
-   templateUrl: "parameter-table.component.html",
-   styleUrls: ["./parameter-table.component.scss"]
+    selector: "parameter-table",
+    templateUrl: "parameter-table.component.html",
+    styleUrls: ["./parameter-table.component.scss"],
+    standalone: true,
+    imports: [ScrollableFlexTableDirective, NgFor, NgIf, AddParameterDialog, TitleCasePipe]
 })
 export class ParameterTable {
    @Input() parameters: AddParameterDialogModel[];

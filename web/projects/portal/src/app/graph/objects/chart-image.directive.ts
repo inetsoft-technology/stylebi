@@ -17,7 +17,8 @@ import { Directive, ElementRef, EventEmitter, Input, Output, Renderer2 } from "@
 import { SafeValue } from "@angular/platform-browser";
 
 @Directive({
-   selector: "[chartImage]"
+    selector: "[chartImage]",
+    standalone: true
 })
 export class ChartImageDirective {
    @Input()

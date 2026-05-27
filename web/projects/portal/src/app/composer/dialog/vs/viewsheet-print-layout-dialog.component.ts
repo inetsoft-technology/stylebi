@@ -22,10 +22,15 @@ import {
    Output,
    EventEmitter
 } from "@angular/core";
-import { UntypedFormControl, UntypedFormGroup, Validators } from "@angular/forms";
+import { UntypedFormControl, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { FormValidators } from "../../../../../../shared/util/form-validators";
 import { ViewsheetPrintLayoutDialogModel } from "../../data/vs/viewsheet-print-layout-dialog-model";
 import { PrintLayoutMeasures } from "../../data/vs/vs-layout-model";
+import { DialogButtonsDirective } from "../../../widget/standard-dialog/dialog-buttons.directive";
+import { NgbDropdown, NgbDropdownToggle, NgbDropdownMenu } from "@ng-bootstrap/ng-bootstrap";
+import { NgIf, NgFor } from "@angular/common";
+import { DialogContentDirective } from "../../../widget/standard-dialog/dialog-content.directive";
+import { StandardDialogComponent } from "../../../widget/standard-dialog/standard-dialog.component";
 
 interface PaperSize {
    width: number;
@@ -33,9 +38,11 @@ interface PaperSize {
 }
 
 @Component({
-   selector: "viewsheet-print-layout-dialog",
-   templateUrl: "viewsheet-print-layout-dialog.component.html",
-   styleUrls: ["./viewsheet-print-layout-dialog.component.scss"]
+    selector: "viewsheet-print-layout-dialog",
+    templateUrl: "viewsheet-print-layout-dialog.component.html",
+    styleUrls: ["./viewsheet-print-layout-dialog.component.scss"],
+    standalone: true,
+    imports: [StandardDialogComponent, DialogContentDirective, NgIf, FormsModule, ReactiveFormsModule, NgFor, NgbDropdown, NgbDropdownToggle, NgbDropdownMenu, DialogButtonsDirective]
 })
 export class ViewsheetPrintLayoutDialog implements OnInit {
    @Input() model: ViewsheetPrintLayoutDialogModel;

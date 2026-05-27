@@ -29,27 +29,25 @@ import {FormsModule, ReactiveFormsModule} from "@angular/forms";
 import {WidgetDirectivesModule} from "../directive/widget-directives.module";
 
 @NgModule({
-   imports: [
-      CommonModule,
-      TreeModule,
-      StandardDialogModule,
-      ReactiveFormsModule,
-      FormsModule,
-      WidgetDirectivesModule,
-   ],
-   declarations: [
-      AddRepositoryFolderDialog,
-      RepositoryListComponent,
-      RepositoryTreeComponent
-   ],
-   exports: [
-      AddRepositoryFolderDialog,
-      RepositoryListComponent,
-      RepositoryTreeComponent
-   ],
-   providers: [
-      RepositoryTreeService
-   ],
+    imports: [
+        CommonModule,
+        TreeModule,
+        StandardDialogModule,
+        ReactiveFormsModule,
+        FormsModule,
+        WidgetDirectivesModule,
+        AddRepositoryFolderDialog,
+        RepositoryListComponent,
+        RepositoryTreeComponent,
+    ],
+    exports: [
+        AddRepositoryFolderDialog,
+        RepositoryListComponent,
+        RepositoryTreeComponent
+    ],
+    providers: [
+        RepositoryTreeService
+    ],
 })
 export class RepositoryTreeModule {
 }

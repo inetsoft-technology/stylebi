@@ -21,17 +21,15 @@ import { WidgetDirectivesModule } from "../directive/widget-directives.module";
 import { CodemirrorComponent } from "./codemirror.component";
 
 @NgModule({
-   imports: [
-      CommonModule,
-      WidgetDirectivesModule,
-   ],
-   declarations: [
-      CodemirrorComponent
-   ],
-   exports: [
-      CodemirrorComponent
-   ],
-   providers: [],
+    imports: [
+        CommonModule,
+        WidgetDirectivesModule,
+        CodemirrorComponent,
+    ],
+    exports: [
+        CodemirrorComponent
+    ],
+    providers: [],
 })
 export class CodemirrorModule {
 }

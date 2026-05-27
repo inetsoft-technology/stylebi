@@ -17,11 +17,14 @@
  */
 import { Component, OnChanges, Input, Output, EventEmitter, SimpleChanges } from "@angular/core";
 
-import { UntypedFormControl, UntypedFormGroup } from "@angular/forms";
+import { UntypedFormControl, UntypedFormGroup, FormsModule, ReactiveFormsModule } from "@angular/forms";
+import { NgClass, NgIf, NgFor } from "@angular/common";
 @Component({
-   selector: "vpm-variable-editor",
-   templateUrl: "vpm-variable-editor.component.html",
-   styleUrls: ["vpm-variable-editor.component.scss"]
+    selector: "vpm-variable-editor",
+    templateUrl: "vpm-variable-editor.component.html",
+    styleUrls: ["vpm-variable-editor.component.scss"],
+    standalone: true,
+    imports: [FormsModule, ReactiveFormsModule, NgClass, NgIf, NgFor]
 })
 export class VPMVariableEditor implements OnChanges {
    @Input() value: string;

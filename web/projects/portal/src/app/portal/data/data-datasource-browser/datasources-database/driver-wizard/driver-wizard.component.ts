@@ -17,14 +17,7 @@
  */
 import { HttpClient, HttpParams } from "@angular/common/http";
 import { Component, EventEmitter, Input, OnInit, Output, ViewChild } from "@angular/core";
-import {
-   AbstractControl,
-   FormGroup,
-   UntypedFormBuilder,
-   ValidationErrors,
-   ValidatorFn,
-   Validators
-} from "@angular/forms";
+import { AbstractControl, FormGroup, UntypedFormBuilder, ValidationErrors, ValidatorFn, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { Observable, throwError } from "rxjs";
 import {
    catchError,
@@ -40,6 +33,11 @@ import {
 import { DriverList } from "../../../../../../../../em/src/app/settings/content/drivers-and-plugins/plugins-view/create-driver-dialog/driver-list";
 import { PluginsModel } from "../../../../../../../../shared/util/model/plugins-model";
 import { DataNotificationsComponent } from "../../../data-notifications.component";
+import { NgbTypeahead } from "@ng-bootstrap/ng-bootstrap";
+import { NgIf, NgFor } from "@angular/common";
+import { LoadingIndicatorPaneComponent } from "../common-components/loading-indicator-pane/loading-indicator-pane.component";
+import { BlockMouseDirective } from "../../../../../widget/mouse-event/block-mouse.directive";
+import { ModalHeaderComponent } from "../../../../../widget/modal-header/modal-header.component";
 
 interface UploadFilesResponse {
    identifier: string;
@@ -51,9 +49,11 @@ interface MavenSearchResponse {
 }
 
 @Component({
-   selector: "driver-wizard",
-   templateUrl: "./driver-wizard.component.html",
-   styleUrls: ["./driver-wizard.component.scss"]
+    selector: "driver-wizard",
+    templateUrl: "./driver-wizard.component.html",
+    styleUrls: ["./driver-wizard.component.scss"],
+    standalone: true,
+    imports: [ModalHeaderComponent, BlockMouseDirective, LoadingIndicatorPaneComponent, NgIf, FormsModule, ReactiveFormsModule, NgFor, NgbTypeahead, DataNotificationsComponent]
 })
 export class DriverWizardComponent implements OnInit {
    @Input() plugins: string[] = [];

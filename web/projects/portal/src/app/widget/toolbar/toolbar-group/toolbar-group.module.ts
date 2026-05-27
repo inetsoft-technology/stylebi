@@ -22,19 +22,17 @@ import {NgbDropdownModule, NgbTooltipModule} from "@ng-bootstrap/ng-bootstrap";
 import {FormsModule} from "@angular/forms";
 
 @NgModule({
-   imports: [
-      CommonModule,
-      NgbDropdownModule,
-      NgbTooltipModule,
-      FormsModule,
-   ],
-   declarations: [
-      ToolbarGroup
-   ],
-   exports: [
-      ToolbarGroup
-   ],
-   providers: [],
+    imports: [
+        CommonModule,
+        NgbDropdownModule,
+        NgbTooltipModule,
+        FormsModule,
+        ToolbarGroup,
+    ],
+    exports: [
+        ToolbarGroup
+    ],
+    providers: [],
 })
 export class ToolbarGroupModule {
 }

@@ -28,28 +28,26 @@ import { VirtualScrollTreeComponent } from "./virtual-scroll-tree/virtual-scroll
 import {FixedDropdownModule} from "../fixed-dropdown/fixed-dropdown.module";
 
 @NgModule({
-   imports: [
-      CommonModule,
-      FormsModule,
-      TooltipModule,
-      FixedDropdownModule,
-      WidgetDirectivesModule,
-   ],
-   declarations: [
-      VirtualScrollTreeComponent,
-      TreeComponent,
-      TreeDropdownComponent,
-      TreeNodeComponent,
-      TreeSearchPipe
-   ],
-   exports: [
-      VirtualScrollTreeComponent,
-      TreeComponent,
-      TreeDropdownComponent,
-      TreeNodeComponent,
-      TreeSearchPipe
-   ],
-   providers: [],
+    imports: [
+        CommonModule,
+        FormsModule,
+        TooltipModule,
+        FixedDropdownModule,
+        WidgetDirectivesModule,
+        VirtualScrollTreeComponent,
+        TreeComponent,
+        TreeDropdownComponent,
+        TreeNodeComponent,
+        TreeSearchPipe,
+    ],
+    exports: [
+        VirtualScrollTreeComponent,
+        TreeComponent,
+        TreeDropdownComponent,
+        TreeNodeComponent,
+        TreeSearchPipe
+    ],
+    providers: [],
 })
 export class TreeModule {
 }

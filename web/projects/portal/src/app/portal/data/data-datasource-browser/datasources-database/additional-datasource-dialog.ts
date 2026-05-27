@@ -29,11 +29,15 @@ import { ComponentTool } from "../../../../common/util/component-tool";
 import { Observable } from "rxjs";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { NotificationsComponent } from "../../../../widget/notifications/notifications.component";
+import { DatasourcesDatabaseComponent } from "./datasources-database.component";
+import { ModalHeaderComponent } from "../../../../widget/modal-header/modal-header.component";
 
 @Component({
-   selector: "additional-datasource-dialog",
-   templateUrl: "additional-datasource-dialog.html",
-   styleUrls: ["additional-datasource-dialog.scss"]
+    selector: "additional-datasource-dialog",
+    templateUrl: "additional-datasource-dialog.html",
+    styleUrls: ["additional-datasource-dialog.scss"],
+    standalone: true,
+    imports: [ModalHeaderComponent, DatasourcesDatabaseComponent, NotificationsComponent]
 })
 export class AdditionalDatasourceDialog {
    @Input() additionalDataSource: DatabaseDefinitionModel;

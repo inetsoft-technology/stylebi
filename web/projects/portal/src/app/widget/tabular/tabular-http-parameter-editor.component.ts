@@ -17,10 +17,15 @@
  */
 import { Component, EventEmitter, Input, OnInit, Output } from "@angular/core";
 import { HttpParameter } from "../../common/data/tabular/http-parameter";
+import { FormsModule } from "@angular/forms";
+import { NgIf } from "@angular/common";
+import { TabularTextEditor } from "./tabular-text-editor.component";
 
 @Component({
-   selector: "tabular-http-parameter-editor",
-   templateUrl: "tabular-http-parameter-editor.component.html"
+    selector: "tabular-http-parameter-editor",
+    templateUrl: "tabular-http-parameter-editor.component.html",
+    standalone: true,
+    imports: [TabularTextEditor, NgIf, FormsModule]
 })
 export class TabularHttpParameterEditorComponent implements OnInit {
    @Input() value: HttpParameter;

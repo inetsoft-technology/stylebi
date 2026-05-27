@@ -17,13 +17,21 @@
  */
 import { Component, Input, ViewChild, TemplateRef } from "@angular/core";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
-import { UntypedFormGroup } from "@angular/forms";
+import { UntypedFormGroup, FormsModule } from "@angular/forms";
 import { AxisLabelPaneModel } from "../model/dialog/axis-label-panel-model";
 import { StyleConstants } from "../../common/util/style-constants";
+import { RotationRadioGroup } from "../../widget/format/rotation-radio-group.component";
+import { NgIf } from "@angular/common";
 
 @Component({
-   selector: "axis-label-pane",
-   templateUrl: "axis-label-pane.component.html",
+    selector: "axis-label-pane",
+    templateUrl: "axis-label-pane.component.html",
+    standalone: true,
+    imports: [
+        FormsModule,
+        NgIf,
+        RotationRadioGroup,
+    ],
 })
 export class AxisLabelPane {
    @Input() model: AxisLabelPaneModel;

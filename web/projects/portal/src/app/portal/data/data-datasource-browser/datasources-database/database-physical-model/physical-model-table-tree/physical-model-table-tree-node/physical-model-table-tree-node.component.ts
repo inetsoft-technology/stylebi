@@ -19,11 +19,16 @@ import { Component, EventEmitter, Input, Output } from "@angular/core";
 import { PhysicalModelTableTreeComponent } from "../physical-model-table-tree.component";
 import { TreeNodeModel } from "../../../../../../../widget/tree/tree-node-model";
 import { PhysicalModelTreeNodeModel } from "../../../../../model/datasources/database/physical-model/physical-model-tree-node-model";
+import { TreeSearchPipe } from "../../../../../../../widget/tree/tree-search.pipe";
+import { FormsModule } from "@angular/forms";
+import { NgIf, NgFor } from "@angular/common";
 
 @Component({
-   selector: "physical-model-table-tree-node",
-   templateUrl: "physical-model-table-tree-node.component.html",
-   styleUrls: ["physical-model-table-tree-node.component.scss"]
+    selector: "physical-model-table-tree-node",
+    templateUrl: "physical-model-table-tree-node.component.html",
+    styleUrls: ["physical-model-table-tree-node.component.scss"],
+    standalone: true,
+    imports: [NgIf, FormsModule, NgFor, TreeSearchPipe]
 })
 export class PhysicalModelTableTreeNodeComponent {
    @Input() tree: PhysicalModelTableTreeComponent;

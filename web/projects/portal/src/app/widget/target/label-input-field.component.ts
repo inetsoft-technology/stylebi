@@ -20,10 +20,15 @@ import { Component, Input, Output, EventEmitter, ChangeDetectorRef,
          ViewChild, OnInit } from "@angular/core";
 import { ComboMode } from "../dynamic-combo-box/dynamic-combo-box-model";
 import { Tool } from "../../../../../shared/util/tool";
+import { DynamicComboBox } from "../dynamic-combo-box/dynamic-combo-box.component";
+import { TargetComboBox } from "./target-combo-box.component";
+import { NgIf } from "@angular/common";
 
 @Component({
-   selector: "label-input-field",
-   templateUrl: "label-input-field.component.html"
+    selector: "label-input-field",
+    templateUrl: "label-input-field.component.html",
+    standalone: true,
+    imports: [NgIf, TargetComboBox, DynamicComboBox]
 })
 export class LabelInputField implements OnInit {
    @Input() label: string = "";

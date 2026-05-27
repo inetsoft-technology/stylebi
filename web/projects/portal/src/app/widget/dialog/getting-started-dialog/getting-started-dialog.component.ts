@@ -21,11 +21,15 @@ import { NgbCollapse } from "@ng-bootstrap/ng-bootstrap";
 import { ExpandStringDirective } from "../../expand-string/expand-string.directive";
 import { PortalDataType } from "../../../portal/data/data-navigation-tree/portal-data-type";
 import { LocalStorage } from "../../../common/util/local-storage.util";
+import { NgClass } from "@angular/common";
+import { ModalHeaderComponent } from "../../modal-header/modal-header.component";
 
 @Component({
-   selector: "getting-stared-dialog",
-   templateUrl: "getting-started-dialog.component.html",
-   styleUrls: ["getting-started-dialog.component.scss"]
+    selector: "getting-stared-dialog",
+    templateUrl: "getting-started-dialog.component.html",
+    styleUrls: ["getting-started-dialog.component.scss"],
+    standalone: true,
+    imports: [ModalHeaderComponent, NgClass, NgbCollapse]
 })
 export class GettingStartedDialog implements AfterViewInit {
    @Output() onCommit: EventEmitter<any> = new EventEmitter<any>();

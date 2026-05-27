@@ -19,10 +19,21 @@ import { Component, Input, OnInit } from "@angular/core";
 import { UntypedFormGroup } from "@angular/forms";
 import { TreeNodeModel } from "../../widget/tree/tree-node-model";
 import { RangeSliderGeneralPaneModel } from "../model/range-slider-general-pane-model";
+import { SizePositionPane } from "./size-position-pane.component";
+import { TitlePropPane } from "./title-prop-pane.component";
+import { NgIf } from "@angular/common";
+import { GeneralPropPane } from "./general-prop-pane.component";
 
 @Component({
-   selector: "range-slider-general-pane",
-   templateUrl: "range-slider-general-pane.component.html",
+    selector: "range-slider-general-pane",
+    templateUrl: "range-slider-general-pane.component.html",
+    standalone: true,
+    imports: [
+        GeneralPropPane,
+        NgIf,
+        TitlePropPane,
+        SizePositionPane,
+    ],
 })
 export class RangeSliderGeneralPane implements OnInit {
    @Input() model: RangeSliderGeneralPaneModel;

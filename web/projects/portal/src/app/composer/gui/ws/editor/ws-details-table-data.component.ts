@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { DOCUMENT } from "@angular/common";
+import { DOCUMENT, NgFor, NgClass, NgIf, NgStyle, AsyncPipe } from "@angular/common";
 import { HttpParams } from "@angular/common/http";
 import {
    AfterContentInit,
@@ -36,7 +36,7 @@ import {
    SimpleChanges,
    ViewChild
 } from "@angular/core";
-import { UntypedFormControl, Validators } from "@angular/forms";
+import { UntypedFormControl, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { Observable, Subscription } from "rxjs";
 import { delay } from "rxjs/operators";
@@ -88,6 +88,9 @@ import { DomService } from "../../../../widget/dom-service/dom.service";
 import { WSAssemblyEvent } from "../socket/ws-assembly-event";
 import { WSTableMode } from "../../../data/ws/ws-table-assembly";
 import {SQLBoundTableAssembly} from "../../../data/ws/sql-bound-table-assembly";
+import { TouchScrollDirective } from "../../../../widget/scroll/touch-scroll.directive";
+import { OutOfZoneDirective } from "../../../../widget/directive/out-of-zone.directive";
+import { WSHeaderCell } from "./ws-header-cell.component";
 
 const CONTROLLER_SET_COLUMN_INDEX = "/events/composer/worksheet/set-column-index";
 const CONTROLLER_EDIT_TABLE_DATA = "/events/composer/worksheet/edit-table-data";
@@ -104,10 +107,12 @@ const TABLE_MODE_SOCKET_URI = "/events/composer/worksheet/table-mode/";
 let tableDataRequestId = 0;
 
 @Component({
-   selector: "ws-details-table-data",
-   templateUrl: "ws-details-table-data.component.html",
-   styleUrls: ["ws-details-table-data.component.scss"],
-   changeDetection: ChangeDetectionStrategy.OnPush
+    selector: "ws-details-table-data",
+    templateUrl: "ws-details-table-data.component.html",
+    styleUrls: ["ws-details-table-data.component.scss"],
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    standalone: true,
+    imports: [NgFor, WSHeaderCell, OutOfZoneDirective, FormsModule, ReactiveFormsModule, NgClass, TouchScrollDirective, NgIf, NgStyle, NotificationsComponent, AsyncPipe]
 })
 export class WSDetailsTableDataComponent extends CommandProcessor
    implements OnDestroy, AfterContentInit, OnChanges

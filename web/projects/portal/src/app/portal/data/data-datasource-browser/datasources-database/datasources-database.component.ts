@@ -29,9 +29,9 @@ import {
    TemplateRef,
    ViewChild
 } from "@angular/core";
-import { NgForm, UntypedFormControl, UntypedFormGroup, Validators } from "@angular/forms";
+import { NgForm, UntypedFormControl, UntypedFormGroup, Validators, FormsModule } from "@angular/forms";
 import { ActivatedRoute, ParamMap, Router } from "@angular/router";
-import { NgbModal, NgbModalOptions } from "@ng-bootstrap/ng-bootstrap";
+import { NgbModal, NgbModalOptions, NgbTypeahead } from "@ng-bootstrap/ng-bootstrap";
 import { Observable, of as observableOf, Subscription, throwError } from "rxjs";
 import { catchError, debounceTime, distinctUntilChanged, map, switchMap, tap } from "rxjs/operators";
 import { RepositoryEntryType } from "../../../../../../../shared/data/repository-entry-type.enum";
@@ -70,6 +70,8 @@ import {
 } from "../../../../widget/dialog/getting-started-dialog/service/getting-started.service";
 import { PortalDataType } from "../../data-navigation-tree/portal-data-type";
 import { AppInfoService } from "../../../../../../../shared/util/app-info.service";
+import { ScrollableFlexTableDirective } from "../../../../widget/scrollable-table/scrollable-flex-table.directive";
+import { NgIf, NgClass, NgFor, KeyValuePipe } from "@angular/common";
 
 const CHECK_DELETE_ADDITIONAL = "../api/portal/data/databases/additional/check/";
 const DATABASES_URI: string = "../api/data/databases";
@@ -89,9 +91,11 @@ export interface PropertyInfo {
 }
 
 @Component({
-   selector: "datasources-database",
-   templateUrl: "datasources-database.component.html",
-   styleUrls: ["datasources-database.component.scss"]
+    selector: "datasources-database",
+    templateUrl: "datasources-database.component.html",
+    styleUrls: ["datasources-database.component.scss"],
+    standalone: true,
+    imports: [NgIf, NgClass, FormsModule, NgFor, NgbTypeahead, ScrollableFlexTableDirective, DataNotificationsComponent, KeyValuePipe]
 })
 export class DatasourcesDatabaseComponent extends DataSourceSettingsPage implements OnInit, AfterViewInit {
    @Input() uploadEnabled = false;

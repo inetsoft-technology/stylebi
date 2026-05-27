@@ -21,11 +21,23 @@ import { Observable } from "rxjs";
 import { XSchema } from "../../../../../../../common/data/xschema";
 import { DateTypeFormatter } from "../../../../../../../../../../shared/util/date-type-formatter";
 import { ClauseOperationSymbols } from "../../../../../../data/model/datasources/database/vpm/condition/clause/clause-operation-symbols";
+import { FixedDropdownDirective } from "../../../../../../../widget/fixed-dropdown/fixed-dropdown.directive";
+import { TimeInstantValueEditorComponent } from "../../../../../../../widget/date-type-editor/time-instant-value-editor.component";
+import { TimeValueEditorComponent } from "../../../../../../../widget/date-type-editor/time-value-editor.component";
+import { FormsModule } from "@angular/forms";
+import { DateValueEditorComponent } from "../../../../../../../widget/date-type-editor/date-value-editor.component";
+import { NumberValueEditor } from "../../../../../../../widget/condition/number-value-editor.component";
+import { BooleanValueEditor } from "../../../../../../../widget/condition/boolean-value-editor.component";
+import { CharValueEditor } from "../../../../../../../widget/condition/char-value-editor.component";
+import { StringValueEditor } from "../../../../../../../widget/condition/string-value-editor.component";
+import { NgIf, NgFor } from "@angular/common";
 
 @Component({
-   selector: "vpm-value-editor",
-   templateUrl: "vpm-value-editor.component.html",
-   styleUrls: ["vpm-value-editor.component.scss"]
+    selector: "vpm-value-editor",
+    templateUrl: "vpm-value-editor.component.html",
+    styleUrls: ["vpm-value-editor.component.scss"],
+    standalone: true,
+    imports: [NgIf, StringValueEditor, CharValueEditor, BooleanValueEditor, NumberValueEditor, DateValueEditorComponent, FormsModule, TimeValueEditorComponent, TimeInstantValueEditorComponent, FixedDropdownDirective, NgFor]
 })
 export class VPMValueEditorComponent implements OnChanges {
    @Input() value: string;

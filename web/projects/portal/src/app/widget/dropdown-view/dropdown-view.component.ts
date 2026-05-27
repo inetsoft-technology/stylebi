@@ -17,11 +17,14 @@
  */
 import { Component, EventEmitter, Input, Output, ViewChild } from "@angular/core";
 import { FixedDropdownDirective } from "../fixed-dropdown/fixed-dropdown.directive";
+import { BlockMouseDirective } from "../mouse-event/block-mouse.directive";
 
 @Component({
-   selector: "dropdown-view",
-   templateUrl: "dropdown-view.component.html",
-   styleUrls: ["dropdown-view.component.scss"]
+    selector: "dropdown-view",
+    templateUrl: "dropdown-view.component.html",
+    styleUrls: ["dropdown-view.component.scss"],
+    standalone: true,
+    imports: [BlockMouseDirective, FixedDropdownDirective]
 })
 export class DropdownView {
    @Input() label: string;

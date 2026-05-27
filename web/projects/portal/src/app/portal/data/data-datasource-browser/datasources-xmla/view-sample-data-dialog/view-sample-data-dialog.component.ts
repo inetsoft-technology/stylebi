@@ -17,11 +17,15 @@
  */
 import { Component, EventEmitter, Input, Output } from "@angular/core";
 import { BaseTableCellModel } from "../../../../../vsobjects/model/base-table-cell-model";
+import { SimpleTableComponent } from "../../../../../widget/simple-table/simple-table.component";
+import { ModalHeaderComponent } from "../../../../../widget/modal-header/modal-header.component";
 
 @Component({
-   selector: "view-sample-data-dialog",
-   templateUrl: "view-sample-data-dialog.component.html",
-   styleUrls: ["view-sample-data-dialog.component.scss"]
+    selector: "view-sample-data-dialog",
+    templateUrl: "view-sample-data-dialog.component.html",
+    styleUrls: ["view-sample-data-dialog.component.scss"],
+    standalone: true,
+    imports: [ModalHeaderComponent, SimpleTableComponent]
 })
 export class ViewSampleDataDialog {
    @Input() tableData: BaseTableCellModel[][] = [];

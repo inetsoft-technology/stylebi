@@ -16,10 +16,15 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, Input, Output, EventEmitter } from "@angular/core";
+import { StaticLinePane } from "./static-line-pane.component";
+import { LineItem } from "./line-item.component";
+import { FixedDropdownDirective } from "../../../../widget/fixed-dropdown/fixed-dropdown.directive";
 
 @Component({
-   selector: "line-combo-box",
-   templateUrl: "line-combo-box.component.html"
+    selector: "line-combo-box",
+    templateUrl: "line-combo-box.component.html",
+    standalone: true,
+    imports: [FixedDropdownDirective, LineItem, StaticLinePane]
 })
 export class LineComboBox {
    @Input() index: number;

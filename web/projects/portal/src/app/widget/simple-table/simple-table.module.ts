@@ -25,17 +25,15 @@ import { NgbTooltip } from "@ng-bootstrap/ng-bootstrap";
 import { ScrollModule } from "../scroll/scroll.module";
 
 @NgModule({
-   imports: [
-      CommonModule,
-      NgbTooltip,
-      ScrollModule
-   ],
-   declarations: [
-      SimpleTableComponent
-   ],
-   exports: [
-      SimpleTableComponent
-   ]
+    imports: [
+        CommonModule,
+        NgbTooltip,
+        ScrollModule,
+        SimpleTableComponent
+    ],
+    exports: [
+        SimpleTableComponent
+    ]
 })
 export class SimpleTableModule {
 }

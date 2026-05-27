@@ -16,12 +16,15 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { ChangeDetectionStrategy, Component, EventEmitter, Input, Output } from "@angular/core";
+import { NgFor } from "@angular/common";
 
 @Component({
-   selector: "datasource-category-pane",
-   templateUrl: "datasource-category-pane.component.html",
-   styleUrls: ["datasource-category-pane.component.scss"],
-   changeDetection: ChangeDetectionStrategy.OnPush
+    selector: "datasource-category-pane",
+    templateUrl: "datasource-category-pane.component.html",
+    styleUrls: ["datasource-category-pane.component.scss"],
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    standalone: true,
+    imports: [NgFor]
 })
 export class DatasourceCategoryPaneComponent {
    @Input() categories: string[];

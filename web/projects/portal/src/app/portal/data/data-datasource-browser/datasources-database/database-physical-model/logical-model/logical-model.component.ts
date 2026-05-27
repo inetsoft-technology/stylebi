@@ -41,6 +41,7 @@ import { EditLogicalModelEvent } from "../../../../model/datasources/database/ev
 import { AssetEntryHelper } from "../../../../../../common/data/asset-entry-helper";
 import { LogicalModelService } from "./logical-model-service";
 import { UntypedFormGroup } from "@angular/forms";
+import { LogicalModelPropertyPane } from "./logical-model-property-pane.component";
 
 export interface SelectedItem {
    entity: number;
@@ -53,10 +54,12 @@ const LOGICAL_MODEL_EXTENDED_MODEL_URI: string = "../api/data/logicalmodel/exten
 const LOGICAL_MODEL_SETTINGS_URI: string = "../api/data/logicalmodel/settings";
 
 @Component({
-   selector: "logical-model",
-   templateUrl: "logical-model.component.html",
-   styleUrls: ["../database-model-pane.scss", "logical-model.component.scss"],
-   providers: [ LogicalModelService ]
+    selector: "logical-model",
+    templateUrl: "logical-model.component.html",
+    styleUrls: ["../database-model-pane.scss", "logical-model.component.scss"],
+    providers: [LogicalModelService],
+    standalone: true,
+    imports: [LogicalModelPropertyPane, NotificationsComponent]
 })
 export class LogicalModelComponent implements OnInit, DoCheck, OnDestroy {
    @ViewChild("notifications") notifications: NotificationsComponent;

@@ -30,6 +30,9 @@ import { MoveAssetDialogDataConfig } from "../data-folder-browser/move-asset-dia
 import { DataSourceBrowserModel } from "../data-datasource-browser/data-source-browser-model";
 import { DataSourceBrowserViewModel } from "../model/data-source-browser-view-model";
 import { PortalDataType } from "../data-navigation-tree/portal-data-type";
+import { NgIf } from "@angular/common";
+import { DataSourcesBrowser } from "../data-datasource-browser/data-source-browser/data-sources-browser.component";
+import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
 
 export const FAKE_ROOT_PATH: string = "_fake_root_";
 const ROOT_LABEL: string = "_#(js:Data Source)";
@@ -37,8 +40,10 @@ const GET_DATA_SOURCE_URI: string = "../api/data/datasources/browser";
 const CHECK_MOVE_DUPLICATE_URI: string = "../api/data/datasources/move/checkDuplicate";
 
 @Component({
-   selector: "move-datasource-dialog",
-   templateUrl: "move-datasource-dialog.component.html"
+    selector: "move-datasource-dialog",
+    templateUrl: "move-datasource-dialog.component.html",
+    standalone: true,
+    imports: [ModalHeaderComponent, DataSourcesBrowser, NgIf]
 })
 export class MoveDataSourceDialogComponent implements OnInit {
    @Input() originalPaths: string[] = [];

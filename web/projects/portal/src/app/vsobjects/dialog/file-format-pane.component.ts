@@ -21,12 +21,18 @@ import { Tool } from "../../../../../shared/util/tool";
 import { ComponentTool } from "../../common/util/component-tool";
 import { FileFormatPaneModel } from "../model/file-format-pane-model";
 import { FileFormatType } from "../model/file-format-type";
-import { UntypedFormGroup } from "@angular/forms";
+import { UntypedFormGroup, FormsModule } from "@angular/forms";
+import { EnterClickDirective } from "../../widget/directive/enter-click.directive";
+import { LargeFormFieldComponent } from "../../widget/large-form-field/large-form-field.component";
+import { CSVConfigPane } from "../../widget/schedule/csv-config-pane.component";
+import { NgIf, NgFor } from "@angular/common";
 
 @Component({
-   selector: "file-format-pane",
-   templateUrl: "file-format-pane.component.html",
-   styleUrls: ["file-format-pane.component.scss"]
+    selector: "file-format-pane",
+    templateUrl: "file-format-pane.component.html",
+    styleUrls: ["file-format-pane.component.scss"],
+    standalone: true,
+    imports: [NgIf, FormsModule, NgFor, CSVConfigPane, LargeFormFieldComponent, EnterClickDirective]
 })
 export class FileFormatPane implements OnInit {
    @Input() model: FileFormatPaneModel;

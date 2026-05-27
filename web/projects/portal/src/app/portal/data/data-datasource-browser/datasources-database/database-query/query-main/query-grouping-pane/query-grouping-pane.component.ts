@@ -34,12 +34,16 @@ import { GroupingPaneTabs } from "../../data-query-model.service";
 import {
    QueryConditionsPaneComponent
 } from "../query-condition-pane/query-conditions-pane.component";
+import { FieldsPaneComponent } from "../fields-pane/fields-pane.component";
+import { NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, NgbNavOutlet } from "@ng-bootstrap/ng-bootstrap";
 
 @Component({
-   selector: "query-grouping-pane",
-   templateUrl: "./query-grouping-pane.component.html",
-   styleUrls: ["./query-grouping-pane.component.scss"],
-   encapsulation: ViewEncapsulation.None
+    selector: "query-grouping-pane",
+    templateUrl: "./query-grouping-pane.component.html",
+    styleUrls: ["./query-grouping-pane.component.scss"],
+    encapsulation: ViewEncapsulation.None,
+    standalone: true,
+    imports: [NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, FieldsPaneComponent, QueryConditionsPaneComponent, NgbNavOutlet]
 })
 export class QueryGroupingPaneComponent {
    @Input() runtimeId: string;

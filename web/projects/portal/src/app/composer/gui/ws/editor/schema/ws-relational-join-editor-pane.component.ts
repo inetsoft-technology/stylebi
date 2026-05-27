@@ -38,7 +38,7 @@ import { ColumnRef } from "../../../../../binding/data/column-ref";
 import { DragEvent } from "../../../../../common/data/drag-event";
 import { Notification } from "../../../../../common/data/notification";
 import { Rectangle } from "../../../../../common/data/rectangle";
-import { SelectionBoxEvent } from "../../../../../widget/directive/selection-box.directive";
+import { SelectionBoxEvent, SelectionBoxDirective } from "../../../../../widget/directive/selection-box.directive";
 import { DragService } from "../../../../../widget/services/drag.service";
 import { AbstractTableAssembly } from "../../../../data/ws/abstract-table-assembly";
 import { CompositeTableAssembly } from "../../../../data/ws/composite-table-assembly";
@@ -57,19 +57,23 @@ import {
 import { SchemaThumbnailService } from "./schema-thumbnail.service";
 import { reorderColumns, TableColumnsPair } from "./sort-schema-column.controller";
 import { WsChangeService } from "../ws-change.service";
+import { NgFor, AsyncPipe } from "@angular/common";
+import { OutOfZoneDirective } from "../../../../../widget/directive/out-of-zone.directive";
 
 const DELETE_SUBTABLE_URI = "/events/ws/joins/delete-sub-table";
 const DROP_TABLE_URI = "/events/composer/worksheet/drop-table-into-join-schema";
 const RESIZE_SCHEMA_TABLE_URI = "/events/composer/worksheet/resize-schema-table";
 
 @Component({
-   selector: "ws-relational-join-editor-pane",
-   templateUrl: "ws-relational-join-editor-pane.component.html",
-   styleUrls: [
-      "ws-relational-join-editor-pane.component.scss",
-      "../../jsplumb/jsplumb-shared.scss"
-   ],
-   providers: [SchemaThumbnailService]
+    selector: "ws-relational-join-editor-pane",
+    templateUrl: "ws-relational-join-editor-pane.component.html",
+    styleUrls: [
+        "ws-relational-join-editor-pane.component.scss",
+        "../../jsplumb/jsplumb-shared.scss"
+    ],
+    providers: [SchemaThumbnailService],
+    standalone: true,
+    imports: [SelectionBoxDirective, OutOfZoneDirective, NgFor, SchemaTableThumbnailComponent, AsyncPipe]
 })
 export class WSRelationalJoinEditorPaneComponent
    implements OnChanges, OnInit, AfterViewInit, AfterViewChecked, OnDestroy

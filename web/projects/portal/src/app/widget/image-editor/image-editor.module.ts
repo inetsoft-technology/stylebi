@@ -24,20 +24,18 @@ import {WidgetFormatModule} from "../format/widget-format.module";
 import {FormsModule} from "@angular/forms";
 
 @NgModule({
-   imports: [
-      CommonModule,
-      TreeModule,
-      NotificationsModule,
-      WidgetFormatModule,
-      FormsModule,
-   ],
-   declarations: [
-      ImagePreviewPane
-   ],
-   exports: [
-      ImagePreviewPane
-   ],
-   providers: [],
+    imports: [
+        CommonModule,
+        TreeModule,
+        NotificationsModule,
+        WidgetFormatModule,
+        FormsModule,
+        ImagePreviewPane,
+    ],
+    exports: [
+        ImagePreviewPane
+    ],
+    providers: [],
 })
 export class ImageEditorModule {
 }

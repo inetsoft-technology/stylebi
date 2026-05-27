@@ -24,10 +24,16 @@ import { RankingValue } from "../../common/data/condition/ranking-value";
 import { DataRef } from "../../common/data/data-ref";
 import { XSchema } from "../../common/data/xschema";
 import { Tool } from "../../../../../shared/util/tool";
+import { FormsModule } from "@angular/forms";
+import { VariableEditor } from "./variable-editor.component";
+import { NumberValueEditor } from "./number-value-editor.component";
+import { NgIf, NgFor } from "@angular/common";
 
 @Component({
-   selector: "top-n-editor",
-   templateUrl: "top-n-editor.component.html"
+    selector: "top-n-editor",
+    templateUrl: "top-n-editor.component.html",
+    standalone: true,
+    imports: [NgIf, NumberValueEditor, VariableEditor, FormsModule, NgFor]
 })
 export class TopNEditor implements OnChanges {
    @Input() field: DataRef;

@@ -42,16 +42,14 @@ import {ModalHeaderModule} from "../modal-header/modal-header.module";
         FontPaneModule,
         FormsModule,
         ModalHeaderModule,
+        AddHighlightDialog,
+        HighlightPane,
     ],
-   declarations: [
-      AddHighlightDialog,
-      HighlightPane
-   ],
-   exports: [
-      AddHighlightDialog,
-      HighlightPane
-   ],
-   providers: [],
+    exports: [
+        AddHighlightDialog,
+        HighlightPane
+    ],
+    providers: [],
 })
 export class HighlightModule {
 }

@@ -35,10 +35,21 @@ import { Condition } from "../../common/data/condition/condition";
 import { ConditionPane } from "../../widget/condition/condition-pane.component";
 import { ConditionDialogService } from "./condition-dialog.service";
 import { BaseResizeableDialogComponent } from "../../vsobjects/dialog/base-resizeable-dialog.component";
+import { SimpleConditionPane } from "./simple-condition-pane.component";
+import { ConditionPane as ConditionPane_1 } from "./condition-pane.component";
+import { NgIf } from "@angular/common";
+import { ModalHeaderComponent } from "../modal-header/modal-header.component";
 
 @Component({
-   selector: "condition-dialog",
-   templateUrl: "condition-dialog.component.html",
+    selector: "condition-dialog",
+    templateUrl: "condition-dialog.component.html",
+    standalone: true,
+    imports: [
+        ModalHeaderComponent,
+        NgIf,
+        ConditionPane_1,
+        SimpleConditionPane,
+    ],
 })
 export class ConditionDialog extends BaseResizeableDialogComponent implements AfterViewInit {
    @Input() simplePane: boolean = false;

@@ -19,12 +19,16 @@ import { ChangeDetectionStrategy, Component, ContentChild, Input } from "@angula
 import { ViewsheetClientService } from "../../../common/viewsheet-client";
 import { ToggleAnnotationStatusEvent } from "../../event/annotation/toggle-annotation-status-event";
 import { VSAnnotationModel } from "../../model/annotation/vs-annotation-model";
+import { TooltipDirective } from "../../../widget/tooltip/tooltip.directive";
+import { NgIf } from "@angular/common";
 
 @Component({
-   selector: "vs-hidden-annotation",
-   templateUrl: "vs-hidden-annotation.component.html",
-   styleUrls: ["vs-hidden-annotation.component.scss"],
-   changeDetection: ChangeDetectionStrategy.OnPush
+    selector: "vs-hidden-annotation",
+    templateUrl: "vs-hidden-annotation.component.html",
+    styleUrls: ["vs-hidden-annotation.component.scss"],
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    standalone: true,
+    imports: [NgIf, TooltipDirective]
 })
 export class VSHiddenAnnotation {
    @Input()

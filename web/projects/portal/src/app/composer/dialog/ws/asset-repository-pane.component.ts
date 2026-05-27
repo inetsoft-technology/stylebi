@@ -16,17 +16,30 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, Input, OnInit, EventEmitter, Output } from "@angular/core";
-import { UntypedFormControl, UntypedFormGroup, Validators } from "@angular/forms";
+import { UntypedFormControl, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { AssetEntry } from "../../../../../../shared/data/asset-entry";
 import { AssetEntryHelper } from "../../../common/data/asset-entry-helper";
 import { FormValidators } from "../../../../../../shared/util/form-validators";
 import { TreeNodeModel } from "../../../widget/tree/tree-node-model";
 import { AssetRepositoryPaneModel } from "../../data/vs/asset-respository-pane-model";
 import { AssetType } from "../../../../../../shared/data/asset-type";
+import { AssetTreeComponent } from "../../../widget/asset-tree/asset-tree.component";
+import { NgIf } from "@angular/common";
+import { DefaultFocusDirective } from "../../../widget/directive/default-focus.directive";
+import { InputTrimDirective } from "../../../widget/directive/input-trim.directive";
 
 @Component({
-   selector: "asset-repository-pane",
-   templateUrl: "asset-repository-pane.component.html",
+    selector: "asset-repository-pane",
+    templateUrl: "asset-repository-pane.component.html",
+    standalone: true,
+    imports: [
+        FormsModule,
+        ReactiveFormsModule,
+        InputTrimDirective,
+        DefaultFocusDirective,
+        NgIf,
+        AssetTreeComponent,
+    ],
 })
 export class AssetRepositoryPane implements OnInit {
    @Input() model: AssetRepositoryPaneModel;

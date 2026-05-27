@@ -22,6 +22,8 @@ import {
    EventEmitter,
    ChangeDetectionStrategy
 } from "@angular/core";
+import { FormsModule } from "@angular/forms";
+import { NgFor } from "@angular/common";
 
 export interface NumericRange {
    top: number;
@@ -31,10 +33,12 @@ export interface NumericRange {
 }
 
 @Component({
-   selector: "value-range-selectable-list",
-   templateUrl: "value-range-selectable-list.component.html",
-   styleUrls: ["value-range-selectable-list.component.scss"],
-   changeDetection: ChangeDetectionStrategy.OnPush
+    selector: "value-range-selectable-list",
+    templateUrl: "value-range-selectable-list.component.html",
+    styleUrls: ["value-range-selectable-list.component.scss"],
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    standalone: true,
+    imports: [NgFor, FormsModule]
 })
 export class ValueRangeSelectableList {
    @Input() rangeList: NumericRange[];

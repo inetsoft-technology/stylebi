@@ -23,22 +23,20 @@ import {SearchDataRefPipe} from "./search-data-ref.pipe";
 import {TruncatePipe} from "./truncate.pipe";
 
 @NgModule({
-   imports: [
-      CommonModule,
-   ],
-   declarations: [
-      NumberToArrayPipe,
-      ReplaceAllPipe,
-      SearchDataRefPipe,
-      TruncatePipe
-   ],
-   exports: [
-      NumberToArrayPipe,
-      ReplaceAllPipe,
-      SearchDataRefPipe,
-      TruncatePipe
-   ],
-   providers: [],
+    imports: [
+        CommonModule,
+        NumberToArrayPipe,
+        ReplaceAllPipe,
+        SearchDataRefPipe,
+        TruncatePipe,
+    ],
+    exports: [
+        NumberToArrayPipe,
+        ReplaceAllPipe,
+        SearchDataRefPipe,
+        TruncatePipe
+    ],
+    providers: [],
 })
 export class PipeModule {
 }

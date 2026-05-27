@@ -22,11 +22,16 @@ import { ContextProvider } from "../../context-provider.service";
 import { VSCylinderModel } from "../../model/output/vs-cylinder-model";
 import { AbstractVSObject } from "../abstract-vsobject.component";
 import { DataTipService } from "../data-tip/data-tip.service";
+import { VSPopComponentDirective } from "../data-tip/vs-pop-component.directive";
+import { VSDataTipDirective } from "../data-tip/vs-data-tip.directive";
+import { NgIf } from "@angular/common";
 
 @Component({
-   selector: "vs-cylinder",
-   templateUrl: "vs-cylinder.component.html",
-   styleUrls: ["vs-cylinder.component.scss"]
+    selector: "vs-cylinder",
+    templateUrl: "vs-cylinder.component.html",
+    styleUrls: ["vs-cylinder.component.scss"],
+    standalone: true,
+    imports: [NgIf, VSDataTipDirective, VSPopComponentDirective]
 })
 /**
  * @deprecated since version 12.1

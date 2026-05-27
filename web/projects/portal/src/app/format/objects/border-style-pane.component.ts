@@ -19,11 +19,14 @@ import { Component, EventEmitter, Input, Output, OnInit, OnChanges, SimpleChange
 import { FormatInfoModel } from "../../common/data/format-info-model";
 import { StyleConstants } from "../../common/util/style-constants";
 import { FixedDropdownDirective } from "../../widget/fixed-dropdown/fixed-dropdown.directive";
+import { NgIf, NgFor } from "@angular/common";
 
 @Component({
-   selector: "border-style-pane",
-   styleUrls: ["binding-border-pane.component.scss"],
-   templateUrl: "border-style-pane.component.html"
+    selector: "border-style-pane",
+    styleUrls: ["binding-border-pane.component.scss"],
+    templateUrl: "border-style-pane.component.html",
+    standalone: true,
+    imports: [FixedDropdownDirective, NgIf, NgFor]
 })
 
 export class BorderStylePane implements OnInit, OnChanges {

@@ -23,18 +23,16 @@ import { MultiSelect } from "./multi-select.component";
 import {FixedDropdownModule} from "../fixed-dropdown/fixed-dropdown.module";
 
 @NgModule({
-   imports: [
-      CommonModule,
-      FormsModule,
-      FixedDropdownModule,
-   ],
-   declarations: [
-      MultiSelect
-   ],
-   exports: [
-      MultiSelect
-   ],
-   providers: [],
+    imports: [
+        CommonModule,
+        FormsModule,
+        FixedDropdownModule,
+        MultiSelect,
+    ],
+    exports: [
+        MultiSelect
+    ],
+    providers: [],
 })
 export class MultiSelectModule {
 }

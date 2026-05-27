@@ -35,13 +35,19 @@ import {
    GettingStartedService
 } from "../../../../widget/dialog/getting-started-dialog/service/getting-started.service";
 import { DatasourceType } from "../datasource-type";
+import { DatasourceListingPaneComponent } from "./datasource-listing/datasource-listing-pane.component";
+import { DatasourceCategoryPaneComponent } from "./datasource-category-pane/datasource-category-pane.component";
+import { DatasourceSearchComponent } from "./datasource-search/datasource-search.component";
+import { NgIf } from "@angular/common";
 
 @Component({
-   selector: "datasource-selection-view",
-   templateUrl: "datasource-selection-view.component.html",
-   styleUrls: ["datasource-selection-view.component.scss"],
-   changeDetection: ChangeDetectionStrategy.OnPush,
-   providers: [DatasourceSelectionService]
+    selector: "datasource-selection-view",
+    templateUrl: "datasource-selection-view.component.html",
+    styleUrls: ["datasource-selection-view.component.scss"],
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    providers: [DatasourceSelectionService],
+    standalone: true,
+    imports: [NgIf, DatasourceSearchComponent, DatasourceCategoryPaneComponent, DatasourceListingPaneComponent]
 })
 export class DatasourceSelectionViewComponent implements OnInit, OnDestroy, CanComponentDeactivate {
    model: DatasourceSelectionViewModel | null = null;

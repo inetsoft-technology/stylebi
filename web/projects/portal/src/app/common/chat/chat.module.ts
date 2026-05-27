@@ -21,15 +21,13 @@ import { ChatComponent } from "./chat.component";
 import { CHAT_API_KEY, ChatService } from "./chat.service";
 
 @NgModule({
-   imports: [
-      CommonModule
-   ],
-   declarations: [
-      ChatComponent
-   ],
-   exports: [
-      ChatComponent
-   ]
+    imports: [
+        CommonModule,
+        ChatComponent
+    ],
+    exports: [
+        ChatComponent
+    ]
 })
 export class ChatModule {
    static forRoot(apiKey: string): ModuleWithProviders<ChatModule> {

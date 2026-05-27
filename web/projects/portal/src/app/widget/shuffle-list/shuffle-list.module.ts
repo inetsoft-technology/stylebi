@@ -20,16 +20,14 @@ import {NgModule} from "@angular/core";
 import {ShuffleListComponent} from "./shuffle-list.component";
 
 @NgModule({
-   imports: [
-      CommonModule,
-   ],
-   declarations: [
-      ShuffleListComponent
-   ],
-   exports: [
-      ShuffleListComponent
-   ],
-   providers: [],
+    imports: [
+        CommonModule,
+        ShuffleListComponent,
+    ],
+    exports: [
+        ShuffleListComponent
+    ],
+    providers: [],
 })
 export class ShuffleListModule {
 }

@@ -18,11 +18,17 @@
 import { Component, EventEmitter, Input, OnInit, Output } from "@angular/core";
 import { ClassicEditor } from "ckeditor5";
 import { GuiTool } from "../../../common/util/gui-tool";
+import { FormsModule } from "@angular/forms";
+import { CkeditorWrapperComponent } from "../../../../../../shared/ckeditor-wrapper/ckeditor-wrapper.component";
+import { NgIf } from "@angular/common";
+import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
 
 @Component({
-   selector: "rich-text-dialog",
-   templateUrl: "./rich-text-dialog.component.html",
-   styleUrls: ["./rich-text-dialog.component.scss"]
+    selector: "rich-text-dialog",
+    templateUrl: "./rich-text-dialog.component.html",
+    styleUrls: ["./rich-text-dialog.component.scss"],
+    standalone: true,
+    imports: [ModalHeaderComponent, NgIf, CkeditorWrapperComponent, FormsModule]
 })
 export class RichTextDialog implements OnInit {
    @Input() dialogTitle: string;

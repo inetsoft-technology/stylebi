@@ -16,11 +16,14 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, Input } from "@angular/core";
+import { NgIf } from "@angular/common";
 
 @Component({
-   selector: "w-shuffle-list",
-   templateUrl: "./shuffle-list.component.html",
-   styleUrls: ["./shuffle-list.component.scss"]
+    selector: "w-shuffle-list",
+    templateUrl: "./shuffle-list.component.html",
+    styleUrls: ["./shuffle-list.component.scss"],
+    standalone: true,
+    imports: [NgIf]
 })
 export class ShuffleListComponent {
    @Input() leftTitle: string = null;

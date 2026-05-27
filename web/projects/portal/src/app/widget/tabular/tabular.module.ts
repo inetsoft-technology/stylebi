@@ -53,53 +53,51 @@ import {
 import {TreeModule} from "../tree/tree.module";
 
 @NgModule({
-   imports: [
-      CommonModule,
-      ReactiveFormsModule,
-      NgbTypeaheadModule,
-      FormsModule,
-      ExpandStringModule,
-      DateTypeEditorModule,
-      TreeModule,
-      TextFieldModule,
-   ],
-   declarations: [
-      TabularAutocompleteEditor,
-      TabularBooleanEditor,
-      TabularColumnDefinitionEditor,
-      TabularDateEditor,
-      TabularFileBrowser,
-      TabularFileEditor,
-      TabularHttpParameterEditorComponent,
-      TabularListEditor,
-      TabularNumberEditor,
-      TabularQueryParameterEditor,
-      TabularRestParametersEditorComponent,
-      TabularTagsEditor,
-      TabularTextEditor,
-      TabularGooglePickerEditor,
-      TabularViewComponent
-   ],
-   exports: [
-      TabularAutocompleteEditor,
-      TabularBooleanEditor,
-      TabularColumnDefinitionEditor,
-      TabularDateEditor,
-      TabularFileBrowser,
-      TabularFileEditor,
-      TabularHttpParameterEditorComponent,
-      TabularListEditor,
-      TabularNumberEditor,
-      TabularQueryParameterEditor,
-      TabularRestParametersEditorComponent,
-      TabularTagsEditor,
-      TabularTextEditor,
-      TabularGooglePickerEditor,
-      TabularViewComponent
-   ],
-   providers: [
-      GooglePickerService
-   ]
+    imports: [
+        CommonModule,
+        ReactiveFormsModule,
+        NgbTypeaheadModule,
+        FormsModule,
+        ExpandStringModule,
+        DateTypeEditorModule,
+        TreeModule,
+        TextFieldModule,
+        TabularAutocompleteEditor,
+        TabularBooleanEditor,
+        TabularColumnDefinitionEditor,
+        TabularDateEditor,
+        TabularFileBrowser,
+        TabularFileEditor,
+        TabularHttpParameterEditorComponent,
+        TabularListEditor,
+        TabularNumberEditor,
+        TabularQueryParameterEditor,
+        TabularRestParametersEditorComponent,
+        TabularTagsEditor,
+        TabularTextEditor,
+        TabularGooglePickerEditor,
+        TabularViewComponent,
+    ],
+    exports: [
+        TabularAutocompleteEditor,
+        TabularBooleanEditor,
+        TabularColumnDefinitionEditor,
+        TabularDateEditor,
+        TabularFileBrowser,
+        TabularFileEditor,
+        TabularHttpParameterEditorComponent,
+        TabularListEditor,
+        TabularNumberEditor,
+        TabularQueryParameterEditor,
+        TabularRestParametersEditorComponent,
+        TabularTagsEditor,
+        TabularTextEditor,
+        TabularGooglePickerEditor,
+        TabularViewComponent
+    ],
+    providers: [
+        GooglePickerService
+    ]
 })
 export class TabularModule {
 }

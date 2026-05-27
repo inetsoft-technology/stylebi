@@ -21,18 +21,16 @@ import {PagingControlComponent} from "./paging-control.component";
 import {TouchScrollDirective} from "./touch-scroll.directive";
 
 @NgModule({
-   imports: [
-      CommonModule,
-   ],
-   declarations: [
-      PagingControlComponent,
-      TouchScrollDirective
-   ],
-   exports: [
-      PagingControlComponent,
-      TouchScrollDirective
-   ],
-   providers: [],
+    imports: [
+        CommonModule,
+        PagingControlComponent,
+        TouchScrollDirective,
+    ],
+    exports: [
+        PagingControlComponent,
+        TouchScrollDirective
+    ],
+    providers: [],
 })
 export class ScrollModule {
 }

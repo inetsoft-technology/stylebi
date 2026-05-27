@@ -16,16 +16,20 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, OnInit, Output, EventEmitter, Input } from "@angular/core";
-import { UntypedFormControl, UntypedFormGroup, Validators } from "@angular/forms";
+import { UntypedFormControl, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { NewAggrDialogModel } from "./new-aggr-dialog-model";
 import { XSchema } from "../../../common/data/xschema";
 import { AssetUtil } from "../../../binding/util/asset-util";
 import { AggregateFormula } from "../../../binding/util/aggregate-formula";
 import { SummaryAttrUtil } from "../../../binding/util/summary-attr-util";
+import { NgIf, NgClass, NgFor } from "@angular/common";
+import { ModalHeaderComponent } from "../../modal-header/modal-header.component";
 
 @Component({
-   selector: "new-aggr-dialog",
-   templateUrl: "./new-aggr-dialog.component.html"
+    selector: "new-aggr-dialog",
+    templateUrl: "./new-aggr-dialog.component.html",
+    standalone: true,
+    imports: [ModalHeaderComponent, NgIf, FormsModule, ReactiveFormsModule, NgClass, NgFor]
 })
 export class NewAggrDialog implements OnInit {
    @Input() model: NewAggrDialogModel;

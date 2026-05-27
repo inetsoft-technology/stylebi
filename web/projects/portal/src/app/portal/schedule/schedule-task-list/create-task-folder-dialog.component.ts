@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, EventEmitter, Input, OnInit, Output } from "@angular/core";
-import { UntypedFormControl, ValidatorFn } from "@angular/forms";
+import { UntypedFormControl, ValidatorFn, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { ValidatorMessageInfo } from "../../../widget/dialog/input-name-dialog/input-name-dialog.component";
 import { TreeNodeModel } from "../../../widget/tree/tree-node-model";
 import { AssetEntry } from "../../../../../../shared/data/asset-entry";
@@ -24,13 +24,18 @@ import { FormValidators } from "../../../../../../shared/util/form-validators";
 import { ComponentTool } from "../../../common/util/component-tool";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { HttpClient, HttpParams } from "@angular/common/http";
+import { TreeComponent } from "../../../widget/tree/tree.component";
+import { NgIf } from "@angular/common";
+import { EnterSubmitDirective } from "../../../widget/directive/enter-submit.directive";
 
 const TASK_FOLDER_CHECK_DUPLICATE_URI = "../api/portal/schedule/folder/check-duplicate";
 
 @Component({
-   selector: "create-task-folder-dialog",
-   templateUrl: "create-task-folder-dialog.component.html",
-   styleUrls: ["create-task-folder-dialog.component.scss"]
+    selector: "create-task-folder-dialog",
+    templateUrl: "create-task-folder-dialog.component.html",
+    styleUrls: ["create-task-folder-dialog.component.scss"],
+    standalone: true,
+    imports: [EnterSubmitDirective, FormsModule, ReactiveFormsModule, NgIf, TreeComponent]
 })
 export class CreateTaskFolderDialogComponent implements OnInit {
    @Input() rootNode: TreeNodeModel;

@@ -37,12 +37,33 @@ import { Viewsheet } from "../../data/vs/viewsheet";
 import { BaseResizeableDialogComponent } from "../../../vsobjects/dialog/base-resizeable-dialog.component";
 import { ComponentTool } from "../../../common/util/component-tool";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
+import { DialogButtonsDirective } from "../../../widget/standard-dialog/dialog-buttons.directive";
+import { ViewsheetScriptPane } from "./viewsheet-script-pane.component";
+import { LocalizationPane } from "./localization-pane.component";
+import { ScreensPane } from "./screens-pane.component";
+import { FiltersPane } from "./filters-pane.component";
+import { ViewsheetOptionsPane } from "./viewsheet-options-pane.component";
+import { DialogTabDirective } from "../../../widget/standard-dialog/dialog-tab.directive";
+import { NgIf } from "@angular/common";
+import { TabbedDialogComponent } from "../../../widget/standard-dialog/tabbed-dialog.component";
 
 const VIEWSHEET_PROPERTY_TEST_SCRIPT_URL = "../api/composer/vs/viewsheet-property-dialog-model/test-script";
 
 @Component({
-   selector: "viewsheet-property-dialog",
-   templateUrl: "viewsheet-property-dialog.component.html",
+    selector: "viewsheet-property-dialog",
+    templateUrl: "viewsheet-property-dialog.component.html",
+    standalone: true,
+    imports: [
+        TabbedDialogComponent,
+        NgIf,
+        DialogTabDirective,
+        ViewsheetOptionsPane,
+        FiltersPane,
+        ScreensPane,
+        LocalizationPane,
+        ViewsheetScriptPane,
+        DialogButtonsDirective,
+    ],
 })
 export class ViewsheetPropertyDialog extends BaseResizeableDialogComponent implements OnInit {
    @Input() model: ViewsheetPropertyDialogModel;

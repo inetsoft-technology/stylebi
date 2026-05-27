@@ -24,10 +24,18 @@ import { ViewsheetScriptPaneModel } from "../../data/vs/viewsheet-script-pane-mo
 import { UIContextService } from "../../../common/services/ui-context.service";
 import { FormulaEditorDialog } from "../../../widget/formula-editor/formula-editor-dialog.component";
 import { Tool } from "../../../../../../shared/util/tool";
+import { FormsModule } from "@angular/forms";
+import { NgIf } from "@angular/common";
 
 @Component({
-   selector: "viewsheet-script-pane",
-   templateUrl: "viewsheet-script-pane.component.html",
+    selector: "viewsheet-script-pane",
+    templateUrl: "viewsheet-script-pane.component.html",
+    standalone: true,
+    imports: [
+        NgIf,
+        ScriptPane,
+        FormsModule,
+    ],
 })
 export class ViewsheetScriptPane implements OnInit {
    @Input() model: ViewsheetScriptPaneModel;

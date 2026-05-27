@@ -23,19 +23,17 @@ import { StandardDialogModule } from "../../standard-dialog/standard-dialog.modu
 import { SessionExpirationDialog } from "./session-expiration-dialog.component";
 
 @NgModule({
-   imports: [
-      CommonModule,
-      FormsModule,
-      StandardDialogModule,
-      WidgetDirectivesModule,
-   ],
-   declarations: [
-      SessionExpirationDialog
-   ],
-   exports: [
-      SessionExpirationDialog
-   ],
-   providers: [],
+    imports: [
+        CommonModule,
+        FormsModule,
+        StandardDialogModule,
+        WidgetDirectivesModule,
+        SessionExpirationDialog,
+    ],
+    exports: [
+        SessionExpirationDialog
+    ],
+    providers: [],
 })
 export class SessionExpirationDialogModule {
 }

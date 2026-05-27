@@ -35,42 +35,40 @@ import { MouseEventModule } from "../mouse-event/mouse-event.module";
 import { RecentColorService } from "./recent-color.service";
 
 @NgModule({
-   imports: [
-      CommonModule,
-      FormsModule,
-      FixedDropdownModule,
-      MouseEventModule,
-      ModalHeaderModule,
-   ],
-   declarations: [
-      ColorComponentEditor,
-      ColorDropdown,
-      ColorEditor,
-      ColorEditorDialog,
-      ColorMap,
-      ColorPicker,
-      ColorSlider,
-      ColorPane,
-      GradientColorItem,
-      GradientColorPane,
-      GradientColorPicker
-   ],
-   exports: [
-      ColorComponentEditor,
-      ColorDropdown,
-      ColorEditor,
-      ColorEditorDialog,
-      ColorMap,
-      ColorPicker,
-      ColorSlider,
-      ColorPane,
-      GradientColorItem,
-      GradientColorPane,
-      GradientColorPicker
-   ],
-   providers: [
-      RecentColorService,
-   ],
+    imports: [
+        CommonModule,
+        FormsModule,
+        FixedDropdownModule,
+        MouseEventModule,
+        ModalHeaderModule,
+        ColorComponentEditor,
+        ColorDropdown,
+        ColorEditor,
+        ColorEditorDialog,
+        ColorMap,
+        ColorPicker,
+        ColorSlider,
+        ColorPane,
+        GradientColorItem,
+        GradientColorPane,
+        GradientColorPicker,
+    ],
+    exports: [
+        ColorComponentEditor,
+        ColorDropdown,
+        ColorEditor,
+        ColorEditorDialog,
+        ColorMap,
+        ColorPicker,
+        ColorSlider,
+        ColorPane,
+        GradientColorItem,
+        GradientColorPane,
+        GradientColorPicker
+    ],
+    providers: [
+        RecentColorService,
+    ],
 })
 export class ColorPickerModule {
 }

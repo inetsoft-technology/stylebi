@@ -17,11 +17,17 @@
  */
 import { Component, Input, Output, EventEmitter } from "@angular/core";
 import { CategoricalColorModel } from "../../../common/data/visual-frame-model";
+import { FormsModule } from "@angular/forms";
+import { NgIf, NgFor, NgStyle } from "@angular/common";
+import { BlockMouseDirective } from "../../../widget/mouse-event/block-mouse.directive";
+import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
 
 @Component({
-   selector: "palette-dialog",
-   templateUrl: "palette-dialog.component.html",
-   styleUrls: ["palette-dialog.component.scss"]
+    selector: "palette-dialog",
+    templateUrl: "palette-dialog.component.html",
+    styleUrls: ["palette-dialog.component.scss"],
+    standalone: true,
+    imports: [ModalHeaderComponent, BlockMouseDirective, NgIf, FormsModule, NgFor, NgStyle]
 })
 
 export class PaletteDialog {

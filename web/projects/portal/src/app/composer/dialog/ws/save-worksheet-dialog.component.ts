@@ -17,7 +17,7 @@
  */
 import { Component, EventEmitter, Input, NgZone, OnInit, Output } from "@angular/core";
 import { UntypedFormGroup } from "@angular/forms";
-import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
+import { NgbModal, NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, NgbNavOutlet } from "@ng-bootstrap/ng-bootstrap";
 import { AssetEntry } from "../../../../../../shared/data/asset-entry";
 import { Tool } from "../../../../../../shared/util/tool";
 import { ComponentTool } from "../../../common/util/component-tool";
@@ -27,6 +27,11 @@ import { TreeNodeModel } from "../../../widget/tree/tree-node-model";
 import { SaveWorksheetDialogModel } from "../../data/ws/save-worksheet-dialog-model";
 import { SaveWorksheetDialogModelValidator } from "../../data/ws/save-worksheet-dialog-model-validator";
 import { Worksheet } from "../../data/ws/worksheet";
+import { WorksheetOptionPane } from "./worksheet-option-pane.component";
+import { AssetRepositoryPane } from "./asset-repository-pane.component";
+import { EnterSubmitDirective } from "../../../widget/directive/enter-submit.directive";
+import { NgIf } from "@angular/common";
+import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
 
 const SAVE_WORKSHEET_DIALOG_VALIDATION_URI = "../api/composer/ws/dialog/save-worksheet-dialog-model/";
 const CONFIRM_MESSAGE = {
@@ -37,8 +42,10 @@ const CONFIRM_MESSAGE = {
 };
 
 @Component({
-   selector: "save-worksheet-dialog",
-   templateUrl: "save-worksheet-dialog.component.html"
+    selector: "save-worksheet-dialog",
+    templateUrl: "save-worksheet-dialog.component.html",
+    standalone: true,
+    imports: [ModalHeaderComponent, NgIf, EnterSubmitDirective, NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, AssetRepositoryPane, WorksheetOptionPane, NgbNavOutlet]
 })
 export class SaveWorksheetDialog implements OnInit {
    @Input() worksheet: Worksheet;

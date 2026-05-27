@@ -45,8 +45,8 @@ import { ModifyPhysicalModelEvent } from "../../../model/datasources/database/ev
 import { ToolbarAction } from "../../../../../widget/toolbar/toolbar-action";
 import { PhysicalModelTableTreeComponent } from "./physical-model-table-tree/physical-model-table-tree.component";
 import { ComponentTool } from "../../../../../common/util/component-tool";
-import { ValidatorFn } from "@angular/forms";
-import { ValidatorMessageInfo } from "../../../../../widget/dialog/input-name-dialog/input-name-dialog.component";
+import { ValidatorFn, FormsModule } from "@angular/forms";
+import { ValidatorMessageInfo, InputNameDialog } from "../../../../../widget/dialog/input-name-dialog/input-name-dialog.component";
 import { InlineViewDialogModel } from "../../../../dialog/inline-view-dialog/inline-view-dialog-model";
 import { GuiTool } from "../../../../../common/util/gui-tool";
 import { EditTableEvent } from "../../../model/datasources/database/events/edit-table-event";
@@ -61,6 +61,14 @@ import { DatabaseTreeNodeType } from "../../../model/datasources/database/databa
 import { AssetEntryHelper } from "../../../../../common/data/asset-entry-helper";
 import { GraphViewModel } from "../../../model/datasources/database/physical-model/graph/graph-view-model";
 import { GraphNodeModel } from "../../../model/datasources/database/physical-model/graph/graph-node-model";
+import { AutoJoinTablesDialog } from "../../../../dialog/auto-join-tables-dialog/auto-join-tables-dialog.component";
+import { InlineViewDialog } from "../../../../dialog/inline-view-dialog/inline-view-dialog.component";
+import { PhysicalStatusBarComponent } from "./physical-status-bar.component";
+import { PhysicalGraphPane } from "./physical-graph-pane/physical-graph-pane.component";
+import { PhysicalModelEditTableComponent } from "./physical-model-edit-table/physical-model-edit-table.component";
+import { LoadingIndicatorPaneComponent } from "../common-components/loading-indicator-pane/loading-indicator-pane.component";
+import { AutoCollapseToolbarComponent } from "../../../../../widget/toolbar/auto-collapse-toolbar/auto-collapse-toolbar.component";
+import { NgIf } from "@angular/common";
 
 const PHYSICAL_MODELS_INLINE_VIEW_URI: string = "../api/data/physicalmodel/inlineView/";
 const PHYSICAL_MODELS_ALIAS_URI: string = "../api/data/physicalmodel/alias/";
@@ -75,9 +83,11 @@ const DESTROY_MODEL_URI: string = "../api/data/physicalmodel/destroy";
 const HEARTBEAT_MODEL_URI: string = "../api/data/physicalmodel/heartbeat";
 
 @Component({
-   selector: "database-physical-model",
-   templateUrl: "database-physical-model.component.html",
-   styleUrls: ["database-model-pane.scss", "database-physical-model.component.scss"]
+    selector: "database-physical-model",
+    templateUrl: "database-physical-model.component.html",
+    styleUrls: ["database-model-pane.scss", "database-physical-model.component.scss"],
+    standalone: true,
+    imports: [NgIf, SplitPane, AutoCollapseToolbarComponent, FormsModule, PhysicalModelTableTreeComponent, LoadingIndicatorPaneComponent, PhysicalModelEditTableComponent, PhysicalGraphPane, PhysicalStatusBarComponent, InputNameDialog, InlineViewDialog, AutoJoinTablesDialog, NotificationsComponent]
 })
 export class DatabasePhysicalModelComponent implements OnInit, DoCheck, OnDestroy, CanComponentDeactivate {
    @ViewChild("splitPane") splitPane: SplitPane;

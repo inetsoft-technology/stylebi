@@ -31,6 +31,15 @@ import { ScriptPaneTreeModel } from "../../../widget/dialog/script-pane/script-p
 import { UIContextService } from "../../../common/services/ui-context.service";
 import { PropertyDialogService } from "../../../vsobjects/util/property-dialog.service";
 import { PropertyDialog } from "./property-dialog.component";
+import { ApplyButtonComponent } from "../../../widget/slide-out/apply-button.component";
+import { VSAssemblyScriptPane } from "../../../widget/dialog/vsassembly-script-pane/vsassembly-script-pane.component";
+import { CalendarAdvancedPane } from "./calendar-advanced-pane.component";
+import { CalendarDataPane } from "./calendar-data-pane.component";
+import { CalendarGeneralPane } from "./calendar-general-pane.component";
+import { NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, NgbNavOutlet } from "@ng-bootstrap/ng-bootstrap";
+import { EnterSubmitDirective } from "../../../widget/directive/enter-submit.directive";
+import { NgIf } from "@angular/common";
+import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
 
 const CHECK_TRAP_URI: string = "../api/composer/vs/calendar-property-dialog-model/checkTrap/";
 const SINGLE_CALENDAR_MODE: number = 1;
@@ -40,8 +49,25 @@ const DROPDOWN_SHOW_TYPE: number = 2;
 const DEFAULT_HEIGHT = 20;
 
 @Component({
-   selector: "calendar-property-dialog",
-   templateUrl: "calendar-property-dialog.component.html",
+    selector: "calendar-property-dialog",
+    templateUrl: "calendar-property-dialog.component.html",
+    standalone: true,
+    imports: [
+        ModalHeaderComponent,
+        NgIf,
+        EnterSubmitDirective,
+        NgbNav,
+        NgbNavItem,
+        NgbNavLink,
+        NgbNavLinkBase,
+        NgbNavContent,
+        CalendarGeneralPane,
+        CalendarDataPane,
+        CalendarAdvancedPane,
+        VSAssemblyScriptPane,
+        NgbNavOutlet,
+        ApplyButtonComponent,
+    ],
 })
 export class CalendarPropertyDialog extends PropertyDialog implements OnInit {
    @Input() model: CalendarPropertyDialogModel;

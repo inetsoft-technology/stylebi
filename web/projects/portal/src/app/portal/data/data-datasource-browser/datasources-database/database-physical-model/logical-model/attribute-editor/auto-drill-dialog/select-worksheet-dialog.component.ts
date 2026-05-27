@@ -31,13 +31,22 @@ import {
 import {
    QueryFieldModel
 } from "../../../../../../model/datasources/database/query/query-field-model";
+import { SelectQueryFieldPaneComponent } from "./select-query-field-pane.component";
+import { SelectAttributePaneComponent } from "./select-attribute-pane.component";
+import { FixedDropdownDirective } from "../../../../../../../../widget/fixed-dropdown/fixed-dropdown.directive";
+import { NgIf, NgFor } from "@angular/common";
+import { AssetTreeComponent } from "../../../../../../../../widget/asset-tree/asset-tree.component";
+import { EnterSubmitDirective } from "../../../../../../../../widget/directive/enter-submit.directive";
+import { ModalHeaderComponent } from "../../../../../../../../widget/modal-header/modal-header.component";
 
 const LOAD_PARMS_URL = "../api/portal/data/autodrill/worksheet/params";
 
 @Component({
-   selector: "select-worksheet-dialog",
-   templateUrl: "select-worksheet-dialog.component.html",
-   styleUrls: ["select-worksheet-dialog.component.scss"]
+    selector: "select-worksheet-dialog",
+    templateUrl: "select-worksheet-dialog.component.html",
+    styleUrls: ["select-worksheet-dialog.component.scss"],
+    standalone: true,
+    imports: [ModalHeaderComponent, EnterSubmitDirective, AssetTreeComponent, NgIf, NgFor, FixedDropdownDirective, SelectAttributePaneComponent, SelectQueryFieldPaneComponent]
 })
 export class SelectWorksheetDialog {
    @Input() entities: EntityModel[];

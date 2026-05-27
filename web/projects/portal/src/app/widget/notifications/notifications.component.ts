@@ -18,14 +18,18 @@
 import { ChangeDetectorRef, Component, Input, OnChanges, OnInit, SimpleChanges } from "@angular/core";
 import { Notification, NotificationType } from "../../common/data/notification";
 import { Tool } from "../../../../../shared/util/tool";
+import { NgbAlert } from "@ng-bootstrap/ng-bootstrap";
+import { NgFor } from "@angular/common";
 
 /**
  * Component that displays notification messages to the user.
  */
 @Component({
-   selector: "notifications", // eslint-disable-line @angular-eslint/component-selector
-   templateUrl: "notifications.component.html",
-   styleUrls: ["notifications.component.scss"]
+    selector: "notifications",
+    templateUrl: "notifications.component.html",
+    styleUrls: ["notifications.component.scss"],
+    standalone: true,
+    imports: [NgFor, NgbAlert]
 })
 export class NotificationsComponent implements OnInit, OnChanges {
    /* Optional timeout for notifications. */

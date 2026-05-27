@@ -28,9 +28,11 @@ import { ColorPalette } from "../../widget/color-picker/color-classes";
 import { DefaultPalette } from "../../widget/color-picker/default-palette";
 
 @Component({
-   selector: "color-field-pane",
-   templateUrl: "color-field-pane.component.html",
-   styleUrls: ["./color-field-pane.component.scss"]
+    selector: "color-field-pane",
+    templateUrl: "color-field-pane.component.html",
+    styleUrls: ["./color-field-pane.component.scss"],
+    standalone: true,
+    imports: [ColorPane]
 })
 export class ColorFieldPane {
    @Input() selectedColor: string = "#518db9";

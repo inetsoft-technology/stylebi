@@ -28,17 +28,26 @@ import { update } from "lodash";
 import { ModelService } from "../../widget/services/model.service";
 import { PreferencesDialogModel } from "./preferences-dialog-model";
 import { Tool } from "../../../../../shared/util/tool";
-import { UntypedFormControl, ValidationErrors } from "@angular/forms";
+import { UntypedFormControl, ValidationErrors, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { FormValidators } from "../../../../../shared/util/form-validators";
 import { FileTypes } from "../../common/data/file-types";
 import { ComponentTool } from "../../common/util/component-tool";
+import { ChangePasswordDialog } from "./change-password-dialog.component";
+import { DialogButtonsDirective } from "../../widget/standard-dialog/dialog-buttons.directive";
+import { EnterClickDirective } from "../../widget/directive/enter-click.directive";
+import { DefaultFocusDirective } from "../../widget/directive/default-focus.directive";
+import { NgIf } from "@angular/common";
+import { DialogContentDirective } from "../../widget/standard-dialog/dialog-content.directive";
+import { StandardDialogComponent } from "../../widget/standard-dialog/standard-dialog.component";
 
 const PREFERENCES_DIALOG_MODEL_URI: string = "../api/portal/preferences-dialog-model";
 
 @Component({
-   selector: "preferences-dialog",
-   templateUrl: "preferences-dialog.component.html",
-   styleUrls: ["preferences-dialog.component.scss"]
+    selector: "preferences-dialog",
+    templateUrl: "preferences-dialog.component.html",
+    styleUrls: ["preferences-dialog.component.scss"],
+    standalone: true,
+    imports: [StandardDialogComponent, DialogContentDirective, NgIf, FormsModule, DefaultFocusDirective, ReactiveFormsModule, EnterClickDirective, DialogButtonsDirective, ChangePasswordDialog]
 })
 export class PreferencesDialog implements OnInit {
    @Output() onCommit: EventEmitter<string> = new EventEmitter<string>();

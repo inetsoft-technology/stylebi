@@ -23,19 +23,17 @@ import {NgbProgressbarModule} from "@ng-bootstrap/ng-bootstrap";
 import {ExpandStringModule} from "../../expand-string/expand-string.module";
 
 @NgModule({
-   imports: [
-      CommonModule,
-      MouseEventModule,
-      NgbProgressbarModule,
-      ExpandStringModule,
-   ],
-   declarations: [
-      MessageDialog
-   ],
-   exports: [
-      MessageDialog
-   ],
-   providers: [],
+    imports: [
+        CommonModule,
+        MouseEventModule,
+        NgbProgressbarModule,
+        ExpandStringModule,
+        MessageDialog,
+    ],
+    exports: [
+        MessageDialog
+    ],
+    providers: [],
 })
 export class MessageDialogModule {
 }

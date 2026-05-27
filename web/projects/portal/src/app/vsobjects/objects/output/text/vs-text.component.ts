@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { DOCUMENT, ɵparseCookieValue as parseCookieValue } from "@angular/common";
+import { DOCUMENT, ɵparseCookieValue as parseCookieValue, NgIf, NgFor } from "@angular/common";
 import {
    AfterViewChecked,
    AfterViewInit,
@@ -55,6 +55,15 @@ import { AbstractVSObject } from "../../abstract-vsobject.component";
 import { DataTipService } from "../../data-tip/data-tip.service";
 import { PopComponentService } from "../../data-tip/pop-component.service";
 import { AutoCompleteModel } from "../../../../widget/auto-complete/auto-complete-model";
+import { VSLoadingDisplay } from "../../vs-loading-display/vs-loading-display.component";
+import { VSAnnotation } from "../../annotation/vs-annotation.component";
+import { VSHiddenAnnotation } from "../../annotation/vs-hidden-annotation.component";
+import { AutoCompleteText } from "../../../../widget/auto-complete/auto-complete-text.component";
+import { SafeFontDirective } from "../../../directives/safe-font.directive";
+import { TooltipDirective } from "../../../../widget/tooltip/tooltip.directive";
+import { OutOfZoneDirective } from "../../../../widget/directive/out-of-zone.directive";
+import { VSPopComponentDirective } from "../../data-tip/vs-pop-component.directive";
+import { VSDataTipDirective } from "../../data-tip/vs-data-tip.directive";
 
 const DEFAULT_WHITESPACE_FORMAT = "normal";
 
@@ -65,9 +74,11 @@ interface ExternalUrlsMessage {
 }
 
 @Component({
-   selector: "vs-text",
-   templateUrl: "vs-text.component.html",
-   styleUrls: ["vs-text.component.scss"]
+    selector: "vs-text",
+    templateUrl: "vs-text.component.html",
+    styleUrls: ["vs-text.component.scss"],
+    standalone: true,
+    imports: [NgIf, VSDataTipDirective, VSPopComponentDirective, OutOfZoneDirective, TooltipDirective, SafeFontDirective, AutoCompleteText, VSHiddenAnnotation, NgFor, VSAnnotation, VSLoadingDisplay]
 })
 export class VSText extends AbstractVSObject<VSTextModel>
    implements OnInit, OnDestroy, OnChanges, AfterViewInit, AfterViewChecked

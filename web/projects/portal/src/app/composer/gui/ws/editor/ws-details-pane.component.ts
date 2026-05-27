@@ -77,6 +77,12 @@ import { LocalStorage } from "../../../../common/util/local-storage.util";
 import { ShowHideColumnsDialogComponent } from "../../../dialog/ws/show-hide-columns-dialog.component";
 import { RelationalJoinTableAssembly } from "../../../data/ws/relational-join-table-assembly";
 import { AbstractJoinTableAssembly } from "../../../data/ws/abstract-join-table-assembly";
+import { ColumnDescriptionDialog } from "../../../dialog/ws/column-description-dialog.component";
+import { ColumnTypeDialog } from "../../../dialog/ws/column-type-dialog.component";
+import { ImportCSVDialog } from "../../../dialog/ws/import-csv-dialog.component";
+import { WSDetailsTableDataComponent } from "./ws-details-table-data.component";
+import { FormsModule } from "@angular/forms";
+import { NgIf, NgClass, NgFor } from "@angular/common";
 
 interface WSTableButtonInfo {
    id: string;
@@ -107,9 +113,11 @@ const COLUMN_DESCRIPTION_SOCKET_URI = "/events/composer/worksheet/column-descrip
  * i.e. (selected) table contents and functions.
  */
 @Component({
-   selector: "ws-details-pane",
-   templateUrl: "ws-details-pane.component.html",
-   styleUrls: ["ws-details-pane.component.scss"]
+    selector: "ws-details-pane",
+    templateUrl: "ws-details-pane.component.html",
+    styleUrls: ["ws-details-pane.component.scss"],
+    standalone: true,
+    imports: [NgIf, NgClass, NgFor, FixedDropdownDirective, FormsModule, WSDetailsTableDataComponent, ImportCSVDialog, ColumnTypeDialog, ColumnDescriptionDialog, ConsoleDialogComponent]
 })
 export class WSDetailsPaneComponent implements OnChanges, OnDestroy, OnInit {
    @Input() worksheet: Worksheet;

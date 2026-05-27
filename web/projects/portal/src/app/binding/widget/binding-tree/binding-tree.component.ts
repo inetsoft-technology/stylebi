@@ -47,13 +47,17 @@ import { SlideOutOptions } from "../../../widget/slide-out/slide-out-options";
 import { TreeNodeModel } from "../../../widget/tree/tree-node-model";
 import { BindingTreeService } from "./binding-tree.service";
 import { VirtualScrollTreeDatasource } from "../../../widget/tree/virtual-scroll-tree-datasource";
+import { TreeComponent } from "../../../widget/tree/tree.component";
+import { NgIf } from "@angular/common";
 
 const GET_PARAMETERS_URI = "../api/vs/bindingtree/getConnectionParameters";
 const SET_CONNECTION_VARIABLES = "../api/composer/asset_tree/set-connection-variables";
 
 @Component({
-   selector: "binding-tree",
-   templateUrl: "binding-tree.component.html",
+    selector: "binding-tree",
+    templateUrl: "binding-tree.component.html",
+    standalone: true,
+    imports: [NgIf, TreeComponent],
 })
 export class BindingTreeComponent implements OnChanges {
    @Input() selectedNodes: TreeNodeModel[] = [];

@@ -28,11 +28,19 @@ import { GraphUtil } from "../../../util/graph-util";
 import { ChartEditorService } from "../../../services/chart/chart-editor.service";
 import { ChartTool } from "../../../../graph/model/chart-tool";
 import { GraphTypes } from "../../../../common/graph-types";
+import { TextFieldMc } from "./text-field-mc.component";
+import { SizeFieldMc } from "./size-field-mc.component";
+import { ShapeFieldMc } from "./shape-field-mc.component";
+import { ColorFieldMc } from "./color-field-mc.component";
+import { NgbDropdown, NgbDropdownToggle, NgbDropdownMenu } from "@ng-bootstrap/ng-bootstrap";
+import { NgIf, NgFor } from "@angular/common";
 
 @Component({
-   selector: "aesthetic-pane",
-   templateUrl: "aesthetic-pane.component.html",
-   styleUrls: ["aesthetic-pane.scss"]
+    selector: "aesthetic-pane",
+    templateUrl: "aesthetic-pane.component.html",
+    styleUrls: ["aesthetic-pane.scss"],
+    standalone: true,
+    imports: [NgIf, NgbDropdown, NgbDropdownToggle, NgbDropdownMenu, NgFor, ColorFieldMc, ShapeFieldMc, SizeFieldMc, TextFieldMc]
 })
 export class AestheticPane implements OnChanges {
    @Input() vsId: string;

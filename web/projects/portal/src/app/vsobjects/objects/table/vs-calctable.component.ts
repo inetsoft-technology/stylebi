@@ -62,12 +62,30 @@ import { PopComponentService } from "../data-tip/pop-component.service";
 import { PagingControlService } from "../../../common/services/paging-control.service";
 import { PagingControlModel } from "../../model/paging-control-model";
 import { VSTabService } from "../../util/vs-tab.service";
+import { NumberToArrayPipe } from "../../../widget/pipe/number-to-array.pipe";
+import { VSPreviewTable } from "./vs-preview-table.component";
+import { VSLoadingDisplay } from "../vs-loading-display/vs-loading-display.component";
+import { VSAnnotation } from "../annotation/vs-annotation.component";
+import { VSHiddenAnnotation } from "../annotation/vs-hidden-annotation.component";
+import { TooltipDirective } from "../../../widget/tooltip/tooltip.directive";
+import { VSTableCell } from "./vs-table-cell.component";
+import { SafeFontDirective } from "../../directives/safe-font.directive";
+import { VSSimpleCell } from "./vs-simple-cell.component";
+import { TouchScrollDirective } from "../../../widget/scroll/touch-scroll.directive";
+import { SelectionBoxDirective } from "../../../widget/directive/selection-box.directive";
+import { VSTitle } from "../title/vs-title.component";
+import { OutOfZoneDirective } from "../../../widget/directive/out-of-zone.directive";
+import { VSPopComponentDirective } from "../data-tip/vs-pop-component.directive";
+import { VSDataTipDirective } from "../data-tip/vs-data-tip.directive";
+import { NgIf, NgFor } from "@angular/common";
 
 @Component({
-   selector: "vs-calctable",
-   templateUrl: "vs-calctable.component.html",
-   styleUrls: ["base-table.scss", "vs-calctable.component.scss"],
-   changeDetection: ChangeDetectionStrategy.OnPush
+    selector: "vs-calctable",
+    templateUrl: "vs-calctable.component.html",
+    styleUrls: ["base-table.scss", "vs-calctable.component.scss"],
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    standalone: true,
+    imports: [NgIf, VSDataTipDirective, VSPopComponentDirective, OutOfZoneDirective, VSTitle, NgbTooltip, SelectionBoxDirective, TouchScrollDirective, NgFor, VSSimpleCell, SafeFontDirective, VSTableCell, TooltipDirective, VSHiddenAnnotation, VSAnnotation, VSLoadingDisplay, VSPreviewTable, NumberToArrayPipe]
 })
 export class VSCalcTable extends BaseTable<VSCalcTableModel> implements OnDestroy {
    @Output() onOpenFormatPane = new EventEmitter<VSCalcTableModel>();

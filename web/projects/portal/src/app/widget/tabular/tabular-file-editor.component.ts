@@ -28,11 +28,16 @@ import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { TabularFile } from "../../common/data/tabular/tabular-file";
 import { Observable } from "rxjs";
 import { TreeNodeModel } from "../tree/tree-node-model";
+import { TabularFileBrowser } from "./tabular-file-browser.component";
+import { NgIf } from "@angular/common";
+import { FormsModule } from "@angular/forms";
 
 @Component({
-   selector: "tabular-file-editor",
-   templateUrl: "tabular-file-editor.component.html",
-   styleUrls: ["tabular-file-editor.component.scss"]
+    selector: "tabular-file-editor",
+    templateUrl: "tabular-file-editor.component.html",
+    styleUrls: ["tabular-file-editor.component.scss"],
+    standalone: true,
+    imports: [FormsModule, NgIf, TabularFileBrowser]
 })
 export class TabularFileEditor implements OnInit {
    @Input() value: string;

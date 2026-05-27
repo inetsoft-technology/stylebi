@@ -24,11 +24,17 @@ import { JunctionOperatorType } from "../../common/data/condition/junction-opera
 import { SubqueryTable } from "../../common/data/condition/subquery-table";
 import { DataRef } from "../../common/data/data-ref";
 import { Tool } from "../../../../../shared/util/tool";
+import { JunctionOperatorPipe } from "./junction-operator.pipe";
+import { ConditionPipe } from "./condition.pipe";
+import { ConditionItemPane } from "./condition-item-pane.component";
+import { NgFor, NgIf } from "@angular/common";
 
 @Component({
-   selector: "simple-condition-pane",
-   templateUrl: "simple-condition-pane.component.html",
-   styleUrls: ["simple-condition-pane.component.scss"]
+    selector: "simple-condition-pane",
+    templateUrl: "simple-condition-pane.component.html",
+    styleUrls: ["simple-condition-pane.component.scss"],
+    standalone: true,
+    imports: [NgFor, NgIf, ConditionItemPane, ConditionPipe, JunctionOperatorPipe]
 })
 export class SimpleConditionPane implements OnInit {
    public ConditionOperation = ConditionOperation;

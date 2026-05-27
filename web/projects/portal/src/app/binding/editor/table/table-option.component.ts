@@ -19,10 +19,19 @@ import { Component, Input, Output, EventEmitter } from "@angular/core";
 import { TableEditorService } from "../../services/table/table-editor.service";
 import { TableOptionInfo } from "../../data/table/table-option-info";
 import { TableFormatInfo } from "../../../common/data/tablelayout/table-format-info";
+import { TableFormatOption } from "./table-format-option.component";
+import { FormsModule } from "@angular/forms";
+import { NgIf } from "@angular/common";
 
 @Component({
-   selector: "table-option",
-   templateUrl: "table-option.component.html",
+    selector: "table-option",
+    templateUrl: "table-option.component.html",
+    standalone: true,
+    imports: [
+        NgIf,
+        FormsModule,
+        TableFormatOption,
+    ],
 })
 export class TableOption {
    @Input() option: TableOptionInfo;

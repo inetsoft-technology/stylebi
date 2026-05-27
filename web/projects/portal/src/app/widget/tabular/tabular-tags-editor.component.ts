@@ -24,13 +24,17 @@ import {
    Output,
    SimpleChanges, ViewChild, ElementRef
 } from "@angular/core";
-import { UntypedFormControl, Validators } from "@angular/forms";
+import { UntypedFormControl, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { Tool } from "../../../../../shared/util/tool";
+import { TabularTextEditor } from "./tabular-text-editor.component";
+import { NgIf, NgTemplateOutlet, NgFor } from "@angular/common";
 
 @Component({
-   selector: "tabular-tags-editor",
-   templateUrl: "tabular-tags-editor.component.html",
-   styleUrls: ["tabular-tags-editor.component.scss"]
+    selector: "tabular-tags-editor",
+    templateUrl: "tabular-tags-editor.component.html",
+    styleUrls: ["tabular-tags-editor.component.scss"],
+    standalone: true,
+    imports: [NgIf, NgTemplateOutlet, FormsModule, NgFor, ReactiveFormsModule, TabularTextEditor]
 })
 export class TabularTagsEditor implements OnInit, OnChanges {
    @Input() value: string;

@@ -25,15 +25,17 @@ import {
    SimpleChanges,
    ViewChild
 } from "@angular/core";
-import { UntypedFormControl, Validators } from "@angular/forms";
+import { UntypedFormControl, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { NgbTypeahead } from "@ng-bootstrap/ng-bootstrap";
 import { merge, Observable, Subject } from "rxjs";
 import { debounceTime, distinctUntilChanged, filter, map } from "rxjs/operators";
 
 @Component({
-   selector: "tabular-autocomplete-editor",
-   templateUrl: "tabular-autocomplete-editor.component.html",
-   styleUrls: ["tabular-autocomplete-editor.component.scss"]
+    selector: "tabular-autocomplete-editor",
+    templateUrl: "tabular-autocomplete-editor.component.html",
+    styleUrls: ["tabular-autocomplete-editor.component.scss"],
+    standalone: true,
+    imports: [FormsModule, NgbTypeahead, ReactiveFormsModule]
 })
 export class TabularAutocompleteEditor implements OnInit, OnChanges {
    @Input() value: string;

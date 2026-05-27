@@ -21,17 +21,15 @@ import {IdentityTreeComponent} from "./identity-tree.component";
 import {TreeModule} from "../tree/tree.module";
 
 @NgModule({
-   imports: [
-      CommonModule,
-      TreeModule,
-   ],
-   declarations: [
-      IdentityTreeComponent
-   ],
-   exports: [
-      IdentityTreeComponent
-   ],
-   providers: [],
+    imports: [
+        CommonModule,
+        TreeModule,
+        IdentityTreeComponent,
+    ],
+    exports: [
+        IdentityTreeComponent
+    ],
+    providers: [],
 })
 export class IdentityTreeModule {
 }

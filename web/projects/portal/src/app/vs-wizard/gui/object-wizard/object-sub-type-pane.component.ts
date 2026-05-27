@@ -23,11 +23,15 @@ import { VSObjectRecommendation } from "../../model/recommender/vs-object-recomm
 import { ChartSubType } from "../../model/recommender/chart-sub-type";
 import { Tool } from "../../../../../../shared/util/tool";
 import { GaugeFaceType } from "../../model/recommender/gauge-face-type";
+import { ObjectTypeIcon } from "./object-type-icon.component";
+import { NgFor, NgIf } from "@angular/common";
 
 @Component({
-   selector: "object-sub-type-pane",
-   templateUrl: "object-sub-type-pane.component.html",
-   styleUrls: ["object-sub-type-pane.component.scss"]
+    selector: "object-sub-type-pane",
+    templateUrl: "object-sub-type-pane.component.html",
+    styleUrls: ["object-sub-type-pane.component.scss"],
+    standalone: true,
+    imports: [NgFor, ObjectTypeIcon, NgIf]
 })
 export class ObjectSubTypePane implements OnInit, OnChanges {
    @Input() objectRecommendation: VSObjectRecommendation = null;

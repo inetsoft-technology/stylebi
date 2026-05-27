@@ -33,7 +33,8 @@ import { PopLocation } from "./pop-component.service";
 import { DateTipHelper } from "./date-tip-helper";
 
 @Directive({
-   selector: "[VSPopComponent]"
+    selector: "[VSPopComponent]",
+    standalone: true
 })
 export class VSPopComponentDirective implements DoCheck, OnInit, OnDestroy {
    @Input() public popComponentName: string;

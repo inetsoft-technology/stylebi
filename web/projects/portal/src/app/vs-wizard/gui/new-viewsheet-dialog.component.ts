@@ -23,11 +23,16 @@ import { NewViewsheetDialogModel } from "../model/new-viewsheet-dialog-model";
 import { TreeNodeModel } from "../../widget/tree/tree-node-model";
 import { AssetType } from "../../../../../shared/data/asset-type";
 import { VSWizardConstants } from "../model/vs-wizard-constants";
+import { AssetTreeComponent } from "../../widget/asset-tree/asset-tree.component";
+import { EnterSubmitDirective } from "../../widget/directive/enter-submit.directive";
+import { ModalHeaderComponent } from "../../widget/modal-header/modal-header.component";
 
 @Component({
-   selector: "new-viewsheet-dialog",
-   templateUrl: "new-viewsheet-dialog.component.html",
-   styleUrls: ["new-viewsheet-dialog.component.scss"]
+    selector: "new-viewsheet-dialog",
+    templateUrl: "new-viewsheet-dialog.component.html",
+    styleUrls: ["new-viewsheet-dialog.component.scss"],
+    standalone: true,
+    imports: [ModalHeaderComponent, EnterSubmitDirective, AssetTreeComponent]
 })
 export class NewViewsheetDialog implements OnInit {
    @Output() onCommit = new EventEmitter<NewViewsheetDialogModel>();

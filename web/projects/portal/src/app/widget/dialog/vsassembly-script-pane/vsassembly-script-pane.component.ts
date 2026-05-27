@@ -23,10 +23,13 @@ import { ScriptPane } from "../script-pane/script-pane.component";
 import { VSAssemblyScriptPaneModel } from "./vsassembly-script-pane-model";
 import { FormulaEditorDialog } from "../../formula-editor/formula-editor-dialog.component";
 import { Tool } from "../../../../../../shared/util/tool";
+import { FormsModule } from "@angular/forms";
 
 @Component({
-   selector: "vsassembly-script-pane",
-   templateUrl: "vsassembly-script-pane.component.html",
+    selector: "vsassembly-script-pane",
+    templateUrl: "vsassembly-script-pane.component.html",
+    standalone: true,
+    imports: [ScriptPane, FormsModule],
 })
 export class VSAssemblyScriptPane {
    @Input() view: string;

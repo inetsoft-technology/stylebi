@@ -19,10 +19,35 @@ import { Component, EventEmitter, Input, Output } from "@angular/core";
 import {FormGroup, UntypedFormGroup} from "@angular/forms";
 import { AxisPropertyDialogModel } from "../model/dialog/axis-property-dialog-model";
 import { UIContextService } from "../../common/services/ui-context.service";
+import { ApplyButtonComponent } from "../../widget/slide-out/apply-button.component";
+import { AliasPane } from "./alias-pane.component";
+import { AxisLinePane } from "./axis-line-pane.component";
+import { AxisLabelPane } from "./axis-label-pane.component";
+import { NgbNav, NgbNavItem, NgbNavItemRole, NgbNavLink, NgbNavLinkBase, NgbNavContent, NgbNavOutlet } from "@ng-bootstrap/ng-bootstrap";
+import { EnterSubmitDirective } from "../../widget/directive/enter-submit.directive";
+import { NgIf } from "@angular/common";
+import { ModalHeaderComponent } from "../../widget/modal-header/modal-header.component";
 
 @Component({
-   selector: "axis-property-dialog",
-   templateUrl: "axis-property-dialog.component.html",
+    selector: "axis-property-dialog",
+    templateUrl: "axis-property-dialog.component.html",
+    standalone: true,
+    imports: [
+        ModalHeaderComponent,
+        NgIf,
+        EnterSubmitDirective,
+        NgbNav,
+        NgbNavItem,
+        NgbNavItemRole,
+        NgbNavLink,
+        NgbNavLinkBase,
+        NgbNavContent,
+        AxisLabelPane,
+        AxisLinePane,
+        AliasPane,
+        NgbNavOutlet,
+        ApplyButtonComponent,
+    ],
 })
 export class AxisPropertyDialog {
    @Input() axisType: string;

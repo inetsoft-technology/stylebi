@@ -19,7 +19,8 @@ import { Directive, HostListener, Input, Renderer2, ElementRef } from "@angular/
 import { DefaultValueAccessor, NG_VALUE_ACCESSOR } from "@angular/forms";
 
 @Directive({
-   selector : "input[trim]",
+    selector: "input[trim]",
+    standalone: true,
 })
 export class InputTrimDirective extends DefaultValueAccessor {
    constructor(private renderer: Renderer2, private elementRef: ElementRef) {

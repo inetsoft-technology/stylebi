@@ -25,21 +25,26 @@ import {
    ViewChild,
    ViewEncapsulation
 } from "@angular/core";
-import { UntypedFormControl, UntypedFormGroup, Validators } from "@angular/forms";
-import { NgbModal, NgbModalOptions } from "@ng-bootstrap/ng-bootstrap";
+import { UntypedFormControl, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
+import { NgbModal, NgbModalOptions, NgbTypeahead } from "@ng-bootstrap/ng-bootstrap";
 import { Observable, Subscription } from "rxjs";
 import { debounceTime, map } from "rxjs/operators";
 import { FormValidators } from "../../../../../shared/util/form-validators";
 import { Tool } from "../../../../../shared/util/tool";
 import { GuiTool } from "../../common/util/gui-tool";
 import { EmailPaneModel } from "../../vsobjects/model/email-pane-model";
-import { EmailDialogData } from "./email-addr-dialog.component";
+import { EmailDialogData, EmailAddrDialog } from "./email-addr-dialog.component";
+import { CkeditorWrapperComponent } from "../../../../../shared/ckeditor-wrapper/ckeditor-wrapper.component";
+import { DefaultFocusDirective } from "../directive/default-focus.directive";
+import { NgIf } from "@angular/common";
 
 @Component({
-   selector: "email-pane",
-   templateUrl: "email-pane.component.html",
-   styleUrls: ["email-pane.component.scss"],
-   encapsulation: ViewEncapsulation.None
+    selector: "email-pane",
+    templateUrl: "email-pane.component.html",
+    styleUrls: ["email-pane.component.scss"],
+    encapsulation: ViewEncapsulation.None,
+    standalone: true,
+    imports: [NgIf, FormsModule, ReactiveFormsModule, NgbTypeahead, DefaultFocusDirective, CkeditorWrapperComponent, EmailAddrDialog]
 })
 export class EmailPane implements OnInit, OnDestroy {
    @Input()

@@ -23,8 +23,8 @@ import {
    Renderer2,
    ViewChild
 } from "@angular/core";
-import { ControlValueAccessor, NG_VALUE_ACCESSOR } from "@angular/forms";
-import { NgbDateParserFormatter, NgbDateStruct } from "@ng-bootstrap/ng-bootstrap";
+import { ControlValueAccessor, NG_VALUE_ACCESSOR, FormsModule } from "@angular/forms";
+import { NgbDateParserFormatter, NgbDateStruct, NgbInputDatepicker } from "@ng-bootstrap/ng-bootstrap";
 import { DateTypeFormatter } from "../../../../../shared/util/date-type-formatter";
 import { Tool } from "../../../../../shared/util/tool";
 
@@ -35,10 +35,12 @@ export const DATE_VALUE_ACCESSOR: any = {
 };
 
 @Component({
-   selector: "date-value-editor",
-   templateUrl: "date-value-editor.component.html",
-   styleUrls: ["date-value-editor.component.scss"],
-   providers: [DATE_VALUE_ACCESSOR]
+    selector: "date-value-editor",
+    templateUrl: "date-value-editor.component.html",
+    styleUrls: ["date-value-editor.component.scss"],
+    providers: [DATE_VALUE_ACCESSOR],
+    standalone: true,
+    imports: [NgbInputDatepicker, FormsModule]
 })
 export class DateValueEditorComponent implements ControlValueAccessor {
    @ViewChild("datepickerMax") ngbDatepicker;

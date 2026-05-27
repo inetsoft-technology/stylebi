@@ -23,19 +23,17 @@ import {FixedDropdownModule} from "../fixed-dropdown/fixed-dropdown.module";
 import {FormsModule} from "@angular/forms";
 
 @NgModule({
-   imports: [
-      CommonModule,
-      StandardDialogModule,
-      FixedDropdownModule,
-      FormsModule,
-   ],
-   declarations: [
-      ConsoleDialogComponent
-   ],
-   exports: [
-      ConsoleDialogComponent
-   ],
-   providers: [],
+    imports: [
+        CommonModule,
+        StandardDialogModule,
+        FixedDropdownModule,
+        FormsModule,
+        ConsoleDialogComponent,
+    ],
+    exports: [
+        ConsoleDialogComponent
+    ],
+    providers: [],
 })
 export class ConsoleDialogModule {
 }
