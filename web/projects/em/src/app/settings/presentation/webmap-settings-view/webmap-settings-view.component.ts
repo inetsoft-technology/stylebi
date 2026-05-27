@@ -19,12 +19,20 @@ import { Component, EventEmitter, Input, Output } from "@angular/core";
 import { PresentationSettingsType } from "../presentation-settings-view/presentation-settings-type.enum";
 import { PresentationSettingsChanges } from "../presentation-settings-view/presentation-settings-view.component";
 import { WebMapSettingsModel } from "./webmap-settings-model";
-import { UntypedFormBuilder, UntypedFormGroup, Validators, FormControl } from "@angular/forms";
+import { UntypedFormBuilder, UntypedFormGroup, Validators, FormControl, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { Searchable } from "../../../searchable";
 import { ContextHelp } from "../../../context-help";
 import { HttpClient, HttpParams } from "@angular/common/http";
 import { MapboxStyle } from "../../../../../../portal/src/app/graph/model/dialog/mapbox-style";
 import { Tool } from "../../../../../../shared/util/tool";
+import { MatOption } from "@angular/material/core";
+import { MatSelect } from "@angular/material/select";
+import { MatInput } from "@angular/material/input";
+import { MatFormField, MatLabel, MatError } from "@angular/material/form-field";
+import { MatCheckbox } from "@angular/material/checkbox";
+import { MatButtonToggleGroup, MatButtonToggle } from "@angular/material/button-toggle";
+import { NgIf, NgFor } from "@angular/common";
+import { MatCard, MatCardTitle, MatCardContent } from "@angular/material/card";
 
 @Searchable({
    route: "/settings/presentation/settings#webmap",
@@ -39,9 +47,11 @@ import { Tool } from "../../../../../../shared/util/tool";
    link: "EMPresentationDashboardSettingsWebMap"
 })
 @Component({
-   selector: "em-webmap-settings-view",
-   templateUrl: "./webmap-settings-view.component.html",
-   styleUrls: ["./webmap-settings-view.component.scss"]
+    selector: "em-webmap-settings-view",
+    templateUrl: "./webmap-settings-view.component.html",
+    styleUrls: ["./webmap-settings-view.component.scss"],
+    standalone: true,
+    imports: [MatCard, MatCardTitle, MatCardContent, NgIf, FormsModule, ReactiveFormsModule, MatButtonToggleGroup, MatButtonToggle, MatCheckbox, MatFormField, MatLabel, MatInput, MatError, MatSelect, NgFor, MatOption]
 })
 export class WebMapSettingsViewComponent {
    @Output() modelChanged = new EventEmitter<PresentationSettingsChanges>();

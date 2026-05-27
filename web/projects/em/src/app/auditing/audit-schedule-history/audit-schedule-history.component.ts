@@ -17,7 +17,7 @@
  */
 import { HttpClient, HttpParams } from "@angular/common/http";
 import { Component, OnDestroy, OnInit } from "@angular/core";
-import { FormBuilder, FormGroup } from "@angular/forms";
+import { FormBuilder, FormGroup, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { catchError, tap } from "rxjs/operators";
 import { ErrorHandlerService } from "../../common/util/error/error-handler.service";
 import { ContextHelp } from "../../context-help";
@@ -33,6 +33,10 @@ import {
 } from "./schedule-history";
 import { of, Subscription } from "rxjs";
 import { ActivatedRoute } from "@angular/router";
+import { MatOption } from "@angular/material/core";
+import { MatSelect } from "@angular/material/select";
+import { MatFormField, MatLabel } from "@angular/material/form-field";
+import { NgIf, NgFor } from "@angular/common";
 
 @Secured({
    route: "/auditing/schedule-history",
@@ -48,9 +52,11 @@ import { ActivatedRoute } from "@angular/router";
    link: "EMViewAudit"
 })
 @Component({
-  selector: "em-audit-schedule-history",
-  templateUrl: "./audit-schedule-history.component.html",
-  styleUrls: ["./audit-schedule-history.component.scss"]
+    selector: "em-audit-schedule-history",
+    templateUrl: "./audit-schedule-history.component.html",
+    styleUrls: ["./audit-schedule-history.component.scss"],
+    standalone: true,
+    imports: [AuditTableViewComponent, FormsModule, ReactiveFormsModule, NgIf, MatFormField, MatLabel, MatSelect, NgFor, MatOption]
 })
 export class AuditScheduleHistoryComponent implements OnInit, OnDestroy {
    tasks: AssetModel[] = [];

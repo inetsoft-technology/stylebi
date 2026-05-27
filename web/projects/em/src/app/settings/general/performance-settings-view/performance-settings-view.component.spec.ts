@@ -39,10 +39,9 @@ describe("PerformanceSettingsViewComponent", () => {
             MatCardModule,
             MatDividerModule,
             MatInputModule,
-            MatCheckboxModule
-         ],
-         declarations: [PerformanceSettingsViewComponent]
-      })
+            MatCheckboxModule,
+            PerformanceSettingsViewComponent]
+         })
          .compileComponents();
    }));
 

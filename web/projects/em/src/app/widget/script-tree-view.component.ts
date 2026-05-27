@@ -17,12 +17,21 @@
  */
 import { Component, EventEmitter, Input, Output } from "@angular/core";
 import { ScriptTreeDataSource } from "./script-tree-data-source";
-import { FlatTreeSelectNodeEvent } from "../common/util/tree/flat-tree-view.component";
+import { FlatTreeSelectNodeEvent, FlatTreeViewComponent } from "../common/util/tree/flat-tree-view.component";
+import { MatProgressBar } from "@angular/material/progress-bar";
+import { NgIf } from "@angular/common";
+import { MatIcon } from "@angular/material/icon";
+import { MatIconButton } from "@angular/material/button";
+import { FormsModule } from "@angular/forms";
+import { MatInput } from "@angular/material/input";
+import { MatFormField, MatLabel, MatSuffix } from "@angular/material/form-field";
 
 @Component({
-   selector: "em-script-tree-view",
-   templateUrl: "./script-tree-view.component.html",
-   styleUrls: ["./script-tree-view.component.scss"]
+    selector: "em-script-tree-view",
+    templateUrl: "./script-tree-view.component.html",
+    styleUrls: ["./script-tree-view.component.scss"],
+    standalone: true,
+    imports: [MatFormField, MatLabel, MatInput, FormsModule, MatIconButton, MatSuffix, MatIcon, NgIf, MatProgressBar, FlatTreeViewComponent]
 })
 export class ScriptTreeViewComponent {
    @Input() dataSource: ScriptTreeDataSource;

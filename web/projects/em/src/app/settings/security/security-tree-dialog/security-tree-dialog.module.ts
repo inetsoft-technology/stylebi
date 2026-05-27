@@ -26,21 +26,19 @@ import { SecurityTreeViewModule } from "../security-tree-view/security-tree-view
 import { SecurityTreeDialogComponent } from "./security-tree-dialog.component";
 
 @NgModule({
-   imports: [
-      CommonModule,
-      FormsModule,
-      MatButtonModule,
-      MatIconModule,
-      SecurityTreeViewModule,
-      MatDialogModule,
-      ModalHeaderModule
-   ],
-   declarations: [
-      SecurityTreeDialogComponent
-   ],
-   exports: [
-      SecurityTreeDialogComponent
-   ]
+    imports: [
+        CommonModule,
+        FormsModule,
+        MatButtonModule,
+        MatIconModule,
+        SecurityTreeViewModule,
+        MatDialogModule,
+        ModalHeaderModule,
+        SecurityTreeDialogComponent
+    ],
+    exports: [
+        SecurityTreeDialogComponent
+    ]
 })
 export class SecurityTreeDialogModule {
 }

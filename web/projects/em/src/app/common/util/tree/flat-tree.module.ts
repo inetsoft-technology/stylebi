@@ -32,16 +32,14 @@ import { MultiSelectTreeNodeDirective } from "./multi-select-tree-node.directive
         MatTreeModule,
         MatIconModule,
         ScrollingModule,
-        MatMenuModule
+        MatMenuModule,
+        FlatTreeViewComponent,
+        MultiSelectTreeNodeDirective
     ],
-   declarations: [
-      FlatTreeViewComponent,
-      MultiSelectTreeNodeDirective
-   ],
-   exports: [
-      FlatTreeViewComponent,
-      MultiSelectTreeNodeDirective
-   ]
+    exports: [
+        FlatTreeViewComponent,
+        MultiSelectTreeNodeDirective
+    ]
 })
 export class FlatTreeModule {
 }

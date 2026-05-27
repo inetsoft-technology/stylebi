@@ -27,14 +27,12 @@ import {ModalHeaderModule} from "./modal-header/modal-header.module";
         CommonModule,
         MatDialogModule,
         MatButtonModule,
-        ModalHeaderModule
+        ModalHeaderModule,
+        MessageDialog
     ],
-   declarations: [
-      MessageDialog
-   ],
-   exports: [
-      MessageDialog
-   ]
+    exports: [
+        MessageDialog
+    ]
 })
 export class MessageDialogModule {
 }

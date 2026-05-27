@@ -36,12 +36,8 @@ describe("MultiFileChooserComponent", () => {
             FormsModule,
             MatButtonModule,
             MatCardModule,
-            MatListModule
-         ],
-         declarations: [
-            FileChooserComponent,
-            MultiFileChooserComponent
-         ],
+            MatListModule,
+            FileChooserComponent, MultiFileChooserComponent],
          schemas: [
             NO_ERRORS_SCHEMA
          ]

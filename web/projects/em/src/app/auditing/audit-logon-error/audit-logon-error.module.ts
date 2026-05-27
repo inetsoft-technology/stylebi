@@ -25,17 +25,15 @@ import { AuditLogonErrorRoutingModule } from "./audit-logon-error-routing.module
 import { AuditLogonErrorComponent } from "./audit-logon-error.component";
 
 @NgModule({
-   declarations: [
-      AuditLogonErrorComponent
-   ],
-   imports: [
-      CommonModule,
-      AuditLogonErrorRoutingModule,
-      AuditTableViewModule,
-      ReactiveFormsModule,
-      MatFormFieldModule,
-      MatSelectModule
-   ]
+    imports: [
+        CommonModule,
+        AuditLogonErrorRoutingModule,
+        AuditTableViewModule,
+        ReactiveFormsModule,
+        MatFormFieldModule,
+        MatSelectModule,
+        AuditLogonErrorComponent
+    ]
 })
 export class AuditLogonErrorModule {
 }

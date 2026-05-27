@@ -39,12 +39,6 @@ import { SsoSettingsPageComponent } from "./sso-settings-page/sso-settings-page.
 import { SsoSettingsRoutingModule } from "./sso-settings-routing.module";
 
 @NgModule({
-    declarations: [
-        SsoSettingsPageComponent,
-        SSOSettingsFormComponent,
-        CustomSsoFormComponent,
-        OpenidSettingsFormComponent
-    ],
     exports: [
         OpenidSettingsFormComponent
     ],
@@ -66,7 +60,11 @@ import { SsoSettingsRoutingModule } from "./sso-settings-routing.module";
         MatCheckboxModule,
         MatAutocompleteModule,
         MessageDialogModule,
-        MatChipsModule
+        MatChipsModule,
+        SsoSettingsPageComponent,
+        SSOSettingsFormComponent,
+        CustomSsoFormComponent,
+        OpenidSettingsFormComponent
     ]
 })
 export class SSOSettingsModule {

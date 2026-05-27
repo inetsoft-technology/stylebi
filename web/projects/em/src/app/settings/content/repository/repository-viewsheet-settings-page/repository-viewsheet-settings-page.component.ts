@@ -23,6 +23,7 @@ import {RepositoryEditorModel} from "../../../../../../../shared/util/model/repo
 import { convertToKey, IdentityId } from "../../../security/users/identity-id";
 import {RepositorySheetSettingsModel} from "../repository-worksheet-settings-page/repository-sheet-settings.model";
 import {RepositoryTreeNode} from "../repository-tree-node";
+import { RepositoryViewsheetSettingsViewComponent } from "../repository-viewsheet-settings-view/repository-viewsheet-settings-view.component";
 
 export interface RepositoryViewsheetEditorModel extends RepositoryEditorModel {
    viewsheetSettings: RepositorySheetSettingsModel;
@@ -30,9 +31,11 @@ export interface RepositoryViewsheetEditorModel extends RepositoryEditorModel {
 }
 
 @Component({
-   selector: "em-repository-viewsheet-settings-page",
-   templateUrl: "./repository-viewsheet-settings-page.component.html",
-   styleUrls: ["./repository-viewsheet-settings-page.component.scss"]
+    selector: "em-repository-viewsheet-settings-page",
+    templateUrl: "./repository-viewsheet-settings-page.component.html",
+    styleUrls: ["./repository-viewsheet-settings-page.component.scss"],
+    standalone: true,
+    imports: [RepositoryViewsheetSettingsViewComponent]
 })
 export class RepositoryViewsheetSettingsPageComponent implements OnChanges {
    @Input() model: RepositoryViewsheetEditorModel;

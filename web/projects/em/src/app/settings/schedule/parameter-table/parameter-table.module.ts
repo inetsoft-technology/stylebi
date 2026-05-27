@@ -38,35 +38,33 @@ import { ParameterTableComponent } from "./parameter-table.component";
 import { WidgetModule } from "../../../widget/widget.module";
 
 @NgModule({
-   imports: [
-      CommonModule,
-      CustomValueAccessorModule,
-      FormsModule,
-      ReactiveFormsModule,
-      MatAutocompleteModule,
-      MatButtonModule,
-      MatCardModule,
-      MatCheckboxModule,
-      MatDatepickerModule,
-      MatDialogModule,
-      MatFormFieldModule,
-      MatIconModule,
-      MatInputModule,
-      MatRadioModule,
-      MatSelectModule,
-      MatTableModule,
-      MessageDialogModule,
-      ModalHeaderModule,
-      WidgetModule
-   ],
-   exports: [
-      AddParameterDialogComponent,
-      ParameterTableComponent
-   ],
-   declarations: [
-      ParameterTableComponent,
-      AddParameterDialogComponent
-   ]
+    imports: [
+        CommonModule,
+        CustomValueAccessorModule,
+        FormsModule,
+        ReactiveFormsModule,
+        MatAutocompleteModule,
+        MatButtonModule,
+        MatCardModule,
+        MatCheckboxModule,
+        MatDatepickerModule,
+        MatDialogModule,
+        MatFormFieldModule,
+        MatIconModule,
+        MatInputModule,
+        MatRadioModule,
+        MatSelectModule,
+        MatTableModule,
+        MessageDialogModule,
+        ModalHeaderModule,
+        WidgetModule,
+        ParameterTableComponent,
+        AddParameterDialogComponent
+    ],
+    exports: [
+        AddParameterDialogComponent,
+        ParameterTableComponent
+    ]
 })
 export class ParameterTableModule {
 }

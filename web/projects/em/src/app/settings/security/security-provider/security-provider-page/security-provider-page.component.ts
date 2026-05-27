@@ -19,6 +19,8 @@ import { AfterViewInit, Component, OnInit } from "@angular/core";
 import { LoadingSpinnerService } from "../../../../common/util/loading-spinner/loading-spinner.service";
 import { PageHeaderService } from "../../../../page-header/page-header.service";
 import { Secured } from "../../../../secured";
+import { AuthorizationProviderListPageComponent } from "../authorization-provider-list-page/authorization-provider-list-page.component";
+import { AuthenticationProviderViewComponent } from "../authentication-provider-list-page/authentication-provider-list-page.component";
 
 @Secured({
    route: "/settings/security/provider",
@@ -26,9 +28,11 @@ import { Secured } from "../../../../secured";
    hiddenForMultiTenancy: true
 })
 @Component({
-   selector: "em-security-provider-page",
-   templateUrl: "./security-provider-page.component.html",
-   styleUrls: ["./security-provider-page.component.scss"]
+    selector: "em-security-provider-page",
+    templateUrl: "./security-provider-page.component.html",
+    styleUrls: ["./security-provider-page.component.scss"],
+    standalone: true,
+    imports: [AuthenticationProviderViewComponent, AuthorizationProviderListPageComponent]
 })
 export class SecurityProviderPageComponent implements OnInit, AfterViewInit {
    constructor(private pageTitle: PageHeaderService,

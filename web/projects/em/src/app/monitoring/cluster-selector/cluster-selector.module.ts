@@ -23,18 +23,16 @@ import { MatSelectModule } from "@angular/material/select";
 import { ClusterSelectorComponent } from "./cluster-selector.component";
 
 @NgModule({
-   imports: [
-      CommonModule,
-      MatSelectModule,
-      MatButtonModule,
-      MatIconModule
-   ],
-   exports: [
-      ClusterSelectorComponent
-   ],
-   declarations: [
-      ClusterSelectorComponent
-   ]
+    imports: [
+        CommonModule,
+        MatSelectModule,
+        MatButtonModule,
+        MatIconModule,
+        ClusterSelectorComponent
+    ],
+    exports: [
+        ClusterSelectorComponent
+    ]
 })
 export class ClusterSelectorModule {
 }

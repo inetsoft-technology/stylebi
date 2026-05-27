@@ -17,11 +17,17 @@
  */
 import { Component, EventEmitter, Input, Output } from "@angular/core";
 import { ExportMenuOption } from "./export-menu-option";
+import { FormsModule } from "@angular/forms";
+import { MatCheckbox } from "@angular/material/checkbox";
+import { NgFor } from "@angular/common";
+import { MatCard, MatCardHeader, MatCardSubtitle, MatCardContent } from "@angular/material/card";
 
 @Component({
-   selector: "em-export-menu-options-view",
-   templateUrl: "./export-menu-options-view.component.html",
-   styleUrls: ["./export-menu-options-view.component.scss"]
+    selector: "em-export-menu-options-view",
+    templateUrl: "./export-menu-options-view.component.html",
+    styleUrls: ["./export-menu-options-view.component.scss"],
+    standalone: true,
+    imports: [MatCard, MatCardHeader, MatCardSubtitle, MatCardContent, NgFor, MatCheckbox, FormsModule]
 })
 export class ExportMenuOptionsViewComponent {
    @Input() options: ExportMenuOption[];

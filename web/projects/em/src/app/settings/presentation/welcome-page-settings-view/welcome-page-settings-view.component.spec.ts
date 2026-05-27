@@ -37,10 +37,9 @@ describe("WelcomePageSettingsViewComponent", () => {
             MatIconModule,
             MatInputModule,
             MatRadioModule,
-            ReactiveFormsModule
-         ],
-         declarations: [WelcomePageSettingsViewComponent]
-      })
+            ReactiveFormsModule,
+            WelcomePageSettingsViewComponent]
+         })
          .compileComponents();
    }));
 

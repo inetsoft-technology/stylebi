@@ -21,6 +21,10 @@ import { AppInfoService } from "../../../../../../shared/util/app-info.service";
 import { AuthorizationService } from "../../../authorization/authorization.service";
 import { PageHeaderService } from "../../../page-header/page-header.service";
 import { Secured } from "../../../secured";
+import { TopScrollDirective } from "../../../top-scroll/top-scroll.directive";
+import { RouterLinkActive, RouterLink, RouterOutlet } from "@angular/router";
+import { NgFor } from "@angular/common";
+import { MatTabNav, MatTabLink, MatTabNavPanel } from "@angular/material/tabs";
 
 interface Link {
    path: string;
@@ -33,9 +37,11 @@ interface Link {
    label: "Presentation"
 })
 @Component({
-   selector: "em-presentation-nav-view",
-   templateUrl: "./presentation-nav-view.component.html",
-   styleUrls: ["./presentation-nav-view.component.scss"]
+    selector: "em-presentation-nav-view",
+    templateUrl: "./presentation-nav-view.component.html",
+    styleUrls: ["./presentation-nav-view.component.scss"],
+    standalone: true,
+    imports: [MatTabNav, NgFor, MatTabLink, RouterLinkActive, RouterLink, MatTabNavPanel, TopScrollDirective, RouterOutlet]
 })
 export class PresentationNavViewComponent implements OnInit {
 

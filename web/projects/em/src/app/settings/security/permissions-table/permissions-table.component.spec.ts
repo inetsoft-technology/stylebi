@@ -43,8 +43,7 @@ describe("PermissionsTableComponent", () => {
             MatButtonModule,
             MatCheckboxModule,
             NoopAnimationsModule,
-         ],
-         declarations: [PermissionsTableComponent],
+            PermissionsTableComponent],
          schemas: [NO_ERRORS_SCHEMA]
       })
          .compileComponents();

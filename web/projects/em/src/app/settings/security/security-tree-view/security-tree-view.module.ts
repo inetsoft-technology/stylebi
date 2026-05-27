@@ -28,23 +28,21 @@ import { ScrollingModule } from "@angular/cdk/scrolling";
 import { MatProgressBarModule } from "@angular/material/progress-bar";
 
 @NgModule({
-   imports: [
-      CommonModule,
-      FormsModule,
-      MatFormFieldModule,
-      MatIconModule,
-      MatInputModule,
-      MatTreeModule,
-      MatButtonModule,
-      ScrollingModule,
-      MatProgressBarModule
-   ],
-   declarations: [
-      SecurityTreeViewComponent
-   ],
-   exports: [
-      SecurityTreeViewComponent
-   ]
+    imports: [
+        CommonModule,
+        FormsModule,
+        MatFormFieldModule,
+        MatIconModule,
+        MatInputModule,
+        MatTreeModule,
+        MatButtonModule,
+        ScrollingModule,
+        MatProgressBarModule,
+        SecurityTreeViewComponent
+    ],
+    exports: [
+        SecurityTreeViewComponent
+    ]
 })
 export class SecurityTreeViewModule {
 }

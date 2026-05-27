@@ -16,20 +16,25 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, EventEmitter, Input, OnInit, Output } from "@angular/core";
-import {
-   FormArray,
-   UntypedFormBuilder,
-   UntypedFormControl,
-   UntypedFormGroup,
-   ValidationErrors,
-   Validators
-} from "@angular/forms";
+import { FormArray, UntypedFormBuilder, UntypedFormControl, UntypedFormGroup, ValidationErrors, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { BehaviorSubject } from "rxjs";
 import { FileTypes } from "../../../../../../../portal/src/app/common/data/file-types";
 import { ServerPathInfoModel } from "../../../../../../../portal/src/app/vsobjects/model/server-path-info-model";
 import { CSVConfigModel } from "../../../../../../../shared/schedule/model/csv-config-model";
 import { ExportFormatModel } from "../../../../../../../shared/schedule/model/export-format-model";
 import { ServerLocation } from "../../../../../../../shared/schedule/model/server-location";
+import { EmCSVConfigPaneComponent } from "../em-csv-config-pane.component";
+import { MatRadioGroup, MatRadioButton } from "@angular/material/radio";
+import { MatIcon } from "@angular/material/icon";
+import { MatIconButton, MatMiniFabButton } from "@angular/material/button";
+import { MatInput } from "@angular/material/input";
+import { MatOption } from "@angular/material/core";
+import { MatSelect } from "@angular/material/select";
+import { MatFormField, MatError, MatLabel } from "@angular/material/form-field";
+import { MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow } from "@angular/material/table";
+import { NgIf, NgFor } from "@angular/common";
+import { MatCheckbox } from "@angular/material/checkbox";
+import { MatCard, MatCardHeader, MatCardTitle, MatCardContent } from "@angular/material/card";
 
 export interface ServerSaveFile {
    format: string;
@@ -55,9 +60,11 @@ export interface ServerSave {
 }
 
 @Component({
-   selector: "em-server-save",
-   templateUrl: "./server-save.component.html",
-   styleUrls: ["./server-save.component.scss"]
+    selector: "em-server-save",
+    templateUrl: "./server-save.component.html",
+    styleUrls: ["./server-save.component.scss"],
+    standalone: true,
+    imports: [MatCard, MatCardHeader, MatCardTitle, MatCheckbox, FormsModule, NgIf, MatCardContent, MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatFormField, MatSelect, NgFor, MatOption, MatError, ReactiveFormsModule, MatInput, MatLabel, MatIconButton, MatIcon, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, MatMiniFabButton, MatRadioGroup, MatRadioButton, EmCSVConfigPaneComponent]
 })
 export class ServerSaveComponent implements OnInit {
    @Input() enabled = false;

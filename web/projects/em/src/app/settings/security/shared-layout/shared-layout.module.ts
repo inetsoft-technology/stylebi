@@ -20,10 +20,10 @@ import { CommonModule } from "@angular/common";
 import { SharedLayoutComponent } from "./shared-layout.component";
 
 @NgModule({
-  imports: [
-    CommonModule
-  ],
-  exports: [SharedLayoutComponent],
-  declarations: [SharedLayoutComponent]
+    imports: [
+        CommonModule,
+        SharedLayoutComponent
+    ],
+    exports: [SharedLayoutComponent]
 })
 export class SharedLayoutModule { }

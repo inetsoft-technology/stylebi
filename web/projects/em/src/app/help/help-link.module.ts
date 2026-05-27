@@ -20,15 +20,13 @@ import { CommonModule } from "@angular/common";
 import { HelpLinkDirective } from "./help-link.directive";
 
 @NgModule({
-   imports: [
-      CommonModule
-   ],
-   declarations: [
-      HelpLinkDirective
-   ],
-   exports: [
-      HelpLinkDirective
-   ]
+    imports: [
+        CommonModule,
+        HelpLinkDirective
+    ],
+    exports: [
+        HelpLinkDirective
+    ]
 })
 export class HelpLinkModule {
 }

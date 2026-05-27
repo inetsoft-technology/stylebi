@@ -48,13 +48,8 @@ describe("RepositoryWorksheetSettingsViewComponent", () => {
             MatButtonModule, MatInputModule, MatSelectModule, NoopAnimationsModule,
             MatOptionModule, MatTabsModule, MatFormFieldModule, FormsModule, ReactiveFormsModule,
             MatRadioModule, MatCheckboxModule, ResourcePermissionModule, LoadingSpinnerModule,
-            MatTableModule],
-         declarations: [
-            AnalyzeMvPageComponent,
-            RepositoryWorksheetSettingsViewComponent,
-            RepositorySheetSettingsViewComponent,
-            TableView
-         ],
+            MatTableModule,
+            AnalyzeMvPageComponent, RepositoryWorksheetSettingsViewComponent, RepositorySheetSettingsViewComponent, TableView],
          schemas: [
             NO_ERRORS_SCHEMA
          ]

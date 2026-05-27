@@ -18,13 +18,7 @@
 import { FlatTreeControl } from "@angular/cdk/tree";
 import { HttpErrorResponse } from "@angular/common/http";
 import { AfterContentChecked, Component, EventEmitter, Input, OnInit, Output } from "@angular/core";
-import {
-   UntypedFormControl,
-   UntypedFormGroup,
-   ValidationErrors,
-   ValidatorFn,
-   Validators
-} from "@angular/forms";
+import { UntypedFormControl, UntypedFormGroup, ValidationErrors, ValidatorFn, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { MatSnackBar } from "@angular/material/snack-bar";
 import { BehaviorSubject, Observable, of, throwError } from "rxjs";
 import { catchError, map, tap } from "rxjs/operators";
@@ -47,14 +41,24 @@ import { HighlightListModel, HighlightModel } from "../../model/highlight-list-m
 import { ReportOptions } from "../../model/reports-options";
 import { ViewsheetParametersModel } from "../../model/viewsheet-parameters-model";
 import { ViewsheetTreeListModel, ViewsheetTreeModel } from "../../model/viewsheet-tree-list-model";
-import { Parameters } from "../../parameter-table/parameter-table.component";
-import { DeliveryEmails } from "../delivery-emails/delivery-emails.component";
+import { Parameters, ParameterTableComponent } from "../../parameter-table/parameter-table.component";
+import { DeliveryEmails, DeliveryEmailsComponent } from "../delivery-emails/delivery-emails.component";
 import { EmailListService } from "../email-list.service";
-import { NotificationEmails } from "../notification-emails/notification-emails.component";
-import { ScheduleAlerts } from "../schedule-alerts/schedule-alerts.component";
-import { ServerSave, ServerSaveFile } from "../server-save/server-save.component";
+import { NotificationEmails, NotificationEmailsComponent } from "../notification-emails/notification-emails.component";
+import { ScheduleAlerts, ScheduleAlertsComponent } from "../schedule-alerts/schedule-alerts.component";
+import { ServerSave, ServerSaveFile, ServerSaveComponent } from "../server-save/server-save.component";
 import { TaskActionChanges } from "../task-action-pane.component";
 import { ViewsheetActionService } from "../viewsheet-action.service";
+import { MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow } from "@angular/material/table";
+import { MatIcon } from "@angular/material/icon";
+import { MatIconButton, MatMiniFabButton } from "@angular/material/button";
+import { MatTree, MatTreeNodeDef, MatTreeNode, MatTreeNodeToggle, MatTreeNodePadding } from "@angular/material/tree";
+import { MatProgressBar } from "@angular/material/progress-bar";
+import { NgIf, NgFor, AsyncPipe } from "@angular/common";
+import { MatOption } from "@angular/material/core";
+import { MatSelect } from "@angular/material/select";
+import { MatFormField, MatLabel, MatError } from "@angular/material/form-field";
+import { MatCard, MatCardContent } from "@angular/material/card";
 
 export class ViewsheetFlatNode extends FlatTreeNode<ViewsheetTreeModel> {
    constructor(public expandable: boolean, public id: string, public name: string,
@@ -116,9 +120,11 @@ export class ViewsheetDataSource extends FlatTreeDataSource<ViewsheetFlatNode, V
 }
 
 @Component({
-   selector: "em-viewsheet-action-editor",
-   templateUrl: "./viewsheet-action-editor.component.html",
-   styleUrls: ["./viewsheet-action-editor.component.scss"]
+    selector: "em-viewsheet-action-editor",
+    templateUrl: "./viewsheet-action-editor.component.html",
+    styleUrls: ["./viewsheet-action-editor.component.scss"],
+    standalone: true,
+    imports: [MatCard, MatCardContent, MatFormField, FormsModule, ReactiveFormsModule, MatLabel, MatSelect, MatOption, NgIf, MatProgressBar, MatTree, MatTreeNodeDef, MatTreeNode, MatTreeNodeToggle, MatTreeNodePadding, MatIconButton, MatIcon, MatError, MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, NgFor, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, MatMiniFabButton, NotificationEmailsComponent, DeliveryEmailsComponent, ServerSaveComponent, ParameterTableComponent, ScheduleAlertsComponent, AsyncPipe]
 })
 export class ViewsheetActionEditorComponent implements OnInit, AfterContentChecked {
    @Output() modelChanged = new EventEmitter<TaskActionChanges>();

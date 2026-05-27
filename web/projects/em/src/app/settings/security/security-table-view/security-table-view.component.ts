@@ -23,7 +23,7 @@ import { SelectionModel } from "@angular/cdk/collections";
 import { Tool } from "../../../../../../shared/util/tool";
 import { IdentityModel } from "./identity-model";
 import { MatDialog } from "@angular/material/dialog";
-import { MatTableDataSource } from "@angular/material/table";
+import { MatTableDataSource, MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow } from "@angular/material/table";
 import { IdentityType } from "../../../../../../shared/data/identity-type";
 import { SecurityTreeDialogComponent } from "../security-tree-dialog/security-tree-dialog.component";
 import { SecurityTreeDialogData } from "../security-tree-dialog/security-tree-dialog-data";
@@ -33,11 +33,19 @@ import { take } from "rxjs/operators";
 import { IdentityClipboardService, IdentityCopyPasteContext } from "./identity-clipboard.service";
 import { MessageDialog, MessageDialogType } from "../../../common/util/message-dialog";
 import { equalsIdentity } from "../users/identity-id";
+import { MatTooltip } from "@angular/material/tooltip";
+import { MatButton } from "@angular/material/button";
+import { NgIf } from "@angular/common";
+import { MatIcon } from "@angular/material/icon";
+import { MatCheckbox } from "@angular/material/checkbox";
+import { MatCard, MatCardHeader, MatCardContent, MatCardActions } from "@angular/material/card";
 
 @Component({
-   selector: "em-security-table-view",
-   templateUrl: "./security-table-view.component.html",
-   styleUrls: ["./security-table-view.component.scss"]
+    selector: "em-security-table-view",
+    templateUrl: "./security-table-view.component.html",
+    styleUrls: ["./security-table-view.component.scss"],
+    standalone: true,
+    imports: [MatCard, MatCardHeader, MatCardContent, MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCheckbox, MatCellDef, MatCell, MatIcon, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, MatPaginator, MatCardActions, NgIf, MatButton, MatTooltip]
 })
 export class SecurityTableViewComponent implements OnChanges, AfterViewInit {
    @Input() name: string;

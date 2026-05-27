@@ -16,13 +16,20 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, Inject, Input, OnInit } from "@angular/core";
-import { MAT_DIALOG_DATA, MatDialogRef } from "@angular/material/dialog";
-import { UntypedFormBuilder, UntypedFormGroup, Validators } from "@angular/forms";
+import { MAT_DIALOG_DATA, MatDialogRef, MatDialogContent, MatDialogActions, MatDialogClose } from "@angular/material/dialog";
+import { UntypedFormBuilder, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
+import { MatButton } from "@angular/material/button";
+import { MatInput } from "@angular/material/input";
+import { MatFormField } from "@angular/material/form-field";
+import { MatCard } from "@angular/material/card";
+import { ModalHeaderComponent } from "../../../../../common/util/modal-header/modal-header.component";
 
 @Component({
-  selector: "em-edit-classpath-text-dialog",
-  templateUrl: "./edit-classpath-text-dialog.component.html",
-  styleUrls: ["./edit-classpath-text-dialog.component.scss"]
+    selector: "em-edit-classpath-text-dialog",
+    templateUrl: "./edit-classpath-text-dialog.component.html",
+    styleUrls: ["./edit-classpath-text-dialog.component.scss"],
+    standalone: true,
+    imports: [ModalHeaderComponent, MatDialogContent, MatCard, FormsModule, ReactiveFormsModule, MatFormField, MatInput, MatDialogActions, MatButton, MatDialogClose]
 })
 export class EditClasspathTextDialogComponent implements OnInit {
   @Input() classpath: string;

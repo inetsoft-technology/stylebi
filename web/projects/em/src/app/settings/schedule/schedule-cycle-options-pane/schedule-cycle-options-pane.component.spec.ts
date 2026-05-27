@@ -56,11 +56,8 @@ describe("ScheduleCycleOptionsPaneComponent", () => {
             MatFormFieldModule,
             MatInputModule,
             MatSnackBarModule,
-            EmailPickerModule
-         ],
-         declarations: [
-            ScheduleCycleOptionsPaneComponent
-         ],
+            EmailPickerModule,
+            ScheduleCycleOptionsPaneComponent],
          providers: [
             { provide: ScheduleUsersService, useValue: scheduleUsersService}
          ],

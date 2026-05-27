@@ -24,12 +24,20 @@ import {
 import { TimeZoneModel } from "../../../../../../../shared/schedule/model/time-zone-model";
 import { DateTimeService } from "../date-time.service";
 import { TaskConditionChanges } from "../task-condition-pane.component";
+import { RunOnceConditionEditorComponent } from "../run-once-condition-editor/run-once-condition-editor.component";
+import { HourlyConditionEditorComponent } from "../hourly-condition-editor/hourly-condition-editor.component";
+import { MonthlyConditionEditorComponent } from "../monthly-condition-editor/monthly-condition-editor.component";
+import { WeeklyConditionEditorComponent } from "../weekly-condition-editor/weekly-condition-editor.component";
+import { DailyConditionEditorComponent } from "../daily-condition-editor/daily-condition-editor.component";
+import { NgSwitch, NgSwitchCase } from "@angular/common";
 
 @Component({
-   selector: "em-time-condition-editor",
-   templateUrl: "./time-condition-editor.component.html",
-   styleUrls: ["./time-condition-editor.component.scss"],
-   providers: [ DateTimeService ]
+    selector: "em-time-condition-editor",
+    templateUrl: "./time-condition-editor.component.html",
+    styleUrls: ["./time-condition-editor.component.scss"],
+    providers: [DateTimeService],
+    standalone: true,
+    imports: [NgSwitch, NgSwitchCase, DailyConditionEditorComponent, WeeklyConditionEditorComponent, MonthlyConditionEditorComponent, HourlyConditionEditorComponent, RunOnceConditionEditorComponent]
 })
 export class TimeConditionEditorComponent implements OnInit {
    @Input() model: TaskConditionPaneModel;

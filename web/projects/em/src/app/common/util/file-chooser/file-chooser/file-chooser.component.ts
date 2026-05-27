@@ -32,12 +32,14 @@ import {
    Self,
    ViewChild
 } from "@angular/core";
-import { ControlValueAccessor, FormGroupDirective, NgControl, NgForm } from "@angular/forms";
+import { ControlValueAccessor, FormGroupDirective, NgControl, NgForm, FormsModule } from "@angular/forms";
 import { ErrorStateMatcher, mixinDisabled, mixinDisableRipple, mixinErrorState, mixinTabIndex } from "@angular/material/core";
 import { MatFormFieldControl } from "@angular/material/form-field";
 import { Subject } from "rxjs";
 import { FileData } from "../../../../../../../shared/util/model/file-data";
 import { Tool } from "../../../../../../../shared/util/tool";
+import { MatInput } from "@angular/material/input";
+import { NgIf } from "@angular/common";
 
 export class FileChooserBase {
    stateChanges = new Subject<void>();
@@ -53,12 +55,18 @@ export const _FileChooserMixinBase = mixinDisableRipple(
    mixinTabIndex(mixinDisabled(mixinErrorState(FileChooserBase))));
 
 @Component({
-   selector: "em-file-chooser",
-   templateUrl: "./file-chooser.component.html",
-   styleUrls: ["./file-chooser.component.scss"],
-   providers: [
-      { provide: MatFormFieldControl, useExisting: FileChooserComponent }
-   ],
+    selector: "em-file-chooser",
+    templateUrl: "./file-chooser.component.html",
+    styleUrls: ["./file-chooser.component.scss"],
+    providers: [
+        { provide: MatFormFieldControl, useExisting: FileChooserComponent }
+    ],
+    standalone: true,
+    imports: [
+        NgIf,
+        MatInput,
+        FormsModule,
+    ],
 })
 export class FileChooserComponent
    extends _FileChooserMixinBase

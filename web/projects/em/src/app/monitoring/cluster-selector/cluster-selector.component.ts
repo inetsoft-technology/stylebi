@@ -20,11 +20,19 @@ import { interval, Subscription } from "rxjs";
 import { switchMap } from "rxjs/operators";
 import { ClusterNodesService } from "../cluster/cluster-nodes.service";
 import { MonitoringDataService } from "../monitoring-data.service";
+import { MatIcon } from "@angular/material/icon";
+import { MatFabButton } from "@angular/material/button";
+import { MatOption } from "@angular/material/core";
+import { MatSelect } from "@angular/material/select";
+import { MatFormField } from "@angular/material/form-field";
+import { NgIf, NgFor } from "@angular/common";
 
 @Component({
-   selector: "em-cluster-selector",
-   templateUrl: "./cluster-selector.component.html",
-   styleUrls: ["./cluster-selector.component.scss"]
+    selector: "em-cluster-selector",
+    templateUrl: "./cluster-selector.component.html",
+    styleUrls: ["./cluster-selector.component.scss"],
+    standalone: true,
+    imports: [NgIf, MatFormField, MatSelect, NgFor, MatOption, MatFabButton, MatIcon]
 })
 export class ClusterSelectorComponent implements OnDestroy {
    @Input() refreshEnable = false;

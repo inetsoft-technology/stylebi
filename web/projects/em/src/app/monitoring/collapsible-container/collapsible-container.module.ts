@@ -21,16 +21,14 @@ import { MatExpansionModule } from "@angular/material/expansion";
 import { CollapsibleContainerComponent } from "./collapsible-container.component";
 
 @NgModule({
-   imports: [
-      CommonModule,
-      MatExpansionModule,
-   ],
-   exports: [
-      CollapsibleContainerComponent
-   ],
-   declarations: [
-      CollapsibleContainerComponent,
-   ]
+    imports: [
+        CommonModule,
+        MatExpansionModule,
+        CollapsibleContainerComponent,
+    ],
+    exports: [
+        CollapsibleContainerComponent
+    ]
 })
 export class CollapsibleContainerModule {
 }

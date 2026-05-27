@@ -53,11 +53,8 @@ describe("AuthorizationProviderDetailViewComponent", () => {
             MatInputModule,
             MatOptionModule,
             MatSelectModule,
-            HttpClientTestingModule
-         ],
-         declarations: [
-            AuthorizationProviderDetailViewComponent
-         ],
+            HttpClientTestingModule,
+            AuthorizationProviderDetailViewComponent],
          providers: [
             AppInfoService
          ],
@@ -65,6 +62,7 @@ describe("AuthorizationProviderDetailViewComponent", () => {
             NO_ERRORS_SCHEMA
          ]
       })
+      .overrideTemplate(AuthorizationProviderDetailViewComponent, "")
       .compileComponents();
 
       fixture = TestBed.createComponent(AuthorizationProviderDetailViewComponent);

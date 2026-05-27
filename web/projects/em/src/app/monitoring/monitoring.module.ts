@@ -36,30 +36,28 @@ import { MonitoringRoutingModule } from "./monitoring-routing.module";
 import { MonitoringSidenavComponent } from "./monitoring-sidenav/monitoring-sidenav.component";
 
 @NgModule({
-   imports: [
-      CommonModule,
-      FormsModule,
-      LayoutModule,
-      SearchModule,
-      MatButtonModule,
-      MatFormFieldModule,
-      MatIconModule,
-      MatInputModule,
-      MatListModule,
-      MatSidenavModule,
-      MatToolbarModule,
-      MessageDialogModule,
-      MonitoringRoutingModule,
-      PageHeaderModule,
-      TopScrollModule
-   ],
-   declarations: [
-      MonitoringSidenavComponent
-   ],
-   providers: [
-      MonitoringDataService,
-      MonitorLevelService
-   ]
+    imports: [
+        CommonModule,
+        FormsModule,
+        LayoutModule,
+        SearchModule,
+        MatButtonModule,
+        MatFormFieldModule,
+        MatIconModule,
+        MatInputModule,
+        MatListModule,
+        MatSidenavModule,
+        MatToolbarModule,
+        MessageDialogModule,
+        MonitoringRoutingModule,
+        PageHeaderModule,
+        TopScrollModule,
+        MonitoringSidenavComponent
+    ],
+    providers: [
+        MonitoringDataService,
+        MonitorLevelService
+    ]
 })
 export class MonitoringModule {
 }

@@ -33,33 +33,31 @@ import { MatPaginatorIntl, MatPaginatorModule } from "@angular/material/paginato
 import { MessageDialogModule } from "../../../common/util/message-dialog.module";
 
 @NgModule({
-   imports: [
-      CommonModule,
-      FormsModule,
-      MatTableModule,
-      MatSortModule,
-      MatButtonModule,
-      MatCheckboxModule,
-      MatCardModule,
-      MatIconModule,
-      MatSnackBarModule,
-      SecurityTreeDialogModule,
-      MatPaginatorModule,
-      MessageDialogModule,
-      MatTooltipModule
-   ],
-   exports: [
-      SecurityTableViewComponent
-   ],
-   declarations: [
-      SecurityTableViewComponent
-   ],
-   providers: [
-      {
-         provide: MatPaginatorIntl,
-         useClass: LocalizedMatPaginator
-      }
-   ]
+    imports: [
+        CommonModule,
+        FormsModule,
+        MatTableModule,
+        MatSortModule,
+        MatButtonModule,
+        MatCheckboxModule,
+        MatCardModule,
+        MatIconModule,
+        MatSnackBarModule,
+        SecurityTreeDialogModule,
+        MatPaginatorModule,
+        MessageDialogModule,
+        MatTooltipModule,
+        SecurityTableViewComponent
+    ],
+    exports: [
+        SecurityTableViewComponent
+    ],
+    providers: [
+        {
+            provide: MatPaginatorIntl,
+            useClass: LocalizedMatPaginator
+        }
+    ]
 })
 export class SecurityTableViewModule {
 }

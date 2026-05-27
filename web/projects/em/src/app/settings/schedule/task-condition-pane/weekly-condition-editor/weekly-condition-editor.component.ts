@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, EventEmitter, Input, OnInit, Output } from "@angular/core";
-import { UntypedFormBuilder, UntypedFormGroup, Validators } from "@angular/forms";
+import { UntypedFormBuilder, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import {
    TimeConditionModel,
    TimeRange
@@ -25,14 +25,21 @@ import { TimeZoneModel } from "../../../../../../../shared/schedule/model/time-z
 import { FormValidators } from "../../../../../../../shared/util/form-validators";
 import { Tool } from "../../../../../../../shared/util/tool";
 import { DateTimeService } from "../date-time.service";
-import { StartTimeChange, StartTimeData } from "../start-time-editor/start-time-editor.component";
+import { StartTimeChange, StartTimeData, StartTimeEditorComponent } from "../start-time-editor/start-time-editor.component";
 import { TaskConditionChanges } from "../task-condition-pane.component";
-import { TimeZoneValue } from "../time-zone-select/time-zone-select-component";
+import { TimeZoneValue, TimeZoneSelectComponent } from "../time-zone-select/time-zone-select-component";
+import { MatOption } from "@angular/material/core";
+import { MatSelect } from "@angular/material/select";
+import { MatInput } from "@angular/material/input";
+import { MatFormField, MatLabel, MatHint, MatError } from "@angular/material/form-field";
+import { MatCard, MatCardContent } from "@angular/material/card";
 
 @Component({
-   selector: "em-weekly-condition-editor",
-   templateUrl: "./weekly-condition-editor.component.html",
-   styleUrls: ["./weekly-condition-editor.component.scss"]
+    selector: "em-weekly-condition-editor",
+    templateUrl: "./weekly-condition-editor.component.html",
+    styleUrls: ["./weekly-condition-editor.component.scss"],
+    standalone: true,
+    imports: [MatCard, MatCardContent, FormsModule, ReactiveFormsModule, StartTimeEditorComponent, TimeZoneSelectComponent, MatFormField, MatLabel, MatInput, MatHint, MatError, MatSelect, MatOption]
 })
 export class WeeklyConditionEditorComponent implements OnInit {
    @Input() timeZone: string;

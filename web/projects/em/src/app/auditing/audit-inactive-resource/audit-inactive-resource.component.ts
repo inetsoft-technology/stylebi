@@ -17,7 +17,7 @@
  */
 import { HttpClient, HttpParams } from "@angular/common/http";
 import { Component, OnDestroy, OnInit } from "@angular/core";
-import { FormBuilder, FormGroup } from "@angular/forms";
+import { FormBuilder, FormGroup, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { catchError, tap } from "rxjs/operators";
 import { ErrorHandlerService } from "../../common/util/error/error-handler.service";
 import { ContextHelp } from "../../context-help";
@@ -33,6 +33,11 @@ import {
 import { ActivatedRoute } from "@angular/router";
 import { of, Subscription } from "rxjs";
 import { ResourceType } from "./resource-type";
+import { MatInput } from "@angular/material/input";
+import { MatOption } from "@angular/material/core";
+import { MatSelect } from "@angular/material/select";
+import { MatFormField, MatLabel } from "@angular/material/form-field";
+import { NgIf, NgFor } from "@angular/common";
 
 @Secured({
    route: "/auditing/inactive-resource",
@@ -48,9 +53,11 @@ import { ResourceType } from "./resource-type";
    link: "EMViewAudit"
 })
 @Component({
-   selector: "em-audit-inactive-resource",
-   templateUrl: "./audit-inactive-resource.component.html",
-   styleUrls: ["./audit-inactive-resource.component.scss"]
+    selector: "em-audit-inactive-resource",
+    templateUrl: "./audit-inactive-resource.component.html",
+    styleUrls: ["./audit-inactive-resource.component.scss"],
+    standalone: true,
+    imports: [AuditTableViewComponent, FormsModule, ReactiveFormsModule, NgIf, MatFormField, MatLabel, MatSelect, NgFor, MatOption, MatInput]
 })
 export class AuditInactiveResourceComponent implements OnInit, OnDestroy {
    objectTypes: ResourceType[] = [];

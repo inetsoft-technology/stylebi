@@ -28,10 +28,9 @@ describe("ClusterMonitoringViewComponent", () => {
       TestBed.configureTestingModule({
          imports: [
             CommonModule,
-            TableViewModule
-         ],
-         declarations: [ClusterMonitoringViewComponent]
-      })
+            TableViewModule,
+            ClusterMonitoringViewComponent]
+         })
          .compileComponents();
    }));
 

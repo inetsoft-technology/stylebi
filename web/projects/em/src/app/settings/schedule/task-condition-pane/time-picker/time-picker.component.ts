@@ -20,6 +20,10 @@ import {
    ControlValueAccessor,
    NG_VALUE_ACCESSOR,
 } from "@angular/forms";
+import { MatButton } from "@angular/material/button";
+import { NgIf } from "@angular/common";
+import { MatInput } from "@angular/material/input";
+import { MatFormField, MatLabel } from "@angular/material/form-field";
 
 export interface TimeData {
    hour: number;
@@ -28,16 +32,18 @@ export interface TimeData {
 }
 
 @Component({
-   selector: "em-time-picker",
-   templateUrl: "./time-picker.component.html",
-   styleUrls: ["./time-picker.component.scss"],
-   providers: [
-      {
-         provide: NG_VALUE_ACCESSOR,
-         useExisting: forwardRef(() => TimePickerComponent),
-         multi: true
-      }
-   ]
+    selector: "em-time-picker",
+    templateUrl: "./time-picker.component.html",
+    styleUrls: ["./time-picker.component.scss"],
+    providers: [
+        {
+            provide: NG_VALUE_ACCESSOR,
+            useExisting: forwardRef(() => TimePickerComponent),
+            multi: true
+        }
+    ],
+    standalone: true,
+    imports: [MatFormField, MatLabel, MatInput, NgIf, MatButton]
 })
 export class TimePickerComponent implements OnInit, ControlValueAccessor {
    _model: TimeData;

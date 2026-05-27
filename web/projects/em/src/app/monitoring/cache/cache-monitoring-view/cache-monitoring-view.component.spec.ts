@@ -46,9 +46,8 @@ describe("CacheMonitoringViewComponent", () => {
             MatSelectModule,
             MatCardModule,
             CollapsibleContainerModule,
-            TableViewModule
-         ],
-         declarations: [CacheMonitoringViewComponent],
+            TableViewModule,
+            CacheMonitoringViewComponent],
          providers: [
             {provide: MonitoringDataService, useValue: monitoringDataService}
          ],

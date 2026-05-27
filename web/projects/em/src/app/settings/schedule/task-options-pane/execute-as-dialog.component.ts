@@ -16,18 +16,20 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, Inject, OnInit } from "@angular/core";
-import { MAT_DIALOG_DATA, MatDialogRef } from "@angular/material/dialog";
+import { MAT_DIALOG_DATA, MatDialogRef, MatDialogActions } from "@angular/material/dialog";
 import { HttpClient, HttpParams } from "@angular/common/http";
-import {
-   AbstractControl,
-   UntypedFormBuilder,
-   UntypedFormGroup,
-   ValidationErrors,
-   Validators
-} from "@angular/forms";
+import { AbstractControl, UntypedFormBuilder, UntypedFormGroup, ValidationErrors, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { Observable } from "rxjs";
 import { map, startWith } from "rxjs/operators";
 import {convertToKey, IdentityId} from "../../security/users/identity-id";
+import { MatButton } from "@angular/material/button";
+import { NgFor, NgIf, AsyncPipe } from "@angular/common";
+import { MatAutocompleteTrigger, MatAutocomplete } from "@angular/material/autocomplete";
+import { MatInput } from "@angular/material/input";
+import { MatOption } from "@angular/material/core";
+import { MatSelect } from "@angular/material/select";
+import { MatFormField, MatLabel, MatError } from "@angular/material/form-field";
+import { ModalHeaderComponent } from "../../../common/util/modal-header/modal-header.component";
 
 export interface ExecuteAsIdentitiesModel {
    users: IdentityId[];
@@ -35,8 +37,27 @@ export interface ExecuteAsIdentitiesModel {
 }
 
 @Component({
-   selector: "em-execute-as-dialog",
-   templateUrl: "./execute-as-dialog.component.html",
+    selector: "em-execute-as-dialog",
+    templateUrl: "./execute-as-dialog.component.html",
+    standalone: true,
+    imports: [
+        ModalHeaderComponent,
+        FormsModule,
+        ReactiveFormsModule,
+        MatFormField,
+        MatLabel,
+        MatSelect,
+        MatOption,
+        MatInput,
+        MatAutocompleteTrigger,
+        MatAutocomplete,
+        NgFor,
+        NgIf,
+        MatError,
+        MatDialogActions,
+        MatButton,
+        AsyncPipe,
+    ],
 })
 export class ExecuteAsDialogComponent implements OnInit {
    users: IdentityId[] = [];

@@ -29,25 +29,23 @@ import { MatFormFieldModule } from "@angular/material/form-field";
 import { MatInputModule } from "@angular/material/input";
 
 @NgModule({
-   imports: [
-      CommonModule,
-      FormsModule,
-      MatFormFieldModule,
-      MatInputModule,
-      MatButtonModule,
-      MatIconModule,
-      SecurityTreeViewModule,
-      MatDialogModule,
-      ModalHeaderModule,
-      MatSelectModule,
-      ReactiveFormsModule
-   ],
-   declarations: [
-      OrganizationPropertyDialogComponent
-   ],
-   exports: [
-      OrganizationPropertyDialogComponent
-   ]
+    imports: [
+        CommonModule,
+        FormsModule,
+        MatFormFieldModule,
+        MatInputModule,
+        MatButtonModule,
+        MatIconModule,
+        SecurityTreeViewModule,
+        MatDialogModule,
+        ModalHeaderModule,
+        MatSelectModule,
+        ReactiveFormsModule,
+        OrganizationPropertyDialogComponent
+    ],
+    exports: [
+        OrganizationPropertyDialogComponent
+    ]
 })
 export class OrganizationPropertyDialogModule {
 }

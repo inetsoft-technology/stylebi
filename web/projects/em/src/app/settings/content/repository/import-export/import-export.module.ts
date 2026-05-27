@@ -43,41 +43,39 @@ import { SelectAssetFolderDialogComponent } from "./select-asset-folder-dialog/s
 import { InputNameDialogComponent } from "./input-name-dialog/input-name-dialog.component";
 
 @NgModule({
-   imports: [
-      CommonModule,
-      ReactiveFormsModule,
-      MatButtonModule,
-      MatCardModule,
-      MatCheckboxModule,
-      MatDialogModule,
-      MatFormFieldModule,
-      MatIconModule,
-      MatInputModule,
-      MatListModule,
-      MatProgressBarModule,
-      MatSortModule,
-      MatTableModule,
-      FileChooserModule,
-      FlatTreeModule,
-      MessageDialogModule,
-      ModalHeaderModule,
-   ],
-   declarations: [
-      ExportAssetDialogComponent,
-      ImportAssetDialogComponent,
-      RequiredAssetListComponent,
-      SelectAssetsDialogComponent,
-      SelectedAssetListComponent,
-      SelectAssetFolderDialogComponent,
-      InputNameDialogComponent
-   ],
-   exports: [
-      ExportAssetDialogComponent,
-      ImportAssetDialogComponent
-   ],
-   providers: [
-      ExportAssetsService
-   ],
+    imports: [
+        CommonModule,
+        ReactiveFormsModule,
+        MatButtonModule,
+        MatCardModule,
+        MatCheckboxModule,
+        MatDialogModule,
+        MatFormFieldModule,
+        MatIconModule,
+        MatInputModule,
+        MatListModule,
+        MatProgressBarModule,
+        MatSortModule,
+        MatTableModule,
+        FileChooserModule,
+        FlatTreeModule,
+        MessageDialogModule,
+        ModalHeaderModule,
+        ExportAssetDialogComponent,
+        ImportAssetDialogComponent,
+        RequiredAssetListComponent,
+        SelectAssetsDialogComponent,
+        SelectedAssetListComponent,
+        SelectAssetFolderDialogComponent,
+        InputNameDialogComponent,
+    ],
+    exports: [
+        ExportAssetDialogComponent,
+        ImportAssetDialogComponent
+    ],
+    providers: [
+        ExportAssetsService
+    ],
 })
 export class ImportExportModule {
 }

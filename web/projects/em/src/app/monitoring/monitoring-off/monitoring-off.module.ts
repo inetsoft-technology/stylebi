@@ -22,12 +22,12 @@ import { NgModule } from "@angular/core";
 import { MonitoringOffRoutingModule } from "./monitoring-off-routing.module";
 
 @NgModule({
-   imports: [
-      CommonModule,
-      MatCardModule,
-      MonitoringOffRoutingModule,
-   ],
-   declarations: [MonitoringOffViewComponent]
+    imports: [
+        CommonModule,
+        MatCardModule,
+        MonitoringOffRoutingModule,
+        MonitoringOffViewComponent,
+    ]
 })
 export class MonitoringOffModule {
 }

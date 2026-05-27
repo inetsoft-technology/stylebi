@@ -25,7 +25,7 @@ describe("SharedLayoutComponent", () => {
 
   beforeEach(waitForAsync(() => {
     TestBed.configureTestingModule({
-      declarations: [ SharedLayoutComponent ]
+      imports: [SharedLayoutComponent]
     })
     .compileComponents();
   }));

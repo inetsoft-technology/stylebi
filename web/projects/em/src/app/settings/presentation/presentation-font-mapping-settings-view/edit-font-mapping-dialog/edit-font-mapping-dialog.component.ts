@@ -16,15 +16,22 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import {Component, HostListener, Inject, OnInit} from "@angular/core";
-import {UntypedFormBuilder, UntypedFormGroup, Validators} from "@angular/forms";
-import {MAT_DIALOG_DATA, MatDialogRef} from "@angular/material/dialog";
+import { UntypedFormBuilder, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
+import { MAT_DIALOG_DATA, MatDialogRef, MatDialogContent, MatDialogActions } from "@angular/material/dialog";
 import {FormValidators} from "../../../../../../../shared/util/form-validators";
 import {EditFontMappingDialogData} from "./edit-font-mapping-dialog-data";
+import { MatButton } from "@angular/material/button";
+import { NgIf } from "@angular/common";
+import { MatInput } from "@angular/material/input";
+import { MatFormField, MatLabel, MatError } from "@angular/material/form-field";
+import { ModalHeaderComponent } from "../../../../common/util/modal-header/modal-header.component";
 
 @Component({
-   selector: "em-edit-font-mapping-dialog",
-   templateUrl: "./edit-font-mapping-dialog.component.html",
-   styleUrls: ["./edit-font-mapping-dialog.component.scss"]
+    selector: "em-edit-font-mapping-dialog",
+    templateUrl: "./edit-font-mapping-dialog.component.html",
+    styleUrls: ["./edit-font-mapping-dialog.component.scss"],
+    standalone: true,
+    imports: [ModalHeaderComponent, MatDialogContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatInput, NgIf, MatError, MatDialogActions, MatButton]
 })
 export class EditFontMappingDialogComponent implements OnInit {
    title: string;

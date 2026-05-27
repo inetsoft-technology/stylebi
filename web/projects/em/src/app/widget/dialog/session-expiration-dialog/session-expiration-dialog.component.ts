@@ -7,13 +7,18 @@ import {
    OnDestroy,
    Output
 } from "@angular/core";
-import { MAT_DIALOG_DATA, MatDialogRef } from "@angular/material/dialog";
+import { MAT_DIALOG_DATA, MatDialogRef, MatDialogContent, MatDialogActions } from "@angular/material/dialog";
 import { DateTypeFormatter } from "../../../../../../shared/util/date-type-formatter";
+import { MatButton } from "@angular/material/button";
+import { NgIf } from "@angular/common";
+import { ModalHeaderComponent } from "../../../common/util/modal-header/modal-header.component";
 
 @Component({
-   selector: "em-session-expiration-dialog",
-   templateUrl: "./session-expiration-dialog.component.html",
-   styleUrls: ["./session-expiration-dialog.component.scss"]
+    selector: "em-session-expiration-dialog",
+    templateUrl: "./session-expiration-dialog.component.html",
+    styleUrls: ["./session-expiration-dialog.component.scss"],
+    standalone: true,
+    imports: [ModalHeaderComponent, MatDialogContent, NgIf, MatDialogActions, MatButton]
 })
 export class SessionExpirationDialog implements OnDestroy {
    @Input() nodeProtection: boolean;

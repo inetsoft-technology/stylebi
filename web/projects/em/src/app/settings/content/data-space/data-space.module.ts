@@ -82,17 +82,15 @@ import {ModalHeaderModule} from "../../../common/util/modal-header/modal-header.
         FileChooserModule,
         TopScrollModule,
         LoadingSpinnerModule,
-        ModalHeaderModule
-    ],
-   declarations: [
-      ContentDataSpaceViewComponent,
-      DataSpaceEditorPageComponent,
-      DataSpaceFileSettingsViewComponent,
-      DataSpaceFolderSettingsViewComponent,
-      DataSpaceTreeViewComponent,
-      DeleteDialog,
-      TextFileContentViewComponent
-   ]
+        ModalHeaderModule,
+        ContentDataSpaceViewComponent,
+        DataSpaceEditorPageComponent,
+        DataSpaceFileSettingsViewComponent,
+        DataSpaceFolderSettingsViewComponent,
+        DataSpaceTreeViewComponent,
+        DeleteDialog,
+        TextFileContentViewComponent
+    ]
 })
 export class DataSpaceModule {
 }

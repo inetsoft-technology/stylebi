@@ -31,22 +31,22 @@ import { MatSelectModule } from "@angular/material/select";
 import { MatAutocompleteModule } from "@angular/material/autocomplete";
 
 @NgModule({
-   imports: [
-      CommonModule,
-      MatButtonModule,
-      MatIconModule,
-      MatMenuModule,
-      MatToolbarModule,
-      MatFormFieldModule,
-      MatOptionModule,
-      MatSelectModule,
-      FormsModule,
-      MatInputModule,
-      MatAutocompleteModule,
-   ],
-   declarations: [PageHeaderComponent],
-   providers: [PageHeaderService],
-   exports: [PageHeaderComponent]
+    imports: [
+        CommonModule,
+        MatButtonModule,
+        MatIconModule,
+        MatMenuModule,
+        MatToolbarModule,
+        MatFormFieldModule,
+        MatOptionModule,
+        MatSelectModule,
+        FormsModule,
+        MatInputModule,
+        MatAutocompleteModule,
+        PageHeaderComponent,
+    ],
+    providers: [PageHeaderService],
+    exports: [PageHeaderComponent]
 })
 export class PageHeaderModule {
 }

@@ -23,6 +23,7 @@ import {RepositorySheetSettingsModel} from "./repository-sheet-settings.model";
 import {RepositoryEditorModel} from "../../../../../../../shared/util/model/repository-editor-model";
 import {MatSnackBar} from "@angular/material/snack-bar";
 import {RepositoryTreeNode} from "../repository-tree-node";
+import { RepositoryWorksheetSettingsViewComponent } from "../repository-worksheet-settings-view/repository-worksheet-settings-view.component";
 
 export interface RepositoryWorksheetEditorModel extends RepositoryEditorModel {
    worksheetSettings: RepositorySheetSettingsModel;
@@ -30,9 +31,11 @@ export interface RepositoryWorksheetEditorModel extends RepositoryEditorModel {
 }
 
 @Component({
-   selector: "em-repository-worksheet-settings-page",
-   templateUrl: "./repository-worksheet-settings-page.component.html",
-   styleUrls: ["./repository-worksheet-settings-page.component.scss"]
+    selector: "em-repository-worksheet-settings-page",
+    templateUrl: "./repository-worksheet-settings-page.component.html",
+    styleUrls: ["./repository-worksheet-settings-page.component.scss"],
+    standalone: true,
+    imports: [RepositoryWorksheetSettingsViewComponent]
 })
 export class RepositoryWorksheetSettingsPageComponent implements OnChanges {
    @Input() model: RepositoryWorksheetEditorModel;

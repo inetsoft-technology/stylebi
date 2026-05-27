@@ -24,14 +24,14 @@ import { SearchResultsViewComponent } from "./search-results-view/search-results
 import { SearchResultsComponent } from "./search-results/search-results.component";
 
 @NgModule({
-   imports: [
-      CommonModule,
-      RouterModule,
-      MatPaginatorModule,
-      MatTableModule
-   ],
-   declarations: [SearchResultsComponent, SearchResultsViewComponent],
-   exports: [SearchResultsComponent, SearchResultsViewComponent]
+    imports: [
+        CommonModule,
+        RouterModule,
+        MatPaginatorModule,
+        MatTableModule,
+        SearchResultsComponent, SearchResultsViewComponent
+    ],
+    exports: [SearchResultsComponent, SearchResultsViewComponent]
 })
 export class SearchModule {
 }

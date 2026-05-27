@@ -17,7 +17,7 @@
  */
 import { HttpClient } from "@angular/common/http";
 import { Component, Inject, OnInit } from "@angular/core";
-import { MAT_DIALOG_DATA, MatDialog, MatDialogRef } from "@angular/material/dialog";
+import { MAT_DIALOG_DATA, MatDialog, MatDialogRef, MatDialogContent, MatDialogActions } from "@angular/material/dialog";
 import { MatSnackBar } from "@angular/material/snack-bar";
 import { BehaviorSubject } from "rxjs";
 import { AddParameterDialogModel } from "../../../../../../../shared/schedule/model/add-parameter-dialog-model";
@@ -27,15 +27,22 @@ import {
    BatchAddParametersDialogComponent,
    BatchAddParametersDialogResult
 } from "../batch-add-parameters-dialog/batch-add-parameters-dialog.component";
+import { MatIcon } from "@angular/material/icon";
+import { MatIconButton, MatButton } from "@angular/material/button";
+import { MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow } from "@angular/material/table";
+import { MatCard, MatCardContent, MatCardActions } from "@angular/material/card";
+import { ModalHeaderComponent } from "../../../../common/util/modal-header/modal-header.component";
 
 export interface BatchEmbeddedParametersDialogResult {
    embeddedParameters: AddParameterDialogModel[][];
 }
 
 @Component({
-   selector: "em-batch-embedded-parameters-dialog",
-   templateUrl: "./batch-embedded-parameters-dialog.component.html",
-   styleUrls: ["./batch-embedded-parameters-dialog.component.scss"]
+    selector: "em-batch-embedded-parameters-dialog",
+    templateUrl: "./batch-embedded-parameters-dialog.component.html",
+    styleUrls: ["./batch-embedded-parameters-dialog.component.scss"],
+    standalone: true,
+    imports: [ModalHeaderComponent, MatDialogContent, MatCard, MatCardContent, MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatIconButton, MatIcon, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, MatCardActions, MatButton, MatDialogActions]
 })
 export class BatchEmbeddedParametersDialogComponent implements OnInit {
    embeddedParameters: AddParameterDialogModel[][];

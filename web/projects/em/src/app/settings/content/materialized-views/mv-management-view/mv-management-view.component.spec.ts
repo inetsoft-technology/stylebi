@@ -74,9 +74,8 @@ describe("MvManagementViewComponent", () => {
             MessageDialogModule,
             ReactiveFormsModule,
             TableViewModule,
-            EditorPanelModule
-         ],
-         declarations: [MvManagementViewComponent],
+            EditorPanelModule,
+            MvManagementViewComponent],
          providers: [
             { provide: SsoHeartbeatService, useValue: ssoHeartbeatService }
          ],

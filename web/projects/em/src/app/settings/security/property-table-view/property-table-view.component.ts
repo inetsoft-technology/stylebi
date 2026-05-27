@@ -21,17 +21,22 @@ import {
 } from "@angular/core";
 import { SelectionModel } from "@angular/cdk/collections";
 import { MatDialog } from "@angular/material/dialog";
-import { MatTableDataSource } from "@angular/material/table";
+import { MatTableDataSource, MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow } from "@angular/material/table";
 import { IdentityType } from "../../../../../../shared/data/identity-type";
 import { MatPaginator } from "@angular/material/paginator";
 import { OrganizationPropertyDialogComponent } from
    "../organization-property-dialog/organization-property-dialog.component";
 import { PropertyModel } from "./property-model";
+import { MatButton } from "@angular/material/button";
+import { MatCheckbox } from "@angular/material/checkbox";
+import { MatCard, MatCardHeader, MatCardContent, MatCardActions } from "@angular/material/card";
 
 @Component({
-   selector: "em-property-table-view",
-   templateUrl: "./property-table-view.component.html",
-   styleUrls: ["./property-table-view.component.scss"]
+    selector: "em-property-table-view",
+    templateUrl: "./property-table-view.component.html",
+    styleUrls: ["./property-table-view.component.scss"],
+    standalone: true,
+    imports: [MatCard, MatCardHeader, MatCardContent, MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCheckbox, MatCellDef, MatCell, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, MatPaginator, MatCardActions, MatButton]
 })
 export class PropertyTableViewComponent implements OnChanges, AfterViewInit {
    @Input() get dataSource(): PropertyModel[] {

@@ -28,6 +28,11 @@ import { Observable, throwError } from "rxjs";
 import { RestoreAssetTreeListModel } from "./restore-asset-tree-list-model";
 import { catchError } from "rxjs/operators";
 import { MessageDialog, MessageDialogType } from "../../../../common/util/message-dialog";
+import { TableView } from "../../../../common/util/table/table-view.component";
+import { MatCard, MatCardContent } from "@angular/material/card";
+import { MatTabGroup, MatTab } from "@angular/material/tabs";
+import { EditorPanelComponent } from "../../../../common/util/editor-panel/editor-panel.component";
+import { NgIf } from "@angular/common";
 
 const DELETE_AUTO_SAVE: string = "../api/em/content/repository/autosave/delete";
 
@@ -38,8 +43,10 @@ export interface AutoSaveSelectModel {
 }
 
 @Component({
-   selector: "em-auto-save-folder-page",
-   templateUrl: "./auto-save-folder-page.component.html"
+    selector: "em-auto-save-folder-page",
+    templateUrl: "./auto-save-folder-page.component.html",
+    standalone: true,
+    imports: [NgIf, EditorPanelComponent, MatTabGroup, MatTab, MatCard, MatCardContent, TableView]
 })
 export class AutoSaveFolderPageComponent {
    @Input()

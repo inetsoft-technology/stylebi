@@ -17,7 +17,7 @@
  */
 import {Component, ElementRef, Inject, Input, OnInit, Renderer2} from "@angular/core";
 import { TreeNodeModel } from "../../../../portal/src/app/widget/tree/tree-node-model";
-import { MAT_DIALOG_DATA, MatDialogRef } from "@angular/material/dialog";
+import { MAT_DIALOG_DATA, MatDialogRef, MatDialogContent, MatDialogActions, MatDialogClose } from "@angular/material/dialog";
 import { ScriptTreeNode } from "./script-tree-node";
 import { FormulaEditorService } from "./formula-editor.service";
 import { ScriptTreeNodeData } from "../../../../portal/src/app/widget/formula-editor/script-tree-node-data";
@@ -25,11 +25,15 @@ import { FlatTreeNode } from "../common/util/tree/flat-tree-model";
 import { FormulaEditorDialogModel } from "../../../../portal/src/app/widget/formula-editor/formula-editor-dialog-model";
 import { ScriptPaneComponent } from "./script-pane.component";
 import { BaseResizeableDialogComponent } from "../common/util/base-dialog/resize-dialog/base-resizeable-dialog.component";
+import { MatButton } from "@angular/material/button";
+import { ModalHeaderComponent } from "../common/util/modal-header/modal-header.component";
 
 @Component({
-   selector: "em-formula-editor-dialog",
-   templateUrl: "./formula-editor-dialog.component.html",
-   styleUrls: ["./formula-editor-dialog.component.scss"]
+    selector: "em-formula-editor-dialog",
+    templateUrl: "./formula-editor-dialog.component.html",
+    styleUrls: ["./formula-editor-dialog.component.scss"],
+    standalone: true,
+    imports: [ModalHeaderComponent, MatDialogContent, ScriptPaneComponent, MatDialogActions, MatButton, MatDialogClose]
 })
 export class FormulaEditorDialogComponent extends BaseResizeableDialogComponent implements OnInit {
    @Input() vsId: string;

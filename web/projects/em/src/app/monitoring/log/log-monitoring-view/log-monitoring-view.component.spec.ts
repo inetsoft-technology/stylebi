@@ -51,10 +51,9 @@ describe("LogMonitoringViewComponent", () => {
             MatOptionModule,
             MatSelectModule,
             NoopAnimationsModule,
-            ScrollingModule
-         ],
-         declarations: [LogMonitoringViewComponent]
-      })
+            ScrollingModule,
+            LogMonitoringViewComponent]
+         })
          .compileComponents();
       fixture = TestBed.createComponent(LogMonitoringViewComponent);
       component = fixture.componentInstance;

@@ -25,17 +25,15 @@ import { AuditModificationHistoryComponent } from "./audit-modification-history.
 import {AuditTableViewModule} from "../audit-table-view/audit-table-view.module";
 
 @NgModule({
-   declarations: [
-      AuditModificationHistoryComponent
-   ],
-   imports: [
-      CommonModule,
-      AuditModificationHistoryRoutingModule,
-      AuditTableViewModule,
-      ReactiveFormsModule,
-      MatFormFieldModule,
-      MatSelectModule
-   ]
+    imports: [
+        CommonModule,
+        AuditModificationHistoryRoutingModule,
+        AuditTableViewModule,
+        ReactiveFormsModule,
+        MatFormFieldModule,
+        MatSelectModule,
+        AuditModificationHistoryComponent
+    ]
 })
 export class AuditModificationHistoryModule {
 }

@@ -18,17 +18,23 @@
 import { Component, EventEmitter, Input, Output, ViewChild } from "@angular/core";
 import { RepositoryEntry } from "../../../../../../../shared/data/repository-entry";
 import { Tool } from "../../../../../../../shared/util/tool";
-import { RepositorySheetSettingsChange } from "../repository-sheet-settings-view/repository-sheet-settings-view.component";
+import { RepositorySheetSettingsChange, RepositorySheetSettingsViewComponent } from "../repository-sheet-settings-view/repository-sheet-settings-view.component";
 import { RepositorySheetSettingsModel } from "../repository-worksheet-settings-page/repository-sheet-settings.model";
 import { RepositoryTreeNode } from "../repository-tree-node";
-import { MatTab, MatTabChangeEvent } from "@angular/material/tabs";
+import { MatTab, MatTabChangeEvent, MatTabGroup, MatTabContent } from "@angular/material/tabs";
 import { AnalyzeMvPageComponent } from "../analyze-mv-page/analyze-mv-page.component";
 import { COPY_PASTE_CONTEXT_REPOSITORY } from "../../../security/resource-permission/copy-paste-context";
+import { MatButton } from "@angular/material/button";
+import { ResourcePermissionComponent } from "../../../security/resource-permission/resource-permission.component";
+import { EditorPanelComponent } from "../../../../common/util/editor-panel/editor-panel.component";
+import { NgIf } from "@angular/common";
 
 @Component({
-   selector: "em-repository-worksheet-settings-view",
-   templateUrl: "./repository-worksheet-settings-view.component.html",
-   styleUrls: ["./repository-worksheet-settings-view.component.scss"]
+    selector: "em-repository-worksheet-settings-view",
+    templateUrl: "./repository-worksheet-settings-view.component.html",
+    styleUrls: ["./repository-worksheet-settings-view.component.scss"],
+    standalone: true,
+    imports: [NgIf, EditorPanelComponent, MatTabGroup, MatTab, MatTabContent, RepositorySheetSettingsViewComponent, ResourcePermissionComponent, AnalyzeMvPageComponent, MatButton]
 })
 export class RepositoryWorksheetSettingsViewComponent {
    @Input() entry: RepositoryEntry;

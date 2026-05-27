@@ -44,11 +44,8 @@ describe("NotificationEmailsComponent", () => {
             MatDialogModule,
             MatFormFieldModule,
             MatIconModule,
-            MatInputModule
-         ],
-         declarations: [
-            NotificationEmailsComponent
-         ],
+            MatInputModule,
+            NotificationEmailsComponent],
          schemas: [
             NO_ERRORS_SCHEMA
          ]

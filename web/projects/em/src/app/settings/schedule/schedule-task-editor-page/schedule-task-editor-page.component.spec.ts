@@ -15,6 +15,10 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+jest.mock("../../../../../../shared/ckeditor-wrapper/ckeditor-wrapper.component", () => ({
+   CkeditorWrapperComponent: class {}
+}));
+
 import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { async, TestBed } from "@angular/core/testing";
 import { UntypedFormBuilder, ReactiveFormsModule } from "@angular/forms";
@@ -110,8 +114,8 @@ describe("ScheduleTaskEditorPageComponent", () => {
 
    beforeEach(async(() => {
       TestBed.configureTestingModule({
-         imports: [ReactiveFormsModule],
-         declarations: [ScheduleTaskEditorPageComponent],
+         imports: [ReactiveFormsModule,
+            ScheduleTaskEditorPageComponent],
          providers: [
             UntypedFormBuilder,
             { provide: ScheduleTaskEditorDataService, useValue: { loadTask: jest.fn(), saveTask: jest.fn() } },
@@ -125,6 +129,7 @@ describe("ScheduleTaskEditorPageComponent", () => {
          ],
          schemas: [NO_ERRORS_SCHEMA]
       });
+      TestBed.overrideTemplate(ScheduleTaskEditorPageComponent, "");
       TestBed.compileComponents();
    }));
 

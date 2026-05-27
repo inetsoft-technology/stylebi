@@ -32,6 +32,9 @@ import {ColumnInfo} from "../../../common/util/table/column-info";
 import {MessageDialog, MessageDialogType} from "../../../common/util/message-dialog";
 import {ExpandableRowTableInfo} from "../../../common/util/table/expandable-row-table/expandable-row-table-info";
 import {Tool} from "../../../../../../shared/util/tool";
+import { QueryMonitoringViewComponent } from "../query-monitoring-view/query-monitoring-view.component";
+import { NgIf, AsyncPipe } from "@angular/common";
+import { ClusterSelectorComponent } from "../../cluster-selector/cluster-selector.component";
 
 @Secured({
    route: "/monitoring/queries",
@@ -50,11 +53,14 @@ import {Tool} from "../../../../../../shared/util/tool";
    link: "EMMonitoringQueries"
 })
 @Component({
-   selector: "em-query-monitoring-page",
-   templateUrl: "./query-monitoring-page.component.html",
-   styleUrls: ["./query-monitoring-page.component.scss"],
-   encapsulation: ViewEncapsulation.None,
-   host: { "class": "em-query-monitoring-page" } // eslint-disable-line @angular-eslint/no-host-metadata-property
+    selector: "em-query-monitoring-page",
+    templateUrl: "./query-monitoring-page.component.html",
+    styleUrls: ["./query-monitoring-page.component.scss"],
+    encapsulation: ViewEncapsulation.None,
+    host: { "class": "em-query-monitoring-page" } // eslint-disable-line @angular-eslint/no-host-metadata-property
+    ,
+    standalone: true,
+    imports: [ClusterSelectorComponent, NgIf, QueryMonitoringViewComponent, AsyncPipe]
 })
 export class QueryMonitoringPageComponent implements OnDestroy {
    executingTableInfo: ExpandableRowTableInfo;

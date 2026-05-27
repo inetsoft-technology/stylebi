@@ -16,15 +16,23 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import {Component, HostListener, Inject, OnInit} from "@angular/core";
-import {UntypedFormBuilder, UntypedFormGroup, Validators} from "@angular/forms";
-import {MAT_DIALOG_DATA, MatDialogRef} from "@angular/material/dialog";
+import { UntypedFormBuilder, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
+import { MAT_DIALOG_DATA, MatDialogRef, MatDialogContent, MatDialogActions } from "@angular/material/dialog";
 import { CommonKVModel } from "../../../../../../../portal/src/app/common/data/common-kv-model";
 import {FormValidators} from "../../../../../../../shared/util/form-validators";
+import { MatButton } from "@angular/material/button";
+import { MatOption } from "@angular/material/core";
+import { NgFor, NgIf } from "@angular/common";
+import { MatSelect } from "@angular/material/select";
+import { MatFormField, MatLabel, MatError } from "@angular/material/form-field";
+import { ModalHeaderComponent } from "../../../../common/util/modal-header/modal-header.component";
 
 @Component({
-   selector: "em-add-data-source-type-dialog",
-   templateUrl: "./add-data-source-type-dialog.component.html",
-   styleUrls: ["./add-data-source-type-dialog.component.scss"]
+    selector: "em-add-data-source-type-dialog",
+    templateUrl: "./add-data-source-type-dialog.component.html",
+    styleUrls: ["./add-data-source-type-dialog.component.scss"],
+    standalone: true,
+    imports: [ModalHeaderComponent, MatDialogContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatSelect, NgFor, MatOption, NgIf, MatError, MatDialogActions, MatButton]
 })
 export class AddDataSourceTypeDialogComponent implements OnInit {
    title: string;

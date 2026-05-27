@@ -17,25 +17,35 @@
  */
 import { HttpClient, HttpErrorResponse } from "@angular/common/http";
 import { Component, HostListener, Inject, ViewEncapsulation } from "@angular/core";
-import { UntypedFormBuilder, UntypedFormGroup, Validators } from "@angular/forms";
-import { MAT_DIALOG_DATA, MatDialog, MatDialogRef } from "@angular/material/dialog";
+import { UntypedFormBuilder, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
+import { MAT_DIALOG_DATA, MatDialog, MatDialogRef, MatDialogTitle, MatDialogContent, MatDialogActions } from "@angular/material/dialog";
 import { catchError } from "rxjs/operators";
 import { Observable, throwError } from "rxjs";
-import { MatTableDataSource } from "@angular/material/table";
+import { MatTableDataSource, MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow } from "@angular/material/table";
 import { SelectionModel } from "@angular/cdk/collections";
 import { ImportTaskResponse } from "../../model/import-task-response";
 import { MessageDialog, MessageDialogType } from "../../../../common/util/message-dialog";
 import { TaskDependencyModel } from "../../model/task-dependency-model";
 import { ImportTaskDialogModel } from "../../model/import-task-dialog-model";
+import { MatButton } from "@angular/material/button";
+import { MatSort } from "@angular/material/sort";
+import { MatCheckbox } from "@angular/material/checkbox";
+import { MatIcon } from "@angular/material/icon";
+import { FileChooserComponent } from "../../../../common/util/file-chooser/file-chooser/file-chooser.component";
+import { MatFormField, MatLabel, MatSuffix, MatError } from "@angular/material/form-field";
+import { MatCard, MatCardContent, MatCardTitle } from "@angular/material/card";
+import { NgIf } from "@angular/common";
 
 @Component({
-   selector: "em-import-task-dialog",
-   templateUrl: "./import-task-dialog.component.html",
-   styleUrls: ["./import-task-dialog.component.scss"],
-   encapsulation: ViewEncapsulation.None,
-   host: { // eslint-disable-line @angular-eslint/no-host-metadata-property
-      "class": "import-task-dialog"
-   }
+    selector: "em-import-task-dialog",
+    templateUrl: "./import-task-dialog.component.html",
+    styleUrls: ["./import-task-dialog.component.scss"],
+    encapsulation: ViewEncapsulation.None,
+    host: {
+        "class": "import-task-dialog"
+    },
+    standalone: true,
+    imports: [MatDialogTitle, MatDialogContent, NgIf, FormsModule, ReactiveFormsModule, MatCard, MatCardContent, MatFormField, MatLabel, FileChooserComponent, MatIcon, MatSuffix, MatError, MatCheckbox, MatCardTitle, MatTable, MatSort, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, MatDialogActions, MatButton]
 })
 export class ImportTaskDialogComponent {
    uploadForm: UntypedFormGroup;

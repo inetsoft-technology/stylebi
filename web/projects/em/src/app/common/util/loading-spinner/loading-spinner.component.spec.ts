@@ -25,9 +25,9 @@ describe("LoadingSpinnerComponent", () => {
 
    beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
-         imports: [ MatProgressSpinnerModule ],
-         declarations: [ LoadingSpinnerComponent ]
-      })
+         imports: [ MatProgressSpinnerModule,
+            LoadingSpinnerComponent]
+         })
           .compileComponents();
    }));
 

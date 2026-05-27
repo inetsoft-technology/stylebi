@@ -21,11 +21,31 @@ import { RepositoryEntryType } from "../../../../../../../shared/data/repository
 import { RepositoryEditorModel } from "../../../../../../../shared/util/model/repository-editor-model";
 import { ContentRepositoryService } from "../content-repository-page/content-repository.service";
 import { RepositoryTreeNode } from "../repository-tree-node";
+import { RepositoryScheduleTaskFolderSettingsPageComponent } from "../repository-schedule-task-folder-settings-page/repository-schedule-task-folder-settings-page.component";
+import { RepositoryRecycleBinPageComponent } from "../repository-recycle-bin-page/repository-recycle-bin-page.component";
+import { RepositoryPermissionEditorPageComponent } from "../repository-permission-editor-page/repository-permission-editor-page.component";
+import { RepositoryDataSourceFolderSettingsPageComponent } from "../repository-data-source-folder-settings-page/repository-data-source-folder-settings-page.component";
+import { RepositoryFolderSettingsPageComponent } from "../repository-folder-settings-page/repository-folder-settings-page.component";
+import { RepositoryFolderDashboardSettingsPageComponent } from "../dashboard/repository-dashboard-folder-settings-page/repository-folder-dashboard-settings-page.component";
+import { LoadingSpinnerComponent } from "../../../../common/util/loading-spinner/loading-spinner.component";
+import { MatButton } from "@angular/material/button";
+import { RepositoryScriptSettingsPageComponent } from "../repository-script-settings-page/repository-script-settings-page.component";
+import { RepositoryFolderRecycleBinPageComponent } from "../repository-folder-recycle-bin-page/repository-folder-recycle-bin-page.component";
+import { RepositoryFolderTrashcanSettingsPageComponent } from "../repository-folder-trashcan-settings-page/repository-folder-trashcan-settings-page.component";
+import { RepositoryDataSourceSettingsPageComponent } from "../repository-data-source-settings-page/repository-data-source-settings-page.component";
+import { RepositoryDashboardSettingsPageComponent } from "../dashboard/repository-dashboard-settings-page/repository-dashboard-settings-page.component";
+import { RepositoryWorksheetSettingsPageComponent } from "../repository-worksheet-settings-page/repository-worksheet-settings-page.component";
+import { RepositoryViewsheetSettingsPageComponent } from "../repository-viewsheet-settings-page/repository-viewsheet-settings-page.component";
+import { AutoSaveFolderPageComponent } from "../auto-save-recycle-bin/auto-save-folder-page.component";
+import { AutoSaveRecycleBinPageComponent } from "../auto-save-recycle-bin/auto-save-recycle-bin-page.component";
+import { NgIf, NgSwitch, NgSwitchCase, NgSwitchDefault } from "@angular/common";
 
 @Component({
-   selector: "em-repository-editor-page",
-   templateUrl: "./repository-editor-page.component.html",
-   styleUrls: ["./repository-editor-page.component.scss"]
+    selector: "em-repository-editor-page",
+    templateUrl: "./repository-editor-page.component.html",
+    styleUrls: ["./repository-editor-page.component.scss"],
+    standalone: true,
+    imports: [NgIf, NgSwitch, NgSwitchCase, AutoSaveRecycleBinPageComponent, AutoSaveFolderPageComponent, RepositoryViewsheetSettingsPageComponent, RepositoryWorksheetSettingsPageComponent, RepositoryDashboardSettingsPageComponent, RepositoryDataSourceSettingsPageComponent, RepositoryFolderTrashcanSettingsPageComponent, RepositoryFolderRecycleBinPageComponent, RepositoryScriptSettingsPageComponent, MatButton, LoadingSpinnerComponent, RepositoryFolderDashboardSettingsPageComponent, RepositoryFolderSettingsPageComponent, RepositoryDataSourceFolderSettingsPageComponent, RepositoryPermissionEditorPageComponent, RepositoryRecycleBinPageComponent, RepositoryScheduleTaskFolderSettingsPageComponent, NgSwitchDefault]
 })
 export class RepositoryEditorPageComponent implements OnChanges, OnInit {
    previousEditorPath: string;

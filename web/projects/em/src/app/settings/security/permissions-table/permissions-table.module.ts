@@ -41,13 +41,11 @@ import {MatDividerModule} from "@angular/material/divider";
         MatSortModule,
         MatTableModule,
         MatDividerModule,
+        PermissionsTableComponent,
     ],
-   exports: [
-      PermissionsTableComponent
-   ],
-   declarations: [
-      PermissionsTableComponent
-   ]
+    exports: [
+        PermissionsTableComponent
+    ]
 })
 export class PermissionsTableModule {
 }

@@ -67,12 +67,10 @@ import { FileChooserModule } from "../../common/util/file-chooser/file-chooser.m
         TableViewModule,
         TopScrollModule,
         FileChooserModule,
-        ModalHeaderModule
-    ],
-   declarations: [
-      ContentSettingsViewComponent,
-      DataSpaceUploadDialogComponent
-   ]
+        ModalHeaderModule,
+        ContentSettingsViewComponent,
+        DataSpaceUploadDialogComponent
+    ]
 })
 export class ContentModule {
 }

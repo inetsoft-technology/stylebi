@@ -16,23 +16,32 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, forwardRef, Input, OnInit } from "@angular/core";
-import { ControlValueAccessor, NG_VALUE_ACCESSOR } from "@angular/forms";
+import { ControlValueAccessor, NG_VALUE_ACCESSOR, FormsModule } from "@angular/forms";
 import { FileData } from "../../../../../../../shared/util/model/file-data";
+import { FileChooserComponent } from "../file-chooser/file-chooser.component";
+import { MatDivider } from "@angular/material/divider";
+import { MatIcon } from "@angular/material/icon";
+import { MatIconButton, MatButton } from "@angular/material/button";
+import { MatList, MatListItem } from "@angular/material/list";
+import { NgIf, NgFor } from "@angular/common";
+import { MatCard, MatCardHeader, MatCardContent, MatCardActions } from "@angular/material/card";
 
 @Component({
-   selector: "em-multi-file-chooser",
-   templateUrl: "./multi-file-chooser.component.html",
-   styleUrls: ["./multi-file-chooser.component.scss"],
-   providers: [
-      {
-         provide: NG_VALUE_ACCESSOR,
-         useExisting: forwardRef(() => MultiFileChooserComponent),
-         multi: true
-      }
-   ],
-   host: { // eslint-disable-line @angular-eslint/no-host-metadata-property
-      "class": "em-multi-file-chooser"
-   }
+    selector: "em-multi-file-chooser",
+    templateUrl: "./multi-file-chooser.component.html",
+    styleUrls: ["./multi-file-chooser.component.scss"],
+    providers: [
+        {
+            provide: NG_VALUE_ACCESSOR,
+            useExisting: forwardRef(() => MultiFileChooserComponent),
+            multi: true
+        }
+    ],
+    host: {
+        "class": "em-multi-file-chooser"
+    },
+    standalone: true,
+    imports: [MatCard, NgIf, MatCardHeader, MatCardContent, MatList, NgFor, MatListItem, MatIconButton, MatIcon, MatDivider, MatCardActions, FileChooserComponent, FormsModule, MatButton]
 })
 export class MultiFileChooserComponent implements OnInit, ControlValueAccessor {
    @Input() header: string;

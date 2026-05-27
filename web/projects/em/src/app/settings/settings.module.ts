@@ -36,31 +36,31 @@ import { SettingsSidenavComponent } from "./settings-sidenav/settings-sidenav.co
 import { LoadingSpinnerModule } from "../common/util/loading-spinner/loading-spinner.module";
 
 @NgModule({
-   imports: [
-      CommonModule,
-      FormsModule,
-      LayoutModule,
-      MatButtonModule,
-      MatFormFieldModule,
-      MatIconModule,
-      MatInputModule,
-      MatListModule,
-      MatSidenavModule,
-      MatToolbarModule,
-      ScrollingModule,
-      PageHeaderModule,
-      SettingsRoutingModule,
-      SearchModule,
-      TopScrollModule,
-      LoadingSpinnerModule
-   ],
-   declarations: [SettingsSidenavComponent],
-   providers: [
-      {
-       provide: MAT_PAGINATOR_DEFAULT_OPTIONS,
-       useValue: {formFieldAppearance: "fill"},
-      }
-   ]
+    imports: [
+        CommonModule,
+        FormsModule,
+        LayoutModule,
+        MatButtonModule,
+        MatFormFieldModule,
+        MatIconModule,
+        MatInputModule,
+        MatListModule,
+        MatSidenavModule,
+        MatToolbarModule,
+        ScrollingModule,
+        PageHeaderModule,
+        SettingsRoutingModule,
+        SearchModule,
+        TopScrollModule,
+        LoadingSpinnerModule,
+        SettingsSidenavComponent
+    ],
+    providers: [
+        {
+            provide: MAT_PAGINATOR_DEFAULT_OPTIONS,
+            useValue: { formFieldAppearance: "fill" },
+        }
+    ]
 })
 export class SettingsModule {
 }

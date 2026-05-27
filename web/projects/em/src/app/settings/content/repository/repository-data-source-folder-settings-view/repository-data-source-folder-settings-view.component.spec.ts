@@ -29,11 +29,8 @@ describe("RepositoryDataSourceFolderSettingsViewComponent", () => {
       TestBed.configureTestingModule({
          imports: [
             HttpClientTestingModule,
-            ReactiveFormsModule
-         ],
-         declarations: [
-            RepositoryDataSourceFolderSettingsViewComponent
-         ],
+            ReactiveFormsModule,
+            RepositoryDataSourceFolderSettingsViewComponent],
          schemas: [
             NO_ERRORS_SCHEMA
          ]

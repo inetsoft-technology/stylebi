@@ -56,55 +56,53 @@ import { SecurityProviderService } from "./security-provider.service";
 import { SystemAdminRolesDialogComponent } from "./system-admin-roles-dialog/system-admin-roles-dialog.component";
 
 @NgModule({
-   imports: [
-      MatBottomSheetModule,
-      SecurityProviderRoutingModule,
-      CommonModule,
-      FormsModule,
-      ReactiveFormsModule,
-      MatAutocompleteModule,
-      MatButtonModule,
-      MatCardModule,
-      MatCheckboxModule,
-      MatDialogModule,
-      MatInputModule,
-      MatListModule,
-      MatIconModule,
-      MatProgressSpinnerModule,
-      MatSelectModule,
-      MatSnackBarModule,
-      MatTabsModule,
-      MessageDialogModule,
-      EditorPanelModule,
-      SharedLayoutModule,
-      ModalHeaderModule,
-   ],
-   exports: [
-      SystemAdminRolesDialogComponent
-   ],
-   declarations: [
-      AuthenticationProviderDetailPageComponent,
-      AuthenticationProviderDetailViewComponent,
-      AuthenticationProviderViewComponent,
-      AuthorizationProviderDetailPageComponent,
-      AuthorizationProviderDetailViewComponent,
-      AuthorizationProviderListPageComponent,
-      CustomProviderViewComponent,
-      DatabaseProviderViewComponent,
-      LdapProviderViewComponent,
-      LDAPQueryResult,
-      SecurityListViewComponent,
-      SecurityProviderPageComponent,
-      SecurityProviderViewComponent,
-      SystemAdminRolesDialogComponent,
-      QueryItemViewComponent,
-      BaseQueryResult,
-      InputQueryParamsDialogComponent
-   ],
-   providers: [
-      SecurityProviderService,
-      ErrorHandlerService
-   ]
+    imports: [
+        MatBottomSheetModule,
+        SecurityProviderRoutingModule,
+        CommonModule,
+        FormsModule,
+        ReactiveFormsModule,
+        MatAutocompleteModule,
+        MatButtonModule,
+        MatCardModule,
+        MatCheckboxModule,
+        MatDialogModule,
+        MatInputModule,
+        MatListModule,
+        MatIconModule,
+        MatProgressSpinnerModule,
+        MatSelectModule,
+        MatSnackBarModule,
+        MatTabsModule,
+        MessageDialogModule,
+        EditorPanelModule,
+        SharedLayoutModule,
+        ModalHeaderModule,
+        AuthenticationProviderDetailPageComponent,
+        AuthenticationProviderDetailViewComponent,
+        AuthenticationProviderViewComponent,
+        AuthorizationProviderDetailPageComponent,
+        AuthorizationProviderDetailViewComponent,
+        AuthorizationProviderListPageComponent,
+        CustomProviderViewComponent,
+        DatabaseProviderViewComponent,
+        LdapProviderViewComponent,
+        LDAPQueryResult,
+        SecurityListViewComponent,
+        SecurityProviderPageComponent,
+        SecurityProviderViewComponent,
+        SystemAdminRolesDialogComponent,
+        QueryItemViewComponent,
+        BaseQueryResult,
+        InputQueryParamsDialogComponent,
+    ],
+    exports: [
+        SystemAdminRolesDialogComponent
+    ],
+    providers: [
+        SecurityProviderService,
+        ErrorHandlerService
+    ]
 })
 export class SecurityProviderModule {
 }

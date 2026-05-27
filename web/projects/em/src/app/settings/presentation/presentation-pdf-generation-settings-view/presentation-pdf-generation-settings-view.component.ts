@@ -16,13 +16,19 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, EventEmitter, Input, Output } from "@angular/core";
-import { UntypedFormBuilder, UntypedFormGroup } from "@angular/forms";
+import { UntypedFormBuilder, UntypedFormGroup, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { Tool } from "../../../../../../shared/util/tool";
 import { ContextHelp } from "../../../context-help";
 import { Searchable } from "../../../searchable";
 import { PresentationSettingsType } from "../presentation-settings-view/presentation-settings-type.enum";
 import { PresentationSettingsChanges } from "../presentation-settings-view/presentation-settings-view.component";
 import { PresentationPdfGenerationSettingsModel } from "./presentation-pdf-generation-settings-model";
+import { MatRadioGroup, MatRadioButton } from "@angular/material/radio";
+import { MatInput } from "@angular/material/input";
+import { MatFormField, MatLabel } from "@angular/material/form-field";
+import { MatCheckbox } from "@angular/material/checkbox";
+import { NgIf } from "@angular/common";
+import { MatCard, MatCardTitle, MatCardContent } from "@angular/material/card";
 
 @Searchable({
    route: "/settings/presentation/settings#pdf",
@@ -34,9 +40,11 @@ import { PresentationPdfGenerationSettingsModel } from "./presentation-pdf-gener
    link: "EMPresentationPDFSettings"
 })
 @Component({
-   selector: "em-presentation-pdf-generation-settings-view",
-   templateUrl: "./presentation-pdf-generation-settings-view.component.html",
-   styleUrls: ["./presentation-pdf-generation-settings-view.component.scss"]
+    selector: "em-presentation-pdf-generation-settings-view",
+    templateUrl: "./presentation-pdf-generation-settings-view.component.html",
+    styleUrls: ["./presentation-pdf-generation-settings-view.component.scss"],
+    standalone: true,
+    imports: [MatCard, MatCardTitle, MatCardContent, NgIf, FormsModule, ReactiveFormsModule, MatCheckbox, MatFormField, MatLabel, MatInput, MatRadioGroup, MatRadioButton]
 })
 export class PresentationPdfGenerationSettingsViewComponent {
    @Output() modelChanged = new EventEmitter<PresentationSettingsChanges>();

@@ -33,6 +33,9 @@ import {
   SecurityProviderStatusList
 } from "../security-provider-model/security-provider-status-list";
 import {Tool} from "../../../../../../../shared/util/tool";
+import { MatButton } from "@angular/material/button";
+import { SecurityListViewComponent } from "../../security-list-view/security-list-view.component";
+import { MatCard, MatCardTitle, MatCardContent, MatCardActions } from "@angular/material/card";
 
 @Searchable({
    title: "Authentication Providers",
@@ -40,9 +43,11 @@ import {Tool} from "../../../../../../../shared/util/tool";
    keywords: ["em.security.authentication", "em.security.provider", "em.security.list"]
 })
 @Component({
-   selector: "em-authentication-provider-list-page",
-   templateUrl: "./authentication-provider-list-page.component.html",
-   styleUrls: ["./authentication-provider-list-page.component.scss"]
+    selector: "em-authentication-provider-list-page",
+    templateUrl: "./authentication-provider-list-page.component.html",
+    styleUrls: ["./authentication-provider-list-page.component.scss"],
+    standalone: true,
+    imports: [MatCard, MatCardTitle, MatCardContent, SecurityListViewComponent, MatCardActions, MatButton]
 })
 export class AuthenticationProviderViewComponent implements OnInit, OnDestroy {
    title: string = "_#(js:Authentication Providers)";

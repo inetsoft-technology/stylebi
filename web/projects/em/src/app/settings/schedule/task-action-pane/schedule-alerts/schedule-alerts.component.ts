@@ -26,6 +26,11 @@ import {
 } from "@angular/core";
 import { BehaviorSubject } from "rxjs";
 import { HighlightModel } from "../../model/highlight-list-model";
+import { MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow } from "@angular/material/table";
+import { NgIf } from "@angular/common";
+import { FormsModule } from "@angular/forms";
+import { MatCheckbox } from "@angular/material/checkbox";
+import { MatCard, MatCardHeader, MatCardTitle, MatCardContent } from "@angular/material/card";
 
 export interface SelectedHighlight {
    element: string;
@@ -57,9 +62,11 @@ export class AlertHighlightRow {
 }
 
 @Component({
-   selector: "em-schedule-alerts",
-   templateUrl: "./schedule-alerts.component.html",
-   styleUrls: ["./schedule-alerts.component.scss"]
+    selector: "em-schedule-alerts",
+    templateUrl: "./schedule-alerts.component.html",
+    styleUrls: ["./schedule-alerts.component.scss"],
+    standalone: true,
+    imports: [MatCard, MatCardHeader, MatCardTitle, MatCheckbox, FormsModule, NgIf, MatCardContent, MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow]
 })
 export class ScheduleAlertsComponent implements OnInit, OnChanges {
    @Input() enabled = false;

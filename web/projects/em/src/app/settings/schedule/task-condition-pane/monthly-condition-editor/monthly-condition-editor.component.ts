@@ -16,15 +16,8 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, EventEmitter, Input, OnInit, Output } from "@angular/core";
-import {
-   UntypedFormBuilder,
-   UntypedFormControl,
-   UntypedFormGroup,
-   FormGroupDirective, NgForm,
-   ValidationErrors,
-   Validators
-} from "@angular/forms";
-import { ErrorStateMatcher } from "@angular/material/core";
+import { UntypedFormBuilder, UntypedFormControl, UntypedFormGroup, FormGroupDirective, NgForm, ValidationErrors, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
+import { ErrorStateMatcher, MatOption } from "@angular/material/core";
 import {
    TimeConditionModel,
    TimeConditionType, TimeRange
@@ -32,14 +25,20 @@ import {
 import { TimeZoneModel } from "../../../../../../../shared/schedule/model/time-zone-model";
 import { Tool } from "../../../../../../../shared/util/tool";
 import { DateTimeService } from "../date-time.service";
-import { StartTimeChange, StartTimeData } from "../start-time-editor/start-time-editor.component";
+import { StartTimeChange, StartTimeData, StartTimeEditorComponent } from "../start-time-editor/start-time-editor.component";
 import { TaskConditionChanges } from "../task-condition-pane.component";
-import { TimeZoneValue } from "../time-zone-select/time-zone-select-component";
+import { TimeZoneValue, TimeZoneSelectComponent } from "../time-zone-select/time-zone-select-component";
+import { MatSelect } from "@angular/material/select";
+import { MatFormField, MatLabel, MatError } from "@angular/material/form-field";
+import { MatRadioGroup, MatRadioButton } from "@angular/material/radio";
+import { MatCard, MatCardContent } from "@angular/material/card";
 
 @Component({
-   selector: "em-monthly-condition-editor",
-   templateUrl: "./monthly-condition-editor.component.html",
-   styleUrls: ["./monthly-condition-editor.component.scss"]
+    selector: "em-monthly-condition-editor",
+    templateUrl: "./monthly-condition-editor.component.html",
+    styleUrls: ["./monthly-condition-editor.component.scss"],
+    standalone: true,
+    imports: [MatCard, MatCardContent, FormsModule, ReactiveFormsModule, StartTimeEditorComponent, TimeZoneSelectComponent, MatRadioGroup, MatRadioButton, MatFormField, MatLabel, MatSelect, MatOption, MatError]
 })
 export class MonthlyConditionEditorComponent implements OnInit {
    @Input() timeZone: string;

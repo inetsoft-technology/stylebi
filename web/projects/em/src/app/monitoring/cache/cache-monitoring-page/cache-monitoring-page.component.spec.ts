@@ -61,12 +61,8 @@ describe("CacheMonitoringPageComponent", () => {
             MatSelectModule,
             CollapsibleContainerModule,
             TableViewModule,
-            ClusterSelectorModule
-         ],
-         declarations: [
-            CacheMonitoringPageComponent,
-            CacheMonitoringViewComponent
-         ],
+            ClusterSelectorModule,
+            CacheMonitoringPageComponent, CacheMonitoringViewComponent],
          providers: [
             {provide: MonitoringDataService, useValue: monitoringDataService},
             {provide: MonitorLevelService, useValue: monitorLevelService},

@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, EventEmitter, Input, OnInit, Output } from "@angular/core";
-import { UntypedFormBuilder, UntypedFormGroup, Validators } from "@angular/forms";
+import { UntypedFormBuilder, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import dayjs from "dayjs";
 import { TimeConditionModel } from "../../../../../../../shared/schedule/model/time-condition-model";
 import { TimeZoneModel } from "../../../../../../../shared/schedule/model/time-zone-model";
@@ -25,12 +25,19 @@ import { DateTypeFormatter } from "../../../../../../../shared/util/date-type-fo
 import { Tool } from "../../../../../../../shared/util/tool";
 import { DateTimeService } from "../date-time.service";
 import { TaskConditionChanges } from "../task-condition-pane.component";
-import { TimeZoneValue } from "../time-zone-select/time-zone-select-component";
+import { TimeZoneValue, TimeZoneSelectComponent } from "../time-zone-select/time-zone-select-component";
+import { NgIf } from "@angular/common";
+import { MatHint, MatError } from "@angular/material/form-field";
+import { TimePickerComponent } from "../time-picker/time-picker.component";
+import { DatepickerComponent } from "../../../../common/util/datepicker/datepicker.component";
+import { MatCard, MatCardContent } from "@angular/material/card";
 
 @Component({
-   selector: "em-run-once-condition-editor",
-   templateUrl: "./run-once-condition-editor.component.html",
-   styleUrls: ["./run-once-condition-editor.component.scss"]
+    selector: "em-run-once-condition-editor",
+    templateUrl: "./run-once-condition-editor.component.html",
+    styleUrls: ["./run-once-condition-editor.component.scss"],
+    standalone: true,
+    imports: [MatCard, MatCardContent, FormsModule, ReactiveFormsModule, DatepickerComponent, TimePickerComponent, MatHint, NgIf, MatError, TimeZoneSelectComponent]
 })
 export class RunOnceConditionEditorComponent implements OnInit {
    @Input() timeZoneOptions: TimeZoneModel[];

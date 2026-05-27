@@ -24,12 +24,18 @@ import {throwError} from "rxjs";
 import {RestoreAssetDialogComponent} from "./restore-asset-dialog.component";
 import {MatDialog} from "@angular/material/dialog";
 import {RepositoryEntryType} from "../../../../../../../shared/data/repository-entry-type.enum";
+import { AutoSaveRecycleBinComponent } from "./auto-save-recycle-bin.component";
+import { MatTabGroup, MatTab } from "@angular/material/tabs";
+import { EditorPanelComponent } from "../../../../common/util/editor-panel/editor-panel.component";
+import { NgIf } from "@angular/common";
 
 const GET_AUTO_SAVE_TIME: string = "../api/em/content/repository/autosave/gettime";
 
 @Component({
-   selector: "em-auto-save-recycle-bin-page",
-   templateUrl: "./auto-save-recycle-bin-page.component.html"
+    selector: "em-auto-save-recycle-bin-page",
+    templateUrl: "./auto-save-recycle-bin-page.component.html",
+    standalone: true,
+    imports: [NgIf, EditorPanelComponent, MatTabGroup, MatTab, AutoSaveRecycleBinComponent]
 })
 export class AutoSaveRecycleBinPageComponent {
    @Input() nodeType: string;

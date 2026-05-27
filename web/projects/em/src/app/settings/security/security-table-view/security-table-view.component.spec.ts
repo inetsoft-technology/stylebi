@@ -68,9 +68,8 @@ describe("SecurityTableViewComponent", () => {
         MatSnackBarModule,
         MatTooltipModule,
         SecurityTreeDialogModule,
-        MatPaginatorModule
-      ],
-      declarations: [ SecurityTableViewComponent ],
+        MatPaginatorModule,
+            SecurityTableViewComponent],
       providers: [
         { provide: IdentityClipboardService, useValue: mockClipboardService }
       ]

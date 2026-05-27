@@ -17,7 +17,7 @@
  */
 import { HttpClient, HttpParams } from "@angular/common/http";
 import { Component, OnDestroy, OnInit } from "@angular/core";
-import { FormBuilder, FormGroup } from "@angular/forms";
+import { FormBuilder, FormGroup, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { catchError, tap } from "rxjs/operators";
 import { Tool } from "../../../../../shared/util/tool";
 import { ErrorHandlerService } from "../../common/util/error/error-handler.service";
@@ -29,6 +29,11 @@ import { AuditTableViewComponent } from "../audit-table-view/audit-table-view.co
 import { InactiveUser, InactiveUserList, InactiveUserParameters } from "./inactive-user";
 import { of, Subscription } from "rxjs";
 import { ActivatedRoute } from "@angular/router";
+import { MatInput } from "@angular/material/input";
+import { MatOption } from "@angular/material/core";
+import { NgFor } from "@angular/common";
+import { MatSelect } from "@angular/material/select";
+import { MatFormField, MatLabel, MatError } from "@angular/material/form-field";
 
 @Secured({
    route: "/auditing/inactive-user",
@@ -44,9 +49,11 @@ import { ActivatedRoute } from "@angular/router";
    link: "EMViewAudit"
 })
 @Component({
-   selector: "em-audit-inactive-user",
-   templateUrl: "./audit-inactive-user.component.html",
-   styleUrls: ["./audit-inactive-user.component.scss"]
+    selector: "em-audit-inactive-user",
+    templateUrl: "./audit-inactive-user.component.html",
+    styleUrls: ["./audit-inactive-user.component.scss"],
+    standalone: true,
+    imports: [AuditTableViewComponent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatSelect, NgFor, MatOption, MatInput, MatError]
 })
 export class AuditInactiveUserComponent implements OnInit, OnDestroy {
    hosts: string[] = [];

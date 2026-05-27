@@ -29,6 +29,8 @@ import { PageHeaderService } from "../../../page-header/page-header.service";
 import { Searchable } from "../../../searchable";
 import { Secured } from "../../../secured";
 import { DataCycleInfo, DataCycleListModel } from "../model/data-cycle-list-model";
+import { AsyncPipe } from "@angular/common";
+import { ScheduleCycleListViewComponent } from "../schedule-cycle-list-view/schedule-cycle-list-view.component";
 
 const TOPIC = "schedule";
 const GET_DATA_CYCLE_NAMES_URI = "cycles/get-cycle-names";
@@ -50,9 +52,11 @@ const UPDATE_CYCLES_URI = "schedule/cycles/update-cycles";
    link: "EMSettingsScheduleCycleList"
 })
 @Component({
-   selector: "em-schedule-cycle-list-page",
-   templateUrl: "./schedule-cycle-list-page.component.html",
-   styleUrls: ["./schedule-cycle-list-page.component.scss"]
+    selector: "em-schedule-cycle-list-page",
+    templateUrl: "./schedule-cycle-list-page.component.html",
+    styleUrls: ["./schedule-cycle-list-page.component.scss"],
+    standalone: true,
+    imports: [ScheduleCycleListViewComponent, AsyncPipe]
 })
 export class ScheduleCycleListPageComponent {
    cycleList: Observable<any>;

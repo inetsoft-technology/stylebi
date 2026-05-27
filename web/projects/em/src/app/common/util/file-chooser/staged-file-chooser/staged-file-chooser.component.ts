@@ -26,14 +26,26 @@ import { ChangeDetectorRef, Component, Input, OnInit } from "@angular/core";
 import { MatSnackBar } from "@angular/material/snack-bar";
 import { Observable, Subject } from "rxjs";
 import { UploadFilesResponse } from "./upload-files-response";
+import { MatProgressBar } from "@angular/material/progress-bar";
+import { MatInput } from "@angular/material/input";
+import { MatFormField } from "@angular/material/form-field";
+import { FormsModule } from "@angular/forms";
+import { MatDivider } from "@angular/material/divider";
+import { MatIcon } from "@angular/material/icon";
+import { MatIconButton, MatButton } from "@angular/material/button";
+import { MatList, MatListItem } from "@angular/material/list";
+import { NgIf, NgFor } from "@angular/common";
+import { MatCard, MatCardHeader, MatCardContent, MatCardActions } from "@angular/material/card";
 
 @Component({
-   selector: "em-staged-file-chooser",
-   templateUrl: "./staged-file-chooser.component.html",
-   styleUrls: ["./staged-file-chooser.component.scss"],
-   host: { // eslint-disable-line @angular-eslint/no-host-metadata-property
-      "class": "em-staged-file-chooser"
-   }
+    selector: "em-staged-file-chooser",
+    templateUrl: "./staged-file-chooser.component.html",
+    styleUrls: ["./staged-file-chooser.component.scss"],
+    host: {
+        "class": "em-staged-file-chooser"
+    },
+    standalone: true,
+    imports: [MatCard, NgIf, MatCardHeader, MatCardContent, MatList, NgFor, MatListItem, MatIconButton, MatIcon, MatDivider, FormsModule, MatFormField, MatInput, MatProgressBar, MatCardActions, MatButton]
 })
 export class StagedFileChooserComponent implements OnInit {
    @Input() header: string;

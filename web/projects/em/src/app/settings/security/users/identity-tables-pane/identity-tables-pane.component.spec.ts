@@ -62,8 +62,7 @@ describe("IdentityTablesPaneComponent", () => {
             SecurityTableViewModule,
             PropertyTableViewModule,
             SecurityTreeDialogModule,
-         ],
-         declarations: [IdentityTablesPaneComponent],
+            IdentityTablesPaneComponent],
          providers: [
             { provide: IdentityClipboardService, useValue: mockClipboardService }
          ]

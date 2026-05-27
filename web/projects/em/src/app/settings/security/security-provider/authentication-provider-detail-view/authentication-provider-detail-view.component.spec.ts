@@ -68,11 +68,8 @@ describe("AuthenticationProviderDetailViewComponent", () => {
             MatListModule,
             MatOptionModule,
             MatSelectModule,
-            MatSnackBarModule
-         ],
-         declarations: [
-            AuthenticationProviderDetailViewComponent
-         ],
+            MatSnackBarModule,
+            AuthenticationProviderDetailViewComponent],
          providers: [
             AppInfoService,
             {provide: SecurityProviderService, useValue: providerService}
@@ -81,7 +78,8 @@ describe("AuthenticationProviderDetailViewComponent", () => {
             NO_ERRORS_SCHEMA
          ]
       })
-         .compileComponents();
+      .overrideTemplate(AuthenticationProviderDetailViewComponent, "")
+      .compileComponents();
    }));
 
    beforeEach(() => {

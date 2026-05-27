@@ -18,7 +18,7 @@
 import { FlatTreeControl } from "@angular/cdk/tree";
 import { HttpClient, HttpErrorResponse } from "@angular/common/http";
 import { Component, Inject, OnInit } from "@angular/core";
-import { MAT_DIALOG_DATA, MatDialogRef } from "@angular/material/dialog";
+import { MAT_DIALOG_DATA, MatDialogRef, MatDialogContent, MatDialogActions } from "@angular/material/dialog";
 import { MatSnackBar } from "@angular/material/snack-bar";
 import { Observable, of, throwError } from "rxjs";
 import { catchError, map, tap } from "rxjs/operators";
@@ -34,6 +34,14 @@ import {
    LabeledAssetEntryModel
 } from "../../model/labeled-asset-entry-list-model";
 import { ValueTypes } from "../../../../../../../portal/src/app/vsobjects/model/dynamic-value-model";
+import { MatIcon } from "@angular/material/icon";
+import { MatIconButton, MatButton } from "@angular/material/button";
+import { MatTree, MatTreeNodeDef, MatTreeNode, MatTreeNodeToggle, MatTreeNodePadding } from "@angular/material/tree";
+import { NgIf, NgFor } from "@angular/common";
+import { MatOption } from "@angular/material/core";
+import { MatSelect } from "@angular/material/select";
+import { MatFormField, MatLabel } from "@angular/material/form-field";
+import { ModalHeaderComponent } from "../../../../common/util/modal-header/modal-header.component";
 
 const BATCH_QUERY_TREE = "../api/em/schedule/batch-action/query-tree";
 const BATCH_QUERY_COLUMNS = "../api/em/schedule/batch-action/query-columns";
@@ -83,9 +91,11 @@ export class BatchAssetDataSource extends FlatTreeDataSource<BatchAssetFlatNode,
 }
 
 @Component({
-   selector: "em-batch-query-parameters-dialog",
-   templateUrl: "./batch-query-parameters-dialog.component.html",
-   styleUrls: ["./batch-query-parameters-dialog.component.scss"]
+    selector: "em-batch-query-parameters-dialog",
+    templateUrl: "./batch-query-parameters-dialog.component.html",
+    styleUrls: ["./batch-query-parameters-dialog.component.scss"],
+    standalone: true,
+    imports: [ModalHeaderComponent, MatDialogContent, MatFormField, MatLabel, MatSelect, MatOption, NgIf, MatTree, MatTreeNodeDef, MatTreeNode, MatTreeNodeToggle, MatTreeNodePadding, MatIconButton, MatIcon, NgFor, MatDialogActions, MatButton]
 })
 export class BatchQueryParametersDialogComponent implements OnInit {
    treeControl: FlatTreeControl<BatchAssetFlatNode>;

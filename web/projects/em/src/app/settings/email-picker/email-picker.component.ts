@@ -26,15 +26,7 @@ import {
    Output,
    SimpleChanges
 } from "@angular/core";
-import {
-   ControlValueAccessor,
-   UntypedFormControl,
-   NG_VALIDATORS,
-   NG_VALUE_ACCESSOR,
-   Validator,
-   ValidatorFn,
-   Validators
-} from "@angular/forms";
+import { ControlValueAccessor, UntypedFormControl, NG_VALIDATORS, NG_VALUE_ACCESSOR, Validator, ValidatorFn, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { MatDialog } from "@angular/material/dialog";
 import { MatSnackBar } from "@angular/material/snack-bar";
 import { ScheduleUsersService } from "../../../../../shared/schedule/schedule-users.service";
@@ -44,6 +36,11 @@ import { IdentityId } from "../security/users/identity-id";
 import { EmailListDialogComponent } from "./email-list-dialog/email-list-dialog.component";
 import { Tool } from "../../../../../shared/util/tool";
 import { GuiTool } from "../../../../../portal/src/app/common/util/gui-tool";
+import { MatIcon } from "@angular/material/icon";
+import { MatIconButton, MatButton } from "@angular/material/button";
+import { NgIf } from "@angular/common";
+import { MatInput } from "@angular/material/input";
+import { MatFormField, MatLabel, MatSuffix, MatError } from "@angular/material/form-field";
 
 const SCHEDULE_CHECK_MAIL_URL = "../api/em/settings/schedule/check-mail";
 
@@ -60,10 +57,12 @@ export const EMAIL_PICKER_VALIDATOR: any = {
 };
 
 @Component({
-   selector: "em-email-picker",
-   templateUrl: "./email-picker.component.html",
-   styleUrls: ["./email-picker.component.scss"],
-   providers: [EMAIL_PICKER_VALUE_ACCESSOR, EMAIL_PICKER_VALIDATOR]
+    selector: "em-email-picker",
+    templateUrl: "./email-picker.component.html",
+    styleUrls: ["./email-picker.component.scss"],
+    providers: [EMAIL_PICKER_VALUE_ACCESSOR, EMAIL_PICKER_VALIDATOR],
+    standalone: true,
+    imports: [MatFormField, MatLabel, MatInput, FormsModule, ReactiveFormsModule, NgIf, MatIconButton, MatSuffix, MatIcon, MatError, MatButton]
 })
 export class EmailPickerComponent implements ControlValueAccessor, Validator, OnInit, OnChanges {
    @Input() required = false;

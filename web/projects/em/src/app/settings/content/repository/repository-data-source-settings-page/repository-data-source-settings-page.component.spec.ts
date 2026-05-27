@@ -62,9 +62,8 @@ describe("RepositoryDataSourceSettingsPageComponent", () => {
       TestBed.configureTestingModule({
          imports: [MatCardModule, MatTabsModule, ResourcePermissionModule, MatSnackBarModule,
             NoopAnimationsModule, FormsModule, ReactiveFormsModule, HttpClientTestingModule,
-            MatCheckboxModule, MatSelectModule, MatOptionModule, MatFormFieldModule, MatInputModule],
-         declarations: [RepositoryDataSourceSettingsPageComponent,
-            RepositoryDataSourceSettingsViewComponent],
+            MatCheckboxModule, MatSelectModule, MatOptionModule, MatFormFieldModule, MatInputModule,
+            RepositoryDataSourceSettingsPageComponent, RepositoryDataSourceSettingsViewComponent],
          providers: [
             { provide: StompClientService, useValue: stompClientService }
          ],

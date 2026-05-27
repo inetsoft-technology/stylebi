@@ -16,9 +16,14 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, HostListener, OnInit } from "@angular/core";
-import { UntypedFormBuilder, UntypedFormGroup, Validators } from "@angular/forms";
-import { MatDialogRef } from "@angular/material/dialog";
+import { UntypedFormBuilder, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
+import { MatDialogRef, MatDialogContent, MatDialogActions, MatDialogClose } from "@angular/material/dialog";
 import { Secured } from "../secured";
+import { MatButton } from "@angular/material/button";
+import { NgIf } from "@angular/common";
+import { MatInput } from "@angular/material/input";
+import { MatFormField, MatLabel, MatError } from "@angular/material/form-field";
+import { ModalHeaderComponent } from "../common/util/modal-header/modal-header.component";
 
 @Secured({
    route: "/notification",
@@ -26,9 +31,11 @@ import { Secured } from "../secured";
    hiddenForMultiTenancy: true
 })
 @Component({
-   selector: "em-send-notification-dialog",
-   templateUrl: "./send-notification-dialog.component.html",
-   styleUrls: ["./send-notification-dialog.component.scss"]
+    selector: "em-send-notification-dialog",
+    templateUrl: "./send-notification-dialog.component.html",
+    styleUrls: ["./send-notification-dialog.component.scss"],
+    standalone: true,
+    imports: [ModalHeaderComponent, MatDialogContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatInput, NgIf, MatError, MatDialogActions, MatButton, MatDialogClose]
 })
 export class SendNotificationDialogComponent implements OnInit {
    form: UntypedFormGroup;

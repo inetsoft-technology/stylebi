@@ -31,11 +31,16 @@ import {
    COPY_PASTE_CONTEXT_IDENTITY_ROLES,
    IdentityCopyPasteContext
 } from "../../security-table-view/identity-clipboard.service";
+import { PropertyTableViewComponent } from "../../property-table-view/property-table-view.component";
+import { SecurityTableViewComponent } from "../../security-table-view/security-table-view.component";
+import { NgIf } from "@angular/common";
 
 @Component({
-   selector: "em-identity-tables-pane",
-   templateUrl: "./identity-tables-pane.component.html",
-   styleUrls: ["./identity-tables-pane.component.scss"]
+    selector: "em-identity-tables-pane",
+    templateUrl: "./identity-tables-pane.component.html",
+    styleUrls: ["./identity-tables-pane.component.scss"],
+    standalone: true,
+    imports: [NgIf, SecurityTableViewComponent, PropertyTableViewComponent]
 })
 export class IdentityTablesPaneComponent {
    @Input() name: string;

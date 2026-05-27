@@ -33,27 +33,25 @@ import { AuditingRoutingModule } from "./auditing-routing.module";
 import { AuditingSidenavComponent } from "./auditing-sidenav/auditing-sidenav.component";
 
 @NgModule({
-   declarations: [
-      AuditingSidenavComponent
-   ],
-   imports: [
-      CommonModule,
-      AuditingRoutingModule,
-      FormsModule,
-      MatButtonModule,
-      MatFormFieldModule,
-      MatIconModule,
-      MatInputModule,
-      MatListModule,
-      MatSidenavModule,
-      PageHeaderModule,
-      TopScrollModule,
-      MatCardModule,
-      MatSnackBarModule
-   ],
-   providers: [
-      ErrorHandlerService
-   ]
+    imports: [
+        CommonModule,
+        AuditingRoutingModule,
+        FormsModule,
+        MatButtonModule,
+        MatFormFieldModule,
+        MatIconModule,
+        MatInputModule,
+        MatListModule,
+        MatSidenavModule,
+        PageHeaderModule,
+        TopScrollModule,
+        MatCardModule,
+        MatSnackBarModule,
+        AuditingSidenavComponent
+    ],
+    providers: [
+        ErrorHandlerService
+    ]
 })
 export class AuditingModule {
 }

@@ -54,9 +54,8 @@ describe("CustomSsoFormComponent", () => {
             MatInputModule,
             MatIconModule,
             MatFormFieldModule,
-            MatRadioModule
-         ],
-         declarations: [ CustomSsoFormComponent ],
+            MatRadioModule,
+            CustomSsoFormComponent],
          schemas: [NO_ERRORS_SCHEMA]
       })
          .overrideComponent(CustomSsoFormComponent, {set: {providers: [{provide: CodemirrorService, useValue: codemirror}]}})

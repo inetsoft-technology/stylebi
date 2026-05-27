@@ -40,8 +40,7 @@ describe("ViewsheetMonitoringViewComponent", () => {
             MaterialTestingModule,
             CommonModule,
             TableViewModule,
-         ],
-         declarations: [ViewsheetMonitoringViewComponent],
+            ViewsheetMonitoringViewComponent],
          schemas: [NO_ERRORS_SCHEMA]
       })
          .compileComponents();

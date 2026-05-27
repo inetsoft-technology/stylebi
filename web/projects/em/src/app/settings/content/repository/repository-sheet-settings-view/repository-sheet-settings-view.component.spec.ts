@@ -40,9 +40,9 @@ describe("RepositorySheetSettingsViewComponent", () => {
          imports: [HttpClientTestingModule, RouterModule.forRoot([]), MatCardModule,
             MatButtonModule, MatInputModule, MatSelectModule, NoopAnimationsModule,
             MatOptionModule, MatTabsModule, MatFormFieldModule, FormsModule, ReactiveFormsModule,
-            MatRadioModule, MatCheckboxModule],
-         declarations: [RepositorySheetSettingsViewComponent]
-      })
+            MatRadioModule, MatCheckboxModule,
+            RepositorySheetSettingsViewComponent]
+         })
          .compileComponents();
 
       fixture = TestBed.createComponent(RepositorySheetSettingsViewComponent);

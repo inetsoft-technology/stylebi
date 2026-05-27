@@ -45,40 +45,38 @@ import { PluginsViewComponent, UninstallDialog } from "./plugins-view/plugins-vi
 import { ModalHeaderModule } from "../../../common/util/modal-header/modal-header.module";
 
 @NgModule({
-   imports: [
-      CommonModule,
-      FormsModule,
-      ReactiveFormsModule,
-      MatIconModule,
-      MatInputModule,
-      MatFormFieldModule,
-      MatCardModule,
-      MatListModule,
-      MatDividerModule,
-      MatTableModule,
-      MatSortModule,
-      MatIconModule,
-      MatButtonModule,
-      MatProgressBarModule,
-      MatCheckboxModule,
-      MatSnackBarModule,
-      MatDialogModule,
-      DriversAndPluginsRoutingModule,
-      FileChooserModule,
-      TopScrollModule,
-      MatStepperModule,
-      MatRadioModule,
-      LoadingSpinnerModule,
-      MatAutocompleteModule,
-      MatProgressSpinnerModule,
-      ModalHeaderModule
-   ],
-   declarations: [
-      PluginsViewComponent,
-      UninstallDialog,
-      ContentDriversAndPluginsViewComponent,
-      CreateDriverDialogComponent
-   ]
+    imports: [
+        CommonModule,
+        FormsModule,
+        ReactiveFormsModule,
+        MatIconModule,
+        MatInputModule,
+        MatFormFieldModule,
+        MatCardModule,
+        MatListModule,
+        MatDividerModule,
+        MatTableModule,
+        MatSortModule,
+        MatIconModule,
+        MatButtonModule,
+        MatProgressBarModule,
+        MatCheckboxModule,
+        MatSnackBarModule,
+        MatDialogModule,
+        DriversAndPluginsRoutingModule,
+        FileChooserModule,
+        TopScrollModule,
+        MatStepperModule,
+        MatRadioModule,
+        LoadingSpinnerModule,
+        MatAutocompleteModule,
+        MatProgressSpinnerModule,
+        ModalHeaderModule,
+        PluginsViewComponent,
+        UninstallDialog,
+        ContentDriversAndPluginsViewComponent,
+        CreateDriverDialogComponent
+    ]
 })
 export class DriversAndPluginsModule {
 }

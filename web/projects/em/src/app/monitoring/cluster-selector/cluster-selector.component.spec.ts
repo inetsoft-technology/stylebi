@@ -43,9 +43,8 @@ describe("ClusterSelectorComponent", () => {
             CommonModule,
             RouterModule.forRoot([]),
             MatSelectModule,
-            MatButtonModule
-         ],
-         declarations: [ClusterSelectorComponent],
+            MatButtonModule,
+            ClusterSelectorComponent],
          providers: [
             { provide: MonitoringDataService, useValue: monitoringDataService },
             { provide: ClusterNodesService, useValue: clusterNodesService }

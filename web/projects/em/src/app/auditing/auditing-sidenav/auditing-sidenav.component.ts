@@ -18,14 +18,18 @@
 import { BreakpointObserver } from "@angular/cdk/layout";
 import { HttpClient } from "@angular/common/http";
 import { Component, OnDestroy, OnInit, ViewChild } from "@angular/core";
-import { MatSidenav } from "@angular/material/sidenav";
-import { Router } from "@angular/router";
+import { MatSidenav, MatSidenavContainer, MatSidenavContent } from "@angular/material/sidenav";
+import { Router, RouterLink, RouterLinkActive, RouterOutlet } from "@angular/router";
 import { Subject } from "rxjs";
 import { takeUntil } from "rxjs/operators";
 import { AuthorizationService } from "../../authorization/authorization.service";
 import { LogViewLinks } from "../../monitoring/log/log-view-links";
 import { PageHeaderService } from "../../page-header/page-header.service";
 import { Secured } from "../../secured";
+import { TopScrollDirective } from "../../top-scroll/top-scroll.directive";
+import { NgIf } from "@angular/common";
+import { MatNavList, MatListItem } from "@angular/material/list";
+import { PageHeaderComponent } from "../../page-header/page-header.component";
 
 const SMALL_WIDTH_BREAKPOINT = 720;
 
@@ -34,9 +38,11 @@ const SMALL_WIDTH_BREAKPOINT = 720;
    label: "Auditing"
 })
 @Component({
-   selector: "em-auditing-sidenav",
-   templateUrl: "./auditing-sidenav.component.html",
-   styleUrls: ["./auditing-sidenav.component.scss"]
+    selector: "em-auditing-sidenav",
+    templateUrl: "./auditing-sidenav.component.html",
+    styleUrls: ["./auditing-sidenav.component.scss"],
+    standalone: true,
+    imports: [PageHeaderComponent, MatSidenavContainer, MatSidenav, MatNavList, NgIf, MatListItem, RouterLink, RouterLinkActive, MatSidenavContent, TopScrollDirective, RouterOutlet]
 })
 export class AuditingSidenavComponent implements OnInit, OnDestroy {
    @ViewChild(MatSidenav, {static: true}) sidenav: MatSidenav;

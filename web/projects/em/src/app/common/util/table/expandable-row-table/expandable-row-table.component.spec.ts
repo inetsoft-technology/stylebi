@@ -49,9 +49,8 @@ describe("ExpandableRowTableComponent", () => {
             MatCheckboxModule,
             MatExpansionModule,
             MatFormFieldModule,
-            MatListModule
-         ],
-         declarations: [ExpandableRowTableComponent],
+            MatListModule,
+            ExpandableRowTableComponent],
          schemas: [NO_ERRORS_SCHEMA]
       }).compileComponents();
    }));

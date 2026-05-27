@@ -26,19 +26,17 @@ import { AuditRequiredAssetsRoutingModule } from "./audit-required-assets-routin
 import { AuditRequiredAssetsComponent } from "./audit-required-assets.component";
 
 @NgModule({
-   declarations: [
-      AuditRequiredAssetsComponent
-   ],
-   imports: [
-      CommonModule,
-      AuditRequiredAssetsRoutingModule,
-      AuditTableViewModule,
-      FormsModule,
-      MatFormFieldModule,
-      MatOptionModule,
-      MatSelectModule,
-      ReactiveFormsModule
-   ]
+    imports: [
+        CommonModule,
+        AuditRequiredAssetsRoutingModule,
+        AuditTableViewModule,
+        FormsModule,
+        MatFormFieldModule,
+        MatOptionModule,
+        MatSelectModule,
+        ReactiveFormsModule,
+        AuditRequiredAssetsComponent
+    ]
 })
 export class AuditRequiredAssetsModule {
 }

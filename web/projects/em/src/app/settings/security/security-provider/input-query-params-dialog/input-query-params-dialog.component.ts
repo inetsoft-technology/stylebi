@@ -16,13 +16,20 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, HostListener, Inject, Input, OnInit } from "@angular/core";
-import { MAT_DIALOG_DATA, MatDialogRef } from "@angular/material/dialog";
+import { MAT_DIALOG_DATA, MatDialogRef, MatDialogTitle, MatDialogContent, MatDialogActions } from "@angular/material/dialog";
 import { QueryParamInfo } from "./query-param-info";
+import { MatButton } from "@angular/material/button";
+import { FormsModule } from "@angular/forms";
+import { MatInput } from "@angular/material/input";
+import { MatFormField, MatLabel } from "@angular/material/form-field";
+import { NgFor } from "@angular/common";
 
 @Component({
-   selector: "em-input-query-params-dialog",
-   templateUrl: "./input-query-params-dialog.component.html",
-   styleUrls: ["./input-query-params-dialog.component.scss"]
+    selector: "em-input-query-params-dialog",
+    templateUrl: "./input-query-params-dialog.component.html",
+    styleUrls: ["./input-query-params-dialog.component.scss"],
+    standalone: true,
+    imports: [MatDialogTitle, MatDialogContent, NgFor, MatFormField, MatLabel, MatInput, FormsModule, MatDialogActions, MatButton]
 })
 export class InputQueryParamsDialogComponent implements OnInit {
    title: string = "_#(js:Query Parameters)";

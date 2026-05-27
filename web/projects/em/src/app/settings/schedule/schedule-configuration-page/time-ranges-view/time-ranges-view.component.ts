@@ -18,16 +18,21 @@
 import { SelectionModel } from "@angular/cdk/collections";
 import { Component, EventEmitter, Input, OnChanges, OnInit, Output } from "@angular/core";
 import { MatDialog } from "@angular/material/dialog";
-import { MatTableDataSource } from "@angular/material/table";
+import { MatTableDataSource, MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow } from "@angular/material/table";
 import { TimeRange } from "../../../../../../../shared/schedule/model/time-condition-model";
 import { DateTypeFormatter } from "../../../../../../../shared/util/date-type-formatter";
 import { TimeRangeEditorComponent } from "../time-range-editor/time-range-editor.component";
 import { ResourcePermissionModel } from "../../../security/resource-permission/resource-permission-model";
+import { MatButton } from "@angular/material/button";
+import { MatCheckbox } from "@angular/material/checkbox";
+import { MatCard, MatCardTitle, MatCardContent, MatCardActions } from "@angular/material/card";
 
 @Component({
-   selector: "em-time-ranges-view",
-   templateUrl: "./time-ranges-view.component.html",
-   styleUrls: ["./time-ranges-view.component.scss"]
+    selector: "em-time-ranges-view",
+    templateUrl: "./time-ranges-view.component.html",
+    styleUrls: ["./time-ranges-view.component.scss"],
+    standalone: true,
+    imports: [MatCard, MatCardTitle, MatCardContent, MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCheckbox, MatCellDef, MatCell, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, MatCardActions, MatButton]
 })
 export class TimeRangesViewComponent implements OnInit, OnChanges {
    @Output() timeRangesChanged = new EventEmitter<TimeRange[]>();
