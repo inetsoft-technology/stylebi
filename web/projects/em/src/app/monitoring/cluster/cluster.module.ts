@@ -17,7 +17,7 @@
  */
 import { CommonModule } from "@angular/common";
 import { NgModule } from "@angular/core";
-import { TableViewModule } from "../../common/util/table/table-view.module";
+
 import { MatButtonModule } from "@angular/material/button";
 import { MatCardModule } from "@angular/material/card";
 import { MatIconModule } from "@angular/material/icon";
@@ -27,15 +27,14 @@ import { ClusterMonitoringViewComponent } from "./cluster-monitoring-view/cluste
 
 @NgModule({
     imports: [
-        CommonModule,
-        MatCardModule,
-        MatIconModule,
-        TableViewModule,
-        MatButtonModule,
-        ClusterRoutingModule,
-        ClusterMonitoringPageComponent,
-        ClusterMonitoringViewComponent,
-    ]
+    CommonModule,
+    MatCardModule,
+    MatIconModule,
+    MatButtonModule,
+    ClusterRoutingModule,
+    ClusterMonitoringPageComponent,
+    ClusterMonitoringViewComponent,
+]
 })
 export class ClusterModule {
 }

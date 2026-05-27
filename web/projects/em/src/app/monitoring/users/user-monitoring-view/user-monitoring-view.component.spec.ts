@@ -24,12 +24,12 @@ import { MatIconModule } from "@angular/material/icon";
 import { MatSelectModule } from "@angular/material/select";
 import { NoopAnimationsModule } from "@angular/platform-browser/animations";
 import { of as observableOf } from "rxjs";
-import { MessageDialogModule } from "../../../common/util/message-dialog.module";
+import { MessageDialog } from "../../../common/util/message-dialog";
 import { ExpandableRowTableInfo } from "../../../common/util/table/expandable-row-table/expandable-row-table-info";
-import { TableViewModule } from "../../../common/util/table/table-view.module";
-import { ClusterSelectorModule } from "../../cluster-selector/cluster-selector.module";
+import { TableView } from "../../../common/util/table/table-view.component";
+import { ClusterSelectorComponent } from "../../cluster-selector/cluster-selector.component";
 import { ClusterNodesService } from "../../cluster/cluster-nodes.service";
-import { CollapsibleContainerModule } from "../../collapsible-container/collapsible-container.module";
+import { CollapsibleContainerComponent } from "../../collapsible-container/collapsible-container.component";
 import { MonitorLevelService } from "../../monitor-level.service";
 import { MonitoringDataService } from "../../monitoring-data.service";
 import { UsersRoutingModule } from "../users-routing.module";
@@ -69,10 +69,10 @@ describe("UserMonitoringViewComponent", () => {
             MatDialogModule,
             MatIconModule,
             MatSelectModule,
-            ClusterSelectorModule,
-            CollapsibleContainerModule,
-            MessageDialogModule,
-            TableViewModule,
+            ClusterSelectorComponent,
+            CollapsibleContainerComponent,
+            MessageDialog,
+            TableView,
             UsersRoutingModule,
             UserMonitoringViewComponent],
          providers: [

@@ -28,27 +28,25 @@ import { CommonModule } from "@angular/common";
 import { NgModule } from "@angular/core";
 import { LocalizedMatPaginator } from "../../../../../../shared/util/localized-mat-paginator";
 import { SecurityTableViewComponent } from "./security-table-view.component";
-import { SecurityTreeDialogModule } from "../security-tree-dialog/security-tree-dialog.module";
+
 import { MatPaginatorIntl, MatPaginatorModule } from "@angular/material/paginator";
-import { MessageDialogModule } from "../../../common/util/message-dialog.module";
+
 
 @NgModule({
     imports: [
-        CommonModule,
-        FormsModule,
-        MatTableModule,
-        MatSortModule,
-        MatButtonModule,
-        MatCheckboxModule,
-        MatCardModule,
-        MatIconModule,
-        MatSnackBarModule,
-        SecurityTreeDialogModule,
-        MatPaginatorModule,
-        MessageDialogModule,
-        MatTooltipModule,
-        SecurityTableViewComponent
-    ],
+    CommonModule,
+    FormsModule,
+    MatTableModule,
+    MatSortModule,
+    MatButtonModule,
+    MatCheckboxModule,
+    MatCardModule,
+    MatIconModule,
+    MatSnackBarModule,
+    MatPaginatorModule,
+    MatTooltipModule,
+    SecurityTableViewComponent
+],
     exports: [
         SecurityTableViewComponent
     ],

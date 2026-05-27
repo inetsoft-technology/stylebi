@@ -24,9 +24,9 @@ import { MatIconModule } from "@angular/material/icon";
 import { MatSidenavModule } from "@angular/material/sidenav";
 import { MatSnackBarModule } from "@angular/material/snack-bar";
 import { MatTreeModule } from "@angular/material/tree";
-import { EditorPanelModule } from "../../../common/util/editor-panel/editor-panel.module";
-import { MessageDialogModule } from "../../../common/util/message-dialog.module";
-import { TopScrollModule } from "../../../top-scroll/top-scroll.module";
+
+
+
 import { ResourcePermissionModule } from "../resource-permission/resource-permission.module";
 import { SecurityActionsPageComponent } from "./security-actions-page/security-actions-page.component";
 import { SecurityActionsPermissionsComponent } from "./security-actions-permissions/security-actions-permissions.component";
@@ -35,23 +35,20 @@ import { SecurityActionsTreeComponent } from "./security-actions-tree/security-a
 
 @NgModule({
     imports: [
-        CommonModule,
-        MatButtonModule,
-        MatCardModule,
-        MatIconModule,
-        MatSnackBarModule,
-        MatTreeModule,
-        EditorPanelModule,
-        SecurityActionsRoutingModule,
-        ResourcePermissionModule,
-        MatSidenavModule,
-        MatDialogModule,
-        MessageDialogModule,
-        TopScrollModule,
-        SecurityActionsPageComponent,
-        SecurityActionsTreeComponent,
-        SecurityActionsPermissionsComponent,
-    ],
+    CommonModule,
+    MatButtonModule,
+    MatCardModule,
+    MatIconModule,
+    MatSnackBarModule,
+    MatTreeModule,
+    SecurityActionsRoutingModule,
+    ResourcePermissionModule,
+    MatSidenavModule,
+    MatDialogModule,
+    SecurityActionsPageComponent,
+    SecurityActionsTreeComponent,
+    SecurityActionsPermissionsComponent,
+],
 })
 export class SecurityActionsModule {
 }

@@ -25,30 +25,28 @@ import { MatCardModule } from "@angular/material/card";
 import { MatDividerModule } from "@angular/material/divider";
 import { MatGridListModule } from "@angular/material/grid-list";
 import { MatSelectModule } from "@angular/material/select";
-import { TableViewModule } from "../../common/util/table/table-view.module";
+
 import { SummaryMonitoringPageComponent } from "./summary-monitoring-page/summary-monitoring-page.component";
 import { SummaryMonitoringChartViewComponent } from "./summary-monitoring-view/summary-monitoring-chart-view/summary-monitoring-chart-view.component";
 import { SummaryMonitoringTableViewComponent } from "./summary-monitoring-view/summary-monitoring-table-view/summary-monitoring-table-view.component";
 import { ClusterNodesService } from "../cluster/cluster-nodes.service";
-import { ClusterSelectorModule } from "../cluster-selector/cluster-selector.module";
+
 
 @NgModule({
     imports: [
-        CommonModule,
-        SummaryRoutingModule,
-        MatButtonModule,
-        MatSelectModule,
-        MatCardModule,
-        MatGridListModule,
-        TableViewModule,
-        MatDividerModule,
-        ClusterSelectorModule,
-        ResizedDirective,
-        SummaryMonitoringPageComponent,
-        SummaryMonitoringChartViewComponent,
-        SummaryMonitoringTableViewComponent,
-        DebugMonitoringPageComponent
-    ],
+    CommonModule,
+    SummaryRoutingModule,
+    MatButtonModule,
+    MatSelectModule,
+    MatCardModule,
+    MatGridListModule,
+    MatDividerModule,
+    ResizedDirective,
+    SummaryMonitoringPageComponent,
+    SummaryMonitoringChartViewComponent,
+    SummaryMonitoringTableViewComponent,
+    DebugMonitoringPageComponent
+],
     providers: [
         ClusterNodesService
     ]

@@ -43,8 +43,8 @@ import { SsoHeartbeatInterceptor } from "../../../shared/sso/sso-heartbeat-inter
 import { SsoHeartbeatService } from "../../../shared/sso/sso-heartbeat.service";
 import { AppRoutingModule } from "./app-routing.module";
 import { AppComponent } from "./app.component";
-import { MessageDialogModule } from "./common/util/message-dialog.module";
-import { ModalHeaderModule } from "./common/util/modal-header/modal-header.module";
+
+
 import { CsrfInterceptor } from "./csrf-interceptor";
 import { CustomRouteReuseStrategy } from "./custom-route-reuse-strategy";
 import { InvalidSessionInterceptor } from "./invalid-session-interceptor";
@@ -65,46 +65,4 @@ export const httpInterceptorProviders = [
    {provide: HTTP_INTERCEPTORS, useClass: SsoHeartbeatInterceptor, multi: true}
 ];
 
-@NgModule({
-    imports: [
-        AiAssistantPanelComponent,
-        BrowserModule,
-        BrowserAnimationsModule,
-        ReactiveFormsModule,
-        HttpClientModule,
-        HammerModule,
-        LayoutModule,
-        MatButtonModule,
-        MatCardModule,
-        MatDialogModule,
-        MatFormFieldModule,
-        MatIconModule,
-        MatInputModule,
-        MatMenuModule,
-        MatSnackBarModule,
-        MatTableModule,
-        MatToolbarModule,
-        PageHeaderModule,
-        AppRoutingModule,
-        DownloadTargetComponent,
-        MessageDialogModule,
-        ModalHeaderModule,
-        MatSelectModule,
-        ChangePasswordFormComponent,
-        ManageFavoritesComponent,
-        NavbarComponent,
-        PasswordComponent,
-        SendNotificationDialogComponent
-    ],
-    providers: [
-        SsoHeartbeatService,
-        httpInterceptorProviders,
-        ScheduleUsersService,
-        ScheduleTaskNamesService,
-        { provide: RouteReuseStrategy, useClass: CustomRouteReuseStrategy }
-    ],
-    declarations: [AppComponent],
-    bootstrap: [AppComponent]
-})
-export class AppModule {
-}
+

@@ -29,32 +29,29 @@ import { MatSidenavModule } from "@angular/material/sidenav";
 import { MatToolbarModule } from "@angular/material/toolbar";
 import { MAT_PAGINATOR_DEFAULT_OPTIONS } from "@angular/material/paginator";
 import { PageHeaderModule } from "../page-header/page-header.module";
-import { SearchModule } from "../search/search.module";
-import { TopScrollModule } from "../top-scroll/top-scroll.module";
+
+
 import { SettingsRoutingModule } from "./settings-routing.module";
 import { SettingsSidenavComponent } from "./settings-sidenav/settings-sidenav.component";
-import { LoadingSpinnerModule } from "../common/util/loading-spinner/loading-spinner.module";
+
 
 @NgModule({
     imports: [
-        CommonModule,
-        FormsModule,
-        LayoutModule,
-        MatButtonModule,
-        MatFormFieldModule,
-        MatIconModule,
-        MatInputModule,
-        MatListModule,
-        MatSidenavModule,
-        MatToolbarModule,
-        ScrollingModule,
-        PageHeaderModule,
-        SettingsRoutingModule,
-        SearchModule,
-        TopScrollModule,
-        LoadingSpinnerModule,
-        SettingsSidenavComponent
-    ],
+    CommonModule,
+    FormsModule,
+    LayoutModule,
+    MatButtonModule,
+    MatFormFieldModule,
+    MatIconModule,
+    MatInputModule,
+    MatListModule,
+    MatSidenavModule,
+    MatToolbarModule,
+    ScrollingModule,
+    PageHeaderModule,
+    SettingsRoutingModule,
+    SettingsSidenavComponent
+],
     providers: [
         {
             provide: MAT_PAGINATOR_DEFAULT_OPTIONS,

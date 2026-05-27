@@ -31,36 +31,34 @@ import { MatRadioModule } from "@angular/material/radio";
 import { MatSelectModule } from "@angular/material/select";
 import { MatTableModule } from "@angular/material/table";
 import { CustomValueAccessorModule } from "../../../common/custom-value-accessor/custom-value-accessor.module";
-import { MessageDialogModule } from "../../../common/util/message-dialog.module";
-import { ModalHeaderModule } from "../../../common/util/modal-header/modal-header.module";
+
+
 import { AddParameterDialogComponent } from "../add-parameter-dialog/add-parameter-dialog.component";
 import { ParameterTableComponent } from "./parameter-table.component";
 import { WidgetModule } from "../../../widget/widget.module";
 
 @NgModule({
     imports: [
-        CommonModule,
-        CustomValueAccessorModule,
-        FormsModule,
-        ReactiveFormsModule,
-        MatAutocompleteModule,
-        MatButtonModule,
-        MatCardModule,
-        MatCheckboxModule,
-        MatDatepickerModule,
-        MatDialogModule,
-        MatFormFieldModule,
-        MatIconModule,
-        MatInputModule,
-        MatRadioModule,
-        MatSelectModule,
-        MatTableModule,
-        MessageDialogModule,
-        ModalHeaderModule,
-        WidgetModule,
-        ParameterTableComponent,
-        AddParameterDialogComponent
-    ],
+    CommonModule,
+    CustomValueAccessorModule,
+    FormsModule,
+    ReactiveFormsModule,
+    MatAutocompleteModule,
+    MatButtonModule,
+    MatCardModule,
+    MatCheckboxModule,
+    MatDatepickerModule,
+    MatDialogModule,
+    MatFormFieldModule,
+    MatIconModule,
+    MatInputModule,
+    MatRadioModule,
+    MatSelectModule,
+    MatTableModule,
+    WidgetModule,
+    ParameterTableComponent,
+    AddParameterDialogComponent
+],
     exports: [
         AddParameterDialogComponent,
         ParameterTableComponent

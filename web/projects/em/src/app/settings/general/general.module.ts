@@ -41,13 +41,13 @@ import { MatTableModule } from "@angular/material/table";
 import { MatToolbarModule } from "@angular/material/toolbar";
 import { MatTooltipModule } from "@angular/material/tooltip";
 import { LocalizedMatPaginator } from "../../../../../shared/util/localized-mat-paginator";
-import { EditorPanelModule } from "../../common/util/editor-panel/editor-panel.module";
+
 import { ErrorHandlerService } from "../../common/util/error/error-handler.service";
-import { LoadingSpinnerModule } from "../../common/util/loading-spinner/loading-spinner.module";
-import { MessageDialogModule } from "../../common/util/message-dialog.module";
-import { ModalHeaderModule } from "../../common/util/modal-header/modal-header.module";
-import { ScrollNavModule } from "../../common/util/scroll-nav/scroll-nav.module";
-import { EmailPickerModule } from "../email-picker/email-picker.module";
+
+
+
+
+
 import { CacheSettingsViewComponent } from "./cache-settings-view/cache-settings-view.component";
 import {
    BackupDialog,
@@ -67,52 +67,46 @@ import { PerformanceSettingsViewComponent } from "./performance-settings-view/pe
 
 @NgModule({
     imports: [
-        CommonModule,
-        FormsModule,
-        ReactiveFormsModule,
-        MatButtonModule,
-        MatButtonToggleModule,
-        MatCardModule,
-        MatCheckboxModule,
-        MatDatepickerModule,
-        MatDialogModule,
-        MatDividerModule,
-        MatFormFieldModule,
-        MatIconModule,
-        MatInputModule,
-        MatListModule,
-        MatMenuModule,
-        MatNativeDateModule,
-        MatPaginatorModule,
-        MatRadioModule,
-        MatSelectModule,
-        MatSlideToggleModule,
-        MatSnackBarModule,
-        MatSortModule,
-        MatTableModule,
-        MatToolbarModule,
-        MatTooltipModule,
-        EditorPanelModule,
-        EmailPickerModule,
-        GeneralRoutingModule,
-        MessageDialogModule,
-        ScrollNavModule,
-        LoadingSpinnerModule,
-        ModalHeaderModule,
-        BackupDialog,
-        CacheSettingsViewComponent,
-        DataSpaceSettingsViewComponent,
-        EditLicenseKeyDialogComponent,
-        EmailSettingsViewComponent,
-        GeneralSettingsPageComponent,
-        LicenseKeyListComponent,
-        ApiKeyComponent,
-        LicenseKeySettingsViewComponent,
-        LocalizationDialogComponent,
-        LocalizationSettingsViewComponent,
-        MVSettingsViewComponent,
-        PerformanceSettingsViewComponent
-    ],
+    CommonModule,
+    FormsModule,
+    ReactiveFormsModule,
+    MatButtonModule,
+    MatButtonToggleModule,
+    MatCardModule,
+    MatCheckboxModule,
+    MatDatepickerModule,
+    MatDialogModule,
+    MatDividerModule,
+    MatFormFieldModule,
+    MatIconModule,
+    MatInputModule,
+    MatListModule,
+    MatMenuModule,
+    MatNativeDateModule,
+    MatPaginatorModule,
+    MatRadioModule,
+    MatSelectModule,
+    MatSlideToggleModule,
+    MatSnackBarModule,
+    MatSortModule,
+    MatTableModule,
+    MatToolbarModule,
+    MatTooltipModule,
+    GeneralRoutingModule,
+    BackupDialog,
+    CacheSettingsViewComponent,
+    DataSpaceSettingsViewComponent,
+    EditLicenseKeyDialogComponent,
+    EmailSettingsViewComponent,
+    GeneralSettingsPageComponent,
+    LicenseKeyListComponent,
+    ApiKeyComponent,
+    LicenseKeySettingsViewComponent,
+    LocalizationDialogComponent,
+    LocalizationSettingsViewComponent,
+    MVSettingsViewComponent,
+    PerformanceSettingsViewComponent
+],
     providers: [
         ErrorHandlerService,
         MatDatepickerModule,

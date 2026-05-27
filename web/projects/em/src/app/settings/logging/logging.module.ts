@@ -26,10 +26,10 @@ import { MatDividerModule } from "@angular/material/divider";
 import { MatFormFieldModule } from "@angular/material/form-field";
 import { MatInputModule } from "@angular/material/input";
 import { MatSelectModule } from "@angular/material/select";
-import { EditorPanelModule } from "../../common/util/editor-panel/editor-panel.module";
-import { MessageDialogModule } from "../../common/util/message-dialog.module";
-import { ModalHeaderModule } from "../../common/util/modal-header/modal-header.module";
-import { TableViewModule } from "../../common/util/table/table-view.module";
+
+
+
+
 import { AddLoggingLevelDialogComponent } from "./add-logging-level-dialog/add-logging-level-dialog.component";
 import { LoggingLevelTableComponent } from "./logging-level-table/logging-level-table.component";
 import { LoggingRoutingModule } from "./logging-routing.module";
@@ -38,27 +38,23 @@ import { LoggingSettingsViewComponent } from "./logging-settings-view/logging-se
 
 @NgModule({
     imports: [
-        CommonModule,
-        FormsModule,
-        ReactiveFormsModule,
-        MatFormFieldModule,
-        MatCheckboxModule,
-        MatInputModule,
-        MatButtonModule,
-        MatSelectModule,
-        MatCardModule,
-        MatDialogModule,
-        MatDividerModule,
-        LoggingRoutingModule,
-        EditorPanelModule,
-        MessageDialogModule,
-        TableViewModule,
-        ModalHeaderModule,
-        LoggingSettingsPageComponent,
-        LoggingSettingsViewComponent,
-        LoggingLevelTableComponent,
-        AddLoggingLevelDialogComponent
-    ],
+    CommonModule,
+    FormsModule,
+    ReactiveFormsModule,
+    MatFormFieldModule,
+    MatCheckboxModule,
+    MatInputModule,
+    MatButtonModule,
+    MatSelectModule,
+    MatCardModule,
+    MatDialogModule,
+    MatDividerModule,
+    LoggingRoutingModule,
+    LoggingSettingsPageComponent,
+    LoggingSettingsViewComponent,
+    LoggingLevelTableComponent,
+    AddLoggingLevelDialogComponent
+],
 })
 export class LoggingModule {
 }

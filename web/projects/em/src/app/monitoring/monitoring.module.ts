@@ -26,10 +26,10 @@ import { MatInputModule } from "@angular/material/input";
 import { MatListModule } from "@angular/material/list";
 import { MatSidenavModule } from "@angular/material/sidenav";
 import { MatToolbarModule } from "@angular/material/toolbar";
-import { MessageDialogModule } from "../common/util/message-dialog.module";
+
 import { PageHeaderModule } from "../page-header/page-header.module";
-import { SearchModule } from "../search/search.module";
-import { TopScrollModule } from "../top-scroll/top-scroll.module";
+
+
 import { MonitorLevelService } from "./monitor-level.service";
 import { MonitoringDataService } from "./monitoring-data.service";
 import { MonitoringRoutingModule } from "./monitoring-routing.module";
@@ -37,23 +37,20 @@ import { MonitoringSidenavComponent } from "./monitoring-sidenav/monitoring-side
 
 @NgModule({
     imports: [
-        CommonModule,
-        FormsModule,
-        LayoutModule,
-        SearchModule,
-        MatButtonModule,
-        MatFormFieldModule,
-        MatIconModule,
-        MatInputModule,
-        MatListModule,
-        MatSidenavModule,
-        MatToolbarModule,
-        MessageDialogModule,
-        MonitoringRoutingModule,
-        PageHeaderModule,
-        TopScrollModule,
-        MonitoringSidenavComponent
-    ],
+    CommonModule,
+    FormsModule,
+    LayoutModule,
+    MatButtonModule,
+    MatFormFieldModule,
+    MatIconModule,
+    MatInputModule,
+    MatListModule,
+    MatSidenavModule,
+    MatToolbarModule,
+    MonitoringRoutingModule,
+    PageHeaderModule,
+    MonitoringSidenavComponent
+],
     providers: [
         MonitoringDataService,
         MonitorLevelService

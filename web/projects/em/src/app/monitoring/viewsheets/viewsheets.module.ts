@@ -24,31 +24,28 @@ import { MatPaginatorModule } from "@angular/material/paginator";
 import { MatSelectModule } from "@angular/material/select";
 import { MatTableModule } from "@angular/material/table";
 import { MatTabsModule } from "@angular/material/tabs";
-import { TableViewModule } from "../../common/util/table/table-view.module";
-import { ClusterSelectorModule } from "../cluster-selector/cluster-selector.module";
+
+
 import { ClusterNodesService } from "../cluster/cluster-nodes.service";
-import { CollapsibleContainerModule } from "../collapsible-container/collapsible-container.module";
+
 import { ViewsheetMonitoringPageComponent } from "./viewsheet-monitoring-page/viewsheet-monitoring-page.component";
 import { ViewsheetMonitoringViewComponent } from "./viewsheet-monitoring-view/viewsheet-monitoring-view.component";
 import { ViewsheetsRoutingModule } from "./viewsheets-routing.module";
 
 @NgModule({
     imports: [
-        CommonModule,
-        MatCardModule,
-        MatCheckboxModule,
-        MatExpansionModule,
-        MatPaginatorModule,
-        MatTableModule,
-        MatSelectModule,
-        CollapsibleContainerModule,
-        ViewsheetsRoutingModule,
-        TableViewModule,
-        ClusterSelectorModule,
-        MatTabsModule,
-        ViewsheetMonitoringPageComponent,
-        ViewsheetMonitoringViewComponent,
-    ],
+    CommonModule,
+    MatCardModule,
+    MatCheckboxModule,
+    MatExpansionModule,
+    MatPaginatorModule,
+    MatTableModule,
+    MatSelectModule,
+    ViewsheetsRoutingModule,
+    MatTabsModule,
+    ViewsheetMonitoringPageComponent,
+    ViewsheetMonitoringViewComponent,
+],
     providers: [
         ClusterNodesService
     ]

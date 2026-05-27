@@ -19,26 +19,24 @@ import { CommonModule } from "@angular/common";
 import { NgModule } from "@angular/core";
 import { QueriesRoutingModule } from "./queries-routing.module";
 import { QueryMonitoringViewComponent } from "./query-monitoring-view/query-monitoring-view.component";
-import { TableViewModule } from "../../common/util/table/table-view.module";
+
 import { MatButtonModule } from "@angular/material/button";
 import { MatCardModule } from "@angular/material/card";
 import { MatSelectModule } from "@angular/material/select";
 import { QueryMonitoringPageComponent } from "./query-monitoring-page/query-monitoring-page.component";
 import { ClusterNodesService } from "../cluster/cluster-nodes.service";
-import { ClusterSelectorModule } from "../cluster-selector/cluster-selector.module";
+
 
 @NgModule({
     imports: [
-        CommonModule,
-        MatCardModule,
-        MatSelectModule,
-        TableViewModule,
-        MatButtonModule,
-        QueriesRoutingModule,
-        ClusterSelectorModule,
-        QueryMonitoringViewComponent,
-        QueryMonitoringPageComponent,
-    ],
+    CommonModule,
+    MatCardModule,
+    MatSelectModule,
+    MatButtonModule,
+    QueriesRoutingModule,
+    QueryMonitoringViewComponent,
+    QueryMonitoringPageComponent,
+],
     providers: [
         ClusterNodesService
     ]

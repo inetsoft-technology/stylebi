@@ -36,10 +36,10 @@ import { MatTableModule } from "@angular/material/table";
 import { MatTabsModule } from "@angular/material/tabs";
 import { MatToolbarModule } from "@angular/material/toolbar";
 import { MatTooltipModule } from "@angular/material/tooltip";
-import { EditorPanelModule } from "../../../common/util/editor-panel/editor-panel.module";
-import { FileChooserModule } from "../../../common/util/file-chooser/file-chooser.module";
-import { FlatTreeModule } from "../../../common/util/tree/flat-tree.module";
-import { TopScrollModule } from "../../../top-scroll/top-scroll.module";
+
+
+
+
 import { ContentDataSpaceViewComponent } from "../content-data-space-view/content-data-space-view.component";
 import { DataSpaceEditorPageComponent } from "./data-space-editor-page/data-space-editor-page.component";
 import {
@@ -50,47 +50,41 @@ import { DataSpaceFolderSettingsViewComponent } from "./data-space-folder-settin
 import { DataSpaceRoutingModule } from "./data-space-routing.module";
 import { DataSpaceTreeViewComponent } from "./data-space-tree-view/data-space-tree-view.component";
 import { TextFileContentViewComponent } from "./text-file-content-view/text-file-content-view.component";
-import { LoadingSpinnerModule } from "../../../common/util/loading-spinner/loading-spinner.module";
-import {ModalHeaderModule} from "../../../common/util/modal-header/modal-header.module";
+
+
 
 @NgModule({
     imports: [
-        CommonModule,
-        FormsModule,
-        ReactiveFormsModule,
-        MatButtonModule,
-        MatCardModule,
-        MatCheckboxModule,
-        MatDialogModule,
-        MatFormFieldModule,
-        MatGridListModule,
-        MatIconModule,
-        MatInputModule,
-        MatListModule,
-        MatOptionModule,
-        MatRadioModule,
-        MatSelectModule,
-        MatSidenavModule,
-        MatSnackBarModule,
-        MatTableModule,
-        MatTabsModule,
-        MatToolbarModule,
-        MatTooltipModule,
-        DataSpaceRoutingModule,
-        EditorPanelModule,
-        FlatTreeModule,
-        FileChooserModule,
-        TopScrollModule,
-        LoadingSpinnerModule,
-        ModalHeaderModule,
-        ContentDataSpaceViewComponent,
-        DataSpaceEditorPageComponent,
-        DataSpaceFileSettingsViewComponent,
-        DataSpaceFolderSettingsViewComponent,
-        DataSpaceTreeViewComponent,
-        DeleteDialog,
-        TextFileContentViewComponent
-    ]
+    CommonModule,
+    FormsModule,
+    ReactiveFormsModule,
+    MatButtonModule,
+    MatCardModule,
+    MatCheckboxModule,
+    MatDialogModule,
+    MatFormFieldModule,
+    MatGridListModule,
+    MatIconModule,
+    MatInputModule,
+    MatListModule,
+    MatOptionModule,
+    MatRadioModule,
+    MatSelectModule,
+    MatSidenavModule,
+    MatSnackBarModule,
+    MatTableModule,
+    MatTabsModule,
+    MatToolbarModule,
+    MatTooltipModule,
+    DataSpaceRoutingModule,
+    ContentDataSpaceViewComponent,
+    DataSpaceEditorPageComponent,
+    DataSpaceFileSettingsViewComponent,
+    DataSpaceFolderSettingsViewComponent,
+    DataSpaceTreeViewComponent,
+    DeleteDialog,
+    TextFileContentViewComponent
+]
 })
 export class DataSpaceModule {
 }

@@ -35,48 +35,44 @@ import { MatSnackBarModule } from "@angular/material/snack-bar";
 import { MatSortModule } from "@angular/material/sort";
 import { MatStepperModule } from "@angular/material/stepper";
 import { MatTableModule } from "@angular/material/table";
-import { FileChooserModule } from "../../../common/util/file-chooser/file-chooser.module";
-import { LoadingSpinnerModule } from "../../../common/util/loading-spinner/loading-spinner.module";
-import { TopScrollModule } from "../../../top-scroll/top-scroll.module";
+
+
+
 import { ContentDriversAndPluginsViewComponent } from "../content-drivers-and-plugins-view/content-drivers-and-plugins-view.component";
 import { DriversAndPluginsRoutingModule } from "./drivers-and-plugins-routing.module";
 import { CreateDriverDialogComponent } from "./plugins-view/create-driver-dialog/create-driver-dialog.component";
 import { PluginsViewComponent, UninstallDialog } from "./plugins-view/plugins-view.component";
-import { ModalHeaderModule } from "../../../common/util/modal-header/modal-header.module";
+
 
 @NgModule({
     imports: [
-        CommonModule,
-        FormsModule,
-        ReactiveFormsModule,
-        MatIconModule,
-        MatInputModule,
-        MatFormFieldModule,
-        MatCardModule,
-        MatListModule,
-        MatDividerModule,
-        MatTableModule,
-        MatSortModule,
-        MatIconModule,
-        MatButtonModule,
-        MatProgressBarModule,
-        MatCheckboxModule,
-        MatSnackBarModule,
-        MatDialogModule,
-        DriversAndPluginsRoutingModule,
-        FileChooserModule,
-        TopScrollModule,
-        MatStepperModule,
-        MatRadioModule,
-        LoadingSpinnerModule,
-        MatAutocompleteModule,
-        MatProgressSpinnerModule,
-        ModalHeaderModule,
-        PluginsViewComponent,
-        UninstallDialog,
-        ContentDriversAndPluginsViewComponent,
-        CreateDriverDialogComponent
-    ]
+    CommonModule,
+    FormsModule,
+    ReactiveFormsModule,
+    MatIconModule,
+    MatInputModule,
+    MatFormFieldModule,
+    MatCardModule,
+    MatListModule,
+    MatDividerModule,
+    MatTableModule,
+    MatSortModule,
+    MatIconModule,
+    MatButtonModule,
+    MatProgressBarModule,
+    MatCheckboxModule,
+    MatSnackBarModule,
+    MatDialogModule,
+    DriversAndPluginsRoutingModule,
+    MatStepperModule,
+    MatRadioModule,
+    MatAutocompleteModule,
+    MatProgressSpinnerModule,
+    PluginsViewComponent,
+    UninstallDialog,
+    ContentDriversAndPluginsViewComponent,
+    CreateDriverDialogComponent
+]
 })
 export class DriversAndPluginsModule {
 }

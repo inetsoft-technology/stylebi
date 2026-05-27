@@ -32,45 +32,40 @@ import { MatRadioModule } from "@angular/material/radio";
 import { MatSelectModule } from "@angular/material/select";
 import { MatTableModule } from "@angular/material/table";
 import { MatTabsModule } from "@angular/material/tabs";
-import { MessageDialogModule } from "../../common/util/message-dialog.module";
-import { ModalHeaderModule } from "../../common/util/modal-header/modal-header.module";
-import { TableViewModule } from "../../common/util/table/table-view.module";
-import { TopScrollModule } from "../../top-scroll/top-scroll.module";
+
+
+
+
 import { ParameterTableModule } from "../schedule/parameter-table/parameter-table.module";
 import { ContentRoutingModule } from "./content-routing.module";
 import { ContentSettingsViewComponent } from "./content-settings-view/content-settings-view.component";
 import { DataSpaceUploadDialogComponent } from "./content-data-space-view/data-space-upload-dialog/data-space-upload-dialog.component";
-import { FileChooserModule } from "../../common/util/file-chooser/file-chooser.module";
+
 
 @NgModule({
     imports: [
-        CommonModule,
-        ContentRoutingModule,
-        FormsModule,
-        MatButtonModule,
-        MatCardModule,
-        MatCheckboxModule,
-        MatDialogModule,
-        MatFormFieldModule,
-        MatIconModule,
-        MatInputModule,
-        MatOptionModule,
-        MatRadioModule,
-        MatSelectModule,
-        MatTableModule,
-        MatTabsModule,
-        MatListModule,
-        MatGridListModule,
-        ParameterTableModule,
-        ReactiveFormsModule,
-        MessageDialogModule,
-        TableViewModule,
-        TopScrollModule,
-        FileChooserModule,
-        ModalHeaderModule,
-        ContentSettingsViewComponent,
-        DataSpaceUploadDialogComponent
-    ]
+    CommonModule,
+    ContentRoutingModule,
+    FormsModule,
+    MatButtonModule,
+    MatCardModule,
+    MatCheckboxModule,
+    MatDialogModule,
+    MatFormFieldModule,
+    MatIconModule,
+    MatInputModule,
+    MatOptionModule,
+    MatRadioModule,
+    MatSelectModule,
+    MatTableModule,
+    MatTabsModule,
+    MatListModule,
+    MatGridListModule,
+    ParameterTableModule,
+    ReactiveFormsModule,
+    ContentSettingsViewComponent,
+    DataSpaceUploadDialogComponent
+]
 })
 export class ContentModule {
 }

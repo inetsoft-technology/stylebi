@@ -21,24 +21,21 @@ import { CacheRoutingModule } from "./cache-routing.module";
 import { CacheMonitoringViewComponent } from "./cache-monitoring-view/cache-monitoring-view.component";
 import { MatCardModule } from "@angular/material/card";
 import { MatSelectModule } from "@angular/material/select";
-import { TableViewModule } from "../../common/util/table/table-view.module";
-import { CollapsibleContainerModule } from "../collapsible-container/collapsible-container.module";
+
+
 import { CacheMonitoringPageComponent } from "./cache-monitoring-page/cache-monitoring-page.component";
 import { ClusterNodesService } from "../cluster/cluster-nodes.service";
-import { ClusterSelectorModule } from "../cluster-selector/cluster-selector.module";
+
 
 @NgModule({
     imports: [
-        CommonModule,
-        CacheRoutingModule,
-        MatSelectModule,
-        MatCardModule,
-        TableViewModule,
-        CollapsibleContainerModule,
-        ClusterSelectorModule,
-        CacheMonitoringViewComponent,
-        CacheMonitoringPageComponent
-    ],
+    CommonModule,
+    CacheRoutingModule,
+    MatSelectModule,
+    MatCardModule,
+    CacheMonitoringViewComponent,
+    CacheMonitoringPageComponent
+],
     providers: [
         ClusterNodesService
     ]

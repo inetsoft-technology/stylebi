@@ -34,7 +34,7 @@ import { MatTableModule } from "@angular/material/table";
 import { MatTabsModule } from "@angular/material/tabs";
 import { NoopAnimationsModule } from "@angular/platform-browser/animations";
 import { RouterModule } from "@angular/router";
-import { LoadingSpinnerModule } from "../../../../common/util/loading-spinner/loading-spinner.module";
+import { LoadingSpinnerComponent } from "../../../../common/util/loading-spinner/loading-spinner.component";
 import { TableView } from "../../../../common/util/table/table-view.component";
 import { ResourcePermissionModule } from "../../../security/resource-permission/resource-permission.module";
 import { AnalyzeMvPageComponent } from "../analyze-mv-page/analyze-mv-page.component";
@@ -66,7 +66,7 @@ describe("RepositoryViewsheetSettingsViewComponent", () => {
             MatSelectModule,
             MatTableModule,
             MatTabsModule,
-            LoadingSpinnerModule,
+            LoadingSpinnerComponent,
             ResourcePermissionModule,
             AnalyzeMvPageComponent, RepositorySheetSettingsViewComponent, RepositoryViewsheetSettingsViewComponent, TableView],
          schemas: [

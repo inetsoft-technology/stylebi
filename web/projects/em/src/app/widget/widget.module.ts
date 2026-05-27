@@ -28,10 +28,10 @@ import { MatMenuModule } from "@angular/material/menu";
 import { MatAutocompleteModule } from "@angular/material/autocomplete";
 import { DynamicComboBoxComponent } from "./dynamic-combo-box.component";
 import { FormulaEditorDialogComponent } from "./formula-editor-dialog.component";
-import { ModalHeaderModule } from "../common/util/modal-header/modal-header.module";
+
 import { MatDialogModule } from "@angular/material/dialog";
 import { ScriptPaneComponent } from "./script-pane.component";
-import { FlatTreeModule } from "../common/util/tree/flat-tree.module";
+
 import { FormulaEditorService } from "./formula-editor.service";
 import { ScriptTreeViewComponent } from "./script-tree-view.component";
 import { MatProgressBarModule } from "@angular/material/progress-bar";
@@ -44,29 +44,27 @@ import { SessionExpirationDialog } from "./dialog/session-expiration-dialog/sess
 
 @NgModule({
     imports: [
-        CommonModule,
-        FormsModule,
-        ReactiveFormsModule,
-        MatAutocompleteModule,
-        MatButtonModule,
-        MatMenuModule,
-        MatIconModule,
-        MatInputModule,
-        ModalHeaderModule,
-        MatDialogModule,
-        MatGridListModule,
-        MatTooltipModule,
-        FlatTreeModule,
-        MatProgressBarModule,
-        MatDatepickerModule,
-        DatepickerModule,
-        DynamicValueEditorComponent,
-        DynamicComboBoxComponent,
-        FormulaEditorDialogComponent,
-        ScriptPaneComponent,
-        ScriptTreeViewComponent,
-        SessionExpirationDialog
-    ],
+    CommonModule,
+    FormsModule,
+    ReactiveFormsModule,
+    MatAutocompleteModule,
+    MatButtonModule,
+    MatMenuModule,
+    MatIconModule,
+    MatInputModule,
+    MatDialogModule,
+    MatGridListModule,
+    MatTooltipModule,
+    MatProgressBarModule,
+    MatDatepickerModule,
+    DatepickerModule,
+    DynamicValueEditorComponent,
+    DynamicComboBoxComponent,
+    FormulaEditorDialogComponent,
+    ScriptPaneComponent,
+    ScriptTreeViewComponent,
+    SessionExpirationDialog
+],
     exports: [
         MatButtonModule,
         MatButtonToggleModule,

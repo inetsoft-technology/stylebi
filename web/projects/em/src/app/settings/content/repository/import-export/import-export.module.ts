@@ -29,10 +29,10 @@ import { MatListModule } from "@angular/material/list";
 import { MatProgressBarModule } from "@angular/material/progress-bar";
 import { MatSortModule } from "@angular/material/sort";
 import { MatTableModule } from "@angular/material/table";
-import { FileChooserModule } from "../../../../common/util/file-chooser/file-chooser.module";
-import { MessageDialogModule } from "../../../../common/util/message-dialog.module";
-import { ModalHeaderModule } from "../../../../common/util/modal-header/modal-header.module";
-import { FlatTreeModule } from "../../../../common/util/tree/flat-tree.module";
+
+
+
+
 import { ExportAssetDialogComponent } from "./export-asset-dialog/export-asset-dialog.component";
 import { ExportAssetsService } from "./export-assets.service";
 import { ImportAssetDialogComponent } from "./import-asset-dialog/import-asset-dialog.component";
@@ -44,31 +44,27 @@ import { InputNameDialogComponent } from "./input-name-dialog/input-name-dialog.
 
 @NgModule({
     imports: [
-        CommonModule,
-        ReactiveFormsModule,
-        MatButtonModule,
-        MatCardModule,
-        MatCheckboxModule,
-        MatDialogModule,
-        MatFormFieldModule,
-        MatIconModule,
-        MatInputModule,
-        MatListModule,
-        MatProgressBarModule,
-        MatSortModule,
-        MatTableModule,
-        FileChooserModule,
-        FlatTreeModule,
-        MessageDialogModule,
-        ModalHeaderModule,
-        ExportAssetDialogComponent,
-        ImportAssetDialogComponent,
-        RequiredAssetListComponent,
-        SelectAssetsDialogComponent,
-        SelectedAssetListComponent,
-        SelectAssetFolderDialogComponent,
-        InputNameDialogComponent,
-    ],
+    CommonModule,
+    ReactiveFormsModule,
+    MatButtonModule,
+    MatCardModule,
+    MatCheckboxModule,
+    MatDialogModule,
+    MatFormFieldModule,
+    MatIconModule,
+    MatInputModule,
+    MatListModule,
+    MatProgressBarModule,
+    MatSortModule,
+    MatTableModule,
+    ExportAssetDialogComponent,
+    ImportAssetDialogComponent,
+    RequiredAssetListComponent,
+    SelectAssetsDialogComponent,
+    SelectedAssetListComponent,
+    SelectAssetFolderDialogComponent,
+    InputNameDialogComponent,
+],
     exports: [
         ExportAssetDialogComponent,
         ImportAssetDialogComponent

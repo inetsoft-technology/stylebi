@@ -31,7 +31,7 @@ import { of, Subject } from "rxjs";
 import { IdentityType } from "../../../../../../shared/data/identity-type";
 import { MatSnackBar } from "@angular/material/snack-bar";
 import { MatTooltipModule } from "@angular/material/tooltip";
-import { SecurityTreeDialogModule } from "../security-tree-dialog/security-tree-dialog.module";
+import { SecurityTreeDialogComponent } from "../security-tree-dialog/security-tree-dialog.component";
 import { IdentityModel } from "./identity-model";
 import { SecurityTableViewComponent } from "./security-table-view.component";
 import { IdentityClipboardService, COPY_PASTE_CONTEXT_IDENTITY_MEMBERS, COPY_PASTE_CONTEXT_IDENTITY_ROLES } from "./identity-clipboard.service";
@@ -67,7 +67,7 @@ describe("SecurityTableViewComponent", () => {
         MatIconModule,
         MatSnackBarModule,
         MatTooltipModule,
-        SecurityTreeDialogModule,
+        SecurityTreeDialogComponent,
         MatPaginatorModule,
             SecurityTableViewComponent],
       providers: [

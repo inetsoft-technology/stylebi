@@ -17,7 +17,7 @@
  */
 import { NgModule } from "@angular/core";
 import { CommonModule } from "@angular/common";
-import { TopScrollModule } from "../../top-scroll/top-scroll.module";
+
 import { PropertiesRoutingModule } from "./properties-routing.module";
 import { PropertySettingsViewComponent } from "./property-settings-view/property-settings-view.component";
 import { CdkTableModule } from "@angular/cdk/table";
@@ -35,22 +35,21 @@ import { LocalizedMatPaginator } from "../../../../../shared/util/localized-mat-
 
 @NgModule({
     imports: [
-        CommonModule,
-        CdkTableModule,
-        FormsModule,
-        MatAutocompleteModule,
-        MatButtonModule,
-        MatInputModule,
-        MatTableModule,
-        MatPaginatorModule,
-        MatSortModule,
-        MatIconModule,
-        MatTooltipModule,
-        PropertiesRoutingModule,
-        ReactiveFormsModule,
-        TopScrollModule,
-        PropertySettingsViewComponent
-    ],
+    CommonModule,
+    CdkTableModule,
+    FormsModule,
+    MatAutocompleteModule,
+    MatButtonModule,
+    MatInputModule,
+    MatTableModule,
+    MatPaginatorModule,
+    MatSortModule,
+    MatIconModule,
+    MatTooltipModule,
+    PropertiesRoutingModule,
+    ReactiveFormsModule,
+    PropertySettingsViewComponent
+],
     providers: [
         PropertySettingsDatasourceService,
         { provide: MatPaginatorIntl, useClass: LocalizedMatPaginator }

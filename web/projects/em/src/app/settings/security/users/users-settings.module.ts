@@ -32,16 +32,16 @@ import { MatListModule } from "@angular/material/list";
 import { MatSelectModule } from "@angular/material/select";
 import { MatSidenavModule } from "@angular/material/sidenav";
 import { MatSlideToggleModule } from "@angular/material/slide-toggle";
-import { EditorPanelModule } from "../../../common/util/editor-panel/editor-panel.module";
+
 import { ErrorHandlerService } from "../../../common/util/error/error-handler.service";
-import { LoadingSpinnerModule } from "../../../common/util/loading-spinner/loading-spinner.module";
-import { MessageDialogModule } from "../../../common/util/message-dialog.module";
-import { ModalHeaderModule } from "../../../common/util/modal-header/modal-header.module";
-import { TopScrollModule } from "../../../top-scroll/top-scroll.module";
-import { EmailPickerModule } from "../../email-picker/email-picker.module";
-import { PropertyTableViewModule } from "../property-table-view/property-table-view.module";
+
+
+
+
+
+
 import { SecurityTableViewModule } from "../security-table-view/security-table-view.module";
-import { SecurityTreeViewModule } from "../security-tree-view/security-tree-view.module";
+
 import { EditIdentityPaneComponent } from "./edit-identity-pane/edit-identity-pane.component";
 import { EditIdentityViewComponent } from "./edit-identity-view/edit-identity-view.component";
 import { IdentityTablesPaneComponent } from "./identity-tables-pane/identity-tables-pane.component";
@@ -53,40 +53,32 @@ import { UsersSettingsViewComponent } from "./users-settings-view/users-settings
 
 @NgModule({
     imports: [
-        CommonModule,
-        FormsModule,
-        MatCardModule,
-        MatCheckboxModule,
-        MatDividerModule,
-        MatFormFieldModule,
-        MatGridListModule,
-        MatIconModule,
-        MatInputModule,
-        MatListModule,
-        MatSelectModule,
-        ReactiveFormsModule,
-        SecurityTreeViewModule,
-        UsersSettingsRoutingModule,
-        SecurityTableViewModule,
-        PropertyTableViewModule,
-        MatButtonModule,
-        EmailPickerModule,
-        EditorPanelModule,
-        MatDialogModule,
-        MessageDialogModule,
-        MatSidenavModule,
-        TopScrollModule,
-        MatSlideToggleModule,
-        MatAutocompleteModule,
-        ModalHeaderModule,
-        LoadingSpinnerModule,
-        EditIdentityPaneComponent,
-        IdentityTablesPaneComponent,
-        UsersSettingsPageComponent,
-        UsersSettingsViewComponent,
-        EditIdentityViewComponent,
-        CreateOrganizationDialogComponent
-    ],
+    CommonModule,
+    FormsModule,
+    MatCardModule,
+    MatCheckboxModule,
+    MatDividerModule,
+    MatFormFieldModule,
+    MatGridListModule,
+    MatIconModule,
+    MatInputModule,
+    MatListModule,
+    MatSelectModule,
+    ReactiveFormsModule,
+    UsersSettingsRoutingModule,
+    SecurityTableViewModule,
+    MatButtonModule,
+    MatDialogModule,
+    MatSidenavModule,
+    MatSlideToggleModule,
+    MatAutocompleteModule,
+    EditIdentityPaneComponent,
+    IdentityTablesPaneComponent,
+    UsersSettingsPageComponent,
+    UsersSettingsViewComponent,
+    EditIdentityViewComponent,
+    CreateOrganizationDialogComponent
+],
     providers: [
         SecurityTreeService,
         ErrorHandlerService,

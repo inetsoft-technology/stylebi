@@ -29,31 +29,30 @@ import { MatSortModule } from "@angular/material/sort";
 import { MatTableModule } from "@angular/material/table";
 import { MatTabsModule } from "@angular/material/tabs";
 import { MatIconModule } from "@angular/material/icon";
-import { MessageDialogModule } from "../../common/util/message-dialog.module";
+
 import {MatFormFieldModule} from "@angular/material/form-field";
 import {MatOptionModule} from "@angular/material/core";
 import {MatSelectModule} from "@angular/material/select";
 
 @NgModule({
     imports: [
-        CommonModule,
-        MessageDialogModule,
-        SecurityRoutingModule,
-        MatButtonModule,
-        MatCardModule,
-        MatDividerModule,
-        MatListModule,
-        MatSortModule,
-        MatTableModule,
-        MatProgressSpinnerModule,
-        MatTabsModule,
-        MatSlideToggleModule,
-        MatIconModule,
-        MatFormFieldModule,
-        MatOptionModule,
-        MatSelectModule,
-        SecuritySettingsPageComponent,
-    ]
+    CommonModule,
+    SecurityRoutingModule,
+    MatButtonModule,
+    MatCardModule,
+    MatDividerModule,
+    MatListModule,
+    MatSortModule,
+    MatTableModule,
+    MatProgressSpinnerModule,
+    MatTabsModule,
+    MatSlideToggleModule,
+    MatIconModule,
+    MatFormFieldModule,
+    MatOptionModule,
+    MatSelectModule,
+    SecuritySettingsPageComponent,
+]
 })
 export class SecurityModule {
 }

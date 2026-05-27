@@ -30,8 +30,8 @@ import { MatIconModule } from "@angular/material/icon";
 import { MatInputModule } from "@angular/material/input";
 import { MatRadioModule } from "@angular/material/radio";
 import { MatSelectModule } from "@angular/material/select";
-import { EditorPanelModule } from "../../../common/util/editor-panel/editor-panel.module";
-import { MessageDialogModule } from "../../../common/util/message-dialog.module";
+
+
 import { CustomSsoFormComponent } from "./custom-sso-form/custom-sso-form.component";
 import { OpenidSettingsFormComponent } from "./openid-settings-form/openid-settings-form.component";
 import { SSOSettingsFormComponent } from "./sso-settings-form/sso-settings-form.component";
@@ -43,29 +43,27 @@ import { SsoSettingsRoutingModule } from "./sso-settings-routing.module";
         OpenidSettingsFormComponent
     ],
     imports: [
-        CommonModule,
-        EditorPanelModule,
-        FormsModule,
-        MatCardModule,
-        MatDialogModule,
-        MatFormFieldModule,
-        MatInputModule,
-        MatRadioModule,
-        MatSelectModule,
-        MatOptionModule,
-        ReactiveFormsModule,
-        SsoSettingsRoutingModule,
-        MatButtonModule,
-        MatIconModule,
-        MatCheckboxModule,
-        MatAutocompleteModule,
-        MessageDialogModule,
-        MatChipsModule,
-        SsoSettingsPageComponent,
-        SSOSettingsFormComponent,
-        CustomSsoFormComponent,
-        OpenidSettingsFormComponent
-    ]
+    CommonModule,
+    FormsModule,
+    MatCardModule,
+    MatDialogModule,
+    MatFormFieldModule,
+    MatInputModule,
+    MatRadioModule,
+    MatSelectModule,
+    MatOptionModule,
+    ReactiveFormsModule,
+    SsoSettingsRoutingModule,
+    MatButtonModule,
+    MatIconModule,
+    MatCheckboxModule,
+    MatAutocompleteModule,
+    MatChipsModule,
+    SsoSettingsPageComponent,
+    SSOSettingsFormComponent,
+    CustomSsoFormComponent,
+    OpenidSettingsFormComponent
+]
 })
 export class SSOSettingsModule {
 }

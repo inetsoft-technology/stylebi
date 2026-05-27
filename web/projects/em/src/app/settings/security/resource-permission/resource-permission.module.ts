@@ -18,9 +18,9 @@
 import { NgModule } from "@angular/core";
 import { CommonModule } from "@angular/common";
 import { ResourcePermissionComponent } from "./resource-permission.component";
-import { SecurityTreeViewModule } from "../security-tree-view/security-tree-view.module";
+
 import { SecurityTableViewModule } from "../security-table-view/security-table-view.module";
-import { PermissionsTableModule } from "../permissions-table/permissions-table.module";
+
 import { MatButtonModule } from "@angular/material/button";
 import { MatCardModule } from "@angular/material/card";
 import { MatCheckboxModule } from "@angular/material/checkbox";
@@ -28,25 +28,21 @@ import { MatIconModule } from "@angular/material/icon";
 import { MatRadioModule } from "@angular/material/radio";
 import { SecurityTreeService } from "../users/security-tree.service";
 import { FormsModule } from "@angular/forms";
-import { SecurityTreeDialogModule } from "../security-tree-dialog/security-tree-dialog.module";
-import { MessageDialogModule } from "../../../common/util/message-dialog.module";
+
+
 
 @NgModule({
     imports: [
-        CommonModule,
-        FormsModule,
-        MatButtonModule,
-        MatCardModule,
-        MatCheckboxModule,
-        MatIconModule,
-        MatRadioModule,
-        SecurityTreeViewModule,
-        SecurityTableViewModule,
-        PermissionsTableModule,
-        SecurityTreeDialogModule,
-        MessageDialogModule,
-        ResourcePermissionComponent,
-    ],
+    CommonModule,
+    FormsModule,
+    MatButtonModule,
+    MatCardModule,
+    MatCheckboxModule,
+    MatIconModule,
+    MatRadioModule,
+    SecurityTableViewModule,
+    ResourcePermissionComponent,
+],
     exports: [ResourcePermissionComponent],
     providers: [SecurityTreeService]
 })

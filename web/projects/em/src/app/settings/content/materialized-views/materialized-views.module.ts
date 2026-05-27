@@ -28,37 +28,33 @@ import { MatInputModule } from "@angular/material/input";
 import { MatSelectModule } from "@angular/material/select";
 import { MatSortModule } from "@angular/material/sort";
 import { MatTableModule } from "@angular/material/table";
-import { LoadingSpinnerModule } from "../../../common/util/loading-spinner/loading-spinner.module";
-import { MessageDialogModule } from "../../../common/util/message-dialog.module";
-import { TableViewModule } from "../../../common/util/table/table-view.module";
+
+
+
 import { ContentMaterializedViewsViewComponent } from "../content-materialized-views-view/content-materialized-views-view.component";
 import { MaterializedViewsRoutingModule } from "./materialized-views-routing.module";
 import { MvManagementViewComponent } from "./mv-management-view/mv-management-view.component";
-import { EditorPanelModule } from "../../../common/util/editor-panel/editor-panel.module";
+
 
 @NgModule({
     imports: [
-        CommonModule,
-        FormsModule,
-        LoadingSpinnerModule,
-        MatButtonModule,
-        MatCardModule,
-        MatCheckboxModule,
-        MatDialogModule,
-        MatFormFieldModule,
-        MatIconModule,
-        MatInputModule,
-        MatSelectModule,
-        MatSortModule,
-        MatTableModule,
-        MessageDialogModule,
-        ReactiveFormsModule,
-        MaterializedViewsRoutingModule,
-        TableViewModule,
-        EditorPanelModule,
-        ContentMaterializedViewsViewComponent,
-        MvManagementViewComponent,
-    ],
+    CommonModule,
+    FormsModule,
+    MatButtonModule,
+    MatCardModule,
+    MatCheckboxModule,
+    MatDialogModule,
+    MatFormFieldModule,
+    MatIconModule,
+    MatInputModule,
+    MatSelectModule,
+    MatSortModule,
+    MatTableModule,
+    ReactiveFormsModule,
+    MaterializedViewsRoutingModule,
+    ContentMaterializedViewsViewComponent,
+    MvManagementViewComponent,
+],
     providers: [
         { provide: MAT_FORM_FIELD_DEFAULT_OPTIONS, useValue: { float: "always" } }
     ],

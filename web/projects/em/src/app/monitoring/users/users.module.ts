@@ -24,25 +24,22 @@ import { MatSelectModule } from "@angular/material/select";
 import { NgModule } from "@angular/core";
 import { UsersRoutingModule } from "./users-routing.module";
 import { UserMonitoringViewComponent } from "./user-monitoring-view/user-monitoring-view.component";
-import { TableViewModule } from "../../common/util/table/table-view.module";
-import { CollapsibleContainerModule } from "../collapsible-container/collapsible-container.module";
+
+
 import { ClusterNodesService } from "../cluster/cluster-nodes.service";
-import { ClusterSelectorModule } from "../cluster-selector/cluster-selector.module";
+
 
 @NgModule({
     imports: [
-        CommonModule,
-        MatButtonModule,
-        MatSelectModule,
-        MatCardModule,
-        MatDialogModule,
-        MatIconModule,
-        UsersRoutingModule,
-        TableViewModule,
-        CollapsibleContainerModule,
-        ClusterSelectorModule,
-        UserMonitoringViewComponent,
-    ],
+    CommonModule,
+    MatButtonModule,
+    MatSelectModule,
+    MatCardModule,
+    MatDialogModule,
+    MatIconModule,
+    UsersRoutingModule,
+    UserMonitoringViewComponent,
+],
     providers: [
         ClusterNodesService
     ]

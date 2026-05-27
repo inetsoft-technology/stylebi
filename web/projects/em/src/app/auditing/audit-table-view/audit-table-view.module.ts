@@ -25,22 +25,21 @@ import { MatSliderModule } from "@angular/material/slider";
 import { MatSortModule } from "@angular/material/sort";
 import { MatTableModule } from "@angular/material/table";
 import { AuditTableViewComponent } from "./audit-table-view.component";
-import {LoadingSpinnerModule} from "../../common/util/loading-spinner/loading-spinner.module";
+
 import { LocalizedMatPaginator } from "../../../../../shared/util/localized-mat-paginator";
 
 @NgModule({
     imports: [
-        CommonModule,
-        MatCardModule,
-        MatSliderModule,
-        FormsModule,
-        MatTableModule,
-        MatPaginatorModule,
-        LoadingSpinnerModule,
-        MatButtonModule,
-        MatSortModule,
-        AuditTableViewComponent
-    ],
+    CommonModule,
+    MatCardModule,
+    MatSliderModule,
+    FormsModule,
+    MatTableModule,
+    MatPaginatorModule,
+    MatButtonModule,
+    MatSortModule,
+    AuditTableViewComponent
+],
     providers: [
         { provide: MatPaginatorIntl, useClass: LocalizedMatPaginator }
     ],

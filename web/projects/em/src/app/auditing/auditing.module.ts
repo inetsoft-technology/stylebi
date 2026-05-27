@@ -28,27 +28,26 @@ import { MatSidenavModule } from "@angular/material/sidenav";
 import { MatSnackBarModule } from "@angular/material/snack-bar";
 import { ErrorHandlerService } from "../common/util/error/error-handler.service";
 import { PageHeaderModule } from "../page-header/page-header.module";
-import { TopScrollModule } from "../top-scroll/top-scroll.module";
+
 import { AuditingRoutingModule } from "./auditing-routing.module";
 import { AuditingSidenavComponent } from "./auditing-sidenav/auditing-sidenav.component";
 
 @NgModule({
     imports: [
-        CommonModule,
-        AuditingRoutingModule,
-        FormsModule,
-        MatButtonModule,
-        MatFormFieldModule,
-        MatIconModule,
-        MatInputModule,
-        MatListModule,
-        MatSidenavModule,
-        PageHeaderModule,
-        TopScrollModule,
-        MatCardModule,
-        MatSnackBarModule,
-        AuditingSidenavComponent
-    ],
+    CommonModule,
+    AuditingRoutingModule,
+    FormsModule,
+    MatButtonModule,
+    MatFormFieldModule,
+    MatIconModule,
+    MatInputModule,
+    MatListModule,
+    MatSidenavModule,
+    PageHeaderModule,
+    MatCardModule,
+    MatSnackBarModule,
+    AuditingSidenavComponent
+],
     providers: [
         ErrorHandlerService
     ]
