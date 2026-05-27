@@ -828,14 +828,29 @@ public interface ChartInfo extends AssetObject, ChartBindable {
    void setTooltipVisible(boolean tooltipVisible);
 
    /**
-    * Check if combined tooltip snaps to the nearest X tick on hover.
+    * Check if combined tooltip snaps to the nearest X tick on hover (runtime).
     */
    boolean isSnapTooltip();
 
    /**
-    * Set if combined tooltip snaps to the nearest X tick on hover.
+    * Set the snap-tooltip flag at runtime (e.g. from script bindings). Does not
+    * mutate the persisted design value; use {@link #setSnapTooltipValue} for that.
     */
    void setSnapTooltip(boolean snapTooltip);
+
+   /**
+    * Get the persisted snap-tooltip design value (used by composer dialog/XML).
+    */
+   default boolean getSnapTooltipValue() {
+      return isSnapTooltip();
+   }
+
+   /**
+    * Set the persisted snap-tooltip design value (used by composer dialog/XML).
+    */
+   default void setSnapTooltipValue(boolean snap) {
+      setSnapTooltip(snap);
+   }
 
    /**
     * Visual style for chart tooltips.
@@ -843,14 +858,54 @@ public interface ChartInfo extends AssetObject, ChartBindable {
    enum TooltipStyle { DEFAULT, CARD }
 
    /**
-    * Get the tooltip visual style.
+    * Get the tooltip visual style (runtime).
     */
    TooltipStyle getTooltipStyle();
 
    /**
-    * Set the tooltip visual style.
+    * Set the tooltip visual style at runtime (e.g. from script bindings). Does
+    * not mutate the persisted design value; use {@link #setTooltipStyleValue} for that.
     */
    void setTooltipStyle(TooltipStyle tooltipStyle);
+
+   /**
+    * Get the persisted tooltip-style design value (used by composer dialog/XML).
+    */
+   default TooltipStyle getTooltipStyleValue() {
+      return getTooltipStyle();
+   }
+
+   /**
+    * Set the persisted tooltip-style design value (used by composer dialog/XML).
+    */
+   default void setTooltipStyleValue(TooltipStyle style) {
+      setTooltipStyle(style);
+   }
+
+   /**
+    * Get the runtime tooltip style as a string (script-friendly accessor).
+    */
+   default String getTooltipStyleName() {
+      TooltipStyle style = getTooltipStyle();
+      return style == null ? null : style.name();
+   }
+
+   /**
+    * Set the runtime tooltip style by name (script-friendly accessor).
+    */
+   default void setTooltipStyleName(String name) {
+      if(name == null || name.isEmpty()) {
+         setTooltipStyle(TooltipStyle.DEFAULT);
+         return;
+      }
+
+      try {
+         setTooltipStyle(TooltipStyle.valueOf(name.toUpperCase()));
+      }
+      catch(IllegalArgumentException e) {
+         setTooltipStyle(TooltipStyle.DEFAULT);
+      }
+   }
 
    /**
     * Get runtime field by a full name.

@@ -266,6 +266,10 @@ public class ChartProcessor extends ScriptableObject {
                              "setToolTip", String.class, ChartInfo.class, info);
       scriptable.addProperty("tooltipVisible", "isTooltipVisible",
                              "setTooltipVisible", boolean.class, ChartInfo.class, info);
+      scriptable.addProperty("snapTooltip", "isSnapTooltip",
+                             "setSnapTooltip", boolean.class, ChartInfo.class, info);
+      scriptable.addProperty("tooltipStyle", "getTooltipStyleName",
+                             "setTooltipStyleName", String.class, ChartInfo.class, info);
 
       // legend
       scriptable.addProperty("legendPosition", "getLayout", "setLayout",
