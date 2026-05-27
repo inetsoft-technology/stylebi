@@ -1,0 +1,150 @@
+<!--
+  ~ This file is part of StyleBI.
+  ~ Copyright (C) 2026  InetSoft Technology
+  ~
+  ~ This program is free software: you can redistribute it and/or modify
+  ~ it under the terms of the GNU Affero General Public License as published by
+  ~ the Free Software Foundation, either version 3 of the License, or
+  ~ (at your option) any later version.
+  ~
+  ~ This program is distributed in the hope that it will be useful,
+  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  ~ GNU Affero General Public License for more details.
+  ~
+  ~ You should have received a copy of the GNU Affero General Public License
+  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+  -->
+<modal-header [title]="'_#(Save Visualization)'" (onCancel)="cancelChanges()" [cshid]="'SavingaVisualization'">
+</modal-header>
+
+<!-- Page 1: Save type selection -->
+<ng-container *ngIf="showTypePage">
+  <div class="modal-body">
+    <div class="save-type-container">
+
+      <!-- Radio mode (standaloneVisualization=true): Publish As Dashboard / Shared Component -->
+      <ng-container *ngIf="standaloneVisualization">
+        <p class="save-type-label">_#(Select how to save this visualization:)</p>
+        <div class="save-type-option">
+          <div class="form-check">
+            <input class="form-check-input" type="radio" id="publishAsDashboard"
+                   name="visualizationScope" value="public"
+                   [(ngModel)]="model.visualizationScope">
+            <label class="form-check-label" for="publishAsDashboard">
+              _#(Publish As Dashboard)
+            </label>
+          </div>
+          <p class="save-type-desc">_#(Visible in the dashboard list as a full dashboard.)</p>
+        </div>
+        <div class="save-type-option">
+          <div class="form-check">
+            <input class="form-check-input" type="radio" id="sharedComponent"
+                   name="visualizationScope" value="shared"
+                   [(ngModel)]="model.visualizationScope">
+            <label class="form-check-label" for="sharedComponent">
+              _#(Shared Component)
+            </label>
+          </div>
+          <p class="save-type-desc">_#(Available in composer for all dashboards to reuse.)</p>
+        </div>
+      </ng-container>
+
+      <!-- Radio mode (standaloneVisualization=false): Private Component / Shared Component -->
+      <ng-container *ngIf="!standaloneVisualization">
+        <p class="save-type-label">_#(Select how to save this visualization:)</p>
+        <div class="save-type-option">
+          <div class="form-check">
+            <input class="form-check-input" type="radio" id="privateComponent"
+                   name="visualizationScope" value="private"
+                   [(ngModel)]="model.visualizationScope">
+            <label class="form-check-label" for="privateComponent">
+              _#(Private Component)
+            </label>
+          </div>
+          <p class="save-type-desc">_#(Only available within the current dashboard.)</p>
+        </div>
+        <div class="save-type-option">
+          <div class="form-check">
+            <input class="form-check-input" type="radio" id="sharedComponentCheck"
+                   name="visualizationScope" value="shared"
+                   [(ngModel)]="model.visualizationScope">
+            <label class="form-check-label" for="sharedComponentCheck">
+              _#(Shared Component)
+            </label>
+          </div>
+          <p class="save-type-desc">_#(Available in composer for all dashboards to reuse.)</p>
+        </div>
+      </ng-container>
+
+    </div>
+  </div>
+  <div class="modal-footer">
+    <button *ngIf="standaloneVisualization || model.visualizationScope === 'shared'"
+            type="button" class="btn btn-primary" (click)="next()" [disabled]="!canNext">
+      _#(Next)
+    </button>
+    <button *ngIf="!standaloneVisualization && model.visualizationScope !== 'shared'"
+            type="button" class="btn btn-primary" (click)="okDirect()">
+      _#(OK)
+    </button>
+    <button type="button" class="btn btn-default" data-dismiss="modal" (click)="cancelChanges()">
+      _#(Cancel)
+    </button>
+  </div>
+</ng-container>
+
+<!-- Page 2: Name + tree selection -->
+<ng-container *ngIf="!showTypePage">
+  <div class="modal-body" [enterSubmit]="formValid" (onEnter)="enter()" *ngIf="model && form">
+    <form [formGroup]="form" class="form-horizontal">
+      <fieldset>
+      <div class="form-row-float-label">
+        <div class="col">
+          <div class="form-floating">
+            <input class="form-control" type="text" id="name" trim formControlName="name"
+                 [class.is-invalid]="!form.controls['name'].valid"
+                 [(ngModel)]="model.name" defaultFocus [autoSelect]="false">
+            <label><span>_#(Name)</span></label>
+
+          <span *ngIf="form.controls['name'].errors && form.controls['name'].errors['required']"
+                class="invalid-feedback">
+            _#(viewer.nameValid)
+          </span>
+          <span *ngIf="form.controls['name'].errors && !form.controls['name'].errors['assetNameStartWithCharDigit'] &&
+                       form.controls['name'].errors['assetEntryBannedCharacters']"
+                class="invalid-feedback">
+            _#(composer.sheet.checkSpeChar)
+          </span>
+          <span *ngIf="form.controls['name'].errors && form.controls['name'].errors['assetNameStartWithCharDigit']"
+                class="invalid-feedback">
+            _#(asset.tree.checkStart)
+          </span>
+          </div>
+        </div>
+      </div>
+      </fieldset>
+    </form>
+    <fieldset>
+       <legend>_#(Scope)</legend>
+    </fieldset>
+    <asset-tree #assetTree [datasources]="false" [worksheets]="false" [viewsheets]="true"
+                [publish]="model.visualizationScope === 'public'"
+                [shared]="model.visualizationScope === 'shared'"
+                [defaultFolder]="defaultFolder"
+                [selectNodeOnLoadFn]="selectNodeOnLoadFn"
+                (nodeSelected)="selectFolder($event)" class="rep-tree">
+    </asset-tree>
+  </div>
+  <div class="modal-footer">
+    <button type="button" class="btn btn-default" (click)="back()">
+      _#(Back)
+    </button>
+    <button type="button" class="btn btn-primary" (click)="ok()" [disabled]="!model || !form?.valid" #okButton>
+      _#(OK)
+    </button>
+    <button type="button" class="btn btn-default" data-dismiss="modal" (click)="cancelChanges()">
+      _#(Cancel)
+    </button>
+  </div>
+</ng-container>

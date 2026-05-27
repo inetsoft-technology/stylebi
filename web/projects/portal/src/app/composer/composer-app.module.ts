@@ -282,6 +282,8 @@ import { EventQueueService } from "./gui/vs/event-queue.service";
 import { LayoutObject } from "./gui/vs/layouts/layout-object.component";
 import { LayoutPane } from "./gui/vs/layouts/layout-pane.component";
 import { ComposerSelectionContainerChildren } from "./gui/vs/objects/selection/composer-selection-container-children.component";
+import { NewVisualizationDialog } from "./gui/wiz/new-visualization-dialog/new-visualization-dialog.component";
+import { SaveWizVisualizationDialog } from "./gui/wiz/save-wiz-visualization-dialog/save-wiz-visualization-dialog.component";
 import { WizComponentsPane } from "./gui/wiz/wiz-components-pane/wiz-components-pane.component";
 import { ConcatRelationConnectorComponent } from "./gui/ws/editor/concatenation/concat-relation-connector.component";
 import { ConcatRelationDescriptorComponent } from "./gui/ws/editor/concatenation/concat-relation-descriptor.component";
@@ -581,6 +583,8 @@ import { LineAnchorService } from "./services/line-anchor.service";
       ScriptEditPaneComponent,
       SaveScriptDialog,
       WizComponentsPane,
+      NewVisualizationDialog,
+      SaveWizVisualizationDialog,
    ],
    providers: [
       ClipboardService,
