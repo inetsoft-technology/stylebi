@@ -1570,10 +1570,7 @@ public class PlotArea extends GridContainerArea implements GraphComponentArea, R
             }
          }
 
-         // Candle/Stock card: lift the X-dim (date) to a tier-1 subtitle below
-         // the Close headline, and keep OHL together at tier-2 above aesthetics.
-         // Only dims[0] is lifted — nested X-dims (e.g. Year + Month) remain as
-         // regular tooltip rows. Same single-dim policy as captureCombinedCardHeader.
+         // Lift only dims[0]; nested X-dims stay as regular rows (matches captureCombinedCardHeader).
          if(candleCardLayout && dims.length > 0) {
             applyCandleCardHeader(tooltip, dims[0], tipMeasures);
          }
@@ -1702,11 +1699,8 @@ public class PlotArea extends GridContainerArea implements GraphComponentArea, R
       return measureName == null ? STACK_TOTAL : STACK_TOTAL + " " + measureName;
    }
 
-   // Build the candle/stock tip measure order: Close, Open, High, Low, then any
-   // extras in their original position. Only OHLC names actually present in
-   // measures are included — phantom names (e.g. an info field whose column
-   // wasn't bound) would inflate the result length and over-count the tier-2
-   // group size in applyCandleCardHeader.
+   // Only OHLC names present in measures are kept; unbound getRT*Field() values would
+   // inflate the result length and over-count tier-2 group size in applyCandleCardHeader.
    private String[] reorderCandleMeasuresCloseFirst(String[] measures,
                                                     CandleChartInfo info)
    {
@@ -1739,8 +1733,7 @@ public class PlotArea extends GridContainerArea implements GraphComponentArea, R
       return ref == null ? null : GraphUtil.getName(ref);
    }
 
-   // Set the X-dim as the tooltip header (rendered as tier-1 subtitle by
-   // ChartToolTip's solo-card-with-header path) and group OHL pairs at tier-2.
+   // Set X-dim as header (solo-card-with-header renders it as tier-1 subtitle); group OHL at tier-2.
    private void applyCandleCardHeader(ChartToolTip tooltip, String xDim,
                                       String[] tipMeasures)
    {
@@ -1758,8 +1751,7 @@ public class PlotArea extends GridContainerArea implements GraphComponentArea, R
          tooltip.removeTooltip(xKey);
       }
 
-      // Pairs 1..N (Open/High/Low) stay at tier-2; anything past them
-      // (aesthetics like color dims) drops to tier-3.
+      // OHL stay at tier-2; aesthetics past them drop to tier-3.
       int auxCount = Math.max(0, tipMeasures.length - 1);
       tooltip.setTier2GroupSize(auxCount);
    }

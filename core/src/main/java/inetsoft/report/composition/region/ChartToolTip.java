@@ -91,10 +91,6 @@ public class ChartToolTip implements DataSerializable {
          return renderCombinedCard(palette);
       }
 
-      // Solo card with an explicit header (e.g. candle/stock X-dim): pair[0] is
-      // the headline, header renders as a tier-1 subtitle directly below it,
-      // the next tier2GroupSize pairs form an auxiliary tier-2 group, the
-      // remainder tail at tier-3.
       if(hasHeader() && (customToolTip == null || customToolTip.isEmpty())) {
          return renderSoloCardWithHeader(palette);
       }
@@ -355,8 +351,7 @@ public class ChartToolTip implements DataSerializable {
             .append("</div>");
    }
 
-   // Solo card uses tier=1 (headline-bound subtitle, e.g. candle/stock date);
-   // combined card uses tier=2 (shared X-dim that scopes all peer sections).
+   // Solo card uses tier=1 (headline-bound); combined card uses tier=2 (scopes peer sections).
    private void appendSubtitle(StringBuilder buffer, int tier, String label, String value) {
       int t = Math.min(Math.max(tier, 1), 3);
       buffer.append("<div class=\"tt-tier-").append(t).append(" tt-subtitle\">")
@@ -486,9 +481,7 @@ public class ChartToolTip implements DataSerializable {
       this.style = style == null ? ChartInfo.TooltipStyle.DEFAULT : style;
    }
 
-   // Shared X-dim header. Solo card renders it as a tier-1 subtitle directly
-   // under the headline; combined card renders it as a tier-2 subtitle scoping
-   // multiple peer sections.
+   // Shared X-dim header. Solo card → tier-1 subtitle; combined card → tier-2 subtitle.
    public void setHeader(int key, int value) {
       this.headerKey = key;
       this.headerValue = value;
@@ -506,10 +499,7 @@ public class ChartToolTip implements DataSerializable {
       return headerValue;
    }
 
-   // Number of pairs after the tier-1 headline that should render at tier-2 in
-   // the solo-card-with-header path (candle/stock OHL group). Pairs past this
-   // group drop to tier-3. 0 is valid: no tier-2 group, so everything after the
-   // headline lands at tier-3 (e.g. partial OHL binding with only Close).
+   // Pairs after the headline that render at tier-2; rest drop to tier-3. 0 = none (e.g. only Close bound).
    public void setTier2GroupSize(int size) {
       this.tier2GroupSize = Math.max(0, size);
    }
@@ -564,9 +554,7 @@ public class ChartToolTip implements DataSerializable {
    }
 
    private final List<Integer> tooltips;
-   // Render-time only: stackTotalName, style, headerKey, headerValue, and
-   // tier2GroupSize are reconstructed by PlotArea each render and are not part
-   // of the writeData wire format. parseData is a no-op; keep them off the wire.
+   // Render-time state below; reconstructed each render, not written by writeData.
    private String stackTotalName = null;
    private String customToolTip;
    private ChartInfo.TooltipStyle style = ChartInfo.TooltipStyle.DEFAULT;

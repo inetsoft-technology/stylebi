@@ -264,13 +264,7 @@ table.scrollable-table {
 
   .tt-tier-1:not(:first-child) { margin-top: 10px; }
 
-  // Headline-bound subtitle (e.g. candle/stock date below the Close row): sits
-  // visually closer to the tier-1 row than tier-2 subtitle does — it identifies
-  // the period the headline value belongs to rather than scoping peer sections.
-  // Inherits tier-1's full opacity; size + weight do the subordination.
-  // Must come after .tt-tier-1:not(:first-child) — both have equal specificity
-  // so the later rule wins; without this ordering the 10px margin would clobber
-  // the intended 2px.
+  // Must follow .tt-tier-1:not(:first-child) — equal specificity, later rule wins (10px → 2px margin).
   .tt-tier-1.tt-subtitle {
     font-size: 14px;
     font-weight: 400;
