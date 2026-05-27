@@ -47,6 +47,8 @@ ng generate @angular/core:standalone --mode=prune-ng-modules --path=projects/sha
 ```
 Deletes the four library NgModules. Library exports shift from exporting NgModules to exporting standalone components/directives directly.
 
+**Cross-project reference caveat:** `em` and `portal` import the shared NgModules (e.g., `AiAssistantModule`). The schematic scoped to `--path=projects/shared` may not update those references automatically. After running the schematic, run `npm run build` to check — if `em` or `portal` report missing module errors, manually update their imports to reference the standalone components directly. Those fixes are included in PR 1B, not deferred to the em/portal phases.
+
 ### Phase 2 — `em`
 
 **PR 2A — Component conversion**
