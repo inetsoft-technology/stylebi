@@ -38,10 +38,11 @@ import java.awt.geom.AffineTransform;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Guards the asymmetric back-divide in {@link RelationCoord#getUnitMinWidth()}: vertical
- * mode back-divides by scaleX (so post-fit calls recover natural width); horizontal mode
- * skips the back-divide (X is depth, scaleX is Y-binding-driven, dividing would over-report
- * X and force the chart canvas to widen unnecessarily).
+ * Guards the horizontal-mode special-casing in {@link RelationCoord#getUnitMinWidth()} and
+ * {@link RelationCoord#getUnitMinHeight()}: vertical mode goes through the back-divide path
+ * (so post-fit calls recover natural size); horizontal mode skips the back-divide for width
+ * (X is depth, scaleX is Y-binding-driven) and reads natural mxcell bounds directly for
+ * height (avoiding label-amplified 1/scaleY inflation in faceted layouts).
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)

@@ -238,7 +238,8 @@ public class RelationCoord extends Coordinate {
 
       for(int i = 0; i < vgraph.getVisualCount(); i++) {
          if(vgraph.getVisual(i) instanceof RelationVO vo
-            && vo.getGeometry() instanceof RelationGeometry geo)
+            && vo.getGeometry() instanceof RelationGeometry geo
+            && geo.getMxCell().getGeometry() != null)
          {
             Rectangle2D rect = geo.getMxCell().getGeometry().getRectangle();
             bounds = bounds == null ? rect : bounds.createUnion(rect);
