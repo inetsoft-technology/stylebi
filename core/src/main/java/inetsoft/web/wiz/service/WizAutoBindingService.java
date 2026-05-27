@@ -45,6 +45,7 @@ import java.security.Principal;
 import java.util.*;
 import java.util.List;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @Service
 public class WizAutoBindingService {
@@ -111,7 +112,7 @@ public class WizAutoBindingService {
                      for(int i = 0; i < cs.getAttributeCount(); i++) {
                         DataRef ref = cs.getAttribute(i);
 
-                        if(ref instanceof ColumnRef colRef) {
+                        if(ref instanceof ColumnRef colRef && colRef.isVisible()) {
                            worksheetColumns.add(colRef);
                         }
                      }
@@ -132,8 +133,15 @@ public class WizAutoBindingService {
          AssetEntry[] entries;
 
          if(!worksheetColumns.isEmpty()) {
-            // Primary path: use all worksheet columns (fieldConfigs as overlay only)
-            entries = worksheetColumns.stream()
+            // When fieldConfigs are provided, restrict to only those columns to exclude
+            // join key columns (marked visible=false) from the recommendation engine.
+            Stream<ColumnRef> colStream = worksheetColumns.stream();
+
+            if(!configMap.isEmpty()) {
+               colStream = colStream.filter(col -> configMap.containsKey(col.getAttribute()));
+            }
+
+            entries = colStream
                .map(col -> buildEntryFromColumn(
                   col, worksheetId, tableNameFinal, configMap.get(col.getAttribute())))
                .toArray(AssetEntry[]::new);
