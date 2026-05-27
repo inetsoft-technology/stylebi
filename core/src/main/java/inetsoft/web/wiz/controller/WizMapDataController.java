@@ -19,6 +19,9 @@
 package inetsoft.web.wiz.controller;
 
 import inetsoft.report.internal.graph.MapData;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.*;
@@ -31,6 +34,8 @@ import java.util.*;
 @RequestMapping("/api/wiz")
 public class WizMapDataController {
 
+   private static final Logger LOG = LoggerFactory.getLogger(WizMapDataController.class);
+
    /**
     * Returns all supported map types and their valid layers.
     * Example response:
@@ -41,14 +46,19 @@ public class WizMapDataController {
     *   ...
     * }
     */
-   @GetMapping("/map/types")
+   @GetMapping(value = "/map/types", produces = MediaType.APPLICATION_JSON_VALUE)
    public Map<String, List<String>> getMapTypes() {
       String[] types = MapData.getMapTypes();
       Map<String, List<String>> result = new LinkedHashMap<>();
 
       for(String type : types) {
-         Map<String, Integer> layers = MapData.getLayers(type);
-         result.put(type, new ArrayList<>(layers.keySet()));
+         try {
+            Map<String, Integer> layers = MapData.getLayers(type);
+            result.put(type, new ArrayList<>(layers.keySet()));
+         }
+         catch(RuntimeException e) {
+            LOG.warn("Skipping map type '{}' due to configuration error: {}", type, e.getMessage());
+         }
       }
 
       return result;
