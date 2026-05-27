@@ -227,3 +227,5 @@ terraform.rc
 .claude/
 .claude/settings.local.json
 .vscode/settings.json
+CODEX_SESSION_START.md
+docs/portal-shell-bootstrap-cleanup.md
