@@ -35,8 +35,9 @@ import { RouteReuseStrategy } from "@angular/router";
 import { EmClientInterceptor } from "../../../portal/src/app/common/services/emclient-interceptor";
 import { HttpParamsCodecInterceptor } from "../../../portal/src/app/common/services/http-params-codec-interceptor";
 import { RequestedWithInterceptor } from "../../../portal/src/app/common/services/requested-with-interceptor";
-import { AiAssistantModule } from "../../../shared/ai-assistant/ai-assistant.module";
-import { DownloadModule } from "../../../shared/download/download.module";
+import { AiAssistantDialogComponent } from "../../../shared/ai-assistant/ai-assistant-dialog.component";
+import { AiAssistantPanelComponent } from "../../../shared/ai-assistant/ai-assistant-panel.component";
+import { DownloadTargetComponent } from "../../../shared/download/download-target.component";
 import { ScheduleTaskNamesService } from "../../../shared/schedule/schedule-task-names.service";
 import { ScheduleUsersService } from "../../../shared/schedule/schedule-users.service";
 import { SsoHeartbeatInterceptor } from "../../../shared/sso/sso-heartbeat-interceptor";
@@ -67,7 +68,8 @@ export const httpInterceptorProviders = [
 
 @NgModule({
     imports: [
-        AiAssistantModule,
+        AiAssistantDialogComponent,
+        AiAssistantPanelComponent,
         BrowserModule,
         BrowserAnimationsModule,
         ReactiveFormsModule,
@@ -86,7 +88,7 @@ export const httpInterceptorProviders = [
         MatToolbarModule,
         PageHeaderModule,
         AppRoutingModule,
-        DownloadModule,
+        DownloadTargetComponent,
         MessageDialogModule,
         ModalHeaderModule,
         MatSelectModule

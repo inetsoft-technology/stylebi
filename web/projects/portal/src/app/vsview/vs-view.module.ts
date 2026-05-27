@@ -18,6 +18,8 @@
 import { CommonModule } from "@angular/common";
 import { NgModule } from "@angular/core";
 import { FormsModule } from "@angular/forms";
+import { AiAssistantDialogComponent } from "../../../../shared/ai-assistant/ai-assistant-dialog.component";
+import { AiAssistantPanelComponent } from "../../../../shared/ai-assistant/ai-assistant-panel.component";
 import { BindingModule } from "../binding/binding.module";
 import { VSChartModule } from "../vsobjects/objects/chart/vs-chart.module";
 import {
@@ -36,23 +38,24 @@ import { FixedDropdownModule } from "../widget/fixed-dropdown/fixed-dropdown.mod
 import { InteractModule } from "../widget/interact/interact.module";
 import { WidgetDirectivesModule } from "../widget/directive/widget-directives.module";
 import { MiniToolbarModule } from "../vsobjects/objects/mini-toolbar/mini-toolbar.module";
-import { AiAssistantModule } from "../../../../shared/ai-assistant/ai-assistant.module";
+
 
 @NgModule({
    imports: [
-      CommonModule,
-      FormsModule,
-      BindingModule,
-      VSObjectModule,
-      VSChartModule,
-      VSLoadingDisplayModule,
-      FixedDropdownModule,
-      InteractModule,
-      NotificationsModule,
-      WidgetDirectivesModule,
-      MiniToolbarModule,
-      AiAssistantModule
-   ],
+    CommonModule,
+    FormsModule,
+    BindingModule,
+    VSObjectModule,
+    VSChartModule,
+    VSLoadingDisplayModule,
+    FixedDropdownModule,
+    InteractModule,
+    NotificationsModule,
+    WidgetDirectivesModule,
+    MiniToolbarModule,
+    AiAssistantDialogComponent,
+    AiAssistantPanelComponent
+],
    declarations: [
       CalcTableCellComponent,
       CalcTableLayoutPane,

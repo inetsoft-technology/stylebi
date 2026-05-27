@@ -17,15 +17,16 @@
  */
 import {CommonModule} from "@angular/common";
 import {NgModule} from "@angular/core";
-import { AngularResizeEventModule } from "../../../../../shared/resize-event/angular-resize-event.module";
+import { ResizedDirective } from "../../../../../shared/resize-event/resized.directive";
+
 import {Ruler} from "./ruler.component";
 import {Rulers} from "./rulers.component";
 
 @NgModule({
    imports: [
-      CommonModule,
-      AngularResizeEventModule,
-   ],
+    CommonModule,
+    ResizedDirective,
+],
    declarations: [
       Ruler,
       Rulers

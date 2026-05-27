@@ -18,8 +18,8 @@
 
 import { Injector, NgModule, Optional } from "@angular/core";
 import { createCustomElement } from "@angular/elements";
-import { DownloadModule } from "../../../../../shared/download/download.module";
-import { AngularResizeEventModule } from "../../../../../shared/resize-event/angular-resize-event.module";
+
+
 import { VSObjectModule } from "../../vsobjects/vs-object.module";
 import { EmbedViewerComponent } from "./embed-viewer.component";
 import { CommonModule } from "@angular/common";
@@ -59,19 +59,21 @@ import { ChartService } from "../../graph/services/chart.service";
 import {
    VSLoadingDisplayModule
 } from "../../vsobjects/objects/vs-loading-display/vs-loading-display.module";
+import { DownloadTargetComponent } from "../../../../../shared/download/download-target.component";
+import { ResizedDirective } from "../../../../../shared/resize-event/resized.directive";
 
 
 @NgModule({
    imports: [
-      CommonModule,
-      DownloadModule,
-      DataTipDirectivesModule,
-      MiniToolbarModule,
-      AngularResizeEventModule,
-      InteractModule,
-      VSObjectModule,
-      VSLoadingDisplayModule
-   ],
+    CommonModule,
+    DataTipDirectivesModule,
+    MiniToolbarModule,
+    InteractModule,
+    VSObjectModule,
+    VSLoadingDisplayModule,
+    DownloadTargetComponent,
+    ResizedDirective,
+],
    declarations: [EmbedViewerComponent],
    providers: [
       MiniToolbarService,
