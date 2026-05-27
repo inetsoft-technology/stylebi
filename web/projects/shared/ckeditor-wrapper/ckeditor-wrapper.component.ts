@@ -26,7 +26,7 @@ import {
    OnInit,
    Output
 } from "@angular/core";
-import { ControlValueAccessor, NG_VALUE_ACCESSOR } from "@angular/forms";
+import { ControlValueAccessor, NG_VALUE_ACCESSOR, FormsModule } from "@angular/forms";
 import {
    Alignment,
    Autosave,
@@ -193,18 +193,22 @@ import vi from "ckeditor5/translations/vi.js";
 import zh from "ckeditor5/translations/zh.js";
 // @ts-expect-error
 import zhcn from "ckeditor5/translations/zh-cn.js";
+import { CKEditorModule } from "@ckeditor/ckeditor5-angular";
+import { NgIf } from "@angular/common";
 
 @Component({
-   selector: "ckeditor-wrapper",
-   templateUrl: "./ckeditor-wrapper.component.html",
-   styleUrls: ["./ckeditor-wrapper.component.scss"],
-   providers: [
-      {
-         provide: NG_VALUE_ACCESSOR,
-         useExisting: forwardRef(() => CkeditorWrapperComponent),
-         multi: true
-      }
-   ]
+    selector: "ckeditor-wrapper",
+    templateUrl: "./ckeditor-wrapper.component.html",
+    styleUrls: ["./ckeditor-wrapper.component.scss"],
+    providers: [
+        {
+            provide: NG_VALUE_ACCESSOR,
+            useExisting: forwardRef(() => CkeditorWrapperComponent),
+            multi: true
+        }
+    ],
+    standalone: true,
+    imports: [NgIf, CKEditorModule, FormsModule]
 })
 export class CkeditorWrapperComponent implements OnInit, AfterViewInit, ControlValueAccessor {
    @Input() advanced = false;

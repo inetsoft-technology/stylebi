@@ -21,9 +21,10 @@ import { Subscription } from "rxjs";
 import { AiAssistantService } from "./ai-assistant.service";
 
 @Component({
-  selector: "ai-assistant-dialog",
-  templateUrl: "./ai-assistant-dialog.component.html",
-  styleUrls: ["./ai-assistant-dialog.component.scss"]
+    selector: "ai-assistant-dialog",
+    templateUrl: "./ai-assistant-dialog.component.html",
+    styleUrls: ["./ai-assistant-dialog.component.scss"],
+    standalone: true
 })
 export class AiAssistantDialogComponent implements OnInit, OnDestroy {
    userEmail: string = "";

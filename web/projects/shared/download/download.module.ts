@@ -20,8 +20,8 @@ import { NgModule } from "@angular/core";
 import { DownloadTargetComponent } from "./download-target.component";
 
 @NgModule({
-   exports: [ DownloadTargetComponent ],
-   declarations: [ DownloadTargetComponent ]
+    imports: [DownloadTargetComponent],
+    exports: [DownloadTargetComponent]
 })
 export class DownloadModule {
 }

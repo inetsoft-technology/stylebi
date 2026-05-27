@@ -23,18 +23,16 @@ import { CKEditorModule } from "@ckeditor/ckeditor5-angular";
 import { CkeditorWrapperComponent } from "./ckeditor-wrapper.component";
 
 @NgModule({
-   declarations: [
-      CkeditorWrapperComponent
-   ],
-   exports: [
-      CkeditorWrapperComponent
-   ],
-   imports: [
-      CommonModule,
-      FormsModule,
-      ReactiveFormsModule,
-      CKEditorModule
-   ],
+    exports: [
+        CkeditorWrapperComponent
+    ],
+    imports: [
+        CommonModule,
+        FormsModule,
+        ReactiveFormsModule,
+        CKEditorModule,
+        CkeditorWrapperComponent
+    ],
 })
 export class CkeditorWrapperModule {
 }

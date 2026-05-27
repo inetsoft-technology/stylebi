@@ -35,6 +35,7 @@ class MockResizeObserver {
 }
 
 @Component({
+   imports: [ResizedDirective],
    template: `<div resized (resized)="onResized($event)">content</div>`
 })
 class TestHostComponent {
@@ -55,7 +56,8 @@ describe("ResizedDirective", () => {
       (global as any).ResizeObserver = MockResizeObserver;
 
       TestBed.configureTestingModule({
-         declarations: [ResizedDirective, TestHostComponent]
+         declarations: [TestHostComponent],
+         imports: [ResizedDirective]
       }).compileComponents();
 
       fixture = TestBed.createComponent(TestHostComponent);

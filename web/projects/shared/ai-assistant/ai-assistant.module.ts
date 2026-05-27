@@ -22,10 +22,9 @@ import { AiAssistantDialogComponent } from "./ai-assistant-dialog.component";
 import { AiAssistantPanelComponent } from "./ai-assistant-panel.component";
 
 @NgModule({
-   imports: [ CommonModule ],
-   exports: [ AiAssistantDialogComponent, AiAssistantPanelComponent ],
-   declarations: [ AiAssistantDialogComponent, AiAssistantPanelComponent ],
-   schemas: [CUSTOM_ELEMENTS_SCHEMA]
+    imports: [CommonModule, AiAssistantDialogComponent, AiAssistantPanelComponent],
+    exports: [AiAssistantDialogComponent, AiAssistantPanelComponent],
+    schemas: [CUSTOM_ELEMENTS_SCHEMA]
 })
 export class AiAssistantModule {
 }
