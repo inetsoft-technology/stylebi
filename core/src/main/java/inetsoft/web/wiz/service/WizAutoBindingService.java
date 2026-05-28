@@ -70,6 +70,13 @@ public class WizAutoBindingService {
    public AutoBindingResponse autoBinding(AutoBindingRequest request, Principal user)
       throws Exception
    {
+      return autoBindingInternal(request, user, false);
+   }
+
+   private AutoBindingResponse autoBindingInternal(AutoBindingRequest request, Principal user,
+                                                   boolean skipExecution)
+      throws Exception
+   {
       List<SimpleFieldInfo> fieldConfigs = request.getFieldConfigs() != null
          ? request.getFieldConfigs() : Collections.emptyList();
       String worksheetId = request.getWorksheetId();
@@ -207,11 +214,15 @@ public class WizAutoBindingService {
             vsModel.setRuntimeId(request.getWizRuntimeId());
             vsModel.setViewsheetIdentifier(request.getViewsheetIdentifier());
 
-            visualizationResult = wizVsService.createViewsheet(vsModel, user, (wizRvs, asm) -> {
+            WizVsService.PostAssemblyHook hook = (wizRvs, asm) -> {
                if(asm instanceof ChartVSAssembly) {
                   WizardRecommenderUtil.syncCalcFields(rvs.getViewsheet(), wizRvs.getViewsheet());
                }
-            });
+            };
+
+            visualizationResult = skipExecution
+               ? wizVsService.createViewsheetSkipExecution(vsModel, user, hook)
+               : wizVsService.createViewsheet(vsModel, user, hook);
 
             // createViewsheet only sets runtimeId when it creates a new RVS.
             // Back-fill it so the client always receives the effective wizRuntimeId.
@@ -1107,10 +1118,10 @@ public class WizAutoBindingService {
          fallback.setWorksheetId(worksheetId);
          fallback.setVisualizationType(visualizationType);
          // Do not forward autoBindingRuntimeId: if it was non-empty but invalid (expired RVS),
-         // autoBinding() would skip creating a new RVS and fail on the same dead id again.
+         // autoBindingInternal() would skip creating a new RVS and fail on the same dead id again.
          fallback.setWizRuntimeId(wizRuntimeId);
          fallback.setViewsheetIdentifier(viewsheetIdentifier);
-         AutoBindingResponse resp = autoBinding(fallback, user);
+         AutoBindingResponse resp = autoBindingInternal(fallback, user, true);
          CreateViewsheetResult result = resp.getVisualizationResult();
 
          if(result == null) {
