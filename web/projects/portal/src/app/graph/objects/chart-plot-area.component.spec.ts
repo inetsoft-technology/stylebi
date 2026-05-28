@@ -31,6 +31,7 @@ import { ModelService } from "../../widget/services/model.service";
 import { ScaleService } from "../../widget/services/scale/scale-service";
 import { ChartObject } from "../model/chart-object";
 import { Plot } from "../model/plot";
+import { ChartTool } from "../model/chart-tool";
 import { ChartService } from "../services/chart.service";
 import { ChartPlotArea } from "./chart-plot-area.component";
 
@@ -385,6 +386,55 @@ describe("ChartPlotArea Integration Tests", () => {
       }
 
       done();
+   });
+
+   it("clears stale snap state when the Plot reference is replaced", () => {
+      const fixture = TestBed.createComponent(TestApp);
+      const debugEl = fixture.debugElement.query(By.css("chart-plot-area"));
+      const component: ChartPlotArea = debugEl.componentInstance;
+      jest.spyOn(component, "getSrc").mockImplementation(() => "");
+      fixture.detectChanges();
+
+      const oldPlot = component.chartObject;
+      // Pretend a prior hover seeded the snap cache and a prior click left
+      // a selection that still references the now-stale Plot.
+      (component as any).snapXTicksFor = oldPlot;
+      component.chartSelection = {
+         chartObject: oldPlot,
+         regions: [oldPlot.regions[0]]
+      } as any;
+
+      const clearSnapSpy = jest.spyOn(component as any, "clearSnapGuideline");
+      const drawRegionsSpy = jest.spyOn(ChartTool, "drawRegions");
+
+      // Swap in a new Plot reference (chart-type rebuild / data refresh).
+      const newPlot: Plot = { ...oldPlot } as Plot;
+      component.chartObject = newPlot;
+
+      expect(clearSnapSpy).toHaveBeenCalled();
+      expect((component as any).snapXTicksFor).toBeNull();
+      // Stale-selection branch must not paint synchronously; the base-class
+      // drawSelectedRegions defers via setTimeout so it won't pollute this.
+      expect(drawRegionsSpy).not.toHaveBeenCalled();
+
+      drawRegionsSpy.mockRestore();
+   });
+
+   it("leaves snap state untouched when updateChartObject is called with no oldObj", () => {
+      const fixture = TestBed.createComponent(TestApp);
+      const debugEl = fixture.debugElement.query(By.css("chart-plot-area"));
+      const component: ChartPlotArea = debugEl.componentInstance;
+      jest.spyOn(component, "getSrc").mockImplementation(() => "");
+      fixture.detectChanges();
+
+      (component as any).snapXTicksFor = component.chartObject;
+      const clearSnapSpy = jest.spyOn(component as any, "clearSnapGuideline");
+
+      // Scroll-debounce path: updateChartObject() is called with no argument.
+      component.updateChartObject();
+
+      expect(clearSnapSpy).not.toHaveBeenCalled();
+      expect((component as any).snapXTicksFor).toBe(component.chartObject);
    });
 
    xit("should be able to select regions", () => {

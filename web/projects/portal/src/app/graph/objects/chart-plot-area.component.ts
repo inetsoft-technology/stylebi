@@ -701,6 +701,13 @@ export class ChartPlotArea extends ChartObjectAreaBase<Plot> implements OnChange
          this.fireOnLoad();
       }
 
+      // Plot replaced: referenceLineCanvas isn't auto-cleared, and the snap
+      // index is keyed on Plot identity so it must be invalidated explicitly.
+      if(oldObj && oldObj !== this.chartObject) {
+         this.clearSnapGuideline();
+         this.snapXTicksFor = null;
+      }
+
       const context = this.getContext();
 
       if(context) {
@@ -708,7 +715,8 @@ export class ChartPlotArea extends ChartObjectAreaBase<Plot> implements OnChange
 
          if(this.chartSelection && this.chartSelection.regions &&
             this.chartSelection.chartObject &&
-            this.chartSelection.chartObject.areaName === "plot_area")
+            this.chartSelection.chartObject.areaName === "plot_area" &&
+            this.chartSelection.chartObject === this.chartObject)
          {
             ChartTool.drawRegions(this.getContext(), this.chartSelection.regions,
                                   this.canvasX, this.canvasY, this.viewsheetScale);
