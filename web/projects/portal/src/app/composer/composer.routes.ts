@@ -16,10 +16,9 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { HttpClient } from "@angular/common/http";
-import { importProvidersFrom } from "@angular/core";
 import { Routes } from "@angular/router";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
-import { ChatModule } from "../common/chat/chat.module";
+import { CHAT_API_KEY, ChatService } from "../common/chat/chat.service";
 import { BindingService } from "../binding/services/binding.service";
 import { VSBindingService } from "../binding/services/vs-binding.service";
 import { BindingTreeService } from "../binding/widget/binding-tree/binding-tree.service";
@@ -77,7 +76,8 @@ export const composerRoutes: Routes = [
          ComposerRecentService,
          NgbModal,
          { provide: CodemirrorService, useClass: DefaultCodemirrorService },
-         importProvidersFrom(ChatModule.forRoot("5ba3fdd5c666d426648af5c9/default")),
+         ChatService,
+         { provide: CHAT_API_KEY, useValue: "5ba3fdd5c666d426648af5c9/default" },
       ]
    }
 ];

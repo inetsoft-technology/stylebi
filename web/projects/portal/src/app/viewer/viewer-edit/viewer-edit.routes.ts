@@ -15,9 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { importProvidersFrom } from "@angular/core";
 import { Routes } from "@angular/router";
-import { BindingModule } from "../../binding/binding.module";
 import { SERVICE_PROVIDERS } from "../../composer/services.provider";
 import { ViewerEditComponent } from "./viewer-edit.component";
 
@@ -26,7 +24,7 @@ export const viewerEditRoutes: Routes = [
       path: "",
       component: ViewerEditComponent,
       providers: [
-         importProvidersFrom(BindingModule.forRoot(SERVICE_PROVIDERS))
+         ...SERVICE_PROVIDERS
       ]
    }
 ];
