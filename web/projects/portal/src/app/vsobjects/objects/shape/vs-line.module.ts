@@ -17,26 +17,23 @@
  */
 import { CommonModule } from "@angular/common";
 import { NgModule } from "@angular/core";
-import { DataTipDirectivesModule } from "../data-tip/data-tip-directives.module";
+
 import { VSLine } from "./vs-line.component";
 import { VSAnnotation } from "../annotation/vs-annotation.component";
 import { VSHiddenAnnotation } from "../annotation/vs-hidden-annotation.component";
-import { InteractModule } from "../../../widget/interact/interact.module";
-import { WidgetDirectivesModule } from "../../../widget/directive/widget-directives.module";
+
+
 import { TooltipModule } from "../../../widget/tooltip/tooltip.module";
 
 @NgModule({
     imports: [
-        CommonModule,
-        DataTipDirectivesModule,
-        InteractModule,
-        WidgetDirectivesModule,
-        TooltipModule,
-        VSLine,
-        // to avoid circular dependency
-        VSAnnotation,
-        VSHiddenAnnotation,
-    ],
+    CommonModule,
+    TooltipModule,
+    VSLine,
+    // to avoid circular dependency
+    VSAnnotation,
+    VSHiddenAnnotation,
+],
     exports: [
         VSLine,
         VSAnnotation,

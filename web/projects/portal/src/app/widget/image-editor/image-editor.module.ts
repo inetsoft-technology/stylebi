@@ -19,19 +19,18 @@ import {CommonModule} from "@angular/common";
 import {NgModule} from "@angular/core";
 import {ImagePreviewPane} from "./image-preview-pane.component";
 import {TreeModule} from "../tree/tree.module";
-import {NotificationsModule} from "../notifications/notifications.module";
+
 import {WidgetFormatModule} from "../format/widget-format.module";
 import {FormsModule} from "@angular/forms";
 
 @NgModule({
     imports: [
-        CommonModule,
-        TreeModule,
-        NotificationsModule,
-        WidgetFormatModule,
-        FormsModule,
-        ImagePreviewPane,
-    ],
+    CommonModule,
+    TreeModule,
+    WidgetFormatModule,
+    FormsModule,
+    ImagePreviewPane,
+],
     exports: [
         ImagePreviewPane
     ],

@@ -18,18 +18,17 @@
 import { CommonModule } from "@angular/common";
 import { NgModule } from "@angular/core";
 import { FormsModule } from "@angular/forms";
-import { WidgetDirectivesModule } from "../../directive/widget-directives.module";
+
 import { StandardDialogModule } from "../../standard-dialog/standard-dialog.module";
 import { SessionExpirationDialog } from "./session-expiration-dialog.component";
 
 @NgModule({
     imports: [
-        CommonModule,
-        FormsModule,
-        StandardDialogModule,
-        WidgetDirectivesModule,
-        SessionExpirationDialog,
-    ],
+    CommonModule,
+    FormsModule,
+    StandardDialogModule,
+    SessionExpirationDialog,
+],
     exports: [
         SessionExpirationDialog
     ],

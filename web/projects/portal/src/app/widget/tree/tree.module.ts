@@ -18,7 +18,7 @@
 import { CommonModule } from "@angular/common";
 import { NgModule } from "@angular/core";
 import { FormsModule } from "@angular/forms";
-import { WidgetDirectivesModule } from "../directive/widget-directives.module";
+
 import { TooltipModule } from "../tooltip/tooltip.module";
 import { TreeDropdownComponent } from "./tree-dropdown.component";
 import { TreeNodeComponent } from "./tree-node.component";
@@ -29,17 +29,16 @@ import {FixedDropdownModule} from "../fixed-dropdown/fixed-dropdown.module";
 
 @NgModule({
     imports: [
-        CommonModule,
-        FormsModule,
-        TooltipModule,
-        FixedDropdownModule,
-        WidgetDirectivesModule,
-        VirtualScrollTreeComponent,
-        TreeComponent,
-        TreeDropdownComponent,
-        TreeNodeComponent,
-        TreeSearchPipe,
-    ],
+    CommonModule,
+    FormsModule,
+    TooltipModule,
+    FixedDropdownModule,
+    VirtualScrollTreeComponent,
+    TreeComponent,
+    TreeDropdownComponent,
+    TreeNodeComponent,
+    TreeSearchPipe,
+],
     exports: [
         VirtualScrollTreeComponent,
         TreeComponent,

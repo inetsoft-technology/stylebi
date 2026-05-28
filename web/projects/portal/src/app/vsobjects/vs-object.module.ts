@@ -45,42 +45,42 @@ import { ComposerRecentService } from "../composer/gui/composer-recent.service";
 import { ScriptService } from "../composer/gui/script/script.service";
 import { FormatModule } from "../format/format.module";
 import { GraphModule } from "../graph/graph.module";
-import { StatusBarModule } from "../status-bar/status-bar.module";
-import { AutoCompleteModule } from "../widget/auto-complete/auto-complete.module";
+
+
 import { ColorPickerModule } from "../widget/color-picker/color-picker.module";
 import { ConditionModule } from "../widget/condition/condition.module";
 import { DateTypeEditorModule } from "../widget/date-type-editor/date-type-editor.module";
-import { AdditionalTableSelectionPaneModule } from "../widget/dialog/additional-table-selection-pane/additional-table-selection-pane.module";
-import { AutoDrillDialogModule } from "../widget/dialog/auto-drill-dialog/auto-drill-dialog.module";
+
+
 import { TipCustomizeDialogModule } from "../widget/dialog/tip-customize-dialog/tip-customize-dialog.module";
 import { VariableInputDialogModule } from "../widget/dialog/variable-input-dialog/variable-input-dialog.module";
 import { VariableListDialogModule } from "../widget/dialog/variable-list-dialog/variable-list-dialog.module";
 import { VSAssemblyScriptPaneModule } from "../widget/dialog/vsassembly-script-pane/vsassembly-script-pane.module";
-import { WidgetDirectivesModule } from "../widget/directive/widget-directives.module";
+
 import { DropdownViewModule } from "../widget/dropdown-view/dropdown-view.module";
 import { DynamicComboBoxModule } from "../widget/dynamic-combo-box/dynamic-combo-box.module";
 import { EmailDialogModule } from "../widget/email-dialog/email-dialog.module";
 import { FixedDropdownModule } from "../widget/fixed-dropdown/fixed-dropdown.module";
-import { FontPaneModule } from "../widget/font-pane/font-pane.module";
+
 import { WidgetFormatModule } from "../widget/format/widget-format.module";
-import { GenericSelectableListModule } from "../widget/generic-selectable-list/generic-selectable-list.module";
+
 import { HelpLinkModule } from "../widget/help-link/help-link.module";
 import { HighlightModule } from "../widget/highlight/highlight.module";
-import { InteractModule } from "../widget/interact/interact.module";
-import { LargeFormFieldModule } from "../widget/large-form-field/large-form-field.module";
+
+
 import { ModalHeaderModule } from "../widget/modal-header/modal-header.module";
-import { MouseEventModule } from "../widget/mouse-event/mouse-event.module";
-import { NotificationsModule } from "../widget/notifications/notifications.module";
-import { PipeModule } from "../widget/pipe/pipe.module";
-import { PlaceholderDragElementModule } from "../widget/placeholder-drag-element/placeholder-drag-element.module";
+
+
+
+
 import { PresenterModule } from "../widget/presenter/presenter.module";
 import { RepositoryTreeModule } from "../widget/repository-tree/repository-tree.module";
 import { WidgetScheduleModule } from "../widget/schedule/widget-schedule.module";
-import { ScrollModule } from "../widget/scroll/scroll.module";
+
 import { FontService } from "../widget/services/font.service";
 import { ModelService } from "../widget/services/model.service";
 import { ShareModule } from "../widget/share/share.module";
-import { SimpleTableModule } from "../widget/simple-table/simple-table.module";
+
 import { SlideOutModule } from "../widget/slide-out/slide-out.module";
 import { TableStyleModule } from "../widget/table-style/table-style.module";
 import { TooltipModule } from "../widget/tooltip/tooltip.module";
@@ -151,7 +151,7 @@ import { TextEditor } from "./dialog/text-editor.component";
 import { TitlePropPane } from "./dialog/title-prop-pane.component";
 import { VSConditionDialog } from "./dialog/vs-condition-dialog.component";
 import { VSFormatPane } from "./dialog/vs-format-pane.component";
-import { VSObjectDirectivesModule } from "./directives/vs-object-directives.module";
+
 import { VSFormatsPane } from "./format/vs-formats-pane.component";
 import { AppErrorMessage } from "./objects/app-error-message.component";
 import { MonthCalendar } from "./objects/calendar/month-calendar.component";
@@ -161,9 +161,9 @@ import { VSChartModule } from "./objects/chart/vs-chart.module";
 import { VSCheckBox } from "./objects/check-box/vs-check-box.component";
 import { VSComboBox } from "./objects/combo-box/vs-combo-box.component";
 import { VSCylinder } from "./objects/cylinder/vs-cylinder.component";
-import { DataTipDirectivesModule } from "./objects/data-tip/data-tip-directives.module";
+
 import { VSGroupContainer } from "./objects/group/vs-group-container.component";
-import { MiniToolbarModule } from "./objects/mini-toolbar/mini-toolbar.module";
+
 import { MiniToolbarService } from "./objects/mini-toolbar/mini-toolbar.service";
 import { VSGauge } from "./objects/output/gauge/vs-gauge.component";
 import { VSImage } from "./objects/output/image/vs-image.component";
@@ -203,7 +203,7 @@ import { VSTitleModule } from "./objects/title/vs-title.module";
 import { ViewerFormatPane } from "./objects/viewer-format-pane.component";
 import { ViewerMobileToolbarComponent } from "./objects/viewer-mobile-toolbar/viewer-mobile-toolbar.component";
 import { VSViewsheet } from "./objects/viewsheet/vs-viewsheet.component";
-import { VSLoadingDisplayModule } from "./objects/vs-loading-display/vs-loading-display.module";
+
 import { VSObjectContainer } from "./objects/vs-object-container.component";
 import { ShowHyperlinkService } from "./show-hyperlink.service";
 import { ToolbarActionsHandler } from "./toolbar-actions-handler";
@@ -218,177 +218,158 @@ import { VsToolbarButtonDirective } from "./vs-toolbar-button.directive";
 
 @NgModule({
     imports: [
-        CommonModule,
-        FormsModule,
-        ReactiveFormsModule,
-        AutoDrillDialogModule,
-        BindingModule,
-        GraphModule,
-        FormatModule,
-        StatusBarModule,
-        VSChartModule,
-        VSTitleModule,
-        PreviewTableModule,
-        VSLoadingDisplayModule,
-        VSLineModule,
-        VSObjectDirectivesModule,
-        DataTipDirectivesModule,
-        WidgetDirectivesModule,
-        TooltipModule,
-        InteractModule,
-        WidgetFormatModule,
-        FixedDropdownModule,
-        ColorPickerModule,
-        DynamicComboBoxModule,
-        TreeModule,
-        ModalHeaderModule,
-        NotificationsModule,
-        SlideOutModule,
-        TableStyleModule,
-        ScrollModule,
-        AutoCompleteModule,
-        MouseEventModule,
-        DropdownViewModule,
-        FontPaneModule,
-        PresenterModule,
-        HelpLinkModule,
-        ShareModule,
-        VariableInputDialogModule,
-        WidgetScheduleModule,
-        VSAssemblyScriptPaneModule,
-        RepositoryTreeModule,
-        ConditionModule,
-        GenericSelectableListModule,
-        LargeFormFieldModule,
-        DateTypeEditorModule,
-        AdditionalTableSelectionPaneModule,
-        TipCustomizeDialogModule,
-        HighlightModule,
-        PipeModule,
-        VariableListDialogModule,
-        EmailDialogModule,
-        PlaceholderDragElementModule,
-        NgbProgressbarModule,
-        NgbDatepickerModule,
-        NgbTooltipModule,
-        NgbTypeaheadModule,
-        NgbNavModule,
-        NgbDropdownModule,
-        MiniToolbarModule,
-        SimpleTableModule,
-        ScrollingModule,
-        CkeditorWrapperComponent,
-        ResizedDirective,
-        VsToolbarButtonDirective,
-        AddFilterDialog,
-        AlignmentPane,
-        AnnotationFormatDialog,
-        AppErrorMessage,
-        BaseResizeableDialogComponent,
-        BasicGeneralPane,
-        BookmarkPropertyDialog,
-        CalcTableAdvancedPane,
-        CalcTablePropertyDialog,
-        ChartAdvancedPane,
-        ChartGeneralPane,
-        ChartPropertyDialog,
-        CollapseToggleButton,
-        ColumnOptionDialog,
-        ComboBoxEditor,
-        CrosstabAdvancedPane,
-        CrosstabPropertyDialog,
-        CSSPane,
-        CurrentSelection,
-        DateEditor,
-        EmailDialog,
-        ExportDialog,
-        FileFormatPane,
-        FloatEditor,
-        GeneralPropPane,
-        HideColumnsDialog,
-        HierarchyContentPane,
-        HierarchyEditor,
-        HierarchyPropertyPane,
-        HighlightDialog,
-        HyperlinkDialog,
-        ImageFormatSelectComponent,
-        InputParameterDialog,
-        IntegerEditor,
-        MonthCalendar,
-        PaddingPane,
-        ProfilingDataPaneComponent,
-        ProfilingDialog,
-        RangeSliderAdvancedPane,
-        RangeSliderDataPane,
-        RangeSliderEditDialog,
-        RangeSliderGeneralPane,
-        RangeSliderPropertyDialog,
-        RangeSliderSizePane,
-        RichTextDialog,
-        ScheduleDialog,
-        SelectionListCell,
-        SelectionListDialog,
-        SelectionListEditor,
-        SizePositionPane,
-        SliderLabelPane,
-        TableAdvancedPane,
-        TableViewGeneralPane,
-        TableViewPropertyDialog,
-        TextEditor,
-        TipPane,
-        TitleCell,
-        TitlePropPane,
-        ViewerAppComponent,
-        ViewerFormatPane,
-        ViewerMobileToolbarComponent,
-        VSCalcTable,
-        VSCalendar,
-        VSCheckBox,
-        VSComboBox,
-        VSConditionDialog,
-        VSCrosstab,
-        VSCylinder,
-        VSFormatPane,
-        VSFormatsPane,
-        VSGauge,
-        VSGroupContainer,
-        VSImage,
-        VSObjectContainer,
-        VSOval,
-        VSPageBreak,
-        VSRadioButton,
-        VSRangeSlider,
-        VSRectangle,
-        VSSelection,
-        VSSelectionContainer,
-        VSSelectionContainerChildren,
-        VSSimpleCell,
-        VSSlider,
-        VSSlidingScale,
-        VSSpinner,
-        VSSubmit,
-        VSTab,
-        VSTable,
-        VSTableCell,
-        VSTableCellCalendar,
-        VSText,
-        VSTextInput,
-        VSInputLabelWrapper,
-        InputLabelPane,
-        VSThermometer,
-        VSViewsheet,
-        YearCalendar,
-        TableCellResizeDialogComponent,
-        DateComparisonDialog,
-        DateComparisonPaneComponent,
-        DateComparisonPeriodsPaneComponent,
-        DateComparisonIntervalPaneComponent,
-        DateComparisonStandardPeriodsComponent,
-        DateComparisonCustomPeriodsComponent,
-        DateComparisonSharePaneComponent,
-        VsBookmarkPaneComponent,
-        RemoveBookmarksDialog
-    ],
+    CommonModule,
+    FormsModule,
+    ReactiveFormsModule,
+    BindingModule,
+    GraphModule,
+    FormatModule,
+    VSChartModule,
+    VSTitleModule,
+    PreviewTableModule,
+    VSLineModule,
+    TooltipModule,
+    WidgetFormatModule,
+    FixedDropdownModule,
+    ColorPickerModule,
+    DynamicComboBoxModule,
+    TreeModule,
+    ModalHeaderModule,
+    SlideOutModule,
+    TableStyleModule,
+    DropdownViewModule,
+    PresenterModule,
+    HelpLinkModule,
+    ShareModule,
+    VariableInputDialogModule,
+    WidgetScheduleModule,
+    VSAssemblyScriptPaneModule,
+    RepositoryTreeModule,
+    ConditionModule,
+    DateTypeEditorModule,
+    TipCustomizeDialogModule,
+    HighlightModule,
+    VariableListDialogModule,
+    EmailDialogModule,
+    NgbProgressbarModule,
+    NgbDatepickerModule,
+    NgbTooltipModule,
+    NgbTypeaheadModule,
+    NgbNavModule,
+    NgbDropdownModule,
+    ScrollingModule,
+    CkeditorWrapperComponent,
+    ResizedDirective,
+    VsToolbarButtonDirective,
+    AddFilterDialog,
+    AlignmentPane,
+    AnnotationFormatDialog,
+    AppErrorMessage,
+    BaseResizeableDialogComponent,
+    BasicGeneralPane,
+    BookmarkPropertyDialog,
+    CalcTableAdvancedPane,
+    CalcTablePropertyDialog,
+    ChartAdvancedPane,
+    ChartGeneralPane,
+    ChartPropertyDialog,
+    CollapseToggleButton,
+    ColumnOptionDialog,
+    ComboBoxEditor,
+    CrosstabAdvancedPane,
+    CrosstabPropertyDialog,
+    CSSPane,
+    CurrentSelection,
+    DateEditor,
+    EmailDialog,
+    ExportDialog,
+    FileFormatPane,
+    FloatEditor,
+    GeneralPropPane,
+    HideColumnsDialog,
+    HierarchyContentPane,
+    HierarchyEditor,
+    HierarchyPropertyPane,
+    HighlightDialog,
+    HyperlinkDialog,
+    ImageFormatSelectComponent,
+    InputParameterDialog,
+    IntegerEditor,
+    MonthCalendar,
+    PaddingPane,
+    ProfilingDataPaneComponent,
+    ProfilingDialog,
+    RangeSliderAdvancedPane,
+    RangeSliderDataPane,
+    RangeSliderEditDialog,
+    RangeSliderGeneralPane,
+    RangeSliderPropertyDialog,
+    RangeSliderSizePane,
+    RichTextDialog,
+    ScheduleDialog,
+    SelectionListCell,
+    SelectionListDialog,
+    SelectionListEditor,
+    SizePositionPane,
+    SliderLabelPane,
+    TableAdvancedPane,
+    TableViewGeneralPane,
+    TableViewPropertyDialog,
+    TextEditor,
+    TipPane,
+    TitleCell,
+    TitlePropPane,
+    ViewerAppComponent,
+    ViewerFormatPane,
+    ViewerMobileToolbarComponent,
+    VSCalcTable,
+    VSCalendar,
+    VSCheckBox,
+    VSComboBox,
+    VSConditionDialog,
+    VSCrosstab,
+    VSCylinder,
+    VSFormatPane,
+    VSFormatsPane,
+    VSGauge,
+    VSGroupContainer,
+    VSImage,
+    VSObjectContainer,
+    VSOval,
+    VSPageBreak,
+    VSRadioButton,
+    VSRangeSlider,
+    VSRectangle,
+    VSSelection,
+    VSSelectionContainer,
+    VSSelectionContainerChildren,
+    VSSimpleCell,
+    VSSlider,
+    VSSlidingScale,
+    VSSpinner,
+    VSSubmit,
+    VSTab,
+    VSTable,
+    VSTableCell,
+    VSTableCellCalendar,
+    VSText,
+    VSTextInput,
+    VSInputLabelWrapper,
+    InputLabelPane,
+    VSThermometer,
+    VSViewsheet,
+    YearCalendar,
+    TableCellResizeDialogComponent,
+    DateComparisonDialog,
+    DateComparisonPaneComponent,
+    DateComparisonPeriodsPaneComponent,
+    DateComparisonIntervalPaneComponent,
+    DateComparisonStandardPeriodsComponent,
+    DateComparisonCustomPeriodsComponent,
+    DateComparisonSharePaneComponent,
+    VsBookmarkPaneComponent,
+    RemoveBookmarksDialog
+],
     exports: [
         VsToolbarButtonDirective,
         AddFilterDialog,

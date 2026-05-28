@@ -20,17 +20,16 @@ import { NgModule } from "@angular/core";
 import { ScriptPane } from "./script-pane.component";
 import { TreeModule } from "../../tree/tree.module";
 import { NgbTooltipModule } from "@ng-bootstrap/ng-bootstrap";
-import { WidgetDirectivesModule } from "../../directive/widget-directives.module";
+
 import { FormulaFunctionAnalyzerService } from "./formula-function-analyzer.service";
 
 @NgModule({
     imports: [
-        CommonModule,
-        TreeModule,
-        NgbTooltipModule,
-        WidgetDirectivesModule,
-        ScriptPane,
-    ],
+    CommonModule,
+    TreeModule,
+    NgbTooltipModule,
+    ScriptPane,
+],
     exports: [
         ScriptPane
     ],

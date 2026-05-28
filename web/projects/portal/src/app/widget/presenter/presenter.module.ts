@@ -24,28 +24,26 @@ import {PresenterPropertyDialog} from "./presenter-property-dialog.component";
 import {HelpLinkModule} from "../help-link/help-link.module";
 import {WidgetFormatModule} from "../format/widget-format.module";
 import {ColorPickerModule} from "../color-picker/color-picker.module";
-import {FontPaneModule} from "../font-pane/font-pane.module";
+
 import {FormsModule} from "@angular/forms";
-import {WidgetDirectivesModule} from "../directive/widget-directives.module";
+
 import {ImageEditorModule} from "../image-editor/image-editor.module";
 import {TreeModule} from "../tree/tree.module";
 
 @NgModule({
     imports: [
-        CommonModule,
-        HelpLinkModule,
-        WidgetFormatModule,
-        ColorPickerModule,
-        FontPaneModule,
-        FormsModule,
-        WidgetDirectivesModule,
-        ImageEditorModule,
-        TreeModule,
-        ModalHeaderModule,
-        EditImageDialog,
-        FormatPresenterPane,
-        PresenterPropertyDialog,
-    ],
+    CommonModule,
+    HelpLinkModule,
+    WidgetFormatModule,
+    ColorPickerModule,
+    FormsModule,
+    ImageEditorModule,
+    TreeModule,
+    ModalHeaderModule,
+    EditImageDialog,
+    FormatPresenterPane,
+    PresenterPropertyDialog,
+],
     exports: [
         EditImageDialog,
         FormatPresenterPane,

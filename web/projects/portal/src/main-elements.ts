@@ -15,11 +15,18 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { platformBrowserDynamic } from "@angular/platform-browser-dynamic";
-import { AppElementsModule } from "./app/embed/app-elements.module";
+import { createApplication } from "@angular/platform-browser";
+import { importProvidersFrom } from "@angular/core";
+import { EmbedChartModule } from "./app/embed/chart/embed-chart.module";
+import { embedElementConfig } from "./app/embed/embed-element.config";
 import "./main-base-element";
 
-platformBrowserDynamic().bootstrapModule(AppElementsModule);
+createApplication({
+   providers: [
+      ...embedElementConfig.providers,
+      importProvidersFrom(EmbedChartModule)
+   ]
+});
 
 /**
  * Check if inetsoft is connected on app load in case there is no need to log in such as when

@@ -31,28 +31,27 @@ import { ColorPane } from "./cp-color-pane.component";
 import { GradientColorItem } from "./gradient-color-item.component";
 import { GradientColorPane } from "./gradient-color-pane.component";
 import { GradientColorPicker } from "./gradient-color-picker.component";
-import { MouseEventModule } from "../mouse-event/mouse-event.module";
+
 import { RecentColorService } from "./recent-color.service";
 
 @NgModule({
     imports: [
-        CommonModule,
-        FormsModule,
-        FixedDropdownModule,
-        MouseEventModule,
-        ModalHeaderModule,
-        ColorComponentEditor,
-        ColorDropdown,
-        ColorEditor,
-        ColorEditorDialog,
-        ColorMap,
-        ColorPicker,
-        ColorSlider,
-        ColorPane,
-        GradientColorItem,
-        GradientColorPane,
-        GradientColorPicker,
-    ],
+    CommonModule,
+    FormsModule,
+    FixedDropdownModule,
+    ModalHeaderModule,
+    ColorComponentEditor,
+    ColorDropdown,
+    ColorEditor,
+    ColorEditorDialog,
+    ColorMap,
+    ColorPicker,
+    ColorSlider,
+    ColorPane,
+    GradientColorItem,
+    GradientColorPane,
+    GradientColorPicker,
+],
     exports: [
         ColorComponentEditor,
         ColorDropdown,

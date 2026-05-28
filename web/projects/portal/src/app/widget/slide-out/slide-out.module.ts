@@ -17,25 +17,23 @@
  */
 import { CommonModule } from "@angular/common";
 import { NgModule } from "@angular/core";
-import { WidgetDirectivesModule } from "../directive/widget-directives.module";
-import { NotificationsModule } from "../notifications/notifications.module";
+
+
 import { ApplyButtonComponent } from "./apply-button.component";
 import { SlideOutBackdropComponent } from "./slide-out-backdrop.component";
 import { SlideOutComponent } from "./slide-out.component";
 import {SlideOutService} from "./slide-out.service";
 import {FixedDropdownModule} from "../fixed-dropdown/fixed-dropdown.module";
-import {MouseEventModule} from "../mouse-event/mouse-event.module";
+
 
 @NgModule({
     imports: [
-        CommonModule,
-        NotificationsModule,
-        FixedDropdownModule,
-        MouseEventModule,
-        ApplyButtonComponent,
-        SlideOutComponent,
-        SlideOutBackdropComponent,
-    ],
+    CommonModule,
+    FixedDropdownModule,
+    ApplyButtonComponent,
+    SlideOutComponent,
+    SlideOutBackdropComponent,
+],
     exports: [
         ApplyButtonComponent,
         SlideOutComponent,

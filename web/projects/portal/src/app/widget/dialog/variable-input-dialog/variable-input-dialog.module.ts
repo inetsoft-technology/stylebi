@@ -18,24 +18,19 @@
 import {CommonModule} from "@angular/common";
 import {NgModule} from "@angular/core";
 import {VariableInputDialog} from "./variable-input-dialog.component";
-import {WidgetDirectivesModule} from "../../directive/widget-directives.module";
-import {
-   VariableCollectionSelectorModule
-} from "../variable-collection-selector/variable-collection-selector.module";
-import {MouseEventModule} from "../../mouse-event/mouse-event.module";
+
+
+
 import {
    VariableListDialogModule
 } from "../variable-list-dialog/variable-list-dialog.module";
 
 @NgModule({
     imports: [
-        CommonModule,
-        WidgetDirectivesModule,
-        VariableCollectionSelectorModule,
-        MouseEventModule,
-        VariableListDialogModule,
-        VariableInputDialog,
-    ],
+    CommonModule,
+    VariableListDialogModule,
+    VariableInputDialog,
+],
     exports: [
         VariableInputDialog
     ],

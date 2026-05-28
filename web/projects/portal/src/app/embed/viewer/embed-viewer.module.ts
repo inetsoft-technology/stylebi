@@ -23,11 +23,9 @@ import { createCustomElement } from "@angular/elements";
 import { VSObjectModule } from "../../vsobjects/vs-object.module";
 import { EmbedViewerComponent } from "./embed-viewer.component";
 import { CommonModule } from "@angular/common";
-import {
-   DataTipDirectivesModule
-} from "../../vsobjects/objects/data-tip/data-tip-directives.module";
-import { MiniToolbarModule } from "../../vsobjects/objects/mini-toolbar/mini-toolbar.module";
-import { InteractModule } from "../../widget/interact/interact.module";
+
+
+
 import { PageTabService } from "../../viewer/services/page-tab.service";
 import { UIContextService } from "../../common/services/ui-context.service";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
@@ -56,19 +54,13 @@ import {
    ViewerContextProviderFactory
 } from "../../vsobjects/context-provider.service";
 import { ChartService } from "../../graph/services/chart.service";
-import {
-   VSLoadingDisplayModule
-} from "../../vsobjects/objects/vs-loading-display/vs-loading-display.module";
+
 import { DownloadTargetComponent } from "../../../../../shared/download/download-target.component";
 
 @NgModule({
    imports: [
     CommonModule,
-    DataTipDirectivesModule,
-    MiniToolbarModule,
-    InteractModule,
     VSObjectModule,
-    VSLoadingDisplayModule,
     DownloadTargetComponent,
 ],
    declarations: [EmbedViewerComponent],

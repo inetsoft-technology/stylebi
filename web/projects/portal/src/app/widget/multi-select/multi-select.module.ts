@@ -18,7 +18,7 @@
 import { CommonModule } from "@angular/common";
 import { NgModule } from "@angular/core";
 import { FormsModule } from "@angular/forms";
-import { WidgetDirectivesModule } from "../directive/widget-directives.module";
+
 import { MultiSelect } from "./multi-select.component";
 import {FixedDropdownModule} from "../fixed-dropdown/fixed-dropdown.module";
 

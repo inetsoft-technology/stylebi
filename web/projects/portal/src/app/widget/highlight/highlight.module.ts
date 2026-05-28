@@ -19,32 +19,27 @@ import {CommonModule} from "@angular/common";
 import {NgModule} from "@angular/core";
 import {AddHighlightDialog} from "./add-highlight-dialog.component";
 import {HighlightPane} from "./highlight-pane.component";
-import {WidgetDirectivesModule} from "../directive/widget-directives.module";
+
 import {FormsModule, ReactiveFormsModule} from "@angular/forms";
 import {ColorPickerModule} from "../color-picker/color-picker.module";
-import {
-   LargeFormFieldModule
-} from "../large-form-field/large-form-field.module";
+
 import {ConditionModule} from "../condition/condition.module";
 import {DropdownViewModule} from "../dropdown-view/dropdown-view.module";
-import {FontPaneModule} from "../font-pane/font-pane.module";
+
 import {ModalHeaderModule} from "../modal-header/modal-header.module";
 
 @NgModule({
     imports: [
-        CommonModule,
-        WidgetDirectivesModule,
-        ReactiveFormsModule,
-        ColorPickerModule,
-        LargeFormFieldModule,
-        ConditionModule,
-        DropdownViewModule,
-        FontPaneModule,
-        FormsModule,
-        ModalHeaderModule,
-        AddHighlightDialog,
-        HighlightPane,
-    ],
+    CommonModule,
+    ReactiveFormsModule,
+    ColorPickerModule,
+    ConditionModule,
+    DropdownViewModule,
+    FormsModule,
+    ModalHeaderModule,
+    AddHighlightDialog,
+    HighlightPane,
+],
     exports: [
         AddHighlightDialog,
         HighlightPane

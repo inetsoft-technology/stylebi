@@ -16,11 +16,8 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { APP_BASE_HREF } from "@angular/common";
-import { HTTP_INTERCEPTORS, HttpClientModule } from "@angular/common/http";
-import { ApplicationRef, DoBootstrap, NgModule } from "@angular/core";
-import { FormsModule, ReactiveFormsModule } from "@angular/forms";
-import { BrowserModule } from "@angular/platform-browser";
-import { NgbModalModule } from "@ng-bootstrap/ng-bootstrap";
+import { HTTP_INTERCEPTORS, provideHttpClient, withInterceptorsFromDi } from "@angular/common/http";
+import { ApplicationConfig } from "@angular/core";
 import { SsoHeartbeatInterceptor } from "../../../../shared/sso/sso-heartbeat-interceptor";
 import { SsoHeartbeatService } from "../../../../shared/sso/sso-heartbeat.service";
 import { BaseUrlInterceptor } from "../common/services/base-url-interceptor";
@@ -37,31 +34,15 @@ import { DragService } from "../widget/services/drag.service";
 import { FontService } from "../widget/services/font.service";
 import { ModelService } from "../widget/services/model.service";
 
-export const httpInterceptorProviders = [
-   {provide: HTTP_INTERCEPTORS, useClass: HttpDebounceInterceptor, multi: true},
-   {provide: HTTP_INTERCEPTORS, useClass: HttpParamsCodecInterceptor, multi: true},
-   {provide: HTTP_INTERCEPTORS, useClass: CsrfInterceptor, multi: true},
-   {provide: HTTP_INTERCEPTORS, useClass: RequestedWithInterceptor, multi: true},
-   {provide: HTTP_INTERCEPTORS, useClass: SsoHeartbeatInterceptor, multi: true},
-   {provide: HTTP_INTERCEPTORS, useClass: BaseUrlInterceptor, multi: true},
-];
-
-export function GetAppBaseHref(): string {
-   return document.getElementsByTagName(
-      "inetsoft-base")?.item(0)?.attributes?.getNamedItem("href")?.value;
+function getAppBaseHref(): string {
+   return document.getElementsByTagName("inetsoft-base")
+      ?.item(0)?.attributes?.getNamedItem("href")?.value;
 }
 
-@NgModule({
-   imports: [
-      BrowserModule,
-      HttpClientModule,
-      NgbModalModule,
-      FormsModule,
-      ReactiveFormsModule,
-   ],
+export const embedElementConfig: ApplicationConfig = {
    providers: [
+      provideHttpClient(withInterceptorsFromDi()),
       SsoHeartbeatService,
-      httpInterceptorProviders,
       ViewDataService,
       LicenseInfoService,
       FirstDayOfWeekService,
@@ -70,10 +51,12 @@ export function GetAppBaseHref(): string {
       ModelService,
       DebounceService,
       DomService,
-      {provide: APP_BASE_HREF, useFactory: GetAppBaseHref},
-   ],
-})
-export class AppBaseElementModule implements DoBootstrap {
-   ngDoBootstrap(appRef: ApplicationRef): void {
-   }
-}
+      { provide: APP_BASE_HREF, useFactory: getAppBaseHref },
+      { provide: HTTP_INTERCEPTORS, useClass: HttpDebounceInterceptor, multi: true },
+      { provide: HTTP_INTERCEPTORS, useClass: HttpParamsCodecInterceptor, multi: true },
+      { provide: HTTP_INTERCEPTORS, useClass: CsrfInterceptor, multi: true },
+      { provide: HTTP_INTERCEPTORS, useClass: RequestedWithInterceptor, multi: true },
+      { provide: HTTP_INTERCEPTORS, useClass: SsoHeartbeatInterceptor, multi: true },
+      { provide: HTTP_INTERCEPTORS, useClass: BaseUrlInterceptor, multi: true },
+   ]
+};

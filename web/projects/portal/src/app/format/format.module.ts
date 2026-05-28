@@ -24,25 +24,24 @@ import { BindingBorderPane } from "./objects/binding-border-pane.component";
 import { BorderStylePane } from "./objects/border-style-pane.component";
 import { ComboBox } from "./objects/combo-box.component";
 import { FormattingPane } from "./objects/formatting-pane.component";
-import { WidgetDirectivesModule } from "../widget/directive/widget-directives.module";
+
 import { DynamicComboBoxModule } from "../widget/dynamic-combo-box/dynamic-combo-box.module";
 import { FixedDropdownModule } from "../widget/fixed-dropdown/fixed-dropdown.module";
 
 @NgModule({
     imports: [
-        CommonModule,
-        FormsModule,
-        ReactiveFormsModule,
-        WidgetDirectivesModule,
-        DynamicComboBoxModule,
-        ColorPickerModule,
-        FixedDropdownModule,
-        BindingAlignmentPane,
-        BindingBorderPane,
-        BorderStylePane,
-        ComboBox,
-        FormattingPane
-    ],
+    CommonModule,
+    FormsModule,
+    ReactiveFormsModule,
+    DynamicComboBoxModule,
+    ColorPickerModule,
+    FixedDropdownModule,
+    BindingAlignmentPane,
+    BindingBorderPane,
+    BorderStylePane,
+    ComboBox,
+    FormattingPane
+],
     exports: [
         BindingAlignmentPane,
         BindingBorderPane,

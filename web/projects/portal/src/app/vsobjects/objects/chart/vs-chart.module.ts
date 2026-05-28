@@ -18,28 +18,25 @@
 import { CommonModule } from "@angular/common";
 import { NgModule } from "@angular/core";
 import { GraphModule } from "../../../graph/graph.module";
-import { WidgetDirectivesModule } from "../../../widget/directive/widget-directives.module";
+
 import { TooltipModule } from "../../../widget/tooltip/tooltip.module";
-import { DataTipDirectivesModule } from "../data-tip/data-tip-directives.module";
+
 import { PreviewTableModule } from "../table/preview-table.module";
 import { VSTitleModule } from "../title/vs-title.module";
-import { VSLoadingDisplayModule } from "../vs-loading-display/vs-loading-display.module";
+
 import { VSChart } from "./vs-chart.component";
 import { VSLineModule } from "../shape/vs-line.module";
 
 @NgModule({
     imports: [
-        CommonModule,
-        VSTitleModule,
-        GraphModule,
-        PreviewTableModule,
-        VSLoadingDisplayModule,
-        DataTipDirectivesModule,
-        WidgetDirectivesModule,
-        TooltipModule,
-        VSLineModule,
-        VSChart
-    ],
+    CommonModule,
+    VSTitleModule,
+    GraphModule,
+    PreviewTableModule,
+    TooltipModule,
+    VSLineModule,
+    VSChart
+],
     exports: [
         VSChart
     ],

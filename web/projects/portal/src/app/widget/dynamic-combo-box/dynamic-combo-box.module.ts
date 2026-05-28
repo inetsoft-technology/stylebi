@@ -18,23 +18,22 @@
 import { CommonModule } from "@angular/common";
 import { NgModule } from "@angular/core";
 import { FormsModule } from "@angular/forms";
-import { WidgetDirectivesModule } from "../directive/widget-directives.module";
+
 import { DynamicComboBox } from "./dynamic-combo-box.component";
 import { TreeModule } from "../tree/tree.module";
 import {TooltipModule} from "../tooltip/tooltip.module";
 import {FixedDropdownModule} from "../fixed-dropdown/fixed-dropdown.module";
-import {MouseEventModule} from "../mouse-event/mouse-event.module";
+
 
 @NgModule({
     imports: [
-        CommonModule,
-        FormsModule,
-        TreeModule,
-        TooltipModule,
-        FixedDropdownModule,
-        MouseEventModule,
-        DynamicComboBox,
-    ],
+    CommonModule,
+    FormsModule,
+    TreeModule,
+    TooltipModule,
+    FixedDropdownModule,
+    DynamicComboBox,
+],
     exports: [
         DynamicComboBox
     ],

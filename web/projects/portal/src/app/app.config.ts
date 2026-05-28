@@ -15,16 +15,15 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { HTTP_INTERCEPTORS, HttpClientModule } from "@angular/common/http";
-import { NgModule } from "@angular/core";
-import { FormsModule, ReactiveFormsModule } from "@angular/forms";
-import { BrowserModule } from "@angular/platform-browser";
+import { ApplicationConfig } from "@angular/core";
+import { provideRouter, withRouterConfig } from "@angular/router";
+import { provideHttpClient, withInterceptorsFromDi } from "@angular/common/http";
+import { provideAnimations } from "@angular/platform-browser/animations";
+import { HTTP_INTERCEPTORS } from "@angular/common/http";
 import { UrlSerializer } from "@angular/router";
-import { NgbModalModule } from "@ng-bootstrap/ng-bootstrap";
-import { SsoHeartbeatInterceptor } from "../../../shared/sso/sso-heartbeat-interceptor";
+import { routes } from "./app.routes";
 import { SsoHeartbeatService } from "../../../shared/sso/sso-heartbeat.service";
-import { AppRoutingModule } from "./app-routing.module";
-import { AppComponent } from "./app.component";
+import { SsoHeartbeatInterceptor } from "../../../shared/sso/sso-heartbeat-interceptor";
 import { CsrfInterceptor } from "./common/services/csrf-interceptor";
 import { DateLevelExamplesService } from "./common/services/date-level-examples.service";
 import { FirstDayOfWeekService } from "./common/services/first-day-of-week.service";
@@ -37,22 +36,35 @@ import { StandardUrlSerializer } from "./common/services/standard-url-serializer
 import { CollapseRepositoryTreeService } from "./portal/report/desktop/collapse-repository-tree.service.component";
 import { PageTabService } from "./viewer/services/page-tab.service";
 import { ViewDataService } from "./viewer/services/view-data.service";
-import { GettingStartedModule } from "./widget/dialog/getting-started-dialog/getting-started.module";
-import { SessionExpirationDialogModule } from "./widget/dialog/session-expiration-dialog/session-expiration-dialog.module";
 import { DomService } from "./widget/dom-service/dom.service";
-
 import { DebounceService } from "./widget/services/debounce.service";
 import { DragService } from "./widget/services/drag.service";
 import { FontService } from "./widget/services/font.service";
 import { ModelService } from "./widget/services/model.service";
 
-export const httpInterceptorProviders = [
-   {provide: HTTP_INTERCEPTORS, useClass: HttpDebounceInterceptor, multi: true},
-   {provide: HTTP_INTERCEPTORS, useClass: HttpParamsCodecInterceptor, multi: true},
-   {provide: HTTP_INTERCEPTORS, useClass: CsrfInterceptor, multi: true},
-   {provide: HTTP_INTERCEPTORS, useClass: RequestedWithInterceptor, multi: true},
-   {provide: HTTP_INTERCEPTORS, useClass: InvalidSessionInterceptor, multi: true},
-   {provide: HTTP_INTERCEPTORS, useClass: SsoHeartbeatInterceptor, multi: true},
-];
-
-
+export const appConfig: ApplicationConfig = {
+   providers: [
+      provideRouter(routes, withRouterConfig({ onSameUrlNavigation: "reload" })),
+      provideHttpClient(withInterceptorsFromDi()),
+      provideAnimations(),
+      SsoHeartbeatService,
+      ViewDataService,
+      DateLevelExamplesService,
+      LicenseInfoService,
+      FirstDayOfWeekService,
+      CollapseRepositoryTreeService,
+      PageTabService,
+      DragService,
+      FontService,
+      ModelService,
+      DebounceService,
+      DomService,
+      { provide: UrlSerializer, useClass: StandardUrlSerializer },
+      { provide: HTTP_INTERCEPTORS, useClass: HttpDebounceInterceptor, multi: true },
+      { provide: HTTP_INTERCEPTORS, useClass: HttpParamsCodecInterceptor, multi: true },
+      { provide: HTTP_INTERCEPTORS, useClass: CsrfInterceptor, multi: true },
+      { provide: HTTP_INTERCEPTORS, useClass: RequestedWithInterceptor, multi: true },
+      { provide: HTTP_INTERCEPTORS, useClass: InvalidSessionInterceptor, multi: true },
+      { provide: HTTP_INTERCEPTORS, useClass: SsoHeartbeatInterceptor, multi: true },
+   ]
+};

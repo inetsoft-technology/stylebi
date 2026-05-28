@@ -46,7 +46,7 @@ import {TabularTextEditor} from "./tabular-text-editor.component";
 import {TabularViewComponent} from "./tabular-view.component";
 import {FormsModule, ReactiveFormsModule} from "@angular/forms";
 import {NgbTypeaheadModule} from "@ng-bootstrap/ng-bootstrap";
-import {ExpandStringModule} from "../expand-string/expand-string.module";
+
 import {
    DateTypeEditorModule
 } from "../date-type-editor/date-type-editor.module";
@@ -54,30 +54,29 @@ import {TreeModule} from "../tree/tree.module";
 
 @NgModule({
     imports: [
-        CommonModule,
-        ReactiveFormsModule,
-        NgbTypeaheadModule,
-        FormsModule,
-        ExpandStringModule,
-        DateTypeEditorModule,
-        TreeModule,
-        TextFieldModule,
-        TabularAutocompleteEditor,
-        TabularBooleanEditor,
-        TabularColumnDefinitionEditor,
-        TabularDateEditor,
-        TabularFileBrowser,
-        TabularFileEditor,
-        TabularHttpParameterEditorComponent,
-        TabularListEditor,
-        TabularNumberEditor,
-        TabularQueryParameterEditor,
-        TabularRestParametersEditorComponent,
-        TabularTagsEditor,
-        TabularTextEditor,
-        TabularGooglePickerEditor,
-        TabularViewComponent,
-    ],
+    CommonModule,
+    ReactiveFormsModule,
+    NgbTypeaheadModule,
+    FormsModule,
+    DateTypeEditorModule,
+    TreeModule,
+    TextFieldModule,
+    TabularAutocompleteEditor,
+    TabularBooleanEditor,
+    TabularColumnDefinitionEditor,
+    TabularDateEditor,
+    TabularFileBrowser,
+    TabularFileEditor,
+    TabularHttpParameterEditorComponent,
+    TabularListEditor,
+    TabularNumberEditor,
+    TabularQueryParameterEditor,
+    TabularRestParametersEditorComponent,
+    TabularTagsEditor,
+    TabularTextEditor,
+    TabularGooglePickerEditor,
+    TabularViewComponent,
+],
     exports: [
         TabularAutocompleteEditor,
         TabularBooleanEditor,

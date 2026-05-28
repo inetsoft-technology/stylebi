@@ -22,7 +22,7 @@ import { FormsModule } from "@angular/forms";
 import { NgbDropdownModule, NgbNavModule } from "@ng-bootstrap/ng-bootstrap";
 import { ColorPickerModule } from "../color-picker/color-picker.module";
 import { ComputationComboBoxModule } from "../dialog/computation-combo-box/computation-combo-box.module";
-import { WidgetDirectivesModule } from "../directive/widget-directives.module";
+
 import { DynamicComboBoxModule } from "../dynamic-combo-box/dynamic-combo-box.module";
 import { WidgetFormatModule } from "../format/widget-format.module";
 import { ModalHeaderModule } from "../modal-header/modal-header.module";
@@ -38,33 +38,32 @@ import { TargetComboBox } from "./target-combo-box.component";
 import { TargetLabelPane } from "./target-label-pane.component";
 import { ValueInputField } from "./value-input-field.component";
 import {FixedDropdownModule} from "../fixed-dropdown/fixed-dropdown.module";
-import {MouseEventModule} from "../mouse-event/mouse-event.module";
+
 
 @NgModule({
     imports: [
-        CommonModule,
-        FormsModule,
-        NgbDropdownModule,
-        ColorPickerModule,
-        WidgetFormatModule,
-        ComputationComboBoxModule,
-        DynamicComboBoxModule,
-        NgbNavModule,
-        ModalHeaderModule,
-        FixedDropdownModule,
-        MouseEventModule,
-        BCategoricalColorPane,
-        BandPanel,
-        ChartTargetDialog,
-        DateInputField,
-        GraphPaletteDialog,
-        LabelInputField,
-        LinePanel,
-        StatPanel,
-        TargetComboBox,
-        TargetLabelPane,
-        ValueInputField,
-    ],
+    CommonModule,
+    FormsModule,
+    NgbDropdownModule,
+    ColorPickerModule,
+    WidgetFormatModule,
+    ComputationComboBoxModule,
+    DynamicComboBoxModule,
+    NgbNavModule,
+    ModalHeaderModule,
+    FixedDropdownModule,
+    BCategoricalColorPane,
+    BandPanel,
+    ChartTargetDialog,
+    DateInputField,
+    GraphPaletteDialog,
+    LabelInputField,
+    LinePanel,
+    StatPanel,
+    TargetComboBox,
+    TargetLabelPane,
+    ValueInputField,
+],
     exports: [
         BCategoricalColorPane,
         BandPanel,

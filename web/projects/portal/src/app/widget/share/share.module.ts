@@ -21,28 +21,26 @@ import {ShareEmailDialogComponent} from "./share-email-dialog.component";
 import {ShareGoogleChatDialog} from "./share-google-chat-dialog.component";
 import {ShareLinkDialog} from "./share-link-dialog.component";
 import {ShareSlackDialog} from "./share-slack-dialog.component";
-import {WidgetDirectivesModule} from "../directive/widget-directives.module";
+
 import {ModalHeaderModule} from "../modal-header/modal-header.module";
 import {FormsModule, ReactiveFormsModule} from "@angular/forms";
-import {NotificationsModule} from "../notifications/notifications.module";
+
 import {ClipboardModule} from "ngx-clipboard";
 import {EmailDialogModule} from "../email-dialog/email-dialog.module";
 
 @NgModule({
     imports: [
-        CommonModule,
-        WidgetDirectivesModule,
-        ModalHeaderModule,
-        ReactiveFormsModule,
-        NotificationsModule,
-        ClipboardModule,
-        FormsModule,
-        EmailDialogModule,
-        ShareEmailDialogComponent,
-        ShareGoogleChatDialog,
-        ShareLinkDialog,
-        ShareSlackDialog,
-    ],
+    CommonModule,
+    ModalHeaderModule,
+    ReactiveFormsModule,
+    ClipboardModule,
+    FormsModule,
+    EmailDialogModule,
+    ShareEmailDialogComponent,
+    ShareGoogleChatDialog,
+    ShareLinkDialog,
+    ShareSlackDialog,
+],
     exports: [
         ShareEmailDialogComponent,
         ShareGoogleChatDialog,

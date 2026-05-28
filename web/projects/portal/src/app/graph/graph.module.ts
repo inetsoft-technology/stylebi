@@ -21,13 +21,13 @@ import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { NgbNavModule } from "@ng-bootstrap/ng-bootstrap";
 import { ChartLinePane } from "../vsobjects/dialog/graph/chart-line-pane.component";
 import { ColorPickerModule } from "../widget/color-picker/color-picker.module";
-import { WidgetDirectivesModule } from "../widget/directive/widget-directives.module";
+
 import { DynamicComboBoxModule } from "../widget/dynamic-combo-box/dynamic-combo-box.module";
 import { WidgetFormatModule } from "../widget/format/widget-format.module";
 import { ModalHeaderModule } from "../widget/modal-header/modal-header.module";
-import { MouseEventModule } from "../widget/mouse-event/mouse-event.module";
+
 import { MultiSelectModule } from "../widget/multi-select/multi-select.module";
-import { ResizeModule } from "../widget/resize/resize.module";
+
 import { SlideOutModule } from "../widget/slide-out/slide-out.module";
 import { TargetModule } from "../widget/target/target.module";
 import { TooltipModule } from "../widget/tooltip/tooltip.module";
@@ -55,44 +55,41 @@ import { ChartTitleArea } from "./objects/chart-title-area.component";
 
 @NgModule({
     imports: [
-        CommonModule,
-        FormsModule,
-        ReactiveFormsModule,
-        WidgetDirectivesModule,
-        TooltipModule,
-        WidgetFormatModule,
-        ColorPickerModule,
-        MultiSelectModule,
-        DynamicComboBoxModule,
-        ModalHeaderModule,
-        SlideOutModule,
-        TargetModule,
-        NgbNavModule,
-        ResizeModule,
-        MouseEventModule,
-        AliasPane,
-        AlignmentCombo,
-        AxisLabelPane,
-        AxisLinePane,
-        AxisPropertyDialog,
-        ChartArea,
-        ChartAxisArea,
-        ChartFacetArea,
-        ChartImageDirective,
-        ChartLegendArea,
-        ChartLegendContainer,
-        ChartLinePane,
-        ChartPlotArea,
-        ChartPlotOptionsPaneComponent,
-        ChartTargetLinesPane,
-        ChartTitleArea,
-        ChartNavBar,
-        LegendFormatDialog,
-        LegendFormatGeneralPane,
-        LegendScalePane,
-        TitleFormatDialog,
-        TitleFormatPane
-    ],
+    CommonModule,
+    FormsModule,
+    ReactiveFormsModule,
+    TooltipModule,
+    WidgetFormatModule,
+    ColorPickerModule,
+    MultiSelectModule,
+    DynamicComboBoxModule,
+    ModalHeaderModule,
+    SlideOutModule,
+    TargetModule,
+    NgbNavModule,
+    AliasPane,
+    AlignmentCombo,
+    AxisLabelPane,
+    AxisLinePane,
+    AxisPropertyDialog,
+    ChartArea,
+    ChartAxisArea,
+    ChartFacetArea,
+    ChartImageDirective,
+    ChartLegendArea,
+    ChartLegendContainer,
+    ChartLinePane,
+    ChartPlotArea,
+    ChartPlotOptionsPaneComponent,
+    ChartTargetLinesPane,
+    ChartTitleArea,
+    ChartNavBar,
+    LegendFormatDialog,
+    LegendFormatGeneralPane,
+    LegendScalePane,
+    TitleFormatDialog,
+    TitleFormatPane
+],
     exports: [
         AliasPane,
         AlignmentCombo,

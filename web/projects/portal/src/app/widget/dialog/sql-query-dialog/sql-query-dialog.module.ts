@@ -70,27 +70,27 @@ import {
    DataConditionModule
 } from "../../../portal/dialog/vpm-condition-dialog/data-condition.module";
 import { DropdownViewModule } from "../../dropdown-view/dropdown-view.module";
-import { SplitPaneModule } from "../../split-pane/split-pane.module";
+
 import { SQLQueryDialog } from "./sql-query-dialog.component";
 import { SQLQueryDialogListComponent } from "./sql-query-dialog-list.component";
 import { SQLQueryJoinDialog } from "./sql-query-join-dialog.component";
 import { ModalHeaderModule } from "../../modal-header/modal-header.module";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { TreeModule } from "../../tree/tree.module";
-import { WidgetDirectivesModule } from "../../directive/widget-directives.module";
+
 import { SlideOutModule } from "../../slide-out/slide-out.module";
 import { ConditionModule } from "../../condition/condition.module";
 import { HelpLinkModule } from "../../help-link/help-link.module";
 import { NgbNavModule, NgbTooltip } from "@ng-bootstrap/ng-bootstrap";
-import { SimpleTableModule } from "../../simple-table/simple-table.module";
+
 import {
    FreeFormSqlPaneComponent
 } from "../../../portal/data/data-datasource-browser/datasources-database/database-query/query-sql/free-form-sql-pane.component";
 import {
    QueryPreviewTableComponent
 } from "../../../portal/data/data-datasource-browser/datasources-database/database-query/query-preview/query-preview-table.component";
-import { ScrollModule } from "../../scroll/scroll.module";
-import { NotificationsModule } from "../../notifications/notifications.module";
+
+
 import {
    SqlQueryPreviewPaneComponent
 } from "../../../portal/data/data-datasource-browser/datasources-database/database-query/query-preview/sql-query-preview-pane.component";
@@ -98,46 +98,41 @@ import { SimpleQueryPaneComponent } from "./simple-query-pane.component";
 
 @NgModule({
     imports: [
-        CommonModule,
-        ModalHeaderModule,
-        ReactiveFormsModule,
-        FormsModule,
-        TreeModule,
-        WidgetDirectivesModule,
-        SlideOutModule,
-        ConditionModule,
-        HelpLinkModule,
-        NgbNavModule,
-        SimpleTableModule,
-        SplitPaneModule,
-        DatabaseCommonComponentsModule,
-        DropdownViewModule,
-        DataConditionModule,
-        ScrollModule,
-        NgbTooltip,
-        NotificationsModule,
-        SQLQueryDialog,
-        SQLQueryDialogListComponent,
-        SimpleQueryPaneComponent,
-        SQLQueryJoinDialog,
-        DatabaseQueryComponent,
-        QueryLinkPaneComponent,
-        QueryLinkGraphPaneComponent,
-        QueryNetworkGraphPaneComponent,
-        QueryJoinEditPane,
-        QueryTablePropertiesDialogComponent,
-        QueryFieldsPaneComponent,
-        EditFieldDialogComponent,
-        EditDataTypeDialogComponent,
-        BrowseFieldValuesDialogComponent,
-        QueryConditionsPaneComponent,
-        FieldsPaneComponent,
-        QuerySortPaneComponent,
-        FreeFormSqlPaneComponent,
-        SqlQueryPreviewPaneComponent,
-        QueryPreviewTableComponent,
-        QueryGroupingPaneComponent
-    ],
+    CommonModule,
+    ModalHeaderModule,
+    ReactiveFormsModule,
+    FormsModule,
+    TreeModule,
+    SlideOutModule,
+    ConditionModule,
+    HelpLinkModule,
+    NgbNavModule,
+    DatabaseCommonComponentsModule,
+    DropdownViewModule,
+    DataConditionModule,
+    NgbTooltip,
+    SQLQueryDialog,
+    SQLQueryDialogListComponent,
+    SimpleQueryPaneComponent,
+    SQLQueryJoinDialog,
+    DatabaseQueryComponent,
+    QueryLinkPaneComponent,
+    QueryLinkGraphPaneComponent,
+    QueryNetworkGraphPaneComponent,
+    QueryJoinEditPane,
+    QueryTablePropertiesDialogComponent,
+    QueryFieldsPaneComponent,
+    EditFieldDialogComponent,
+    EditDataTypeDialogComponent,
+    BrowseFieldValuesDialogComponent,
+    QueryConditionsPaneComponent,
+    FieldsPaneComponent,
+    QuerySortPaneComponent,
+    FreeFormSqlPaneComponent,
+    SqlQueryPreviewPaneComponent,
+    QueryPreviewTableComponent,
+    QueryGroupingPaneComponent
+],
     exports: [
         SQLQueryDialog,
         SQLQueryDialogListComponent,

@@ -22,11 +22,11 @@ import { NgbNavModule, NgbTypeaheadModule } from "@ng-bootstrap/ng-bootstrap";
 import { CkeditorWrapperComponent } from "../../../../../shared/ckeditor-wrapper/ckeditor-wrapper.component";
 
 import { AssetTreeModule } from "../asset-tree/asset-tree.module";
-import { WidgetDirectivesModule } from "../directive/widget-directives.module";
+
 import { IdentityTreeModule } from "../identity-tree/identity-tree.module";
 import { ModalHeaderModule } from "../modal-header/modal-header.module";
-import { ScrollableTableModule } from "../scrollable-table/scrollable-table.module";
-import { ShuffleListModule } from "../shuffle-list/shuffle-list.module";
+
+
 import { EmailAddrDialog } from "./email-addr-dialog.component";
 import { EmailPane } from "./email-pane.component";
 import { EmbeddedEmailPane } from "./embedded-email-pane.component";
@@ -34,23 +34,20 @@ import { QueryEmailPane } from "./query-email-pane.component";
 
 @NgModule({
     imports: [
-        CommonModule,
-        ModalHeaderModule,
-        NgbNavModule,
-        WidgetDirectivesModule,
-        ReactiveFormsModule,
-        NgbTypeaheadModule,
-        FormsModule,
-        IdentityTreeModule,
-        ScrollableTableModule,
-        ShuffleListModule,
-        AssetTreeModule,
-        CkeditorWrapperComponent,
-        EmailAddrDialog,
-        EmailPane,
-        EmbeddedEmailPane,
-        QueryEmailPane,
-    ],
+    CommonModule,
+    ModalHeaderModule,
+    NgbNavModule,
+    ReactiveFormsModule,
+    NgbTypeaheadModule,
+    FormsModule,
+    IdentityTreeModule,
+    AssetTreeModule,
+    CkeditorWrapperComponent,
+    EmailAddrDialog,
+    EmailPane,
+    EmbeddedEmailPane,
+    QueryEmailPane,
+],
     exports: [
         EmailAddrDialog,
         EmailPane,

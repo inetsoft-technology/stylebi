@@ -19,24 +19,22 @@ import { CommonModule } from "@angular/common";
 import { NgModule } from "@angular/core";
 import { FormulaEditorDialog } from "./formula-editor-dialog.component";
 import { ModalHeaderModule } from "../modal-header/modal-header.module";
-import { MouseEventModule } from "../mouse-event/mouse-event.module";
+
 import { ReactiveFormsModule } from "@angular/forms";
 import { ScriptPaneModule } from "../dialog/script-pane/script-pane.module";
 import { NewAggrDialogModule } from "../dialog/new-aggr-dialog/new-aggr-dialog.module";
-import { WidgetDirectivesModule } from "../directive/widget-directives.module";
+
 import { FormulaEditorService } from "./formula-editor.service";
 
 @NgModule({
     imports: [
-        CommonModule,
-        ModalHeaderModule,
-        MouseEventModule,
-        ReactiveFormsModule,
-        ScriptPaneModule,
-        NewAggrDialogModule,
-        WidgetDirectivesModule,
-        FormulaEditorDialog,
-    ],
+    CommonModule,
+    ModalHeaderModule,
+    ReactiveFormsModule,
+    ScriptPaneModule,
+    NewAggrDialogModule,
+    FormulaEditorDialog,
+],
     exports: [
         FormulaEditorDialog
     ],

@@ -19,15 +19,14 @@ import {CommonModule} from "@angular/common";
 import {NgModule} from "@angular/core";
 import {DropdownView} from "./dropdown-view.component";
 import {FixedDropdownModule} from "../fixed-dropdown/fixed-dropdown.module";
-import {MouseEventModule} from "../mouse-event/mouse-event.module";
+
 
 @NgModule({
     imports: [
-        CommonModule,
-        FixedDropdownModule,
-        MouseEventModule,
-        DropdownView,
-    ],
+    CommonModule,
+    FixedDropdownModule,
+    DropdownView,
+],
     exports: [
         DropdownView
     ],

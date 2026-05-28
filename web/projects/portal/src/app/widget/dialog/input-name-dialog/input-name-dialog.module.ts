@@ -19,17 +19,16 @@ import {CommonModule} from "@angular/common";
 import {NgModule} from "@angular/core";
 import {InputNameDialog} from "./input-name-dialog.component";
 import {ModalHeaderModule} from "../../modal-header/modal-header.module";
-import {WidgetDirectivesModule} from "../../directive/widget-directives.module";
+
 import {ReactiveFormsModule} from "@angular/forms";
 
 @NgModule({
     imports: [
-        CommonModule,
-        ModalHeaderModule,
-        WidgetDirectivesModule,
-        ReactiveFormsModule,
-        InputNameDialog,
-    ],
+    CommonModule,
+    ModalHeaderModule,
+    ReactiveFormsModule,
+    InputNameDialog,
+],
     exports: [
         InputNameDialog
     ],

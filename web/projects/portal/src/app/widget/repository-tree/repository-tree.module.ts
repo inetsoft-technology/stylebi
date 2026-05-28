@@ -26,20 +26,19 @@ import {RepositoryTreeService} from "./repository-tree.service";
 import {TreeModule} from "../tree/tree.module";
 import {StandardDialogModule} from "../standard-dialog/standard-dialog.module";
 import {FormsModule, ReactiveFormsModule} from "@angular/forms";
-import {WidgetDirectivesModule} from "../directive/widget-directives.module";
+
 
 @NgModule({
     imports: [
-        CommonModule,
-        TreeModule,
-        StandardDialogModule,
-        ReactiveFormsModule,
-        FormsModule,
-        WidgetDirectivesModule,
-        AddRepositoryFolderDialog,
-        RepositoryListComponent,
-        RepositoryTreeComponent,
-    ],
+    CommonModule,
+    TreeModule,
+    StandardDialogModule,
+    ReactiveFormsModule,
+    FormsModule,
+    AddRepositoryFolderDialog,
+    RepositoryListComponent,
+    RepositoryTreeComponent,
+],
     exports: [
         AddRepositoryFolderDialog,
         RepositoryListComponent,

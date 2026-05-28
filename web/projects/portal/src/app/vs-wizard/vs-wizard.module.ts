@@ -44,69 +44,59 @@ import { VsWizardComponent } from "./gui/vs-wizard.component";
 import { VsWizardGridPaneComponent } from "./gui/wizard-pane/vs-wizard-grid-pane.component";
 import { VsWizardPane } from "./gui/wizard-pane/vs-wizard-pane.component";
 import { WizardToolBarComponent } from "./gui/wizard-tool-bar/wizard-tool-bar.component";
-import { StatusBarModule } from "../status-bar/status-bar.module";
-import {
-   VSLoadingDisplayModule
-} from "../vsobjects/objects/vs-loading-display/vs-loading-display.module";
-import { WidgetDirectivesModule } from "../widget/directive/widget-directives.module";
-import { InteractModule } from "../widget/interact/interact.module";
+
+
+
+
 import { DynamicComboBoxModule } from "../widget/dynamic-combo-box/dynamic-combo-box.module";
 import { ModalHeaderModule } from "../widget/modal-header/modal-header.module";
-import { NotificationsModule } from "../widget/notifications/notifications.module";
-import { SplitPaneModule } from "../widget/split-pane/split-pane.module";
-import { ToolbarGroupModule } from "../widget/toolbar/toolbar-group/toolbar-group.module";
+
+
+
 import { FixedDropdownModule } from "../widget/fixed-dropdown/fixed-dropdown.module";
 import { AssetTreeModule } from "../widget/asset-tree/asset-tree.module";
 import { HelpLinkModule } from "../widget/help-link/help-link.module";
 import { NgbTooltipModule } from "@ng-bootstrap/ng-bootstrap";
-import { MiniToolbarModule } from "../vsobjects/objects/mini-toolbar/mini-toolbar.module";
+
 
 @NgModule({
     imports: [
-        CommonModule,
-        FormsModule,
-        ReactiveFormsModule,
-        FormatModule,
-        VSObjectModule,
-        BindingModule,
-        StatusBarModule,
-        VSLoadingDisplayModule,
-        VSChartModule,
-        WidgetDirectivesModule,
-        InteractModule,
-        DynamicComboBoxModule,
-        TreeModule,
-        ModalHeaderModule,
-        NotificationsModule,
-        SplitPaneModule,
-        ToolbarGroupModule,
-        FixedDropdownModule,
-        AssetTreeModule,
-        HelpLinkModule,
-        NgbTooltipModule,
-        MiniToolbarModule,
-        ConsoleDialogModule,
-        NewViewsheetDialog,
-        ObjectSubTypePane,
-        ObjectTypeIcon,
-        ObjectTypePane,
-        ObjectWizardPane,
-        ObjectWizardToolBarComponent,
-        VSWizardAggregateItem,
-        VSWizardAggregatePane,
-        VsWizardComponent,
-        VSWizardDetailItem,
-        VsWizardGridPaneComponent,
-        VSWizardGroupItem,
-        VsWizardObjectComponent,
-        VsWizardPane,
-        VSWizardPreviewPane,
-        WizardBindingTree,
-        WizardNewObject,
-        WizardPreviewContainer,
-        WizardToolBarComponent,
-        WizardVisualizationPane
-    ],
+    CommonModule,
+    FormsModule,
+    ReactiveFormsModule,
+    FormatModule,
+    VSObjectModule,
+    BindingModule,
+    VSChartModule,
+    DynamicComboBoxModule,
+    TreeModule,
+    ModalHeaderModule,
+    FixedDropdownModule,
+    AssetTreeModule,
+    HelpLinkModule,
+    NgbTooltipModule,
+    ConsoleDialogModule,
+    NewViewsheetDialog,
+    ObjectSubTypePane,
+    ObjectTypeIcon,
+    ObjectTypePane,
+    ObjectWizardPane,
+    ObjectWizardToolBarComponent,
+    VSWizardAggregateItem,
+    VSWizardAggregatePane,
+    VsWizardComponent,
+    VSWizardDetailItem,
+    VsWizardGridPaneComponent,
+    VSWizardGroupItem,
+    VsWizardObjectComponent,
+    VsWizardPane,
+    VSWizardPreviewPane,
+    WizardBindingTree,
+    WizardNewObject,
+    WizardPreviewContainer,
+    WizardToolBarComponent,
+    WizardVisualizationPane
+],
     exports: [
         NewViewsheetDialog,
         ObjectSubTypePane,

@@ -18,24 +18,19 @@
 import { CommonModule } from "@angular/common";
 import { NgModule } from "@angular/core";
 import { FormsModule } from "@angular/forms";
-import { InteractModule } from "../../../widget/interact/interact.module";
-import { VSObjectDirectivesModule } from "../../directives/vs-object-directives.module";
+
+
 import { VSTitle } from "./vs-title.component";
-import {
-    WidgetDirectivesModule
-} from "../../../widget/directive/widget-directives.module";
+
 import {TooltipModule} from "../../../widget/tooltip/tooltip.module";
 
 @NgModule({
     imports: [
-        CommonModule,
-        VSObjectDirectivesModule,
-        FormsModule,
-        InteractModule,
-        TooltipModule,
-        WidgetDirectivesModule,
-        VSTitle
-    ],
+    CommonModule,
+    FormsModule,
+    TooltipModule,
+    VSTitle
+],
     exports: [
         VSTitle
     ],

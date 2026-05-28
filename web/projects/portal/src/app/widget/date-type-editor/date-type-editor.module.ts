@@ -27,7 +27,7 @@ import {
 import {TimeValueEditorComponent} from "./time-value-editor.component";
 import {TimepickerComponent} from "./timepicker.component";
 import {FormsModule, ReactiveFormsModule} from "@angular/forms";
-import {MouseEventModule} from "../mouse-event/mouse-event.module";
+
 import {NgbDatepickerModule} from "@ng-bootstrap/ng-bootstrap";
 import {
    DynamicComboBoxModule
@@ -36,21 +36,20 @@ import {FixedDropdownModule} from "../fixed-dropdown/fixed-dropdown.module";
 
 @NgModule({
     imports: [
-        CommonModule,
-        FormsModule,
-        MouseEventModule,
-        NgbDatepickerModule,
-        DynamicComboBoxModule,
-        FixedDropdownModule,
-        ReactiveFormsModule,
-        DatePickerComponent,
-        DateTimePickerComponent,
-        DateValueEditorComponent,
-        DynamicValueEditorComponent,
-        TimeInstantValueEditorComponent,
-        TimeValueEditorComponent,
-        TimepickerComponent,
-    ],
+    CommonModule,
+    FormsModule,
+    NgbDatepickerModule,
+    DynamicComboBoxModule,
+    FixedDropdownModule,
+    ReactiveFormsModule,
+    DatePickerComponent,
+    DateTimePickerComponent,
+    DateValueEditorComponent,
+    DynamicValueEditorComponent,
+    TimeInstantValueEditorComponent,
+    TimeValueEditorComponent,
+    TimepickerComponent,
+],
     exports: [
         DatePickerComponent,
         DateTimePickerComponent,

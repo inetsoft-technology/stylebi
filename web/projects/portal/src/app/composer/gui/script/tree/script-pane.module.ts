@@ -20,16 +20,15 @@ import { NgModule } from "@angular/core";
 import { NgbTooltipModule } from "@ng-bootstrap/ng-bootstrap";
 import { TreeModule} from "../../../../widget/tree/tree.module";
 import { ScriptTreePane } from "./script-tree-pane.component";
-import { WidgetDirectivesModule } from "../../../../widget/directive/widget-directives.module";
+
 
 @NgModule({
     imports: [
-        CommonModule,
-        NgbTooltipModule,
-        TreeModule,
-        WidgetDirectivesModule,
-        ScriptTreePane,
-    ],
+    CommonModule,
+    NgbTooltipModule,
+    TreeModule,
+    ScriptTreePane,
+],
     exports: [
         ScriptTreePane
     ],

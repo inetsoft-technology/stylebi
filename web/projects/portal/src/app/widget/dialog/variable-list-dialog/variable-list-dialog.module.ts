@@ -23,9 +23,7 @@ import {
    VariableListEditor
 } from "./variable-list-editor/variable-list-editor.component";
 import {FormsModule, ReactiveFormsModule} from "@angular/forms";
-import {
-   LargeFormFieldModule
-} from "../../large-form-field/large-form-field.module";
+
 import {
    VariableValueEditor
 } from "./variable-value-editor/variable-value-editor.component";
@@ -35,16 +33,15 @@ import {
 
 @NgModule({
     imports: [
-        CommonModule,
-        ModalHeaderModule,
-        FormsModule,
-        LargeFormFieldModule,
-        ReactiveFormsModule,
-        DateTypeEditorModule,
-        VariableListDialog,
-        VariableListEditor,
-        VariableValueEditor,
-    ],
+    CommonModule,
+    ModalHeaderModule,
+    FormsModule,
+    ReactiveFormsModule,
+    DateTypeEditorModule,
+    VariableListDialog,
+    VariableListEditor,
+    VariableValueEditor,
+],
     exports: [
         VariableListDialog,
         VariableListEditor,

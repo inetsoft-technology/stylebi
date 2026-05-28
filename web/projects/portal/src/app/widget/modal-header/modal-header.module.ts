@@ -17,17 +17,16 @@
  */
 import { CommonModule } from "@angular/common";
 import { NgModule } from "@angular/core";
-import { WidgetDirectivesModule } from "../directive/widget-directives.module";
+
 import { ModalHeaderComponent } from "./modal-header.component";
 import {HelpLinkModule} from "../help-link/help-link.module";
 
 @NgModule({
     imports: [
-        CommonModule,
-        HelpLinkModule,
-        WidgetDirectivesModule,
-        ModalHeaderComponent,
-    ],
+    CommonModule,
+    HelpLinkModule,
+    ModalHeaderComponent,
+],
     exports: [
         ModalHeaderComponent
     ],

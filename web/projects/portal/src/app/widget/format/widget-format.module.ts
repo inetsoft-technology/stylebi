@@ -19,7 +19,7 @@ import { CommonModule } from "@angular/common";
 import { NgModule } from "@angular/core";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { NgbDropdownModule } from "@ng-bootstrap/ng-bootstrap";
-import { WidgetDirectivesModule } from "../directive/widget-directives.module";
+
 import { AlphaDropdown } from "./alpha-dropdown.component";
 import { FormatCSSPane } from "./format-css-pane.component";
 import { FormatPane } from "./format-pane.component";
@@ -29,26 +29,24 @@ import { RadiusDropdown } from "./radius-dropdown.component";
 import { RotationRadioGroup } from "./rotation-radio-group.component";
 import { StyleDropdown } from "./style-dropdown.component";
 import {FixedDropdownModule} from "../fixed-dropdown/fixed-dropdown.module";
-import { MouseEventModule } from "../mouse-event/mouse-event.module";
+
 
 @NgModule({
     imports: [
-        CommonModule,
-        WidgetDirectivesModule,
-        ReactiveFormsModule,
-        FormsModule,
-        NgbDropdownModule,
-        FixedDropdownModule,
-        MouseEventModule,
-        AlphaDropdown,
-        FormatCSSPane,
-        FormatPane,
-        GridLineDropdown,
-        LineArrowTypeDropdown,
-        RadiusDropdown,
-        RotationRadioGroup,
-        StyleDropdown,
-    ],
+    CommonModule,
+    ReactiveFormsModule,
+    FormsModule,
+    NgbDropdownModule,
+    FixedDropdownModule,
+    AlphaDropdown,
+    FormatCSSPane,
+    FormatPane,
+    GridLineDropdown,
+    LineArrowTypeDropdown,
+    RadiusDropdown,
+    RotationRadioGroup,
+    StyleDropdown,
+],
     exports: [
         AlphaDropdown,
         FormatCSSPane,

@@ -20,7 +20,7 @@ import {NgModule} from "@angular/core";
 import {CSVConfigPane} from "./csv-config-pane.component";
 import {SimpleScheduleDialog} from "./simple-schedule-dialog.component";
 import {StartTimeEditor} from "./start-time-editor.component";
-import {WidgetDirectivesModule} from "../directive/widget-directives.module";
+
 import {FormsModule, ReactiveFormsModule} from "@angular/forms";
 import {HelpLinkModule} from "../help-link/help-link.module";
 import {
@@ -32,19 +32,18 @@ import {ModalHeaderModule} from "../modal-header/modal-header.module";
 
 @NgModule({
     imports: [
-        CommonModule,
-        WidgetDirectivesModule,
-        FormsModule,
-        HelpLinkModule,
-        ReactiveFormsModule,
-        NgbTypeaheadModule,
-        EmailDialogModule,
-        NgbTimepickerModule,
-        ModalHeaderModule,
-        CSVConfigPane,
-        SimpleScheduleDialog,
-        StartTimeEditor,
-    ],
+    CommonModule,
+    FormsModule,
+    HelpLinkModule,
+    ReactiveFormsModule,
+    NgbTypeaheadModule,
+    EmailDialogModule,
+    NgbTimepickerModule,
+    ModalHeaderModule,
+    CSVConfigPane,
+    SimpleScheduleDialog,
+    StartTimeEditor,
+],
     exports: [
         CSVConfigPane,
         SimpleScheduleDialog,
