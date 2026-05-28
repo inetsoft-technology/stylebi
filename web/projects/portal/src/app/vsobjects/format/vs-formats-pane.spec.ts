@@ -69,19 +69,39 @@ describe("VS Formats Pane Unit case", () => {
       changeDetectorRef = { detach: jest.fn(), reattach: jest.fn() };
       fontService = { getAllFonts: jest.fn() };
       modalService = { open: jest.fn() };
-      modelService = { getModel: jest.fn() };
+      modelService = { getModel: jest.fn().mockReturnValue(observableOf(null)) };
       debounceService = {
          debounce: jest.fn((key, fn, delay, args) => fn(...args)),
          cancel: jest.fn()
       };
 
       TestBed.configureTestingModule({
-         imports: [ReactiveFormsModule, FormsModule, NgbModule, DropDownTestModule,
-            HttpClientTestingModule],
-         declarations: [VSFormatsPane, DropdownView, DynamicComboBox, AlphaDropdown, ColorEditor, ColorPicker, ColorPane,
-                        FontPane, FormattingPane, ColorDropdown,
-                        ColorFieldPane, ColorPane, BindingAlignmentPane, BindingBorderPane,
-                        FormatCSSPane, ComboBox, BorderStylePane, FixedDropdownDirective],
+         imports: [
+            ReactiveFormsModule,
+            FormsModule,
+            NgbModule,
+            DropDownTestModule,
+            HttpClientTestingModule,
+            VSFormatsPane,
+            DropdownView,
+            DynamicComboBox,
+            AlphaDropdown,
+            ColorEditor,
+            ColorPicker,
+            ColorPane,
+            FontPane,
+            FormattingPane,
+            ColorDropdown,
+            ColorFieldPane,
+            ColorPane,
+            BindingAlignmentPane,
+            BindingBorderPane,
+            FormatCSSPane,
+            ComboBox,
+            BorderStylePane,
+            FixedDropdownDirective,
+          ],
+         
          providers: [
             {provide: FontService, useValue: fontService},
             RecentColorService,

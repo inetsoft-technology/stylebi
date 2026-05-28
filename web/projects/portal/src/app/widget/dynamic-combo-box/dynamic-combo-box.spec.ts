@@ -49,12 +49,20 @@ describe("Dynamic combo box Unit Case: ", () => {
    beforeEach(() => {
       TestBed.configureTestingModule({
          imports: [
-            ReactiveFormsModule, FormsModule, NgbModule, DropDownTestModule
+            ReactiveFormsModule,
+            FormsModule,
+            NgbModule,
+            DropDownTestModule,
+            DynamicComboBox,
+            TreeComponent,
+            FormulaEditorDialog,
+            NewAggrDialog,
+            TreeNodeComponent,
+            ScriptPane,
+            TreeSearchPipe,
+            FixedDropdownDirective,
          ],
-         declarations: [
-            DynamicComboBox, TreeComponent, FormulaEditorDialog, NewAggrDialog,
-            TreeNodeComponent, ScriptPane, TreeSearchPipe, FixedDropdownDirective
-         ],
+         
          schemas: [ NO_ERRORS_SCHEMA ]
       });
       TestBed.compileComponents();

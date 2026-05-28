@@ -68,11 +68,15 @@ describe("Selection General Pane Unit Tests", () => {
    beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
-            NgbModule, FormsModule, ReactiveFormsModule
+            NgbModule,
+            FormsModule,
+            ReactiveFormsModule,
+            SelectionGeneralPane,
+            GeneralPropPane,
+            TitlePropPane,
+            SizePositionPane,
          ],
-         declarations: [
-            SelectionGeneralPane, GeneralPropPane, TitlePropPane, SizePositionPane
-         ],
+         
          providers: [],
          schemas: [ NO_ERRORS_SCHEMA ]
       });

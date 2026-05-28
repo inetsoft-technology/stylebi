@@ -71,11 +71,15 @@ describe("Calendar Data Pane Unit Test", () => {
 
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule
+            FormsModule,
+            ReactiveFormsModule,
+            NgbModule,
+            CalendarDataPane,
+            TreeComponent,
+            TreeNodeComponent,
+            TreeSearchPipe,
          ],
-         declarations: [
-            CalendarDataPane, TreeComponent, TreeNodeComponent, TreeSearchPipe
-         ],
+         
          providers: [
             { provide: ChangeDetectorRef, useValue: changeRef },
             { provide: DragService, useValue: dragService }

@@ -100,12 +100,8 @@ describe("Data Input Pane Test", () => {
    beforeEach(() => {
       treeService = { validateTreeNode: jest.fn() };
       TestBed.configureTestingModule({
-         imports: [DropDownTestModule, ReactiveFormsModule, FormsModule, NgbModule, HttpClientTestingModule],
-         declarations: [
-            DataInputPane, DynamicComboBox, TreeComponent, TreeNodeComponent,
-            TreeDropdownComponent, FixedDropdownDirective, TreeSearchPipe,
-            TooltipDirective, EnterClickDirective
-         ],
+         imports: [DropDownTestModule, ReactiveFormsModule, FormsModule, NgbModule, HttpClientTestingModule, DataInputPane, DynamicComboBox, TreeComponent, TreeNodeComponent, TreeDropdownComponent, FixedDropdownDirective, TreeSearchPipe, TooltipDirective, EnterClickDirective],
+         
          providers: [
             {provide: DataTreeValidatorService, useValue: treeService}
          ],

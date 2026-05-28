@@ -41,10 +41,10 @@ describe("Sort Column Editor Unit Test", () => {
    beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule
-         ],
-         declarations: [
-            SortColumnEditor
+            FormsModule,
+            ReactiveFormsModule,
+            NgbModule,
+            SortColumnEditor,
          ]
       });
       TestBed.compileComponents();

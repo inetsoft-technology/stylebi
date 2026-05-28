@@ -42,7 +42,8 @@ const doubleTemplate = `<rich-text-dialog
 
 @Component({
    selector: "test-app",
-   template: ``
+   template: ``,
+   standalone: true
 })
 class TestApp {
    public exist: boolean = true;
@@ -63,7 +64,7 @@ describe("Rich Text Dialog Tests", () => {
       fontService.getAllFonts.mockImplementation(() => fontObservable);
 
       TestBed.configureTestingModule({
-         declarations: [TestApp, RichTextDialog],
+         imports: [TestApp, RichTextDialog],
          providers: [{ provide: FontService, useValue: fontService}],
          schemas: [ NO_ERRORS_SCHEMA ]
       });

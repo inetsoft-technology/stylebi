@@ -86,11 +86,14 @@ describe("Viewsheet script pane Test", () => {
 
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule, HttpClientTestingModule
+            FormsModule,
+            ReactiveFormsModule,
+            NgbModule,
+            HttpClientTestingModule,
+            ViewsheetScriptPane,
+            ScriptPane,
          ],
-         declarations: [
-            ViewsheetScriptPane, ScriptPane
-         ],
+         
          providers: [
             NgbModal, FormulaEditorService,
             FormulaFunctionAnalyzerService,

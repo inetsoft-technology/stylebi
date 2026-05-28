@@ -88,7 +88,8 @@ let currentNotifications: NotificationMock;
 
 @Component({
    selector: "data-notifications",
-   template: ""
+   template: "",
+   standalone: true
 })
 class DataNotificationsStubComponent {
    notifications = currentNotifications;

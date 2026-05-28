@@ -13,6 +13,8 @@ module.exports = {
   // environment. This is required for MSW v2 which depends on the Fetch API.
   testEnvironment: "jest-fixed-jsdom",
   moduleNameMapper: {
+    // ckeditor5 is ESM-only and cannot be loaded in Jest's CommonJS mode; stub it out.
+    "^ckeditor5(/.*)?$": "<rootDir>/__mocks__/ckeditor5.js",
     // msw subpath exports
     "^msw/node$": "<rootDir>/node_modules/msw/lib/node/index.js",
     // @mswjs/interceptors subpath exports

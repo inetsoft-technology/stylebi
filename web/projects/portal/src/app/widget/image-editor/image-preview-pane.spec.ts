@@ -89,11 +89,14 @@ describe("Image Preview Pane Test", () => {
 
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule, HttpClientTestingModule
+            FormsModule,
+            ReactiveFormsModule,
+            NgbModule,
+            HttpClientTestingModule,
+            ImagePreviewPane,
+            TreeComponent,
          ],
-         declarations: [
-            ImagePreviewPane, TreeComponent
-         ],
+         
          providers: [
             { provide: NgbModal, useValue: modalService },
             { provide: ChangeDetectorRef, useValue: changeDetectorRef }

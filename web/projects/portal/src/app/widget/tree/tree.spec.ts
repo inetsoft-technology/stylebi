@@ -16,6 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, EventEmitter, Input, NO_ERRORS_SCHEMA, Output } from "@angular/core";
+import { NgClass, NgFor, NgIf } from "@angular/common";
 import { ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { By } from "@angular/platform-browser";
@@ -30,10 +31,11 @@ describe("Tree Unit Case", () => {
 
    beforeEach(() => {
       TestBed.configureTestingModule({
-         imports: [ReactiveFormsModule, FormsModule, NgbModule],
-         declarations:  [TreeComponent],
+         imports: [ReactiveFormsModule, FormsModule, NgbModule, TreeComponent],
+
          schemas: [NO_ERRORS_SCHEMA]
       });
+      TestBed.overrideComponent(TreeComponent, { set: { imports: [NgIf, NgFor, NgClass, FormsModule] } });
       TestBed.compileComponents();
 
       fixture = TestBed.createComponent(TreeComponent);

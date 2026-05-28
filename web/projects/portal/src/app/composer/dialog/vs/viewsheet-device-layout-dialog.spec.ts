@@ -56,11 +56,17 @@ describe("Viewsheet Device Layout Dialog Unit Test", () => {
 
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule, HttpClientTestingModule
+            FormsModule,
+            ReactiveFormsModule,
+            NgbModule,
+            HttpClientTestingModule,
+            ViewsheetDeviceLayoutDialog,
+            GenericSelectableList,
+            ScreenSizeDialog,
+            EnterSubmitDirective,
+            ModalHeaderComponent,
          ],
-         declarations: [
-            ViewsheetDeviceLayoutDialog, GenericSelectableList, ScreenSizeDialog, EnterSubmitDirective, ModalHeaderComponent
-         ],
+         
          providers: [
             { provide: NgbModal, useValue: modalService }
          ],

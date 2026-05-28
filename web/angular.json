@@ -110,7 +110,8 @@
               "jest-junit"
             ],
             "setupFiles": [
-              "jest-canvas-mock"
+              "jest-canvas-mock",
+              "<rootDir>/projects/portal/src/jest-setup.ts"
             ],
             "testPathIgnorePatterns": [
               "\\.tl\\.spec\\.ts$"

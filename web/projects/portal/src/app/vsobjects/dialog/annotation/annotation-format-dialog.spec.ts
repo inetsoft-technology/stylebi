@@ -50,7 +50,8 @@ import { DebounceService } from "../../../widget/services/debounce.service";
    template: `
      <annotation-format-dialog
        [model]="dialogModel"
-       (onCommit)="updateModel($event)"></annotation-format-dialog>`
+       (onCommit)="updateModel($event)"></annotation-format-dialog>`,
+   standalone: true
 })
 class TestApp {
    public dialogModel: AnnotationFormatDialogModel = {
@@ -79,9 +80,7 @@ describe("Annotation Format Dialog Tests", () => {
             NgbDropdownModule,
             NgbModalModule,
             DropDownTestModule,
-            HttpClientTestingModule
-         ],
-         declarations: [
+            HttpClientTestingModule,
             AnnotationFormatDialog,
             AlphaDropdown,
             ColorComponentEditor,
@@ -100,8 +99,9 @@ describe("Annotation Format Dialog Tests", () => {
             TestApp,
             FixedDropdownDirective,
             EnterSubmitDirective,
-            ActionsContextmenuAnchorDirective
+            ActionsContextmenuAnchorDirective,
          ],
+         
          providers: [
             RecentColorService,
             DebounceService

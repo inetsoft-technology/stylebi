@@ -40,13 +40,21 @@ describe("Value Editor Component Unit Case", () => {
    beforeEach(() => {
       TestBed.configureTestingModule({
          imports: [
-            ReactiveFormsModule, FormsModule, NgbModule, DropDownTestModule
-         ],
-         declarations: [
-            ValueEditor, StringValueEditor, NumberValueEditor, BooleanValueEditor,
-            DateValueEditorComponent, TimeValueEditorComponent, DateInValueEditor,
-            TimeInstantValueEditorComponent, CharValueEditor, TimepickerComponent,
-            FixedDropdownDirective
+            ReactiveFormsModule,
+            FormsModule,
+            NgbModule,
+            DropDownTestModule,
+            ValueEditor,
+            StringValueEditor,
+            NumberValueEditor,
+            BooleanValueEditor,
+            DateValueEditorComponent,
+            TimeValueEditorComponent,
+            DateInValueEditor,
+            TimeInstantValueEditorComponent,
+            CharValueEditor,
+            TimepickerComponent,
+            FixedDropdownDirective,
          ]
       });
 

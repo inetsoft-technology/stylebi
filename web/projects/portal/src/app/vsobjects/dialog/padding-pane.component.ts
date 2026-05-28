@@ -59,6 +59,8 @@ export class PaddingPane implements OnInit {
    }
 
    ngOnInit(): void {
-      this.initForm();
+      if(this.model) {
+         this.initForm();
+      }
    }
 }

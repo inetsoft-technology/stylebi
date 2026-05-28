@@ -40,14 +40,23 @@ describe("One Of Condition Editor Unit Test", () => {
    beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule
+            FormsModule,
+            ReactiveFormsModule,
+            NgbModule,
+            OneOfConditionEditor,
+            ConditionEditor,
+            TopNEditor,
+            ValueEditor,
+            VariableEditor,
+            ExpressionEditor,
+            FieldEditor,
+            SubqueryEditor,
+            SessionDataEditor,
+            NumberValueEditor,
+            ConditionValueTypePipe,
+            ConditionValuePipe,
          ],
-         declarations: [
-            OneOfConditionEditor, ConditionEditor, TopNEditor, ValueEditor,
-            VariableEditor, ExpressionEditor, FieldEditor, SubqueryEditor,
-            SessionDataEditor, NumberValueEditor, ConditionValueTypePipe,
-            ConditionValuePipe
-         ],
+         
          schemas: [ NO_ERRORS_SCHEMA ]
       });
       TestBed.compileComponents();

@@ -78,7 +78,9 @@ export class BasicGeneralPane implements OnInit {
    }
 
    ngOnInit(): void {
-      this.initForm();
+      if(this.model) {
+         this.initForm();
+      }
    }
 
    get visibleValue(): string {

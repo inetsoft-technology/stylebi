@@ -29,6 +29,7 @@ import { ChartGeoRef } from "../../../data/chart/chart-geo-ref";
 import { GeoMappingDialogModel } from "../../../data/chart/geo-mapping-dialog-model";
 import { VSGeoProvider } from "../../vs-geo-provider";
 import { GeoMappingDialog } from "./geo-mapping-dialog.component";
+import { HttpClientTestingModule } from "@angular/common/http/testing";
 
 let createModel: () => GeoMappingDialogModel = () => {
    return{
@@ -87,7 +88,7 @@ describe("geo mapping dialog component unit case", () => {
    let uiContextService: any;
 
    beforeEach(() => {
-      modelService = {};
+      modelService = { getModel: jest.fn().mockReturnValue(observableOf(null)) };
       geoProvider = {
          getMappingData: jest.fn(() => observableOf(new HttpResponse({body: dataMapping}))),
          getChartGeoModel: jest.fn(() => createGeoModel())
@@ -99,8 +100,9 @@ describe("geo mapping dialog component unit case", () => {
       };
 
       TestBed.configureTestingModule({
-         imports: [ReactiveFormsModule, FormsModule, NgbModule],
-         declarations: [GeoMappingDialog, LargeFormFieldComponent],
+         imports: [
+            HttpClientTestingModule,ReactiveFormsModule, FormsModule, NgbModule, GeoMappingDialog, LargeFormFieldComponent],
+         
          providers: [
             {provide: ModelService, useValue: modelService},
             {provide: VSGeoProvider, useValue: geoProvider},

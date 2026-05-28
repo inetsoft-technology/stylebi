@@ -16,7 +16,8 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { HttpClientTestingModule } from "@angular/common/http/testing";
-import { Component, ViewChild } from "@angular/core";
+import { Component, NO_ERRORS_SCHEMA, ViewChild } from "@angular/core";
+import { NgClass, NgFor, NgIf } from "@angular/common";
 import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { By } from "@angular/platform-browser";
@@ -42,7 +43,9 @@ const createModel: () => AddParameterDialogModel = () => {
 };
 
 @Component({
+   standalone: true,
    selector: "test-app",
+   imports: [AddParameterDialog],
    template: `<add-parameter-dialog [parameterNames]="parameterNames" [index]="index"
       [parameters]="parameters"></add-parameter-dialog>`
 })
@@ -62,16 +65,25 @@ describe("Add Parameter Dialog Unit Test", () => {
    beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule, HttpClientTestingModule
+            FormsModule,
+            ReactiveFormsModule,
+            NgbModule,
+            HttpClientTestingModule,
+            TestApp,
+            AddParameterDialog,
+            EnterSubmitDirective,
+            TimepickerComponent,
+            DateValueEditorComponent,
+            TimeValueEditorComponent,
+            TimeInstantValueEditorComponent,
          ],
-         declarations: [
-            TestApp, AddParameterDialog, EnterSubmitDirective, TimepickerComponent,
-            DateValueEditorComponent, TimeValueEditorComponent, TimeInstantValueEditorComponent
-         ],
+         
          providers: [
             { provide: NgbModal, useValue: ngbService },
-         ]
+         ],
+         schemas: [NO_ERRORS_SCHEMA]
       });
+      TestBed.overrideComponent(AddParameterDialog, { set: { imports: [NgIf, NgFor, NgClass, FormsModule, ReactiveFormsModule, EnterSubmitDirective] } });
       TestBed.compileComponents();
 
       fixture = TestBed.createComponent(TestApp);

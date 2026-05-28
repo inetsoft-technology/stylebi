@@ -20,6 +20,8 @@ import { ComponentFixture, TestBed } from "@angular/core/testing";
 import { EnterClickDirective } from "./enter-click.directive";
 
 @Component({
+   standalone: true,
+   imports: [EnterClickDirective],
    template: `<button enterClick (click)="onClick($event)">Click Me</button>`
 })
 class TestHostComponent {
@@ -28,6 +30,8 @@ class TestHostComponent {
 }
 
 @Component({
+   standalone: true,
+   imports: [EnterClickDirective],
    template: `<button [hasKeys]="true" enterClick (click)="onClick($event)">Click Me</button>`
 })
 class TestHostWithKeysComponent {
@@ -38,7 +42,7 @@ class TestHostWithKeysComponent {
 describe("EnterClickDirective", () => {
    it("should trigger click on Enter keydown (keyCode 13)", () => {
       TestBed.configureTestingModule({
-         declarations: [EnterClickDirective, TestHostComponent]
+         imports: [EnterClickDirective, TestHostComponent]
       });
       const fixture: ComponentFixture<TestHostComponent> = TestBed.createComponent(TestHostComponent);
       fixture.detectChanges();
@@ -51,7 +55,7 @@ describe("EnterClickDirective", () => {
 
    it("should not trigger click on non-Enter keydown", () => {
       TestBed.configureTestingModule({
-         declarations: [EnterClickDirective, TestHostComponent]
+         imports: [EnterClickDirective, TestHostComponent]
       });
       const fixture: ComponentFixture<TestHostComponent> = TestBed.createComponent(TestHostComponent);
       fixture.detectChanges();
@@ -64,7 +68,7 @@ describe("EnterClickDirective", () => {
 
    it("should dispatch MouseEvent with modifier keys when hasKeys is true", () => {
       TestBed.configureTestingModule({
-         declarations: [EnterClickDirective, TestHostWithKeysComponent]
+         imports: [EnterClickDirective, TestHostWithKeysComponent]
       });
       const fixture: ComponentFixture<TestHostWithKeysComponent> = TestBed.createComponent(TestHostWithKeysComponent);
       fixture.detectChanges();

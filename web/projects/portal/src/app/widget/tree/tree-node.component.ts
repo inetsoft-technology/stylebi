@@ -43,7 +43,6 @@ import { TreeComponent } from "./tree.component";
 import { SearchComparator } from "./search-comparator";
 import { VirtualScrollTreeDatasource } from "./virtual-scroll-tree-datasource";
 import { TreeSearchPipe } from "./tree-search.pipe";
-import { TreeModule } from "./tree.module";
 import { TooltipDirective } from "../tooltip/tooltip.directive";
 import { EnterClickDirective } from "../directive/enter-click.directive";
 import { OutOfZoneDirective } from "../directive/out-of-zone.directive";
@@ -62,7 +61,6 @@ import { NgIf, NgClass, NgFor } from "@angular/common";
         NgClass,
         TooltipDirective,
         NgFor,
-        TreeModule,
         TreeSearchPipe,
     ],
 })

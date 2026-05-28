@@ -31,14 +31,14 @@ import { createAssetEntry } from "../../../../../shared/data/asset-entry";
 import { CategoricalColorModel } from "../../common/data/visual-frame-model";
 import { GraphPaletteDialog } from "./graph-palette-dialog.component";
 import { ColorEditor } from "../color-picker/color-editor.component";
-import { NgFor } from "@angular/common";
+import { NgFor, NgIf } from "@angular/common";
 
 @Component({
     selector: "b-categorical-color-pane",
     templateUrl: "b-categorical-color-pane.component.html",
     styleUrls: ["b-categorical-color-pane.component.scss"],
     standalone: true,
-    imports: [NgbDropdown, NgbDropdownToggle, NgbDropdownMenu, NgFor, ColorEditor, GraphPaletteDialog]
+    imports: [NgbDropdown, NgbDropdownToggle, NgbDropdownMenu, NgFor, NgIf, ColorEditor, GraphPaletteDialog]
 })
 export class BCategoricalColorPane implements OnInit {
    @ViewChild("paletteDialog") paletteDialog: TemplateRef<any>;
@@ -78,7 +78,7 @@ export class BCategoricalColorPane implements OnInit {
    }
 
    get viewAtEnd(): boolean {
-      return this.currentViewIndex + this.COLORS_IN_VIEW >= this.colorModel.colors.length;
+      return !this.colorModel || this.currentViewIndex + this.COLORS_IN_VIEW >= this.colorModel.colors.length;
    }
 
    shift(n: number): void {

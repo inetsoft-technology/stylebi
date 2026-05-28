@@ -22,7 +22,6 @@ import { Observable } from "rxjs";
 import { TreeNodeModel } from "../tree/tree-node-model";
 import { TabularGrid } from "./tabular-grid";
 import { TabularGridCell } from "./tabular-grid-cell";
-import { TabularModule } from "./tabular.module";
 import { TabularGooglePickerEditor } from "./google-picker/tabular-google-picker-editor.component";
 import { TabularAutocompleteEditor } from "./tabular-autocomplete-editor.component";
 import { TabularFileEditor } from "./tabular-file-editor.component";
@@ -43,7 +42,7 @@ import { NgFor, NgIf, NgTemplateOutlet } from "@angular/common";
     templateUrl: "tabular-view.component.html",
     styleUrls: ["tabular-view.component.scss"],
     standalone: true,
-    imports: [NgFor, NgIf, NgTemplateOutlet, TabularTextEditor, TabularBooleanEditor, TabularNumberEditor, TabularTagsEditor, TabularColumnDefinitionEditor, TabularDateEditor, TabularHttpParameterEditorComponent, TabularQueryParameterEditor, TabularRestParametersEditorComponent, TabularListEditor, TabularFileEditor, TabularAutocompleteEditor, TabularGooglePickerEditor, TabularModule]
+    imports: [NgFor, NgIf, NgTemplateOutlet, TabularTextEditor, TabularBooleanEditor, TabularNumberEditor, TabularTagsEditor, TabularColumnDefinitionEditor, TabularDateEditor, TabularHttpParameterEditorComponent, TabularQueryParameterEditor, TabularRestParametersEditorComponent, TabularListEditor, TabularFileEditor, TabularAutocompleteEditor, TabularGooglePickerEditor]
 })
 export class TabularViewComponent {
    @Input() browseFunction: (path: string, property: string) => Observable<TreeNodeModel>;

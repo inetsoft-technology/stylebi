@@ -22,6 +22,7 @@ import { NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { ManualOrderingDialog } from "./manual-ordering-dialog.component";
 import { LargeFormFieldComponent } from "../../widget/large-form-field/large-form-field.component";
 import { By } from "@angular/platform-browser";
+import { HttpClientTestingModule } from "@angular/common/http/testing";
 
 describe("manual ordering dialog Unit case: ", () => {
    let fixture: ComponentFixture<ManualOrderingDialog>;
@@ -29,8 +30,9 @@ describe("manual ordering dialog Unit case: ", () => {
 
    beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
-         imports: [ReactiveFormsModule, FormsModule, NgbModule],
-         declarations: [ManualOrderingDialog, LargeFormFieldComponent],
+         imports: [
+            HttpClientTestingModule,ReactiveFormsModule, FormsModule, NgbModule, ManualOrderingDialog, LargeFormFieldComponent],
+         
          schemas: [NO_ERRORS_SCHEMA]
       }).compileComponents();
 

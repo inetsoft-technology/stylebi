@@ -157,8 +157,8 @@ describe("Selection List Cell Test", () => {
       vsSelectionComponent.getMarginSize.mockImplementation(() => 0);
 
       TestBed.configureTestingModule({
-         imports: [ BrowserModule, HttpClientTestingModule, FormsModule, NgbModule ],
-         declarations: [ SelectionListCell, InteractableDirective ],
+         imports: [ BrowserModule, HttpClientTestingModule, FormsModule, NgbModule,
+            SelectionListCell, InteractableDirective ],
          providers: [
             { provide: VSSelection, useValue: vsSelectionComponent },
             { provide: Renderer2, useValue: renderer },

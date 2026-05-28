@@ -42,8 +42,7 @@ describe("size position pane unit case", () => {
 
    beforeEach(() => {
       TestBed.configureTestingModule({
-         imports: [ ReactiveFormsModule, FormsModule, NgbModule ],
-         declarations: [SizePositionPane]
+         imports: [ReactiveFormsModule, FormsModule, NgbModule, SizePositionPane]
       }).compileComponents();
 
       fixture = TestBed.createComponent(SizePositionPane);

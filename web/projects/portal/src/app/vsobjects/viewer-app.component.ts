@@ -3213,8 +3213,10 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
    }
 
    setAppSize(): void {
-      this.appSize = new Dimension(this.viewerRoot.nativeElement.offsetWidth,
-         this.viewerRoot.nativeElement.offsetHeight);
+      if(this.viewerRoot?.nativeElement) {
+         this.appSize = new Dimension(this.viewerRoot.nativeElement.offsetWidth,
+            this.viewerRoot.nativeElement.offsetHeight);
+      }
    }
 
    getScaleSize(): Dimension {

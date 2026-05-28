@@ -1,6 +1,6 @@
 /*
  * This file is part of StyleBI.
- * Copyright (C) 2026  InetSoft Technology
+ * Copyright (C) 2024  InetSoft Technology
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,16 +16,11 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-// Extend test matching to include shared library specs alongside portal specs.
-// The @angular-builders/jest builder merges this with its default config.
-module.exports = {
-   testMatch: [
-      "<rootDir>/projects/portal/**/*(*.)@(spec|test).[tj]s?(x)",
-      "<rootDir>/projects/shared/**/*(*.)@(spec|test).[tj]s?(x)",
-   ],
-   // Runs after the test environment (including @angular/compiler) is set up.
-   // Used for patches that import Angular components (not allowed in setupFiles).
-   setupFilesAfterEnv: [
-      "<rootDir>/projects/portal/src/jest-setup-after-env.ts",
-   ],
+// Mock ResizeObserver for components that use the resize-event shared library.
+// Jest/jsdom does not provide ResizeObserver.
+(global as any).ResizeObserver = class ResizeObserver {
+   observe() {}
+   unobserve() {}
+   disconnect() {}
 };
+

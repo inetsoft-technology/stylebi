@@ -30,7 +30,6 @@ import { DropdownObserver } from "../../services/dropdown-observer.service";
 import { ToolbarActionGroup } from "../toolbar-action-group";
 import { ToolbarAction } from "../toolbar-action";
 import { FormsModule } from "@angular/forms";
-import { ToolbarGroupModule } from "./toolbar-group.module";
 import { NgIf, NgClass, NgFor } from "@angular/common";
 
 @Component({
@@ -38,7 +37,7 @@ import { NgIf, NgClass, NgFor } from "@angular/common";
     templateUrl: "toolbar-group.component.html",
     styleUrls: ["toolbar-group.component.scss"],
     standalone: true,
-    imports: [NgIf, NgbDropdown, NgbDropdownToggle, NgbTooltip, NgClass, NgbDropdownMenu, NgFor, ToolbarGroupModule, FormsModule]
+    imports: [NgIf, NgbDropdown, NgbDropdownToggle, NgbTooltip, NgClass, NgbDropdownMenu, NgFor, FormsModule]
 })
 export class ToolbarGroup implements OnInit, AfterViewInit, OnDestroy {
    @Input() asMenu: boolean = false;

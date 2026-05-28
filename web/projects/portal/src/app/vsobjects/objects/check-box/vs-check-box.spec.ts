@@ -77,10 +77,8 @@ describe("vs check box component unit case", () => {
       };
 
       TestBed.configureTestingModule({
-         imports: [ReactiveFormsModule, FormsModule, NgbModule, HttpClientTestingModule],
-         declarations: [
-            VSCheckBox, VSPopComponentDirective, InteractableDirective, DefaultFocusDirective, SafeFontDirective
-         ],
+         imports: [ReactiveFormsModule, FormsModule, NgbModule, HttpClientTestingModule, VSCheckBox, VSPopComponentDirective, InteractableDirective, DefaultFocusDirective, SafeFontDirective],
+         
          schemas: [
             NO_ERRORS_SCHEMA
          ],

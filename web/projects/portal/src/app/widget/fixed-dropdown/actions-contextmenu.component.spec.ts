@@ -86,7 +86,9 @@ const invisibleActions = [
    ])];
 
 @Component({
+   standalone: true,
    selector: "test-app",
+   imports: [ActionsContextmenuComponent],
    template: `<actions-contextmenu [actions]="actions"></actions-contextmenu>`
 })
 class TestApp {
@@ -96,7 +98,7 @@ class TestApp {
 describe("Actions Contextmenu Component Tests", () => {
    beforeEach(() => {
       TestBed.configureTestingModule({
-         declarations: [TestApp, ActionsContextmenuComponent],
+         imports: [TestApp, ActionsContextmenuComponent],
       }).compileComponents();
    });
 

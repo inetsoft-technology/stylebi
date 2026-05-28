@@ -15,6 +15,7 @@
   ~ You should have received a copy of the GNU Affero General Public License
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
+<ng-container *ngIf="model">
 <form [formGroup]="form" class="container-fluid">
   <fieldset>
     <legend>_#(General)</legend>
@@ -67,7 +68,9 @@
     </div>
   </fieldset>
 </form>
+</ng-container>
 <ng-content select="[generalProp]"></ng-content>
+<ng-container *ngIf="model">
 <form class="container-fluid">
   <fieldset class="mt-0">
     <div class="form-row-float-label row"
@@ -124,3 +127,4 @@
     </div>
   </fieldset>
 </form>
+</ng-container>

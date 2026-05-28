@@ -15,6 +15,8 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+import { AsyncPipe, NgClass, NgFor, NgIf, NgStyle } from "@angular/common";
+import { NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, NgbNavOutlet } from "@ng-bootstrap/ng-bootstrap";
 import { HttpClient } from "@angular/common/http";
 import { Component, NO_ERRORS_SCHEMA, ViewChild } from "@angular/core";
 import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
@@ -37,7 +39,9 @@ import { ScheduleTaskDialog } from "./schedule-task-dialog.component";
 
 @Component({
    selector: "test-app",
-   template: `<schedule-task-dialog [model]="model"></schedule-task-dialog>`
+   template: `<schedule-task-dialog [model]="model"></schedule-task-dialog>`,
+   standalone: true,
+   imports: [ScheduleTaskDialog]
 })
 class TestApp {
    @ViewChild(ScheduleTaskDialog, {static: false}) scheduleTaskDialog: ScheduleTaskDialog;
@@ -81,19 +85,28 @@ describe("Schedule Task Dialog Unit Test", () => {
    beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule
+            FormsModule,
+            ReactiveFormsModule,
+            NgbModule,
+            TestApp,
+            ReplaceAllPipe,
+            ScheduleTaskDialog,
+            TaskActionPane,
+            TaskConditionPane,
+            TaskOptionsPane,
+            EnterSubmitDirective,
+            ParameterTable,
+            EditableTableComponent,
+            AddParameterDialog,
          ],
-         declarations: [
-            TestApp, ReplaceAllPipe, ScheduleTaskDialog, TaskActionPane, TaskConditionPane,
-            TaskOptionsPane, EnterSubmitDirective, ParameterTable, EditableTableComponent,
-            AddParameterDialog
-         ],
+         
          providers: [
             { provide: HttpClient, useValue: httpService },
             ScheduleTaskNamesService
          ],
          schemas: [ NO_ERRORS_SCHEMA ]
       });
+      TestBed.overrideComponent(ScheduleTaskDialog, { set: { imports: [NgIf, NgFor, NgClass, NgStyle, AsyncPipe, FormsModule, ReactiveFormsModule, NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, NgbNavOutlet] } });
       TestBed.compileComponents();
 
       fixture = TestBed.createComponent(TestApp);

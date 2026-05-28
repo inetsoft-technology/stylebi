@@ -38,11 +38,15 @@ describe("Table Unpivot Dialog Tests", () => {
 
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule, HttpClientTestingModule,
+            FormsModule,
+            ReactiveFormsModule,
+            NgbModule,
+            HttpClientTestingModule,
+            TableUnpivotDialog,
+            EnterSubmitDirective,
+            ModalHeaderComponent,
          ],
-         declarations: [
-            TableUnpivotDialog, EnterSubmitDirective, ModalHeaderComponent
-         ],
+         
          providers: [
             { provide: TimerService, useValue: timerService },
          ],

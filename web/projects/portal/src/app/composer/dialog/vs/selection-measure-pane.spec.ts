@@ -58,14 +58,22 @@ describe("Selection Measure Pane Test", () => {
 
       TestBed.configureTestingModule({
          imports: [
-            NgbModule, ReactiveFormsModule, FormsModule, DropDownTestModule,
-            HttpClientTestingModule
+            NgbModule,
+            ReactiveFormsModule,
+            FormsModule,
+            DropDownTestModule,
+            HttpClientTestingModule,
+            SelectionMeasurePane,
+            FormulaEditorDialog,
+            ScriptPane,
+            NewAggrDialog,
+            TreeComponent,
+            TreeNodeComponent,
+            TreeSearchPipe,
+            FixedDropdownDirective,
+            DynamicComboBox,
          ],
-         declarations: [
-            SelectionMeasurePane, FormulaEditorDialog,
-            ScriptPane, NewAggrDialog, TreeComponent, TreeNodeComponent, TreeSearchPipe,
-            FixedDropdownDirective, DynamicComboBox
-         ],
+         
          providers: [
             {provide: ChangeDetectorRef, useValue: changeDetectorRef},
             {provide: DragService, useValue: dragService}

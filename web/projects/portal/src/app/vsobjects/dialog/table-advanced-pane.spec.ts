@@ -82,11 +82,18 @@ describe("Table Advanced Pane Unit Test", () => {
 
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule, DropDownTestModule
+            FormsModule,
+            ReactiveFormsModule,
+            NgbModule,
+            DropDownTestModule,
+            TableAdvancedPane,
+            TipPane,
+            TipCustomizeDialog,
+            AlphaDropdown,
+            FixedDropdownDirective,
+            LargeFormFieldComponent,
          ],
-         declarations: [
-            TableAdvancedPane, TipPane, TipCustomizeDialog, AlphaDropdown, FixedDropdownDirective, LargeFormFieldComponent
-         ],
+         
          providers: [
             NgbModal, DebounceService,
             {provide: ModelService, useValue: modelService},

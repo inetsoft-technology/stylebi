@@ -126,7 +126,8 @@ describe("ComposerMain Unit Tests", () => {
 
       TestBed.configureTestingModule({
          imports: [
-            NgbModule
+            NgbModule,
+            ComposerMainComponent,
          ],
          providers: [
             { provide: ComposerObjectService, useValue: composerObjectService },
@@ -150,11 +151,10 @@ describe("ComposerMain Unit Tests", () => {
             { provide: AppInfoService, useValue: appInfoService },
             { provide: FontService, useValue: fontService }
          ],
-         declarations: [
-            ComposerMainComponent
-         ],
+         
          schemas: [NO_ERRORS_SCHEMA]
       });
+      TestBed.overrideComponent(ComposerMainComponent, { set: { imports: [] } });
       TestBed.compileComponents();
    }));
 

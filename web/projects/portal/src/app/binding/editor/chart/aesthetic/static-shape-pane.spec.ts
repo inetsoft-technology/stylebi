@@ -41,11 +41,13 @@ describe("Static Shape Pane Unit Test", () => {
       });
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule
+            FormsModule,
+            ReactiveFormsModule,
+            NgbModule,
+            StaticShapePane,
+            ShapeItem,
          ],
-         declarations: [
-            StaticShapePane, ShapeItem
-         ],
+         
          providers: [
             { provide: HttpClient, useValue: httpService },
             { provide: ModelService, useValue: modelService },

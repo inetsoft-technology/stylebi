@@ -51,7 +51,9 @@ import { ParameterTable } from "../parameter-table/parameter-table.component";
 import { TaskConditionPane } from "./task-condition-pane.component";
 
 @Component({
+   standalone: true,
    selector: "test-app",
+   imports: [TaskConditionPane],
    template: `<task-condition-pane [model]="model" [taskName]="taskName" [parentForm]="form" [taskDefaultTime]="true"></task-condition-pane>`
 })
 class TestApp {
@@ -80,14 +82,25 @@ describe("Task Condition Pane Unit Test", () => {
    beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule, HttpClientModule
+            FormsModule,
+            ReactiveFormsModule,
+            NgbModule,
+            HttpClientModule,
+            TestApp,
+            ReplaceAllPipe,
+            TaskConditionPane,
+            ParameterTable,
+            EditableTableComponent,
+            AddParameterDialog,
+            EnterSubmitDirective,
+            DateValueEditorComponent,
+            TimeValueEditorComponent,
+            TimeInstantValueEditorComponent,
+            TimepickerComponent,
+            NotificationsComponent,
+            StartTimeEditor,
          ],
-         declarations: [
-            TestApp, ReplaceAllPipe, TaskConditionPane, ParameterTable, EditableTableComponent,
-            AddParameterDialog, EnterSubmitDirective, DateValueEditorComponent,
-            TimeValueEditorComponent, TimeInstantValueEditorComponent, TimepickerComponent,
-            NotificationsComponent, StartTimeEditor
-         ],
+         
          providers: [
             {
                provide: NgbModal, useValue: ngbService
@@ -98,6 +111,7 @@ describe("Task Condition Pane Unit Test", () => {
             ScheduleTaskNamesService
          ]
       });
+      TestBed.overrideComponent(TaskConditionPane, { set: { imports: [] } });
       TestBed.compileComponents();
    }));
 
