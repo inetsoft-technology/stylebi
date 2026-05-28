@@ -49,8 +49,8 @@ import static inetsoft.web.vswizard.model.VSWizardConstants.*;
 /**
  * Utility methods for wizard recommender.
  *
- * @version 13.2
  * @author InetSoft Technology Corp
+ * @version 13.2
  */
 public final class WizardRecommenderUtil {
    /**
@@ -169,7 +169,7 @@ public final class WizardRecommenderUtil {
       // cube entry set, the name should use entity + attribute
       if(attribute != null) {
          String entity = entry.getProperty("entity");
-         cvalue = (entity != null ?  entity + "." : "") + attribute;
+         cvalue = (entity != null ? entity + "." : "") + attribute;
       }
 
       return cvalue;
@@ -178,8 +178,9 @@ public final class WizardRecommenderUtil {
    /**
     * Check if the target field is a normal dimension which need to
     * consider the cardinality and hierarchy when doing recommendation.
-    * @param entry      the target field.
-    * @param ignoreGeo  true if geo is treated as normal dimension, else not.
+    *
+    * @param entry     the target field.
+    * @param ignoreGeo true if geo is treated as normal dimension, else not.
     */
    public static boolean isNormalDimension(AssetEntry entry, boolean ignoreGeo) {
       if(entry == null || !isDimension(entry) || isDateType(entry)) {
@@ -198,7 +199,8 @@ public final class WizardRecommenderUtil {
 
    /**
     * Sorted the hierarchy lists by the numbers of the hierarchy level.
-    * @param ignoreGeo  true if geo is treated as normal dimension, else not.
+    *
+    * @param ignoreGeo true if geo is treated as normal dimension, else not.
     */
    public static List<List<AssetEntry>> getSortedHierarchyLists(AssetEntry[] entries,
                                                                 boolean ignoreGeo)
@@ -238,14 +240,14 @@ public final class WizardRecommenderUtil {
    /**
     * Return all hierarchy field lists.
     * for example, the following list maybe returned.
+    * <p>
+    * {
+    * {a, a1},
+    * {a, a2},
+    * {b, b1, b11}
+    * }
     *
-    *  {
-    *     {a, a1},
-    *     {a, a2},
-    *     {b, b1, b11}
-    *  }
-    *
-    * @param  entries the selected dimension fields.
+    * @param entries the selected dimension fields.
     */
    public static List<List<AssetEntry>> getHierarchyLists(AssetEntry[] entries) {
       AssetEntry[] entries0 = entries.clone();
@@ -265,15 +267,15 @@ public final class WizardRecommenderUtil {
    /**
     * Return the hierarchy field lists for the target parent field.
     * for example, find hierarchy lists for field a, the following list maybe returned.
+    * <p>
+    * {
+    * {a, a1, a11},
+    * {a, a1, a12},
+    * {a, a2}
+    * }
     *
-    *  {
-    *     {a, a1, a11},
-    *     {a, a1, a12},
-    *     {a, a2}
-    *  }
-    *
-    * @param  parent  the target parent field.
-    * @param  entries the selected dimension fields.
+    * @param parent  the target parent field.
+    * @param entries the selected dimension fields.
     */
    private static List<List<AssetEntry>> getHierarchyFields(AssetEntry parent, AssetEntry[] entries)
    {
@@ -300,7 +302,7 @@ public final class WizardRecommenderUtil {
          List<List<AssetEntry>> clist = getHierarchyFields(child, entries);
 
          if(clist.size() != 0) {
-             clist.stream().forEach(l -> {
+            clist.stream().forEach(l -> {
                l.add(0, parent);
                list.add(l);
             });
@@ -348,8 +350,11 @@ public final class WizardRecommenderUtil {
 
    /**
     * Get the default interval for date type dimension.
+    *
     * @param entries
+    *
     * @return
+    *
     * @throws Exception
     */
    public static void refreshDateInterval(ViewsheetSandbox box, AssetEntry[] entries,
@@ -436,6 +441,7 @@ public final class WizardRecommenderUtil {
    /**
     * Check hierarchy relationship for the entries,
     * and add children columns for the entries by setting property.
+    *
     * @param box     the viewsheetsandbox.
     * @param entries the asset entries which sorted ascending by cardinality percentage
     */
@@ -471,8 +477,9 @@ public final class WizardRecommenderUtil {
    /**
     * Update cardinality information to the entries by setting property,
     * and return sorted entries with ascending order of cardinalityPercentage.
-    * @param box     the viewsheet sandbox.
-    * @param tname   the table name.
+    *
+    * @param box        the viewsheet sandbox.
+    * @param tname      the table name.
     * @param dimEntries the selected dimension fields.
     */
    private static List<AssetEntry> updateCardinalityInfo(ViewsheetSandbox box,
@@ -512,8 +519,9 @@ public final class WizardRecommenderUtil {
    /**
     * Check hierarchy relationship for the entries,
     * and add children columns for the entries by setting property.
-    * @param box     the viewsheetsandbox.
-    * @param tname   the table name.
+    *
+    * @param box        the viewsheetsandbox.
+    * @param tname      the table name.
     * @param dimEntries the asset entries which sorted ascending by cardinality percentage
     */
    private static void updateHierarchyInfo(VSTemporaryInfo temporaryInfo, ViewsheetSandbox box, String tname,
@@ -582,8 +590,8 @@ public final class WizardRecommenderUtil {
     */
    public static List<ChartRef> getNoDateDimensions(List<ChartRef> dims) {
       return dims.stream()
-              .filter(dim -> !XSchema.isDateType((dim).getDataType()))
-              .collect(Collectors.toList());
+         .filter(dim -> !XSchema.isDateType((dim).getDataType()))
+         .collect(Collectors.toList());
    }
 
    public static boolean containsCalc(List<ChartRef> refs, RuntimeViewsheet rvs) {
@@ -607,7 +615,7 @@ public final class WizardRecommenderUtil {
          return null;
       }
 
-      ChartVSAssemblyInfo info = (ChartVSAssemblyInfo)assembly.getVSAssemblyInfo();
+      ChartVSAssemblyInfo info = (ChartVSAssemblyInfo) assembly.getVSAssemblyInfo();
       SourceInfo src = info.getSourceInfo();
 
       if(src == null) {
@@ -627,7 +635,7 @@ public final class WizardRecommenderUtil {
       }
 
       return Arrays.asList(calcs).stream().anyMatch(calc ->
-         Tool.equals(calc.getName(), ref.getName()));
+                                                       Tool.equals(calc.getName(), ref.getName()));
    }
 
    public static boolean isCalcAggregateField(RuntimeViewsheet rvs, DataRef ref)
@@ -642,7 +650,7 @@ public final class WizardRecommenderUtil {
       }
 
       return Arrays.asList(calcs).stream().anyMatch(calc ->
-         !calc.isBaseOnDetail() && Tool.equals(calc.getName(), ref.getName()));
+                                                       !calc.isBaseOnDetail() && Tool.equals(calc.getName(), ref.getName()));
    }
 
    public static VSObjectRecommendation getSelectedRecommendation(VSRecommendType type,
@@ -658,7 +666,7 @@ public final class WizardRecommenderUtil {
       if(recommendationModel != null) {
          List<VSObjectRecommendation> list = recommendationModel.getRecommendationList();
 
-         for (VSObjectRecommendation item: list) {
+         for(VSObjectRecommendation item : list) {
             if(item.getType() == type) {
                return item;
             }
@@ -765,7 +773,7 @@ public final class WizardRecommenderUtil {
 
    private static void createRangeDimension(VSDimensionRef dim, RuntimeViewsheet rvs,
                                             String tname, VSTemporaryInfo tempInfo)
-         throws Exception
+      throws Exception
    {
       Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
@@ -973,6 +981,44 @@ public final class WizardRecommenderUtil {
       }
 
       return ref != null ? ref.getAttribute() : null;
+   }
+
+   /**
+    * Syncs all calc fields and aggregate fields from {@code sourceVs} to {@code targetVs}.
+    * Follows the same pattern as VSCloseObjectWizardService when finishing the wizard.
+    */
+   public static void syncCalcFields(Viewsheet sourceVs, Viewsheet targetVs) {
+      if(sourceVs == targetVs) {
+         return;
+      }
+
+      if(sourceVs.getCalcFieldSources() == null || sourceVs.getCalcFieldSources().isEmpty()) {
+         for(String source : new ArrayList<>(targetVs.getCalcFieldSources())) {
+            targetVs.removeCalcField(source);
+         }
+
+         return;
+      }
+
+      for(String source : sourceVs.getCalcFieldSources()) {
+         if(source == null) {
+            continue;
+         }
+
+         targetVs.removeCalcField(source);
+         targetVs.removeAggrField(source);
+         CalculateRef[] calcs = sourceVs.getCalcFields(source);
+
+         if(calcs != null) {
+            Arrays.stream(calcs).forEach(calc -> targetVs.addCalcField(source, calc));
+         }
+
+         AggregateRef[] aggrs = sourceVs.getAggrFields(source);
+
+         if(aggrs != null) {
+            Arrays.stream(aggrs).forEach(aggr -> targetVs.addAggrField(source, aggr));
+         }
+      }
    }
 
    private static final String CHILDREN_FLAG = "__children__";

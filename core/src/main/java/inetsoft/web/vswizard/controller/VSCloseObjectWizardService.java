@@ -23,7 +23,6 @@ import inetsoft.cluster.*;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.WorksheetEngine;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
-import inetsoft.uql.asset.AggregateRef;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.web.viewsheet.command.UpdateUndoStateCommand;
@@ -45,7 +44,6 @@ import org.springframework.util.StringUtils;
 
 import java.awt.*;
 import java.security.Principal;
-import java.util.Arrays;
 import java.util.Optional;
 
 @Service
@@ -132,7 +130,7 @@ public class VSCloseObjectWizardService {
             RuntimeViewsheet orvs = objectHandler.getOriginalRViewsheet(rvs, principal);
 
             if(save) {
-               updateAllCalcField(vs, orvs.getViewsheet());
+               WizardRecommenderUtil.syncCalcFields(vs, orvs.getViewsheet());
             }
 
             viewsheetService.flushRuntimeSheet(vsId);
@@ -163,7 +161,7 @@ public class VSCloseObjectWizardService {
 
          boolean wizardDashboard = VSWizardEditModes.WIZARD_DASHBOARD.equals(event.getEditMode());
          RuntimeViewsheet orvs = objectHandler.getOriginalRViewsheet(rvs, principal);
-         updateAllCalcField(vs, orvs.getViewsheet());
+         WizardRecommenderUtil.syncCalcFields(vs, orvs.getViewsheet());
          tempAssembly = objectHandler.updateAssemblyByTemporary(
             orvs, rvs, tempAssembly, originalAssembly, dispatcher, linkUri);
          boolean maxMode = vs.isMaxMode();
@@ -221,47 +219,6 @@ public class VSCloseObjectWizardService {
          // In any case, the user should be able to close the dialog.
          CloseObjectWizardCommand command = new CloseObjectWizardCommand(model, save);
          dispatcher.sendCommand(command);
-      }
-
-      return null;
-   }
-
-   private Void updateAllCalcField(Viewsheet currentVS, Viewsheet originalVS) {
-      if(currentVS.getCalcFieldSources() == null || currentVS.getCalcFieldSources().size() == 0) {
-         for(String source : originalVS.getCalcFieldSources()) {
-            originalVS.removeCalcField(source);
-         }
-      }
-      else {
-         for(String source : currentVS.getCalcFieldSources()) {
-            updateCalcField(currentVS, originalVS, source);
-         }
-      }
-
-      return null;
-   }
-
-   private Void updateCalcField(Viewsheet currentVS, Viewsheet originalVS, String source) {
-      if(currentVS == originalVS || source == null) {
-         return null;
-      }
-
-      originalVS.removeCalcField(source);
-      originalVS.removeAggrField(source);
-      CalculateRef[] calcs = currentVS.getCalcFields(source);
-
-      if(calcs != null) {
-         Arrays.stream(calcs).forEach((CalculateRef calc) -> {
-            originalVS.addCalcField(source, calc);
-         });
-      }
-
-      AggregateRef[] aggrs = currentVS.getAggrFields(source);
-
-      if(aggrs != null) {
-         Arrays.stream(aggrs).forEach((AggregateRef ref) -> {
-            originalVS.addAggrField(source, ref);
-         });
       }
 
       return null;

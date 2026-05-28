@@ -69,6 +69,7 @@ import inetsoft.web.vswizard.model.*;
 import inetsoft.web.vswizard.model.recommender.*;
 import inetsoft.web.vswizard.recommender.ChartRecommenderUtil;
 import inetsoft.web.vswizard.recommender.WizardRecommenderUtil;
+import inetsoft.web.vswizard.recommender.chart.ChartCombinationUtil;
 import inetsoft.web.vswizard.service.VSWizardTemporaryInfoService;
 import org.apache.commons.lang3.ArrayUtils;
 import org.slf4j.Logger;
@@ -844,8 +845,22 @@ public class VSWizardBindingHandler {
       ChartVSAssemblyInfo info = (ChartVSAssemblyInfo) assembly.getInfo();
 
       VSTemporaryInfo temporaryInfo = temporaryInfoService.getVSTemporaryInfo(rvs);
+      int listSize = list != null ? list.size() : 0;
+      VSChartInfo selectedChartInfo;
+
+      if(list != null && idx < listSize) {
+         selectedChartInfo = (VSChartInfo) list.get(idx);
+      }
+      else {
+         int prefIdx = idx - listSize;
+         List<ChartCombinationUtil.ScoredInfo> prefInfos = model.getPrefInfos();
+         ChartInfo ci = prefInfos != null && prefIdx >= 0 && prefIdx < prefInfos.size()
+            ? prefInfos.get(prefIdx).getInfo() : null;
+         selectedChartInfo = ci instanceof VSChartInfo vci ? vci : null;
+      }
+
       info.setTitleVisibleValue(true);
-      info.setVSChartInfo(list.size() > 0 && idx < list.size() ? (VSChartInfo) list.get(idx) : null);
+      info.setVSChartInfo(selectedChartInfo);
       info.setSourceInfo(source);
       WizardRecommenderUtil.prepareCalculateRefs(rvs, info, temporaryInfo);
       GraphFormatUtil.fixDefaultNumberFormat(assembly.getChartDescriptor(),
