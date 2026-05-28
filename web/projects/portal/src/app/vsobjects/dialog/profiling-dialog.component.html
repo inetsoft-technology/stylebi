@@ -22,7 +22,7 @@
     <div *ngIf="tableData">
       <div class="form-row-float-label row">
         <div class="col-5" *ngIf="!showDetails">
-          <div class="form-group form-floating">
+          <div class="shell-form-group form-floating">
             <custom-select [options]="groupBySelectOptions"
                            [ngModelOptions]="{standalone: true}"
                            [(ngModel)]="groupBy"

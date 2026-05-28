@@ -53,7 +53,7 @@
         </div>
       </div>
     </div>
-    <div class="condition-edit-row__value form-group value-editor-container"
+    <div class="condition-edit-row__value shell-form-group value-editor-container"
          *ngIf="condition.operation != ConditionOperation.NULL"
          [ngSwitch]="condition.operation">
       <one-of-condition-editor *ngSwitchCase="ConditionOperation.ONE_OF"

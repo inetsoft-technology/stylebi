@@ -18,14 +18,14 @@
 <div class="editor-container"
      [class.editor-container--field-value]="value?.type === ConditionValueType.FIELD">
   <div class="editor-container__main">
-    <div class="form-group"
+    <div class="shell-form-group"
          *ngIf="operation == ConditionOperation.TOP_N || operation == ConditionOperation.BOTTOM_N; else elseBlock">
       <top-n-editor [field]="field" [fields]="fieldsModel.list" [type]="value.type"
          [(value)]="value.value" (valueChange)="valueChanged()"
          [variablesFunction]="variablesFunction"></top-n-editor>
     </div>
     <ng-template #elseBlock>
-      <div *ngIf="value.type == ConditionValueType.VALUE" class="form-group">
+      <div *ngIf="value.type == ConditionValueType.VALUE" class="shell-form-group">
         <value-editor [field]="field" [operation]="operation"
            [dataFunction]="dataFunction"
            [type]="field ? field.dataType : XSchema.STRING"
@@ -38,13 +38,13 @@
            (valueChanges)="conditionValuesChanged($event)">
         </value-editor>
       </div>
-      <div *ngIf="value.type == ConditionValueType.VARIABLE" class="form-group">
+      <div *ngIf="value.type == ConditionValueType.VARIABLE" class="shell-form-group">
         <variable-editor [(value)]="value.value" (valueChange)="valueChanged()"
                          [showUseList]="showUseList" [useList]="!!value.choiceQuery"
                          (updateChoiceQuery)="updateChoiceQuery($event)"
                          [variablesFunction]="variablesFunction"></variable-editor>
       </div>
-      <div *ngIf="value.type == ConditionValueType.EXPRESSION" class="form-group">
+      <div *ngIf="value.type == ConditionValueType.EXPRESSION" class="shell-form-group">
         <expression-editor [columnTreeFunction]="columnTreeFunction"
                            [scriptDefinitionsFunction]="scriptDefinitionsFunction"
                            [isHighlight]="isHighlight" [vsId]="vsId"
@@ -54,18 +54,18 @@
                            class="condition-expression-editor">
         </expression-editor>
       </div>
-      <div *ngIf="value.type == ConditionValueType.FIELD" class="form-group">
+      <div *ngIf="value.type == ConditionValueType.FIELD" class="shell-form-group">
         <field-editor [fieldsModel]="fieldsModel" [grayedOutFields]="grayedOutFields"
                       [(value)]="value.value"
                       [showOriginalName]="showOriginalName"
                       (valueChange)="valueChanged()"></field-editor>
       </div>
-      <div *ngIf="value.type == ConditionValueType.SUBQUERY" class="form-group">
+      <div *ngIf="value.type == ConditionValueType.SUBQUERY" class="shell-form-group">
         <subquery-editor [subqueryTables]="subqueryTables" [(value)]="value.value"
                          [showOriginalName]="showOriginalName"
                          (valueChange)="valueChanged()"></subquery-editor>
       </div>
-      <div *ngIf="value.type == ConditionValueType.SESSION_DATA" class="form-group">
+      <div *ngIf="value.type == ConditionValueType.SESSION_DATA" class="shell-form-group">
         <session-data-editor [(value)]="value.value" (valueChange)="valueChanged()">
         </session-data-editor>
       </div>
