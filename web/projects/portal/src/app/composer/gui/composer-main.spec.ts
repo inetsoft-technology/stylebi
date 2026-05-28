@@ -41,6 +41,9 @@ import { ComposerRecentService } from "./composer-recent.service";
 import { ResizeHandlerService } from "./resize-handler.service";
 import { ScriptService } from "./script/script.service";
 import { ComposerObjectService } from "./vs/composer-object.service";
+import { ComposerClientService } from "./composer-client.service";
+import { ScaleService } from "../../widget/services/scale/scale-service";
+import { VSScaleService } from "../../widget/services/scale/vs-scale.service";
 
 describe("ComposerMain Unit Tests", () => {
    const oldBroadcastChannel = window.BroadcastChannel;
@@ -154,7 +157,15 @@ describe("ComposerMain Unit Tests", () => {
          
          schemas: [NO_ERRORS_SCHEMA]
       });
-      TestBed.overrideComponent(ComposerMainComponent, { set: { imports: [] } });
+      TestBed.overrideComponent(ComposerMainComponent, {
+         set: {
+            imports: [],
+            providers: [
+               ComposerClientService,
+               { provide: ScaleService, useClass: VSScaleService }
+            ]
+         }
+      });
       TestBed.compileComponents();
    });
 

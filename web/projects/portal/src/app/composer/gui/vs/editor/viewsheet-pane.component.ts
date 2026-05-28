@@ -196,7 +196,9 @@ const COLLECT_PARAMS_URI = "/events/vs/collectParameters";
         {
             provide: ChartService,
             useExisting: VSChartService
-        }
+        },
+        VSBindingTreeService,
+        ChatService
     ],
     standalone: true,
     imports: [OutOfZoneDirective, NgIf, MobileToolbarComponent, Rulers, SelectionBoxDirective, ActionsContextmenuAnchorDirective, InteractContainerDirective, NgStyle, NgFor, EditableObjectContainer, ComposerSelectionContainerChildren, LayoutPane, PlaceholderDragElement, StatusBar, FormsModule, VSLoadingDisplay, VSSavingDisplay, NotificationsComponent, VariableInputDialog, ConsoleDialogComponent]
