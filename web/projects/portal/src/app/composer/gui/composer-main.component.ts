@@ -75,6 +75,15 @@ import { GuideBounds } from "../../vsobjects/model/layout/guide-bounds";
 import { VSObjectModel } from "../../vsobjects/model/vs-object-model";
 import { VSTabModel } from "../../vsobjects/model/vs-tab-model";
 import { ShowHyperlinkService } from "../../vsobjects/show-hyperlink.service";
+import { VSTabService } from "../../vsobjects/util/vs-tab.service";
+import { FormInputService } from "../../vsobjects/util/form-input.service";
+import { GlobalSubmitService } from "../../vsobjects/util/global-submit.service";
+import { CheckFormDataService } from "../../vsobjects/util/check-form-data.service";
+import { MiniToolbarService } from "../../vsobjects/objects/mini-toolbar/mini-toolbar.service";
+import { SelectionMobileService } from "../../vsobjects/objects/selection/services/selection-mobile.service";
+import { CKEditorRichTextService } from "../../vsobjects/dialog/rich-text-dialog/ckeditor-rich-text.service";
+import { RichTextService } from "../../vsobjects/dialog/rich-text-dialog/rich-text.service";
+import { FullScreenService } from "../../common/services/full-screen.service";
 import { VSUtil } from "../../vsobjects/util/vs-util";
 import { AssetTreeService } from "../../widget/asset-tree/asset-tree.service";
 import {
@@ -228,6 +237,24 @@ const CONFIRM_MESSAGE = {
         {
             provide: ScaleService,
             useClass: VSScaleService
+        },
+        ComposerObjectService,
+        ResizeHandlerService,
+        ClipboardService,
+        ComposerRecentService,
+        ScriptService,
+        ShowHyperlinkService,
+        MiniToolbarService,
+        VSTabService,
+        SelectionMobileService,
+        FormInputService,
+        GlobalSubmitService,
+        CheckFormDataService,
+        FullScreenService,
+        {
+            provide: RichTextService,
+            useClass: CKEditorRichTextService,
+            deps: [FontService, NgbModal, HttpClient]
         }
     ],
     standalone: true,
