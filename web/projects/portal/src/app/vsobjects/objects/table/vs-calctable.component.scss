@@ -71,6 +71,10 @@ $stacking-order: (
   pointer-events: all;
 }
 
+table {
+  border-collapse: collapse;
+}
+
 /* border fixes - need to override format set border */
 
 .right-top-table .table-cell:first-child {

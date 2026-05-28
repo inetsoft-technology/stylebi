@@ -42,6 +42,10 @@ $stacking-order: (
   position: relative;
 }
 
+table {
+  border-collapse: collapse;
+}
+
 .table-cell {
   overflow: visible;
 }
