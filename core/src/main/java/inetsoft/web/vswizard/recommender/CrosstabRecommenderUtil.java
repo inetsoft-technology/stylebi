@@ -17,6 +17,7 @@
  */
 package inetsoft.web.vswizard.recommender;
 
+import inetsoft.uql.XConstants;
 import inetsoft.uql.asset.AggregateFormula;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.erm.AbstractDataRef;
@@ -121,7 +122,7 @@ public class CrosstabRecommenderUtil {
       // getDValue() is always non-null in practice (constructor default is "none"), so the
       // fallback to "none" is a safety net only.
       String formulaValue = oagg.getFormulaValue();
-      agg.setFormulaValue(formulaValue != null ? formulaValue : "none");
+      agg.setFormulaValue(formulaValue != null ? formulaValue : XConstants.NONE_FORMULA);
 
       agg.setNValue(oagg.getNValue());
       agg.setCaption(oagg.getCaption());
