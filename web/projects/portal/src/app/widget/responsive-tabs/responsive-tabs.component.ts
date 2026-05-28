@@ -77,6 +77,10 @@ export class ResponsiveTabsComponent implements OnInit {
    }
 
    private updateView(): void {
+      if(!this.tabSet) {
+         return;
+      }
+
       // need to unhide the tabs to figure out if they can fit in cases where
       // the window size gets larger
       if(this.firstTabDropdownIndex !== -1) {

@@ -61,7 +61,7 @@ import { DeleteDatasourceInfo } from "../../commands/delete-datasource-info";
 import { DataNotificationsComponent } from "../../data-notifications.component";
 import { DatabaseDefinitionModel } from "../../../../../../../shared/util/model/database-definition-model";
 import { InputNameDescDialog } from "../../input-name-desc-dialog/input-name-desc-dialog.component";
-import { AdditionalDatasourceDialog } from "./additional-datasource-dialog";
+import type { AdditionalDatasourceDialog } from "./additional-datasource-dialog";
 import { NetworkLocationModel } from "../../../../../../../shared/util/model/network-location-model";
 import { DriverWizardComponent } from "./driver-wizard/driver-wizard.component";
 import { EditPropertyDialogComponent } from "./edit-property-dialog.component";
@@ -385,7 +385,8 @@ export class DatasourcesDatabaseComponent extends DataSourceSettingsPage impleme
    }
 
    newAdditional() {
-      this.httpClient.get("../api/data/database/default").subscribe((model: DataSourceSettingsModel) => {
+      this.httpClient.get("../api/data/database/default").subscribe(async (model: DataSourceSettingsModel) => {
+         const { AdditionalDatasourceDialog } = await import("./additional-datasource-dialog");
          let dialog = ComponentTool.showDialog(this.modalService, AdditionalDatasourceDialog,
             (additional: DatabaseDefinitionModel) => {
 
@@ -473,10 +474,11 @@ export class DatasourcesDatabaseComponent extends DataSourceSettingsPage impleme
       this.updateAdditionalList();
    }
 
-   editAdditional() {
+   async editAdditional() {
       const dss = this.getSelectedAdditional();
 
       if(!!dss && dss.length == 1) {
+         const { AdditionalDatasourceDialog } = await import("./additional-datasource-dialog");
          let ds = dss[0];
          let dialog = ComponentTool.showDialog(this.modalService, AdditionalDatasourceDialog,
             (model: DatabaseDefinitionModel) => {
