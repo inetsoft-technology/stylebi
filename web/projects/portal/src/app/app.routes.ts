@@ -27,19 +27,19 @@ export const routes: Routes = [
          {
             path: "composer",
             canActivate: [canActivateComposer],
-            loadChildren: () => import("./composer/composer-app.module").then(m => m.ComposerAppModule)
+            loadChildren: () => import("./composer/composer.routes").then(m => m.composerRoutes)
          },
          {
             path: "portal",
-            loadChildren: () => import("./portal/portal-app.module").then(m => m.PortalAppModule)
+            loadChildren: () => import("./portal/portal.routes").then(m => m.portalRoutes)
          },
          {
             path: "viewer",
-            loadChildren: () => import("./viewer/viewer-app.module").then(m => m.ViewerAppModule)
+            loadChildren: () => import("./viewer/viewer.routes").then(m => m.viewerRoutes)
          },
          {
             path: "embed/chart",
-            loadChildren: () => import("./embed/chart/embed-chart.module").then(m => m.EmbedChartModule)
+            loadChildren: () => import("./embed/chart/embed-chart.routes").then(m => m.embedChartRoutes)
          },
          {
             path: "**",

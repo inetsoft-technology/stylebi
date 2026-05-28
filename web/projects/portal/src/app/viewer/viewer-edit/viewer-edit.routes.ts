@@ -15,19 +15,18 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { NgModule } from "@angular/core";
-import { RouterModule, Routes } from "@angular/router";
-import { ComposerAppComponent } from "./app.component";
-import { composerResolver } from "./services/composer-resolver.service";
+import { importProvidersFrom } from "@angular/core";
+import { Routes } from "@angular/router";
+import { BindingModule } from "../../binding/binding.module";
+import { SERVICE_PROVIDERS } from "../../composer/services.provider";
+import { ViewerEditComponent } from "./viewer-edit.component";
 
-const routes: Routes = [
-   { path: "", component: ComposerAppComponent,
-      resolve: { setPrincipalCommand: composerResolver }
+export const viewerEditRoutes: Routes = [
+   {
+      path: "",
+      component: ViewerEditComponent,
+      providers: [
+         importProvidersFrom(BindingModule.forRoot(SERVICE_PROVIDERS))
+      ]
    }
 ];
-
-@NgModule({
-   imports: [RouterModule.forChild(routes)],
-   exports: [RouterModule]
-})
-export class ComposerRoutingModule { }

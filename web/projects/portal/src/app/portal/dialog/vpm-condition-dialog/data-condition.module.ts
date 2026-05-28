@@ -32,7 +32,6 @@ import {
 import {
    ConjunctionPipe
 } from "../../data/model/datasources/database/vpm/condition/conjunction/conjunction.pipe";
-import { PortalAppModule } from "../../portal-app.module";
 import { VPMConditionDialog } from "./vpm-condition-dialog.component";
 import {
    OneOfVpmConditionEditor

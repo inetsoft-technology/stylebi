@@ -16,18 +16,21 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { createApplication } from "@angular/platform-browser";
-import { importProvidersFrom } from "@angular/core";
+import { createCustomElement } from "@angular/elements";
 import { provideRouter } from "@angular/router";
-import { EmbedChartModule } from "./app/embed/chart/embed-chart.module";
+import { EmbedChartComponent } from "./app/embed/chart/embed-chart.component";
 import { embedElementConfig } from "./app/embed/embed-element.config";
+import { embedChartRoutes } from "./app/embed/chart/embed-chart.routes";
 import "./main-base-element";
 
 createApplication({
    providers: [
       ...embedElementConfig.providers,
-      provideRouter([]),
-      importProvidersFrom(EmbedChartModule)
+      provideRouter(embedChartRoutes)
    ]
+}).then(app => {
+   const embedChart = createCustomElement(EmbedChartComponent, {injector: app.injector});
+   customElements.define("inetsoft-chart", embedChart);
 }).catch(err => console.error(err));
 
 /**
