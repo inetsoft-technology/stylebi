@@ -115,7 +115,18 @@ public class CrosstabRecommenderUtil {
       VSAggregateRef agg = new VSAggregateRef();
       agg.setColumnValue(oagg.getColumnValue());
       agg.setRefType(oagg.getRefType());
-      agg.setFormula(oagg.getFormula());
+      // Use setFormulaValue to copy the design-time formula string directly, bypassing the
+      // AggregateFormula static singleton whose getFormulaName() can transiently return "Sum"
+      // instead of "Count" when the composite flag is set by another thread (MV processing).
+      String formulaValue = oagg.getFormulaValue();
+
+      if(formulaValue != null) {
+         agg.setFormulaValue(formulaValue);
+      }
+      else {
+         agg.setFormula(oagg.getFormula());
+      }
+
       agg.setNValue(oagg.getNValue());
       agg.setCaption(oagg.getCaption());
       agg.setSecondaryColumnValue(oagg.getSecondaryColumnValue());
