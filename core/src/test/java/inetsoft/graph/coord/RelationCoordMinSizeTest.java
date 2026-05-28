@@ -39,10 +39,11 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Guards the horizontal-mode special-casing in {@link RelationCoord#getUnitMinWidth()} and
- * {@link RelationCoord#getUnitMinHeight()}: vertical mode goes through the back-divide path
- * (so post-fit calls recover natural size); horizontal mode skips the back-divide for width
- * (X is depth, scaleX is Y-binding-driven) and reads natural mxcell bounds directly for
- * height (avoiding label-amplified 1/scaleY inflation in faceted layouts).
+ * {@link RelationCoord#getUnitMinHeight()}. Horizontal width skips back-divide only when
+ * faceted (so each facet cell's depth-direction X isn't inflated by 1/scaleX); non-faceted
+ * horizontal back-divides so the natural width is reported and the V-scrollable expand step
+ * gives the tree a wide enough plot to render at full scale. Height uses natural mxcell bounds
+ * in horizontal mode to avoid label-amplified 1/scaleY inflation in faceted layouts.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
@@ -51,12 +52,13 @@ import static org.junit.jupiter.api.Assertions.*;
 @Tag("core")
 class RelationCoordMinSizeTest {
    @Test
-   void horizontalModeSkipsBackDivideVerticalDoesNot() {
-      // Lay out one tree, then toggle the horizontal flag on the same coord and observe
-      // how getUnitMinWidth's formula reacts to a non-1 scaleX. Vertical mode back-divides
-      // and so reports ~2× horizontal's value when scaleX=0.5.
+   void facetedHorizontalSkipsBackDivideVerticalDoesNot() {
+      // In a facet cell, scaleX is shrunk per row; back-dividing the depth-direction width
+      // would inflate X. The horizontal-faceted branch skips back-divide so the cell's min
+      // width stays sane. Simulate the facet by wiring a parent coordinate.
       RelationCoord coord = treeCoord(false);
       RelationElement elem = (RelationElement) coord.getVGraph().getEGraph().getElement(0);
+      coord.setParentCoordinate(new FacetCoord());
 
       coord.getVGraph().concat(AffineTransform.getScaleInstance(0.5, 0.5), true);
 
@@ -67,9 +69,33 @@ class RelationCoordMinSizeTest {
       double vertMin = coord.getUnitMinWidth();
 
       assertTrue(vertMin > horizMin * 1.5,
-         "vertical-mode back-divide should give a notably larger min than horizontal mode "
-            + "(horiz=" + horizMin + ", vert=" + vertMin + "); regression: horizontal also "
+         "faceted-horizontal must skip back-divide while vertical back-divides "
+            + "(horiz=" + horizMin + ", vert=" + vertMin + "); regression: faceted horizontal "
             + "back-divides and X inflates spuriously");
+   }
+
+   @Test
+   void nonFacetedHorizontalBackDividesWidth() {
+      // Non-faceted: back-divide so the reported width is the natural unscaled width including
+      // labels. This is what the V-scrollable expand step needs to give the tree a wide enough
+      // plot to render at full scale - otherwise uniform fit shrinks it and leaves vertical
+      // slack inside the expanded scroll region.
+      RelationCoord coord = treeCoord(false);
+      RelationElement elem = (RelationElement) coord.getVGraph().getEGraph().getElement(0);
+      assertNull(coord.getParentCoordinate(), "test fixture must be non-faceted for this guard");
+
+      coord.getVGraph().concat(AffineTransform.getScaleInstance(0.5, 0.5), true);
+
+      elem.setHorizontal(true);
+      double horizMin = coord.getUnitMinWidth();
+
+      elem.setHorizontal(false);
+      double vertMin = coord.getUnitMinWidth();
+
+      assertEquals(vertMin, horizMin, 0.5,
+         "non-faceted horizontal must back-divide like vertical (horiz=" + horizMin
+            + ", vert=" + vertMin + "); regression: horizontal skips back-divide and reports "
+            + "the scaled visual width instead of the natural width");
    }
 
    @Test
