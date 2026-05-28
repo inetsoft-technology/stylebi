@@ -25,6 +25,7 @@ import { TestUtils } from "../../common/test/test-utils";
 import { DynamicComboBox } from "../dynamic-combo-box/dynamic-combo-box.component";
 import { LabelInputField } from "./label-input-field.component";
 import { StatPanel } from "./stat-panel.component";
+import { HttpClientTestingModule } from "@angular/common/http/testing";
 
 describe("stat panel component unit case", () => {
    let fixture: ComponentFixture<StatPanel>;
@@ -32,10 +33,9 @@ describe("stat panel component unit case", () => {
 
    beforeEach(() => {
       TestBed.configureTestingModule({
-         imports: [ReactiveFormsModule, FormsModule, NgbModule],
-         declarations: [
-            StatPanel, LabelInputField, DynamicComboBox
-         ],
+         imports: [
+            HttpClientTestingModule,ReactiveFormsModule, FormsModule, NgbModule, StatPanel, LabelInputField, DynamicComboBox],
+         
          providers: [],
          schemas: [NO_ERRORS_SCHEMA]
       }).compileComponents();
@@ -59,7 +59,7 @@ describe("stat panel component unit case", () => {
          {name: "Sum(id)", label: "Sum(id)", groupOthers: false, dateField: false},
          {name: "Year(date)", label: "Year(date)", groupOthers: true, dateField: true}];
       fixture.detectChanges();
-      let fileds = fixture.nativeElement.querySelectorAll("select option");
+      let fileds = fixture.nativeElement.querySelector("select").querySelectorAll("option");
       expect(fileds.length).toBe(2);
       expect(fileds[0].textContent).toContain("");
       expect(fileds[1].textContent).toContain("Sum(id)");

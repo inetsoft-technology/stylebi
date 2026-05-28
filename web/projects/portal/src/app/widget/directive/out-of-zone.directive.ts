@@ -26,7 +26,8 @@ import {
 } from "@angular/core";
 
 @Directive({
-   selector: "[outOfZone]"
+    selector: "[outOfZone]",
+    standalone: true
 })
 export class OutOfZoneDirective implements OnInit, OnDestroy {
    @Output() onDragover = new EventEmitter<any>();

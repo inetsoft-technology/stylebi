@@ -42,12 +42,27 @@ import { TreeNodeModel } from "./tree-node-model";
 import { TreeComponent } from "./tree.component";
 import { SearchComparator } from "./search-comparator";
 import { VirtualScrollTreeDatasource } from "./virtual-scroll-tree-datasource";
+import { TreeSearchPipe } from "./tree-search.pipe";
+import { TooltipDirective } from "../tooltip/tooltip.directive";
+import { EnterClickDirective } from "../directive/enter-click.directive";
+import { OutOfZoneDirective } from "../directive/out-of-zone.directive";
+import { NgIf, NgClass, NgFor } from "@angular/common";
 
 @Component({
-   selector: "tree-node",
-   templateUrl: "tree-node.component.html",
-   styleUrls: ["tree-node.component.scss"],
-   changeDetection: ChangeDetectionStrategy.OnPush,
+    selector: "tree-node",
+    templateUrl: "tree-node.component.html",
+    styleUrls: ["tree-node.component.scss"],
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    standalone: true,
+    imports: [
+        NgIf,
+        OutOfZoneDirective,
+        EnterClickDirective,
+        NgClass,
+        TooltipDirective,
+        NgFor,
+        TreeSearchPipe,
+    ],
 })
 export class TreeNodeComponent implements OnInit, OnDestroy, OnChanges {
    @Input() tree: TreeComponent;

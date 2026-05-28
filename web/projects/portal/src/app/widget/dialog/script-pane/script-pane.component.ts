@@ -42,13 +42,20 @@ import { CodemirrorHighlightTextInfo } from "../codemirror-highlight-text-info";
 import { TreeTool } from "../../../common/util/tree-tool";
 import { CodemirrorService } from "../../../../../../shared/util/codemirror/codemirror.service";
 import { ScriptSettingsService } from "./script-settings.service";
+import { OutOfZoneDirective } from "../../directive/out-of-zone.directive";
+import { NgbTooltip } from "@ng-bootstrap/ng-bootstrap";
+import { TreeComponent } from "../../tree/tree.component";
+import { VirtualScrollTreeComponent } from "../../tree/virtual-scroll-tree/virtual-scroll-tree.component";
+import { NgIf } from "@angular/common";
 
 const LINT_MARKERS = "CodeMirror-lint-markers";
 
 @Component({
-   selector: "script-pane",
-   templateUrl: "script-pane.component.html",
-   styleUrls: ["script-pane.component.scss"]
+    selector: "script-pane",
+    templateUrl: "script-pane.component.html",
+    styleUrls: ["script-pane.component.scss"],
+    standalone: true,
+    imports: [NgIf, VirtualScrollTreeComponent, TreeComponent, NgbTooltip, OutOfZoneDirective]
 })
 export class ScriptPane implements AfterViewInit, AfterViewChecked, OnInit, OnDestroy, OnChanges {
    @Input() columnTreeRoot: TreeNodeModel;

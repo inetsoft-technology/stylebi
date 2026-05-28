@@ -21,13 +21,17 @@ import { VPMColumnModel } from "../../../../../data/model/datasources/database/v
 import { ClauseValueModel } from "../../../../../data/model/datasources/database/vpm/condition/clause/clause-value-model";
 import { XSchema } from "../../../../../../common/data/xschema";
 import { Observable } from "rxjs";
+import { LowerCasePipe } from "@angular/common";
+import { VPMConditionEditor } from "../vpm-condition-editor/vpm-condition-editor.component";
 
 /**
  * Condition editor for vpm XTrinaryCondition. Edits the 2nd and 3rd expression values.
  */
 @Component({
-   selector: "vpm-trinary-condition-editor",
-   templateUrl: "vpm-trinary-condition-editor.component.html",
+    selector: "vpm-trinary-condition-editor",
+    templateUrl: "vpm-trinary-condition-editor.component.html",
+    standalone: true,
+    imports: [VPMConditionEditor, LowerCasePipe],
 })
 export class VPMTrinaryConditionEditor {
    @Input() operation: OperationModel;

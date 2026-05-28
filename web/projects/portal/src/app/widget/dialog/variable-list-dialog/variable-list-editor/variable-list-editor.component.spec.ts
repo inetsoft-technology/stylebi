@@ -27,8 +27,8 @@ describe("variable list editor unit case", () => {
 
    beforeEach(() => {
       TestBed.configureTestingModule({
-         imports: [ReactiveFormsModule, FormsModule, NgbModule],
-         declarations: [VariableListEditor, LargeFormFieldComponent],
+         imports: [ReactiveFormsModule, FormsModule, NgbModule, VariableListEditor, LargeFormFieldComponent],
+         
          providers: []
       }).compileComponents();
 

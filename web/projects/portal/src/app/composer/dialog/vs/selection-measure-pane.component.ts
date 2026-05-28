@@ -24,13 +24,17 @@ import { ComboMode } from "../../../widget/dynamic-combo-box/dynamic-combo-box-m
 import { SelectionMeasurePaneModel } from "../../data/vs/selection-measure-pane-model";
 import { HttpClient, HttpHeaders, HttpParams } from "@angular/common/http";
 import { VSUtil } from "../../../vsobjects/util/vs-util";
+import { FormsModule } from "@angular/forms";
+import { DynamicComboBox } from "../../../widget/dynamic-combo-box/dynamic-combo-box.component";
 
 const COLUMNS_URI: string = "../vs/dataOutput/selection/columns";
 
 @Component({
-   selector: "selection-measure-pane",
-   templateUrl: "selection-measure-pane.component.html",
-   styleUrls: ["selection-measure-pane.component.scss"]
+    selector: "selection-measure-pane",
+    templateUrl: "selection-measure-pane.component.html",
+    styleUrls: ["selection-measure-pane.component.scss"],
+    standalone: true,
+    imports: [DynamicComboBox, FormsModule]
 })
 export class SelectionMeasurePane implements OnInit {
    @Input() model: SelectionMeasurePaneModel;

@@ -23,19 +23,17 @@ import {WidgetDirectivesModule} from "../../directive/widget-directives.module";
 import {ReactiveFormsModule} from "@angular/forms";
 
 @NgModule({
-   imports: [
-      CommonModule,
-      ModalHeaderModule,
-      WidgetDirectivesModule,
-      ReactiveFormsModule,
-   ],
-   declarations: [
-      InputNameDialog
-   ],
-   exports: [
-      InputNameDialog
-   ],
-   providers: [],
+    imports: [
+        CommonModule,
+        ModalHeaderModule,
+        WidgetDirectivesModule,
+        ReactiveFormsModule,
+        InputNameDialog,
+    ],
+    exports: [
+        InputNameDialog
+    ],
+    providers: [],
 })
 export class InputNameDialogModule {
 }

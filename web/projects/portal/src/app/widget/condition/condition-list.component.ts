@@ -22,11 +22,17 @@ import { SubqueryTable } from "../../common/data/condition/subquery-table";
 import { DataRef } from "../../common/data/data-ref";
 import { XSchema } from "../../common/data/xschema";
 import { GuiTool } from "../../common/util/gui-tool";
+import { JunctionOperatorPipe } from "./junction-operator.pipe";
+import { ConditionPipe } from "./condition.pipe";
+import { ConditionDialog } from "./condition-dialog.component";
+import { NgFor, NgIf } from "@angular/common";
 
 @Component({
-   selector: "condition-list",
-   templateUrl: "condition-list.component.html",
-   styleUrls: ["./condition-list.component.scss"]
+    selector: "condition-list",
+    templateUrl: "condition-list.component.html",
+    styleUrls: ["./condition-list.component.scss"],
+    standalone: true,
+    imports: [NgFor, NgIf, ConditionDialog, ConditionPipe, JunctionOperatorPipe]
 })
 export class ConditionList {
    public XSchema = XSchema;

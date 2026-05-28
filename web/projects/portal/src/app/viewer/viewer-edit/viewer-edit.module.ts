@@ -25,16 +25,14 @@ import { ViewerEditComponent } from "./viewer-edit.component";
 import { VsWizardModule } from "../../vs-wizard/vs-wizard.module";
 
 @NgModule({
-   imports: [
-      CommonModule,
-      BindingModule.forRoot(SERVICE_PROVIDERS),
-      VSViewModule,
-      VsWizardModule,
-      ViewerEditRoutingModule
-   ],
-   declarations: [
-      ViewerEditComponent,
-   ]
+    imports: [
+        CommonModule,
+        BindingModule.forRoot(SERVICE_PROVIDERS),
+        VSViewModule,
+        VsWizardModule,
+        ViewerEditRoutingModule,
+        ViewerEditComponent
+    ]
 })
 export class ViewerEditModule {
 }

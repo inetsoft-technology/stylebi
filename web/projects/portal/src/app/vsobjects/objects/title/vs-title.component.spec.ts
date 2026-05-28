@@ -23,11 +23,14 @@ import {
    ComposerToken, ContextProvider, EmbedToken,
    ViewerContextProviderFactory
 } from "../../context-provider.service";
+import { InteractService } from "../../../widget/interact/interact.service";
 import { VSTitle } from "./vs-title.component";
 
 @Component({
    selector: "test-app",
-   template: "<vs-title [titleFormat]='titleFormat' [titleVisible]='titleVisible'></vs-title>"
+   template: "<vs-title [titleFormat]='titleFormat' [titleVisible]='titleVisible'></vs-title>",
+   standalone: true,
+   imports: [VSTitle]
 })
 class TestApp {
    public titleFormat = TestUtils.createMockVSFormatModel();
@@ -37,7 +40,7 @@ class TestApp {
 describe("VSTitle", () => {
    beforeEach(() => {
       TestBed.configureTestingModule({
-         declarations: [
+         imports: [
             TestApp,
             VSTitle
          ],
@@ -46,7 +49,8 @@ describe("VSTitle", () => {
                provide: ContextProvider,
                useFactory: ViewerContextProviderFactory,
                deps: [[new Optional(), ComposerToken], [new Optional(), EmbedToken]]
-            }
+            },
+            { provide: InteractService, useValue: { addInteractable: jest.fn(), removeInteractable: jest.fn(), notify: jest.fn() } }
          ],
          schemas: [NO_ERRORS_SCHEMA]
       });

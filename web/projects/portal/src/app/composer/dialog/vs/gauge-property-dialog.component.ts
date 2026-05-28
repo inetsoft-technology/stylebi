@@ -32,12 +32,38 @@ import { ScriptPaneTreeModel } from "../../../widget/dialog/script-pane/script-p
 import { GaugePropertyDialogModel } from "../../data/vs/gauge-property-dialog-model";
 import { PropertyDialogService } from "../../../vsobjects/util/property-dialog.service";
 import { PropertyDialog } from "./property-dialog.component";
+import { ApplyButtonComponent } from "../../../widget/slide-out/apply-button.component";
+import { VSAssemblyScriptPane } from "../../../widget/dialog/vsassembly-script-pane/vsassembly-script-pane.component";
+import { GaugeAdvancedPane } from "./gauge-advanced-pane.component";
+import { DataOutputPane } from "./data-output-pane.component";
+import { GaugeGeneralPane } from "./gauge-general-pane.component";
+import { NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, NgbNavOutlet } from "@ng-bootstrap/ng-bootstrap";
+import { EnterSubmitDirective } from "../../../widget/directive/enter-submit.directive";
+import { NgIf } from "@angular/common";
+import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
 
 const CHECK_TRAP_URI: string = "../api/composer/vs/gauge-property-dialog-model/checkTrap/";
 
 @Component({
-   selector: "gauge-property-dialog",
-   templateUrl: "gauge-property-dialog.component.html",
+    selector: "gauge-property-dialog",
+    templateUrl: "gauge-property-dialog.component.html",
+    standalone: true,
+    imports: [
+        ModalHeaderComponent,
+        NgIf,
+        EnterSubmitDirective,
+        NgbNav,
+        NgbNavItem,
+        NgbNavLink,
+        NgbNavLinkBase,
+        NgbNavContent,
+        GaugeGeneralPane,
+        DataOutputPane,
+        GaugeAdvancedPane,
+        VSAssemblyScriptPane,
+        NgbNavOutlet,
+        ApplyButtonComponent,
+    ],
 })
 export class GaugePropertyDialog extends PropertyDialog implements OnInit {
    @Input() model: GaugePropertyDialogModel;

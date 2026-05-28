@@ -18,17 +18,20 @@
 import { Component, OnInit, Input, Output, EventEmitter } from "@angular/core";
 import { DataFolderBrowserModel } from "../../model/data-folder-browser-model";
 import { SortTypes } from "../../../../../../../shared/util/sort/sort-types";
-import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
+import { NgbModal, NgbTooltip } from "@ng-bootstrap/ng-bootstrap";
 import { Observable } from "rxjs";
 import { SortOptions } from "../../../../../../../shared/util/sort/sort-options";
 import { Tool } from "../../../../../../../shared/util/tool";
 import { ComponentTool } from "../../../../common/util/component-tool";
 import { WorksheetBrowserInfo } from "../../model/worksheet-browser-info";
+import { NgIf, NgFor } from "@angular/common";
 
 @Component({
-   selector: "files-browser",
-   templateUrl: "files-browser.component.html",
-   styleUrls: ["files-browser.component.scss"]
+    selector: "files-browser",
+    templateUrl: "files-browser.component.html",
+    styleUrls: ["files-browser.component.scss"],
+    standalone: true,
+    imports: [NgbTooltip, NgIf, NgFor]
 })
 export class FilesBrowserComponent implements OnInit {
    @Input() browserView: DataFolderBrowserModel;

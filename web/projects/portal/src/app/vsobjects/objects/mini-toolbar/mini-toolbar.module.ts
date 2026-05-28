@@ -21,18 +21,16 @@ import { MiniToolbar } from "./mini-toolbar.component";
 import { MiniMenu } from "./mini-menu.component";
 
 @NgModule({
-   imports: [
-      CommonModule,
-   ],
-   declarations: [
-      MiniToolbar,
-      MiniMenu
-   ],
-   exports: [
-      MiniToolbar,
-      MiniMenu
-   ],
-   providers: [],
+    imports: [
+        CommonModule,
+        MiniToolbar,
+        MiniMenu,
+    ],
+    exports: [
+        MiniToolbar,
+        MiniMenu
+    ],
+    providers: [],
 })
 export class MiniToolbarModule {
 }

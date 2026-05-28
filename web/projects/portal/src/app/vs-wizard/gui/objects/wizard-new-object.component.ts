@@ -35,6 +35,7 @@ import { DebounceService } from "../../../widget/services/debounce.service";
 import { WizardNewObjectModel } from "./wizard-new-object-model";
 import { Rectangle } from "../../../common/data/rectangle";
 import { VSWizardConstants } from "../../model/vs-wizard-constants";
+import { OutOfZoneDirective } from "../../../widget/directive/out-of-zone.directive";
 
 interface InsertObject {
    type: AssemblyType;
@@ -42,10 +43,12 @@ interface InsertObject {
 }
 
 @Component({
-   selector: "wizard-new-object",
-   templateUrl: "wizard-new-object.component.html",
-   styleUrls: ["wizard-new-object.component.scss"],
-   changeDetection: ChangeDetectionStrategy.OnPush
+    selector: "wizard-new-object",
+    templateUrl: "wizard-new-object.component.html",
+    styleUrls: ["wizard-new-object.component.scss"],
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    standalone: true,
+    imports: [OutOfZoneDirective, FixedDropdownDirective]
 })
 export class WizardNewObject implements OnChanges {
    @Input() model: WizardNewObjectModel;

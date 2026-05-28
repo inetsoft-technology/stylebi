@@ -18,9 +18,12 @@
 import { Component, Input } from "@angular/core";
 import { StaticTextureModel } from "../../../../common/data/visual-frame-model";
 import * as Visual from "../../../../common/data/visual-frame-model";
+import { FormsModule } from "@angular/forms";
 @Component({
-   selector: "linear-texture-pane",
-   templateUrl: "linear-texture-pane.component.html",
+    selector: "linear-texture-pane",
+    templateUrl: "linear-texture-pane.component.html",
+    standalone: true,
+    imports: [FormsModule],
 })
 
 export class LinearTexturePane {

@@ -36,26 +36,24 @@ import {
 } from "./edit-join-table.component";
 
 @NgModule({
-   imports: [
-      CommonModule,
-      FormatModule,
-      FormsModule,
-      ReactiveFormsModule
-   ],
-   declarations: [
-      JoinNodeGraphComponent,
-      EditJoinTableComponent,
-      EditJoinTableColumnComponent,
-      LoadingIndicatorPaneComponent,
-      AttributeFormattingPane
-   ],
-   exports: [
-      JoinNodeGraphComponent,
-      EditJoinTableComponent,
-      EditJoinTableColumnComponent,
-      LoadingIndicatorPaneComponent,
-      AttributeFormattingPane
-   ]
+    imports: [
+        CommonModule,
+        FormatModule,
+        FormsModule,
+        ReactiveFormsModule,
+        JoinNodeGraphComponent,
+        EditJoinTableComponent,
+        EditJoinTableColumnComponent,
+        LoadingIndicatorPaneComponent,
+        AttributeFormattingPane
+    ],
+    exports: [
+        JoinNodeGraphComponent,
+        EditJoinTableComponent,
+        EditJoinTableColumnComponent,
+        LoadingIndicatorPaneComponent,
+        AttributeFormattingPane
+    ]
 })
 export class DatabaseCommonComponentsModule {
 }

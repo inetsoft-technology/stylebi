@@ -86,6 +86,20 @@ import { ShowHideCrosstabColumnsEvent } from "../../event/show-hide-crosstab-col
 import { PagingControlModel } from "../../model/paging-control-model";
 import { PagingControlService } from "../../../common/services/paging-control.service";
 import { VSTabService } from "../../util/vs-tab.service";
+import { VSPreviewTable } from "./vs-preview-table.component";
+import { VSLoadingDisplay } from "../vs-loading-display/vs-loading-display.component";
+import { VSAnnotation } from "../annotation/vs-annotation.component";
+import { VSHiddenAnnotation } from "../annotation/vs-hidden-annotation.component";
+import { TouchScrollDirective } from "../../../widget/scroll/touch-scroll.directive";
+import { SafeFontDirective } from "../../directives/safe-font.directive";
+import { VSSimpleCell } from "./vs-simple-cell.component";
+import { SelectionBoxDirective } from "../../../widget/directive/selection-box.directive";
+import { VSTitle } from "../title/vs-title.component";
+import { TooltipDirective } from "../../../widget/tooltip/tooltip.directive";
+import { OutOfZoneDirective } from "../../../widget/directive/out-of-zone.directive";
+import { VSPopComponentDirective } from "../data-tip/vs-pop-component.directive";
+import { VSDataTipDirective } from "../data-tip/vs-data-tip.directive";
+import { NgIf, NgFor } from "@angular/common";
 
 const CROSSTAB_ACTION_DRILL = "/events/crosstab/action/drill";
 const CROSSTAB_DRILL_CELLS_URI = "/events/table/drill/cells";
@@ -96,10 +110,12 @@ const DATE_COMPARISON_CLEAR_URI: string = "composer/vs/date-comparison-dialog-mo
 const SCRIPT_TREE_URL: string = "../api/vsscriptable/scriptTree";
 
 @Component({
-   selector: "vs-crosstab",
-   templateUrl: "vs-crosstab.component.html",
-   styleUrls: ["base-table.scss", "vs-crosstab.component.scss"],
-   changeDetection: ChangeDetectionStrategy.OnPush
+    selector: "vs-crosstab",
+    templateUrl: "vs-crosstab.component.html",
+    styleUrls: ["base-table.scss", "vs-crosstab.component.scss"],
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    standalone: true,
+    imports: [NgIf, VSDataTipDirective, VSPopComponentDirective, OutOfZoneDirective, TooltipDirective, VSTitle, NgbTooltip, SelectionBoxDirective, NgFor, VSSimpleCell, SafeFontDirective, VSTableCell, TouchScrollDirective, VSHiddenAnnotation, VSAnnotation, VSLoadingDisplay, VSPreviewTable]
 })
 export class VSCrosstab extends BaseTable<VSCrosstabModel> implements OnInit, OnChanges, OnDestroy {
    @Input() set model(model: VSCrosstabModel) {

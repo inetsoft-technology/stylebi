@@ -16,16 +16,22 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, Input, Output, EventEmitter, OnInit } from "@angular/core";
-import { UntypedFormControl, UntypedFormGroup, Validators } from "@angular/forms";
+import { UntypedFormControl, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { HighlightModel } from "./highlight-model";
 import { FormValidators } from "../../../../../shared/util/form-validators";
+import { InputTrimDirective } from "../directive/input-trim.directive";
+import { EnterSubmitDirective } from "../directive/enter-submit.directive";
+import { NgIf } from "@angular/common";
+import { ModalHeaderComponent } from "../modal-header/modal-header.component";
 
 const DEFAULT_HIGHLIGHT_PREFIX = "highlight";
 
 @Component({
-   selector: "add-highlight-dialog",
-   templateUrl: "add-highlight-dialog.component.html",
-   viewProviders: [FormValidators]
+    selector: "add-highlight-dialog",
+    templateUrl: "add-highlight-dialog.component.html",
+    viewProviders: [FormValidators],
+    standalone: true,
+    imports: [ModalHeaderComponent, NgIf, EnterSubmitDirective, FormsModule, ReactiveFormsModule, InputTrimDirective]
 })
 export class AddHighlightDialog implements OnInit {
    @Input() highlights: HighlightModel[] = [];

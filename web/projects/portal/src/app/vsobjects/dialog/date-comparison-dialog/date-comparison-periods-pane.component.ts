@@ -18,11 +18,17 @@
 import { Component, Input } from "@angular/core";
 import { TreeNodeModel } from "../../../widget/tree/tree-node-model";
 import { PeriodPaneModel } from "../../model/period-pane-model";
+import { DateComparisonCustomPeriodsComponent } from "./date-comparison-custom-periods.component";
+import { DateComparisonStandardPeriodsComponent } from "./date-comparison-standard-periods.component";
+import { NgIf } from "@angular/common";
+import { FormsModule } from "@angular/forms";
 
 @Component({
-   selector: "date-comparison-periods-pane",
-   templateUrl: "./date-comparison-periods-pane.component.html",
-   styleUrls: ["./date-comparison-periods-pane.component.scss"]
+    selector: "date-comparison-periods-pane",
+    templateUrl: "./date-comparison-periods-pane.component.html",
+    styleUrls: ["./date-comparison-periods-pane.component.scss"],
+    standalone: true,
+    imports: [FormsModule, NgIf, DateComparisonStandardPeriodsComponent, DateComparisonCustomPeriodsComponent]
 })
 export class DateComparisonPeriodsPaneComponent {
    @Input() periodPaneModel: PeriodPaneModel;

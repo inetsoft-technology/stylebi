@@ -29,12 +29,16 @@ import { Rectangle } from "../../../common/data/rectangle";
 import { DebounceService } from "../../../widget/services/debounce.service";
 import { VSWizardConstants } from "../../model/vs-wizard-constants";
 import { WizardNewObjectModel } from "../objects/wizard-new-object-model";
+import { OutOfZoneDirective } from "../../../widget/directive/out-of-zone.directive";
+import { NgFor } from "@angular/common";
 
 @Component({
-   selector: "vs-wizard-grid-pane",
-   templateUrl: "./vs-wizard-grid-pane.component.html",
-   styleUrls: ["./vs-wizard-grid-pane.component.scss"],
-   changeDetection: ChangeDetectionStrategy.OnPush
+    selector: "vs-wizard-grid-pane",
+    templateUrl: "./vs-wizard-grid-pane.component.html",
+    styleUrls: ["./vs-wizard-grid-pane.component.scss"],
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    standalone: true,
+    imports: [NgFor, OutOfZoneDirective]
 })
 export class VsWizardGridPaneComponent implements OnChanges, OnDestroy {
    @Input() cellWidth: number = 100;

@@ -21,11 +21,16 @@ import { MaterializedModel } from "../../../../../../../shared/util/model/mv/mat
 import { NameLabelTuple } from "../../../../../../../shared/util/name-label-tuple";
 import { AnalyzeMVModel } from "../../../data/model/analyze-mv-model";
 import { MVTreeModel } from "../../../data/model/mv-tree-model";
+import { SortColumnDirective } from "../../../../widget/directive/sort-column.directive";
+import { NgFor, NgIf } from "@angular/common";
+import { FormsModule } from "@angular/forms";
 
 @Component({
-   selector: "analyze-mv-pane",
-   templateUrl: "./analyze-mv-pane.component.html",
-   styleUrls: ["./analyze-mv-pane.component.scss"]
+    selector: "analyze-mv-pane",
+    templateUrl: "./analyze-mv-pane.component.html",
+    styleUrls: ["./analyze-mv-pane.component.scss"],
+    standalone: true,
+    imports: [FormsModule, NgFor, SortColumnDirective, NgIf]
 })
 export class AnalyzeMVPane implements OnInit {
    @Input() selectedNodes: MVTreeModel[] = [];

@@ -76,6 +76,10 @@ import { OpenObjectWizardCommand } from "../model/command/open-object-wizard-com
 import { Tool } from "../../../../../shared/util/tool";
 import { Point } from "../../common/data/point";
 import { ExpiredSheetCommand } from "../../composer/gui/ws/socket/expired-sheet/expired-sheet-command";
+import { VSLoadingDisplay } from "../../vsobjects/objects/vs-loading-display/vs-loading-display.component";
+import { ObjectWizardPane } from "./object-wizard/object-wizard-pane.component";
+import { VsWizardPane } from "./wizard-pane/vs-wizard-pane.component";
+import { NgIf } from "@angular/common";
 
 const TOUCH_EVENT_URI = "/events/composer/touch-asset";
 const OPEN_WIZARD_URL = "/events/vswizard/dialog/open";
@@ -93,39 +97,41 @@ export enum WizardPanes {
    OBJECT_WIZARD_PANE
 }
 @Component({
-   selector: "vs-wizard",
-   templateUrl: "vs-wizard.component.html",
-   styleUrls: ["vs-wizard.component.scss"],
-   providers: [
-      ViewsheetClientService,
-      AdhocFilterService,
-      DataTipService,
-      VSWizardBindingTreeService,
-      VSChartService,
-      PopComponentService,
-      {
-         provide: BindingTreeService,
-         useExisting: VSWizardBindingTreeService
-      },
-      {
-         provide: ScaleService,
-         useClass: VSScaleService
-      },
-      {
-         provide: DialogService,
-         useFactory: VsWizardDialogServiceFactory,
-         deps: [NgbModal, SlideOutService, Injector, UIContextService]
-      },
-      {
-         provide: DndService,
-         useClass: VSDndService,
-         deps: [ModelService, NgbModal, ViewsheetClientService]
-      },
-      {
-         provide: ChartService,
-         useExisting: VSChartService
-      }
-   ]
+    selector: "vs-wizard",
+    templateUrl: "vs-wizard.component.html",
+    styleUrls: ["vs-wizard.component.scss"],
+    providers: [
+        ViewsheetClientService,
+        AdhocFilterService,
+        DataTipService,
+        VSWizardBindingTreeService,
+        VSChartService,
+        PopComponentService,
+        {
+            provide: BindingTreeService,
+            useExisting: VSWizardBindingTreeService
+        },
+        {
+            provide: ScaleService,
+            useClass: VSScaleService
+        },
+        {
+            provide: DialogService,
+            useFactory: VsWizardDialogServiceFactory,
+            deps: [NgbModal, SlideOutService, Injector, UIContextService]
+        },
+        {
+            provide: DndService,
+            useClass: VSDndService,
+            deps: [ModelService, NgbModal, ViewsheetClientService]
+        },
+        {
+            provide: ChartService,
+            useExisting: VSChartService
+        }
+    ],
+    standalone: true,
+    imports: [NgIf, VsWizardPane, ObjectWizardPane, VSLoadingDisplay]
 })
 export class VsWizardComponent extends CommandProcessor implements OnInit, OnDestroy {
    private _model: VsWizardModel;

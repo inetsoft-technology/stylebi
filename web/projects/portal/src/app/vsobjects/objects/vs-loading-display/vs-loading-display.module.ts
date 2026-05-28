@@ -21,18 +21,16 @@ import { VSLoadingDisplay } from "./vs-loading-display.component";
 import { VSSavingDisplay } from "./vs-saving-display.component";
 
 @NgModule({
-   imports: [
-      CommonModule,
-   ],
-   declarations: [
-      VSLoadingDisplay,
-      VSSavingDisplay
-   ],
-   exports: [
-      VSLoadingDisplay,
-      VSSavingDisplay
-   ],
-   providers: [],
+    imports: [
+        CommonModule,
+        VSLoadingDisplay,
+        VSSavingDisplay,
+    ],
+    exports: [
+        VSLoadingDisplay,
+        VSSavingDisplay
+    ],
+    providers: [],
 })
 export class VSLoadingDisplayModule {
 }

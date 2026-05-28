@@ -60,14 +60,18 @@ import { NavigationKeys } from "../navigation-keys";
 import { SelectionMobileService } from "../selection/services/selection-mobile.service";
 import { VSSelectionBaseModel } from "../../model/vs-selection-base-model";
 import { VSCalendarModel } from "../../model/calendar/vs-calendar-model";
+import { VSObjectContainer } from "../vs-object-container.component";
+import { NgIf } from "@angular/common";
 
 declare const window: any;
 
 @Component({
-   selector: "vs-viewsheet",
-   templateUrl: "vs-viewsheet.component.html",
-   styleUrls: ["vs-viewsheet.component.scss"],
-   changeDetection: ChangeDetectionStrategy.OnPush
+    selector: "vs-viewsheet",
+    templateUrl: "vs-viewsheet.component.html",
+    styleUrls: ["vs-viewsheet.component.scss"],
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    standalone: true,
+    imports: [NgIf, VSObjectContainer]
 })
 export class VSViewsheet extends NavigationComponent<VSViewsheetModel> implements OnChanges, OnDestroy {
    @Input() deployed: boolean;

@@ -16,10 +16,14 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, EventEmitter, Input, Output } from "@angular/core";
+import { FormsModule } from "@angular/forms";
+import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
 
 @Component({
-   selector: "column-description-dialog",
-   templateUrl: "column-description-dialog.component.html"
+    selector: "column-description-dialog",
+    templateUrl: "column-description-dialog.component.html",
+    standalone: true,
+    imports: [ModalHeaderComponent, FormsModule]
 })
 export class ColumnDescriptionDialog {
    @Input() description: string;

@@ -24,15 +24,13 @@ import { ViewerViewComponent } from "./viewer-view.component";
 import { PageTabComponent } from "./page-tab.component";
 
 @NgModule({
-   imports: [
-    CommonModule,
-    VSObjectModule,
-    ResizedDirective,
-],
-   declarations: [
-      ViewerViewComponent,
-      PageTabComponent
-   ]
+    imports: [
+        CommonModule,
+        VSObjectModule,
+        ResizedDirective,
+        ViewerViewComponent,
+        PageTabComponent,
+    ]
 })
 export class ViewerViewModule {
 }

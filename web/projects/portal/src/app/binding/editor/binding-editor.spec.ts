@@ -26,6 +26,8 @@ import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { of as observableOf } from "rxjs";
 import { UIContextService } from "../../common/services/ui-context.service";
+import { DndService } from "../../common/dnd/dnd.service";
+import { SsoHeartbeatService } from "../../../../../shared/sso/sso-heartbeat.service";
 import { DropDownTestModule } from "../../common/test/test-module";
 import { TestUtils } from "../../common/test/test-utils";
 import { FixedDropdownDirective } from "../../widget/fixed-dropdown/fixed-dropdown.directive";
@@ -33,6 +35,7 @@ import { DynamicComboBox } from "../../widget/dynamic-combo-box/dynamic-combo-bo
 import { ModelService } from "../../widget/services/model.service";
 import { CrosstabBindingModel } from "../data/table/crosstab-binding-model";
 import { BindingService } from "../services/binding.service";
+import { BindingTreeService } from "../widget/binding-tree/binding-tree.service";
 import { TableEditorService } from "../services/table/table-editor.service";
 import { SidebarTab } from "../widget/binding-tree/data-editor-tab-pane.component";
 import { BindingEditor } from "./binding-editor.component";
@@ -54,7 +57,7 @@ describe("Binding Editor Component Unit Test", () => {
       isVS: jest.fn(),
       isAdhoc: jest.fn()
    };
-   let modelService = { getModel: jest.fn(() => observableOf({})) };
+   let modelService = { getModel: jest.fn(() => observableOf([])) };
 
    let fixture: ComponentFixture<BindingEditor>;
    let bindingEditor: BindingEditor;
@@ -64,12 +67,17 @@ describe("Binding Editor Component Unit Test", () => {
    beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule, HttpClientTestingModule,
-            DropDownTestModule
+            FormsModule,
+            ReactiveFormsModule,
+            NgbModule,
+            HttpClientTestingModule,
+            DropDownTestModule,
+            BindingEditor,
+            CrosstabOption,
+            DynamicComboBox,
+            FixedDropdownDirective,
          ],
-         declarations: [
-            BindingEditor, CrosstabOption, DynamicComboBox, FixedDropdownDirective
-         ],
+         
          providers: [
             BindingService, TableEditorService,
             {
@@ -77,6 +85,39 @@ describe("Binding Editor Component Unit Test", () => {
             },
             {
                provide: ModelService, useValue: modelService
+            },
+            {
+               provide: BindingTreeService,
+               useValue: {
+                  root: null,
+                  treeChanged: { subscribe: jest.fn() },
+                  treeLoading: jest.fn(() => false),
+                  bindingTreeChanged: jest.fn(() => ({ subscribe: jest.fn() })),
+                  bindingTreeModel: null,
+                  needUseVirtualScroll: false,
+                  virtualScrollDataSource: null,
+                  isSearching: false,
+                  getSelection: jest.fn(),
+                  setSelection: jest.fn(),
+                  getNode: jest.fn(),
+                  getSourceInfo: jest.fn(),
+                  loadFullTree: jest.fn(() => Promise.resolve(true)),
+                  changeSearchState: jest.fn(),
+                  expandNode: jest.fn(),
+                  collapseNode: jest.fn(),
+                  expandNodesCollapseOthersByRecord: jest.fn(),
+                  getBindingTreeActions: jest.fn(() => []),
+                  changeLoadingState: jest.fn(),
+                  isCalculatedFieldEnabled: jest.fn(() => false)
+               }
+            },
+            {
+               provide: DndService,
+               useValue: { processOnDrop: jest.fn(), setDragOverStyle: jest.fn() }
+            },
+            {
+               provide: SsoHeartbeatService,
+               useValue: {}
             }
          ],
          schemas: [NO_ERRORS_SCHEMA]

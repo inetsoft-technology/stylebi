@@ -34,6 +34,7 @@ import { ModelService } from "../../widget/services/model.service";
 import { VSConditionDialog } from "./vs-condition-dialog.component";
 
 @Component({
+   standalone: true,
    selector: "condition-item-pane",
    template: "<div></div>"
 })
@@ -70,13 +71,13 @@ describe("vs condition dialog component", () => {
    let httpTestingController: HttpTestingController;
 
    beforeEach(() => {
-      modelService = { sendModel: jest.fn(), text: jest.fn() };
+      modelService = { sendModel: jest.fn(), text: jest.fn(), getModel: jest.fn().mockReturnValue(observableOf(null)) };
       modalService = { open: jest.fn() };
       modelService.sendModel.mockImplementation(() => observableOf(new HttpResponse({body: null})));
 
       TestBed.configureTestingModule({
-         imports: [ReactiveFormsModule, FormsModule, NgbModule, HttpClientTestingModule],
-         declarations: [VSConditionDialog, ConditionPane, ConditionItemPane, ConditionPipe, JunctionOperatorPipe],
+         imports: [ReactiveFormsModule, FormsModule, NgbModule, HttpClientTestingModule, VSConditionDialog, ConditionPane, ConditionItemPane, ConditionPipe, JunctionOperatorPipe],
+         
          providers: [
             {provide: ModelService, useValue: modelService},
             {provide: NgbModal, useValue: modalService}],

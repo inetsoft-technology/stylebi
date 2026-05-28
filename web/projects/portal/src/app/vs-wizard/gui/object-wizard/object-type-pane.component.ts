@@ -18,11 +18,14 @@
 import { Component, EventEmitter, Input, OnInit, Output } from "@angular/core";
 import { VSRecommendType } from "../../model/recommender/vs-recommend-type";
 import { VSObjectRecommendation } from "../../model/recommender/vs-object-recommendation";
+import { NgIf, NgFor, NgClass } from "@angular/common";
 
 @Component({
-   selector: "object-type-pane",
-   templateUrl: "object-type-pane.component.html",
-   styleUrls: ["object-type-pane.component.scss"]
+    selector: "object-type-pane",
+    templateUrl: "object-type-pane.component.html",
+    styleUrls: ["object-type-pane.component.scss"],
+    standalone: true,
+    imports: [NgIf, NgFor, NgClass]
 })
 export class ObjectTypePane implements OnInit {
    @Input() recommendations: VSObjectRecommendation[];

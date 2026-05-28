@@ -53,8 +53,8 @@ describe("Combo Box Editor Test", () => {
       modalService = { open: jest.fn() };
 
       TestBed.configureTestingModule({
-         imports: [ReactiveFormsModule, FormsModule, NgbModule, HttpClientTestingModule],
-         declarations: [ComboBoxEditor],
+         imports: [ReactiveFormsModule, FormsModule, NgbModule, HttpClientTestingModule, ComboBoxEditor],
+         
          providers: [{provide: DialogService, useValue: modalService}],
          schemas: [NO_ERRORS_SCHEMA]
       }).compileComponents();

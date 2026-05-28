@@ -19,11 +19,14 @@ import { Component, Input} from "@angular/core";
 import { UntypedFormGroup, AbstractControl } from "@angular/forms";
 import { AttributeModel } from "../../../../../model/datasources/database/physical-model/logical-model/attribute-model";
 import { EntityModel } from "../../../../../model/datasources/database/physical-model/logical-model/entity-model";
+import { LogicalModelAttributeEditor } from "../attribute-editor/logical-model-attribute-editor.component";
 
 @Component({
-   selector: "logical-model-column-editor",
-   templateUrl: "logical-model-column-editor.component.html",
-   styleUrls: ["../../database-model-pane.scss", "logical-model-column-editor.component.scss"]
+    selector: "logical-model-column-editor",
+    templateUrl: "logical-model-column-editor.component.html",
+    styleUrls: ["../../database-model-pane.scss", "logical-model-column-editor.component.scss"],
+    standalone: true,
+    imports: [LogicalModelAttributeEditor]
 })
 export class LogicalModelColumnEditor {
    @Input() databaseName: string;

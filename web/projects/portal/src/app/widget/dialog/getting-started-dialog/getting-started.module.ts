@@ -25,22 +25,20 @@ import {ModalHeaderModule} from "../../modal-header/modal-header.module";
 import { FormsModule } from "@angular/forms";
 
 @NgModule({
-   imports: [
-      CommonModule,
-      NgbCollapseModule,
-      ModalHeaderModule,
-      FormsModule
-   ],
-   declarations: [
-      GettingStartedDialog,
-      WhetherStayComposerDialog
-   ],
-   exports: [
-      GettingStartedDialog
-   ],
-   providers: [
-      GettingStartedService
-   ]
+    imports: [
+        CommonModule,
+        NgbCollapseModule,
+        ModalHeaderModule,
+        FormsModule,
+        GettingStartedDialog,
+        WhetherStayComposerDialog
+    ],
+    exports: [
+        GettingStartedDialog
+    ],
+    providers: [
+        GettingStartedService
+    ]
 })
 export class GettingStartedModule {
 }

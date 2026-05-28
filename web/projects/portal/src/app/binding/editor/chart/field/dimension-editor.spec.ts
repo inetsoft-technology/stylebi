@@ -60,11 +60,16 @@ describe("Dimension Editor Unit Test", () => {
    beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule, DropDownTestModule
+            FormsModule,
+            ReactiveFormsModule,
+            NgbModule,
+            DropDownTestModule,
+            DimensionEditor,
+            SortOption,
+            DynamicComboBox,
+            FixedDropdownDirective,
          ],
-         declarations: [
-            DimensionEditor, SortOption, DynamicComboBox, FixedDropdownDirective
-         ],
+         
          providers: [
             { provide: ModelService, useValue: modelService },
             { provide: BindingService, useValue: bindingService },

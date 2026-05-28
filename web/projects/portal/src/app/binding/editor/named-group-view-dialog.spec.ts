@@ -25,6 +25,7 @@ import { GroupCondition } from "../data/named-group-info";
 import { NameInputDialog } from "./name-input-dialog.component";
 import { NamedGroupPane } from "./named-group-pane.component";
 import { NamedGroupView } from "./named-group-view-dialog.component";
+import { HttpClientTestingModule } from "@angular/common/http/testing";
 
 describe("Named Group Pane Unit Test", () => {
    let createMockTreeNodeModel: (name: string) => TreeNodeModel = (name: string) => {
@@ -51,11 +52,15 @@ describe("Named Group Pane Unit Test", () => {
    beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule
+            
+            HttpClientTestingModule,FormsModule,
+            ReactiveFormsModule,
+            NgbModule,
+            NamedGroupView,
+            NamedGroupPane,
+            NameInputDialog,
          ],
-         declarations: [
-            NamedGroupView, NamedGroupPane, NameInputDialog
-         ],
+         
          providers: [
             {
                provide: NgbModal, useValue: modalService

@@ -19,11 +19,15 @@ import { Component, Input, Output, EventEmitter } from "@angular/core";
 import { ChartEditorService } from "../../../services/chart/chart-editor.service";
 import { ChartRef } from "../../../../common/data/chart-ref";
 import { AbstractCombinedPane } from "./abstract-combined-pane";
+import { StaticSizeEditor } from "./static-size-editor.component";
+import { NgFor } from "@angular/common";
 
 @Component({
-   selector: "combined-size-pane",
-   templateUrl: "combined-size-pane.component.html",
-   styleUrls: ["combined-visual-pane.scss"],
+    selector: "combined-size-pane",
+    templateUrl: "combined-size-pane.component.html",
+    styleUrls: ["combined-visual-pane.scss"],
+    standalone: true,
+    imports: [NgFor, StaticSizeEditor],
 })
 export class CombinedSizePane extends AbstractCombinedPane {
    @Input() chartRefs: ChartRef[] = [];

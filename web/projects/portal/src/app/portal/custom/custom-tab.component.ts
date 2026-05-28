@@ -20,10 +20,14 @@ import { DomSanitizer, SafeResourceUrl } from "@angular/platform-browser";
 import { ActivatedRoute } from "@angular/router";
 import { PortalTabsService } from "../services/portal-tabs.service";
 import { PortalTab } from "../portal-tab";
+import { NgIf } from "@angular/common";
+import { ResponsiveTabsComponent } from "../../widget/responsive-tabs/responsive-tabs.component";
 
 @Component({
-   templateUrl: "custom-tab.component.html",
-   styleUrls: ["../portal-tab.component.scss", "custom-tab.component.scss"]
+    templateUrl: "custom-tab.component.html",
+    styleUrls: ["../portal-tab.component.scss", "custom-tab.component.scss"],
+    standalone: true,
+    imports: [ResponsiveTabsComponent, NgIf]
 })
 export class CustomTabComponent implements OnInit {
    tabs: PortalTab[];

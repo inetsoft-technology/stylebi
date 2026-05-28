@@ -26,14 +26,19 @@ import {
    TemplateRef,
    ViewChild
 } from "@angular/core";
-import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
+import { NgbModal, NgbDropdown, NgbDropdownToggle, NgbDropdownMenu } from "@ng-bootstrap/ng-bootstrap";
 import { createAssetEntry } from "../../../../../shared/data/asset-entry";
 import { CategoricalColorModel } from "../../common/data/visual-frame-model";
+import { GraphPaletteDialog } from "./graph-palette-dialog.component";
+import { ColorEditor } from "../color-picker/color-editor.component";
+import { NgFor, NgIf } from "@angular/common";
 
 @Component({
-   selector: "b-categorical-color-pane",
-   templateUrl: "b-categorical-color-pane.component.html",
-   styleUrls: ["b-categorical-color-pane.component.scss"]
+    selector: "b-categorical-color-pane",
+    templateUrl: "b-categorical-color-pane.component.html",
+    styleUrls: ["b-categorical-color-pane.component.scss"],
+    standalone: true,
+    imports: [NgbDropdown, NgbDropdownToggle, NgbDropdownMenu, NgFor, NgIf, ColorEditor, GraphPaletteDialog]
 })
 export class BCategoricalColorPane implements OnInit {
    @ViewChild("paletteDialog") paletteDialog: TemplateRef<any>;
@@ -73,7 +78,7 @@ export class BCategoricalColorPane implements OnInit {
    }
 
    get viewAtEnd(): boolean {
-      return this.currentViewIndex + this.COLORS_IN_VIEW >= this.colorModel.colors.length;
+      return !this.colorModel || this.currentViewIndex + this.COLORS_IN_VIEW >= this.colorModel.colors.length;
    }
 
    shift(n: number): void {

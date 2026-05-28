@@ -31,9 +31,10 @@ describe("WizardToolBarComponent", () => {
    beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
-            NgbModule
+            NgbModule,
+            WizardToolBarComponent,
          ],
-         declarations: [WizardToolBarComponent],
+         
          schemas: [NO_ERRORS_SCHEMA],
          providers: [
             {

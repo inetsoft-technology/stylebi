@@ -20,10 +20,28 @@ import { Tool } from "../../../../../../shared/util/tool";
 import { ImageAdvancedPaneModel } from "../../data/vs/image-advanced-pane-model";
 import { ImageType } from "../../util/image-util";
 import { PopLocation, PopComponentService} from "../../../vsobjects/objects/data-tip/pop-component.service";
+import { TruncatePipe } from "../../../widget/pipe/truncate.pipe";
+import { NotificationsComponent } from "../../../widget/notifications/notifications.component";
+import { AlphaDropdown } from "../../../widget/format/alpha-dropdown.component";
+import { NgFor, NgIf } from "@angular/common";
+import { FormsModule } from "@angular/forms";
+import { ImageScalePane } from "./image-scale-pane.component";
+import { DynamicImagePane } from "./dynamic-image-pane.component";
 
 @Component({
-   selector: "image-advanced-pane",
-   templateUrl: "image-advanced-pane.component.html",
+    selector: "image-advanced-pane",
+    templateUrl: "image-advanced-pane.component.html",
+    standalone: true,
+    imports: [
+        DynamicImagePane,
+        ImageScalePane,
+        FormsModule,
+        NgFor,
+        AlphaDropdown,
+        NgIf,
+        NotificationsComponent,
+        TruncatePipe,
+    ],
 })
 export class ImageAdvancedPane {
    @Input() model: ImageAdvancedPaneModel;

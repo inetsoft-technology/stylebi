@@ -32,8 +32,8 @@ describe("chart style pane component unit case", () => {
    beforeEach(() => {
       uiContextService = { isAdhoc: jest.fn() };
       TestBed.configureTestingModule({
-         imports: [ReactiveFormsModule, FormsModule, NgbModule],
-         declarations: [ChartStylePane],
+         imports: [ReactiveFormsModule, FormsModule, NgbModule, ChartStylePane],
+         
          providers: [
             {provide: UIContextService, useValue: uiContextService},
             {provide: ModelService, useValue: modelService},

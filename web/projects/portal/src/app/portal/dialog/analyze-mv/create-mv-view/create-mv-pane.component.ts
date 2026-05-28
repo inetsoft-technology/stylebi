@@ -21,11 +21,16 @@ import { CreateUpdateMvRequest } from "../../../../../../../shared/util/model/mv
 import { MaterializedModel } from "../../../../../../../shared/util/model/mv/materialized-model";
 import { NameLabelTuple } from "../../../../../../../shared/util/name-label-tuple";
 import { ComponentTool } from "../../../../common/util/component-tool";
+import { SortColumnDirective } from "../../../../widget/directive/sort-column.directive";
+import { NgFor, NgIf } from "@angular/common";
+import { FormsModule } from "@angular/forms";
 
 @Component({
-   selector: "create-mv-pane",
-   templateUrl: "./create-mv-pane.component.html",
-   styleUrls: ["./create-mv-pane.component.scss"]
+    selector: "create-mv-pane",
+    templateUrl: "./create-mv-pane.component.html",
+    styleUrls: ["./create-mv-pane.component.scss"],
+    standalone: true,
+    imports: [FormsModule, NgFor, SortColumnDirective, NgIf]
 })
 export class CreateMVPane implements OnInit {
    @Input() models: MaterializedModel[] = [];

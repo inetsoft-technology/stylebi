@@ -23,19 +23,17 @@ import {ReactiveFormsModule} from "@angular/forms";
 import {NgbAlertModule} from "@ng-bootstrap/ng-bootstrap";
 
 @NgModule({
-   imports: [
-      CommonModule,
-      ModalHeaderModule,
-      ReactiveFormsModule,
-      NgbAlertModule,
-   ],
-   declarations: [
-      TipCustomizeDialog
-   ],
-   exports: [
-      TipCustomizeDialog
-   ],
-   providers: [],
+    imports: [
+        CommonModule,
+        ModalHeaderModule,
+        ReactiveFormsModule,
+        NgbAlertModule,
+        TipCustomizeDialog,
+    ],
+    exports: [
+        TipCustomizeDialog
+    ],
+    providers: [],
 })
 export class TipCustomizeDialogModule {
 }

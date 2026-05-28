@@ -85,12 +85,17 @@ describe("VSCalendar Unit Tests", () => {
             FormsModule,
             ReactiveFormsModule,
             HttpClientTestingModule,
-            NgbModule
+            NgbModule,
+            VSCalendar,
+            MonthCalendar,
+            YearCalendar,
+            MiniToolbar,
+            SafeFontDirective,
+            VSPopComponentDirective,
+            InteractableDirective,
+            DefaultFocusDirective,
          ],
-         declarations: [
-            VSCalendar, MonthCalendar, YearCalendar, MiniToolbar, SafeFontDirective,
-            VSPopComponentDirective, InteractableDirective, DefaultFocusDirective
-         ],
+         
          providers: [
             Renderer2,
             PopComponentService,

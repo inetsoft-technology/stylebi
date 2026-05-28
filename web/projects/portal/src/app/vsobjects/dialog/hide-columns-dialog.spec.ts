@@ -23,6 +23,7 @@ import { EnterSubmitDirective } from "../../widget/directive/enter-submit.direct
 import { ApplyButtonComponent } from "../../widget/slide-out/apply-button.component";
 import { HideColumnsDialogModel } from "../model/hide-columns-dialog-model";
 import { HideColumnsDialog } from "./hide-columns-dialog.component";
+import { HttpClientTestingModule } from "@angular/common/http/testing";
 
 let createModel: () => HideColumnsDialogModel = () => {
    return {
@@ -37,11 +38,15 @@ describe("Hide Columns Dialog Unit Test", () => {
    beforeEach(() => {
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule
+            
+            HttpClientTestingModule,FormsModule,
+            ReactiveFormsModule,
+            NgbModule,
+            ApplyButtonComponent,
+            HideColumnsDialog,
+            EnterSubmitDirective,
          ],
-         declarations: [
-            ApplyButtonComponent, HideColumnsDialog, EnterSubmitDirective
-         ],
+         
          providers: [
             NgbModal
          ],

@@ -21,17 +21,15 @@ import { TreeModule } from "../tree/tree.module";
 import { TableStylePane } from "./table-style-pane.component";
 
 @NgModule({
-   imports: [
-      CommonModule,
-      TreeModule,
-   ],
-   declarations: [
-      TableStylePane
-   ],
-   exports: [
-      TableStylePane
-   ],
-   providers: [],
+    imports: [
+        CommonModule,
+        TreeModule,
+        TableStylePane,
+    ],
+    exports: [
+        TableStylePane
+    ],
+    providers: [],
 })
 export class TableStyleModule {
 }

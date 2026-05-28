@@ -21,14 +21,14 @@ import { SafeFontDirective } from "./safe-font.directive";
 import { ZIndexDirective } from "./zindex.directive";
 
 @NgModule({
-   imports: [
-      CommonModule,
-   ],
-   declarations: [SafeFontDirective, ZIndexDirective],
-   exports: [
-      SafeFontDirective, ZIndexDirective
-   ],
-   providers: [],
+    imports: [
+        CommonModule,
+        SafeFontDirective, ZIndexDirective,
+    ],
+    exports: [
+        SafeFontDirective, ZIndexDirective
+    ],
+    providers: [],
 })
 export class VSObjectDirectivesModule {
 }

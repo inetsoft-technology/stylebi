@@ -24,10 +24,14 @@ import { FixedDropdownDirective } from "../fixed-dropdown/fixed-dropdown.directi
 import { Tool } from "../../../../../shared/util/tool";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { ComponentTool } from "../../common/util/component-tool";
+import { NgFor } from "@angular/common";
+import { FormsModule } from "@angular/forms";
 
 @Component({
-   selector: "target-label-pane",
-   templateUrl: "target-label-pane.component.html"
+    selector: "target-label-pane",
+    templateUrl: "target-label-pane.component.html",
+    standalone: true,
+    imports: [FixedDropdownDirective, FormsModule, NgFor]
 })
 export class TargetLabelPane {
    @Input() label: string = "";

@@ -18,11 +18,14 @@
 import { Component, EventEmitter, Input, Optional, Output } from "@angular/core";
 import { TableEditorService } from "../../services/table/table-editor.service";
 import { UIContextService } from "../../../common/services/ui-context.service";
+import { NgIf } from "@angular/common";
 
 @Component({
-   selector: "detail-option",
-   templateUrl: "detail-option.component.html",
-   styleUrls: ["./detail-option.component.scss"]
+    selector: "detail-option",
+    templateUrl: "detail-option.component.html",
+    styleUrls: ["./detail-option.component.scss"],
+    standalone: true,
+    imports: [NgIf]
 })
 export class DetailOption {
    @Input() field: any;

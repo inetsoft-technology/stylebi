@@ -30,13 +30,16 @@ import {
    ViewChild
 } from "@angular/core";
 import { CdkTextareaAutosize } from "@angular/cdk/text-field";
-import { UntypedFormControl, ValidatorFn, Validators } from "@angular/forms";
+import { UntypedFormControl, ValidatorFn, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { debounceTime } from "rxjs/operators";
+import { NgIf } from "@angular/common";
 
 @Component({
-   selector: "tabular-text-editor",
-   templateUrl: "tabular-text-editor.component.html",
-   styleUrls: ["tabular-text-editor.component.scss"]
+    selector: "tabular-text-editor",
+    templateUrl: "tabular-text-editor.component.html",
+    styleUrls: ["tabular-text-editor.component.scss"],
+    standalone: true,
+    imports: [NgIf, FormsModule, ReactiveFormsModule, CdkTextareaAutosize]
 })
 export class TabularTextEditor implements OnInit, OnChanges, AfterViewInit, OnDestroy {
    @Input() value: string;

@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { DOCUMENT } from "@angular/common";
+import { DOCUMENT, NgIf, NgFor } from "@angular/common";
 import { HttpClient, HttpParams } from "@angular/common/http";
 import {
    AfterContentInit,
@@ -202,6 +202,27 @@ import { VSUtil } from "./util/vs-util";
 import { VsToolbarButtonDirective } from "./vs-toolbar-button.directive";
 import { BaseHrefService } from "../common/services/base-href.service";
 import { CurrentUserService } from "../../../../shared/util/current-user.service";
+import { RemoveBookmarksDialog } from "./dialog/remove-bookmarks-dialog.component";
+import { ShareLinkDialog } from "../widget/share/share-link-dialog.component";
+import { ShareSlackDialog } from "../widget/share/share-slack-dialog.component";
+import { ShareGoogleChatDialog } from "../widget/share/share-google-chat-dialog.component";
+import { ShareEmailDialogComponent } from "../widget/share/share-email-dialog.component";
+import { BookmarkPropertyDialog } from "./dialog/bookmark-property-dialog.component";
+import { ScheduleDialog } from "./dialog/schedule-dialog.component";
+import { EmailDialog } from "./dialog/email/email-dialog.component";
+import { ExportDialog } from "./dialog/export-dialog.component";
+import { VSLoadingDisplay } from "./objects/vs-loading-display/vs-loading-display.component";
+import { StatusBar } from "../status-bar/status-bar.component";
+import { VSObjectContainer } from "./objects/vs-object-container.component";
+import { ViewerFormatPane } from "./objects/viewer-format-pane.component";
+import { InteractContainerDirective } from "../widget/interact/interact-container.directive";
+import { VsBookmarkPaneComponent } from "./bookmark/vs-bookmark-pane.component";
+import { ViewerMobileToolbarComponent } from "./objects/viewer-mobile-toolbar/viewer-mobile-toolbar.component";
+import { BlockMouseDirective } from "../widget/mouse-event/block-mouse.directive";
+import { EnterClickDirective } from "../widget/directive/enter-click.directive";
+import { DefaultFocusDirective } from "../widget/directive/default-focus.directive";
+import { OutOfZoneDirective } from "../widget/directive/out-of-zone.directive";
+import { PagingControlComponent } from "../widget/scroll/paging-control.component";
 
 declare const window: any;
 declare var globalPostParams: { [name: string]: string[] } | null;
@@ -251,51 +272,53 @@ export interface ScrollViewportRect {
 }
 
 @Component({
-   selector: "viewer-app",
-   templateUrl: "viewer-app.component.html",
-   styleUrls: ["viewer-app.component.scss"],
-   providers: [
-      ViewsheetClientService,
-      DataTipService,
-      AdhocFilterService,
-      PopComponentService,
-      VSChartService,
-      AssemblyActionFactory,
-      SelectionContainerChildrenService,
-      CheckFormDataService,
-      VSChartService,
-      DebounceService,
-      FullScreenService,
-      ViewerResizeService,
-      FormInputService,
-      GlobalSubmitService,
-      ViewerToolbarMessageService,
-      {
-         provide: DndService,
-         useClass: VSDndService,
-         deps: [ModelService, NgbModal, ViewsheetClientService]
-      },
-      {
-         provide: ScaleService,
-         useClass: VSScaleService
-      },
-      {
-         provide: ContextProvider,
-         useFactory: ViewerContextProviderFactory,
-         deps: [[new Optional(), ComposerToken], [new Optional(), EmbedToken]]
-      },
-      {
-         provide: DialogService,
-         useFactory: ViewerDialogServiceFactory,
-         deps: [NgbModal, SlideOutService, Injector, UIContextService]
-      },
-      {
-         provide: ChartService,
-         useExisting: VSChartService
-      },
-      ComposerRecentService,
-      SelectionMobileService
-   ]
+    selector: "viewer-app",
+    templateUrl: "viewer-app.component.html",
+    styleUrls: ["viewer-app.component.scss"],
+    providers: [
+        ViewsheetClientService,
+        DataTipService,
+        AdhocFilterService,
+        PopComponentService,
+        VSChartService,
+        AssemblyActionFactory,
+        SelectionContainerChildrenService,
+        CheckFormDataService,
+        VSChartService,
+        DebounceService,
+        FullScreenService,
+        ViewerResizeService,
+        FormInputService,
+        GlobalSubmitService,
+        ViewerToolbarMessageService,
+        {
+            provide: DndService,
+            useClass: VSDndService,
+            deps: [ModelService, NgbModal, ViewsheetClientService]
+        },
+        {
+            provide: ScaleService,
+            useClass: VSScaleService
+        },
+        {
+            provide: ContextProvider,
+            useFactory: ViewerContextProviderFactory,
+            deps: [[new Optional(), ComposerToken], [new Optional(), EmbedToken]]
+        },
+        {
+            provide: DialogService,
+            useFactory: ViewerDialogServiceFactory,
+            deps: [NgbModal, SlideOutService, Injector, UIContextService]
+        },
+        {
+            provide: ChartService,
+            useExisting: VSChartService
+        },
+        ComposerRecentService,
+        SelectionMobileService
+    ],
+    standalone: true,
+    imports: [NgIf, PagingControlComponent, OutOfZoneDirective, VsToolbarButtonDirective, FixedDropdownDirective, DefaultFocusDirective, EnterClickDirective, NgFor, BlockMouseDirective, ViewerMobileToolbarComponent, VsBookmarkPaneComponent, InteractContainerDirective, ViewerFormatPane, VSObjectContainer, StatusBar, VSLoadingDisplay, ExportDialog, EmailDialog, ScheduleDialog, BookmarkPropertyDialog, VariableInputDialog, ShareEmailDialogComponent, ShareGoogleChatDialog, ShareSlackDialog, ShareLinkDialog, RemoveBookmarksDialog, NotificationsComponent]
 })
 export class ViewerAppComponent extends CommandProcessor implements OnInit, AfterViewInit,
    AfterViewChecked, AfterContentInit, OnDestroy
@@ -3190,8 +3213,10 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
    }
 
    setAppSize(): void {
-      this.appSize = new Dimension(this.viewerRoot.nativeElement.offsetWidth,
-         this.viewerRoot.nativeElement.offsetHeight);
+      if(this.viewerRoot?.nativeElement) {
+         this.appSize = new Dimension(this.viewerRoot.nativeElement.offsetWidth,
+            this.viewerRoot.nativeElement.offsetHeight);
+      }
    }
 
    getScaleSize(): Dimension {

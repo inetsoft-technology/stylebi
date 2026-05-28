@@ -67,11 +67,12 @@ describe("Aggregate Pane Unit Test", () => {
    beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
-            NgbModule, ReactiveFormsModule, FormsModule
+            NgbModule,
+            ReactiveFormsModule,
+            FormsModule,
+            AggregatePane,
          ],
-         declarations: [
-            AggregatePane
-         ],
+         
          providers: [
             { provide: DateLevelExamplesService, useValue: dateLevelExamplesService }
          ]

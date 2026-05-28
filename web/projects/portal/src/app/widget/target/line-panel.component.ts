@@ -23,10 +23,32 @@ import { MeasureInfo, TargetInfo } from "./target-info";
 import { GraphTypes } from "../../common/graph-types";
 import { Tool } from "../../../../../shared/util/tool";
 import { DefaultPalette } from "../color-picker/default-palette";
+import { AlphaDropdown } from "../format/alpha-dropdown.component";
+import { ColorEditor } from "../color-picker/color-editor.component";
+import { GridLineDropdown } from "../format/grid-line-dropdown.component";
+import { TargetLabelPane } from "./target-label-pane.component";
+import { LabelInputField } from "./label-input-field.component";
+import { ValueInputField } from "./value-input-field.component";
+import { FormsModule } from "@angular/forms";
+import { NgIf, NgFor, NgClass } from "@angular/common";
 
 @Component({
-   selector: "line-panel",
-   templateUrl: "line-panel.component.html",
+    selector: "line-panel",
+    templateUrl: "line-panel.component.html",
+    standalone: true,
+    imports: [
+        NgIf,
+        FormsModule,
+        NgFor,
+        NgClass,
+        ValueInputField,
+        DateInputField,
+        LabelInputField,
+        TargetLabelPane,
+        GridLineDropdown,
+        ColorEditor,
+        AlphaDropdown,
+    ],
 })
 export class LinePanel {
    @Input() model: TargetInfo;

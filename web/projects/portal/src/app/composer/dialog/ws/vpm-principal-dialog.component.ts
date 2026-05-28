@@ -16,17 +16,21 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, EventEmitter, Input, OnInit, Output } from "@angular/core";
-import { UntypedFormControl, UntypedFormGroup } from "@angular/forms";
+import { UntypedFormControl, UntypedFormGroup, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { Tool } from "../../../../../../shared/util/tool";
 import { ModelService } from "../../../widget/services/model.service";
 import { VPMPrincipalDialogModel } from "../../data/ws/vpm-principal-dialog-model";
 import { Worksheet } from "../../data/ws/worksheet";
+import { NgIf, NgFor } from "@angular/common";
+import { EnterSubmitDirective } from "../../../widget/directive/enter-submit.directive";
 
 const WORKSHEET_VPM_PRINCIPAL_URI = "../api/composer/ws/dialog/vpm-principal-dialog/";
 
 @Component({
-   selector: "vpm-principal-dialog",
-   templateUrl: "vpm-principal-dialog.component.html"
+    selector: "vpm-principal-dialog",
+    templateUrl: "vpm-principal-dialog.component.html",
+    standalone: true,
+    imports: [EnterSubmitDirective, NgIf, FormsModule, ReactiveFormsModule, NgFor]
 })
 export class VPMPrincipalDialogComponent implements OnInit {
    @Input() worksheet: Worksheet;

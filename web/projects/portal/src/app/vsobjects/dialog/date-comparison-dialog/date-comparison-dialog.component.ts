@@ -27,13 +27,19 @@ import { CommonKVModel } from "../../../common/data/common-kv-model";
 import { ValueTypes } from "../../model/dynamic-value-model";
 import { IntervalLevel } from "../../model/interval-pane-model";
 import { XConstants } from "../../../common/util/xconstants";
+import { ApplyButtonComponent } from "../../../widget/slide-out/apply-button.component";
+import { DateComparisonSharePaneComponent } from "./date-comparison-share-pane.component";
+import { NgIf } from "@angular/common";
+import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
 
 const DATE_COMPARISON_URI: string = "composer/vs/date-comparison-model";
 
 @Component({
-   selector: "date-comparison-dialog",
-   templateUrl: "./date-comparison-dialog.component.html",
-   styleUrls: ["./date-comparison-dialog.component.scss"]
+    selector: "date-comparison-dialog",
+    templateUrl: "./date-comparison-dialog.component.html",
+    styleUrls: ["./date-comparison-dialog.component.scss"],
+    standalone: true,
+    imports: [ModalHeaderComponent, NgIf, DateComparisonSharePaneComponent, DateComparisonPaneComponent, ApplyButtonComponent]
 })
 export class DateComparisonDialog implements OnInit {
    @Input() dateComparisonDialogModel: DateComparisonDialogModel;

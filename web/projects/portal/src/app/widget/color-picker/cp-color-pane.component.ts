@@ -22,11 +22,17 @@ import { ColorPalette, RecentColorPalette } from "./color-classes";
 import { DefaultPalette } from "./default-palette";
 import { RecentColorService } from "./recent-color.service";
 import { getColorHex } from "./color-utils";
+import { ColorEditorDialog } from "./color-editor-dialog.component";
+import { FormsModule } from "@angular/forms";
+import { BlockMouseDirective } from "../mouse-event/block-mouse.directive";
+import { NgIf, NgFor, NgClass } from "@angular/common";
 
 @Component({
-   selector: "cp-color-pane",
-   templateUrl: "cp-color-pane.component.html",
-   styleUrls: ["cp-color-pane.component.scss"]
+    selector: "cp-color-pane",
+    templateUrl: "cp-color-pane.component.html",
+    styleUrls: ["cp-color-pane.component.scss"],
+    standalone: true,
+    imports: [NgIf, BlockMouseDirective, FormsModule, NgFor, NgClass, ColorEditorDialog]
 })
 export class ColorPane implements OnInit {
    @Input() color: string = "#000000";

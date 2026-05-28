@@ -42,10 +42,8 @@ describe("Image Scale Pane Test", () => {
    beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
-            FormsModule
-         ],
-         declarations: [
-            ImageScalePane
+            FormsModule,
+            ImageScalePane,
          ]
       });
       TestBed.compileComponents();

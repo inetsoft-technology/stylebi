@@ -22,11 +22,20 @@ import { ModelService } from "../../../widget/services/model.service";
 import { ReorderColumnsDialogModel } from "../../data/vs/reorder-columns-dialog-model";
 import { ColumnRef } from "../../../binding/data/column-ref";
 import { MultiSelectList } from "../../../common/util/multi-select-list";
+import { VSLoadingDisplay } from "../../../vsobjects/objects/vs-loading-display/vs-loading-display.component";
+import { TooltipDirective } from "../../../widget/tooltip/tooltip.directive";
+import { CdkVirtualScrollViewport, CdkFixedSizeVirtualScroll, CdkVirtualForOf } from "@angular/cdk/scrolling";
+import { LargeFormFieldComponent } from "../../../widget/large-form-field/large-form-field.component";
+import { EnterSubmitDirective } from "../../../widget/directive/enter-submit.directive";
+import { NgIf } from "@angular/common";
+import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
 
 @Component({
-   selector: "reorder-columns-dialog",
-   templateUrl: "reorder-columns-dialog.component.html",
-   styleUrls: ["reorder-columns-dialog.component.scss"]
+    selector: "reorder-columns-dialog",
+    templateUrl: "reorder-columns-dialog.component.html",
+    styleUrls: ["reorder-columns-dialog.component.scss"],
+    standalone: true,
+    imports: [ModalHeaderComponent, NgIf, EnterSubmitDirective, LargeFormFieldComponent, CdkVirtualScrollViewport, CdkFixedSizeVirtualScroll, CdkVirtualForOf, TooltipDirective, VSLoadingDisplay]
 })
 export class ReorderColumnsDialog implements OnInit {
    @Input() tableName: string;

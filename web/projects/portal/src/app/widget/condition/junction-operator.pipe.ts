@@ -26,7 +26,8 @@ import { JunctionOperatorType } from "../../common/data/condition/junction-opera
  *
  */
 @Pipe({
-   name: "junctionOperatorToString"
+    name: "junctionOperatorToString",
+    standalone: true
 })
 export class JunctionOperatorPipe implements PipeTransform {
    transform(junction: JunctionOperator): string {

@@ -28,7 +28,7 @@ import {
    SimpleChanges,
    ViewChild
 } from "@angular/core";
-import { NgbModal, NgbDateStruct } from "@ng-bootstrap/ng-bootstrap";
+import { NgbModal, NgbDateStruct, NgbDatepicker } from "@ng-bootstrap/ng-bootstrap";
 import { Observable ,  Subscription } from "rxjs";
 import { Tool } from "../../../../../../shared/util/tool";
 import { GuiTool } from "../../../common/util/gui-tool";
@@ -46,6 +46,14 @@ import { ComponentTool } from "../../../common/util/component-tool";
 import { FirstDayOfWeekService } from "../../../common/services/first-day-of-week.service";
 import { DataTipService } from "../data-tip/data-tip.service";
 import { DateTypeFormatter } from "../../../../../../shared/util/date-type-formatter";
+import { DefaultFocusDirective } from "../../../widget/directive/default-focus.directive";
+import { EnterClickDirective } from "../../../widget/directive/enter-click.directive";
+import { SafeFontDirective } from "../../directives/safe-font.directive";
+import { FormsModule } from "@angular/forms";
+import { VSPopComponentDirective } from "../data-tip/vs-pop-component.directive";
+import { VSDataTipDirective } from "../data-tip/vs-data-tip.directive";
+import { VSInputLabelWrapper } from "../input-label-wrapper/vs-input-label-wrapper.component";
+import { NgIf } from "@angular/common";
 
 enum FocusRegions {
    NONE,
@@ -54,9 +62,11 @@ enum FocusRegions {
 }
 
 @Component({
-   selector: "vs-text-input",
-   templateUrl: "vs-text-input.component.html",
-   styleUrls: ["vs-text-input.component.scss"]
+    selector: "vs-text-input",
+    templateUrl: "vs-text-input.component.html",
+    styleUrls: ["vs-text-input.component.scss"],
+    standalone: true,
+    imports: [AppErrorMessage, NgIf, VSInputLabelWrapper, VSDataTipDirective, VSPopComponentDirective, FormsModule, SafeFontDirective, EnterClickDirective, FixedDropdownDirective, NgbDatepicker, DefaultFocusDirective]
 })
 export class VSTextInput extends NavigationComponent<VSTextInputModel>
    implements OnInit, OnChanges, OnDestroy

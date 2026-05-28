@@ -22,11 +22,15 @@ import { ComponentTool } from "../../../../common/util/component-tool";
 import { ChartGeoRef } from "../../../data/chart/chart-geo-ref";
 import { FeatureMappingInfo } from "../../../data/chart/feature-mapping-info";
 import { GeoMappingDialog } from "./geo-mapping-dialog.component";
+import { FormsModule } from "@angular/forms";
+import { NgIf, NgFor } from "@angular/common";
 
 @Component({
-   selector: "geo-option-pane",
-   templateUrl: "geo-option-pane.component.html",
-   styleUrls: ["geo-option-pane.component.scss"]
+    selector: "geo-option-pane",
+    templateUrl: "geo-option-pane.component.html",
+    styleUrls: ["geo-option-pane.component.scss"],
+    standalone: true,
+    imports: [NgIf, FormsModule, NgFor]
 })
 export class GeoOptionPane implements OnInit {
    @Input() mapVisible: boolean;

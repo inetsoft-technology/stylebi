@@ -158,7 +158,10 @@ describe("Composer toolbar", () => {
             FormsModule,
             ReactiveFormsModule,
             NgbModule,
-            HttpClientTestingModule
+            HttpClientTestingModule,
+            ComposerToolbarComponent,
+            ToolbarGroup,
+            ImportCSVDialog,
          ],
          providers: [
             { provide: ModelService, useValue: modelService },
@@ -170,7 +173,7 @@ describe("Composer toolbar", () => {
             { provide: ComposerToolbarService, useValue: toolbarService },
             { provide: ChatService, useValue: null }
          ],
-         declarations: [ ComposerToolbarComponent, ToolbarGroup, ImportCSVDialog ],
+         
          schemas: [ NO_ERRORS_SCHEMA ]
       })
       .overrideComponent(ComposerToolbarComponent, {

@@ -25,7 +25,7 @@ import {
    TemplateRef,
    ViewChild
 } from "@angular/core";
-import { UntypedFormControl, UntypedFormGroup } from "@angular/forms";
+import { UntypedFormControl, UntypedFormGroup, FormsModule } from "@angular/forms";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { Tool } from "../../../../../shared/util/tool";
 import { MessageCommand } from "../../common/viewsheet-client/message-command";
@@ -33,13 +33,25 @@ import { FormValidators } from "../../../../../shared/util/form-validators";
 import { ScheduleDialogModel } from "../model/schedule/schedule-dialog-model";
 import { SimpleScheduleDialogModel } from "../model/schedule/simple-schedule-dialog-model";
 import { ComponentTool } from "../../common/util/component-tool";
+import { SimpleScheduleDialog } from "../../widget/schedule/simple-schedule-dialog.component";
+import { NgIf } from "@angular/common";
+import { EnterSubmitDirective } from "../../widget/directive/enter-submit.directive";
+import { ModalHeaderComponent } from "../../widget/modal-header/modal-header.component";
 
 const CHECK_SCHEDULE_VALID_URI: string = "../api/vs/check-schedule-dialog/";
 const SIMPLE_SCHEDULE_URI: string = "../api/vs/simple-schedule-dialog-model/";
 
 @Component({
-   selector: "schedule-dialog",
-   templateUrl: "schedule-dialog.component.html",
+    selector: "schedule-dialog",
+    templateUrl: "schedule-dialog.component.html",
+    standalone: true,
+    imports: [
+        ModalHeaderComponent,
+        EnterSubmitDirective,
+        NgIf,
+        FormsModule,
+        SimpleScheduleDialog,
+    ],
 })
 export class ScheduleDialog implements OnInit {
    @Input() model: ScheduleDialogModel;

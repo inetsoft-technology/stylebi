@@ -52,6 +52,9 @@ import { WSTableActions } from "../action/ws-table.actions";
 import { WSInsertColumnsEvent } from "../socket/ws-insert-columns/ws-insert-columns-event";
 import { WSAssemblyThumbnail } from "./ws-assembly-thumbnail";
 import { WSAssemblyThumbnailTitleComponent } from "./ws-assembly-thumbnail-title.component";
+import { NgIf } from "@angular/common";
+import { DataBlockStatusIndicatorComponent } from "./data-block-status-indicator.component";
+import { ActionsContextmenuAnchorDirective } from "../../../../widget/fixed-dropdown/actions-contextmenu-anchor.directive";
 
 let timer: any = null;
 const timerFunctions: (() => void)[] = [];
@@ -67,13 +70,15 @@ const MINUS_ICON = "－";
  * Component responsible for the table thumbnails within the graph pane.
  */
 @Component({
-   selector: "table-thumbnail",
-   templateUrl: "table-thumbnail.component.html",
-   styleUrls: [
-      "thumbnail-base.scss",
-      "table-thumbnail.component.scss",
-      "../jsplumb/jsplumb-shared.scss"
-   ]
+    selector: "table-thumbnail",
+    templateUrl: "table-thumbnail.component.html",
+    styleUrls: [
+        "thumbnail-base.scss",
+        "table-thumbnail.component.scss",
+        "../jsplumb/jsplumb-shared.scss"
+    ],
+    standalone: true,
+    imports: [ActionsContextmenuAnchorDirective, WSAssemblyThumbnailTitleComponent, DataBlockStatusIndicatorComponent, NgIf]
 })
 export class TableThumbnailComponent extends WSAssemblyThumbnail
    implements OnChanges, AfterViewInit, OnDestroy

@@ -41,18 +41,16 @@ import {ModalHeaderModule} from "../modal-header/modal-header.module";
         EmailDialogModule,
         NgbTimepickerModule,
         ModalHeaderModule,
+        CSVConfigPane,
+        SimpleScheduleDialog,
+        StartTimeEditor,
     ],
-   declarations: [
-      CSVConfigPane,
-      SimpleScheduleDialog,
-      StartTimeEditor
-   ],
-   exports: [
-      CSVConfigPane,
-      SimpleScheduleDialog,
-      StartTimeEditor
-   ],
-   providers: [],
+    exports: [
+        CSVConfigPane,
+        SimpleScheduleDialog,
+        StartTimeEditor
+    ],
+    providers: [],
 })
 export class WidgetScheduleModule {
 }

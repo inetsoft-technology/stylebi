@@ -26,25 +26,23 @@ import { WidgetDirectivesModule } from "../../../widget/directive/widget-directi
 import { TooltipModule } from "../../../widget/tooltip/tooltip.module";
 
 @NgModule({
-   imports: [
-      CommonModule,
-      DataTipDirectivesModule,
-      InteractModule,
-      WidgetDirectivesModule,
-      TooltipModule,
-   ],
-   declarations: [
-      VSLine,
-      // to avoid circular dependency
-      VSAnnotation,
-      VSHiddenAnnotation
-   ],
-   exports: [
-      VSLine,
-      VSAnnotation,
-      VSHiddenAnnotation
-   ],
-   providers: [],
+    imports: [
+        CommonModule,
+        DataTipDirectivesModule,
+        InteractModule,
+        WidgetDirectivesModule,
+        TooltipModule,
+        VSLine,
+        // to avoid circular dependency
+        VSAnnotation,
+        VSHiddenAnnotation,
+    ],
+    exports: [
+        VSLine,
+        VSAnnotation,
+        VSHiddenAnnotation
+    ],
+    providers: [],
 })
 export class VSLineModule {
 }

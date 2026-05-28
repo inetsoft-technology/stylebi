@@ -20,11 +20,14 @@ import { RepositoryEntry } from "../../../../../../shared/data/repository-entry"
 import { TreeNodeModel } from "../../../widget/tree/tree-node-model";
 import { ReportTabModel } from "../report-tab-model";
 import { RepositoryEntryType } from "../../../../../../shared/data/repository-entry-type.enum";
+import { RepositoryTreeViewComponent } from "../tree/repository-tree-view.component";
 
 @Component({
-   selector: "p-repository-mobile-view",
-   templateUrl: "./repository-mobile-view.component.html",
-   styleUrls: ["./repository-mobile-view.component.scss"]
+    selector: "p-repository-mobile-view",
+    templateUrl: "./repository-mobile-view.component.html",
+    styleUrls: ["./repository-mobile-view.component.scss"],
+    standalone: true,
+    imports: [RepositoryTreeViewComponent]
 })
 export class RepositoryMobileViewComponent implements OnInit {
    @Input() model: ReportTabModel;

@@ -28,24 +28,22 @@ import { VSChart } from "./vs-chart.component";
 import { VSLineModule } from "../shape/vs-line.module";
 
 @NgModule({
-   imports: [
-      CommonModule,
-      VSTitleModule,
-      GraphModule,
-      PreviewTableModule,
-      VSLoadingDisplayModule,
-      DataTipDirectivesModule,
-      WidgetDirectivesModule,
-      TooltipModule,
-      VSLineModule
-   ],
-   declarations: [
-      VSChart
-   ],
-   exports: [
-      VSChart
-   ],
-   providers: [],
+    imports: [
+        CommonModule,
+        VSTitleModule,
+        GraphModule,
+        PreviewTableModule,
+        VSLoadingDisplayModule,
+        DataTipDirectivesModule,
+        WidgetDirectivesModule,
+        TooltipModule,
+        VSLineModule,
+        VSChart
+    ],
+    exports: [
+        VSChart
+    ],
+    providers: [],
 })
 export class VSChartModule {
 }

@@ -25,7 +25,7 @@ import {
    TemplateRef,
    ViewChild
 } from "@angular/core";
-import { UntypedFormControl, UntypedFormGroup, Validators } from "@angular/forms";
+import { UntypedFormControl, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { AssetEntry, createAssetEntry } from "../../../../../../shared/data/asset-entry";
 import { ConditionExpression } from "../../../common/data/condition/condition-expression";
@@ -46,11 +46,21 @@ import { ComponentTool } from "../../../common/util/component-tool";
 import { ColumnRef } from "../../../binding/data/column-ref";
 import { AssetEntryHelper } from "../../../common/data/asset-entry-helper";
 import { AssetType } from "../../../../../../shared/data/asset-type";
+import { JunctionOperatorPipe } from "../../../widget/condition/junction-operator.pipe";
+import { ConditionPipe } from "../../../widget/condition/condition.pipe";
+import { GroupingConditionDialog } from "./grouping-condition-dialog.component";
+import { LargeFormFieldComponent } from "../../../widget/large-form-field/large-form-field.component";
+import { InputTrimDirective } from "../../../widget/directive/input-trim.directive";
+import { EnterSubmitDirective } from "../../../widget/directive/enter-submit.directive";
+import { NgIf, NgFor } from "@angular/common";
+import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
 
 @Component({
-   selector: "grouping-dialog",
-   templateUrl: "grouping-dialog.component.html",
-   styleUrls: ["grouping-dialog.component.scss"]
+    selector: "grouping-dialog",
+    templateUrl: "grouping-dialog.component.html",
+    styleUrls: ["grouping-dialog.component.scss"],
+    standalone: true,
+    imports: [ModalHeaderComponent, NgIf, EnterSubmitDirective, FormsModule, ReactiveFormsModule, InputTrimDirective, NgFor, TreeDropdownComponent, LargeFormFieldComponent, GroupingConditionDialog, ConditionPipe, JunctionOperatorPipe]
 })
 export class GroupingDialog implements OnInit {
    @Input() groupingName: string;

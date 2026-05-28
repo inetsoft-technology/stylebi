@@ -29,8 +29,9 @@ import { FixedDropdownComponent } from "./fixed-dropdown.component";
 import { DropdownStackService } from "./dropdown-stack.service";
 
 @Component({
-   selector: "fixed-dropdown-contextmenu",
-   templateUrl: "fixed-dropdown-contextmenu.component.html"
+    selector: "fixed-dropdown-contextmenu",
+    templateUrl: "fixed-dropdown-contextmenu.component.html",
+    standalone: true
 })
 export class FixedDropdownContextmenuComponent
    extends FixedDropdownComponent implements OnInit, OnDestroy

@@ -20,16 +20,14 @@ import {NgModule} from "@angular/core";
 import {ElementInteractDirective} from "./element-interact.directive";
 
 @NgModule({
-   imports: [
-      CommonModule,
-   ],
-   declarations: [
-      ElementInteractDirective
-   ],
-   exports: [
-      ElementInteractDirective
-   ],
-   providers: [],
+    imports: [
+        CommonModule,
+        ElementInteractDirective,
+    ],
+    exports: [
+        ElementInteractDirective
+    ],
+    providers: [],
 })
 export class ResizeModule {
 }

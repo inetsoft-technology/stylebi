@@ -29,29 +29,27 @@ import {ClipboardModule} from "ngx-clipboard";
 import {EmailDialogModule} from "../email-dialog/email-dialog.module";
 
 @NgModule({
-   imports: [
-      CommonModule,
-      WidgetDirectivesModule,
-      ModalHeaderModule,
-      ReactiveFormsModule,
-      NotificationsModule,
-      ClipboardModule,
-      FormsModule,
-      EmailDialogModule,
-   ],
-   declarations: [
-      ShareEmailDialogComponent,
-      ShareGoogleChatDialog,
-      ShareLinkDialog,
-      ShareSlackDialog
-   ],
-   exports: [
-      ShareEmailDialogComponent,
-      ShareGoogleChatDialog,
-      ShareLinkDialog,
-      ShareSlackDialog
-   ],
-   providers: [],
+    imports: [
+        CommonModule,
+        WidgetDirectivesModule,
+        ModalHeaderModule,
+        ReactiveFormsModule,
+        NotificationsModule,
+        ClipboardModule,
+        FormsModule,
+        EmailDialogModule,
+        ShareEmailDialogComponent,
+        ShareGoogleChatDialog,
+        ShareLinkDialog,
+        ShareSlackDialog,
+    ],
+    exports: [
+        ShareEmailDialogComponent,
+        ShareGoogleChatDialog,
+        ShareLinkDialog,
+        ShareSlackDialog
+    ],
+    providers: [],
 })
 export class ShareModule {
 }

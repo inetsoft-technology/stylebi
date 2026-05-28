@@ -31,8 +31,8 @@ describe("band panel component unit case", () => {
 
    beforeEach(() => {
       TestBed.configureTestingModule({
-         imports: [ReactiveFormsModule, FormsModule, NgbModule],
-         declarations: [BandPanel],
+         imports: [ReactiveFormsModule, FormsModule, NgbModule, BandPanel],
+         
          providers: [],
          schemas: [NO_ERRORS_SCHEMA]
       }).compileComponents();

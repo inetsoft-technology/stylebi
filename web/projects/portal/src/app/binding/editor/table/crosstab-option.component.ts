@@ -22,10 +22,19 @@ import { Tool } from "../../../../../../shared/util/tool";
 import { TableFormatInfo } from "../../../common/data/tablelayout/table-format-info";
 import { UIContextService } from "../../../common/services/ui-context.service";
 import { BindingService } from "../../services/binding.service";
+import { TableFormatOption } from "./table-format-option.component";
+import { DynamicComboBox } from "../../../widget/dynamic-combo-box/dynamic-combo-box.component";
+import { NgIf } from "@angular/common";
 
 @Component({
-   selector: "crosstab-option",
-   templateUrl: "crosstab-option.component.html",
+    selector: "crosstab-option",
+    templateUrl: "crosstab-option.component.html",
+    standalone: true,
+    imports: [
+        NgIf,
+        DynamicComboBox,
+        TableFormatOption,
+    ],
 })
 export class CrosstabOption {
    @Input() option: CrosstabOptionInfo;

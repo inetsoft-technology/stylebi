@@ -16,14 +16,17 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, EventEmitter, OnInit } from "@angular/core";
-import { NgbDateStruct } from "@ng-bootstrap/ng-bootstrap";
+import { NgbDateStruct, NgbDatepicker } from "@ng-bootstrap/ng-bootstrap";
 import { Tool } from "../../../../../../shared/util/tool";
 import { FirstDayOfWeekService } from "../../../common/services/first-day-of-week.service";
+import { FormsModule } from "@angular/forms";
 
 @Component({
-   selector: "vso-vs-table-cell-calendar",
-   templateUrl: "vs-table-cell-calendar.component.html",
-   styleUrls: ["vs-table-cell-calendar.component.scss"]
+    selector: "vso-vs-table-cell-calendar",
+    templateUrl: "vs-table-cell-calendar.component.html",
+    styleUrls: ["vs-table-cell-calendar.component.scss"],
+    standalone: true,
+    imports: [NgbDatepicker, FormsModule]
 })
 export class VSTableCellCalendar implements OnInit {
    date: NgbDateStruct;

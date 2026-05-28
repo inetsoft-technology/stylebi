@@ -25,11 +25,15 @@ import {
 } from "@angular/core";
 import { Subscription } from "rxjs";
 import { PageTabService, TabInfoModel } from "../services/page-tab.service";
+import { NgIf, NgFor } from "@angular/common";
+import { ResizedDirective } from "../../../../../shared/resize-event/resized.directive";
 
 @Component({
-   selector: "page-tab",
-   templateUrl: "page-tab.component.html",
-   styleUrls: ["page-tab.component.scss"]
+    selector: "page-tab",
+    templateUrl: "page-tab.component.html",
+    styleUrls: ["page-tab.component.scss"],
+    standalone: true,
+    imports: [ResizedDirective, NgIf, NgFor]
 })
 export class PageTabComponent implements AfterViewInit, OnDestroy {
    @ViewChild("tabScroller") tabScroller: ElementRef;

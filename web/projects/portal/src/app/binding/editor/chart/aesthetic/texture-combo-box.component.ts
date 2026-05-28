@@ -16,11 +16,16 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, Input, Output, EventEmitter } from "@angular/core";
+import { StaticTexturePane } from "./static-texture-pane.component";
+import { TextureItem } from "./texture-item.component";
+import { FixedDropdownDirective } from "../../../../widget/fixed-dropdown/fixed-dropdown.directive";
 
 @Component({
-   selector: "texture-combo-box",
-   templateUrl: "texture-combo-box.component.html",
-   styleUrls: ["texture-combo-box.component.scss"]
+    selector: "texture-combo-box",
+    templateUrl: "texture-combo-box.component.html",
+    styleUrls: ["texture-combo-box.component.scss"],
+    standalone: true,
+    imports: [FixedDropdownDirective, TextureItem, StaticTexturePane]
 })
 export class TextureComboBox {
    @Input() texture: number;

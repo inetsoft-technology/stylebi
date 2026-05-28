@@ -33,11 +33,17 @@ import { StandardPeriodPaneModel } from "../../model/standard-period-pane-model"
 import { ValueTypes } from "../../model/dynamic-value-model";
 import { DateTypeFormatter } from "../../../../../../shared/util/date-type-formatter";
 import { DateComparisonUtil } from "./date-comparison-utill";
+import { DynamicValueEditorComponent } from "../../../widget/date-type-editor/dynamic-value-editor.component";
+import { FormsModule } from "@angular/forms";
+import { NgIf } from "@angular/common";
+import { DynamicComboBox } from "../../../widget/dynamic-combo-box/dynamic-combo-box.component";
 
 @Component({
-   selector: "date-comparison-standard-periods",
-   templateUrl: "./date-comparison-standard-periods.component.html",
-   styleUrls: ["./date-comparison-standard-periods.component.scss"]
+    selector: "date-comparison-standard-periods",
+    templateUrl: "./date-comparison-standard-periods.component.html",
+    styleUrls: ["./date-comparison-standard-periods.component.scss"],
+    standalone: true,
+    imports: [DynamicComboBox, NgIf, FormsModule, DynamicValueEditorComponent]
 })
 export class DateComparisonStandardPeriodsComponent implements OnChanges {
    @Input() standardPeriodPaneModel: StandardPeriodPaneModel;

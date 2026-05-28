@@ -48,11 +48,18 @@ import { CrosstabOptionInfo } from "../../data/table/crosstab-option-info";
 import { CrosstabBindingModel } from "../../data/table/crosstab-binding-model";
 import { ComponentTool } from "../../../common/util/component-tool";
 import { DateComparisonService } from "../../../vsobjects/util/date-comparison.service";
+import { AggregateOption } from "./aggregate-option.component";
+import { GroupOption } from "./group-option.component";
+import { FieldOption } from "./field-option-dialog.component";
+import { DetailOption } from "./detail-option.component";
+import { NgIf } from "@angular/common";
 
 @Component({
-   selector: "table-fieldmc",
-   templateUrl: "table-fieldmc.component.html",
-   styleUrls: ["../fieldmc.component.scss"]
+    selector: "table-fieldmc",
+    templateUrl: "table-fieldmc.component.html",
+    styleUrls: ["../fieldmc.component.scss"],
+    standalone: true,
+    imports: [NgIf, DynamicComboBox, FixedDropdownDirective, DetailOption, FieldOption, GroupOption, AggregateOption]
 })
 export class TableFieldmc extends FieldMC {
    @Input() fieldType: string;

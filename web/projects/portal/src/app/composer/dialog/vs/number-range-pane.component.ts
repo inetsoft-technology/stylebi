@@ -16,21 +16,25 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, Input, OnInit } from "@angular/core";
-import {
-   UntypedFormControl,
-   UntypedFormGroup,
-   Validators,
-   ValidatorFn,
-   ValidationErrors
-} from "@angular/forms";
+import { UntypedFormControl, UntypedFormGroup, Validators, ValidatorFn, ValidationErrors, FormsModule, ReactiveFormsModule } from "@angular/forms";
 
 import { NumberRangePaneModel } from "../../data/vs/number-range-pane-model";
 import { ValueMode } from "../../../widget/dynamic-combo-box/dynamic-combo-box-model";
 import { FormValidators } from "../../../../../../shared/util/form-validators";
+import { DynamicComboBox } from "../../../widget/dynamic-combo-box/dynamic-combo-box.component";
+import { NgClass, NgIf } from "@angular/common";
 
 @Component({
-   selector: "number-range-pane",
-   templateUrl: "number-range-pane.component.html",
+    selector: "number-range-pane",
+    templateUrl: "number-range-pane.component.html",
+    standalone: true,
+    imports: [
+        FormsModule,
+        ReactiveFormsModule,
+        NgClass,
+        DynamicComboBox,
+        NgIf,
+    ],
 })
 export class NumberRangePane implements OnInit {
    @Input() model: NumberRangePaneModel;

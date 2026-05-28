@@ -20,16 +20,14 @@ import {NgModule} from "@angular/core";
 import {PlaceholderDragElement} from "./placeholder-drag-element.component";
 
 @NgModule({
-   imports: [
-      CommonModule,
-   ],
-   declarations: [
-      PlaceholderDragElement
-   ],
-   exports: [
-      PlaceholderDragElement
-   ],
-   providers: [],
+    imports: [
+        CommonModule,
+        PlaceholderDragElement,
+    ],
+    exports: [
+        PlaceholderDragElement
+    ],
+    providers: [],
 })
 export class PlaceholderDragElementModule {
 }

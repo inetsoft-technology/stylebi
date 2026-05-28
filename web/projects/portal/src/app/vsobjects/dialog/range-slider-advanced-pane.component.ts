@@ -23,8 +23,10 @@ import { UntypedFormGroup } from "@angular/forms";
 import { RangeSliderDataPaneModel } from "../model/range-slider-data-pane-model";
 
 @Component({
-   selector: "range-slider-advanced-pane",
-   templateUrl: "range-slider-advanced-pane.component.html",
+    selector: "range-slider-advanced-pane",
+    templateUrl: "range-slider-advanced-pane.component.html",
+    standalone: true,
+    imports: [RangeSliderSizePane, SliderLabelPane],
 })
 
 export class RangeSliderAdvancedPane implements OnInit {

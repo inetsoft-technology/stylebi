@@ -53,6 +53,7 @@ import { VSCrosstab } from "./vs-crosstab.component";
 import { VSTableCell } from "./vs-table-cell.component";
 import { PagingControlService } from "../../../common/services/paging-control.service";
 import { VSTabService } from "../../util/vs-tab.service";
+import { InteractService } from "../../../widget/interact/interact.service";
 
 describe("VSCrosstab", () => {
    const createModel = () => {
@@ -87,11 +88,35 @@ describe("VSCrosstab", () => {
          showDataTip: jest.fn(),
          isDataTip: jest.fn(),
          isDataTipVisible: jest.fn(),
-         isDataTipSource: jest.fn()
+         isDataTipSource: jest.fn(),
+         isCurrentDataTip: jest.fn(),
+         isFrozen: jest.fn(),
+         hideDataTip: jest.fn(),
+         getVSObjectId: jest.fn(),
+         dataTipName: null,
+         dataTipY: 0,
+         dataTipX: 0,
+         dataTipAlpha: 1,
+         viewerOffset: {width: 0, height: 0}
       };
       viewDataService = {};
       dataTipService.isDataTip.mockImplementation(() => false);
-      popComponentService = { toggle: jest.fn(), isPopComponent: jest.fn() };
+      popComponentService = {
+         toggle: jest.fn(),
+         isPopComponent: jest.fn(),
+         getPopComponent: jest.fn(),
+         isCurrentPopComponent: jest.fn(),
+         registerPopComponentChild: jest.fn(),
+         clearPopViewerOffset: jest.fn(),
+         getTriggerPopInfo: jest.fn(),
+         getPopInfo: jest.fn(),
+         getPopLocation: jest.fn(),
+         popY: 0,
+         popX: 0,
+         popAlpha: 1,
+         viewerOffset: {width: 0, height: 0},
+         componentRegistered: new Subject<{name: string, parent: string}>()
+      };
       popComponentService.isPopComponent.mockImplementation(() => false);
       modelService = { getModel: jest.fn() };
       modelService.getModel.mockImplementation(() => observableOf([]));
@@ -125,11 +150,11 @@ describe("VSCrosstab", () => {
             FormsModule,
             ReactiveFormsModule,
             NgbModule,
-            HttpClientModule
+            HttpClientModule,
+            VSCrosstab,
+            VSTableCell,
          ],
-         declarations: [
-            VSCrosstab, VSTableCell
-         ],
+         
          schemas: [NO_ERRORS_SCHEMA],
          providers: [
             { provide: ViewsheetClientService, useValue: viewsheetClient },
@@ -157,6 +182,7 @@ describe("VSCrosstab", () => {
             { provide: RichTextService, useValue: richTextService },
             { provide: PagingControlService, useValue: pagingControlService },
             { provide: VSTabService, useValue: vsTabService },
+            { provide: InteractService, useValue: { addInteractable: jest.fn(), removeInteractable: jest.fn(), notify: jest.fn() } },
             AppInfoService
          ]
       });

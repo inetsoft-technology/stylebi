@@ -17,10 +17,14 @@
  */
 import { Component, Input } from "@angular/core";
 import { AlignmentPaneModel } from "../model/alignment-pane-model";
+import { NgFor } from "@angular/common";
+import { FormsModule } from "@angular/forms";
 
 @Component({
-   selector: "alignment-pane",
-   templateUrl: "alignment-pane.component.html"
+    selector: "alignment-pane",
+    templateUrl: "alignment-pane.component.html",
+    standalone: true,
+    imports: [FormsModule, NgFor]
 })
 export class AlignmentPane {
    @Input() model: AlignmentPaneModel;

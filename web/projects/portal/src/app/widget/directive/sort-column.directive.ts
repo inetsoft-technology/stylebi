@@ -24,7 +24,8 @@ import {
 } from "@angular/core";
 
 @Directive({
-   selector: "[sortColumn]"
+    selector: "[sortColumn]",
+    standalone: true
 })
 export class SortColumnDirective implements OnInit, OnChanges {
    @Input() data: any[];

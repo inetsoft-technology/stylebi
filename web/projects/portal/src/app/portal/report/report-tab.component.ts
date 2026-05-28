@@ -18,7 +18,7 @@
 import { HttpClient, HttpParams } from "@angular/common/http";
 import { ChangeDetectorRef, Component, NgZone, OnDestroy, OnInit, ViewChild } from "@angular/core";
 import { DomSanitizer } from "@angular/platform-browser";
-import { ActivatedRoute, NavigationEnd, NavigationExtras, Router } from "@angular/router";
+import { ActivatedRoute, NavigationEnd, NavigationExtras, Router, RouterOutlet } from "@angular/router";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { Subscription } from "rxjs";
 import { withLatestFrom } from "rxjs/operators";
@@ -46,14 +46,21 @@ import { HideNavService } from "../services/hide-nav.service";
 import { HistoryBarService } from "../services/history-bar.service";
 import { CollapseRepositoryTreeService } from "./desktop/collapse-repository-tree.service.component";
 import { ReportTabModel } from "./report-tab-model";
+import { RepositoryMobileViewComponent } from "./mobile/repository-mobile-view.component";
+import { RepositoryDesktopViewComponent } from "./desktop/repository-desktop-view.component";
+import { RepositoryListViewComponent } from "./list/repository-list-view.component";
+import { EnterClickDirective } from "../../widget/directive/enter-click.directive";
+import { NgIf, NgFor, NgSwitch, NgSwitchCase } from "@angular/common";
 
 const CURRENT_USER_URI: string = "../api/portal/get-current-user";
 const MAX_RECENTLY_VIEWED: number = 5;
 
 @Component({
-   templateUrl: "report-tab.component.html",
-   styleUrls: ["../portal-tab.component.scss", "report-tab.component.scss"],
-   providers: [ViewsheetClientService]
+    templateUrl: "report-tab.component.html",
+    styleUrls: ["../portal-tab.component.scss", "report-tab.component.scss"],
+    providers: [ViewsheetClientService],
+    standalone: true,
+    imports: [NgIf, NgFor, EnterClickDirective, NgSwitch, NgSwitchCase, RepositoryListViewComponent, RouterOutlet, RepositoryDesktopViewComponent, RepositoryMobileViewComponent, NotificationsComponent]
 })
 export class ReportTabComponent extends CommandProcessor implements OnInit, OnDestroy {
    rootNode: TreeNodeModel;

@@ -34,11 +34,17 @@ import { Worksheet } from "../../../data/ws/worksheet";
 import { WSCompositeBreadcrumb } from "../../../data/ws/ws-composite-breadcrumb";
 import { Observable, of, Subject } from "rxjs";
 import { WSMergeJoinEditorPaneComponent } from "./merge/ws-merge-join-editor-pane.component";
+import { WSConcatenationEditorPane } from "./concatenation/ws-concatenation-editor-pane.component";
+import { WSRelationalJoinEditorPaneComponent } from "./schema/ws-relational-join-editor-pane.component";
+import { NgSwitch, NgSwitchCase } from "@angular/common";
+import { WSCompositeTableBreadcrumbComponent } from "./ws-composite-table-breadcrumb.component";
 
 @Component({
-   selector: "ws-composite-table-focus-pane",
-   templateUrl: "ws-composite-table-focus-pane.component.html",
-   styleUrls: ["ws-composite-table-focus-pane.component.scss"]
+    selector: "ws-composite-table-focus-pane",
+    templateUrl: "ws-composite-table-focus-pane.component.html",
+    styleUrls: ["ws-composite-table-focus-pane.component.scss"],
+    standalone: true,
+    imports: [WSCompositeTableBreadcrumbComponent, NgSwitch, NgSwitchCase, WSRelationalJoinEditorPaneComponent, WSMergeJoinEditorPaneComponent, WSConcatenationEditorPane]
 })
 export class WSCompositeTableFocusPaneComponent {
    @Input() worksheet: Worksheet;

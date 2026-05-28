@@ -23,17 +23,15 @@ import {
 import {FormsModule} from "@angular/forms";
 
 @NgModule({
-   imports: [
-      CommonModule,
-      FormsModule,
-   ],
-   declarations: [
-      ValueRangeSelectableList
-   ],
-   exports: [
-      ValueRangeSelectableList
-   ],
-   providers: [],
+    imports: [
+        CommonModule,
+        FormsModule,
+        ValueRangeSelectableList,
+    ],
+    exports: [
+        ValueRangeSelectableList
+    ],
+    providers: [],
 })
 export class ValueRangeSelectableListModule {
 }

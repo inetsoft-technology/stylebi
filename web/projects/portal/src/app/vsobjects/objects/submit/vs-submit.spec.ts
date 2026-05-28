@@ -55,8 +55,8 @@ describe("VS Submit component unit case", () => {
          })
       };
       TestBed.configureTestingModule({
-         imports: [ReactiveFormsModule, FormsModule, NgbModule, HttpClientTestingModule],
-         declarations: [VSSubmit, VSPopComponentDirective, SafeFontDirective],
+         imports: [ReactiveFormsModule, FormsModule, NgbModule, HttpClientTestingModule, VSSubmit, VSPopComponentDirective, SafeFontDirective],
+         
          schemas: [NO_ERRORS_SCHEMA],
          providers: [
             FormInputService,

@@ -29,11 +29,15 @@ import {
 } from "../replet-parameter-model";
 import {Tool} from "../../../../../../shared/util/tool";
 import {DateTimeValueDialog} from "../date-time-value-dialog.component";
+import { FormsModule } from "@angular/forms";
+import { NgIf, NgClass, NgFor, NgSwitch, NgSwitchCase, NgSwitchDefault } from "@angular/common";
 
 @Component({
-   selector: "parameter-page",
-   templateUrl: "parameter-page.component.html",
-   styleUrls: ["./parameter-page.component.scss"]
+    selector: "parameter-page",
+    templateUrl: "parameter-page.component.html",
+    styleUrls: ["./parameter-page.component.scss"],
+    standalone: true,
+    imports: [NgIf, NgClass, NgFor, NgSwitch, NgSwitchCase, FormsModule, NgSwitchDefault]
 })
 export class ParameterPage {
    @Input() isDialog = false;

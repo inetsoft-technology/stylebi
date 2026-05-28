@@ -21,7 +21,7 @@ import { IdentityTreeComponent } from "../identity-tree/identity-tree.component"
 import { TreeNodeModel } from "../tree/tree-node-model";
 import { IdentityType } from "../../../../../shared/data/identity-type";
 import { Tool } from "../../../../../shared/util/tool";
-import { UntypedFormControl, UntypedFormGroup } from "@angular/forms";
+import { UntypedFormControl, UntypedFormGroup, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { debounceTime, distinctUntilChanged } from "rxjs/operators";
 import { IdentityModel } from "../../../../../em/src/app/settings/security/security-table-view/identity-model";
 import { SearchComparator } from "../tree/search-comparator";
@@ -32,13 +32,19 @@ import { ModelService } from "../services/model.service";
 import { HttpParams } from "@angular/common/http";
 import { CurrentUserService } from "../../../../../shared/util/current-user.service";
 import { equalsIdentity, IdentityId } from "../../../../../em/src/app/settings/security/users/identity-id";
+import { ScrollableTableDirective } from "../scrollable-table/scrollable-table.directive";
+import { EnterClickDirective } from "../directive/enter-click.directive";
+import { NgIf, NgFor, NgClass } from "@angular/common";
+import { ShuffleListComponent } from "../shuffle-list/shuffle-list.component";
 
 const EXPAND_IDENTITY_NODE_URI = "../api/vs/expand-identity-node";
 
 @Component({
-   selector: "embedded-email-pane",
-   templateUrl: "embedded-email-pane.component.html",
-   styleUrls: ["embedded-email-pane.component.scss"]
+    selector: "embedded-email-pane",
+    templateUrl: "embedded-email-pane.component.html",
+    styleUrls: ["embedded-email-pane.component.scss"],
+    standalone: true,
+    imports: [FormsModule, ReactiveFormsModule, ShuffleListComponent, IdentityTreeComponent, NgIf, NgFor, EnterClickDirective, NgClass, ScrollableTableDirective]
 })
 export class EmbeddedEmailPane implements OnInit, OnDestroy {
    @Input() embeddedOnly: boolean = true;

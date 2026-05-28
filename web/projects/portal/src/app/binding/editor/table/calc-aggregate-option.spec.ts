@@ -61,8 +61,8 @@ describe("Calc Aggregate Option Unit Test", () => {
 
    beforeEach(() => {
       TestBed.configureTestingModule({
-         imports: [FormsModule, ReactiveFormsModule, NgbModule],
-         declarations: [CalcAggregateOption],
+         imports: [FormsModule, ReactiveFormsModule, NgbModule, CalcAggregateOption],
+         
          providers: [{
             provide: BindingService, useValue: bindingService
          },

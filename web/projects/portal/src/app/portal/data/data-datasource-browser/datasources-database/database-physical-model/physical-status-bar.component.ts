@@ -16,11 +16,14 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, Input } from "@angular/core";
+import { NgIf } from "@angular/common";
 
 @Component({
-   selector: "physical-status-bar",
-   templateUrl: "physical-status-bar.component.html",
-   styleUrls: ["physical-status-bar.component.scss"]
+    selector: "physical-status-bar",
+    templateUrl: "physical-status-bar.component.html",
+    styleUrls: ["physical-status-bar.component.scss"],
+    standalone: true,
+    imports: [NgIf]
 })
 export class PhysicalStatusBarComponent {
    @Input() message: string;

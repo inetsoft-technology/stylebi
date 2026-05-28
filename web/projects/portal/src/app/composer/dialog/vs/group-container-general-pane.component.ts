@@ -19,10 +19,19 @@ import { Component, Input, OnInit } from "@angular/core";
 import { UntypedFormGroup } from "@angular/forms";
 import { TreeNodeModel } from "../../../widget/tree/tree-node-model";
 import { GroupContainerGeneralPaneModel } from "../../data/vs/group-container-general-pane-model";
+import { SizePositionPane } from "../../../vsobjects/dialog/size-position-pane.component";
+import { StaticImagePane } from "./static-image-pane.component";
+import { GeneralPropPane } from "../../../vsobjects/dialog/general-prop-pane.component";
 
 @Component({
-   selector: "group-container-general-pane",
-   templateUrl: "group-container-general-pane.component.html",
+    selector: "group-container-general-pane",
+    templateUrl: "group-container-general-pane.component.html",
+    standalone: true,
+    imports: [
+        GeneralPropPane,
+        StaticImagePane,
+        SizePositionPane,
+    ],
 })
 export class GroupContainerGeneralPane implements OnInit {
    @Input() model: GroupContainerGeneralPaneModel;

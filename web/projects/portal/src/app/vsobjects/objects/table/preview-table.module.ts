@@ -32,24 +32,24 @@ import { FixedDropdownModule } from "../../../widget/fixed-dropdown/fixed-dropdo
 import { MouseEventModule } from "../../../widget/mouse-event/mouse-event.module";
 
 @NgModule({
-   imports: [
-      CommonModule,
-      FormatModule,
-      FormsModule,
-      ModalHeaderModule,
-      NotificationsModule,
-      TableStyleModule,
-      NgbTooltipModule,
-      WidgetDirectivesModule,
-      ScrollModule,
-      FixedDropdownModule,
-      MouseEventModule
-   ],
-   declarations: [PreviewTableComponent, VSPreviewTable, TableStyleDialog],
-   exports: [
-      PreviewTableComponent, VSPreviewTable, TableStyleDialog
-   ],
-   providers: [],
+    imports: [
+        CommonModule,
+        FormatModule,
+        FormsModule,
+        ModalHeaderModule,
+        NotificationsModule,
+        TableStyleModule,
+        NgbTooltipModule,
+        WidgetDirectivesModule,
+        ScrollModule,
+        FixedDropdownModule,
+        MouseEventModule,
+        PreviewTableComponent, VSPreviewTable, TableStyleDialog
+    ],
+    exports: [
+        PreviewTableComponent, VSPreviewTable, TableStyleDialog
+    ],
+    providers: [],
 })
 export class PreviewTableModule {
 }

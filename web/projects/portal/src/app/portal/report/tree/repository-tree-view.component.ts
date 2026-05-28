@@ -40,14 +40,19 @@ import { TreeNodeModel } from "../../../widget/tree/tree-node-model";
 import { ReportTabModel } from "../report-tab-model";
 import { Tool } from "../../../../../../shared/util/tool";
 import { CurrentUserService } from "../../../../../../shared/util/current-user.service";
+import { EnterClickDirective } from "../../../widget/directive/enter-click.directive";
+import { NgIf } from "@angular/common";
+import { FormsModule } from "@angular/forms";
 
 const SEARCH_URI = "../api/portal/tree/search";
 const GET_PORTAL_TREE_FOLDER = "../api/portal/tree";
 
 @Component({
-   selector: "p-repository-tree-view",
-   templateUrl: "./repository-tree-view.component.html",
-   styleUrls: ["./repository-tree-view.component.scss"]
+    selector: "p-repository-tree-view",
+    templateUrl: "./repository-tree-view.component.html",
+    styleUrls: ["./repository-tree-view.component.scss"],
+    standalone: true,
+    imports: [FormsModule, NgIf, EnterClickDirective, RepositoryTreeComponent]
 })
 export class RepositoryTreeViewComponent implements OnInit, AfterViewInit, OnDestroy {
    @Input() model: ReportTabModel;

@@ -43,7 +43,7 @@ describe("VSViewsheet Unit Tests", () => {
       const contextProvider = { viewer: true, preview: false, composer: false, binding: false };
 
       TestBed.configureTestingModule({
-         declarations: [VSViewsheet],
+         imports: [VSViewsheet],
          providers: [
             { provide: ViewsheetClientService, useValue: viewsheetClientService },
             { provide: AssemblyActionFactory, useValue: {} },

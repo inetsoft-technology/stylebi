@@ -71,11 +71,13 @@ describe("Categorical Color Pane Unit Test", () => {
    function configureTestEnv(): void {
       TestBed.configureTestingModule({
          imports: [
-            ReactiveFormsModule, FormsModule, NgbModule
+            ReactiveFormsModule,
+            FormsModule,
+            NgbModule,
+            CategoricalColorPane,
+            StaticColorEditor,
          ],
-         declarations: [
-            CategoricalColorPane, StaticColorEditor
-         ],
+         
          providers: [{
             provide: UIContextService, useValue: uiContextService
          },

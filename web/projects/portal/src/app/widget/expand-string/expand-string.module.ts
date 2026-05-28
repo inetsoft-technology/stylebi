@@ -20,16 +20,14 @@ import {NgModule} from "@angular/core";
 import {ExpandStringDirective} from "./expand-string.directive";
 
 @NgModule({
-   imports: [
-      CommonModule,
-   ],
-   declarations: [
-      ExpandStringDirective
-   ],
-   exports: [
-      ExpandStringDirective
-   ],
-   providers: [],
+    imports: [
+        CommonModule,
+        ExpandStringDirective,
+    ],
+    exports: [
+        ExpandStringDirective
+    ],
+    providers: [],
 })
 export class ExpandStringModule {
 }

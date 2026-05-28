@@ -28,6 +28,9 @@ import {CheckDuplicateResponse} from "../../../data/commands/check-duplicate-res
 import {ComponentTool} from "../../../../common/util/component-tool";
 import {AssetEntry} from "../../../../../../../shared/data/asset-entry";
 import { AssetType } from "../../../../../../../shared/data/asset-type";
+import { NgIf } from "@angular/common";
+import { TaskFolderBrowserComponent } from "./task-folder-browser/task-folder-browser.component";
+import { ModalHeaderComponent } from "../../../../widget/modal-header/modal-header.component";
 
 const ROOT_LABEL: string = "_#(js:Tasks)";
 const GET_TASK_FOLDER_URI: string = "../api/portal/schedule/task-folder-browser";
@@ -36,8 +39,10 @@ const CHECK_MOVE_DUPLICATE_URI: string = "../api/portal/schedule/move/checkDupli
 export const FAKE_ROOT_PATH: string = "_fake_root_";
 
 @Component({
-   selector: "move-task-dialog",
-   templateUrl: "move-task-dialog.component.html"
+    selector: "move-task-dialog",
+    templateUrl: "move-task-dialog.component.html",
+    standalone: true,
+    imports: [ModalHeaderComponent, TaskFolderBrowserComponent, NgIf]
 })
 export class MoveTaskDialogComponent implements OnInit {
    @Input() originalPaths: string[] = [];

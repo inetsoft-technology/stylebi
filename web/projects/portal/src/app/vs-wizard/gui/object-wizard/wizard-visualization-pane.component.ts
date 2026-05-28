@@ -22,13 +22,17 @@ import { VSObjectRecommendation } from "../../model/recommender/vs-object-recomm
 import { VSRecommendType } from "../../model/recommender/vs-recommend-type";
 import { VSRecommendationModel } from "../../model/recommender/vs-recommendation-model";
 import { VSSubType } from "../../model/recommender/vs-sub-type";
+import { ObjectSubTypePane } from "./object-sub-type-pane.component";
+import { ObjectTypePane } from "./object-type-pane.component";
 
 const CHANGE_SELECTED_TYPE: string = "/events/vswizard/visualization/change-selectedType";
 
 @Component({
-   selector: "wizard-visualization-pane",
-   templateUrl: "wizard-visualization-pane.component.html",
-   styleUrls: ["wizard-visualization-pane.component.scss"]
+    selector: "wizard-visualization-pane",
+    templateUrl: "wizard-visualization-pane.component.html",
+    styleUrls: ["wizard-visualization-pane.component.scss"],
+    standalone: true,
+    imports: [ObjectTypePane, ObjectSubTypePane]
 })
 export class WizardVisualizationPane {
    @Output() onChangeSubtype = new EventEmitter<VSSubType>();

@@ -29,30 +29,28 @@ import { DynamicComboBoxModule } from "../widget/dynamic-combo-box/dynamic-combo
 import { FixedDropdownModule } from "../widget/fixed-dropdown/fixed-dropdown.module";
 
 @NgModule({
-   imports: [
-      CommonModule,
-      FormsModule,
-      ReactiveFormsModule,
-      WidgetDirectivesModule,
-      DynamicComboBoxModule,
-      ColorPickerModule,
-      FixedDropdownModule
-   ],
-   declarations: [
-      BindingAlignmentPane,
-      BindingBorderPane,
-      BorderStylePane,
-      ComboBox,
-      FormattingPane,
-   ],
-   exports: [
-      BindingAlignmentPane,
-      BindingBorderPane,
-      BorderStylePane,
-      ComboBox,
-      FormattingPane,
-   ],
-   providers: []
+    imports: [
+        CommonModule,
+        FormsModule,
+        ReactiveFormsModule,
+        WidgetDirectivesModule,
+        DynamicComboBoxModule,
+        ColorPickerModule,
+        FixedDropdownModule,
+        BindingAlignmentPane,
+        BindingBorderPane,
+        BorderStylePane,
+        ComboBox,
+        FormattingPane
+    ],
+    exports: [
+        BindingAlignmentPane,
+        BindingBorderPane,
+        BorderStylePane,
+        ComboBox,
+        FormattingPane,
+    ],
+    providers: []
 })
 export class FormatModule {
 }

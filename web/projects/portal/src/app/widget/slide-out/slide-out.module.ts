@@ -27,25 +27,23 @@ import {FixedDropdownModule} from "../fixed-dropdown/fixed-dropdown.module";
 import {MouseEventModule} from "../mouse-event/mouse-event.module";
 
 @NgModule({
-   imports: [
-      CommonModule,
-      NotificationsModule,
-      FixedDropdownModule,
-      MouseEventModule,
-   ],
-   declarations: [
-      ApplyButtonComponent,
-      SlideOutComponent,
-      SlideOutBackdropComponent
-   ],
-   exports: [
-      ApplyButtonComponent,
-      SlideOutComponent,
-      SlideOutBackdropComponent
-   ],
-   providers: [
-       SlideOutService
-   ],
+    imports: [
+        CommonModule,
+        NotificationsModule,
+        FixedDropdownModule,
+        MouseEventModule,
+        ApplyButtonComponent,
+        SlideOutComponent,
+        SlideOutBackdropComponent,
+    ],
+    exports: [
+        ApplyButtonComponent,
+        SlideOutComponent,
+        SlideOutBackdropComponent
+    ],
+    providers: [
+        SlideOutService
+    ],
 })
 export class SlideOutModule {
 }

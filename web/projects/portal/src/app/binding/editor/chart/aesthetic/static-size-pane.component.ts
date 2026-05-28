@@ -21,11 +21,15 @@ import { ChartAggregateRef } from "../../../data/chart/chart-aggregate-ref";
 import { GraphUtil } from "../../../util/graph-util";
 import { SliderOptions } from "../../../widget/slider-options";
 import { GraphTypes } from "../../../../common/graph-types";
+import { Slider } from "../../../widget/slider.component";
+import { FormsModule } from "@angular/forms";
 
 @Component({
-   selector: "static-size-pane",
-   templateUrl: "static-size-pane.component.html",
-   styleUrls: ["static-size-pane.component.scss"]
+    selector: "static-size-pane",
+    templateUrl: "static-size-pane.component.html",
+    styleUrls: ["static-size-pane.component.scss"],
+    standalone: true,
+    imports: [FormsModule, Slider]
 })
 export class StaticSizePane implements OnChanges, OnInit {
    @Input() aggr: ChartAggregateRef;

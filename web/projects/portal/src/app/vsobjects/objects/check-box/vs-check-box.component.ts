@@ -28,13 +28,22 @@ import { FormInputService } from "../../util/form-input.service";
 import { VSCompound } from "./vs-compound";
 import { DataTipService } from "../data-tip/data-tip.service";
 import { VSFormatModel } from "../../model/vs-format-model";
+import { TooltipIfDirective } from "../../../widget/tooltip/tooltip-if.directive";
+import { InteractableDirective } from "../../../widget/interact/interactable.directive";
+import { VSTitle } from "../title/vs-title.component";
+import { SafeFontDirective } from "../../directives/safe-font.directive";
+import { VSPopComponentDirective } from "../data-tip/vs-pop-component.directive";
+import { VSDataTipDirective } from "../data-tip/vs-data-tip.directive";
+import { NgIf, NgFor } from "@angular/common";
 
 const CHECKBOX_PADDING = 18;
 
 @Component({
-   selector: "vs-check-box",
-   templateUrl: "vs-check-box.component.html",
-   styleUrls: ["vs-check-box.component.scss", "vs-compound.scss"]
+    selector: "vs-check-box",
+    templateUrl: "vs-check-box.component.html",
+    styleUrls: ["vs-check-box.component.scss", "vs-compound.scss"],
+    standalone: true,
+    imports: [NgIf, VSDataTipDirective, VSPopComponentDirective, SafeFontDirective, VSTitle, NgFor, InteractableDirective, TooltipIfDirective]
 })
 export class VSCheckBox extends VSCompound<VSCheckBoxModel> implements OnChanges, OnDestroy {
    constructor(socket: ViewsheetClientService,

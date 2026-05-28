@@ -24,11 +24,20 @@ import { NgbModalOptions, NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { PresenterDescriptorModel } from "./data/presenter-descriptor-model";
 import { ImageDescriptorModel } from "./data/image-descriptor-model";
 import { BooleanDescriptorModel } from "./data/boolean-descriptor-model";
+import { EditImageDialog } from "./edit-image-dialog.component";
+import { ColorEditor } from "../color-picker/color-editor.component";
+import { FontPane } from "../font-pane/font-pane.component";
+import { FormsModule } from "@angular/forms";
+import { StyleDropdown } from "../format/style-dropdown.component";
+import { NgIf, NgFor, NgSwitch, NgSwitchCase } from "@angular/common";
+import { ModalHeaderComponent } from "../modal-header/modal-header.component";
 
 @Component({
-   selector: "presenter-property-dialog",
-   templateUrl: "presenter-property-dialog.component.html",
-   styleUrls: ["./presenter-property-dialog.component.scss"]
+    selector: "presenter-property-dialog",
+    templateUrl: "presenter-property-dialog.component.html",
+    styleUrls: ["./presenter-property-dialog.component.scss"],
+    standalone: true,
+    imports: [ModalHeaderComponent, NgIf, NgFor, NgSwitch, NgSwitchCase, StyleDropdown, FormsModule, FontPane, ColorEditor, EditImageDialog]
 })
 export class PresenterPropertyDialog {
    @Input() model: PresenterPropertyDialogModel;

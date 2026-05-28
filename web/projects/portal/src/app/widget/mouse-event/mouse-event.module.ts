@@ -21,18 +21,16 @@ import {MouseEventDirective} from "./mouse-event.directive";
 import {BlockMouseDirective} from "./block-mouse.directive";
 
 @NgModule({
-   imports: [
-      CommonModule,
-   ],
-   declarations: [
-      MouseEventDirective,
-      BlockMouseDirective
-   ],
-   exports: [
-      MouseEventDirective,
-      BlockMouseDirective
-   ],
-   providers: [],
+    imports: [
+        CommonModule,
+        MouseEventDirective,
+        BlockMouseDirective,
+    ],
+    exports: [
+        MouseEventDirective,
+        BlockMouseDirective
+    ],
+    providers: [],
 })
 export class MouseEventModule {
 }

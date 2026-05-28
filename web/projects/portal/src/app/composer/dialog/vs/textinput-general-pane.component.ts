@@ -16,13 +16,21 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, Input, OnInit } from "@angular/core";
-import { UntypedFormGroup } from "@angular/forms";
+import { UntypedFormGroup, FormsModule } from "@angular/forms";
 import { TreeNodeModel } from "../../../widget/tree/tree-node-model";
 import { TextInputGeneralPaneModel } from "../../data/vs/textinput-general-pane-model";
+import { SizePositionPane } from "../../../vsobjects/dialog/size-position-pane.component";
+import { GeneralPropPane } from "../../../vsobjects/dialog/general-prop-pane.component";
 
 @Component({
-   selector: "textinput-general-pane",
-   templateUrl: "textinput-general-pane.component.html",
+    selector: "textinput-general-pane",
+    templateUrl: "textinput-general-pane.component.html",
+    standalone: true,
+    imports: [
+        GeneralPropPane,
+        FormsModule,
+        SizePositionPane,
+    ],
 })
 export class TextInputGeneralPane implements OnInit {
    @Input() model: TextInputGeneralPaneModel;

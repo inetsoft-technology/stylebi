@@ -27,27 +27,25 @@ import {WidgetDirectivesModule} from "../directive/widget-directives.module";
 import {NgbNavModule} from "@ng-bootstrap/ng-bootstrap";
 
 @NgModule({
-   imports: [
-      CommonModule,
-      ModalHeaderModule,
-      WidgetDirectivesModule,
-      NgbNavModule,
-   ],
-   declarations: [
-      DialogButtonsDirective,
-      DialogContentDirective,
-      DialogTabDirective,
-      StandardDialogComponent,
-      TabbedDialogComponent
-   ],
-   exports: [
-      DialogButtonsDirective,
-      DialogContentDirective,
-      DialogTabDirective,
-      StandardDialogComponent,
-      TabbedDialogComponent
-   ],
-   providers: [],
+    imports: [
+        CommonModule,
+        ModalHeaderModule,
+        WidgetDirectivesModule,
+        NgbNavModule,
+        DialogButtonsDirective,
+        DialogContentDirective,
+        DialogTabDirective,
+        StandardDialogComponent,
+        TabbedDialogComponent,
+    ],
+    exports: [
+        DialogButtonsDirective,
+        DialogContentDirective,
+        DialogTabDirective,
+        StandardDialogComponent,
+        TabbedDialogComponent
+    ],
+    providers: [],
 })
 export class StandardDialogModule {
 }

@@ -25,12 +25,16 @@ import {
 import { AbstractTableAssembly } from "../../../data/ws/abstract-table-assembly";
 import { ConcatenatedTableAssembly } from "../../../data/ws/concatenated-table-assembly";
 import { Tool } from "../../../../../../../shared/util/tool";
+import { TooltipDirective } from "../../../../widget/tooltip/tooltip.directive";
+import { NgIf } from "@angular/common";
 
 @Component({
-   selector: "data-block-status-indicator",
-   templateUrl: "data-block-status-indicator.component.html",
-   changeDetection: ChangeDetectionStrategy.OnPush,
-   styleUrls: ["data-block-status-indicator.component.scss"]
+    selector: "data-block-status-indicator",
+    templateUrl: "data-block-status-indicator.component.html",
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    styleUrls: ["data-block-status-indicator.component.scss"],
+    standalone: true,
+    imports: [NgIf, TooltipDirective]
 })
 export class DataBlockStatusIndicatorComponent {
    @Input() table: AbstractTableAssembly;

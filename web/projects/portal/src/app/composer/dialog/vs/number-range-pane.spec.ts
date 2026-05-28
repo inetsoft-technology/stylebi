@@ -53,12 +53,22 @@ describe("Number Range Pane Tests", () => {
    beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
-            NgbModule, ReactiveFormsModule, FormsModule, DropDownTestModule
+            NgbModule,
+            ReactiveFormsModule,
+            FormsModule,
+            DropDownTestModule,
+            NumberRangePane,
+            FormulaEditorDialog,
+            NewAggrDialog,
+            MessageDialog,
+            ScriptPane,
+            TreeComponent,
+            TreeNodeComponent,
+            TreeSearchPipe,
+            FixedDropdownDirective,
+            DynamicComboBox,
          ],
-         declarations: [NumberRangePane, FormulaEditorDialog,
-            NewAggrDialog, MessageDialog, ScriptPane, TreeComponent,
-            TreeNodeComponent, TreeSearchPipe, FixedDropdownDirective, DynamicComboBox
-         ],
+         
          schemas: [ NO_ERRORS_SCHEMA ]
       });
 

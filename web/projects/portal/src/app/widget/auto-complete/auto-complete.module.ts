@@ -21,17 +21,15 @@ import {AutoCompleteText} from "./auto-complete-text.component";
 import {WidgetDirectivesModule} from "../directive/widget-directives.module";
 
 @NgModule({
-   imports: [
-      CommonModule,
-      WidgetDirectivesModule,
-   ],
-   declarations: [
-      AutoCompleteText
-   ],
-   exports: [
-      AutoCompleteText
-   ],
-   providers: [],
+    imports: [
+        CommonModule,
+        WidgetDirectivesModule,
+        AutoCompleteText,
+    ],
+    exports: [
+        AutoCompleteText
+    ],
+    providers: [],
 })
 export class AutoCompleteModule {
 }

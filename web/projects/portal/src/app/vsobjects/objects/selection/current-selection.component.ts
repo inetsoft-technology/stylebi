@@ -30,13 +30,20 @@ import {
    VSSelectionContainerModel
 } from "../../model/vs-selection-container-model";
 import { GuiTool } from "../../../common/util/gui-tool";
+import { InteractableDirective } from "../../../widget/interact/interactable.directive";
+import { TitleCell } from "../title-cell/title-cell.component";
+import { MiniMenu } from "../mini-toolbar/mini-menu.component";
+import { NgIf } from "@angular/common";
+import { ActionsContextmenuAnchorDirective } from "../../../widget/fixed-dropdown/actions-contextmenu-anchor.directive";
 
 const URI_UPDATE_TITLE_RATIO: string = "/events/composer/viewsheet/currentSelection/titleRatio/";
 
 @Component({
-   selector: "current-selection",
-   templateUrl: "current-selection.component.html",
-   styleUrls: ["current-selection.component.scss"]
+    selector: "current-selection",
+    templateUrl: "current-selection.component.html",
+    styleUrls: ["current-selection.component.scss"],
+    standalone: true,
+    imports: [ActionsContextmenuAnchorDirective, NgIf, MiniMenu, TitleCell, InteractableDirective]
 })
 export class CurrentSelection implements OnDestroy {
    @Input() titleHeight: number;

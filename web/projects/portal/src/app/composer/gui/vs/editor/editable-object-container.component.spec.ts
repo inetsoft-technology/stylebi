@@ -16,6 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { EventEmitter, NO_ERRORS_SCHEMA } from "@angular/core";
+import { AsyncPipe, NgClass, NgFor, NgIf, NgStyle } from "@angular/common";
 import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { By } from "@angular/platform-browser";
 import { NgbModal, NgbModule } from "@ng-bootstrap/ng-bootstrap";
@@ -129,7 +130,10 @@ describe("EditableObjectContainer", () => {
       TestBed.configureTestingModule({
          imports: [
             NgbModule,
-            DropDownTestModule
+            DropDownTestModule,
+            EditableObjectContainer,
+            ActionsContextmenuAnchorDirective,
+            InteractableDirective,
          ],
          providers: [
             { provide: SelectionContainerChildrenService, useValue: selectionContainerChildrenService },
@@ -147,11 +151,10 @@ describe("EditableObjectContainer", () => {
             { provide: ScaleService, useValue: scaleService },
             { provide: ComposerVsSearchService, useValue: composerVsSearchService }
          ],
-         declarations: [
-            EditableObjectContainer, ActionsContextmenuAnchorDirective, InteractableDirective
-         ],
+         
          schemas: [ NO_ERRORS_SCHEMA ]
       });
+      TestBed.overrideComponent(EditableObjectContainer, { set: { imports: [NgIf, NgFor, NgClass, NgStyle, AsyncPipe] } });
       TestBed.compileComponents();
    }));
 

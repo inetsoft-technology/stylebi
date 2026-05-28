@@ -33,33 +33,31 @@ import { EmbeddedEmailPane } from "./embedded-email-pane.component";
 import { QueryEmailPane } from "./query-email-pane.component";
 
 @NgModule({
-   imports: [
-    CommonModule,
-    ModalHeaderModule,
-    NgbNavModule,
-    WidgetDirectivesModule,
-    ReactiveFormsModule,
-    NgbTypeaheadModule,
-    FormsModule,
-    IdentityTreeModule,
-    ScrollableTableModule,
-    ShuffleListModule,
-    AssetTreeModule,
-    CkeditorWrapperComponent,
-],
-   declarations: [
-      EmailAddrDialog,
-      EmailPane,
-      EmbeddedEmailPane,
-      QueryEmailPane
-   ],
-   exports: [
-      EmailAddrDialog,
-      EmailPane,
-      EmbeddedEmailPane,
-      QueryEmailPane
-   ],
-   providers: [],
+    imports: [
+        CommonModule,
+        ModalHeaderModule,
+        NgbNavModule,
+        WidgetDirectivesModule,
+        ReactiveFormsModule,
+        NgbTypeaheadModule,
+        FormsModule,
+        IdentityTreeModule,
+        ScrollableTableModule,
+        ShuffleListModule,
+        AssetTreeModule,
+        CkeditorWrapperComponent,
+        EmailAddrDialog,
+        EmailPane,
+        EmbeddedEmailPane,
+        QueryEmailPane,
+    ],
+    exports: [
+        EmailAddrDialog,
+        EmailPane,
+        EmbeddedEmailPane,
+        QueryEmailPane
+    ],
+    providers: [],
 })
 export class EmailDialogModule {
 }

@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { DOCUMENT } from "@angular/common";
+import { DOCUMENT, NgIf } from "@angular/common";
 import { HttpParams } from "@angular/common/http";
 import { Component, EventEmitter, Inject, Input, OnInit, Output, } from "@angular/core";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
@@ -31,6 +31,10 @@ import { ModelService } from "../../../widget/services/model.service";
 import { AggregateDialogModel } from "../../data/ws/aggregate-dialog-model";
 import { CheckModelTrap } from "../../data/ws/check-model-trap";
 import { CheckModelTrapEvent } from "../../gui/ws/socket/check-model-trap-event";
+import { CrosstabPane } from "./crosstab-pane.component";
+import { AggregatePane } from "./aggregate-pane.component";
+import { EnterSubmitDirective } from "../../../widget/directive/enter-submit.directive";
+import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
 
 export interface LabelDGroup {
    label: string;
@@ -84,9 +88,11 @@ const SET_AGGREGATE_SOCKET_URI: string = "/events/ws/dialog/aggregate-dialog-mod
 const CHECK_MODEL_TRAP_REST_URI: string = "../api/composer/worksheet/check-model-trap/";
 
 @Component({
-   selector: "aggregate-dialog",
-   templateUrl: "aggregate-dialog.component.html",
-   styleUrls: ["aggregate-dialog.component.scss"]
+    selector: "aggregate-dialog",
+    templateUrl: "aggregate-dialog.component.html",
+    styleUrls: ["aggregate-dialog.component.scss"],
+    standalone: true,
+    imports: [ModalHeaderComponent, NgIf, EnterSubmitDirective, AggregatePane, CrosstabPane]
 })
 export class AggregateDialog implements OnInit {
    @Input() runtimeId: string;

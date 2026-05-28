@@ -24,21 +24,19 @@ import { ComputationComboBox } from "./computation-combo-box.component";
 import { ComputationDialog } from "./computation-dialog.component";
 
 @NgModule({
-   imports: [
-      CommonModule,
-      ModalHeaderModule,
-      DynamicComboBoxModule,
-      FormsModule,
-   ],
-   declarations: [
-      ComputationComboBox,
-      ComputationDialog
-   ],
-   exports: [
-      ComputationComboBox,
-      ComputationDialog
-   ],
-   providers: [],
+    imports: [
+        CommonModule,
+        ModalHeaderModule,
+        DynamicComboBoxModule,
+        FormsModule,
+        ComputationComboBox,
+        ComputationDialog,
+    ],
+    exports: [
+        ComputationComboBox,
+        ComputationDialog
+    ],
+    providers: [],
 })
 export class ComputationComboBoxModule {
 }

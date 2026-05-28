@@ -39,11 +39,19 @@ import { NavigationKeys } from "../navigation-keys";
 import { DataTipService } from "../data-tip/data-tip.service";
 import { DebounceService } from "../../../widget/services/debounce.service";
 import { Tool } from "../../../../../../shared/util/tool";
+import { SafeFontDirective } from "../../directives/safe-font.directive";
+import { FormsModule } from "@angular/forms";
+import { VSPopComponentDirective } from "../data-tip/vs-pop-component.directive";
+import { VSDataTipDirective } from "../data-tip/vs-data-tip.directive";
+import { VSInputLabelWrapper } from "../input-label-wrapper/vs-input-label-wrapper.component";
+import { NgIf } from "@angular/common";
 
 @Component({
-   selector: "vs-spinner",
-   templateUrl: "vs-spinner.component.html",
-   styleUrls: ["vs-spinner.component.scss"]
+    selector: "vs-spinner",
+    templateUrl: "vs-spinner.component.html",
+    styleUrls: ["vs-spinner.component.scss"],
+    standalone: true,
+    imports: [NgIf, VSInputLabelWrapper, VSDataTipDirective, VSPopComponentDirective, FormsModule, SafeFontDirective]
 })
 export class VSSpinner extends NavigationComponent<VSSpinnerModel>
 implements OnInit, OnChanges, OnDestroy

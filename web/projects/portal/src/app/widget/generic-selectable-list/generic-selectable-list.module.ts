@@ -20,16 +20,14 @@ import {NgModule} from "@angular/core";
 import {GenericSelectableList} from "./generic-selectable-list.component";
 
 @NgModule({
-   imports: [
-      CommonModule,
-   ],
-   declarations: [
-      GenericSelectableList
-   ],
-   exports: [
-      GenericSelectableList
-   ],
-   providers: [],
+    imports: [
+        CommonModule,
+        GenericSelectableList,
+    ],
+    exports: [
+        GenericSelectableList
+    ],
+    providers: [],
 })
 export class GenericSelectableListModule {
 }

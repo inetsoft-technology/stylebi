@@ -19,16 +19,18 @@ import {
     Component, Input, Output, EventEmitter, OnInit, ViewChild, ElementRef, AfterViewInit,
     ChangeDetectorRef
 } from "@angular/core";
-import {
-    UntypedFormControl, UntypedFormGroup, Validators, ValidationErrors,
-    AbstractControl, ValidatorFn
-} from "@angular/forms";
+import { UntypedFormControl, UntypedFormGroup, Validators, ValidationErrors, AbstractControl, ValidatorFn, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { DrillParameterModel } from "../../../../../../../model/datasources/database/physical-model/logical-model/drill-parameter-model";
 import { ValidatorMessageInfo } from "../../../../../../../../../widget/dialog/input-name-dialog/input-name-dialog.component";
 import { XSchema } from "../../../../../../../../../common/data/xschema";
 import { FormulaEditorService } from "../../../../../../../../../widget/formula-editor/formula-editor.service";
 import { Tool } from "../../../../../../../../../../../../shared/util/tool";
 import { FormValidators } from "../../../../../../../../../../../../shared/util/form-validators";
+import { TimeInstantValueEditorComponent } from "../../../../../../../../../widget/date-type-editor/time-instant-value-editor.component";
+import { TimeValueEditorComponent } from "../../../../../../../../../widget/date-type-editor/time-value-editor.component";
+import { DateValueEditorComponent } from "../../../../../../../../../widget/date-type-editor/date-value-editor.component";
+import { NgIf, NgClass, NgFor } from "@angular/common";
+import { ModalHeaderComponent } from "../../../../../../../../../widget/modal-header/modal-header.component";
 
 enum SourceType {
    FIELD,
@@ -36,9 +38,11 @@ enum SourceType {
 }
 
 @Component({
-   selector: "parameter-dialog",
-   templateUrl: "parameter-dialog.component.html",
-   styleUrls: ["parameter-dialog.component.scss"]
+    selector: "parameter-dialog",
+    templateUrl: "parameter-dialog.component.html",
+    styleUrls: ["parameter-dialog.component.scss"],
+    standalone: true,
+    imports: [ModalHeaderComponent, NgIf, FormsModule, ReactiveFormsModule, NgClass, NgFor, DateValueEditorComponent, TimeValueEditorComponent, TimeInstantValueEditorComponent]
 })
 export class ParameterDialog implements OnInit, AfterViewInit {
    @Input() index: number = -1;

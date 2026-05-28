@@ -27,7 +27,7 @@ import {
    TemplateRef,
    ViewChild
 } from "@angular/core";
-import { NgbModal, NgbModalOptions } from "@ng-bootstrap/ng-bootstrap";
+import { NgbModal, NgbModalOptions, NgbTooltip } from "@ng-bootstrap/ng-bootstrap";
 import { FontInfo, FormatInfoModel } from "../../common/data/format-info-model";
 import { VSObjectFormatInfoModel } from "../../common/data/vs-object-format-info-model";
 import { FormatTool } from "../../common/util/format-tool";
@@ -51,6 +51,20 @@ import { ComponentTool } from "../../common/util/component-tool";
 import { TableDataPathTypes } from "../../common/data/table-data-path-types";
 import { GraphTypes } from "../../common/graph-types";
 import { ChartRegion } from "../../graph/model/chart-region";
+import { PresenterPropertyDialog } from "../../widget/presenter/presenter-property-dialog.component";
+import { HelpLinkDirective } from "../../widget/help-link/help-link.directive";
+import { FormatPresenterPane } from "../../widget/presenter/format-presenter-pane.component";
+import { FormatCSSPane } from "../../widget/format/format-css-pane.component";
+import { FormattingPane } from "../../format/objects/formatting-pane.component";
+import { FormsModule } from "@angular/forms";
+import { RadiusDropdown } from "../../widget/format/radius-dropdown.component";
+import { BindingBorderPane } from "../../format/objects/binding-border-pane.component";
+import { BindingAlignmentPane } from "../../format/objects/binding-alignment-pane.component";
+import { AlphaDropdown } from "../../widget/format/alpha-dropdown.component";
+import { DynamicComboBox } from "../../widget/dynamic-combo-box/dynamic-combo-box.component";
+import { FontPane } from "../../widget/font-pane/font-pane.component";
+import { DropdownView } from "../../widget/dropdown-view/dropdown-view.component";
+import { NgIf } from "@angular/common";
 
 const PRESENTER_PROPERTY_URI: string = "composer/vs/presenter-property-dialog-model/";
 const COLOR_LABLE_MAP: Map<string, string> = new Map([
@@ -58,9 +72,11 @@ const COLOR_LABLE_MAP: Map<string, string> = new Map([
 ]);
 
 @Component({
-   selector: "vs-formats-pane",
-   templateUrl: "vs-formats-pane.component.html",
-   styleUrls: ["../../binding/editor/formats-pane.component.scss"]
+    selector: "vs-formats-pane",
+    templateUrl: "vs-formats-pane.component.html",
+    styleUrls: ["../../binding/editor/formats-pane.component.scss"],
+    standalone: true,
+    imports: [NgIf, DropdownView, FontPane, DynamicComboBox, ColorDropdown, AlphaDropdown, BindingAlignmentPane, NgbTooltip, BindingBorderPane, RadiusDropdown, FormsModule, FormattingPane, FormatCSSPane, FormatPresenterPane, HelpLinkDirective, PresenterPropertyDialog]
 })
 export class VSFormatsPane implements OnInit, OnChanges {
    @Input() inactive: boolean;

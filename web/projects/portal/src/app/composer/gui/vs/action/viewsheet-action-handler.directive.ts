@@ -35,7 +35,8 @@ import { ContextProvider } from "../../../../vsobjects/context-provider.service"
 const VIEWSHEET_PROPERTY_URI: string = "composer/vs/viewsheet-object-property-dialog-model/";
 
 @Directive({
-   selector: "[cViewsheetActionHandler]"
+    selector: "[cViewsheetActionHandler]",
+    standalone: true
 })
 export class ViewsheetActionHandlerDirective extends AbstractActionHandler implements OnDestroy {
    @Input() model: VSViewsheetModel;

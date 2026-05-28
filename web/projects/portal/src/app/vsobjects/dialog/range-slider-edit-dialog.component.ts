@@ -16,13 +16,22 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, EventEmitter, Input, OnDestroy, Output } from "@angular/core";
-import { UntypedFormControl, UntypedFormGroup, Validators, AbstractControl, ValidationErrors, ValidatorFn } from "@angular/forms";
+import { UntypedFormControl, UntypedFormGroup, Validators, AbstractControl, ValidationErrors, ValidatorFn, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { Subject } from "rxjs";
 import { takeUntil } from "rxjs/operators";
+import { NgIf } from "@angular/common";
+import { ModalHeaderComponent } from "../../widget/modal-header/modal-header.component";
 
 @Component({
-   selector: "range-slider-edit-dialog",
-   templateUrl: "range-slider-edit-dialog.component.html",
+    selector: "range-slider-edit-dialog",
+    templateUrl: "range-slider-edit-dialog.component.html",
+    standalone: true,
+    imports: [
+        ModalHeaderComponent,
+        FormsModule,
+        ReactiveFormsModule,
+        NgIf,
+    ],
 })
 export class RangeSliderEditDialog implements OnDestroy {
    @Input() currentMin: number | Date;

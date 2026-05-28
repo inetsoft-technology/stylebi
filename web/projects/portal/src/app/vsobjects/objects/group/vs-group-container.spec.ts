@@ -23,6 +23,7 @@ import { ViewsheetClientService } from "../../../common/viewsheet-client";
 import { ContextProvider } from "../../context-provider.service";
 import { VSGroupContainerModel } from "../../model/vs-group-container-model";
 import { DataTipService } from "../data-tip/data-tip.service";
+import { PopComponentService } from "../data-tip/pop-component.service";
 import { VSGroupContainer } from "./vs-group-container.component";
 
 describe("VS Group Container Unit Test", () => {
@@ -39,13 +40,14 @@ describe("VS Group Container Unit Test", () => {
       const contextProvider = {};
 
       TestBed.configureTestingModule({
-         imports: [],
-         declarations: [ VSGroupContainer ],
+         imports: [VSGroupContainer],
+         
          schemas: [NO_ERRORS_SCHEMA],
          providers: [
             { provide: ContextProvider, useValue: contextProvider },
             { provide: ViewsheetClientService, useValue: viewsheetClient },
-            { provide: DataTipService, useValue: dataTipService }
+            { provide: DataTipService, useValue: dataTipService },
+            PopComponentService
          ]
       });
       TestBed.compileComponents();

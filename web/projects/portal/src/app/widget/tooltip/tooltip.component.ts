@@ -22,6 +22,7 @@ import {
    Input,
    TemplateRef
 } from "@angular/core";
+import { NgIf, NgTemplateOutlet, NgClass } from "@angular/common";
 
 /**
  * Component used to render tooltips.
@@ -31,10 +32,12 @@ import {
  * !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
  */
 @Component({
-   selector: "w-tooltip",
-   templateUrl: "tooltip.component.html",
-   styleUrls: ["tooltip.component.scss"],
-   changeDetection: ChangeDetectionStrategy.OnPush
+    selector: "w-tooltip",
+    templateUrl: "tooltip.component.html",
+    styleUrls: ["tooltip.component.scss"],
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    standalone: true,
+    imports: [NgIf, NgTemplateOutlet, NgClass]
 })
 export class TooltipComponent {
    @Input() content: string | TemplateRef<any>;

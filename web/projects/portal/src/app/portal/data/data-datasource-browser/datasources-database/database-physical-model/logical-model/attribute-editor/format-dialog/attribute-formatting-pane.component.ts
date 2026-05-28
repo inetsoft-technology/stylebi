@@ -25,11 +25,16 @@ import {
 } from "@angular/core";
 import { AttributeFormatInfoModel } from "../../../../../../model/datasources/database/physical-model/logical-model/attribute-format-info-model";
 import { Format } from "../../../../../../../../common/util/format";
+import { ComboBox } from "../../../../../../../../format/objects/combo-box.component";
+import { NgFor, NgIf } from "@angular/common";
+import { FormsModule } from "@angular/forms";
 
 @Component({
-   selector: "attribute-formatting-pane",
-   templateUrl: "attribute-formatting-pane.component.html",
-   styleUrls: ["attribute-formatting-pane.component.scss"]
+    selector: "attribute-formatting-pane",
+    templateUrl: "attribute-formatting-pane.component.html",
+    styleUrls: ["attribute-formatting-pane.component.scss"],
+    standalone: true,
+    imports: [FormsModule, NgFor, NgIf, ComboBox]
 })
 export class AttributeFormattingPane implements OnChanges {
    @Input() popup: boolean = true;

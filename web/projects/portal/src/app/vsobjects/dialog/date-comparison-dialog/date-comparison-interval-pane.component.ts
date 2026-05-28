@@ -25,11 +25,17 @@ import { DateTypeFormatter } from "../../../../../../shared/util/date-type-forma
 import { DateComparisonUtil } from "./date-comparison-utill";
 import { Tool } from "../../../../../../shared/util/tool";
 import { FirstDayOfWeekService } from "../../../common/services/first-day-of-week.service";
+import { DynamicValueEditorComponent } from "../../../widget/date-type-editor/dynamic-value-editor.component";
+import { DynamicComboBox } from "../../../widget/dynamic-combo-box/dynamic-combo-box.component";
+import { NgIf } from "@angular/common";
+import { FormsModule } from "@angular/forms";
 
 @Component({
-   selector: "date-comparison-interval-pane",
-   templateUrl: "./date-comparison-interval-pane.component.html",
-   styleUrls: ["./date-comparison-interval-pane.component.scss"]
+    selector: "date-comparison-interval-pane",
+    templateUrl: "./date-comparison-interval-pane.component.html",
+    styleUrls: ["./date-comparison-interval-pane.component.scss"],
+    standalone: true,
+    imports: [FormsModule, NgIf, DynamicComboBox, DynamicValueEditorComponent]
 })
 export class DateComparisonIntervalPaneComponent implements OnInit{
    @Input() intervalPaneModel: IntervalPaneModel;

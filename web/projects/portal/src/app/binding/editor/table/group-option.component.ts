@@ -29,11 +29,17 @@ import { DateLevelExamplesService } from "../../../common/services/date-level-ex
 import { SourceInfo } from "../../data/source-info";
 import {Tool} from "../../../../../../shared/util/tool";
 import {DataRefType} from "../../../common/data/data-ref-type";
+import { FormsModule } from "@angular/forms";
+import { DynamicComboBox } from "../../../widget/dynamic-combo-box/dynamic-combo-box.component";
+import { NgIf } from "@angular/common";
+import { SortOption } from "../sort-option.component";
 
 @Component({
-   selector: "group-option",
-   templateUrl: "group-option.component.html",
-   styleUrls: ["group-option.component.scss"]
+    selector: "group-option",
+    templateUrl: "group-option.component.html",
+    styleUrls: ["group-option.component.scss"],
+    standalone: true,
+    imports: [SortOption, NgIf, DynamicComboBox, FormsModule]
 })
 export class GroupOption implements OnInit {
    @Input() field: BDimensionRef;

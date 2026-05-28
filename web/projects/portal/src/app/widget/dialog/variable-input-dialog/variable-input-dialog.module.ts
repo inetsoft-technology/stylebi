@@ -28,20 +28,18 @@ import {
 } from "../variable-list-dialog/variable-list-dialog.module";
 
 @NgModule({
-   imports: [
-      CommonModule,
-      WidgetDirectivesModule,
-      VariableCollectionSelectorModule,
-      MouseEventModule,
-      VariableListDialogModule,
-   ],
-   declarations: [
-      VariableInputDialog
-   ],
-   exports: [
-      VariableInputDialog
-   ],
-   providers: [],
+    imports: [
+        CommonModule,
+        WidgetDirectivesModule,
+        VariableCollectionSelectorModule,
+        MouseEventModule,
+        VariableListDialogModule,
+        VariableInputDialog,
+    ],
+    exports: [
+        VariableInputDialog
+    ],
+    providers: [],
 })
 export class VariableInputDialogModule {
 }

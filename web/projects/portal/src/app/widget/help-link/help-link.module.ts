@@ -21,18 +21,16 @@ import {HelpLinkDirective} from "./help-link.directive";
 import { HelpUrlService } from "./help-url.service";
 
 @NgModule({
-   imports: [
-      CommonModule,
-   ],
-   declarations: [
-      HelpLinkDirective
-   ],
-   exports: [
-      HelpLinkDirective
-   ],
-   providers: [
-      HelpUrlService
-   ],
+    imports: [
+        CommonModule,
+        HelpLinkDirective,
+    ],
+    exports: [
+        HelpLinkDirective
+    ],
+    providers: [
+        HelpUrlService
+    ],
 })
 export class HelpLinkModule {
 }

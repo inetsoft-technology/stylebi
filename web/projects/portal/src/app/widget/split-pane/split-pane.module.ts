@@ -22,9 +22,7 @@ import {SplitPane} from "./split-pane.component";
 @NgModule({
     imports: [
         CommonModule,
-    ],
-    declarations: [
-        SplitPane
+        SplitPane,
     ],
     exports: [
         SplitPane

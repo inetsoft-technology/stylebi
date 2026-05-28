@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { DOCUMENT } from "@angular/common";
+import { DOCUMENT, NgFor, NgClass } from "@angular/common";
 import {
    AfterViewInit,
    Component,
@@ -43,6 +43,9 @@ import { TableColumnPair } from "../../../../data/ws/table-column-pair";
 import { WSTableActions } from "../../action/ws-table.actions";
 import { WSResizeSchemaTableEvent } from "../../socket/ws-resize-schema-event";
 import { SchemaThumbnailService } from "./schema-thumbnail.service";
+import { MouseEventDirective } from "../../../../../widget/mouse-event/mouse-event.directive";
+import { SchemaColumnComponent } from "./schema-column.component";
+import { WSAssemblyThumbnailTitleComponent } from "../ws-assembly-thumbnail-title.component";
 
 export type SubtableInteractionEvent =
    MouseEvent & {subtable: AbstractTableAssembly, mousedown: boolean, click: boolean};
@@ -50,9 +53,11 @@ export type SubtableInteractionEvent =
 type ResizeActiveSide = "left" | "right" | null;
 
 @Component({
-   selector: "schema-table-thumbnail",
-   templateUrl: "schema-table-thumbnail.component.html",
-   styleUrls: ["schema-table-thumbnail.component.scss"]
+    selector: "schema-table-thumbnail",
+    templateUrl: "schema-table-thumbnail.component.html",
+    styleUrls: ["schema-table-thumbnail.component.scss"],
+    standalone: true,
+    imports: [WSAssemblyThumbnailTitleComponent, NgFor, SchemaColumnComponent, MouseEventDirective, NgClass]
 })
 export class SchemaTableThumbnailComponent implements OnInit, AfterViewInit, OnDestroy {
    @Input() schemaTable: AbstractTableAssembly;

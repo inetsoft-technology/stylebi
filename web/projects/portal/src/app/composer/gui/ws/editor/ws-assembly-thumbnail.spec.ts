@@ -49,7 +49,8 @@ import createMockWSAssemblyModel = TestUtils.createMockWSAssemblyModel;
    selector: "ws-assembly-test",
    template: `
      <variable-thumbnail [variable]="variable"></variable-thumbnail>
-   `
+   `,
+   standalone: true
 })
 class WSAssemblyThumbnailTest {
    variable: WSVariableAssembly;
@@ -63,17 +64,30 @@ describe("WSAssemblyThumbnail Tests", () => {
       dialogService = { open: jest.fn() };
       TestBed.configureTestingModule({
          imports: [
-            NgbModule, FormsModule, ReactiveFormsModule, CommonModule, DropDownTestModule,
-            HttpClientTestingModule
+            NgbModule,
+            FormsModule,
+            ReactiveFormsModule,
+            CommonModule,
+            DropDownTestModule,
+            HttpClientTestingModule,
+            VariableThumbnail,
+            VariableAssemblyDialog,
+            WSAssemblyThumbnailTest,
+            VariableValueEditor,
+            VariableListDialog,
+            VariableTableListDialog,
+            VariableListEditor,
+            MessageDialog,
+            DateValueEditorComponent,
+            TimeValueEditorComponent,
+            TimeInstantValueEditorComponent,
+            ActionsContextmenuAnchorDirective,
+            WSAssemblyThumbnailTitleComponent,
+            EnterSubmitDirective,
+            LargeFormFieldComponent,
+            TimepickerComponent,
          ],
-         declarations: [
-            VariableThumbnail, VariableAssemblyDialog, WSAssemblyThumbnailTest,
-            VariableValueEditor, VariableListDialog, VariableTableListDialog,
-            VariableListEditor, MessageDialog, DateValueEditorComponent, TimeValueEditorComponent,
-            TimeInstantValueEditorComponent, ActionsContextmenuAnchorDirective,
-            WSAssemblyThumbnailTitleComponent, EnterSubmitDirective,
-            LargeFormFieldComponent, TimepickerComponent
-         ],
+         
          providers: [
             ModelService, ViewsheetClientService, StompClientService,
             { provide: DialogService, useValue: dialogService }

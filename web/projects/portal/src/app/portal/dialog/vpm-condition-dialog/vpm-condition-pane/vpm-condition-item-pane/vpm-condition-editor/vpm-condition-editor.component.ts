@@ -24,11 +24,21 @@ import { Observable } from "rxjs";
 import { ClauseValueTypes } from "../../../../../data/model/datasources/database/vpm/condition/clause/clause-value-types";
 import { BasicSqlQueryModel } from "../../../../../../composer/data/ws/basic-sql-query-model";
 import { SqlQueryDialogModel } from "../../../../../../composer/data/ws/sql-query-dialog-model";
+import { ClauseValueTypePipe } from "../../../../../data/model/datasources/database/vpm/condition/clause/clause-value-type.pipe";
+import { FixedDropdownDirective } from "../../../../../../widget/fixed-dropdown/fixed-dropdown.directive";
+import { VpmSubqueryEditorComponent } from "./vpm-subquery-editor/vpm-subquery-editor.component";
+import { SessionDataEditor } from "../../../../../../widget/condition/session-data-editor.component";
+import { VPMFieldEditorComponent } from "./vpm-field-editor/vpm-field-editor.component";
+import { VPMVariableEditor } from "./vpm-variable-editor/vpm-variable-editor.component";
+import { VPMValueEditorComponent } from "./vpm-value-editor/vpm-value-editor.component";
+import { NgIf, NgFor } from "@angular/common";
 
 @Component({
-   selector: "vpm-condition-editor",
-   templateUrl: "vpm-condition-editor.component.html",
-   styleUrls: ["vpm-condition-editor.component.scss"]
+    selector: "vpm-condition-editor",
+    templateUrl: "vpm-condition-editor.component.html",
+    styleUrls: ["vpm-condition-editor.component.scss"],
+    standalone: true,
+    imports: [NgIf, VPMValueEditorComponent, VPMVariableEditor, VPMFieldEditorComponent, SessionDataEditor, VpmSubqueryEditorComponent, FixedDropdownDirective, NgFor, ClauseValueTypePipe]
 })
 export class VPMConditionEditor implements OnChanges {
    @Input() value: ClauseValueModel;

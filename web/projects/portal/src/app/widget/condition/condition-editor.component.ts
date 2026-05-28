@@ -41,11 +41,21 @@ import { TreeNodeModel } from "../tree/tree-node-model";
 import { ConditionFieldComboModel } from "./condition-field-combo-model";
 import { FixedDropdownDirective } from "../fixed-dropdown/fixed-dropdown.directive";
 import { ValueEditor } from "./value-editor.component";
+import { ConditionValueTypePipe } from "./condition-value-type.pipe";
+import { SessionDataEditor } from "./session-data-editor.component";
+import { SubqueryEditor } from "./subquery-editor.component";
+import { FieldEditor } from "./field-editor.component";
+import { ExpressionEditor } from "./expression-editor.component";
+import { VariableEditor } from "./variable-editor.component";
+import { TopNEditor } from "./top-n-editor.component";
+import { NgIf, NgFor } from "@angular/common";
 
 @Component({
-   selector: "condition-editor",
-   templateUrl: "condition-editor.component.html",
-   styleUrls: ["condition-editor.component.scss"]
+    selector: "condition-editor",
+    templateUrl: "condition-editor.component.html",
+    styleUrls: ["condition-editor.component.scss"],
+    standalone: true,
+    imports: [NgIf, TopNEditor, ValueEditor, VariableEditor, ExpressionEditor, FieldEditor, SubqueryEditor, SessionDataEditor, FixedDropdownDirective, NgFor, ConditionValueTypePipe]
 })
 export class ConditionEditor implements OnChanges {
    public XSchema = XSchema;

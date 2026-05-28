@@ -29,6 +29,7 @@ import { DialogButtonsDirective } from "../../widget/standard-dialog/dialog-butt
 import { DialogContentDirective } from "../../widget/standard-dialog/dialog-content.directive";
 import { StandardDialogComponent } from "../../widget/standard-dialog/standard-dialog.component";
 import { ArrangeDashboardDialog } from "./arrange-dashboard-dialog.component";
+import { HttpClientTestingModule } from "@angular/common/http/testing";
 
 let createDashModel: (dashName: string) => DashboardModel = (dashName) => {
    return {
@@ -61,12 +62,18 @@ describe("Arrange Dashboard Dialog Unit Test", () => {
    beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule
+            
+            HttpClientTestingModule,FormsModule,
+            ReactiveFormsModule,
+            NgbModule,
+            ArrangeDashboardDialog,
+            StandardDialogComponent,
+            EnterSubmitDirective,
+            DialogContentDirective,
+            DialogButtonsDirective,
+            ResizableTableDirective,
          ],
-         declarations: [
-            ArrangeDashboardDialog, StandardDialogComponent, EnterSubmitDirective,
-            DialogContentDirective, DialogButtonsDirective, ResizableTableDirective
-         ],
+         
          providers: [
             {
                provide: ModelService, useValue: modelService

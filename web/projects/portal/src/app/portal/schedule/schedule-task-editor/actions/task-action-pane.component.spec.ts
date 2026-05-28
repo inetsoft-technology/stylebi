@@ -106,7 +106,9 @@ const createModel: () => TaskActionPaneModel = () => {
 
 @Component({
    selector: "test-app",
-   template: `<task-action-pane [model]="model" [taskName]="taskName" [parentForm]="form"></task-action-pane>`
+   template: `<task-action-pane [model]="model" [taskName]="taskName" [parentForm]="form"></task-action-pane>`,
+   standalone: true,
+   imports: [TaskActionPane]
 })
 class TestApp {
    @ViewChild(TaskActionPane, {static: true}) taskActionPane: TaskActionPane;
@@ -114,10 +116,10 @@ class TestApp {
    taskName = "Task1";
    form = new FormGroup({});
 }
-
 @Component({
    selector: "ckeditor",
-   template: "<div></div>"
+   template: "<div></div>",
+   standalone: true
 })
 class MockCkeditorComponent implements ControlValueAccessor {
    @Input()
@@ -158,18 +160,42 @@ describe("Task Action Pane Unit Test", () => {
    beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule, HttpClientTestingModule
+            FormsModule,
+            ReactiveFormsModule,
+            NgbModule,
+            HttpClientTestingModule,
+            TestApp,
+            ReplaceAllPipe,
+            TaskActionPane,
+            ActionAccordion,
+            GenericSelectableList,
+            ParameterTable,
+            AddParameterDialog,
+            EnterSubmitDirective,
+            EditableTableComponent,
+            EmailAddrDialog,
+            EmbeddedEmailPane,
+            QueryEmailPane,
+            IdentityTreeComponent,
+            ShuffleListComponent,
+            AssetTreeComponent,
+            TreeComponent,
+            TreeNodeComponent,
+            TooltipDirective,
+            TreeSearchPipe,
+            VariableInputDialog,
+            VariableValueEditor,
+            VariableCollectionSelector,
+            TimeInstantValueEditorComponent,
+            TimeValueEditorComponent,
+            DateValueEditorComponent,
+            TimepickerComponent,
+            CSVConfigPane,
+            EnterClickDirective,
+            NotificationsComponent,
+            MockCkeditorComponent,
          ],
-         declarations: [
-            TestApp, ReplaceAllPipe, TaskActionPane, ActionAccordion, GenericSelectableList,
-            ParameterTable, AddParameterDialog, EnterSubmitDirective,
-            EditableTableComponent, EmailAddrDialog, EmbeddedEmailPane, QueryEmailPane,
-            IdentityTreeComponent, ShuffleListComponent, AssetTreeComponent, TreeComponent,
-            TreeNodeComponent, TooltipDirective, TreeSearchPipe, VariableInputDialog,
-            VariableValueEditor, VariableCollectionSelector, TimeInstantValueEditorComponent,
-            TimeValueEditorComponent, DateValueEditorComponent, TimepickerComponent, CSVConfigPane,
-            EnterClickDirective, NotificationsComponent, MockCkeditorComponent
-         ],
+         
          providers: [
             NgbModal,
             { provide: PortalModelService, useValue: portalModelService},
@@ -179,6 +205,7 @@ describe("Task Action Pane Unit Test", () => {
             NO_ERRORS_SCHEMA
          ]
       });
+      TestBed.overrideComponent(TaskActionPane, { set: { imports: [] } });
       TestBed.compileComponents();
 
       fixture = TestBed.createComponent(TestApp);

@@ -52,11 +52,16 @@ import { SummaryAttrUtil } from "../../util/summary-attr-util";
 import { ManualOrderingDialog } from "../manual-ordering-dialog.component";
 import { CalcNamedGroupDialog } from "./calc-named-group-dialog.component";
 import { DateLevelExamplesService } from "../../../common/services/date-level-examples.service";
+import { DynamicComboBox } from "../../../widget/dynamic-combo-box/dynamic-combo-box.component";
+import { FormsModule } from "@angular/forms";
+import { NgIf, NgFor } from "@angular/common";
 
 @Component({
-   selector: "calc-group-option",
-   templateUrl: "calc-group-option.component.html",
-   styleUrls: ["calc-group-option.component.scss"]
+    selector: "calc-group-option",
+    templateUrl: "calc-group-option.component.html",
+    styleUrls: ["calc-group-option.component.scss"],
+    standalone: true,
+    imports: [NgIf, FormsModule, NgFor, DynamicComboBox]
 })
 export class CalcGroupOption implements OnInit, OnChanges {
    @Input() cellBinding: CellBindingInfo;

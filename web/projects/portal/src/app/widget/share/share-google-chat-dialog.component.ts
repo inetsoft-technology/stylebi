@@ -17,17 +17,21 @@
  */
 import { HttpErrorResponse } from "@angular/common/http";
 import { Component, EventEmitter, Input, OnInit, Output } from "@angular/core";
-import { UntypedFormBuilder, UntypedFormGroup, Validators } from "@angular/forms";
+import { UntypedFormBuilder, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { Observable, throwError } from "rxjs";
 import { catchError } from "rxjs/operators";
 import { ComponentTool } from "../../common/util/component-tool";
 import { ShareService } from "./share.service";
+import { EnterSubmitDirective } from "../directive/enter-submit.directive";
+import { ModalHeaderComponent } from "../modal-header/modal-header.component";
 
 @Component({
-   selector: "share-google-chat-dialog",
-   templateUrl: "share-google-chat-dialog.component.html",
-   styleUrls: ["share-google-chat-dialog.component.scss"]
+    selector: "share-google-chat-dialog",
+    templateUrl: "share-google-chat-dialog.component.html",
+    styleUrls: ["share-google-chat-dialog.component.scss"],
+    standalone: true,
+    imports: [ModalHeaderComponent, EnterSubmitDirective, FormsModule, ReactiveFormsModule]
 })
 export class ShareGoogleChatDialog implements OnInit {
    @Input() viewsheetId: string;

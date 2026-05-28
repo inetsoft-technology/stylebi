@@ -27,24 +27,22 @@ import { WidgetDirectivesModule } from "../directive/widget-directives.module";
 import { FormulaEditorService } from "./formula-editor.service";
 
 @NgModule({
-   imports: [
-      CommonModule,
-      ModalHeaderModule,
-      MouseEventModule,
-      ReactiveFormsModule,
-      ScriptPaneModule,
-      NewAggrDialogModule,
-      WidgetDirectivesModule,
-   ],
-   declarations: [
-      FormulaEditorDialog
-   ],
-   exports: [
-      FormulaEditorDialog
-   ],
-   providers: [
-      FormulaEditorService
-   ],
+    imports: [
+        CommonModule,
+        ModalHeaderModule,
+        MouseEventModule,
+        ReactiveFormsModule,
+        ScriptPaneModule,
+        NewAggrDialogModule,
+        WidgetDirectivesModule,
+        FormulaEditorDialog,
+    ],
+    exports: [
+        FormulaEditorDialog
+    ],
+    providers: [
+        FormulaEditorService
+    ],
 })
 export class FormulaEditorModule {
 }

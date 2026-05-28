@@ -31,29 +31,27 @@ import {ImageEditorModule} from "../image-editor/image-editor.module";
 import {TreeModule} from "../tree/tree.module";
 
 @NgModule({
-   imports: [
-      CommonModule,
-      HelpLinkModule,
-      WidgetFormatModule,
-      ColorPickerModule,
-      FontPaneModule,
-      FormsModule,
-      WidgetDirectivesModule,
-      ImageEditorModule,
-      TreeModule,
-      ModalHeaderModule,
-   ],
-   declarations: [
-      EditImageDialog,
-      FormatPresenterPane,
-      PresenterPropertyDialog
-   ],
-   exports: [
-      EditImageDialog,
-      FormatPresenterPane,
-      PresenterPropertyDialog
-   ],
-   providers: [],
+    imports: [
+        CommonModule,
+        HelpLinkModule,
+        WidgetFormatModule,
+        ColorPickerModule,
+        FontPaneModule,
+        FormsModule,
+        WidgetDirectivesModule,
+        ImageEditorModule,
+        TreeModule,
+        ModalHeaderModule,
+        EditImageDialog,
+        FormatPresenterPane,
+        PresenterPropertyDialog,
+    ],
+    exports: [
+        EditImageDialog,
+        FormatPresenterPane,
+        PresenterPropertyDialog
+    ],
+    providers: [],
 })
 export class PresenterModule {
 }

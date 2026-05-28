@@ -18,13 +18,21 @@
 import { Component, EventEmitter, Input, OnInit, Output } from "@angular/core";
 import { CalendarAdvancedPaneModel } from "../../data/vs/calendar-advanced-pane-model";
 import { TreeNodeModel } from "../../../widget/tree/tree-node-model";
-import { UntypedFormControl, UntypedFormGroup, ValidationErrors, Validators } from "@angular/forms";
+import { UntypedFormControl, UntypedFormGroup, ValidationErrors, Validators, FormsModule } from "@angular/forms";
 import { FormValidators } from "../../../../../../shared/util/form-validators";
 import { DynamicValueModel, ValueTypes } from "../../../vsobjects/model/dynamic-value-model";
+import { NgIf } from "@angular/common";
+import { DynamicValueEditorComponent } from "../../../widget/date-type-editor/dynamic-value-editor.component";
 
 @Component({
-   selector: "calendar-advanced-pane",
-   templateUrl: "calendar-advanced-pane.component.html",
+    selector: "calendar-advanced-pane",
+    templateUrl: "calendar-advanced-pane.component.html",
+    standalone: true,
+    imports: [
+        FormsModule,
+        DynamicValueEditorComponent,
+        NgIf,
+    ],
 })
 export class CalendarAdvancedPane implements OnInit {
    @Input() model: CalendarAdvancedPaneModel;

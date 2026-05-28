@@ -20,11 +20,14 @@ import {
    AiAssistantService,
    ContextType
 } from "../../../../../shared/ai-assistant/ai-assistant.service";
+import { RouterLinkActive, RouterLink, RouterOutlet } from "@angular/router";
 
 @Component({
-   selector: "p-schedule-tab",
-   templateUrl: "./schedule-tab.component.html",
-   styleUrls: ["./schedule-tab.component.scss"]
+    selector: "p-schedule-tab",
+    templateUrl: "./schedule-tab.component.html",
+    styleUrls: ["./schedule-tab.component.scss"],
+    standalone: true,
+    imports: [RouterLinkActive, RouterLink, RouterOutlet]
 })
 export class ScheduleTabComponent {
    constructor(private aiAssistantService: AiAssistantService) {

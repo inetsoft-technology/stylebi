@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { DOCUMENT } from "@angular/common";
+import { DOCUMENT, NgFor } from "@angular/common";
 import {
    AfterViewInit, Component, ElementRef, HostBinding, Inject, Input, NgZone
 } from "@angular/core";
@@ -24,13 +24,16 @@ import {
 } from "../../../../../composer/gui/ws/jsplumb/jsplumb-graph-schema.config";
 import { TableGraphModel } from "../../../model/datasources/database/physical-model/graph/table-graph-model";
 import { JoinThumbnailService } from "./join-thumbnail.service";
+import { EditJoinTableColumnComponent } from "./edit-join-table-column.component";
 
 const MIN_LEFT_CONNECTION_GAP = 40;
 
 @Component({
-   selector: "edit-join-table",
-   templateUrl: "edit-join-table.component.html",
-   styleUrls: ["edit-join-table.component.scss"]
+    selector: "edit-join-table",
+    templateUrl: "edit-join-table.component.html",
+    styleUrls: ["edit-join-table.component.scss"],
+    standalone: true,
+    imports: [NgFor, EditJoinTableColumnComponent]
 })
 export class EditJoinTableComponent implements AfterViewInit {
    @Input() table: TableGraphModel;

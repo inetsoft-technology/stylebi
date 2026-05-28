@@ -22,11 +22,14 @@ import { DndService } from "../../../common/dnd/dnd.service";
 import { DropDownTestModule } from "../../../common/test/test-module";
 import { TestUtils } from "../../../common/test/test-utils";
 import { BindingService } from "../../services/binding.service";
+import { BindingTreeService } from "../../widget/binding-tree/binding-tree.service";
 import { ChartEditorService } from "../../services/chart/chart-editor.service";
 import { ChartDataEditor } from "./chart-data-editor.component";
 
 @Component({
+   standalone: true,
    selector: "chart-data-editor-test-app",
+   imports: [ChartDataEditor],
    template: `
      <chart-data-editor [bindingModel]="model"
                         [grayedOutValues]="grayedOutValues"
@@ -59,15 +62,20 @@ describe("chart data editor unit case", function() {
          convert: jest.fn()
       };
       changeRef = { detectChanges: jest.fn() };
+      bindingService = { bindingModel: { availableFields: [] }, getURLParams: jest.fn(() => null) };
 
       TestBed.configureTestingModule({
-         imports: [DropDownTestModule, NgbModule],
-         declarations: [TestApp, ChartDataEditor],
+         imports: [DropDownTestModule, NgbModule, TestApp, ChartDataEditor],
+         
          providers: [
             {provide: DndService, useValue: dservice},
             {provide: ChartEditorService, useValue: editorService},
             {provide: BindingService, useValue: bindingService},
-            {provide: ChangeDetectorRef, useValue: changeRef}
+            {provide: ChangeDetectorRef, useValue: changeRef},
+            {
+               provide: BindingTreeService,
+               useValue: { root: null, treeChanged: { subscribe: jest.fn() }, getSelection: jest.fn(), setSelection: jest.fn() }
+            }
          ],
          schemas: [NO_ERRORS_SCHEMA]
       }).compileComponents();

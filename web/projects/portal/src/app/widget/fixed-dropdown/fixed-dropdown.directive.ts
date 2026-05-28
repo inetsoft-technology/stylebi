@@ -32,7 +32,8 @@ import { DropdownRef } from "./fixed-dropdown-ref";
 import { FixedDropdownService } from "./fixed-dropdown.service";
 
 @Directive({
-   selector: "[fixedDropdown]"
+    selector: "[fixedDropdown]",
+    standalone: true
 })
 export class FixedDropdownDirective implements OnDestroy {
    @Input() fixedDropdown: TemplateRef<any>;

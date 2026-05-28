@@ -46,12 +46,19 @@ import { VSAnnotationModel } from "../../model/annotation/vs-annotation-model";
 import { VSRectangleModel } from "../../model/vs-rectangle-model";
 import { AbstractVSObject } from "../abstract-vsobject.component";
 import { DataTipService } from "../data-tip/data-tip.service";
+import { TooltipDirective } from "../../../widget/tooltip/tooltip.directive";
+import { OutOfZoneDirective } from "../../../widget/directive/out-of-zone.directive";
+import { InteractableDirective } from "../../../widget/interact/interactable.directive";
+import { VSLine } from "../shape/vs-line.component";
+import { NgIf } from "@angular/common";
 
 @Component({
-   selector: "vs-annotation",
-   templateUrl: "./vs-annotation.component.html",
-   styleUrls: ["./vs-annotation.component.scss"],
-   changeDetection: ChangeDetectionStrategy.OnPush
+    selector: "vs-annotation",
+    templateUrl: "./vs-annotation.component.html",
+    styleUrls: ["./vs-annotation.component.scss"],
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    standalone: true,
+    imports: [NgIf, VSLine, InteractableDirective, OutOfZoneDirective, TooltipDirective]
 })
 export class VSAnnotation extends AbstractVSObject<VSAnnotationModel> implements OnDestroy {
    @Input() selected: boolean = false;

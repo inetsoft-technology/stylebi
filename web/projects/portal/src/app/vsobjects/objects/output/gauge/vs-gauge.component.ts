@@ -29,11 +29,20 @@ import { ShowHyperlinkService } from "../../../show-hyperlink.service";
 import { DataTipService } from "../../data-tip/data-tip.service";
 import { PopComponentService } from "../../data-tip/pop-component.service";
 import { AbstractImageComponent } from "../abstract-image";
+import { VSAnnotation } from "../../annotation/vs-annotation.component";
+import { VSLoadingDisplay } from "../../vs-loading-display/vs-loading-display.component";
+import { VSHiddenAnnotation } from "../../annotation/vs-hidden-annotation.component";
+import { TooltipDirective } from "../../../../widget/tooltip/tooltip.directive";
+import { NgIf, NgFor } from "@angular/common";
+import { VSPopComponentDirective } from "../../data-tip/vs-pop-component.directive";
+import { VSDataTipDirective } from "../../data-tip/vs-data-tip.directive";
 
 @Component({
-   selector: "vs-gauge",
-   templateUrl: "vs-gauge.component.html",
-   styleUrls: ["vs-gauge.component.scss"]
+    selector: "vs-gauge",
+    templateUrl: "vs-gauge.component.html",
+    styleUrls: ["vs-gauge.component.scss"],
+    standalone: true,
+    imports: [VSDataTipDirective, VSPopComponentDirective, NgIf, TooltipDirective, VSHiddenAnnotation, VSLoadingDisplay, NgFor, VSAnnotation]
 })
 export class VSGauge extends AbstractImageComponent<VSGaugeModel> implements OnChanges {
    @Output() onOpenFormatPane = new EventEmitter<VSGaugeModel>();

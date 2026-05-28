@@ -22,19 +22,17 @@ import {NewAggrDialog} from "./new-aggr-dialog.component";
 import {FormsModule, ReactiveFormsModule} from "@angular/forms";
 
 @NgModule({
-   imports: [
-      CommonModule,
-      ReactiveFormsModule,
-      FormsModule,
-      ModalHeaderModule,
-   ],
-   declarations: [
-      NewAggrDialog
-   ],
-   exports: [
-      NewAggrDialog
-   ],
-   providers: [],
+    imports: [
+        CommonModule,
+        ReactiveFormsModule,
+        FormsModule,
+        ModalHeaderModule,
+        NewAggrDialog,
+    ],
+    exports: [
+        NewAggrDialog
+    ],
+    providers: [],
 })
 export class NewAggrDialogModule {
 }

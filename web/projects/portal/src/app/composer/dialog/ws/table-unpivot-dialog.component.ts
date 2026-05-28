@@ -16,17 +16,22 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, EventEmitter, Input, OnDestroy, OnInit, Output } from "@angular/core";
-import { UntypedFormControl, UntypedFormGroup, Validators } from "@angular/forms";
+import { UntypedFormControl, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { FormValidators } from "../../../../../../shared/util/form-validators";
 import { TableUnpivotDialogModel } from "../../data/ws/table-unpivot-dialog-model";
+import { EnterSubmitDirective } from "../../../widget/directive/enter-submit.directive";
+import { NgIf, NgClass } from "@angular/common";
+import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
 
 let LEVEL: number = 1;
 const UNPIVOT_SOCKET_URI = "/events/ws/dialog/table-unpivot-dialog";
 const UNPIVOT_LEVEL_SOCKET_URI = "/events/ws/dialog/table-unpivot-rowHeaders";
 
 @Component({
-   selector: "table-unpivot-dialog",
-   templateUrl: "table-unpivot-dialog.component.html"
+    selector: "table-unpivot-dialog",
+    templateUrl: "table-unpivot-dialog.component.html",
+    standalone: true,
+    imports: [ModalHeaderComponent, NgIf, EnterSubmitDirective, FormsModule, ReactiveFormsModule, NgClass]
 })
 export class TableUnpivotDialog implements OnInit, OnDestroy {
    @Input() set level(data: number) {

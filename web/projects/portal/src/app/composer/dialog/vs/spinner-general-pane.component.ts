@@ -19,10 +19,19 @@ import { Component, EventEmitter, Input, OnInit, Output } from "@angular/core";
 import { UntypedFormGroup } from "@angular/forms";
 import { TreeNodeModel } from "../../../widget/tree/tree-node-model";
 import { SpinnerGeneralPaneModel } from "../../data/vs/spinner-general-pane-model";
+import { SizePositionPane } from "../../../vsobjects/dialog/size-position-pane.component";
+import { NumericRangePane } from "./numeric-range-pane.component";
+import { GeneralPropPane } from "../../../vsobjects/dialog/general-prop-pane.component";
 
 @Component({
-   selector: "spinner-general-pane",
-   templateUrl: "spinner-general-pane.component.html",
+    selector: "spinner-general-pane",
+    templateUrl: "spinner-general-pane.component.html",
+    standalone: true,
+    imports: [
+        GeneralPropPane,
+        NumericRangePane,
+        SizePositionPane,
+    ],
 })
 export class SpinnerGeneralPane implements OnInit {
    @Input() model: SpinnerGeneralPaneModel;

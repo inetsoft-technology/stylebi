@@ -25,12 +25,16 @@ import {
 
 import { Worksheet } from "../../../data/ws/worksheet";
 import { WSCompositeBreadcrumb } from "../../../data/ws/ws-composite-breadcrumb";
+import { HelpLinkDirective } from "../../../../widget/help-link/help-link.directive";
+import { NgFor, NgIf } from "@angular/common";
 
 @Component({
-   selector: "ws-composite-table-breadcrumb",
-   templateUrl: "ws-composite-table-breadcrumb.component.html",
-   styleUrls: ["ws-composite-table-breadcrumb.component.scss"],
-   changeDetection: ChangeDetectionStrategy.OnPush
+    selector: "ws-composite-table-breadcrumb",
+    templateUrl: "ws-composite-table-breadcrumb.component.html",
+    styleUrls: ["ws-composite-table-breadcrumb.component.scss"],
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    standalone: true,
+    imports: [NgFor, NgIf, HelpLinkDirective]
 })
 export class WSCompositeTableBreadcrumbComponent {
    @Input() worksheet: Worksheet;

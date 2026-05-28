@@ -16,13 +16,23 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, Input, OnInit } from "@angular/core";
-import { UntypedFormGroup } from "@angular/forms";
+import { UntypedFormGroup, FormsModule } from "@angular/forms";
 import { TreeNodeModel } from "../../../widget/tree/tree-node-model";
 import { SelectionContainerGeneralPaneModel } from "../../data/vs/selection-container-general-pane-model";
+import { SizePositionPane } from "../../../vsobjects/dialog/size-position-pane.component";
+import { TitlePropPane } from "../../../vsobjects/dialog/title-prop-pane.component";
+import { GeneralPropPane } from "../../../vsobjects/dialog/general-prop-pane.component";
 
 @Component({
-   selector: "selection-container-general-pane",
-   templateUrl: "selection-container-general-pane.component.html",
+    selector: "selection-container-general-pane",
+    templateUrl: "selection-container-general-pane.component.html",
+    standalone: true,
+    imports: [
+        GeneralPropPane,
+        TitlePropPane,
+        FormsModule,
+        SizePositionPane,
+    ],
 })
 
 export class SelectionContainerGeneralPane implements OnInit {

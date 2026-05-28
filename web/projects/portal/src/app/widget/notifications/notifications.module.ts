@@ -21,17 +21,15 @@ import { NgbAlertModule } from "@ng-bootstrap/ng-bootstrap";
 import { NotificationsComponent } from "./notifications.component";
 
 @NgModule({
-   imports: [
-      CommonModule,
-      NgbAlertModule,
-   ],
-   declarations: [
-      NotificationsComponent
-   ],
-   exports: [
-      NotificationsComponent
-   ],
-   providers: [],
+    imports: [
+        CommonModule,
+        NgbAlertModule,
+        NotificationsComponent,
+    ],
+    exports: [
+        NotificationsComponent
+    ],
+    providers: [],
 })
 export class NotificationsModule {
 }

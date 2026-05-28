@@ -48,7 +48,7 @@ describe("WizardBindingTre", () => {
       };
       const modelService = {};
       TestBed.configureTestingModule({
-         declarations: [
+         imports: [
             WizardBindingTree
          ],
          providers: [

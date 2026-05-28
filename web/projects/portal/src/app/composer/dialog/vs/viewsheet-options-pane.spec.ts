@@ -65,8 +65,8 @@ describe("Viewsheet Options Pane Unit Test", () => {
 
    beforeEach(() => {
       TestBed.configureTestingModule({
-         imports: [ ReactiveFormsModule, FormsModule, NgbModule, HttpClientTestingModule ],
-         declarations: [ ViewsheetOptionsPane, ViewsheetParametersDialog, EnterSubmitDirective ],
+         imports: [ReactiveFormsModule, FormsModule, NgbModule, HttpClientTestingModule, ViewsheetOptionsPane, ViewsheetParametersDialog, EnterSubmitDirective],
+         
          schemas: [NO_ERRORS_SCHEMA]
       });
       TestBed.compileComponents();

@@ -135,6 +135,25 @@ import { ComposerObjectService } from "./vs/composer-object.service";
 import { CloseSheetEvent } from "./vs/event/close-sheet-event";
 import { LayoutUndoRedoEvent } from "./vs/event/layout-undo-redo-event";
 import { SaveSheetEvent } from "./ws/socket/save-sheet-event";
+import { ViewsheetPropertyDialog } from "../dialog/vs/viewsheet-property-dialog.component";
+import { EditCustomPatternsDialog } from "./tablestyle/editor/edit-custom-patterns-dialog.component";
+import { SaveScriptDialog } from "../dialog/script/save-script-dialog.component";
+import { SaveWorksheetDialog } from "../dialog/ws/save-worksheet-dialog.component";
+import { SaveTableStyleDialog } from "./tablestyle/editor/save-table-style-dialog.component";
+import { SaveViewsheetDialog } from "../dialog/vs/save-viewsheet-dialog.component";
+import { VsWizardComponent } from "../../vs-wizard/gui/vs-wizard.component";
+import { VSBindingPane } from "../../vsview/edit/vs-binding-pane.component";
+import { SheetTabSelectorComponent } from "./tab-selector/sheet-tab-selector.component";
+import { ComposerEmptyEditor } from "./empty-editor/composer-empty-editor.component";
+import { ViewerAppComponent } from "../../vsobjects/viewer-app.component";
+import { VSPane } from "./vs/editor/viewsheet-pane.component";
+import { WSPaneComponent } from "./ws/editor/ws-pane.component";
+import { WSCompositeTableSidebarPane } from "./ws/editor/ws-composite-table-sidebar-pane.component";
+import { StyleTreePane } from "./tablestyle/style-tree/style-tree-pane.component";
+import { ScriptTreePane } from "./script/tree/script-tree-pane.component";
+import { ToolboxPane } from "./toolbox/toolbox-pane.component";
+import { AssetTreePane } from "./asset-pane/asset-tree-pane.component";
+import { NgStyle, NgIf, NgFor, AsyncPipe } from "@angular/common";
 
 export enum SidebarTab {
    ASSET_TREE,
@@ -201,16 +220,18 @@ const CONFIRM_MESSAGE = {
  * Its purpose is to control the layout of its children panes.
  */
 @Component({
-   selector: "composer-main",
-   templateUrl: "composer-main.component.html",
-   styleUrls: ["composer-main.component.scss", "tab-selector/tab-selector-shared.scss"],
-   providers: [
-      ComposerClientService,
-      {
-         provide: ScaleService,
-         useClass: VSScaleService
-      }
-   ]
+    selector: "composer-main",
+    templateUrl: "composer-main.component.html",
+    styleUrls: ["composer-main.component.scss", "tab-selector/tab-selector-shared.scss"],
+    providers: [
+        ComposerClientService,
+        {
+            provide: ScaleService,
+            useClass: VSScaleService
+        }
+    ],
+    standalone: true,
+    imports: [NgStyle, ComposerToolbarComponent, SplitPane, AssetTreePane, ToolboxPane, NgIf, ScriptTreePane, ComponentsPane, StyleTreePane, VSFormatsPane, WSCompositeTableSidebarPane, NgFor, WSPaneComponent, VSPane, ViewerAppComponent, ScriptEditPaneComponent, StylePaneComponent, ComposerEmptyEditor, SheetTabSelectorComponent, VSBindingPane, VsWizardComponent, NotificationsComponent, SaveViewsheetDialog, SaveTableStyleDialog, SaveWorksheetDialog, SaveScriptDialog, ScriptPropertyDialogComponent, EditCustomPatternsDialog, ViewsheetPropertyDialog, AsyncPipe]
 })
 export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
    @Input() initialSheet: string;

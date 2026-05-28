@@ -88,14 +88,15 @@ describe("Edit Dashboard Dialog Unit Test", () => {
    let changeRef = { detectChanges: jest.fn() };
    let ngbService = { open: jest.fn() };
    let modelService = {
-      getModel: jest.fn(),
+      getModel: jest.fn().mockReturnValue(observableOf(null)),
       putModel: jest.fn(),
       sendModel: jest.fn()
    };
    let repoTreeService = {
       getRootFolder: jest.fn(),
       getFolder: jest.fn(),
-      getContentSource: jest.fn()
+      getContentSource: jest.fn(),
+      getCSSIcon: jest.fn()
    };
    let dragService: any;
    let debounceService: any = { debounce: jest.fn() };
@@ -117,13 +118,19 @@ describe("Edit Dashboard Dialog Unit Test", () => {
 
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule, DropDownTestModule,
-            HttpClientTestingModule
+            FormsModule,
+            ReactiveFormsModule,
+            NgbModule,
+            DropDownTestModule,
+            HttpClientTestingModule,
+            EditDashboardDialog,
+            StandardDialogComponent,
+            RepositoryTreeComponent,
+            EnterSubmitDirective,
+            DialogContentDirective,
+            DialogButtonsDirective,
          ],
-         declarations: [
-            EditDashboardDialog, StandardDialogComponent, RepositoryTreeComponent,
-            EnterSubmitDirective, DialogContentDirective, DialogButtonsDirective
-         ],
+         
          providers: [
             { provide: StompClientService, useValue: stompClient },
             { provide: ChangeDetectorRef, useValue: changeRef },

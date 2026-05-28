@@ -26,21 +26,19 @@ import {FixedDropdownModule} from "../fixed-dropdown/fixed-dropdown.module";
 import {MouseEventModule} from "../mouse-event/mouse-event.module";
 
 @NgModule({
-   imports: [
-      CommonModule,
-      FormsModule,
-      TreeModule,
-      TooltipModule,
-      FixedDropdownModule,
-      MouseEventModule,
-   ],
-   declarations: [
-      DynamicComboBox
-   ],
-   exports: [
-      DynamicComboBox
-   ],
-   providers: [],
+    imports: [
+        CommonModule,
+        FormsModule,
+        TreeModule,
+        TooltipModule,
+        FixedDropdownModule,
+        MouseEventModule,
+        DynamicComboBox,
+    ],
+    exports: [
+        DynamicComboBox
+    ],
+    providers: [],
 })
 export class DynamicComboBoxModule {
 }

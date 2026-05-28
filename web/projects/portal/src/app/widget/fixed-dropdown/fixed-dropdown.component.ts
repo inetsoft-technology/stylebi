@@ -35,8 +35,9 @@ import { GuiTool } from "../../common/util/gui-tool";
 import { DropdownStackService } from "./dropdown-stack.service";
 
 @Component({
-   selector: "fixed-dropdown",
-   templateUrl: "fixed-dropdown.component.html"
+    selector: "fixed-dropdown",
+    templateUrl: "fixed-dropdown.component.html",
+    standalone: true
 })
 export class FixedDropdownComponent implements OnInit, AfterViewInit, OnDestroy {
    @Input() container: Element;

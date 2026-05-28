@@ -26,12 +26,36 @@ import { TrapInfo } from "../../../common/data/trap-info";
 import { UIContextService } from "../../../common/services/ui-context.service";
 import { PropertyDialogService } from "../../../vsobjects/util/property-dialog.service";
 import { PropertyDialog } from "./property-dialog.component";
+import { ApplyButtonComponent } from "../../../widget/slide-out/apply-button.component";
+import { VSAssemblyScriptPane } from "../../../widget/dialog/vsassembly-script-pane/vsassembly-script-pane.component";
+import { DataInputPane } from "./data-input-pane.component";
+import { CheckboxGeneralPane } from "./checkbox-general-pane.component";
+import { NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, NgbNavOutlet } from "@ng-bootstrap/ng-bootstrap";
+import { EnterSubmitDirective } from "../../../widget/directive/enter-submit.directive";
+import { NgIf } from "@angular/common";
+import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
 
 const CHECK_TRAP_URI: string = "../api/composer/vs/checkbox-property-dialog-model/checkTrap/";
 
 @Component({
-   selector: "checkbox-property-dialog",
-   templateUrl: "checkbox-property-dialog.component.html",
+    selector: "checkbox-property-dialog",
+    templateUrl: "checkbox-property-dialog.component.html",
+    standalone: true,
+    imports: [
+        ModalHeaderComponent,
+        NgIf,
+        EnterSubmitDirective,
+        NgbNav,
+        NgbNavItem,
+        NgbNavLink,
+        NgbNavLinkBase,
+        NgbNavContent,
+        CheckboxGeneralPane,
+        DataInputPane,
+        VSAssemblyScriptPane,
+        NgbNavOutlet,
+        ApplyButtonComponent,
+    ],
 })
 export class CheckboxPropertyDialog extends PropertyDialog implements OnInit {
    @Input() model: CheckboxPropertyDialogModel;

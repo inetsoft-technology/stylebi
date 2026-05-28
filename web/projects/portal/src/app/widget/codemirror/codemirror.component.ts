@@ -38,8 +38,9 @@ const URI_SCRIPT_SCRIPTDEFINITIPN = "../api/script/scriptDefinition";
 const URI_CHECK_SCRIPT = "../api/composer/check/script";
 
 @Component({
-   selector: "codemirror",
-   templateUrl: "codemirror.component.html",
+    selector: "codemirror",
+    templateUrl: "codemirror.component.html",
+    standalone: true,
 })
 export class CodemirrorComponent implements AfterViewInit, AfterViewChecked, OnDestroy, OnInit {
    @Input() text: string;

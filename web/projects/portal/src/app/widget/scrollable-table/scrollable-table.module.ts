@@ -21,18 +21,16 @@ import {ScrollableFlexTableDirective} from "./scrollable-flex-table.directive";
 import {ScrollableTableDirective} from "./scrollable-table.directive";
 
 @NgModule({
-   imports: [
-      CommonModule,
-   ],
-   declarations: [
-      ScrollableFlexTableDirective,
-      ScrollableTableDirective
-   ],
-   exports: [
-      ScrollableFlexTableDirective,
-      ScrollableTableDirective
-   ],
-   providers: [],
+    imports: [
+        CommonModule,
+        ScrollableFlexTableDirective,
+        ScrollableTableDirective,
+    ],
+    exports: [
+        ScrollableFlexTableDirective,
+        ScrollableTableDirective
+    ],
+    providers: [],
 })
 export class ScrollableTableModule {
 }

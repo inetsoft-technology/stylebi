@@ -25,11 +25,14 @@ import {
    ViewChild
 } from "@angular/core";
 import { convertRGBToHEX, convertRGBToHSV, getHSVLuminance, RGB } from "./color-utils";
+import { FormsModule } from "@angular/forms";
 
 @Component({
-   selector: "cp-color-component-editor",
-   templateUrl: "color-component-editor.component.html",
-   styleUrls: ["color-component-editor.component.scss"]
+    selector: "cp-color-component-editor",
+    templateUrl: "color-component-editor.component.html",
+    styleUrls: ["color-component-editor.component.scss"],
+    standalone: true,
+    imports: [FormsModule]
 })
 export class ColorComponentEditor implements OnInit {
    @ViewChild("colorEditor") colorEditor: ElementRef;

@@ -18,6 +18,9 @@
 import { Component, Input, Renderer2 } from "@angular/core";
 import { VSSortingPaneModel } from "../../data/vs/vs-sorting-pane-model";
 import { VSSortRefModel } from "../../data/vs/vs-sort-ref-model";
+import { OutOfZoneDirective } from "../../../widget/directive/out-of-zone.directive";
+import { NgFor, NgSwitch, NgSwitchCase } from "@angular/common";
+import { LargeFormFieldComponent } from "../../../widget/large-form-field/large-form-field.component";
 
 enum SortEnum {
    NONE,
@@ -26,9 +29,11 @@ enum SortEnum {
 }
 
 @Component({
-   selector: "vs-sorting-pane",
-   templateUrl: "vs-sorting-pane.component.html",
-   styleUrls: ["./vs-sorting-pane.component.scss"]
+    selector: "vs-sorting-pane",
+    templateUrl: "vs-sorting-pane.component.html",
+    styleUrls: ["./vs-sorting-pane.component.scss"],
+    standalone: true,
+    imports: [LargeFormFieldComponent, NgFor, OutOfZoneDirective, NgSwitch, NgSwitchCase]
 })
 export class VSSortingPane {
    @Input() model: VSSortingPaneModel;

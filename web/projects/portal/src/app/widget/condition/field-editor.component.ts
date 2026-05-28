@@ -19,10 +19,13 @@ import { Component, Input, Output, EventEmitter } from "@angular/core";
 
 import { DataRef } from "../../common/data/data-ref";
 import { ConditionFieldComboModel } from "./condition-field-combo-model";
+import { ConditionFieldComboComponent } from "./condition-field-combo.component";
 
 @Component({
-   selector: "field-editor",
-   templateUrl: "field-editor.component.html"
+    selector: "field-editor",
+    templateUrl: "field-editor.component.html",
+    standalone: true,
+    imports: [ConditionFieldComboComponent]
 })
 export class FieldEditor {
    @Input() fieldsModel: ConditionFieldComboModel;

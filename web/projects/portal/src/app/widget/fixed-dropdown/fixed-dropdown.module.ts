@@ -27,28 +27,26 @@ import { FixedDropdownService } from "./fixed-dropdown.service";
 import { DropdownStackService } from "./dropdown-stack.service";
 
 @NgModule({
-   imports: [
-      CommonModule,
-      WidgetDirectivesModule,
-   ],
-   declarations: [
-      ActionsContextmenuAnchorDirective,
-      ActionsContextmenuComponent,
-      FixedDropdownComponent,
-      FixedDropdownContextmenuComponent,
-      FixedDropdownDirective
-   ],
-   exports: [
-      ActionsContextmenuAnchorDirective,
-      ActionsContextmenuComponent,
-      FixedDropdownComponent,
-      FixedDropdownContextmenuComponent,
-      FixedDropdownDirective
-   ],
-   providers: [
-      FixedDropdownService,
-      DropdownStackService
-   ],
+    imports: [
+        CommonModule,
+        WidgetDirectivesModule,
+        ActionsContextmenuAnchorDirective,
+        ActionsContextmenuComponent,
+        FixedDropdownComponent,
+        FixedDropdownContextmenuComponent,
+        FixedDropdownDirective,
+    ],
+    exports: [
+        ActionsContextmenuAnchorDirective,
+        ActionsContextmenuComponent,
+        FixedDropdownComponent,
+        FixedDropdownContextmenuComponent,
+        FixedDropdownDirective
+    ],
+    providers: [
+        FixedDropdownService,
+        DropdownStackService
+    ],
 })
 export class FixedDropdownModule {
 }

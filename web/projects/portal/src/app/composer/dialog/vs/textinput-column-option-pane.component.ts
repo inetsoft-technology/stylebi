@@ -16,13 +16,29 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, Input, OnInit } from "@angular/core";
-import { UntypedFormGroup } from "@angular/forms";
+import { UntypedFormGroup, FormsModule } from "@angular/forms";
 import { ColumnOptionType } from "../../../vsobjects/model/column-option-type";
 import { TextInputColumnOptionPaneModel } from "../../data/vs/textinput-column-option-pane-model";
+import { FloatEditor } from "../../../vsobjects/dialog/float-editor.component";
+import { IntegerEditor } from "../../../vsobjects/dialog/integer-editor.component";
+import { DateEditor } from "../../../vsobjects/dialog/date-editor.component";
+import { TextEditor } from "../../../vsobjects/dialog/text-editor.component";
+import { NgFor, NgSwitch, NgSwitchCase } from "@angular/common";
 
 @Component({
-   selector: "textinput-column-option-pane",
-   templateUrl: "textinput-column-option-pane.component.html",
+    selector: "textinput-column-option-pane",
+    templateUrl: "textinput-column-option-pane.component.html",
+    standalone: true,
+    imports: [
+        FormsModule,
+        NgFor,
+        NgSwitch,
+        NgSwitchCase,
+        TextEditor,
+        DateEditor,
+        IntegerEditor,
+        FloatEditor,
+    ],
 })
 export class TextInputColumnOptionPane implements OnInit {
    @Input() model: TextInputColumnOptionPaneModel;

@@ -19,10 +19,15 @@
 import { Component, Input, Output, EventEmitter, OnInit, OnChanges, SimpleChanges,
          ViewChild } from "@angular/core";
 import { ComboMode, ValueMode } from "../dynamic-combo-box/dynamic-combo-box-model";
+import { DynamicComboBox } from "../dynamic-combo-box/dynamic-combo-box.component";
+import { TargetComboBox } from "./target-combo-box.component";
+import { NgIf } from "@angular/common";
 
 @Component({
-   selector: "value-input-field",
-   templateUrl: "value-input-field.component.html"
+    selector: "value-input-field",
+    templateUrl: "value-input-field.component.html",
+    standalone: true,
+    imports: [NgIf, TargetComboBox, DynamicComboBox]
 })
 export class ValueInputField implements OnInit, OnChanges {
    @Input() value: string = "";

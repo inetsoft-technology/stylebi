@@ -61,11 +61,11 @@ describe("VS Combo Box Test", () => {
 
       TestBed.configureTestingModule({
          imports: [
-            FormsModule
+            FormsModule,
+            VSComboBox,
+            VSPopComponentDirective,
          ],
-         declarations: [
-            VSComboBox, VSPopComponentDirective
-         ],
+         
          providers: [
             PopComponentService,
             FormInputService,

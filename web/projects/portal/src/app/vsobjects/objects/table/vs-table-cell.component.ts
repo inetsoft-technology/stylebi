@@ -53,6 +53,11 @@ import { PopComponentService } from "../data-tip/pop-component.service";
 import { VSTableCellCalendar } from "./vs-table-cell-calendar.component";
 import { CellBindingInfo } from "../../../binding/data/table/cell-binding-info";
 import { XSchema } from "../../../common/data/xschema";
+import { VSHiddenAnnotation } from "../annotation/vs-hidden-annotation.component";
+import { DefaultFocusDirective } from "../../../widget/directive/default-focus.directive";
+import { FormsModule } from "@angular/forms";
+import { OutOfZoneDirective } from "../../../widget/directive/out-of-zone.directive";
+import { NgIf, NgSwitch, NgSwitchCase, NgFor, NgClass } from "@angular/common";
 
 export enum CellType {
    TEXT,
@@ -70,11 +75,13 @@ export enum CellType {
  */
 /* eslint-disable */
 @Component({
-   selector: "vs-table-cell,[vs-table-cell]",
-   templateUrl: "vs-table-cell.component.html",
-   styleUrls: ["vs-table-cell.component.scss"],
-   changeDetection: ChangeDetectionStrategy.OnPush,
-   exportAs: "vsTableCell"
+    selector: "vs-table-cell,[vs-table-cell]",
+    templateUrl: "vs-table-cell.component.html",
+    styleUrls: ["vs-table-cell.component.scss"],
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    exportAs: "vsTableCell",
+    standalone: true,
+    imports: [NgIf, OutOfZoneDirective, NgSwitch, NgSwitchCase, FormsModule, DefaultFocusDirective, NgFor, VSHiddenAnnotation, NgClass]
 })
 /* eslint-enable */
 export class VSTableCell implements OnInit, OnChanges, OnDestroy {

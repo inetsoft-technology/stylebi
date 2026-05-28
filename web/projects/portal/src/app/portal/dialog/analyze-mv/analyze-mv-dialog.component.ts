@@ -55,11 +55,17 @@ import { MVTreeModel } from "../../data/model/mv-tree-model";
 import { AnalyzeMVPane } from "./analyze-mv-view/analyze-mv-pane.component";
 import { CreateMVPane } from "./create-mv-view/create-mv-pane.component";
 import { MVExceptionsPortalDialogComponent } from "./mv-exception-portal-dialog/mv-exceptions-portal-dialog.component";
+import { DialogButtonsDirective } from "../../../widget/standard-dialog/dialog-buttons.directive";
+import { NgIf } from "@angular/common";
+import { DialogContentDirective } from "../../../widget/standard-dialog/dialog-content.directive";
+import { StandardDialogComponent } from "../../../widget/standard-dialog/standard-dialog.component";
 
 @Component({
-   selector: "analyze-mv-dialog",
-   templateUrl: "./analyze-mv-dialog.component.html",
-   styleUrls: ["./analyze-mv-dialog.component.scss"]
+    selector: "analyze-mv-dialog",
+    templateUrl: "./analyze-mv-dialog.component.html",
+    styleUrls: ["./analyze-mv-dialog.component.scss"],
+    standalone: true,
+    imports: [StandardDialogComponent, DialogContentDirective, NgIf, AnalyzeMVPane, CreateMVPane, DialogButtonsDirective]
 })
 export class AnalyzeMVDialog implements OnInit, OnDestroy {
    @Input() selectedNodes: MVTreeModel[] = [];

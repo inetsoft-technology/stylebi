@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { DOCUMENT } from "@angular/common";
+import { DOCUMENT, NgIf, NgFor } from "@angular/common";
 import { HttpClient, HttpParams } from "@angular/common/http";
 import {
    Component,
@@ -25,7 +25,7 @@ import {
    TemplateRef,
    ViewChild, ViewEncapsulation
 } from "@angular/core";
-import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
+import { NgbModal, NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, NgbNavOutlet } from "@ng-bootstrap/ng-bootstrap";
 import { concat as observableConcat, Observable, of as observableOf } from "rxjs";
 import { map } from "rxjs/operators";
 import { AssetEntry } from "../../../../../../shared/data/asset-entry";
@@ -66,7 +66,7 @@ import { SQLQueryDialogColumn } from "../../../composer/data/ws/sql-dialog-colum
 import { BasicSqlQueryModel } from "../../../composer/data/ws/basic-sql-query-model";
 import { ComponentTool } from "../../../common/util/component-tool";
 import { SlideOutOptions } from "../../slide-out/slide-out-options";
-import { UntypedFormGroup } from "@angular/forms";
+import { UntypedFormGroup, FormsModule } from "@angular/forms";
 import { SqlQueryDialogController } from "./sql-query-dialog-controller";
 import { ConditionItemPaneProvider } from "../../../common/data/condition/condition-item-pane-provider";
 import { BaseTableCellModel } from "../../../vsobjects/model/base-table-cell-model";
@@ -77,6 +77,12 @@ import {
    SqlQueryPreviewPaneComponent
 } from "../../../portal/data/data-datasource-browser/datasources-database/database-query/query-preview/sql-query-preview-pane.component";
 import { NgbNavChangeEvent } from "@ng-bootstrap/ng-bootstrap/nav/nav";
+import { ConjunctionPipe } from "../../../portal/data/model/datasources/database/vpm/condition/conjunction/conjunction.pipe";
+import { ClausePipe } from "../../../portal/data/model/datasources/database/vpm/condition/clause/clause.pipe";
+import { VPMConditionDialog } from "../../../portal/dialog/vpm-condition-dialog/vpm-condition-dialog.component";
+import { SQLQueryJoinDialog } from "./sql-query-join-dialog.component";
+import { HelpLinkDirective } from "../../help-link/help-link.directive";
+import { SQLQueryDialogListComponent } from "./sql-query-dialog-list.component";
 
 interface ColumnTablePair {
    columns: AssetEntry[];
@@ -86,10 +92,12 @@ interface ColumnTablePair {
 const UPDATE_QUERY_URI: string = "../api/composer/ws/sql-query-dialog/query/update";
 
 @Component({
-   selector: "simple-query-pane",
-   templateUrl: "simple-query-pane.component.html",
-   styleUrls: ["simple-query-pane.component.scss"],
-   encapsulation: ViewEncapsulation.None
+    selector: "simple-query-pane",
+    templateUrl: "simple-query-pane.component.html",
+    styleUrls: ["simple-query-pane.component.scss"],
+    encapsulation: ViewEncapsulation.None,
+    standalone: true,
+    imports: [NgIf, NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, TreeComponent, SQLQueryDialogListComponent, NgFor, FormsModule, HelpLinkDirective, SqlQueryPreviewPaneComponent, NgbNavOutlet, SQLQueryJoinDialog, VPMConditionDialog, ClausePipe, ConjunctionPipe]
 })
 export class SimpleQueryPaneComponent {
    @Input() queryModel: SqlQueryDialogModel;

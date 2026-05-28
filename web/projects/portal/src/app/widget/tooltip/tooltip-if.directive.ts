@@ -19,7 +19,8 @@ import { Input, Directive, ElementRef, AfterViewChecked, NgZone, OnDestroy } fro
 import { DomService } from "../dom-service/dom.service";
 
 @Directive({
-   selector: "[tooltipIf]"
+    selector: "[tooltipIf]",
+    standalone: true
 })
 export class TooltipIfDirective implements AfterViewChecked, OnDestroy {
    @Input() disableTooltipIf: boolean;

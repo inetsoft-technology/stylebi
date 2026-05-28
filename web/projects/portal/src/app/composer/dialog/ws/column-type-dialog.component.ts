@@ -16,10 +16,14 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, EventEmitter, Input, OnInit, Output } from "@angular/core";
-import { UntypedFormControl, UntypedFormGroup, Validators } from "@angular/forms";
+import { UntypedFormControl, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { XSchema } from "../../../common/data/xschema";
 import { ColumnInfo } from "../../data/ws/column-info";
 import { ColumnTypeDialogModel } from "../../data/ws/column-type-dialog-model";
+import { ComboBox } from "../../../format/objects/combo-box.component";
+import { EnterSubmitDirective } from "../../../widget/directive/enter-submit.directive";
+import { NgIf, NgFor } from "@angular/common";
+import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
 
 interface FormatPair {
    format: string;
@@ -63,9 +67,11 @@ const numberFmts: FormatPair[] = [
 ];
 
 @Component({
-   selector: "column-type-dialog",
-   templateUrl: "column-type-dialog.component.html",
-   styleUrls: ["column-type-dialog.component.scss"]
+    selector: "column-type-dialog",
+    templateUrl: "column-type-dialog.component.html",
+    styleUrls: ["column-type-dialog.component.scss"],
+    standalone: true,
+    imports: [ModalHeaderComponent, NgIf, EnterSubmitDirective, FormsModule, ReactiveFormsModule, NgFor, ComboBox]
 })
 export class ColumnTypeDialog implements OnInit {
    @Input() colInfo: ColumnInfo;

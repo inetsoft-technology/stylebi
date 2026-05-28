@@ -24,7 +24,9 @@ import { ConditionValueType } from "../../common/data/condition/condition-value-
 import { ConditionPipe } from "./condition.pipe";
 
 @Component({
+   standalone: true,
    selector: "condition-pipe-test",
+   imports: [ConditionPipe],
    template: `<div>{{condition | conditionToString}}</div>`
 })
 class ConditionPipeTest {
@@ -34,7 +36,7 @@ class ConditionPipeTest {
 describe(("Condition Pipe Test"), () => {
    beforeEach(() => {
       TestBed.configureTestingModule({
-         declarations: [
+         imports: [
             ConditionPipeTest, ConditionPipe
          ]
       });

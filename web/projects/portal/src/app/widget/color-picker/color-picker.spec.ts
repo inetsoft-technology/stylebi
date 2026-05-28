@@ -32,11 +32,15 @@ describe("Color Picker Unit Test", () => {
    beforeEach(() => {
       TestBed.configureTestingModule({
          imports: [
-            ReactiveFormsModule, FormsModule, NgbModule, DropDownTestModule
+            ReactiveFormsModule,
+            FormsModule,
+            NgbModule,
+            DropDownTestModule,
+            ColorPicker,
+            ColorPane,
+            FixedDropdownDirective,
          ],
-         declarations: [
-            ColorPicker, ColorPane, FixedDropdownDirective
-         ],
+         
          providers: [ FixedDropdownService ],
          schemas: [NO_ERRORS_SCHEMA]
       }).compileComponents();

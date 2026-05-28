@@ -82,8 +82,8 @@ describe("VSRangeSlider Test", () => {
       };
 
       TestBed.configureTestingModule({
-         imports: [ NgbModule ],
-         declarations: [ VSRangeSlider, MiniToolbar, VSPopComponentDirective],
+         imports: [NgbModule, VSRangeSlider, MiniToolbar, VSPopComponentDirective],
+         
          providers: [
             { provide: ContextProvider, useValue: contextProvider },
             { provide: ViewsheetClientService, useValue: viewsheetClientService },

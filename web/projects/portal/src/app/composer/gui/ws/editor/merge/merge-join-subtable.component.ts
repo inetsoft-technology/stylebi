@@ -24,12 +24,15 @@ import {
 } from "@angular/core";
 
 import { AbstractTableAssembly } from "../../../../data/ws/abstract-table-assembly";
+import { WSAssemblyThumbnailTitleComponent } from "../ws-assembly-thumbnail-title.component";
 
 @Component({
-   selector: "merge-join-subtable",
-   templateUrl: "merge-join-subtable.component.html",
-   styleUrls: ["merge-join-subtable.component.scss"],
-   changeDetection: ChangeDetectionStrategy.OnPush
+    selector: "merge-join-subtable",
+    templateUrl: "merge-join-subtable.component.html",
+    styleUrls: ["merge-join-subtable.component.scss"],
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    standalone: true,
+    imports: [WSAssemblyThumbnailTitleComponent]
 })
 
 export class MergeJoinSubtableComponent {

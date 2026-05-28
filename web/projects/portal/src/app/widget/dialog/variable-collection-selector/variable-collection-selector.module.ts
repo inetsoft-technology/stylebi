@@ -23,17 +23,15 @@ import {
 import {FormsModule} from "@angular/forms";
 
 @NgModule({
-   imports: [
-      CommonModule,
-      FormsModule,
-   ],
-   declarations: [
-      VariableCollectionSelector
-   ],
-   exports: [
-      VariableCollectionSelector
-   ],
-   providers: [],
+    imports: [
+        CommonModule,
+        FormsModule,
+        VariableCollectionSelector,
+    ],
+    exports: [
+        VariableCollectionSelector
+    ],
+    providers: [],
 })
 export class VariableCollectionSelectorModule {
 }

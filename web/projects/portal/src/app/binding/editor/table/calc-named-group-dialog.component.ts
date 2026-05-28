@@ -20,11 +20,14 @@ import { Component, EventEmitter, Input, OnInit, Output } from "@angular/core";
 import { DataRef } from "../../../common/data/data-ref";
 import { OrderModel } from "../../data/table/order-model";
 import { CalcConditionItemPaneProvider } from "./calc-condition-item-pane-provider";
+import { ExpertNamedGroupDialog } from "./expert-named-group-dialog.component";
 
 @Component({
-   selector: "calc-named-group-dialog",
-   templateUrl: "calc-named-group-dialog.component.html",
-   styleUrls: ["calc-named-group-dialog.component.scss"]
+    selector: "calc-named-group-dialog",
+    templateUrl: "calc-named-group-dialog.component.html",
+    styleUrls: ["calc-named-group-dialog.component.scss"],
+    standalone: true,
+    imports: [ExpertNamedGroupDialog]
 })
 export class CalcNamedGroupDialog implements OnInit{
    @Input() order: OrderModel;

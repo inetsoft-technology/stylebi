@@ -16,12 +16,17 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, Input, Output, EventEmitter, ViewEncapsulation } from "@angular/core";
+import { DataModelScriptPane } from "../../database-physical-model/data-model-script-pane/data-model-script-pane.component";
+import { NgFor } from "@angular/common";
+import { NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, NgbNavOutlet } from "@ng-bootstrap/ng-bootstrap";
 
 @Component({
-   selector: "vpm-lookup",
-   templateUrl: "vpm-lookup.component.html",
-   styleUrls: ["vpm-lookup.component.scss"],
-   encapsulation: ViewEncapsulation.None
+    selector: "vpm-lookup",
+    templateUrl: "vpm-lookup.component.html",
+    styleUrls: ["vpm-lookup.component.scss"],
+    encapsulation: ViewEncapsulation.None,
+    standalone: true,
+    imports: [NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, NgFor, DataModelScriptPane, NgbNavOutlet]
 })
 export class VPMLookupComponent {
    @Input() expression: string = "";

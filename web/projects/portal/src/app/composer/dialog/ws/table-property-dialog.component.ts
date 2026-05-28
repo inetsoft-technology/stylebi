@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, EventEmitter, Input, OnInit, Output } from "@angular/core";
-import { UntypedFormControl, UntypedFormGroup, Validators } from "@angular/forms";
+import { UntypedFormControl, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { Tool } from "../../../../../../shared/util/tool";
 import { FormValidators } from "../../../../../../shared/util/form-validators";
 import { AbstractTableAssembly } from "../../data/ws/abstract-table-assembly";
@@ -25,10 +25,17 @@ import { SnapshotEmbeddedTableAssembly } from "../../data/ws/snapshot-embedded-t
 import { TablePropertyDialogModel } from "../../data/ws/table-property-dialog-model";
 import { TabularTableAssembly } from "../../data/ws/tabular-table-assembly";
 import { Worksheet } from "../../data/ws/worksheet";
+import { DefaultFocusDirective } from "../../../widget/directive/default-focus.directive";
+import { InputTrimDirective } from "../../../widget/directive/input-trim.directive";
+import { NgIf } from "@angular/common";
+import { EnterSubmitDirective } from "../../../widget/directive/enter-submit.directive";
+import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
 
 @Component({
-   selector: "table-property-dialog",
-   templateUrl: "table-property-dialog.component.html"
+    selector: "table-property-dialog",
+    templateUrl: "table-property-dialog.component.html",
+    standalone: true,
+    imports: [ModalHeaderComponent, EnterSubmitDirective, NgIf, FormsModule, ReactiveFormsModule, InputTrimDirective, DefaultFocusDirective]
 })
 export class TablePropertyDialog implements OnInit {
    @Input() worksheet: Worksheet;

@@ -18,7 +18,8 @@
 import { Directive, ElementRef, EventEmitter, OnInit, Output, Renderer2 } from "@angular/core";
 
 @Directive({
-   selector: "[vsToolbarButton]"
+    selector: "[vsToolbarButton]",
+    standalone: true
 })
 export class VsToolbarButtonDirective implements OnInit {
    @Output()

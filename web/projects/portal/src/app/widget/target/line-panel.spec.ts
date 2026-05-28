@@ -129,8 +129,6 @@ describe("LinePanel Unit Tests", () => {
             FormsModule,
             ReactiveFormsModule,
             DropDownTestModule,
-         ],
-         declarations: [
             LinePanel,
             ValueInputField,
             DateInputField,
@@ -154,8 +152,9 @@ describe("LinePanel Unit Tests", () => {
             ColorPane,
             ScriptPane,
             FixedDropdownDirective,
-            DynamicComboBox
+            DynamicComboBox,
          ],
+         
          providers: [
             NgbModal,
             FormulaEditorService,

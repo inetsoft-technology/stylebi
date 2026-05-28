@@ -21,18 +21,16 @@ import { VSDataTipDirective } from "./vs-data-tip.directive";
 import { VSPopComponentDirective } from "./vs-pop-component.directive";
 
 @NgModule({
-   imports: [
-      CommonModule,
-   ],
-   declarations: [
-      VSDataTipDirective,
-      VSPopComponentDirective
-   ],
-   exports: [
-      VSDataTipDirective,
-      VSPopComponentDirective
-   ],
-   providers: [],
+    imports: [
+        CommonModule,
+        VSDataTipDirective,
+        VSPopComponentDirective,
+    ],
+    exports: [
+        VSDataTipDirective,
+        VSPopComponentDirective
+    ],
+    providers: [],
 })
 export class DataTipDirectivesModule {
 }

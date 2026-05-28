@@ -36,11 +36,16 @@ import { Worksheet } from "../../../data/ws/worksheet";
 import { WSAssembly } from "../../../data/ws/ws-assembly";
 import { WSGroupingAssembly } from "../../../data/ws/ws-grouping-assembly";
 import { WSAssemblyThumbnail } from "./ws-assembly-thumbnail";
+import { NgIf, NgFor } from "@angular/common";
+import { WSAssemblyThumbnailTitleComponent } from "./ws-assembly-thumbnail-title.component";
+import { ActionsContextmenuAnchorDirective } from "../../../../widget/fixed-dropdown/actions-contextmenu-anchor.directive";
 
 @Component({
-   selector: "grouping-thumbnail",
-   templateUrl: "grouping-thumbnail.component.html",
-   styleUrls: ["thumbnail-base.scss", "../jsplumb/jsplumb-shared.scss"]
+    selector: "grouping-thumbnail",
+    templateUrl: "grouping-thumbnail.component.html",
+    styleUrls: ["thumbnail-base.scss", "../jsplumb/jsplumb-shared.scss"],
+    standalone: true,
+    imports: [ActionsContextmenuAnchorDirective, WSAssemblyThumbnailTitleComponent, NgIf, NgFor]
 })
 export class GroupingThumbnail extends WSAssemblyThumbnail
    implements OnChanges, AfterViewInit, OnDestroy

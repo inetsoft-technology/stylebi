@@ -18,11 +18,14 @@
 import { Component, EventEmitter, Input, Output } from "@angular/core";
 import { NgbTimeStruct } from "@ng-bootstrap/ng-bootstrap";
 import { DateTypeFormatter } from "../../../../../shared/util/date-type-formatter";
+import { TimepickerComponent } from "./timepicker.component";
 
 @Component({
-   selector: "time-value-editor",
-   templateUrl: "time-value-editor.component.html",
-   styleUrls: ["time-value-editor.component.scss"],
+    selector: "time-value-editor",
+    templateUrl: "time-value-editor.component.html",
+    styleUrls: ["time-value-editor.component.scss"],
+    standalone: true,
+    imports: [TimepickerComponent],
 })
 export class TimeValueEditorComponent {
    @Input() format: string = DateTypeFormatter.ISO_8601_TIME_FORMAT;

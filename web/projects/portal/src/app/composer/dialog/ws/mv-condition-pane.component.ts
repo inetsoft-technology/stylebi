@@ -22,10 +22,14 @@ import { DataRef } from "../../../common/data/data-ref";
 import { MVConditionPaneModel } from "../../data/ws/mv-condition-pane-model";
 import { AppendConditionItemPaneProvider } from "./append-condition-item-pane-provider";
 import { DeleteConditionItemPaneProvider } from "./delete-condition-item-pane-provider";
+import { ConditionList } from "../../../widget/condition/condition-list.component";
+import { FormsModule } from "@angular/forms";
 
 @Component({
-   selector: "mv-condition-pane",
-   templateUrl: "mv-condition-pane.component.html",
+    selector: "mv-condition-pane",
+    templateUrl: "mv-condition-pane.component.html",
+    standalone: true,
+    imports: [FormsModule, ConditionList],
 })
 export class MVConditionPane implements OnInit {
    @Input() subqueryTables: SubqueryTable[];

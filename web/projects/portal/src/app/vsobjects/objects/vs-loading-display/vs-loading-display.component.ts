@@ -25,11 +25,14 @@ import {
    NgZone,
    OnDestroy
 } from "@angular/core";
+import { NgIf } from "@angular/common";
 
 @Component({
-   selector: "vs-loading-display",
-   templateUrl: "vs-loading-display.component.html",
-   styleUrls: ["vs-loading-display.component.scss"]
+    selector: "vs-loading-display",
+    templateUrl: "vs-loading-display.component.html",
+    styleUrls: ["vs-loading-display.component.scss"],
+    standalone: true,
+    imports: [NgIf]
 })
 export class VSLoadingDisplay implements AfterViewInit, OnDestroy {
    @Input() message: string;

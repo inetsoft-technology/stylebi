@@ -30,14 +30,18 @@ import { CompositeTableAssembly } from "../../../../../data/ws/composite-table-a
 import { Worksheet } from "../../../../../data/ws/worksheet";
 import { ReorderSubtablesDialogComponent } from "../../../../../dialog/ws/reorder-subtables-dialog.component";
 import { ReorderSubtablesEvent } from "../../../socket/reorder-subtables-event";
+import { WSAssemblyThumbnailTitleComponent } from "../../ws-assembly-thumbnail-title.component";
+import { NgFor } from "@angular/common";
 
 const REORDER_SUBTABLES_URI = "/events/composer/worksheet/reorder-subtables";
 
 @Component({
-   selector: "subtable-list",
-   templateUrl: "subtable-list.component.html",
-   styleUrls: ["subtable-list.component.scss"],
-   changeDetection: ChangeDetectionStrategy.OnPush
+    selector: "subtable-list",
+    templateUrl: "subtable-list.component.html",
+    styleUrls: ["subtable-list.component.scss"],
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    standalone: true,
+    imports: [NgFor, WSAssemblyThumbnailTitleComponent, ReorderSubtablesDialogComponent]
 })
 export class SubtableListComponent implements OnChanges {
    @Input() compositeTable: CompositeTableAssembly;

@@ -22,16 +22,14 @@ import {
 } from "./additional-table-selection-pane.component";
 
 @NgModule({
-   imports: [
-      CommonModule,
-   ],
-   declarations: [
-      AdditionalTableSelectionPaneComponent
-   ],
-   exports: [
-      AdditionalTableSelectionPaneComponent
-   ],
-   providers: [],
+    imports: [
+        CommonModule,
+        AdditionalTableSelectionPaneComponent,
+    ],
+    exports: [
+        AdditionalTableSelectionPaneComponent
+    ],
+    providers: [],
 })
 export class AdditionalTableSelectionPaneModule {
 }

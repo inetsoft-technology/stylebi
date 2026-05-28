@@ -23,6 +23,11 @@ import { FixedDropdownDirective } from "../../widget/fixed-dropdown/fixed-dropdo
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { RemoveAnnotationsCondition } from "../model/remove-annotations-condition";
 import { NgbModalOptions } from "@ng-bootstrap/ng-bootstrap/modal/modal-config";
+import { FormsModule } from "@angular/forms";
+import { BlockMouseDirective } from "../../widget/mouse-event/block-mouse.directive";
+import { EnterClickDirective } from "../../widget/directive/enter-click.directive";
+import { DefaultFocusDirective } from "../../widget/directive/default-focus.directive";
+import { NgIf, NgClass, NgFor } from "@angular/common";
 
 enum BookmarkFilter {
    ALL,
@@ -31,9 +36,11 @@ enum BookmarkFilter {
 }
 
 @Component({
-   selector: "vs-bookmark-pane",
-   templateUrl: "./vs-bookmark-pane.component.html",
-   styleUrls: ["./vs-bookmark-pane.component.scss"]
+    selector: "vs-bookmark-pane",
+    templateUrl: "./vs-bookmark-pane.component.html",
+    styleUrls: ["./vs-bookmark-pane.component.scss"],
+    standalone: true,
+    imports: [NgIf, DefaultFocusDirective, EnterClickDirective, BlockMouseDirective, FormsModule, NgClass, FixedDropdownDirective, NgFor]
 })
 export class VsBookmarkPaneComponent implements OnInit {
    @Input() preview: boolean;

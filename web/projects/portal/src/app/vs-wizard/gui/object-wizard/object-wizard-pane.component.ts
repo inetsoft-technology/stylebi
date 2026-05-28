@@ -72,6 +72,12 @@ import { ModelService } from "../../../widget/services/model.service";
 import { UIContextService } from "../../../common/services/ui-context.service";
 import { VSWizardPreviewPane } from "./wizard-preview-pane.component";
 import { ConsoleMessage } from "../../../widget/console-dialog/console-message";
+import { VSLoadingDisplay } from "../../../vsobjects/objects/vs-loading-display/vs-loading-display.component";
+import { NgIf } from "@angular/common";
+import { WizardVisualizationPane } from "./wizard-visualization-pane.component";
+import { VSWizardAggregatePane } from "./wizard-aggregate-pane.component";
+import { WizardBindingTree } from "./wizard-binding-tree.component";
+import { ObjectWizardToolBarComponent } from "../object-wizard-tool-bar.component";
 
 const OBJECT_WIZARD_CLOSE_CANCEL_URI = "/events/vswizard/object/close/cancel";
 const OBJECT_WIZARD_CLOSE_SAVE_URI = "/events/vswizard/object/close/save";
@@ -80,17 +86,19 @@ const UPDATE_WIZARD_BINDING_FORMAT = "/events/vswizard/object/format";
 const SWITCH_TO_META = "/events/vs/wizard/use-meta";
 
 @Component({
-   selector: "object-wizard-pane",
-   templateUrl: "object-wizard-pane.component.html",
-   styleUrls: ["object-wizard-pane.component.scss"],
-   providers: [
-      AiAssistantService,
-      {
-         provide: ContextProvider,
-         useFactory: VSWizardPreviewContextProviderFactory,
-         deps: [[new Optional(), ComposerToken]]
-      }
-   ]
+    selector: "object-wizard-pane",
+    templateUrl: "object-wizard-pane.component.html",
+    styleUrls: ["object-wizard-pane.component.scss"],
+    providers: [
+        AiAssistantService,
+        {
+            provide: ContextProvider,
+            useFactory: VSWizardPreviewContextProviderFactory,
+            deps: [[new Optional(), ComposerToken]]
+        }
+    ],
+    standalone: true,
+    imports: [ObjectWizardToolBarComponent, SplitPane, WizardBindingTree, VSWizardAggregatePane, WizardVisualizationPane, VSWizardPreviewPane, NgIf, VSLoadingDisplay, NotificationsComponent]
 })
 export class ObjectWizardPane extends CommandProcessor implements OnInit, OnDestroy {
    @Input() runtimeId: string;

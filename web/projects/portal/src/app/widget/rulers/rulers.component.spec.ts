@@ -24,7 +24,7 @@ import { Rulers } from "./rulers.component";
 describe("Rulers", () => {
    beforeEach(() => {
       TestBed.configureTestingModule({
-         declarations: [ Rulers, Ruler ],
+         imports: [ Rulers, Ruler ],
          schemas: [ NO_ERRORS_SCHEMA ]
       });
       TestBed.compileComponents();

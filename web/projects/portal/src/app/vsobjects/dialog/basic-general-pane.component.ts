@@ -16,11 +16,15 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, Input, OnInit } from "@angular/core";
-import { UntypedFormControl, UntypedFormGroup, Validators } from "@angular/forms";
+import { UntypedFormControl, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { ValueMode } from "../../widget/dynamic-combo-box/dynamic-combo-box-model";
 import { FormValidators } from "../../../../../shared/util/form-validators";
 import { TreeNodeModel } from "../../widget/tree/tree-node-model";
 import { BasicGeneralPaneModel } from "../model/basic-general-pane-model";
+import { DynamicComboBox } from "../../widget/dynamic-combo-box/dynamic-combo-box.component";
+import { NgClass, NgIf } from "@angular/common";
+import { DefaultFocusDirective } from "../../widget/directive/default-focus.directive";
+import { InputTrimDirective } from "../../widget/directive/input-trim.directive";
 
 const SHOW_VALUE: string = "Show";
 const SHOW_LABEL: string = "_#(js:Show)";
@@ -30,8 +34,18 @@ const HIDE_ON_PRINT_VALUE: string = "Hide on Print and Export";
 const HIDE_ON_PRINT_LABEL: string = "_#(js:Hide on Print and Export)";
 
 @Component({
-   selector: "basic-general-pane",
-   templateUrl: "basic-general-pane.component.html",
+    selector: "basic-general-pane",
+    templateUrl: "basic-general-pane.component.html",
+    standalone: true,
+    imports: [
+        FormsModule,
+        ReactiveFormsModule,
+        InputTrimDirective,
+        DefaultFocusDirective,
+        NgClass,
+        NgIf,
+        DynamicComboBox,
+    ],
 })
 export class BasicGeneralPane implements OnInit {
    @Input() vsId: string;
@@ -64,7 +78,9 @@ export class BasicGeneralPane implements OnInit {
    }
 
    ngOnInit(): void {
-      this.initForm();
+      if(this.model) {
+         this.initForm();
+      }
    }
 
    get visibleValue(): string {

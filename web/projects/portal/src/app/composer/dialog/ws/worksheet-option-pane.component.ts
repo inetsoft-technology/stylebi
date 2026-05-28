@@ -16,14 +16,23 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, Input, OnInit } from "@angular/core";
-import { UntypedFormControl, UntypedFormGroup, Validators } from "@angular/forms";
+import { UntypedFormControl, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 
 import { FormValidators } from "../../../../../../shared/util/form-validators";
 import { WorksheetOptionPaneModel } from "../../data/ws/worksheet-option-pane-model";
+import { NgIf } from "@angular/common";
+import { InputTrimDirective } from "../../../widget/directive/input-trim.directive";
 
 @Component({
-   selector: "worksheet-option-pane",
-   templateUrl: "worksheet-option-pane.component.html",
+    selector: "worksheet-option-pane",
+    templateUrl: "worksheet-option-pane.component.html",
+    standalone: true,
+    imports: [
+        FormsModule,
+        ReactiveFormsModule,
+        InputTrimDirective,
+        NgIf,
+    ],
 })
 export class WorksheetOptionPane implements OnInit {
    @Input() model: WorksheetOptionPaneModel;

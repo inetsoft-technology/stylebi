@@ -17,11 +17,15 @@
  */
 import { Component, Input, Output, EventEmitter } from "@angular/core";
 import { StyleConstants } from "../../common/util/style-constants";
+import { NgFor } from "@angular/common";
+import { FormsModule } from "@angular/forms";
 
 
 @Component({
-   selector: "alignment-combo",
-   templateUrl: "alignment-combo.component.html"
+    selector: "alignment-combo",
+    templateUrl: "alignment-combo.component.html",
+    standalone: true,
+    imports: [FormsModule, NgFor]
 })
 export class AlignmentCombo {
    @Input() horizontal: boolean;

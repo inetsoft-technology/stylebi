@@ -20,8 +20,9 @@ import { NG_VALIDATORS, Validator, AbstractControl, ValidationErrors } from "@an
 import { FormValidators } from "../../../../../shared/util/form-validators";
 
 @Directive({
-   selector: "[nameExists]",
-   providers: [{provide: NG_VALIDATORS, useExisting: ExistsDirective, multi: true}]
+    selector: "[nameExists]",
+    providers: [{ provide: NG_VALIDATORS, useExisting: ExistsDirective, multi: true }],
+    standalone: true
 })
 export class ExistsDirective implements Validator {
    @Input() names: string[] = [];

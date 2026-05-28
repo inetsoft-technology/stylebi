@@ -18,10 +18,15 @@
 
 import { Component, Input, Output, EventEmitter, OnInit, ChangeDetectorRef } from "@angular/core";
 import { ComboMode } from "../dynamic-combo-box/dynamic-combo-box-model";
+import { DynamicComboBox } from "../dynamic-combo-box/dynamic-combo-box.component";
+import { TargetComboBox } from "./target-combo-box.component";
+import { NgIf } from "@angular/common";
 
 @Component({
-   selector: "date-input-field",
-   templateUrl: "date-input-field.component.html"
+    selector: "date-input-field",
+    templateUrl: "date-input-field.component.html",
+    standalone: true,
+    imports: [NgIf, TargetComboBox, DynamicComboBox]
 })
 export class DateInputField implements OnInit {
    @Input() value: string = "";

@@ -82,11 +82,8 @@ describe("VS Text Input Component Unit Test", () => {
       };
 
       TestBed.configureTestingModule({
-         imports: [ ReactiveFormsModule, FormsModule, NgbModule, DropDownTestModule ],
-         declarations: [
-            VSTextInput, AppErrorMessage, VSPopComponentDirective,
-            FixedDropdownDirective, SafeFontDirective, DefaultFocusDirective
-         ],
+         imports: [ReactiveFormsModule, FormsModule, NgbModule, DropDownTestModule, VSTextInput, AppErrorMessage, VSPopComponentDirective, FixedDropdownDirective, SafeFontDirective, DefaultFocusDirective],
+         
          schemas: [NO_ERRORS_SCHEMA],
          providers: [
             PopComponentService,

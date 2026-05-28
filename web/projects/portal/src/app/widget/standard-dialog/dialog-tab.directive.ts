@@ -18,7 +18,8 @@
 import { Directive, Input, TemplateRef } from "@angular/core";
 
 @Directive({
-   selector: "ng-template[wDialogTab]"
+    selector: "ng-template[wDialogTab]",
+    standalone: true
 })
 export class DialogTabDirective {
    @Input() title: string;

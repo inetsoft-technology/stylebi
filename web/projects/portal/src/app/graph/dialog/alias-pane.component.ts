@@ -17,11 +17,15 @@
  */
 import { Component, Input } from "@angular/core";
 import { AliasPaneModel } from "../model/dialog/alias-pane-model";
+import { FormsModule } from "@angular/forms";
+import { NgFor } from "@angular/common";
 
 @Component({
-   selector: "alias-pane",
-   templateUrl: "alias-pane.component.html",
-   styleUrls: ["./alias-pane.component.scss"]
+    selector: "alias-pane",
+    templateUrl: "alias-pane.component.html",
+    styleUrls: ["./alias-pane.component.scss"],
+    standalone: true,
+    imports: [NgFor, FormsModule]
 })
 
 export class AliasPane {

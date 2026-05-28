@@ -22,12 +22,17 @@ import { VSWizardConstants } from "../../vs-wizard/model/vs-wizard-constants";
 import { VSWizardUtil } from "../../vs-wizard/util/vs-wizard-util";
 import { ToolbarActionGroup } from "../../widget/toolbar/toolbar-action-group";
 import { ToolbarAction } from "../../widget/toolbar/toolbar-action";
+import { HelpLinkDirective } from "../../widget/help-link/help-link.directive";
+import { ToolbarGroup } from "../../widget/toolbar/toolbar-group/toolbar-group.component";
+import { NgIf } from "@angular/common";
 
 @Component({
-   selector: "editor-title-bar",
-   templateUrl: "editor-title-bar.component.html",
-   styleUrls: ["editor-title-bar.component.scss",
-      "../../composer/gui/toolbar/composer-toolbar.component.scss"]
+    selector: "editor-title-bar",
+    templateUrl: "editor-title-bar.component.html",
+    styleUrls: ["editor-title-bar.component.scss",
+        "../../composer/gui/toolbar/composer-toolbar.component.scss"],
+    standalone: true,
+    imports: [NgIf, ToolbarGroup, HelpLinkDirective]
 })
 export class EditorTitleBar {
    private _elementName: string;

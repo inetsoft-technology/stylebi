@@ -21,12 +21,12 @@ import { InteractContainerDirective } from "./interact-container.directive";
 import { InteractableDirective } from "./interactable.directive";
 
 @NgModule({
-   imports: [
-      CommonModule,
-   ],
-   declarations: [InteractableDirective, InteractContainerDirective],
-   exports: [InteractableDirective, InteractContainerDirective],
-   providers: [],
+    imports: [
+        CommonModule,
+        InteractableDirective, InteractContainerDirective,
+    ],
+    exports: [InteractableDirective, InteractContainerDirective],
+    providers: [],
 })
 export class InteractModule {
 }

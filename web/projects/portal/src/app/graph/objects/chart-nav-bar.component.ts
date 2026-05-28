@@ -18,9 +18,10 @@
 import { Component, EventEmitter, Output, Input } from "@angular/core";
 
 @Component({
-   selector: "chart-nav-bar",
-   templateUrl: "chart-nav-bar.component.html",
-   styleUrls: ["chart-nav-bar.component.scss"],
+    selector: "chart-nav-bar",
+    templateUrl: "chart-nav-bar.component.html",
+    styleUrls: ["chart-nav-bar.component.scss"],
+    standalone: true,
 })
 export class ChartNavBar {
    @Output() zoomIn = new EventEmitter<number>();

@@ -28,11 +28,15 @@ import { BaseTableCellModel } from "../../vsobjects/model/base-table-cell-model"
 import { ModelService } from "../services/model.service";
 import { NgbTooltip } from "@ng-bootstrap/ng-bootstrap";
 import { XConstants } from "../../common/util/xconstants";
+import { TouchScrollDirective } from "../scroll/touch-scroll.directive";
+import { NgIf, NgFor } from "@angular/common";
 
 @Component({
-   selector: "simple-table",
-   templateUrl: "simple-table.component.html",
-   styleUrls: ["simple-table.component.scss"]
+    selector: "simple-table",
+    templateUrl: "simple-table.component.html",
+    styleUrls: ["simple-table.component.scss"],
+    standalone: true,
+    imports: [NgIf, NgFor, TouchScrollDirective, NgbTooltip]
 })
 export class SimpleTableComponent {
    @Input() sortEnabled: boolean = true;

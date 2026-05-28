@@ -97,12 +97,11 @@ describe("VSImage", () => {
 
       TestBed.configureTestingModule({
          imports: [
-            HttpClientTestingModule
-         ],
-         declarations: [
+            HttpClientTestingModule,
             VSImage,
-            VSAnnotation
+            VSAnnotation,
          ],
+         
          schemas: [NO_ERRORS_SCHEMA],
          providers: [
             { provide: ViewsheetClientService, useValue: viewsheetClient },

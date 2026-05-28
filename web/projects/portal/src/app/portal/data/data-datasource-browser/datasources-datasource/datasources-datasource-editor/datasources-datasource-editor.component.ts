@@ -17,7 +17,7 @@
  */
 import { HttpClient, HttpParams } from "@angular/common/http";
 import { Component, EventEmitter, Input, NgZone, OnDestroy, OnInit, Output } from "@angular/core";
-import { FormBuilder, FormGroup, Validators } from "@angular/forms";
+import { FormBuilder, FormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { BehaviorSubject, combineLatest, Observable, Subject } from "rxjs";
 import { flatMap, map, takeUntil, tap } from "rxjs/operators";
@@ -32,14 +32,18 @@ import {
 } from "../../../../../common/services/oauth-authorization.service";
 import { DebounceService } from "../../../../../widget/services/debounce.service";
 import { TreeNodeModel } from "../../../../../widget/tree/tree-node-model";
+import { TabularViewComponent } from "../../../../../widget/tabular/tabular-view.component";
+import { NgIf } from "@angular/common";
 
 const DATASOURCES_URI: string = "../api/portal/data/datasources";
 const PORTAL_DATABASE_REFRESH: string = "../api/portal/data/datasource/refresh-metadata";
 
 @Component({
-   selector: "datasources-datasource-editor",
-   templateUrl: "./datasources-datasource-editor.component.html",
-   styleUrls: ["./datasources-datasource-editor.component.scss"]
+    selector: "datasources-datasource-editor",
+    templateUrl: "./datasources-datasource-editor.component.html",
+    styleUrls: ["./datasources-datasource-editor.component.scss"],
+    standalone: true,
+    imports: [FormsModule, ReactiveFormsModule, NgIf, TabularViewComponent]
 })
 export class DatasourcesDatasourceEditorComponent implements OnInit, OnDestroy {
    @Input()

@@ -32,36 +32,34 @@ import {FixedDropdownModule} from "../fixed-dropdown/fixed-dropdown.module";
 import { MouseEventModule } from "../mouse-event/mouse-event.module";
 
 @NgModule({
-   imports: [
-      CommonModule,
-      WidgetDirectivesModule,
-      ReactiveFormsModule,
-      FormsModule,
-      NgbDropdownModule,
-      FixedDropdownModule,
-      MouseEventModule,
-   ],
-   declarations: [
-      AlphaDropdown,
-      FormatCSSPane,
-      FormatPane,
-      GridLineDropdown,
-      LineArrowTypeDropdown,
-      RadiusDropdown,
-      RotationRadioGroup,
-      StyleDropdown
-   ],
-   exports: [
-      AlphaDropdown,
-      FormatCSSPane,
-      FormatPane,
-      GridLineDropdown,
-      LineArrowTypeDropdown,
-      RadiusDropdown,
-      RotationRadioGroup,
-      StyleDropdown
-   ],
-   providers: [],
+    imports: [
+        CommonModule,
+        WidgetDirectivesModule,
+        ReactiveFormsModule,
+        FormsModule,
+        NgbDropdownModule,
+        FixedDropdownModule,
+        MouseEventModule,
+        AlphaDropdown,
+        FormatCSSPane,
+        FormatPane,
+        GridLineDropdown,
+        LineArrowTypeDropdown,
+        RadiusDropdown,
+        RotationRadioGroup,
+        StyleDropdown,
+    ],
+    exports: [
+        AlphaDropdown,
+        FormatCSSPane,
+        FormatPane,
+        GridLineDropdown,
+        LineArrowTypeDropdown,
+        RadiusDropdown,
+        RotationRadioGroup,
+        StyleDropdown
+    ],
+    providers: [],
 })
 export class WidgetFormatModule {
 }

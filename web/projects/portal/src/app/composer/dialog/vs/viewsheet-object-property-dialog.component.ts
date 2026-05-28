@@ -22,10 +22,34 @@ import { UntypedFormGroup } from "@angular/forms";
 import { UIContextService } from "../../../common/services/ui-context.service";
 import { PropertyDialogService } from "../../../vsobjects/util/property-dialog.service";
 import { PropertyDialog } from "./property-dialog.component";
+import { ApplyButtonComponent } from "../../../widget/slide-out/apply-button.component";
+import { VSAssemblyScriptPane } from "../../../widget/dialog/vsassembly-script-pane/vsassembly-script-pane.component";
+import { SizePositionPane } from "../../../vsobjects/dialog/size-position-pane.component";
+import { GeneralPropPane } from "../../../vsobjects/dialog/general-prop-pane.component";
+import { NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, NgbNavOutlet } from "@ng-bootstrap/ng-bootstrap";
+import { EnterSubmitDirective } from "../../../widget/directive/enter-submit.directive";
+import { NgIf } from "@angular/common";
+import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
 
 @Component({
-   selector: "viewsheet-object-property-dialog",
-   templateUrl: "viewsheet-object-property-dialog.component.html",
+    selector: "viewsheet-object-property-dialog",
+    templateUrl: "viewsheet-object-property-dialog.component.html",
+    standalone: true,
+    imports: [
+        ModalHeaderComponent,
+        NgIf,
+        EnterSubmitDirective,
+        NgbNav,
+        NgbNavItem,
+        NgbNavLink,
+        NgbNavLinkBase,
+        NgbNavContent,
+        GeneralPropPane,
+        SizePositionPane,
+        VSAssemblyScriptPane,
+        NgbNavOutlet,
+        ApplyButtonComponent,
+    ],
 })
 export class ViewsheetObjectPropertyDialog extends PropertyDialog implements OnInit {
    @Input() model: ViewsheetObjectPropertyDialogModel;

@@ -22,18 +22,16 @@ import {FixedDropdownModule} from "../fixed-dropdown/fixed-dropdown.module";
 import {MouseEventModule} from "../mouse-event/mouse-event.module";
 
 @NgModule({
-   imports: [
-      CommonModule,
-      FixedDropdownModule,
-      MouseEventModule,
-   ],
-   declarations: [
-      DropdownView
-   ],
-   exports: [
-      DropdownView
-   ],
-   providers: [],
+    imports: [
+        CommonModule,
+        FixedDropdownModule,
+        MouseEventModule,
+        DropdownView,
+    ],
+    exports: [
+        DropdownView
+    ],
+    providers: [],
 })
 export class DropdownViewModule {
 }

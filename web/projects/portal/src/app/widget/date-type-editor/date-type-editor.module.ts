@@ -35,34 +35,32 @@ import {
 import {FixedDropdownModule} from "../fixed-dropdown/fixed-dropdown.module";
 
 @NgModule({
-   imports: [
-      CommonModule,
-      FormsModule,
-      MouseEventModule,
-      NgbDatepickerModule,
-      DynamicComboBoxModule,
-      FixedDropdownModule,
-      ReactiveFormsModule,
-   ],
-   declarations: [
-      DatePickerComponent,
-      DateTimePickerComponent,
-      DateValueEditorComponent,
-      DynamicValueEditorComponent,
-      TimeInstantValueEditorComponent,
-      TimeValueEditorComponent,
-      TimepickerComponent
-   ],
-   exports: [
-      DatePickerComponent,
-      DateTimePickerComponent,
-      DateValueEditorComponent,
-      DynamicValueEditorComponent,
-      TimeInstantValueEditorComponent,
-      TimeValueEditorComponent,
-      TimepickerComponent
-   ],
-   providers: [],
+    imports: [
+        CommonModule,
+        FormsModule,
+        MouseEventModule,
+        NgbDatepickerModule,
+        DynamicComboBoxModule,
+        FixedDropdownModule,
+        ReactiveFormsModule,
+        DatePickerComponent,
+        DateTimePickerComponent,
+        DateValueEditorComponent,
+        DynamicValueEditorComponent,
+        TimeInstantValueEditorComponent,
+        TimeValueEditorComponent,
+        TimepickerComponent,
+    ],
+    exports: [
+        DatePickerComponent,
+        DateTimePickerComponent,
+        DateValueEditorComponent,
+        DynamicValueEditorComponent,
+        TimeInstantValueEditorComponent,
+        TimeValueEditorComponent,
+        TimepickerComponent
+    ],
+    providers: [],
 })
 export class DateTypeEditorModule {
 }

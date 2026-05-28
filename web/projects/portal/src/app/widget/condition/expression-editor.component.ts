@@ -32,10 +32,15 @@ import { ExpressionType } from "../../common/data/condition/expression-type";
 import { ExpressionValue } from "../../common/data/condition/expression-value";
 import { TreeNodeModel } from "../tree/tree-node-model";
 import { DataRef } from "../../common/data/data-ref";
+import { FormulaEditorDialog } from "../formula-editor/formula-editor-dialog.component";
+import { FormsModule } from "@angular/forms";
+import { NgIf, NgSwitch, NgSwitchCase } from "@angular/common";
 
 @Component({
-   selector: "expression-editor",
-   templateUrl: "expression-editor.component.html"
+    selector: "expression-editor",
+    templateUrl: "expression-editor.component.html",
+    standalone: true,
+    imports: [NgIf, NgSwitch, NgSwitchCase, FormsModule, FormulaEditorDialog]
 })
 export class ExpressionEditor implements OnChanges, OnDestroy {
    public ExpressionType = ExpressionType;

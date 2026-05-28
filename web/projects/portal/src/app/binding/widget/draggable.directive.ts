@@ -18,7 +18,8 @@
 import { ElementRef, Directive, HostBinding } from "@angular/core";
 
 @Directive({
-   selector: "[bindingDraggable]"
+    selector: "[bindingDraggable]",
+    standalone: true
 })
 export class DraggableDirective {
    selector: HTMLElement;

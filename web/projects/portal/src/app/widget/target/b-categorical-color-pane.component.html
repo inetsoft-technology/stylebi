@@ -15,7 +15,7 @@
   ~ You should have received a copy of the GNU Affero General Public License
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
-<div class="color-picker input-group">
+<div class="color-picker input-group" *ngIf="colorModel">
   <span class="input-group-text">_#(Fill Band)</span>
   <span class="input-group-btn" ngbDropdown #fillBandDropdown="ngbDropdown" autoClose="outside">
     <button type="button" class="btn form-control input-group-addon-action bd-gray fill-band-btn"

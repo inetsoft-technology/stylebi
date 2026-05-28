@@ -45,11 +45,16 @@ describe("Aggregate Option Unit Test", () => {
       bindingService = { assemblyName: null };
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule, DropDownTestModule
+            FormsModule,
+            ReactiveFormsModule,
+            NgbModule,
+            DropDownTestModule,
+            AggregateOption,
+            FormulaOption,
+            DynamicComboBox,
+            FixedDropdownDirective,
          ],
-         declarations: [
-            AggregateOption, FormulaOption, DynamicComboBox, FixedDropdownDirective
-         ],
+         
          providers: [
             { provide: UIContextService, useValue: uiContextService },
             { provide: BindingService, useValue: bindingService }

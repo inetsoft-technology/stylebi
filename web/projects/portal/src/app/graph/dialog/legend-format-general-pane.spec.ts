@@ -77,8 +77,6 @@ describe("LegendFormatGeneralPane Unit Tests", () => {
             FormsModule,
             ReactiveFormsModule,
             DropDownTestModule,
-         ],
-         declarations: [
             LegendFormatGeneralPane,
             ColorEditor,
             AlphaDropdown,
@@ -96,8 +94,9 @@ describe("LegendFormatGeneralPane Unit Tests", () => {
             NewAggrDialog,
             MessageDialog,
             ScriptPane,
-            FixedDropdownDirective
+            FixedDropdownDirective,
          ],
+         
          providers: [
             NgbModal,
             RecentColorService,

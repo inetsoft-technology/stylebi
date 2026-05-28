@@ -21,17 +21,15 @@ import {ResponsiveTabsComponent} from "./responsive-tabs.component";
 import {FixedDropdownModule} from "../fixed-dropdown/fixed-dropdown.module";
 
 @NgModule({
-   imports: [
-      CommonModule,
-      FixedDropdownModule,
-   ],
-   declarations: [
-      ResponsiveTabsComponent
-   ],
-   exports: [
-      ResponsiveTabsComponent
-   ],
-   providers: [],
+    imports: [
+        CommonModule,
+        FixedDropdownModule,
+        ResponsiveTabsComponent,
+    ],
+    exports: [
+        ResponsiveTabsComponent
+    ],
+    providers: [],
 })
 export class ResponsiveTabsModule {
 }

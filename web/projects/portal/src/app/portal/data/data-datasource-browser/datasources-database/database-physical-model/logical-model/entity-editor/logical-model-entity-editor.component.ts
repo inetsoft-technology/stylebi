@@ -19,11 +19,14 @@ import { Component, Input, EventEmitter, Output } from "@angular/core";
 import { UntypedFormGroup } from "@angular/forms";
 import { EntityModel } from "../../../../../model/datasources/database/physical-model/logical-model/entity-model";
 import { Tool } from "../../../../../../../../../../shared/util/tool";
+import { LogicalModelEntityPane } from "../entity-pane/logical-model-entity-pane.component";
 
 @Component({
-   selector: "logical-model-entity-editor",
-   templateUrl: "logical-model-entity-editor.component.html",
-   styleUrls: ["../../database-model-pane.scss", "logical-model-entity-editor.component.scss"]
+    selector: "logical-model-entity-editor",
+    templateUrl: "logical-model-entity-editor.component.html",
+    styleUrls: ["../../database-model-pane.scss", "logical-model-entity-editor.component.scss"],
+    standalone: true,
+    imports: [LogicalModelEntityPane]
 })
 export class LogicalModelEntityEditor {
    @Input() set entity(value: EntityModel) {

@@ -31,11 +31,23 @@ import { ConditionOperation } from "../../common/data/condition/condition-operat
 import { DataRef } from "../../common/data/data-ref";
 import { XSchema } from "../../common/data/xschema";
 import { FixedDropdownDirective } from "../fixed-dropdown/fixed-dropdown.directive";
+import { DateInValueEditor } from "./date-in-value-editor.component";
+import { TimeInstantValueEditorComponent } from "../date-type-editor/time-instant-value-editor.component";
+import { TimeValueEditorComponent } from "../date-type-editor/time-value-editor.component";
+import { FormsModule } from "@angular/forms";
+import { DateValueEditorComponent } from "../date-type-editor/date-value-editor.component";
+import { NumberValueEditor } from "./number-value-editor.component";
+import { BooleanValueEditor } from "./boolean-value-editor.component";
+import { CharValueEditor } from "./char-value-editor.component";
+import { StringValueEditor } from "./string-value-editor.component";
+import { NgIf, NgFor } from "@angular/common";
 
 @Component({
-   selector: "value-editor",
-   templateUrl: "value-editor.component.html",
-   styleUrls: ["value-editor.component.scss"]
+    selector: "value-editor",
+    templateUrl: "value-editor.component.html",
+    styleUrls: ["value-editor.component.scss"],
+    standalone: true,
+    imports: [NgIf, StringValueEditor, CharValueEditor, BooleanValueEditor, NumberValueEditor, DateValueEditorComponent, FormsModule, TimeValueEditorComponent, TimeInstantValueEditorComponent, DateInValueEditor, FixedDropdownDirective, NgFor]
 })
 export class ValueEditor implements OnChanges {
    @Input() field: DataRef;

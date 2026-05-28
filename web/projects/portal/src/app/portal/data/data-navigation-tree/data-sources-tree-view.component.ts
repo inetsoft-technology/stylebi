@@ -75,6 +75,7 @@ import { DomService } from "../../../widget/dom-service/dom.service";
 import { DataSourcesTreeActionsService } from "./data-sources-tree-actions.service";
 import { GettingStartedService } from "../../../widget/dialog/getting-started-dialog/service/getting-started.service";
 import { AppInfoService } from "../../../../../../shared/util/app-info.service";
+import { NgIf } from "@angular/common";
 
 const DATA_FOLDERS_URI: string = "../api/data/folders/children/";
 const DATA_DATASOURCES_URI: string = "../api/data/datasources/nodes";
@@ -88,10 +89,12 @@ const DATA_URI: string = "../api/data/datasets";
 const CREATE_QUERY_URI = "/events/composer/ws/query/create";
 
 @Component({
-   selector: "p-data-sources-tree-view",
-   templateUrl: "data-sources-tree-view.component.html",
-   styleUrls: ["data-sources-tree-view.component.scss"],
-   providers: [ViewsheetClientService, AssetClientService]
+    selector: "p-data-sources-tree-view",
+    templateUrl: "data-sources-tree-view.component.html",
+    styleUrls: ["data-sources-tree-view.component.scss"],
+    providers: [ViewsheetClientService, AssetClientService],
+    standalone: true,
+    imports: [NgIf, TreeComponent, DataNotificationsComponent]
 })
 export class DataSourcesTreeViewComponent extends CommandProcessor implements OnInit, OnDestroy {
    @ViewChild(TreeComponent) tree: TreeComponent;

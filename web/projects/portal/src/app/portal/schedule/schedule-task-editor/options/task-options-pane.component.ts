@@ -17,8 +17,8 @@
  */
 import { HttpClient } from "@angular/common/http";
 import { Component, EventEmitter, Input, OnInit, Output } from "@angular/core";
-import { UntypedFormControl, UntypedFormGroup } from "@angular/forms";
-import { NgbDateStruct, NgbModal } from "@ng-bootstrap/ng-bootstrap";
+import { UntypedFormControl, UntypedFormGroup, FormsModule, ReactiveFormsModule } from "@angular/forms";
+import { NgbDateStruct, NgbModal, NgbInputDatepicker } from "@ng-bootstrap/ng-bootstrap";
 import { IdentityIdWithLabel } from "../../../../../../../em/src/app/settings/security/users/idenity-id-with-label";
 import { IdentityId } from "../../../../../../../em/src/app/settings/security/users/identity-id";
 import { IdentityType } from "../../../../../../../shared/data/identity-type";
@@ -30,11 +30,14 @@ import { ComponentTool } from "../../../../common/util/component-tool";
 import { ExecuteAsDialog } from "../execute-as-dialog/execute-as-dialog.component";
 import { Observable } from "rxjs";
 import { ScheduleTaskDialogModel } from "../../../../../../../shared/schedule/model/schedule-task-dialog-model";
+import { NgIf, NgFor } from "@angular/common";
 
 @Component({
-   selector: "task-options-pane",
-   templateUrl: "./task-options-pane.component.html",
-   styleUrls: ["./task-options-pane.component.scss"]
+    selector: "task-options-pane",
+    templateUrl: "./task-options-pane.component.html",
+    styleUrls: ["./task-options-pane.component.scss"],
+    standalone: true,
+    imports: [FormsModule, ReactiveFormsModule, NgbInputDatepicker, NgIf, NgFor]
 })
 export class TaskOptionsPane implements OnInit {
    @Input() set model(value: TaskOptionsPaneModel) {

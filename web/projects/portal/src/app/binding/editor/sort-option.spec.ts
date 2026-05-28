@@ -57,11 +57,15 @@ describe("Sort Option Unit Test", () => {
    beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule, DropDownTestModule
+            FormsModule,
+            ReactiveFormsModule,
+            NgbModule,
+            DropDownTestModule,
+            SortOption,
+            DynamicComboBox,
+            FixedDropdownDirective,
          ],
-         declarations: [
-            SortOption, DynamicComboBox, FixedDropdownDirective
-         ],
+         
          providers: [{
                provide: BindingService, useValue: bindingService
             },

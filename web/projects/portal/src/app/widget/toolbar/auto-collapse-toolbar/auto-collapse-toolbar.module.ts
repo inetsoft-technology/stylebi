@@ -22,18 +22,16 @@ import {AutoCollapseToolbarComponent} from "./auto-collapse-toolbar.component";
 import {FixedDropdownModule} from "../../fixed-dropdown/fixed-dropdown.module";
 
 @NgModule({
-   imports: [
-    CommonModule,
-    FixedDropdownModule,
-    ResizedDirective,
-],
-   declarations: [
-      AutoCollapseToolbarComponent
-   ],
-   exports: [
-      AutoCollapseToolbarComponent
-   ],
-   providers: [],
+    imports: [
+        CommonModule,
+        FixedDropdownModule,
+        ResizedDirective,
+        AutoCollapseToolbarComponent,
+    ],
+    exports: [
+        AutoCollapseToolbarComponent
+    ],
+    providers: [],
 })
 export class AutoCollapseToolbarModule {
 }

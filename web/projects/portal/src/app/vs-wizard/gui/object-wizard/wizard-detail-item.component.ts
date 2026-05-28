@@ -16,17 +16,22 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component } from "@angular/core";
-import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
+import { NgbModal, NgbTooltip } from "@ng-bootstrap/ng-bootstrap";
 import { ViewsheetClientService } from "../../../common/viewsheet-client";
 import { DataRef } from "../../../common/data/data-ref";
 import { ModelService } from "../../../widget/services/model.service";
 import { VSWizardBindingTreeService } from "../../services/vs-wizard-binding-tree.service";
 import { VSWizardItem } from "./wizard-item.component";
+import { FormattingPane } from "../../../format/objects/formatting-pane.component";
+import { FixedDropdownDirective } from "../../../widget/fixed-dropdown/fixed-dropdown.directive";
+import { NgIf } from "@angular/common";
 
 @Component({
-   selector: "wizard-detail-item",
-   templateUrl: "./wizard-detail-item.component.html",
-   styleUrls: ["./wizard-detail-item.component.scss", "./wizard-group-item.component.scss"]
+    selector: "wizard-detail-item",
+    templateUrl: "./wizard-detail-item.component.html",
+    styleUrls: ["./wizard-detail-item.component.scss", "./wizard-group-item.component.scss"],
+    standalone: true,
+    imports: [NgIf, NgbTooltip, FixedDropdownDirective, FormattingPane]
 })
 export class VSWizardDetailItem extends VSWizardItem<DataRef> {
 

@@ -24,6 +24,7 @@ import { SubqueryValue } from "../../common/data/condition/subquery-value";
 import { SubqueryDialog } from "./subquery-dialog.component";
 
 @Component({
+   standalone: true,
    selector: "test-app",
    template: `
      <ng-template #subqueryDialog let-close="close" let-dismiss="dismiss">
@@ -52,15 +53,14 @@ describe("Subquery Dialog Tests", () => {
       TestBed.configureTestingModule({
          imports: [
             NgbModule,
-            FormsModule
+            FormsModule,
+            TestApp,
+            SubqueryDialog,
          ],
          providers: [
             NgbModal
          ],
-         declarations: [
-            TestApp,
-            SubqueryDialog
-         ],
+         
          schemas: [
             NO_ERRORS_SCHEMA
          ]

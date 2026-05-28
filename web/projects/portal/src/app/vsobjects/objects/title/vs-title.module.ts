@@ -27,19 +27,19 @@ import {
 import {TooltipModule} from "../../../widget/tooltip/tooltip.module";
 
 @NgModule({
-   imports: [
-      CommonModule,
-      VSObjectDirectivesModule,
-      FormsModule,
-      InteractModule,
-      TooltipModule,
-      WidgetDirectivesModule
-   ],
-   declarations: [VSTitle],
-   exports: [
-      VSTitle
-   ],
-   providers: [],
+    imports: [
+        CommonModule,
+        VSObjectDirectivesModule,
+        FormsModule,
+        InteractModule,
+        TooltipModule,
+        WidgetDirectivesModule,
+        VSTitle
+    ],
+    exports: [
+        VSTitle
+    ],
+    providers: [],
 })
 export class VSTitleModule {
 }

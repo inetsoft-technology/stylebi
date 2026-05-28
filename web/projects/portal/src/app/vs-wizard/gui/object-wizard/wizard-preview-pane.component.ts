@@ -39,14 +39,17 @@ import { Dimension } from "../../../common/data/dimension";
 import { RefreshDescriptionCommand } from "../../model/command/refresh-description-command";
 import { VSChartModel } from "../../../vsobjects/model/vs-chart-model";
 import { ConsoleMessage } from "../../../widget/console-dialog/console-message";
+import { WizardPreviewContainer } from "./wizard-preview-container.component";
 
 @Component({
-   selector: "wizard-preview-pane",
-   templateUrl: "./wizard-preview-pane.component.html",
-   styleUrls: ["./wizard-preview-pane.component.scss"],
-   providers: [
-      AssemblyActionFactory
-   ]
+    selector: "wizard-preview-pane",
+    templateUrl: "./wizard-preview-pane.component.html",
+    styleUrls: ["./wizard-preview-pane.component.scss"],
+    providers: [
+        AssemblyActionFactory
+    ],
+    standalone: true,
+    imports: [WizardPreviewContainer]
 })
 export class VSWizardPreviewPane extends CommandProcessor
    implements OnInit, AfterViewInit

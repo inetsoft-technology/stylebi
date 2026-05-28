@@ -25,12 +25,22 @@ import { ScriptPaneTreeModel } from "../../../widget/dialog/script-pane/script-p
 import { TextPropertyDialogModel } from "../../data/vs/text-property-dialog-model";
 import { PropertyDialogService } from "../../../vsobjects/util/property-dialog.service";
 import { PropertyDialog } from "./property-dialog.component";
+import { ApplyButtonComponent } from "../../../widget/slide-out/apply-button.component";
+import { ClickableScriptPane } from "./clickable-script-pane.component";
+import { DataOutputPane } from "./data-output-pane.component";
+import { TextGeneralPane } from "./text-general-pane.component";
+import { NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, NgbNavOutlet } from "@ng-bootstrap/ng-bootstrap";
+import { EnterSubmitDirective } from "../../../widget/directive/enter-submit.directive";
+import { NgIf } from "@angular/common";
+import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
 
 const CHECK_TRAP_URI: string = "../api/composer/vs/text-property-dialog-model/checkTrap/";
 
 @Component({
-   selector: "text-property-dialog",
-   templateUrl: "text-property-dialog.component.html"
+    selector: "text-property-dialog",
+    templateUrl: "text-property-dialog.component.html",
+    standalone: true,
+    imports: [ModalHeaderComponent, NgIf, EnterSubmitDirective, NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, TextGeneralPane, DataOutputPane, ClickableScriptPane, NgbNavOutlet, ApplyButtonComponent]
 })
 export class TextPropertyDialog extends PropertyDialog implements OnInit {
    @Input() model: TextPropertyDialogModel;

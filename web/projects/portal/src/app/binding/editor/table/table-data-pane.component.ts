@@ -20,11 +20,15 @@ import { BindingService } from "../../services/binding.service";
 import { TableBindingModel } from "../../data/table/table-binding-model";
 import { UIContextService } from "../../../common/services/ui-context.service";
 import { GuiTool } from "../../../common/util/gui-tool";
+import { TableDataEditor } from "./table-data-editor.component";
+import { NgIf } from "@angular/common";
 
 @Component({
-   selector: "table-data-pane",
-   templateUrl: "table-data-pane.component.html",
-   styleUrls: ["../data-pane.component.scss"]
+    selector: "table-data-pane",
+    templateUrl: "table-data-pane.component.html",
+    styleUrls: ["../data-pane.component.scss"],
+    standalone: true,
+    imports: [NgIf, TableDataEditor]
 })
 
 export class TableDataPane {

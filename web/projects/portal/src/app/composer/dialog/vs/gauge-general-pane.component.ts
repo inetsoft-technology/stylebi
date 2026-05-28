@@ -19,10 +19,25 @@ import { Component, Input, OnInit } from "@angular/core";
 import { UntypedFormGroup } from "@angular/forms";
 import { TreeNodeModel } from "../../../widget/tree/tree-node-model";
 import { GaugeGeneralPaneModel } from "../../data/vs/gauge-general-pane-model";
+import { SizePositionPane } from "../../../vsobjects/dialog/size-position-pane.component";
+import { PaddingPane } from "../../../vsobjects/dialog/padding-pane.component";
+import { TipPane } from "../../../vsobjects/dialog/graph/tip-pane.component";
+import { FacePane } from "./face-pane.component";
+import { NumberRangePane } from "./number-range-pane.component";
+import { OutputGeneralPane } from "./output-general-pane.component";
 
 @Component({
-   selector: "gauge-general-pane",
-   templateUrl: "gauge-general-pane.component.html",
+    selector: "gauge-general-pane",
+    templateUrl: "gauge-general-pane.component.html",
+    standalone: true,
+    imports: [
+        OutputGeneralPane,
+        NumberRangePane,
+        FacePane,
+        TipPane,
+        PaddingPane,
+        SizePositionPane,
+    ],
 })
 export class GaugeGeneralPane implements OnInit {
    @Input() model: GaugeGeneralPaneModel;

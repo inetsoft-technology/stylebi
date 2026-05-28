@@ -27,11 +27,21 @@ import { CheckFormDataService } from "../../util/check-form-data.service";
 import { FormInputService } from "../../util/form-input.service";
 import { VSCompound } from "../check-box/vs-compound";
 import { DataTipService } from "../data-tip/data-tip.service";
+import { TooltipIfDirective } from "../../../widget/tooltip/tooltip-if.directive";
+import { InteractableDirective } from "../../../widget/interact/interactable.directive";
+import { FormsModule } from "@angular/forms";
+import { VSTitle } from "../title/vs-title.component";
+import { SafeFontDirective } from "../../directives/safe-font.directive";
+import { VSPopComponentDirective } from "../data-tip/vs-pop-component.directive";
+import { VSDataTipDirective } from "../data-tip/vs-data-tip.directive";
+import { NgIf, NgFor } from "@angular/common";
 
 @Component({
-   selector: "vs-radio-button",
-   templateUrl: "vs-radio-button.component.html",
-   styleUrls: ["vs-radio-button.component.scss", "../check-box/vs-compound.scss"]
+    selector: "vs-radio-button",
+    templateUrl: "vs-radio-button.component.html",
+    styleUrls: ["vs-radio-button.component.scss", "../check-box/vs-compound.scss"],
+    standalone: true,
+    imports: [NgIf, VSDataTipDirective, VSPopComponentDirective, SafeFontDirective, VSTitle, FormsModule, NgFor, InteractableDirective, TooltipIfDirective]
 })
 export class VSRadioButton extends VSCompound<VSRadioButtonModel> implements OnChanges, OnInit {
    selectIndex: number = 0;

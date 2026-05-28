@@ -31,6 +31,7 @@ import { AliasPane } from "./alias-pane.component";
 import { AxisLabelPane } from "./axis-label-pane.component";
 import { AxisLinePane } from "./axis-line-pane.component";
 import { AxisPropertyDialog } from "./axis-property-dialog.component";
+import { HttpClientTestingModule } from "@angular/common/http/testing";
 
 let createLabelModel: () => AxisLabelPaneModel = () => {
    return {
@@ -87,12 +88,19 @@ describe("Axis Property Dialog Unit Tests", () => {
 
       TestBed.configureTestingModule({
          imports: [
-            NgbModule, FormsModule, ReactiveFormsModule, DropDownTestModule
+            
+            HttpClientTestingModule,NgbModule,
+            FormsModule,
+            ReactiveFormsModule,
+            DropDownTestModule,
+            AxisPropertyDialog,
+            AxisLinePane,
+            FixedDropdownDirective,
+            AliasPane,
+            AxisLabelPane,
+            EnterSubmitDirective,
          ],
-         declarations: [
-            AxisPropertyDialog, AxisLinePane, FixedDropdownDirective,
-            AliasPane, AxisLabelPane, EnterSubmitDirective
-         ],
+         
          providers: [
             NgbModal, RecentColorService,
             { provide: UIContextService, useValue: uiContextService }

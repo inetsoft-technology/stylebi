@@ -16,12 +16,18 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, EventEmitter, Input, Output, ViewEncapsulation } from "@angular/core";
+import { EnterClickDirective } from "../directive/enter-click.directive";
+import { EnterSubmitDirective } from "../directive/enter-submit.directive";
+import { FormsModule } from "@angular/forms";
+import { NgIf } from "@angular/common";
 
 @Component({
-   selector: "w-large-form-field",
-   templateUrl: "./large-form-field.component.html",
-   styleUrls: ["./large-form-field.component.scss"],
-   encapsulation: ViewEncapsulation.None
+    selector: "w-large-form-field",
+    templateUrl: "./large-form-field.component.html",
+    styleUrls: ["./large-form-field.component.scss"],
+    encapsulation: ViewEncapsulation.None,
+    standalone: true,
+    imports: [NgIf, FormsModule, EnterSubmitDirective, EnterClickDirective]
 })
 export class LargeFormFieldComponent {
    @Input() search: boolean = false;

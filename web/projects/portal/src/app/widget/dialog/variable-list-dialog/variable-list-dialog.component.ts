@@ -19,11 +19,20 @@ import { Component, Input, Output, EventEmitter, OnInit } from "@angular/core";
 
 import { XSchema } from "../../../common/data/xschema";
 import { VariableListDialogModel } from "./variable-list-dialog-model";
-import { VariableListTuple } from "./variable-list-editor/variable-list-editor.component";
+import { VariableListTuple, VariableListEditor } from "./variable-list-editor/variable-list-editor.component";
+import { NgIf, NgFor } from "@angular/common";
+import { ModalHeaderComponent } from "../../modal-header/modal-header.component";
 
 @Component({
-   selector: "variable-list-dialog",
-   templateUrl: "variable-list-dialog.component.html",
+    selector: "variable-list-dialog",
+    templateUrl: "variable-list-dialog.component.html",
+    standalone: true,
+    imports: [
+        ModalHeaderComponent,
+        VariableListEditor,
+        NgIf,
+        NgFor,
+    ],
 })
 export class VariableListDialog implements OnInit {
    @Input() model: VariableListDialogModel;

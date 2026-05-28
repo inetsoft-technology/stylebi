@@ -18,11 +18,16 @@
 import { Component, ElementRef, Input, OnInit, ViewChild } from "@angular/core";
 import { GuiTool } from "../../../common/util/gui-tool";
 import { ToolbarAction } from "../toolbar-action";
+import { FixedDropdownDirective } from "../../fixed-dropdown/fixed-dropdown.directive";
+import { NgFor, NgIf, NgClass } from "@angular/common";
+import { ResizedDirective } from "../../../../../../shared/resize-event/resized.directive";
 
 @Component({
-  selector: "auto-collapse-toolbar",
-  templateUrl: "./auto-collapse-toolbar.component.html",
-  styleUrls: ["./auto-collapse-toolbar.component.scss"]
+    selector: "auto-collapse-toolbar",
+    templateUrl: "./auto-collapse-toolbar.component.html",
+    styleUrls: ["./auto-collapse-toolbar.component.scss"],
+    standalone: true,
+    imports: [ResizedDirective, NgFor, NgIf, NgClass, FixedDropdownDirective]
 })
 export class AutoCollapseToolbarComponent implements OnInit {
   @Input() actions: ToolbarAction[] = [];

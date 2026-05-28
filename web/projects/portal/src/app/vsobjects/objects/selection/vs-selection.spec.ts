@@ -182,11 +182,10 @@ describe("VSSelection Test", () => {
       };
 
       TestBed.configureTestingModule({
-         imports: [ NgbModule, FormsModule, HttpClientTestingModule ],
-         schemas: [NO_ERRORS_SCHEMA],
-         declarations: [
+         imports: [ NgbModule, FormsModule, HttpClientTestingModule,
             VSSelection, MiniToolbar, TitleCell, SelectionListCell, DefaultFocusDirective,
             VSPopComponentDirective, InteractableDirective, MiniMenu, SafeFontDirective],
+         schemas: [NO_ERRORS_SCHEMA],
          providers: [
             { provide: ViewsheetClientService, useValue: viewsheetClientService },
             { provide: ElementRef, useValue: elementRef },

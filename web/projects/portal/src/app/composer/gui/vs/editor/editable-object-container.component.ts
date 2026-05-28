@@ -90,12 +90,71 @@ import { ScaleService } from "../../../../widget/services/scale/scale-service";
 import { ComposerVsSearchService } from "../composer-vs-search.service";
 import { VSTabModel } from "../../../../vsobjects/model/vs-tab-model";
 import { AssemblyAction } from "../../../../common/action/assembly-action";
+import { LayoutOptionDialog } from "../../../dialog/vs/layout-option-dialog.component";
+import { LineActionHandlerDirective } from "../action/line-action-handler.directive";
+import { VSLine } from "../../../../vsobjects/objects/shape/vs-line.component";
+import { MiniToolbar } from "../../../../vsobjects/objects/mini-toolbar/mini-toolbar.component";
+import { VSThermometer } from "../../../../vsobjects/objects/thermometer/vs-thermometer.component";
+import { VSSlidingScale } from "../../../../vsobjects/objects/sliding-scale/vs-sliding-scale.component";
+import { VSCylinder } from "../../../../vsobjects/objects/cylinder/vs-cylinder.component";
+import { ViewsheetActionHandlerDirective } from "../action/viewsheet-action-handler.directive";
+import { VSViewsheet } from "../../../../vsobjects/objects/viewsheet/vs-viewsheet.component";
+import { TextInputActionHandlerDirective } from "../action/text-input-action-handler.directive";
+import { VSTextInput } from "../../../../vsobjects/objects/text-input/vs-text-input.component";
+import { TextActionHandlerDirective } from "../action/text-action-handler.directive";
+import { VSText } from "../../../../vsobjects/objects/output/text/vs-text.component";
+import { TableActionHandlerDirective } from "../action/table-action-handler.directive";
+import { VSTable } from "../../../../vsobjects/objects/table/vs-table.component";
+import { TabActionHandlerDirective } from "../action/tab-action-handler.directive";
+import { VSTab } from "../../../../vsobjects/objects/tab/vs-tab.component";
+import { SubmitActionHandlerDirective } from "../action/submit-action-handler.directive";
+import { VSSubmit } from "../../../../vsobjects/objects/submit/vs-submit.component";
+import { SpinnerActionHandlerDirective } from "../action/spinner-action-handler.directive";
+import { VSSpinner } from "../../../../vsobjects/objects/spinner/vs-spinner.component";
+import { SliderActionHandlerDirective } from "../action/slider-action-handler.directive";
+import { VSSlider } from "../../../../vsobjects/objects/slider/vs-slider.component";
+import { SelectionContainerActionHandlerDirective } from "../action/selection-container-action-handler.directive";
+import { SelectionTreeActionHandlerDirective } from "../action/selection-tree-action-handler.directive";
+import { SelectionListActionHandlerDirective } from "../action/selection-list-action-handler.directive";
+import { RangeSliderActionHandlerDirective } from "../action/range-slider-action-handler.directive";
+import { VSRangeSlider } from "../../../../vsobjects/objects/range-slider/vs-range-slider.component";
+import { RectangleActionHandlerDirective } from "../action/rectangle-action-handler.directive";
+import { VSRectangle } from "../../../../vsobjects/objects/shape/vs-rectangle.component";
+import { RadioButtonActionHandlerDirective } from "../action/radio-button-action-handler.directive";
+import { VSRadioButton } from "../../../../vsobjects/objects/radio-button/vs-radio-button.component";
+import { OvalActionHandlerDirective } from "../action/oval-action-handler.directive";
+import { VSOval } from "../../../../vsobjects/objects/shape/vs-oval.component";
+import { ImageActionHandlerDirective } from "../action/image-action-handler.directive";
+import { VSImage } from "../../../../vsobjects/objects/output/image/vs-image.component";
+import { GroupContainerActionHandlerDirective } from "../action/group-container-action-handler.directive";
+import { VSGroupContainer } from "../../../../vsobjects/objects/group/vs-group-container.component";
+import { GaugeActionHandlerDirective } from "../action/gauge-action-handler.directive";
+import { VSGauge } from "../../../../vsobjects/objects/output/gauge/vs-gauge.component";
+import { CrosstabActionHandlerDirective } from "../action/crosstab-action-handler.directive";
+import { VSCrosstab } from "../../../../vsobjects/objects/table/vs-crosstab.component";
+import { ComboBoxActionHandlerDirective } from "../action/combo-box-action-handler.directive";
+import { VSComboBox } from "../../../../vsobjects/objects/combo-box/vs-combo-box.component";
+import { CheckBoxActionHandlerDirective } from "../action/check-box-action-handler.directive";
+import { VSCheckBox } from "../../../../vsobjects/objects/check-box/vs-check-box.component";
+import { ChartActionHandlerDirective } from "../action/chart-action-handler.directive";
+import { VSChart } from "../../../../vsobjects/objects/chart/vs-chart.component";
+import { CalcTableActionHandlerDirective } from "../action/calc-table-action-handler.directive";
+import { VSCalcTable } from "../../../../vsobjects/objects/table/vs-calctable.component";
+import { CalendarActionHandlerDirective } from "../action/calendar-action-handler.directive";
+import { VSCalendar } from "../../../../vsobjects/objects/calendar/vs-calendar.component";
+import { OutOfZoneDirective } from "../../../../widget/directive/out-of-zone.directive";
+import { InteractableDirective } from "../../../../widget/interact/interactable.directive";
+import { ActionsContextmenuAnchorDirective } from "../../../../widget/fixed-dropdown/actions-contextmenu-anchor.directive";
+import { NgIf, NgSwitch, NgSwitchCase } from "@angular/common";
 
 @Component({
-   selector: "editable-object-container",
-   templateUrl: "editable-object-container.component.html",
-   styleUrls: ["editable-object-container.component.scss"]
-   //changeDetection: ChangeDetectionStrategy.OnPush
+    selector: "editable-object-container",
+    templateUrl: "editable-object-container.component.html",
+    styleUrls: ["editable-object-container.component.scss"]
+    //changeDetection: ChangeDetectionStrategy.OnPush
+    ,
+    standalone: true,
+    imports: [NgIf, ActionsContextmenuAnchorDirective, InteractableDirective, OutOfZoneDirective, NgSwitch, NgSwitchCase, VSCalendar, CalendarActionHandlerDirective, VSCalcTable, CalcTableActionHandlerDirective, VSChart, ChartActionHandlerDirective, VSCheckBox, CheckBoxActionHandlerDirective, VSComboBox, ComboBoxActionHandlerDirective, VSCrosstab, CrosstabActionHandlerDirective, VSGauge, GaugeActionHandlerDirective, VSGroupContainer, GroupContainerActionHandlerDirective, VSImage, ImageActionHandlerDirective, VSOval, OvalActionHandlerDirective, VSRadioButton, RadioButtonActionHandlerDirective, VSRectangle, RectangleActionHandlerDirective, VSRangeSlider, RangeSliderActionHandlerDirective, VSSelection, SelectionListActionHandlerDirective, SelectionTreeActionHandlerDirective, VSSelectionContainer, SelectionContainerActionHandlerDirective, VSSlider, SliderActionHandlerDirective, VSSpinner, SpinnerActionHandlerDirective, VSSubmit, SubmitActionHandlerDirective, VSTab, TabActionHandlerDirective, VSTable, TableActionHandlerDirective, VSText, TextActionHandlerDirective, VSTextInput, TextInputActionHandlerDirective, VSViewsheet, ViewsheetActionHandlerDirective, VSCylinder, VSSlidingScale, VSThermometer, MiniToolbar, VSLine, LineActionHandlerDirective, LayoutOptionDialog]
 })
 export class EditableObjectContainer extends AbstractActionComponent
    implements OnChanges, OnInit, OnDestroy, AfterViewInit

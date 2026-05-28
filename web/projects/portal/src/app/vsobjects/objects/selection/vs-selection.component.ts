@@ -74,6 +74,19 @@ import { SelectionListModel } from "../../model/selection-list-model";
 import { SelectionMobileService } from "./services/selection-mobile.service";
 import { PopComponentService } from "../data-tip/pop-component.service";
 import { VSSelectionContainerModel } from "../../model/vs-selection-container-model";
+import { VSLoadingDisplay } from "../vs-loading-display/vs-loading-display.component";
+import { SelectionListCell } from "./selection-list-cell.component";
+import { TouchScrollDirective } from "../../../widget/scroll/touch-scroll.directive";
+import { FormsModule } from "@angular/forms";
+import { TooltipDirective } from "../../../widget/tooltip/tooltip.directive";
+import { InteractableDirective } from "../../../widget/interact/interactable.directive";
+import { TitleCell } from "../title-cell/title-cell.component";
+import { CollapseToggleButton } from "./collapse-toggle-button.component";
+import { NgIf, NgFor } from "@angular/common";
+import { SafeFontDirective } from "../../directives/safe-font.directive";
+import { OutOfZoneDirective } from "../../../widget/directive/out-of-zone.directive";
+import { VSPopComponentDirective } from "../data-tip/vs-pop-component.directive";
+import { VSDataTipDirective } from "../data-tip/vs-data-tip.directive";
 
 const URI_UPDATE_CELL_HEIGHT: string = "/events/composer/viewsheet/selectionList/updateCellHeight/";
 const URI_UPDATE_MEASURE_SIZE: string = "/events/composer/viewsheet/selectionList/updateMeasureSize/";
@@ -91,10 +104,12 @@ export enum FocusRegions {
 }
 
 @Component({
-   selector: "vs-selection",
-   templateUrl: "vs-selection.component.html",
-   styleUrls: ["vs-selection.component.scss"],
-   changeDetection: ChangeDetectionStrategy.OnPush
+    selector: "vs-selection",
+    templateUrl: "vs-selection.component.html",
+    styleUrls: ["vs-selection.component.scss"],
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    standalone: true,
+    imports: [VSDataTipDirective, VSPopComponentDirective, OutOfZoneDirective, SafeFontDirective, NgIf, MiniMenu, CollapseToggleButton, TitleCell, InteractableDirective, TooltipDirective, FormsModule, TouchScrollDirective, NgFor, SelectionListCell, VSLoadingDisplay]
 })
 export class VSSelection extends NavigationComponent<VSSelectionBaseModel>
    implements OnInit, OnDestroy, AfterViewInit

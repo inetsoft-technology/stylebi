@@ -16,12 +16,15 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, Input, OnInit } from "@angular/core";
-import { UntypedFormControl, UntypedFormGroup, Validators, } from "@angular/forms";
+import { UntypedFormControl, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { FormatPaneModel } from "./format-pane-model";
+import { NgSwitch, NgSwitchCase, NgFor } from "@angular/common";
 
 @Component({
-   selector: "format-pane",
-   templateUrl: "format-pane.component.html"
+    selector: "format-pane",
+    templateUrl: "format-pane.component.html",
+    standalone: true,
+    imports: [FormsModule, ReactiveFormsModule, NgSwitch, NgSwitchCase, NgFor]
 })
 export class FormatPane implements OnInit {
    @Input() model: FormatPaneModel;

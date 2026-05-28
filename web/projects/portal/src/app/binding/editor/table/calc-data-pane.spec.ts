@@ -75,9 +75,12 @@ describe("Calc Data Pane Unit Test", () => {
    function configureTestEnv(): void {
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule
+            FormsModule,
+            ReactiveFormsModule,
+            NgbModule,
+            CalcDataPane,
          ],
-         declarations: [ CalcDataPane ],
+         
          providers: [
             { provide: VSCalcTableEditorService, useValue: editorService },
             { provide: BindingService, useValue: bindingService },

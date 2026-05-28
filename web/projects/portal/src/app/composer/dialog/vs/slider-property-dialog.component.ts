@@ -22,10 +22,38 @@ import { ScriptPaneTreeModel } from "../../../widget/dialog/script-pane/script-p
 import { UIContextService } from "../../../common/services/ui-context.service";
 import { PropertyDialogService } from "../../../vsobjects/util/property-dialog.service";
 import { PropertyDialog } from "./property-dialog.component";
+import { ApplyButtonComponent } from "../../../widget/slide-out/apply-button.component";
+import { VSAssemblyScriptPane } from "../../../widget/dialog/vsassembly-script-pane/vsassembly-script-pane.component";
+import { InputLabelPane } from "./input-label-pane.component";
+import { SliderAdvancedPane } from "./slider-advanced-pane.component";
+import { DataInputPane } from "./data-input-pane.component";
+import { SliderGeneralPane } from "./slider-general-pane.component";
+import { NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, NgbNavOutlet } from "@ng-bootstrap/ng-bootstrap";
+import { EnterSubmitDirective } from "../../../widget/directive/enter-submit.directive";
+import { NgIf } from "@angular/common";
+import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
 
 @Component({
-   selector: "slider-property-dialog",
-   templateUrl: "slider-property-dialog.component.html",
+    selector: "slider-property-dialog",
+    templateUrl: "slider-property-dialog.component.html",
+    standalone: true,
+    imports: [
+        ModalHeaderComponent,
+        NgIf,
+        EnterSubmitDirective,
+        NgbNav,
+        NgbNavItem,
+        NgbNavLink,
+        NgbNavLinkBase,
+        NgbNavContent,
+        SliderGeneralPane,
+        DataInputPane,
+        SliderAdvancedPane,
+        InputLabelPane,
+        VSAssemblyScriptPane,
+        NgbNavOutlet,
+        ApplyButtonComponent,
+    ],
 })
 export class SliderPropertyDialog extends PropertyDialog {
    @Input() model: SliderPropertyDialogModel;

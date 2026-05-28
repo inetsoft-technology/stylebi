@@ -18,11 +18,15 @@
 import { Component, OnInit, Input, Output, EventEmitter } from "@angular/core";
 import { UntypedFormGroup, AbstractControl } from "@angular/forms";
 import { EntityModel } from "../../../../../model/datasources/database/physical-model/logical-model/entity-model";
+import { LogicalModelEntityPane } from "../entity-pane/logical-model-entity-pane.component";
+import { ModalHeaderComponent } from "../../../../../../../widget/modal-header/modal-header.component";
 
 @Component({
-   selector: "logical-model-entity-dialog",
-   templateUrl: "logical-model-entity-dialog.component.html",
-   styleUrls: ["logical-model-entity-dialog.component.scss"]
+    selector: "logical-model-entity-dialog",
+    templateUrl: "logical-model-entity-dialog.component.html",
+    styleUrls: ["logical-model-entity-dialog.component.scss"],
+    standalone: true,
+    imports: [ModalHeaderComponent, LogicalModelEntityPane]
 })
 export class LogicalModelEntityDialog implements OnInit {
    @Input() entity: EntityModel;

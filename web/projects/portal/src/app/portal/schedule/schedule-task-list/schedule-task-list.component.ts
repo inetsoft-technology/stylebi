@@ -72,6 +72,11 @@ import { TimeConditionModel, TimeConditionType } from "../../../../../../shared/
 import {
    ScheduleFolderTreeAction
 } from "../../../../../../em/src/app/settings/schedule/schedule-folder-tree/schedule-folder-tree-action";
+import { SortColumnDirective } from "../../../widget/directive/sort-column.directive";
+import { FormsModule } from "@angular/forms";
+import { ScrollableFlexTableDirective } from "../../../widget/scrollable-table/scrollable-flex-table.directive";
+import { NgIf, NgFor } from "@angular/common";
+import { SplitPane } from "../../../widget/split-pane/split-pane.component";
 
 const GET_SCHEDULED_TASKS_URI = "../api/portal/scheduledTasks";
 export const NEW_TASKS_URI = "../api/portal/schedule/new";
@@ -94,10 +99,12 @@ const SYSTEM_USER = "INETSOFT_SYSTEM";
 declare const window: any;
 
 @Component({
-   selector: "p-schedule-task-list",
-   templateUrl: "./schedule-task-list.component.html",
-   styleUrls: ["./schedule-task-list.component.scss"],
-   providers: [ScheduleChangeService]
+    selector: "p-schedule-task-list",
+    templateUrl: "./schedule-task-list.component.html",
+    styleUrls: ["./schedule-task-list.component.scss"],
+    providers: [ScheduleChangeService],
+    standalone: true,
+    imports: [SplitPane, NgIf, TreeComponent, ScrollableFlexTableDirective, FormsModule, SortColumnDirective, NgFor]
 })
 export class ScheduleTaskListComponent implements OnInit, OnDestroy, AfterContentChecked {
    @ViewChild("tree") tree: TreeComponent;

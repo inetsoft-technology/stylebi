@@ -28,9 +28,7 @@ import { WidgetDirectivesModule } from "../../../../widget/directive/widget-dire
         NgbTooltipModule,
         TreeModule,
         WidgetDirectivesModule,
-    ],
-    declarations: [
-        ScriptTreePane
+        ScriptTreePane,
     ],
     exports: [
         ScriptTreePane

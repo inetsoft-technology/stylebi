@@ -20,13 +20,21 @@ import { Tool } from "../../../../../shared/util/tool";
 import { ConsoleMessage } from "./console-message";
 import { ModelService } from "../services/model.service";
 import { SaveConsoleMessageLevelsEvent } from "../../composer/gui/ws/socket/save-console-message-levels-event";
+import { DialogButtonsDirective } from "../standard-dialog/dialog-buttons.directive";
+import { FormsModule } from "@angular/forms";
+import { FixedDropdownDirective } from "../fixed-dropdown/fixed-dropdown.directive";
+import { NgIf, NgFor, NgClass } from "@angular/common";
+import { DialogContentDirective } from "../standard-dialog/dialog-content.directive";
+import { StandardDialogComponent } from "../standard-dialog/standard-dialog.component";
 
 const SAVE_MESSAGE_LEVELS_URI = "../api/composer/console-dialog/save-message-levels/";
 
 @Component({
-   selector: "console-dialog",
-   templateUrl: "./console-dialog.component.html",
-   styleUrls: ["./console-dialog.component.scss"]
+    selector: "console-dialog",
+    templateUrl: "./console-dialog.component.html",
+    styleUrls: ["./console-dialog.component.scss"],
+    standalone: true,
+    imports: [StandardDialogComponent, DialogContentDirective, NgIf, NgFor, NgClass, FixedDropdownDirective, FormsModule, DialogButtonsDirective]
 })
 export class ConsoleDialogComponent implements OnInit {
    @Input() runtimeId: string;
