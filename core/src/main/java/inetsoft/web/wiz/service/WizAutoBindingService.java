@@ -1118,7 +1118,7 @@ public class WizAutoBindingService {
          fallback.setWorksheetId(worksheetId);
          fallback.setVisualizationType(visualizationType);
          // Do not forward autoBindingRuntimeId: if it was non-empty but invalid (expired RVS),
-         // autoBinding() would skip creating a new RVS and fail on the same dead id again.
+         // autoBindingInternal() would skip creating a new RVS and fail on the same dead id again.
          fallback.setWizRuntimeId(wizRuntimeId);
          fallback.setViewsheetIdentifier(viewsheetIdentifier);
          AutoBindingResponse resp = autoBindingInternal(fallback, user, true);
