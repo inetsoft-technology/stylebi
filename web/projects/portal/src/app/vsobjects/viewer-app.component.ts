@@ -146,6 +146,7 @@ import { ViewsheetInfo } from "./data/viewsheet-info";
 import { AnnotationFormatDialogModel } from "./dialog/annotation/annotation-format-dialog-model";
 import { AnnotationFormatDialog } from "./dialog/annotation/annotation-format-dialog.component";
 import { ProfilingDialog } from "./dialog/profiling-dialog.component";
+import { CKEditorRichTextService } from "./dialog/rich-text-dialog/ckeditor-rich-text.service";
 import { RichTextService } from "./dialog/rich-text-dialog/rich-text.service";
 import { AddAnnotationEvent } from "./event/annotation/add-annotation-event";
 import { RemoveAnnotationEvent } from "./event/annotation/remove-annotation-event";
@@ -193,6 +194,8 @@ import { CalcTableActionHandler } from "./objects/table/calc-table-action-handle
 import { CrosstabActionHandler } from "./objects/table/crosstab-action-handler";
 import { TableActionHandler } from "./objects/table/table-action-handler";
 import { ShowHyperlinkService } from "./show-hyperlink.service";
+import { VSTabService } from "./util/vs-tab.service";
+import { FontService } from "../widget/services/font.service";
 import { ToolbarActionsHandler } from "./toolbar-actions-handler";
 import { CheckFormDataService } from "./util/check-form-data.service";
 import { FormInputService } from "./util/form-input.service";
@@ -315,7 +318,18 @@ export interface ScrollViewportRect {
             useExisting: VSChartService
         },
         ComposerRecentService,
-        SelectionMobileService
+        SelectionMobileService,
+        MiniToolbarService,
+        ShowHyperlinkService,
+        {
+            provide: RichTextService,
+            useClass: CKEditorRichTextService,
+            deps: [FontService, NgbModal, HttpClient]
+        },
+        VSTabService,
+        ViewDataService,
+        FirstDayOfWeekService,
+        PageTabService
     ],
     standalone: true,
     imports: [NgIf, PagingControlComponent, OutOfZoneDirective, VsToolbarButtonDirective, FixedDropdownDirective, DefaultFocusDirective, EnterClickDirective, NgFor, BlockMouseDirective, ViewerMobileToolbarComponent, VsBookmarkPaneComponent, InteractContainerDirective, ViewerFormatPane, VSObjectContainer, StatusBar, VSLoadingDisplay, ExportDialog, EmailDialog, ScheduleDialog, BookmarkPropertyDialog, VariableInputDialog, ShareEmailDialogComponent, ShareGoogleChatDialog, ShareSlackDialog, ShareLinkDialog, RemoveBookmarksDialog, NotificationsComponent]
