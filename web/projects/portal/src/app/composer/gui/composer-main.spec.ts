@@ -154,7 +154,7 @@ describe("ComposerMain Unit Tests", () => {
          
          schemas: [NO_ERRORS_SCHEMA]
       });
-      TestBed.overrideComponent(ComposerMainComponent, { set: { imports: [] } });
+      TestBed.overrideComponent(ComposerMainComponent, { set: { imports: [], providers: [] } });
       TestBed.compileComponents();
    });
 

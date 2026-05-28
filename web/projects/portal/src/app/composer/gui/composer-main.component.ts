@@ -142,6 +142,7 @@ import { StylePaneComponent } from "./tablestyle/editor/style-pane.component";
 import { ComposerToolbarComponent } from "./toolbar/composer-toolbar.component";
 import { ComposerObjectService } from "./vs/composer-object.service";
 import { EventQueueService } from "./vs/event-queue.service";
+import { LineAnchorService } from "../services/line-anchor.service";
 import { CloseSheetEvent } from "./vs/event/close-sheet-event";
 import { LayoutUndoRedoEvent } from "./vs/event/layout-undo-redo-event";
 import { SaveSheetEvent } from "./ws/socket/save-sheet-event";
@@ -241,6 +242,7 @@ const CONFIRM_MESSAGE = {
         },
         ComposerObjectService,
         EventQueueService,
+        LineAnchorService,
         ResizeHandlerService,
         ClipboardService,
         ComposerRecentService,
