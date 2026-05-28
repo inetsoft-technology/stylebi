@@ -17,7 +17,7 @@
  */
 import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { ClusterMonitoringViewComponent } from "./cluster-monitoring-view.component";
-import { TableViewModule } from "../../../common/util/table/table-view.module";
+import { TableView } from "../../../common/util/table/table-view.component";
 import { CommonModule } from "@angular/common";
 
 describe("ClusterMonitoringViewComponent", () => {
@@ -28,7 +28,7 @@ describe("ClusterMonitoringViewComponent", () => {
       TestBed.configureTestingModule({
          imports: [
             CommonModule,
-            TableViewModule,
+            TableView,
             ClusterMonitoringViewComponent]
          })
          .compileComponents();

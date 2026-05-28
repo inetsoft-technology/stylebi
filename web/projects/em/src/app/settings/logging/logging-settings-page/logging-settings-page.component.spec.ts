@@ -29,8 +29,8 @@ import { NoopAnimationsModule } from "@angular/platform-browser/animations";
 import { RouterModule } from "@angular/router";
 import { DownloadTargetComponent } from "../../../../../../shared/download/download-target.component";
 import { AppInfoService } from "../../../../../../shared/util/app-info.service";
-import { EditorPanelModule } from "../../../common/util/editor-panel/editor-panel.module";
-import { TableViewModule } from "../../../common/util/table/table-view.module";
+import { EditorPanelComponent } from "../../../common/util/editor-panel/editor-panel.component";
+import { TableView } from "../../../common/util/table/table-view.component";
 import { LoggingLevelTableComponent } from "../logging-level-table/logging-level-table.component";
 import { LoggingSettingsViewComponent } from "../logging-settings-view/logging-settings-view.component";
 import { LoggingSettingsPageComponent } from "./logging-settings-page.component";
@@ -56,8 +56,8 @@ describe("LoggingSettingsPageComponent", () => {
             MatSelectModule,
             NoopAnimationsModule,
             DownloadTargetComponent,
-            EditorPanelModule,
-            TableViewModule
+            EditorPanelComponent,
+            TableView
          ],
          providers: [
             AppInfoService

@@ -28,7 +28,7 @@ import { NoopAnimationsModule } from "@angular/platform-browser/animations";
 import { HttpClientTestingModule } from "@angular/common/http/testing";
 import { DownloadTargetComponent } from "../../../../../../shared/download/download-target.component";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
-import { TableViewModule } from "../../../common/util/table/table-view.module";
+import { TableView } from "../../../common/util/table/table-view.component";
 import { LoggingLevelTableComponent } from "../logging-level-table/logging-level-table.component";
 import { AppInfoService } from "../../../../../../shared/util/app-info.service";
 
@@ -52,7 +52,7 @@ describe("LoggingSettingsViewComponent", () => {
             FormsModule,
             ReactiveFormsModule,
             MatButtonModule,
-            TableViewModule
+            TableView
          ],
          providers: [
             AppInfoService

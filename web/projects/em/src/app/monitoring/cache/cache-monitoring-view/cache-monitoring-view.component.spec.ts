@@ -22,8 +22,8 @@ import { MatFormFieldModule } from "@angular/material/form-field";
 import { MatSelectModule } from "@angular/material/select";
 import { NoopAnimationsModule } from "@angular/platform-browser/animations";
 import { of as observableOf } from "rxjs";
-import { TableViewModule } from "../../../common/util/table/table-view.module";
-import { CollapsibleContainerModule } from "../../collapsible-container/collapsible-container.module";
+import { TableView } from "../../../common/util/table/table-view.component";
+import { CollapsibleContainerComponent } from "../../collapsible-container/collapsible-container.component";
 import { MonitoringDataService } from "../../monitoring-data.service";
 import { CacheMonitoringViewComponent } from "./cache-monitoring-view.component";
 
@@ -45,8 +45,8 @@ describe("CacheMonitoringViewComponent", () => {
             MatFormFieldModule,
             MatSelectModule,
             MatCardModule,
-            CollapsibleContainerModule,
-            TableViewModule,
+            CollapsibleContainerComponent,
+            TableView,
             CacheMonitoringViewComponent],
          providers: [
             {provide: MonitoringDataService, useValue: monitoringDataService}

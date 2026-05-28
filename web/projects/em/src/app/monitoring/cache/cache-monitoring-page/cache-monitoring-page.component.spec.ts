@@ -23,10 +23,10 @@ import { MatSelectModule } from "@angular/material/select";
 import { NoopAnimationsModule } from "@angular/platform-browser/animations";
 import { RouterModule } from "@angular/router";
 import { of as observableOf } from "rxjs";
-import { TableViewModule } from "../../../common/util/table/table-view.module";
-import { ClusterSelectorModule } from "../../cluster-selector/cluster-selector.module";
+import { TableView } from "../../../common/util/table/table-view.component";
+import { ClusterSelectorComponent } from "../../cluster-selector/cluster-selector.component";
 import { ClusterNodesService } from "../../cluster/cluster-nodes.service";
-import { CollapsibleContainerModule } from "../../collapsible-container/collapsible-container.module";
+import { CollapsibleContainerComponent } from "../../collapsible-container/collapsible-container.component";
 import { MonitorLevelService } from "../../monitor-level.service";
 import { MonitoringDataService } from "../../monitoring-data.service";
 import { CacheMonitoringViewComponent } from "../cache-monitoring-view/cache-monitoring-view.component";
@@ -59,9 +59,9 @@ describe("CacheMonitoringPageComponent", () => {
             MatCardModule,
             MatFormFieldModule,
             MatSelectModule,
-            CollapsibleContainerModule,
-            TableViewModule,
-            ClusterSelectorModule,
+            CollapsibleContainerComponent,
+            TableView,
+            ClusterSelectorComponent,
             CacheMonitoringPageComponent, CacheMonitoringViewComponent],
          providers: [
             {provide: MonitoringDataService, useValue: monitoringDataService},

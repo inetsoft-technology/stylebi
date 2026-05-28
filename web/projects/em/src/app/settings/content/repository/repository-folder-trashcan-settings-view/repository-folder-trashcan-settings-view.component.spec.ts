@@ -31,8 +31,8 @@ import { MatTabsModule } from "@angular/material/tabs";
 import { NoopAnimationsModule } from "@angular/platform-browser/animations";
 import { RouterModule } from "@angular/router";
 import { EditorPanelComponent } from "../../../../common/util/editor-panel/editor-panel.component";
-import { TableViewModule } from "../../../../common/util/table/table-view.module";
-import { ResourcePermissionModule } from "../../../security/resource-permission/resource-permission.module";
+import { TableView } from "../../../../common/util/table/table-view.component";
+import { ResourcePermissionComponent } from "../../../security/resource-permission/resource-permission.component";
 import { RepositoryFolderTrashcanSettingsViewComponent } from "./repository-folder-trashcan-settings-view.component";
 
 describe("RepositoryFolderTrashcanSettingsViewComponent", () => {
@@ -44,7 +44,7 @@ describe("RepositoryFolderTrashcanSettingsViewComponent", () => {
          imports: [HttpClientTestingModule, RouterModule.forRoot([]), MatCardModule, MatDialogModule,
             MatButtonModule, MatInputModule, MatSelectModule, NoopAnimationsModule,
             MatOptionModule, MatTabsModule, MatFormFieldModule, FormsModule, ReactiveFormsModule,
-            MatRadioModule, MatCheckboxModule, ResourcePermissionModule, TableViewModule,
+            MatRadioModule, MatCheckboxModule, ResourcePermissionComponent, TableView,
             RepositoryFolderTrashcanSettingsViewComponent, EditorPanelComponent]
          })
          .compileComponents();
