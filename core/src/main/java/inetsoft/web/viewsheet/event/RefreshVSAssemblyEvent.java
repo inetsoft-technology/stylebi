@@ -19,9 +19,11 @@ package inetsoft.web.viewsheet.event;
 
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
-import inetsoft.web.admin.cache.CacheMetrics;
 import org.immutables.serial.Serial;
 import org.immutables.value.Value;
+
+import javax.annotation.Nullable;
+import java.awt.*;
 
 @Value.Immutable
 @Serial.Structural
@@ -43,8 +45,10 @@ public abstract class RefreshVSAssemblyEvent {
       return false;
    }
 
-   public static CacheMetrics.Builder builder() {
-      return new CacheMetrics.Builder();
+   public abstract @Nullable Dimension getAssemblySize();
+
+   public static Builder builder() {
+      return new Builder();
    }
 
    public static final class Builder extends ImmutableRefreshVSAssemblyEvent.Builder {
