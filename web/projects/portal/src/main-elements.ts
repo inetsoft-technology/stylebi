@@ -17,6 +17,7 @@
  */
 import { createApplication } from "@angular/platform-browser";
 import { importProvidersFrom } from "@angular/core";
+import { provideRouter } from "@angular/router";
 import { EmbedChartModule } from "./app/embed/chart/embed-chart.module";
 import { embedElementConfig } from "./app/embed/embed-element.config";
 import "./main-base-element";
@@ -24,9 +25,10 @@ import "./main-base-element";
 createApplication({
    providers: [
       ...embedElementConfig.providers,
+      provideRouter([]),
       importProvidersFrom(EmbedChartModule)
    ]
-});
+}).catch(err => console.error(err));
 
 /**
  * Check if inetsoft is connected on app load in case there is no need to log in such as when

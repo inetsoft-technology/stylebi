@@ -102,10 +102,8 @@ import { DownloadTargetComponent } from "../../../../../shared/download/download
          provide: ChartService,
          useExisting: VSChartService
       },
-      NgbModal,
-      PageTabService
-   ],
-   bootstrap: [EmbedViewerComponent]
+      NgbModal
+   ]
 })
 export class EmbedViewerModule {
    constructor(public injector: Injector) {

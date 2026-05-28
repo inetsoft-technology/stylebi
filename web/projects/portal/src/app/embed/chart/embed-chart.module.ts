@@ -105,8 +105,7 @@ import { ResizedDirective } from "../../../../../shared/resize-event/resized.dir
          useExisting: VSChartService
       },
       NgbModal
-   ],
-   bootstrap: [EmbedChartComponent]
+   ]
 })
 export class EmbedChartModule {
    constructor(public injector: Injector) {

@@ -16,11 +16,9 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { ApplicationConfig } from "@angular/core";
-import { provideRouter, withRouterConfig } from "@angular/router";
-import { provideHttpClient, withInterceptorsFromDi } from "@angular/common/http";
+import { provideRouter, withRouterConfig, UrlSerializer } from "@angular/router";
+import { provideHttpClient, withInterceptorsFromDi, HTTP_INTERCEPTORS } from "@angular/common/http";
 import { provideAnimations } from "@angular/platform-browser/animations";
-import { HTTP_INTERCEPTORS } from "@angular/common/http";
-import { UrlSerializer } from "@angular/router";
 import { routes } from "./app.routes";
 import { SsoHeartbeatService } from "../../../shared/sso/sso-heartbeat.service";
 import { SsoHeartbeatInterceptor } from "../../../shared/sso/sso-heartbeat-interceptor";

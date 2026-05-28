@@ -28,7 +28,7 @@ createApplication({
       ...embedElementConfig.providers,
       importProvidersFrom(EmbedViewerModule)
    ]
-});
+}).catch(err => console.error(err));
 
 /**
  * Check if inetsoft is connected on app load in case there is no need to log in such as when
