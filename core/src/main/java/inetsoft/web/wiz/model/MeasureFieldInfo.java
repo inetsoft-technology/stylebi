@@ -18,6 +18,7 @@
 package inetsoft.web.wiz.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import inetsoft.web.binding.model.graph.CalculateInfo;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class MeasureFieldInfo extends SimpleFieldInfo {
@@ -53,8 +54,17 @@ public class MeasureFieldInfo extends SimpleFieldInfo {
       this.nOrP = nOrP;
    }
 
+   public CalculateInfo getCalculateInfo() {
+      return calculateInfo;
+   }
+
+   public void setCalculateInfo(CalculateInfo calculateInfo) {
+      this.calculateInfo = calculateInfo;
+   }
+
    private String aggregateFormula;
    private String fullName;
    private String secondaryField;
    private Integer nOrP;
+   private CalculateInfo calculateInfo;
 }

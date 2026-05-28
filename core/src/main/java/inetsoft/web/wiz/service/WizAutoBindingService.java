@@ -34,6 +34,8 @@ import inetsoft.web.vswizard.recommender.WizardRecommenderUtil;
 import inetsoft.web.vswizard.recommender.chart.ChartCombinationUtil;
 import inetsoft.web.vswizard.recommender.chart.ChartPreference;
 import inetsoft.web.vswizard.service.VSWizardTemporaryInfoService;
+import inetsoft.uql.viewsheet.graph.Calculator;
+import inetsoft.web.binding.model.graph.CalculateInfo;
 import inetsoft.web.wiz.model.*;
 import inetsoft.web.wiz.model.BindingInfo;
 import org.slf4j.Logger;
@@ -375,8 +377,18 @@ public class WizAutoBindingService {
          }
       }
       else if(ref instanceof VSChartAggregateRef agg) {
-         if(fc instanceof MeasureFieldInfo meaFc && meaFc.getAggregateFormula() != null) {
-            agg.setFormulaValue(meaFc.getAggregateFormula());
+         if(fc instanceof MeasureFieldInfo meaFc) {
+            if(meaFc.getAggregateFormula() != null) {
+               agg.setFormulaValue(meaFc.getAggregateFormula());
+            }
+
+            if(meaFc.getCalculateInfo() != null) {
+               Calculator calc = meaFc.getCalculateInfo().toCalculator();
+
+               if(calc != null) {
+                  agg.setCalculator(calc);
+               }
+            }
          }
       }
    }
@@ -481,6 +493,7 @@ public class WizAutoBindingService {
       MeasureFieldInfo info = new MeasureFieldInfo();
       info.setField(agg.getColumnValue());
       info.setAggregateFormula(agg.getFormula() != null ? agg.getFormula().getFormulaName() : null);
+      info.setCalculateInfo(CalculateInfo.createCalcInfo(agg.getCalculator()));
       return info;
    }
 
@@ -488,6 +501,11 @@ public class WizAutoBindingService {
       MeasureFieldInfo info = new MeasureFieldInfo();
       info.setField(ref.getAttribute());
       info.setType(ref.getDataType());
+
+      if(ref instanceof VSAggregateRef agg) {
+         info.setCalculateInfo(CalculateInfo.createCalcInfo(agg.getCalculator()));
+      }
+
       return info;
    }
 
@@ -551,6 +569,7 @@ public class WizAutoBindingService {
          info.setField(agg.getColumnValue());
          info.setAggregateFormula(agg.getFormulaValue());
          info.setFullName(agg.getFullName());
+         info.setCalculateInfo(CalculateInfo.createCalcInfo(agg.getCalculator()));
          return info;
       }
 
