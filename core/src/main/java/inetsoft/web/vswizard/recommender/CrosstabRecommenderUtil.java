@@ -118,14 +118,10 @@ public class CrosstabRecommenderUtil {
       // Use setFormulaValue to copy the design-time formula string directly, bypassing the
       // AggregateFormula static singleton whose getFormulaName() can transiently return "Sum"
       // instead of "Count" when the composite flag is set by another thread (MV processing).
+      // getDValue() is always non-null in practice (constructor default is "none"), so the
+      // fallback to "none" is a safety net only.
       String formulaValue = oagg.getFormulaValue();
-
-      if(formulaValue != null) {
-         agg.setFormulaValue(formulaValue);
-      }
-      else {
-         agg.setFormula(oagg.getFormula());
-      }
+      agg.setFormulaValue(formulaValue != null ? formulaValue : "none");
 
       agg.setNValue(oagg.getNValue());
       agg.setCaption(oagg.getCaption());
