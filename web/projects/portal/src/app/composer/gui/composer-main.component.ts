@@ -141,6 +141,7 @@ import { ScriptService } from "./script/script.service";
 import { StylePaneComponent } from "./tablestyle/editor/style-pane.component";
 import { ComposerToolbarComponent } from "./toolbar/composer-toolbar.component";
 import { ComposerObjectService } from "./vs/composer-object.service";
+import { EventQueueService } from "./vs/event-queue.service";
 import { CloseSheetEvent } from "./vs/event/close-sheet-event";
 import { LayoutUndoRedoEvent } from "./vs/event/layout-undo-redo-event";
 import { SaveSheetEvent } from "./ws/socket/save-sheet-event";
@@ -239,6 +240,7 @@ const CONFIRM_MESSAGE = {
             useClass: VSScaleService
         },
         ComposerObjectService,
+        EventQueueService,
         ResizeHandlerService,
         ClipboardService,
         ComposerRecentService,
