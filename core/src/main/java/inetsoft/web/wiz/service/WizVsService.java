@@ -55,8 +55,19 @@ public class WizVsService {
       this.engine = engine;
    }
 
+   @FunctionalInterface
+   public interface PostAssemblyHook {
+      void apply(RuntimeViewsheet rvs, VSAssembly assembly) throws Exception;
+   }
+
    public CreateViewsheetResult createViewsheet(CreateVisualizationModel model, Principal user) throws Exception {
-      return createViewsheetInternal(model, user, false);
+      return createViewsheetInternal(model, user, false, null);
+   }
+
+   public CreateViewsheetResult createViewsheet(CreateVisualizationModel model, Principal user,
+                                                PostAssemblyHook hook) throws Exception
+   {
+      return createViewsheetInternal(model, user, false, hook);
    }
 
    /**
@@ -66,12 +77,19 @@ public class WizVsService {
    CreateViewsheetResult createViewsheetSkipExecution(CreateVisualizationModel model, Principal user)
       throws Exception
    {
-      return createViewsheetInternal(model, user, true);
+      return createViewsheetInternal(model, user, true, null);
+   }
+
+   CreateViewsheetResult createViewsheetSkipExecution(CreateVisualizationModel model, Principal user,
+                                                      PostAssemblyHook hook) throws Exception
+   {
+      return createViewsheetInternal(model, user, true, hook);
    }
 
    private CreateViewsheetResult createViewsheetInternal(CreateVisualizationModel model,
                                                          Principal user,
-                                                         boolean skipExecution) throws Exception
+                                                         boolean skipExecution,
+                                                         PostAssemblyHook hook) throws Exception
    {
       String runtimeId = model.getRuntimeId();
       boolean createdRuntimeId = false;
@@ -214,7 +232,7 @@ public class WizVsService {
                else {
                   // Fallback to original path if worksheet table not found
                   LOG.warn("Aggregate conditions specified but worksheet table '{}' not found; " +
-                           "aggregate conditions will be ignored", wsTableName);
+                              "aggregate conditions will be ignored", wsTableName);
                   applyConditionModel(assembly, conditionModel);
                }
             }
@@ -227,6 +245,10 @@ public class WizVsService {
             // inside try so any failure triggers the same rollback as an execution failure.
             if(wsModified || !createdRuntimeId && !modificationOnly) {
                targetVs.reloadBaseWorksheet(engine, user);
+            }
+
+            if(hook != null) {
+               hook.apply(rvs, assembly);
             }
 
             CreateViewsheetResult result;
@@ -1084,7 +1106,7 @@ public class WizVsService {
    }
 
    private VSAssembly createAssemblyFromPrimaryBinding(Viewsheet vs, String name,
-                                                      PrimaryBinding binding, String tname)
+                                                       PrimaryBinding binding, String tname)
    {
       VSAssembly assembly = switch(binding) {
          case PrimaryBinding.ChartPrimaryBinding cb ->
@@ -1353,7 +1375,7 @@ public class WizVsService {
                }
                catch(Exception e) {
                   throw new RuntimeException("Invalid layer '" + layerConfig.getLayer() +
-                                             "': " + e.getMessage(), e);
+                                                "': " + e.getMessage(), e);
                }
             }
 
@@ -1877,10 +1899,11 @@ public class WizVsService {
     * Builds a VSAggregateRef from individual parameters and returns its fullName.
     * This ensures consistent fullName generation across the codebase.
     *
-    * @param columnValue      the primary column/field name
-    * @param formulaValue     the aggregate formula (e.g., "Sum", "Average")
-    * @param secondaryField   the secondary field name for two-column formulas (may be null)
-    * @param nOrP             the N or P parameter for Nth/Percentile formulas (may be null)
+    * @param columnValue    the primary column/field name
+    * @param formulaValue   the aggregate formula (e.g., "Sum", "Average")
+    * @param secondaryField the secondary field name for two-column formulas (may be null)
+    * @param nOrP           the N or P parameter for Nth/Percentile formulas (may be null)
+    *
     * @return the computed fullName from VSAggregateRef
     */
    private String buildVSAggregateRefFullName(String columnValue, String formulaValue,
@@ -1955,6 +1978,7 @@ public class WizVsService {
     * This is the reverse of {@link #getDateGroupLevel(String)}.
     *
     * @param level the integer date level constant
+    *
     * @return the human-readable name, or null if level is NONE_DATE_GROUP or unrecognized
     */
    public static String getDateGroupLevelName(int level) {
@@ -2029,7 +2053,7 @@ public class WizVsService {
       ConditionList conditionList = new ConditionList();
 
       if(wizModel != null && wizModel.getBaseConditions() != null) {
-         appendConditionNodes(wizModel.getBaseConditions(), 0, conditionList, new boolean[]{true}, null);
+         appendConditionNodes(wizModel.getBaseConditions(), 0, conditionList, new boolean[]{ true }, null);
       }
 
       return conditionList;
@@ -2081,7 +2105,7 @@ public class WizVsService {
             // Build the group's contents into a temporary list first so we can check
             // whether it produced any valid items before committing a junction.
             ConditionList groupContents = new ConditionList();
-            appendConditionNodes(items, depth + 1, groupContents, new boolean[]{true}, dimColumnMapping);
+            appendConditionNodes(items, depth + 1, groupContents, new boolean[]{ true }, dimColumnMapping);
 
             if(groupContents.isEmpty()) {
                continue;
@@ -2258,7 +2282,7 @@ public class WizVsService {
 
             if(colRef == null) {
                LOG.warn("Dimension field '{}' not found in worksheet column selection; " +
-                        "skipping from aggregation", dim.getField());
+                           "skipping from aggregation", dim.getField());
                continue;
             }
 
@@ -2309,7 +2333,7 @@ public class WizVsService {
 
             if(colRef == null) {
                LOG.warn("Measure field '{}' not found in worksheet column selection; " +
-                        "skipping from aggregation", measure.getField());
+                           "skipping from aggregation", measure.getField());
                continue;
             }
 
@@ -2317,7 +2341,7 @@ public class WizVsService {
 
             if(formula == null) {
                LOG.warn("Aggregate formula '{}' for measure '{}' is null or unrecognized; " +
-                        "defaulting to SUM", measure.getAggregateFormula(), measure.getField());
+                           "defaulting to SUM", measure.getAggregateFormula(), measure.getField());
                formula = AggregateFormula.SUM;
             }
 
@@ -2372,7 +2396,7 @@ public class WizVsService {
       // Apply base conditions as pre-conditions (WHERE equivalent)
       if(conditionModel.getBaseConditions() != null && !conditionModel.getBaseConditions().isEmpty()) {
          ConditionList preCondList = new ConditionList();
-         appendConditionNodes(conditionModel.getBaseConditions(), 0, preCondList, new boolean[]{true}, null);
+         appendConditionNodes(conditionModel.getBaseConditions(), 0, preCondList, new boolean[]{ true }, null);
 
          if(!preCondList.isEmpty()) {
             table.setPreConditionList(preCondList);
@@ -2384,7 +2408,7 @@ public class WizVsService {
       // Use dimColumnMapping to translate dimension field+dateGroupLevel to DateRangeRef column names
       if(conditionModel.getAggregateConditions() != null && !conditionModel.getAggregateConditions().isEmpty()) {
          ConditionList postCondList = new ConditionList();
-         appendConditionNodes(conditionModel.getAggregateConditions(), 0, postCondList, new boolean[]{true}, dimColumnMapping);
+         appendConditionNodes(conditionModel.getAggregateConditions(), 0, postCondList, new boolean[]{ true }, dimColumnMapping);
 
          if(!postCondList.isEmpty()) {
             table.setPostConditionList(postCondList);
@@ -2636,13 +2660,16 @@ public class WizVsService {
 
    /**
     * Holds the mapping information from pushAggregationToWorksheet.
-    * @param dimColumnMapping set of DateRangeRef column names (for date grouping) that were pushed to worksheet
+    *
+    * @param dimColumnMapping       set of DateRangeRef column names (for date grouping) that were pushed to worksheet
     * @param pushedMeasureFullNames set of measure fullNames (e.g., "Sum(Amount)") that were pushed to worksheet
     */
    private record PreAggregationMapping(
       Set<String> dimColumnMapping,
       Set<String> pushedMeasureFullNames
-   ) {}
+   )
+   {
+   }
 
    private final ViewsheetService viewsheetService;
    private final AssetRepository engine;

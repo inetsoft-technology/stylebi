@@ -25,6 +25,7 @@ import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
+import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.util.Tool;
 import inetsoft.web.vswizard.handler.VSWizardBindingHandler;
 import inetsoft.web.vswizard.model.VSWizardData;
@@ -33,6 +34,7 @@ import inetsoft.web.vswizard.recommender.VSDefaultRecommendationFactory;
 import inetsoft.web.vswizard.recommender.WizardRecommenderUtil;
 import inetsoft.web.vswizard.recommender.chart.ChartCombinationUtil;
 import inetsoft.web.vswizard.recommender.chart.ChartPreference;
+import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.vswizard.service.VSWizardTemporaryInfoService;
 import inetsoft.uql.viewsheet.graph.Calculator;
 import inetsoft.web.binding.model.graph.CalculateInfo;
@@ -150,6 +152,7 @@ public class WizAutoBindingService {
          }
 
          bindingHandler.updateTemporaryFields(rvs, entries, tempInfo);
+         tempInfo.getTempChart().setSourceInfo(bindingHandler.getCurrentSource(entries, tableName));
 
          VSChartInfo tempChartInfo = tempInfo.getTempChart().getVSChartInfo();
          applyFieldConfigs(tempChartInfo, configMap);
@@ -179,6 +182,14 @@ public class WizAutoBindingService {
             String intentCategory = request.getIntentCategory();
             primaryBinding = buildPrimaryVisualization(model, entries, vizType, explicitBindings,
                                                        prefInfos, intentCategory);
+
+            // Mirror the wizard path: call updatePrimaryAssembly on autoBindingRvs so it gets
+            // the same full setup (calc field registration, format, legend, temp assembly cleanup).
+            if(primaryBinding instanceof PrimaryBinding.ChartPrimaryBinding chartBinding &&
+               chartRec instanceof VSChartRecommendation vcr)
+            {
+               primaryBinding = refreshChartBinding(chartBinding, vcr, rvs, user);
+            }
          }
 
          // Phase 3: place primary into the output viewsheet.
@@ -196,7 +207,11 @@ public class WizAutoBindingService {
             vsModel.setRuntimeId(request.getWizRuntimeId());
             vsModel.setViewsheetIdentifier(request.getViewsheetIdentifier());
 
-            visualizationResult = wizVsService.createViewsheet(vsModel, user);
+            visualizationResult = wizVsService.createViewsheet(vsModel, user, (wizRvs, asm) -> {
+               if(asm instanceof ChartVSAssembly) {
+                  WizardRecommenderUtil.syncCalcFields(rvs.getViewsheet(), wizRvs.getViewsheet());
+               }
+            });
 
             // createViewsheet only sets runtimeId when it creates a new RVS.
             // Back-fill it so the client always receives the effective wizRuntimeId.
@@ -686,7 +701,9 @@ public class WizAutoBindingService {
       return null;
    }
 
-   /** Package-private so {@code changeType()} can select a binding from a cached model. */
+   /**
+    * Package-private so {@code changeType()} can select a binding from a cached model.
+    */
    PrimaryBinding findPrimaryBindingByType(String vizType, VSRecommendationModel model,
                                            AssetEntry[] entries)
    {
@@ -696,7 +713,7 @@ public class WizAutoBindingService {
 
             if(infos != null) {
                for(ChartInfo ci : infos) {
-                  if(vizType.equals(getChartTypeString(ci.getChartType()))) {
+                  if(chartTypeMatches(vizType, ci)) {
                      return new PrimaryBinding.ChartPrimaryBinding(ci);
                   }
                }
@@ -820,7 +837,7 @@ public class WizAutoBindingService {
 
       return prefInfos.stream()
          .map(ChartCombinationUtil.ScoredInfo::getInfo)
-         .filter(ci -> explicitChartType.equals(getChartTypeString(ci.getChartType())))
+         .filter(ci -> chartTypeMatches(explicitChartType, ci))
          .findFirst()
          .map(PrimaryBinding.ChartPrimaryBinding::new)
          .orElse(null);
@@ -994,6 +1011,38 @@ public class WizAutoBindingService {
       };
    }
 
+   /**
+    * Returns true when {@code vizType} (the frontend string such as "donut" or "area") matches
+    * the given ChartInfo from the recommendation model.
+    *
+    * Two special cases require this method instead of a plain string compare:
+    * <ul>
+    *   <li><b>donut</b>: DonutChartFilter stores chartType=CHART_PIE with isDonut=true,
+    *       so getChartTypeString(CHART_PIE) returns "pie", not "donut".</li>
+    *   <li><b>area</b>: AreaChartFilter only ever generates CHART_AREA_STACK; the
+    *       recommendation model therefore never contains a plain CHART_AREA entry.</li>
+    * </ul>
+    */
+   private static boolean chartTypeMatches(String vizType, ChartInfo ci) {
+      if("donut".equals(vizType)) {
+         return GraphTypes.isDonut(ci);
+      }
+
+      // DonutChartFilter stores chartType=CHART_PIE with isDonut=true; exclude it from "pie"
+      if("pie".equals(vizType) && GraphTypes.isDonut(ci)) {
+         return false;
+      }
+
+      String ciType = getChartTypeString(ci.getChartType());
+
+      if(vizType.equals(ciType)) {
+         return true;
+      }
+
+      // "area" request can be satisfied by an area_stack recommendation
+      return "area".equals(vizType) && "area_stack".equals(ciType);
+   }
+
    // ── VisualizationConfig wrapper ───────────────────────────────────────────────
 
    private VisualizationConfig wrapInConfig(BindingInfo binding, String worksheetId) {
@@ -1030,16 +1079,19 @@ public class WizAutoBindingService {
 
       // 1. Try to get the recommendation model stored by a prior autoBinding call.
       VSRecommendationModel model = null;
+      VSTemporaryInfo autoBindingTempInfo = null;
+      RuntimeViewsheet capturedAutoBindingRvs = null;
 
       if(!Tool.isEmptyString(autoBindingRuntimeId)) {
          try {
             RuntimeViewsheet autoBindingRvs = viewsheetService.getViewsheet(autoBindingRuntimeId, user);
 
             if(autoBindingRvs != null) {
-               VSTemporaryInfo tempInfo = autoBindingRvs.getVSTemporaryInfo();
+               capturedAutoBindingRvs = autoBindingRvs;
+               autoBindingTempInfo = autoBindingRvs.getVSTemporaryInfo();
 
-               if(tempInfo != null) {
-                  model = tempInfo.getRecommendationModel();
+               if(autoBindingTempInfo != null) {
+                  model = autoBindingTempInfo.getRecommendationModel();
                }
             }
          }
@@ -1090,6 +1142,18 @@ public class WizAutoBindingService {
          return new CreateViewsheetResult();
       }
 
+      // Mirror the wizard path: update autoBindingRvs so its state stays consistent
+      // (calc fields, format, legend, cleanup of previous temp assembly).
+      if(primaryBinding instanceof PrimaryBinding.ChartPrimaryBinding chartBinding &&
+         capturedAutoBindingRvs != null)
+      {
+         VSObjectRecommendation chartRec = model.findRecommendation(VSRecommendType.CHART, false);
+
+         if(chartRec instanceof VSChartRecommendation vcr) {
+            primaryBinding = refreshChartBinding(chartBinding, vcr, capturedAutoBindingRvs, user);
+         }
+      }
+
       // 4. Place the new primary in wizRuntimeId without executing the sandbox.
       VisualizationConfig sourceConfig = new VisualizationConfig();
       VisualizationConfig.DataSource ds = new VisualizationConfig.DataSource();
@@ -1102,7 +1166,13 @@ public class WizAutoBindingService {
       vsModel.setRuntimeId(wizRuntimeId);
       vsModel.setViewsheetIdentifier(viewsheetIdentifier);
 
-      CreateViewsheetResult result = wizVsService.createViewsheetSkipExecution(vsModel, user);
+      final RuntimeViewsheet autoRvsForHook = capturedAutoBindingRvs;
+      CreateViewsheetResult result = wizVsService.createViewsheetSkipExecution(vsModel, user,
+         (wizRvs, asm) -> {
+            if(asm instanceof ChartVSAssembly && autoRvsForHook != null) {
+               WizardRecommenderUtil.syncCalcFields(autoRvsForHook.getViewsheet(), wizRvs.getViewsheet());
+            }
+         });
 
       if(Tool.isEmptyString(result.getRuntimeId())) {
          result.setRuntimeId(wizRuntimeId);
@@ -1111,6 +1181,64 @@ public class WizAutoBindingService {
       // Echo the autoBindingRuntimeId back so the client can reuse it on the next call.
       result.setAutoBindingRuntimeId(autoBindingRuntimeId);
       return result;
+   }
+
+   /**
+    * Calls updatePrimaryAssembly on {@code rvs} to mirror the full wizard setup path
+    * (calc field registration, format, legend, temp assembly cleanup), then extracts the
+    * updated ChartInfo from the resulting temp assembly. Returns the refreshed binding, or
+    * the original binding if the temp assembly is not a chart.
+    */
+   private PrimaryBinding refreshChartBinding(PrimaryBinding.ChartPrimaryBinding chartBinding,
+                                               VSChartRecommendation vcr,
+                                               RuntimeViewsheet rvs,
+                                               Principal user) throws Exception
+   {
+      syncChartSelectedIndex(vcr, chartBinding.info());
+
+      CommandDispatcher.withDummyDispatcher(user, dispatcher -> {
+         bindingHandler.updatePrimaryAssembly(vcr, rvs, false, "", dispatcher, false);
+         return null;
+      });
+
+      VSAssembly autoTempAsm = WizardRecommenderUtil.getTempAssembly(rvs.getViewsheet());
+
+      if(autoTempAsm instanceof ChartVSAssembly autoChart) {
+         return new PrimaryBinding.ChartPrimaryBinding(
+            ((ChartVSAssemblyInfo) autoChart.getInfo()).getVSChartInfo());
+      }
+
+      return chartBinding;
+   }
+
+   /**
+    * Sets selectedIndex on {@code vcr} so that {@code addChartVSAssembly} fetches
+    * {@code selectedInfo}. Checks chartInfos first (plain index), then prefInfos
+    * (chartInfos.size() + prefIdx) to cover both selection paths.
+    */
+   private static void syncChartSelectedIndex(VSChartRecommendation vcr, ChartInfo selectedInfo) {
+      List<ChartInfo> chartInfos = vcr.getChartInfos();
+      int chartInfosSize = chartInfos != null ? chartInfos.size() : 0;
+
+      if(chartInfos != null) {
+         for(int i = 0; i < chartInfosSize; i++) {
+            if(chartInfos.get(i) == selectedInfo) {
+               vcr.setSelectedIndex(i);
+               return;
+            }
+         }
+      }
+
+      List<ChartCombinationUtil.ScoredInfo> prefInfos = vcr.getPrefInfos();
+
+      if(prefInfos != null) {
+         for(int i = 0; i < prefInfos.size(); i++) {
+            if(prefInfos.get(i).getInfo() == selectedInfo) {
+               vcr.setSelectedIndex(chartInfosSize + i);
+               return;
+            }
+         }
+      }
    }
 
    private static final Logger LOG = LoggerFactory.getLogger(WizAutoBindingService.class);
