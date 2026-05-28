@@ -15,12 +15,11 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { NgModule } from "@angular/core";
-import { RouterModule, Routes } from "@angular/router";
+import { Routes } from "@angular/router";
 import { canActivateRoot } from "./can-activate-root.service";
 import { canActivateComposer } from "./composer/services/can-activate-composer.service";
 
-const routes: Routes = [
+export const routes: Routes = [
    {
       path: "",
       canActivate: [canActivateRoot],
@@ -28,19 +27,19 @@ const routes: Routes = [
          {
             path: "composer",
             canActivate: [canActivateComposer],
-            loadChildren: () => import("./composer/composer-app.module").then(m => m.ComposerAppModule)
+            loadChildren: () => import("./composer/composer.routes").then(m => m.composerRoutes)
          },
          {
             path: "portal",
-            loadChildren: () => import("./portal/portal-app.module").then(m => m.PortalAppModule)
+            loadChildren: () => import("./portal/portal.routes").then(m => m.portalRoutes)
          },
          {
             path: "viewer",
-            loadChildren: () => import("./viewer/viewer-app.module").then(m => m.ViewerAppModule)
+            loadChildren: () => import("./viewer/viewer.routes").then(m => m.viewerRoutes)
          },
          {
             path: "embed/chart",
-            loadChildren: () => import("./embed/chart/embed-chart.module").then(m => m.EmbedChartModule)
+            loadChildren: () => import("./embed/chart/embed-chart.routes").then(m => m.embedChartRoutes)
          },
          {
             path: "**",
@@ -48,10 +47,3 @@ const routes: Routes = [
          }
       ]}
 ];
-
-@NgModule({
-   imports: [RouterModule.forRoot(routes, { onSameUrlNavigation: "reload" })],
-   exports: [RouterModule]
-})
-export class AppRoutingModule {
-}

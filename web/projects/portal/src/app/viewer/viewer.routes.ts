@@ -15,14 +15,19 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { NgModule } from "@angular/core";
-import { RouterModule, Routes, UrlMatchResult, UrlSegment } from "@angular/router";
+import { Routes, UrlMatchResult, UrlSegment } from "@angular/router";
+import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
+import { CodemirrorService } from "../../../../shared/util/codemirror/codemirror.service";
+import { DefaultCodemirrorService } from "../../../../shared/util/codemirror/default-codemirror.service";
 import { canComponentDeactivate } from "../../../../shared/util/guard/can-component-deactivate.service";
 import { globalParameterGuard } from "../../../../shared/util/guard/global-parameter-guard.service";
+import { UIContextService } from "../common/services/ui-context.service";
 import {
    principalResolver,
    PrincipalResolverService
 } from "../common/services/principal-resolver.service";
+import { HideNavService } from "../portal/services/hide-nav.service";
+import { VSTrapService } from "../vsobjects/util/vs-trap.service";
 import { viewDataResolver } from "./view-data-resolver.service";
 import { ViewerRootComponent } from "./viewer-root.component";
 import { ViewerViewComponent } from "./viewer-view/viewer-view.component";
@@ -117,10 +122,17 @@ export function VIEW_URL_MATCHER(url: UrlSegment[]): UrlMatchResult {
    return result;
 }
 
-const routes: Routes = [
+export const viewerRoutes: Routes = [
    {
       path: "",
       component: ViewerRootComponent,
+      providers: [
+         VSTrapService,
+         UIContextService,
+         HideNavService,
+         NgbModal,
+         { provide: CodemirrorService, useClass: DefaultCodemirrorService }
+      ],
       children: [
          {
             component: ViewerViewComponent,
@@ -135,7 +147,7 @@ const routes: Routes = [
          },
          {
             path: "edit",
-            loadChildren: () => import("./viewer-edit/viewer-edit.module").then(m => m.ViewerEditModule),
+            loadChildren: () => import("./viewer-edit/viewer-edit.routes").then(m => m.viewerEditRoutes),
             resolve: {
                viewData: viewDataResolver
             }
@@ -151,10 +163,3 @@ const routes: Routes = [
       redirectTo: ""
    }
 ];
-
-@NgModule({
-   imports: [RouterModule.forChild(routes)],
-   exports: [RouterModule],
-})
-export class ViewerAppRoutingModule {
-}

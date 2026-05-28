@@ -15,13 +15,16 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { NgModule } from "@angular/core";
-import { RouterModule, Routes, UrlMatchResult, UrlSegment } from "@angular/router";
-import { canDeactivateGuard } from "../common/services/can-deactivate-guard.service";
-import {
-   principalResolver,
-   PrincipalResolverService
-} from "../common/services/principal-resolver.service";
+import { Routes, UrlMatchResult, UrlSegment } from "@angular/router";
+import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
+import { MonitoringDataService } from "../../../../em/src/app/monitoring/monitoring-data.service";
+import { ScheduleTaskNamesService } from "../../../../shared/schedule/schedule-task-names.service";
+import { PORTAL, ScheduleUsersService } from "../../../../shared/schedule/schedule-users.service";
+import { CodemirrorService } from "../../../../shared/util/codemirror/codemirror.service";
+import { DefaultCodemirrorService } from "../../../../shared/util/codemirror/default-codemirror.service";
+import { UIContextService } from "../common/services/ui-context.service";
+import { DataTreeValidatorService } from "../vsobjects/dialog/data-tree-validator.service";
+import { DebounceService } from "../widget/services/debounce.service";
 import { PortalAppComponent } from "./app.component";
 import { CustomTabComponent } from "./custom/custom-tab.component";
 import { DashboardTabComponent } from "./dashboard/dashboard-tab.component";
@@ -37,7 +40,16 @@ import { DatasourcesDatabaseComponent } from "./data/data-datasource-browser/dat
 import { DatasourcesDatasourceComponent } from "./data/data-datasource-browser/datasources-datasource/datasources-datasource.component";
 import { DatasourcesXmlaComponent } from "./data/data-datasource-browser/datasources-xmla/datasources-xmla.component";
 import { DataFolderBrowserComponent } from "./data/data-folder-browser/data-folder-browser.component";
+import { DataBrowserService } from "./data/data-folder-browser/data-browser.service";
+import { MoveAssetDialogDataConfig } from "./data/data-folder-browser/move-asset-dialog-data-config";
+import { DataSourcesTreeActionsService } from "./data/data-navigation-tree/data-sources-tree-actions.service";
 import { DataTabComponent } from "./data/data-tab.component";
+import { DataModelNameChangeService } from "./data/services/data-model-name-change.service";
+import { DataPhysicalModelService } from "./data/services/data-physical-model.service";
+import { FolderChangeService } from "./data/services/folder-change.service";
+import { DataQueryModelService } from "./data/data-datasource-browser/datasources-database/database-query/data-query-model.service";
+import { DatasourceBrowserService } from "./data/data-datasource-browser/datasource-browser.service";
+import { DataModelBrowserService } from "./data/data-datasource-browser/datasources-database/database-data-model-browser/data-model-browser.service";
 import { PortalRedirectComponent } from "./portal-redirect.component";
 import { ReportTabComponent } from "./report/report-tab.component";
 import { PortalReportComponent } from "./report/report/portal-report.component";
@@ -49,10 +61,20 @@ import { ScheduleTaskListComponent } from "./schedule/schedule-task-list/schedul
 import { canDatabaseCreateActivate } from "./services/can-database-create-activate.service";
 import { canDatabaseModelActivate } from "./services/can-database-model-activate.service";
 import { canTabActivate } from "./services/can-tab-activate.service";
+import { CurrentRouteService } from "./services/current-route.service";
 import { dashboardTabResolver } from "./services/dashboard-tab-resolver.service";
+import { HideNavService } from "./services/hide-nav.service";
+import { HistoryBarService } from "./services/history-bar.service";
+import { PortalModelService } from "./services/portal-model.service";
+import { PortalTabsService } from "./services/portal-tabs.service";
 import { reportTabResolver } from "./services/report-tab-resolver.service";
 import { routeEntryResolver } from "./services/route-entry-resolver.service";
 import { routeSourceResolver } from "./services/route-source-resolver.service";
+import { canDeactivateGuard } from "../common/services/can-deactivate-guard.service";
+import {
+   principalResolver,
+   PrincipalResolverService
+} from "../common/services/principal-resolver.service";
 
 export function REPORT_URL_MATCHER(url: UrlSegment[]): UrlMatchResult {
    let result: any = null;
@@ -76,10 +98,35 @@ export function REPORT_URL_MATCHER(url: UrlSegment[]): UrlMatchResult {
    return result;
 }
 
-const appRoutes: Routes = [
+export const portalRoutes: Routes = [
    {
       path: "",
       component: PortalAppComponent,
+      providers: [
+         DataModelNameChangeService,
+         DataTreeValidatorService,
+         FolderChangeService,
+         PortalTabsService,
+         DebounceService,
+         DataPhysicalModelService,
+         CurrentRouteService,
+         HideNavService,
+         PortalModelService,
+         MonitoringDataService,
+         HistoryBarService,
+         DataBrowserService,
+         DatasourceBrowserService,
+         DataModelBrowserService,
+         MoveAssetDialogDataConfig,
+         ScheduleUsersService,
+         ScheduleTaskNamesService,
+         { provide: PORTAL, useValue: true },
+         DataSourcesTreeActionsService,
+         UIContextService,
+         NgbModal,
+         { provide: CodemirrorService, useClass: DefaultCodemirrorService },
+         DataQueryModelService
+      ],
       children: [
          {
             path: "tab/dashboard",
@@ -98,7 +145,7 @@ const appRoutes: Routes = [
                },
                {
                   path: "vs",
-                  loadChildren: () => import("../viewer/viewer-app.module").then(m => m.ViewerAppModule),
+                  loadChildren: () => import("../viewer/viewer.routes").then(m => m.viewerRoutes),
                   data: {
                      inPortal: true,
                      inDashboard: true
@@ -132,7 +179,7 @@ const appRoutes: Routes = [
                },
                {
                   path: "vs",
-                  loadChildren: () => import("../viewer/viewer-app.module").then(m => m.ViewerAppModule),
+                  loadChildren: () => import("../viewer/viewer.routes").then(m => m.viewerRoutes),
                   data: {inPortal: true}
                },
                {
@@ -287,14 +334,3 @@ const appRoutes: Routes = [
       ]
    }
 ];
-
-@NgModule({
-   imports: [
-      RouterModule.forChild(appRoutes)
-   ],
-   exports: [
-      RouterModule
-   ],
-})
-export class PortalAppRoutingModule {
-}

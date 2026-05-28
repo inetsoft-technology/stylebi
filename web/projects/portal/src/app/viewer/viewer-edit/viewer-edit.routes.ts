@@ -15,23 +15,16 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import {CommonModule} from "@angular/common";
-import {NgModule} from "@angular/core";
-import {
-   VariableCollectionSelector
-} from "./variable-collection-selector.component";
-import {FormsModule} from "@angular/forms";
+import { Routes } from "@angular/router";
+import { SERVICE_PROVIDERS } from "../../composer/services.provider";
+import { ViewerEditComponent } from "./viewer-edit.component";
 
-@NgModule({
-    imports: [
-        CommonModule,
-        FormsModule,
-        VariableCollectionSelector,
-    ],
-    exports: [
-        VariableCollectionSelector
-    ],
-    providers: [],
-})
-export class VariableCollectionSelectorModule {
-}
+export const viewerEditRoutes: Routes = [
+   {
+      path: "",
+      component: ViewerEditComponent,
+      providers: [
+         ...SERVICE_PROVIDERS
+      ]
+   }
+];

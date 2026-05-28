@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+import { NgIf } from "@angular/common";
 import {
    AfterViewInit,
    ChangeDetectorRef,
@@ -59,7 +60,7 @@ import {
    ActionsContextmenuComponent
 } from "../../widget/fixed-dropdown/actions-contextmenu.component";
 import { FixedDropdownService } from "../../widget/fixed-dropdown/fixed-dropdown.service";
-import { EMBED_CHART_URL_MATCHER } from "./app-routing.module";
+import { EMBED_CHART_URL_MATCHER } from "./embed-chart.routes";
 import { DownloadService } from "../../../../../shared/download/download.service";
 import { TooltipService } from "../../widget/tooltip/tooltip.service";
 import { ShadowDomService } from "../shadow-dom.service";
@@ -72,6 +73,11 @@ import { DebounceService } from "../../widget/services/debounce.service";
 import { InteractService } from "../../widget/interact/interact.service";
 import { EmbedErrorCommand } from "../embed-error-command";
 import { AdhocFilterService } from "../../vsobjects/objects/data-tip/adhoc-filter.service";
+import { DownloadTargetComponent } from "../../../../../shared/download/download-target.component";
+import { ResizedDirective } from "../../../../../shared/resize-event/resized.directive";
+import { VSChart } from "../../vsobjects/objects/chart/vs-chart.component";
+import { MiniToolbar } from "../../vsobjects/objects/mini-toolbar/mini-toolbar.component";
+import { InteractContainerDirective } from "../../widget/interact/interact-container.directive";
 
 const OPEN_VS_URI: string = "/events/open";
 const CLOSE_VIEWSHEET_SOCKET_URI: string = "/events/composer/viewsheet/close";
@@ -80,6 +86,8 @@ const COLLECT_PARAMS_URI: string = "/events/vs/collectParameters";
 declare const window: any;
 
 @Component({
+   standalone: true,
+   imports: [NgIf, DownloadTargetComponent, ResizedDirective, VSChart, MiniToolbar, InteractContainerDirective],
    selector: "embed-chart",
    templateUrl: "./embed-chart.component.html",
    styleUrls: ["./embed-chart.component.scss"],
