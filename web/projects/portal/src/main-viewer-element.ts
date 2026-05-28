@@ -23,7 +23,6 @@ import { provideRouter } from "@angular/router";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { embedElementConfig } from "./app/embed/embed-element.config";
 import { EmbedViewerComponent } from "./app/embed/viewer/embed-viewer.component";
-import { FontService } from "./app/widget/services/font.service";
 import { ModelService } from "./app/widget/services/model.service";
 
 // VSObjectModule chain providers
@@ -35,7 +34,6 @@ import { FileUploadService } from "./app/common/services/file-upload.service";
 import { PropertyDialogService } from "./app/vsobjects/util/property-dialog.service";
 import { FullScreenService } from "./app/common/services/full-screen.service";
 import { RichTextService } from "./app/vsobjects/dialog/rich-text-dialog/rich-text.service";
-import { CKEditorRichTextService } from "./app/vsobjects/dialog/rich-text-dialog/ckeditor-rich-text.service";
 import { DndService } from "./app/common/dnd/dnd.service";
 import { VSDndService } from "./app/common/dnd/vs-dnd.service";
 import { DateComparisonService } from "./app/vsobjects/util/date-comparison.service";
@@ -98,16 +96,6 @@ createApplication({
       GlobalSubmitService,
       FileUploadService,
       PropertyDialogService,
-      {
-         provide: RichTextService,
-         useClass: CKEditorRichTextService,
-         deps: [FontService, NgbModal, HttpClient]
-      },
-      {
-         provide: DndService,
-         useClass: VSDndService,
-         deps: [HttpClient]
-      },
       DateComparisonService,
       {
          provide: ChartEditorService,
