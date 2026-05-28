@@ -17,6 +17,7 @@
  */
 import { createApplication } from "@angular/platform-browser";
 import { importProvidersFrom } from "@angular/core";
+import { provideRouter } from "@angular/router";
 import { EmbedViewerModule } from "./app/embed/viewer/embed-viewer.module";
 import { embedElementConfig } from "./app/embed/embed-element.config";
 import "./main-base-element";
@@ -26,6 +27,7 @@ import "./main-base-element";
 createApplication({
    providers: [
       ...embedElementConfig.providers,
+      provideRouter([]),
       importProvidersFrom(EmbedViewerModule)
    ]
 }).catch(err => console.error(err));
