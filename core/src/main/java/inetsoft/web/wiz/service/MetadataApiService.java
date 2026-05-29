@@ -626,17 +626,21 @@ public class MetadataApiService {
    }
 
    private TreeNodeModel filterWizTree(TreeNodeModel node) {
-      return filterWizTree(node, new HashMap<>());
+      return filterWizTree(node, new HashMap<>(), new HashMap<>());
    }
 
-   private TreeNodeModel filterWizTree(TreeNodeModel node, Map<String, SystemFilter> filterCache) {
+   private TreeNodeModel filterWizTree(
+      TreeNodeModel node,
+      Map<String, SystemFilter> filterCache,
+      Map<String, Set<String>> partitionCache)
+   {
       if(node == null) {
          return null;
       }
 
       AssetEntry entry = node.data() instanceof AssetEntry assetEntry ? assetEntry : null;
 
-      if(shouldHideWizTreeNode(entry, filterCache)) {
+      if(shouldHideWizTreeNode(entry, filterCache, partitionCache)) {
          return null;
       }
 
@@ -644,7 +648,7 @@ public class MetadataApiService {
       builder.children(new ArrayList<>());
 
       for(TreeNodeModel child : node.children()) {
-         TreeNodeModel filteredChild = filterWizTree(child, filterCache);
+         TreeNodeModel filteredChild = filterWizTree(child, filterCache, partitionCache);
 
          if(filteredChild != null) {
             builder.addChildren(filteredChild);
@@ -654,7 +658,11 @@ public class MetadataApiService {
       return builder.build();
    }
 
-   private boolean shouldHideWizTreeNode(AssetEntry entry, Map<String, SystemFilter> filterCache) {
+   private boolean shouldHideWizTreeNode(
+      AssetEntry entry,
+      Map<String, SystemFilter> filterCache,
+      Map<String, Set<String>> partitionCache)
+   {
       if(entry == null || Tool.isEmptyString(entry.getPath())) {
          return false;
       }
@@ -671,7 +679,20 @@ public class MetadataApiService {
          return false;
       }
 
-      SystemFilter filter = getSystemFilter(parts[0], filterCache);
+      String dsName = parts[0];
+
+      // Partition-child check (Postgres only): TABLE leaves whose qualified name
+      // appears in the per-datasource partition set are dropped. Cached lazily
+      // because the asset tree can include many tables per datasource.
+      if("TABLE".equalsIgnoreCase(tableType)) {
+         Set<String> partitions = partitionCache.computeIfAbsent(
+            dsName, this::probePartitionsForTree);
+         if(isPartitionChild(entry.getPath(), partitions)) {
+            return true;
+         }
+      }
+
+      SystemFilter filter = getSystemFilter(dsName, filterCache);
 
       if(filter.isEmpty()) {
          return false;
@@ -686,6 +707,27 @@ public class MetadataApiService {
       }
 
       return parts.length > 3 && matchesSystemName(parts[3], filter.schemas);
+   }
+
+   /**
+    * Lazy partition probe for the asset-tree filter. Fail-open: returns empty
+    * set on any error so the tree still renders, mirroring getDatabaseTables.
+    */
+   private Set<String> probePartitionsForTree(String dsName) {
+      try {
+         JDBCDataSource ds = getJDBCDatasource(dsName);
+         if(ds == null || !isPostgresDriver(ds)) {
+            return Set.of();
+         }
+         try(java.sql.Connection conn = new inetsoft.uql.jdbc.JDBCHandler()
+               .getConnection(ds, inetsoft.util.ThreadContext.getContextPrincipal())) {
+            return findPostgresPartitionChildren(ds, conn);
+         }
+      }
+      catch(Exception e) {
+         log.warn("Partition probe failed for asset tree '{}'; tree will include partitions", dsName, e);
+         return Set.of();
+      }
    }
 
    private XNode filterSystemSchemaTree(XNode schemas, JDBCDataSource jdbcDataSource) {
