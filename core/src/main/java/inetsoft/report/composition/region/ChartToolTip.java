@@ -112,6 +112,10 @@ public class ChartToolTip implements DataSerializable {
          }
       }
 
+      // Emit the stack total separately at tier-1 so it reads as a footer total,
+      // matching the combined-card path.
+      int stackTotalIdx = findStackTotalIndex(palette);
+
       for(int i = 0; i < tooltips.size(); i += 2) {
          int keyIdx = tooltips.get(i);
 
@@ -120,10 +124,23 @@ public class ChartToolTip implements DataSerializable {
             continue;
          }
 
+         if(i == stackTotalIdx) {
+            continue;
+         }
+
          String label = palette.get(keyIdx);
          String value = (i + 1) < tooltips.size() ? palette.get(tooltips.get(i + 1)) : "";
          appendTier(buffer, tier, label + ChartToolTip.COLON + value);
          tier++;
+      }
+
+      if(stackTotalIdx >= 0) {
+         String label = palette.get(tooltips.get(stackTotalIdx));
+         String value = (stackTotalIdx + 1) < tooltips.size()
+            ? palette.get(tooltips.get(stackTotalIdx + 1)) : "";
+         buffer.append("<div class=\"tt-tier-1 tt-stack-total\">")
+               .append(label).append(ChartToolTip.COLON).append(value)
+               .append("</div>");
       }
 
       return buffer.toString();
@@ -164,6 +181,23 @@ public class ChartToolTip implements DataSerializable {
       }
 
       return buffer.toString();
+   }
+
+   // Match by name rather than position so callers that skip moveTotalToBottom still work.
+   private int findStackTotalIndex(IndexedSet<String> palette) {
+      if(stackTotalName == null || stackTotalName.isEmpty()) {
+         return -1;
+      }
+
+      for(int i = 0; i < tooltips.size(); i += 2) {
+         int keyIdx = tooltips.get(i);
+
+         if(keyIdx >= 0 && stackTotalName.equals(palette.get(keyIdx))) {
+            return i;
+         }
+      }
+
+      return -1;
    }
 
    private boolean isMultiSection() {
