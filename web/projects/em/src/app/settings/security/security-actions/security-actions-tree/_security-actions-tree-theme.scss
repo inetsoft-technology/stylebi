@@ -27,7 +27,7 @@
 
   .security-action-tree {
     .mat-tree-node.mat-active {
-      background: mat.get-color-from-palette($background, hover, 0.12);
+      background: mat.m2-get-color-from-palette($background, hover, 0.12);
     }
   }
 }

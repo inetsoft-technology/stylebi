@@ -16,9 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-import {
-   HttpClient,
-} from "@angular/common/http";
+import { HttpClient } from "@angular/common/http";
 import {
    Component,
    Inject,

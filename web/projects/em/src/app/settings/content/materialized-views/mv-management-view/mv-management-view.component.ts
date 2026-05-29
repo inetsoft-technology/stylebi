@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import {SelectionModel} from "@angular/cdk/collections";
-import {HttpClient, HttpParams} from "@angular/common/http";
+import { HttpClient, HttpParams } from "@angular/common/http";
 import {Component, OnDestroy, OnInit} from "@angular/core";
 import {MatDialog, MatDialogConfig} from "@angular/material/dialog";
 import {MatSnackBarConfig} from "@angular/material/snack-bar";

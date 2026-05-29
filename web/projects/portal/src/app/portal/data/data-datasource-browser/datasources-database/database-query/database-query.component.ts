@@ -26,7 +26,7 @@ import {
    ViewEncapsulation
 } from "@angular/core";
 import { NgbModal, NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, NgbNavOutlet } from "@ng-bootstrap/ng-bootstrap";
-import { NgbNavChangeEvent } from "@ng-bootstrap/ng-bootstrap/nav/nav";
+import { NgbNavChangeEvent } from "@ng-bootstrap/ng-bootstrap";
 import { Subscription } from "rxjs";
 import { TreeNodeModel } from "../../../../../widget/tree/tree-node-model";
 import {

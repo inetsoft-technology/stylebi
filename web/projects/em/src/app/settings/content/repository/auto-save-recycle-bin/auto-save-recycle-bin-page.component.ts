@@ -17,7 +17,7 @@
  */
 import {Component, EventEmitter, Input, Output} from "@angular/core";
 import {AutoSaveRecycleBinModel} from "./auto-save-recycle-bin";
-import {HttpClient, HttpErrorResponse} from "@angular/common/http";
+import { HttpClient, HttpErrorResponse } from "@angular/common/http";
 import {MatSnackBar} from "@angular/material/snack-bar";
 import {catchError} from "rxjs/operators";
 import {throwError} from "rxjs";

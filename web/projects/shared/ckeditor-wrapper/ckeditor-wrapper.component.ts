@@ -59,139 +59,139 @@ import {
 } from "ckeditor5";
 
 
-// @ts-expect-error
+// @ts-ignore
 import af from "ckeditor5/translations/af.js";
-// @ts-expect-error
+// @ts-ignore
 import ar from "ckeditor5/translations/ar.js";
-// @ts-expect-error
+// @ts-ignore
 import ast from "ckeditor5/translations/ast.js";
-// @ts-expect-error
+// @ts-ignore
 import az from "ckeditor5/translations/az.js";
-// @ts-expect-error
+// @ts-ignore
 import bg from "ckeditor5/translations/bg.js";
-// @ts-expect-error
+// @ts-ignore
 import bs from "ckeditor5/translations/bs.js";
-// @ts-expect-error
+// @ts-ignore
 import ca from "ckeditor5/translations/ca.js";
-// @ts-expect-error
+// @ts-ignore
 import cs from "ckeditor5/translations/cs.js";
-// @ts-expect-error
+// @ts-ignore
 import da from "ckeditor5/translations/da.js";
-// @ts-expect-error
+// @ts-ignore
 import de from "ckeditor5/translations/de.js";
-// @ts-expect-error
+// @ts-ignore
 import dech from "ckeditor5/translations/de-ch.js";
-// @ts-expect-error
+// @ts-ignore
 import el from "ckeditor5/translations/el.js";
-// @ts-expect-error
+// @ts-ignore
 import enau from "ckeditor5/translations/en-au.js";
-// @ts-expect-error
+// @ts-ignore
 import engb from "ckeditor5/translations/en-gb.js";
-// @ts-expect-error
+// @ts-ignore
 import eo from "ckeditor5/translations/eo.js";
-// @ts-expect-error
+// @ts-ignore
 import es from "ckeditor5/translations/es.js";
-// @ts-expect-error
+// @ts-ignore
 import et from "ckeditor5/translations/et.js";
-// @ts-expect-error
+// @ts-ignore
 import eu from "ckeditor5/translations/eu.js";
-// @ts-expect-error
+// @ts-ignore
 import fa from "ckeditor5/translations/fa.js";
-// @ts-expect-error
+// @ts-ignore
 import fi from "ckeditor5/translations/fi.js";
-// @ts-expect-error
+// @ts-ignore
 import fr from "ckeditor5/translations/fr.js";
-// @ts-expect-error
+// @ts-ignore
 import gl from "ckeditor5/translations/gl.js";
-// @ts-expect-error
+// @ts-ignore
 import gu from "ckeditor5/translations/gu.js";
-// @ts-expect-error
+// @ts-ignore
 import he from "ckeditor5/translations/he.js";
-// @ts-expect-error
+// @ts-ignore
 import hi from "ckeditor5/translations/hi.js";
-// @ts-expect-error
+// @ts-ignore
 import hr from "ckeditor5/translations/hr.js";
-// @ts-expect-error
+// @ts-ignore
 import hu from "ckeditor5/translations/hu.js";
-// @ts-expect-error
+// @ts-ignore
 import id from "ckeditor5/translations/id.js";
-// @ts-expect-error
+// @ts-ignore
 import it from "ckeditor5/translations/it.js";
-// @ts-expect-error
+// @ts-ignore
 import ja from "ckeditor5/translations/ja.js";
-// @ts-expect-error
+// @ts-ignore
 import jv from "ckeditor5/translations/jv.js";
-// @ts-expect-error
+// @ts-ignore
 import kk from "ckeditor5/translations/kk.js";
-// @ts-expect-error
+// @ts-ignore
 import km from "ckeditor5/translations/km.js";
-// @ts-expect-error
+// @ts-ignore
 import kn from "ckeditor5/translations/kn.js";
-// @ts-expect-error
+// @ts-ignore
 import ko from "ckeditor5/translations/ko.js";
-// @ts-expect-error
+// @ts-ignore
 import ku from "ckeditor5/translations/ku.js";
-// @ts-expect-error
+// @ts-ignore
 import lt from "ckeditor5/translations/lt.js";
-// @ts-expect-error
+// @ts-ignore
 import lv from "ckeditor5/translations/lv.js";
-// @ts-expect-error
+// @ts-ignore
 import ms from "ckeditor5/translations/ms.js";
-// @ts-expect-error
+// @ts-ignore
 import nb from "ckeditor5/translations/nb.js";
-// @ts-expect-error
+// @ts-ignore
 import ne from "ckeditor5/translations/ne.js";
-// @ts-expect-error
+// @ts-ignore
 import nl from "ckeditor5/translations/nl.js";
-// @ts-expect-error
+// @ts-ignore
 import no from "ckeditor5/translations/no.js";
-// @ts-expect-error
+// @ts-ignore
 import oc from "ckeditor5/translations/oc.js";
-// @ts-expect-error
+// @ts-ignore
 import pl from "ckeditor5/translations/pl.js";
-// @ts-expect-error
+// @ts-ignore
 import pt from "ckeditor5/translations/pt.js";
-// @ts-expect-error
+// @ts-ignore
 import ptbr from "ckeditor5/translations/pt-br.js";
-// @ts-expect-error
+// @ts-ignore
 import ro from "ckeditor5/translations/ro.js";
-// @ts-expect-error
+// @ts-ignore
 import ru from "ckeditor5/translations/ru.js";
-// @ts-expect-error
+// @ts-ignore
 import si from "ckeditor5/translations/si.js";
-// @ts-expect-error
+// @ts-ignore
 import sk from "ckeditor5/translations/sk.js";
-// @ts-expect-error
+// @ts-ignore
 import sl from "ckeditor5/translations/sl.js";
-// @ts-expect-error
+// @ts-ignore
 import sq from "ckeditor5/translations/sq.js";
-// @ts-expect-error
+// @ts-ignore
 import sr from "ckeditor5/translations/sr.js";
-// @ts-expect-error
+// @ts-ignore
 import srlatn from "ckeditor5/translations/sr-latn.js";
-// @ts-expect-error
+// @ts-ignore
 import sv from "ckeditor5/translations/sv.js";
-// @ts-expect-error
+// @ts-ignore
 import th from "ckeditor5/translations/th.js";
-// @ts-expect-error
+// @ts-ignore
 import tk from "ckeditor5/translations/tk.js";
-// @ts-expect-error
+// @ts-ignore
 import tr from "ckeditor5/translations/tr.js";
-// @ts-expect-error
+// @ts-ignore
 import tt from "ckeditor5/translations/tt.js";
-// @ts-expect-error
+// @ts-ignore
 import ug from "ckeditor5/translations/ug.js";
-// @ts-expect-error
+// @ts-ignore
 import uk from "ckeditor5/translations/uk.js";
-// @ts-expect-error
+// @ts-ignore
 import ur from "ckeditor5/translations/ur.js";
-// @ts-expect-error
+// @ts-ignore
 import uz from "ckeditor5/translations/uz.js";
-// @ts-expect-error
+// @ts-ignore
 import vi from "ckeditor5/translations/vi.js";
-// @ts-expect-error
+// @ts-ignore
 import zh from "ckeditor5/translations/zh.js";
-// @ts-expect-error
+// @ts-ignore
 import zhcn from "ckeditor5/translations/zh-cn.js";
 import { CKEditorModule } from "@ckeditor/ckeditor5-angular";
 import { NgIf } from "@angular/common";

@@ -23,7 +23,7 @@ import {
    ViewChild,
    ViewEncapsulation
 } from "@angular/core";
-import { NgbNavChangeEvent } from "@ng-bootstrap/ng-bootstrap/nav/nav";
+import { NgbNavChangeEvent } from "@ng-bootstrap/ng-bootstrap";
 import {
    QueryGroupingPaneModel
 } from "../../../../../model/datasources/database/query/query-grouping-pane-model";

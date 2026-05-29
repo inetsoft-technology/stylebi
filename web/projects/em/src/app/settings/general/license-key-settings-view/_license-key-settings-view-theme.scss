@@ -24,7 +24,7 @@
   $warn: map-get($theme, warn);
   $background: map-get($theme, background);
   $foreground: map-get($theme, foreground);
-  $color-warn: mat.get-color-from-palette($warn);
+  $color-warn: mat.m2-get-color-from-palette($warn);
 
   .license-list {
     & + .license-error {

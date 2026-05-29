@@ -20,7 +20,7 @@ import {Component, EventEmitter, Input, OnChanges, OnInit, Output, SimpleChanges
 import { UntypedFormControl, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import {FormValidators} from "../../../../../../../shared/util/form-validators";
 import {ScriptSettingsModel} from "./script-settings.model";
-import {HttpClient, HttpParams} from "@angular/common/http";
+import { HttpClient, HttpParams } from "@angular/common/http";
 import {Tool} from "../../../../../../../shared/util/tool";
 import { COPY_PASTE_CONTEXT_REPOSITORY } from "../../../security/resource-permission/copy-paste-context";
 import { ResourcePermissionComponent } from "../../../security/resource-permission/resource-permission.component";

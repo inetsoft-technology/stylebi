@@ -95,8 +95,8 @@
                         [source]="getSource()"
                         [showUseList]="showUseList" [isVSContext]="isVSContext"
                         [showOriginalName]="showOriginalName"
-                        [(value)]="condition.values == null ? null : condition.values[0]"
-                        (valueChange)="conditionChanged()"></condition-editor>
+                        [value]="condition.values == null ? null : condition.values[0]"
+                        (valueChange)="onConditionValueChange($event)"></condition-editor>
     </div>
   </div>
 </div>

@@ -29,8 +29,8 @@
     .editor {
       .nav-pane {
         .mat-mdc-list-item.mat-active {
-          background: mat.get-color-from-palette($background, hover);
-          color: mat.get-color-from-palette($foreground, text);
+          background: mat.m2-get-color-from-palette($background, hover);
+          color: mat.m2-get-color-from-palette($foreground, text);
         }
       }
     }

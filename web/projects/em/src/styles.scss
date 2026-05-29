@@ -16,17 +16,20 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 @import './styles/general';
-@import '~codemirror/lib/codemirror.css';
-@import '~codemirror/addon/dialog/dialog.css';
-@import '~codemirror/addon/fold/foldgutter.css';
-@import '~codemirror/addon/hint/show-hint.css';
-@import '~codemirror/addon/tern/tern.css';
-@import '~node_modules/ckeditor5/dist/ckeditor5.css';
+@import 'codemirror/lib/codemirror.css';
+@import 'codemirror/addon/dialog/dialog.css';
+@import 'codemirror/addon/fold/foldgutter.css';
+@import 'codemirror/addon/hint/show-hint.css';
+@import 'codemirror/addon/tern/tern.css';
+@import 'ckeditor5/ckeditor5.css';
 
 $inet-default-icon-color: black; // overridden later
-$ineticons-font-path: '~/../../portal/src/assets/ineticons/fonts';
+// EM styles are served at .../em/styles-*.css and the ineticons fonts are
+// deployed under .../app/assets/ineticons/fonts, so use an absolute URL that
+// resolves at runtime. esbuild leaves absolute URLs untouched.
+$ineticons-font-path: '/app/assets/ineticons/fonts';
 @import '../../portal/src/assets/ineticons/style.scss';
-$brush-cursor-path: '~/../../portal/src/assets/cursor/brushcursor.gif';
+$brush-cursor-path: '/app/assets/cursor/brushcursor.gif';
 @import '../../portal/src/scss/icons';
 
 .ineticons {

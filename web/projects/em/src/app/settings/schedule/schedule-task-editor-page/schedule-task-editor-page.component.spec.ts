@@ -20,7 +20,7 @@ jest.mock("../../../../../../shared/ckeditor-wrapper/ckeditor-wrapper.component"
 }));
 
 import { NO_ERRORS_SCHEMA } from "@angular/core";
-import { async, TestBed } from "@angular/core/testing";
+import { TestBed, waitForAsync } from "@angular/core/testing";
 import { UntypedFormBuilder, ReactiveFormsModule } from "@angular/forms";
 import { MatDialog } from "@angular/material/dialog";
 import { MatSnackBar } from "@angular/material/snack-bar";
@@ -112,7 +112,7 @@ const createModel = (): ScheduleTaskDialogModel => ({
 describe("ScheduleTaskEditorPageComponent", () => {
    let component: ScheduleTaskEditorPageComponent;
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [ReactiveFormsModule,
             ScheduleTaskEditorPageComponent],

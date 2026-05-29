@@ -22,7 +22,7 @@ import { VSBookmarkInfoModel } from "../model/vs-bookmark-info-model";
 import { FixedDropdownDirective } from "../../widget/fixed-dropdown/fixed-dropdown.directive";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { RemoveAnnotationsCondition } from "../model/remove-annotations-condition";
-import { NgbModalOptions } from "@ng-bootstrap/ng-bootstrap/modal/modal-config";
+import { NgbModalOptions } from "@ng-bootstrap/ng-bootstrap";
 import { FormsModule } from "@angular/forms";
 import { BlockMouseDirective } from "../../widget/mouse-event/block-mouse.directive";
 import { EnterClickDirective } from "../../widget/directive/enter-click.directive";

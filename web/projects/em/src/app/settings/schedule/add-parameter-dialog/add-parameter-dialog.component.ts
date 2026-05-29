@@ -30,7 +30,7 @@ import {DynamicDate} from "../../../../../../portal/src/app/portal/schedule/sche
 import {
   FormulaEditorDialogModel
 } from "../../../../../../portal/src/app/widget/formula-editor/formula-editor-dialog-model";
-import {HttpClient} from "@angular/common/http";
+import { HttpClient } from "@angular/common/http";
 import {MessageDialog, MessageDialogType} from "../../../common/util/message-dialog";
 import {TestTaskParameterExpressionRequest} from "../model/test-task-parameter-expression-request";
 import { MatButton } from "@angular/material/button";
