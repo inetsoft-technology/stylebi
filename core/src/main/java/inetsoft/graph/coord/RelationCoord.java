@@ -193,11 +193,14 @@ public class RelationCoord extends Coordinate {
       }
 
       double width = box.getMaxX() - box.getX();
-      // Skip back-divide in horizontal mode: X is depth there, and fit()'s uniform scale is
-      // driven by Y, so dividing by scaleX inflates X spuriously and widens the chart canvas.
-      return isFirstElementHorizontal()
-         ? width + GAP * 2
-         : width / Math.abs(getVGraph().getScreenTransform().getScaleX()) + GAP * 2;
+      // Back-divide recovers the natural width incl. labels (so V-scrollable expand gives the
+      // tree a wide enough plot). Skip for horizontal-faceted: per-row scaleX would inflate the
+      // depth direction.
+      if(isFirstElementHorizontal() && getParentCoordinate() != null) {
+         return width + GAP * 2;
+      }
+
+      return width / Math.abs(getVGraph().getScreenTransform().getScaleX()) + GAP * 2;
    }
 
    /**
