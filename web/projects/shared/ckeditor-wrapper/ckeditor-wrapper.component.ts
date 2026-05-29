@@ -59,139 +59,72 @@ import {
 } from "ckeditor5";
 
 
-// @ts-ignore
 import af from "ckeditor5/translations/af.js";
-// @ts-ignore
 import ar from "ckeditor5/translations/ar.js";
-// @ts-ignore
 import ast from "ckeditor5/translations/ast.js";
-// @ts-ignore
 import az from "ckeditor5/translations/az.js";
-// @ts-ignore
 import bg from "ckeditor5/translations/bg.js";
-// @ts-ignore
 import bs from "ckeditor5/translations/bs.js";
-// @ts-ignore
 import ca from "ckeditor5/translations/ca.js";
-// @ts-ignore
 import cs from "ckeditor5/translations/cs.js";
-// @ts-ignore
 import da from "ckeditor5/translations/da.js";
-// @ts-ignore
 import de from "ckeditor5/translations/de.js";
-// @ts-ignore
 import dech from "ckeditor5/translations/de-ch.js";
-// @ts-ignore
 import el from "ckeditor5/translations/el.js";
-// @ts-ignore
 import enau from "ckeditor5/translations/en-au.js";
-// @ts-ignore
 import engb from "ckeditor5/translations/en-gb.js";
-// @ts-ignore
 import eo from "ckeditor5/translations/eo.js";
-// @ts-ignore
 import es from "ckeditor5/translations/es.js";
-// @ts-ignore
 import et from "ckeditor5/translations/et.js";
-// @ts-ignore
 import eu from "ckeditor5/translations/eu.js";
-// @ts-ignore
 import fa from "ckeditor5/translations/fa.js";
-// @ts-ignore
 import fi from "ckeditor5/translations/fi.js";
-// @ts-ignore
 import fr from "ckeditor5/translations/fr.js";
-// @ts-ignore
 import gl from "ckeditor5/translations/gl.js";
-// @ts-ignore
 import gu from "ckeditor5/translations/gu.js";
-// @ts-ignore
 import he from "ckeditor5/translations/he.js";
-// @ts-ignore
 import hi from "ckeditor5/translations/hi.js";
-// @ts-ignore
 import hr from "ckeditor5/translations/hr.js";
-// @ts-ignore
 import hu from "ckeditor5/translations/hu.js";
-// @ts-ignore
 import id from "ckeditor5/translations/id.js";
-// @ts-ignore
 import it from "ckeditor5/translations/it.js";
-// @ts-ignore
 import ja from "ckeditor5/translations/ja.js";
-// @ts-ignore
 import jv from "ckeditor5/translations/jv.js";
-// @ts-ignore
 import kk from "ckeditor5/translations/kk.js";
-// @ts-ignore
 import km from "ckeditor5/translations/km.js";
-// @ts-ignore
 import kn from "ckeditor5/translations/kn.js";
-// @ts-ignore
 import ko from "ckeditor5/translations/ko.js";
-// @ts-ignore
 import ku from "ckeditor5/translations/ku.js";
-// @ts-ignore
 import lt from "ckeditor5/translations/lt.js";
-// @ts-ignore
 import lv from "ckeditor5/translations/lv.js";
-// @ts-ignore
 import ms from "ckeditor5/translations/ms.js";
-// @ts-ignore
 import nb from "ckeditor5/translations/nb.js";
-// @ts-ignore
 import ne from "ckeditor5/translations/ne.js";
-// @ts-ignore
 import nl from "ckeditor5/translations/nl.js";
-// @ts-ignore
 import no from "ckeditor5/translations/no.js";
-// @ts-ignore
 import oc from "ckeditor5/translations/oc.js";
-// @ts-ignore
 import pl from "ckeditor5/translations/pl.js";
-// @ts-ignore
 import pt from "ckeditor5/translations/pt.js";
-// @ts-ignore
 import ptbr from "ckeditor5/translations/pt-br.js";
-// @ts-ignore
 import ro from "ckeditor5/translations/ro.js";
-// @ts-ignore
 import ru from "ckeditor5/translations/ru.js";
-// @ts-ignore
 import si from "ckeditor5/translations/si.js";
-// @ts-ignore
 import sk from "ckeditor5/translations/sk.js";
-// @ts-ignore
 import sl from "ckeditor5/translations/sl.js";
-// @ts-ignore
 import sq from "ckeditor5/translations/sq.js";
-// @ts-ignore
 import sr from "ckeditor5/translations/sr.js";
-// @ts-ignore
 import srlatn from "ckeditor5/translations/sr-latn.js";
-// @ts-ignore
 import sv from "ckeditor5/translations/sv.js";
-// @ts-ignore
 import th from "ckeditor5/translations/th.js";
-// @ts-ignore
 import tk from "ckeditor5/translations/tk.js";
-// @ts-ignore
 import tr from "ckeditor5/translations/tr.js";
-// @ts-ignore
 import tt from "ckeditor5/translations/tt.js";
-// @ts-ignore
 import ug from "ckeditor5/translations/ug.js";
-// @ts-ignore
 import uk from "ckeditor5/translations/uk.js";
-// @ts-ignore
 import ur from "ckeditor5/translations/ur.js";
-// @ts-ignore
 import uz from "ckeditor5/translations/uz.js";
-// @ts-ignore
 import vi from "ckeditor5/translations/vi.js";
-// @ts-ignore
 import zh from "ckeditor5/translations/zh.js";
-// @ts-ignore
 import zhcn from "ckeditor5/translations/zh-cn.js";
 import { CKEditorModule } from "@ckeditor/ckeditor5-angular";
 import { NgIf } from "@angular/common";
