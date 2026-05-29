@@ -1418,11 +1418,29 @@ public class PlotArea extends GridContainerArea implements GraphComponentArea, R
       else {
          boolean isGantt = GraphTypes.isGantt(chartInfo.getChartType());
          boolean isCandleOrStock = chartInfo instanceof CandleChartInfo;
+         boolean isScatter = isScatterPlot(chartInfo);
 
          // Gantt: Y-axis is the "row" axis that distinguishes bars, so list
          // Y dims ahead of X dims regardless of binding order in the element.
          if(isGantt) {
             dims = ganttDimsYFirst(dims, chartInfo);
+         }
+         // Scatter: the categorical color/shape aesthetic identifies each point,
+         // but it lives in an aesthetic frame rather than element.getDims(). Lift
+         // it ahead of the measures so it leads as the tier-1 identity headline
+         // (the measures are co-equal coordinates that group at tier-2 below).
+         else if(isScatter) {
+            List<String> idDims = getScatterIdentityDims(element, dataset, aesthetics);
+
+            if(!idDims.isEmpty()) {
+               for(String d : dims) {
+                  if(!idDims.contains(d)) {
+                     idDims.add(d);
+                  }
+               }
+
+               dims = idDims.toArray(new String[0]);
+            }
          }
 
          boolean cardMeasureFirst = cardPutsMeasureFirst(chartInfo, element);
@@ -1546,6 +1564,28 @@ public class PlotArea extends GridContainerArea implements GraphComponentArea, R
             }
          }
 
+         // Gantt and scatter present values of equal importance, not a headline
+         // measure. When a real identity dim leads (Gantt task / scatter color
+         // dim) it becomes the tier-1 headline and the values group at tier-2;
+         // a scatter with no identity dim renders every row at a uniform tier
+         // (like the flat default tooltip). Sized here, before appendInfo adds
+         // aesthetics, so only structural rows join the tier-2 group.
+         if(chartInfo.getTooltipStyle() == ChartInfo.TooltipStyle.CARD &&
+            (isGantt || isScatter))
+         {
+            boolean hasIdentityDim = Arrays.stream(dims)
+               .anyMatch(d -> d != null && allfields.contains(d));
+
+            if(hasIdentityDim) {
+               int structuralPairs = tooltip.getTooltipList().size() / 2;
+               tooltip.setGroupedTiers(true);
+               tooltip.setTier2GroupSize(Math.max(0, structuralPairs - 1));
+            }
+            else if(isScatter) {
+               tooltip.setUniformTier(true);
+            }
+         }
+
          // add count as tooltip per MF requirement. may want t omake it more generic
          // when the graph type is available on gui.
          if(evo instanceof ParaboxPointVO) {
@@ -1573,6 +1613,17 @@ public class PlotArea extends GridContainerArea implements GraphComponentArea, R
          // Lift only dims[0]; nested X-dims stay as regular rows (matches captureCombinedCardHeader).
          if(candleCardLayout && dims.length > 0) {
             applyCandleCardHeader(tooltip, dims[0], tipMeasures);
+         }
+         // Solo measure-first card: lift the X-dim to the tier-1 subtitle header so a
+         // single-series hover matches the combined-tooltip layout.
+         else if(cardMeasureFirst && dims.length > 0) {
+            int[] dimIndexes = new int[dims.length];
+
+            for(int i = 0; i < dims.length; i++) {
+               dimIndexes[i] = palette.put(dims[i]);
+            }
+
+            captureCombinedCardHeader(tooltip, dimIndexes);
          }
       }
 
@@ -1950,7 +2001,8 @@ public class PlotArea extends GridContainerArea implements GraphComponentArea, R
 
    // Card style puts the hovered measure at tier-1 — except where the dim
    // itself identifies the hovered shape (Gantt Y-dim labels the bar; word
-   // cloud dim is rendered as the word). In those cases the dim leads.
+   // cloud dim is rendered as the word), or where the axes are co-equal
+   // coordinates (scatter). In those cases no single measure leads.
    static boolean cardPutsMeasureFirst(ChartInfo chartInfo, GraphElement element) {
       if(chartInfo == null
          || chartInfo.getTooltipStyle() != ChartInfo.TooltipStyle.CARD)
@@ -1966,7 +2018,83 @@ public class PlotArea extends GridContainerArea implements GraphComponentArea, R
          return false;
       }
 
+      if(isScatterPlot(chartInfo)) {
+         return false;
+      }
+
       return true;
+   }
+
+   // Scatter (including the scatter matrix): a point chart with measures on both
+   // the X and Y axes. The two measures are coordinates of equal weight, so no
+   // single measure should be promoted as a card headline.
+   static boolean isScatterPlot(ChartInfo chartInfo) {
+      if(chartInfo == null || !GraphTypes.isPoint(chartInfo.getChartType())) {
+         return false;
+      }
+
+      return chartInfo.getXFieldCount() > 0 && chartInfo.getYFieldCount() > 0 &&
+         !GraphUtil.hasDimensionOnX(chartInfo) && !GraphUtil.hasDimensionOnY(chartInfo);
+   }
+
+   // Categorical (non-measure) aesthetic dims that identify a scatter point,
+   // ordered color → shape → texture → line → size so the tier-1 headline is
+   // predictable when several aesthetics are bound. Membership comes from the
+   // resolved aesthetics set, which already unwraps composite/multi-field frames.
+   static List<String> getScatterIdentityDims(GraphElement element, DataSet dataset,
+                                              Set<String> aesthetics)
+   {
+      VisualFrame[] ordered = { element.getColorFrame(), element.getShapeFrame(),
+         element.getTextureFrame(), element.getLineFrame(), element.getSizeFrame() };
+      List<String> idDims = new ArrayList<>();
+
+      for(VisualFrame frame : ordered) {
+         for(String field : frameFields(frame)) {
+            if(field != null && aesthetics.contains(field) && !dataset.isMeasure(field) &&
+               !idDims.contains(field))
+            {
+               idDims.add(field);
+            }
+         }
+      }
+
+      // Any remaining resolved aesthetic dim (e.g. a text-frame field) still
+      // leads the measures, after the frame-ranked ones.
+      for(String aes : aesthetics) {
+         if(aes != null && !dataset.isMeasure(aes) && !idDims.contains(aes)) {
+            idDims.add(aes);
+         }
+      }
+
+      return idDims;
+   }
+
+   // Resolve a frame's bound field(s), unwrapping composite/multi-field frames.
+   static String[] frameFields(VisualFrame frame) {
+      if(frame == null) {
+         return new String[0];
+      }
+
+      if(frame instanceof CompositeColorFrame) {
+         CompositeColorFrame composite = (CompositeColorFrame) frame;
+         List<String> fields = new ArrayList<>();
+
+         for(int i = 0; i < composite.getFrameCount(); i++) {
+            String field = composite.getFrame(i).getField();
+
+            if(field != null) {
+               fields.add(field);
+            }
+         }
+
+         return fields.toArray(new String[0]);
+      }
+
+      if(frame instanceof MultiFieldFrame) {
+         return ((MultiFieldFrame) frame).getFields();
+      }
+
+      return frame.getField() == null ? new String[0] : new String[]{ frame.getField() };
    }
 
    // Partition the gantt's element dims into Y-axis dims first, then anything

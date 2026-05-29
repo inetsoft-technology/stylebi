@@ -17,17 +17,25 @@
  */
 package inetsoft.report.composition.region;
 
+import inetsoft.graph.aesthetic.*;
+import inetsoft.graph.data.DataSet;
 import inetsoft.graph.element.GraphElement;
 import inetsoft.graph.element.PointElement;
-import inetsoft.uql.viewsheet.graph.ChartInfo;
-import inetsoft.uql.viewsheet.graph.GraphTypes;
+import inetsoft.uql.viewsheet.graph.*;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
+import java.util.*;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+@Tag("core")
 class PlotAreaCardMeasureFirstTest {
    @Test
    void cardOnNormalChartPromotesMeasure() {
@@ -74,20 +82,81 @@ class PlotAreaCardMeasureFirstTest {
 
    @Test
    void cardOnPointElementNotWordCloudPromotesMeasure() {
-      // Regression guard: only word-cloud PointElements get the dim-first
-      // treatment, regular point charts (scatter, etc.) keep measure-first.
+      // Regression guard: a dot plot (a dimension on X, measure on Y) keeps
+      // measure-first. Only word cloud and scatter (measures on both axes) get
+      // the dim-first / no-headline treatment.
+      ChartInfo info = chartInfo(ChartInfo.TooltipStyle.CARD, GraphTypes.CHART_POINT);
+      when(info.getXFieldCount()).thenReturn(1);
+      when(info.getYFieldCount()).thenReturn(1);
+      when(info.getXField(0)).thenReturn(mock(ChartDimensionRef.class));
+      when(info.getYField(0)).thenReturn(mock(ChartAggregateRef.class));
+
       PointElement point = mock(PointElement.class);
       when(point.isWordCloud()).thenReturn(false);
 
-      assertTrue(PlotArea.cardPutsMeasureFirst(
-         chartInfo(ChartInfo.TooltipStyle.CARD, GraphTypes.CHART_POINT),
-         point));
+      assertTrue(PlotArea.cardPutsMeasureFirst(info, point));
+   }
+
+   @Test
+   void cardOnScatterPromotesDim() {
+      // Scatter (measures on both X and Y) → coordinates of equal weight, so no
+      // single measure leads as the headline.
+      assertFalse(PlotArea.cardPutsMeasureFirst(scatterInfo(), mock(GraphElement.class)));
+   }
+
+   @Test
+   void scatterPlotDetectedWhenMeasuresOnBothAxes() {
+      assertTrue(PlotArea.isScatterPlot(scatterInfo()));
+   }
+
+   @Test
+   void scatterPlotNotDetectedWithDimensionOnAxis() {
+      // A dimension on X makes it a dot plot, not a scatter.
+      ChartInfo info = scatterInfo();
+      when(info.getXField(0)).thenReturn(mock(ChartDimensionRef.class));
+      assertFalse(PlotArea.isScatterPlot(info));
+   }
+
+   @Test
+   void scatterPlotNotDetectedForNonPointChart() {
+      assertFalse(PlotArea.isScatterPlot(
+         chartInfo(ChartInfo.TooltipStyle.CARD, GraphTypes.CHART_BAR)));
+   }
+
+   @Test
+   void scatterIdentityDimsLeadWithColorThenShape() {
+      // Color identifies a scatter point most directly, so it leads as the
+      // tier-1 headline; remaining aesthetic dims follow by frame priority.
+      GraphElement element = mock(GraphElement.class);
+      ColorFrame color = mock(ColorFrame.class);
+      ShapeFrame shape = mock(ShapeFrame.class);
+      when(color.getField()).thenReturn("State");
+      when(shape.getField()).thenReturn("Region");
+      when(element.getColorFrame()).thenReturn(color);
+      when(element.getShapeFrame()).thenReturn(shape);
+
+      DataSet dataset = mock(DataSet.class);
+      when(dataset.isMeasure(anyString())).thenReturn(false);
+
+      List<String> idDims = PlotArea.getScatterIdentityDims(
+         element, dataset, new HashSet<>(Arrays.asList("State", "Region")));
+
+      assertEquals(Arrays.asList("State", "Region"), idDims);
    }
 
    private static ChartInfo chartInfo(ChartInfo.TooltipStyle style, int chartType) {
       ChartInfo info = mock(ChartInfo.class);
       when(info.getTooltipStyle()).thenReturn(style);
       when(info.getChartType()).thenReturn(chartType);
+      return info;
+   }
+
+   private static ChartInfo scatterInfo() {
+      ChartInfo info = chartInfo(ChartInfo.TooltipStyle.CARD, GraphTypes.CHART_POINT);
+      when(info.getXFieldCount()).thenReturn(2);
+      when(info.getYFieldCount()).thenReturn(2);
+      when(info.getXField(anyInt())).thenReturn(mock(ChartAggregateRef.class));
+      when(info.getYField(anyInt())).thenReturn(mock(ChartAggregateRef.class));
       return info;
    }
 
