@@ -542,8 +542,29 @@ public abstract class AbstractDataSet implements DataSet {
    @Override
    @TernMethod
    public final String getHeader(int col) {
-      return (calcs == null || col < getColCount0()) ? getHeader0(col) :
-         getCalcColumns(true).get(col - getColCount0()).getHeader();
+      // Snapshot getColCount0() once to avoid a TOCTOU race: for dynamic datasets
+      // (e.g. IntervalDataSet, SumDataSet) getColCount0() is recomputed each time it
+      // is called and may return a smaller value if the underlying dataset's calc-column
+      // state changes between the condition check and the index calculation.  Calling it
+      // twice with different results makes (col - getColCount0()) larger than expected and
+      // causes an IndexOutOfBoundsException in getCalcColumns(true).get(). (75154)
+      int colCount0 = getColCount0();
+
+      if(calcs == null || col < colCount0) {
+         return getHeader0(col);
+      }
+
+      List<CalcColumn> calcList = getCalcColumns(true);
+      int calcIdx = col - colCount0;
+
+      if(calcIdx >= calcList.size()) {
+         // colCount0 shrank after getColCount() was cached (e.g. inner dataset lost
+         // calc columns between the snapshot and this call).  Return null so callers
+         // that iterate with a stale colCnt can safely skip the column.
+         return null;
+      }
+
+      return calcList.get(calcIdx).getHeader();
    }
 
    /**

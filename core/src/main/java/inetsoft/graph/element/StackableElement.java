@@ -206,6 +206,13 @@ public abstract class StackableElement extends GraphElement {
       for(int i = 0; i < colCnt; i++) {
          String vfld = data.getHeader(i);
 
+         // getHeader() may return null when the dataset's colCount0 shrank (due to
+         // concurrent modification or stale state) between the colCnt snapshot above
+         // and this getHeader() call; skip such columns safely. (75154)
+         if(vfld == null) {
+            continue;
+         }
+
          if(!sorted.contains(vfld) && data.getComparator(vfld) != null) {
             if(sdata == null) {
                sdata = createSortedDataSet(data, vfld);
