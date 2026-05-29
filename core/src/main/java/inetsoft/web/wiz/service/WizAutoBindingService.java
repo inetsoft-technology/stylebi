@@ -244,7 +244,8 @@ public class WizAutoBindingService {
    // ── AssetEntry building ──────────────────────────────────────────────────────
 
    private AssetEntry buildEntryFromColumn(ColumnRef col, String wsPath, String tableName) {
-      String colName = col.getAttribute();
+      String alias = col.getAlias();
+      String colName = (alias != null && !alias.isEmpty()) ? alias : col.getAttribute();
       String path = (wsPath != null && tableName != null)
          ? wsPath + "/" + tableName + "/" + colName : colName;
 
@@ -255,9 +256,6 @@ public class WizAutoBindingService {
 
       String dtype = col.getDataType() != null ? col.getDataType() : XSchema.STRING;
       entry.setProperty("dtype", dtype);
-
-      String alias = col.getAlias();
-      entry.setProperty("caption", alias != null ? alias : colName);
 
       boolean isMeasure = XSchema.isNumericType(dtype) && !XSchema.isDateType(dtype);
       setRefType(entry, isMeasure);
