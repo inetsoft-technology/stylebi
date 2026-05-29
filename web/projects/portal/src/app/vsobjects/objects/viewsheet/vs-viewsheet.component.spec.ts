@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { ChangeDetectorRef, NO_ERRORS_SCHEMA } from "@angular/core";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { ComponentFixture, TestBed, waitForAsync } from "@angular/core/testing";
 import { TestUtils } from "../../../common/test/test-utils";
 import { ViewsheetClientService } from "../../../common/viewsheet-client";
 import { FixedDropdownService } from "../../../widget/fixed-dropdown/fixed-dropdown.service";
@@ -34,7 +34,7 @@ describe("VSViewsheet Unit Tests", () => {
    let fixture: ComponentFixture<VSViewsheet>;
    let component: VSViewsheet;
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       const viewsheetClientService = { sendEvent: jest.fn() };
       const dataTipService = {
          isDataTip: jest.fn(),
