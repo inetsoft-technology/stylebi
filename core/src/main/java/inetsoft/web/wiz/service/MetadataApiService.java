@@ -1042,6 +1042,40 @@ public class MetadataApiService {
       return Set.copyOf(out);
    }
 
+   /**
+    * True when (schema, tableName) refers to a row in the partition-children set.
+    * Used by getDatabaseTables, which already has schema and table broken out.
+    */
+   static boolean isPartitionChild(String schema, String tableName, Set<String> partitions) {
+      if(partitions == null || partitions.isEmpty() || tableName == null) {
+         return false;
+      }
+      // Locale.ROOT matches the lowercasing convention used in findPostgresPartitionChildren.
+      String qualified = ((schema == null ? "" : schema + ".") + tableName).toLowerCase(Locale.ROOT);
+      return partitions.contains(qualified);
+   }
+
+   /**
+    * True when a wiz asset path ("dsName/TABLE/schema/tableName") refers to a
+    * partition child. Used by filterWizTree, which only has the path string.
+    * Returns false for paths that aren't TABLE leaves (VIEW, folder paths, etc.)
+    * so the predicate is safe to call on any node.
+    */
+   static boolean isPartitionChild(String assetPath, Set<String> partitions) {
+      if(assetPath == null || assetPath.isEmpty() || partitions == null || partitions.isEmpty()) {
+         return false;
+      }
+      String[] parts = assetPath.split("/");
+      // Need at minimum: dsName/TABLE/schema/tableName
+      if(parts.length < 4) {
+         return false;
+      }
+      if(!"TABLE".equalsIgnoreCase(parts[1])) {
+         return false;
+      }
+      return isPartitionChild(parts[2], parts[3], partitions);
+   }
+
    private final XRepository xrepository;
    private final DataSourceService dataSourceService;
    private final AssetRepository assetRepository;
