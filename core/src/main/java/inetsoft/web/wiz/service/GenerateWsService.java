@@ -168,7 +168,7 @@ public class GenerateWsService {
       AbstractTableAssembly table = null;
       List<WorksheetConstructionModel.QueryField> fields = new ArrayList<>(model.getFields());
 
-      if(model.getJoinPaths() == null) {
+      if(model.getJoinPaths() == null || model.getJoinPaths().isEmpty()) {
          if(originWs != null) {
             WSAssembly baseTable = (WSAssembly) originWs.getAssembly(fields.getFirst().getTable().getName());
             table = new MirrorTableAssembly(originWs, model.getName(), baseTable);
@@ -264,6 +264,10 @@ public class GenerateWsService {
    private boolean isJoinKeyRepresented(Collection<WorksheetConstructionModel.QueryField> fields,
                                         WorksheetConstructionModel.TableInfo table, String key)
    {
+      if(Tool.isEmptyString(key)) {
+         return true;
+      }
+
       String tableName = table != null ? table.getName() : null;
       return fields.stream().anyMatch(f ->
          Objects.equals(f.getTable(), table) &&
@@ -273,7 +277,7 @@ public class GenerateWsService {
       );
    }
 
-   private void addJoinKeyField(List<WorksheetConstructionModel.QueryField> fields,
+   private void addJoinKeyField(Collection<WorksheetConstructionModel.QueryField> fields,
                                 WorksheetConstructionModel.TableInfo table, String key)
    {
       if(!isJoinKeyRepresented(fields, table, key)) {
@@ -624,12 +628,7 @@ public class GenerateWsService {
          applySourceInfo(table, tableInfo);
          Set<WorksheetConstructionModel.QueryField> tableFields = getTableFields(allFields, tableInfo);
 
-         if(!isJoinKeyRepresented(tableFields, tableInfo, joinKey)) {
-            WorksheetConstructionModel.QueryField queryField = new WorksheetConstructionModel.QueryField();
-            queryField.setFieldName(joinKey);
-            queryField.setTable(tableInfo);
-            tableFields.add(queryField);
-         }
+         addJoinKeyField(tableFields, tableInfo, joinKey);
 
          applyColumnSelection(table, tableFields.stream().toList(), metaData);
          worksheet.addAssembly(table);
