@@ -27,7 +27,7 @@ describe("ChartLegendArea canvas offsets", () => {
 
    beforeEach(() => {
       const chartService = new ChartService();
-      const scaleService = { getScale: () => new BehaviorSubject(1) } as ScaleService;
+      const scaleService = <ScaleService> <unknown> { getScale: () => new BehaviorSubject(1) };
       area = new ChartLegendArea(chartService, scaleService);
    });
 
