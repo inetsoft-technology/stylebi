@@ -66,6 +66,15 @@ public abstract class Legend extends ChartObject {
     */
    public abstract Optional<Boolean> nodeAesthetic();
 
+   /**
+    * True for the content area of a scalar (gradient) legend; false for
+    * categorical (where regions are per-item).
+    */
+   @Value.Default
+   public boolean scalar() {
+      return false;
+   }
+
    public static Builder builder() {
       return new Builder();
    }

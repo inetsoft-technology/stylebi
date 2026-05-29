@@ -96,18 +96,43 @@ public class LegendTitleArea extends DefaultArea implements MenuArea, RollOverAr
    }
 
    /**
-    * Get regions.
+    * Layout bounds: width inset by 2 * borderWidth so the element fits inside
+    * the wrapper's inner content (layoutTitle uses the full legend width).
+    * Height stays full so the SVG tile matches the container, otherwise the
+    * hover:overflow-y:auto rule would spawn a scrollbar.
+    */
+   @Override
+   public Region getRegion() {
+      return new RectangleRegion(getTransformedTitleBounds(0));
+   }
+
+   /**
+    * Selection region: same width inset as getRegion(), plus height shrunk by
+    * (TITLE_LINE_GAP + borderWidth) so the bottom stroke clears legend_content,
+    * which GraphBuilder shifts up to overlap and which stacks above in DOM.
     */
    @Override
    public Region[] getRegions() {
+      return new Region[] {
+         new RectangleRegion(getTransformedTitleBounds(TITLE_LINE_GAP + getBorderWidth()))};
+   }
+
+   private Rectangle2D.Double getTransformedTitleBounds(double heightInset) {
       Rectangle2D bounds = ((Legend) vobj).getTitleBounds();
       Rectangle2D.Double rect2d =
          (Rectangle2D.Double) GTool.transform(bounds, trans);
       Point2D p = getRelPos();
       rect2d.x = rect2d.x - p.getX();
       rect2d.y = rect2d.y - p.getY();
+      rect2d.width -= 2 * getBorderWidth();
+      rect2d.height -= heightInset;
+      return rect2d;
+   }
 
-      return new Region[] {new RectangleRegion(rect2d)};
+   // 0 when the frame is absent; the constructor treats a null frame as valid.
+   private double getBorderWidth() {
+      VisualFrame frame = ((Legend) vobj).getVisualFrame();
+      return frame == null ? 0 : GTool.getLineWidth(frame.getLegendSpec().getBorder());
    }
 
    /**
@@ -190,4 +215,7 @@ public class LegendTitleArea extends DefaultArea implements MenuArea, RollOverAr
    private boolean sharedColor;
    private String titleLabel;
    private boolean nodeAesthetic;
+
+   // mirrors Legend.TITLE_LINE_GAP (the gap baked into the title bounds height)
+   private static final int TITLE_LINE_GAP = 1;
 }

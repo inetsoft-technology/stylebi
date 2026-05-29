@@ -21,7 +21,12 @@ import { Rectangle } from "../../common/data/rectangle";
 @Injectable()
 export class ChartService {
    clearCanvas(context: CanvasRenderingContext2D): void {
+      // Reset transform — drawRegions leaves a scale+translate on the context,
+      // otherwise clearRect would miss a strip along the right/bottom edges.
+      context.save();
+      context.setTransform(1, 0, 0, 1, 0, 0);
       context.clearRect(0, 0, context.canvas.width, context.canvas.height);
+      context.restore();
    }
 
    /**

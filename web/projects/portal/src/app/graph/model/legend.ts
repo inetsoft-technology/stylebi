@@ -28,4 +28,5 @@ export interface Legend extends ChartObject {
    drillLevels?: DrillLevel[];
    drillFilter?: boolean;
    nodeAesthetic?: boolean;
+   scalar?: boolean;
 }

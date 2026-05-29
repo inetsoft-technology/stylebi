@@ -109,4 +109,21 @@ describe("Chart service test", () => {
       chartModel.regionMetaDictionary = [{dimIdx: -1, axisFldIdx: 0}];
       expect(ChartTool.getSelectedAxisColumnName(chartModel)).toBe("AxisColumnName");
    }));
+
+   // drawRegions leaves a scale+translate on the context; clearCanvas must reset
+   // it before clearRect, otherwise a strip along the right/bottom edges is missed.
+   it("resets the transform before clearing the canvas", () => {
+      const calls: string[] = [];
+      const context: any = {
+         canvas: { width: 200, height: 100 },
+         save: () => calls.push("save"),
+         setTransform: () => calls.push("setTransform"),
+         clearRect: () => calls.push("clearRect"),
+         restore: () => calls.push("restore"),
+      };
+
+      chartService.clearCanvas(context);
+
+      expect(calls).toEqual(["save", "setTransform", "clearRect", "restore"]);
+   });
 });

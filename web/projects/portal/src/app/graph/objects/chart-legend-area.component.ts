@@ -38,6 +38,7 @@ import { TooltipInfo } from "../model/tooltip-info";
 export class ChartLegendArea extends ChartObjectAreaBase<Legend> {
    @Input() maxHeight: number;
    @Input() container: Element;
+   @Input() borderWidth: number = 0;
    @Output() selectRegion = new EventEmitter();
    @Output() brushChart = new EventEmitter();
    @Output() showTooltip = new EventEmitter<TooltipInfo>();
@@ -54,6 +55,18 @@ export class ChartLegendArea extends ChartObjectAreaBase<Legend> {
                scaleService: ScaleService)
    {
       super(chartService, scaleService);
+   }
+
+   // Compensate for GraphBuilder's -borderWidth shift on scalar legend_content;
+   // without this, the band's selection rect clips at the canvas bottom/right.
+   // Skipped for categorical (first item sits at the content top, shifting
+   // would clip it) and legend_title (region starts at (0, 0)).
+   protected get canvasX(): number {
+      return this.chartObject?.scalar ? this.borderWidth : 0;
+   }
+
+   protected get canvasY(): number {
+      return this.chartObject?.scalar ? this.borderWidth : 0;
    }
 
    onDown(event: MouseEvent): void {
