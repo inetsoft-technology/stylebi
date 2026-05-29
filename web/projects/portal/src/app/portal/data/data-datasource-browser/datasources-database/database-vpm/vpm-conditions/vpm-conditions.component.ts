@@ -56,7 +56,6 @@ const PHYSICAL_MODEL_COLUMNS_URI: string = "../api/data/vpm/physicalModel/tables
     templateUrl: "vpm-conditions.component.html",
     styleUrls: ["vpm-conditions.component.scss", "../../database-physical-model/database-model-pane.scss"],
     encapsulation: ViewEncapsulation.None,
-    standalone: true,
     imports: [SplitPane, NgFor, NgIf, FormsModule, ExistsDirective, NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, DataModelScriptPane, NgbNavOutlet, ChooseTableDialog, VPMConditionDialog, ClausePipe, ConjunctionPipe]
 })
 export class VPMConditionsComponent {

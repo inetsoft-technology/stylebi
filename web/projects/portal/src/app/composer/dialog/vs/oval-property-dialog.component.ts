@@ -34,7 +34,6 @@ import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.
 @Component({
     selector: "oval-property-dialog",
     templateUrl: "oval-property-dialog.component.html",
-    standalone: true,
     imports: [
         ModalHeaderComponent,
         NgIf,
@@ -49,7 +48,7 @@ import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.
         VSAssemblyScriptPane,
         NgbNavOutlet,
         ApplyButtonComponent,
-    ],
+    ]
 })
 export class OvalPropertyDialog extends PropertyDialog implements OnInit {
    @Input() model: OvalPropertyDialogModel;

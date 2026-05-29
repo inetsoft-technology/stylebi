@@ -32,7 +32,6 @@ import { DataSourcesTreeViewComponent } from "./data-navigation-tree/data-source
     templateUrl: "./data-tab.component.html",
     styleUrls: ["./data-tab.component.scss"],
     providers: [RepositoryClientService],
-    standalone: true,
     imports: [SplitPane, DataSourcesTreeViewComponent, RouterOutlet]
 })
 export class DataTabComponent implements AfterViewInit, OnDestroy {

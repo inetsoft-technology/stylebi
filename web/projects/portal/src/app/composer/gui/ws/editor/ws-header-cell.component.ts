@@ -72,7 +72,6 @@ const CONTROLLER_SORT_COLUMN = "/events/composer/worksheet/sort-column";
     selector: "ws-header-cell",
     templateUrl: "ws-header-cell.component.html",
     styleUrls: ["ws-header-cell.component.scss"],
-    standalone: true,
     imports: [NgClass, TooltipDirective, NgIf, NgFor, MiniMenu]
 })
 export class WSHeaderCell implements OnInit, OnChanges, AfterViewInit {

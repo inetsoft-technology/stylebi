@@ -41,7 +41,6 @@ import { VSDataTipDirective } from "../../data-tip/vs-data-tip.directive";
     selector: "vs-gauge",
     templateUrl: "vs-gauge.component.html",
     styleUrls: ["vs-gauge.component.scss"],
-    standalone: true,
     imports: [VSDataTipDirective, VSPopComponentDirective, NgIf, TooltipDirective, VSHiddenAnnotation, VSLoadingDisplay, NgFor, VSAnnotation]
 })
 export class VSGauge extends AbstractImageComponent<VSGaugeModel> implements OnChanges {

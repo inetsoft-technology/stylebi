@@ -33,7 +33,6 @@ import { NgIf } from "@angular/common";
     templateUrl: "data-block-status-indicator.component.html",
     changeDetection: ChangeDetectionStrategy.OnPush,
     styleUrls: ["data-block-status-indicator.component.scss"],
-    standalone: true,
     imports: [NgIf, TooltipDirective]
 })
 export class DataBlockStatusIndicatorComponent {

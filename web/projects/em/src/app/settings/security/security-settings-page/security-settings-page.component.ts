@@ -45,7 +45,6 @@ import { NgIf, NgFor } from "@angular/common";
     selector: "em-security-settings-page",
     templateUrl: "./security-settings-page.component.html",
     styleUrls: ["./security-settings-page.component.scss"],
-    standalone: true,
     imports: [NgIf, MatSlideToggle, MatHint, MatFormField, MatLabel, MatSelect, NgFor, MatOption, MatTabNav, MatTabLink, RouterLinkActive, RouterLink, MatTabNavPanel, RouterOutlet]
 })
 export class SecuritySettingsPageComponent implements OnInit, OnDestroy {

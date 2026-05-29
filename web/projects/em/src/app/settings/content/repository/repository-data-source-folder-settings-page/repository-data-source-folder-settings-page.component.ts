@@ -38,7 +38,6 @@ import { NgIf } from "@angular/common";
     selector: "em-repository-data-source-folder-settings-page",
     templateUrl: "./repository-data-source-folder-settings-page.component.html",
     styleUrls: ["./repository-data-source-folder-settings-page.component.scss"],
-    standalone: true,
     imports: [NgIf, RepositoryDataSourceFolderSettingsViewComponent]
 })
 export class RepositoryDataSourceFolderSettingsPageComponent implements OnInit, OnChanges {

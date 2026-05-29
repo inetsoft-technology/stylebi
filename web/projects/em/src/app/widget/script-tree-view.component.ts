@@ -30,7 +30,6 @@ import { MatFormField, MatLabel, MatSuffix } from "@angular/material/form-field"
     selector: "em-script-tree-view",
     templateUrl: "./script-tree-view.component.html",
     styleUrls: ["./script-tree-view.component.scss"],
-    standalone: true,
     imports: [MatFormField, MatLabel, MatInput, FormsModule, MatIconButton, MatSuffix, MatIcon, NgIf, MatProgressBar, FlatTreeViewComponent]
 })
 export class ScriptTreeViewComponent {

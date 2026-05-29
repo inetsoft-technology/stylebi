@@ -26,12 +26,11 @@ import { NgIf } from "@angular/common";
 @Component({
     selector: "table-option",
     templateUrl: "table-option.component.html",
-    standalone: true,
     imports: [
         NgIf,
         FormsModule,
         TableFormatOption,
-    ],
+    ]
 })
 export class TableOption {
    @Input() option: TableOptionInfo;

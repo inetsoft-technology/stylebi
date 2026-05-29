@@ -75,7 +75,6 @@ import { OutOfZoneDirective } from "../../../../widget/directive/out-of-zone.dir
     templateUrl: "layout-pane.component.html",
     styleUrls: ["layout-pane.component.scss"],
     providers: [ViewsheetClientService],
-    standalone: true,
     imports: [OutOfZoneDirective, InteractContainerDirective, SelectionBoxDirective, ActionsContextmenuAnchorDirective, NgStyle, ResizedDirective, NgIf, NgFor, LayoutObject]
 })
 export class LayoutPane extends CommandProcessor implements OnInit, OnChanges, OnDestroy {

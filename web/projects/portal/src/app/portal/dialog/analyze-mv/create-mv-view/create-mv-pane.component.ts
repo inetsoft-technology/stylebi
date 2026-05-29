@@ -29,7 +29,6 @@ import { FormsModule } from "@angular/forms";
     selector: "create-mv-pane",
     templateUrl: "./create-mv-pane.component.html",
     styleUrls: ["./create-mv-pane.component.scss"],
-    standalone: true,
     imports: [FormsModule, NgFor, SortColumnDirective, NgIf]
 })
 export class CreateMVPane implements OnInit {

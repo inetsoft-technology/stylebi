@@ -39,7 +39,6 @@ import { NgIf, NgFor } from "@angular/common";
     selector: "aesthetic-pane",
     templateUrl: "aesthetic-pane.component.html",
     styleUrls: ["aesthetic-pane.scss"],
-    standalone: true,
     imports: [NgIf, NgbDropdown, NgbDropdownToggle, NgbDropdownMenu, NgFor, ColorFieldMc, ShapeFieldMc, SizeFieldMc, TextFieldMc]
 })
 export class AestheticPane implements OnChanges {

@@ -71,7 +71,6 @@ const GET_REPOSITORY_TREE_URI: string = "../api/composer/vs/hyperlink-dialog-mod
     selector: "hyperlink-dialog",
     templateUrl: "hyperlink-dialog.component.html",
     styleUrls: ["hyperlink-dialog.component.scss"],
-    standalone: true,
     imports: [ModalHeaderComponent, NgIf, EnterSubmitDirective, NgSwitch, NgSwitchCase, FormsModule, NgFor, ExpressionEditor, FixedDropdownDirective, NgSwitchDefault, NgbDropdown, NgbDropdownToggle, NgbDropdownMenu, RepositoryTreeComponent, LargeFormFieldComponent, GenericSelectableList, ApplyButtonComponent, InputParameterDialog]
 })
 export class HyperlinkDialog implements OnInit {

@@ -44,7 +44,6 @@ import { NgIf, NgSwitch, NgSwitchCase, NgSwitchDefault } from "@angular/common";
     selector: "em-repository-editor-page",
     templateUrl: "./repository-editor-page.component.html",
     styleUrls: ["./repository-editor-page.component.scss"],
-    standalone: true,
     imports: [NgIf, NgSwitch, NgSwitchCase, AutoSaveRecycleBinPageComponent, AutoSaveFolderPageComponent, RepositoryViewsheetSettingsPageComponent, RepositoryWorksheetSettingsPageComponent, RepositoryDashboardSettingsPageComponent, RepositoryDataSourceSettingsPageComponent, RepositoryFolderTrashcanSettingsPageComponent, RepositoryFolderRecycleBinPageComponent, RepositoryScriptSettingsPageComponent, MatButton, LoadingSpinnerComponent, RepositoryFolderDashboardSettingsPageComponent, RepositoryFolderSettingsPageComponent, RepositoryDataSourceFolderSettingsPageComponent, RepositoryPermissionEditorPageComponent, RepositoryRecycleBinPageComponent, RepositoryScheduleTaskFolderSettingsPageComponent, NgSwitchDefault]
 })
 export class RepositoryEditorPageComponent implements OnChanges, OnInit {

@@ -33,7 +33,6 @@ import { RepositoryDataSourceSettingsViewComponent } from "../repository-data-so
     selector: "em-repository-data-source-settings-page",
     templateUrl: "./repository-data-source-settings-page.component.html",
     styleUrls: ["./repository-data-source-settings-page.component.scss"],
-    standalone: true,
     imports: [RepositoryDataSourceSettingsViewComponent]
 })
 export class RepositoryDataSourceSettingsPageComponent extends DataSourceSettingsPage implements OnInit, OnChanges {

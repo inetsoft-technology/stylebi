@@ -57,7 +57,6 @@ const COLOR_MAPPING_URI: string = "../api/composer/vs/getColorMappingDialogModel
     selector: "categorical-color-pane",
     templateUrl: "categorical-color-pane.component.html",
     styleUrls: ["categorical-pane.scss", "categorical-color-pane.component.scss"],
-    standalone: true,
     imports: [NgIf, FormsModule, NgClass, NgFor, StaticColorEditor, PaletteDialog]
 })
 export class CategoricalColorPane extends CategoricalFramePane implements OnInit {

@@ -59,7 +59,6 @@ const CHECK_EMAIL_VALID_URI: string = "../api/vs/check-email-valid";
 @Component({
     selector: "simple-schedule-dialog",
     templateUrl: "simple-schedule-dialog.component.html",
-    standalone: true,
     imports: [
         ModalHeaderComponent,
         EnterSubmitDirective,
@@ -71,7 +70,7 @@ const CHECK_EMAIL_VALID_URI: string = "../api/vs/check-email-valid";
         NgbTypeahead,
         StartTimeEditor,
         EmailAddrDialog,
-    ],
+    ]
 })
 export class SimpleScheduleDialog implements OnInit, OnDestroy {
    @Input() model: SimpleScheduleDialogModel;

@@ -31,7 +31,6 @@ import { NgIf, NgFor } from "@angular/common";
     selector: "em-cluster-selector",
     templateUrl: "./cluster-selector.component.html",
     styleUrls: ["./cluster-selector.component.scss"],
-    standalone: true,
     imports: [NgIf, MatFormField, MatSelect, NgFor, MatOption, MatFabButton, MatIcon]
 })
 export class ClusterSelectorComponent implements OnDestroy {

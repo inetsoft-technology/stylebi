@@ -29,7 +29,6 @@ import { ModalHeaderComponent } from "../../widget/modal-header/modal-header.com
     selector: "remove-bookmarks-dialog",
     templateUrl: "./remove-bookmarks-dialog.component.html",
     styleUrls: ["./remove-bookmarks-dialog.component.scss"],
-    standalone: true,
     imports: [ModalHeaderComponent, FormsModule, ReactiveFormsModule, FixedDropdownDirective, DatePickerComponent]
 })
 export class RemoveBookmarksDialog {

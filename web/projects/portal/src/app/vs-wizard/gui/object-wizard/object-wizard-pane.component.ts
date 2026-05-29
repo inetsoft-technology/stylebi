@@ -97,7 +97,6 @@ const SWITCH_TO_META = "/events/vs/wizard/use-meta";
             deps: [[new Optional(), ComposerToken]]
         }
     ],
-    standalone: true,
     imports: [ObjectWizardToolBarComponent, SplitPane, WizardBindingTree, VSWizardAggregatePane, WizardVisualizationPane, VSWizardPreviewPane, NgIf, VSLoadingDisplay, NotificationsComponent]
 })
 export class ObjectWizardPane extends CommandProcessor implements OnInit, OnDestroy {

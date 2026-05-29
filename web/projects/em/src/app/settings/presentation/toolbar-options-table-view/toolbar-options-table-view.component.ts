@@ -35,7 +35,6 @@ export interface ToolbarOption {
     selector: "em-toolbar-options-table-view",
     templateUrl: "./toolbar-options-table-view.component.html",
     styleUrls: ["./toolbar-options-table-view.component.scss"],
-    standalone: true,
     imports: [MatCard, MatCardTitle, MatCardContent, MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatCheckbox, FormsModule, MatIconButton, MatIcon, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow]
 })
 export class ToolbarOptionsTableViewComponent implements OnChanges {

@@ -28,7 +28,6 @@ import { NgFor } from "@angular/common";
     selector: "notifications",
     templateUrl: "notifications.component.html",
     styleUrls: ["notifications.component.scss"],
-    standalone: true,
     imports: [NgFor, NgbAlert]
 })
 export class NotificationsComponent implements OnInit, OnChanges {

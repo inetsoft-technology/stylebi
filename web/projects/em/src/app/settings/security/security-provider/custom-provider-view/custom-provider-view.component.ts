@@ -49,7 +49,6 @@ import { MatFormField, MatLabel } from "@angular/material/form-field";
             useClass: DefaultCodemirrorService,
             deps: []
         }],
-    standalone: true,
     imports: [FormsModule, ReactiveFormsModule, MatFormField, MatInput, MatLabel]
 })
 export class CustomProviderViewComponent implements OnInit, AfterViewInit, AfterViewChecked, OnDestroy {

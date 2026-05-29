@@ -27,7 +27,6 @@ import { NgIf } from "@angular/common";
     selector: "welcome-page",
     templateUrl: "./welcome-page.component.html",
     styleUrls: ["./welcome-page.component.scss"],
-    standalone: true,
     imports: [NgIf, ExpandStringDirective]
 })
 export class WelcomePageComponent implements OnInit, OnDestroy {

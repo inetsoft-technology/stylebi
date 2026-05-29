@@ -52,7 +52,6 @@ const FORMAT_STRING_URI: string = "../api/data/logicalModel/attribute/format";
     templateUrl: "logical-model-attribute-editor.component.html",
     styleUrls: ["logical-model-attribute-editor.component.scss",
         "../../../../../../../widget/tree/tree-dropdown.component.scss"],
-    standalone: true,
     imports: [FormsModule, ReactiveFormsModule, NgIf, NgFor, TreeDropdownComponent, DropdownView, AttributeFormattingPane, NgbDropdown, NgbDropdownToggle, NgbDropdownMenu]
 })
 export class LogicalModelAttributeEditor implements OnInit, OnDestroy {

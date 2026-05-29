@@ -33,7 +33,6 @@ import { NgFor, NgIf } from "@angular/common";
     templateUrl: "ws-composite-table-breadcrumb.component.html",
     styleUrls: ["ws-composite-table-breadcrumb.component.scss"],
     changeDetection: ChangeDetectionStrategy.OnPush,
-    standalone: true,
     imports: [NgFor, NgIf, HelpLinkDirective]
 })
 export class WSCompositeTableBreadcrumbComponent {

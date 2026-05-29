@@ -31,7 +31,6 @@ import { NgIf, NgFor } from "@angular/common";
     selector: "viewer-mobile-toolbar",
     templateUrl: "viewer-mobile-toolbar.component.html",
     styleUrls: ["viewer-mobile-toolbar.component.scss"],
-    standalone: true,
     imports: [NgIf, NgFor, FixedDropdownDirective]
 })
 export class ViewerMobileToolbarComponent {

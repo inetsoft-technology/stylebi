@@ -35,7 +35,6 @@ import { MatCard, MatCardHeader, MatCardContent, MatCardActions } from "@angular
     selector: "em-property-table-view",
     templateUrl: "./property-table-view.component.html",
     styleUrls: ["./property-table-view.component.scss"],
-    standalone: true,
     imports: [MatCard, MatCardHeader, MatCardContent, MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCheckbox, MatCellDef, MatCell, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, MatPaginator, MatCardActions, MatButton]
 })
 export class PropertyTableViewComponent implements OnChanges, AfterViewInit {

@@ -40,8 +40,7 @@ import { NgFor, NgIf } from "@angular/common";
     selector: "sheet-tab-selector",
     templateUrl: "sheet-tab-selector.component.html",
     styleUrls: ["sheet-tab-selector.component.scss", "tab-selector-shared.scss"],
-    standalone: true,
-    imports: [NgFor, NgIf],
+    imports: [NgFor, NgIf]
 })
 export class SheetTabSelectorComponent {
    /** Array of currently open tabs */

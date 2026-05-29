@@ -51,7 +51,6 @@ import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.
     templateUrl: "./vs-preview-table.component.html",
     styleUrls: ["./vs-preview-table.component.scss"],
     encapsulation: ViewEncapsulation.None,
-    standalone: true,
     imports: [ModalHeaderComponent, PreviewTableComponent, TableStyleDialog]
 })
 export class VSPreviewTable extends CommandProcessor implements OnDestroy {

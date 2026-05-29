@@ -31,7 +31,6 @@ import { TreeComponent } from "../../../../widget/tree/tree.component";
 @Component({
     selector: "style-tree-pane",
     templateUrl: "style-tree-pane.component.html",
-    standalone: true,
     imports: [TreeComponent]
 })
 export class StyleTreePane {

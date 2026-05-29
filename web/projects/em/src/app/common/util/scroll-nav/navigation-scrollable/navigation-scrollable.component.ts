@@ -36,7 +36,6 @@ import { CdkScrollable as CdkScrollableDirective } from "@angular/cdk/scrolling"
     selector: "em-navigation-scrollable",
     templateUrl: "./navigation-scrollable.component.html",
     styleUrls: ["./navigation-scrollable.component.scss"],
-    standalone: true,
     imports: [CdkScrollableDirective, TopScrollDirective]
 })
 export class NavigationScrollableComponent implements OnInit, OnDestroy {

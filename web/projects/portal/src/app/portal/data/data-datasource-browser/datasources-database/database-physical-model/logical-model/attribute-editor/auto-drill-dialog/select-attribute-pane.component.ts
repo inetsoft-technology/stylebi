@@ -27,7 +27,6 @@ import { NgFor } from "@angular/common";
 @Component({
     selector: "select-attribute-pane",
     templateUrl: "select-attribute-pane.component.html",
-    standalone: true,
     imports: [NgFor, ElementTreeNode]
 })
 export class SelectAttributePaneComponent implements OnInit{

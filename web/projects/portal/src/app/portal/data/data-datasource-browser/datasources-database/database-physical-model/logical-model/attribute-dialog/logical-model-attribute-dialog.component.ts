@@ -32,7 +32,6 @@ const TABLES_URI: string = "../api/data/logicalModel/tables/nodes";
     selector: "logical-model-attribute-dialog",
     templateUrl: "logical-model-attribute-dialog.component.html",
     styleUrls: ["logical-model-attribute-dialog.component.scss"],
-    standalone: true,
     imports: [ModalHeaderComponent, FormsModule, ReactiveFormsModule, NgFor, NgIf, PhysicalTableTreeComponent]
 })
 export class LogicalModelAttributeDialog implements OnInit, AfterViewInit {

@@ -31,7 +31,6 @@ import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.
     selector: "numeric-range-option-dialog",
     templateUrl: "numeric-range-option-dialog.component.html",
     styleUrls: ["numeric-range-option-dialog.component.scss"],
-    standalone: true,
     imports: [ModalHeaderComponent, NgIf, FormsModule, EnterSubmitDirective, InputTrimDirective, ReactiveFormsModule, ValueRangeSelectableList]
 })
 export class NumericRangeOptionDialog implements OnInit {

@@ -36,7 +36,6 @@ const FIELDS_URI: string = "../api/data/logicalModel/tables/nodes";
     selector: "logical-model-expression-editor",
     templateUrl: "logical-model-expression-editor.component.html",
     styleUrls: ["logical-model-expression-editor.component.scss"],
-    standalone: true,
     imports: [SplitPane, LogicalModelAttributeEditor, FormsModule, ScriptPane]
 })
 export class LogicalModelExpressionEditor implements OnInit {

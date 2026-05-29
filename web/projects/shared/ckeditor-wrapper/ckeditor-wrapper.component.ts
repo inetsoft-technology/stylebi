@@ -140,7 +140,6 @@ import { NgIf } from "@angular/common";
             multi: true
         }
     ],
-    standalone: true,
     imports: [NgIf, CKEditorModule, FormsModule]
 })
 export class CkeditorWrapperComponent implements OnInit, AfterViewInit, ControlValueAccessor {

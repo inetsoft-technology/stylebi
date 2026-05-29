@@ -54,7 +54,6 @@ const LOGICAL_MODEL_CHECK_DEPENDENCIES_URI: string = "../api/data/logicalmodel/c
     selector: "logical-model-property-pane",
     templateUrl: "logical-model-property-pane.component.html",
     styleUrls: ["../database-model-pane.scss", "logical-model-property-pane.component.scss"],
-    standalone: true,
     imports: [SplitPane, FixedDropdownDirective, NgFor, ElementTreeNode, LoadingIndicatorPaneComponent, NgIf, NgSwitch, NgSwitchCase, LogicalModelEntityEditor, LogicalModelColumnEditor, LogicalModelExpressionEditor]
 })
 export class LogicalModelPropertyPane implements OnInit {

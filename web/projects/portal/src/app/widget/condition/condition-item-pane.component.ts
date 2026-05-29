@@ -64,7 +64,6 @@ import { ConditionFieldComboComponent } from "./condition-field-combo.component"
     selector: "condition-item-pane",
     templateUrl: "condition-item-pane.component.html",
     styleUrls: ["condition-item-pane.component.scss"],
-    standalone: true,
     imports: [ConditionFieldComboComponent, FormsModule, NgFor, NgIf, NgSwitch, NgSwitchCase, OneOfConditionEditor, BinaryConditionEditor, NgSwitchDefault, ConditionEditor, FormulaEditorDialog, ConditionOperationPipe]
 })
 export class ConditionItemPane implements OnInit, OnChanges {

@@ -47,7 +47,6 @@ import { NgIf } from "@angular/common";
     selector: "chart-fieldmc",
     templateUrl: "chart-fieldmc.component.html",
     styleUrls: ["../../fieldmc.component.scss"],
-    standalone: true,
     imports: [NgIf, DynamicComboBox, FixedDropdownDirective, ChartTypeButton, DimensionEditor, AggregateEditor]
 })
 export class ChartFieldmc extends FieldMC {

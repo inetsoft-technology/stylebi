@@ -57,7 +57,6 @@ const REMOVE_TASKS_URI = "../api/portal/schedule/remove";
     selector: "p-schedule-task-editor",
     templateUrl: "./schedule-task-editor.component.html",
     styleUrls: ["./schedule-task-editor.component.scss"],
-    standalone: true,
     imports: [NgIf, FormsModule, ReactiveFormsModule, TaskConditionPane, TaskActionPane, TaskOptionsPane, NotificationsComponent]
 })
 export class ScheduleTaskEditorComponent implements OnInit {

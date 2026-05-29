@@ -42,7 +42,6 @@ export interface ListColumn {
     selector: "asset-item-list-view",
     templateUrl: "./asset-item-list-view.component.html",
     styleUrls: ["./asset-item-list-view.component.scss"],
-    standalone: true,
     imports: [NgIf, NgClass, NgFor, RouterLink, NgbDropdown, NgbDropdownToggle]
 })
 export class AssetItemListViewComponent {

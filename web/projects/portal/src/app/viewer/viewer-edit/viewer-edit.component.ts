@@ -41,7 +41,6 @@ export enum EditorMode {
     templateUrl: "viewer-edit.component.html",
     styleUrls: ["viewer-edit.component.scss"],
     providers: [ViewsheetClientService],
-    standalone: true,
     imports: [NgIf, VSBindingPane, VsWizardComponent]
 })
 export class ViewerEditComponent implements OnInit, OnDestroy {

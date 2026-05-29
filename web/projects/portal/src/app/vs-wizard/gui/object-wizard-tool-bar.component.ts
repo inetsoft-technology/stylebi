@@ -32,7 +32,6 @@ import { NgIf } from "@angular/common";
     templateUrl: "../../binding/editor/editor-title-bar.component.html",
     styleUrls: ["../../binding/editor/editor-title-bar.component.scss",
         "../../composer/gui/toolbar/composer-toolbar.component.scss"],
-    standalone: true,
     imports: [NgIf, ToolbarGroup, HelpLinkDirective]
 })
 export class ObjectWizardToolBarComponent {

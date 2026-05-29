@@ -122,7 +122,6 @@ export interface DeleteDataSetResponse {
     templateUrl: "data-folder-browser.component.html",
     styleUrls: ["data-folder-browser.component.scss"],
     providers: [ViewsheetClientService],
-    standalone: true,
     imports: [NgClass, FormsModule, NgbTypeahead, NgbDropdown, NgIf, NgbDropdownToggle, NgbDropdownMenu, DataFolderListViewComponent, AssetDescriptionComponent, DataNotificationsComponent]
 })
 export class DataFolderBrowserComponent extends CommandProcessor implements OnInit, OnDestroy {

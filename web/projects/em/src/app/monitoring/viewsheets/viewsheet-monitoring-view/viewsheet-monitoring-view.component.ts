@@ -24,7 +24,6 @@ import { TableView } from "../../../common/util/table/table-view.component";
     selector: "em-viewsheet-monitoring-view",
     templateUrl: "./viewsheet-monitoring-view.component.html",
     styleUrls: ["./viewsheet-monitoring-view.component.scss"],
-    standalone: true,
     imports: [TableView]
 })
 export class ViewsheetMonitoringViewComponent {

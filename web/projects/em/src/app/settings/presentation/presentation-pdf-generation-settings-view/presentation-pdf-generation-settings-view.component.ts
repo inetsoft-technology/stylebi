@@ -43,7 +43,6 @@ import { MatCard, MatCardTitle, MatCardContent } from "@angular/material/card";
     selector: "em-presentation-pdf-generation-settings-view",
     templateUrl: "./presentation-pdf-generation-settings-view.component.html",
     styleUrls: ["./presentation-pdf-generation-settings-view.component.scss"],
-    standalone: true,
     imports: [MatCard, MatCardTitle, MatCardContent, NgIf, FormsModule, ReactiveFormsModule, MatCheckbox, MatFormField, MatLabel, MatInput, MatRadioGroup, MatRadioButton]
 })
 export class PresentationPdfGenerationSettingsViewComponent {

@@ -38,7 +38,6 @@ export interface Parameters {
     selector: "em-parameter-table",
     templateUrl: "./parameter-table.component.html",
     styleUrls: ["./parameter-table.component.scss"],
-    standalone: true,
     imports: [MatCard, NgIf, MatCardHeader, MatCardTitle, MatCardContent, MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatIconButton, MatIcon, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, MatError, MatCardActions, MatButton, TitleCasePipe]
 })
 export class ParameterTableComponent implements OnInit, OnChanges {

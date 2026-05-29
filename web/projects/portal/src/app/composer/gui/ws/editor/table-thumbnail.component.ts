@@ -77,7 +77,6 @@ const MINUS_ICON = "－";
         "table-thumbnail.component.scss",
         "../jsplumb/jsplumb-shared.scss"
     ],
-    standalone: true,
     imports: [ActionsContextmenuAnchorDirective, WSAssemblyThumbnailTitleComponent, DataBlockStatusIndicatorComponent, NgIf]
 })
 export class TableThumbnailComponent extends WSAssemblyThumbnail

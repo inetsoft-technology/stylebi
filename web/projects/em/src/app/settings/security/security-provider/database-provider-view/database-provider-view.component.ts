@@ -52,7 +52,6 @@ const HASH_ALGORITHMS: string[] = ["BCRYPT", "MD2", "MD4", "MD5",
     selector: "em-database-provider-view",
     templateUrl: "./database-provider-view.component.html",
     styleUrls: ["./database-provider-view.component.scss"],
-    standalone: true,
     imports: [FormsModule, ReactiveFormsModule, MatCard, MatCardContent, MatFormField, MatLabel, MatInput, MatHint, NgIf, MatError, MatCheckbox, MatAutocompleteTrigger, MatAutocomplete, NgFor, MatOption, MatButton, QueryItemViewComponent, MatIconButton, MatSuffix, MatIcon, AsyncPipe]
 })
 export class DatabaseProviderViewComponent implements OnInit, OnDestroy {

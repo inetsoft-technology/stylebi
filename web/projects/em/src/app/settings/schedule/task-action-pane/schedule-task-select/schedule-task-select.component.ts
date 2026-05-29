@@ -67,7 +67,6 @@ export class ScheduleTaskFlatNode {
     templateUrl: "./schedule-task-select.component.html",
     styleUrls: ["./schedule-task-select.component.scss"],
     providers: [SCHEDULE_TASK_SELECT_VALUE_ACCESSOR],
-    standalone: true,
     imports: [MatCard, MatCardContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatSelect, MatOption, MatTree, MatTreeNodeDef, MatTreeNode, MatTreeNodeToggle, MatTreeNodePadding, MatIconButton, NgIf, MatIcon, MatError]
 })
 export class ScheduleTaskSelectComponent implements OnInit, OnChanges, ControlValueAccessor {

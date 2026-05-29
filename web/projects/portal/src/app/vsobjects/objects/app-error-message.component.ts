@@ -21,7 +21,6 @@ import { NgIf } from "@angular/common";
 @Component({
     selector: "app-error-message",
     templateUrl: "app-error-message.component.html",
-    standalone: true,
     imports: [NgIf]
 })
 

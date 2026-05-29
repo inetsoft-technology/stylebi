@@ -130,7 +130,6 @@ export enum WizardPanes {
             useExisting: VSChartService
         }
     ],
-    standalone: true,
     imports: [NgIf, VsWizardPane, ObjectWizardPane, VSLoadingDisplay]
 })
 export class VsWizardComponent extends CommandProcessor implements OnInit, OnDestroy {

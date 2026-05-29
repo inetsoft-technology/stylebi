@@ -44,7 +44,6 @@ import { TopScrollDirective } from "../../../top-scroll/top-scroll.directive";
     selector: "em-content-drivers-and-plugins-view",
     templateUrl: "./content-drivers-and-plugins-view.component.html",
     styleUrls: ["./content-drivers-and-plugins-view.component.scss"],
-    standalone: true,
     imports: [TopScrollDirective, NgIf, PluginsViewComponent]
 })
 export class ContentDriversAndPluginsViewComponent implements OnInit {

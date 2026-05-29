@@ -31,7 +31,6 @@ import { MatCard, MatCardTitle, MatCardContent, MatCardActions } from "@angular/
     selector: "em-time-ranges-view",
     templateUrl: "./time-ranges-view.component.html",
     styleUrls: ["./time-ranges-view.component.scss"],
-    standalone: true,
     imports: [MatCard, MatCardTitle, MatCardContent, MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCheckbox, MatCellDef, MatCell, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, MatCardActions, MatButton]
 })
 export class TimeRangesViewComponent implements OnInit, OnChanges {

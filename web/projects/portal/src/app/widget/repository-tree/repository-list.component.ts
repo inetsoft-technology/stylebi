@@ -35,7 +35,6 @@ import { NgIf, NgFor } from "@angular/common";
     templateUrl: "repository-list.component.html",
     styleUrls: ["repository-list.component.scss"],
     providers: [RepositoryClientService],
-    standalone: true,
     imports: [NgIf, EnterClickDirective, NgFor]
 })
 export class RepositoryListComponent extends RepositoryBaseComponent implements OnInit {

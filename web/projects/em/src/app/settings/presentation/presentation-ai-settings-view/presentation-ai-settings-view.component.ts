@@ -40,7 +40,6 @@ import { NgIf } from "@angular/common";
 @Component({
     selector: "em-presentation-ai-settings-view",
     templateUrl: "./presentation-ai-settings-view.component.html",
-    standalone: true,
     imports: [NgIf, MatCard, MatCardTitle, MatCardContent, MatCheckbox, FormsModule, MatFormField, MatLabel, MatInput, MatHint]
 })
 export class PresentationAISettingsViewComponent {

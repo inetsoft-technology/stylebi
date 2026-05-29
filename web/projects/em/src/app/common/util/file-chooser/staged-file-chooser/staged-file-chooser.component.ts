@@ -35,7 +35,6 @@ import { MatCard, MatCardHeader, MatCardContent, MatCardActions } from "@angular
     selector: "em-staged-file-chooser",
     templateUrl: "./staged-file-chooser.component.html",
     styleUrls: ["./staged-file-chooser.component.scss"],
-    standalone: true,
     imports: [MatCard, NgIf, MatCardHeader, MatCardContent, MatList, NgFor, MatListItem, MatIconButton, MatIcon, MatDivider, FormsModule, MatFormField, MatInput, MatProgressBar, MatCardActions, MatButton]
 })
 export class StagedFileChooserComponent implements OnInit {

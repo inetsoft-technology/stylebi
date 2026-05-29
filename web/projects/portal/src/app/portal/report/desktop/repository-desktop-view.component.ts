@@ -36,7 +36,6 @@ import { RepositoryTreeViewComponent } from "../tree/repository-tree-view.compon
     selector: "p-repository-desktop-view",
     templateUrl: "./repository-desktop-view.component.html",
     styleUrls: ["./repository-desktop-view.component.scss"],
-    standalone: true,
     imports: [SplitPane, RepositoryTreeViewComponent]
 })
 export class RepositoryDesktopViewComponent implements OnInit, AfterViewInit, OnChanges {

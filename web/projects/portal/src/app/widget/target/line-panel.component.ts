@@ -35,7 +35,6 @@ import { NgIf, NgFor, NgClass } from "@angular/common";
 @Component({
     selector: "line-panel",
     templateUrl: "line-panel.component.html",
-    standalone: true,
     imports: [
         NgIf,
         FormsModule,
@@ -48,7 +47,7 @@ import { NgIf, NgFor, NgClass } from "@angular/common";
         GridLineDropdown,
         ColorEditor,
         AlphaDropdown,
-    ],
+    ]
 })
 export class LinePanel {
    @Input() model: TargetInfo;

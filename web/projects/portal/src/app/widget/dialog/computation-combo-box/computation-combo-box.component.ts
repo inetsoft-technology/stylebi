@@ -35,12 +35,11 @@ import { NgFor } from "@angular/common";
 @Component({
     selector: "computation-combo-box",
     templateUrl: "computation-combo-box.component.html",
-    standalone: true,
     imports: [
         NgFor,
         FormsModule,
         ComputationDialog,
-    ],
+    ]
 })
 export class ComputationComboBox implements OnInit {
    public ValueMode = ValueMode;

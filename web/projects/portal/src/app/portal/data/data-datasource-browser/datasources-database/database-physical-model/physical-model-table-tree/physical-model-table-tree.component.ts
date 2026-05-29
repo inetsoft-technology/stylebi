@@ -22,7 +22,6 @@ import { PhysicalModelTableTreeNodeComponent } from "./physical-model-table-tree
 @Component({
     selector: "physical-model-table-tree",
     templateUrl: "physical-model-table-tree.component.html",
-    standalone: true,
     imports: [PhysicalModelTableTreeNodeComponent]
 })
 export class PhysicalModelTableTreeComponent {

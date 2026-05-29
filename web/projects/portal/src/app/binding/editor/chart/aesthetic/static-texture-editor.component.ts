@@ -23,7 +23,6 @@ import { NgIf } from "@angular/common";
     selector: "static-texture-editor",
     templateUrl: "static-texture-editor.component.html",
     styleUrls: ["combined-visual-pane.scss"],
-    standalone: true,
     imports: [NgIf, TextureComboBox]
 })
 

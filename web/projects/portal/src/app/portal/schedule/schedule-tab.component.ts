@@ -26,7 +26,6 @@ import { RouterLinkActive, RouterLink, RouterOutlet } from "@angular/router";
     selector: "p-schedule-tab",
     templateUrl: "./schedule-tab.component.html",
     styleUrls: ["./schedule-tab.component.scss"],
-    standalone: true,
     imports: [RouterLinkActive, RouterLink, RouterOutlet]
 })
 export class ScheduleTabComponent {

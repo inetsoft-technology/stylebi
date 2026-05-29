@@ -25,8 +25,7 @@ import { NgFor } from "@angular/common";
     selector: "combined-color-pane",
     templateUrl: "combined-color-pane.component.html",
     styleUrls: ["combined-visual-pane.scss"],
-    standalone: true,
-    imports: [NgFor, StaticColorEditor],
+    imports: [NgFor, StaticColorEditor]
 })
 export class CombinedColorPane extends AbstractCombinedPane {
    @Output() colorChanged: EventEmitter<string> = new EventEmitter<string>();

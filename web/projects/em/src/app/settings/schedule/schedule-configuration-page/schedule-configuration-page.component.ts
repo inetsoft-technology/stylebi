@@ -48,7 +48,6 @@ const SCHEDULE_CONFIGURATION_URL = "../api/em/settings/schedule/configuration";
     selector: "em-schedule-configuration-page",
     templateUrl: "./schedule-configuration-page.component.html",
     styleUrls: ["./schedule-configuration-page.component.scss"],
-    standalone: true,
     imports: [EditorPanelComponent, ScheduleConfigurationViewComponent]
 })
 export class ScheduleConfigurationPageComponent implements OnInit {

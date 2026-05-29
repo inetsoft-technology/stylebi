@@ -24,13 +24,12 @@ import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.
 @Component({
     selector: "script-property-dialog",
     templateUrl: "script-property-dialog.component.html",
-    standalone: true,
     imports: [
         ModalHeaderComponent,
         EnterSubmitDirective,
         FormsModule,
         ReactiveFormsModule,
-    ],
+    ]
 })
 export class ScriptPropertyDialogComponent implements OnInit{
    @Input() comment: string;

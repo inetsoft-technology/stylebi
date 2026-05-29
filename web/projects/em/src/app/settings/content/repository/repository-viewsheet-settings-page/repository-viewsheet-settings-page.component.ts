@@ -34,7 +34,6 @@ export interface RepositoryViewsheetEditorModel extends RepositoryEditorModel {
     selector: "em-repository-viewsheet-settings-page",
     templateUrl: "./repository-viewsheet-settings-page.component.html",
     styleUrls: ["./repository-viewsheet-settings-page.component.scss"],
-    standalone: true,
     imports: [RepositoryViewsheetSettingsViewComponent]
 })
 export class RepositoryViewsheetSettingsPageComponent implements OnChanges {

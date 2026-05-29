@@ -26,7 +26,6 @@ import { MatList, MatListItem } from "@angular/material/list";
     selector: "em-security-list-view",
     templateUrl: "./security-list-view.component.html",
     styleUrls: ["./security-list-view.component.scss"],
-    standalone: true,
     imports: [MatList, NgFor, MatListItem, MatIconButton, MatIcon, NgIf]
 })
 export class SecurityListViewComponent {

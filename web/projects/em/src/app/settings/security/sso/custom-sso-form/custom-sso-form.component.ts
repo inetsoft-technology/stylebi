@@ -39,7 +39,6 @@ import { MatRadioGroup, MatRadioButton } from "@angular/material/radio";
             useClass: DefaultCodemirrorService,
             deps: []
         }],
-    standalone: true,
     imports: [MatRadioGroup, FormsModule, MatRadioButton, NgIf, MatFormField, MatInput, MatLabel]
 })
 export class CustomSsoFormComponent implements OnInit, AfterViewInit, AfterViewChecked, OnDestroy {

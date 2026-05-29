@@ -37,7 +37,6 @@ import { NgIf, NgFor } from "@angular/common";
     selector: "vpm-condition-editor",
     templateUrl: "vpm-condition-editor.component.html",
     styleUrls: ["vpm-condition-editor.component.scss"],
-    standalone: true,
     imports: [NgIf, VPMValueEditorComponent, VPMVariableEditor, VPMFieldEditorComponent, SessionDataEditor, VpmSubqueryEditorComponent, FixedDropdownDirective, NgFor, ClauseValueTypePipe]
 })
 export class VPMConditionEditor implements OnChanges {

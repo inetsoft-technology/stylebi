@@ -46,7 +46,6 @@ const CHECK_TRAP_URI: string = "../api/composer/vs/crosstab-property-dialog-mode
 @Component({
     selector: "crosstab-property-dialog",
     templateUrl: "crosstab-property-dialog.component.html",
-    standalone: true,
     imports: [
         ModalHeaderComponent,
         NgIf,
@@ -62,7 +61,7 @@ const CHECK_TRAP_URI: string = "../api/composer/vs/crosstab-property-dialog-mode
         VSAssemblyScriptPane,
         NgbNavOutlet,
         ApplyButtonComponent,
-    ],
+    ]
 })
 export class CrosstabPropertyDialog extends PropertyDialog implements OnInit {
    @Input() model: CrosstabPropertyDialogModel;

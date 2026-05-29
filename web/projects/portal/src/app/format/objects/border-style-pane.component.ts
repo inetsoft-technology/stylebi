@@ -25,7 +25,6 @@ import { NgIf, NgFor } from "@angular/common";
     selector: "border-style-pane",
     styleUrls: ["binding-border-pane.component.scss"],
     templateUrl: "border-style-pane.component.html",
-    standalone: true,
     imports: [FixedDropdownDirective, NgIf, NgFor]
 })
 

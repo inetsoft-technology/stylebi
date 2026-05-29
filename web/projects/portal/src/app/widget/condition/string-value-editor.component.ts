@@ -22,7 +22,6 @@ import { FormsModule } from "@angular/forms";
     selector: "string-value-editor",
     templateUrl: "string-value-editor.component.html",
     styleUrls: ["./string-value-editor.component.scss"],
-    standalone: true,
     imports: [FormsModule]
 })
 export class StringValueEditor implements OnInit {

@@ -30,7 +30,6 @@ import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.
     selector: "select-data-source-dialog",
     templateUrl: "select-data-source-dialog.component.html",
     styles: ["legend i { vertical-align: -15% }"],
-    standalone: true,
     imports: [ModalHeaderComponent, EnterSubmitDirective, AssetTreeComponent]
 })
 export class SelectDataSourceDialog {

@@ -27,12 +27,11 @@ import { GeneralPropPane } from "../../../vsobjects/dialog/general-prop-pane.com
 @Component({
     selector: "calendar-general-pane",
     templateUrl: "calendar-general-pane.component.html",
-    standalone: true,
     imports: [
         GeneralPropPane,
         TitlePropPane,
         SizePositionPane,
-    ],
+    ]
 })
 export class CalendarGeneralPane implements OnInit {
    @Input() model: CalendarGeneralPaneModel;

@@ -65,7 +65,6 @@ enum FocusRegions {
     selector: "vs-text-input",
     templateUrl: "vs-text-input.component.html",
     styleUrls: ["vs-text-input.component.scss"],
-    standalone: true,
     imports: [AppErrorMessage, NgIf, VSInputLabelWrapper, VSDataTipDirective, VSPopComponentDirective, FormsModule, SafeFontDirective, EnterClickDirective, FixedDropdownDirective, NgbDatepicker, DefaultFocusDirective]
 })
 export class VSTextInput extends NavigationComponent<VSTextInputModel>

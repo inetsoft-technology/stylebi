@@ -39,7 +39,6 @@ import { DropHighlightDirective } from "../../../widget/drophighlight.directive"
     selector: "text-field-mc",
     templateUrl: "text-field-mc.component.html",
     styleUrls: ["aesthetic-field-mc.scss"],
-    standalone: true,
     imports: [DropHighlightDirective, OutOfZoneDirective, NgIf, ChartAestheticMc, TooltipIfDirective]
 })
 export class TextFieldMc extends AestheticFieldMc implements OnChanges {

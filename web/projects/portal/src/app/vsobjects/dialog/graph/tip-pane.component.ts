@@ -44,7 +44,6 @@ import { NgIf, NgFor } from "@angular/common";
     selector: "tip-pane",
     templateUrl: "tip-pane.component.html",
     styleUrls: ["tip-pane.component.scss"],
-    standalone: true,
     imports: [NgIf, FormsModule, NgFor, AlphaDropdown, LargeFormFieldComponent, NotificationsComponent, TipCustomizeDialog]
 })
 export class TipPane implements OnDestroy {

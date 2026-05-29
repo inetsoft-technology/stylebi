@@ -41,7 +41,6 @@ import { NgIf, NgFor } from "@angular/common";
     selector: "slide-out",
     templateUrl: "slide-out.component.html",
     styleUrls: ["slide-out.component.scss"],
-    standalone: true,
     imports: [NgIf, BlockMouseDirective, FixedDropdownDirective, NgFor, NotificationsComponent]
 })
 export class SlideOutComponent implements AfterViewInit, OnDestroy {

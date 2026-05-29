@@ -66,7 +66,6 @@ export class GroupErrorState implements ErrorStateMatcher {
     templateUrl: "./task-options-pane.component.html",
     styleUrls: ["./task-options-pane.component.scss"],
     providers: [DateTimeService],
-    standalone: true,
     imports: [FormsModule, ReactiveFormsModule, MatSlideToggle, NgIf, MatCheckbox, MatFormField, MatLabel, MatInput, MatDatepickerInput, MatDatepickerToggle, MatSuffix, MatDatepicker, MatError, MatButton, TimeZoneSelectComponent, MatSelect, MatOption, NgFor, MatAutocompleteTrigger, MatAutocomplete, MatProgressSpinner, MatIconButton, MatTooltip, MatIcon, AsyncPipe]
 })
 export class TaskOptionsPane {

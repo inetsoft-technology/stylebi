@@ -34,7 +34,6 @@ import { NgFor, NgIf } from "@angular/common";
 @Component({
     selector: "assembly-context-menu-items",
     templateUrl: "assembly-context-menu-items.component.html",
-    standalone: true,
     imports: [NgFor, NgIf]
 })
 export class AssemblyContextMenuItemsComponent

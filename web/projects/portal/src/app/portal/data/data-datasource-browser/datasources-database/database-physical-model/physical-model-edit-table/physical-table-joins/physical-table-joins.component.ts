@@ -66,7 +66,6 @@ class JoinTreeType {
     selector: "physical-table-joins",
     templateUrl: "physical-table-joins.component.html",
     styleUrls: ["physical-table-joins.component.scss"],
-    standalone: true,
     imports: [TreeComponent, AddJoinDialog, EditJoinDialog]
 })
 export class PhysicalTableJoinsComponent implements DoCheck, OnDestroy {

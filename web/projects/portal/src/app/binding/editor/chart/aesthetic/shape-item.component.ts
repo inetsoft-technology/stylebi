@@ -26,7 +26,6 @@ import { NgIf, NgClass } from "@angular/common";
                    [src]='shapeSource'/>
    <i *ngIf="shapeClass == null && shapeSource != null && builtin" [ngClass]='shapeSourceIcon'></i>
    <i *ngIf="shapeClass != null" [ngClass]='shapeClass'></i>`,
-    standalone: true,
     imports: [NgIf, NgClass]
 })
 export class ShapeItem {

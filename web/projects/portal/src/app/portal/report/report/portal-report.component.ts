@@ -28,7 +28,6 @@ import { NgIf } from "@angular/common";
     selector: "p-portal-report",
     templateUrl: "./portal-report.component.html",
     styleUrls: ["./portal-report.component.scss"],
-    standalone: true,
     imports: [NgIf]
 })
 export class PortalReportComponent implements OnInit, OnDestroy {

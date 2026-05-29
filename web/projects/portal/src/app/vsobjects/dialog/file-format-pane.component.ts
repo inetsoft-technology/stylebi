@@ -31,7 +31,6 @@ import { NgIf, NgFor } from "@angular/common";
     selector: "file-format-pane",
     templateUrl: "file-format-pane.component.html",
     styleUrls: ["file-format-pane.component.scss"],
-    standalone: true,
     imports: [NgIf, FormsModule, NgFor, CSVConfigPane, LargeFormFieldComponent, EnterClickDirective]
 })
 export class FileFormatPane implements OnInit {

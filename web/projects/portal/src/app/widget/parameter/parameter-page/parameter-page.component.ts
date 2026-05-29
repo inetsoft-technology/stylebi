@@ -36,7 +36,6 @@ import { NgIf, NgClass, NgFor, NgSwitch, NgSwitchCase, NgSwitchDefault } from "@
     selector: "parameter-page",
     templateUrl: "parameter-page.component.html",
     styleUrls: ["./parameter-page.component.scss"],
-    standalone: true,
     imports: [NgIf, NgClass, NgFor, NgSwitch, NgSwitchCase, FormsModule, NgSwitchDefault]
 })
 export class ParameterPage {

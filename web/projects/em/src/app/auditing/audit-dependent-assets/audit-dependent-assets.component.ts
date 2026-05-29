@@ -58,7 +58,6 @@ import { AuditTableViewComponent } from "../audit-table-view/audit-table-view.co
     selector: "em-audit-dependent-assets",
     templateUrl: "./audit-dependent-assets.component.html",
     styleUrls: ["./audit-dependent-assets.component.scss"],
-    standalone: true,
     imports: [AuditTableViewComponent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatSelect, NgFor, MatOption]
 })
 export class AuditDependentAssetsComponent implements OnInit, OnDestroy {

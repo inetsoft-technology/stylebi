@@ -28,7 +28,6 @@ import { ModalHeaderComponent } from "../../modal-header/modal-header.component"
 @Component({
     selector: "computation-dialog",
     templateUrl: "computation-dialog.component.html",
-    standalone: true,
     imports: [
         ModalHeaderComponent,
         FormsModule,
@@ -36,7 +35,7 @@ import { ModalHeaderComponent } from "../../modal-header/modal-header.component"
         NgIf,
         NgSwitch,
         NgSwitchCase,
-    ],
+    ]
 })
 export class ComputationDialog implements OnInit {
    @Input() model: StrategyInfo;

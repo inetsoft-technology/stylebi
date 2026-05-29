@@ -39,7 +39,6 @@ enum BookmarkFilter {
     selector: "vs-bookmark-pane",
     templateUrl: "./vs-bookmark-pane.component.html",
     styleUrls: ["./vs-bookmark-pane.component.scss"],
-    standalone: true,
     imports: [NgIf, DefaultFocusDirective, EnterClickDirective, BlockMouseDirective, FormsModule, NgClass, FixedDropdownDirective, NgFor]
 })
 export class VsBookmarkPaneComponent implements OnInit {

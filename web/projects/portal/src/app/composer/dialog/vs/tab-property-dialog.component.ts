@@ -34,7 +34,6 @@ import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.
 @Component({
     selector: "tab-property-dialog",
     templateUrl: "tab-property-dialog.component.html",
-    standalone: true,
     imports: [
         ModalHeaderComponent,
         NgIf,
@@ -48,7 +47,7 @@ import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.
         VSAssemblyScriptPane,
         NgbNavOutlet,
         ApplyButtonComponent,
-    ],
+    ]
 })
 export class TabPropertyDialog extends PropertyDialog implements OnInit {
    @Input() model: TabPropertyDialogModel;

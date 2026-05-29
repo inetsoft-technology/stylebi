@@ -46,7 +46,6 @@ const CONFIRM_MESSAGE = {
     selector: "save-viewsheet-dialog",
     templateUrl: "save-viewsheet-dialog.component.html",
     styleUrls: ["./save-viewsheet-dialog.component.scss"],
-    standalone: true,
     imports: [ModalHeaderComponent, NgIf, EnterSubmitDirective, NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, FormsModule, ReactiveFormsModule, InputTrimDirective, DefaultFocusDirective, AssetTreeComponent, ViewsheetOptionsPane, NgbNavOutlet]
 })
 export class SaveViewsheetDialog implements OnInit {

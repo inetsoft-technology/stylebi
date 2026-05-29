@@ -22,7 +22,6 @@ import { FormsModule } from "@angular/forms";
     selector: "char-value-editor",
     templateUrl: "char-value-editor.component.html",
     styleUrls: ["./char-value-editor.component.scss"],
-    standalone: true,
     imports: [FormsModule]
 })
 export class CharValueEditor {

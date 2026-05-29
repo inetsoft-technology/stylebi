@@ -32,7 +32,6 @@ enum SortEnum {
     selector: "vs-sorting-pane",
     templateUrl: "vs-sorting-pane.component.html",
     styleUrls: ["./vs-sorting-pane.component.scss"],
-    standalone: true,
     imports: [LargeFormFieldComponent, NgFor, OutOfZoneDirective, NgSwitch, NgSwitchCase]
 })
 export class VSSortingPane {

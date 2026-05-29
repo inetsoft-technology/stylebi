@@ -32,7 +32,6 @@ interface RangeType {
 @Component({
     selector: "range-slider-size-pane",
     templateUrl: "range-slider-size-pane.component.html",
-    standalone: true,
     imports: [FormsModule, ReactiveFormsModule, NgClass, NgIf, NgFor]
 })
 

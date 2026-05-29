@@ -56,8 +56,7 @@ const SET_CONNECTION_VARIABLES = "../api/composer/asset_tree/set-connection-vari
 @Component({
     selector: "binding-tree",
     templateUrl: "binding-tree.component.html",
-    standalone: true,
-    imports: [NgIf, TreeComponent],
+    imports: [NgIf, TreeComponent]
 })
 export class BindingTreeComponent implements OnChanges {
    @Input() selectedNodes: TreeNodeModel[] = [];

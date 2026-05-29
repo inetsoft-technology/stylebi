@@ -44,14 +44,13 @@ const SIMPLE_SCHEDULE_URI: string = "../api/vs/simple-schedule-dialog-model/";
 @Component({
     selector: "schedule-dialog",
     templateUrl: "schedule-dialog.component.html",
-    standalone: true,
     imports: [
         ModalHeaderComponent,
         EnterSubmitDirective,
         NgIf,
         FormsModule,
         SimpleScheduleDialog,
-    ],
+    ]
 })
 export class ScheduleDialog implements OnInit {
    @Input() model: ScheduleDialogModel;

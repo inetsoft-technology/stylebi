@@ -25,7 +25,6 @@ import { NgIf } from "@angular/common";
     templateUrl: "datasource-listing.component.html",
     styleUrls: ["datasource-listing.component.scss"],
     changeDetection: ChangeDetectionStrategy.OnPush,
-    standalone: true,
     imports: [NgIf]
 })
 export class DatasourceListingComponent {

@@ -48,7 +48,6 @@ const GET_PROVIDER_INFO = "../api/em/security/get-authentication-provider/";
     selector: "em-authentication-provider-detail-page",
     templateUrl: "./authentication-provider-detail-page.component.html",
     styleUrls: ["./authentication-provider-detail-page.component.scss"],
-    standalone: true,
     imports: [AuthenticationProviderDetailViewComponent, AsyncPipe]
 })
 export class AuthenticationProviderDetailPageComponent extends ProviderDetailPage

@@ -45,7 +45,6 @@ import { NgIf, NgFor } from "@angular/common";
     selector: "em-ldap-provider-view",
     templateUrl: "./ldap-provider-view.component.html",
     styleUrls: ["./ldap-provider-view.component.scss"],
-    standalone: true,
     imports: [FormsModule, ReactiveFormsModule, NgIf, MatCard, MatCardContent, MatFormField, MatLabel, MatSelect, MatOption, MatHint, MatInput, MatError, MatCheckbox, MatCardActions, MatButton, MatProgressSpinner, MatIconButton, MatSuffix, MatIcon]
 })
 export class LdapProviderViewComponent implements OnInit, OnDestroy {
@@ -296,13 +295,12 @@ export class LdapProviderViewComponent implements OnInit, OnDestroy {
 @Component({
     selector: "em-ldap-query-result",
     templateUrl: "ldap-query-result.html",
-    standalone: true,
     imports: [
         NgIf,
         MatList,
         NgFor,
         MatListItem,
-    ],
+    ]
 })
 export class LDAPQueryResult {
    queryResult: string[];

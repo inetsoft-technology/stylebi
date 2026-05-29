@@ -79,7 +79,6 @@ const DATASOURCE_STATUSES_URI  = DATASOURCES_URI + "/statuses";
     templateUrl: "data-datasource-browser.component.html",
     styleUrls: ["data-datasource-browser.component.scss"],
     providers: [ViewsheetClientService],
-    standalone: true,
     imports: [NgIf, FormsModule, NgbTypeahead, NgClass, NgFor, NgbDropdown, NgbDropdownToggle, NgbDropdownMenu, RouterLink, DataNotificationsComponent]
 })
 export class DataDatasourceBrowserComponent extends CommandProcessor implements AfterViewInit, OnInit, OnDestroy {

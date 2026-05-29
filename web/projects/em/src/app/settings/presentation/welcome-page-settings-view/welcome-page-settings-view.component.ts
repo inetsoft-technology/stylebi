@@ -41,7 +41,6 @@ import { NgIf } from "@angular/common";
     selector: "em-welcome-page-settings-view",
     templateUrl: "./welcome-page-settings-view.component.html",
     styleUrls: ["./welcome-page-settings-view.component.scss"],
-    standalone: true,
     imports: [NgIf, MatCard, MatCardTitle, MatCardContent, FormsModule, ReactiveFormsModule, MatRadioGroup, MatRadioButton, MatFormField, MatLabel, MatInput, MatError]
 })
 export class WelcomePageSettingsViewComponent {

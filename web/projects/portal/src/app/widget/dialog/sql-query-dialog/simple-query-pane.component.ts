@@ -96,7 +96,6 @@ const UPDATE_QUERY_URI: string = "../api/composer/ws/sql-query-dialog/query/upda
     templateUrl: "simple-query-pane.component.html",
     styleUrls: ["simple-query-pane.component.scss"],
     encapsulation: ViewEncapsulation.None,
-    standalone: true,
     imports: [NgIf, NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, TreeComponent, SQLQueryDialogListComponent, NgFor, FormsModule, HelpLinkDirective, SqlQueryPreviewPaneComponent, NgbNavOutlet, SQLQueryJoinDialog, VPMConditionDialog, ClausePipe, ConjunctionPipe]
 })
 export class SimpleQueryPaneComponent {

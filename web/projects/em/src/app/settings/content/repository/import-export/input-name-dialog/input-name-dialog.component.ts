@@ -29,7 +29,6 @@ import { ModalHeaderComponent } from "../../../../../common/util/modal-header/mo
     selector: "em-input-name-dialog",
     templateUrl: "./input-name-dialog.component.html",
     styleUrls: ["./input-name-dialog.component.scss"],
-    standalone: true,
     imports: [ModalHeaderComponent, MatDialogContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatInput, NgIf, MatError, MatDialogActions, MatButton]
 })
 export class InputNameDialogComponent implements OnInit {

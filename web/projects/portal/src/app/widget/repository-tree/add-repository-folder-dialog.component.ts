@@ -34,7 +34,6 @@ const ADD_FOLDER_URI = "../api/portal/tree/add-folder";
 @Component({
     selector: "add-repository-folder-dialog",
     templateUrl: "add-repository-folder-dialog.component.html",
-    standalone: true,
     imports: [StandardDialogComponent, DialogContentDirective, FormsModule, ReactiveFormsModule, NgIf, DialogButtonsDirective]
 })
 export class AddRepositoryFolderDialog implements OnInit {

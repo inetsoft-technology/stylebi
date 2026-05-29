@@ -59,7 +59,6 @@ import { NgIf } from "@angular/common";
     templateUrl: "./look-and-feel-settings-view.component.html",
     styleUrls: ["./look-and-feel-settings-view.component.scss"],
     providers: [DataSpaceTreeDataSource],
-    standalone: true,
     imports: [NgIf, FormsModule, ReactiveFormsModule, MatCard, MatCardTitle, MatCardContent, MatFormField, MatLabel, MatSelect, MatOption, MatCheckbox, FileChooserComponent, MatIcon, MatSuffix, MatError, MatButton]
 })
 export class LookAndFeelSettingsViewComponent implements OnInit, OnDestroy {

@@ -34,7 +34,6 @@ import { ModalHeaderComponent } from "../../../../common/util/modal-header/modal
     selector: "em-add-font-face-dialog",
     templateUrl: "./add-font-face-dialog.component.html",
     styleUrls: ["./add-font-face-dialog.component.scss"],
-    standalone: true,
     imports: [ModalHeaderComponent, MatDialogContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatInput, NgIf, MatError, FileChooserComponent, MatIcon, MatSuffix, MatDialogActions, MatButton, MatDialogClose]
 })
 export class AddFontFaceDialogComponent {

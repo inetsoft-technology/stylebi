@@ -46,7 +46,6 @@ import { ScheduleTaskSelectComponent } from "../schedule-task-select/schedule-ta
     selector: "em-batch-action-editor",
     templateUrl: "./batch-action-editor.component.html",
     styleUrls: ["./batch-action-editor.component.scss"],
-    standalone: true,
     imports: [ScheduleTaskSelectComponent, NgIf, MatCard, MatCardTitle, MatCardContent, MatCheckbox, FormsModule, MatButton]
 })
 export class BatchActionEditorComponent implements OnInit {

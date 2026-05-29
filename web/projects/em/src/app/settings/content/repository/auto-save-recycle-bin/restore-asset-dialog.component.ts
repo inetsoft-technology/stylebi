@@ -108,7 +108,6 @@ const RECOVER_AUTO_SAVE_ENTRY: string = "../api/em/content/repository/autosave/r
     selector: "em-restore-asset-dialog",
     templateUrl: "./restore-asset-dialog.component.html",
     styleUrls: ["./restore-asset-dialog.component.scss"],
-    standalone: true,
     imports: [
         ModalHeaderComponent,
         MatDialogContent,
@@ -131,7 +130,7 @@ const RECOVER_AUTO_SAVE_ENTRY: string = "../api/em/content/repository/autosave/r
         MatIcon,
         MatProgressBar,
         MatButton,
-    ],
+    ]
 })
 
 export class RestoreAssetDialogComponent implements OnInit {

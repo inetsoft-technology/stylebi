@@ -62,7 +62,6 @@ const GET_VIEWSHEET_AUTO_DRILL_PARAMETERS: string = "../api/data/logicalModel/vs
     selector: "data-auto-drill-dialog",
     templateUrl: "data-auto-drill-dialog.component.html",
     styleUrls: ["data-auto-drill-dialog.component.scss"],
-    standalone: true,
     imports: [ModalHeaderComponent, NgFor, NgIf, FormsModule, ReactiveFormsModule, NgbDropdown, NgbDropdownToggle, NgbDropdownMenu, RepositoryTreeComponent]
 })
 export class AutoDrillDialog implements OnInit, AfterViewInit {

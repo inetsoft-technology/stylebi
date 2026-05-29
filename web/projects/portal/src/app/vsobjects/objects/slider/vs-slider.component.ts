@@ -63,7 +63,6 @@ const GET_OBJECT_MODEL_URL: string = "/events/vsview/object/model";
     selector: "vs-slider",
     templateUrl: "vs-slider.component.html",
     styleUrls: ["vs-slider.component.scss"],
-    standalone: true,
     imports: [NgIf, VSInputLabelWrapper, VSDataTipDirective, VSPopComponentDirective, OutOfZoneDirective, SafeFontDirective, NgFor]
 })
 export class VSSlider extends NavigationComponent<VSSliderModel> implements OnChanges, OnDestroy, AfterViewInit {

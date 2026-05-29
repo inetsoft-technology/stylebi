@@ -77,7 +77,6 @@ enum UserVariable {
     selector: "variable-assembly-dialog",
     templateUrl: "variable-assembly-dialog.component.html",
     styleUrls: ["variable-assembly-dialog.component.scss"],
-    standalone: true,
     imports: [
         ModalHeaderComponent,
         NgIf,
@@ -93,7 +92,7 @@ enum UserVariable {
         VariableListDialog,
         VariableTableListDialog,
         ConditionValueTypePipe,
-    ],
+    ]
 })
 export class VariableAssemblyDialog implements OnInit {
    @Input() worksheet: Worksheet;

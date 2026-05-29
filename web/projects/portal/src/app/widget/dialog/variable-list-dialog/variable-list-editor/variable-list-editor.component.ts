@@ -33,7 +33,6 @@ export interface VariableListTuple {
     selector: "variable-list-editor",
     templateUrl: "variable-list-editor.component.html",
     styleUrls: ["variable-list-editor.component.scss"],
-    standalone: true,
     imports: [LargeFormFieldComponent, NgFor, FormsModule]
 })
 export class VariableListEditor implements OnInit {

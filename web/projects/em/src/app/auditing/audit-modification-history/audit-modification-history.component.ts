@@ -57,7 +57,6 @@ import { NgIf, NgFor } from "@angular/common";
     selector: "em-audit-modification-history",
     templateUrl: "./audit-modification-history.component.html",
     styleUrls: ["./audit-modification-history.component.scss"],
-    standalone: true,
     imports: [AuditTableViewComponent, FormsModule, ReactiveFormsModule, NgIf, MatFormField, MatLabel, MatSelect, NgFor, MatOption]
 })
 export class AuditModificationHistoryComponent implements OnInit, OnDestroy {

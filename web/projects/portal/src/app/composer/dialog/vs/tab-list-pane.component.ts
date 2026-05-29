@@ -26,7 +26,6 @@ import { LargeFormFieldComponent } from "../../../widget/large-form-field/large-
     selector: "tab-list-pane",
     templateUrl: "tab-list-pane.component.html",
     styleUrls: ["tab-list-pane.component.scss"],
-    standalone: true,
     imports: [LargeFormFieldComponent, ScrollableTableDirective, NgFor, FormsModule]
 })
 export class TabListPane implements OnInit {

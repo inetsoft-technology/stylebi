@@ -29,7 +29,6 @@ import { ModalHeaderComponent } from "../../modal-header/modal-header.component"
 @Component({
     selector: "sql-query-join-dialog",
     templateUrl: "sql-query-join-dialog.component.html",
-    standalone: true,
     imports: [ModalHeaderComponent, EnterSubmitDirective, NgIf, FormsModule, NgFor]
 })
 export class SQLQueryJoinDialog implements OnInit, OnDestroy {

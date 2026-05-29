@@ -29,7 +29,6 @@ import { ModalHeaderComponent } from "../../../../widget/modal-header/modal-head
     selector: "edit-property-dialog",
     templateUrl: "edit-property-dialog.component.html",
     styleUrls: ["edit-property-dialog.component.scss"],
-    standalone: true,
     imports: [ModalHeaderComponent, NgIf, EnterSubmitDirective, FormsModule, ReactiveFormsModule]
 })
 export class EditPropertyDialogComponent implements OnInit {

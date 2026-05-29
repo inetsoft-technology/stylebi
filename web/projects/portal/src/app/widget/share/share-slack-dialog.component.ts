@@ -30,7 +30,6 @@ import { ModalHeaderComponent } from "../modal-header/modal-header.component";
     selector: "share-slack-dialog",
     templateUrl: "share-slack-dialog.component.html",
     styleUrls: ["share-slack-dialog.component.scss"],
-    standalone: true,
     imports: [ModalHeaderComponent, EnterSubmitDirective, FormsModule, ReactiveFormsModule]
 })
 export class ShareSlackDialog implements OnInit {

@@ -33,7 +33,6 @@ import { OutputGeneralPane } from "./output-general-pane.component";
 @Component({
     selector: "text-general-pane",
     templateUrl: "text-general-pane.component.html",
-    standalone: true,
     imports: [
         OutputGeneralPane,
         TextPane,
@@ -46,7 +45,7 @@ import { OutputGeneralPane } from "./output-general-pane.component";
         SizePositionPane,
         NotificationsComponent,
         TruncatePipe,
-    ],
+    ]
 })
 export class TextGeneralPane implements OnInit {
    @Input() model: TextGeneralPaneModel;

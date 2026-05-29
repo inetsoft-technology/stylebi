@@ -29,7 +29,6 @@ const SOCKET_URI: string = "/events/composer/worksheet/concatenation-type-dialog
 @Component({
     selector: "concatenation-type-dialog",
     templateUrl: "concatenation-type-dialog.component.html",
-    standalone: true,
     imports: [ModalHeaderComponent, NgIf, EnterSubmitDirective, FormsModule, NgClass]
 })
 export class ConcatenationTypeDialog {

@@ -48,7 +48,6 @@ const CHECK_CONDITION_TRAP_URI = "../api/composer/worksheet/check-condition-trap
 @Component({
     selector: "assembly-condition-dialog",
     templateUrl: "assembly-condition-dialog.component.html",
-    standalone: true,
     imports: [ModalHeaderComponent, NgIf, EnterSubmitDirective, NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, FormsModule, SimpleConditionPane, AdvancedConditionPane, MVConditionPane, NgbNavOutlet]
 })
 export class AssemblyConditionDialog implements OnInit {

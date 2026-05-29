@@ -39,7 +39,6 @@ import { NgIf } from "@angular/common";
     selector: "wizard-aggregate-item",
     templateUrl: "./wizard-aggregate-item.component.html",
     styleUrls: ["./wizard-aggregate-item.component.scss", "./wizard-group-item.component.scss"],
-    standalone: true,
     imports: [NgIf, NgbTooltip, DynamicComboBox, FixedDropdownDirective, FormattingPane]
 })
 export class VSWizardAggregateItem extends VSWizardItem<BAggregateRef> implements OnInit {

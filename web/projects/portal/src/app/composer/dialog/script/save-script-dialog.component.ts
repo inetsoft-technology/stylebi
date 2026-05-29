@@ -43,7 +43,6 @@ const CONFIRM_MESSAGE = {
 @Component({
     selector: "save-script-dialog",
     templateUrl: "save-script-dialog.component.html",
-    standalone: true,
     imports: [
         ModalHeaderComponent,
         NgIf,
@@ -53,7 +52,7 @@ const CONFIRM_MESSAGE = {
         InputTrimDirective,
         DefaultFocusDirective,
         AssetTreeComponent,
-    ],
+    ]
 })
 export class SaveScriptDialog implements OnInit {
    @Input() defaultFolder: AssetEntry;

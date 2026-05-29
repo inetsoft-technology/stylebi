@@ -57,7 +57,6 @@ import { NgIf, NgStyle, NgFor } from "@angular/common";
     selector: "vs-image",
     templateUrl: "vs-image.component.html",
     styleUrls: ["vs-image.component.scss"],
-    standalone: true,
     imports: [NgIf, VSDataTipDirective, VSPopComponentDirective, TooltipDirective, NgStyle, VSHiddenAnnotation, NgFor, VSAnnotation, VSLoadingDisplay]
 })
 export class VSImage extends AbstractImageComponent<VSImageModel>

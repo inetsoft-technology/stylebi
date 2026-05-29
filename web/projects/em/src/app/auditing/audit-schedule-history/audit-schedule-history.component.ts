@@ -55,7 +55,6 @@ import { NgIf, NgFor } from "@angular/common";
     selector: "em-audit-schedule-history",
     templateUrl: "./audit-schedule-history.component.html",
     styleUrls: ["./audit-schedule-history.component.scss"],
-    standalone: true,
     imports: [AuditTableViewComponent, FormsModule, ReactiveFormsModule, NgIf, MatFormField, MatLabel, MatSelect, NgFor, MatOption]
 })
 export class AuditScheduleHistoryComponent implements OnInit, OnDestroy {

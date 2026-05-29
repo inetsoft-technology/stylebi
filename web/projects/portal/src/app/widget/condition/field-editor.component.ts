@@ -24,7 +24,6 @@ import { ConditionFieldComboComponent } from "./condition-field-combo.component"
 @Component({
     selector: "field-editor",
     templateUrl: "field-editor.component.html",
-    standalone: true,
     imports: [ConditionFieldComboComponent]
 })
 export class FieldEditor {

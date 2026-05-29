@@ -39,7 +39,6 @@ declare const window;
     templateUrl: "wizard-tool-bar.component.html",
     styleUrls: ["wizard-tool-bar.component.scss",
         "../../../composer/gui/toolbar/composer-toolbar.component.scss"],
-    standalone: true,
     imports: [NgIf, ToolbarGroup]
 })
 export class WizardToolBarComponent implements OnInit, OnDestroy {

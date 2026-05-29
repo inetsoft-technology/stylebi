@@ -46,12 +46,11 @@ import { NgStyle } from "@angular/common";
     selector: "script-edit-pane",
     templateUrl: "script-edit-pane.component.html",
     styleUrls: ["script-edit-pane.component.scss"],
-    standalone: true,
     imports: [
         NgStyle,
         CodemirrorComponent,
         NotificationsComponent,
-    ],
+    ]
 })
 export class ScriptEditPaneComponent implements OnInit, OnChanges {
    @Input() model: ScriptModel;

@@ -38,7 +38,6 @@ import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.
 @Component({
     selector: "submit-property-dialog",
     templateUrl: "submit-property-dialog.component.html",
-    standalone: true,
     imports: [
         ModalHeaderComponent,
         NgIf,
@@ -52,7 +51,7 @@ import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.
         ClickableScriptPane,
         NgbNavOutlet,
         ApplyButtonComponent,
-    ],
+    ]
 })
 export class SubmitPropertyDialog extends PropertyDialog {
    @Input() model: SubmitPropertyDialogModel;

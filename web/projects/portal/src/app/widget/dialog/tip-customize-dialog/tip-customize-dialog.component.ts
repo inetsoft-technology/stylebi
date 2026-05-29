@@ -27,7 +27,6 @@ import { ModalHeaderComponent } from "../../modal-header/modal-header.component"
 @Component({
     selector: "tip-customize-dialog",
     templateUrl: "tip-customize-dialog.component.html",
-    standalone: true,
     imports: [ModalHeaderComponent, FormsModule, ReactiveFormsModule, NgIf, NgbAlert, NgFor]
 })
 export class TipCustomizeDialog implements OnChanges {

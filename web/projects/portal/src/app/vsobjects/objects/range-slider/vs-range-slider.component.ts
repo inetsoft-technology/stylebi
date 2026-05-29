@@ -84,7 +84,6 @@ enum Handle { Left, Middle, Right, None }
     selector: "vs-range-slider",
     templateUrl: "vs-range-slider.component.html",
     styleUrls: ["vs-range-slider.component.scss"],
-    standalone: true,
     imports: [VSDataTipDirective, VSPopComponentDirective, SafeFontDirective, NgIf, CollapseToggleButton, MiniMenu, TooltipIfDirective, FormsModule, DefaultFocusDirective, InteractableDirective, TooltipDirective, NgFor]
 })
 export class VSRangeSlider extends NavigationComponent<VSRangeSliderModel>

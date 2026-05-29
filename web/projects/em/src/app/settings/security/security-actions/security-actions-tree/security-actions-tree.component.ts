@@ -38,7 +38,6 @@ export class ActionFlatTreeNode {
     selector: "em-security-actions-tree",
     templateUrl: "./security-actions-tree.component.html",
     styleUrls: ["./security-actions-tree.component.scss"],
-    standalone: true,
     imports: [MatTree, MatTreeNodeDef, MatTreeNode, MatTreeNodeToggle, MatTreeNodePadding, MatIconButton, MatIcon]
 })
 export class SecurityActionsTreeComponent implements OnInit {

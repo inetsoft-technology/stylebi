@@ -52,7 +52,6 @@ import { OutOfZoneDirective } from "../../../widget/directive/out-of-zone.direct
     selector: "table-data-editor",
     templateUrl: "table-data-editor.component.html",
     styleUrls: ["../data-editor.component.scss"],
-    standalone: true,
     imports: [OutOfZoneDirective, NgFor, TableFieldmc, NgIf]
 })
 export class TableDataEditor extends DataEditor {

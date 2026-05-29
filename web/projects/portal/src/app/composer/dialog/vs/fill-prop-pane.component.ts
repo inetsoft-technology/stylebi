@@ -30,14 +30,13 @@ import { FormsModule } from "@angular/forms";
 @Component({
     selector: "fill-prop-pane",
     templateUrl: "fill-prop-pane.component.html",
-    standalone: true,
     imports: [
         DynamicComboBox,
         FormsModule,
         ColorEditor,
         AlphaDropdown,
         NgIf,
-    ],
+    ]
 })
 export class FillPropPane implements OnInit {
    @Input() model: FillPropPaneModel;

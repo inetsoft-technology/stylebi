@@ -47,7 +47,6 @@ import { MatToolbar } from "@angular/material/toolbar";
     selector: "em-page-header",
     templateUrl: "./page-header.component.html",
     styleUrls: ["./page-header.component.scss"],
-    standalone: true,
     imports: [MatToolbar, MatIconButton, MatIcon, NgIf, MatFormField, MatLabel, MatInput, FormsModule, MatAutocompleteTrigger, MatSuffix, MatAutocomplete, NgFor, MatOption, MatSelect]
 })
 export class PageHeaderComponent implements OnInit, OnDestroy {

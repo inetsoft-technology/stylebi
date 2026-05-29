@@ -26,12 +26,11 @@ import { GeneralPropPane } from "../../../vsobjects/dialog/general-prop-pane.com
 @Component({
     selector: "group-container-general-pane",
     templateUrl: "group-container-general-pane.component.html",
-    standalone: true,
     imports: [
         GeneralPropPane,
         StaticImagePane,
         SizePositionPane,
-    ],
+    ]
 })
 export class GroupContainerGeneralPane implements OnInit {
    @Input() model: GroupContainerGeneralPaneModel;

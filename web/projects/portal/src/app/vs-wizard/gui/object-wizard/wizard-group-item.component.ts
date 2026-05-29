@@ -35,7 +35,6 @@ import { NgIf } from "@angular/common";
     selector: "wizard-group-item",
     templateUrl: "./wizard-group-item.component.html",
     styleUrls: ["./wizard-group-item.component.scss"],
-    standalone: true,
     imports: [NgIf, NgbTooltip, DynamicComboBox, FixedDropdownDirective, FormattingPane]
 })
 export class VSWizardGroupItem extends VSWizardItem<BDimensionRef> implements OnInit {

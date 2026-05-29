@@ -31,7 +31,6 @@ const EMPTY_IMAGE: string = "assets/emptyimage.gif";
     selector: "image-scale-pane",
     templateUrl: "image-scale-pane.component.html",
     styleUrls: ["image-scale-pane.component.scss"],
-    standalone: true,
     imports: [FormsModule, NgIf, NgStyle]
 })
 export class ImageScalePane implements OnInit {

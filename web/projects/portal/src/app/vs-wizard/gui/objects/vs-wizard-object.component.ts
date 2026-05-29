@@ -55,7 +55,6 @@ import { InteractableDirective } from "../../../widget/interact/interactable.dir
     selector: "vs-wizard-object",
     templateUrl: "./vs-wizard-object.component.html",
     styleUrls: ["./vs-wizard-object.component.scss"],
-    standalone: true,
     imports: [InteractableDirective, OutOfZoneDirective, NgIf, VSCalendar, VSChart, VSCrosstab, VSGauge, VSImage, VSRangeSlider, VSSelection, VSTable, VSText, MiniToolbar]
 })
 export class VsWizardObjectComponent implements OnInit, OnDestroy {

@@ -43,7 +43,6 @@ const DELETE_RECYCLE_BIN_ENTRYS: string = "../api/em/content/repository/folder/r
 @Component({
     selector: "em-repository-folder-recycle-bin-page",
     templateUrl: "./repository-folder-recycle-bin-page.component.html",
-    standalone: true,
     imports: [RepositoryRecycleBinSettingsViewComponent]
 })
 export class RepositoryFolderRecycleBinPageComponent implements OnChanges {

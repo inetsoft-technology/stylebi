@@ -27,7 +27,6 @@ import { NgIf } from "@angular/common";
 @Component({
     selector: "label-input-field",
     templateUrl: "label-input-field.component.html",
-    standalone: true,
     imports: [NgIf, TargetComboBox, DynamicComboBox]
 })
 export class LabelInputField implements OnInit {

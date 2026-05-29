@@ -45,7 +45,6 @@ import { NgIf, NgFor } from "@angular/common";
 @Component({
     selector: "highlight-pane",
     templateUrl: "highlight-pane.component.html",
-    standalone: true,
     imports: [NgIf, EnterSubmitDirective, LargeFormFieldComponent, NgFor, ColorEditor, DropdownView, FontPane, FormsModule, ConditionPipe, JunctionOperatorPipe]
 })
 export class HighlightPane implements OnInit {

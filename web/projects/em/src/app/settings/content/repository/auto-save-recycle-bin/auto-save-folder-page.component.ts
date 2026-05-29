@@ -45,7 +45,6 @@ export interface AutoSaveSelectModel {
 @Component({
     selector: "em-auto-save-folder-page",
     templateUrl: "./auto-save-folder-page.component.html",
-    standalone: true,
     imports: [NgIf, EditorPanelComponent, MatTabGroup, MatTab, MatCard, MatCardContent, TableView]
 })
 export class AutoSaveFolderPageComponent {

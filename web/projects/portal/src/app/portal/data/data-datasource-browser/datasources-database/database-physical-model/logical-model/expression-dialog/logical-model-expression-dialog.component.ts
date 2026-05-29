@@ -35,7 +35,6 @@ const FIELDS_URI: string = "../api/data/logicalModel/tables/nodes";
     selector: "logical-model-expression-dialog",
     templateUrl: "logical-model-expression-dialog.component.html",
     styleUrls: ["logical-model-expression-dialog.component.scss"],
-    standalone: true,
     imports: [ModalHeaderComponent, FormsModule, ReactiveFormsModule, NgIf, NgFor, ScriptPane, NotificationsComponent]
 })
 export class LogicalModelExpressionDialog implements OnInit {

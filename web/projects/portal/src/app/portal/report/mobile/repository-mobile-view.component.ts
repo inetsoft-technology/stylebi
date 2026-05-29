@@ -26,7 +26,6 @@ import { RepositoryTreeViewComponent } from "../tree/repository-tree-view.compon
     selector: "p-repository-mobile-view",
     templateUrl: "./repository-mobile-view.component.html",
     styleUrls: ["./repository-mobile-view.component.scss"],
-    standalone: true,
     imports: [RepositoryTreeViewComponent]
 })
 export class RepositoryMobileViewComponent implements OnInit {

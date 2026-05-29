@@ -42,7 +42,6 @@ interface DragSourceEl {
     selector: "hierarchy-property-pane",
     templateUrl: "hierarchy-property-pane.component.html",
     styleUrls: ["./hierarchy-property-pane.component.scss"],
-    standalone: true,
     imports: [OutOfZoneDirective, NgFor, NgClass, HierarchyEditor]
 })
 export class HierarchyPropertyPane implements OnInit {

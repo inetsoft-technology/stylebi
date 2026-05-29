@@ -24,7 +24,6 @@ import { FixedDropdownDirective } from "../fixed-dropdown/fixed-dropdown.directi
     selector: "line-arrow-type-dropdown",
     templateUrl: "line-arrow-type-dropdown.component.html",
     styleUrls: ["line-arrow-type-dropdown.component.scss"],
-    standalone: true,
     imports: [FixedDropdownDirective, NgFor]
 })
 export class LineArrowTypeDropdown {

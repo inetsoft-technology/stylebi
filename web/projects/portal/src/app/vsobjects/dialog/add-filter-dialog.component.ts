@@ -28,14 +28,13 @@ import { ModalHeaderComponent } from "../../widget/modal-header/modal-header.com
 @Component({
     selector: "add-filter-dialog",
     templateUrl: "add-filter-dialog.component.html",
-    standalone: true,
     imports: [
         ModalHeaderComponent,
         NgIf,
         EnterSubmitDirective,
         TreeComponent,
         DefaultFocusDirective,
-    ],
+    ]
 })
 export class AddFilterDialog {
    @Input() model: TreeNodeModel;

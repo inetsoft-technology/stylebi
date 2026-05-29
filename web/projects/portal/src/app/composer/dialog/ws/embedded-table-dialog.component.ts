@@ -32,7 +32,6 @@ const EMBEDDED_TABLE_DIALOG_URI = "../api/composer/ws/dialog/embedded-table-dial
 @Component({
     selector: "embedded-table-dialog",
     templateUrl: "embedded-table-dialog.component.html",
-    standalone: true,
     imports: [ModalHeaderComponent, EnterSubmitDirective, NgIf, FormsModule, ReactiveFormsModule, InputTrimDirective]
 })
 export class EmbeddedTableDialog implements OnInit {

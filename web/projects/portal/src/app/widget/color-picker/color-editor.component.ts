@@ -30,7 +30,6 @@ import { BlockMouseDirective } from "../mouse-event/block-mouse.directive";
     selector: "color-editor",
     templateUrl: "color-editor.component.html",
     styleUrls: ["color-editor.component.scss"],
-    standalone: true,
     imports: [BlockMouseDirective, NgSwitch, NgSwitchCase, FormsModule, NgIf, ColorPicker, GradientColorPicker]
 })
 export class ColorEditor {

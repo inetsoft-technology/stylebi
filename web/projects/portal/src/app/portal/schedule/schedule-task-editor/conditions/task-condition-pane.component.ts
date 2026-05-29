@@ -64,7 +64,6 @@ dayjs.extend(utc);
     selector: "task-condition-pane",
     templateUrl: "./task-condition-pane.component.html",
     styleUrls: ["./task-condition-pane.component.scss"],
-    standalone: true,
     imports: [NgIf, NgFor, NgSwitch, NgSwitchCase, FormsModule, ReactiveFormsModule, StartTimeEditor, NgbTimepicker, NgbInputDatepicker, EditableTableComponent]
 })
 export class TaskConditionPane implements OnInit, OnChanges {

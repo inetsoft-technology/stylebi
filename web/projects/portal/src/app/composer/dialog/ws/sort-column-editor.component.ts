@@ -50,7 +50,6 @@ interface SortRef {
     selector: "sort-column-editor",
     templateUrl: "sort-column-editor.component.html",
     changeDetection: ChangeDetectionStrategy.OnPush,
-    standalone: true,
     imports: [NgFor, FormsModule]
 })
 export class SortColumnEditor implements OnChanges {

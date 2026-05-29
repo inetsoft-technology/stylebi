@@ -30,7 +30,6 @@ interface SliderTick {
     selector: "slider",
     templateUrl: "slider.component.html",
     styleUrls: ["slider.component.scss"],
-    standalone: true,
     imports: [NgFor]
 })
 export class Slider implements OnInit, OnDestroy {

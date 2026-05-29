@@ -30,7 +30,6 @@ import { InteractableDirective } from "../../../widget/interact/interactable.dir
     selector: "title-cell",
     templateUrl: "title-cell.component.html",
     styleUrls: ["title-cell.component.scss"],
-    standalone: true,
     imports: [InteractableDirective, NgIf, TooltipIfDirective, SafeFontDirective, FormsModule, DefaultFocusDirective]
 })
 export class TitleCell implements OnChanges {

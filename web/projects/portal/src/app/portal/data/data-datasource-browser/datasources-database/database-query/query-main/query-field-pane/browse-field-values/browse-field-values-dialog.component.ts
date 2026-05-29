@@ -23,7 +23,6 @@ import { ModalHeaderComponent } from "../../../../../../../../widget/modal-heade
     selector: "browse-field-values-dialog",
     templateUrl: "./browse-field-values-dialog.component.html",
     styleUrls: ["./browse-field-values-dialog.component.scss"],
-    standalone: true,
     imports: [ModalHeaderComponent, NgIf, NgFor]
 })
 export class BrowseFieldValuesDialogComponent {

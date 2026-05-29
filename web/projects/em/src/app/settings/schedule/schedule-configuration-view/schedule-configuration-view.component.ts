@@ -47,7 +47,6 @@ export interface ScheduleConfiguration {
     selector: "em-schedule-configuration-view",
     templateUrl: "./schedule-configuration-view.component.html",
     styleUrls: ["./schedule-configuration-view.component.scss"],
-    standalone: true,
     imports: [FormsModule, ReactiveFormsModule, MatCard, MatCardTitle, MatCardContent, MatFormField, MatLabel, MatInput, MatError, NgIf, MatCardActions, MatButton, MatCheckbox, MatHint, MatDivider, EmailPickerComponent, TimeRangesViewComponent, ServerLocationsViewComponent]
 })
 export class ScheduleConfigurationViewComponent implements OnDestroy {

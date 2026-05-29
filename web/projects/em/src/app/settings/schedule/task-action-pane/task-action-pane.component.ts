@@ -40,7 +40,6 @@ export interface TaskActionChanges {
     selector: "em-schedule-task-action-pane",
     templateUrl: "./task-action-pane.component.html",
     styleUrls: ["./task-action-pane.component.scss"],
-    standalone: true,
     imports: [MatCard, MatCardContent, MatFormField, MatLabel, MatSelect, NgIf, MatOption, NgSwitch, NgSwitchCase, ViewsheetActionEditorComponent, BackupActionEditorComponent, BatchActionEditorComponent]
 })
 export class TaskActionPaneComponent {

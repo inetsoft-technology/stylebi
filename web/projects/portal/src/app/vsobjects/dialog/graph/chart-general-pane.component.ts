@@ -29,7 +29,6 @@ import { GeneralPropPane } from "../general-prop-pane.component";
 @Component({
     selector: "chart-general-pane",
     templateUrl: "chart-general-pane.component.html",
-    standalone: true,
     imports: [
         GeneralPropPane,
         NgIf,
@@ -37,7 +36,7 @@ import { GeneralPropPane } from "../general-prop-pane.component";
         TipPane,
         PaddingPane,
         SizePositionPane,
-    ],
+    ]
 })
 export class ChartGeneralPane {
    @Input() vsId: string;

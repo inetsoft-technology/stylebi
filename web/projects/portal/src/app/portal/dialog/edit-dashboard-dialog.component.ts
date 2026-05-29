@@ -52,7 +52,6 @@ const DASHBOARD_DUPLICATE_URI: string = "../api/portal/dashboard/duplicate/";
     selector: "edit-dashboard-dialog",
     templateUrl: "edit-dashboard-dialog.component.html",
     styleUrls: ["edit-dashboard-dialog.component.scss"],
-    standalone: true,
     imports: [StandardDialogComponent, DialogContentDirective, NgIf, InputTrimDirective, FormsModule, DefaultFocusDirective, ReactiveFormsModule, RepositoryTreeComponent, DialogButtonsDirective]
 })
 export class EditDashboardDialog implements OnInit {

@@ -28,7 +28,6 @@ import { MatCard, MatCardContent } from "@angular/material/card";
     selector: "em-move-task-folder-dialog",
     templateUrl: "./move-task-folder-dialog.component.html",
     styleUrls: ["./move-task-folder-dialog.component.scss"],
-    standalone: true,
     imports: [
         MatDialogTitle,
         MatDialogContent,
@@ -37,7 +36,7 @@ import { MatCard, MatCardContent } from "@angular/material/card";
         FlatTreeViewComponent,
         MatDialogActions,
         MatButton,
-    ],
+    ]
 })
 export class MoveTaskFolderDialogComponent {
    @Input() treeControl: FlatTreeControl<RepositoryFlatNode>;

@@ -61,7 +61,6 @@ import { NgIf } from "@angular/common";
     providers: [
         RepositoryClientService
     ],
-    standalone: true,
     imports: [NgIf, TreeComponent]
 })
 export class RepositoryTreeComponent extends RepositoryBaseComponent implements OnInit, AfterViewChecked, OnDestroy {

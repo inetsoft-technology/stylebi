@@ -40,7 +40,6 @@ import { MvManagementViewComponent } from "../materialized-views/mv-management-v
     selector: "em-content-materialized-views-view",
     templateUrl: "./content-materialized-views-view.component.html",
     styleUrls: ["./content-materialized-views-view.component.scss"],
-    standalone: true,
     imports: [MvManagementViewComponent]
 })
 export class ContentMaterializedViewsViewComponent implements OnInit {

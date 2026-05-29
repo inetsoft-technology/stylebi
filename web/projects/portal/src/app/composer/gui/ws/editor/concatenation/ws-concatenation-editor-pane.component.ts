@@ -70,7 +70,6 @@ const REORDER_SUBTABLES_URI = "/events/composer/worksheet/reorder-subtables";
     templateUrl: "ws-concatenation-editor-pane.component.html",
     styleUrls: ["ws-concatenation-editor-pane.component.scss"],
     changeDetection: ChangeDetectionStrategy.OnPush,
-    standalone: true,
     imports: [NgFor, ConcatRelationConnectorComponent, NgIf, ConcatRelationDescriptorComponent, ConcatenatedTableThumbnailComponent, NgClass, ConcatenationPaneDropTargetComponent, AsyncPipe, NumberToArrayPipe]
 })
 export class WSConcatenationEditorPane implements OnChanges, OnInit, OnDestroy {

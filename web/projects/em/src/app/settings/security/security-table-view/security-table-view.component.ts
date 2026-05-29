@@ -44,7 +44,6 @@ import { MatCard, MatCardHeader, MatCardContent, MatCardActions } from "@angular
     selector: "em-security-table-view",
     templateUrl: "./security-table-view.component.html",
     styleUrls: ["./security-table-view.component.scss"],
-    standalone: true,
     imports: [MatCard, MatCardHeader, MatCardContent, MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCheckbox, MatCellDef, MatCell, MatIcon, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, MatPaginator, MatCardActions, NgIf, MatButton, MatTooltip]
 })
 export class SecurityTableViewComponent implements OnChanges, AfterViewInit {

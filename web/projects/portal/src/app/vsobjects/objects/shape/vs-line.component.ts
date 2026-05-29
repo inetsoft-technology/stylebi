@@ -43,7 +43,6 @@ import { NgIf, NgFor } from "@angular/common";
     selector: "vs-line",
     templateUrl: "vs-line.component.html",
     styleUrls: ["vs-line.component.scss"],
-    standalone: true,
     imports: [NgIf, VSDataTipDirective, VSPopComponentDirective, VSHiddenAnnotation, NgFor]
 })
 export class VSLine extends VSShape<VSLineModel> implements AfterViewChecked, OnChanges {

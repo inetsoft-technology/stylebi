@@ -75,7 +75,6 @@ export class PresentationSettingsNavLink {
     selector: "em-presentation-settings-view",
     templateUrl: "./presentation-settings-view.component.html",
     styleUrls: ["./presentation-settings-view.component.scss"],
-    standalone: true,
     imports: [NavigationScrollableComponent, NavigationScrollableItemDirective, PresentationFormatsSettingsViewComponent, NgIf, PresentationExportMenuSettingsViewComponent, LookAndFeelSettingsViewComponent, WelcomePageSettingsViewComponent, PresentationLoginBannerSettingsViewComponent, PresentationComposerMessageSettingsViewComponent, PresentationDashboardSettingsViewComponent, PresentationViewsheetToolbarOptionsViewComponent, PortalIntegrationViewComponent, PresentationTimeSettingsViewComponent, PresentationPdfGenerationSettingsViewComponent, PresentationFontMappingSettingsViewComponent, PresentationDataSourceVisibilitySettingsViewComponent, WebMapSettingsViewComponent, PresentationShareSettingsViewComponent, PresentationAISettingsViewComponent, MatNavList, NgFor, MatListItem, RouterLink, MatCard, MatCardContent, MatButton]
 })
 export class PresentationSettingsViewComponent implements OnInit, OnDestroy {

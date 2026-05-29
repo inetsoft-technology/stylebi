@@ -84,7 +84,6 @@ import { NgIf, NgFor } from "@angular/common";
     templateUrl: "vs-calctable.component.html",
     styleUrls: ["base-table.scss", "vs-calctable.component.scss"],
     changeDetection: ChangeDetectionStrategy.OnPush,
-    standalone: true,
     imports: [NgIf, VSDataTipDirective, VSPopComponentDirective, OutOfZoneDirective, VSTitle, NgbTooltip, SelectionBoxDirective, TouchScrollDirective, NgFor, VSSimpleCell, SafeFontDirective, VSTableCell, TooltipDirective, VSHiddenAnnotation, VSAnnotation, VSLoadingDisplay, VSPreviewTable, NumberToArrayPipe]
 })
 export class VSCalcTable extends BaseTable<VSCalcTableModel> implements OnDestroy {

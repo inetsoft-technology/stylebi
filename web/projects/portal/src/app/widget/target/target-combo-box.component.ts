@@ -30,7 +30,6 @@ import { NgbDropdown, NgbDropdownToggle, NgbDropdownMenu } from "@ng-bootstrap/n
     selector: "target-combo-box",
     templateUrl: "target-combo-box.component.html",
     styleUrls: ["./target-combo-box.component.scss"],
-    standalone: true,
     imports: [
         NgbDropdown,
         NgIf,
@@ -38,7 +37,7 @@ import { NgbDropdown, NgbDropdownToggle, NgbDropdownMenu } from "@ng-bootstrap/n
         NgbDropdownToggle,
         NgbDropdownMenu,
         NgFor,
-    ],
+    ]
 })
 export class TargetComboBox {
    public ValueMode = ValueMode;

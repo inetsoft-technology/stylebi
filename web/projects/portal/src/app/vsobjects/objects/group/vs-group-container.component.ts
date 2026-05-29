@@ -32,7 +32,6 @@ import { NgIf } from "@angular/common";
     selector: "vs-group-container",
     templateUrl: "vs-group-container.component.html",
     styleUrls: ["vs-group-container.component.scss"],
-    standalone: true,
     imports: [NgIf, VSDataTipDirective, VSPopComponentDirective]
 })
 export class VSGroupContainer extends AbstractVSObject<VSGroupContainerModel> {

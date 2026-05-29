@@ -40,7 +40,6 @@ import { MatToolbar } from "@angular/material/toolbar";
     selector: "em-theme-list-view",
     templateUrl: "./theme-list-view.component.html",
     styleUrls: ["./theme-list-view.component.scss"],
-    standalone: true,
     imports: [MatToolbar, NgIf, MatIconButton, MatMenuTrigger, MatIcon, TopScrollDirective, MatActionList, NgFor, MatListItem, MatMenu, MatMenuItem]
 })
 export class ThemeListViewComponent implements OnInit, OnDestroy {

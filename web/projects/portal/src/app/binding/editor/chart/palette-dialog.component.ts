@@ -26,7 +26,6 @@ import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.
     selector: "palette-dialog",
     templateUrl: "palette-dialog.component.html",
     styleUrls: ["palette-dialog.component.scss"],
-    standalone: true,
     imports: [ModalHeaderComponent, BlockMouseDirective, NgIf, FormsModule, NgFor, NgStyle]
 })
 

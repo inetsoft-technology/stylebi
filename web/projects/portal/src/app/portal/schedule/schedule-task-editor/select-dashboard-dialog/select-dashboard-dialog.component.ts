@@ -35,7 +35,6 @@ import { ModalHeaderComponent } from "../../../../widget/modal-header/modal-head
 @Component({
     selector: "select-dashboard-dialog",
     templateUrl: "select-dashboard-dialog.component.html",
-    standalone: true,
     imports: [ModalHeaderComponent, EnterSubmitDirective, RepositoryTreeComponent]
 })
 export class SelectDashboardDialog implements OnInit {

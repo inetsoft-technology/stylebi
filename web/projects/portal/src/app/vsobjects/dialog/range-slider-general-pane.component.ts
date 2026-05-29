@@ -27,13 +27,12 @@ import { GeneralPropPane } from "./general-prop-pane.component";
 @Component({
     selector: "range-slider-general-pane",
     templateUrl: "range-slider-general-pane.component.html",
-    standalone: true,
     imports: [
         GeneralPropPane,
         NgIf,
         TitlePropPane,
         SizePositionPane,
-    ],
+    ]
 })
 export class RangeSliderGeneralPane implements OnInit {
    @Input() model: RangeSliderGeneralPaneModel;

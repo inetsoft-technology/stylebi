@@ -57,8 +57,7 @@ import { ClusterSelectorComponent } from "../../cluster-selector/cluster-selecto
     templateUrl: "./query-monitoring-page.component.html",
     styleUrls: ["./query-monitoring-page.component.scss"],
     encapsulation: ViewEncapsulation.None,
-    host: { "class": "em-query-monitoring-page" }, // eslint-disable-line @angular-eslint/no-host-metadata-property
-    standalone: true,
+    host: { "class": "em-query-monitoring-page" },
     imports: [ClusterSelectorComponent, NgIf, QueryMonitoringViewComponent, AsyncPipe]
 })
 export class QueryMonitoringPageComponent implements OnDestroy {

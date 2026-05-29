@@ -40,7 +40,6 @@ import { NgIf } from "@angular/common";
     templateUrl: "chart-legend-container.component.html",
     styleUrls: ["chart-legend-container.component.scss"],
     changeDetection: ChangeDetectionStrategy.OnPush,
-    standalone: true,
     imports: [NgIf, ElementInteractDirective]
 })
 export class ChartLegendContainer implements OnInit, OnChanges {

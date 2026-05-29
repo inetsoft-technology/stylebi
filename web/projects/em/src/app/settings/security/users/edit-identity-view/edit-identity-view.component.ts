@@ -71,7 +71,6 @@ interface IdentityThemeList {
     selector: "em-edit-identity-view",
     templateUrl: "./edit-identity-view.component.html",
     styleUrls: ["./edit-identity-view.component.scss"],
-    standalone: true,
     imports: [NgIf, FormsModule, ReactiveFormsModule, MatCheckbox, EditorPanelComponent, MatFormField, MatLabel, MatInput, MatError, EmailPickerComponent, MatSelect, MatOption, NgFor, MatIconButton, MatSuffix, MatIcon, IdentityTablesPaneComponent]
 })
 export class EditIdentityViewComponent implements OnInit, OnChanges, OnDestroy {

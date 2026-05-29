@@ -26,7 +26,6 @@ import { MatCard, MatCardHeader, MatCardSubtitle, MatCardContent } from "@angula
     selector: "em-export-menu-options-view",
     templateUrl: "./export-menu-options-view.component.html",
     styleUrls: ["./export-menu-options-view.component.scss"],
-    standalone: true,
     imports: [MatCard, MatCardHeader, MatCardSubtitle, MatCardContent, NgFor, MatCheckbox, FormsModule]
 })
 export class ExportMenuOptionsViewComponent {

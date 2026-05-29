@@ -37,7 +37,6 @@ import { BlockMouseDirective } from "../../../../widget/mouse-event/block-mouse.
     selector: "geo-mapping-dialog",
     templateUrl: "geo-mapping-dialog.component.html",
     styleUrls: ["geo-mapping-dialog.component.scss"],
-    standalone: true,
     imports: [BlockMouseDirective, ModalHeaderComponent, NgIf, FormsModule, NgFor, LargeFormFieldComponent, ScrollableTableDirective]
 })
 export class GeoMappingDialog implements OnInit {

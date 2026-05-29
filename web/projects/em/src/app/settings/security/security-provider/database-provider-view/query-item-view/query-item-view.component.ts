@@ -26,7 +26,6 @@ import { MatCard, MatCardContent, MatCardActions } from "@angular/material/card"
     selector: "em-query-item-view",
     templateUrl: "./query-item-view.component.html",
     styleUrls: ["./query-item-view.component.scss"],
-    standalone: true,
     imports: [MatCard, MatCardContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatInput, MatHint, MatCardActions, MatButton]
 })
 export class QueryItemViewComponent implements OnInit {

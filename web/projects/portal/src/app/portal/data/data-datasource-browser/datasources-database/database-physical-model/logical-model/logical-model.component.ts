@@ -58,7 +58,6 @@ const LOGICAL_MODEL_SETTINGS_URI: string = "../api/data/logicalmodel/settings";
     templateUrl: "logical-model.component.html",
     styleUrls: ["../database-model-pane.scss", "logical-model.component.scss"],
     providers: [LogicalModelService],
-    standalone: true,
     imports: [LogicalModelPropertyPane, NotificationsComponent]
 })
 export class LogicalModelComponent implements OnInit, DoCheck, OnDestroy {

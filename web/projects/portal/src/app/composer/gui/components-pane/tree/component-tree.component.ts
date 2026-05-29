@@ -54,7 +54,6 @@ const CSS_CLASSES: {[type: string]: string} = {
     selector: "component-tree",
     templateUrl: "component-tree.component.html",
     styleUrls: ["component-tree.component.scss"],
-    standalone: true,
     imports: [NgFor, NgIf, NgbDropdown, NgbDropdownToggle, NgbDropdownMenu, AssemblyContextMenuItemsComponent]
 })
 export class ComponentTree  {

@@ -96,7 +96,6 @@ const TABLE_LAYOUT_PROPERTY_URI: string = "composer/vs/layouts/table-layout-prop
     selector: "layout-object",
     templateUrl: "layout-object.component.html",
     styleUrls: ["layout-object.component.scss"],
-    standalone: true,
     imports: [
         InteractableDirective,
         ActionsContextmenuAnchorDirective,
@@ -135,7 +134,7 @@ const TABLE_LAYOUT_PROPERTY_URI: string = "composer/vs/layouts/table-layout-prop
         ImagePropertyDialog,
         TextPropertyDialog,
         TableLayoutPropertyDialog,
-    ],
+    ]
 })
 export class LayoutObject implements OnInit, OnDestroy {
    @Input() model: VSLayoutObjectModel;

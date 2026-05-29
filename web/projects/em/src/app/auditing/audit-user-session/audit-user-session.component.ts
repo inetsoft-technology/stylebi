@@ -51,7 +51,6 @@ import { MatFormField, MatLabel } from "@angular/material/form-field";
     selector: "em-audit-user-session",
     templateUrl: "./audit-user-session.component.html",
     styleUrls: ["./audit-user-session.component.scss"],
-    standalone: true,
     imports: [AuditTableViewComponent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatSelect, NgFor, MatOption, MatInput]
 })
 export class AuditUserSessionComponent implements OnInit, OnDestroy {

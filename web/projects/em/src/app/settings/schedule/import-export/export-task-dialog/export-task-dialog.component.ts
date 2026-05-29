@@ -32,7 +32,6 @@ import { MatCard, MatCardTitle, MatCardContent } from "@angular/material/card";
     templateUrl: "./export-task-dialog.component.html",
     styleUrls: ["./export-task-dialog.component.scss"],
     encapsulation: ViewEncapsulation.None,
-    standalone: true,
     imports: [MatDialogTitle, MatDialogContent, MatCard, MatCardTitle, MatCardContent, MatTable, MatSort, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCheckbox, MatCellDef, MatCell, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, MatDialogActions, MatButton]
 })
 export class ExportTaskDialogComponent {

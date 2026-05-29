@@ -39,7 +39,6 @@ import { NgIf, NgSwitch, NgSwitchCase } from "@angular/common";
 @Component({
     selector: "expression-editor",
     templateUrl: "expression-editor.component.html",
-    standalone: true,
     imports: [NgIf, NgSwitch, NgSwitchCase, FormsModule, FormulaEditorDialog]
 })
 export class ExpressionEditor implements OnChanges, OnDestroy {

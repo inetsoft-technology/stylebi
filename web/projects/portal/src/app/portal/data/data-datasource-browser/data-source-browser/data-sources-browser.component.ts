@@ -30,7 +30,6 @@ import { NgIf, NgFor } from "@angular/common";
     selector: "data-sources-browser",
     templateUrl: "data-sources-browser.component.html",
     styleUrls: ["data-sources-browser.component.scss"],
-    standalone: true,
     imports: [NgbTooltip, NgIf, NgFor]
 })
 export class DataSourcesBrowser implements OnInit {

@@ -26,7 +26,6 @@ import { ResponsiveTabsComponent } from "../../widget/responsive-tabs/responsive
 @Component({
     templateUrl: "custom-tab.component.html",
     styleUrls: ["../portal-tab.component.scss", "custom-tab.component.scss"],
-    standalone: true,
     imports: [ResponsiveTabsComponent, NgIf]
 })
 export class CustomTabComponent implements OnInit {

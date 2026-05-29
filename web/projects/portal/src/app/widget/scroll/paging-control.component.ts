@@ -30,7 +30,6 @@ import { NgIf } from "@angular/common";
     selector: "paging-control",
     templateUrl: "paging-control.component.html",
     styleUrls: ["paging-control.component.scss"],
-    standalone: true,
     imports: [NgIf]
 })
 export class PagingControlComponent implements AfterViewInit, OnDestroy {

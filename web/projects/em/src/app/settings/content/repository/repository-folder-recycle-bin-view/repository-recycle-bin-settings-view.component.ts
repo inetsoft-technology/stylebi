@@ -32,7 +32,6 @@ import { NgIf } from "@angular/common";
     selector: "em-repository-recycle-bin-settings-view",
     templateUrl: "./repository-recycle-bin-settings-view.component.html",
     styleUrls: ["./repository-recycle-bin-settings-view.component.scss"],
-    standalone: true,
     imports: [NgIf, EditorPanelComponent, MatTabGroup, MatTab, MatTabContent, MatCard, FormsModule, ReactiveFormsModule, MatCheckbox, TableView, MatButton]
 })
 export class RepositoryRecycleBinSettingsViewComponent implements OnInit {

@@ -34,7 +34,6 @@ import { NgIf } from "@angular/common";
     selector: "logical-model-entity-pane",
     templateUrl: "logical-model-entity-pane.component.html",
     styleUrls: ["logical-model-entity-pane.component.scss"],
-    standalone: true,
     imports: [FormsModule, ReactiveFormsModule, NgIf]
 })
 export class LogicalModelEntityPane implements AfterViewInit, OnChanges, OnDestroy {

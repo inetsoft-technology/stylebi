@@ -54,7 +54,6 @@ import { MatFormField, MatLabel } from "@angular/material/form-field";
     selector: "em-audit-bookmark-history",
     templateUrl: "./audit-bookmark-history.component.html",
     styleUrls: ["./audit-bookmark-history.component.scss"],
-    standalone: true,
     imports: [AuditTableViewComponent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatSelect, NgFor, MatOption]
 })
 export class AuditBookmarkHistoryComponent implements OnInit, OnDestroy {

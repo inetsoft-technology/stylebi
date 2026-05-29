@@ -46,7 +46,6 @@ import { MatCard, MatCardTitle, MatCardContent, MatCardSubtitle } from "@angular
     selector: "em-presentation-data-source-visibility-settings-view",
     templateUrl: "./presentation-data-source-visibility-settings-view.component.html",
     styleUrls: ["./presentation-data-source-visibility-settings-view.component.scss"],
-    standalone: true,
     imports: [MatCard, MatCardTitle, NgIf, MatCardContent, MatMiniFabButton, MatTooltip, MatIcon, NgFor, MatCardSubtitle, MatIconButton, MatDivider]
 })
 export class PresentationDataSourceVisibilitySettingsViewComponent {

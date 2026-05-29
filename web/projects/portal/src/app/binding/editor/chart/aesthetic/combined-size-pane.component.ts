@@ -26,8 +26,7 @@ import { NgFor } from "@angular/common";
     selector: "combined-size-pane",
     templateUrl: "combined-size-pane.component.html",
     styleUrls: ["combined-visual-pane.scss"],
-    standalone: true,
-    imports: [NgFor, StaticSizeEditor],
+    imports: [NgFor, StaticSizeEditor]
 })
 export class CombinedSizePane extends AbstractCombinedPane {
    @Input() chartRefs: ChartRef[] = [];

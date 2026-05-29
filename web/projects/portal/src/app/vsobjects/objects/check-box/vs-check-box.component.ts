@@ -42,7 +42,6 @@ const CHECKBOX_PADDING = 18;
     selector: "vs-check-box",
     templateUrl: "vs-check-box.component.html",
     styleUrls: ["vs-check-box.component.scss", "vs-compound.scss"],
-    standalone: true,
     imports: [NgIf, VSDataTipDirective, VSPopComponentDirective, SafeFontDirective, VSTitle, NgFor, InteractableDirective, TooltipIfDirective]
 })
 export class VSCheckBox extends VSCompound<VSCheckBoxModel> implements OnChanges, OnDestroy {

@@ -35,7 +35,6 @@ import { MatCard, MatCardTitle, MatCardContent, MatCardActions } from "@angular/
     selector: "em-license-key-list",
     templateUrl: "./license-key-list.component.html",
     styleUrls: ["./license-key-list.component.scss"],
-    standalone: true,
     imports: [MatCard, MatCardTitle, MatCardContent, MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCheckbox, MatCellDef, MatCell, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, MatPaginator, MatCardActions, MatButton]
 })
 export class LicenseKeyListComponent implements OnInit {

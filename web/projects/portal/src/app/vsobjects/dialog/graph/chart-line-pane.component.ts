@@ -28,7 +28,6 @@ import { NgIf, NgFor } from "@angular/common";
     selector: "chart-line-pane",
     templateUrl: "chart-line-pane.component.html",
     styleUrls: ["chart-line-pane.component.scss"],
-    standalone: true,
     imports: [FormsModule, ReactiveFormsModule, NgIf, GridLineDropdown, ColorEditor, NgFor, MultiSelect]
 })
 export class ChartLinePane implements OnInit {

@@ -37,7 +37,6 @@ import { NgIf, NgFor } from "@angular/common";
             useExisting: ChartLegendArea
         }],
     changeDetection: ChangeDetectionStrategy.OnPush,
-    standalone: true,
     imports: [NgIf, OutOfZoneDirective, NgFor, ChartImageDirective]
 })
 export class ChartLegendArea extends ChartObjectAreaBase<Legend> {

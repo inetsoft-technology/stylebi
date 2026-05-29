@@ -29,7 +29,6 @@ import { NgIf } from "@angular/common";
     selector: "style-pane",
     templateUrl: "style-pane.component.html",
     styleUrls: ["style-pane.component.scss"],
-    standalone: true,
     imports: [NgIf, TableStylePreviewPaneComponent, TableStyleFormatPaneComponent, NotificationsComponent]
 })
 export class StylePaneComponent {

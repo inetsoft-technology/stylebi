@@ -56,7 +56,6 @@ type ResizeActiveSide = "left" | "right" | null;
     selector: "schema-table-thumbnail",
     templateUrl: "schema-table-thumbnail.component.html",
     styleUrls: ["schema-table-thumbnail.component.scss"],
-    standalone: true,
     imports: [WSAssemblyThumbnailTitleComponent, NgFor, SchemaColumnComponent, MouseEventDirective, NgClass]
 })
 export class SchemaTableThumbnailComponent implements OnInit, AfterViewInit, OnDestroy {

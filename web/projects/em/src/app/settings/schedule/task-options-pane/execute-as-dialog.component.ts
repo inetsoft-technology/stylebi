@@ -39,7 +39,6 @@ export interface ExecuteAsIdentitiesModel {
 @Component({
     selector: "em-execute-as-dialog",
     templateUrl: "./execute-as-dialog.component.html",
-    standalone: true,
     imports: [
         ModalHeaderComponent,
         FormsModule,
@@ -57,7 +56,7 @@ export interface ExecuteAsIdentitiesModel {
         MatDialogActions,
         MatButton,
         AsyncPipe,
-    ],
+    ]
 })
 export class ExecuteAsDialogComponent implements OnInit {
    users: IdentityId[] = [];

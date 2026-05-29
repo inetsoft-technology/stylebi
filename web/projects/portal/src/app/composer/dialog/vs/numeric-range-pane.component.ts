@@ -26,13 +26,12 @@ import { DynamicComboBox } from "../../../widget/dynamic-combo-box/dynamic-combo
 @Component({
     selector: "numeric-range-pane",
     templateUrl: "numeric-range-pane.component.html",
-    standalone: true,
     imports: [
         FormsModule,
         ReactiveFormsModule,
         DynamicComboBox,
         NgIf,
-    ],
+    ]
 })
 export class NumericRangePane {
    @Input() model: NumericRangePaneModel;

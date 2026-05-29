@@ -153,7 +153,6 @@ import { NgIf, NgSwitch, NgSwitchCase } from "@angular/common";
     styleUrls: ["editable-object-container.component.scss"]
     //changeDetection: ChangeDetectionStrategy.OnPush
     ,
-    standalone: true,
     imports: [NgIf, ActionsContextmenuAnchorDirective, InteractableDirective, OutOfZoneDirective, NgSwitch, NgSwitchCase, VSCalendar, CalendarActionHandlerDirective, VSCalcTable, CalcTableActionHandlerDirective, VSChart, ChartActionHandlerDirective, VSCheckBox, CheckBoxActionHandlerDirective, VSComboBox, ComboBoxActionHandlerDirective, VSCrosstab, CrosstabActionHandlerDirective, VSGauge, GaugeActionHandlerDirective, VSGroupContainer, GroupContainerActionHandlerDirective, VSImage, ImageActionHandlerDirective, VSOval, OvalActionHandlerDirective, VSRadioButton, RadioButtonActionHandlerDirective, VSRectangle, RectangleActionHandlerDirective, VSRangeSlider, RangeSliderActionHandlerDirective, VSSelection, SelectionListActionHandlerDirective, SelectionTreeActionHandlerDirective, VSSelectionContainer, SelectionContainerActionHandlerDirective, VSSlider, SliderActionHandlerDirective, VSSpinner, SpinnerActionHandlerDirective, VSSubmit, SubmitActionHandlerDirective, VSTab, TabActionHandlerDirective, VSTable, TableActionHandlerDirective, VSText, TextActionHandlerDirective, VSTextInput, TextInputActionHandlerDirective, VSViewsheet, ViewsheetActionHandlerDirective, VSCylinder, VSSlidingScale, VSThermometer, MiniToolbar, VSLine, LineActionHandlerDirective, LayoutOptionDialog]
 })
 export class EditableObjectContainer extends AbstractActionComponent

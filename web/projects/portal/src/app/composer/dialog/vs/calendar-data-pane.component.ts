@@ -27,7 +27,6 @@ import { AdditionalTableSelectionPaneComponent } from "../../../widget/dialog/ad
 @Component({
     selector: "calendar-data-pane",
     templateUrl: "calendar-data-pane.component.html",
-    standalone: true,
     imports: [TreeComponent, AdditionalTableSelectionPaneComponent]
 })
 export class CalendarDataPane implements AfterViewInit {

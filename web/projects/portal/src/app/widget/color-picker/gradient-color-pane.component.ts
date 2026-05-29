@@ -38,7 +38,6 @@ import { FormsModule } from "@angular/forms";
     selector: "gradient-color-pane",
     templateUrl: "gradient-color-pane.component.html",
     styleUrls: ["gradient-color-pane.component.scss"],
-    standalone: true,
     imports: [FormsModule, NgIf, NgFor, GradientColorItem, ActionsContextmenuAnchorDirective]
 })
 export class GradientColorPane implements OnInit {

@@ -37,7 +37,6 @@ const MAIL_HISTORY_KEY = LocalStorage.MAIL_HISTORY_KEY;
 @Component({
     selector: "email-dialog",
     templateUrl: "email-dialog.component.html",
-    standalone: true,
     imports: [
         ModalHeaderComponent,
         NgIf,
@@ -50,7 +49,7 @@ const MAIL_HISTORY_KEY = LocalStorage.MAIL_HISTORY_KEY;
         EmailPane,
         FileFormatPane,
         NgbNavOutlet,
-    ],
+    ]
 })
 export class EmailDialog implements OnInit {
    @Input() model: EmailDialogModel;

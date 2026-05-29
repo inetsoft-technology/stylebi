@@ -39,7 +39,6 @@ import { NgIf } from "@angular/common";
     selector: "em-identity-tables-pane",
     templateUrl: "./identity-tables-pane.component.html",
     styleUrls: ["./identity-tables-pane.component.scss"],
-    standalone: true,
     imports: [NgIf, SecurityTableViewComponent, PropertyTableViewComponent]
 })
 export class IdentityTablesPaneComponent {

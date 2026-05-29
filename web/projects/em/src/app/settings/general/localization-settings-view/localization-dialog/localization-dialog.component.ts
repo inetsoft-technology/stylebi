@@ -30,7 +30,6 @@ import { ModalHeaderComponent } from "../../../../common/util/modal-header/modal
     selector: "em-localization-dialog",
     templateUrl: "./localization-dialog.component.html",
     styleUrls: ["./localization-dialog.component.scss"],
-    standalone: true,
     imports: [ModalHeaderComponent, MatDialogContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatInput, NgIf, MatError, MatDialogActions, MatButton]
 })
 export class LocalizationDialogComponent implements OnInit {

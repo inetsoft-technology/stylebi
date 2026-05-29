@@ -25,7 +25,6 @@ import { NgIf } from "@angular/common";
 @Component({
     selector: "tabular-date-editor",
     templateUrl: "tabular-date-editor.component.html",
-    standalone: true,
     imports: [NgIf, TimeInstantValueEditorComponent, FormsModule, DateValueEditorComponent, TimeValueEditorComponent]
 })
 export class TabularDateEditor implements OnInit {

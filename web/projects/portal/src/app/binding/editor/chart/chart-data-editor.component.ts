@@ -39,7 +39,6 @@ import { OutOfZoneDirective } from "../../../widget/directive/out-of-zone.direct
     selector: "chart-data-editor",
     templateUrl: "chart-data-editor.component.html",
     styleUrls: ["../data-editor.component.scss"],
-    standalone: true,
     imports: [OutOfZoneDirective, NgFor, ChartFieldmc, NgIf, LonLatFieldmc]
 })
 export class ChartDataEditor extends DataEditor {

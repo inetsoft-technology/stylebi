@@ -32,7 +32,6 @@ import { GeneralPropPane } from "../../../vsobjects/dialog/general-prop-pane.com
 @Component({
     selector: "selection-general-pane",
     templateUrl: "selection-general-pane.component.html",
-    standalone: true,
     imports: [
         GeneralPropPane,
         TitlePropPane,
@@ -42,7 +41,7 @@ import { GeneralPropPane } from "../../../vsobjects/dialog/general-prop-pane.com
         NgClass,
         NgFor,
         SizePositionPane,
-    ],
+    ]
 })
 export class SelectionGeneralPane implements OnInit, AfterViewInit {
    @Input() model: SelectionGeneralPaneModel;

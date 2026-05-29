@@ -35,7 +35,6 @@ export const DATE_TIME_ACCESSOR: any = {
     templateUrl: "./date-time-editor.component.html",
     styleUrls: ["./date-time-editor.component.scss"],
     providers: [DATE_TIME_ACCESSOR],
-    standalone: true,
     imports: [NgIf, DatepickerComponent, MatFormField, MatLabel, MatInput, FormsModule, MatError]
 })
 export class DateTimeEditorComponent implements ControlValueAccessor {

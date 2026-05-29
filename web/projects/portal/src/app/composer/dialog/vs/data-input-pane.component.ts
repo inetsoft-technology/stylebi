@@ -38,7 +38,6 @@ const POPUP_TABLE_URI: string = "../vs/dataInput/popupTable/";
     templateUrl: "data-input-pane.component.html",
     styleUrls: ["data-input-pane.component.scss"],
     providers: [DatePipe],
-    standalone: true,
     imports: [TreeDropdownComponent, NgIf, FixedDropdownDirective, DynamicComboBox, FormsModule, OutOfZoneDirective, NgFor]
 })
 export class DataInputPane implements OnInit, OnChanges {

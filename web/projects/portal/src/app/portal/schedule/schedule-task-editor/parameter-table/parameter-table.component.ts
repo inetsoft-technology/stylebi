@@ -28,7 +28,6 @@ import { ScrollableFlexTableDirective } from "../../../../widget/scrollable-tabl
     selector: "parameter-table",
     templateUrl: "parameter-table.component.html",
     styleUrls: ["./parameter-table.component.scss"],
-    standalone: true,
     imports: [ScrollableFlexTableDirective, NgFor, NgIf, AddParameterDialog, TitleCasePipe]
 })
 export class ParameterTable {

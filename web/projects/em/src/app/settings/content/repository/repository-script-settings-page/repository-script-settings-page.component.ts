@@ -38,7 +38,6 @@ export interface RepositoryScriptEditorModel extends RepositoryEditorModel {
 @Component({
     selector: "em-repository-script-settings-page",
     templateUrl: "repository-script-settings-page.component.html",
-    standalone: true,
     imports: [EditorPanelComponent, MatTabGroup, MatTab, MatTabContent, NgIf, MatCard, MatCardContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatInput, MatError, ResourcePermissionComponent]
 })
 export class RepositoryScriptSettingsPageComponent implements OnInit, OnChanges {

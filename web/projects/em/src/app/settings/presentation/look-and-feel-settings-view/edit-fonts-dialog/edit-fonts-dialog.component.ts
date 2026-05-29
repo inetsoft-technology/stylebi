@@ -47,7 +47,6 @@ interface FontFamilyElement {
             transition("expanded <=> collapsed", animate("225ms cubic-bezier(0.4, 0.0, 0.2, 1)")),
         ]),
     ],
-    standalone: true,
     imports: [
         ModalHeaderComponent,
         MatDialogContent,
@@ -70,7 +69,7 @@ interface FontFamilyElement {
         MatDialogActions,
         MatButton,
         MatDialogClose,
-    ],
+    ]
 })
 export class EditFontsDialogComponent implements OnInit, AfterViewInit {
    @ViewChild(MatSort, { static: true }) sort: MatSort;

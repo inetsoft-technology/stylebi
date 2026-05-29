@@ -29,7 +29,6 @@ import { UntypedFormControl, FormsModule, ReactiveFormsModule } from "@angular/f
 @Component({
     selector: "tabular-boolean-editor",
     templateUrl: "tabular-boolean-editor.component.html",
-    standalone: true,
     imports: [FormsModule, ReactiveFormsModule]
 })
 export class TabularBooleanEditor implements OnInit, OnChanges {

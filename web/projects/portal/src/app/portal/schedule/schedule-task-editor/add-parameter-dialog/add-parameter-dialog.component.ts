@@ -45,7 +45,6 @@ const DATE_TIME_PATTERN = /^(?:(?!0000)[0-9]{4}(-?)(?:(?:0?[1-9]|1[0-2])\1(?:0?[
     selector: "add-parameter-dialog",
     templateUrl: "add-parameter-dialog.component.html",
     styleUrls: ["add-parameter-dialog.component.scss"],
-    standalone: true,
     imports: [ModalHeaderComponent, NgIf, EnterSubmitDirective, FormsModule, ReactiveFormsModule, NgClass, NgFor, DynamicValueEditorComponent, DateValueEditorComponent, TimeValueEditorComponent, TimeInstantValueEditorComponent]
 })
 export class AddParameterDialog implements OnInit {

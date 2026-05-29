@@ -49,7 +49,6 @@ export interface TimeRangeData {
     templateUrl: "./time-range-editor.component.html",
     styleUrls: ["./time-range-editor.component.scss"],
     encapsulation: ViewEncapsulation.None,
-    standalone: true,
     imports: [ModalHeaderComponent, MatDialogContent, FormsModule, ReactiveFormsModule, MatTabGroup, MatTab, MatCard, MatCardContent, MatFormField, MatLabel, MatInput, NgIf, MatError, MatCheckbox, ResourcePermissionComponent, MatDialogActions, MatButton]
 })
 export class TimeRangeEditorComponent implements OnInit {

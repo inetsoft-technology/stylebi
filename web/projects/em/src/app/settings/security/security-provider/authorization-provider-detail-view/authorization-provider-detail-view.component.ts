@@ -44,7 +44,6 @@ import { EditorPanelComponent } from "../../../../common/util/editor-panel/edito
     selector: "em-authorization-provider-detail-view",
     templateUrl: "./authorization-provider-detail-view.component.html",
     styleUrls: ["./authorization-provider-detail-view.component.scss"],
-    standalone: true,
     imports: [EditorPanelComponent, FormsModule, ReactiveFormsModule, MatCard, MatCardContent, MatFormField, MatLabel, MatInput, NgIf, MatError, MatSelect, MatOption, CustomProviderViewComponent]
 })
 export class AuthorizationProviderDetailViewComponent implements OnInit, OnDestroy {

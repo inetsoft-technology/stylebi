@@ -50,7 +50,6 @@ export interface ValidatorMessageInfo {
     templateUrl: "input-name-desc-dialog.component.html",
     styleUrls: ["input-name-desc-dialog.component.scss"],
     changeDetection: ChangeDetectionStrategy.OnPush,
-    standalone: true,
     imports: [ModalHeaderComponent, EnterSubmitDirective, FormsModule, DefaultFocusDirective, ReactiveFormsModule, NgIf]
 })
 export class InputNameDescDialog implements OnChanges, OnInit {

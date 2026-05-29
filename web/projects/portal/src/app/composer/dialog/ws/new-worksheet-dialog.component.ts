@@ -36,7 +36,6 @@ export enum WSObjectType {
     selector: "new-worksheet-dialog",
     templateUrl: "new-worksheet-dialog.component.html",
     styleUrls: ["new-worksheet-dialog.component.scss"],
-    standalone: true,
     imports: [ModalHeaderComponent, EnterSubmitDirective, NgIf, NgFor]
 })
 export class NewWorksheetDialog {

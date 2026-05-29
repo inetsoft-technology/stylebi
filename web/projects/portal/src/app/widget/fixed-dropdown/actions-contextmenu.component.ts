@@ -43,7 +43,6 @@ import { NgIf, NgFor, NgClass } from "@angular/common";
     templateUrl: "actions-contextmenu.component.html",
     styleUrls: ["actions-contextmenu.component.scss"],
     changeDetection: ChangeDetectionStrategy.OnPush,
-    standalone: true,
     imports: [NgIf, NgFor, OutOfZoneDirective, NgClass]
 })
 export class ActionsContextmenuComponent implements OnDestroy {

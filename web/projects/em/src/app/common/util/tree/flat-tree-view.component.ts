@@ -40,7 +40,6 @@ export interface FlatTreeContextMenuEvent {
     selector: "em-flat-tree-view",
     templateUrl: "./flat-tree-view.component.html",
     styleUrls: ["./flat-tree-view.component.scss"],
-    standalone: true,
     imports: [CdkVirtualScrollViewport, CdkFixedSizeVirtualScroll, CdkVirtualForOf, NgIf, MatIconButton, MatIcon, MatMenuTrigger, MatMenu, MatMenuContent, NgFor, MatMenuItem]
 })
 export class FlatTreeViewComponent {

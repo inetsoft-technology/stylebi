@@ -35,7 +35,6 @@ import { BlockMouseDirective } from "../mouse-event/block-mouse.directive";
     selector: "cp-color-editor-dialog",
     templateUrl: "color-editor-dialog.component.html",
     styleUrls: ["color-editor-dialog.component.scss"],
-    standalone: true,
     imports: [BlockMouseDirective, ModalHeaderComponent, ColorMap, ColorSlider, ColorComponentEditor]
 })
 export class ColorEditorDialog implements OnInit {

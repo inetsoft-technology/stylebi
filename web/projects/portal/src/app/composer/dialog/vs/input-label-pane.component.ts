@@ -25,7 +25,6 @@ import { FormsModule } from "@angular/forms";
 @Component({
     selector: "input-label-pane",
     templateUrl: "input-label-pane.component.html",
-    standalone: true,
     imports: [FormsModule, NgIf, DynamicComboBox, NgFor]
 })
 export class InputLabelPane implements OnInit {

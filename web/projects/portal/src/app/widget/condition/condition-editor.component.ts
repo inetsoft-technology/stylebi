@@ -54,7 +54,6 @@ import { NgIf, NgFor } from "@angular/common";
     selector: "condition-editor",
     templateUrl: "condition-editor.component.html",
     styleUrls: ["condition-editor.component.scss"],
-    standalone: true,
     imports: [NgIf, TopNEditor, ValueEditor, VariableEditor, ExpressionEditor, FieldEditor, SubqueryEditor, SessionDataEditor, FixedDropdownDirective, NgFor, ConditionValueTypePipe]
 })
 export class ConditionEditor implements OnChanges {

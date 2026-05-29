@@ -116,7 +116,6 @@ const COLUMN_DESCRIPTION_SOCKET_URI = "/events/composer/worksheet/column-descrip
     selector: "ws-details-pane",
     templateUrl: "ws-details-pane.component.html",
     styleUrls: ["ws-details-pane.component.scss"],
-    standalone: true,
     imports: [NgIf, NgClass, NgFor, FixedDropdownDirective, FormsModule, WSDetailsTableDataComponent, ImportCSVDialog, ColumnTypeDialog, ColumnDescriptionDialog, ConsoleDialogComponent]
 })
 export class WSDetailsPaneComponent implements OnChanges, OnDestroy, OnInit {

@@ -51,7 +51,6 @@ export const DEFAULT_FORMATS = {
         { provide: DateAdapter, useClass: DayjsDateAdapter },
         { provide: MAT_DATE_FORMATS, useValue: DEFAULT_FORMATS },
     ],
-    standalone: true,
     imports: [
         MatFormField,
         FormsModule,
@@ -66,7 +65,7 @@ export const DEFAULT_FORMATS = {
         MatDatepickerToggleIcon,
         MatDatepicker,
         MatError,
-    ],
+    ]
 })
 export class DatepickerComponent implements OnInit, OnDestroy {
    @Input() isVisibleLabel: boolean;

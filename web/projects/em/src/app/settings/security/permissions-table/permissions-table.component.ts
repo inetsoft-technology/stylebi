@@ -43,7 +43,6 @@ import { MatCheckbox } from "@angular/material/checkbox";
     selector: "em-permissions-table",
     templateUrl: "./permissions-table.component.html",
     styleUrls: ["./permissions-table.component.scss"],
-    standalone: true,
     imports: [
         MatTable,
         MatSort,
@@ -62,7 +61,7 @@ import { MatCheckbox } from "@angular/material/checkbox";
         MatRow,
         MatDivider,
         MatPaginator,
-    ],
+    ]
 })
 export class PermissionsTableComponent implements OnChanges, AfterViewInit, SelectionTransfer<ResourcePermissionTableModel> {
    @ViewChild(MatSort, { static: true }) sort: MatSort;

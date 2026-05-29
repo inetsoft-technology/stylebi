@@ -174,7 +174,6 @@ import { NgIf } from "@angular/common";
             useClass: VSBindingTreeService
         },
     ],
-    standalone: true,
     imports: [NgIf, BindingEditor, InteractContainerDirective, VSFormatsPane, VSObjectView, NotificationsComponent, VSLoadingDisplay]
 })
 export class VSBindingPane extends CommandProcessor implements OnInit, OnDestroy {

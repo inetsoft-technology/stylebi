@@ -40,7 +40,6 @@ const CHECK_TRAP_URI: string = "../api/composer/vs/radiobutton-property-dialog-m
 @Component({
     selector: "radiobutton-property-dialog",
     templateUrl: "radiobutton-property-dialog.component.html",
-    standalone: true,
     imports: [
         ModalHeaderComponent,
         NgIf,
@@ -55,7 +54,7 @@ const CHECK_TRAP_URI: string = "../api/composer/vs/radiobutton-property-dialog-m
         VSAssemblyScriptPane,
         NgbNavOutlet,
         ApplyButtonComponent,
-    ],
+    ]
 })
 export class RadioButtonPropertyDialog extends PropertyDialog {
    @Input() model: RadioButtonPropertyDialogModel;

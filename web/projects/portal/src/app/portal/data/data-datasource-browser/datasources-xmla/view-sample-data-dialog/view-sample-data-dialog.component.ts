@@ -24,7 +24,6 @@ import { ModalHeaderComponent } from "../../../../../widget/modal-header/modal-h
     selector: "view-sample-data-dialog",
     templateUrl: "view-sample-data-dialog.component.html",
     styleUrls: ["view-sample-data-dialog.component.scss"],
-    standalone: true,
     imports: [ModalHeaderComponent, SimpleTableComponent]
 })
 export class ViewSampleDataDialog {

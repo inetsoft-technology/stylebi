@@ -33,7 +33,6 @@ import { EnterClickDirective } from "../../../../widget/directive/enter-click.di
     selector: "execute-as-dialog",
     templateUrl: "execute-as-dialog.component.html",
     styleUrls: ["execute-as-dialog.component.scss"],
-    standalone: true,
     imports: [EnterClickDirective, HelpLinkDirective, EnterSubmitDirective, IdentityTreeComponent, FormsModule]
 })
 export class ExecuteAsDialog {

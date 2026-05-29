@@ -42,7 +42,6 @@ import { DynamicComboBox } from "../../../widget/dynamic-combo-box/dynamic-combo
     selector: "date-comparison-standard-periods",
     templateUrl: "./date-comparison-standard-periods.component.html",
     styleUrls: ["./date-comparison-standard-periods.component.scss"],
-    standalone: true,
     imports: [DynamicComboBox, NgIf, FormsModule, DynamicValueEditorComponent]
 })
 export class DateComparisonStandardPeriodsComponent implements OnChanges {

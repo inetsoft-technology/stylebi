@@ -31,7 +31,6 @@ import { NgIf, NgFor, NgClass } from "@angular/common";
     selector: "cp-color-pane",
     templateUrl: "cp-color-pane.component.html",
     styleUrls: ["cp-color-pane.component.scss"],
-    standalone: true,
     imports: [NgIf, BlockMouseDirective, FormsModule, NgFor, NgClass, ColorEditorDialog]
 })
 export class ColorPane implements OnInit {

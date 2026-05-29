@@ -27,7 +27,6 @@ import { ModalHeaderComponent } from "../../widget/modal-header/modal-header.com
     selector: "manual-ordering-dialog",
     templateUrl: "manual-ordering-dialog.component.html",
     styleUrls: ["manual-ordering-dialog.component.scss"],
-    standalone: true,
     imports: [ModalHeaderComponent, BlockMouseDirective, LargeFormFieldComponent, NgIf, NgFor, DefaultFocusDirective]
 })
 export class ManualOrderingDialog implements OnChanges {

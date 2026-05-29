@@ -25,7 +25,6 @@ import { NgIf } from "@angular/common";
     selector: "physical-model-edit-table",
     templateUrl: "physical-model-edit-table.component.html",
     styleUrls: ["physical-model-edit-table.component.scss"],
-    standalone: true,
     imports: [NgIf, PhysicalTableJoinsComponent]
 })
 export class PhysicalModelEditTableComponent {

@@ -39,7 +39,6 @@ import { NgFor } from "@angular/common";
     selector: "condition-field-combo-list",
     templateUrl: "condition-field-combo-list.component.html",
     styleUrls: ["condition-field-combo-list.component.scss"],
-    standalone: true,
     imports: [NgFor]
 })
 export class ConditionFieldComboListComponent implements OnInit, OnChanges, AfterContentInit {

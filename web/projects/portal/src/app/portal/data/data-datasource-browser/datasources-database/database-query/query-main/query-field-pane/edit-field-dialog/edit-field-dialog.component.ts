@@ -34,7 +34,6 @@ const QUERY_EXPRESSION_CHECK_URI = "../api/data/datasource/query/expression/chec
     selector: "edit-field-dialog",
     templateUrl: "./edit-field-dialog.component.html",
     styleUrls: ["./edit-field-dialog.component.scss"],
-    standalone: true,
     imports: [ModalHeaderComponent, NgIf, TreeComponent, FormsModule]
 })
 export class EditFieldDialogComponent implements OnInit {

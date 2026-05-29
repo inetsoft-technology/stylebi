@@ -58,7 +58,6 @@ const TOUCH_FILE_URI = "../api/composer/ws/import-csv-dialog-model/touch-file/";
             provide: ContextProvider,
             useFactory: ComposerContextProviderFactory
         }],
-    standalone: true,
     imports: [ModalHeaderComponent, NgIf, EnterSubmitDirective, FormsModule, ReactiveFormsModule, NgbProgressbar, NgFor, PreviewTableComponent]
 })
 export class ImportCSVDialog implements OnInit, AfterViewChecked, OnDestroy {

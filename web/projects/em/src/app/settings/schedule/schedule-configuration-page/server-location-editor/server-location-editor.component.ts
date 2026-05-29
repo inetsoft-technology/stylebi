@@ -39,7 +39,6 @@ export interface ServerLocationData {
     selector: "em-server-location-editor",
     templateUrl: "./server-location-editor.component.html",
     styleUrls: ["./server-location-editor.component.scss"],
-    standalone: true,
     imports: [ModalHeaderComponent, MatDialogContent, FormsModule, ReactiveFormsModule, MatCard, MatCardContent, MatFormField, MatLabel, MatInput, NgIf, MatError, MatCheckbox, MatDialogActions, MatButton]
 })
 export class ServerLocationEditorComponent implements OnInit {

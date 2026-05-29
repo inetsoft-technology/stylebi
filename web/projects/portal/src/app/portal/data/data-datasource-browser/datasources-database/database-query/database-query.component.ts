@@ -63,7 +63,6 @@ const QUERY_UPDATE_URI = "../api/data/datasource/query/update";
         "./database-query.component.scss"
     ],
     encapsulation: ViewEncapsulation.None,
-    standalone: true,
     imports: [NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, QueryLinkPaneComponent, QueryFieldsPaneComponent, QueryConditionsPaneComponent, QuerySortPaneComponent, QueryGroupingPaneComponent, NgIf, FreeFormSqlPaneComponent, SqlQueryPreviewPaneComponent, NgbNavOutlet]
 })
 export class DatabaseQueryComponent implements OnDestroy {

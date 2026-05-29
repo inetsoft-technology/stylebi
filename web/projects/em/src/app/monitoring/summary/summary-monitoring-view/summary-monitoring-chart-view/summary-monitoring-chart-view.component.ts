@@ -40,7 +40,6 @@ import { MatCard, MatCardHeader } from "@angular/material/card";
     templateUrl: "./summary-monitoring-chart-view.component.html",
     styleUrls: ["./summary-monitoring-chart-view.component.scss"],
     changeDetection: ChangeDetectionStrategy.OnPush,
-    standalone: true,
     imports: [MatCard, MatCardHeader, ResizedDirective, NgIf, NgFor]
 })
 export class SummaryMonitoringChartViewComponent implements OnChanges {

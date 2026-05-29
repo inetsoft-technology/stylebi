@@ -24,7 +24,6 @@ import { FormsModule } from "@angular/forms";
 @Component({
     selector: "date-in-value-editor",
     templateUrl: "date-in-value-editor.component.html",
-    standalone: true,
     imports: [FormsModule, NgFor]
 })
 export class DateInValueEditor implements OnInit {

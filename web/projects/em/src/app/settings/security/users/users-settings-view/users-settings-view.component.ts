@@ -53,7 +53,6 @@ const SMALL_WIDTH_BREAKPOINT = 720;
     selector: "em-users-settings-view",
     templateUrl: "./users-settings-view.component.html",
     styleUrls: ["./users-settings-view.component.scss"],
-    standalone: true,
     imports: [NgIf, MatFormField, MatLabel, MatSelect, NgFor, MatOption, MatDrawerContainer, MatDrawer, TopScrollDirective, SecurityTreeViewComponent, MatButton, MatDrawerContent, EditIdentityPaneComponent]
 })
 export class UsersSettingsViewComponent implements OnInit {

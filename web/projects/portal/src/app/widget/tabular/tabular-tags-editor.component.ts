@@ -33,7 +33,6 @@ import { NgIf, NgTemplateOutlet, NgFor } from "@angular/common";
     selector: "tabular-tags-editor",
     templateUrl: "tabular-tags-editor.component.html",
     styleUrls: ["tabular-tags-editor.component.scss"],
-    standalone: true,
     imports: [NgIf, NgTemplateOutlet, FormsModule, NgFor, ReactiveFormsModule, TabularTextEditor]
 })
 export class TabularTagsEditor implements OnInit, OnChanges {

@@ -45,7 +45,6 @@ export interface SearchResult {
     selector: "show-hide-columns-dialog",
     templateUrl: "./show-hide-columns-dialog.component.html",
     styleUrls: ["./show-hide-columns-dialog.component.scss"],
-    standalone: true,
     imports: [ModalHeaderComponent, NgIf, EnterSubmitDirective, LargeFormFieldComponent, CdkVirtualScrollViewport, CdkFixedSizeVirtualScroll, CdkVirtualForOf, TooltipDirective, VSLoadingDisplay]
 })
 export class ShowHideColumnsDialogComponent implements OnInit {

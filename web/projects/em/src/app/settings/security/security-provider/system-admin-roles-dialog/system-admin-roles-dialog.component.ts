@@ -46,7 +46,6 @@ export interface SystemAdminRolesData {
     selector: "em-system-admin-roles-dialog",
     templateUrl: "./system-admin-roles-dialog.component.html",
     styleUrls: ["./system-admin-roles-dialog.component.scss"],
-    standalone: true,
     imports: [ModalHeaderComponent, MatDialogContent, MatFormField, MatLabel, MatInput, FormsModule, MatAutocompleteTrigger, ReactiveFormsModule, MatIconButton, MatSuffix, MatIcon, NgIf, MatError, MatAutocomplete, NgFor, MatOption, MatList, MatListItem, MatDivider, MatDialogActions, MatButton, AsyncPipe]
 })
 export class SystemAdminRolesDialogComponent implements OnInit, OnDestroy {

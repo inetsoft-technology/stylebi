@@ -34,7 +34,6 @@ import { ModalHeaderComponent } from "../../../common/util/modal-header/modal-he
     selector: "em-add-permission-dialog",
     templateUrl: "./security-tree-dialog.component.html",
     styleUrls: ["./security-tree-dialog.component.scss"],
-    standalone: true,
     imports: [ModalHeaderComponent, SecurityTreeViewComponent, MatButton, AsyncPipe]
 })
 export class SecurityTreeDialogComponent implements OnInit {

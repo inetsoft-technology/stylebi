@@ -90,7 +90,6 @@ const FORMATE_CALENDAR_TITLE = "../api/calendar/formatTitle";
     selector: "vs-calendar",
     templateUrl: "vs-calendar.component.html",
     styleUrls: ["vs-calendar.component.scss"],
-    standalone: true,
     imports: [
         VSDataTipDirective,
         VSPopComponentDirective,
@@ -104,7 +103,7 @@ const FORMATE_CALENDAR_TITLE = "../api/calendar/formatTitle";
         DefaultFocusDirective,
         MonthCalendar,
         YearCalendar,
-    ],
+    ]
 })
 export class VSCalendar extends NavigationComponent<VSCalendarModel>
    implements AfterViewInit, DoCheck, OnDestroy, OnChanges, OnInit {

@@ -69,7 +69,6 @@ const RANKING_OPTIONS: any[] = [
     selector: "sort-option",
     templateUrl: "sort-option.component.html",
     styleUrls: ["sort-option.component.scss"],
-    standalone: true,
     imports: [NgIf, FormsModule, NgFor, DynamicComboBox]
 })
 export class SortOption implements OnInit {

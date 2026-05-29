@@ -30,7 +30,6 @@ const UNPIVOT_LEVEL_SOCKET_URI = "/events/ws/dialog/table-unpivot-rowHeaders";
 @Component({
     selector: "table-unpivot-dialog",
     templateUrl: "table-unpivot-dialog.component.html",
-    standalone: true,
     imports: [ModalHeaderComponent, NgIf, EnterSubmitDirective, FormsModule, ReactiveFormsModule, NgClass]
 })
 export class TableUnpivotDialog implements OnInit, OnDestroy {

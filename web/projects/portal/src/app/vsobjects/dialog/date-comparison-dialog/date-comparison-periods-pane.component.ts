@@ -27,7 +27,6 @@ import { FormsModule } from "@angular/forms";
     selector: "date-comparison-periods-pane",
     templateUrl: "./date-comparison-periods-pane.component.html",
     styleUrls: ["./date-comparison-periods-pane.component.scss"],
-    standalone: true,
     imports: [FormsModule, NgIf, DateComparisonStandardPeriodsComponent, DateComparisonCustomPeriodsComponent]
 })
 export class DateComparisonPeriodsPaneComponent {

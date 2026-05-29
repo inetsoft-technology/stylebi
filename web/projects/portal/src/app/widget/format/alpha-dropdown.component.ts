@@ -25,7 +25,6 @@ import { BlockMouseDirective } from "../mouse-event/block-mouse.directive";
     selector: "alpha-dropdown",
     templateUrl: "alpha-dropdown.component.html",
     styleUrls: ["./alpha-dropdown.component.scss"],
-    standalone: true,
     imports: [BlockMouseDirective, FormsModule, DisableDropDirective]
 })
 export class AlphaDropdown {

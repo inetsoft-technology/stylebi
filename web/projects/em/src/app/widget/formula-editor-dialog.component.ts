@@ -32,7 +32,6 @@ import { ModalHeaderComponent } from "../common/util/modal-header/modal-header.c
     selector: "em-formula-editor-dialog",
     templateUrl: "./formula-editor-dialog.component.html",
     styleUrls: ["./formula-editor-dialog.component.scss"],
-    standalone: true,
     imports: [ModalHeaderComponent, MatDialogContent, ScriptPaneComponent, MatDialogActions, MatButton, MatDialogClose]
 })
 export class FormulaEditorDialogComponent extends BaseResizeableDialogComponent implements OnInit {

@@ -32,7 +32,6 @@ import { EditorPanelComponent } from "../../../../common/util/editor-panel/edito
     selector: "em-security-actions-permissions",
     templateUrl: "./security-actions-permissions.component.html",
     styleUrls: ["./security-actions-permissions.component.scss"],
-    standalone: true,
     imports: [EditorPanelComponent, ResourcePermissionComponent]
 })
 export class SecurityActionsPermissionsComponent {

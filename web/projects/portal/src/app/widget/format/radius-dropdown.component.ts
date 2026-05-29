@@ -28,7 +28,6 @@ const RADIUS_INPUT_DKEY = "radiusDropdownInputKey";
 @Component({
     selector: "radius-dropdown",
     templateUrl: "radius-dropdown.component.html",
-    standalone: true,
     imports: [FormsModule, ReactiveFormsModule, DisableDropDirective, NgIf]
 })
 export class RadiusDropdown implements OnInit {

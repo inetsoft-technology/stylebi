@@ -97,7 +97,6 @@ export interface ChartInfo {
     selector: "em-summary-monitoring-page",
     templateUrl: "./summary-monitoring-page.component.html",
     styleUrls: ["./summary-monitoring-page.component.scss"],
-    standalone: true,
     imports: [ClusterSelectorComponent, NgIf, MatButton, MatGridList, MatGridTile, SummaryMonitoringChartViewComponent, SummaryMonitoringTableViewComponent, MatCard, NgFor, KeyValuePipe]
 })
 export class SummaryMonitoringPageComponent implements OnInit, OnDestroy, AfterContentChecked {

@@ -49,7 +49,6 @@ interface CompositeNodeInfo {
 @Component({
     selector: "range-slider-data-pane",
     templateUrl: "range-slider-data-pane.component.html",
-    standalone: true,
     imports: [FormsModule, NgIf, TreeComponent, NgFor, AdditionalTableSelectionPaneComponent]
 })
 export class RangeSliderDataPane extends TreeDataPane implements AfterViewInit {

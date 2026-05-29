@@ -30,7 +30,6 @@ const DEFAULT_HIGHLIGHT_PREFIX = "highlight";
     selector: "add-highlight-dialog",
     templateUrl: "add-highlight-dialog.component.html",
     viewProviders: [FormValidators],
-    standalone: true,
     imports: [ModalHeaderComponent, NgIf, EnterSubmitDirective, FormsModule, ReactiveFormsModule, InputTrimDirective]
 })
 export class AddHighlightDialog implements OnInit {

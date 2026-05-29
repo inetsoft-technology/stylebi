@@ -49,7 +49,6 @@ import { MatFormField, MatLabel, MatSuffix } from "@angular/material/form-field"
     templateUrl: "./security-tree-view.component.html",
     styleUrls: ["./security-tree-view.component.scss"],
     providers: [SecurityTreeDataService],
-    standalone: true,
     imports: [MatFormField, MatLabel, MatInput, FormsModule, MatIcon, MatSuffix, NgIf, MatProgressBar, CdkVirtualScrollViewport, CdkFixedSizeVirtualScroll, CdkVirtualForOf, MatIconButton, DecimalPipe]
 })
 export class SecurityTreeViewComponent implements OnInit, OnChanges, OnDestroy,

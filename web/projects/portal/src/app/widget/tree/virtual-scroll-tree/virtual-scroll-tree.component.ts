@@ -26,8 +26,7 @@ import { TreeComponent } from "../tree.component";
 @Component({
     selector: "virtual-scroll-tree",
     templateUrl: "./virtual-scroll-tree.component.html",
-    standalone: true,
-    imports: [TreeComponent],
+    imports: [TreeComponent]
 })
 export class VirtualScrollTreeComponent {
   @Input() root: TreeNodeModel;

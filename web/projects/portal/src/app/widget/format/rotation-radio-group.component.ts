@@ -23,7 +23,6 @@ import { NgFor } from "@angular/common";
     selector: "rotation-radio-group",
     templateUrl: "rotation-radio-group.component.html",
     styleUrls: ["rotation-radio-group.component.scss"],
-    standalone: true,
     imports: [NgFor]
 })
 export class RotationRadioGroup implements AfterViewInit {

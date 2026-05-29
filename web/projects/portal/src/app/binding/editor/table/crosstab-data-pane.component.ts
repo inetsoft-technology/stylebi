@@ -24,7 +24,6 @@ import { NgIf } from "@angular/common";
     selector: "crosstab-data-pane",
     templateUrl: "crosstab-data-pane.component.html",
     styleUrls: ["../data-pane.component.scss"],
-    standalone: true,
     imports: [NgIf, TableDataEditor]
 })
 export class CrosstabDataPane {

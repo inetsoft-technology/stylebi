@@ -70,7 +70,6 @@ const numberFmts: FormatPair[] = [
     selector: "column-type-dialog",
     templateUrl: "column-type-dialog.component.html",
     styleUrls: ["column-type-dialog.component.scss"],
-    standalone: true,
     imports: [ModalHeaderComponent, NgIf, EnterSubmitDirective, FormsModule, ReactiveFormsModule, NgFor, ComboBox]
 })
 export class ColumnTypeDialog implements OnInit {

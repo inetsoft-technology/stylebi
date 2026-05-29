@@ -24,7 +24,6 @@ import { FormsModule } from "@angular/forms";
     selector: "date-comparison-share-pane",
     templateUrl: "./date-comparison-share-pane.component.html",
     styleUrls: ["./date-comparison-share-pane.component.scss"],
-    standalone: true,
     imports: [FormsModule, DynamicComboBox, NgIf]
 })
 export class DateComparisonSharePaneComponent {

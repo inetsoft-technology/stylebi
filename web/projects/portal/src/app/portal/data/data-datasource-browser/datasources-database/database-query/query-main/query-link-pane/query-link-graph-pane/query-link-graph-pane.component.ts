@@ -41,7 +41,6 @@ const QUERY_GRAPH_PANE_MODEL_URI = "../api/data/datasource/query/graph";
     selector: "query-link-graph-pane",
     templateUrl: "./query-link-graph-pane.component.html",
     styleUrls: ["./query-link-graph-pane.component.scss"],
-    standalone: true,
     imports: [NgIf, QueryNetworkGraphPaneComponent, QueryJoinEditPane, LoadingIndicatorPaneComponent]
 })
 export class QueryLinkGraphPaneComponent implements OnInit, OnDestroy {

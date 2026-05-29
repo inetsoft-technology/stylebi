@@ -26,11 +26,10 @@ import { StompClientService } from "../common/viewsheet-client";
 import { ComponentTool } from "../common/util/component-tool";
 
 @Component({
-   standalone: true,
-   imports: [RouterOutlet, DownloadTargetComponent, AiAssistantPanelComponent, NgIf],
-   selector: "v-viewer-root",
-   templateUrl: "viewer-root.component.html",
-   styleUrls: ["viewer-root.component.scss"]
+    imports: [RouterOutlet, DownloadTargetComponent, AiAssistantPanelComponent, NgIf],
+    selector: "v-viewer-root",
+    templateUrl: "viewer-root.component.html",
+    styleUrls: ["viewer-root.component.scss"]
 })
 export class ViewerRootComponent implements OnInit, OnDestroy {
    inPortal: boolean = false;

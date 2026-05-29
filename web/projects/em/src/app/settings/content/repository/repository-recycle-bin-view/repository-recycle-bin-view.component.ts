@@ -26,7 +26,6 @@ import { MatCard, MatCardContent } from "@angular/material/card";
 @Component({
     selector: "em-repository-recycle-bin-view",
     templateUrl: "./repository-recycle-bin-view.component.html",
-    standalone: true,
     imports: [MatCard, MatCardContent, MatFormField, MatLabel, MatInput, FormsModule, MatCheckbox]
 })
 export class RepositoryRecycleBinViewComponent {

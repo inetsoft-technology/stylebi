@@ -58,7 +58,6 @@ const SMALL_WIDTH_BREAKPOINT = 720;
     templateUrl: "./content-data-space-view.component.html",
     styleUrls: ["./content-data-space-view.component.scss"],
     providers: [DataSpaceTreeDataSource],
-    standalone: true,
     imports: [MatDrawerContainer, MatDrawer, DataSpaceTreeViewComponent, MultiSelectTreeNodeDirective, MatDrawerContent, DataSpaceEditorPageComponent]
 })
 export class ContentDataSpaceViewComponent implements OnInit {

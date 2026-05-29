@@ -48,7 +48,6 @@ export interface ValidatorMessageInfo {
     selector: "input-name-dialog",
     templateUrl: "input-name-dialog.component.html",
     changeDetection: ChangeDetectionStrategy.OnPush,
-    standalone: true,
     imports: [ModalHeaderComponent, EnterSubmitDirective, FormsModule, ReactiveFormsModule, NgIf]
 })
 export class InputNameDialog implements OnChanges, OnInit, AfterViewInit {

@@ -59,7 +59,6 @@ interface MaxBorderWidths {
     selector: "vs-tab",
     templateUrl: "vs-tab.component.html",
     styleUrls: ["vs-tab.component.scss"],
-    standalone: true,
     imports: [NgIf, NgFor, TooltipIfDirective, NgStyle]
 })
 export class VSTab extends NavigationComponent<VSTabModel> implements OnChanges, AfterViewInit, OnDestroy {

@@ -29,7 +29,6 @@ const QUERY_COLUMN_URI = "../api/portal/schedule/emails/query/columns";
 @Component({
     selector: "query-email-pane",
     templateUrl: "query-email-pane.component.html",
-    standalone: true,
     imports: [AssetTreeComponent, FormsModule, NgFor]
 })
 export class QueryEmailPane {

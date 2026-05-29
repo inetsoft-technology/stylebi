@@ -50,7 +50,6 @@ export interface DashboardOption {
     selector: "em-repository-folder-dashboard-settings-view",
     templateUrl: "./repository-folder-dashboard-settings-view.component.html",
     styleUrls: ["./repository-folder-dashboard-settings-view.component.scss"],
-    standalone: true,
     imports: [NgIf, EditorPanelComponent, MatTabGroup, MatTab, MatTabContent, MatCard, MatCardContent, MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatIconButton, MatIcon, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, ResourcePermissionComponent]
 })
 export class RepositoryFolderDashboardSettingsViewComponent implements OnChanges {

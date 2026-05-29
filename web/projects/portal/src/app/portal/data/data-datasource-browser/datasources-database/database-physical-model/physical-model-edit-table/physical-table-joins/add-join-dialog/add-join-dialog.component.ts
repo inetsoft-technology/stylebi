@@ -43,7 +43,6 @@ const CHECK_JOIN_EXIST_URI: string = "../api/data/physicalmodel/join/exist";
 @Component({
     selector: "add-join-dialog",
     templateUrl: "add-join-dialog.component.html",
-    standalone: true,
     imports: [ModalHeaderComponent, FormsModule, NgFor, NgIf]
 })
 export class AddJoinDialog implements OnInit, AfterViewInit {

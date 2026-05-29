@@ -169,7 +169,6 @@ const TABLE_DATA_COUNT_MILLISECOND_DELAY = 500;
         },
         WsChangeService
     ],
-    standalone: true,
     imports: [SplitPane, NgIf, WSAssemblyGraphPaneComponent, WSCompositeTableFocusPaneComponent, WSDetailsPaneComponent, VSLoadingDisplay, NotificationsComponent, ConcatenateTablesDialog, VariableInputDialog]
 })
 export class WSPaneComponent extends CommandProcessor implements OnDestroy, OnInit, OnChanges {

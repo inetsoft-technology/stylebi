@@ -35,7 +35,6 @@ import { NgIf } from "@angular/common";
     selector: "em-presentation-time-settings-view",
     templateUrl: "./presentation-time-settings-view.component.html",
     styleUrls: ["./presentation-time-settings-view.component.scss"],
-    standalone: true,
     imports: [NgIf, MatCard, MatCardTitle, MatCardContent, MatFormField, MatLabel, MatInput, FormsModule, MatCheckbox]
 })
 export class PresentationTimeSettingsViewComponent {

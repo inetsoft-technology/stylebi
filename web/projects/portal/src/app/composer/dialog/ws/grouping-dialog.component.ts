@@ -59,7 +59,6 @@ import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.
     selector: "grouping-dialog",
     templateUrl: "grouping-dialog.component.html",
     styleUrls: ["grouping-dialog.component.scss"],
-    standalone: true,
     imports: [ModalHeaderComponent, NgIf, EnterSubmitDirective, FormsModule, ReactiveFormsModule, InputTrimDirective, NgFor, TreeDropdownComponent, LargeFormFieldComponent, GroupingConditionDialog, ConditionPipe, JunctionOperatorPipe]
 })
 export class GroupingDialog implements OnInit {

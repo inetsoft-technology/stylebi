@@ -36,7 +36,6 @@ export interface RepositoryDashboardEditorModel extends RepositoryEditorModel {
     selector: "em-repository-dashboard-settings-page",
     templateUrl: "./repository-dashboard-settings-page.component.html",
     styleUrls: ["./repository-dashboard-settings-page.component.scss"],
-    standalone: true,
     imports: [NgIf, RepositoryDashboardSettingsViewComponent]
 })
 export class RepositoryDashboardSettingsPageComponent {

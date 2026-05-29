@@ -23,7 +23,6 @@ import { NgIf } from "@angular/common";
     selector: "static-line-editor",
     templateUrl: "static-line-editor.component.html",
     styleUrls: ["combined-visual-pane.scss"],
-    standalone: true,
     imports: [NgIf, LineComboBox]
 })
 export class StaticLineEditor {

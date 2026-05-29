@@ -53,7 +53,6 @@ import { NgIf, NgFor } from "@angular/common";
     selector: "em-portal-integration-view",
     templateUrl: "./portal-integration-view.component.html",
     styleUrls: ["./portal-integration-view.component.scss"],
-    standalone: true,
     imports: [NgIf, MatCard, MatCardTitle, MatCardContent, MatCheckbox, FormsModule, MatMiniFabButton, MatTooltip, MatIcon, NgFor, MatCardSubtitle, MatIconButton, MatDivider, MatFormField, MatLabel, MatInput]
 })
 export class PortalIntegrationViewComponent {

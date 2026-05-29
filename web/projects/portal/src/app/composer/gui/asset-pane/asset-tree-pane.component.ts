@@ -91,7 +91,6 @@ const START_WITH_CHART_DIGIT_MESSAGE = "_#(js:asset.tree.checkStart)";
             provide: ContextProvider,
             useFactory: ComposerContextProviderFactory
         }],
-    standalone: true,
     imports: [AssetTreeComponent]
 })
 export class AssetTreePane implements OnChanges, OnInit {

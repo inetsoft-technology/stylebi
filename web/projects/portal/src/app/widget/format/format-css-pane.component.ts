@@ -32,7 +32,6 @@ import { EnterSubmitDirective } from "../directive/enter-submit.directive";
     selector: "format-css-pane",
     templateUrl: "format-css-pane.component.html",
     styleUrls: ["format-css-pane.component.scss"],
-    standalone: true,
     imports: [EnterSubmitDirective, NgbDropdown, FormsModule, NgbDropdownToggle, NgIf, NgbDropdownMenu, NgFor]
 })
 export class FormatCSSPane implements OnChanges {

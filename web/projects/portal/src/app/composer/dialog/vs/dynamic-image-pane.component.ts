@@ -24,8 +24,7 @@ import { FormsModule } from "@angular/forms";
 @Component({
     selector: "dynamic-image-pane",
     templateUrl: "dynamic-image-pane.component.html",
-    standalone: true,
-    imports: [FormsModule, DynamicComboBox],
+    imports: [FormsModule, DynamicComboBox]
 })
 export class DynamicImagePane {
    @Input() model: DynamicImagePaneModel;

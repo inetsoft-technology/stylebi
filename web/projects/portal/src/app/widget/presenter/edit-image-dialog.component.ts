@@ -26,7 +26,6 @@ import { NgIf } from "@angular/common";
 @Component({
     selector: "edit-image-dialog",
     templateUrl: "edit-image-dialog.component.html",
-    standalone: true,
     imports: [NgIf, ImagePreviewPane]
 })
 export class EditImageDialog implements OnInit {

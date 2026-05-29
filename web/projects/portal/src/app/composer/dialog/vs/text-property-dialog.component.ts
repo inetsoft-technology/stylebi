@@ -39,7 +39,6 @@ const CHECK_TRAP_URI: string = "../api/composer/vs/text-property-dialog-model/ch
 @Component({
     selector: "text-property-dialog",
     templateUrl: "text-property-dialog.component.html",
-    standalone: true,
     imports: [ModalHeaderComponent, NgIf, EnterSubmitDirective, NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, TextGeneralPane, DataOutputPane, ClickableScriptPane, NgbNavOutlet, ApplyButtonComponent]
 })
 export class TextPropertyDialog extends PropertyDialog implements OnInit {

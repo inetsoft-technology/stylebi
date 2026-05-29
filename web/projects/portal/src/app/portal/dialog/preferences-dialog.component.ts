@@ -46,7 +46,6 @@ const PREFERENCES_DIALOG_MODEL_URI: string = "../api/portal/preferences-dialog-m
     selector: "preferences-dialog",
     templateUrl: "preferences-dialog.component.html",
     styleUrls: ["preferences-dialog.component.scss"],
-    standalone: true,
     imports: [StandardDialogComponent, DialogContentDirective, NgIf, FormsModule, DefaultFocusDirective, ReactiveFormsModule, EnterClickDirective, DialogButtonsDirective, ChangePasswordDialog]
 })
 export class PreferencesDialog implements OnInit {

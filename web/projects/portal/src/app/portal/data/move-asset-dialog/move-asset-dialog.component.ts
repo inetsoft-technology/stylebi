@@ -37,7 +37,6 @@ export const FAKE_ROOT_PATH: string = "_fake_root_";
 @Component({
     selector: "move-asset-dialog",
     templateUrl: "move-asset-dialog.component.html",
-    standalone: true,
     imports: [ModalHeaderComponent, FilesBrowserComponent, NgIf]
 })
 export class MoveAssetDialogComponent implements OnInit {

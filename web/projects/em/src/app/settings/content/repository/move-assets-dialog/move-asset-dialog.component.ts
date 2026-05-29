@@ -31,7 +31,6 @@ import { ModalHeaderComponent } from "../../../../common/util/modal-header/modal
     templateUrl: "./move-asset-dialog.component.html",
     styleUrls: ["./move-asset-dialog.component.scss"],
     providers: [RepositoryTreeDataSource],
-    standalone: true,
     imports: [ModalHeaderComponent, MatDialogContent, NgIf, FlatTreeViewComponent, MatProgressBar, MatDialogActions, MatButton]
 })
 export class MoveAssetDialogComponent {

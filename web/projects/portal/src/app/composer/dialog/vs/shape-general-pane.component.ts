@@ -25,8 +25,7 @@ import { BasicGeneralPane } from "../../../vsobjects/dialog/basic-general-pane.c
 @Component({
     selector: "shape-general-pane",
     templateUrl: "shape-general-pane.component.html",
-    standalone: true,
-    imports: [BasicGeneralPane, SizePositionPane],
+    imports: [BasicGeneralPane, SizePositionPane]
 })
 export class ShapeGeneralPane implements OnInit {
    @Input() model: ShapeGeneralPaneModel;

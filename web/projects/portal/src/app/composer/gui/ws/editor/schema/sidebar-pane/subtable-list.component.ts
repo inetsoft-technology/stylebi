@@ -40,7 +40,6 @@ const REORDER_SUBTABLES_URI = "/events/composer/worksheet/reorder-subtables";
     templateUrl: "subtable-list.component.html",
     styleUrls: ["subtable-list.component.scss"],
     changeDetection: ChangeDetectionStrategy.OnPush,
-    standalone: true,
     imports: [NgFor, WSAssemblyThumbnailTitleComponent, ReorderSubtablesDialogComponent]
 })
 export class SubtableListComponent implements OnChanges {

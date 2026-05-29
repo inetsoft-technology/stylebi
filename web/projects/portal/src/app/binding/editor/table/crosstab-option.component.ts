@@ -29,12 +29,11 @@ import { NgIf } from "@angular/common";
 @Component({
     selector: "crosstab-option",
     templateUrl: "crosstab-option.component.html",
-    standalone: true,
     imports: [
         NgIf,
         DynamicComboBox,
         TableFormatOption,
-    ],
+    ]
 })
 export class CrosstabOption {
    @Input() option: CrosstabOptionInfo;

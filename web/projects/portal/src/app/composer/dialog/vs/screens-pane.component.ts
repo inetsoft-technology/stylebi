@@ -45,7 +45,6 @@ import { NgIf } from "@angular/common";
     selector: "screens-pane",
     templateUrl: "screens-pane.component.html",
     styleUrls: ["screens-pane.component.scss"],
-    standalone: true,
     imports: [NgIf, OutOfZoneDirective, FormsModule, ReactiveFormsModule, LargeFormFieldComponent, GenericSelectableList, ViewsheetDeviceLayoutDialog, ViewsheetPrintLayoutDialog]
 })
 export class ScreensPane implements OnInit, OnChanges {

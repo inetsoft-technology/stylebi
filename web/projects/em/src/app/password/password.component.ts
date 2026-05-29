@@ -37,7 +37,6 @@ import { ChangePasswordFormComponent } from "./change-password-form.component";
     selector: "em-password",
     templateUrl: "./password.component.html",
     styleUrls: ["./password.component.scss"],
-    standalone: true,
     imports: [ChangePasswordFormComponent]
 })
 export class PasswordComponent implements OnInit {

@@ -64,7 +64,6 @@ import { StandardDialogComponent } from "../../../widget/standard-dialog/standar
     selector: "analyze-mv-dialog",
     templateUrl: "./analyze-mv-dialog.component.html",
     styleUrls: ["./analyze-mv-dialog.component.scss"],
-    standalone: true,
     imports: [StandardDialogComponent, DialogContentDirective, NgIf, AnalyzeMVPane, CreateMVPane, DialogButtonsDirective]
 })
 export class AnalyzeMVDialog implements OnInit, OnDestroy {

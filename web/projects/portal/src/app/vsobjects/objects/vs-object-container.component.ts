@@ -95,7 +95,6 @@ import { NgFor, NgIf } from "@angular/common";
     selector: "vs-object-container",
     templateUrl: "vs-object-container.component.html",
     styleUrls: ["vs-object-container.component.scss"],
-    standalone: true,
     imports: [NgFor, NgIf, VSDataTipDirective, VSPopComponentDirective, VSAnnotation, VSCalcTable, VSCalendar, VSChart, VSCheckBox, VSComboBox, VSCrosstab, VSCylinder, VSGauge, VSGroupContainer, VSImage, VSLine, VSOval, VSRadioButton, VSRectangle, VSRangeSlider, VSSelection, VSSelectionContainer, VSSelectionContainerChildren, VSSlider, VSSlidingScale, VSSpinner, VSSubmit, VSTab, VSTable, VSText, VSTextInput, VSThermometer, VSViewsheet, MiniToolbar, PlaceholderDragElement]
 })
 export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {

@@ -31,7 +31,6 @@ import { NgFor, NgIf } from "@angular/common";
     selector: "condition-list",
     templateUrl: "condition-list.component.html",
     styleUrls: ["./condition-list.component.scss"],
-    standalone: true,
     imports: [NgFor, NgIf, ConditionDialog, ConditionPipe, JunctionOperatorPipe]
 })
 export class ConditionList {

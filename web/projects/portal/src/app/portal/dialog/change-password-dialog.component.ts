@@ -31,7 +31,6 @@ const CHANGE_PASSWORD_DIALOG_MODEL_URI: string = "../api/portal/change-password-
     selector: "change-password-dialog",
     templateUrl: "change-password-dialog.component.html",
     styleUrls: ["change-password-dialog.component.scss"],
-    standalone: true,
     imports: [StandardDialogComponent, DialogContentDirective, NgIf, FormsModule, ReactiveFormsModule, DialogButtonsDirective]
 })
 export class ChangePasswordDialog implements OnInit {

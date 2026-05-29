@@ -37,7 +37,6 @@ import { BindingTreeComponent } from "../../../binding/widget/binding-tree/bindi
 @Component({
     selector: "composer-binding-tree",
     templateUrl: "composer-binding-tree.component.html",
-    standalone: true,
     imports: [BindingTreeComponent]
 })
 export class ComposerBindingTree implements OnInit, OnDestroy {

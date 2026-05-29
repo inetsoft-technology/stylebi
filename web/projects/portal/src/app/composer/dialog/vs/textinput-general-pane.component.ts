@@ -25,12 +25,11 @@ import { GeneralPropPane } from "../../../vsobjects/dialog/general-prop-pane.com
 @Component({
     selector: "textinput-general-pane",
     templateUrl: "textinput-general-pane.component.html",
-    standalone: true,
     imports: [
         GeneralPropPane,
         FormsModule,
         SizePositionPane,
-    ],
+    ]
 })
 export class TextInputGeneralPane implements OnInit {
    @Input() model: TextInputGeneralPaneModel;

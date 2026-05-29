@@ -33,7 +33,6 @@ import { NgFor, NgIf } from "@angular/common";
     selector: "simple-condition-pane",
     templateUrl: "simple-condition-pane.component.html",
     styleUrls: ["simple-condition-pane.component.scss"],
-    standalone: true,
     imports: [NgFor, NgIf, ConditionItemPane, ConditionPipe, JunctionOperatorPipe]
 })
 export class SimpleConditionPane implements OnInit {

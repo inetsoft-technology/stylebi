@@ -42,14 +42,13 @@ declare const window: any;
 @Component({
     selector: "image-preview-pane",
     templateUrl: "image-preview-pane.component.html",
-    standalone: true,
     imports: [
         TreeComponent,
         NotificationsComponent,
         NgIf,
         AlphaDropdown,
         FormsModule,
-    ],
+    ]
 })
 export class ImagePreviewPane implements OnInit, AfterViewInit {
    @Input() model: ImagePreviewPaneModel;

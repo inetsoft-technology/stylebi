@@ -36,7 +36,6 @@ import { NgIf, NgTemplateOutlet, NgClass } from "@angular/common";
     templateUrl: "tooltip.component.html",
     styleUrls: ["tooltip.component.scss"],
     changeDetection: ChangeDetectionStrategy.OnPush,
-    standalone: true,
     imports: [NgIf, NgTemplateOutlet, NgClass]
 })
 export class TooltipComponent {

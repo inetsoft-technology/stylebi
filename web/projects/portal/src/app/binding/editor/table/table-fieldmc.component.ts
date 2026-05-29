@@ -58,7 +58,6 @@ import { NgIf } from "@angular/common";
     selector: "table-fieldmc",
     templateUrl: "table-fieldmc.component.html",
     styleUrls: ["../fieldmc.component.scss"],
-    standalone: true,
     imports: [NgIf, DynamicComboBox, FixedDropdownDirective, DetailOption, FieldOption, GroupOption, AggregateOption]
 })
 export class TableFieldmc extends FieldMC {

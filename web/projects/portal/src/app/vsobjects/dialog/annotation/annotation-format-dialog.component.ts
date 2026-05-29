@@ -36,7 +36,6 @@ const INIT_DATA_FORMAT_URI = "../annotation/resetDataFormat";
 @Component({
     selector: "annotation-format-dialog",
     templateUrl: "annotation-format-dialog.component.html",
-    standalone: true,
     imports: [
         ModalHeaderComponent,
         NgIf,
@@ -47,7 +46,7 @@ const INIT_DATA_FORMAT_URI = "../annotation/resetDataFormat";
         AlphaDropdown,
         FormsModule,
         LineArrowTypeDropdown,
-    ],
+    ]
 })
 export class AnnotationFormatDialog implements OnInit {
    @Input() model: AnnotationFormatDialogModel;

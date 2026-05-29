@@ -45,7 +45,6 @@ import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.
     selector: "tabular-query-dialog",
     templateUrl: "tabular-query-dialog.component.html",
     styleUrls: ["tabular-query-dialog.component.scss"],
-    standalone: true,
     imports: [ModalHeaderComponent, NgIf, EnterSubmitDirective, FormsModule, ReactiveFormsModule, InputTrimDirective, TabularViewComponent, NgFor, ApplyButtonComponent]
 })
 export class TabularQueryDialog implements OnInit {

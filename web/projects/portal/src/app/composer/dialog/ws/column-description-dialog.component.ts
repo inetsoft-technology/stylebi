@@ -22,7 +22,6 @@ import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.
 @Component({
     selector: "column-description-dialog",
     templateUrl: "column-description-dialog.component.html",
-    standalone: true,
     imports: [ModalHeaderComponent, FormsModule]
 })
 export class ColumnDescriptionDialog {

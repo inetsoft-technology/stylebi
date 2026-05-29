@@ -41,7 +41,6 @@ import { NgIf } from "@angular/common";
     templateUrl: "./import-task-dialog.component.html",
     styleUrls: ["./import-task-dialog.component.scss"],
     encapsulation: ViewEncapsulation.None,
-    standalone: true,
     imports: [MatDialogTitle, MatDialogContent, NgIf, FormsModule, ReactiveFormsModule, MatCard, MatCardContent, MatFormField, MatLabel, FileChooserComponent, MatIcon, MatSuffix, MatError, MatCheckbox, MatCardTitle, MatTable, MatSort, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, MatDialogActions, MatButton]
 })
 export class ImportTaskDialogComponent {

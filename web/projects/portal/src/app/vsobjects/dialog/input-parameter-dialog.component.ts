@@ -35,7 +35,6 @@ import { ModalHeaderComponent } from "../../widget/modal-header/modal-header.com
     selector: "input-parameter-dialog",
     templateUrl: "input-parameter-dialog.component.html",
     styleUrls: ["./input-parameter-dialog.component.scss"],
-    standalone: true,
     imports: [ModalHeaderComponent, NgIf, EnterSubmitDirective, FormsModule, NgSwitch, ReactiveFormsModule, NgbDropdown, InputTrimDirective, NgbDropdownToggle, NgbDropdownMenu, NgClass, NgFor, NgSwitchCase, NgbInputDatepicker]
 })
 export class InputParameterDialog implements OnInit {

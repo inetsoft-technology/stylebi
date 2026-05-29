@@ -22,7 +22,6 @@ import { NgClass } from "@angular/common";
 @Component({
     selector: "line-item",
     template: "<i [ngClass]='iconSource'></i>",
-    standalone: true,
     imports: [NgClass]
 })
 export class LineItem {

@@ -41,7 +41,6 @@ import { NgFor } from "@angular/common";
     templateUrl: "auto-complete-text.component.html",
     styleUrls: ["auto-complete-text.component.scss"],
     encapsulation: ViewEncapsulation.None,
-    standalone: true,
     imports: [NgFor, DefaultFocusDirective]
 })
 export class AutoCompleteText implements OnInit {

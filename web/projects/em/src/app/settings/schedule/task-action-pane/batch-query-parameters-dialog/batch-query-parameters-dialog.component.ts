@@ -94,7 +94,6 @@ export class BatchAssetDataSource extends FlatTreeDataSource<BatchAssetFlatNode,
     selector: "em-batch-query-parameters-dialog",
     templateUrl: "./batch-query-parameters-dialog.component.html",
     styleUrls: ["./batch-query-parameters-dialog.component.scss"],
-    standalone: true,
     imports: [ModalHeaderComponent, MatDialogContent, MatFormField, MatLabel, MatSelect, MatOption, NgIf, MatTree, MatTreeNodeDef, MatTreeNode, MatTreeNodeToggle, MatTreeNodePadding, MatIconButton, MatIcon, NgFor, MatDialogActions, MatButton]
 })
 export class BatchQueryParametersDialogComponent implements OnInit {

@@ -44,7 +44,6 @@ import { ActionsContextmenuAnchorDirective } from "../../../../widget/fixed-drop
     selector: "grouping-thumbnail",
     templateUrl: "grouping-thumbnail.component.html",
     styleUrls: ["thumbnail-base.scss", "../jsplumb/jsplumb-shared.scss"],
-    standalone: true,
     imports: [ActionsContextmenuAnchorDirective, WSAssemblyThumbnailTitleComponent, NgIf, NgFor]
 })
 export class GroupingThumbnail extends WSAssemblyThumbnail

@@ -32,7 +32,6 @@ declare const window;
     selector: "w-ruler",
     templateUrl: "ruler.component.html",
     styleUrls: ["ruler.component.scss"],
-    standalone: true,
     imports: [ResizedDirective, NgIf, NgClass]
 })
 export class Ruler implements AfterViewInit {

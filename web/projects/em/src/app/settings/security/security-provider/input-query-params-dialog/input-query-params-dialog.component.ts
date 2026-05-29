@@ -28,7 +28,6 @@ import { NgFor } from "@angular/common";
     selector: "em-input-query-params-dialog",
     templateUrl: "./input-query-params-dialog.component.html",
     styleUrls: ["./input-query-params-dialog.component.scss"],
-    standalone: true,
     imports: [MatDialogTitle, MatDialogContent, NgFor, MatFormField, MatLabel, MatInput, FormsModule, MatDialogActions, MatButton]
 })
 export class InputQueryParamsDialogComponent implements OnInit {

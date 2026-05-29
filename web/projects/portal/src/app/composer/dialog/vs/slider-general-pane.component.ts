@@ -26,12 +26,11 @@ import { GeneralPropPane } from "../../../vsobjects/dialog/general-prop-pane.com
 @Component({
     selector: "slider-general-pane",
     templateUrl: "slider-general-pane.component.html",
-    standalone: true,
     imports: [
         GeneralPropPane,
         NumericRangePane,
         SizePositionPane,
-    ],
+    ]
 })
 export class SliderGeneralPane implements OnInit {
    @Input() model: SliderGeneralPaneModel;

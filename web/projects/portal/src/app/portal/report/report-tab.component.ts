@@ -59,7 +59,6 @@ const MAX_RECENTLY_VIEWED: number = 5;
     templateUrl: "report-tab.component.html",
     styleUrls: ["../portal-tab.component.scss", "report-tab.component.scss"],
     providers: [ViewsheetClientService],
-    standalone: true,
     imports: [NgIf, NgFor, EnterClickDirective, NgSwitch, NgSwitchCase, RepositoryListViewComponent, RouterOutlet, RepositoryDesktopViewComponent, RepositoryMobileViewComponent, NotificationsComponent]
 })
 export class ReportTabComponent extends CommandProcessor implements OnInit, OnDestroy {

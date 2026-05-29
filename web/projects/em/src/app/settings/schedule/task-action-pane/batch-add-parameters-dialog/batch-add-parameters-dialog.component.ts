@@ -32,7 +32,6 @@ export interface BatchAddParametersDialogResult {
     selector: "em-batch-add-parameters-dialog",
     templateUrl: "./batch-add-parameters-dialog.component.html",
     styleUrls: ["./batch-add-parameters-dialog.component.scss"],
-    standalone: true,
     imports: [ModalHeaderComponent, MatDialogContent, ParameterTableComponent, MatDialogActions, MatButton]
 })
 export class BatchAddParametersDialogComponent implements OnInit {

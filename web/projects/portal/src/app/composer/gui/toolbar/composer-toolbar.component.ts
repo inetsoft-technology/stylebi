@@ -141,7 +141,6 @@ const COMPOSER_WIZARD_STATUS_URI: string = "../api/composer/wizard/status";
     templateUrl: "composer-toolbar.component.html",
     styleUrls: ["composer-toolbar.component.scss"],
     providers: [FullScreenService, NgbTooltipConfig],
-    standalone: true,
     imports: [NgIf, ToolbarGroup, NgbDropdown, NgbDropdownToggle, NgbTooltip, NgbDropdownMenu, FormsModule, NgFor, ImportCSVDialog, SQLQueryDialog, TabularQueryDialog, GroupingDialog, SelectDataSourceDialog, EmbeddedTableDialog, WorksheetPropertyDialog, VariableAssemblyDialog, VariableInputDialog, VPMPrincipalDialogComponent, NewWorksheetDialog]
 })
 export class ComposerToolbarComponent implements OnInit, AfterViewInit, OnDestroy {

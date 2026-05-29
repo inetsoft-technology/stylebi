@@ -28,7 +28,6 @@ import { EnterSubmitDirective } from "../../../widget/directive/enter-submit.dir
 @Component({
     selector: "concatenate-tables-dialog",
     templateUrl: "concatenate-tables-dialog.component.html",
-    standalone: true,
     imports: [EnterSubmitDirective, FormsModule, NgFor]
 })
 export class ConcatenateTablesDialog {

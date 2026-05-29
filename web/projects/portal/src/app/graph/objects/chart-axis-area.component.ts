@@ -58,7 +58,6 @@ import { NgIf, NgFor } from "@angular/common";
             useExisting: ChartAxisArea
         }],
     changeDetection: ChangeDetectionStrategy.OnPush,
-    standalone: true,
     imports: [NgIf, OutOfZoneDirective, NgFor, ChartImageDirective]
 })
 export class ChartAxisArea extends ChartObjectAreaBase<Axis> implements OnChanges {

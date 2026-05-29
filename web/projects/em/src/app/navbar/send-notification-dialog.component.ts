@@ -34,7 +34,6 @@ import { ModalHeaderComponent } from "../common/util/modal-header/modal-header.c
     selector: "em-send-notification-dialog",
     templateUrl: "./send-notification-dialog.component.html",
     styleUrls: ["./send-notification-dialog.component.scss"],
-    standalone: true,
     imports: [ModalHeaderComponent, MatDialogContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatInput, NgIf, MatError, MatDialogActions, MatButton, MatDialogClose]
 })
 export class SendNotificationDialogComponent implements OnInit {

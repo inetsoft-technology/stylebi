@@ -36,7 +36,6 @@ import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.
 @Component({
     selector: "slider-property-dialog",
     templateUrl: "slider-property-dialog.component.html",
-    standalone: true,
     imports: [
         ModalHeaderComponent,
         NgIf,
@@ -53,7 +52,7 @@ import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.
         VSAssemblyScriptPane,
         NgbNavOutlet,
         ApplyButtonComponent,
-    ],
+    ]
 })
 export class SliderPropertyDialog extends PropertyDialog {
    @Input() model: SliderPropertyDialogModel;

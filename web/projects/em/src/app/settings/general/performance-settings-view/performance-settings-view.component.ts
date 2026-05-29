@@ -42,7 +42,6 @@ import { MatCard, MatCardTitle, MatCardContent } from "@angular/material/card";
     selector: "em-performance-settings-view",
     templateUrl: "./performance-settings-view.component.html",
     styleUrls: ["./performance-settings-view.component.scss"],
-    standalone: true,
     imports: [MatCard, MatCardTitle, MatCardContent, NgIf, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatInput, MatError, MatCheckbox]
 })
 export class PerformanceSettingsViewComponent {

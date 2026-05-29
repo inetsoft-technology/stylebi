@@ -39,7 +39,6 @@ import { NgIf } from "@angular/common";
     selector: "aggregate-option",
     templateUrl: "aggregate-option.component.html",
     styleUrls: ["aggregate-option.component.scss"],
-    standalone: true,
     imports: [NgIf, FormulaOption, DynamicComboBox, CalculatePane]
 })
 export class AggregateOption implements OnInit {

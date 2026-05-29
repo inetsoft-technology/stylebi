@@ -52,7 +52,6 @@ const VIEWSHEET_PROPERTY_TEST_SCRIPT_URL = "../api/composer/vs/viewsheet-propert
 @Component({
     selector: "viewsheet-property-dialog",
     templateUrl: "viewsheet-property-dialog.component.html",
-    standalone: true,
     imports: [
         TabbedDialogComponent,
         NgIf,
@@ -63,7 +62,7 @@ const VIEWSHEET_PROPERTY_TEST_SCRIPT_URL = "../api/composer/vs/viewsheet-propert
         LocalizationPane,
         ViewsheetScriptPane,
         DialogButtonsDirective,
-    ],
+    ]
 })
 export class ViewsheetPropertyDialog extends BaseResizeableDialogComponent implements OnInit {
    @Input() model: ViewsheetPropertyDialogModel;

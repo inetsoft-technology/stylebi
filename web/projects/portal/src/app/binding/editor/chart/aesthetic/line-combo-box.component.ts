@@ -23,7 +23,6 @@ import { FixedDropdownDirective } from "../../../../widget/fixed-dropdown/fixed-
 @Component({
     selector: "line-combo-box",
     templateUrl: "line-combo-box.component.html",
-    standalone: true,
     imports: [FixedDropdownDirective, LineItem, StaticLinePane]
 })
 export class LineComboBox {

@@ -25,7 +25,6 @@ import { NgIf } from "@angular/common";
 @Component({
     selector: "text-pane",
     templateUrl: "text-pane.component.html",
-    standalone: true,
     imports: [NgIf, DynamicComboBox, FormsModule]
 })
 export class TextPane {

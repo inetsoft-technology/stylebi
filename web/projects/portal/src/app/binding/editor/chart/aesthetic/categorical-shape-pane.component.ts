@@ -31,7 +31,6 @@ import { NgIf, NgFor } from "@angular/common";
     selector: "categorical-shape-pane",
     templateUrl: "categorical-shape-pane.component.html",
     styleUrls: ["categorical-pane.scss"],
-    standalone: true,
     imports: [NgIf, NgFor, ShapeComboBox, LineComboBox, TextureComboBox]
 })
 export class CategoricalShapePane extends CategoricalFramePane {

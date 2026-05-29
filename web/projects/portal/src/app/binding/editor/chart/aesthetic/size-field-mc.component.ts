@@ -41,7 +41,6 @@ import { DropHighlightDirective } from "../../../widget/drophighlight.directive"
     selector: "size-field-mc",
     templateUrl: "size-field-mc.component.html",
     styleUrls: ["aesthetic-field-mc.scss"],
-    standalone: true,
     imports: [DropHighlightDirective, OutOfZoneDirective, FixedDropdownDirective, NgIf, NgFor, SizeCell, ChartAestheticMc, NgSwitch, NgSwitchCase, StaticSizePane, BindingSizePane, CombinedSizePane]
 })
 export class SizeFieldMc extends AestheticFieldMc implements OnChanges {

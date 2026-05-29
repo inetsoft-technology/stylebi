@@ -50,7 +50,6 @@ import { ModalHeaderComponent } from "../../../common/util/modal-header/modal-he
     selector: "em-add-parameter-dialog",
     templateUrl: "./add-parameter-dialog.component.html",
     styleUrls: ["./add-parameter-dialog.component.scss"],
-    standalone: true,
     imports: [
         ModalHeaderComponent,
         NgIf,
@@ -73,7 +72,7 @@ import { ModalHeaderComponent } from "../../../common/util/modal-header/modal-he
         MatDialogActions,
         MatButton,
         MatDialogClose,
-    ],
+    ]
 })
 export class AddParameterDialogComponent implements OnInit {
    index: number;

@@ -28,7 +28,6 @@ import { NgFor, NgSwitch, NgSwitchCase } from "@angular/common";
 @Component({
     selector: "textinput-column-option-pane",
     templateUrl: "textinput-column-option-pane.component.html",
-    standalone: true,
     imports: [
         FormsModule,
         NgFor,
@@ -38,7 +37,7 @@ import { NgFor, NgSwitch, NgSwitchCase } from "@angular/common";
         DateEditor,
         IntegerEditor,
         FloatEditor,
-    ],
+    ]
 })
 export class TextInputColumnOptionPane implements OnInit {
    @Input() model: TextInputColumnOptionPaneModel;

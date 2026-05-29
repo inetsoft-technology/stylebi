@@ -31,7 +31,6 @@ let scrollPos: any;
     selector: "font-pane",
     templateUrl: "font-pane.component.html",
     styleUrls: ["font-pane.component.scss"],
-    standalone: true,
     imports: [NgFor, FormsModule]
 })
 export class FontPane implements OnInit, OnChanges {

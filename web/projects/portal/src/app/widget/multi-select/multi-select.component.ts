@@ -24,7 +24,6 @@ import { FixedDropdownDirective } from "../fixed-dropdown/fixed-dropdown.directi
     selector: "multi-select",
     templateUrl: "multi-select.component.html",
     styleUrls: ["multi-select.component.scss"],
-    standalone: true,
     imports: [FixedDropdownDirective, NgIf, NgFor, FormsModule]
 })
 export class MultiSelect {

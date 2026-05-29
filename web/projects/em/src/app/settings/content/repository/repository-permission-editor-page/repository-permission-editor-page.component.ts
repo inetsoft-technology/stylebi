@@ -35,7 +35,6 @@ export interface RepositoryPermissionEditorModel extends RepositoryEditorModel {
     selector: "em-repository-permission-editor-page",
     templateUrl: "./repository-permission-editor-page.component.html",
     styleUrls: ["./repository-permission-editor-page.component.scss"],
-    standalone: true,
     imports: [NgIf, EditorPanelComponent, MatTabGroup, MatTab, ResourcePermissionComponent]
 })
 export class RepositoryPermissionEditorPageComponent implements OnChanges {

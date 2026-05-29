@@ -22,7 +22,6 @@ import { NotificationsComponent } from "../../widget/notifications/notifications
     selector: "data-notifications",
     templateUrl: "./data-notifications.component.html",
     styleUrls: ["./data-notifications.component.scss"],
-    standalone: true,
     imports: [NotificationsComponent]
 })
 export class DataNotificationsComponent {

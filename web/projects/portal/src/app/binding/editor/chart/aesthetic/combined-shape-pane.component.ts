@@ -26,7 +26,6 @@ import { NgFor, NgIf } from "@angular/common";
     selector: "combined-shape-pane",
     templateUrl: "combined-shape-pane.component.html",
     styleUrls: ["combined-visual-pane.scss"],
-    standalone: true,
     imports: [NgFor, NgIf, StaticLineEditor, StaticTextureEditor, StaticShapeEditor]
 })
 export class CombinedShapePane extends AbstractCombinedPane {

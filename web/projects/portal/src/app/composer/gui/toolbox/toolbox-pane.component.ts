@@ -45,7 +45,6 @@ import { ComposerBindingTree } from "./composer-binding-tree.component";
 @Component({
     selector: "composer-toolbox-pane",
     templateUrl: "toolbox-pane.component.html",
-    standalone: true,
     imports: [ComposerBindingTree, TreeComponent]
 })
 export class ToolboxPane implements OnChanges, OnInit, OnDestroy {

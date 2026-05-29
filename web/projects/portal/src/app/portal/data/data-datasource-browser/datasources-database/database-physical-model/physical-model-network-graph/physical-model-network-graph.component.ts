@@ -73,7 +73,6 @@ const GRAPH_REMOVE_TABLES_URI = "../api/data/physicalmodel/tables/remove";
     templateUrl: "physical-model-network-graph.component.html",
     styleUrls: ["physical-model-network-graph.component.scss",
         "../../../../../../composer/gui/ws/jsplumb/jsplumb-shared.scss"],
-    standalone: true,
     imports: [OutOfZoneDirective, SelectionBoxDirective, NgFor, JoinNodeGraphComponent, NgClass]
 })
 export class PhysicalModelNetworkGraphComponent implements OnInit, OnChanges, AfterViewChecked,

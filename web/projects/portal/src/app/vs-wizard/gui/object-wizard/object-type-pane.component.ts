@@ -24,7 +24,6 @@ import { NgIf, NgFor, NgClass } from "@angular/common";
     selector: "object-type-pane",
     templateUrl: "object-type-pane.component.html",
     styleUrls: ["object-type-pane.component.scss"],
-    standalone: true,
     imports: [NgIf, NgFor, NgClass]
 })
 export class ObjectTypePane implements OnInit {

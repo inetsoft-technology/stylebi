@@ -85,7 +85,6 @@ const QUERY_SAVE_EXPRESSION_URI: string = "../api/data/datasource/query/expressi
     selector: "query-fields-pane",
     templateUrl: "./query-fields-pane.component.html",
     styleUrls: ["./query-fields-pane.component.scss"],
-    standalone: true,
     imports: [NgIf, NgClass, TreeComponent, NgFor, FormsModule, DropdownView, AttributeFormattingPane, BrowseFieldValuesDialogComponent]
 })
 export class QueryFieldsPaneComponent implements OnInit, OnChanges {

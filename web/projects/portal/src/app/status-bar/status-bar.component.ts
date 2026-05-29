@@ -24,7 +24,6 @@ import { NgIf } from "@angular/common";
     templateUrl: "status-bar.component.html",
     styleUrls: ["status-bar.component.scss"],
     changeDetection: ChangeDetectionStrategy.OnPush,
-    standalone: true,
     imports: [NgIf]
 })
 export class StatusBar {

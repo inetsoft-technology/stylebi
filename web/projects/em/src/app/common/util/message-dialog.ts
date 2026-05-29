@@ -29,7 +29,6 @@ export enum MessageDialogType {
 @Component({
     selector: "em-message-dialog",
     templateUrl: "message-dialog.html",
-    standalone: true,
     imports: [ModalHeaderComponent, MatDialogContent, NgIf, MatDialogActions, MatButton, MatDialogClose]
 })
 export class MessageDialog {

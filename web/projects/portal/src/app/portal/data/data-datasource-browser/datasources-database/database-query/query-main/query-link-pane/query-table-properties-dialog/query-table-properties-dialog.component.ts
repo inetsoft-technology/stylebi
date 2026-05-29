@@ -29,7 +29,6 @@ const CHECK_TABLE_ALIAS_URI = "../api/data/datasource/query/table/alias/check";
     selector: "query-table-properties-dialog",
     templateUrl: "./query-table-properties-dialog.component.html",
     styleUrls: ["./query-table-properties-dialog.component.scss"],
-    standalone: true,
     imports: [ModalHeaderComponent, FormsModule]
 })
 export class QueryTablePropertiesDialogComponent {

@@ -26,14 +26,13 @@ import { BlockMouseDirective } from "../../widget/mouse-event/block-mouse.direct
 @Component({
     selector: "name-input-dialog",
     templateUrl: "name-input-dialog.component.html",
-    standalone: true,
     imports: [
         BlockMouseDirective,
         FormsModule,
         ReactiveFormsModule,
         DefaultFocusDirective,
         NgIf,
-    ],
+    ]
 })
 export class NameInputDialog implements OnInit {
    @Input() title: string = "_#(js:Input Name)";

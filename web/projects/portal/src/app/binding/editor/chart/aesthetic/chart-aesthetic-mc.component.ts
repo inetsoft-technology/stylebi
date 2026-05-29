@@ -25,7 +25,6 @@ import { NgIf } from "@angular/common";
     selector: "chart-aesthetic-mc",
     templateUrl: "chart-aesthetic-mc.component.html",
     styleUrls: ["../../data-editor.component.scss"],
-    standalone: true,
     imports: [NgIf, ChartFieldmc]
 })
 export class ChartAestheticMc {

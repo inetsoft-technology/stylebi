@@ -58,7 +58,6 @@ export enum DeviceType {
             transition("expanded <=> void", animate("225ms cubic-bezier(0.4, 0.0, 0.2, 1)")),
         ]),
     ],
-    standalone: true,
     imports: [
         NgIf,
         MatTable,
@@ -77,7 +76,7 @@ export enum DeviceType {
         MatHeaderRow,
         MatRowDef,
         MatRow,
-    ],
+    ]
 })
 export class ExpandableRowTableComponent<T extends TableModel> extends RegularTableComponent<T> implements OnChanges, OnInit, OnDestroy {
    @Input() tableInfo: ExpandableRowTableInfo;

@@ -61,7 +61,6 @@ class MergeJoinDropInfo {
     templateUrl: "ws-merge-join-editor-pane.component.html",
     styleUrls: ["ws-merge-join-editor-pane.component.scss"],
     changeDetection: ChangeDetectionStrategy.OnPush,
-    standalone: true,
     imports: [NgFor, MergeJoinSubtableComponent, NgClass, NgIf, AsyncPipe]
 })
 export class WSMergeJoinEditorPaneComponent implements OnDestroy, OnInit {

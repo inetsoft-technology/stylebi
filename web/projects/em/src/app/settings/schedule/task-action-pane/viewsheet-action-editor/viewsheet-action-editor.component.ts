@@ -123,7 +123,6 @@ export class ViewsheetDataSource extends FlatTreeDataSource<ViewsheetFlatNode, V
     selector: "em-viewsheet-action-editor",
     templateUrl: "./viewsheet-action-editor.component.html",
     styleUrls: ["./viewsheet-action-editor.component.scss"],
-    standalone: true,
     imports: [MatCard, MatCardContent, MatFormField, FormsModule, ReactiveFormsModule, MatLabel, MatSelect, MatOption, NgIf, MatProgressBar, MatTree, MatTreeNodeDef, MatTreeNode, MatTreeNodeToggle, MatTreeNodePadding, MatIconButton, MatIcon, MatError, MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, NgFor, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, MatMiniFabButton, NotificationEmailsComponent, DeliveryEmailsComponent, ServerSaveComponent, ParameterTableComponent, ScheduleAlertsComponent, AsyncPipe]
 })
 export class ViewsheetActionEditorComponent implements OnInit, AfterContentChecked {

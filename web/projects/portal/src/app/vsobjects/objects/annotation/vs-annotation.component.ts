@@ -57,7 +57,6 @@ import { NgIf } from "@angular/common";
     templateUrl: "./vs-annotation.component.html",
     styleUrls: ["./vs-annotation.component.scss"],
     changeDetection: ChangeDetectionStrategy.OnPush,
-    standalone: true,
     imports: [NgIf, VSLine, InteractableDirective, OutOfZoneDirective, TooltipDirective]
 })
 export class VSAnnotation extends AbstractVSObject<VSAnnotationModel> implements OnDestroy {

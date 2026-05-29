@@ -39,7 +39,6 @@ import { SortOption } from "../../sort-option.component";
     selector: "dimension-editor",
     templateUrl: "dimension-editor.component.html",
     styleUrls: ["dimension-editor.component.scss"],
-    standalone: true,
     imports: [SortOption, NgIf, DynamicComboBox, FormsModule]
 })
 export class DimensionEditor implements OnInit {

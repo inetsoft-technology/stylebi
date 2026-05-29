@@ -69,7 +69,6 @@ export interface BackupPathsSave {
     providers: [
         RepositoryTreeDataSource
     ],
-    standalone: true,
     imports: [MatCard, MatCardHeader, MatCardTitle, MatCheckbox, FormsModule, NgIf, MatCardContent, ReactiveFormsModule, MatFormField, MatInput, MatError, MatLabel, MatProgressBar, FlatTreeViewComponent, MatMiniFabButton, MatList, NgFor, MatListItem, MatIcon, AsyncPipe]
 })
 export class BackupFileComponent implements OnDestroy {

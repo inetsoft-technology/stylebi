@@ -38,7 +38,6 @@ import { NgIf } from "@angular/common";
     selector: "em-schedule-cycle-options-pane",
     templateUrl: "./schedule-cycle-options-pane.component.html",
     styleUrls: ["./schedule-cycle-options-pane.component.scss"],
-    standalone: true,
     imports: [NgIf, FormsModule, ReactiveFormsModule, MatCard, MatCardHeader, MatCardTitle, MatCheckbox, MatCardContent, EmailPickerComponent, MatFormField, MatLabel, MatInput, MatError]
 })
 export class ScheduleCycleOptionsPaneComponent implements OnInit {

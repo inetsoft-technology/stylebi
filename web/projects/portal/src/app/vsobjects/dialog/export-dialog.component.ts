@@ -36,12 +36,11 @@ const modelKey = "filePaneModel";
 @Component({
     selector: "export-dialog",
     templateUrl: "export-dialog.component.html",
-    standalone: true,
     imports: [
         ModalHeaderComponent,
         NgIf,
         FileFormatPane,
-    ],
+    ]
 })
 export class ExportDialog implements OnInit {
    @Input() model: ExportDialogModel;

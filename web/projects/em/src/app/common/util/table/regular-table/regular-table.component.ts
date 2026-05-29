@@ -28,7 +28,6 @@ import { NgIf, NgFor } from "@angular/common";
     selector: "em-regular-table",
     templateUrl: "./regular-table.component.html",
     styleUrls: ["./regular-table.component.scss"],
-    standalone: true,
     imports: [NgIf, MatTable, MatSort, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCheckbox, MatCellDef, MatCell, NgFor, MatSortHeader, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow]
 })
 export class RegularTableComponent<T extends TableModel> implements AfterViewInit {

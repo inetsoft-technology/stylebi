@@ -22,8 +22,7 @@ import { StaticImagePaneModel } from "../../data/vs/static-image-pane-model";
 @Component({
     selector: "static-image-pane",
     templateUrl: "static-image-pane.component.html",
-    standalone: true,
-    imports: [ImagePreviewPane],
+    imports: [ImagePreviewPane]
 })
 export class StaticImagePane {
    @Input() model: StaticImagePaneModel;

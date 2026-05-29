@@ -42,7 +42,6 @@ const CONFIRM_MESSAGE = {
 @Component({
     selector: "save-table-style-dialog",
     templateUrl: "save-table-style-dialog.component.html",
-    standalone: true,
     imports: [ModalHeaderComponent, NgIf, EnterSubmitDirective, FormsModule, ReactiveFormsModule, InputTrimDirective, DefaultFocusDirective, AssetTreeComponent]
 })
 export class SaveTableStyleDialog implements OnInit {

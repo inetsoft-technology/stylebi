@@ -27,7 +27,6 @@ import { NgIf, NgClass } from "@angular/common";
     selector: "axis-line-pane",
     templateUrl: "axis-line-pane.component.html",
     styleUrls: ["axis-line-pane.component.scss"],
-    standalone: true,
     imports: [FormsModule, ReactiveFormsModule, NgIf, ColorEditor, NgClass]
 })
 export class AxisLinePane implements OnInit {

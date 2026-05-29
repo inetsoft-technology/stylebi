@@ -28,7 +28,6 @@ const VPM_TEST_URI: string = "../api/data/vpm/test";
 @Component({
     selector: "vpm-test",
     templateUrl: "vpm-test.component.html",
-    standalone: true,
     imports: [FormsModule, NgIf, NgFor]
 })
 export class VPMTestComponent {

@@ -25,7 +25,6 @@ import { NgIf } from "@angular/common";
     selector: "size-position-pane",
     templateUrl: "size-position-pane.component.html",
     styleUrls: ["size-position-pane.component.scss"],
-    standalone: true,
     imports: [FormsModule, ReactiveFormsModule, NgIf]
 })
 export class SizePositionPane implements OnInit {

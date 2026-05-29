@@ -35,7 +35,6 @@ import { NgFor, NgIf } from "@angular/common";
 @Component({
     selector: "mobile-toolbar",
     templateUrl: "mobile-toolbar.component.html",
-    standalone: true,
     imports: [NgFor, NgIf, NgbDropdown, NgbDropdownToggle, NgbDropdownMenu]
 })
 export class MobileToolbarComponent

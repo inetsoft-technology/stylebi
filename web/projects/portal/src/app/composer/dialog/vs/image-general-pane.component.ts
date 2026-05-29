@@ -27,13 +27,12 @@ import { OutputGeneralPane } from "./output-general-pane.component";
 @Component({
     selector: "image-general-pane",
     templateUrl: "image-general-pane.component.html",
-    standalone: true,
     imports: [
         OutputGeneralPane,
         StaticImagePane,
         TipPane,
         SizePositionPane,
-    ],
+    ]
 })
 export class ImageGeneralPane implements OnInit {
    @Input() model: ImageGeneralPaneModel;

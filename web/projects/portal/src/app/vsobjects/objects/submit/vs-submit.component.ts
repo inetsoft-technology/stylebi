@@ -47,7 +47,6 @@ import { NgIf, NgStyle } from "@angular/common";
     selector: "vs-submit",
     templateUrl: "vs-submit.component.html",
     styleUrls: ["vs-submit.component.scss"],
-    standalone: true,
     imports: [NgIf, TooltipIfDirective, VSDataTipDirective, VSPopComponentDirective, SafeFontDirective, NgStyle]
 })
 export class VSSubmit extends NavigationComponent<VSSubmitModel> implements OnChanges {

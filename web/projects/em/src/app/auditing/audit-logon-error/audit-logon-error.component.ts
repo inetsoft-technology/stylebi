@@ -50,7 +50,6 @@ import { MatFormField, MatLabel } from "@angular/material/form-field";
     selector: "em-audit-logon-error",
     templateUrl: "./audit-logon-error.component.html",
     styleUrls: ["./audit-logon-error.component.scss"],
-    standalone: true,
     imports: [AuditTableViewComponent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatSelect, NgFor, MatOption]
 })
 export class AuditLogonErrorComponent implements OnInit, OnDestroy {

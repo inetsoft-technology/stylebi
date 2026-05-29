@@ -26,7 +26,6 @@ import { NgIf } from "@angular/common";
     templateUrl: "./large-form-field.component.html",
     styleUrls: ["./large-form-field.component.scss"],
     encapsulation: ViewEncapsulation.None,
-    standalone: true,
     imports: [NgIf, FormsModule, EnterSubmitDirective, EnterClickDirective]
 })
 export class LargeFormFieldComponent {

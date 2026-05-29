@@ -51,7 +51,6 @@ import { ConditionItemPane } from "./condition-item-pane.component";
     selector: "condition-pane",
     templateUrl: "condition-pane.component.html",
     styleUrls: ["condition-pane.component.scss"],
-    standalone: true,
     imports: [ConditionItemPane, FormsModule, NgFor, NgIf, ConditionPipe, JunctionOperatorPipe]
 })
 export class ConditionPane implements OnInit {

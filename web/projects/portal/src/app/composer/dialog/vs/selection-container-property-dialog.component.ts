@@ -33,7 +33,6 @@ import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.
 @Component({
     selector: "selection-container-property-dialog",
     templateUrl: "selection-container-property-dialog.component.html",
-    standalone: true,
     imports: [
         ModalHeaderComponent,
         NgIf,
@@ -47,7 +46,7 @@ import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.
         VSAssemblyScriptPane,
         NgbNavOutlet,
         ApplyButtonComponent,
-    ],
+    ]
 })
 export class SelectionContainerPropertyDialog extends PropertyDialog implements OnInit {
    @Input() model: SelectionContainerPropertyDialogModel;

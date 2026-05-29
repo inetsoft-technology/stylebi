@@ -40,13 +40,12 @@ import { NgFor, NgIf } from "@angular/common";
 @Component({
     selector: "aggregate-pane",
     templateUrl: "aggregate-pane.component.html",
-    standalone: true,
     imports: [
         NgFor,
         FormsModule,
         NgIf,
         DynamicComboBox,
-    ],
+    ]
 })
 export class AggregatePane {
    @Input() trapFields: ColumnRef[] = [];

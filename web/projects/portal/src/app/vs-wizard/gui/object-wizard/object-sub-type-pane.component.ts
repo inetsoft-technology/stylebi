@@ -30,7 +30,6 @@ import { NgFor, NgIf } from "@angular/common";
     selector: "object-sub-type-pane",
     templateUrl: "object-sub-type-pane.component.html",
     styleUrls: ["object-sub-type-pane.component.scss"],
-    standalone: true,
     imports: [NgFor, ObjectTypeIcon, NgIf]
 })
 export class ObjectSubTypePane implements OnInit, OnChanges {

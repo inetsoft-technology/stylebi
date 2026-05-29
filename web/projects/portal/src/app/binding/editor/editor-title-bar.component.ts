@@ -31,7 +31,6 @@ import { NgIf } from "@angular/common";
     templateUrl: "editor-title-bar.component.html",
     styleUrls: ["editor-title-bar.component.scss",
         "../../composer/gui/toolbar/composer-toolbar.component.scss"],
-    standalone: true,
     imports: [NgIf, ToolbarGroup, HelpLinkDirective]
 })
 export class EditorTitleBar {

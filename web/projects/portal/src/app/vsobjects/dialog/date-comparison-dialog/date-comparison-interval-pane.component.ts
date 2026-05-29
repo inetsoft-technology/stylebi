@@ -34,7 +34,6 @@ import { FormsModule } from "@angular/forms";
     selector: "date-comparison-interval-pane",
     templateUrl: "./date-comparison-interval-pane.component.html",
     styleUrls: ["./date-comparison-interval-pane.component.scss"],
-    standalone: true,
     imports: [FormsModule, NgIf, DynamicComboBox, DynamicValueEditorComponent]
 })
 export class DateComparisonIntervalPaneComponent implements OnInit{

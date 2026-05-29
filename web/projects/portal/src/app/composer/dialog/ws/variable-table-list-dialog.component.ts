@@ -28,7 +28,6 @@ import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.
     selector: "variable-table-list-dialog",
     templateUrl: "variable-table-list-dialog.component.html",
     styleUrls: ["variable-table-list-dialog.component.scss"],
-    standalone: true,
     imports: [ModalHeaderComponent, EnterSubmitDirective, FormsModule, ReactiveFormsModule, NgFor]
 })
 

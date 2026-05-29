@@ -49,7 +49,6 @@ import { ModalHeaderComponent } from "../../../../../common/util/modal-header/mo
     templateUrl: "./import-asset-dialog.component.html",
     styleUrls: ["./import-asset-dialog.component.scss"],
     encapsulation: ViewEncapsulation.None,
-    standalone: true,
     imports: [ModalHeaderComponent, MatDialogContent, NgIf, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, FileChooserComponent, MatIcon, MatSuffix, MatError, MatInput, MatIconButton, MatCheckbox, SelectedAssetListComponent, RequiredAssetListComponent, MatProgressBar, MatDialogActions, MatButton]
 })
 export class ImportAssetDialogComponent implements OnDestroy {

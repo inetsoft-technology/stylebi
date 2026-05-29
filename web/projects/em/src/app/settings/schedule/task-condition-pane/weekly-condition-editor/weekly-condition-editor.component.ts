@@ -38,7 +38,6 @@ import { MatCard, MatCardContent } from "@angular/material/card";
     selector: "em-weekly-condition-editor",
     templateUrl: "./weekly-condition-editor.component.html",
     styleUrls: ["./weekly-condition-editor.component.scss"],
-    standalone: true,
     imports: [MatCard, MatCardContent, FormsModule, ReactiveFormsModule, StartTimeEditorComponent, TimeZoneSelectComponent, MatFormField, MatLabel, MatInput, MatHint, MatError, MatSelect, MatOption]
 })
 export class WeeklyConditionEditorComponent implements OnInit {

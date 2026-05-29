@@ -25,13 +25,12 @@ import { ModalHeaderComponent } from "../../widget/modal-header/modal-header.com
 @Component({
     selector: "range-slider-edit-dialog",
     templateUrl: "range-slider-edit-dialog.component.html",
-    standalone: true,
     imports: [
         ModalHeaderComponent,
         FormsModule,
         ReactiveFormsModule,
         NgIf,
-    ],
+    ]
 })
 export class RangeSliderEditDialog implements OnDestroy {
    @Input() currentMin: number | Date;

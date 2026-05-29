@@ -28,8 +28,7 @@ import { FormsModule } from "@angular/forms";
 @Component({
     selector: "mv-condition-pane",
     templateUrl: "mv-condition-pane.component.html",
-    standalone: true,
-    imports: [FormsModule, ConditionList],
+    imports: [FormsModule, ConditionList]
 })
 export class MVConditionPane implements OnInit {
    @Input() subqueryTables: SubqueryTable[];

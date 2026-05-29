@@ -27,7 +27,6 @@ import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.
     selector: "viewsheet-parameters-dialog",
     templateUrl: "viewsheet-parameters-dialog.component.html",
     styleUrls: ["viewsheet-parameters-dialog.component.scss"],
-    standalone: true,
     imports: [ModalHeaderComponent, EnterSubmitDirective, ShuffleListComponent, ScrollableTableDirective, NgFor]
 })
 export class ViewsheetParametersDialog implements OnInit{

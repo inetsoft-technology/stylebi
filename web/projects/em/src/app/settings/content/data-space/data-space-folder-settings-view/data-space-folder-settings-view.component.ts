@@ -51,7 +51,6 @@ import { MatCard, MatCardTitle, MatCardContent } from "@angular/material/card";
     selector: "em-data-space-folder-settings-view",
     templateUrl: "./data-space-folder-settings-view.component.html",
     styleUrls: ["./data-space-folder-settings-view.component.scss"],
-    standalone: true,
     imports: [EditorPanelComponent, MatCard, MatCardTitle, MatCardContent, NgIf, MatFormField, MatLabel, MatInput, FormsModule, ReactiveFormsModule, MatError, MatButton]
 })
 export class DataSpaceFolderSettingsViewComponent implements OnInit, OnChanges, OnDestroy {

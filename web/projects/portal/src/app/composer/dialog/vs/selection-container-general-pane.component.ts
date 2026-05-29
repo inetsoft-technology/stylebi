@@ -26,13 +26,12 @@ import { GeneralPropPane } from "../../../vsobjects/dialog/general-prop-pane.com
 @Component({
     selector: "selection-container-general-pane",
     templateUrl: "selection-container-general-pane.component.html",
-    standalone: true,
     imports: [
         GeneralPropPane,
         TitlePropPane,
         FormsModule,
         SizePositionPane,
-    ],
+    ]
 })
 
 export class SelectionContainerGeneralPane implements OnInit {

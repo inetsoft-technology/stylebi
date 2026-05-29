@@ -44,7 +44,6 @@ import { ModalHeaderComponent } from "../../../../widget/modal-header/modal-head
     selector: "calculate-pane-dialog",
     templateUrl: "calculate-pane-dialog.component.html",
     styleUrls: ["calculate-pane-dialog.component.scss"],
-    standalone: true,
     imports: [ModalHeaderComponent, NgIf, BlockMouseDirective, FormsModule, NgFor, DynamicComboBox]
 })
 export class CalculatePaneDialog implements OnInit {

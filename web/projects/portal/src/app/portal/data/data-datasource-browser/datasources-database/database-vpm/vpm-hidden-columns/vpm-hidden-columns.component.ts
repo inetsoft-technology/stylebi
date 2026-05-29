@@ -55,7 +55,6 @@ const MAX_HIDDEN_COLUMN = 500;
     templateUrl: "vpm-hidden-columns.component.html",
     styleUrls: ["vpm-hidden-columns.component.scss"],
     encapsulation: ViewEncapsulation.None,
-    standalone: true,
     imports: [NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, FormsModule, NgIf, TreeComponent, LoadingIndicatorPaneComponent, NgFor, DataModelScriptPane, NgbNavOutlet]
 })
 export class VPMHiddenColumnsComponent implements OnInit, OnDestroy {

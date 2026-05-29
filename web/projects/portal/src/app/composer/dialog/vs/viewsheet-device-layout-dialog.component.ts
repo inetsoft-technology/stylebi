@@ -47,7 +47,6 @@ const URI_GET_DELETE_DEViCE = "../api/composer/device/delete";
     selector: "viewsheet-device-layout-dialog",
     templateUrl: "viewsheet-device-layout-dialog.component.html",
     styleUrls: ["viewsheet-device-layout-dialog.component.scss"],
-    standalone: true,
     imports: [
         ModalHeaderComponent,
         NgIf,
@@ -57,7 +56,7 @@ const URI_GET_DELETE_DEViCE = "../api/composer/device/delete";
         NgFor,
         InputTrimDirective,
         ScreenSizeDialog,
-    ],
+    ]
 })
 export class ViewsheetDeviceLayoutDialog implements OnInit {
    @Input() index: number = -1;

@@ -24,7 +24,6 @@ import { NgIf } from "@angular/common";
 @Component({
     selector: "float-editor",
     templateUrl: "float-editor.component.html",
-    standalone: true,
     imports: [FormsModule, ReactiveFormsModule, NgIf]
 })
 export class FloatEditor implements OnInit, OnDestroy {

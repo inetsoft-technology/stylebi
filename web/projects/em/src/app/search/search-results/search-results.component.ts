@@ -26,7 +26,6 @@ import { MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, Ma
     selector: "em-search-results",
     templateUrl: "./search-results.component.html",
     styleUrls: ["./search-results.component.scss"],
-    standalone: true,
     imports: [MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, RouterLink, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, MatPaginator]
 })
 export class SearchResultsComponent implements OnInit {

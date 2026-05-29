@@ -46,7 +46,6 @@ import { NgIf } from "@angular/common";
     styleUrls: ["datasource-selection-view.component.scss"],
     changeDetection: ChangeDetectionStrategy.OnPush,
     providers: [DatasourceSelectionService],
-    standalone: true,
     imports: [NgIf, DatasourceSearchComponent, DatasourceCategoryPaneComponent, DatasourceListingPaneComponent]
 })
 export class DatasourceSelectionViewComponent implements OnInit, OnDestroy, CanComponentDeactivate {

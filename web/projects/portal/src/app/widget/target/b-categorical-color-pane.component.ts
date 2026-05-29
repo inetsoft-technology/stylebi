@@ -37,7 +37,6 @@ import { NgFor, NgIf } from "@angular/common";
     selector: "b-categorical-color-pane",
     templateUrl: "b-categorical-color-pane.component.html",
     styleUrls: ["b-categorical-color-pane.component.scss"],
-    standalone: true,
     imports: [NgbDropdown, NgbDropdownToggle, NgbDropdownMenu, NgFor, NgIf, ColorEditor, GraphPaletteDialog]
 })
 export class BCategoricalColorPane implements OnInit {

@@ -91,7 +91,6 @@ const CHECK_MODEL_TRAP_REST_URI: string = "../api/composer/worksheet/check-model
     selector: "aggregate-dialog",
     templateUrl: "aggregate-dialog.component.html",
     styleUrls: ["aggregate-dialog.component.scss"],
-    standalone: true,
     imports: [ModalHeaderComponent, NgIf, EnterSubmitDirective, AggregatePane, CrosstabPane]
 })
 export class AggregateDialog implements OnInit {

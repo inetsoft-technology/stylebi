@@ -24,7 +24,6 @@ import { TableView } from "../../../common/util/table/table-view.component";
     selector: "em-query-monitoring-view",
     templateUrl: "./query-monitoring-view.component.html",
     styleUrls: ["./query-monitoring-view.component.scss"],
-    standalone: true,
     imports: [TableView]
 })
 export class QueryMonitoringViewComponent {

@@ -24,7 +24,6 @@ import { NgIf } from "@angular/common";
     selector: "static-shape-editor",
     templateUrl: "static-shape-editor.component.html",
     styleUrls: ["combined-visual-pane.scss"],
-    standalone: true,
     imports: [NgIf, ShapeComboBox]
 })
 

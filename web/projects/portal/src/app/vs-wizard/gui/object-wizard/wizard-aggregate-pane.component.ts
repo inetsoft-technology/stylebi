@@ -43,7 +43,6 @@ const UPDATE_WIZARD_BINDING_FORMAT = "/events/vswizard/object/format";
     selector: "wizard-aggregate-pane",
     templateUrl: "./wizard-aggregate-pane.component.html",
     styleUrls: ["./wizard-aggregate-pane.component.scss"],
-    standalone: true,
     imports: [NgIf, NgFor, VSWizardGroupItem, VSWizardAggregateItem, VSWizardDetailItem]
 })
 export class VSWizardAggregatePane implements OnInit {

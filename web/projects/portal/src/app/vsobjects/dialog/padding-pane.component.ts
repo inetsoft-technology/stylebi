@@ -24,12 +24,11 @@ import { NgIf } from "@angular/common";
 @Component({
     selector: "padding-pane",
     templateUrl: "padding-pane.component.html",
-    standalone: true,
     imports: [
         FormsModule,
         ReactiveFormsModule,
         NgIf,
-    ],
+    ]
 })
 export class PaddingPane implements OnInit {
    @Input() model: PaddingPaneModel;

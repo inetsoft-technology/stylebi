@@ -36,7 +36,6 @@ import { NgIf, NgFor } from "@angular/common";
     selector: "task-options-pane",
     templateUrl: "./task-options-pane.component.html",
     styleUrls: ["./task-options-pane.component.scss"],
-    standalone: true,
     imports: [FormsModule, ReactiveFormsModule, NgbInputDatepicker, NgIf, NgFor]
 })
 export class TaskOptionsPane implements OnInit {

@@ -30,7 +30,6 @@ import { ModalHeaderComponent } from "../../widget/modal-header/modal-header.com
 @Component({
     selector: "legend-format-dialog",
     templateUrl: "legend-format-dialog.component.html",
-    standalone: true,
     imports: [
         ModalHeaderComponent,
         NgIf,
@@ -44,7 +43,7 @@ import { ModalHeaderComponent } from "../../widget/modal-header/modal-header.com
         AliasPane,
         NgbNavOutlet,
         ApplyButtonComponent,
-    ],
+    ]
 })
 export class LegendFormatDialog implements OnInit {
    @Input() model: LegendFormatDialogModel;

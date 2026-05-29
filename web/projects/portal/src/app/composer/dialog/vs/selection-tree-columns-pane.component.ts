@@ -37,12 +37,11 @@ import { NgFor } from "@angular/common";
 @Component({
     selector: "selection-tree-columns-pane",
     templateUrl: "selection-tree-columns-pane.component.html",
-    standalone: true,
     imports: [
         TreeComponent,
         NgFor,
         AdditionalTableSelectionPaneComponent,
-    ],
+    ]
 })
 export class SelectionTreeColumnsPane extends TreeDataPane implements AfterViewInit {
    @Input() model: SelectionTreePaneModel;

@@ -26,7 +26,6 @@ import { TableStyleBorderRegionComponent } from "./table-style-border-region.com
     selector: "table-style-preview-pane",
     templateUrl: "table-style-preview-pane.component.html",
     styleUrls: ["table-style-preview-pane.component.scss"],
-    standalone: true,
     imports: [TableStyleBorderRegionComponent, NgFor, NgClass, SafeFontDirective]
 })
 export class TableStylePreviewPaneComponent {

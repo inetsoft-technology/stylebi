@@ -32,7 +32,6 @@ import { DynamicComboBox } from "../dynamic-combo-box/dynamic-combo-box.componen
     selector: "dynamic-value-editor",
     templateUrl: "./dynamic-value-editor.component.html",
     styleUrls: ["./dynamic-value-editor.component.scss"],
-    standalone: true,
     imports: [DynamicComboBox, NgIf, FixedDropdownDirective, DateTimePickerComponent]
 })
 export class DynamicValueEditorComponent implements OnInit, OnChanges {

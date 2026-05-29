@@ -58,7 +58,6 @@ import { MatCard, MatCardTitle, MatCardContent } from "@angular/material/card";
     selector: "em-data-space-file-settings-view",
     templateUrl: "./data-space-file-settings-view.component.html",
     styleUrls: ["./data-space-file-settings-view.component.scss"],
-    standalone: true,
     imports: [EditorPanelComponent, MatCard, MatCardTitle, MatCardContent, NgIf, MatFormField, MatLabel, MatInput, FormsModule, ReactiveFormsModule, MatError, FileChooserComponent, MatIcon, MatSuffix, TextFileContentViewComponent, MatButton]
 })
 export class DataSpaceFileSettingsViewComponent implements OnInit, OnChanges, OnDestroy {
@@ -254,7 +253,6 @@ export class DataSpaceFileSettingsViewComponent implements OnInit, OnChanges, On
 @Component({
     selector: "em-delete-dialog",
     templateUrl: "./delete-dialog.html",
-    standalone: true,
     imports: [ModalHeaderComponent, MatDialogContent, NgIf, MatDialogActions, MatButton, MatDialogClose]
 })
 export class DeleteDialog {

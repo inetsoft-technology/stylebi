@@ -35,7 +35,6 @@ import { FormsModule } from "@angular/forms";
     selector: "stat-panel",
     templateUrl: "stat-panel.component.html",
     styleUrls: ["stat-panel.component.scss"],
-    standalone: true,
     imports: [FormsModule, NgFor, NgIf, ComputationComboBox, LabelInputField, TargetLabelPane, GridLineDropdown, ColorEditor, BCategoricalColorPane, AlphaDropdown]
 })
 export class StatPanel implements OnInit {

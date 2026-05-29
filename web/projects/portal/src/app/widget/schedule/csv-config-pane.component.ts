@@ -25,7 +25,6 @@ import { NgIf, NgFor } from "@angular/common";
     selector: "csv-config-pane",
     templateUrl: "./csv-config-pane.component.html",
     styleUrls: ["./csv-config-pane.component.scss"],
-    standalone: true,
     imports: [FormsModule, NgIf, NgFor]
 })
 export class CSVConfigPane implements OnInit, OnDestroy {

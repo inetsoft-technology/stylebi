@@ -72,7 +72,6 @@ const CHECK_TRAP_URI = "../api/viewsheet/objects/checkSelectionTrap";
     selector: "vs-selection-container",
     templateUrl: "vs-selection-container.component.html",
     styleUrls: ["vs-selection-container.component.scss"],
-    standalone: true,
     imports: [NgIf, VSTitle]
 })
 export class VSSelectionContainer extends AbstractVSObject<VSSelectionContainerModel>

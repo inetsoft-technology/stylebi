@@ -22,8 +22,7 @@ import { FormsModule } from "@angular/forms";
 @Component({
     selector: "field-option",
     templateUrl: "field-option-dialog.component.html",
-    standalone: true,
-    imports: [FormsModule, DefaultFocusDirective],
+    imports: [FormsModule, DefaultFocusDirective]
 })
 
 export class FieldOption {

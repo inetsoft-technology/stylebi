@@ -33,7 +33,6 @@ import { NgIf } from "@angular/common";
     selector: "tabular-google-picker-editor",
     templateUrl: "tabular-google-picker-editor.component.html",
     styleUrls: ["tabular-google-picker-editor.component.scss"],
-    standalone: true,
     imports: [FormsModule, NgIf]
 })
 export class TabularGooglePickerEditor implements OnInit, OnChanges {

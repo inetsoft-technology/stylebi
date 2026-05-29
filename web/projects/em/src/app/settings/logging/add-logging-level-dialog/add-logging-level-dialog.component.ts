@@ -33,7 +33,6 @@ import { ModalHeaderComponent } from "../../../common/util/modal-header/modal-he
     selector: "em-add-logging-level-dialog",
     templateUrl: "./add-logging-level-dialog.component.html",
     styleUrls: ["./add-logging-level-dialog.component.scss"],
-    standalone: true,
     imports: [ModalHeaderComponent, MatDialogContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatSelect, MatOption, NgIf, MatInput, MatError, NgFor, MatDialogActions, MatButton, MatDialogClose]
 })
 export class AddLoggingLevelDialogComponent implements OnInit {

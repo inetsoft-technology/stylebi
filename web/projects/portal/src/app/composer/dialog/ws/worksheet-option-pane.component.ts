@@ -26,13 +26,12 @@ import { InputTrimDirective } from "../../../widget/directive/input-trim.directi
 @Component({
     selector: "worksheet-option-pane",
     templateUrl: "worksheet-option-pane.component.html",
-    standalone: true,
     imports: [
         FormsModule,
         ReactiveFormsModule,
         InputTrimDirective,
         NgIf,
-    ],
+    ]
 })
 export class WorksheetOptionPane implements OnInit {
    @Input() model: WorksheetOptionPaneModel;

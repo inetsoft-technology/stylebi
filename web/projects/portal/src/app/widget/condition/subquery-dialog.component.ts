@@ -27,7 +27,6 @@ import { ModalHeaderComponent } from "../modal-header/modal-header.component";
 @Component({
     selector: "subquery-dialog",
     templateUrl: "subquery-dialog.component.html",
-    standalone: true,
     imports: [ModalHeaderComponent, FormsModule, NgFor, NgIf]
 })
 export class SubqueryDialog implements OnInit {

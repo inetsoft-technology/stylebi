@@ -26,7 +26,6 @@ import { ResizedDirective } from "../../../../../../shared/resize-event/resized.
     selector: "auto-collapse-toolbar",
     templateUrl: "./auto-collapse-toolbar.component.html",
     styleUrls: ["./auto-collapse-toolbar.component.scss"],
-    standalone: true,
     imports: [ResizedDirective, NgFor, NgIf, NgClass, FixedDropdownDirective]
 })
 export class AutoCollapseToolbarComponent implements OnInit {

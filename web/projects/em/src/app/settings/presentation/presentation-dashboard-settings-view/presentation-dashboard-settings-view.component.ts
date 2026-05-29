@@ -38,7 +38,6 @@ import { MatCard, MatCardTitle, MatCardContent } from "@angular/material/card";
     selector: "em-presentation-dashboard-settings-view",
     templateUrl: "./presentation-dashboard-settings-view.component.html",
     styleUrls: ["./presentation-dashboard-settings-view.component.scss"],
-    standalone: true,
     imports: [MatCard, MatCardTitle, MatCardContent, FormsModule, ReactiveFormsModule, MatCheckbox]
 })
 export class PresentationDashboardSettingsViewComponent {

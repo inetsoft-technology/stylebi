@@ -30,7 +30,6 @@ import { ModalHeaderComponent } from "../../../../common/util/modal-header/modal
     selector: "em-add-portal-tab-dialog",
     templateUrl: "./edit-portal-tab-dialog.component.html",
     styleUrls: ["./edit-portal-tab-dialog.component.scss"],
-    standalone: true,
     imports: [ModalHeaderComponent, MatDialogContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatInput, NgIf, MatError, MatDialogActions, MatButton]
 })
 export class EditPortalTabDialogComponent implements OnInit {

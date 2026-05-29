@@ -65,7 +65,6 @@ import { NgIf, NgFor } from "@angular/common";
             useFactory: ViewerContextProviderFactory,
             deps: [[new Optional(), ComposerToken], [new Optional(), EmbedToken]]
         }],
-    standalone: true,
     imports: [NgIf, NgFor, ViewerAppComponent, PageTabComponent]
 })
 export class ViewerViewComponent implements OnInit, OnDestroy, CanComponentDeactivate, AfterViewChecked {

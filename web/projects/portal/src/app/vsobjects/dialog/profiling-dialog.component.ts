@@ -60,7 +60,6 @@ interface GroupByFieldList {
     selector: "profiling-dialog",
     templateUrl: "profiling-dialog.component.html",
     styleUrls: ["./profiling-dialog.component.scss"],
-    standalone: true,
     imports: [ModalHeaderComponent, NgIf, FormsModule, NgFor, TouchScrollDirective, NgbTooltip, OutOfZoneDirective, DefaultFocusDirective]
 })
 export class ProfilingDialog implements OnInit {

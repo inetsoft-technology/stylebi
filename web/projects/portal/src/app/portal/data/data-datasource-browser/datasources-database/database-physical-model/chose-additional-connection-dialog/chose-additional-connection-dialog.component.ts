@@ -34,7 +34,6 @@ const EXTENDED_PHYSICAL_DUPLICATE_NAME_CHECK_URI: string = "../api/data/physical
     selector: "chose-additional-connection-dialog",
     templateUrl: "./chose-additional-connection-dialog.component.html",
     styleUrls: ["./chose-additional-connection-dialog.component.scss"],
-    standalone: true,
     imports: [ModalHeaderComponent, FormsModule, DefaultFocusDirective, NgFor]
 })
 export class ChoseAdditionalConnectionDialog implements OnInit {

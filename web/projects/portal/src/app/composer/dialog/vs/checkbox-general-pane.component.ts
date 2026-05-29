@@ -27,13 +27,12 @@ import { GeneralPropPane } from "../../../vsobjects/dialog/general-prop-pane.com
 @Component({
     selector: "checkbox-general-pane",
     templateUrl: "checkbox-general-pane.component.html",
-    standalone: true,
     imports: [
         GeneralPropPane,
         TitlePropPane,
         ListValuesPane,
         SizePositionPane,
-    ],
+    ]
 })
 export class CheckboxGeneralPane implements OnInit {
    @Input() model: CheckboxGeneralPaneModel;

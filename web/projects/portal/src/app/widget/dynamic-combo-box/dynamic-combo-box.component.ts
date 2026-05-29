@@ -36,7 +36,6 @@ import { NgIf, NgClass, NgFor } from "@angular/common";
     selector: "dynamic-combo-box",
     templateUrl: "dynamic-combo-box.component.html",
     styleUrls: ["./dynamic-combo-box.component.scss"],
-    standalone: true,
     imports: [
         NgIf,
         TooltipIfDirective,
@@ -46,7 +45,7 @@ import { NgIf, NgClass, NgFor } from "@angular/common";
         BlockMouseDirective,
         NgFor,
         TreeComponent,
-    ],
+    ]
 })
 export class DynamicComboBox implements OnInit, OnChanges {
    public ComboMode = ComboMode;

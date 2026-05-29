@@ -45,7 +45,6 @@ import { ConditionEditor } from "./condition-editor.component";
     selector: "one-of-condition-editor",
     templateUrl: "one-of-condition-editor.component.html",
     styleUrls: ["one-of-condition-editor.component.scss"],
-    standalone: true,
     imports: [ConditionEditor, NgIf, NgFor, ConditionValuePipe]
 })
 export class OneOfConditionEditor implements OnInit, OnChanges {

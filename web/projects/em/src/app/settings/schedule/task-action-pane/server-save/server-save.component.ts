@@ -63,7 +63,6 @@ export interface ServerSave {
     selector: "em-server-save",
     templateUrl: "./server-save.component.html",
     styleUrls: ["./server-save.component.scss"],
-    standalone: true,
     imports: [MatCard, MatCardHeader, MatCardTitle, MatCheckbox, FormsModule, NgIf, MatCardContent, MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatFormField, MatSelect, NgFor, MatOption, MatError, ReactiveFormsModule, MatInput, MatLabel, MatIconButton, MatIcon, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, MatMiniFabButton, MatRadioGroup, MatRadioButton, EmCSVConfigPaneComponent]
 })
 export class ServerSaveComponent implements OnInit {

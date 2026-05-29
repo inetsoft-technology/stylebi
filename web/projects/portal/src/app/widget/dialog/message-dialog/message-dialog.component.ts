@@ -29,7 +29,6 @@ import { BlockMouseDirective } from "../../mouse-event/block-mouse.directive";
     selector: "message-dialog",
     templateUrl: "message-dialog.component.html",
     styleUrls: ["message-dialog.component.scss"],
-    standalone: true,
     imports: [BlockMouseDirective, NgIf, ExpandStringDirective, NgbProgressbar, NgFor]
 })
 export class MessageDialog implements AfterViewInit {

@@ -69,7 +69,6 @@ export enum ActionType {
 @Component({
     templateUrl: "./database-data-model-browser.component.html",
     styleUrls: ["./database-data-model-browser.component.scss"],
-    standalone: true,
     imports: [NgClass, DatabaseDataModelToolbarComponent, NgIf, AssetItemListViewComponent, AssetDescriptionComponent, NotificationsComponent]
 })
 export class DatabaseDataModelBrowserComponent implements OnDestroy, OnInit {

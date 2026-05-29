@@ -45,7 +45,6 @@ const HEARTBEAT_URI = "../api/data/query/heartbeat";
     styleUrls: ["query-join-edit-pane.component.scss",
         "../../../../../../../../composer/gui/ws/jsplumb/jsplumb-shared.scss"],
     providers: [JoinThumbnailService],
-    standalone: true,
     imports: [NgIf, NgFor, EditJoinTableComponent]
 })
 export class QueryJoinEditPane implements

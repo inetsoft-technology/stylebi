@@ -41,7 +41,6 @@ export interface BatchEmbeddedParametersDialogResult {
     selector: "em-batch-embedded-parameters-dialog",
     templateUrl: "./batch-embedded-parameters-dialog.component.html",
     styleUrls: ["./batch-embedded-parameters-dialog.component.scss"],
-    standalone: true,
     imports: [ModalHeaderComponent, MatDialogContent, MatCard, MatCardContent, MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatIconButton, MatIcon, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, MatCardActions, MatButton, MatDialogActions]
 })
 export class BatchEmbeddedParametersDialogComponent implements OnInit {

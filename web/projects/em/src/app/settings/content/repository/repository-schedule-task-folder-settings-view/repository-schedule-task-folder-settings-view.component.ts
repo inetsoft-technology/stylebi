@@ -33,7 +33,6 @@ import { NgIf } from "@angular/common";
 @Component({
     selector: "em-repository-schedule-task-folder-settings-view",
     templateUrl: "./repository-schedule-task-folder-settings-view.component.html",
-    standalone: true,
     imports: [NgIf, EditorPanelComponent, ResourcePermissionComponent]
 })
 export class RepositoryScheduleTaskFolderSettingsViewComponent implements OnChanges {

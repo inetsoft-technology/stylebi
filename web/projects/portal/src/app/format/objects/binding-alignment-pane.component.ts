@@ -23,8 +23,7 @@ import { NgIf } from "@angular/common";
     selector: "binding-alignment-pane",
     styleUrls: ["binding-alignment-pane.component.scss"],
     templateUrl: "binding-alignment-pane.component.html",
-    standalone: true,
-    imports: [NgIf],
+    imports: [NgIf]
 })
 export class BindingAlignmentPane {
    @Input() enableHAlign: boolean;

@@ -28,7 +28,6 @@ import { ModalHeaderComponent } from "../../modal-header/modal-header.component"
     selector: "getting-stared-dialog",
     templateUrl: "getting-started-dialog.component.html",
     styleUrls: ["getting-started-dialog.component.scss"],
-    standalone: true,
     imports: [ModalHeaderComponent, NgClass, NgbCollapse]
 })
 export class GettingStartedDialog implements AfterViewInit {

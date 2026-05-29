@@ -26,14 +26,13 @@ import { ModalHeaderComponent } from "../../widget/modal-header/modal-header.com
 @Component({
     selector: "title-format-dialog",
     templateUrl: "title-format-dialog.component.html",
-    standalone: true,
     imports: [
         ModalHeaderComponent,
         NgIf,
         EnterSubmitDirective,
         TitleFormatPane,
         ApplyButtonComponent,
-    ],
+    ]
 })
 export class TitleFormatDialog {
    @Input() model: TitleFormatDialogModel;

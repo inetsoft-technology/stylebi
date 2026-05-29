@@ -34,7 +34,6 @@ import { NgClass } from "@angular/common";
     selector: "chart-type-button",
     templateUrl: "chart-type-button.component.html",
     styleUrls: ["chart-type-button.component.scss"],
-    standalone: true,
     imports: [FixedDropdownDirective, NgClass, BlockMouseDirective, ChartStylePane]
 })
 export class ChartTypeButton {

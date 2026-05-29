@@ -31,7 +31,6 @@ enum Handle { Left, Middle, Right, None }
     selector: "range-slider",
     templateUrl: "range-slider.component.html",
     styleUrls: ["range-slider.component.scss"],
-    standalone: true,
     imports: [NgFor]
 })
 export class RangeSlider implements OnInit, OnDestroy {

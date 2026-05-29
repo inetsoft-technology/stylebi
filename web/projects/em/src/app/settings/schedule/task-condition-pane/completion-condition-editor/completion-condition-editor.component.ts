@@ -32,7 +32,6 @@ import { MatCard, MatCardContent } from "@angular/material/card";
     selector: "em-completion-condition-editor",
     templateUrl: "./completion-condition-editor.component.html",
     styleUrls: ["./completion-condition-editor.component.scss"],
-    standalone: true,
     imports: [MatCard, MatCardContent, MatFormField, FormsModule, ReactiveFormsModule, MatLabel, MatSelect, NgFor, NgIf, MatOption, MatError, MatProgressSpinner, MatSuffix]
 })
 export class CompletionConditionEditorComponent implements OnInit {

@@ -31,7 +31,6 @@ import { NgSwitch, NgSwitchCase } from "@angular/common";
     templateUrl: "concat-relation-descriptor.component.html",
     changeDetection: ChangeDetectionStrategy.OnPush,
     styleUrls: ["concat-relation-descriptor.component.scss"],
-    standalone: true,
     imports: [NgSwitch, NgSwitchCase]
 })
 export class ConcatRelationDescriptorComponent {

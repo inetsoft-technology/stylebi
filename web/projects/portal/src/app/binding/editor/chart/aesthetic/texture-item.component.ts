@@ -22,7 +22,6 @@ import { NgClass } from "@angular/common";
 @Component({
     selector: "texture-item",
     template: "<i [ngClass] = \"iconSource + ' align-middle'\"></i>",
-    standalone: true,
     imports: [NgClass]
 })
 export class TextureItem {

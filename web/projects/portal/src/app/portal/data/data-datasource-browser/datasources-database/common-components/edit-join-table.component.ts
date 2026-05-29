@@ -32,7 +32,6 @@ const MIN_LEFT_CONNECTION_GAP = 40;
     selector: "edit-join-table",
     templateUrl: "edit-join-table.component.html",
     styleUrls: ["edit-join-table.component.scss"],
-    standalone: true,
     imports: [NgFor, EditJoinTableColumnComponent]
 })
 export class EditJoinTableComponent implements AfterViewInit {
