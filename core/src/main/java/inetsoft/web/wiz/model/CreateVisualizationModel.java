@@ -70,10 +70,19 @@ public class CreateVisualizationModel {
       this.primaryBinding = primaryBinding;
    }
 
+   public boolean isKeepCondition() {
+      return keepCondition;
+   }
+
+   public void setKeepCondition(boolean keepCondition) {
+      this.keepCondition = keepCondition;
+   }
+
    private String visualizationType;
    private VisualizationConfig config;
    private String runtimeId;
    private String viewsheetIdentifier;
    private VisualizationConditionModel conditionModel;
    private transient PrimaryBinding primaryBinding;
+   private boolean keepCondition;
 }

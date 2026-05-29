@@ -185,6 +185,19 @@ public class WizVsService {
 
             targetVs.addAssembly(assembly);
             assembly.setPrimary(true);
+
+            // Sync pre-condition from the replaced assembly to the new one when the caller
+            // is performing a visualization type change (e.g. table → chart).
+            if(model.isKeepCondition() &&
+               previousPrimaryAssembly instanceof DataVSAssembly oldDataAsm &&
+               assembly instanceof DataVSAssembly newDataAsm)
+            {
+               ConditionList cond = oldDataAsm.getPreConditionList();
+
+               if(cond != null) {
+                  newDataAsm.setPreConditionList(cond.clone());
+               }
+            }
          }
 
          // Always call setViewsheet so the sandbox picks up the updated viewsheet object.
