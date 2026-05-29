@@ -1076,7 +1076,7 @@ public class XTableStyle extends TableStyle {
 
       if(this instanceof CSSTableStyle) {
          CSSParameter sheetParam = ((CSSTableStyle) this).getSheetParam();
-         vsLens = sheetParam != null && sheetParam.getCSSType().equals(CSSConstants.VIEWSHEET);
+         vsLens = sheetParam != null && CSSConstants.VIEWSHEET.equals(sheetParam.getCSSType());
       }
 
       // only get the css height if there is no base height specified
