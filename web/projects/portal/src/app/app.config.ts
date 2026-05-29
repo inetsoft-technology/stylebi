@@ -19,9 +19,11 @@ import { ApplicationConfig, ErrorHandler } from "@angular/core";
 
 class DiagnosticErrorHandler implements ErrorHandler {
    handleError(error: any): void {
-      console.error("DIAGNOSTIC ERROR:", error?.message || error);
-      if (error?.stack) { console.error("STACK:", error.stack); }
-      if (error?.originalError?.stack) { console.error("ORIGINAL STACK:", error.originalError.stack); }
+      const e = error?.originalError || error;
+      console.error("DIAGNOSTIC ERROR type=" + (e?.constructor?.name || typeof e) +
+         " name=" + (e?.name) + " code=" + (e?.code) + " msg=" + (e?.message || e));
+      if (e?.stack) { console.error("STACK:", e.stack); }
+      try { console.error("DETAIL:", JSON.stringify(e, Object.getOwnPropertyNames(e))); } catch {}
    }
 }
 import { provideRouter, withRouterConfig, UrlSerializer } from "@angular/router";
