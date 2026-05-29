@@ -15,7 +15,15 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { ApplicationConfig } from "@angular/core";
+import { ApplicationConfig, ErrorHandler } from "@angular/core";
+
+class DiagnosticErrorHandler implements ErrorHandler {
+   handleError(error: any): void {
+      console.error("DIAGNOSTIC ERROR:", error?.message || error);
+      if (error?.stack) { console.error("STACK:", error.stack); }
+      if (error?.originalError?.stack) { console.error("ORIGINAL STACK:", error.originalError.stack); }
+   }
+}
 import { provideRouter, withRouterConfig, UrlSerializer } from "@angular/router";
 import { provideHttpClient, withInterceptorsFromDi, HTTP_INTERCEPTORS } from "@angular/common/http";
 import { provideAnimations } from "@angular/platform-browser/animations";
@@ -57,6 +65,7 @@ export const appConfig: ApplicationConfig = {
       ModelService,
       DebounceService,
       DomService,
+      { provide: ErrorHandler, useClass: DiagnosticErrorHandler },
       { provide: UrlSerializer, useClass: StandardUrlSerializer },
       { provide: HTTP_INTERCEPTORS, useClass: HttpDebounceInterceptor, multi: true },
       { provide: HTTP_INTERCEPTORS, useClass: HttpParamsCodecInterceptor, multi: true },
