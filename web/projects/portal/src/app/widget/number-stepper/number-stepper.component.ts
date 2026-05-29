@@ -85,11 +85,11 @@ export class NumberStepperComponent implements ControlValueAccessor, OnDestroy {
    }
 
    get isDecrementDisabled(): boolean {
-      return this.isDisabled || (this.min !== null && this._value !== null && this._value <= this.min);
+      return this.isDisabled || (this.min != null && this._value != null && this._value <= this.min);
    }
 
    get isIncrementDisabled(): boolean {
-      return this.isDisabled || (this.max !== null && this._value !== null && this._value >= this.max);
+      return this.isDisabled || (this.max != null && this._value != null && this._value >= this.max);
    }
 
    writeValue(value: number): void {
@@ -238,6 +238,10 @@ export class NumberStepperComponent implements ControlValueAccessor, OnDestroy {
       const precision = this.getDecimalPrecision();
       const rounded = precision > 0 ? parseFloat(raw.toFixed(precision)) : Math.round(raw);
       const clamped = this.clamp(rounded);
+      if(isNaN(clamped)) {
+         return;
+      }
+
       this._value = clamped;
       this.displayValue = String(clamped);
       this.onChange(clamped);
@@ -247,11 +251,11 @@ export class NumberStepperComponent implements ControlValueAccessor, OnDestroy {
    private clamp(value: number): number {
       let result = value;
 
-      if(this.min !== null) {
+      if(this.min != null && !isNaN(this.min)) {
          result = Math.max(this.min, result);
       }
 
-      if(this.max !== null) {
+      if(this.max != null && !isNaN(this.max)) {
          result = Math.min(this.max, result);
       }
 

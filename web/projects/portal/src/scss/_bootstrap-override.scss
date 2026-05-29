@@ -254,6 +254,31 @@ fieldset.float-title {
     width: unset;
     float: none;
   }
+
+  &.float-title--centered legend {
+    margin-left: auto;
+    margin-right: auto;
+  }
+}
+
+.stepper-float-label {
+  position: relative;
+  display: inline-block;
+  margin-top: 0.7rem;
+
+  .stepper-float-label__text {
+    position: absolute;
+    top: -0.6rem;
+    left: 50%;
+    transform: translateX(-50%);
+    white-space: nowrap;
+    z-index: 1;
+    padding: 0 0.2rem;
+    background: var(--inet-dialog-bg-color, #fff);
+    font-size: 85%;
+    font-weight: bold;
+    line-height: 1.1;
+  }
 }
 
 // override bootstrap form-check layout for better alignment

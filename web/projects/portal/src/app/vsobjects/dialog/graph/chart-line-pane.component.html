@@ -108,7 +108,7 @@
       </div>
     </div>
     <div class="row shell-form-row--field">
-      <div class="col-6">
+      <div class="col-6 chart-line-pane__for-measures">
         <div class="form-floating">
           <multi-select [items]="model.measures"
                         [disabled]="noTrendlineSelected"
@@ -117,15 +117,17 @@
           <label>_#(For Measures)</label>
         </div>
       </div>
-      <div class="col-6 d-flex flex-column project_forward_id">
-        <label class="form-label">_#(Project Forward)</label>
-        <number-stepper formControlName="projectForward" [min]="0"
-                        (valueChange)="model.projectForward = $event"
-                        [invalid]="!!form.controls['projectForward']?.errors">
-        </number-stepper>
-        <span class="invalid-feedback d-block" *ngIf="form.controls['projectForward']?.errors">
-           _#(project.forward.required)
-        </span>
+      <div class="col-6 d-flex justify-content-center project_forward_id">
+        <div class="stepper-float-label">
+          <span class="stepper-float-label__text">_#(Project Forward)</span>
+          <number-stepper formControlName="projectForward" [min]="0"
+                          (valueChange)="model.projectForward = $event"
+                          [invalid]="!!form.controls['projectForward']?.errors">
+          </number-stepper>
+          <span class="invalid-feedback d-block" *ngIf="form.controls['projectForward']?.errors">
+             _#(project.forward.required)
+          </span>
+        </div>
       </div>
     </div>
     <div class="row shell-form-row--field">

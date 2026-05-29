@@ -16,7 +16,8 @@
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
 <number-stepper [formControl]="valueControl" [min]="min" [max]="max"
-               [invalid]="valueControl.invalid">
+               [invalid]="valueControl.invalid"
+               (valueChange)="onStepperChange($event)">
 </number-stepper>
 <span class="invalid-feedback d-block" *ngIf="valueControl.getError('required')">_#(enter.number)</span>
 <span class="invalid-feedback d-block" *ngIf="valueControl.getError('min')">The number must be greater than or equal to {{min}}</span>

@@ -124,8 +124,9 @@
 }
 
 :host(.has-unit) .form-control {
-   text-align: right;
+   text-align: center;
    padding-right: 24px;
+   padding-left: 24px;
 }
 
 // ── Group-level focus ring ────────────────────────────────────────────────────
@@ -200,11 +201,13 @@
 :host(.sm.has-unit) .form-control {
    width: 64px;
    padding-right: 22px;
+   padding-left: 22px;
 }
 
 :host(.lg.has-unit) .form-control {
    width: 92px;
    padding-right: 28px;
+   padding-left: 28px;
 }
 
 // ── Error state ───────────────────────────────────────────────────────────────

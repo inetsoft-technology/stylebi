@@ -47,7 +47,7 @@
     </div>
   </div>
   <div class="row shell-form-row--field">
-    <div class="col-4 pe-0">
+    <div class="col calc-group-option__stepper-row-col">
       <div class="form-floating ranking_label_id">
         <custom-select [options]="rankingOptions"
                        [(ngModel)]="topN.type"
@@ -58,13 +58,15 @@
         <label><span>_#(Ranking)</span></label>
       </div>
     </div>
-    <div class="col-2 ps-1 d-flex flex-column topn_label_id">
-      <label class="form-label">_#(N)</label>
-      <number-stepper [(ngModel)]="topN.topn" [min]="1"
-                      [disabled]="topN.type == 0 || isDisableRanking()">
-      </number-stepper>
+    <div class="col-auto topn_label_id">
+      <div class="stepper-float-label">
+        <span class="stepper-float-label__text">_#(N)</span>
+        <number-stepper [(ngModel)]="topN.topn" [min]="1"
+                        [disabled]="topN.type == 0 || isDisableRanking()">
+        </number-stepper>
+      </div>
     </div>
-    <div class="col">
+    <div class="col calc-group-option__stepper-row-col">
       <div class="form-floating of_label_id">
         <custom-select [options]="aggregateViewOptions"
                        [disabled]="topN.type == 0 || isDisableRanking()"
@@ -105,7 +107,7 @@
     </div>
   </div>
   <div class="row shell-form-row--field" *ngIf="isDateType()">
-    <div class="col-6">
+    <div class="col-6 calc-group-option__stepper-row-col">
       <div class="form-floating level_label_id">
         <dynamic-combo-box [valueOnly]="true"
                            [values]="dateLevelOpts" [value]="order.option"
@@ -116,11 +118,13 @@
       </div>
 
     </div>
-    <div class="col d-flex flex-column periods_label_id">
-      <label class="form-label">_#(Periods)</label>
-      <number-stepper [(ngModel)]="order.interval" [min]="1" [max]="getMaxForLevel()"
-                      [disabled]="isDateIntervalDisabled() || cellBinding.timeSeries">
-      </number-stepper>
+    <div class="col-auto periods_label_id">
+      <div class="stepper-float-label">
+        <span class="stepper-float-label__text">_#(Periods)</span>
+        <number-stepper [(ngModel)]="order.interval" [min]="1" [max]="getMaxForLevel()"
+                        [disabled]="isDateIntervalDisabled() || cellBinding.timeSeries">
+        </number-stepper>
+      </div>
     </div>
     <div class="col-auto">
       <div class="form-check">

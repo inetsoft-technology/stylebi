@@ -117,6 +117,7 @@ management:
   server:
     port: 8081
 server:
+  address: 0.0.0.0
   shutdown: graceful
   servlet:
     register-default-servlet: true

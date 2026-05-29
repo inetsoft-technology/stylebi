@@ -50,12 +50,14 @@
         </custom-select>
         <label for="labelPosition"><span>_#(Label Position)</span></label>
       </div>
-      <div class="col-6 mb-2 d-flex flex-column input-label-pane__gap-col">
-        <label class="form-label input-label-pane__gap-label">_#(Gap px)</label>
-        <number-stepper [(ngModel)]="model.labelGap" #gap="ngModel"
-                        [min]="0" [max]="1000" (valueChange)="onGapChange()"
-                        [invalid]="gap.invalid && gap.touched">
-        </number-stepper>
+      <div class="col-6 mb-2 d-flex justify-content-center">
+        <div class="stepper-float-label">
+          <span class="stepper-float-label__text">_#(Gap px)</span>
+          <number-stepper [(ngModel)]="model.labelGap" #gap="ngModel"
+                          [min]="0" [max]="1000" (valueChange)="onGapChange()"
+                          [invalid]="gap.invalid && gap.touched">
+          </number-stepper>
+        </div>
       </div>
         <div class="col">
           <div class="shell-alert shell-alert--danger" *ngIf="gap.invalid && gap.touched">
