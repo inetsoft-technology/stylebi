@@ -72,8 +72,8 @@ class LegendTitleAreaTest {
 
       Rectangle2D selectionBounds = ((RectangleRegion) area.getRegions()[0]).getBounds();
       assertEquals(TITLE_WIDTH - 2 * expectedLw, selectionBounds.getWidth(), "selection width");
-      assertEquals(TITLE_HEIGHT_RAW - (1 + expectedLw), selectionBounds.getHeight(),
-                   "selection height");
+      assertEquals(TITLE_HEIGHT_RAW - (Legend.TITLE_LINE_GAP + expectedLw),
+                   selectionBounds.getHeight(), "selection height");
    }
 
    private LegendTitleArea newTitleArea(int borderStyle) {

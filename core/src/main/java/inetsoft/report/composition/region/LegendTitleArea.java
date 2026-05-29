@@ -97,9 +97,11 @@ public class LegendTitleArea extends DefaultArea implements MenuArea, RollOverAr
 
    /**
     * Layout bounds: width inset by 2 * borderWidth so the element fits inside
-    * the wrapper's inner content (layoutTitle uses the full legend width).
-    * Height stays full so the SVG tile matches the container, otherwise the
-    * hover:overflow-y:auto rule would spawn a scrollbar.
+    * the wrapper's inner content (layoutTitle uses the full legend width). The
+    * inset applies to every legend type, since the border sits outside the
+    * title box for both categorical and scalar legends. Height stays full so
+    * the SVG tile matches the container, otherwise the hover:overflow-y:auto
+    * rule would spawn a scrollbar.
     */
    @Override
    public Region getRegion() {
@@ -129,7 +131,7 @@ public class LegendTitleArea extends DefaultArea implements MenuArea, RollOverAr
       return rect2d;
    }
 
-   // null-safe: 0 when the legend has no visual frame
+   // 0 if the frame is absent; the rest of this class requires a non-null frame
    private double getBorderWidth() {
       VisualFrame frame = ((Legend) vobj).getVisualFrame();
       return frame == null ? 0 : GTool.getLineWidth(frame.getLegendSpec().getBorder());

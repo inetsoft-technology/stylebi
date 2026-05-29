@@ -66,7 +66,7 @@ export class ChartLegendArea extends ChartObjectAreaBase<Legend> {
    }
 
    protected get canvasY(): number {
-      return this.chartObject?.scalar ? this.borderWidth : 0;
+      return this.canvasX;
    }
 
    onDown(event: MouseEvent): void {
