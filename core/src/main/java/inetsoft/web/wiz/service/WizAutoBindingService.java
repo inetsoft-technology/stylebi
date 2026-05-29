@@ -1192,6 +1192,21 @@ public class WizAutoBindingService {
 
       // Echo the autoBindingRuntimeId back so the client can reuse it on the next call.
       result.setAutoBindingRuntimeId(autoBindingRuntimeId);
+
+      // Populate headers/rows so the caller can generate data insight.
+      // createViewsheetSkipExecution omits row data for speed; fetch it here separately.
+      try {
+         CreateViewsheetResult dataResult = wizVsService.fetchAssemblyData(
+            result.getRuntimeId(), result.getAssemblyName(), user);
+         result.setHeaders(dataResult.getHeaders());
+         result.setRows(dataResult.getRows());
+         result.setHasData(dataResult.getHasData());
+         result.setTruncated(dataResult.getTruncated());
+      }
+      catch(Exception e) {
+         LOG.warn("changeType: failed to fetch assembly data for insight (non-critical): {}", e.getMessage());
+      }
+
       return result;
    }
 

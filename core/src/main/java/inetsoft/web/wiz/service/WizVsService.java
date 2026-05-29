@@ -525,6 +525,33 @@ public class WizVsService {
       }
    }
 
+   /**
+    * Executes the sandbox for an existing assembly and returns headers/rows/hasData.
+    * Called after {@code createViewsheetSkipExecution} to lazily populate row data
+    * (e.g. for data insight generation on a type switch).
+    */
+   public CreateViewsheetResult fetchAssemblyData(String runtimeId, String assemblyName,
+                                                   Principal user) throws Exception
+   {
+      RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, user);
+
+      if(rvs == null) {
+         return new CreateViewsheetResult();
+      }
+
+      VSAssembly assembly = rvs.getViewsheet().getAssembly(assemblyName) instanceof VSAssembly va
+         ? va : null;
+
+      if(assembly == null) {
+         return new CreateViewsheetResult();
+      }
+
+      CreateViewsheetResult result = executeAndExtract(rvs, assembly);
+      boolean metadataMode = rvs.getViewsheet().getViewsheetInfo().isMetadata();
+      result.setHasData(!metadataMode && result.getRows() != null && !result.getRows().isEmpty());
+      return result;
+   }
+
    private record SourceContext(VisualizationConfig config, AssetEntry sourceWs,
                                 String primaryAssemblyName, String title)
    {
