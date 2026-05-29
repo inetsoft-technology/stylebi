@@ -24,12 +24,14 @@
 @import 'ckeditor5/ckeditor5.css';
 
 $inet-default-icon-color: black; // overridden later
-// EM styles are served at .../em/styles-*.css and the ineticons fonts are
-// deployed under .../app/assets/ineticons/fonts, so use an absolute URL that
-// resolves at runtime. esbuild leaves absolute URLs untouched.
-$ineticons-font-path: '/app/assets/ineticons/fonts';
+// Use a path relative to style.scss's location (projects/portal/src/assets/ineticons/)
+// so esbuild resolves and copies the font files into the EM output.
+$ineticons-font-path: 'fonts';
 @import '../../portal/src/assets/ineticons/style.scss';
-$brush-cursor-path: '/app/assets/cursor/brushcursor.gif';
+// style.scss makes a plain (non-!default) assignment to $brush-cursor-path, so
+// we re-override it after the import. Use a path relative to _icons.scss so
+// esbuild can resolve and copy the file into the EM output.
+$brush-cursor-path: '../assets/cursor/brushcursor.gif';
 @import '../../portal/src/scss/icons';
 
 .ineticons {
