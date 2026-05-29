@@ -1205,6 +1205,7 @@ public class WizAutoBindingService {
       }
       catch(Exception e) {
          LOG.warn("changeType: failed to fetch assembly data for insight (non-critical): {}", e.getMessage());
+         LOG.debug("changeType: fetch assembly data stack trace", e);
       }
 
       return result;
