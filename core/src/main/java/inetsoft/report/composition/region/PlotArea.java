@@ -1066,7 +1066,9 @@ public class PlotArea extends GridContainerArea implements GraphComponentArea, R
       // get all bound fields so we can ignore fake ("value") column
       Set<String> allfields = new HashSet<>();
       Set<String> excludeFields = new HashSet<>();
-      Set<String> aesthetics = new HashSet<>();
+      // LinkedHashSet so getScatterIdentityDims' fallback iterates in stable
+      // insertion (frame) order rather than JVM hash order.
+      Set<String> aesthetics = new LinkedHashSet<>();
 
       // if no binding (created from script), add all dims/vars
       if(list.isEmpty()) {
@@ -1615,15 +1617,10 @@ public class PlotArea extends GridContainerArea implements GraphComponentArea, R
             applyCandleCardHeader(tooltip, dims[0], tipMeasures);
          }
          // Solo measure-first card: lift the X-dim to the tier-1 subtitle header so a
-         // single-series hover matches the combined-tooltip layout.
+         // single-series hover matches the combined-tooltip layout. Only dims[0] lifts.
          else if(cardMeasureFirst && dims.length > 0) {
-            int[] dimIndexes = new int[dims.length];
-
-            for(int i = 0; i < dims.length; i++) {
-               dimIndexes[i] = palette.put(dims[i]);
-            }
-
-            captureCombinedCardHeader(tooltip, dimIndexes);
+            captureCombinedCardHeader(
+               tooltip, new int[]{ palette.put(dims[0]) }, chartInfo.getTooltipStyle());
          }
       }
 
@@ -1850,7 +1847,7 @@ public class PlotArea extends GridContainerArea implements GraphComponentArea, R
          dimIndexes[i] = palette.put(dims[i]);
       }
 
-      captureCombinedCardHeader(resultTooltip, dimIndexes);
+      captureCombinedCardHeader(resultTooltip, dimIndexes, chartInfo.getTooltipStyle());
 
       List<Integer> pidxs = rowIndexMap.get(rowValue);
 
@@ -1927,7 +1924,7 @@ public class PlotArea extends GridContainerArea implements GraphComponentArea, R
          dimIndexes[i] = palette.put(dims[i]);
       }
 
-      captureCombinedCardHeader(resultTooltip, dimIndexes);
+      captureCombinedCardHeader(resultTooltip, dimIndexes, chartInfo.getTooltipStyle());
 
       ChartToolTip tempTip;
       ElementVO tempVO;
@@ -1980,11 +1977,12 @@ public class PlotArea extends GridContainerArea implements GraphComponentArea, R
 
    // For card-style combined tooltips, move the shared X-dim out of the primary
    // tooltip onto a separate header field so renderCombinedCard can use it as a
-   // tier-2 subtitle while the hovered measure stays at tier-1.
-   private void captureCombinedCardHeader(ChartToolTip primary, int[] dimIndexes) {
-      if(chartInfo.getTooltipStyle() != ChartInfo.TooltipStyle.CARD
-         || dimIndexes.length == 0)
-      {
+   // tier-2 subtitle while the hovered measure stays at tier-1. Only dimIndexes[0]
+   // is lifted; nested dims stay as regular rows.
+   static void captureCombinedCardHeader(ChartToolTip primary, int[] dimIndexes,
+                                         ChartInfo.TooltipStyle style)
+   {
+      if(style != ChartInfo.TooltipStyle.CARD || dimIndexes.length == 0) {
          return;
       }
 

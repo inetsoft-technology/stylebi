@@ -144,6 +144,36 @@ class PlotAreaCardMeasureFirstTest {
       assertEquals(Arrays.asList("State", "Region"), idDims);
    }
 
+   @Test
+   void soloCardLiftsXDimToHeader() {
+      // Solo measure-first card: the X-dim is lifted out of the value rows onto
+      // the header so it renders as the tier-1 subtitle under the measure.
+      IndexedSet<String> palette = new IndexedSet<>();
+      ChartToolTip tip = new ChartToolTip();
+      tip.addTooltip(palette.put("Sales"), palette.put("100"));
+      int xKey = palette.put("Year");
+      tip.addTooltip(xKey, palette.put("2024"));
+
+      PlotArea.captureCombinedCardHeader(tip, new int[]{ xKey }, ChartInfo.TooltipStyle.CARD);
+
+      assertEquals(xKey, tip.getHeaderKey(), "X-dim lifts to the subtitle header");
+      assertFalse(tip.containsTooltip(xKey), "lifted X-dim is removed from the value rows");
+   }
+
+   @Test
+   void soloCardHeaderLiftSkippedForDefaultStyle() {
+      // Default style is the flat tooltip, so no header lift.
+      IndexedSet<String> palette = new IndexedSet<>();
+      ChartToolTip tip = new ChartToolTip();
+      int xKey = palette.put("Year");
+      tip.addTooltip(xKey, palette.put("2024"));
+
+      PlotArea.captureCombinedCardHeader(tip, new int[]{ xKey }, ChartInfo.TooltipStyle.DEFAULT);
+
+      assertFalse(tip.hasHeader(), "non-card style must not lift a header");
+      assertTrue(tip.containsTooltip(xKey));
+   }
+
    private static ChartInfo chartInfo(ChartInfo.TooltipStyle style, int chartType) {
       ChartInfo info = mock(ChartInfo.class);
       when(info.getTooltipStyle()).thenReturn(style);

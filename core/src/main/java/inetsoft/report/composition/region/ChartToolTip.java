@@ -571,8 +571,13 @@ public class ChartToolTip implements DataSerializable {
 
    // Use the grouped solo-card layout (tier-1 headline + tier-2 group + tier-3)
    // even without a header. Gantt sets this so Start/End sit together at tier-2.
+   // Mutually exclusive with uniformTier; enabling one clears the other.
    public void setGroupedTiers(boolean groupedTiers) {
       this.groupedTiers = groupedTiers;
+
+      if(groupedTiers) {
+         this.uniformTier = false;
+      }
    }
 
    public boolean isGroupedTiers() {
@@ -581,8 +586,13 @@ public class ChartToolTip implements DataSerializable {
 
    // Render every row at the same tier with no headline. Scatter sets this when
    // no identity dim leads, so equal-weight coordinates aren't ranked.
+   // Mutually exclusive with groupedTiers; enabling one clears the other.
    public void setUniformTier(boolean uniformTier) {
       this.uniformTier = uniformTier;
+
+      if(uniformTier) {
+         this.groupedTiers = false;
+      }
    }
 
    public boolean isUniformTier() {
