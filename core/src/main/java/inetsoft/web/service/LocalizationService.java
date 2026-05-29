@@ -241,6 +241,10 @@ public class LocalizationService {
 
                if(jsEncoding) {
                   str = Tool.escapeJavascript(str);
+                  // Escape backtick and ${ which terminate/interpolate JS template literals.
+                  // Angular 19+ dev builds embed raw component templates as template literals,
+                  // so localized values injected into those files must not break the literal.
+                  str = str.replace("`", "\\`").replace("${", "\\${");
                }
 
                String escapedNewlines = escapeNewLines(str);
