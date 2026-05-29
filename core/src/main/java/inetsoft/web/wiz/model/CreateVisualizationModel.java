@@ -84,5 +84,5 @@ public class CreateVisualizationModel {
    private String viewsheetIdentifier;
    private VisualizationConditionModel conditionModel;
    private transient PrimaryBinding primaryBinding;
-   private boolean keepCondition;
+   private transient boolean keepCondition;
 }
