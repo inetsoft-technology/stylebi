@@ -982,6 +982,19 @@ public class MetadataApiService {
       }
    }
 
+   /**
+    * Returns true when the datasource uses the Postgres JDBC driver. Package-private
+    * (not private) so the partition filter unit tests can call it without standing
+    * up the full service graph.
+    */
+   static boolean isPostgresDriver(JDBCDataSource ds) {
+      if(ds == null) {
+         return false;
+      }
+      String driver = ds.getDriver();
+      return "org.postgresql.Driver".equals(driver);
+   }
+
    private final XRepository xrepository;
    private final DataSourceService dataSourceService;
    private final AssetRepository assetRepository;
