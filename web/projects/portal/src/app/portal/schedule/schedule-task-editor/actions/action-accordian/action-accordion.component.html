@@ -21,13 +21,14 @@
         <div class="card-body action-accordion-card__body">
           <label class="form-check-label card-title">_#(Bookmarks)</label>
           <div class="form-row-float-label row align-items-start">
-            <div class="col form-floating">
-                <select class="form-control" id="bookmark" *ngIf="action.actionType == 'ViewsheetAction'"
-                        [ngModelOptions]="{standalone: true}" title="_#(Bookmark Tooltip)"
-                        [(ngModel)]="selectedBookmark"
-                        [compareWith]="bookmarksEquivalent">
-                  <option *ngFor="let bookmark of bookmarks" [ngValue]="bookmark">{{ bookmark.label }}</option>
-                </select>
+            <div class="col-auto form-floating action-accordion-bookmark-select-col">
+                <custom-select id="bookmark" *ngIf="action.actionType == 'ViewsheetAction'"
+                               [options]="bookmarkSelectOptions"
+                               [ngModel]="selectedBookmark"
+                               [ngModelOptions]="{standalone: true}"
+                               (selectionChange)="selectedBookmark = $event"
+                               title="_#(Bookmark Tooltip)">
+                </custom-select>
                 <label>_#(Bookmark)</label>
             </div>
           </div>
@@ -230,17 +231,13 @@
             </div>
             <div class="form-row-float-label row">
               <div class="col-auto form-floating">
-                  <select class="form-control" id="format"
-                          [ngModelOptions]="{standalone: true}"
-                          [ngModel]="formatValue"
-                          (ngModelChange)="updateFormatValue($event)"
-                          title="_#(Format Tooltip)">
-                    <ng-container *ngFor="let format of mailFormats">
-                      <option [value]="format.type">
-                        {{format.label}}
-                      </option>
-                    </ng-container>
-                  </select>
+                  <custom-select id="format"
+                                 [options]="mailFormatSelectOptions"
+                                 [ngModel]="formatValue"
+                                 [ngModelOptions]="{standalone: true}"
+                                 (selectionChange)="updateFormatValue($event)"
+                                 title="_#(Format Tooltip)">
+                  </custom-select>
                   <label>_#(Format)</label>
               </div>
               <div class="form-check col-auto" title="_#(schedule.bundled.zip.tooltip)">
@@ -423,11 +420,14 @@
           <fieldset class="ms-4" *ngIf="action.saveToServerEnabled">
             <div class="form-row-float-label row">
               <div class="col form-floating" *ngIf="hasLocations">
-                  <select class="form-control" id="location"
-                          [ngModelOptions]="{standalone: true}" [(ngModel)]="locationPath"
-                          title="_#(Path Tooltip Schedule)" [class.is-invalid]="!locationPath">
-                    <option *ngFor="let location of locations" [value]="location.path">{{location.label}}</option>
-                  </select>
+                  <custom-select id="location"
+                                 [options]="locationSelectOptions"
+                                 [ngModel]="locationPath"
+                                 [ngModelOptions]="{standalone: true}"
+                                 (selectionChange)="locationPath = $event"
+                                 title="_#(Path Tooltip Schedule)"
+                                 [invalid]="!locationPath">
+                  </custom-select>
                   <label>_#(Location)</label>
                   <span class="invalid-feedback">_#(em.schedule.action.serverLocationRequired)</span>
               </div>
@@ -495,16 +495,13 @@
             </div>
             <div class="form-row-float-label row">
               <div class="col-10 form-floating" [class.form-row-float-label]="saveFormat === '3'">
-                  <select class="form-control" id="fileFormat"
-                          [ngModelOptions]="{standalone: true}"
-                          [(ngModel)]="saveFormat"
-                          title="_#(viewer.schedule.action.saveFormat)">
-                    <ng-container *ngFor="let format of saveFormats">
-                      <option [value]="format.type">
-                        {{ format.label }}
-                      </option>
-                    </ng-container>
-                  </select>
+                  <custom-select id="fileFormat"
+                                 [options]="saveFormatSelectOptions"
+                                 [ngModel]="saveFormat"
+                                 [ngModelOptions]="{standalone: true}"
+                                 (selectionChange)="saveFormat = $event"
+                                 title="_#(viewer.schedule.action.saveFormat)">
+                  </custom-select>
                   <label>_#(Format)</label>
               </div>
             </div>
@@ -646,7 +643,7 @@
               <tbody>
                 <tr *ngFor="let highlight of highlights">
                   <td>
-                    <input class="text-center align-middle"
+                    <input class="form-check-input text-center align-middle"
                            type="checkbox"
                            [checked]="isHighlightSelected(highlight.element, highlight.highlight)"
                            (click)="highlightSelectionChange(highlight.element, highlight.highlight)" />
@@ -657,7 +654,7 @@
                 </tr>
                 <tr class="txt-danger cross-out" *ngFor="let highlight of disabledHighlights">
                   <td>
-                    <input class="text-center align-middle"
+                    <input class="form-check-input text-center align-middle"
                            type="checkbox"
                            [checked]="isHighlightSelected(highlight.element, highlight.highlight)"
                            (click)="highlightSelectionChange(highlight.element, highlight.highlight)" />

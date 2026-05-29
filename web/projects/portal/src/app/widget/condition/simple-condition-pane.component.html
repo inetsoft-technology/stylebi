@@ -29,18 +29,18 @@
       </div>
     </div>
   </div>
-  <div class="row">
-    <div class="col-12">
-      <div class="pull-right">
-        <button type="button" class="btn btn-default" (click)="more()">_#(More)</button>
-        <button type="button" class="btn btn-default ms-1" (click)="fewer()"
-                [disabled]="this.selectedIndex == null || this.selectedIndex % 2 != 0">_#(Fewer)</button>
-      </div>
+  <div class="condition-editor-header">
+    <div class="condition-editor-header__title">
+      _#(Select an existing filter to edit)
+    </div>
+    <div class="condition-editor-header__actions">
+      <button type="button" class="btn btn-secondary" (click)="more()">_#(More)</button>
+      <button type="button" class="btn btn-default ms-1" (click)="fewer()"
+              [disabled]="this.selectedIndex == null || this.selectedIndex % 2 != 0">_#(Fewer)</button>
     </div>
   </div>
 </div>
-<fieldset>
-  <legend>_#(Edit)</legend>
+<fieldset class="condition-editor-fieldset">
   <div class="condition-item-container">
     <condition-item-pane *ngIf="condition != null" [provider]="provider" [variableNames]="variableNames"
                          [subqueryTables]="subqueryTables" [fields]="fields"

@@ -17,14 +17,14 @@
   -->
 <div class="color-picker-palette" (window:mouseup)="endDrag()">
    <div class="option-pane row">
-      <select class="form-control gradient-direction col-3" [(ngModel)]="gradientColor.direction">
-         <option [value]="'linear'">_#(Linear)</option>
-         <option [value]="'radial'">_#(Radial)</option>
-      </select>
+      <custom-select class="gradient-direction col-3"
+                     [options]="directionOptions"
+                     [(ngModel)]="gradientColor.direction">
+      </custom-select>
       <span class="form-floating col-5" *ngIf="gradientColor.direction == 'linear'">
-         <select class="form-control" [(ngModel)]="gradientColor.angle">
-            <option *ngFor="let angle of supportedAngles" [value]="angle">{{angle}}</option>
-         </select>
+         <custom-select [options]="angleOptions"
+                        [(ngModel)]="gradientColor.angle">
+         </custom-select>
          <label>_#(Angle) (_#(degrees))</label>
       </span>
       <button class="btn icon-hover-bg btn ms-auto" title="_#(Add)" (click)="addColor()">

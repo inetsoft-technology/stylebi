@@ -16,18 +16,30 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 .condition-field-combo {
+  --condition-field-main-width: 100%;
+  position: relative;
   display: inline-flex;
-  align-items: flex-start;
+  align-items: center;
+  gap: 0.375rem;
   width: 100%;
+  min-width: 0;
 
   .condition-field-combo-toggle {
-    padding-right: 3px;
-    padding-left: 3px;
-    width: 160px;
+    position: relative;
+    padding-right: 2rem;
+    padding-left: 0.75rem;
+    width: auto;
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: var(--condition-row-control-height, 2.375rem);
+    height: var(--condition-row-control-height, 2.375rem);
     border-radius: 0.25rem;
     flex-grow: 1;
     display: flex;
     align-items: center;
+    justify-content: space-between;
+    min-width: 0;
+    background-image: none;
 
     span {
       flex-grow: 1;
@@ -36,12 +48,21 @@
 }
 
 .condition-field-combo-text {
-  width: 85%;
-  display: inline-flex;
+  min-width: 0;
+  width: 100%;
+  display: block;
   overflow: hidden;
-  text-overflow: clip;
+  text-overflow: ellipsis;
   white-space: nowrap;
   cursor: default;
+}
+
+.condition-field-combo-icon {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
 }
 
 .condition-field-combo-dropdown {
@@ -56,16 +77,45 @@
 }
 
 .search-button, .search-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   align-self: center;
-  padding-left: 2px;
+  width: 1.5rem;
+  min-width: 1.5rem;
+  height: var(--condition-row-control-height, 2.375rem);
+  padding: 0;
+  line-height: 1;
+
+  &::before {
+    display: block;
+    line-height: 1;
+  }
 }
 
 .switch-button {
-  padding-left: 0px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--condition-row-icon-size, 2rem);
+  min-width: var(--condition-row-icon-size, 2rem);
+  height: var(--condition-row-control-height, 2.375rem);
+  padding: 0;
+  line-height: 1;
+  vertical-align: middle;
+
+  &::before {
+    display: block;
+    line-height: 1;
+  }
 }
 
 .search-field {
   position: absolute;
+  left: 0;
+  right: calc(var(--condition-row-icon-size, 2rem) + 1.5rem + 0.75rem);
   padding: 0.375rem 0.75rem;
-  width: 160px;
+  width: auto;
+  min-height: var(--condition-row-control-height, 2.375rem);
+  height: var(--condition-row-control-height, 2.375rem);
 }

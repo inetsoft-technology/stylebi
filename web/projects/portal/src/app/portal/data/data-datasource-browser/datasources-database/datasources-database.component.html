@@ -89,16 +89,13 @@
           </div>
 
           <div class="form-group form-floating">
-            <select name="serverType" #databaseTypeCtrl="ngModel"
-                    [class.is-invalid]="databaseTypeCtrl.invalid"
-                    class="form-control"
-                    [(ngModel)]="database.type"
-                    (ngModelChange)="typeChanged($event, supportToggleCredential, useCredentialId)"
-                    required>
-              <option *ngFor="let option of databaseOptions" [value]="option.value">
-                {{option.label}}
-              </option>
-            </select>
+            <custom-select name="serverType" #databaseTypeCtrl="ngModel"
+                           [invalid]="databaseTypeCtrl.invalid"
+                           [options]="databaseTypeSelectOptions"
+                           [(ngModel)]="database.type"
+                           (selectionChange)="typeChanged($event, supportToggleCredential, useCredentialId)"
+                           required>
+            </custom-select>
             <label><span>_#(data.databases.databaseType)</span></label>
             <span class="invalid-feedback" *ngIf="databaseTypeCtrl.invalid">
               _#(data.databases.selectDatabaseType)
@@ -241,17 +238,12 @@
           <ng-container *ngIf="database.type === DatasourceDatabaseType.ODBC">
             <fieldset [hidden]="!driverAvailable">
               <div class="form-group form-floating">
-                <select name="odbcDataSourceName" #odbcDataSourceNameCtrl="ngModel"
-                        [class.is-invalid]="odbcDataSourceNameCtrl.invalid"
-                        class="form-control"
-                        [(ngModel)]="odbcInfo.dataSourceName"
-                        required>
-                  <ng-container *ngIf="!!driverAvailability && !!driverAvailability.odbcDataSources">
-                    <option *ngFor="let dataSource of driverAvailability.odbcDataSources">
-                      {{dataSource}}
-                    </option>
-                  </ng-container>
-                </select>
+                <custom-select name="odbcDataSourceName" #odbcDataSourceNameCtrl="ngModel"
+                               [invalid]="odbcDataSourceNameCtrl.invalid"
+                               [options]="odbcDataSourceSelectOptions"
+                               [(ngModel)]="odbcInfo.dataSourceName"
+                               required>
+                </custom-select>
                 <label><span>_#(Data Source)</span></label>
                 <span class="invalid-feedback" *ngIf="odbcDataSourceNameCtrl.invalid">_#(data.databases.selectDataSource)</span>
               </div>
@@ -393,24 +385,20 @@
             </label>
           </div>
           <div class="form-group form-floating" *ngIf="additionalVisible">
-            <select name="isolation"
-                    class="form-control"
-                    [(ngModel)]="database.transactionIsolation">
-              <option *ngFor="let opt of isolation" [value]="opt.value">
-                {{opt.label}}
-              </option>
-            </select>
+            <custom-select name="isolation"
+                           [options]="isolationSelectOptions"
+                           [(ngModel)]="database.transactionIsolation">
+            </custom-select>
             <label><span>_#(Transaction Isolation)</span></label>
           </div>
           <div class="form-group form-floating" *ngIf="additionalVisible">
-            <select name="tableOption"
-                    class="form-control"
-                    [(ngModel)]="database.tableNameOption"
-                    required>
-              <option *ngFor="let option of tableOptions" [value]="option.value">
-                {{option.label}}
-              </option>
-            </select>
+            <custom-select name="tableOption"
+                           #tableOptionCtrl="ngModel"
+                           [invalid]="tableOptionCtrl.invalid"
+                           [options]="tableNameSelectOptions"
+                           [(ngModel)]="database.tableNameOption"
+                           required>
+            </custom-select>
             <label><span>_#(Table Name)</span></label>
           </div>
           <ng-container *ngIf="additionalVisible && enterprise">

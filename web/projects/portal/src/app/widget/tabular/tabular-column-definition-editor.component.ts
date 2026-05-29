@@ -17,6 +17,7 @@
  */
 import { Component, EventEmitter, Input, OnInit, Output, Renderer2 } from "@angular/core";
 import { ColumnDefinition } from "../../common/data/tabular/column-definition";
+import { CustomSelectOption } from "../custom-select/custom-select.component";
 
 @Component({
    selector: "tabular-column-definition-editor",
@@ -42,6 +43,20 @@ export class TabularColumnDefinitionEditor {
    private pageXOrigin: number;
    private windowListeners: (() => void)[] = [];
    _value: ColumnDefinition[];
+   readonly typeSelectOptions: CustomSelectOption<string>[] = [
+      { label: "_#(String)", value: "STRING" },
+      { label: "_#(Character)", value: "CHAR" },
+      { label: "_#(Integer)", value: "INTEGER" },
+      { label: "_#(Byte)", value: "BYTE" },
+      { label: "_#(Short)", value: "SHORT" },
+      { label: "_#(Long)", value: "LONG" },
+      { label: "_#(Float)", value: "FLOAT" },
+      { label: "_#(Double)", value: "DOUBLE" },
+      { label: "_#(Boolean)", value: "BOOLEAN" },
+      { label: "_#(Date)", value: "DATE" },
+      { label: "_#(Time)", value: "TIME" },
+      { label: "_#(Time Instant)", value: "TIME_INSTANT" }
+   ];
 
    @Input() set value(value: ColumnDefinition[]) {
       this._value = value;

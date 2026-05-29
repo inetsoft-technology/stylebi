@@ -22,6 +22,7 @@ import { NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { ComboBox } from "../../../format/objects/combo-box.component";
 import { EnterSubmitDirective } from "../../../widget/directive/enter-submit.directive";
 import { ColumnTypeDialog } from "./column-type-dialog.component";
+import { CustomSelectModule } from "../../../widget/custom-select/custom-select.module";
 import { ColumnInfo } from "../../data/ws/column-info";
 
 describe("Column Type Dialog Unit Test", () => {
@@ -60,7 +61,7 @@ describe("Column Type Dialog Unit Test", () => {
    beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule
+            FormsModule, ReactiveFormsModule, NgbModule, CustomSelectModule
          ],
          declarations: [
             ColumnTypeDialog, EnterSubmitDirective, ComboBox
@@ -77,29 +78,16 @@ describe("Column Type Dialog Unit Test", () => {
 
    //Bug #9171 presets should differentiate Date Time and TimeInstant
    it("presets should differentiate Date Time and TimeInstant", () => {
-      let type = fixture.nativeElement.querySelector("select#dataType");
-      type.value = "date";
-      type.dispatchEvent(new Event("change"));
+      columnTypeDialog.form.get("dataType").setValue("date");
       fixture.detectChanges();
+      expect(columnTypeDialog.formatLabels().length).toBe(12);
 
-      let formatSpec = fixture.nativeElement.querySelectorAll(
-         "combo-box#formatSpec select option");
-      expect(formatSpec.length).toBe(12);
-
-      type.value = "time";
-      type.dispatchEvent(new Event("change"));
+      columnTypeDialog.form.get("dataType").setValue("time");
       fixture.detectChanges();
+      expect(columnTypeDialog.formatLabels().length).toBe(4);
 
-      formatSpec = fixture.nativeElement.querySelectorAll(
-         "combo-box#formatSpec select option");
-      expect(formatSpec.length).toBe(4);
-
-      type.value = "timeInstant";
-      type.dispatchEvent(new Event("change"));
+      columnTypeDialog.form.get("dataType").setValue("timeInstant");
       fixture.detectChanges();
-
-      formatSpec = fixture.nativeElement.querySelectorAll(
-         "combo-box#formatSpec select option");
-      expect(formatSpec.length).toBe(3);
+      expect(columnTypeDialog.formatLabels().length).toBe(3);
    });
 });

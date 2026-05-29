@@ -17,6 +17,7 @@
  */
 import { Component, Input, Output, EventEmitter } from "@angular/core";
 import { StyleConstants } from "../../common/util/style-constants";
+import { CustomSelectOption } from "../../widget/custom-select/custom-select.component";
 
 
 @Component({
@@ -32,20 +33,21 @@ export class AlignmentCombo {
       this.alignmentChanged.emit(this.alignment);
    }
 
-   get alignOptions(): { label: string; data: number; }[] {
+   get alignOptions(): CustomSelectOption<number>[] {
       if(this.horizontal) {
          return [
-            {label: "_#(js:Auto)", data: 0},
-            {label: "_#(js:Left)", data: StyleConstants.H_LEFT},
-            {label: "_#(js:Center)", data: StyleConstants.H_CENTER},
-            {label: "_#(js:Right)", data: StyleConstants.H_RIGHT},
+            {label: "_#(js:Auto)", value: 0},
+            {label: "_#(js:Left)", value: StyleConstants.H_LEFT},
+            {label: "_#(js:Center)", value: StyleConstants.H_CENTER},
+            {label: "_#(js:Right)", value: StyleConstants.H_RIGHT},
          ];
-      }else {
+      }
+      else {
          return [
-            {label: "_#(js:Auto)", data: 0},
-            {label: "_#(js:Top)", data: StyleConstants.V_TOP},
-            {label: "_#(js:Middle)", data: StyleConstants.V_CENTER},
-            {label: "_#(js:Bottom)", data: StyleConstants.V_BOTTOM},
+            {label: "_#(js:Auto)", value: 0},
+            {label: "_#(js:Top)", value: StyleConstants.V_TOP},
+            {label: "_#(js:Middle)", value: StyleConstants.V_CENTER},
+            {label: "_#(js:Bottom)", value: StyleConstants.V_BOTTOM},
          ];
       }
    }

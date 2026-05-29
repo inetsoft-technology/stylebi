@@ -47,6 +47,7 @@ import { UntypedFormControl, UntypedFormGroup, Validators } from "@angular/forms
 import { FormValidators } from "../../../../../shared/util/form-validators";
 import { EmailDialogData } from "../email-dialog/email-addr-dialog.component";
 import { ViewsheetActionModel } from "../../vsobjects/model/schedule/viewsheet-action-model";
+import { CustomSelectOption } from "../custom-select/custom-select.component";
 
 const HISTORY_LIMIT: number = 100;
 const CHECK_EMAIL_VALID_URI: string = "../api/vs/check-email-valid";
@@ -54,6 +55,7 @@ const CHECK_EMAIL_VALID_URI: string = "../api/vs/check-email-valid";
 @Component({
    selector: "simple-schedule-dialog",
    templateUrl: "simple-schedule-dialog.component.html",
+   styleUrls: ["simple-schedule-dialog.component.scss"],
 })
 export class SimpleScheduleDialog implements OnInit, OnDestroy {
    @Input() model: SimpleScheduleDialogModel;
@@ -99,6 +101,52 @@ export class SimpleScheduleDialog implements OnInit, OnDestroy {
    constructor(private http: HttpClient, private modalService: NgbModal,
                private timeZoneService: TimeZoneService)
    {
+   }
+
+   get formatSelectOptions(): CustomSelectOption<any>[] {
+      if(this.model?.formatTypes?.length > 0) {
+         return this.model.formatTypes.map((format) => ({
+            value: format.value,
+            label: format.key
+         }));
+      }
+
+      return [
+         {value: FileFormatType.EXPORT_TYPE_EXCEL, label: "_#(js:Excel)", disabled: !this.excelVisible},
+         {value: FileFormatType.EXPORT_TYPE_POWERPOINT, label: "_#(js:PowerPoint)", disabled: !this.powerpointVisible},
+         {value: FileFormatType.EXPORT_TYPE_PDF, label: "_#(js:PDF)", disabled: !this.pdfVisible},
+         {value: FileFormatType.EXPORT_TYPE_HTML, label: "_#(js:HTML)", disabled: !this.htmlVisible},
+         {value: FileFormatType.EXPORT_TYPE_PNG, label: "_#(js:Embedded PNG)", disabled: !this.pngVisible},
+         {value: FileFormatType.EXPORT_TYPE_CSV, label: "_#(js:CSV)", disabled: !this.csvVisible},
+      ].filter((format) => !format.disabled);
+   }
+
+   get timeZoneSelectOptions(): CustomSelectOption<string>[] {
+      return (this.model?.timeZoneOptions || []).map((tz) => ({
+         value: tz.timeZoneId,
+         label: `${tz.hourOffset} ${tz.label}`
+      }));
+   }
+
+   get dayOfMonthSelectOptions(): CustomSelectOption<number>[] {
+      return this.daysOfMonth.map((day, index) => ({
+         value: this.daysOfMonthNum[index],
+         label: day
+      }));
+   }
+
+   get weekOfMonthSelectOptions(): CustomSelectOption<number>[] {
+      return this.weeksOfMonth.map((week, index) => ({
+         value: index + 1,
+         label: week
+      }));
+   }
+
+   get dayOfWeekSelectOptions(): CustomSelectOption<number>[] {
+      return this.daysOfWeek.map((day, index) => ({
+         value: index + 1,
+         label: day
+      }));
    }
 
    ngOnInit(): void {
@@ -225,13 +273,13 @@ export class SimpleScheduleDialog implements OnInit, OnDestroy {
                FormValidators.emailList(",;", true, false, this.getEmailUsers())
             ]),
             "startTime": new UntypedFormControl(this.startTimeData),
-            "timeZone": new UntypedFormControl({value: ""})
+            "timeZone": new UntypedFormControl("")
          });
       }
       else {
          this.form = new UntypedFormGroup({
             "startTime": new UntypedFormControl(this.startTimeData),
-            "timeZone": new UntypedFormControl({value: ""})
+            "timeZone": new UntypedFormControl("")
          });
       }
 

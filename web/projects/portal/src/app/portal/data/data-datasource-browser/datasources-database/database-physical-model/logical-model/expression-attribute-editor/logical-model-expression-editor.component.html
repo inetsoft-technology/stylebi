@@ -35,13 +35,13 @@
       </logical-model-attribute-editor>
       <div class="logical-model-expression-editor__checkbox-row">
         <label class="logical-model-expression-editor__checkbox-label">
-          <input type="checkbox" [(ngModel)]="attribute.aggregate" [disabled]="!editable"/>
+          <input type="checkbox" class="form-check-input" [(ngModel)]="attribute.aggregate" [disabled]="!editable"/>
           <span>_#(Aggregate Formula)</span>
         </label>
       </div>
       <div class="logical-model-expression-editor__checkbox-row">
         <label class="logical-model-expression-editor__checkbox-label">
-          <input type="checkbox" [(ngModel)]="attribute.parseable" [disabled]="!editable"/>
+          <input type="checkbox" class="form-check-input" [(ngModel)]="attribute.parseable" [disabled]="!editable"/>
           <span>_#(Parseable)</span>
         </label>
       </div>

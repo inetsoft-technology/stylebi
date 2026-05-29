@@ -32,6 +32,7 @@ import { SelectionListDialogModel } from "../model/selection-list-dialog-model";
 import { HttpClient, HttpParams } from "@angular/common/http";
 import { ComboboxGeneralPaneModel } from "../../composer/data/vs/combobox-general-pane-model";
 import { ComboBoxDefaultValueListModel } from "../model/combo-box-queryList-model";
+import { CustomSelectOption } from "../../widget/custom-select/custom-select.component";
 
 @Component({
    selector: "combo-box-editor",
@@ -57,6 +58,21 @@ export class ComboBoxEditor implements OnInit, OnChanges {
    readonly DATETIME_PATTERN = /^([0-9]{4})-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])(\s+)([01]?[0-9]|2[0-3]):[0-5]?[0-9]:[0-5]?[0-9]$/;
    readonly TIME_PATTERN = /^([01]?[0-9]|2[0-3]):[0-5]?[0-9]:[0-5]?[0-9]$/;
    valueList: ComboBoxDefaultValueListModel[];
+
+   get dataTypeOptions(): CustomSelectOption<string>[] {
+      return this.dataTypeList.map((dataType) => ({
+         label: dataType.label,
+         value: dataType.data
+      }));
+   }
+
+   get defaultValueOptions(): CustomSelectOption<string>[] {
+      return (this.valueList ?? []).map((entry) => ({
+         label: entry.formatValue,
+         value: entry.value
+      }));
+   }
+
    get datePrompt(): string {
       if(this.model.dataType != XSchema.TIME) {
          return this.isDate ? "yyyy-mm-dd" : "yyyy-MM-dd HH:mm:ss";

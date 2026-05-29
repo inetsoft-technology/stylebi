@@ -21,13 +21,12 @@
     <div class="title-bar">_#(Column Header)</div>
     <div class="row pb-1">
       <div class="col-5">
-        <select id="headerColumnRef" class="form-control"
-                [ngModel]="getIndexOfRef(refList, columnHeader)"
-                (ngModelChange)="resetGroupHeader(columnHeader, $event)">
-          <option *ngFor="let _ref of refList; let _i = index" [value]="_i"
-                  [attr.title]="getTooltip(_ref)"
-                  [class.grayed-out-field]="trapField(_ref)">{{_ref.view}}</option>
-        </select>
+        <custom-select id="headerColumnRef"
+                       [ngModel]="getIndexOfRef(refList, columnHeader)"
+                       [ngModelOptions]="{standalone: true}"
+                       [options]="getRefOptions(refList)"
+                       (selectionChange)="resetGroupHeader(columnHeader, $event)">
+        </custom-select>
       </div>
       <div class="col-7">
         <dynamic-combo-box id="headerColumnGroup"
@@ -60,13 +59,12 @@
     <div class="title-bar">_#(Row Header)</div>
     <div *ngFor="let _header of rowHeaders; let _i = index" class="row pb-1">
       <div class="col-5">
-        <select id="headerRowRef" class="form-control"
-                [ngModel]="getIndexOfRef(refList, _header)"
-                (ngModelChange)="resetGroupHeader(_header, $event, _i)">
-          <option *ngFor="let _ref of refList; let _i = index" [value]="_i"
-                  [attr.title]="getTooltip(_ref)"
-                  [class.grayed-out-field]="trapField(_ref)">{{_ref.view}}</option>
-        </select>
+        <custom-select id="headerRowRef"
+                       [ngModel]="getIndexOfRef(refList, _header)"
+                       [ngModelOptions]="{standalone: true}"
+                       [options]="getRefOptions(refList)"
+                       (selectionChange)="resetGroupHeader(_header, $event, _i)">
+        </custom-select>
       </div>
       <div class="col-7">
         <dynamic-combo-box id="headerRowGroup"
@@ -97,33 +95,31 @@
     <div class="title-bar">_#(Measure)</div>
     <div class="row pb-1">
       <div class="col-5">
-        <select id="measureColumnRef" class="form-control"
-                [ngModel]="getIndexOfRef(refList, measure)"
-                (ngModelChange)="resetAggregateMeasure($event)">
-          <option *ngFor="let _ref of refList; let _i = index" [value]="_i"
-                  [attr.title]="getTooltip(_ref)"
-                  [class.grayed-out-field]="trapField(_ref)">{{_ref.view}}</option>
-        </select>
+        <custom-select id="measureColumnRef"
+                       [ngModel]="getIndexOfRef(refList, measure)"
+                       [ngModelOptions]="{standalone: true}"
+                       [options]="getRefOptions(refList)"
+                       (selectionChange)="resetAggregateMeasure($event)">
+        </custom-select>
       </div>
       <div class="col-7">
-        <select id="measureAggregateFormula" class="form-control"
-                [disabled]="!measure.availableAggregates"
-                [ngModel]="getAggregateIndex()" (ngModelChange)="aggregateChange($event)">
-          <option *ngFor="let _aggregate of measure.availableAggregates; let _i = index"
-                  [value]="_i">{{_aggregate.label}}</option>
-        </select>
+        <custom-select id="measureAggregateFormula"
+                       [disabled]="!measure.availableAggregates"
+                       [ngModel]="getAggregateIndex()"
+                       [ngModelOptions]="{standalone: true}"
+                       [options]="getAggregateOptions()"
+                       (selectionChange)="aggregateChange($event)">
+        </custom-select>
       </div>
     </div>
     <div class="row">
       <div class="form-floating" *ngIf="measure.aggregate?.twoColumns">
-        <select id="measureAggregateRef"
-                class="form-control"
-                [ngModel]="getIndexOfRef(aggregateRefList, measure, true)  "
-                (ngModelChange)="measure.aggregateRef = aggregateRefList[$event]; updateState()">
-          <option *ngFor="let _ref of aggregateRefList; let _i = index" [value]="_i"
-                  [attr.title]="getTooltip(_ref)"
-                  [class.grayed-out-field]="trapField(_ref)">{{_ref.name}}</option>
-        </select>
+        <custom-select id="measureAggregateRef"
+                       [ngModel]="getIndexOfRef(aggregateRefList, measure, true)"
+                       [ngModelOptions]="{standalone: true}"
+                       [options]="getRefOptions(aggregateRefList)"
+                       (selectionChange)="measure.aggregateRef = aggregateRefList[$event]; updateState()">
+        </custom-select>
         <label *ngIf="!isByFormula(measure.aggregate); else elseBlock">
           _#(With)
         </label>

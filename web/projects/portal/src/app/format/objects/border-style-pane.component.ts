@@ -36,6 +36,7 @@ export class BorderStylePane implements OnInit, OnChanges {
    label: string;
    cssClass: string;
    currentBorderStyle: string;
+   open: boolean = false;
 
    constructor() {
    }
@@ -184,5 +185,9 @@ export class BorderStylePane implements OnInit, OnChanges {
       return this.formatModel.borderTopStyle == this.formatModel.borderLeftStyle &&
          this.formatModel.borderTopStyle == this.formatModel.borderBottomStyle &&
          this.formatModel.borderTopStyle == this.formatModel.borderRightStyle;
+   }
+
+   handleOpenChange(open: boolean): void {
+      this.open = open;
    }
 }

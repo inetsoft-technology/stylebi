@@ -49,6 +49,7 @@ import {ValueEditor} from "./value-editor.component";
 import {VariableEditor} from "./variable-editor.component";
 import {ConditionDialogService} from "./condition-dialog.service";
 import {FormsModule, ReactiveFormsModule} from "@angular/forms";
+import { CustomSelectModule } from "../custom-select/custom-select.module";
 import {ModalHeaderModule} from "../modal-header/modal-header.module";
 import {FixedDropdownModule} from "../fixed-dropdown/fixed-dropdown.module";
 import {TreeModule} from "../tree/tree.module";
@@ -62,6 +63,7 @@ import {
    imports: [
       CommonModule,
       FormsModule,
+      CustomSelectModule,
       ModalHeaderModule,
       FixedDropdownModule,
       TreeModule,

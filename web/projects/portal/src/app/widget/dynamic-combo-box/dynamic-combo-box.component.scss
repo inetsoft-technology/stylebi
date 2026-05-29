@@ -41,6 +41,11 @@ button.form-control {
 }
 
 .dynamic-combo-box-body {
+  display: flex;
+  align-items: stretch;
+  gap: 0.375rem;
+  min-width: 0;
+
   span.values-caret {
     flex-grow: 0;
     opacity: unset;
@@ -66,6 +71,7 @@ button.form-control {
   .type-toggle {
     padding: 0 3px;
     padding-top: 0.1em;
+    flex: 0 0 auto;
   }
 
   .no-select-input-text {
@@ -74,6 +80,28 @@ button.form-control {
 
   .form-control[readonly] {
     opacity: unset;
+  }
+}
+
+.dynamic-combo-box__trigger {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  padding-right: 2rem;
+  background-image: none;
+  border-top-right-radius: 0.25rem;
+  border-bottom-right-radius: 0.25rem;
+
+  &.is-open,
+  &:focus,
+  &:focus-visible,
+  &:focus-within {
+    border-color: var(--inet-primary-color);
+    box-shadow: var(--inet-focus-ring);
+    outline: var(--inet-focus-ring-outline);
+    z-index: 1;
   }
 }
 
@@ -89,22 +117,6 @@ button.form-control {
   cursor: default;
 }
 
-.span-as-dropdown {
-  background-image: none;
-
-  &::after {
-    right: 2%;
-    top: calc(50% - 0.4em);
-    position: absolute;
-    display: inline-block;
-    content: "";
-    border-bottom: 0;
-    border-right: 0.4em solid transparent;
-    border-left: 0.4em solid transparent;
-    border-top: 0.5em solid var(--inet-dropdown-toggle-color);
-  }
-}
-
 .display-style {
   min-width: 50px;
   text-align: left;
@@ -113,6 +125,20 @@ button.form-control {
   text-overflow: ellipsis;
   padding-left: 10px;
   flex-grow: 1;
+}
+
+.dynamic-combo-box__display-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dynamic-combo-box__display-icon {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
 }
 
 .dropdown-item-label {

@@ -50,7 +50,7 @@
          (click)="selectFolder(folder)">
       <div class="truncate-parent justify-content-between files-browser__row">
         <div class="truncate-text d-flex align-items-center">
-          <input type="checkbox" class="truncate-addon"
+          <input type="checkbox" class="form-check-input truncate-addon"
                  *ngIf="multiSelect && folderSelectable"
                  [checked]="isItemSelected(folder)"
                  (click)="selectFolder(folder); $event.stopPropagation()">

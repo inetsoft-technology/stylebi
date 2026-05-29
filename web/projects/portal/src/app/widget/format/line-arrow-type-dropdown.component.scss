@@ -23,6 +23,28 @@
 }
 
 button.dropdown-toggle {
+  position: relative;
   width: 100%;
-  padding-right: 2em;
+  padding-right: 2rem;
+  text-align: left;
+
+  &:focus,
+  &:focus-visible,
+  &.line-arrow-type-dropdown__trigger--open {
+    border-color: var(--inet-primary-color);
+    box-shadow: var(--inet-focus-ring);
+    outline: var(--inet-focus-ring-outline);
+  }
+}
+
+button.dropdown-toggle > div {
+  margin-right: 1.5rem;
+}
+
+.line-arrow-type-dropdown__icon {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
 }

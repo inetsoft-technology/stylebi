@@ -23,9 +23,10 @@
       <div class="form-row-float-label row">
         <div class="col-5" *ngIf="!showDetails">
           <div class="form-group form-floating">
-            <select class="form-control" [ngModelOptions]="{standalone: true}" [(ngModel)]="groupBy" placeholder="_#(Group By)">
-              <option *ngFor="let field of groupByFields" [value]="field.value">{{ field.label }}</option>
-            </select>
+            <custom-select [options]="groupBySelectOptions"
+                           [ngModelOptions]="{standalone: true}"
+                           [(ngModel)]="groupBy"
+                           placeholder="_#(Group By)"></custom-select>
             <label>_#(Group By)</label>
           </div>
         </div>

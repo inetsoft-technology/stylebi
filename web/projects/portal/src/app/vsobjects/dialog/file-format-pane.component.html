@@ -19,10 +19,10 @@
   <div class="ms-2 mt-2">
     <div class="form-row-float-label">
       <div *ngIf="types" class="form-floating">
-        <select class="form-control" [ngModel]="model.formatType"
-          (ngModelChange)="changeFormatType($event)">
-          <option [value]="type.value" *ngFor="let type of types">{{type.label}}</option>
-        </select>
+        <custom-select [options]="formatTypeSelectOptions"
+          [ngModel]="model.formatType"
+          (selectionChange)="changeFormatType($event)"
+          placeholder="_#(Format)"></custom-select>
         <label>_#(Format)</label>
       </div>
     </div>

@@ -22,7 +22,6 @@ import { NgbModal, NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { DropDownTestModule } from "../../../common/test/test-module";
 import { ColorEditor } from "../../../widget/color-picker/color-editor.component";
 import { DynamicComboBox } from "../../../widget/dynamic-combo-box/dynamic-combo-box.component";
-import { FixedDropdownDirective } from "../../../widget/fixed-dropdown/fixed-dropdown.directive";
 import { RangePaneModel } from "../../data/vs/range-pane-model";
 import { RangePaneValueModel } from "../../data/vs/range-pane-value-model";
 import { RangePane } from "./range-pane.component";
@@ -45,7 +44,7 @@ describe("Range pane Test", () => {
             FormsModule, ReactiveFormsModule, NgbModule, DropDownTestModule
          ],
          declarations: [
-            RangePane, FixedDropdownDirective, ColorEditor, DynamicComboBox
+            RangePane, ColorEditor, DynamicComboBox
          ],
          providers: [
             NgbModal
@@ -65,7 +64,7 @@ describe("Range pane Test", () => {
       fixture.detectChanges();
 
       let ranges = fixture.debugElement.nativeElement.querySelectorAll(
-         "div.dynamic-combo-box-body.w-100.input-group input");
+         "div.dynamic-combo-box-body.w-100 input");
       let range5 = ranges[0];
 
       range5.value = "aa";

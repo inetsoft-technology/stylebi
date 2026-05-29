@@ -54,6 +54,7 @@ import { EditableTableComponent } from "../editable-table/editable-table.compone
 import { ParameterTable } from "../parameter-table/parameter-table.component";
 import { ActionAccordion } from "./action-accordian/action-accordion.component";
 import { TaskActionPane } from "./task-action-pane.component";
+import { CustomSelectModule } from "../../../../widget/custom-select/custom-select.module";
 
 const createVSActionModel: () => GeneralActionModel = () => {
    return {
@@ -158,7 +159,7 @@ describe("Task Action Pane Unit Test", () => {
    beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule, HttpClientTestingModule
+            FormsModule, ReactiveFormsModule, NgbModule, HttpClientTestingModule, CustomSelectModule
          ],
          declarations: [
             TestApp, ReplaceAllPipe, TaskActionPane, ActionAccordion, GenericSelectableList,

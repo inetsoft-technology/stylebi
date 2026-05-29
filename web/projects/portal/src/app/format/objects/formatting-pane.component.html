@@ -34,22 +34,21 @@
     </button>
   </div>
   <div class="form-floating">
-    <select class="formatSelect form-control" [ngModel]="formatModel?.format"
-            (ngModelChange)="typeChange($event)"
-            placeholder="_#(Format)" data-test="format-type-dropdown">
-      <option [ngValue]="fmt.value" *ngFor="let fmt of formats">
-        {{fmt.label}}
-      </option>
-    </select>
+    <custom-select [options]="formatOptions"
+                   [ngModel]="formatModel?.format"
+                   (selectionChange)="typeChange($event)"
+                   placeholder="_#(Format)"
+                   data-test="format-type-dropdown">
+    </custom-select>
     <label><span>_#(Format Type)</span></label>
   </div>
-  <select [ngModel]="formatModel?.dateSpec"
-          (ngModelChange)="formatModel.dateSpec = $event;" data-test="custom-date-dropdown"
-          *ngIf="formatModel?.format == 'DateFormat'" class="form-control mt-1">
-    <option [value]="dfmt.value" *ngFor="let dfmt of dateFormats">
-      {{dfmt.label}}
-    </option>
-  </select>
+  <custom-select [options]="dateFormatOptions"
+                 [ngModel]="formatModel?.dateSpec"
+                 (selectionChange)="formatModel.dateSpec = $event;"
+                 data-test="custom-date-dropdown"
+                 *ngIf="formatModel?.format == 'DateFormat'"
+                 class="mt-1">
+  </custom-select>
   <div *ngIf="showFormatSpec()" class="mt-2">
     <div class="form-floating" *ngIf="formatModel?.format == 'MessageFormat' && dynamic">
       <dynamic-combo-box [editable]="true"

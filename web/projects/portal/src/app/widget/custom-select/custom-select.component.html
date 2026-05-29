@@ -1,0 +1,67 @@
+<!--
+  ~ This file is part of StyleBI.
+  ~ Copyright (C) 2024  InetSoft Technology
+  ~
+  ~ This program is free software: you can redistribute it and/or modify
+  ~ it under the terms of the GNU Affero General Public License as published by
+  ~ the Free Software Foundation, either version 3 of the License, or
+  ~ (at your option) any later version.
+  ~
+  ~ This program is distributed in the hope that it will be useful,
+  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  ~ GNU Affero General Public License for more details.
+  ~
+  ~ You should have received a copy of the GNU Affero General Public License
+  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+  -->
+<button #trigger type="button"
+        class="custom-select-trigger form-control no-caret"
+        [class.is-invalid]="triggerInvalid"
+        [fixedDropdown]="dropdownMenu"
+        [disabledSelfAction]="suppressTriggerSelfAction"
+        dropdownPlacement="bottom"
+        [autoClose]="false"
+        [closeOnOutsideClick]="true"
+        [disabled]="isDisabled"
+        [attr.disabled]="isDisabled ? '' : null"
+        [attr.id]="id"
+        [attr.data-test]="dataTest"
+        [attr.aria-expanded]="open"
+        aria-haspopup="listbox"
+        [attr.aria-controls]="listboxId"
+        [attr.aria-labelledby]="ariaLabelledby"
+        [attr.aria-label]="ariaLabel"
+        [attr.title]="selectedTitle"
+        (openChange)="handleOpenChange($event)"
+        (focus)="onTriggerFocus()"
+        (blur)="onTriggerBlur()"
+        (keydown)="onTriggerKeydown($event)">
+  <span class="custom-select-trigger__text">{{selectedLabel || placeholder}}</span>
+  <i class="custom-select-trigger__icon dropdown-caret icon-color-default"
+     [class.chevron-up-icon]="open"
+     [class.chevron-down-icon]="!open"
+     aria-hidden="true"></i>
+</button>
+
+<ng-template #dropdownMenu>
+  <div class="custom-select-menu dropdown-pane" [style.min-width.px]="dropdownMinWidth"
+       [id]="listboxId" role="listbox" [attr.aria-activedescendant]="activeOptionId"
+       (mousedown)="onMenuMouseDown($event)">
+    <button #optionButton type="button" role="option"
+            class="dropdown-item custom-select-option"
+            *ngFor="let option of options; let i = index"
+            [id]="getOptionId(i)"
+            [attr.data-option-index]="i"
+            [disabled]="option.disabled"
+            [class.selected]="isSelected(option)"
+            [class.active]="isActive(i)"
+            [ngClass]="option.cssClass"
+            [attr.aria-selected]="isSelected(option)"
+            [attr.title]="option.title || option.label"
+            (mouseenter)="setActiveIndex(i)"
+            (keydown)="onOptionKeydown($event, i)">
+      <span class="custom-select-option__label">{{option.label}}</span>
+    </button>
+  </div>
+</ng-template>

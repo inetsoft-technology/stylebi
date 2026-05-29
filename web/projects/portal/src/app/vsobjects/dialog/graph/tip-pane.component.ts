@@ -33,6 +33,7 @@ import { TipCustomizeDialogModel } from "../../../widget/dialog/tip-customize-di
 import { TipPaneModel } from "../../model/tip-pane-model";
 import { DataTipDependencyCheckResult } from "./data-tip-dependency-check-result";
 import { ComponentTool } from "../../../common/util/component-tool";
+import { CustomSelectOption } from "../../../widget/custom-select/custom-select.component";
 
 @Component({
    selector: "tip-pane",
@@ -125,9 +126,9 @@ export class TipPane implements OnDestroy {
          this.checkCycleDependencyService.checkCycleDependency(this.model.tipView)
             .subscribe((data: DataTipDependencyCheckResult) => {
                if(data.cycle){
-                  //Blur the select element to address Angular bug in
-                  // https://github.com/ng-bootstrap/ng-bootstrap/issues/1252
-                  this.elem.nativeElement.querySelector("select.form-control").blur();
+                  // Blur the active trigger before opening the error dialog to avoid
+                  // leaving the dropdown surface in a stale focused state.
+                  this.elem.nativeElement.querySelector("custom-select button.form-control")?.blur();
                   ComponentTool.showMessageDialog(this.modalService, "_#(js:Error)", data.message, {"ok": "_#(js:OK)"},
                      {backdrop: false});
                   this.model.tipView = null;
@@ -154,5 +155,15 @@ export class TipPane implements OnDestroy {
 
    changeAlphaWarning(event) {
       this.alphaInvalid = event;
+   }
+
+   get tipViewOptions(): CustomSelectOption<string>[] {
+      return [
+         { label: "_#(None)", value: null },
+         ...(this.model?.popComponents || []).map((component) => ({
+            label: component,
+            value: component
+         }))
+      ];
    }
 }

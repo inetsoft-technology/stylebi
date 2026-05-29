@@ -77,6 +77,7 @@ import { DataSourceStatus } from "../../model/data-source-status";
 import { DatasourceBrowserService } from "../datasource-browser.service";
 import { DataModelBrowserService } from "./database-data-model-browser/data-model-browser.service";
 import { DataSourceInfo } from "../../model/data-source-info";
+import { CustomSelectOption } from "../../../../widget/custom-select/custom-select.component";
 
 const CHECK_DELETE_ADDITIONAL = "../api/portal/data/databases/additional/check/";
 const DATABASES_URI: string = "../api/data/databases";
@@ -129,6 +130,34 @@ export class DatasourcesDatabaseComponent extends DataSourceSettingsPage impleme
    dataSourceConnected: boolean = null;
    dataSourceStatusMessage: string = null;
    loadingDataSourceStatus = false;
+
+   get databaseTypeSelectOptions(): CustomSelectOption<string>[] {
+      return (this.databaseOptions || []).map((option) => ({
+         value: option.value,
+         label: option.label
+      }));
+   }
+
+   get odbcDataSourceSelectOptions(): CustomSelectOption<string>[] {
+      return (this.driverAvailability?.odbcDataSources || []).map((dataSource) => ({
+         value: dataSource,
+         label: dataSource
+      }));
+   }
+
+   get isolationSelectOptions(): CustomSelectOption<number>[] {
+      return (this.isolation || []).map((option) => ({
+         value: option.value,
+         label: option.label
+      }));
+   }
+
+   get tableNameSelectOptions(): CustomSelectOption<number>[] {
+      return (this.tableOptions || []).map((option) => ({
+         value: option.value,
+         label: option.label
+      }));
+   }
 
    searchFunc: (text: Observable<string>) => Observable<any[]> = (text: Observable<string>) =>
       text.pipe(

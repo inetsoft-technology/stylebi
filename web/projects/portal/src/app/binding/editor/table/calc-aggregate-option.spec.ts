@@ -17,6 +17,7 @@
  */
 import { ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
+import { By } from "@angular/platform-browser";
 import { NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { DataRef } from "../../../common/data/data-ref";
 import { XSchema } from "../../../common/data/xschema";
@@ -25,6 +26,7 @@ import { CalcTableBindingModel } from "../../data/table/calc-table-binding-model
 import { CellBindingInfo } from "../../data/table/cell-binding-info";
 import { BindingService } from "../../services/binding.service";
 import { VSCalcTableEditorService } from "../../services/table/vs-calc-table-editor.service";
+import { CustomSelectModule } from "../../../widget/custom-select/custom-select.module";
 import { AggregateFormula } from "../../util/aggregate-formula";
 import { AssetUtil } from "../../util/asset-util";
 import { CalcAggregateOption } from "./calc-aggregate-option.component";
@@ -61,7 +63,7 @@ describe("Calc Aggregate Option Unit Test", () => {
 
    beforeEach(() => {
       TestBed.configureTestingModule({
-         imports: [FormsModule, ReactiveFormsModule, NgbModule],
+         imports: [FormsModule, ReactiveFormsModule, NgbModule, CustomSelectModule],
          declarations: [CalcAggregateOption],
          providers: [{
             provide: BindingService, useValue: bindingService
@@ -84,8 +86,8 @@ describe("Calc Aggregate Option Unit Test", () => {
       calcAggregateOpts.ngOnChanges(null);
       fixture.detectChanges();
 
-      let percentSelect: Element = element.querySelectorAll("div.popup-editor__container select")[2];
-      expect(percentSelect.getAttribute("ng-reflect-is-disabled")).toBe("false");
+      let percentSelect: Element = element.querySelectorAll("div.popup-editor__container custom-select")[2];
+      expect(percentSelect.classList.contains("is-disabled")).toBe(false);
 
       editorService.hasRowGroup.mockImplementation(() => false);
       editorService.hasColGroup.mockImplementation(() => true);
@@ -93,16 +95,16 @@ describe("Calc Aggregate Option Unit Test", () => {
       calcAggregateOpts.baseFormula = AggregateFormula.FIRST.formulaName;
       fixture.detectChanges();
 
-      percentSelect = element.querySelectorAll("div.popup-editor__container select")[2];
-      expect(percentSelect.getAttribute("ng-reflect-is-disabled")).toBe("true");
+      percentSelect = element.querySelectorAll("div.popup-editor__container custom-select")[2];
+      expect(percentSelect.classList.contains("is-disabled")).toBe(true);
 
       editorService.hasRowGroup.mockImplementation(() => false);
       editorService.hasColGroup.mockImplementation(() => false);
       editorService.getGroupNum.mockImplementation(() => 0);
       fixture.detectChanges();
 
-      percentSelect = element.querySelectorAll("div.popup-editor__container select")[2];
-      expect(percentSelect.getAttribute("ng-reflect-is-disabled")).toBe("true");
+      percentSelect = element.querySelectorAll("div.popup-editor__container custom-select")[2];
+      expect(percentSelect.classList.contains("is-disabled")).toBe(true);
    });
 
    it("Test diabled and enabled status of with combobox on aggregate option pane", () => {
@@ -110,14 +112,14 @@ describe("Calc Aggregate Option Unit Test", () => {
       calcAggregateOpts.ngOnChanges(null);
       fixture.detectChanges();
 
-      let withSelect: Element = element.querySelectorAll("div.popup-editor__container select")[1];
-      expect(withSelect.getAttribute("ng-reflect-is-disabled")).toBe("true");
+      let withSelect: Element = element.querySelectorAll("div.popup-editor__container custom-select")[1];
+      expect(withSelect.classList.contains("is-disabled")).toBe(true);
 
       calcAggregateOpts.baseFormula = AggregateFormula.FIRST.formulaName;
       fixture.detectChanges();
 
-      withSelect = element.querySelectorAll("div.popup-editor__container select")[1];
-      expect(withSelect.getAttribute("ng-reflect-is-disabled")).toBe("false");
+      withSelect = element.querySelectorAll("div.popup-editor__container custom-select")[1];
+      expect(withSelect.classList.contains("is-disabled")).toBe(false);
    });
 
    //Bug #17884, remove None in with combobox, as it is necessary to set a secondary column.
@@ -127,16 +129,16 @@ describe("Calc Aggregate Option Unit Test", () => {
       calcAggregateOpts.ngOnChanges(null);
       fixture.detectChanges();
 
-      let withSelect: Element = element.querySelectorAll("div.popup-editor__container select")[1];
-      let withOpts: any = withSelect.querySelectorAll("option");
-      let noneItem: Element = Array.prototype.slice.call(withOpts).filter(e => e.textContent == "None")[0];
-      expect(withSelect.childElementCount).toEqual(1);
+      let withSelects = fixture.debugElement.queryAll(By.css("div.popup-editor__container custom-select"));
+      let withOptions = (withSelects[1]?.componentInstance as any)?.options ?? [];
+      let noneItem = withOptions.filter((o: any) => o.label === "None")[0];
+      expect(withOptions.length).toEqual(1);
       expect(noneItem).toBeUndefined();
 
       calcAggregateOpts.secondCol = "city";
       fixture.detectChanges();
-      withSelect = element.querySelectorAll("div.popup-editor__container select")[1];
-      expect(withSelect.getAttribute("ng-reflect-model")).toEqual("city");
+      const withSelectEl = fixture.debugElement.queryAll(By.css("div.popup-editor__container custom-select"))[1];
+      expect(withSelectEl.nativeElement.getAttribute("ng-reflect-model")).toEqual("city");
    });
 
    it("Test Percent combobox load", () => {
@@ -144,26 +146,29 @@ describe("Calc Aggregate Option Unit Test", () => {
       editorService.hasColGroup.mockImplementation(() => false);
       fixture.detectChanges();
 
-      let percentSelect: Element = element.querySelectorAll("div.popup-editor__container select")[2];
-      expect(percentSelect.childElementCount).toEqual(calcAggregateOpts.rowPercent.length);
-      expect(percentSelect.lastElementChild.textContent).toEqual(calcAggregateOpts.rowPercent[calcAggregateOpts.rowPercent.length - 1].label);
+      let percentSelects = fixture.debugElement.queryAll(By.css("div.popup-editor__container custom-select"));
+      let percentOptions = (percentSelects[2]?.componentInstance as any)?.options ?? [];
+      expect(percentOptions.length).toEqual(calcAggregateOpts.rowPercent.length);
+      expect(percentOptions[percentOptions.length - 1].label).toEqual(calcAggregateOpts.rowPercent[calcAggregateOpts.rowPercent.length - 1].label);
 
       editorService.hasRowGroup.mockImplementation(() => false);
       editorService.hasColGroup.mockImplementation(() => true);
       fixture.detectChanges();
 
-      percentSelect = element.querySelectorAll("div.popup-editor__container select")[2];
-      expect(percentSelect.childElementCount).toEqual(calcAggregateOpts.colPercent.length);
-      expect(percentSelect.lastElementChild.textContent).toEqual(calcAggregateOpts.colPercent[calcAggregateOpts.colPercent.length - 1].label);
+      percentSelects = fixture.debugElement.queryAll(By.css("div.popup-editor__container custom-select"));
+      percentOptions = (percentSelects[2]?.componentInstance as any)?.options ?? [];
+      expect(percentOptions.length).toEqual(calcAggregateOpts.colPercent.length);
+      expect(percentOptions[percentOptions.length - 1].label).toEqual(calcAggregateOpts.colPercent[calcAggregateOpts.colPercent.length - 1].label);
 
       editorService.hasRowGroup.mockImplementation(() => true);
       editorService.hasColGroup.mockImplementation(() => true);
       fixture.detectChanges();
 
-      percentSelect = element.querySelectorAll("div.popup-editor__container select")[2];
-      let noneItem = Array.prototype.slice.call(percentSelect.children).filter(e => e.textContent.indexOf("None") != -1 )[0];
-      expect(percentSelect.childElementCount).toEqual(calcAggregateOpts.rowColPercent.length);
-      expect(percentSelect.lastElementChild.textContent).toEqual(calcAggregateOpts.rowColPercent[calcAggregateOpts.rowColPercent.length - 1].label);
+      percentSelects = fixture.debugElement.queryAll(By.css("div.popup-editor__container custom-select"));
+      percentOptions = (percentSelects[2]?.componentInstance as any)?.options ?? [];
+      let noneItem = percentOptions.filter((o: any) => o.label.indexOf("None") !== -1)[0];
+      expect(percentOptions.length).toEqual(calcAggregateOpts.rowColPercent.length);
+      expect(percentOptions[percentOptions.length - 1].label).toEqual(calcAggregateOpts.rowColPercent[calcAggregateOpts.rowColPercent.length - 1].label);
       expect(noneItem).toBeDefined();
    });
 
@@ -174,26 +179,29 @@ describe("Calc Aggregate Option Unit Test", () => {
       calcAggregateOpts.ngOnChanges(null);
       fixture.detectChanges();
 
-      let aggSelect: Element = element.querySelectorAll("div.popup-editor__container select")[0];
-      expect(aggSelect.childElementCount).toEqual(AssetUtil.NUMBER_FORMULAS.length + 1);
-      expect(aggSelect.lastElementChild.textContent.trim()).toEqual(AssetUtil.NUMBER_FORMULAS[AssetUtil.NUMBER_FORMULAS.length - 1].label);
+      let aggSelects = fixture.debugElement.queryAll(By.css("div.popup-editor__container custom-select"));
+      let aggOptions = (aggSelects[0]?.componentInstance as any)?.options ?? [];
+      expect(aggOptions.length).toEqual(AssetUtil.NUMBER_FORMULAS.length + 1);
+      expect(aggOptions[aggOptions.length - 1].label.trim()).toEqual(AssetUtil.NUMBER_FORMULAS[AssetUtil.NUMBER_FORMULAS.length - 1].label);
 
       calcAggregateOpts.dataRef.dataType = XSchema.DATE;
       calcAggregateOpts.ngOnChanges(null);
       fixture.detectChanges();
 
-      aggSelect = element.querySelectorAll("div.popup-editor__container select")[0];
-      expect(aggSelect.childElementCount).toEqual(AssetUtil.DATE_FORMULAS.length + 1);
-      expect(aggSelect.lastElementChild.textContent.trim()).toEqual(AssetUtil.DATE_FORMULAS[AssetUtil.DATE_FORMULAS.length - 1].label);
+      aggSelects = fixture.debugElement.queryAll(By.css("div.popup-editor__container custom-select"));
+      aggOptions = (aggSelects[0]?.componentInstance as any)?.options ?? [];
+      expect(aggOptions.length).toEqual(AssetUtil.DATE_FORMULAS.length + 1);
+      expect(aggOptions[aggOptions.length - 1].label.trim()).toEqual(AssetUtil.DATE_FORMULAS[AssetUtil.DATE_FORMULAS.length - 1].label);
 
       calcAggregateOpts.dataRef.dataType = XSchema.BOOLEAN;
       calcAggregateOpts.ngOnChanges(null);
       fixture.detectChanges();
 
-      aggSelect = element.querySelectorAll("div.popup-editor__container select")[0];
-      let noneItem = Array.prototype.slice.call(aggSelect.children).filter(e => e.textContent.indexOf("None") != -1)[0];
-      expect(aggSelect.childElementCount).toEqual(AssetUtil.BOOL_FORMULAS.length + 2);
-      expect(aggSelect.lastElementChild.textContent.trim()).toEqual(AggregateFormula.NTH_MOST_FREQUENT.label);
+      aggSelects = fixture.debugElement.queryAll(By.css("div.popup-editor__container custom-select"));
+      aggOptions = (aggSelects[0]?.componentInstance as any)?.options ?? [];
+      let noneItem = aggOptions.filter((o: any) => o.label.indexOf("None") !== -1)[0];
+      expect(aggOptions.length).toEqual(AssetUtil.BOOL_FORMULAS.length + 2);
+      expect(aggOptions[aggOptions.length - 1].label.trim()).toEqual(AggregateFormula.NTH_MOST_FREQUENT.label);
       expect(noneItem).toBeDefined();
    });
 });

@@ -27,7 +27,8 @@
             <style-dropdown [(style)]="descriptor.value" [isPresenter]="true"></style-dropdown>
           </ng-container>
           <ng-container *ngSwitchCase="'AsCheckboxPropertyEditor'">
-            <input [disabled]="isImageOptionDisable(descriptor.name)" type="checkbox" [(ngModel)]="descriptor.value">
+            <input class="form-check-input" [disabled]="isImageOptionDisable(descriptor.name)"
+                   type="checkbox" [(ngModel)]="descriptor.value">
           </ng-container>
           <ng-container *ngSwitchCase="'IntPropertyEditor'">
             <input class="form-control" type="number" [(ngModel)]="descriptor.value">

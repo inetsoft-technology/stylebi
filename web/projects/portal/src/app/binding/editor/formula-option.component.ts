@@ -32,6 +32,7 @@ import { DataRefType } from "../../common/data/data-ref-type";
 @Component({
    selector: "formula-option",
    templateUrl: "formula-option.component.html",
+   styleUrls: ["formula-option.component.scss"],
 })
 export class FormulaOption implements OnInit {
    @Input() vsId: any;

@@ -35,11 +35,12 @@
     </div>
     <div class="form-row-float-label row">
       <div class="col form-floating">
-          <select class="form-control" [disabled]="!model.enableColumnEditing"
-                  (change)="choose($event.target.value)" [(ngModel)]="model.inputControl"
-                  placeholder="_#(Input Control)">
-            <option [value]="input.value" *ngFor="let input of inputsTypes">{{input.label}}</option>
-          </select>
+          <custom-select [disabled]="!model.enableColumnEditing"
+                         (selectionChange)="choose($event)"
+                         [(ngModel)]="model.inputControl"
+                         [options]="inputsTypes"
+                         placeholder="_#(Input Control)">
+          </custom-select>
           <label>_#(Input Control)</label>
       </div>
     </div>

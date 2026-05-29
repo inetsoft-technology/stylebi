@@ -19,13 +19,12 @@
 <form ngNoForm (submit)="$event.preventDefault()" class="p-2 top-form">
   <div class="row form-row-float-label">
     <div class="col form-floating">
-        <select class="form-control" [(ngModel)]="model.measure" placeholder="_#(Field)">
-          <ng-container *ngFor="let field of availableFields">
-            <option *ngIf="!field.groupOthers" [ngValue]="field" [hidden]="!field.label">
-              {{field.label}}
-            </option>
-          </ng-container>
-        </select>
+      <custom-select [ngModel]="model.measure"
+                     [ngModelOptions]="{standalone: true}"
+                     [options]="fieldOptions"
+                     ariaLabel="_#(Field)"
+                     (selectionChange)="onMeasureChange($event)">
+      </custom-select>
         <label>_#(Field)</label>
       <div *ngIf="!model.measure || !model.measure.label" class="alert alert-danger mb-0">
         _#(field.required)</div>
@@ -66,7 +65,9 @@
   <div class="row form-row-float-label">
     <div class="col">
       <div class="form-floating">
-        <grid-line-dropdown [(lineStyle)]="model.lineStyle"></grid-line-dropdown>
+        <grid-line-dropdown [(lineStyle)]="model.lineStyle"
+                            [color]="model.lineColor?.color">
+        </grid-line-dropdown>
         <label>_#(Line Style)</label>
       </div>
     </div>

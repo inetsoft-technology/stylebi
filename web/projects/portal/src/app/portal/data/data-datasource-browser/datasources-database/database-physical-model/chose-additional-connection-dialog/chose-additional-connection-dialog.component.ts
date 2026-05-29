@@ -20,6 +20,7 @@ import { HttpClient, HttpParams } from "@angular/common/http";
 import { Observable } from "rxjs";
 import { ComponentTool } from "../../../../../../common/util/component-tool";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
+import { CustomSelectOption } from "../../../../../../widget/custom-select/custom-select.component";
 
 const DEFAULT_CONNECTION: string = "(Default Connection)";
 const GET_DATABASE_ADDITIONAL_CONNECTIONS_URI: string = "../api/portal/data/database/additionConnections";
@@ -52,6 +53,13 @@ export class ChoseAdditionalConnectionDialog implements OnInit {
        .subscribe((connections) => {
          this.connections.push(...connections);
        });
+  }
+
+  get connectionSelectOptions(): CustomSelectOption<string>[] {
+    return (this.connections || []).map((connection) => ({
+      value: connection,
+      label: connection
+    }));
   }
 
   /**

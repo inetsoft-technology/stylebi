@@ -16,6 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, Input, Output, EventEmitter } from "@angular/core";
+import { CustomSelectOption } from "../custom-select/custom-select.component";
 
 @Component({
    selector: "boolean-value-editor",
@@ -25,4 +26,11 @@ import { Component, Input, Output, EventEmitter } from "@angular/core";
 export class BooleanValueEditor {
    @Input() value: boolean = false;
    @Output() valueChange: EventEmitter<boolean> = new EventEmitter<boolean>();
+
+   get booleanSelectOptions(): CustomSelectOption<string>[] {
+      return [
+         { value: "false", label: "_#(False)" },
+         { value: "true", label: "_#(True)" }
+      ];
+   }
 }

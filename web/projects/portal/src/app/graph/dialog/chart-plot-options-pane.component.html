@@ -223,14 +223,12 @@
             </div>
          </div>
          <div class="col-auto form-floating" *ngIf="model.treeLayoutVisible">
-            <select class="form-control tree-layout" id="treeLayout"
-                    [(ngModel)]="model.treeLayout"
-                    [ngModelOptions]="{standalone: true}">
-               <option value="TOP_BOTTOM">_#(Top to Bottom)</option>
-               <option value="BOTTOM_TOP">_#(Bottom to Top)</option>
-               <option value="LEFT_RIGHT">_#(Left to Right)</option>
-               <option value="RIGHT_LEFT">_#(Right to Left)</option>
-            </select>
+            <custom-select class="tree-layout" id="treeLayout"
+                           [options]="treeLayoutOptions"
+                           [(ngModel)]="model.treeLayout"
+                           [ngModelOptions]="{standalone: true}"
+                           ariaLabel="_#(Layout Direction)">
+            </custom-select>
             <label><span>_#(Layout Direction)</span></label>
          </div>
          <div class="col-auto form-floating" *ngIf="model.wordCloud">
@@ -378,13 +376,12 @@
          </div>
       </div>
       <div class="col-auto" *ngIf="model.mapboxStyles">
-        <select class="form-control" [(ngModel)]="model.webMapStyle"
-                [attr.disabled]="!model.webMap ? '' : null"
-                [ngModelOptions]="{standalone: true}">
-          <option [ngValue]="style.id" *ngFor="let style of model.mapboxStyles">
-            {{style.name}}
-          </option>
-        </select>
+        <custom-select [options]="webMapStyleOptions"
+                       [(ngModel)]="model.webMapStyle"
+                       [disabled]="!model.webMap"
+                       [ngModelOptions]="{standalone: true}"
+                       ariaLabel="_#(Web Map Style)">
+        </custom-select>
       </div>
    </fieldset>
 </div>

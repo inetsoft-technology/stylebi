@@ -16,6 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, Input } from "@angular/core";
+import { CustomSelectOption } from "../../../widget/custom-select/custom-select.component";
 import { PresenterPaneModel } from "../../data/vs/presenter-pane-model";
 
 @Component({
@@ -25,4 +26,10 @@ import { PresenterPaneModel } from "../../data/vs/presenter-pane-model";
 export class PresenterPane {
    @Input() model: PresenterPaneModel;
 
+   get presenterOptions(): CustomSelectOption<string>[] {
+      return (this.model?.presenters ?? []).map((presenter) => ({
+         label: presenter,
+         value: presenter
+      }));
+   }
 }

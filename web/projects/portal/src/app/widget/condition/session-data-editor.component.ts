@@ -16,6 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, Input, Output, EventEmitter, OnInit } from "@angular/core";
+import { CustomSelectOption } from "../custom-select/custom-select.component";
 
 @Component({
    selector: "session-data-editor",
@@ -32,5 +33,12 @@ export class SessionDataEditor implements OnInit {
    ];
 
    ngOnInit(): void {
+   }
+
+   get sessionDataSelectOptions(): CustomSelectOption<string>[] {
+      return (this.sessionDataChoices || []).map((choice) => ({
+         value: choice.data,
+         label: choice.label
+      }));
    }
 }

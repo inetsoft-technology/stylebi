@@ -34,6 +34,7 @@ import { EditableTableComponent } from "./editable-table/editable-table.componen
 import { TaskOptionsPane } from "./options/task-options-pane.component";
 import { ParameterTable } from "./parameter-table/parameter-table.component";
 import { ScheduleTaskDialog } from "./schedule-task-dialog.component";
+import { CustomSelectModule } from "../../../widget/custom-select/custom-select.module";
 
 @Component({
    selector: "test-app",
@@ -81,7 +82,7 @@ describe("Schedule Task Dialog Unit Test", () => {
    beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule
+            FormsModule, ReactiveFormsModule, NgbModule, CustomSelectModule
          ],
          declarations: [
             TestApp, ReplaceAllPipe, ScheduleTaskDialog, TaskActionPane, TaskConditionPane,

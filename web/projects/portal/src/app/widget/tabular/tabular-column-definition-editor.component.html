@@ -56,21 +56,11 @@
       <tr #typeRow>
         <td *ngFor="let column of _value">
           <div class="cell-content">
-            <select class="form-control" [(ngModel)]="column.type" (ngModelChange)="valueChanged()"
-                    [disabled]="!enabled">
-              <option value="STRING">_#(String)</option>
-              <option value="CHAR">_#(Character)</option>
-              <option value="INTEGER">_#(Integer)</option>
-              <option value="BYTE">_#(Byte)</option>
-              <option value="SHORT">_#(Short)</option>
-              <option value="LONG">_#(Long)</option>
-              <option value="FLOAT">_#(Float)</option>
-              <option value="DOUBLE">_#(Double)</option>
-              <option value="BOOLEAN">_#(Boolean)</option>
-              <option value="DATE">_#(Date)</option>
-              <option value="TIME">_#(Time)</option>
-              <option value="TIME_INSTANT">_#(Time Instant)</option>
-            </select>
+            <custom-select [options]="typeSelectOptions"
+                           [(ngModel)]="column.type"
+                           (selectionChange)="valueChanged()"
+                           [disabled]="!enabled">
+            </custom-select>
           </div>
         </td>
       </tr>
@@ -85,7 +75,7 @@
       <tr #selectedRow>
         <td *ngFor="let column of _value" class="text-center">
           <div class="cell-content">
-            <input class="checkbox center" type="checkbox" [(ngModel)]="column.selected"
+            <input class="form-check-input checkbox center" type="checkbox" [(ngModel)]="column.selected"
                    (ngModelChange)="valueChanged()" [disabled]="!enabled"/>
           </div>
         </td>

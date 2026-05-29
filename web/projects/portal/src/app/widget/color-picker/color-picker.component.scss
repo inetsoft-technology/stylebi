@@ -31,13 +31,25 @@
 
 .color-picker > span.input-group-btn > button {
   width: 3.5em;
+  height: var(--inet-control-height-md);
   color: #333;
   margin-left: 0px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   padding-left: 0.5em;
-  padding-right: 0.1em;
+  padding-right: 0.35em;
   font-size: inherit;
   border-bottom-left-radius: unset;
   border-top-left-radius: unset;
+
+  &:focus,
+  &:focus-visible,
+  &.color-picker__trigger--open {
+    border-color: var(--inet-primary-color);
+    box-shadow: var(--inet-focus-ring);
+    outline: var(--inet-focus-ring-outline);
+  }
 }
 
 .color-picker .color-picker-swatch {
@@ -60,8 +72,13 @@
 
 .color-picker > span > button > .color-picker-swatch {
   display: inline-block;
-  float: left;
   box-shadow: none;
+}
+
+.color-picker-trigger__icon {
+  flex: 0 0 auto;
+  margin-left: 0.25rem;
+  pointer-events: none;
 }
 
 .color-picker form {

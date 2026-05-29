@@ -20,6 +20,7 @@ import { UntypedFormGroup, Validators, UntypedFormControl } from "@angular/forms
 import { VariableTableListDialogModel } from "../../data/ws/variable-table-list-dialog-model";
 import { AbstractTableAssembly, getHeader } from "../../data/ws/abstract-table-assembly";
 import { ColumnRef } from "../../../binding/data/column-ref";
+import { CustomSelectOption } from "../../../widget/custom-select/custom-select.component";
 
 @Component({
    selector: "variable-table-list-dialog",
@@ -37,6 +38,14 @@ export class VariableTableListDialog implements OnInit {
    currentTable: AbstractTableAssembly;
    formValid = () => this.form && this.form.valid;
    headers: string[] = [];
+
+   get columnSelectOptions(): CustomSelectOption<string>[] {
+      return (this.headers ?? []).map((column, index) => ({
+         value: column,
+         label: this.currentTable ? `${this.currentTable.name}.${column}` : column,
+         title: this.getColumnTooltip(index)
+      }));
+   }
 
    ngOnInit() {
       if(!!this.model.tableName) {

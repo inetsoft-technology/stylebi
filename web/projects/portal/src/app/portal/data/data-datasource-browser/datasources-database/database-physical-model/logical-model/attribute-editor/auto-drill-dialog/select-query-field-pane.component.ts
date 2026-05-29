@@ -19,6 +19,7 @@ import { Component, EventEmitter, Input, Output } from "@angular/core";
 import {
    QueryFieldModel
 } from "../../../../../../model/datasources/database/query/query-field-model";
+import { CustomSelectOption } from "../../../../../../../../widget/custom-select/custom-select.component";
 
 @Component({
    selector: "select-query-field-pane",
@@ -30,7 +31,14 @@ export class SelectQueryFieldPaneComponent {
    @Input() selectedField: string;
    @Output() onSelectField: EventEmitter<string> = new EventEmitter<string>();
 
-   selectField(field: string[]): void {
-      this.onSelectField.emit(field[0]);
+   get fieldSelectOptions(): CustomSelectOption<string>[] {
+      return (this.fields || []).map((field) => ({
+         value: field.name,
+         label: field.name
+      }));
+   }
+
+   selectField(field: string): void {
+      this.onSelectField.emit(field);
    }
 }

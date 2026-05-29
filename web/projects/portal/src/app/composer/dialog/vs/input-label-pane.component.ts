@@ -18,6 +18,7 @@
 import { Component, EventEmitter, Input, OnInit, Output } from "@angular/core";
 import { InputLabelPaneModel } from "../../data/vs/input-label-pane-model";
 import { ComboMode } from "../../../widget/dynamic-combo-box/dynamic-combo-box-model";
+import { CustomSelectOption } from "../../../widget/custom-select/custom-select.component";
 
 @Component({
    selector: "input-label-pane",
@@ -46,7 +47,7 @@ export class InputLabelPane implements OnInit {
       this.isInputValid.emit(valid);
    }
 
-   positionOptions = [
+   positionOptions: CustomSelectOption<string>[] = [
       {label: "_#(Left)", value: "left"},
       {label: "_#(Right)", value: "right"},
       {label: "_#(Top)", value: "top"},

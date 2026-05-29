@@ -33,7 +33,6 @@ import { RecentColorService } from "../../widget/color-picker/recent-color.servi
 import { MessageDialog } from "../../widget/dialog/message-dialog/message-dialog.component";
 import { NewAggrDialog } from "../../widget/dialog/new-aggr-dialog/new-aggr-dialog.component";
 import { ScriptPane } from "../../widget/dialog/script-pane/script-pane.component";
-import { FixedDropdownDirective } from "../../widget/fixed-dropdown/fixed-dropdown.directive";
 import { AlphaDropdown } from "../../widget/format/alpha-dropdown.component";
 import { StyleDropdown } from "../../widget/format/style-dropdown.component";
 import { FormulaEditorDialog } from "../../widget/formula-editor/formula-editor-dialog.component";
@@ -99,7 +98,6 @@ describe("LegendFormatGeneralPane Unit Tests", () => {
             NewAggrDialog,
             MessageDialog,
             ScriptPane,
-            FixedDropdownDirective
          ],
          providers: [
             NgbModal,

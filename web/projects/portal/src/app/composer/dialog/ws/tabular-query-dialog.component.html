@@ -50,9 +50,10 @@
     <i class="loading-icon--spin icon-size-xlarge loading-icon"></i>
   </div>
   <div class="form-floating">
-    <select class="form-control" [(ngModel)]="model.dataSource" (change)="refreshView()">
-      <option *ngFor="let dataSource of model.dataSources" [value]="dataSource">{{dataSource}}</option>
-    </select>
+    <custom-select [(ngModel)]="model.dataSource"
+                   (selectionChange)="refreshView()"
+                   [options]="dataSourceSelectOptions">
+    </custom-select>
     <label><span>_#(Data Source)</span></label>
   </div>
 </div>

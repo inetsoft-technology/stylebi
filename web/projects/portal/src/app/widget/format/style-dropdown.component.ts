@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Component, EventEmitter, Input, OnInit, Output, ViewChild,
+import { Component, EventEmitter, HostBinding, Input, OnInit, Output, ViewChild,
          ElementRef } from "@angular/core";
 import { LineStyle } from "../../common/data/line-style";
 
@@ -31,6 +31,8 @@ export class StyleDropdown implements OnInit {
    @Output() styleChange: EventEmitter<string> = new EventEmitter<string>();
    @Input() isPresenter: boolean = false;
    @ViewChild("dropdownBody") dropdownBody: ElementRef;
+   @HostBinding("class.custom-select") readonly customSelectClass = true;
+   @HostBinding("class.is-open") open: boolean = false;
    public LineStyle = LineStyle;
    public lineStyles: string[];
 
@@ -39,14 +41,14 @@ export class StyleDropdown implements OnInit {
 
       if(this.isPresenter) {
          this.lineStyles = lineStyles.concat([
+            LineStyle.ULTRA_THIN_LINE,
+            LineStyle.THIN_THIN_LINE,
             LineStyle.THIN_LINE,
             LineStyle.MEDIUM_LINE,
             LineStyle.THICK_LINE,
             LineStyle.DOUBLE_LINE,
             LineStyle.DOT_LINE,
             LineStyle.DASH_LINE,
-            LineStyle.THIN_THIN_LINE,
-            LineStyle.ULTRA_THIN_LINE,
             LineStyle.MEDIUM_DASH,
             LineStyle.LARGE_DASH,
             LineStyle.RAISED_3D,
@@ -72,6 +74,10 @@ export class StyleDropdown implements OnInit {
    choose(style: string): void {
       this.style = style;
       this.styleChange.emit(style);
+   }
+
+   handleOpenChange(open: boolean): void {
+      this.open = open;
    }
 
    get dropdownMinWidth(): number {

@@ -1,0 +1,101 @@
+/*!
+ * This file is part of StyleBI.
+ * Copyright (C) 2024  InetSoft Technology
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+:host {
+  display: block;
+  width: 100%;
+  min-width: 0;
+}
+
+.custom-select-trigger {
+  position: relative;
+  width: 100%;
+  min-height: var(--custom-select-height, calc(1.5em + 0.75rem + 2px));
+  height: var(--custom-select-height, calc(1.5em + 0.75rem + 2px));
+  display: flex;
+  align-items: center;
+  text-align: left;
+  padding-right: 2rem;
+  background-image: none;
+
+  &:disabled,
+  &.disabled {
+    cursor: not-allowed;
+  }
+}
+
+:host(.is-open) .custom-select-trigger,
+:host(.is-focused) .custom-select-trigger {
+  border-color: var(--inet-primary-color);
+  box-shadow: var(--inet-focus-ring);
+  outline: var(--inet-focus-ring-outline);
+}
+
+.custom-select-trigger__text,
+.custom-select-option__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.custom-select-trigger__text {
+  display: block;
+}
+
+.custom-select-trigger__icon {
+  pointer-events: none;
+}
+
+.dropdown-caret {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.custom-select-menu {
+  max-height: min(18rem, 50vh);
+  padding: 0.25rem;
+  overflow-y: auto;
+}
+
+.custom-select-option {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  border-radius: var(--inet-radius-sm);
+  color: var(--inet-text-color);
+  cursor: pointer;
+
+  &:hover,
+  &:focus-visible,
+  &.active {
+    background-color: var(--inet-hover-primary-bg-color);
+    color: var(--inet-text-color);
+  }
+
+  &.selected {
+    background-color: var(--inet-selected-cell-bg-color, var(--inet-hover-primary-bg-color));
+    color: var(--inet-text-color);
+    font-weight: 600;
+  }
+
+  &:disabled {
+    cursor: default;
+  }
+}

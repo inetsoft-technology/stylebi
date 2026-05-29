@@ -19,6 +19,7 @@ import { CommonModule } from "@angular/common";
 import { NgModule } from "@angular/core";
 import { FormulaEditorDialog } from "./formula-editor-dialog.component";
 import { ModalHeaderModule } from "../modal-header/modal-header.module";
+import { CustomSelectModule } from "../custom-select/custom-select.module";
 import { MouseEventModule } from "../mouse-event/mouse-event.module";
 import { ReactiveFormsModule } from "@angular/forms";
 import { ScriptPaneModule } from "../dialog/script-pane/script-pane.module";
@@ -34,6 +35,7 @@ import { FormulaEditorService } from "./formula-editor.service";
       ReactiveFormsModule,
       ScriptPaneModule,
       NewAggrDialogModule,
+      CustomSelectModule,
       WidgetDirectivesModule,
    ],
    declarations: [

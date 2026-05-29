@@ -31,48 +31,40 @@
     </div>
     <form #joinForm="ngForm" class="join-dialog__form">
       <div class="form-group form-floating">
-          <select #selectFocus #columnCtrl="ngModel"
-                  name="column"
-                  class="form-control"
-                  [class.is-invalid]="columnCtrl.invalid"
-                  [(ngModel)]="join.column"
-                  (ngModelChange)="joinSelectionChanged()"
-                  required>
-            <option></option>
-            <option *ngFor="let column of columns" [value]="column">{{column}}</option>
-          </select>
+          <custom-select #selectFocus #columnCtrl="ngModel"
+                         name="column"
+                         [invalid]="columnCtrl.invalid"
+                         [options]="columnSelectOptions"
+                         [(ngModel)]="join.column"
+                         (selectionChange)="joinSelectionChanged()"
+                         required>
+          </custom-select>
           <label>_#(Column)</label>
           <span class="invalid-feedback" *ngIf="columnCtrl.invalid">_#(data.physicalmodel.columnRequired)
           </span>
       </div>
       <div class="form-group form-floating">
-          <select #foreignTableCtrl="ngModel"
-                  name="foreignTable"
-                  class="form-control"
-                  [class.is-invalid]="foreignTableCtrl.invalid"
-                  [(ngModel)]="join.foreignTable"
-                  (ngModelChange)="joinSelectionChanged(true)"
-                  required>
-            <option></option>
-            <option *ngFor="let foreignTable of foreignTables" [ngValue]="foreignTable.qualifiedName">
-              {{foreignTable.qualifiedName}}
-            </option>
-          </select>
+          <custom-select #foreignTableCtrl="ngModel"
+                         name="foreignTable"
+                         [invalid]="foreignTableCtrl.invalid"
+                         [options]="foreignTableSelectOptions"
+                         [(ngModel)]="join.foreignTable"
+                         (selectionChange)="joinSelectionChanged(true)"
+                         required>
+          </custom-select>
           <label>_#(data.physicalmodel.foreignTable)</label>
           <span class="invalid-feedback" *ngIf="foreignTableCtrl.invalid">
             _#(data.physicalmodel.foreignTableRequired)
           </span>
       </div>
       <div class="form-group form-floating">
-          <select #foreignColumnCtrl="ngModel"
-                  name="foreignColumn"
-                  class="form-control"
-                  [class.is-invalid]="foreignColumnCtrl.invalid"
-                  [(ngModel)]="join.foreignColumn"
-                  required>
-            <option></option>
-            <option *ngFor="let column of filteredForeignColumns" [value]="column">{{column}}</option>
-          </select>
+          <custom-select #foreignColumnCtrl="ngModel"
+                         name="foreignColumn"
+                         [invalid]="foreignColumnCtrl.invalid"
+                         [options]="foreignColumnSelectOptions"
+                         [(ngModel)]="join.foreignColumn"
+                         required>
+          </custom-select>
           <label>_#(data.physicalmodel.foreignColumn)</label>
           <span class="invalid-feedback" *ngIf="foreignColumnCtrl.invalid">
             _#(data.physicalmodel.foreignColumnRequired)

@@ -22,14 +22,20 @@
 <div class="modal-body parameter-dialog" *ngIf="model && form">
   <form [formGroup]="form" class="parameter-dialog__form">
     <div class="form-group form-floating">
-      <input #inputFocus class="form-control" type="text" formControlName="name"
-      [class.is-invalid]="!nameControl.valid"
-      [(ngModel)]="variable"
-      [ngClass]="{'input-transparent border-0': variables && variables.length > 0}"/>
-      <select *ngIf="variables && variables.length > 0" class="form-control"
-              formControlName="name" [(ngModel)]="variable">
-        <option *ngFor="let _variable of variables" [value]="_variable">{{_variable}}</option>
-      </select>
+      <div class="input-group">
+        <input #inputFocus class="form-control" type="text" formControlName="name"
+               [class.is-invalid]="!nameControl.valid"
+               [(ngModel)]="variable"/>
+        <custom-select *ngIf="parameterNameSelectOptions.length > 0"
+                       class="parameter-name-picker"
+                       [options]="parameterNameSelectOptions"
+                       [ngModel]="variable"
+                       [ngModelOptions]="{standalone: true}"
+                       (selectionChange)="selectVariable($event)"
+                       ariaLabel="_#(Parameter Name)"
+                       placeholder="_#(Select)">
+        </custom-select>
+      </div>
       <label><span>_#(Parameter Name)</span></label>
       <span class="invalid-feedback" *ngIf="!nameControl.valid">
         {{getFirstErrorMessage(nameControl)}}
@@ -54,16 +60,18 @@
       </div>
     </div>
     <div class="form-group form-floating" *ngIf="source == SourceType.FIELD">
-      <select class="form-control" [(ngModel)]="model.field" formControlName="value">
-        <option *ngFor="let field of fields" [value]="field">{{ field }}</option>
-      </select>
+      <custom-select [options]="fieldSelectOptions"
+                     [(ngModel)]="model.field"
+                     formControlName="value">
+      </custom-select>
       <label><span>_#(Field)</span></label>
     </div>
     <div class="form-group form-floating" *ngIf="source == SourceType.CONSTANT">
-      <select class="form-control" [(ngModel)]="model.type" (ngModelChange)="changeType($event)"
-              formControlName="type">
-        <option *ngFor="let type of types" [value]="type.data">{{ type.label }}</option>
-      </select>
+      <custom-select [options]="typeSelectOptions"
+                     [(ngModel)]="model.type"
+                     (selectionChange)="changeType($event)"
+                     formControlName="type">
+      </custom-select>
       <label><span>_#(Type)</span></label>
     </div>
     <div class="form-group" [class.g-0]="model.type == XSchema.BOOLEAN" *ngIf="source == SourceType.CONSTANT">

@@ -30,6 +30,7 @@ import { TimeValueEditorComponent } from "../../../../widget/date-type-editor/ti
 import { TimepickerComponent } from "../../../../widget/date-type-editor/timepicker.component";
 import { EnterSubmitDirective } from "../../../../widget/directive/enter-submit.directive";
 import { AddParameterDialog } from "./add-parameter-dialog.component";
+import { CustomSelectModule } from "../../../../widget/custom-select/custom-select.module";
 import { ValueTypes } from "../../../../vsobjects/model/dynamic-value-model";
 
 const createModel: () => AddParameterDialogModel = () => {
@@ -62,7 +63,7 @@ describe("Add Parameter Dialog Unit Test", () => {
    beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule, HttpClientTestingModule
+            FormsModule, ReactiveFormsModule, NgbModule, HttpClientTestingModule, CustomSelectModule
          ],
          declarations: [
             TestApp, AddParameterDialog, EnterSubmitDirective, TimepickerComponent,

@@ -16,13 +16,11 @@
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
 <ng-container [ngSwitch]="style">
-  <select class="form-control" *ngSwitchCase="StyleType.COMBOBOX"
-          [ngModel]="value" (ngModelChange)="change($event)">
-    <option *ngFor="let _label of labels; let i = index"
-            [value]="values[i]">{{_label}}
-    </option>
-    <option *ngIf="dataTruncated" disabled>(_#(data.truncated))</option>
-  </select>
+  <custom-select *ngSwitchCase="StyleType.COMBOBOX"
+                 [options]="comboBoxOptions"
+                 [ngModel]="value[0]"
+                 (selectionChange)="change($event)">
+  </custom-select>
 
   <select multiple class="form-control" *ngSwitchCase="StyleType.LIST"
           [ngModel]="value" (ngModelChange)="change($event)">

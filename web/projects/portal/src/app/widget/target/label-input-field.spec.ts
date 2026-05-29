@@ -24,7 +24,6 @@ import { NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { DropDownTestModule } from "../../common/test/test-module";
 import { TestUtils } from "../../common/test/test-utils";
 import { EnterClickDirective } from "../directive/enter-click.directive";
-import { FixedDropdownDirective } from "../fixed-dropdown/fixed-dropdown.directive";
 import { TooltipIfDirective } from "../tooltip/tooltip-if.directive";
 import { DomService } from "../dom-service/dom.service";
 import { ComboMode } from "../dynamic-combo-box/dynamic-combo-box-model";
@@ -54,7 +53,7 @@ describe("Label Input Field Test", () => {
          imports: [DropDownTestModule, ReactiveFormsModule, FormsModule, NgbModule],
          declarations: [
             LabelInputField, DynamicComboBox, TargetComboBox, TreeComponent,
-            TreeNodeComponent, TreeDropdownComponent, FixedDropdownDirective,
+            TreeNodeComponent, TreeDropdownComponent,
             TreeSearchPipe, TooltipDirective, EnterClickDirective, TooltipIfDirective
          ],
          providers: [
@@ -86,7 +85,7 @@ describe("Label Input Field Test", () => {
       labelInputField.onTypeChange(ComboMode.VALUE);
       fixture.detectChanges();
 
-      let labelInput = fixture.debugElement.query(By.css("div.dynamic-combo-box-body .custom-select")).nativeElement;
+      let labelInput = fixture.debugElement.query(By.css("div.dynamic-combo-box-body .custom-select-trigger__text")).nativeElement;
       expect(TestUtils.toString((labelInput.textContent).trim())).toEqual("_#(js:Target Value)");
    });
 });

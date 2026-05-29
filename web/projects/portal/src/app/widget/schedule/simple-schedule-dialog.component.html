@@ -25,23 +25,12 @@
       <legend id="format-label">_#(Format)</legend>
       <div class="form-row-float-label row">
         <div class="col">
-          <select class="form-control" name="format" aria-labelledby="format-label"
-                  [ngModel]="formatStr" [ngModelOptions]="{standalone: true}"
-                  (ngModelChange)="formatChange($event)">
-            <ng-container *ngIf="model.formatTypes.length <= 0">
-               <option *ngIf="excelVisible" [value]="FileFormatType.EXPORT_TYPE_EXCEL">_#(Excel)</option>
-               <option *ngIf="powerpointVisible" [value]="FileFormatType.EXPORT_TYPE_POWERPOINT">_#(PowerPoint)</option>
-               <option *ngIf="pdfVisible" [value]="FileFormatType.EXPORT_TYPE_PDF">_#(PDF)</option>
-               <option *ngIf="htmlVisible" [value]="FileFormatType.EXPORT_TYPE_HTML">_#(HTML)</option>
-               <option *ngIf="pngVisible" [value]="FileFormatType.EXPORT_TYPE_PNG">_#(Embedded PNG)</option>
-               <option *ngIf="csvVisible" [value]="FileFormatType.EXPORT_TYPE_CSV">_#(CSV)</option>
-            </ng-container>
-            <ng-container *ngIf="model.formatTypes.length > 0">
-               <option *ngFor="let format of model.formatTypes" [value]="format.value">
-                  {{format.key}}
-               </option>
-            </ng-container>
-          </select>
+          <custom-select [options]="formatSelectOptions"
+                         ariaLabelledby="format-label"
+                         [ngModel]="formatStr"
+                         [ngModelOptions]="{standalone: true}"
+                         (selectionChange)="formatChange($event)">
+          </custom-select>
         </div>
       </div>
       <div class="row form-row-float-label"
@@ -232,10 +221,10 @@
         <ng-container>
           <div class="form-row-float-label row" *ngIf="model?.startTimeEnabled">
             <div class="col form-floating">
-              <select class="form-control" [(ngModel)]="timeZoneId" (change)="setTimeZone()"
-                      formControlName="timeZone">
-                <option *ngFor="let tz of model?.timeZoneOptions" [value]="tz.timeZoneId">{{ tz.hourOffset + " " + tz.label }}</option>
-              </select>
+              <custom-select [options]="timeZoneSelectOptions"
+                             formControlName="timeZone"
+                             (selectionChange)="timeZoneId = $event; setTimeZone()">
+              </custom-select>
               <label>_#(Time Zone)</label>
             </div>
           </div>
@@ -322,45 +311,49 @@
       <ng-container *ngIf="model.timeConditionModel.type == TimeConditionType.EVERY_MONTH">
         <div class="form-row-float-label row">
           <div class="col-auto">
-            <input type="radio" name="monthlyRadio" [value]="true"
+            <input class="form-check-input" type="radio" name="monthlyRadio" [value]="true"
                    [ngModelOptions]="{standalone: true}"
                    [(ngModel)]="model.timeConditionModel.monthlyDaySelected">
           </div>
-          <div class="col-auto ps-0">
-            <select class="form-control" id="dayOfMonth"
-                    [(ngModel)]="model.timeConditionModel.dayOfMonth"
-                    [ngModelOptions]="{standalone: true}"
-                    [disabled]="!model.timeConditionModel.monthlyDaySelected">
-              <option *ngFor="let day of daysOfMonth; let i = index" [value]="daysOfMonthNum[i]">
-                {{day}}</option>
-            </select>
+          <div class="col simple-schedule-dialog__monthly-select-col ps-0">
+            <div class="input-group scheduler-form simple-schedule-dialog__monthly-input-group">
+              <custom-select id="dayOfMonth"
+                           [options]="dayOfMonthSelectOptions"
+                           [(ngModel)]="model.timeConditionModel.dayOfMonth"
+                           [ngModelOptions]="{standalone: true}"
+                           [disabled]="!model.timeConditionModel.monthlyDaySelected">
+              </custom-select>
+              <div class="input-group-text">_#(Day of the Month)</div>
+            </div>
           </div>
-          <div class="col-auto ps-0">_#(Day of the Month)</div>
         </div>
         <div class="form-row-float-label row">
           <div class="col-auto">
-            <input type="radio" name="monthlyRadio" [value]="false"
+            <input class="form-check-input" type="radio" name="monthlyRadio" [value]="false"
                    [ngModelOptions]="{standalone: true}"
                    [(ngModel)]="model.timeConditionModel.monthlyDaySelected">
           </div>
-          <div class="col-auto ps-0">
-            <select class="form-control" id="weekOfMonth"
-                    [(ngModel)]="model.timeConditionModel.weekOfMonth"
-                    [ngModelOptions]="{standalone: true}"
-                    [disabled]="model.timeConditionModel.monthlyDaySelected">
-              <option *ngFor="let week of weeksOfMonth; let i = index"  [value]="i + 1">{{week}}
-              </option>
-            </select>
+          <div class="col-auto simple-schedule-dialog__monthly-short-col ps-0">
+            <custom-select id="weekOfMonth"
+                           class="scheduler-form simple-schedule-dialog__monthly-short-select"
+                           [options]="weekOfMonthSelectOptions"
+                           [(ngModel)]="model.timeConditionModel.weekOfMonth"
+                           [ngModelOptions]="{standalone: true}"
+                           [disabled]="model.timeConditionModel.monthlyDaySelected">
+            </custom-select>
           </div>
           <div class="col-auto ps-0">
-            <select class="form-control" id="dayOfWeek"
-                    [(ngModel)]="model.timeConditionModel.dayOfWeek"
-                    [ngModelOptions]="{standalone: true}"
-                    [disabled]="model.timeConditionModel.monthlyDaySelected">
-              <option *ngFor="let day of daysOfWeek; let i = index" [value]="i + 1">{{day}}</option>
-            </select>
+            <div class="input-group scheduler-form simple-schedule-dialog__monthly-input-group simple-schedule-dialog__monthly-input-group--secondary">
+              <custom-select id="dayOfWeek"
+                           class="simple-schedule-dialog__monthly-weekday-select"
+                           [options]="dayOfWeekSelectOptions"
+                           [(ngModel)]="model.timeConditionModel.dayOfWeek"
+                           [ngModelOptions]="{standalone: true}"
+                           [disabled]="model.timeConditionModel.monthlyDaySelected">
+              </custom-select>
+              <div class="input-group-text">_#(of the month)</div>
+            </div>
           </div>
-          <div class="col-auto ps-0">_#(of the month)</div>
         </div>
       </ng-container>
     </fieldset>

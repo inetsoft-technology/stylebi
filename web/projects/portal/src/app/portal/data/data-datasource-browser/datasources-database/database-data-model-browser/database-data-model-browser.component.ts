@@ -461,8 +461,8 @@ export class DatabaseDataModelBrowserComponent implements OnDestroy, OnInit {
       if(this.isFolder(item)) {
          this.routeToFolder(this.databaseName, item.name);
       }
-      else if(item.editable) {
-         this.editModel(<DatabaseAsset> item);
+      else {
+         this.setShowDetailsItem(item);
       }
    }
 
@@ -853,7 +853,7 @@ export class DatabaseDataModelBrowserComponent implements OnDestroy, OnInit {
          },
          {
             id: () => "data model add extended view",
-            label: () => " _#(js:Add Extended View)",
+            label: () => " _#(js:Create Extended View)",
             icon: () => "",
             visible: () => this.isPhysicalView(model) && this.pageModel.dbEditable &&
                this.listModel.editable && !this.isExtend(model) && this.enterprise,
@@ -862,7 +862,7 @@ export class DatabaseDataModelBrowserComponent implements OnDestroy, OnInit {
          },
          {
             id: () => "data model add extended model",
-            label: () => "_#(js:Add Extended Model)",
+            label: () => "_#(js:Create Extended Model)",
             icon: () => "",
             visible: () => this.isLogicalModel(model) && this.pageModel.dbEditable &&
                this.listModel.editable && model.editable && !this.isExtend(model) && this.enterprise,

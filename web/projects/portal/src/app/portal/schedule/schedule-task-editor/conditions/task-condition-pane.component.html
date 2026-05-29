@@ -45,10 +45,10 @@
                 <div class="condition-edit-view__timezone-row form-row-float-label row" *ngIf="startTimeEnabled">
                   <div class="col condition-edit-view__timezone-col">
                     <div class="form-floating">
-                      <select class="form-control" [ngModel]="localTimeZoneId" (ngModelChange)="setLocalTimeZone($event)"
-                              formControlName="timeZone">
-                        <option *ngFor="let tz of timeZoneOptions" [value]="tz.timeZoneId" [title]="tz.timeZoneId">{{ tz.hourOffset + " " + tz.label }}</option>
-                      </select>
+                      <custom-select [options]="timeZoneSelectOptions"
+                                     formControlName="timeZone"
+                                     (selectionChange)="setLocalTimeZone($event)">
+                      </custom-select>
                       <label>_#(Time Zone)</label>
                     </div>
                   </div>
@@ -115,10 +115,10 @@
                 <div class="condition-edit-view__timezone-row form-row-float-label row" *ngIf="startTimeEnabled">
                   <div class="col condition-edit-view__timezone-col">
                     <div class="form-floating">
-                      <select class="form-control" [ngModel]="localTimeZoneId" (ngModelChange)="setLocalTimeZone($event)"
-                              formControlName="timeZone">
-                        <option *ngFor="let tz of timeZoneOptions" [value]="tz.timeZoneId" [title]="tz.timeZoneId">{{ tz.hourOffset + " " + tz.label }}</option>
-                      </select>
+                      <custom-select [options]="timeZoneSelectOptions"
+                                     formControlName="timeZone"
+                                     (selectionChange)="setLocalTimeZone($event)">
+                      </custom-select>
                       <label>_#(Time Zone)</label>
                     </div>
                   </div>
@@ -190,10 +190,10 @@
                 <div class="condition-edit-view__timezone-row form-row-float-label row" *ngIf="startTimeEnabled">
                   <div class="col condition-edit-view__timezone-col">
                     <div class="form-floating">
-                      <select class="form-control" [ngModel]="localTimeZoneId" (ngModelChange)="setLocalTimeZone($event)"
-                              formControlName="timeZone">
-                        <option *ngFor="let tz of timeZoneOptions" [value]="tz.timeZoneId" [title]="tz.timeZoneId">{{ tz.hourOffset + " " + tz.label }}</option>
-                      </select>
+                      <custom-select [options]="timeZoneSelectOptions"
+                                     formControlName="timeZone"
+                                     (selectionChange)="setLocalTimeZone($event)">
+                      </custom-select>
                       <label>_#(Time Zone)</label>
                     </div>
                   </div>
@@ -206,12 +206,12 @@
                        [ngModel]="timeCondition.monthlyDaySelected"
                        (ngModelChange)="changeMonthRadioOption($event)" [value]="true">
               </div>
-              <div class="col">
-                <div class="input-group scheduler-form">
-                  <select class="form-control" [(ngModel)]="timeCondition.dayOfMonth"
-                          formControlName="dayOfMonth">
-                      <option *ngFor="let day of monthDays; let i = index" [value]="daysOfMonthNum[i]">{{ day }}</option>
-                  </select>
+              <div class="col condition-edit-view__monthly-select-col">
+                <div class="input-group scheduler-form condition-edit-view__monthly-input-group">
+                  <custom-select [options]="monthDaySelectOptions"
+                                 formControlName="dayOfMonth"
+                                 (selectionChange)="timeCondition.dayOfMonth = $event">
+                  </custom-select>
                   <div class="input-group-text">_#(day of the month)</div>
                 </div>
               </div>
@@ -226,17 +226,19 @@
                        [ngModel]="timeCondition.monthlyDaySelected"
                        (ngModelChange)="changeMonthRadioOption($event)" [value]="false">
               </div>
-              <div class="col-auto">
-                <select class="form-control scheduler-form sm-dropdown" [(ngModel)]="timeCondition.weekOfMonth"
-                        formControlName="weekOfMonth">
-                      <option *ngFor="let week of monthWeeks; let i = index" [value]="i + 1">{{ week }}</option>
-                </select>
+              <div class="col-auto condition-edit-view__monthly-short-col">
+                <custom-select class="scheduler-form sm-dropdown condition-edit-view__monthly-short-select"
+                               [options]="monthWeekSelectOptions"
+                               formControlName="weekOfMonth"
+                               (selectionChange)="timeCondition.weekOfMonth = $event">
+                </custom-select>
               </div>
-              <div class="col-auto input-group scheduler-form">
-                <select class="form-control" [(ngModel)]="timeCondition.dayOfWeek"
-                        formControlName="dayOfWeek">
-                      <option *ngFor="let day of weekdays; let i = index" [value]="i + 1">{{ day }}</option>
-                </select>
+              <div class="col-auto input-group scheduler-form condition-edit-view__monthly-input-group condition-edit-view__monthly-input-group--secondary">
+                <custom-select class="condition-edit-view__monthly-weekday-select"
+                               [options]="weekdaySelectOptions"
+                               formControlName="dayOfWeek"
+                               (selectionChange)="timeCondition.dayOfWeek = $event">
+                </custom-select>
                 <div class="input-group-text">_#(of the month)</div>
               </div>
             </div>
@@ -327,10 +329,10 @@
                   <div class="condition-edit-view__timezone-row form-row-float-label row">
                     <div class="col condition-edit-view__timezone-col">
                       <div class="form-floating">
-                        <select class="form-control" [ngModel]="localTimeZoneId" (ngModelChange)="setLocalTimeZone($event)"
-                                formControlName="timeZone">
-                          <option *ngFor="let tz of timeZoneOptions" [value]="tz.timeZoneId" [title]="tz.timeZoneId">{{ tz.hourOffset + " " + tz.label }}</option>
-                        </select>
+                        <custom-select [options]="timeZoneSelectOptions"
+                                       formControlName="timeZone"
+                                       (selectionChange)="setLocalTimeZone($event)">
+                        </custom-select>
                         <label>_#(Time Zone)</label>
                       </div>
                     </div>
@@ -418,10 +420,10 @@
                   <div class="condition-edit-view__timezone-row form-row-float-label row">
                     <div class="col condition-edit-view__timezone-col">
                       <div class="form-floating">
-                        <select class="form-control" [ngModel]="localTimeZoneId" (ngModelChange)="setLocalTimeZone($event)"
-                                formControlName="timeZone">
-                          <option *ngFor="let tz of timeZoneOptions" [value]="tz.timeZoneId" [title]="tz.timeZoneId">{{ tz.hourOffset + " " + tz.label }}</option>
-                        </select>
+                        <custom-select [options]="timeZoneSelectOptions"
+                                       formControlName="timeZone"
+                                       (selectionChange)="setLocalTimeZone($event)">
+                        </custom-select>
                         <label>_#(Time Zone)</label>
                       </div>
                     </div>
@@ -435,7 +437,9 @@
                     <input class="form-control" placeholder="_#(yyyy-mm-dd)"
                            formControlName="date"
                            id="date" [(ngModel)]="formDate"
-                           ngbDatepicker #startDatePicker="ngbDatepicker" placement="bottom-right">
+                           ngbDatepicker #startDatePicker="ngbDatepicker" placement="bottom-start"
+                           container="body"
+                           [navigation]="'none'" [contentTemplate]="scheduleDatepickerContent">
                     <button class="input-group-btn-addon btn icon-hover-bg" (click)="startDatePicker.toggle()" type="button">
                       <span class="calendar-icon icon-size-medium align-middle"></span>
                     </button>
@@ -456,14 +460,13 @@
         <form [formGroup]="form">
           <div class="form-row-float-label row completion-condition-row">
             <div class="col form-floating">
-                <select class="form-control scheduler-form" id="taskName"
-                        formControlName="task"
-                        [(ngModel)]="completionCondition.taskName"
-                        [class.is-invalid]="!form.controls['task'].valid">
-                  <ng-container *ngFor="let task of allTasks">
-                    <option *ngIf="task.name !== taskName" [value]="task.name">{{ task.label }}</option>
-                  </ng-container>
-                </select>
+                <custom-select class="scheduler-form"
+                               id="taskName"
+                               [options]="completionTaskSelectOptions"
+                               formControlName="task"
+                               (selectionChange)="completionCondition.taskName = $event"
+                               [invalid]="!form.controls['task'].valid">
+                </custom-select>
                 <label>_#(Run after)</label>
                 <span class="invalid-feedback"
                       *ngIf="form && !!form.controls['task'] && form.controls['task'].errors">
@@ -495,6 +498,51 @@
     </button>
   </div>
 </div>
+
+<ng-template #scheduleDatepickerContent let-datepicker>
+  <div class="schedule-datepicker__calendar">
+    <div class="ngb-dp-header schedule-datepicker__calendar-header">
+      <div class="schedule-datepicker__calendar-nav">
+        <button type="button"
+                class="btn btn-light-no-bg schedule-datepicker__nav-button schedule-datepicker__nav-button--prev"
+                [disabled]="!canNavigateMonth(datepicker, -1)"
+                (click)="navigateMonth(datepicker, -1)"
+                aria-label="_#(Previous month)">
+          <i class="chevron-left-icon icon-size0" aria-hidden="true"></i>
+        </button>
+        <custom-select class="schedule-datepicker__nav-select schedule-datepicker__nav-select--month"
+                       [options]="getMonthSelectOptions(datepicker)"
+                       [ngModel]="datepicker.state.firstDate.month"
+                       [ngModelOptions]="{standalone: true}"
+                       ariaLabel="_#(Select month)"
+                       (selectionChange)="selectMonth(datepicker, $event)">
+        </custom-select>
+        <custom-select class="schedule-datepicker__nav-select schedule-datepicker__nav-select--year"
+                       [options]="getYearSelectOptions(datepicker)"
+                       [ngModel]="datepicker.state.firstDate.year"
+                       [ngModelOptions]="{standalone: true}"
+                       ariaLabel="_#(Select year)"
+                       (selectionChange)="selectYear(datepicker, $event)">
+        </custom-select>
+        <button type="button"
+                class="btn btn-light-no-bg schedule-datepicker__nav-button"
+                [disabled]="!canNavigateMonth(datepicker, 1)"
+                (click)="navigateMonth(datepicker, 1)"
+                aria-label="_#(Next month)">
+          <i class="chevron-right-icon icon-size0" aria-hidden="true"></i>
+        </button>
+      </div>
+    </div>
+    <div class="ngb-dp-content ngb-dp-months">
+      <div *ngFor="let month of datepicker.state.months" class="ngb-dp-month">
+        <div *ngIf="datepicker.displayMonths > 1" class="ngb-dp-month-name">
+          {{ datepicker.i18n.getMonthLabel(month) }}
+        </div>
+        <ngb-datepicker-month [month]="month"></ngb-datepicker-month>
+      </div>
+    </div>
+  </div>
+</ng-template>
 <ng-container *ngIf="listView">
   <div class="condition-list-view mb-2">
     <editable-table [title]="'Conditions'" [items]="conditionNames"

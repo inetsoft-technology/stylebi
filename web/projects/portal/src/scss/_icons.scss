@@ -20,8 +20,10 @@
 }
 
 $ineticons-map: map-merge($ineticons-base-map, (
-  chevron-down-icon: $bare-arrow-down-icon,
-  chevron-right-icon: $bare-arrow-right-icon,
+  chevron-left-icon: $backward-icon,
+  chevron-down-icon: $downward-icon,
+  chevron-up-icon: $upward-icon,
+  chevron-right-icon: $forward-icon,
   data-block-type-embedded-icon: $embedded-table-icon,
   folder-expanded-icon: $folder-open-icon,
   folder-collapsed-icon: $folder-icon,

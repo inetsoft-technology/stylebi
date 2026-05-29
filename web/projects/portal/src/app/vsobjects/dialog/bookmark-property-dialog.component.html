@@ -61,13 +61,14 @@
           </div>
         </div>
         <div class="col" *ngIf="!shareToAllDisabled">
-          <select id="selection" class="w-100 form-control"
-                  [disabled]="model.type == VSBookmarkType.PRIVATE"
-                  (change)="selectType(sharedOption)"
-                  [(ngModel)]="sharedOption" [ngModelOptions]="{standalone: true}">
-            <option [ngValue]="VSBookmarkType.ALLSHARE">_#(All Users)</option>
-            <option [ngValue]="VSBookmarkType.GROUPSHARE">_#(Same Groups)</option>
-          </select>
+          <custom-select id="selection"
+                         class="w-100"
+                         [disabled]="model.type == VSBookmarkType.PRIVATE"
+                         (selectionChange)="selectType(sharedOption)"
+                         [(ngModel)]="sharedOption"
+                         [ngModelOptions]="{standalone: true}"
+                         [options]="shareTypeOptions">
+          </custom-select>
         </div>
       </div>
       <div class="form-row-float-label row">

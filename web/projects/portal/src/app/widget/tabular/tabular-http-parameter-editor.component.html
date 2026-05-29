@@ -26,10 +26,11 @@
       </div>
     </div>
     <div class="d-flex align-items-start flex-column ps-1" *ngIf="!queryOnly && !headerOnly">
-      <select class="form-control" [(ngModel)]="value.type" (ngModelChange)="valueChanged()" [disabled]="!enabled">
-        <option value="HEADER">_#(HEADER)</option>
-        <option value="QUERY">_#(QUERY)</option>
-      </select>
+      <custom-select [options]="typeSelectOptions"
+                     [(ngModel)]="value.type"
+                     (selectionChange)="valueChanged()"
+                     [disabled]="!enabled">
+      </custom-select>
     </div>
   </form>
 </div>

@@ -35,7 +35,8 @@ import { DataRef } from "../../common/data/data-ref";
 
 @Component({
    selector: "expression-editor",
-   templateUrl: "expression-editor.component.html"
+   templateUrl: "expression-editor.component.html",
+   styleUrls: ["expression-editor.component.scss"]
 })
 export class ExpressionEditor implements OnChanges, OnDestroy {
    public ExpressionType = ExpressionType;

@@ -29,6 +29,7 @@ import { ChartGeoRef } from "../../../data/chart/chart-geo-ref";
 import { GeoMappingDialogModel } from "../../../data/chart/geo-mapping-dialog-model";
 import { VSGeoProvider } from "../../vs-geo-provider";
 import { GeoMappingDialog } from "./geo-mapping-dialog.component";
+import { CustomSelectModule } from "../../../../widget/custom-select/custom-select.module";
 
 let createModel: () => GeoMappingDialogModel = () => {
    return{
@@ -99,7 +100,7 @@ describe("geo mapping dialog component unit case", () => {
       };
 
       TestBed.configureTestingModule({
-         imports: [ReactiveFormsModule, FormsModule, NgbModule],
+         imports: [ReactiveFormsModule, FormsModule, NgbModule, CustomSelectModule],
          declarations: [GeoMappingDialog, LargeFormFieldComponent],
          providers: [
             {provide: ModelService, useValue: modelService},

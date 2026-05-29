@@ -15,8 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Component, EventEmitter, Input, Output, TemplateRef, ViewChild,
-         ElementRef } from "@angular/core";
+import { Component, ElementRef, EventEmitter, Input, Output, ViewChild } from "@angular/core";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { ColorPalette, RecentColorPalette } from "./color-classes";
 import { DefaultPalette } from "./default-palette";
@@ -41,9 +40,13 @@ export class ColorPicker {
    @Input() isTableStyle: boolean = false;
    @Output() colorChanged: EventEmitter<string> = new EventEmitter<string>();
    @ViewChild(FixedDropdownDirective) dropdown: FixedDropdownDirective;
+   @ViewChild("trigger", { read: ElementRef }) triggerRef: ElementRef<HTMLButtonElement>;
+   open: boolean = false;
+   private restoreFocusOnClose: boolean = false;
 
    selectColor(value: string): void {
       this.color = value;
+      this.restoreFocusOnClose = true;
       this.dropdown.close();
       this.colorChanged.emit(value);
    }
@@ -55,6 +58,19 @@ export class ColorPicker {
    dialogOpened(opened: boolean) {
       if(this.dropdown) {
          this.dropdown.closeOnOutsideClick = !opened;
+      }
+   }
+
+   handleOpenChange(open: boolean): void {
+      this.open = open;
+
+      if(!open) {
+         const shouldRestoreFocus = this.restoreFocusOnClose;
+         this.restoreFocusOnClose = false;
+
+         if(shouldRestoreFocus && this.enabled) {
+            setTimeout(() => this.triggerRef?.nativeElement?.focus());
+         }
       }
    }
 

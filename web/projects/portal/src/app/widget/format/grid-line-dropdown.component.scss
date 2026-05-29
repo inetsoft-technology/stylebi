@@ -15,7 +15,111 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-button.dropdown-toggle {
-  padding-right: 2em;
+:host {
+  display: block;
   width: 100%;
+}
+
+.custom-select-trigger {
+  position: relative;
+  width: 100%;
+  padding-right: 2rem;
+  background-image: none;
+
+  &:focus,
+  &:focus-visible,
+  &.grid-line-dropdown__trigger--open {
+    border-color: var(--inet-primary-color);
+    box-shadow: var(--inet-focus-ring);
+    outline: var(--inet-focus-ring-outline);
+  }
+}
+
+.dropdown-caret {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.custom-select-menu {
+  padding: 0.25rem;
+}
+
+.custom-select-option {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-width: 150px;
+  min-height: 1.75rem;
+  padding-left: 3px;
+  padding-right: 3px;
+  border-radius: var(--inet-radius-sm);
+  cursor: pointer;
+
+  &:hover,
+  &:focus-visible,
+  &.active {
+    background-color: var(--inet-hover-primary-bg-color);
+  }
+
+  &.selected {
+    background-color: var(--inet-selected-cell-bg-color, var(--inet-hover-primary-bg-color));
+    font-weight: 600;
+  }
+}
+
+.grid-line-dropdown__preview {
+  display: flex;
+  align-items: center;
+  min-height: 1rem;
+  margin-right: 1.25rem;
+  width: 66.6667%;
+}
+
+.grid-line-dropdown__preview .line-display {
+  width: 100%;
+  min-width: 100%;
+  max-width: 100%;
+}
+
+.grid-line-dropdown__line {
+  position: relative;
+}
+
+.grid-line-dropdown__line.line-style-THIN_THIN_LINE,
+.grid-line-dropdown__line.line-style-ULTRA_THIN_LINE {
+  height: 0.875rem;
+  background: none;
+}
+
+.grid-line-dropdown__line.line-style-THIN_THIN_LINE::before,
+.grid-line-dropdown__line.line-style-ULTRA_THIN_LINE::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  border-top: 1px solid var(--inet-line-style-color, currentColor);
+  transform-origin: center;
+}
+
+.grid-line-dropdown__line.line-style-THIN_THIN_LINE::before {
+  transform: translateY(-50%) scaleY(0.8);
+}
+
+.grid-line-dropdown__line.line-style-ULTRA_THIN_LINE::before {
+  transform: translateY(-50%) scaleY(0.55);
+  opacity: 0.85;
+}
+
+.grid-line-dropdown__preview--none {
+  min-height: 1.25rem;
+}
+
+.grid-line-dropdown__none-label {
+  display: inline-block;
+  font-size: 0.875rem;
+  line-height: 1;
 }

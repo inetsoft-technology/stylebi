@@ -67,14 +67,11 @@
                 </div>
               </div>
               <div *ngIf="valueType == ValueType.FIELD" class="col web-field">
-                <select [ngModel]="model.webLink" (ngModelChange)="selectWebLink($event)"
-                        class="form-control" >
-                  <option [ngValue]="null" [selected]="model.webLink == null">
-                  <option *ngFor="let field of model.fields"
-                          [ngValue]="'hyperlink:' + field.name" [selected]="field.name == model.webLink">
-                    hyperlink:{{field.view}}
-                  </option>
-                </select>
+                <custom-select [options]="webLinkFieldSelectOptions"
+                               [ngModel]="model.webLink"
+                               (selectionChange)="selectWebLink($event)"
+                               class="form-control">
+                </custom-select>
               </div>
               <div *ngIf="valueType == ValueType.EXPRESSION" class="col">
                 <expression-editor [vsId]="runtimeId"
@@ -95,18 +92,25 @@
               <input class="form-control" [disabled]="true" placeholder="_#(Link)">
             </div>
             <div *ngSwitchDefault>
-              <div #dropdown="ngbDropdown" ngbDropdown [autoClose]="'outside'">
+              <div #dropdown="ngbDropdown" ngbDropdown [autoClose]="'outside'" class="asset-link-dropdown">
                 <div class="form-floating">
                   <input type="text" readonly [value]="selectedNodePath"
+                         [class.input-dropdown--open]="dropdown.isOpen()"
                          [class.is-invalid]="!isValid()"
-                         placeholder="_#(Link)" class="form-control input-dropdown" ngbDropdownToggle>
+                         placeholder="_#(Link)"
+                         class="form-control input-dropdown asset-link-trigger"
+                         ngbDropdownToggle>
                   <label>_#(Link)</label>
                   <span *ngIf="isAssetLink() && !model.assetLinkPath" class="invalid-feedback">
                     _#(viewer.dialog.hyperlink.linkValid)
                   </span>
-                  <div class="dropdown-arrow icon-size-small"></div>
+                  <i class="custom-select-trigger__icon dropdown-caret icon-color-default"
+                     [class.chevron-up-icon]="dropdown.isOpen()"
+                     [class.chevron-down-icon]="!dropdown.isOpen()"
+                     aria-hidden="true">
+                  </i>
                 </div>
-                <div ngbDropdownMenu class="tree-dropdown-menu">
+                <div ngbDropdownMenu class="tree-dropdown-menu custom-select-menu dropdown-pane">
                   <repository-tree [root]="rootNode" [selector]="selector"
                                    [selectedNode]="selectedNode"
                                    [autoExpandToSelectedNode]="true"
@@ -122,16 +126,13 @@
       <div class="form-row-float-label row">
         <div class="col">
             <div class="form-floating">
-              <select class="form-control bookmark-menu" [ngModel]="getBookmark()"
-                      (ngModelChange)="changeBookmark($event)"
-                      [disabled]="!bookmarks || bookmarks.length == 0"
-                      placeholder="_#(Bookmark)">
-                <option [ngValue]="null" [selected]="model.bookmark == null">
-                <option *ngFor="let bookmark of bookmarks"
-                     [ngValue]="getBookMarkValue(bookmark)" [selected]="bookmarkSelected(bookmark)">
-                  {{bookmark}}
-                </option>
-              </select>
+              <custom-select class="bookmark-menu"
+                             [options]="bookmarkSelectOptions"
+                             [ngModel]="getBookmark()"
+                             (selectionChange)="changeBookmark($event)"
+                             [disabled]="!bookmarks || bookmarks.length == 0"
+                             placeholder="_#(Bookmark)">
+              </custom-select>
             <label>_#(Bookmark)</label>
             </div>
         </div>

@@ -24,7 +24,6 @@ import { TestUtils } from "../../../common/test/test-utils";
 import { ColorEditor } from "../../../widget/color-picker/color-editor.component";
 import { ColorPicker } from "../../../widget/color-picker/color-picker.component";
 import { ColorPane } from "../../../widget/color-picker/cp-color-pane.component";
-import { FixedDropdownDirective } from "../../../widget/fixed-dropdown/fixed-dropdown.directive";
 import { ComboMode } from "../../../widget/dynamic-combo-box/dynamic-combo-box-model";
 import { DynamicComboBox } from "../../../widget/dynamic-combo-box/dynamic-combo-box.component";
 import { StyleDropdown } from "../../../widget/format/style-dropdown.component";
@@ -52,7 +51,7 @@ describe("line prop pane component unit case", () => {
    beforeEach(() => {
       TestBed.configureTestingModule({
          imports: [DropDownTestModule, ReactiveFormsModule, FormsModule, NgbModule],
-         declarations: [LinePropPane, ColorEditor, StyleDropdown, ColorPicker, ColorPane, DynamicComboBox, TargetComboBox, TreeComponent, TreeNodeComponent, TreeDropdownComponent, FixedDropdownDirective, TreeSearchPipe, TooltipDirective],
+         declarations: [LinePropPane, ColorEditor, StyleDropdown, ColorPicker, ColorPane, DynamicComboBox, TargetComboBox, TreeComponent, TreeNodeComponent, TreeDropdownComponent, TreeSearchPipe, TooltipDirective],
          schemas: [NO_ERRORS_SCHEMA]
       }).compileComponents();
 
@@ -80,7 +79,7 @@ describe("line prop pane component unit case", () => {
       typeToggle.click();
       TestUtils.changeDynamicComboValueType(1);
       fixture.detectChanges();
-      colorInput = fixture.nativeElement.querySelector("dynamic-combo-box select");
+      colorInput = fixture.nativeElement.querySelector("dynamic-combo-box custom-select");
       expect(colorInput.getAttribute("ng-reflect-model")).toBe("$(var1)");
       expect(colorEditor.getAttribute("class")).toContain("disable-actions-fade");
 

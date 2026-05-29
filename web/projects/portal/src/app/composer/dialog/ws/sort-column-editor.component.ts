@@ -26,6 +26,7 @@ import {
 } from "@angular/core";
 import { SortColumnEditorModel } from "../../data/ws/sort-column-editor-model";
 import { Tool } from "../../../../../../shared/util/tool";
+import { CustomSelectOption } from "../../../widget/custom-select/custom-select.component";
 
 enum SortEnum {
    NONE = 0,
@@ -47,6 +48,7 @@ interface SortRef {
 @Component({
    selector: "sort-column-editor",
    templateUrl: "sort-column-editor.component.html",
+   styleUrls: ["sort-column-editor.component.scss"],
    changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class SortColumnEditor implements OnChanges {
@@ -57,6 +59,15 @@ export class SortColumnEditor implements OnChanges {
    readonly empty = " ";
    columnList: Column[];
    sortRefs: SortRef[];
+
+   getColumnSelectOptions(sortRef: SortRef): CustomSelectOption<string>[] {
+      return (this.columnList ?? []).map((column) => ({
+         value: column.name,
+         label: column.label,
+         title: column.tooltip,
+         disabled: this.isOptionDisabled(column.name, sortRef.name)
+      }));
+   }
 
    ngOnChanges(changes: SimpleChanges): void {
       this.resetSortRefs();

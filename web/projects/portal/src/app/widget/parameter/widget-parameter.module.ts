@@ -24,12 +24,14 @@ import {ParameterPage} from "./parameter-page/parameter-page.component";
 import {FormsModule} from "@angular/forms";
 import { DateTimeValueDialog } from "./date-time-value-dialog.component";
 import { DateTypeEditorModule } from "../date-type-editor/date-type-editor.module";
+import { CustomSelectModule } from "../custom-select/custom-select.module";
 
 @NgModule({
    imports: [
       CommonModule,
       FormsModule,
       DateTypeEditorModule,
+      CustomSelectModule,
    ],
    declarations: [
       DateTimeValueDialog,

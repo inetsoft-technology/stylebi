@@ -24,6 +24,7 @@ import { EnterSubmitDirective } from "../../widget/directive/enter-submit.direct
 import { ColumnOptionDialogModel } from "../model/column-option-dialog-model";
 import { ColumnOptionDialog } from "./column-option-dialog.component";
 import { ComboBoxEditor } from "./combo-box-editor.component";
+import { CustomSelectModule } from "../../widget/custom-select/custom-select.module";
 import { DateEditor } from "./date-editor.component";
 import { FloatEditor } from "./float-editor.component";
 import { IntegerEditor } from "./integer-editor.component";
@@ -45,7 +46,7 @@ describe("Column option dialog Test", () => {
    beforeEach(() => {
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule
+            FormsModule, ReactiveFormsModule, NgbModule, CustomSelectModule
          ],
          declarations: [
             ColumnOptionDialog, TextEditor, DateEditor, ComboBoxEditor,

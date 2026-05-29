@@ -28,6 +28,7 @@ import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { ValueMode } from "../../dynamic-combo-box/dynamic-combo-box-model";
 import { Tool } from "../../../../../../shared/util/tool";
 import { StrategyInfo } from "../../target/target-info";
+import { CustomSelectOption } from "../../custom-select/custom-select.component";
 
 @Component({
    selector: "computation-combo-box",
@@ -50,6 +51,13 @@ export class ComputationComboBox implements OnInit {
    ];
    dialogModel: StrategyInfo;
    @ViewChild("computationDialog") computationDialog: TemplateRef<any>;
+
+   get computationOptions(): CustomSelectOption<number>[] {
+      return this.computationList.map((computation, index) => ({
+         label: `${computation.label} (${computation.value})`,
+         value: index
+      }));
+   }
 
    constructor(private modalService: NgbModal) {
    }
@@ -80,6 +88,7 @@ export class ComputationComboBox implements OnInit {
       this.model.label = this.computationList[this.selectedIndex].label;
       this.model.name = this.computationList[this.selectedIndex].name;
       this.model.value = this.computationList[this.selectedIndex].value;
+      this.modelChange.emit(this.model);
    }
 
    editComputation(): void {

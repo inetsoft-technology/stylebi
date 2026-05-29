@@ -17,7 +17,7 @@
   -->
 <div style="float:left;" class="radio-inline radio-image-inline"
      *ngFor="let _rotation of rotationStyles; let _i = index">
-  <input type="radio" name="rotation" class="radio-image" [checked]="isChecked(_i)" 
+  <input type="radio" name="rotation" class="form-check-input radio-image" [checked]="isChecked(_i)"
           (click)="select(_i)"/>
   <div class="{{_rotation.clazz}}" (click)="select(_i)" [class.bd-selected]="isChecked(_i)"></div>
 </div>

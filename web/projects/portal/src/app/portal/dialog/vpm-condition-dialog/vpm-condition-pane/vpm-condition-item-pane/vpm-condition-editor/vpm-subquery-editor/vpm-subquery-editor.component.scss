@@ -15,8 +15,29 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+:host {
+  display: block;
+  width: 100%;
+  min-width: 0;
+}
+
+.subquery-editor {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+  min-height: var(--condition-row-control-height, 2.375rem);
+}
+
 .condition-field-combo {
   display: inline-flex;
-  align-items: flex-start;
+  align-items: center;
+  justify-content: flex-start;
   width: 100%;
+}
+
+.subquery-editor__button {
+  min-height: var(--condition-row-control-height, 2.375rem);
+  height: var(--condition-row-control-height, 2.375rem);
+  padding-inline: 0.75rem;
 }

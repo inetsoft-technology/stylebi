@@ -61,4 +61,16 @@ export class VPMVariableEditor implements OnChanges {
          this.valueChange.emit(this.value);
       }
    }
+
+   get dateItemSelectOptions() {
+      return this.DATE_ITEMS.map((item) => ({
+         value: item,
+         label: item
+      }));
+   }
+
+   selectDateVariable(value: string): void {
+      this.inputFocused = false;
+      this.variableNameChanged(value);
+   }
 }

@@ -44,8 +44,9 @@
           <div class="input-group task-options-pane__date-group">
             <input class="form-control date-picker-input" readOnly placeholder="yyyy-mm-dd"
                    name="startDate"
-                   ngbDatepicker #startDatePicker="ngbDatepicker" placement="bottom-right"
-                   container="body" [formControl]="form.get('start')">
+                   ngbDatepicker #startDatePicker="ngbDatepicker" placement="bottom-start"
+                   container="body" [navigation]="'none'" [contentTemplate]="scheduleDatepickerContent"
+                   [formControl]="form.get('start')">
             <button class="input-group-btn-addon btn icon-hover-bg task-options-pane__icon-button"
                     (click)="startDatePicker.toggle(); endDatePicker.close()" type="button">
               <span class="calendar-icon icon-size-medium align-middle"></span>
@@ -65,8 +66,9 @@
           <div class="input-group task-options-pane__date-group">
             <input class="form-control date-picker-input" readOnly placeholder="yyyy-mm-dd"
                    name="endDate"
-                   ngbDatepicker #endDatePicker="ngbDatepicker" placement="bottom-right"
-                   container="body" [formControl]="form.get('stop')"
+                   ngbDatepicker #endDatePicker="ngbDatepicker" placement="bottom-start"
+                   container="body" [navigation]="'none'" [contentTemplate]="scheduleDatepickerContent"
+                   [formControl]="form.get('stop')"
                    [class.is-invalid]="!form.valid && form.dirty">
             <button class="input-group-btn-addon btn icon-hover-bg task-options-pane__icon-button"
                     (click)="endDatePicker.toggle(); startDatePicker.close()" type="button">
@@ -87,18 +89,19 @@
 
     <div class="form-row-float-label row form-group task-options-pane__row">
       <div class="col form-floating">
-        <select class="form-control" [ngModel]="localTimeZoneId" formControlName="timeZone">
-          <option *ngFor="let tz of timeZoneOptions" [value]="tz.timeZoneId" [title]="tz.timeZoneId">{{ tz.hourOffset + " " + tz.label }}</option>
-        </select>
+        <custom-select [options]="timeZoneSelectOptions" formControlName="timeZone"></custom-select>
         <label>_#(Time Zone)</label>
       </div>
     </div>
     <div class="form-row-float-label row form-group task-options-pane__row">
       <div class="col form-floating">
           <div class="input-group btn-group task-options-pane__execute-as-group">
-            <select class="form-control w-auto" [disabled]="disableExecuteAs()" [(ngModel)]="executeAsType" [ngModelOptions]="{standalone: true}">
-              <option [value]="type.value" *ngFor="let type of executeAsTypes">{{type.label}}</option>
-            </select>
+            <custom-select class="w-auto"
+                           [options]="executeAsTypeSelectOptions"
+                           [disabled]="disableExecuteAs()"
+                           [(ngModel)]="executeAsType"
+                           [ngModelOptions]="{standalone: true}">
+            </custom-select>
             <input type="text" class="form-control w-75" id="inputAddress2" [ngModelOptions]="{standalone: true}"
                    [ngModel]="executeAsName" [disabled]="disableExecuteAs()" (ngModelChange)="updateExecuteAs($event)">
             <div class="execute-as-buttons">
@@ -116,10 +119,10 @@
     </div>
     <div class="form-row-float-label row form-group task-options-pane__row">
       <div class="col form-floating">
-          <select class="form-control" [(ngModel)]="locale" [ngModelOptions]="{standalone: true}">
-            <option [value]="'Default'">_#(Default)</option>
-            <option [value]="locale" *ngFor="let locale of _model.locales">{{locale}}</option>
-          </select>
+          <custom-select [options]="localeSelectOptions"
+                         [(ngModel)]="locale"
+                         [ngModelOptions]="{standalone: true}">
+          </custom-select>
           <label>_#(Locale)</label>
       </div>
     </div>
@@ -151,3 +154,48 @@
     </div>
   </div>
 </form>
+
+<ng-template #scheduleDatepickerContent let-datepicker>
+  <div class="schedule-datepicker__calendar">
+    <div class="ngb-dp-header schedule-datepicker__calendar-header">
+      <div class="schedule-datepicker__calendar-nav">
+        <button type="button"
+                class="btn btn-light-no-bg schedule-datepicker__nav-button schedule-datepicker__nav-button--prev"
+                [disabled]="!canNavigateMonth(datepicker, -1)"
+                (click)="navigateMonth(datepicker, -1)"
+                aria-label="_#(Previous month)">
+          <i class="chevron-left-icon icon-size0" aria-hidden="true"></i>
+        </button>
+        <custom-select class="schedule-datepicker__nav-select schedule-datepicker__nav-select--month"
+                       [options]="getMonthSelectOptions(datepicker)"
+                       [ngModel]="datepicker.state.firstDate.month"
+                       [ngModelOptions]="{standalone: true}"
+                       ariaLabel="_#(Select month)"
+                       (selectionChange)="selectMonth(datepicker, $event)">
+        </custom-select>
+        <custom-select class="schedule-datepicker__nav-select schedule-datepicker__nav-select--year"
+                       [options]="getYearSelectOptions(datepicker)"
+                       [ngModel]="datepicker.state.firstDate.year"
+                       [ngModelOptions]="{standalone: true}"
+                       ariaLabel="_#(Select year)"
+                       (selectionChange)="selectYear(datepicker, $event)">
+        </custom-select>
+        <button type="button"
+                class="btn btn-light-no-bg schedule-datepicker__nav-button"
+                [disabled]="!canNavigateMonth(datepicker, 1)"
+                (click)="navigateMonth(datepicker, 1)"
+                aria-label="_#(Next month)">
+          <i class="chevron-right-icon icon-size0" aria-hidden="true"></i>
+        </button>
+      </div>
+    </div>
+    <div class="ngb-dp-content ngb-dp-months">
+      <div *ngFor="let month of datepicker.state.months" class="ngb-dp-month">
+        <div *ngIf="datepicker.displayMonths > 1" class="ngb-dp-month-name">
+          {{ datepicker.i18n.getMonthLabel(month) }}
+        </div>
+        <ngb-datepicker-month [month]="month"></ngb-datepicker-month>
+      </div>
+    </div>
+  </div>
+</ng-template>

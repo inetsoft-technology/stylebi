@@ -16,22 +16,18 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 :host {
+  --condition-row-control-height: 2.375rem;
+  --condition-row-gap: 0.375rem;
+  --condition-row-icon-size: 2rem;
+  --custom-select-height: var(--condition-row-control-height);
+
   .form-control {
-    margin-right: 1px;
+    margin-right: 0;
   }
 
   .form-control:focus {
     outline: none;
     box-shadow: none;
-  }
-
-  .form-inline {
-    margin-top: -5px;
-    align-items: baseline;
-  }
-
-  .form-inline > * {
-    margin-top: 5px;
   }
 
   .row > * {
@@ -47,26 +43,91 @@
 }
 
 .item-pane {
-  //min-width: 680px;
-  .form-inline {
-    //flex-wrap: nowrap;
+  min-width: 0;
+}
 
-    > * {
-      flex-shrink: 1;
-      min-width: 30px;
-    }
+.condition-edit-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--condition-row-gap);
+  width: 100%;
+  min-width: 0;
+}
 
-    condition-field-combo {
-      flex-grow: 1;
-    }
+.condition-edit-row__field-group,
+.condition-edit-row__value {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
 
-    .value-editor-container {
-      flex-grow: 1;
-    }
+.condition-edit-row__field-group {
+  flex: 1 1 16rem;
+}
 
-    select {
-      padding-left: 2px;
-      padding-right: 15px; //needed for the customized dropdown arrow 
-    }
+.condition-edit-row__field-picker {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.condition-edit-row__operator-group {
+  display: flex;
+  flex: 0 1 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--condition-row-gap);
+  min-width: 0;
+}
+
+.condition-edit-row__select,
+.condition-edit-row__operator custom-select {
+  flex: 0 0 auto;
+  width: auto;
+  min-width: 6rem;
+}
+
+.condition-edit-row__negation-select {
+  min-width: 4.25rem;
+}
+
+.condition-edit-row__operation-select {
+  min-width: 6rem;
+}
+
+.condition-edit-row__operator {
+  flex: 0 0 auto;
+  min-width: 0;
+}
+
+.condition-edit-row__value {
+  flex: 1 1 18rem;
+  width: auto;
+}
+
+.condition-edit-row--expression .condition-edit-row__field-group {
+  flex-basis: 13rem;
+}
+
+.condition-edit-row--expression .condition-edit-row__value {
+  flex-basis: 22rem;
+}
+
+@media (max-width: 767.98px) {
+  .condition-edit-row__field-group,
+  .condition-edit-row__operator-group,
+  .condition-edit-row__value {
+    flex-basis: 100%;
   }
+}
+
+:host ::ng-deep custom-select .custom-select-trigger {
+  min-height: var(--condition-row-control-height);
+  height: var(--condition-row-control-height);
+  display: flex;
+  align-items: center;
+}
+
+:host ::ng-deep .condition-edit-row__value .editor-container {
+  min-width: 0;
 }

@@ -59,6 +59,7 @@ export abstract class AestheticFieldMc implements OnInit, OnChanges {
    editPaneId: string;
    protected oframes: string;
    dialogOpened: boolean = false;
+   dropdownOpen: boolean = false;
 
    get frameColor(): string {
       return !!this.frames && !!this.frames.length && !!this.frames[0] ?
@@ -383,6 +384,8 @@ export abstract class AestheticFieldMc implements OnInit, OnChanges {
    }
 
    openChanged(open: boolean): void {
+      this.dropdownOpen = open;
+
       if(open) {
          this.oframes = JSON.stringify(this.frames);
       }

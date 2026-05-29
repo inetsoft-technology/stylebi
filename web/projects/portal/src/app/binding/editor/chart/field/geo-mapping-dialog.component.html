@@ -25,12 +25,11 @@
     <div class="container-fluid">
       <div class="form-row-float-label row">
         <div class="col form-floating">
-          <select class="form-control" placeholder="_#(Algorithm)" [(ngModel)]="algorithm"
-             (ngModelChange)="changeAlgorithm()">
-            <option *ngFor="let _algorithm of showAlgorithms" [value]="_algorithm.value">
-                {{_algorithm.label}}
-            </option>
-          </select>
+          <custom-select [options]="algorithmOptions"
+                         [(ngModel)]="algorithm"
+                         (selectionChange)="changeAlgorithm()"
+                         placeholder="_#(Algorithm)">
+          </custom-select>
           <label><span>_#(Algorithm)</span></label>
         </div>
         <div class="col form-floating">

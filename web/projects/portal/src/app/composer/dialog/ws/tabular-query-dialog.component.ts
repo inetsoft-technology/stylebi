@@ -34,6 +34,7 @@ import { AbstractTableAssembly } from "../../data/ws/abstract-table-assembly";
 import { TabularQueryDialogModel } from "../../data/ws/tabular-query-dialog-model";
 import { UntypedFormControl, UntypedFormGroup, Validators } from "@angular/forms";
 import { FormValidators } from "../../../../../../shared/util/form-validators";
+import { CustomSelectOption } from "../../../widget/custom-select/custom-select.component";
 
 @Component({
    selector: "tabular-query-dialog",
@@ -68,6 +69,13 @@ export class TabularQueryDialog implements OnInit {
       (this.form?.valid || !this.tables);
    tableNameExists = false;
    form: UntypedFormGroup;
+
+   get dataSourceSelectOptions(): CustomSelectOption<string>[] {
+      return (this.model?.dataSources ?? []).map((dataSource) => ({
+         label: dataSource,
+         value: dataSource
+      }));
+   }
 
    constructor(private modelService: ModelService, private http: HttpClient,
                private oauthService: OAuthAuthorizationService,

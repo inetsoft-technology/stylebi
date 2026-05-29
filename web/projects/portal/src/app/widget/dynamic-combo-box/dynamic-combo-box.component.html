@@ -15,19 +15,27 @@
   ~ You should have received a copy of the GNU Affero General Public License
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
-<div #dropdownBody class="dynamic-combo-box-body w-100 input-group">
+<div #dropdownBody class="dynamic-combo-box-body w-100">
   <ng-container *ngIf="type == ComboMode.VALUE">
     <ng-container [class.disable-actions]="disable">
       <div *ngIf="!editable && mode == ValueMode.TEXT" draggable="true"
+           #valueTrigger
            tooltipIf [disableTooltipIf]="!!tooltip"
-           class="display-style bd-gray form-control" [ngClass]="getInputClass(value)"
-           [class.span-as-dropdown]="isValuesDefinedAndNotEmpty()"
-           [class.custom-select]="isValuesDefinedAndNotEmpty()"
+           class="display-style custom-select-trigger dynamic-combo-box__trigger bd-gray form-control"
+           [ngClass]="getInputClass(value)"
+           [class.is-open]="valueDropdownOpen"
            [class.disabled]="disable"
+           [attr.tabindex]="disable ? -1 : 0"
            [fixedDropdown]="selectOnClick ? null : valueDropdownMenu"
+           (openChange)="handleValueDropdownOpenChange($event)"
            dropdownPlacement="bottom" [attr.title]="tooltip"
            [autoClose]="!asTree" [disabled]="disable">
-        {{getCurrentValue()}}&nbsp;
+        <span class="dynamic-combo-box__display-text custom-select-trigger__text">{{getCurrentValue()}}&nbsp;</span>
+        <i *ngIf="isValuesDefinedAndNotEmpty()"
+           class="dynamic-combo-box__display-icon custom-select-trigger__icon dropdown-caret icon-color-default"
+           aria-hidden="true"
+           [class.chevron-down-icon]="!valueDropdownOpen"
+           [class.chevron-up-icon]="valueDropdownOpen"></i>
       </div>
       <input *ngIf="editable && mode == ValueMode.TEXT" class="form-control"
              [class.is-invalid]="invalid"
@@ -53,17 +61,17 @@
              (ngModelChange)="onValueTyping.emit($event)"
              [readonly]="!editable" [disabled]="disable" [attr.title]="value">
       <ng-template #valueDropdownMenu>
-        <div class="dropdown-container dropdown-menu show" role="menu" blockMouse
+        <div class="dropdown-container custom-select-menu dropdown-pane" role="menu" blockMouse
              [style.min-width.px]="dropdownMinWidth"
           *ngIf="values && values.length">
           <ng-container *ngIf="!asTree">
             <div *ngFor="let choice of values; let i = index" placement="bottom">
               <a>
-                <div class="dropdown-item dropdown-item-label"
+                <div class="dropdown-item dropdown-item-label custom-select-option"
                      [ngClass]="getDisplayClass(choice)"
                      [attr.title]="getTreeColTooltip(choice.label)"
                      (mousedown)="selectValue(choice)"
-                     (mouseup)="closeDropdowns()">
+                     (mouseup)="closeDropdowns(true)">
                   <label *ngIf="isValueEnabled(choice)">
                     {{choice.label ? choice.label : choice}}
                   </label>
@@ -84,12 +92,14 @@
     </ng-container>
   </ng-container>
   <ng-container *ngIf="type == ComboMode.VARIABLE">
-     <select class="form-control" [ngModel]="value" [attr.title]="value"
-            (ngModelChange)="valueChange.emit($event)" [disabled]="disable" data-test="variable-value-dropdown">
-      <option [value]="variable" *ngFor="let variable of (variables ? variables.sort() : [])">
-        {{variable}}
-      </option>
-    </select>
+    <custom-select class="w-100"
+                   [options]="variableSelectOptions"
+                   [ngModel]="value"
+                   [disabled]="disable"
+                   [ariaLabel]="label || '_#(Variable)'"
+                   (selectionChange)="valueChange.emit($event)"
+                   data-test="variable-value-dropdown">
+    </custom-select>
   </ng-container>
   <ng-container *ngIf="type == ComboMode.EXPRESSION">
     <input type="text" class="form-control" [class.disabled]="disable" [ngModel]="value" [attr.title]="value"

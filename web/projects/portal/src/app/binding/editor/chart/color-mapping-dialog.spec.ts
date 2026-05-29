@@ -26,6 +26,7 @@ import { ColorMap } from "../../../common/data/color-map";
 import { ColorMappingDialogModel } from "../../data/chart/color-mapping-dialog-model";
 import * as V from "../../../common/data/visual-frame-model";
 import { TestUtils } from "../../../common/test/test-utils";
+import { CustomSelectModule } from "../../../widget/custom-select/custom-select.module";
 
 describe("Color Mapping Dialog Unit Test", () => {
    let createModel: () => ColorMappingDialogModel = () => {
@@ -99,7 +100,7 @@ describe("Color Mapping Dialog Unit Test", () => {
    beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule
+            FormsModule, ReactiveFormsModule, NgbModule, CustomSelectModule
          ],
          declarations: [
             ColorMappingDialog, ColorEditor, ColorPicker

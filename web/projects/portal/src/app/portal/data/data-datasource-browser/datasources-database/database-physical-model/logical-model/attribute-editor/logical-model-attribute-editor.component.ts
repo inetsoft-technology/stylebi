@@ -17,11 +17,13 @@
  */
 import {
    Component,
+   ElementRef,
    EventEmitter,
    Input,
    OnDestroy,
    OnInit,
-   Output
+   Output,
+   ViewChild
 } from "@angular/core";
 import { UntypedFormGroup, AbstractControl, UntypedFormControl, Validators } from "@angular/forms";
 import { AttributeModel } from "../../../../../model/datasources/database/physical-model/logical-model/attribute-model";
@@ -36,6 +38,7 @@ import { AutoDrillInfoModel } from "../../../../../model/datasources/database/ph
 import { AutoDrillDialog } from "./auto-drill-dialog/data-auto-drill-dialog.component";
 import { ComponentTool } from "../../../../../../../common/util/component-tool";
 import { GetModelEvent } from "../../../../../model/datasources/database/events/get-model-event";
+import { CustomSelectOption } from "../../../../../../../widget/custom-select/custom-select.component";
 import { FormValidators } from "../../../../../../../../../../shared/util/form-validators";
 import { Subscription } from "rxjs";
 import { EntityModel } from "../../../../../model/datasources/database/physical-model/logical-model/entity-model";
@@ -128,6 +131,8 @@ export class LogicalModelAttributeEditor implements OnInit, OnDestroy {
    _existNames: string[];
    private inited: boolean = false;
    private subscription: Subscription;
+   @ViewChild("referenceTypeTrigger", { read: ElementRef })
+   private referenceTypeTriggerRef: ElementRef<HTMLInputElement>;
 
    @Input() set existNames(existNames: string[]) {
       this._existNames = existNames;
@@ -200,6 +205,13 @@ export class LogicalModelAttributeEditor implements OnInit, OnDestroy {
     */
    get refTypeControl(): AbstractControl {
       return this.form.get("refType");
+   }
+
+   get dataTypeSelectOptions(): CustomSelectOption<string>[] {
+      return (this.dataTypes || []).map((dataType) => ({
+         value: dataType.data,
+         label: dataType.label
+      }));
    }
 
    /**
@@ -350,6 +362,7 @@ export class LogicalModelAttributeEditor implements OnInit, OnDestroy {
 
       if(!!dropdown) {
          dropdown.close();
+         setTimeout(() => this.referenceTypeTriggerRef?.nativeElement?.focus());
       }
    }
 

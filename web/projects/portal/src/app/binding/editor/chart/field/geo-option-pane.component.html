@@ -18,34 +18,33 @@
 <div class="container-fluid dropdown-pane gop-div">
   <div class="row form-row-float-label" *ngIf="mapVisible">
     <div class="col form-floating">
-      <select class="form-control" [(ngModel)]="mapType" placeholder="_#(Map)"
-              (change)="mapChange($event.target.value)">
-        <option *ngFor="let type of typeModel" [value]="type.data">{{type.label}}</option>
-      </select>
+      <custom-select [options]="mapTypeOptions"
+                     [(ngModel)]="mapType"
+                     (selectionChange)="mapChange($event)"
+                     placeholder="_#(Map)">
+      </custom-select>
       <label><span>_#(Map)</span></label>
     </div>
   </div>
   <div class="row form-row-float-label" *ngIf="layerVisible">
     <div class="col form-floating">
-      <select class="form-control" *ngIf="chartGeoModel"
-              [(ngModel)]="chartGeoModel.option.layerValue"
-              (change)="layerChange($event.target.value)" placeholder="_#(Layer)">
-        <option *ngFor="let layer of layerMode" [value]="layer.data">
-          {{layer.label}}
-        </option>
-      </select>
+      <custom-select *ngIf="chartGeoModel"
+                     [options]="layerOptions"
+                     [(ngModel)]="chartGeoModel.option.layerValue"
+                     (selectionChange)="layerChange($event)"
+                     placeholder="_#(Layer)">
+      </custom-select>
       <label><span>_#(Layer)</span></label>
     </div>
   </div>
   <div class="row form-row-float-label" *ngIf="mappingVisible">
     <div class="col pe-0 form-floating">
-      <select class="form-control" *ngIf="chartGeoModel"
-              [ngModel]="chartGeoModel.option.mapping" placeholder="_#(Mapping)"
-              (ngModelChange)="mappingChange($event)">
-        <option *ngFor="let mapping of mappingMode" [ngValue]="mapping.data">
-          {{mapping.label}}
-        </option>
-      </select>
+      <custom-select *ngIf="chartGeoModel"
+                     [options]="mappingOptions"
+                     [ngModel]="chartGeoModel.option.mapping"
+                     (selectionChange)="mappingChange($event)"
+                     placeholder="_#(Mapping)">
+      </custom-select>
       <label><span>_#(Mapping)</span></label>
     </div>
     <div class="col-auto ms-2">

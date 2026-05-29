@@ -43,6 +43,7 @@ import { ManualOrderingDialog } from "./manual-ordering-dialog.component";
 import { ComponentTool } from "../../common/util/component-tool";
 import { XConstants } from "../../common/util/xconstants";
 import { SourceInfo } from "../data/source-info";
+import { CustomSelectOption } from "../../widget/custom-select/custom-select.component";
 
 const GENERAL_SORT_OPTIONS: any[] = [
    {label: "_#(js:None)", value: StyleConstants.SORT_NONE},
@@ -71,6 +72,7 @@ export class SortOption implements OnInit {
    @Input() set dimension(dim: BDimensionRef) {
       this._dimension = dim;
       this.sortOrders = this.getSortOrders();
+      this.updateSortOrderSelectOptions();
    }
 
    get dimension() {
@@ -95,6 +97,7 @@ export class SortOption implements OnInit {
    valueLabelList: ValueLabelModel[];
    manualOrders: string[];
    sortOrders: any[];
+   sortOrderSelectOptions: CustomSelectOption<any>[] = [];
    rankingOptions: any[];
    public ValueMode = ValueMode;
    aggregates: any[] = [];
@@ -111,6 +114,7 @@ export class SortOption implements OnInit {
    ngOnInit(): void {
       this.initAggrs();
       this.sortOrders = this.getSortOrders();
+      this.updateSortOrderSelectOptions();
       this.rankingOptions = RANKING_OPTIONS;
       this.fixSortOrder();
       this.fixSortByCol();
@@ -243,6 +247,15 @@ export class SortOption implements OnInit {
 
    isEmptyAggregate(): boolean {
       return !this.aggregates || this.aggregates.length == 0;
+   }
+
+   private updateSortOrderSelectOptions(): void {
+      this.sortOrderSelectOptions = (this.sortOrders || [])
+         .filter((sort) => this.sortItemVisible(sort))
+         .map((sort) => ({
+            value: sort.value,
+            label: sort.label
+         }));
    }
 
    /**

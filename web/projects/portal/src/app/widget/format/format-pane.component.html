@@ -82,14 +82,17 @@
       <ng-template [ngSwitchCase]="'date'">
         <label class="col-2">_#(Format):</label>
         <div class="col-6">
-          <select name="select" class="form-control" [(ngModel)]="model.dateValue" [ngModelOptions]="{standalone:true}">
-            <option *ngFor="let _option of dateOptions">{{_option}}</option>
-          </select>
+          <custom-select [options]="dateOptionItems"
+                         [(ngModel)]="model.dateValue"
+                         [ngModelOptions]="{standalone:true}">
+          </custom-select>
         </div>
         <div class="col-6">
-          <select name="select" class="form-control" [(ngModel)]="model.value" [disabled]="!(model.dateValue == 'Custom')" [ngModelOptions]="{standalone:true}">
-            <option *ngFor="let _date of dateFmts">{{_date}}</option>
-          </select>
+          <custom-select [options]="dateFormatItems"
+                         [(ngModel)]="model.value"
+                         [disabled]="!(model.dateValue == 'Custom')"
+                         [ngModelOptions]="{standalone:true}">
+          </custom-select>
         </div>
       </ng-template>
 
@@ -103,9 +106,11 @@
       <ng-template [ngSwitchCase]="'number'">
         <label class="col-2">_#(Format):</label>
         <div class="col-9">
-          <select class="form-control" id="number" [(ngModel)]="model.dateValue" [ngModelOptions]="{standalone:true}">
-            <option *ngFor="let _number of decimalFmts">{{_number}}</option>
-          </select>
+          <custom-select [options]="decimalFormatItems"
+                         id="number"
+                         [(ngModel)]="model.dateValue"
+                         [ngModelOptions]="{standalone:true}">
+          </custom-select>
         </div>
       </ng-template>
     </span>

@@ -31,9 +31,10 @@
           </span>
         </div>
         <div class="form-floating logical-model-expression-dialog__field">
-          <select class="form-control" formControlName="parent" [class.is-invalid]="!parentControl.valid">
-            <option *ngFor="let entity of entities; let i = index" [value]="i">{{ entity.name }}</option>
-          </select>
+          <custom-select formControlName="parent"
+                         [invalid]="!parentControl.valid"
+                         [options]="parentEntitySelectOptions">
+          </custom-select>
           <label>_#(data.logicalmodel.parentEntity)</label>
           <span class="invalid-feedback" *ngIf="parentControl.getError('required')">
             _#(data.logicalmodel.parentEntityRequired)

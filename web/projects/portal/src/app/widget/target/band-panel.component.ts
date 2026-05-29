@@ -22,6 +22,7 @@ import { MeasureInfo, TargetInfo } from "./target-info";
 import { GraphTypes } from "../../common/graph-types";
 import { Tool } from "../../../../../shared/util/tool";
 import { DefaultPalette } from "../color-picker/default-palette";
+import { CustomSelectOption } from "../custom-select/custom-select.component";
 
 @Component({
    selector: "band-panel",
@@ -40,6 +41,15 @@ export class BandPanel {
    @ViewChild("dateField1") dateField1: DateInputField;
    @ViewChild("dateField2") dateField2: DateInputField;
    fillPalette = DefaultPalette.bgWithTransparent;
+
+   get fieldOptions(): CustomSelectOption<MeasureInfo>[] {
+      return (this.availableFields || [])
+         .filter((field) => !!field && !field.groupOthers)
+         .map((field) => ({
+            label: field.label,
+            value: field
+         }));
+   }
 
    isChartScopeEnabled(): boolean {
       return (!!this.model.value && isNaN(parseFloat(this.model.value)) ||
@@ -73,6 +83,10 @@ export class BandPanel {
 
    onToLabelChange(label: any) {
       this.model.toLabel = label;
+   }
+
+   onMeasureChange(field: MeasureInfo): void {
+      this.model.measure = field;
    }
 
    enableFromFormulaLabel(enable: boolean) {

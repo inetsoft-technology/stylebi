@@ -15,8 +15,10 @@
   ~ You should have received a copy of the GNU Affero General Public License
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
-<button type="button"  class="btn btn-default" (click)="openSubqueryDialog()">
-  {{value == null ? '_#(Subquery)' : 'Query[' + value.query + ']'}}
+<button type="button" class="btn btn-default subquery-trigger"
+        [attr.title]="buttonLabel"
+        (click)="openSubqueryDialog()">
+  {{buttonLabel}}
 </button>
 <ng-template #subqueryDialog let-close="close" let-dismiss="dismiss">
   <subquery-dialog (onCommit)="close($event)" (onCancel)="dismiss($event)"

@@ -25,6 +25,7 @@ import { TestUtils } from "../../common/test/test-utils";
 import { DynamicComboBox } from "../dynamic-combo-box/dynamic-combo-box.component";
 import { LabelInputField } from "./label-input-field.component";
 import { StatPanel } from "./stat-panel.component";
+import { CustomSelectModule } from "../custom-select/custom-select.module";
 
 describe("stat panel component unit case", () => {
    let fixture: ComponentFixture<StatPanel>;
@@ -32,7 +33,7 @@ describe("stat panel component unit case", () => {
 
    beforeEach(() => {
       TestBed.configureTestingModule({
-         imports: [ReactiveFormsModule, FormsModule, NgbModule],
+         imports: [ReactiveFormsModule, FormsModule, NgbModule, CustomSelectModule],
          declarations: [
             StatPanel, LabelInputField, DynamicComboBox
          ],
@@ -59,10 +60,10 @@ describe("stat panel component unit case", () => {
          {name: "Sum(id)", label: "Sum(id)", groupOthers: false, dateField: false},
          {name: "Year(date)", label: "Year(date)", groupOthers: true, dateField: true}];
       fixture.detectChanges();
-      let fileds = fixture.nativeElement.querySelectorAll("select option");
-      expect(fileds.length).toBe(2);
-      expect(fileds[0].textContent).toContain("");
-      expect(fileds[1].textContent).toContain("Sum(id)");
+      const csDebugEl = fixture.debugElement.query(By.css("custom-select"));
+      const options = (csDebugEl.componentInstance as any).options;
+      expect(options.length).toBe(1);
+      expect(options[0].label).toContain("Sum(id)");
    });
 
    //Bug #20026 Use target value by default when statistics target line label is empty

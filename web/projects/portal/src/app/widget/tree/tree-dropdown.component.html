@@ -15,15 +15,23 @@
   ~ You should have received a copy of the GNU Affero General Public License
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
-<div #inputDropdown class="input-dropdown form-control dropdown-toggle unhighlightable"
+<div #inputDropdown class="custom-select-trigger tree-dropdown-trigger form-control unhighlightable"
      [ngClass]="{disabled: isDisabled}"
-     [fixedDropdown]="dropdownMenu" dropdownPlacement="bottom" [autoClose]="false">
-  <div class="label-container" [title]="currentLabel">
+     [attr.tabindex]="isDisabled ? -1 : 0"
+     [fixedDropdown]="dropdownMenu" dropdownPlacement="bottom" [autoClose]="false"
+     (openChange)="handleOpenChange($event)">
+  <div class="label-container custom-select-trigger__text" [title]="currentLabel">
     {{currentLabel}}
   </div>
+  <i class="custom-select-trigger__icon dropdown-caret icon-color-default"
+     [class.chevron-down-icon]="!open"
+     [class.chevron-up-icon]="open"
+     aria-hidden="true">
+  </i>
 </div>
 <ng-template #dropdownMenu>
-  <div class="tree-dropdown-menu dropdown-menu show bd-gray">
+  <div class="tree-dropdown-menu custom-select-menu dropdown-pane"
+       [style.min-width.px]="dropdownMinWidth">
     <tree [root]="root" [showRoot]="false" [iconFunction]="iconFunction"
           [selectedNodes]="selectedNodes" [showTooltip]="true"
           [initSelectedNodesExpanded]="expandSelectedNodes"

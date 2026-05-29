@@ -39,6 +39,7 @@ export class BCategoricalColorPane implements OnInit {
    @ViewChild("paletteDialog") paletteDialog: TemplateRef<any>;
    @Input() colorModel: CategoricalColorModel;
    @Input() assetId: string = null;
+   @Input() label: string = "";
    @Output() colorListChange: EventEmitter<CategoricalColorModel> =
    new EventEmitter<CategoricalColorModel>();
    COLORS_IN_VIEW = 6;
@@ -99,6 +100,10 @@ export class BCategoricalColorPane implements OnInit {
    apply(): void {
       // TODO
       this.colorListChange.emit(this.colorModel);
+   }
+
+   get previewColors(): string[] {
+      return (this.colorModel?.colors ?? []).slice(0, 3);
    }
 
    openPalette() {

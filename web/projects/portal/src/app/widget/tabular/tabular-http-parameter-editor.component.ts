@@ -17,6 +17,7 @@
  */
 import { Component, EventEmitter, Input, OnInit, Output } from "@angular/core";
 import { HttpParameter } from "../../common/data/tabular/http-parameter";
+import { CustomSelectOption } from "../custom-select/custom-select.component";
 
 @Component({
    selector: "tabular-http-parameter-editor",
@@ -29,6 +30,10 @@ export class TabularHttpParameterEditorComponent implements OnInit {
    @Input() editorPropertyNames: string[];
    @Input() editorPropertyValues: string[];
    @Output() valueChange: EventEmitter<HttpParameter> = new EventEmitter<HttpParameter>();
+   readonly typeSelectOptions: CustomSelectOption<string>[] = [
+      { label: "_#(HEADER)", value: "HEADER" },
+      { label: "_#(QUERY)", value: "QUERY" }
+   ];
 
    ngOnInit(): void {
       if(this.value == null) {

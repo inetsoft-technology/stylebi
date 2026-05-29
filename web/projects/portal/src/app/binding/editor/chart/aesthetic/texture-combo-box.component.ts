@@ -26,6 +26,7 @@ export class TextureComboBox {
    @Input() texture: number;
    @Input() index: number;
    @Output() textureChanged = new EventEmitter<number>();
+   open: boolean = false;
 
    changeTexture(ntexture: number): void {
       this.textureChanged.emit(ntexture);

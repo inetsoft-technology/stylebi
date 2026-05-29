@@ -15,27 +15,43 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-.form-floating label {
-  justify-content: flex-start;
+:host {
+  display: block;
+  width: 100%;
+  min-width: 0;
 }
 
-input.form-control.input-transparent {
-  position: absolute;
-  width: 190px;
-  margin-right: 20px;
-  z-index: 1;
-  top: 0;
-  left: 1px;
+form {
+  width: 100%;
+  min-width: 0;
+  margin: 0;
 }
 
-select.form-control {
-  position: relative;
-  width: 220px;
-  z-index: 0;
+.variable-editor-group {
+  width: 100%;
+  min-width: 0;
+}
+
+.input-group,
+.variable-input-group {
+  display: flex;
+  width: 100%;
+  min-width: 0;
 }
 
 .variable-input {
-  height: calc(100% - 2px);
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
+}
+
+custom-select.variable-date-picker {
+  flex: 0 0 11rem;
+}
+
+custom-select.variable-date-picker ::ng-deep .custom-select-trigger {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
 }
 
 .text-low-Priority {

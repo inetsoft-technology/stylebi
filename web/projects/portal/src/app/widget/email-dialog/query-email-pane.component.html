@@ -31,19 +31,19 @@
 </div>
 <div class="form-group form-row one-col-form-flex">
   <div class="form-floating col">
-    <select class="form-control" [ngModel]="user" (ngModelChange)="updateUser($event)">
-      <option *ngFor="let column of columnLabels; let i = index"
-              [value]="columns[i]">{{ column }}</option>
-    </select>
+    <custom-select [options]="columnSelectOptions"
+                   [ngModel]="user"
+                   (selectionChange)="updateUser($event)"
+                   placeholder="_#(User)"></custom-select>
     <label>_#(User)</label>
   </div>
 </div>
 <div class="form-group form-row one-col-form-flex">
   <div class="form-floating col">
-    <select class="form-control" [ngModel]="email" (ngModelChange)="updateEmail($event)">
-      <option *ngFor="let column of columnLabels; let i = index"
-              [value]="columns[i]">{{ column }}</option>
-    </select>
+    <custom-select [options]="columnSelectOptions"
+                   [ngModel]="email"
+                   (selectionChange)="updateEmail($event)"
+                   placeholder="_#(Email)"></custom-select>
     <label>_#(Email)</label>
   </div>
 </div>

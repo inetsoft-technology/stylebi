@@ -18,7 +18,7 @@
 import { HttpClient } from "@angular/common/http";
 import { Component, EventEmitter, Input, OnInit, Output } from "@angular/core";
 import { UntypedFormControl, UntypedFormGroup } from "@angular/forms";
-import { NgbDateStruct, NgbModal } from "@ng-bootstrap/ng-bootstrap";
+import { NgbDatepicker, NgbDateStruct, NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { IdentityIdWithLabel } from "../../../../../../../em/src/app/settings/security/users/idenity-id-with-label";
 import { IdentityId } from "../../../../../../../em/src/app/settings/security/users/identity-id";
 import { IdentityType } from "../../../../../../../shared/data/identity-type";
@@ -27,6 +27,7 @@ import { TimeZoneModel } from "../../../../../../../shared/schedule/model/time-z
 import { ScheduleUsersService } from "../../../../../../../shared/schedule/schedule-users.service";
 import { FormValidators } from "../../../../../../../shared/util/form-validators";
 import { ComponentTool } from "../../../../common/util/component-tool";
+import { CustomSelectOption } from "../../../../widget/custom-select/custom-select.component";
 import { ExecuteAsDialog } from "../execute-as-dialog/execute-as-dialog.component";
 import { Observable } from "rxjs";
 import { ScheduleTaskDialogModel } from "../../../../../../../shared/schedule/model/schedule-task-dialog-model";
@@ -37,6 +38,7 @@ import { ScheduleTaskDialogModel } from "../../../../../../../shared/schedule/mo
    styleUrls: ["./task-options-pane.component.scss"]
 })
 export class TaskOptionsPane implements OnInit {
+   private readonly defaultYearWindow: number = 10;
    @Input() set model(value: TaskOptionsPaneModel) {
       this._model = value;
       const start: Date = new Date(value.startFrom);
@@ -107,6 +109,125 @@ export class TaskOptionsPane implements OnInit {
 
    set locale(loc: string) {
       this._model.locale = loc != TaskOptionsPane.DEFAULT_LOCALE ? loc : null;
+   }
+
+   get timeZoneSelectOptions(): CustomSelectOption<string>[] {
+      return (this.timeZoneOptions || []).map((tz) => ({
+         value: tz.timeZoneId,
+         label: `${tz.hourOffset} ${tz.label}`,
+         title: tz.timeZoneId
+      }));
+   }
+
+   get executeAsTypeSelectOptions(): CustomSelectOption<number>[] {
+      return this.executeAsTypes.map((type) => ({
+         value: type.value,
+         label: type.label
+      }));
+   }
+
+   get localeSelectOptions(): CustomSelectOption<string>[] {
+      return [
+         {value: TaskOptionsPane.DEFAULT_LOCALE, label: "_#(js:Default)"},
+         ...(this._model?.locales || []).map((locale) => ({value: locale, label: locale}))
+      ];
+   }
+
+   getMonthSelectOptions(datepicker: NgbDatepicker): CustomSelectOption<number>[] {
+      const displayed = this.getDisplayedMonth(datepicker);
+
+      return this.getAvailableMonths(datepicker, displayed.year).map((month) => ({
+         value: month,
+         label: datepicker.i18n.getMonthShortName(month, displayed.year)
+      }));
+   }
+
+   getYearSelectOptions(datepicker: NgbDatepicker): CustomSelectOption<number>[] {
+      const displayed = this.getDisplayedMonth(datepicker);
+      const minYear = datepicker.state.minDate?.year ?? displayed.year - this.defaultYearWindow;
+      const maxYear = datepicker.state.maxDate?.year ?? displayed.year + this.defaultYearWindow;
+      const options: CustomSelectOption<number>[] = [];
+
+      for(let year = minYear; year <= maxYear; year++) {
+         options.push({
+            value: year,
+            label: datepicker.i18n.getYearNumerals(year)
+         });
+      }
+
+      return options;
+   }
+
+   selectMonth(datepicker: NgbDatepicker, month: number): void {
+      const displayed = this.getDisplayedMonth(datepicker);
+      datepicker.navigateTo({ year: displayed.year, month, day: 1 });
+   }
+
+   selectYear(datepicker: NgbDatepicker, year: number): void {
+      const displayed = this.getDisplayedMonth(datepicker);
+      const availableMonths = this.getAvailableMonths(datepicker, year);
+      const month = availableMonths.includes(displayed.month) ? displayed.month : availableMonths[0];
+
+      datepicker.navigateTo({ year, month, day: 1 });
+   }
+
+   navigateMonth(datepicker: NgbDatepicker, offset: number): void {
+      const displayed = this.getDisplayedMonth(datepicker);
+      let year = displayed.year;
+      let month = displayed.month + offset;
+
+      while(month < 1) {
+         month += 12;
+         year--;
+      }
+
+      while(month > 12) {
+         month -= 12;
+         year++;
+      }
+
+      const minDate = datepicker.state.minDate;
+      const maxDate = datepicker.state.maxDate;
+
+      if(minDate && (year < minDate.year || year === minDate.year && month < minDate.month)) {
+         year = minDate.year;
+         month = minDate.month;
+      }
+
+      if(maxDate && (year > maxDate.year || year === maxDate.year && month > maxDate.month)) {
+         year = maxDate.year;
+         month = maxDate.month;
+      }
+
+      datepicker.navigateTo({ year, month, day: 1 });
+   }
+
+   canNavigateMonth(datepicker: NgbDatepicker, offset: number): boolean {
+      const displayed = this.getDisplayedMonth(datepicker);
+      const minDate = datepicker.state.minDate;
+      const maxDate = datepicker.state.maxDate;
+      let year = displayed.year;
+      let month = displayed.month + offset;
+
+      while(month < 1) {
+         month += 12;
+         year--;
+      }
+
+      while(month > 12) {
+         month -= 12;
+         year++;
+      }
+
+      if(minDate && (year < minDate.year || year === minDate.year && month < minDate.month)) {
+         return false;
+      }
+
+      if(maxDate && (year > maxDate.year || year === maxDate.year && month > maxDate.month)) {
+         return false;
+      }
+
+      return true;
    }
 
    public startDateChange(date: NgbDateStruct): void {
@@ -231,7 +352,7 @@ export class TaskOptionsPane implements OnInit {
       this.form = new UntypedFormGroup({
          "start": new UntypedFormControl(this.startDate, []),
          "stop": new UntypedFormControl(this.endDate, []),
-         "timeZone": new UntypedFormControl({value: this._model.timeZone})
+         "timeZone": new UntypedFormControl(this._model.timeZone)
       }, FormValidators.dateSmallerThan("start", "stop"));
 
       this.form.get("start").valueChanges.subscribe((date) => {
@@ -245,6 +366,25 @@ export class TaskOptionsPane implements OnInit {
       this.form.get("timeZone").valueChanges.subscribe((timeZoneId) => {
          this._model.timeZone = timeZoneId;
       });
+   }
+
+   private getDisplayedMonth(datepicker: NgbDatepicker): NgbDateStruct {
+      const displayedMonth: any = datepicker.state.months?.[0];
+      return displayedMonth?.firstDate ?? displayedMonth ?? datepicker.state.firstDate ?? this.startDate ?? this.endDate;
+   }
+
+   private getAvailableMonths(datepicker: NgbDatepicker, year: number): number[] {
+      const minDate = datepicker.state.minDate;
+      const maxDate = datepicker.state.maxDate;
+      const startMonth = minDate && minDate.year === year ? minDate.month : 1;
+      const endMonth = maxDate && maxDate.year === year ? maxDate.month : 12;
+      const months: number[] = [];
+
+      for(let month = startMonth; month <= endMonth; month++) {
+         months.push(month);
+      }
+
+      return months;
    }
 
    get loadingUsers(): boolean {

@@ -26,6 +26,7 @@ import { StringWrapper } from "../../../../../model/datasources/database/string-
 import { TreeNodeModel } from "../../../../../../../widget/tree/tree-node-model";
 import { GetModelEvent } from "../../../../../model/datasources/database/events/get-model-event";
 import { ScriptPane } from "../../../../../../../widget/dialog/script-pane/script-pane.component";
+import { CustomSelectOption } from "../../../../../../../widget/custom-select/custom-select.component";
 
 const CHECK_EXPRESSION_URI: string = "../api/data/logicalModel/attribute/expression";
 const FIELDS_URI: string = "../api/data/logicalModel/tables/nodes";
@@ -184,6 +185,13 @@ export class LogicalModelExpressionDialog implements OnInit {
     */
    get parentControl(): AbstractControl {
       return this.form.get("parent");
+   }
+
+   get parentEntitySelectOptions(): CustomSelectOption<number>[] {
+      return (this.entities || []).map((entity, index) => ({
+         value: index,
+         label: entity.name
+      }));
    }
 
    /**

@@ -15,14 +15,11 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-.input-transparent {
-  position: absolute;
-  border: 1px solid rgba(0,0,0,0);
-  box-shadow: unset;
-  width: 90%;
-  z-index: 1;
+custom-select.parameter-name-picker {
+  flex: 0 0 10rem;
 }
 
-.hideText {
-  -webkit-text-fill-color: rgba(0,0,0,0);
+custom-select.parameter-name-picker ::ng-deep .custom-select-trigger {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
 }

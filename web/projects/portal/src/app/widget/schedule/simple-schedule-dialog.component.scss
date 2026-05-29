@@ -1,0 +1,51 @@
+/*!
+ * This file is part of StyleBI.
+ * Copyright (C) 2024  InetSoft Technology
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
+.simple-schedule-dialog__monthly-select-col {
+  display: flex;
+  min-width: 0;
+}
+
+.simple-schedule-dialog__monthly-short-col {
+  display: flex;
+}
+
+.simple-schedule-dialog__monthly-input-group {
+  display: flex;
+  align-items: stretch;
+  width: auto;
+  max-width: 100%;
+
+  custom-select {
+    flex: 0 0 180px;
+    min-width: 0;
+  }
+
+  .input-group-text {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+}
+
+.simple-schedule-dialog__monthly-input-group--secondary custom-select {
+  flex-basis: 150px;
+}
+
+.simple-schedule-dialog__monthly-short-select {
+  width: 120px;
+}

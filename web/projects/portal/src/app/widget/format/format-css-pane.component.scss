@@ -15,14 +15,36 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-.values-caret {
-  position: absolute;
-  top: 8px;
-  right: 5px;
-}
-
 .popup-editor__container {
   min-width: 200px;
+}
+
+.css-picker {
+  position: relative;
+}
+
+.css-picker__group {
+  align-items: stretch;
+}
+
+.css-picker__input {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.css-picker__toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--inet-control-height-md);
+  padding: 0;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+.css-picker__toggle i {
+  color: var(--inet-dropdown-toggle-color);
+  font-size: 0.875rem;
 }
 
 a.dropdown-item:empty:before {

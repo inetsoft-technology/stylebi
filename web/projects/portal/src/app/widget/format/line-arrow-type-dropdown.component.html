@@ -15,10 +15,14 @@
   ~ You should have received a copy of the GNU Affero General Public License
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
-<button id="simple-btn-keyboard-nav" class="btn form-control bd-gray dropdown-toggle"
-        type="button" [fixedDropdown]="dropdownMenu" dropdownPlacement="bottom">
+<button id="simple-btn-keyboard-nav" class="btn form-control bd-gray dropdown-toggle no-caret"
+        [class.line-arrow-type-dropdown__trigger--open]="open"
+        type="button" [fixedDropdown]="dropdownMenu" dropdownPlacement="bottom"
+        (openChange)="handleOpenChange($event)">
   <div class="line-style-{{LineEndStyles[style]}}" [style.--inet-line-style-color]="color"></div>
-  <span class="caret"></span>
+  <i class="line-arrow-type-dropdown__icon icon-color-default" aria-hidden="true"
+     [class.chevron-down-icon]="!open"
+     [class.chevron-up-icon]="open"></i>
 </button>
 <ng-template #dropdownMenu>
   <div class="dropdown-pane">

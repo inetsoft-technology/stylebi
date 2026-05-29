@@ -16,12 +16,11 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { ComponentFixture, TestBed } from "@angular/core/testing";
-import { FormsModule, ReactiveFormsModule } from "@angular/forms";
+import { NgModel, FormGroup, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { NgbModal, NgbModule } from "@ng-bootstrap/ng-bootstrap";
-import { DropDownTestModule } from "../../common/test/test-module";
-import { FixedDropdownDirective } from "../fixed-dropdown/fixed-dropdown.directive";
-import { DebounceService } from "../services/debounce.service";
 import { AlphaDropdown } from "./alpha-dropdown.component";
+import { DropDownTestModule } from "../../common/test/test-module";
+import { DebounceService } from "../services/debounce.service";
 
 describe("alpha dropdown component unit case", () => {
    let fixture: ComponentFixture<AlphaDropdown>;
@@ -32,7 +31,7 @@ describe("alpha dropdown component unit case", () => {
       debounceService = { debounce: jest.fn() };
       TestBed.configureTestingModule({
          imports: [DropDownTestModule, ReactiveFormsModule, FormsModule, NgbModule],
-         declarations: [AlphaDropdown, FixedDropdownDirective],
+         declarations: [AlphaDropdown],
          providers: [
             NgbModal,
             {

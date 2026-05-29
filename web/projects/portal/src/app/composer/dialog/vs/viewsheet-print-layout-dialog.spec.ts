@@ -28,6 +28,7 @@ import { DialogContentDirective } from "../../../widget/standard-dialog/dialog-c
 import { StandardDialogComponent } from "../../../widget/standard-dialog/standard-dialog.component";
 import { ViewsheetPrintLayoutDialogModel } from "../../data/vs/viewsheet-print-layout-dialog-model";
 import { ViewsheetPrintLayoutDialog } from "./viewsheet-print-layout-dialog.component";
+import { CustomSelectModule } from "../../../widget/custom-select/custom-select.module";
 
 
 let createModel: () => ViewsheetPrintLayoutDialogModel = () => {
@@ -65,7 +66,7 @@ describe("Viewsheet print layout dialog Test", () => {
             ReactiveFormsModule,
             FormsModule,
             NgbDropdownModule,
-            HttpClientTestingModule,
+            CustomSelectModule,
          ],
          declarations: [
             ViewsheetPrintLayoutDialog, EnterSubmitDirective, StandardDialogComponent,
@@ -180,13 +181,12 @@ describe("Viewsheet print layout dialog Test", () => {
       let warning = fixture.debugElement.query(By.css("div.alert.alert-danger"));
       expect(warning).toBeNull();
 
-      let unit = fixture.debugElement.query(By.css(".unit_select_id")).nativeElement;
+      let unit = fixture.debugElement.query(By.css(".unit_select_id"));
       customeWidth.value = "1";
       customeWidth.dispatchEvent(new Event("input"));
       customHeight.value = "1";
       customHeight.dispatchEvent(new Event("input"));
-      unit.value = "mm";
-      unit.dispatchEvent(new Event("change"));
+      unit.triggerEventHandler("selectionChange", "mm");
       fixture.detectChanges();
 
       customeWidth = fixture.debugElement.query(By.css("input[ng-reflect-name=customWidth]")).nativeElement;
@@ -194,8 +194,7 @@ describe("Viewsheet print layout dialog Test", () => {
       expect(customHeight.value).toBe("25");
       expect(customeWidth.value).toBe("25");
 
-      unit.value = "points";
-      unit.dispatchEvent(new Event("change"));
+      unit.triggerEventHandler("selectionChange", "points");
       fixture.detectChanges();
 
       customeWidth = fixture.debugElement.query(By.css("input[ng-reflect-name=customWidth]")).nativeElement;

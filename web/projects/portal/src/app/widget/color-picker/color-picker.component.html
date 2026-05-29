@@ -18,14 +18,18 @@
 <div class="color-picker input-group">
   <span class="input-group-text" [ngClass]="{'style-text-width': isTableStyle}" *ngIf="label">{{label}}</span>
   <span class="input-group-btn">
-    <button type="button" class="btn form-control dropdown-toggle input-group-addon-action bd-gray"
+    <button #trigger type="button" class="btn form-control dropdown-toggle no-caret input-group-addon-action bd-gray"
+            [class.color-picker__trigger--open]="open"
             data-toggle="dropdown" aria-haspopup="true" aria-expanded="false"
             [disabled]="!enabled" [class.disabled]="!enabled" *ngIf="display" [fixedDropdown]="dropdownMenu"
-            [autoClose]="false" [closeOnOutsideClick]="true">
+            [autoClose]="false" [closeOnOutsideClick]="true" (openChange)="handleOpenChange($event)">
       <span class="color-picker-swatch bd-gray" [class.transparent-swatch]="!colorString"
             [style.background-color]="colorString">
         <span class="visually-hidden">{{color}}</span>
       </span>
+      <i class="color-picker-trigger__icon icon-color-default" aria-hidden="true"
+         [class.chevron-down-icon]="!open"
+         [class.chevron-up-icon]="open"></i>
     </button>
   </span>
 </div>

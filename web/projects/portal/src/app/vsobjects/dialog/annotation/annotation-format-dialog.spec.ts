@@ -35,7 +35,6 @@ import { GradientColorPane } from "../../../widget/color-picker/gradient-color-p
 import { GradientColorPicker } from "../../../widget/color-picker/gradient-color-picker.component";
 import { RecentColorService } from "../../../widget/color-picker/recent-color.service";
 import { EnterSubmitDirective } from "../../../widget/directive/enter-submit.directive";
-import { FixedDropdownDirective } from "../../../widget/fixed-dropdown/fixed-dropdown.directive";
 import { ActionsContextmenuAnchorDirective } from "../../../widget/fixed-dropdown/actions-contextmenu-anchor.directive";
 import { AlphaDropdown } from "../../../widget/format/alpha-dropdown.component";
 import { LineArrowTypeDropdown } from "../../../widget/format/line-arrow-type-dropdown.component";
@@ -98,7 +97,6 @@ describe("Annotation Format Dialog Tests", () => {
             RadiusDropdown,
             StyleDropdown,
             TestApp,
-            FixedDropdownDirective,
             EnterSubmitDirective,
             ActionsContextmenuAnchorDirective
          ],

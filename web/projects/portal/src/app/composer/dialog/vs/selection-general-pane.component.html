@@ -167,14 +167,13 @@
     <legend>_#(Single Selection Levels)</legend>
     <div class="form-row-float-label row">
       <div class="col form-floating">
-        <select class="form-control"  [(ngModel)]="levelToAdd"
-                [ngModelOptions]="{standalone: true}"
-                [disabled]="!model.singleSelection"
-                placeholder="_#(Level)">
-          <option *ngFor="let level of levels" [value]="level">
-            {{level}}
-          </option>
-        </select>
+        <custom-select id="singleSelectionLevel"
+                       [options]="levelOptions"
+                       [(ngModel)]="levelToAdd"
+                       [ngModelOptions]="{standalone: true}"
+                       [disabled]="!model.singleSelection"
+                       placeholder="_#(Level)">
+        </custom-select>
         <label><span>_#(Level)</span></label>
       </div>
       <div class="col-3 ps-0">

@@ -20,6 +20,7 @@ import { UntypedFormGroup } from "@angular/forms";
 import { TreeNodeModel } from "../../../widget/tree/tree-node-model";
 import { TextGeneralPaneModel } from "../../data/vs/text-general-pane-model";
 import { PopLocation, PopComponentService } from "../../../vsobjects/objects/data-tip/pop-component.service";
+import { CustomSelectOption } from "../../../widget/custom-select/custom-select.component";
 
 @Component({
    selector: "text-general-pane",
@@ -48,6 +49,25 @@ export class TextGeneralPane implements OnInit {
 
    changeAlphaWarning(event) {
       this.alphaInvalid = event;
+   }
+
+   get popComponentOptions(): CustomSelectOption<string>[] {
+      return [
+         { label: "_#(None)", value: "" },
+         ...(this.model?.popComponents ?? []).map((component) => ({
+            label: component,
+            value: component,
+            title: component
+         }))
+      ];
+   }
+
+   get popLocationOptions(): CustomSelectOption<string>[] {
+      return this.getKeys().map((key) => ({
+         label: this.popService.getPopLocationLabel(key),
+         value: key,
+         title: this.popService.getPopLocationLabel(key)
+      }));
    }
 
    getKeys(): string[] {

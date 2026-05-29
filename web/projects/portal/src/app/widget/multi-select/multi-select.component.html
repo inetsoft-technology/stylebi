@@ -15,13 +15,18 @@
   ~ You should have received a copy of the GNU Affero General Public License
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
-<button class="form-control dropdown-toggle" type="button"
+<button #trigger class="custom-select-trigger form-control no-caret" type="button"
         [disabled]="disabled" [fixedDropdown]="dropdownMenu" [autoClose]="false"
-        dropdownPlacement="bottom">
-  <div>{{getLabel()}}&nbsp;</div>
+        [closeOnOutsideClick]="true"
+        dropdownPlacement="bottom" (openChange)="handleOpenChange($event)">
+  <div class="multi-select__label">{{getLabel()}}&nbsp;</div>
+  <i class="custom-select-trigger__icon dropdown-caret icon-color-default"
+     [class.chevron-up-icon]="open"
+     [class.chevron-down-icon]="!open"
+     aria-hidden="true"></i>
 </button>
 <ng-template #dropdownMenu>
-  <div class="dropdown-pane" *ngIf="items.length > 0">
+  <div class="multi-select-menu dropdown-pane" *ngIf="items.length > 0">
     <div *ngFor="let item of items; let i = index">
       <div class="form-check">
         <input type="checkbox" class="form-check-input" id="{{'item' + i}}"

@@ -20,13 +20,15 @@ import { FixedDropdownDirective } from "../../../../widget/fixed-dropdown/fixed-
 
 @Component({
    selector: "shape-combo-box",
-   templateUrl: "shape-combo-box.component.html"
+   templateUrl: "shape-combo-box.component.html",
+   styleUrls: ["visual-combo-box-trigger.scss"]
 })
 export class ShapeComboBox {
    @Input() shapeStr: string;
    @Input() index: number;
    @Output() shapeChanged: EventEmitter<string> = new EventEmitter<string>();
    @ViewChild(FixedDropdownDirective) dropdown: FixedDropdownDirective;
+   open: boolean = false;
 
    changeShape(nshape: string) {
       this.shapeChanged.emit(nshape);

@@ -23,7 +23,6 @@ import { By } from "@angular/platform-browser";
 import { NgbModal, NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { DropDownTestModule } from "../../common/test/test-module";
 import { TestUtils } from "../../common/test/test-utils";
-import { FixedDropdownDirective } from "../fixed-dropdown/fixed-dropdown.directive";
 import { DynamicComboBox } from "../dynamic-combo-box/dynamic-combo-box.component";
 import { TreeNodeComponent } from "../tree/tree-node.component";
 import { TreeSearchPipe } from "../tree/tree-search.pipe";
@@ -41,7 +40,7 @@ describe("Date Input Field Unit Case: ", () =>  {
             DropDownTestModule, ReactiveFormsModule, FormsModule, NgbModule
          ],
          declarations: [
-            DateInputField, DynamicComboBox, TargetComboBox, FixedDropdownDirective, TreeComponent,
+            DateInputField, DynamicComboBox, TargetComboBox, TreeComponent,
             TreeSearchPipe, TreeNodeComponent
          ],
          providers: [NgbModal],

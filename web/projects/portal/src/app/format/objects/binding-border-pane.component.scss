@@ -70,3 +70,45 @@ li.line-style {
 .line-label {
   display: inline-block;
 }
+
+.border-style-trigger {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+  padding-right: 2rem;
+  background-image: none;
+  text-align: left;
+
+  &:focus,
+  &:focus-visible,
+  &.border-style-trigger--open {
+    border-color: var(--inet-primary-color);
+    box-shadow: var(--inet-focus-ring);
+    outline: var(--inet-focus-ring-outline);
+  }
+}
+
+.border-style-trigger__content {
+  display: block;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.border-style-trigger .line-display,
+.border-style-trigger .line-label {
+  width: auto;
+  min-width: 0;
+}
+
+.border-style-trigger .line-display {
+  flex: 1 1 auto;
+}
+
+.border-style-trigger__icon {
+  pointer-events: none;
+}

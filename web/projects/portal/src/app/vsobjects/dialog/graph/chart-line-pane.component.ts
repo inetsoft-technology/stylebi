@@ -19,6 +19,7 @@ import { Component, Input, OnInit } from "@angular/core";
 import { ChartLinePaneModel } from "../../model/chart-line-pane-model";
 import { UntypedFormControl, UntypedFormGroup } from "@angular/forms";
 import { FormValidators } from "../../../../../../shared/util/form-validators";
+import { CustomSelectOption } from "../../../widget/custom-select/custom-select.component";
 
 @Component({
    selector: "chart-line-pane",
@@ -74,5 +75,12 @@ export class ChartLinePane implements OnInit {
          evt.preventDefault();
          evt.stopPropagation();
       }
+   }
+
+   get trendLineOptions(): CustomSelectOption<string>[] {
+      return this.trendlineOptions.map((option) => ({
+         label: option.label,
+         value: option.value
+      }));
    }
 }

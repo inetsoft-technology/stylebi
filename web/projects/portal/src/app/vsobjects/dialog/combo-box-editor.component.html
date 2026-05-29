@@ -32,13 +32,12 @@
                 (click)="showVariableListDialog()">_#(Edit)</button>
       </div>
       <div class="col-auto">
-        <select class="form-control" [ngModel]="model.dataType"
-                [disabled]="!model.embedded || !enableDataType"
-                (ngModelChange)="updateType($event)">
-          <option [ngValue]="dataType.data" *ngFor="let dataType of dataTypeList">
-            {{dataType.label}}
-          </option>
-        </select>
+        <custom-select class="w-100"
+                       [options]="dataTypeOptions"
+                       [ngModel]="model.dataType"
+                       [disabled]="!model.embedded || !enableDataType"
+                       (selectionChange)="updateType($event)">
+        </custom-select>
       </div>
       <div class="col-auto">
         <label *ngIf="enableDataType && showCalendar" class="form-check-label">
@@ -103,13 +102,13 @@
     <div class="form-row-float-label row">
       <ng-container *ngIf="!model.calendar || (model.calendar && !model.embedded)">
         <div #dropDownBody class="col form-floating dropDownBody">
-            <select *ngIf="valueList?.length < 500" class="form-control defaultvalue" id="defaultvalue"
-                    [disabled]="model.noDefault || !(model.query || model.embedded)"
-                    [(ngModel)]="model.defaultValue">
-              <ng-container *ngIf="valueList">
-                <option [value]="valueList[i].value" *ngFor="let entry of valueList; let i = index" >{{entry.formatValue}}</option>
-              </ng-container>
-            </select>
+            <custom-select *ngIf="valueList?.length < 500"
+                           class="w-100 defaultvalue"
+                           id="defaultvalue"
+                           [options]="defaultValueOptions"
+                           [disabled]="model.noDefault || !(model.query || model.embedded)"
+                           [(ngModel)]="model.defaultValue">
+            </custom-select>
             <div class="form-control virtual-scroll-combo-box dropdown-icon span-as-dropdown" *ngIf="valueList?.length > 500"
                  [disabled]="model.noDefault || !(model.query || model.embedded)"
                  [class.disabled]="model.noDefault || !(model.query || model.embedded)"

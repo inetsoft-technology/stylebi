@@ -16,6 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, Input, Output, EventEmitter } from "@angular/core";
+import { CustomSelectOption } from "../../widget/custom-select/custom-select.component";
 
 @Component({
    selector: "combo-box",
@@ -29,5 +30,17 @@ export class ComboBox {
 
    changeData(): void {
       this.onDataChange.emit(this.dataModel || "");
+   }
+
+   selectData(value: string): void {
+      this.dataModel = value;
+      this.changeData();
+   }
+
+   get options(): CustomSelectOption<string>[] {
+      return (this.dataValues || []).map((value) => ({
+         label: value,
+         value
+      }));
    }
 }

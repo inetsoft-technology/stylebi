@@ -33,21 +33,21 @@
       <div class="col-6">
         <div class="form-row-float-label">
           <div class="form-floating">
-            <select class="form-control mb-1" formControlName="label" placeholder="_#(Label Column)">
-              <option *ngFor="let _col of headers; let i=index"
-                 [value]="_col" [attr.title]="getColumnTooltip(i)">
-                {{currentTable.name + "." + _col}}</option>
-            </select>
+            <custom-select class="embedded-list-values-select mb-1"
+                           formControlName="label"
+                           [options]="columnSelectOptions"
+                           placeholder="_#(Label Column)">
+            </custom-select>
             <label><span>_#(Label Column)</span></label>
           </div>
         </div>
         <div class="form-row-float-label">
           <div class="form-floating">
-            <select class="form-control" formControlName="value" placeholder="_#(Value Column)">
-              <option *ngFor="let _col of headers; let i = index"
-                      [value]="_col" [attr.title]="getColumnTooltip(i)">
-                {{currentTable.name + "." + _col}}</option>
-            </select>
+            <custom-select class="embedded-list-values-select"
+                           formControlName="value"
+                           [options]="columnSelectOptions"
+                           placeholder="_#(Value Column)">
+            </custom-select>
             <label><span>_#(Value Column)</span></label>
           </div>
         </div>

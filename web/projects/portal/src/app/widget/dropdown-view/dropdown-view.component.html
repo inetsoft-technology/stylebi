@@ -16,11 +16,14 @@
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
 <div class="input-group w-100" blockMouse>
-  <button id="split-button" class="dropdown-button no-caret form-control" type="button"
+  <button #trigger id="split-button" class="dropdown-button custom-select-trigger no-caret form-control" type="button"
           [disabled]="disabled" [class.disabled]="disabled" [fixedDropdown]="dropdownMenu"
           [autoClose]="isOk" [zIndex]="zIndex" (openChange)="toggled($event)">
-    <span>{{label ? label : "&nbsp;"}}</span>
-    <span class="caret-down-icon dropdown-caret"></span>
+    <span class="custom-select-trigger__text">{{label ? label : "&nbsp;"}}</span>
+    <i class="custom-select-trigger__icon dropdown-caret icon-color-default"
+       [class.chevron-up-icon]="open"
+       [class.chevron-down-icon]="!open"
+       aria-hidden="true"></i>
   </button>
   <ng-template #dropdownMenu>
     <div class="dropdown-pane">

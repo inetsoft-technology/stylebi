@@ -16,22 +16,63 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+.fill-band-picker {
+  width: 100%;
+}
+
+.fill-band-trigger {
+  position: relative;
+  width: 100%;
+  min-height: calc(1.5em + 0.75rem + 2px);
+  display: flex;
+  align-items: center;
+  padding-right: 2rem;
+  text-align: left;
+  background-image: none;
+
+  &:focus,
+  &:focus-visible,
+  &.is-open {
+    border-color: var(--inet-primary-color);
+    box-shadow: var(--inet-focus-ring);
+    outline: var(--inet-focus-ring-outline);
+  }
+}
+
+.fill-band-trigger__content {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.fill-band-trigger__swatches {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex: 0 0 auto;
+}
+
+.fill-band-trigger__swatch {
+  width: 0.875rem;
+  height: 0.875rem;
+  border: 1px solid var(--inet-border-color, #c7c6c1);
+  border-radius: 999px;
+  background: transparent;
+}
+
+.dropdown-caret {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
 .fill-band-dropdown-menu {
   width: 380px;
+  max-width: min(380px, 90vw);
 }
 
 .color-pane-apply {
   margin-top: 5px;
-}
-
-.fill-band-btn {
-  padding: 6px 5px 5px 5px !important;
-  border-top-left-radius: 0;
-  border-bottom-left-radius: 0;
-}
-
-.input-group-btn {
-   .dropdown-toggle::after {
-     width: 10.38px! important;
-   }
 }

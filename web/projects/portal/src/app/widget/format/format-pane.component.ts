@@ -17,6 +17,7 @@
  */
 import { Component, Input, OnInit } from "@angular/core";
 import { UntypedFormControl, UntypedFormGroup, Validators, } from "@angular/forms";
+import { CustomSelectOption } from "../custom-select/custom-select.component";
 import { FormatPaneModel } from "./format-pane-model";
 
 @Component({
@@ -26,6 +27,17 @@ import { FormatPaneModel } from "./format-pane-model";
 export class FormatPane implements OnInit {
    @Input() model: FormatPaneModel;
    @Input() form: UntypedFormGroup;
+
+   readonly decimalFmts: string[] = ["", "#,##0.00", "#,##0.##", "#,##0.#K", "#,##0.#M", "#,##0.#B",
+      "#,##0.00;(#,##0.00)", "#,##0%", "##.00%", "##0.#####E0",
+      "\u00A4#,##0.00;(\u00A4#,##0.00)"];
+
+   readonly dateFmts: string[] = ["", "MM/dd/yyyy", "yyyy-MM-dd",
+      "EEEEE, MMMMM dd, yyyy", "MMMM d, yyyy", "MM/d/yy", "d-MMM-yy", "MM.d.yyyy",
+      "MMM. d, yyyy", "d MMMMM yyyy", "MMMMM yy", "MM-yy", "MM/dd/yyyy hh:mm a",
+      "MM/dd/yyyy hh:mm:ss a", "h:mm a", "h:mm:ss a", "h:mm:ss a, z"];
+
+   readonly dateOptions: string[] = ["Full", "Long", "Medium", "Short", "Custom"];
 
    initForm(): void {
       this.form.addControl("format", new UntypedFormControl(this.model.format, [
@@ -47,16 +59,26 @@ export class FormatPane implements OnInit {
       }
    }
 
-   decimalFmts: string[] = ["", "#,##0.00", "#,##0.##", "#,##0.#K", "#,##0.#M", "#,##0.#B",
-      "#,##0.00;(#,##0.00)", "#,##0%", "##.00%", "##0.#####E0",
-      "\u00A4#,##0.00;(\u00A4#,##0.00)"];
+   get dateOptionItems(): CustomSelectOption<string>[] {
+      return this.dateOptions.map((option) => ({
+         label: option,
+         value: option
+      }));
+   }
 
-   dateFmts: string[] = ["", "MM/dd/yyyy", "yyyy-MM-dd",
-      "EEEEE, MMMMM dd, yyyy", "MMMM d, yyyy", "MM/d/yy", "d-MMM-yy", "MM.d.yyyy",
-      "MMM. d, yyyy", "d MMMMM yyyy", "MMMMM yy", "MM-yy", "MM/dd/yyyy hh:mm a",
-      "MM/dd/yyyy hh:mm:ss a", "h:mm a", "h:mm:ss a", "h:mm:ss a, z"];
+   get dateFormatItems(): CustomSelectOption<string>[] {
+      return this.dateFmts.map((format) => ({
+         label: format,
+         value: format
+      }));
+   }
 
-   dateOptions: string[] = ["Full", "Long", "Medium", "Short", "Custom"];
+   get decimalFormatItems(): CustomSelectOption<string>[] {
+      return this.decimalFmts.map((format) => ({
+         label: format,
+         value: format
+      }));
+   }
 
    resetValue() {
       this.model.value = null;

@@ -24,6 +24,7 @@ import { LegendFormatGeneralPaneModel } from "../model/dialog/legend-format-gene
 import { StyleConstants } from "../../common/util/style-constants";
 import { LineStyle } from "../../common/data/line-style";
 import { UIContextService } from "../../common/services/ui-context.service";
+import { CustomSelectOption } from "../../widget/custom-select/custom-select.component";
 
 @Component({
    selector: "legend-format-general-pane",
@@ -120,6 +121,12 @@ export class LegendFormatGeneralPane implements OnInit, OnDestroy {
    positionChoices: string[] = ["Top", "Bottom", "Right", "Left", "In Place"];
    positionLabels: string[] = ["_#(js:Top)", "_#(js:Bottom)", "_#(js:Right)",
                                "_#(js:Left)", "_#(js:In Place)"];
+   get positionSelectOptions(): CustomSelectOption<string>[] {
+      return this.positionChoices.map((position, index) => ({
+         label: this.positionLabels[index],
+         value: position
+      }));
+   }
 
    initForm(): void {
       this.form.addControl("symbolSize", new UntypedFormControl(this.model.symbolSize, [

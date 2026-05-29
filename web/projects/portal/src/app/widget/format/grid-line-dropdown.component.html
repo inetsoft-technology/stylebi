@@ -17,15 +17,35 @@
   -->
 <button #dropdownBody id="simple-btn-keyboard-nav" type="button" [disabled]="disabled"
         [class.disabled]="disabled"
+        [class.grid-line-dropdown__trigger--open]="open"
         [fixedDropdown]="dropdownMenu" dropdownPlacement="bottom"
-        class="btn form-control bd-gray dropdown-toggle" >
-  <div class="line-display line-style-{{getLineStyleName(lineStyle)}}"></div>
+        [autoClose]="false" [closeOnOutsideClick]="true"
+        class="custom-select-trigger form-control no-caret"
+        (openChange)="handleOpenChange($event)">
+  <div class="grid-line-dropdown__preview" [class.grid-line-dropdown__preview--none]="isNoneLineStyle(lineStyle)">
+    <span *ngIf="isNoneLineStyle(lineStyle)" class="grid-line-dropdown__none-label">NONE</span>
+    <div *ngIf="!isNoneLineStyle(lineStyle)"
+         class="line-display grid-line-dropdown__line line-style-{{getLineStyleName(lineStyle)}}"
+         [style.--inet-line-style-color]="color">
+    </div>
+  </div>
+  <i class="custom-select-trigger__icon dropdown-caret icon-color-default"
+     [class.chevron-up-icon]="open"
+     [class.chevron-down-icon]="!open"
+     aria-hidden="true"></i>
 </button>
 <ng-template #dropdownMenu>
-  <div class="dropdown-pane" [style.min-width.px]="dropdownMinWidth">
-    <div class="dropdown-item" [class.selected]="_lineStyle == lineStyle"
+  <div class="custom-select-menu dropdown-pane" [style.min-width.px]="dropdownMinWidth">
+    <div class="dropdown-item custom-select-option" [class.selected]="_lineStyle == lineStyle"
          *ngFor="let _lineStyle of lineStyles" (click)="choose(_lineStyle)">
-      <div class="line-display line-style-{{getLineStyleName(_lineStyle)}}"></div>
+      <div class="grid-line-dropdown__preview"
+           [class.grid-line-dropdown__preview--none]="isNoneLineStyle(_lineStyle)">
+        <span *ngIf="isNoneLineStyle(_lineStyle)" class="grid-line-dropdown__none-label">NONE</span>
+        <div *ngIf="!isNoneLineStyle(_lineStyle)"
+             class="line-display grid-line-dropdown__line line-style-{{getLineStyleName(_lineStyle)}}"
+             [style.--inet-line-style-color]="color">
+        </div>
+      </div>
     </div>
   </div>
 </ng-template>

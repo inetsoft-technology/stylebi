@@ -1,0 +1,58 @@
+/*!
+ * This file is part of StyleBI.
+ * Copyright (C) 2024  InetSoft Technology
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+.aggregate-pane__row {
+  align-items: start;
+  flex-wrap: nowrap;
+  column-gap: 0.75rem;
+  row-gap: 0;
+}
+
+.aggregate-pane__field-col {
+  flex: 1 1 24rem;
+  min-width: 22rem;
+}
+
+.aggregate-pane__mode-col {
+  flex: 0 0 auto;
+}
+
+.aggregate-pane__formula-col {
+  flex: 0 1 14rem;
+  min-width: 12rem;
+}
+
+.aggregate-pane__percentage-col {
+  flex: 0 0 9rem;
+  min-width: 0;
+}
+
+.aggregate-pane__time-series-col {
+  flex: 0 0 auto;
+  padding-top: 0.4rem;
+  white-space: nowrap;
+}
+
+.aggregate-pane__secondary-field {
+  min-width: 0;
+}
+
+.aggregate-pane__field-col custom-select,
+.aggregate-pane__formula-col custom-select,
+.aggregate-pane__percentage-col custom-select {
+  --custom-select-height: calc(1.5em + 0.75rem + 2px);
+}

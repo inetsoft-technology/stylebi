@@ -25,6 +25,7 @@ import { AssetUtil } from "../../util/asset-util";
 import { StyleConstants } from "../../../common/util/style-constants";
 import { SummaryAttrUtil } from "../../util/summary-attr-util";
 import { XSchema } from "../../../common/data/xschema";
+import { CustomSelectOption } from "../../../widget/custom-select/custom-select.component";
 
 const DEFAULT_N_P_NVALUE: number = 1;
 
@@ -330,5 +331,28 @@ export class CalcAggregateOption implements OnInit, OnChanges {
 
    submit() {
       this.apply.emit(false);
+   }
+
+   get formulaOptions(): CustomSelectOption<string>[] {
+      return (this.formulas || []).map((formula) => ({
+         label: formula.label,
+         value: formula.formulaName
+      }));
+   }
+
+   get availableFieldOptions(): CustomSelectOption<string>[] {
+      return (this.availableFields || []).map((field) => ({
+         label: field.name,
+         value: field.name,
+         title: field.description,
+         cssClass: this.isGrayedOut(field.name) ? "grayed-out-field" : undefined
+      }));
+   }
+
+   get percentOptions(): CustomSelectOption<number>[] {
+      return this.getPercents().map((percent) => ({
+         label: percent.label,
+         value: percent.value
+      }));
    }
 }

@@ -26,7 +26,6 @@ import { DropDownTestModule } from "../../../common/test/test-module";
 import { TestUtils } from "../../../common/test/test-utils";
 import { TipCustomizeDialogModel } from "../../../widget/dialog/tip-customize-dialog/tip-customize-dialog-model";
 import { TipCustomizeDialog } from "../../../widget/dialog/tip-customize-dialog/tip-customize-dialog.component";
-import { FixedDropdownDirective } from "../../../widget/fixed-dropdown/fixed-dropdown.directive";
 import { AlphaDropdown } from "../../../widget/format/alpha-dropdown.component";
 import { LargeFormFieldComponent } from "../../../widget/large-form-field/large-form-field.component";
 import { ModelService } from "../../../widget/services/model.service";
@@ -82,7 +81,7 @@ describe("Tip Pane Unit Test", () => {
             FormsModule, ReactiveFormsModule, NgbModule, DropDownTestModule
          ],
          declarations: [
-            TipPane, TipCustomizeDialog, AlphaDropdown, FixedDropdownDirective,
+            TipPane, TipCustomizeDialog, AlphaDropdown,
             LargeFormFieldComponent
          ],
          providers: [
@@ -103,21 +102,21 @@ describe("Tip Pane Unit Test", () => {
    //add unit case for bug#16247
    it("test tip pane disable and enable status", () => {
       fixture.detectChanges();
-      let tipViewFieldSet: any = element.querySelector("div.data_tip_view_id select");
+      let tipViewFieldSet: any = element.querySelector("div.data_tip_view_id custom-select");
       let alphaFieldSet: any = element.querySelector("div.data_tip_view_id alpha-dropdown");
-      expect(tipViewFieldSet.getAttribute("ng-reflect-is-disabled")).toBe("true");
+      expect(tipViewFieldSet.classList.contains("is-disabled")).toBe(true);
       expect(alphaFieldSet.getAttribute("ng-reflect-disabled")).toBe("true");
 
       model.tipOption = true;
       model.tipView = "TableView1";
       model.popComponents = ["TableView1"];
       fixture.detectChanges();
-      expect(tipViewFieldSet.getAttribute("ng-reflect-is-disabled")).toBe("false");
+      expect(tipViewFieldSet.classList.contains("is-disabled")).toBe(false);
       expect(alphaFieldSet.getAttribute("ng-reflect-disabled")).toBe("false");
 
       model.tipView = null;
       fixture.detectChanges();
-      expect(tipViewFieldSet.getAttribute("ng-reflect-is-disabled")).toBe("false");
+      expect(tipViewFieldSet.classList.contains("is-disabled")).toBe(false);
       expect(alphaFieldSet.getAttribute("ng-reflect-disabled")).toBe("true");
    });
 
@@ -154,8 +153,8 @@ describe("Tip Pane Unit Test", () => {
       expect(selectedComponents.length).toEqual(3);
 
       //Bug #20558
-      let dataTipView = element.querySelector(".data_tip_view_id select > option:checked");
-      expect(TestUtils.toString(dataTipView.textContent.trim())).toEqual("None");
+      const dataTipViewEl = fixture.debugElement.query(By.css(".data_tip_view_id custom-select"));
+      expect(TestUtils.toString((dataTipViewEl?.componentInstance as any)?.selectedLabel?.trim())).toEqual("None");
 
       clearButton = fixture.debugElement
          .queryAll(By.css("w-large-form-field button"))[1].nativeElement;

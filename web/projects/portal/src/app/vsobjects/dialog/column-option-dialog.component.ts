@@ -25,6 +25,7 @@ import { FloatEditorModel } from "../model/float-editor-model";
 import { ColumnOptionType } from "../model/column-option-type";
 import { EditorModel } from "../model/editor-model";
 import { Tool } from "../../../../../shared/util/tool";
+import { CustomSelectOption } from "../../widget/custom-select/custom-select.component";
 
 @Component({
    selector: "column-option-dialog",
@@ -33,7 +34,7 @@ import { Tool } from "../../../../../shared/util/tool";
 export class ColumnOptionDialog {
    _model: ColumnOptionDialogModel;
    runtimeId: string;
-   inputsTypes: any[] = [
+   readonly inputsTypes: CustomSelectOption<string>[] = [
       { label: "_#(js:Text)", value: ColumnOptionType.TEXT },
       { label: "_#(js:ComboBox)", value: ColumnOptionType.COMBOBOX },
       { label: "_#(js:Date)", value: ColumnOptionType.DATE },

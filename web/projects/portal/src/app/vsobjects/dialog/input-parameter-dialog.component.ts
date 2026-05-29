@@ -26,6 +26,7 @@ import { FormValidators } from "../../../../../shared/util/form-validators";
 import { InputParameterDialogModel } from "../model/input-parameter-dialog-model";
 import { Tool } from "../../../../../shared/util/tool";
 import { debounceTime, distinctUntilChanged } from "rxjs/operators";
+import { CustomSelectOption } from "../../widget/custom-select/custom-select.component";
 
 @Component({
    selector: "input-parameter-dialog",
@@ -87,6 +88,44 @@ export class InputParameterDialog implements OnInit {
 
    get model(): InputParameterDialogModel {
       return this._model;
+   }
+
+   get fieldValueSelectOptions(): CustomSelectOption<string>[] {
+      const options: CustomSelectOption<string>[] = [];
+
+      if(this.model?.value === "") {
+         options.push({
+            label: "",
+            value: ""
+         });
+      }
+
+      return options.concat((this.fields ?? []).map((field) => ({
+         label: field.name,
+         value: field.name,
+         title: field.description,
+         disabled: this.isGrayedOut(field.name)
+      })));
+   }
+
+   get dataTypeSelectOptions(): CustomSelectOption<string>[] {
+      return this.dataTypeList.map((type) => ({
+         label: type.label,
+         value: type.data
+      }));
+   }
+
+   get booleanValueSelectOptions(): CustomSelectOption<boolean>[] {
+      return [
+         {
+            label: "_#(True)",
+            value: true
+         },
+         {
+            label: "_#(False)",
+            value: false
+         }
+      ];
    }
 
    constructor(private ngbDateParserFormatter: NgbDateParserFormatter,

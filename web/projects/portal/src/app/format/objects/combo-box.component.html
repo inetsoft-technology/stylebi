@@ -18,8 +18,9 @@
 <div class="combo-box">
   <input type="text" class="form-control"
          [(ngModel)]="dataModel" (keyup.enter)="changeData()" (blur)="changeData()"/>
-  <select [(ngModel)]="dataModel" (ngModelChange)="changeData()"
-          class="form-control">
-    <option [ngValue]="val" *ngFor="let val of dataValues">{{val}}</option>
-  </select>
+  <custom-select class="combo-box__select"
+                 [options]="options"
+                 [ngModel]="dataModel"
+                 (selectionChange)="selectData($event)">
+  </custom-select>
 </div>

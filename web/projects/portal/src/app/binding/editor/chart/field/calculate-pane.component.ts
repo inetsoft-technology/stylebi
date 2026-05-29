@@ -41,6 +41,7 @@ import { ComponentTool } from "../../../../common/util/component-tool";
 import { CalculatorConstants } from "./calculator-constants";
 import { StyleConstants } from "../../../../common/util/style-constants";
 import { CrosstabBindingModel } from "../../../data/table/crosstab-binding-model";
+import { CustomSelectOption } from "../../../../widget/custom-select/custom-select.component";
 
 @Component({
    selector: "calculate-pane",
@@ -67,6 +68,13 @@ export class CalculatePane {
 
    get aggregate(): ChartAggregateRef {
       return this.agg;
+   }
+
+   get calculateSelectOptions(): CustomSelectOption<CalculateInfo>[] {
+      return (this.defaultCalcs || []).map((calc) => ({
+         value: calc.data,
+         label: calc.label
+      }));
    }
 
    constructor(private dialogService: NgbModal,
