@@ -544,6 +544,19 @@ public class MetadataApiService {
          throw new Exception("No meta data provider found for data source " + dsName);
       }
 
+      // Partition probe: identify Postgres partition/inheritance children up-front
+      // so we can drop them from the response (they're implementation detail,
+      // not user-facing tables). On any probe error we fall open — log a warning
+      // and proceed with an empty set, so a transient catalog issue doesn't block
+      // the whole metadata fetch.
+      Set<String> partitionChildren = Set.of();
+      try(java.sql.Connection probeConn = new inetsoft.uql.jdbc.JDBCHandler().getConnection(jdbcDataSource, principal)) {
+         partitionChildren = findPostgresPartitionChildren(jdbcDataSource, probeConn);
+      }
+      catch(Exception e) {
+         log.warn("Partition probe failed for '{}'; proceeding without partition filter", dsName, e);
+      }
+
       XNode rootMetaData = metaDataProvider.getRootMetaData(XUtil.OUTER_MOSE_LAYER_DATABASE);
 
       XNode typeQuery = new XNode();
@@ -586,6 +599,10 @@ public class MetadataApiService {
                String tableName = tableNode.getName();
                String catalog = (String) tableNode.getAttribute("catalog");
                String schema = (String) tableNode.getAttribute("schema");
+
+               if(isPartitionChild(schema, tableName, partitionChildren)) {
+                  continue;
+               }
 
                DatabaseTableInfo info = new DatabaseTableInfo();
                info.setType(tableType);
