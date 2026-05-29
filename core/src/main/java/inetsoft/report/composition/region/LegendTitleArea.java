@@ -114,7 +114,7 @@ public class LegendTitleArea extends DefaultArea implements MenuArea, RollOverAr
    @Override
    public Region[] getRegions() {
       return new Region[] {
-         new RectangleRegion(getTransformedTitleBounds(TITLE_LINE_GAP + getBorderWidth()))};
+         new RectangleRegion(getTransformedTitleBounds(Legend.TITLE_LINE_GAP + getBorderWidth()))};
    }
 
    private Rectangle2D.Double getTransformedTitleBounds(double heightInset) {
@@ -124,12 +124,12 @@ public class LegendTitleArea extends DefaultArea implements MenuArea, RollOverAr
       Point2D p = getRelPos();
       rect2d.x = rect2d.x - p.getX();
       rect2d.y = rect2d.y - p.getY();
-      rect2d.width -= 2 * getBorderWidth();
-      rect2d.height -= heightInset;
+      rect2d.width = Math.max(0, rect2d.width - 2 * getBorderWidth());
+      rect2d.height = Math.max(0, rect2d.height - heightInset);
       return rect2d;
    }
 
-   // 0 when the frame is absent; the constructor treats a null frame as valid.
+   // null-safe: 0 when the legend has no visual frame
    private double getBorderWidth() {
       VisualFrame frame = ((Legend) vobj).getVisualFrame();
       return frame == null ? 0 : GTool.getLineWidth(frame.getLegendSpec().getBorder());
@@ -215,7 +215,4 @@ public class LegendTitleArea extends DefaultArea implements MenuArea, RollOverAr
    private boolean sharedColor;
    private String titleLabel;
    private boolean nodeAesthetic;
-
-   // mirrors Legend.TITLE_LINE_GAP (the gap baked into the title bounds height)
-   private static final int TITLE_LINE_GAP = 1;
 }
