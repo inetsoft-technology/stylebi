@@ -20,45 +20,61 @@
     <legend>_#(Layout)</legend>
     <div class="row shell-form-row--field">
       <div class="col">
-        <div class="form-floating">
-          <input type="number" class="form-control" formControlName="top" [(ngModel)]="model.top"
-                 placeholder="_#(Top)" [disabled]="!layoutEnabled || model.locked">
-          <label>_#(Top)</label>
+        <div class="d-flex flex-column">
+          <label class="form-label">_#(Top)</label>
+          <number-stepper formControlName="top"
+                          (valueChange)="model.top = $event"
+                          [disabled]="!layoutEnabled || model.locked"
+                          [invalid]="layoutEnabled && !!form.controls['top'].errors">
+          </number-stepper>
         </div>
       </div>
       <div class="col layout-col-offset">
-        <div class="form-floating">
-          <input type="number" class="form-control" formControlName="left" [(ngModel)]="model.left"
-                 placeholder="_#(Left)" [disabled]="!layoutEnabled || model.locked">
-          <label>_#(Left)</label>
+        <div class="d-flex flex-column">
+          <label class="form-label">_#(Left)</label>
+          <number-stepper formControlName="left"
+                          (valueChange)="model.left = $event"
+                          [disabled]="!layoutEnabled || model.locked"
+                          [invalid]="layoutEnabled && !!form.controls['left'].errors">
+          </number-stepper>
         </div>
       </div>
       <div class="col layout-col-offset">
-        <div class="form-floating" *ngIf="!isGroup && !isViewsheet">
-          <input type="number" class="form-control" formControlName="width" [(ngModel)]="model.width"
-                 placeholder="_#(Width)" [disabled]="!layoutEnabled || model.locked">
-          <label>_#(Width)</label>
+        <div class="d-flex flex-column" *ngIf="!isGroup && !isViewsheet">
+          <label class="form-label">_#(Width)</label>
+          <number-stepper formControlName="width"
+                          (valueChange)="model.width = $event"
+                          [disabled]="!layoutEnabled || model.locked"
+                          [invalid]="layoutEnabled && !!form.controls['width'].errors">
+          </number-stepper>
         </div>
       </div>
       <div class="col layout-col-offset">
-        <div class="form-floating" *ngIf="!isGroup && !isViewsheet">
-          <input type="number" class="form-control" formControlName="height" [(ngModel)]="model.height"
-                 placeholder="_#(Height)" [disabled]="!layoutEnabled || model.locked">
-          <label>_#(Height)</label>
+        <div class="d-flex flex-column" *ngIf="!isGroup && !isViewsheet">
+          <label class="form-label">_#(Height)</label>
+          <number-stepper formControlName="height"
+                          (valueChange)="model.height = $event"
+                          [disabled]="!layoutEnabled || model.locked"
+                          [invalid]="layoutEnabled && !!form.controls['height'].errors">
+          </number-stepper>
         </div>
       </div>
       <div class="col layout-col-offset" *ngIf="showTitleHeight">
-        <div class="form-floating">
-          <input type="number" class="form-control" formControlName="titleHeight" [(ngModel)]="model.titleHeight"
-                 placeholder="_#(Title Height)">
-          <label>_#(Title Height)</label>
+        <div class="d-flex flex-column">
+          <label class="form-label">_#(Title Height)</label>
+          <number-stepper formControlName="titleHeight"
+                          (valueChange)="model.titleHeight = $event"
+                          [invalid]="!!form.controls['titleHeight'].errors">
+          </number-stepper>
         </div>
       </div>
       <div class="col layout-col-offset" *ngIf="showCellHeight">
-        <div class="form-floating">
-          <input type="number" class="form-control" formControlName="cellHeight" [(ngModel)]="model.cellHeight"
-                 placeholder="_#(Cell Height)">
-          <label>_#(Cell Height)</label>
+        <div class="d-flex flex-column">
+          <label class="form-label">_#(Cell Height)</label>
+          <number-stepper formControlName="cellHeight"
+                          (valueChange)="model.cellHeight = $event"
+                          [invalid]="!!form.controls['cellHeight'].errors">
+          </number-stepper>
         </div>
       </div>
     </div>

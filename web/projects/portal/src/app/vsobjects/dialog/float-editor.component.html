@@ -17,17 +17,21 @@
   -->
 <form [formGroup]="form" class="container-fluid">
   <div class="row shell-form-row--field">
-    <div class="col form-floating">
-        <input type="number" class="form-control" formControlName="min" [(ngModel)]="model.minimum"
-               placeholder="_#(Minimum)">
-        <label>_#(Minimum)</label>
+    <div class="col d-flex flex-column">
+      <label class="form-label">_#(Minimum)</label>
+      <number-stepper formControlName="min"
+                      (valueChange)="model.minimum = $event"
+                      [inputmode]="'decimal'">
+      </number-stepper>
     </div>
   </div>
   <div class="row shell-form-row--field">
-    <div class="col form-floating">
-        <input type="number" class="form-control" formControlName="max" [(ngModel)]="model.maximum"
-               placeholder="_#(Maximum)">
-        <label>_#(Maximum)</label>
+    <div class="col d-flex flex-column">
+      <label class="form-label">_#(Maximum)</label>
+      <number-stepper formControlName="max"
+                      (valueChange)="model.maximum = $event"
+                      [inputmode]="'decimal'">
+      </number-stepper>
     </div>
   </div>
   <div class="row shell-form-row--field">

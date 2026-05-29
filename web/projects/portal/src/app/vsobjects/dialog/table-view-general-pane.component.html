@@ -27,11 +27,13 @@
 </title-prop-pane>
 <form [formGroup]="form" class="container-fluid" *ngIf="model.showMaxRows">
   <div class="shell-form-row--field row">
-    <div class="col form-floating">
-        <input type="number" class="form-control" [(ngModel)]="model.maxRows"
-               formControlName="maxRows" placeholder="_#(Max Rows)">
-        <label>_#(Max Rows)</label>
-      <div class="shell-alert shell-alert--danger" *ngIf="form.controls['maxRows'].errors && form.controls['maxRows'].errors['positiveIntegerInRange']">
+    <div class="col d-flex flex-column">
+      <label class="form-label">_#(Max Rows)</label>
+      <number-stepper formControlName="maxRows"
+                      (valueChange)="model.maxRows = $event"
+                      [invalid]="!!(form.controls['maxRows'].errors?.['positiveIntegerInRange'])">
+      </number-stepper>
+      <div class="shell-alert shell-alert--danger" *ngIf="form.controls['maxRows'].errors?.['positiveIntegerInRange']">
         _#(common.tableView.maxRowCheck)
       </div>
     </div>
