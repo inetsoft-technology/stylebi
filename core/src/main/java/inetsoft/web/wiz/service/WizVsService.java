@@ -36,6 +36,7 @@ import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.schema.*;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
+import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.Tool;
 import inetsoft.web.vswizard.recommender.WizardRecommenderUtil;
@@ -161,6 +162,11 @@ public class WizVsService {
 
             if(model.getPrimaryAssembly() != null) {
                assembly = rebindAssembly(targetVs, assemblyName, model.getPrimaryAssembly());
+
+               if(assembly == null) {
+                  throw new IllegalArgumentException("Unsupported primary assembly type: "
+                                                        + model.getPrimaryAssembly().getClass().getName());
+               }
             }
             else {
                assembly = createAssembly(targetVs, model.getVisualizationType(), assemblyName,
@@ -1133,7 +1139,7 @@ public class WizVsService {
       }
 
       VSAssembly dest = factory.apply(vs, name);
-      dest.setVSAssemblyInfo(src.getVSAssemblyInfo());
+      dest.setVSAssemblyInfo(src.getVSAssemblyInfo().clone());
       return dest;
    }
 

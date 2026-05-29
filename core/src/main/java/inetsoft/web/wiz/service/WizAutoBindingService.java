@@ -630,8 +630,6 @@ public class WizAutoBindingService {
       return info;
    }
 
-   // ── Primary visualization selection ───────────────────────────────────────────
-
    // ── Primary recommendation selection ──────────────────────────────────────────
 
    /**
