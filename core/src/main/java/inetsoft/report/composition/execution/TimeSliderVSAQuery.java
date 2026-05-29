@@ -356,7 +356,7 @@ public class TimeSliderVSAQuery extends AbstractSelectionVSAQuery {
          // Extract the column name from inside the parentheses and retry.
          if(ref == null) {
             int idx1 = alias.indexOf('(');
-            int idx2 = alias.lastIndexOf(')');
+            int idx2 = alias.indexOf(')');
 
             if(idx1 > 0 && idx2 > idx1) {
                String baseAttr = alias.substring(idx1 + 1, idx2);
