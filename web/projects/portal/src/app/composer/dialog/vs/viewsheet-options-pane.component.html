@@ -19,7 +19,7 @@
   <form [formGroup]="form" class="container-fluid">
     <fieldset>
       <legend>_#(Data Source)</legend>
-      <div class="row form-row-float-label">
+      <div class="row shell-form-row--field">
         <div class="input-group col-12 input-with-actions">
           <input type="text" class="form-control" [ngModelOptions]="{standalone: true}" readonly
                  placeholder="_#(Select data source)" aria-label="Select data source"
@@ -33,7 +33,7 @@
           </button>
         </div>
       </div>
-      <div *ngIf="isLogicModelDataSource() && !defaultOrgAsset" class="row form-row-float-label">
+      <div *ngIf="isLogicModelDataSource() && !defaultOrgAsset" class="row shell-form-row--field">
         <div class="col-12">
           <span class="href-style" (click)="convertToWorksheet()">_#(convert.source.to.worksheet)</span>
         </div>
@@ -41,7 +41,7 @@
     </fieldset>
     <fieldset>
       <legend>_#(Options)</legend>
-      <div class="row form-row-checkbox multiple-checkboxes">
+      <div class="shell-form-row shell-form-row--checkbox multiple-checkboxes">
         <div class="col">
           <div class="form-check">
             <input class="form-check-input" type="checkbox" [(ngModel)]="model.useMetaData"
@@ -79,7 +79,7 @@
           </div>
         </div>
       </div>
-      <div class="row form-row-checkbox">
+      <div class="shell-form-row shell-form-row--checkbox">
         <div class="col-auto">
           <div class="form-check">
             <input type="checkbox" class="form-check-input" [(ngModel)]="model.hideNotifications"
@@ -90,7 +90,7 @@
           </div>
         </div>
       </div>
-      <div class="row form-row-checkbox">
+      <div class="shell-form-row shell-form-row--checkbox">
         <div class="col-auto">
           <div class="form-check">
             <input type="checkbox" class="form-check-input" [(ngModel)]="model.promptForParams"
@@ -107,7 +107,7 @@
           </button>
         </div>
       </div>
-      <div class="row form-row-float-label form-check viewsheet-options-pane__size-row">
+      <div class="row shell-form-row--field form-check viewsheet-options-pane__size-row">
         <div class="form-floating col-6">
           <div class="input-group">
             <input type="number" class="form-control" formControlName="maxRows"
@@ -131,7 +131,7 @@
     </fieldset>
     <fieldset>
       <legend>_#(Deployment)</legend>
-      <div class="row form-row-float-label">
+      <div class="row shell-form-row--field">
         <div class="col-12">
           <div class="form-floating">
             <input type="text" formControlName="alias" class="form-control" placeholder="_#(Alias)" [(ngModel)]="model.alias"
@@ -141,7 +141,7 @@
           </div>
         </div>
       </div>
-      <div class="row form-row-checkbox">
+      <div class="shell-form-row shell-form-row--checkbox">
         <div class="col-12">
           <div class="form-floating">
             <textarea class="form-control input-lg" [ngModelOptions]="{standalone: true}"
@@ -151,7 +151,7 @@
           </div>
         </div>
       </div>
-      <div class="row form-row-checkbox">
+      <div class="shell-form-row shell-form-row--checkbox">
         <div class="col-auto">
           <div class="form-check">
             <input class="form-check-input" type="checkbox" [ngModelOptions]="{standalone: true}"
@@ -178,7 +178,7 @@
           <label><span>_#(Refresh Interval [seconds])</span></label>
         </div>
       </div>
-      <div class="row form-row-float-label">
+      <div class="row shell-form-row--field">
         <div class="col-auto">
           <div class="form-check">
             <input type="checkbox" class="form-check-input" id="onPortal"

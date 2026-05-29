@@ -26,7 +26,7 @@
 <form ngNoForm (submit)="$event.preventDefault()" class="container-fluid">
   <fieldset>
     <legend>_#(Popup)</legend>
-    <div class="form-row-float-label row">
+    <div class="shell-form-row--field row">
       <div class="col">
         <div class="form-floating">
           <custom-select [options]="popComponentOptions"
@@ -45,7 +45,7 @@
         </div>
       </div>
     </div>
-    <div class="form-row-float-label row">
+    <div class="shell-form-row--field row">
       <div class="col">
         <div class="form-floating">
         <custom-select [options]="popLocationOptions"
@@ -57,7 +57,7 @@
       </div>
     </div>
   </fieldset>
-  <div *ngIf=alphaInvalid class="alert alert-danger">
+  <div *ngIf=alphaInvalid class="shell-alert shell-alert--danger">
     _#(viewer.flash.format.invalidTransparencyError)
   </div>
 </form>

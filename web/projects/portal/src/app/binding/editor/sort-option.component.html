@@ -16,7 +16,7 @@
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
 <div *ngIf="dimension">
-  <div class="row form-row-float-label">
+  <div class="row shell-form-row--field">
     <div class="col-5">
       <div class="form-floating sort_label_id">
         <custom-select [options]="sortOrderSelectOptions"
@@ -44,7 +44,7 @@
       </span>
     </div>
   </div>
-  <div class="row form-row-float-label">
+  <div class="row shell-form-row--field">
     <div class="col ranking_id">
       <div class="form-floating">
         <dynamic-combo-box [values]="rankingOptions"
@@ -69,7 +69,7 @@
       </div>
     </div>
   </div>
-  <div class="row form-row-float-label">
+  <div class="row shell-form-row--field">
     <div class="col group_other_id">
       <div class="form-check">
         <input type="checkbox" class="form-check-input" id="others"
@@ -92,7 +92,7 @@
       </div>
     </div>
   </div>
-  <div class="alert alert-danger" *ngIf="!isValidN()">
+  <div class="shell-alert shell-alert--danger" *ngIf="!isValidN()">
     _#(common.widget.SortOption.enterPositiveTop)
   </div>
 </div>

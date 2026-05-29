@@ -22,7 +22,7 @@
       <i class="submit-icon icon-size-small" aria-hidden="true"></i>
     </button>
   </div>
-  <div class="row form-row-float-label">
+  <div class="row shell-form-row--field">
     <div class="col">
       <formula-option [vsId]="vsId" [variables]="variables"
                       [availableFields]="availableFields"
@@ -33,7 +33,7 @@
       </formula-option>
     </div>
   </div>
-  <div class="row form-row-float-label"
+  <div class="row shell-form-row--field"
        *ngIf="isPercentageFormula() && percentSupport && !isCrosstab()">
     <div class="col percentage_label_id">
       <div class="form-floating">
@@ -46,7 +46,7 @@
     </div>
   </div>
   <fieldset>
-    <div class="row form-row-float-label">
+    <div class="row shell-form-row--field">
       <div class="col">
         <calculate-pane *ngIf="isCrosstab()" [variables]="variables"
                         [aggregate]="chartAggregate"

@@ -37,6 +37,12 @@
     margin: 15px;
   }
 
+  .vpm-lookup-container__surface {
+    border: 1px solid var(--inet-list-border-color);
+    border-radius: var(--inet-radius-md);
+    background-color: var(--inet-list-bg-color);
+  }
+
   > .tab-content {
     display: flex;
     flex-grow: 1;

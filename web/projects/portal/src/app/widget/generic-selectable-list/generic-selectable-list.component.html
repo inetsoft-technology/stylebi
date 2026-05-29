@@ -15,10 +15,11 @@
   ~ You should have received a copy of the GNU Affero General Public License
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
-<div class="selectable-list">
-  <div class="unhighlightable d-table" *ngFor="let _item of itemList; let _i = index"
+<div class="selectable-list generic-selectable-list">
+  <div class="unhighlightable generic-selectable-list__item" *ngFor="let _item of itemList; let _i = index"
        (click)="!disabled && select(_i)" [class.selected]="!disabled && selectedIndex == _i"
-       [class.fade]="disabled">
+       [class.fade]="disabled"
+       [attr.title]="elementToString ? elementToString(_item) : _item">
     {{elementToString ? elementToString(_item) : _item}}
   </div>
 </div>

@@ -124,6 +124,21 @@
   padding-inline: 0;
 }
 
+.schedule-form-row,
+.schedule-option-row,
+.schedule-meta-row {
+  margin-bottom: 0.75rem;
+}
+
+.schedule-form-row,
+.schedule-option-row {
+  align-items: center;
+}
+
+.schedule-meta-row {
+  align-items: flex-start;
+}
+
 .condition-edit-view__time-row {
   align-items: center;
   row-gap: 10px;

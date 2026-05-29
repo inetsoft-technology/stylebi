@@ -29,7 +29,7 @@
   <div class="container">
     <static-color-editor *ngFor="let idx of aggrsNum"
                          [aggrName]="frameInfos[idx].name"
-                         class="row form-row-float-label"
+                         class="row shell-form-row--field"
                          [(color)]="frameInfos[idx].frame.color"
                          (colorChanged)="changeColor($event, idx)">
     </static-color-editor>

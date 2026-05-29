@@ -34,12 +34,13 @@
           </div>
         </div>
       </div>
-        <ul class="list-group list-group-flush auto-overflow auto-drill-panel__list">
+        <ul class="auto-overflow auto-drill-panel__list">
           <li *ngFor="let drill of autoDrillModel.paths; let i = index"
               (click)="selectDrill($event, i)"
-              class="list-group-item auto-drill-panel__list-item no-shrink">
+              class="auto-drill-panel__list-item no-shrink"
+              [class.auto-drill-panel__list-item--selected]="editIndex === i">
             <div class="auto-drill-panel__list-item-content">
-            <span>{{ drill.name }}</span>
+            <span class="truncate-text" [attr.title]="drill.name">{{ drill.name }}</span>
             <div class="toolbar-button-group">
               <button type="button" class="btn btn-sm btn-light-no-bg chevron-circle-arrow-up-icon"
                       [attr.title]="'_#(Move Up)'"
@@ -202,11 +203,11 @@
                     </button>
                   </span>
                 </div>
-                <ul class="list-group list-group-flush param-card-body auto-overflow auto-drill-parameter-panel__list">
+                <ul class="param-card-body auto-overflow auto-drill-parameter-panel__list">
                   <li *ngFor="let param of editDrill.params; let i = index"
-                      class="list-group-item auto-drill-parameter-panel__item">
+                      class="auto-drill-parameter-panel__item">
                     <div class="auto-drill-parameter-panel__item-content">
-                    <span class="parameter-label">{{ getDisplayParam(param) }}</span>
+                    <span class="parameter-label truncate-text" [attr.title]="getDisplayParam(param)">{{ getDisplayParam(param) }}</span>
                     <span class="btn-group">
                       <button type="button" (click)="editParameter(i)"
                               [attr.title]="'_#(Edit Parameter)'"

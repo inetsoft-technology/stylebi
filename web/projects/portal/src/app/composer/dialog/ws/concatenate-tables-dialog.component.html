@@ -22,7 +22,7 @@
 <div class="modal-body" enterSubmit (onEnter)="ok()">
   <fieldset class="container-fluid">
     <legend>_#(Concatenate)</legend>
-    <div class="form-row-float-label row">
+    <div class="shell-form-row--field row">
       <div class="col-auto">
         <div class="form-check">
           <input class="form-check-input" type="radio" name="concat" [(ngModel)]="concatType"
@@ -52,7 +52,7 @@
       </div>
     </div>
     <legend>_#(Concatenating the following tables)</legend>
-    <div class="form-row-float-label row">
+    <div class="shell-form-row--field row">
       <div class="col ms-2">
         <div class="text-overflow ms-3" *ngFor="let _table of tables"
              [attr.title]="_table.name">{{_table.name}}</div>

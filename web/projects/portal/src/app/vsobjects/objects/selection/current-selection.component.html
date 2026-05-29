@@ -23,7 +23,7 @@
      [draggable]="true"
      (dragstart)="dragStart($event)">
   <mini-menu *ngIf="!mobileDevice" [actions]="getActions()" class="mini-menu"></mini-menu>
-  <div class="align-middle float-start br-gray bb-gray hide-overflow"
+  <div class="align-middle float-start hide-overflow current-selection__title-surface"
        [style.min-width.px]="titleFormat.width * titleRatio"
        [style.max-width.px]="titleFormat.width * titleRatio"
        [style.height.px]="titleHeight"

@@ -21,6 +21,12 @@
   max-width: 60rem;
 }
 
+.tip-pane__flyover-surface {
+  border: 1px solid var(--inet-default-border-color);
+  border-radius: var(--inet-radius-md);
+  background: var(--inet-shell-surface-subtle);
+}
+
 .flyover-item {
   width: 100%;
   position: relative;

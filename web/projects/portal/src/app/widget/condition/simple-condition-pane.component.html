@@ -17,13 +17,14 @@
   -->
 <div class="container-fluid">
   <div class="row">
-    <div class="selectable-list col-12">
-      <div *ngFor="let item of conditionList; let even = even; let i = index;" class="unhighlightable"
+    <div class="selectable-list col-12 simple-condition-pane__list">
+      <div *ngFor="let item of conditionList; let even = even; let i = index;"
+           class="unhighlightable simple-condition-pane__list-item"
            [class.selected]="selectedIndex == i" (click)="conditionItemSelected(i)">
-        <div *ngIf="even">
+        <div *ngIf="even" class="simple-condition-pane__list-text">
           {{item | conditionToString}}
         </div>
-        <div *ngIf="!even">
+        <div *ngIf="!even" class="simple-condition-pane__list-text">
           {{item | junctionOperatorToString}}
         </div>
       </div>

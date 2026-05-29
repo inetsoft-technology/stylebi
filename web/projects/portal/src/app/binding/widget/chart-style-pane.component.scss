@@ -219,6 +219,11 @@
   justify-content: center;
 }
 
+.chart-style-pane__overlay {
+  border: 1px solid var(--inet-default-border-color);
+  background: color-mix(in srgb, var(--inet-shell-surface-subtle) 84%, transparent);
+}
+
 .bottom-bar {
   display: flex;
   align-items: center;

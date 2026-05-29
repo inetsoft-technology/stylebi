@@ -31,18 +31,18 @@
    width: 100%;
    padding: 16px;
    text-align: left;
-   background: var(--inet-main-panel-bg-color);
-   border: 1px solid var(--inet-default-border-color);
-   border-radius: var(--inet-radius-lg);
+   background: var(--inet-card-bg-color);
+   border: 1px solid var(--inet-list-border-color);
+   border-radius: var(--inet-radius-md);
    transition: border-color 120ms ease, background-color 120ms ease;
 }
 
 .new-data-model-dialog__option:hover:not(:disabled) {
-   background: var(--inet-ui-neutral-hover-bg-color);
+   background: var(--inet-list-hover-bg-color);
 }
 
 .new-data-model-dialog__option--primary {
-   border-color: var(--inet-primary-color-light);
+   border-color: var(--inet-list-border-color);
 }
 
 .new-data-model-dialog__option-title {
@@ -66,7 +66,7 @@
 .new-data-model-dialog__option.disabled,
 .new-data-model-dialog__option:disabled {
    background: var(--inet-input-disabled-bg-color);
-   border-color: var(--inet-default-border-color);
+   border-color: var(--inet-list-border-color);
    cursor: not-allowed;
    opacity: 1;
 }

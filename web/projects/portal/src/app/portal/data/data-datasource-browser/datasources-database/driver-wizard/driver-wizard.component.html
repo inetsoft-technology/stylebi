@@ -27,10 +27,11 @@
           <label class="form-check-label" for="uploadTypeUpload">_#(Upload)</label>
         </div>
         <div class="upload-files">
-          <div class="list-group">
-            <a class="list-group-item unhighlightable"
+          <div class="driver-wizard__list" role="list">
+            <a class="driver-wizard__list-item unhighlightable"
                *ngFor="let file of uploadForm.controls['uploadFiles']?.value; let i = index"
                [class.selected]="selectedDriverFiles.indexOf(i) >= 0"
+               [attr.title]="file.name"
                (click)="selectDriverFile($event, i)">
               {{ file. name }}
             </a>
@@ -69,8 +70,8 @@
   </div>
   <div *ngIf="step === 'drivers'" class="driver-wizard driver-wizard--drivers">
       <div class="driver-wizard__section">
-          <div class="list-group">
-            <div class="list-group-item" *ngFor="let driver of drivers; let i = index; trackBy: trackByIdx">
+          <div class="driver-wizard__list driver-wizard__list--checkbox" role="list">
+            <div class="driver-wizard__list-item" *ngFor="let driver of drivers; let i = index; trackBy: trackByIdx">
               <input type="checkbox" class="form-check-input checkbox" [(ngModel)]="selectedDrivers[i]" (ngModelChange)="selectDriver(i)">
               <span>{{ driver }}</span>
             </div>

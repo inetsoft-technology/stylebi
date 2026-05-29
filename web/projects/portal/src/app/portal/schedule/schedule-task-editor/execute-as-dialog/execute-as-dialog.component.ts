@@ -235,7 +235,7 @@ export class ExecuteAsDialog {
          leaf: true,
          expanded: false,
          icon: "alert-circle-icon",
-         cssClass: "alert alert-danger disable-actions"
+         cssClass: "shell-alert shell-alert--danger disable-actions"
       };
    }
 }

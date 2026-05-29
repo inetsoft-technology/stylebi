@@ -23,3 +23,7 @@
 .svg-container {
   display: flex;
 }
+
+.color-cell__surface--empty {
+  border: 1px solid var(--inet-default-border-color);
+}

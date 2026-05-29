@@ -27,11 +27,11 @@
       <label for="name"><span>_#(Name)</span></label>
     </div>
   </div>
-  <div *ngIf="form.controls['name'].errors && form.controls['name'].errors['required']" class="alert alert-danger">
+  <div *ngIf="form.controls['name'].errors && form.controls['name'].errors['required']" class="shell-alert shell-alert--danger">
     <strong>_#(Error)</strong> _#(binding.nameInput.isEmpty)
   </div>
   <div *ngIf="form.controls['name'].errors && form.controls['name'].errors['exists']"
-       class="alert alert-danger">
+       class="shell-alert shell-alert--danger">
     <strong>_#(Error)</strong>
     _#(binding.nameInput.alreadyExisted)
   </div>

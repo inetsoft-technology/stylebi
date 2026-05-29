@@ -16,13 +16,40 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 :host {
-  > .selectable-list {
-    height: 6em;
-    overflow-y: auto;
+  --generic-selectable-list-height: 6em;
 
-    > div {
+  > .selectable-list {
+    height: var(--generic-selectable-list-height);
+    overflow-y: auto;
+    border: 1px solid var(--inet-list-border-color);
+    border-radius: var(--inet-radius-md);
+    background-color: var(--inet-list-bg-color);
+
+    > .generic-selectable-list__item {
       width: 100%;
+      min-height: calc(var(--inet-control-height-sm) + var(--inet-space-1));
+      display: flex;
+      align-items: center;
+      padding-inline: var(--inet-space-4);
+      color: var(--inet-text-color);
       white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      background-color: var(--inet-list-bg-color);
+      border-radius: var(--inet-radius-sm);
+      transition: background-color 120ms ease, color 120ms ease;
+
+      + .generic-selectable-list__item {
+        margin-top: 2px;
+      }
+
+      &:not(.selected):not(.fade):hover {
+        background-color: var(--inet-list-hover-bg-color);
+      }
+
+      &.selected {
+        background-color: var(--inet-list-selected-bg-color);
+      }
 
       > button {
         float: right;

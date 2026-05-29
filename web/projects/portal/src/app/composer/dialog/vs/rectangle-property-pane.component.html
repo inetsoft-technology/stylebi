@@ -20,7 +20,7 @@
 <form ngNoForm (submit)="$event.preventDefault()" class="form-horizontal container-fluid">
   <fieldset>
     <legend>_#(Shape)</legend>
-    <div class="form-row-float-label row">
+    <div class="shell-form-row--field row">
       <div class="col">
         <div class="form-floating">
           <radius-dropdown [(radius)]="model.radius" [form]="form" [max]="width < height ? width : height"></radius-dropdown>

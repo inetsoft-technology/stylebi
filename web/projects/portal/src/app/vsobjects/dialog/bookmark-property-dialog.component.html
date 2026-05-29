@@ -21,7 +21,7 @@
 </modal-header>
 <div class="modal-body" [enterSubmit]="formValid" (onEnter)="saveChanges()" *ngIf="model && form">
   <form class="container-fluid" [formGroup]="form">
-    <div class="form-row-float-label row">
+    <div class="row shell-form-row--field">
       <div class="col form-floating">
           <input class="form-control" type="text" id="name" trim placeholder="_#(Name)"
                  formControlName="name" [(ngModel)]="model.name">
@@ -29,15 +29,15 @@
       </div>
     </div>
     <div *ngIf="form.controls['name'].errors && form.controls['name'].errors['required']"
-         class="alert alert-danger">
+         class="shell-alert shell-alert--danger">
       <strong>_#(Error)</strong> _#(viewer.viewsheet.bookmark.emptyName)
     </div>
-    <div *ngIf="form.controls['name'].errors && form.controls['name'].errors['bookmarkSpecialCharacters']" class="alert alert-danger">
+    <div *ngIf="form.controls['name'].errors && form.controls['name'].errors['bookmarkSpecialCharacters']" class="shell-alert shell-alert--danger">
       <strong>_#(Error)</strong> _#(viewer.viewsheet.bookmark.nameFormat)
     </div>
 
     <div *ngIf="isGlobalScope() && isSharedBookmarkPermitted">
-      <div class="form-row-float-label row mb-0">
+      <div class="row shell-form-row--field mb-0">
         <div class="col-auto">
           <div class="form-check">
             <input type="radio" name="private" class="form-check-input" id="private"
@@ -49,7 +49,7 @@
           </div>
         </div>
       </div>
-      <div class="form-row-checkbox row">
+      <div class="shell-form-row shell-form-row--checkbox">
         <div class="col-auto">
           <div class="form-check">
             <input type="radio" name="shared" class="form-check-input" id="shared"
@@ -71,7 +71,7 @@
           </custom-select>
         </div>
       </div>
-      <div class="form-row-float-label row">
+      <div class="row shell-form-row--field">
         <div class="col">
           <div class="form-check">
             <input type="checkbox" name="read-only" class="form-check-input" id="readonly"

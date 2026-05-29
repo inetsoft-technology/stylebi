@@ -18,7 +18,8 @@
 <div class="action-color" *ngIf="showRoot"
      [style.padding-left.px]="indentLevel * INDENT_SIZE">
   <div class="physical-table-tree-node__shell truncate-parent justify-content-between w-100">
-    <div class="physical-table-tree-node__row truncate-text d-flex align-items-center w-100 cursor-pointer hover-bg-primary"
+    <div class="physical-table-tree-node__row truncate-text d-flex align-items-center w-100 cursor-pointer"
+         [class.physical-table-tree-node__row--selected]="isSelected()"
          [class.light-gray-bg]="isDisabled()"
          (click)="selectNode($event)"
          (dblclick)="hasChildren() ? toggleNode() : null">

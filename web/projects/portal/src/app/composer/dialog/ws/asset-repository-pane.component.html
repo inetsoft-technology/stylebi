@@ -17,7 +17,7 @@
   -->
 <form [formGroup]="form" class="container-fluid">
   <fieldset>
-    <div class="form-row-float-label row">
+    <div class="shell-form-row--field row">
       <div class="col form-floating">
         <input class="form-control" type="text" id="name" trim defaultFocus [autoSelect]="false"
                formControlName="name" [(ngModel)]="model.name" placeholder="_#(Name)"
@@ -55,7 +55,7 @@
       </asset-tree>
     </div>
   </fieldset>
-  <div *ngIf="form.controls['entry'].errors" class="alert alert-warning">
+  <div *ngIf="form.controls['entry'].errors" class="shell-alert shell-alert--warning">
     _#(worksheet.select.entry)
   </div>
 </form>

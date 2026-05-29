@@ -56,3 +56,7 @@ div.radio-title {
 .radio-body > form > div > label > input {
   margin-right: 3px;
 }
+
+.vs-radio-button__default-border {
+  border: 1px solid var(--inet-default-border-color);
+}

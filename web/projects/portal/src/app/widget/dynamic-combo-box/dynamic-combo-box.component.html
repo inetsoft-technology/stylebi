@@ -21,7 +21,7 @@
       <div *ngIf="!editable && mode == ValueMode.TEXT" draggable="true"
            #valueTrigger
            tooltipIf [disableTooltipIf]="!!tooltip"
-           class="display-style custom-select-trigger dynamic-combo-box__trigger bd-gray form-control"
+           class="display-style custom-select-trigger dynamic-combo-box__trigger form-control"
            [ngClass]="getInputClass(value)"
            [class.is-open]="valueDropdownOpen"
            [class.disabled]="disable"

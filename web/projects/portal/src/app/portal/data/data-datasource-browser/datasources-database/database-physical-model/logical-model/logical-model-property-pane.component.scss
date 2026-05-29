@@ -37,5 +37,5 @@
 
 .data-model-left-top-pane {
   border-right: 1px solid var(--inet-default-border-color);
-  background: color-mix(in srgb, var(--inet-main-panel-bg-color) 80%, var(--inet-toolbar-bg-color)) !important;
+  background: var(--inet-shell-surface-subtle) !important;
 }

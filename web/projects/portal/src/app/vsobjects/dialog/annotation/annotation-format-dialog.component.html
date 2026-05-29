@@ -23,7 +23,7 @@
   <form ngNoForm (submit)="$event.preventDefault()" class="container-fluid">
     <fieldset>
       <legend>_#(Box)</legend>
-      <div class="form-row-float-label row">
+      <div class="row shell-form-row--field">
         <div class="col pe-0">
           <div class="form-floating">
             <style-dropdown [(style)]="model.boxBorderStyle" [color]="model.boxBorderColor"
@@ -35,7 +35,7 @@
           <color-editor [(color)]="model.boxBorderColor"></color-editor>
         </div>
       </div>
-      <div class="form-row-float-label row">
+      <div class="row shell-form-row--field">
         <div class="col">
           <div class="form-floating">
             <radius-dropdown [(radius)]="model.boxBorderRadius"
@@ -54,13 +54,13 @@
           </div>
         </div>
       </div>
-      <div *ngIf="alphaInvalid" class="col-12 alert alert-danger">
+      <div *ngIf="alphaInvalid" class="col-12 shell-alert shell-alert--danger">
         _#(viewer.flash.format.invalidTransparencyError)
       </div>
     </fieldset>
     <fieldset *ngIf="showLine() && model.lineStyle">
       <legend>_#(Line)</legend>
-      <div class="form-row-checkbox row">
+      <div class="shell-form-row shell-form-row--checkbox">
         <div class="col checkbox">
           <div class="form-check">
             <input type="checkbox" class="form-check-input" id="visible"
@@ -71,7 +71,7 @@
           </div>
         </div>
       </div>
-      <div class="form-row-float-label row">
+      <div class="row shell-form-row--field">
         <div class="col">
           <div class="form-floating">
             <style-dropdown [(style)]="model.lineStyle" [color]="model.lineColor"

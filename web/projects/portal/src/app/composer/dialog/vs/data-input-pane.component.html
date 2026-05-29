@@ -17,7 +17,7 @@
   -->
 <form ngNoForm (submit)="$event.preventDefault()" class="container-fluid">
   <fieldset>
-    <div class="form-row-float-label row">
+    <div class="shell-form-row--field row">
       <div class="col pe-0">
         <div class="form-floating">
           <tree-dropdown data-test="targetTreeDropdown"
@@ -39,7 +39,7 @@
       </ng-container>
     </div>
     <ng-container *ngIf="!checkBox">
-      <div class="form-row-float-label row">
+      <div class="shell-form-row--field row">
         <div class="col">
           <div class="form-floating column_id">
             <dynamic-combo-box data-test="columnDropdown"
@@ -52,7 +52,7 @@
           </div>
         </div>
       </div>
-      <div class="form-row-float-label row">
+      <div class="shell-form-row--field row">
         <div class="col">
           <div class="form-floating row_id">
             <dynamic-combo-box data-test="rowDropdown"
@@ -66,12 +66,12 @@
           </div>
         </div>
       </div>
-      <div class="form-row-float-label row">
+      <div class="shell-form-row--field row">
         <div class="col">
           _#(viewer.viewsheet.inputNote)
         </div>
       </div>
-      <div class="form-row-float-label row">
+      <div class="shell-form-row--field row">
         <div class="col writeBack_id">
           <div class="form-check">
             <input type="checkbox" class="form-check-input" [disabled]="!model.table || model.variable"
@@ -82,7 +82,7 @@
           </div>
         </div>
       </div>
-      <div class="form-row-float-label row" *ngIf="comboBox && isDateType">
+      <div class="shell-form-row--field row" *ngIf="comboBox && isDateType">
         <div class="col">
           <div class="form-check">
             <input type="checkbox" class="form-check-input" [(ngModel)]="model.queryDateFormat" id="queryDateFormat"
@@ -93,13 +93,13 @@
           </div>
         </div>
       </div>
-      <div class="form-row-float-label row" *ngIf="comboBox && isDateType && model.queryDateFormat">
+      <div class="shell-form-row--field row" *ngIf="comboBox && isDateType && model.queryDateFormat">
         <div class="col">
           <div class="form">
             <input type="text" class="form-control" [(ngModel)]="model.dateFormatPattern" id="dateFormatPattern"
               placeholder="_#(Query Date Format)" (ngModelChange)="validateDateFormat($event)"
             />
-            <div *ngIf="dateFormatInvalid" class="alert alert-danger">
+            <div *ngIf="dateFormatInvalid" class="shell-alert shell-alert--danger">
               _#(Invalid Date Format)
             </div>
           </div>

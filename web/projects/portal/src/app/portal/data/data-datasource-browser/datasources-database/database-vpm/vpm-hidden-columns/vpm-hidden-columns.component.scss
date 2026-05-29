@@ -55,6 +55,9 @@
     }
 
     .shuffle-list-pane {
+      background-color: var(--inet-list-bg-color);
+      border-color: var(--inet-list-border-color);
+      border-radius: var(--inet-radius-md);
       flex-grow: 1;
       flex-shrink: 1;
       flex-basis: 0;
@@ -102,4 +105,37 @@
   align-items: center;
   justify-content: center;
   cursor: pointer;
+}
+
+.hidden-columns-pane {
+  background-color: var(--inet-list-bg-color);
+}
+
+.hidden-columns-pane--tree {
+  padding: var(--inet-space-2);
+}
+
+.hidden-columns-table {
+  background-color: var(--inet-list-bg-color);
+}
+
+.hidden-columns-table-row {
+  align-items: center;
+  cursor: pointer;
+  display: flex;
+  min-height: var(--inet-control-height-md);
+  overflow: hidden;
+  padding: 0 var(--inet-space-3);
+  text-overflow: ellipsis;
+  transition: background-color 120ms ease;
+  white-space: nowrap;
+
+  &:hover {
+    background-color: var(--inet-list-hover-bg-color);
+  }
+
+  &.bg-node-selected {
+    background-color: var(--inet-list-selected-bg-color);
+    color: var(--inet-text-color);
+  }
 }

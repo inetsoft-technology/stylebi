@@ -20,6 +20,21 @@
   max-height: 300px;
 }
 
+:host ::ng-deep .condition-editor__type-menu {
+  min-width: 10rem;
+  background-color: var(--inet-dropdown-bg-color);
+}
+
+:host ::ng-deep .condition-editor__type-menu-item {
+  min-height: var(--inet-control-height-md);
+  display: flex;
+  align-items: center;
+
+  &.selected {
+    background-color: var(--inet-list-selected-bg-color);
+  }
+}
+
 :host ::ng-deep ngb-datepicker.dropdown-menu,
 :host ::ng-deep .ngb-dp-body.dropdown-menu {
   overflow: visible;

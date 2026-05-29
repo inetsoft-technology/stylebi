@@ -17,7 +17,7 @@
   -->
 <div class="format-pane m-3">
   <fieldset *ngIf="!!vsObjectFormat" [disabled]="formatDisabled">
-    <div class="row g-0 form-row-float-label">
+    <div class="row g-0 shell-form-row--field">
       <div class="col" >
         <div class="form-floating" [class.disabled]="fontDisabled">
           <dropdown-view #fontDropdown [label]="getFont()" [disabled]="fontDisabled">
@@ -31,7 +31,7 @@
         </div>
       </div>
     </div>
-    <div class="row g-0 form-row-float-label">
+    <div class="row g-0 shell-form-row--field">
       <div class="col pe-0">
         <div class="form-floating"
           [class.disabled]="formatDisabled || colorDisabled || dynamicColorDisabled">
@@ -49,7 +49,7 @@
         </color-dropdown>
       </div>
     </div>
-    <div class="row g-0 form-row-float-label">
+    <div class="row g-0 shell-form-row--field">
       <div class="col pe-0">
         <div class="form-floating"
           [class.disabled]="(formatDisabled || dynamicColorDisabled || backgroundDisabled) && !vsSelected">
@@ -69,7 +69,7 @@
         </color-dropdown>
       </div>
     </div>
-    <div class="row g-0 form-row-float-label" *ngIf="isValueFillVisible()">
+    <div class="row g-0 shell-form-row--field" *ngIf="isValueFillVisible()">
       <div class="col pe-0">
         <div class="form-floating"
           [class.disabled]="formatDisabled || colorDisabled || dynamicColorDisabled">
@@ -89,7 +89,7 @@
         </color-dropdown>
       </div>
     </div>
-    <div class="row g-0 form-row-float-label">
+    <div class="row g-0 shell-form-row--field">
       <div class="col">
         <div class="form-floating">
           <alpha-dropdown [(alpha)]="vsObjectFormat.backgroundAlpha"
@@ -101,7 +101,7 @@
         </div>
       </div>
     </div>
-    <div class="row g-0 form-row-float-label mt-4">
+    <div class="row g-0 shell-form-row--field mt-4">
       <div class="col">
         <div class="form-floating" [class.disabled]="alignDisabled">
           <dropdown-view #alignmentDropdown [label]="getAlignment()" [disabled]="alignDisabled" data-test="alignment-dropdown">
@@ -116,7 +116,7 @@
         </div>
       </div>
     </div>
-    <div class="row g-0 form-row-float-label">
+    <div class="row g-0 shell-form-row--field">
       <div class="col">
         <div class="form-floating" [class.disabled]="borderDisabled">
           <i *ngIf="borderTooltip" class="help-question-mark-icon field-help-icon"
@@ -131,7 +131,7 @@
         </div>
       </div>
     </div>
-    <div class="row g-0 form-row-float-label">
+    <div class="row g-0 shell-form-row--field">
     <div class="col">
         <div class="form-floating">
           <radius-dropdown [radius]="vsObjectFormat.roundCorner" [max]="roundCornerMax"
@@ -142,7 +142,7 @@
         </div>
     </div>
   </div>
-    <div class="row g-0 form-row-float-label" *ngIf="roundTopCornersOnlyVisible">
+    <div class="row g-0 shell-form-row--field" *ngIf="roundTopCornersOnlyVisible">
       <div class="col">
         <div class="form-check">
           <input type="checkbox" class="form-check-input" id="roundTopCornersOnly"
@@ -155,7 +155,7 @@
         </div>
       </div>
     </div>
-    <div class="row g-0 form-row-float-label" *ngIf="roundTopCornersOnlyVisible">
+    <div class="row g-0 shell-form-row--field" *ngIf="roundTopCornersOnlyVisible">
       <div class="col">
         <div class="form-check">
           <input type="checkbox" class="form-check-input" id="roundBottomCornersOnly"
@@ -168,7 +168,7 @@
         </div>
       </div>
     </div>
-    <div class="row g-0 form-row-checkbox">
+    <div class="shell-form-row shell-form-row--checkbox g-0">
       <div class="col">
         <div class="form-check">
           <input type="checkbox" class="form-check-input" id="wrap"
@@ -181,7 +181,7 @@
       </div>
     </div>
 
-    <div class="row g-0 form-row-float-label mt-4">
+    <div class="row g-0 shell-form-row--field mt-4">
       <div class="col">
         <div class="form-floating" [class.disabled]="formattingDisabled">
           <dropdown-view #formatDropdown [label]="getFormat()" [isOk]="false"
@@ -195,7 +195,7 @@
         </div>
       </div>
     </div>
-    <div class="row g-0 form-row-float-label">
+    <div class="row g-0 shell-form-row--field">
       <div class="col">
         <div class="form-floating" [class.disabled]="cssDisabled">
           <dropdown-view #cssDropdown [label]="getCSSLabel()" [disabled]="cssDisabled"
@@ -213,7 +213,7 @@
         </div>
       </div>
     </div>
-    <div class="row g-0 form-row-float-label" *ngIf="showPresenter()">
+    <div class="row g-0 shell-form-row--field" *ngIf="showPresenter()">
       <div class="col">
         <div class="form-floating">
           <format-presenter-pane [presenterLabel]="vsObjectFormat.presenterLabel"

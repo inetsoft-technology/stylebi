@@ -117,16 +117,16 @@
                  [(ngModel)]="model.field">
         </ng-container>
         <label><span>_#(Parameter Value)</span></label>
-        <div class="alert alert-danger" *ngIf="valueControl.getError('required')">
+        <div class="shell-alert shell-alert--danger" *ngIf="valueControl.getError('required')">
           _#(data.logicalmodel.drillParameterFieldRequired)</div>
-        <div class="alert alert-danger" *ngIf="valueControl.getError('maxLength')">
+        <div class="shell-alert shell-alert--danger" *ngIf="valueControl.getError('maxLength')">
           _#(data.logicalmodel.drillParameterFieldMaxLength)
         </div>
-        <div class="alert alert-danger" *ngIf="isInValidTypeRange()">
+        <div class="shell-alert shell-alert--danger" *ngIf="isInValidTypeRange()">
           _#(data.logicalmodel.drillParameterFieldMaxLength)
         </div>
       </div>
-      <div class="alert alert-danger parameter-dialog__inline-alert" *ngIf="!valueControl.getError('required')
+      <div class="shell-alert shell-alert--danger parameter-dialog__inline-alert" *ngIf="!valueControl.getError('required')
            && !isInValidTypeRange() && !valueControl.getError('maxLength')
            && !isValidDataTypeValue(model.field, model.type)">
         _#(data.logicalmodel.drillParameterNumberInvalid)</div>

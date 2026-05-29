@@ -52,6 +52,11 @@
   }
 }
 
+.color-picker__trigger {
+  border-color: var(--inet-input-border-color);
+  background-color: var(--inet-input-bg-color);
+}
+
 .color-picker .color-picker-swatch {
   width: 1.5em;
   height: 1.5em;
@@ -60,6 +65,10 @@
   background: none;
   border-radius: 0;
   box-shadow: 2px 2px 1px #cccccc;
+}
+
+.color-picker__swatch {
+  border: 1px solid var(--inet-input-border-color);
 }
 
 .color-picker > span.input-group-btn {

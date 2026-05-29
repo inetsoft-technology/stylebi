@@ -24,6 +24,7 @@ const ARRANGE_DASHBOARD_DIALOG_MODEL_URI: string = "../api/portal/arrange-dashbo
 @Component({
    selector: "arrange-dashboard-dialog",
    templateUrl: "arrange-dashboard-dialog.component.html",
+   styleUrls: ["arrange-dashboard-dialog.component.scss"],
 })
 export class ArrangeDashboardDialog implements OnInit {
    @Output() onCommit: EventEmitter<string> = new EventEmitter<string>();

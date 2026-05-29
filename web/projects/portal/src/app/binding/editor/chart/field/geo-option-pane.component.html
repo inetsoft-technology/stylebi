@@ -16,7 +16,7 @@
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
 <div class="container-fluid dropdown-pane gop-div">
-  <div class="row form-row-float-label" *ngIf="mapVisible">
+  <div class="row shell-form-row--field" *ngIf="mapVisible">
     <div class="col form-floating">
       <custom-select [options]="mapTypeOptions"
                      [(ngModel)]="mapType"
@@ -26,7 +26,7 @@
       <label><span>_#(Map)</span></label>
     </div>
   </div>
-  <div class="row form-row-float-label" *ngIf="layerVisible">
+  <div class="row shell-form-row--field" *ngIf="layerVisible">
     <div class="col form-floating">
       <custom-select *ngIf="chartGeoModel"
                      [options]="layerOptions"
@@ -37,7 +37,7 @@
       <label><span>_#(Layer)</span></label>
     </div>
   </div>
-  <div class="row form-row-float-label" *ngIf="mappingVisible">
+  <div class="row shell-form-row--field" *ngIf="mappingVisible">
     <div class="col pe-0 form-floating">
       <custom-select *ngIf="chartGeoModel"
                      [options]="mappingOptions"

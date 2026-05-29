@@ -23,7 +23,7 @@
   <form ngNoForm (submit)="$event.preventDefault()">
     <fieldset>
       <legend>_#(Retrieve data from)</legend>
-      <div class="row form-row-float-label">
+      <div class="row shell-form-row--field">
         <div class="col form-floating">
           <custom-select [options]="subqueryTableSelectOptions"
                          [ngModel]="value.query"
@@ -32,7 +32,7 @@
           <label>_#(Subquery)</label>
         </div>
       </div>
-      <div class="row form-row-float-label">
+      <div class="row shell-form-row--field">
         <div class="col form-floating">
           <custom-select [options]="attributeSelectOptions"
                          [ngModel]="value.attribute"
@@ -41,13 +41,13 @@
           <label>_#(In column)</label>
         </div>
       </div>
-      <div *ngIf="!isValid()" class="alert alert-danger">
-        _#(identification.columns.empty.or.nonempty)
+      <div *ngIf="!isValid()" class="shell-alert shell-alert--danger">
+        The identification columns should be both empty or non-empty.
       </div>
     </fieldset>
     <fieldset>
       <legend>_#(Where)</legend>
-      <div class="row form-row-float-label">
+      <div class="row shell-form-row--field">
         <div class="col form-floating">
           <custom-select [options]="subAttributeSelectOptions"
                          [ngModel]="value.subAttribute"
@@ -56,10 +56,10 @@
           <label>_#(Subquery column)</label>
         </div>
       </div>
-      <div class="row form-row-float-label">
+      <div class="row shell-form-row--field">
         <div class="col ms-2"><strong>=</strong></div>
       </div>
-      <div class="row form-row-float-label">
+      <div class="row shell-form-row--field">
         <div class="col form-floating">
           <custom-select [options]="mainAttributeSelectOptions"
                          [ngModel]="value.mainAttribute"

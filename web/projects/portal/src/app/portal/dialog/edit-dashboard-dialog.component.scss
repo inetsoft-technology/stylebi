@@ -24,3 +24,9 @@
   overflow-y: auto;
   max-height: 200px;
 }
+
+.edit-dashboard-dialog__tree-surface {
+  border: 1px solid var(--inet-default-border-color);
+  border-radius: var(--inet-radius-md);
+  background: var(--inet-shell-surface-subtle);
+}

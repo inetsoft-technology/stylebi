@@ -17,7 +17,7 @@
   -->
 
 <form ngNoForm (submit)="$event.preventDefault()" class="p-2">
-  <div class="row form-row-float-label">
+  <div class="row shell-form-row--field">
     <div class="col form-floating">
         <custom-select [ngModel]="model.measure"
                        [ngModelOptions]="{standalone: true}"
@@ -28,7 +28,7 @@
         <label>_#(Field)</label>
     </div>
   </div>
-  <div class="row form-row-float-label">
+  <div class="row shell-form-row--field">
     <div class="col">
       <div class="form-floating" [ngClass]="{ 'has-error' : !model.value}">
         <value-input-field *ngIf="!isDateField()" [value]="model.value" [hideDcombox]="hideDcombox"
@@ -44,7 +44,7 @@
         </date-input-field>
         <label>_#(From Value)</label>
       </div>
-      <div *ngIf="!model.value" class="alert alert-danger mb-0">_#(composer.bandPanel.fromCheck)</div>
+      <div *ngIf="!model.value" class="shell-alert shell-alert--danger mb-0">_#(composer.bandPanel.fromCheck)</div>
     </div>
     <div class="col-auto ps-0">
       <div class="checkbox col-auto">
@@ -59,7 +59,7 @@
       </div>
     </div>
   </div>
-  <div class="row form-row-float-label">
+  <div class="row shell-form-row--field">
     <div class="col">
       <div class="form-floating">
         <label-input-field [label]="model.label" [variables]="variables"
@@ -76,7 +76,7 @@
       </target-label-pane>
     </div>
   </div>
-  <div class="row form-row-float-label">
+  <div class="row shell-form-row--field">
     <div class="col">
       <div class="form-floating" [ngClass]="{ 'has-error' : !model.toValue}">
         <value-input-field *ngIf="!isDateField()" [value]="model.toValue"
@@ -92,10 +92,10 @@
         </date-input-field>
         <label>_#(To Value)</label>
       </div>
-      <div *ngIf="!model.toValue" class="alert alert-danger mb-0">_#(composer.bandPanel.toCheck)</div>
+      <div *ngIf="!model.toValue" class="shell-alert shell-alert--danger mb-0">_#(composer.bandPanel.toCheck)</div>
     </div>
   </div>
-  <div class="row form-row-float-label">
+  <div class="row shell-form-row--field">
     <div class="col">
       <div class="form-floating">
         <label-input-field [label]="model.toLabel" [variables]="variables"
@@ -112,7 +112,7 @@
       </target-label-pane>
     </div>
   </div>
-  <div class="row form-row-float-label">
+  <div class="row shell-form-row--field">
     <div class="col">
       <div class="form-floating">
         <grid-line-dropdown [(lineStyle)]="model.lineStyle"
@@ -127,7 +127,7 @@
   </div>
   <fieldset>
     <legend>_#(Fill)</legend>
-    <div class="row form-row-float-label">
+    <div class="row shell-form-row--field">
       <div class="col-3">
         <color-editor [(color)]="model.fillBandColor.color" label="_#(Fill Band)"
                       [palette]="fillPalette"></color-editor>
@@ -151,7 +151,7 @@
         </div>
       </div>
     </div>
-    <div *ngIf=alphaInvalid class="alert alert-danger">
+    <div *ngIf=alphaInvalid class="shell-alert shell-alert--danger">
       _#(viewer.flash.format.invalidTransparencyError)
     </div>
   </fieldset>

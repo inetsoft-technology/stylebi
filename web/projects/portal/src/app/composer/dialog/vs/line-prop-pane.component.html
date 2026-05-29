@@ -18,7 +18,7 @@
 <form ngNoForm (submit)="$event.preventDefault()" class="form-horizontal container-fluid">
   <fieldset>
     <legend>_#(Line)</legend>
-    <div class="form-row-float-label row">
+    <div class="shell-form-row--field row">
       <div class="col pe-0">
         <div class="form-floating">
           <dynamic-combo-box #colorType [value]="model.color" [variables]="variables"
@@ -32,7 +32,7 @@
                       [(color)]="model.colorValue"></color-editor>
       </div>
     </div>
-    <div class="form-row-float-label row">
+    <div class="shell-form-row--field row">
       <div class="col">
         <div class="form-floating">
           <style-dropdown data-test="lineStyleDropdown"

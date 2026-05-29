@@ -17,7 +17,7 @@
   -->
 <div [ngSwitch]="frameType">
   <div *ngSwitchCase="'StaticColorModel'">
-    <div *ngIf="!isMixed" class="visual-cell hover-bg-neutral" [class.bd-gray]="!colors[0]"
+    <div *ngIf="!isMixed" class="visual-cell hover-bg-neutral color-cell__surface" [class.color-cell__surface--empty]="!colors[0]"
          [style.background-color]="colors[0]">
     </div>
   </div>

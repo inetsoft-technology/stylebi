@@ -45,7 +45,7 @@
      actionsContextmenuAnchor [actions]="menuActions">
   <div *ngIf="!model.editable" class="layout-overlay"></div>
   <ng-container *ngIf="selected && !dbclick">
-    <div class="handle move bd-gray move-only"
+    <div class="handle move move-only layout-object__move-handle"
          [style.top.px]="model.top < 16 ? model.height : -16"
          [style.left.px]="model.left < 16 ? model.width : -16">
       <i class="move-icon icon-size1" (click)="select($event)"></i>

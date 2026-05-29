@@ -32,11 +32,34 @@
   padding-left: 0;
   padding-top: 15px;
 
-  .selectable-list {
+  .assemblies-selectable-list {
     max-height: 8em;
+    border-color: var(--inet-list-border-color);
+    background-color: var(--inet-list-bg-color);
 
     .assemblies-list-item {
       width: 100%;
+      min-height: var(--inet-control-height-md);
+      padding: 0 var(--inet-space-3);
+
+      &:hover {
+        background-color: var(--inet-list-hover-bg-color);
+      }
+
+      .form-check {
+        align-items: center;
+        display: flex;
+        margin: 0;
+        min-height: inherit;
+      }
+
+      .form-check-label {
+        color: var(--inet-text-color);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
       > button {
         float: right;
       }

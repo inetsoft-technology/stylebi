@@ -20,7 +20,7 @@
 <div class="modal-body">
   <div class="profile-content">
     <div *ngIf="tableData">
-      <div class="form-row-float-label row">
+      <div class="row shell-form-row--field">
         <div class="col-5" *ngIf="!showDetails">
           <div class="shell-form-group form-floating">
             <custom-select [options]="groupBySelectOptions"
@@ -54,20 +54,20 @@
         </div>
       </div>
 
-      <div class="form-row-float-label row" *ngIf="!showDetails">
+      <div class="row shell-form-row--field" *ngIf="!showDetails">
         <div class="col-12">
           <div class="profile-banner bg-darken1">_#(Breakdown Chart)</div>
         </div>
       </div>
 
-      <div class="form-row-float-label row" *ngIf="!showDetails">
+      <div class="row shell-form-row--field" *ngIf="!showDetails">
         <div class="col-12 profiling-chart">
           <img [src]="chartUri" >
         </div>
       </div>
 
       <ng-container *ngIf="showDetails">
-        <div class="form-row-float-label row">
+        <div class="row shell-form-row--field">
           <div class="col-12 profiling-table">
             <div class="preview-table" [class.mobile]="mobileDevice" [style.maxWidth.px]="tableWidth + 16">
               <div #previewContainer class="preview-table-container" (scroll)="horizontalScroll()">
@@ -148,7 +148,7 @@
           </div>
         </div>
 
-        <div *ngIf="!tableData" class="form-row-float-label row">
+        <div *ngIf="!tableData" class="row shell-form-row--field">
           <span>_#(no records)</span>
         </div>
       </ng-container>

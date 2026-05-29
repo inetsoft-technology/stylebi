@@ -21,7 +21,7 @@
   </button>
 </div>
 <div class="modal-body">
-  <div class="bordered-box bd-gray bordered-box-lg">
+  <div class="bordered-box bordered-box-lg tabular-file-browser__surface">
     <tree *ngIf="root" [root]="root" [showRoot]="false" [iconFunction]="iconFunction"
           (dblclickNode)="ok()"
           (nodeExpanded)="nodeExpanded($event)" (nodesSelected)="nodeSelected($event[0])"></tree>
@@ -35,7 +35,7 @@
   </div>
 </div>
 <div class="modal-footer">
-  <div *ngIf="!!getPatternMessage()" class="alert alert-danger">{{getPatternMessage()}}</div>
+  <div *ngIf="!!getPatternMessage()" class="shell-alert shell-alert--danger">{{getPatternMessage()}}</div>
   <button type="button" class="btn btn-primary" (click)="ok()"
           [disabled]="!selectedFile || !!getPatternMessage()">_#(OK)</button>
   <button type="button" class="btn btn-default" data-dismiss="modal" (click)="cancel()">_#(Cancel)</button>

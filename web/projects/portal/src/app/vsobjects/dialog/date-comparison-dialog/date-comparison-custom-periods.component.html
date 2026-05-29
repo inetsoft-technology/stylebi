@@ -17,7 +17,7 @@
   -->
 <div class="range-container">
   <ng-container *ngFor="let period of customPeriodPaneModel.datePeriods; let i = index">
-    <div class="form-row-float-label row g-0">
+    <div class="shell-form-row--field row g-0">
       <div class="col-5">
         <dynamic-value-editor [valueModel]="period.start" [disable]="disable"
                               [variableValues]="variableValues"
@@ -50,9 +50,9 @@
     </div>
   </ng-container>
 </div>
-<div class="form-row-float-label row g-0">
+<div class="shell-form-row--field row g-0">
   <div class="col-11">
-    <div class="alert alert-danger mb-0" *ngIf="!isValidCustomPeriod() && !disable">
+    <div class="shell-alert shell-alert--danger mb-0" *ngIf="!isValidCustomPeriod() && !disable">
       _#(date.common.dateValid)
     </div>
   </div>

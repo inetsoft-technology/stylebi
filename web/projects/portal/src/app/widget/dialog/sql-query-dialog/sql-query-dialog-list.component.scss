@@ -28,6 +28,36 @@
   border: unset;
 }
 
+.sql-query-dialog-list__surface {
+  background-color: var(--inet-list-bg-color);
+  border-color: var(--inet-list-border-color);
+  border-radius: var(--inet-radius-md);
+  padding: var(--inet-space-1);
+}
+
+.sql-query-dialog-list__item,
+.sql-query-dialog-list__empty {
+  min-height: var(--inet-control-height-md);
+  padding: 0 var(--inet-space-3);
+}
+
+.sql-query-dialog-list__item:not(.selected):hover {
+  background-color: var(--inet-list-hover-bg-color);
+}
+
+.sql-query-dialog-list__item.selected {
+  background-color: var(--inet-list-selected-bg-color);
+}
+
+.sql-query-dialog-list__item {
+  border-radius: var(--inet-radius-sm);
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+.sql-query-dialog-list__empty {
+  border-radius: var(--inet-radius-sm);
+}
+
 .item-label {
   flex-grow: 1;
   min-width: 0;
@@ -37,7 +67,7 @@ body.javafx .item-entry {
   padding-right: 10px;
 }
 
-.scroll-pane {
+.sql-query-dialog-list__surface.scroll-pane {
   overflow: hidden;
 
   &:hover {
@@ -45,8 +75,7 @@ body.javafx .item-entry {
   }
 }
 
-.bordered-box {
-  padding: 0.25em;
+.sql-query-dialog-list__surface {
   overflow: auto;
   height: 8em;
 }

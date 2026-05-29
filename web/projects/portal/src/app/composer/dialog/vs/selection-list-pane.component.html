@@ -16,7 +16,7 @@
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
 <form ngNoForm (submit)="$event.preventDefault()" class="container-fluid" *ngIf="model">
-  <div class="form-row-float-label row pt-1">
+  <div class="shell-form-row--field row pt-1">
     <div class="col-9">
       <div class="bordered-box bd-gray bordered-box-md">
         <tree [root]="model.targetTree" [showRoot]="false" [showTooltip]="true"

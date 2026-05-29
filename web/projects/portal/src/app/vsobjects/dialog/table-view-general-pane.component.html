@@ -26,19 +26,19 @@
                  [scriptDefinitions]="scriptDefinitions">
 </title-prop-pane>
 <form [formGroup]="form" class="container-fluid" *ngIf="model.showMaxRows">
-  <div class="form-row-float-label row">
+  <div class="shell-form-row--field row">
     <div class="col form-floating">
         <input type="number" class="form-control" [(ngModel)]="model.maxRows"
                formControlName="maxRows" placeholder="_#(Max Rows)">
         <label>_#(Max Rows)</label>
-      <div class="alert alert-danger" *ngIf="form.controls['maxRows'].errors && form.controls['maxRows'].errors['positiveIntegerInRange']">
+      <div class="shell-alert shell-alert--danger" *ngIf="form.controls['maxRows'].errors && form.controls['maxRows'].errors['positiveIntegerInRange']">
         _#(common.tableView.maxRowCheck)
       </div>
     </div>
   </div>
 </form>
 <div class="container-fluid" *ngIf="model.showSubmitOnChange">
-  <div class="form-row-float-label row">
+  <div class="shell-form-row--field row">
     <div class="col">
       <div class="form-check">
         <input type="checkbox" class="form-check-input" id="submit"

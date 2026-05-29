@@ -15,8 +15,9 @@
   ~ You should have received a copy of the GNU Affero General Public License
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
-<div class="list-group">
-  <div class="d-flex align-items-center mt-1" *ngFor="let val of value; let i = index; trackBy: trackByIdx">
+<div class="list-group tabular-list-editor__list">
+  <div class="d-flex align-items-center tabular-list-editor__row"
+       *ngFor="let val of value; let i = index; trackBy: trackByIdx">
     <input type="checkbox" class="form-check-input checkbox me-1"
            [class.query-parameter-checkbox]="type == 'PARAMETER'"
            [(ngModel)]="selected[i]" (ngModelChange)="valueChanged()"/>
@@ -54,5 +55,5 @@
   <button type="button" class="btn btn-default" [disabled]="!isSelected()" (click)="removeClicked()">_#(Remove)</button>
 </div>
 <div *ngIf="required && value == null">
-  <div class="alert alert-danger">_#(value.required)</div>
+  <div class="shell-alert shell-alert--danger">_#(value.required)</div>
 </div>

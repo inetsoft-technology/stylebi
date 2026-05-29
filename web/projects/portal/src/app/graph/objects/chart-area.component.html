@@ -38,16 +38,16 @@
     <span class="error-label">_#(vs.chart.timeout)</span>
   </div>
   <div *ngIf="model && emptyChart && !previewMode && (!viewerMode || isBinding)"
-       class="empty-chart bg-white1 bd-gray"
+       class="empty-chart chart-area__empty-surface"
        #emptyChartTemplate
        [style.height.px]="chartContainerHeight">
-    <div class="x-axis-placeholder bg-white2 bd-gray" [class.bd-selected]="!!xAxisHover"
+    <div class="x-axis-placeholder chart-area__axis-surface" [class.bd-selected]="!!xAxisHover"
          (dragenter)="onAxisEnter(true)" (dragleave)="onAxisLeave(true)"
          (drop)="onAxisDrop($event, true)"
          outOfZone (onDragover)="$event.preventDefault()">
       <span class="label txt-primary">_#(X)</span>
     </div>
-    <div class="y-axis-placeholder bg-white2 bd-gray" [class.bd-selected]="!!yAxisHover"
+    <div class="y-axis-placeholder chart-area__axis-surface" [class.bd-selected]="!!yAxisHover"
          (dragenter)="onAxisEnter(false)" (dragleave)="onAxisLeave(false)"
          (drop)="onAxisDrop($event, false)"
          outOfZone (onDragover)="$event.preventDefault()">

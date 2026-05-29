@@ -15,12 +15,12 @@
   ~ You should have received a copy of the GNU Affero General Public License
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
-<div class="physical-graph-table-title jsplumb-draggable-handle bb-gray txt-dark"
+<div class="physical-graph-table-title jsplumb-draggable-handle"
      [class.physical-graph-table-title--dragging]="dragging">
   {{table.name}}
 </div>
 
 <ng-container *ngFor="let _col of table.columns">
   <edit-join-table-column [column]="_col"
-    class="physical-graph-table-body bb-gray"></edit-join-table-column>
+    class="physical-graph-table-body"></edit-join-table-column>
 </ng-container>

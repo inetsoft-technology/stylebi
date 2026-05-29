@@ -58,7 +58,7 @@
     </div>
   </div>
   <div class="condition-builder__list-row">
-    <div class="condition-builder__list bordered-box bd-gray" [ngClass]="getConditionListBoxClass()">
+    <div class="condition-builder__list" [ngClass]="getConditionListBoxClass()">
       <div *ngFor="let item of conditionList; let even = even; let i = index;"
            class="condition-builder__list-item unhighlightable"
            [class.condition-builder__list-item--selected]="selectedIndex == i"

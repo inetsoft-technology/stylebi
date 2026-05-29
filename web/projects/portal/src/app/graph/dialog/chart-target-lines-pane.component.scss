@@ -18,9 +18,39 @@
 .target-container {
   height: 15em;
   overflow: auto;
-  border: 1px solid #ccc;
+  border: 1px solid var(--inet-list-border-color);
+  border-radius: var(--inet-radius-md);
+  background-color: var(--inet-list-bg-color);
 }
 
 fieldset > legend {
   margin-left: -15px;
+}
+
+.chart-target-lines-pane__list {
+  background-color: var(--inet-list-bg-color);
+}
+
+.chart-target-lines-pane__list-item {
+  align-items: center;
+  background-color: transparent;
+  border-color: var(--inet-list-border-color);
+  color: var(--inet-text-color);
+  display: flex;
+  min-height: var(--inet-control-height-md);
+  padding: 0 var(--inet-space-3);
+
+  &:hover {
+    background-color: var(--inet-list-hover-bg-color);
+  }
+
+  &.selected {
+    background-color: var(--inet-list-selected-bg-color);
+  }
+}
+
+.chart-target-lines-pane__list-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }

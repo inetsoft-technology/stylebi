@@ -22,7 +22,7 @@
   <ng-template wDialogContent>
     <div class="mt-2">
       <form ngNoForm class="container-fluid">
-        <div class="form-row-float-label form-row">
+        <div class="shell-form-row--field form-row">
           <div class="form-floating col">
             <input class="form-control" type="text" [formControl]="nameControl"
                    placeholder="_#(Folder Name)" defaultFocus
@@ -47,14 +47,14 @@
             </span>
           </div>
         </div>
-        <div class="form-row-float-label form-row">
+        <div class="shell-form-row--field form-row">
           <div class="form-floating col">
             <input class="form-control" type="text" [(ngModel)]="alias"
                    placeholder="_#(Alias)"/>
             <label>_#(Alias)</label>
           </div>
         </div>
-        <div class="form-row-float-label form-row">
+        <div class="shell-form-row--field form-row">
           <div class="form-floating col">
             <textarea class="form-control" type="text" [(ngModel)]="description"
                       placeholder="_#(Description)"></textarea>

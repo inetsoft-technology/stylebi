@@ -23,3 +23,16 @@ custom-select.parameter-name-picker ::ng-deep .custom-select-trigger {
   border-top-left-radius: 0;
   border-bottom-left-radius: 0;
 }
+
+.add-parameter-dialog__row,
+.add-parameter-dialog__option-row {
+  margin-bottom: 0.75rem;
+}
+
+.add-parameter-dialog__row {
+  align-items: center;
+}
+
+.add-parameter-dialog__option-row {
+  align-items: center;
+}

@@ -20,3 +20,29 @@ button {
    margin-top: 5px;
    margin-bottom: 5px;
 }
+
+.hide-columns-dialog__list {
+   background-color: var(--inet-list-bg-color);
+   border-color: var(--inet-list-border-color);
+}
+
+.hide-columns-dialog__list-item {
+   align-items: center;
+   display: flex;
+   min-height: var(--inet-control-height-md);
+   padding: 0 var(--inet-space-3);
+
+   &:hover {
+      background-color: var(--inet-list-hover-bg-color);
+   }
+
+   &.selected {
+      background-color: var(--inet-list-selected-bg-color);
+   }
+}
+
+.hide-columns-dialog__list-text {
+   overflow: hidden;
+   text-overflow: ellipsis;
+   white-space: nowrap;
+}

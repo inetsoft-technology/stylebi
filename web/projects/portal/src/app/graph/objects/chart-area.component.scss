@@ -33,6 +33,17 @@
   height: 100%;
 }
 
+.chart-area__empty-surface {
+  background: var(--inet-shell-surface-default);
+  border: 1px solid var(--inet-default-border-color);
+  border-radius: var(--inet-radius-md);
+}
+
+.chart-area__axis-surface {
+  background: var(--inet-shell-surface-subtle);
+  border: 1px solid var(--inet-default-border-color);
+}
+
 .chart-legends-container {
   position: absolute;
 }

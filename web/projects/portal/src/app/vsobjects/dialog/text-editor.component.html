@@ -16,14 +16,14 @@
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
 <form ngNoForm (submit)="$event.preventDefault()" class="container-fluid">
-  <div class="form-row-float-label row" *ngIf="model">
+  <div class="shell-form-row--field row" *ngIf="model">
     <div class="col form-floating">
         <input type="text" class="form-control" [(ngModel)]="model.pattern"
                placeholder="_#(Pattern Check)">
         <label>_#(Pattern Check)</label>
     </div>
   </div>
-  <div class="form-row-float-label row" *ngIf="model">
+  <div class="shell-form-row--field row" *ngIf="model">
     <div class="col form-floating">
         <textarea class="form-control" [(ngModel)]="model.errorMessage"
                   placeholder="_#(Error Message)"></textarea>

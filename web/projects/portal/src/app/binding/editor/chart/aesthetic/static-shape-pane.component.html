@@ -36,7 +36,7 @@
     <div class="shape-pane">
       <ng-container *ngFor="let i of currentViewIndices">
         <shape-item class="m-1" [shapeStr]="shapes[i]" (click)="selectShape(shapes[i])"
-                    *ngIf="shapes[i]" [class.bd-gray]="shapes[i] == shapeStr">
+                    *ngIf="shapes[i]" [class.static-shape-pane__item--selected]="shapes[i] == shapeStr">
         </shape-item>
       </ng-container>
     </div>

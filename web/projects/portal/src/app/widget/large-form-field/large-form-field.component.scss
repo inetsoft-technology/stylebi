@@ -30,8 +30,8 @@
       flex-grow: 1;
     }
 
-    /*! TODO this is a hack around some hard-coded pixel values in generic-selectable-list and associated CSS classes */
     > generic-selectable-list {
+      --generic-selectable-list-height: 100%;
       display: flex;
       flex-direction: column;
       align-items: stretch;

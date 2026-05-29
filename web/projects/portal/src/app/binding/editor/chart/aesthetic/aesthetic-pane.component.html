@@ -22,7 +22,7 @@
          <i class="chevron-circle-arrow-left-icon" aria-hidden="true" (click)="showPrevious()"></i>
       </div>
       <div *ngIf="currAggregate" ngbDropdown class="fill-width">
-        <div data-test="aggregateDropdown" class="aggregate-trigger bd-gray" ngbDropdownToggle>
+        <div data-test="aggregateDropdown" class="aggregate-trigger aesthetic-pane__aggregate-trigger" ngbDropdownToggle>
           <div>{{currAggregate.view}}</div>
         </div>
         <ul ngbDropdownMenu role="menu"
@@ -74,7 +74,7 @@
       </text-field-mc>
    </div>
 
-   <fieldset class="float-title bd-gray mt-0" *ngIf="isRelationChart()">
+   <fieldset class="float-title mt-0 aesthetic-pane__relation-fieldset" *ngIf="isRelationChart()">
      <legend>_#(Node)</legend>
      <div class="field-row mt-1 color_field_id" *ngIf="isRelationChart()">
        <div class="unhighlightable aesthetic-row-label">_#(Color)</div>

@@ -25,19 +25,19 @@
   <div class="container">
     <ng-container *ngFor="let i of aggrsNum">
       <static-line-editor *ngIf="isLineType && frameInfos[i].frame"
-                          class="row form-row-float-label"
+                          class="row shell-form-row--field"
                           [aggrName]="frameInfos[i].name" [(line)]="frameInfos[i].frame.line"
                           (lineChanged)="changeLine($event, i)">
       </static-line-editor>
 
       <static-texture-editor *ngIf="isTextureType && frameInfos[i].frame"
-                             class="row form-row-float-label"
+                             class="row shell-form-row--field"
                              [aggrName]="frameInfos[i].name" [(texture)]="frameInfos[i].frame.texture"
                              (textureChanged)="changeTexture($event, i)">
       </static-texture-editor>
 
       <static-shape-editor *ngIf="!isLineType && !isTextureType && frameInfos[i].frame"
-                           class="row form-row-float-label"
+                           class="row shell-form-row--field"
                            [aggrName]="frameInfos[i].name" [(shapeStr)]="frameInfos[i].frame.shape"
                            (shapeChanged)="changeShape($event, i)">
       </static-shape-editor>

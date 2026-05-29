@@ -31,7 +31,7 @@
               [style.border]="getImageBorder(item.data)"></span>
         <div class="chart-style-label">{{item.label}}</div>
       </div>
-      <div class="multi-style-pane bd-gray bg-white4" *ngIf="multiStyles && !refName">
+      <div class="multi-style-pane chart-style-pane__overlay" *ngIf="multiStyles && !refName">
         <span>_#(viewer.multiStyles)</span>
       </div>
     </div>

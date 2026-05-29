@@ -71,10 +71,11 @@
           <div class="additional-datasource">
             <div class="additional-datasource-list h-100">
               <div *ngFor="let additional of additionalList; let i = index;"
-                   class="unhighlightable" [class.selected]="additionalSelected(i)"
+                   class="unhighlightable additional-datasource-list__item"
+                   [class.selected]="additionalSelected(i)"
                    [title]="additional.tooltip"
                    (click)="selectAdditional($event, i)">
-                <div>{{additional?.name}}</div>
+                <div class="additional-datasource-list__text">{{additional?.name}}</div>
               </div>
             </div>
           </div>

@@ -26,7 +26,7 @@
 .query-link-pane {
   display: flex;
   flex: 1 1 auto;
-  gap: 12px;
+  gap: var(--inet-space-3);
   min-height: 0;
   min-width: 0;
   width: 100%;
@@ -36,7 +36,7 @@
   display: flex;
   flex: 1 1 0;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--inet-space-2);
   min-height: 0;
   min-width: 0;
 }
@@ -69,11 +69,11 @@
   min-width: 36px;
   min-height: 36px;
   padding: 0;
-  border-color: var(--inet-default-border-color);
+  border-color: var(--inet-list-border-color);
 }
 
 .query-link-pane__action-button:not(:disabled) {
-  background: var(--inet-shell-surface-default, #fff);
+  background: var(--inet-card-bg-color);
 }
 
 .query-link-pane__action-button:disabled {
@@ -83,8 +83,9 @@
 .tree-container {
   flex: 1 1 auto;
   overflow: hidden;
-  border: 1px solid var(--inet-default-border-color);
-  background: var(--inet-shell-surface-default, #fff);
+  border: 1px solid var(--inet-list-border-color);
+  border-radius: var(--inet-radius-md);
+  background: var(--inet-list-bg-color);
 
   &:hover {
     overflow: auto;
@@ -94,8 +95,9 @@
 .link-container {
   flex: 1 1 auto;
   height: 100%;
-  border: 1px solid var(--inet-default-border-color);
-  background: var(--inet-shell-surface-default, #fff);
+  border: 1px solid var(--inet-list-border-color);
+  border-radius: var(--inet-radius-md);
+  background: var(--inet-card-bg-color);
   overflow: hidden;
 }
 

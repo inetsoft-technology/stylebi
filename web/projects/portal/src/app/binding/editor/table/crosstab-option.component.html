@@ -18,7 +18,7 @@
 <form ngNoForm (submit)="$event.preventDefault()" class="container-fluid"
       *ngIf="option && !formatOptionVisible">
   <fieldset>
-    <div class="form-row-float-label row">
+    <div class="shell-form-row--field row">
       <div class="col">
         <div class="form-floating rowTotal_label_id">
           <dynamic-combo-box data-test="rowTotal combo-box"
@@ -31,7 +31,7 @@
         </div>
       </div>
     </div>
-    <div class="form-row-float-label row">
+    <div class="shell-form-row--field row">
       <div class="col">
         <div class="form-floating colTotal_label_id">
           <dynamic-combo-box data-test="colTotal combo-box"

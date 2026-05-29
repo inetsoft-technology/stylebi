@@ -25,7 +25,7 @@
       <form [formGroup]="formPrint" class="container-fluid">
         <fieldset>
           <legend>_#(Paper)</legend>
-          <div class="form-row-float-label form-row">
+          <div class="shell-form-row--field form-row">
             <div class="form-floating col-12">
               <custom-select [(ngModel)]="model.paperSize"
                              [ngModelOptions]="{standalone: true}"
@@ -36,7 +36,7 @@
               <label><span>_#(Paper Size)</span></label>
             </div>
           </div>
-          <div class="form-row form-row-float-label" *ngIf="model.paperSize === '(Custom Size)'">
+          <div class="form-row shell-form-row--field" *ngIf="model.paperSize === '(Custom Size)'">
             <div class="form-floating col">
               <input type="number" class="form-control" [(ngModel)]="model.customWidth"
                      formControlName="customWidth" placeholder="_#(Width)"
@@ -66,7 +66,7 @@
               </span>
             </div>
           </div>
-          <div class="form-row-float-label form-row">
+          <div class="shell-form-row--field form-row">
             <div class="col-auto">
               <div class="form-check">
                 <input type="checkbox" class="form-check-input" [(ngModel)]="model.landscape"
@@ -80,7 +80,7 @@
         </fieldset>
         <fieldset>
           <legend>_#(Units)</legend>
-          <div class="form-row-float-label form-row">
+          <div class="shell-form-row--field form-row">
             <div class="form-floating col-auto">
               <custom-select class="unit_select_id"
                              [ngModel]="model.units"
@@ -95,7 +95,7 @@
         </fieldset>
         <fieldset>
           <legend>_#(Options)</legend>
-          <div class="form-row-float-label form-row">
+          <div class="shell-form-row--field form-row">
             <div class="form-floating col-12">
               <input class="form-control" type="number" [(ngModel)]="model.numberingStart"
                      formControlName="numberingStart" placeholder="_#(viewer.viewsheet.layout.pageProp.startPageIndex)"
@@ -104,7 +104,7 @@
               <span class="invalid-feedback">_#(viewer.viewsheet.layout.pageProp.startPageIndexValid)</span>
             </div>
           </div>
-          <div class="form-row-float-label form-row">
+          <div class="shell-form-row--field form-row">
             <div class="col-12 form-floating">
               <custom-select formControlName="scaleFont"
                              [options]="scaleFontOptions"
@@ -119,7 +119,7 @@
         </fieldset>
         <fieldset>
           <legend>_#(Margin)</legend>
-          <div class="form-row-float-label form-row">
+          <div class="shell-form-row--field form-row">
             <div class="col d-flex flex-column">
               <label class="form-label">_#(Top)</label>
               <number-stepper formControlName="marginTop" [min]="0" [step]="0.1"
@@ -149,7 +149,7 @@
               </span>
             </div>
           </div>
-          <div class="form-row-float-label form-row">
+          <div class="shell-form-row--field form-row">
             <div class="col d-flex flex-column">
               <label class="form-label">_#(Bottom)</label>
               <number-stepper formControlName="marginBottom" [min]="0" [step]="0.1"
@@ -182,7 +182,7 @@
         </fieldset>
         <fieldset>
           <legend>_#(From Edge)</legend>
-          <div class="form-row-float-label form-row">
+          <div class="shell-form-row--field form-row">
             <div class="form-floating col">
               <input class="form-control" type="text" [(ngModel)]="model.headerFromEdge"
                      formControlName="headerFromEdge" placeholder="_#(Header)"

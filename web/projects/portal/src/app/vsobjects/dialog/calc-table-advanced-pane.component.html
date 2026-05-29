@@ -18,7 +18,7 @@
 <form [formGroup]="form" class="container-fluid">
   <fieldset>
     <legend>_#(Options)</legend>
-    <div class="form-row-float-label row">
+    <div class="shell-form-row--field row">
       <div class="col form-floating" [ngClass]="{ 'has-error' : !form.controls['headerRowCount'].valid}">
           <number-stepper formControlName="headerRowCount" [min]="0"
                           (valueChange)="model.headerRowCount = $event"
@@ -48,25 +48,25 @@
           <label>_#(Trailer Columns)</label>
       </div>
     </div>
-    <div *ngIf="form.controls['headerRowCount'].errors" class="alert alert-danger">
+    <div *ngIf="form.controls['headerRowCount'].errors" class="shell-alert shell-alert--danger">
       _#(viewer.dialog.calcTableAdvance.headerRowPositiveNumber)
     </div>
-    <div *ngIf="form.controls['headerColCount'].errors" class="alert alert-danger">
+    <div *ngIf="form.controls['headerColCount'].errors" class="shell-alert shell-alert--danger">
       _#(viewer.dialog.calcTableAdvance.headerColPositiveNumber)
     </div>
-    <div *ngIf="form.controls['trailerRowCount'].errors" class="alert alert-danger">
+    <div *ngIf="form.controls['trailerRowCount'].errors" class="shell-alert shell-alert--danger">
       _#(viewer.dialog.calcTableAdvance.trailerColPositiveNumber)
     </div>
-    <div *ngIf="form.controls['trailerColCount'].errors" class="alert alert-danger">
+    <div *ngIf="form.controls['trailerColCount'].errors" class="shell-alert shell-alert--danger">
       _#(viewer.dialog.calcTableAdvance.trailerColPositiveNumber)
     </div>
     <div class="header-row-warning-container" *ngIf="showHeaderColumnWarning">
-      <p class="alert alert-danger header-row-warning">_#(header.column.invalid)</p>
+      <p class="shell-alert shell-alert--danger header-row-warning">_#(header.column.invalid)</p>
     </div>
     <div class="header-row-warning-container" *ngIf="showHeaderRowWarning">
-      <p class="alert alert-danger header-row-warning">_#(header.row.invalid)</p>
+      <p class="shell-alert shell-alert--danger header-row-warning">_#(header.row.invalid)</p>
     </div>
-    <div class="form-row-float-label row">
+    <div class="shell-form-row--field row">
       <div class="col-auto checkbox">
         <div class="form-check">
           <input type="checkbox" class="form-check-input" id="shrink"

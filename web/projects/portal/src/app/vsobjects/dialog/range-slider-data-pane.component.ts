@@ -45,7 +45,8 @@ interface CompositeNodeInfo {
 
 @Component({
    selector: "range-slider-data-pane",
-   templateUrl: "range-slider-data-pane.component.html"
+   templateUrl: "range-slider-data-pane.component.html",
+   styleUrls: ["range-slider-data-pane.component.scss"]
 })
 export class RangeSliderDataPane extends TreeDataPane implements AfterViewInit {
    @Input() model: RangeSliderDataPaneModel;

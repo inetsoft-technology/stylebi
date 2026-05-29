@@ -21,7 +21,7 @@
 </modal-header>
 <div class="modal-body" [enterSubmit]="formValid" (onEnter)="ok()">
   <div class="container-fluid">
-    <div class="row form-row-checkbox" [style.visibility]="">
+    <div class="shell-form-row shell-form-row--checkbox" [style.visibility]="">
       <ng-template #emptyBlock><div>&nbsp;</div></ng-template>
       <ng-container *ngIf="join.operator === '='; else emptyBlock">
         <div class="col-4">
@@ -45,7 +45,7 @@
         </div>
       </ng-container>
     </div>
-    <div class="row form-row-float-label">
+    <div class="row shell-form-row--field">
       <div class="col-4">
         <custom-select [options]="tableSelectOptions"
                        [(ngModel)]="join.table1"
@@ -60,7 +60,7 @@
         </custom-select>
       </div>
     </div>
-    <div class="row form-row-float-label">
+    <div class="row shell-form-row--field">
       <div class="col-4">
         <custom-select [options]="column1SelectOptions"
                        [ngModel]="tempColumn1"
@@ -82,7 +82,7 @@
         </custom-select>
       </div>
     </div>
-    <div *ngIf="error" class="alert alert-danger">{{error}}</div>
+    <div *ngIf="error" class="shell-alert shell-alert--danger">{{error}}</div>
   </div>
 </div>
 <div class="modal-footer">

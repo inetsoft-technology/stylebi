@@ -167,8 +167,8 @@
               flex-shrink: 1;
               overflow-y: auto;
               position: relative;
-              border: 1px solid var(--inet-border-color);
-              border-radius: 4px;
+              border: 1px solid var(--inet-table-border-color);
+              border-radius: var(--inet-radius-md);
               background-color: var(--inet-card-bg-color);
 
               .table {
@@ -191,11 +191,11 @@
                 }
 
                 > thead th {
-                  padding: 10px 12px;
-                  background-color: var(--inet-toolbar-bg-color);
-                  color: var(--inet-text-color);
-                  font-weight: 500;
-                  border-bottom: 1px solid var(--inet-border-color);
+                  padding: var(--inet-space-3) var(--inet-space-4);
+                  background-color: var(--inet-table-heading-bg-color);
+                  color: var(--inet-table-heading-text-color);
+                  font-weight: 600;
+                  border-bottom: 1px solid var(--inet-table-border-color);
                 }
 
                 > tbody {
@@ -214,7 +214,7 @@
                 }
 
                 > tbody tr:hover > td {
-                  background-color: var(--inet-ui-neutral-hover-bg-color);
+                  background-color: var(--inet-table-hover-bg-color);
                 }
 
                 > tbody tr.task-row--selected {
@@ -222,7 +222,7 @@
                 }
 
                 > tbody tr.task-row--selected > td {
-                  background-color: var(--inet-selected-item-bg-color);
+                  background-color: var(--inet-table-selected-bg-color);
                   color: var(--inet-text-color);
                 }
 
@@ -235,8 +235,8 @@
                 }
 
                 > tbody td {
-                  padding: 9px 12px;
-                  border-top: 1px solid var(--inet-border-color);
+                  padding: var(--inet-space-3) var(--inet-space-4);
+                  border-top: 1px solid var(--inet-table-border-color);
                 }
 
                 > tbody tr:first-child > td {

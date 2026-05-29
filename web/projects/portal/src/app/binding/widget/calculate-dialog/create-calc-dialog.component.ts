@@ -27,6 +27,7 @@ import { Subscription } from "rxjs";
 @Component({
    selector: "create-calc-dialog",
    templateUrl: "create-calc-dialog.component.html",
+   styleUrls: ["create-calc-dialog.component.scss"]
 })
 export class CreateCalcDialog implements OnInit, OnDestroy {
    @Input() name: string;

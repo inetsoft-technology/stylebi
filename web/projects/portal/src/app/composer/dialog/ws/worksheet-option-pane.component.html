@@ -18,7 +18,7 @@
 <form [formGroup]="form" class="container-fluid">
   <fieldset>
     <legend>_#(Deployment)</legend>
-    <div class="form-row-float-label row">
+    <div class="shell-form-row--field row">
       <div class="col">
         <div class="form-floating">
           <input type="text" id="deploymentPaneName" class="form-control" trim
@@ -27,7 +27,7 @@
         </div>
       </div>
     </div>
-    <div class="form-row-float-label row">
+    <div class="shell-form-row--field row">
       <div class="col form-floating">
         <input type="text" id="deploymentPaneAlias" class="form-control" trim
                [(ngModel)]="model.alias" formControlName="alias"
@@ -45,7 +45,7 @@
   </fieldset>
   <fieldset>
     <legend>_#(Content)</legend>
-      <div class="form-row-float-label row">
+      <div class="shell-form-row--field row">
         <div class="col">
           <div class="form-floating">
             <textarea class="form-control" [(ngModel)]="model.description"

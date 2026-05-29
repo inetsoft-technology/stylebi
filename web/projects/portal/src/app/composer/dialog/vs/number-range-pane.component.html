@@ -18,7 +18,7 @@
 <form [formGroup]="form" class="container-fluid">
   <fieldset>
     <legend>_#(Number Range)</legend>
-    <div class="form-row-float-label row">
+    <div class="shell-form-row--field row">
       <div class="col">
         <div class="form-floating" [ngClass]="{ 'has-error' : !form.controls['min'].valid }">
           <dynamic-combo-box data-test="minimumRange"
@@ -62,11 +62,11 @@
         </div>
       </div>
     </div>
-    <div class="alert alert-danger" *ngIf="form.controls['min'].errors && form.controls['min'].errors['required']">_#(viewer.viewsheet.numberRange.minRequired)</div>
-    <div class="alert alert-danger" *ngIf="form.controls['max'].errors && form.controls['max'].errors['required']">_#(viewer.viewsheet.numberRange.maxRequired)</div>
-    <div class="alert alert-danger" *ngIf="form.controls['max'].errors && form.controls['max'].errors['lessThan']">_#(viewer.viewsheet.numberRange.maxMinWarning)</div>
-    <div class="alert alert-danger" *ngIf="form.controls['minorIncrement'].errors && form.controls['minorIncrement'].errors['lessThanEqualToZero']">_#(viewer.viewsheet.numberRange.minorRequired)</div>
-    <div class="alert alert-danger" *ngIf="form.controls['majorIncrement'].errors && form.controls['majorIncrement'].errors['lessThanEqualToZero']">_#(viewer.viewsheet.numberRange.majorRequired)</div>
-    <div class="alert alert-danger" *ngIf="form.controls['majorIncrement'].errors && form.controls['majorIncrement'].errors['lessThan']">_#(viewer.viewsheet.numberRange.majorMinorWarning)</div>
+    <div class="shell-alert shell-alert--danger" *ngIf="form.controls['min'].errors && form.controls['min'].errors['required']">_#(viewer.viewsheet.numberRange.minRequired)</div>
+    <div class="shell-alert shell-alert--danger" *ngIf="form.controls['max'].errors && form.controls['max'].errors['required']">_#(viewer.viewsheet.numberRange.maxRequired)</div>
+    <div class="shell-alert shell-alert--danger" *ngIf="form.controls['max'].errors && form.controls['max'].errors['lessThan']">_#(viewer.viewsheet.numberRange.maxMinWarning)</div>
+    <div class="shell-alert shell-alert--danger" *ngIf="form.controls['minorIncrement'].errors && form.controls['minorIncrement'].errors['lessThanEqualToZero']">_#(viewer.viewsheet.numberRange.minorRequired)</div>
+    <div class="shell-alert shell-alert--danger" *ngIf="form.controls['majorIncrement'].errors && form.controls['majorIncrement'].errors['lessThanEqualToZero']">_#(viewer.viewsheet.numberRange.majorRequired)</div>
+    <div class="shell-alert shell-alert--danger" *ngIf="form.controls['majorIncrement'].errors && form.controls['majorIncrement'].errors['lessThan']">_#(viewer.viewsheet.numberRange.majorMinorWarning)</div>
   </fieldset>
 </form>

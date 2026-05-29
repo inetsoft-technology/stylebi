@@ -44,6 +44,7 @@
   z-index: 9999;
 }
 
-div.vs-object.current-selection.bd-gray {
-  border: none;
+.current-selection__title-surface {
+  border-right: 1px solid var(--inet-default-border-color);
+  border-bottom: 1px solid var(--inet-default-border-color);
 }

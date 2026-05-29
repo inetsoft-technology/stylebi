@@ -40,6 +40,12 @@
   padding: 0.3em 3px 0;
 }
 
+.remove-bookmarks-dialog__trigger,
+.remove-bookmarks-dialog__date-input {
+  border-color: var(--inet-input-border-color);
+  background: var(--inet-input-bg-color);
+}
+
 ::ng-deep .month-year-row {
   margin: 10px;
 

@@ -183,7 +183,7 @@
                    (ngModelChange)="setTestQuery($event)"
                    [ngModel]="testQuery">
             <label><span>_#(data.databases.testQuery)</span></label>
-            <div class="alert alert-info editor-inline-info" *ngIf="!customInfo.testQuery">
+            <div class="shell-alert shell-alert--info editor-inline-info" *ngIf="!customInfo.testQuery">
               _#(data.databases.customTestQueryMessage)
             </div>
           </div>
@@ -254,7 +254,7 @@
                        (ngModelChange)="setTestQuery($event)"
                        [ngModel]="testQuery">
                 <label><span>_#(data.databases.testQuery)</span></label>
-                <div class="alert alert-info editor-inline-info" *ngIf="!odbcInfo.testQuery">
+                <div class="shell-alert shell-alert--info editor-inline-info" *ngIf="!odbcInfo.testQuery">
                   _#(data.databases.customTestQueryMessage)
                 </div>
               </div>
@@ -409,9 +409,10 @@
               <div class="additional-datasource">
                 <div class="bordered-box additional-datasource__list">
                   <div *ngFor="let additional of additionalList; let i = index;"
-                       class="unhighlightable" [class.selected]="additionalSelected(i)"
+                       class="unhighlightable additional-datasource__list-item"
+                       [class.selected]="additionalSelected(i)"
                        (click)="selectAdditional($event, i)">
-                    <div [title]="additional.tooltip || ''"
+                    <div class="additional-datasource__list-text" [title]="additional.tooltip || ''"
                       >{{additional.name}}:({{additional.url}})</div>
                   </div>
                 </div>
@@ -447,7 +448,7 @@
             <div class="additional-datasource">
               <div class="pool-property-content">
                 <div class="pool-property-table">
-                  <table class="table table-bordered pool-property-table__grid"
+                  <table class="table table-bordered table-hover table-sm pool-property-table__grid"
                          wScrollableFlexTable [wScrollableSetBodyWidths]="true">
                     <thead class="pool-property-table__head">
                       <tr class="pool-property-row">

@@ -15,16 +15,101 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+.one-of-condition-editor {
+  width: 100%;
+}
+
+.one-of-condition-editor__content {
+  gap: 0.5rem;
+  width: 100%;
+}
+
+.one-of-condition-editor__entry-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+.one-of-condition-editor__entry-editor {
+  flex: 1 1 18rem;
+  min-width: 0;
+}
+
+.one-of-condition-editor__add-button {
+  flex: 0 0 auto;
+  min-height: var(--condition-row-control-height, var(--inet-control-height-md));
+  align-self: flex-start;
+}
+
 .value-list-container {
   display: flex;
-  align-items: stretch;
+  align-items: flex-start;
+  gap: 0.5rem;
+  width: 100%;
 
   .value-list {
-    flex-grow: 1;
-    max-width: 240px;
+    flex: 1 1 14rem;
+    max-width: 16rem;
   }
+}
+
+.value-list-panel {
+  display: flex;
+  flex: 1 1 14rem;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+  max-width: 16rem;
+}
+
+.value-list-panel__label {
+  color: var(--inet-text-muted-color);
+  font-size: 0.875rem;
+  line-height: 1.25;
+}
+
+.one-of-condition-editor__list-actions {
+  flex: 0 0 auto;
+  align-self: stretch;
+}
+
+.one-of-condition-editor__list-actions .btn {
+  min-width: 5.5rem;
+}
+
+.value-list--empty {
+  min-height: calc(var(--condition-row-control-height, var(--inet-control-height-md)) * 2);
+}
+
+.value-list__empty {
+  display: flex;
+  align-items: center;
+  min-height: calc(var(--condition-row-control-height, var(--inet-control-height-md)) * 2);
+  color: var(--inet-text-muted-color);
+  font-size: 0.875rem;
+  line-height: 1.35;
+  padding: 0.5rem 0.75rem;
 }
 
 .value-list__element {
   min-height: 19px; // prevents empty content from collapsing the element.
+}
+
+@media (max-width: 767.98px) {
+  .one-of-condition-editor__add-button {
+    min-width: 100%;
+  }
+
+  .value-list-container {
+    flex-wrap: wrap;
+  }
+
+  .value-list-container .value-list,
+  .value-list-panel,
+  .one-of-condition-editor__list-actions {
+    max-width: none;
+    width: 100%;
+  }
 }

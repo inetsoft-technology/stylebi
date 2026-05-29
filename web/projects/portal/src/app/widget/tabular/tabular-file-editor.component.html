@@ -23,8 +23,8 @@
     <i class="folder-expanded-icon"></i></button>
 </div>
 <div class="alert-error" *ngIf="required && value == null">
-  <div *ngIf="foldersOnly" class="alert alert-danger">_#(viewer.needSelectFolder)</div>
-  <div *ngIf="!foldersOnly" class="alert alert-danger">_#(tabular.needSelectFolderOrFile)</div>
+  <div *ngIf="foldersOnly" class="shell-alert shell-alert--danger">_#(viewer.needSelectFolder)</div>
+  <div *ngIf="!foldersOnly" class="shell-alert shell-alert--danger">_#(tabular.needSelectFolderOrFile)</div>
 </div>
 <ng-template #tabularFileBrowser let-close="close" let-dismiss="dismiss">
   <tabular-file-browser (onCommit)="close($event)" (onCancel)="dismiss($event)"

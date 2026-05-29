@@ -100,7 +100,7 @@
                 _#(Loading)
                 <span class="loading-icon loading-icon--spin"></span>
               </div>
-              <div *ngIf="loadingCatalogsFailed" class="alert alert-danger mb-0">_#(common.asset.dataError)</div>
+              <div *ngIf="loadingCatalogsFailed" class="shell-alert shell-alert--danger mb-0">_#(common.asset.dataError)</div>
             </div>
           </ng-template>
         </div>
@@ -166,7 +166,7 @@
           </button>
         </div>
       </div>
-      <div class="cube-tree bordered-box bd-gray bordered-box-lg position-relative">
+      <div class="cube-tree bordered-box bordered-box-lg position-relative">
         <tree *ngIf="cubeTree" [showRoot]="false" [root]="cubeTree" [multiSelect]="false"
               [fillHeight]="true" [iconFunction]="getCSSIcon" (nodesSelected)="selectedNode($event)">
         </tree>

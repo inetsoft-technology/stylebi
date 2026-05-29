@@ -35,7 +35,8 @@ import { ComponentTool } from "../../common/util/component-tool";
 
 @Component({
    selector: "highlight-pane",
-   templateUrl: "highlight-pane.component.html"
+   templateUrl: "highlight-pane.component.html",
+   styleUrls: ["./highlight-pane.component.scss"]
 })
 export class HighlightPane implements OnInit {
    @Input() model: HighlightDialogModel;

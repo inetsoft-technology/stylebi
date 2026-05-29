@@ -349,8 +349,39 @@ body {
   }
 }
 
+.shell-form-row--field {
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.shell-form-row--checkbox {
+  align-items: center;
+  margin-top: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+legend + .shell-form-row--checkbox {
+  margin-top: 0;
+}
+
 .shell-form-group {
   margin-bottom: var(--inet-space-5);
+}
+
+.shell-alert {
+  @extend .alert;
+}
+
+.shell-alert--danger {
+  @extend .alert-danger;
+}
+
+.shell-alert--warning {
+  @extend .alert-warning;
+}
+
+.shell-alert--info {
+  @extend .alert-info;
 }
 
 .hover-bd-selectable {
@@ -929,6 +960,8 @@ schema-column, edit-join-table-column {
 
 /********************************** Others *********************************************/
 .th-cell-border {
+  background-color: var(--inet-table-heading-bg-color);
+  color: var(--inet-table-heading-text-color);
   border-top: 1px solid var(--inet-default-border-color);
   border-bottom: 2px solid var(--inet-default-border-color);
 }

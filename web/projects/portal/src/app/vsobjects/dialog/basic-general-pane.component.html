@@ -18,7 +18,7 @@
 <form [formGroup]="form" class="container-fluid">
   <fieldset>
     <legend>_#(General)</legend>
-    <div class="form-row-float-label row">
+    <div class="row shell-form-row--field">
       <div class="col form-floating">
           <input type="text" class="form-control" id="basicGeneralPaneName" trim
                  [ngClass]="{ 'has-error' : form.controls['name'].invalid}"
@@ -30,13 +30,13 @@
     <div *ngIf="form.controls['name'].errors && !layoutObject &&
       (form.controls['name'].errors['nameSpecialCharacters'] ||
        form.controls['name'].errors['doesNotStartWithNumber'])"
-         class="alert alert-danger">
+         class="shell-alert shell-alert--danger">
       _#(vs.basicGeneral.nameCheck)
     </div>
-    <div *ngIf="form.controls['name'].errors && form.controls['name'].errors['exists'] && !layoutObject" class="alert alert-danger">_#(vs.basicGeneral.nameAlready)</div>
-    <div *ngIf="form.controls['name'].errors && form.controls['name'].errors['required'] && !layoutObject" class="alert alert-danger">_#(designer.chartProp.specifyTargetName)</div>
-    <div *ngIf="form.controls['name'].errors && form.controls['name'].errors['notWhiteSpace'] && !layoutObject" class="alert alert-danger">_#(designer.chartProp.specifyTargetName)</div>
-    <div *ngIf="model.containerType != 'VSSelectionContainer'" class="form-row-float-label row">
+    <div *ngIf="form.controls['name'].errors && form.controls['name'].errors['exists'] && !layoutObject" class="shell-alert shell-alert--danger">_#(vs.basicGeneral.nameAlready)</div>
+    <div *ngIf="form.controls['name'].errors && form.controls['name'].errors['required'] && !layoutObject" class="shell-alert shell-alert--danger">_#(designer.chartProp.specifyTargetName)</div>
+    <div *ngIf="form.controls['name'].errors && form.controls['name'].errors['notWhiteSpace'] && !layoutObject" class="shell-alert shell-alert--danger">_#(designer.chartProp.specifyTargetName)</div>
+    <div *ngIf="model.containerType != 'VSSelectionContainer'" class="row shell-form-row--field">
       <div class="col-8">
         <div class="form-floating">
           <dynamic-combo-box id="visible" [mode]="mode"
@@ -70,7 +70,7 @@
 <ng-content select="[generalProp]"></ng-content>
 <form class="container-fluid">
   <fieldset class="mt-0">
-    <div class="form-row-float-label row"
+    <div class="row shell-form-row--field"
          *ngIf="model.showShadowCheckbox || model.showEnabledCheckbox || model.showRefreshCheckbox ||
           model.showEditableCheckbox">
       <div class="col-auto" *ngIf="model.showShadowCheckbox">

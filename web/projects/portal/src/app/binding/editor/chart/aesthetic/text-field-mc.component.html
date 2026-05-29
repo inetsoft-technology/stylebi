@@ -17,7 +17,7 @@
   -->
 <div dropHighlight (drop)="drop($event)" [disabled]="!_isEnabled"
      outOfZone (onDragover)="dragOver($event)">
-   <div class="field-pane bd-gray" [class.disabled-grayout]="!_isEnabled">
+   <div class="field-pane field-pane--surface" [class.disabled-grayout]="!_isEnabled">
       <div class="field-container" data-test="text-field-container">
          <!--pencil edit icon-->
          <div class="visual-edit-icon">

@@ -41,7 +41,7 @@
       </div>
       <div class="calendar-title-label-container">
         <div #titleRef
-             class="calendar-title-label bd-gray text-center selectable"
+             class="calendar-title-label calendar-title-label--surface text-center selectable"
              [ngClass]="{
                 'calendar-selected-cell': isMonthSelected()
              }"
@@ -82,7 +82,7 @@
     <div *ngFor="let col of [0,1,2,3,4,5,6]"
          class="day-column">
       <ng-container *ngFor="let row of [0,1,2,3,4,5,6]; let first = first">
-        <div *ngIf="first; else dayCell" class="day-title-cell bd-gray txt-dark"
+        <div *ngIf="first; else dayCell" class="day-title-cell day-title-cell--surface txt-dark"
              [safeFont]="model.monthFormat.font"
              [style.background]="model.monthFormat.background"
              [style.color]="model.monthFormat.foreground"

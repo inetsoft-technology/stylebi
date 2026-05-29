@@ -32,7 +32,7 @@
     <div class="input-group row">
       <div class="col">
         <fieldset class="form-indent" [disabled]="!model.scaleImageChecked">
-          <div class="form-row-checkbox">
+          <div class="shell-form-row shell-form-row--checkbox">
             <div class="form-check">
               <input type="radio" class="form-check-input" name="scale-choice" [value]="true"
                    [(ngModel)]="model.maintainAspectRatio" id="maintain">
@@ -51,7 +51,7 @@
             </div>
           </div>
           <fieldset class="m-3" [disabled]="model.maintainAspectRatio">
-            <div class="form-row-float-label form-row">
+            <div class="shell-form-row--field form-row">
               <div class="col form-floating">
                 <div class="input-group">
                   <input type="number" class="form-control" id="top" [(ngModel)]="model.top"
@@ -89,7 +89,7 @@
         </fieldset>
       </div>
     </div>
-    <div class="input-group row form-row-checkbox">
+    <div class="input-group shell-form-row shell-form-row--checkbox">
       <div class="col-auto">
         <div class="form-check">
           <input type="checkbox" class="form-check-input" [(ngModel)]="model.tile"
@@ -100,7 +100,7 @@
         </div>
       </div>
     </div>
-    <div class="input-group row form-row-checkbox">
+    <div class="input-group shell-form-row shell-form-row--checkbox">
       <div class="col-auto">
         <div class="form-check">
           <input type="checkbox" class="form-check-input" [(ngModel)]="preview"

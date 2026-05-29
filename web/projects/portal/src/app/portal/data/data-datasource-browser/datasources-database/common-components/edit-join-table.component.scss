@@ -22,8 +22,9 @@
    padding: 7px 8px;
    cursor: pointer;
    font-weight: 600;
-   background: var(--inet-main-panel-bg-color);
+   background: var(--inet-shell-surface-subtle);
    color: var(--inet-text-strong-color);
+   border-bottom: 1px solid var(--inet-list-border-color);
 }
 
 .physical-graph-table-title--dragging {
@@ -33,6 +34,7 @@
 edit-join-table-column {
    display: block;
    width: 100%;
+   border-bottom: 1px solid var(--inet-list-border-color);
    transition: background-color 0.4s, color 0.4s, opacity 0.4s;
 
    &:last-child {

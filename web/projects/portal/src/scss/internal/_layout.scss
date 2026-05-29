@@ -20,11 +20,6 @@
   align-items: center;
 }
 
-.form-row-float-label {
-  @extend .form-row-base;
-  margin-bottom: 0.75rem;
-}
-
 .form-row-checkbox {
   @extend .form-row-base;
   margin-top: 1rem;
@@ -264,6 +259,13 @@ a.nav-link {
   padding: 0;
   margin-bottom: 10px;
   border-radius: 4px;
+  border: 1px solid var(--inet-list-border-color);
+  background-color: var(--inet-list-bg-color);
+}
+
+.selectable-list > *:not(.selected):hover,
+.sm-selectable-list > *:not(.selected):hover {
+  background-color: var(--inet-list-hover-bg-color);
 }
 
 .sm-selectable-list {

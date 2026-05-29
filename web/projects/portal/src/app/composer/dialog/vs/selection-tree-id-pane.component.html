@@ -17,7 +17,7 @@
   -->
 <form ngNoForm (submit)="$event.preventDefault()" class="container-fluid">
   <fieldset>
-    <div class="form-row-float-label row">
+    <div class="shell-form-row--field row">
       <div class="col-9">
         <div class="bordered-box bd-gray">
           <tree #idTree [root]="targetIdTree" [showRoot]="false"
@@ -26,7 +26,7 @@
         </div>
       </div>
     </div>
-    <div class="form-row-checkbox row">
+    <div class="shell-form-row shell-form-row--checkbox">
       <div class="col">
         <div class="form-check">
           <input id="textBox" type="checkbox" class="form-check-input"
@@ -38,7 +38,7 @@
         </div>
       </div>
     </div>
-    <div class="form-row-float-label row local-parent-id">
+    <div class="shell-form-row--field row local-parent-id">
       <div class="col-9">
         <div class="form-floating">
           <dynamic-combo-box [(value)]="localParentId" [vsId]="runtimeId"
@@ -52,7 +52,7 @@
         </div>
       </div>
     </div>
-    <div class="form-row-float-label row local-id">
+    <div class="shell-form-row--field row local-id">
       <div class="col-9">
         <div class="form-floating">
           <dynamic-combo-box [(value)]="localId" [vsId]="runtimeId"
@@ -66,7 +66,7 @@
         </div>
       </div>
     </div>
-    <div class="form-row-float-label row local-label">
+    <div class="shell-form-row--field row local-label">
       <div class="col-9">
         <div class="form-floating">
           <dynamic-combo-box [(value)]="localLabel" [vsId]="runtimeId"

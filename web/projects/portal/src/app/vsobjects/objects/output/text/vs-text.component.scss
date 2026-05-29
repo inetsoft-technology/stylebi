@@ -73,6 +73,10 @@ iframe {
   height: 100%;
 }
 
+.vs-text__wizard-border {
+  border: 1px solid var(--inet-default-border-color);
+}
+
 .component-input {
   border:1px solid #ccc;
   font-size: 14px;

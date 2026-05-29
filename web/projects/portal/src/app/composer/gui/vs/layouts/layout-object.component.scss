@@ -103,3 +103,8 @@ span.wrapper {
 .search-no-match {
   opacity: 0.2 !important;
 }
+
+.layout-object__move-handle {
+  border: 1px solid var(--inet-default-border-color);
+  background: var(--inet-shell-surface-default);
+}

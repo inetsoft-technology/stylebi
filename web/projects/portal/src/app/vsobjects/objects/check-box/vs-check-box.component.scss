@@ -60,3 +60,7 @@ div.checkbox-title {
 div.checkbox {
   display: flex;
 }
+
+.vs-check-box__default-border {
+  border: 1px solid var(--inet-default-border-color);
+}

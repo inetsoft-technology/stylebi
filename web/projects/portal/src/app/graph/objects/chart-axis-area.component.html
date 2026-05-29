@@ -67,7 +67,7 @@
     </canvas>
   </div>
   <div *ngIf="this.showSortIcon && isActionVisibleInViewer('Sort Axis')"
-       class="axis__sort-icon bg-white1"
+       class="axis__sort-icon axis__sort-icon--surface"
        [style.top.px]="getSortIconTop(chartObject.axisOps)"
        title="_#(Sort Axis)"
        (click)="clickSort($event)">

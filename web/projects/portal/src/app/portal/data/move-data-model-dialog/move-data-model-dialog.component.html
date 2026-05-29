@@ -26,7 +26,7 @@
                        [openFolderRequest]="openFolderRequest"
                        (selectionChange)="folderSelected($event)">
   </data-models-browser>
-  <div class="alert alert-danger move-datasource-dialog__error" *ngIf="!folderPath">
+  <div class="shell-alert shell-alert--danger move-datasource-dialog__error" *ngIf="!folderPath">
     _#(data.datasets.targetFolderRequired)
   </div>
 </div>

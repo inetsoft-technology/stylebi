@@ -16,17 +16,17 @@
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
 <div class="container-fluid">
-  <div class="row form-row-float-label">
+  <div class="row shell-form-row--field">
     <div class="col-12 col-sm-6">
       <div class="text-truncate">_#(Select an Image)</div>
-      <div class="bordered-box bd-gray">
+      <div class="bordered-box image-preview-pane__tree-surface">
         <tree [root]="model.imageTree" [showRoot]="false" [selectedNodes]="selectedNodes"
               (nodesSelected)="selectImage($event[0])"></tree>
       </div>
     </div>
     <div class="col-12 col-sm-6">
       <span>_#(Image Path): {{selectedImageNode.label ? selectedImageNode.label : "emptyimage.gif" }}</span>
-      <div contenteditable="false" tabindex="1" class="bordered-box bd-gray"
+      <div contenteditable="false" tabindex="1" class="bordered-box image-preview-pane__preview-surface"
            [style.background-color]="blackBackground ? 'black' : 'transparent'">
         <div>
           <img [src]="imageSrc" [style.opacity]="getAlpha()">
@@ -52,7 +52,7 @@
                 [disabled]="!model.selectedImage">_#(Clear)</button>
       </div>
     </div>
-    <div class="col row form-row-float-label">
+    <div class="col row shell-form-row--field">
       <div class="col-auto" *ngIf="!model.presenter">
         <div class="form-floating">
           <alpha-dropdown id="imagePreviewPaneAlpha" [(alpha)]="model.alpha"
@@ -79,7 +79,7 @@
         </div>
       </div>
     </div>
-    <div *ngIf="alphaInvalid" class="col-12 col-md-12 alert alert-danger">
+    <div *ngIf="alphaInvalid" class="col-12 col-md-12 shell-alert shell-alert--danger">
       _#(viewer.flash.format.invalidTransparencyError)
     </div>
   </div>

@@ -22,7 +22,7 @@
 <div class="modal-body" [enterSubmit]="true" (onEnter)="saveChanges()">
    <fieldset>
       <legend>_#(Font)</legend>
-      <div class="form-row-float-label row">
+      <div class="shell-form-row--field row">
          <div class="col" [formGroup]="form">
             <label class="form-label">_#(Font Size)</label>
             <number-stepper formControlName="fontSize" [min]="1"
@@ -34,7 +34,7 @@
          </div>
       </div>
       <legend>_#(Content)</legend>
-      <div class="form-row-float-label row">
+      <div class="shell-form-row--field row">
          <div class="col">
             <div class="form-floating">
                <textarea class="form-control" [(ngModel)]="comment"

@@ -18,7 +18,7 @@
 <form [formGroup]="form" class="container-fluid">
   <fieldset>
     <legend>_#(Layout)</legend>
-    <div class="row form-row-float-label">
+    <div class="row shell-form-row--field">
       <div class="col">
         <div class="form-floating">
           <input type="number" class="form-control" formControlName="top" [(ngModel)]="model.top"
@@ -62,7 +62,7 @@
         </div>
       </div>
     </div>
-    <div class="row form-row-float-label" *ngIf="showScaleVertical">
+    <div class="row shell-form-row--field" *ngIf="showScaleVertical">
       <div class="col-auto">
         <div class="checkbox">
           <div class="form-check">
@@ -77,22 +77,22 @@
       </div>
     </div>
   </fieldset>
-  <div class="alert alert-danger" *ngIf="layoutEnabled && form.controls['top'].errors">
+  <div class="shell-alert shell-alert--danger" *ngIf="layoutEnabled && form.controls['top'].errors">
     _#(viewer.viewsheet.layout.topValid)
   </div>
-  <div class="alert alert-danger" *ngIf="layoutEnabled && form.controls['left'].errors">
+  <div class="shell-alert shell-alert--danger" *ngIf="layoutEnabled && form.controls['left'].errors">
     _#(viewer.viewsheet.layout.leftValid)
   </div>
-  <div class="alert alert-danger" *ngIf="layoutEnabled && form.controls['width'].errors">
+  <div class="shell-alert shell-alert--danger" *ngIf="layoutEnabled && form.controls['width'].errors">
     _#(viewer.viewsheet.layout.widthValid)
   </div>
-  <div class="alert alert-danger" *ngIf="layoutEnabled && form.controls['height'].errors">
+  <div class="shell-alert shell-alert--danger" *ngIf="layoutEnabled && form.controls['height'].errors">
     _#(viewer.viewsheet.layout.heightValid)
   </div>
-  <div class="alert alert-danger" *ngIf="showTitleHeight && form.controls['titleHeight'].errors">
+  <div class="shell-alert shell-alert--danger" *ngIf="showTitleHeight && form.controls['titleHeight'].errors">
     _#(viewer.viewsheet.layout.titleHeightValid)
   </div>
-  <div class="alert alert-danger" *ngIf="showCellHeight && form.controls['cellHeight'].errors">
+  <div class="shell-alert shell-alert--danger" *ngIf="showCellHeight && form.controls['cellHeight'].errors">
     _#(viewer.viewsheet.layout.cellHeightValid0)
   </div>
 </form>

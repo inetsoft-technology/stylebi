@@ -27,7 +27,7 @@
           [openFolderPath]="grandparentFolder"
           (selectionChange)="folderSelected($event)">
         </task-folder-browser>
-        <div class="alert alert-danger w-100 mt-2" *ngIf="!selectedFolder?.path">
+        <div class="shell-alert shell-alert--danger w-100 mt-2" *ngIf="!selectedFolder?.path">
           {{getRequiredMessage()}}
         </div>
       </div>

@@ -25,7 +25,7 @@
            <div class="col-4">
              <div #dropdownInput class="input-group span-as-dropdown">
                <div draggable="true"
-                    class="display-style bd-gray form-control"
+                    class="display-style form-control remove-bookmarks-dialog__trigger"
                     [fixedDropdown]="dropdownMenu" [zIndex]="999903"
                     dropdownPlacement="bottom">
                   {{selectedFilterOptionLabel}}
@@ -63,7 +63,7 @@
                   <div class="datemc input-group">
                      <div class="col-auto input-group">
                         <input formControlName="filterDate" draggable="true"
-                               class="display-style bd-gray form-control"
+                               class="display-style form-control remove-bookmarks-dialog__date-input"
                                dropdownPlacement="bottom">
                         <button class="calendar-button btn input-group-btn-addon"
                                 title="_#(Select a Date)"

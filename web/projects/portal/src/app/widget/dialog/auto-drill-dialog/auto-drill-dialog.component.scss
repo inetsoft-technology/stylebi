@@ -26,15 +26,19 @@
 }
 
 .drill-header {
-   background-color: #f2f2f6;
+   background-color: var(--inet-table-heading-bg-color);
    width: 100%;
    top: 0;
    position: sticky;
+   z-index: 1;
 }
 
 .drill-header th{
-   border: 1px solid #e0e0e0;
+   border: 1px solid var(--inet-table-border-color);
    border-top: none;
+   color: var(--inet-table-heading-text-color);
+   font-weight: 600;
+   padding: var(--inet-space-3) var(--inet-space-4);
 }
 
 .tbody-content {
@@ -49,15 +53,41 @@
   height: 350px;
   overflow-x: auto;
   overflow-y: auto;
+  border: 1px solid var(--inet-table-border-color);
+  border-radius: var(--inet-radius-md);
+  background-color: var(--inet-card-bg-color);
+}
+
+.auto-drill-table {
+  margin-bottom: 0;
+}
+
+.auto-drill-table tbody tr:hover:not(.selected) td {
+  background-color: var(--inet-table-hover-bg-color);
+}
+
+.auto-drill-table tbody tr.selected td {
+  background-color: var(--inet-table-selected-bg-color);
+}
+
+.auto-drill-table tbody td {
+  padding: var(--inet-space-3) var(--inet-space-4);
+  border-top: 1px solid var(--inet-table-border-color);
+}
+
+.auto-drill-table tbody tr:first-child td {
+  border-top: 0;
 }
 
 .td-content {
-   height: 44.5px;
+   min-height: calc(var(--inet-control-height-md) + var(--inet-space-2));
 }
 
 .drill-header-cell {
    display: flex;
    justify-content: space-between;
+   align-items: center;
+   gap: var(--inet-space-2);
 
   .drill-header-cell-text {
     overflow: hidden;

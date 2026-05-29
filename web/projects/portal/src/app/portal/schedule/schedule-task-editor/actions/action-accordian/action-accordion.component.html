@@ -20,7 +20,7 @@
       <div class="card action-accordion-card" *ngIf="isDashboard">
         <div class="card-body action-accordion-card__body">
           <label class="form-check-label card-title">_#(Bookmarks)</label>
-          <div class="form-row-float-label row align-items-start">
+          <div class="action-accordion__row-start row">
             <div class="col-auto form-floating action-accordion-bookmark-select-col">
                 <custom-select id="bookmark" *ngIf="action.actionType == 'ViewsheetAction'"
                                [options]="bookmarkSelectOptions"
@@ -32,7 +32,7 @@
                 <label>_#(Bookmark)</label>
             </div>
           </div>
-          <div class="form-row-float-label row align-items-start action-accordion-bookmark-row">
+          <div class="action-accordion__row-start row action-accordion-bookmark-row">
             <div class="col-10 action-accordion-bookmark-list-col">
               <generic-selectable-list [itemList]="bookmarkList"
                                        [selectedIndex]="selectedBookmarkListIndex"
@@ -57,8 +57,8 @@
       </div>
       <div class="card action-accordion-card" *ngIf="model.notificationEmailEnabled">
         <div class="card-body action-accordion-card__body">
-          <div class="form-check form-check-inline form-row-float-label">
-            <input class="form-check-input" type="checkbox" id="notification"
+          <div class="form-check form-switch action-accordion__section-toggle">
+            <input class="form-check-input" type="checkbox" role="switch" id="notification"
                    [ngModelOptions]="{standalone: true}"
                    [ngModel]="action.notificationEnabled"
                    (ngModelChange)="updateNotificationStatus($event)"
@@ -68,7 +68,7 @@
             </label>
           </div>
           <fieldset class="ms-4" *ngIf="action.notificationEnabled">
-            <div class="form-row-float-label row">
+            <div class="action-accordion__row row">
               <div class="col-auto form-floating">
                   <div class="input-group">
                     <input type="text" class="form-control" id="notify"
@@ -103,7 +103,7 @@
                     _#(viewer.schedule.action.notification.duplicateEmail)
                   </span>
               </div>
-              <div class="form-check form-check-inline form-row-float-label col-auto">
+              <div class="form-check form-check-inline action-accordion__inline-check col-auto">
                 <input class="form-check-input" type="checkbox" name="notifyWhenFail"
                        [ngModelOptions]="{standalone: true}" id="notifyFailed"
                        [(ngModel)]="action.notifyIfFailed" [value]="true">
@@ -112,7 +112,7 @@
                 </label>
               </div>
               <div *ngIf="action?.actionType !== 'BurstAction'"
-                   class="form-check form-check-inline form-row-float-label col-auto" >
+                   class="form-check form-check-inline action-accordion__inline-check col-auto" >
                 <input class="form-check-input" type="checkbox" name="includeLink"
                        [ngModelOptions]="{standalone: true}" id="includeLink"
                        [(ngModel)]="action.link" [value]="true">
@@ -126,8 +126,8 @@
       </div>
       <div class="card action-accordion-card" *ngIf="model.emailDeliveryEnabled">
         <div class="card-body action-accordion-card__body">
-          <div class="form-check form-check-inline form-row-float-label">
-            <input class="form-check-input" type="checkbox" id="deliverEmail"
+          <div class="form-check form-switch action-accordion__section-toggle">
+            <input class="form-check-input" type="checkbox" role="switch" id="deliverEmail"
                    [ngModelOptions]="{standalone: true}"
                    [ngModel]="this.action.deliverEmailsEnabled"
                    (ngModelChange)="updateEmailDeliveryStatus($event)"
@@ -137,7 +137,7 @@
             </label>
           </div>
           <fieldset class="ms-4" *ngIf="this.action.deliverEmailsEnabled">
-            <div class="form-row-float-label row">
+            <div class="action-accordion__row row">
               <div class="col form-floating">
                   <input type="text" class="form-control" id="from"
                          formControlName="from"
@@ -149,7 +149,7 @@
                   <label>_#(From)</label>
               </div>
             </div>
-            <div class="form-row-float-label row">
+            <div class="action-accordion__row row">
               <div class="col form-floating">
                   <div class="input-group">
                     <input type="text" class="form-control"
@@ -184,7 +184,7 @@
                   </span>
               </div>
             </div>
-            <div class="form-row-float-label row">
+            <div class="action-accordion__row row">
               <div class="col form-floating">
                   <div class="input-group">
                     <input type="text" class="form-control" formControlName="cc"
@@ -202,7 +202,7 @@
                   <label>_#(CC)</label>
               </div>
             </div>
-            <div class="form-row-float-label row">
+            <div class="action-accordion__row row">
               <div class="col form-floating">
                   <div class="input-group">
                     <input type="text" class="form-control" formControlName="bcc"
@@ -220,7 +220,7 @@
                   <label>_#(BCC)</label>
               </div>
             </div>
-            <div class="form-row-float-label row">
+            <div class="action-accordion__row row">
               <div class="col form-floating">
                   <input [ngModelOptions]="{standalone: true}"
                          type="text" class="form-control" id="subject"
@@ -229,7 +229,7 @@
                   <label>_#(Subject)</label>
               </div>
             </div>
-            <div class="form-row-float-label row">
+            <div class="action-accordion__row row">
               <div class="col-auto form-floating">
                   <custom-select id="format"
                                  [options]="mailFormatSelectOptions"
@@ -264,7 +264,7 @@
                 </label>
               </div>
             </div>
-            <div class="form-row-float-label row">
+            <div class="action-accordion__row row">
               <ng-container *ngIf="!isPasswordDisable() && model.cloudSecrets && action.useCredential">
                 <div class="col-auto form-floating">
                   <input type="text" class="form-control" id="secretId"
@@ -296,7 +296,7 @@
                 </div>
               </ng-container>
             </div>
-            <div class="form-row-float-label row">
+            <div class="action-accordion__row row">
               <div class="col">
                 <csv-config-pane *ngIf="action.format === 'CSV'"
                                  [formId]="'export-csv-config'"
@@ -363,7 +363,7 @@
                 </div>
               </div>
             </div>
-            <div class="form-row-float-label row">
+            <div class="action-accordion__row row">
               <div class="col form-floating">
                   <input type="text" class="form-control" id="attachmentName"
                          formControlName="attachmentName"
@@ -379,7 +379,7 @@
                   </span>
               </div>
             </div>
-            <div class="form-row-float-label row">
+            <div class="action-accordion__row row">
               <div class="col form-floating">
                 <ng-container *ngIf="!isIE else plainTextArea">
                   <ckeditor-wrapper [(ngModel)]="deliveryMessage" [advanced]="true" [ngModelOptions]="{standalone: true}" class="schedule-delivery-message"></ckeditor-wrapper>
@@ -391,9 +391,9 @@
                 <label>_#(Message)</label>
               </div>
             </div>
-            <div class="form-row-float-label row">
+            <div class="action-accordion__row row">
               <div *ngIf="action?.actionType !== 'BurstAction'"
-                   class="form-check form-check-inline form-row-float-label col-auto emailSpacing">
+                   class="form-check form-check-inline action-accordion__inline-check col-auto emailSpacing">
                 <input class="form-check-input" type="checkbox" name="dincludeLink"
                        [ngModelOptions]="{standalone: true}" id="dincludeLink"
                        [(ngModel)]="action.deliverLink" [value]="true">
@@ -408,8 +408,8 @@
 
       <div class="card action-accordion-card" *ngIf="model.saveToDiskEnabled">
         <div class="card-body action-accordion-card__body">
-          <div class="form-check form-check-inline form-row-float-label">
-            <input class="form-check-input" type="checkbox" id="saveToServer"
+          <div class="form-check form-switch action-accordion__section-toggle">
+            <input class="form-check-input" type="checkbox" role="switch" id="saveToServer"
                    [ngModelOptions]="{standalone: true}"
                    [(ngModel)]="action.saveToServerEnabled"
                    [value]="true">
@@ -418,7 +418,7 @@
             </label>
           </div>
           <fieldset class="ms-4" *ngIf="action.saveToServerEnabled">
-            <div class="form-row-float-label row">
+            <div class="action-accordion__row row">
               <div class="col form-floating" *ngIf="hasLocations">
                   <custom-select id="location"
                                  [options]="locationSelectOptions"
@@ -443,7 +443,7 @@
                   </div>
                 </div>
                 <ng-container *ngIf="!hasLocations">
-                  <div class="form-check form-check-inline form-row-float-label">
+                  <div class="form-check form-check-inline action-accordion__inline-check">
                     <input type="checkbox" class="form-check-input" id="ignoreNull"
                            [ngModelOptions]="{standalone: true}"
                            [(ngModel)]="ftp">
@@ -451,7 +451,7 @@
                       _#(FTP/SFTP)
                     </label>
                   </div>
-                  <div *ngIf="model.cloudSecrets" class="form-check form-check-inline form-row-float-label">
+                  <div *ngIf="model.cloudSecrets" class="form-check form-check-inline action-accordion__inline-check">
                     <input type="checkbox" class="form-check-input" id="useCredential"
                            [disabled]="!ftp"
                            [ngModelOptions]="{standalone: true}"
@@ -460,7 +460,7 @@
                       _#(Use Secret ID)
                     </label>
                   </div>
-                  <div *ngIf="model.cloudSecrets && useCredential" class="form-row-float-label row">
+                  <div *ngIf="model.cloudSecrets && useCredential" class="action-accordion__row row">
                     <div class="form-floating">
                       <input type="text" class="form-control" id="ftpSecretId"
                              [disabled]="!ftp"
@@ -470,7 +470,7 @@
                     </div>
                   </div>
                   <ng-container *ngIf="!model.cloudSecrets || !useCredential">
-                    <div class="form-row-float-label row">
+                    <div class="action-accordion__row row">
                       <div class="form-floating">
                         <input type="text" class="form-control" id="username"
                                [disabled]="!ftp"
@@ -479,7 +479,7 @@
                         <label>_#(Username)</label>
                       </div>
                     </div>
-                    <div class="form-row-float-label row">
+                    <div class="action-accordion__row row">
                       <div class="form-floating">
                         <input type="password" class="form-control" id="ftpPassword"
                                [disabled]="!ftp"
@@ -493,8 +493,8 @@
               </div>
               <div class="col-2"></div>
             </div>
-            <div class="form-row-float-label row">
-              <div class="col-10 form-floating" [class.form-row-float-label]="saveFormat === '3'">
+            <div class="action-accordion__row row">
+              <div class="col-10 form-floating" [class.action-accordion__conditional-field]="saveFormat === '3'">
                   <custom-select id="fileFormat"
                                  [options]="saveFormatSelectOptions"
                                  [ngModel]="saveFormat"
@@ -510,13 +510,13 @@
                                [tableDataAssemblies]="tableDataAssemblies">
               </csv-config-pane>
             </div>
-            <div class="form-row-float-label row align-items-start">
+            <div class="action-accordion__row-start row">
               <div class="col-10">
 
                 <generic-selectable-list [itemList]="saveStrings"
                                          [selectedIndex]="selectedFormatIndex"
                                          (selectedIndexChange)="editFile($event)"></generic-selectable-list>
-                <div class="alert alert-danger"
+                <div class="shell-alert shell-alert--danger"
                      *ngIf="action.saveToServerEnabled && (!saveStrings || saveStrings.length == 0)">
                   _#(viewer.schedule.action.saveFileWarning)
                 </div>
@@ -622,8 +622,8 @@
       <div class="card action-accordion-card" *ngIf="!!highlights && highlights.length > 0">
         <div class="card-body action-accordion-card__body">
           <label class="form-check-label card-title">_#(Alert)</label>
-          <div class="form-check">
-            <input class="form-check-input" type="checkbox" name="underHighlightCondition"
+          <div class="form-check form-switch action-accordion__section-toggle">
+            <input class="form-check-input" type="checkbox" role="switch" name="underHighlightCondition"
                    [(ngModel)]="action.highlightsSelected" [value]="true"
                    [ngModelOptions]="{standalone: true}" id="execHighlight">
             <label class="form-check-label" for="execHighlight">
@@ -631,7 +631,7 @@
             </label>
           </div>
           <div class="action-accordion-highlights" *ngIf="action.highlightsSelected">
-            <table class="table table-sm w-100 action-accordion-alert-table">
+            <table class="table table-hover table-sm w-100 action-accordion-alert-table">
               <thead class="action-accordion-alert-table__head">
                 <tr>
                   <th>_#(Select)</th>

@@ -21,7 +21,7 @@
 </modal-header>
 <div class="modal-body" [enterSubmit]="formValid" (onEnter)="saveChanges()" *ngIf="model && form">
   <form [formGroup]="form" class="container-fluid">
-    <div class="form-row-float-label row">
+    <div class="shell-form-row--field row">
       <div class="col">
         <div class="form-floating">
           <input class="form-control" type="text" id="name" formControlName="newName" trim
@@ -43,7 +43,7 @@
         </div>
       </div>
     </div>
-    <div class="form-row-float-label row">
+    <div class="shell-form-row--field row">
       <div class="col">
         <div class="form-floating">
           <input class="form-control" type="text" id="label" formControlName="label"
@@ -52,7 +52,7 @@
         </div>
       </div>
     </div>
-    <div class="form-row-float-label row">
+    <div class="shell-form-row--field row">
       <div class="col">
         <div class="form-floating">
           <custom-select id="type"
@@ -64,7 +64,7 @@
         </div>
       </div>
     </div>
-    <div class="form-row-float-label row">
+    <div class="shell-form-row--field row">
       <div class="col">
         <fieldset [disabled]="form.get('defaultValue').disabled" *ngIf="form.get('type').value">
           <div class="form-group default-value-container" [class.form-floating]="form.get('type').value !== 'boolean'">
@@ -102,13 +102,13 @@
         </div>
       </div>
     </div>
-    <div *ngIf="!form.get('defaultValue').disabled && form.get('type').value != 'boolean' && (form.get('defaultValue').value === null || form.get('defaultValue').value === '')" class="alert alert-danger">
+    <div *ngIf="!form.get('defaultValue').disabled && form.get('type').value != 'boolean' && (form.get('defaultValue').value === null || form.get('defaultValue').value === '')" class="shell-alert shell-alert--danger">
       <strong>_#(Error)</strong> _#(viewer.dialog.missingDefault)
     </div>
 
     <fieldset>
       <legend>_#(Selection List)</legend>
-      <div class="form-row-float-label row">
+      <div class="shell-form-row--field row">
         <div class="col-3">
           <div class="form-check">
             <input class="form-check-input" type="radio" id="noneSelectionList"
@@ -119,7 +119,7 @@
           </div>
         </div>
       </div>
-      <div class="form-row-float-label row">
+      <div class="shell-form-row--field row">
         <div class="col-3">
           <div class="form-check">
             <input class="form-check-input" type="radio" id="embedded"
@@ -134,7 +134,7 @@
             _#(Edit)</button>
         </div>
       </div>
-      <div class="form-row-float-label row">
+      <div class="shell-form-row--field row">
         <div class="col-3">
           <div class="form-check">
             <input class="form-check-input" type="radio" id="query"
@@ -152,7 +152,7 @@
 
     <fieldset [disabled]="form.get('displayStyle').disabled">
       <legend>_#(Display Style)</legend>
-      <div class="form-row-float-label row">
+      <div class="shell-form-row--field row">
         <div class="col-auto">
           <div class="form-check">
             <input class="form-check-input" type="radio" formControlName="displayStyle"

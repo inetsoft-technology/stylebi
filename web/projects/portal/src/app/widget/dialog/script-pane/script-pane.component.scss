@@ -79,6 +79,20 @@
   width: 100%;
 }
 
+.script-pane__tree-surface {
+  background-color: var(--inet-list-bg-color);
+  border-color: var(--inet-list-border-color);
+  border-radius: var(--inet-radius-md);
+  overflow: hidden;
+}
+
+.script-pane__editor-surface {
+  border: 1px solid var(--inet-list-border-color);
+  border-radius: var(--inet-radius-md);
+  background-color: var(--inet-card-bg-color);
+  overflow: hidden;
+}
+
 .column-tree, .function-tree {
   height: 18em;
   overflow: hidden;

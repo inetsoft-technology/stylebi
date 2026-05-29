@@ -24,7 +24,7 @@
   <form [formGroup]="form" (submit)="$event.preventDefault()" class="container-fluid">
     <fieldset>
       <legend>_#(Tooltip Format)</legend>
-      <div class="row form-row-checkbox">
+      <div class="shell-form-row shell-form-row--checkbox">
         <div class="col">
           <div class="form-check">
             <input type="radio" class="form-check-input" id="default"
@@ -53,7 +53,7 @@
           </div>
         </div>
       </div>
-      <div class="row form-row-checkbox" *ngIf="model.combinedSupported">
+      <div class="shell-form-row shell-form-row--checkbox" *ngIf="model.combinedSupported">
         <div class="col">
           <div class="form-check">
             <input type="checkbox" class="form-check-input" id="combinedTooltip"
@@ -78,7 +78,7 @@
     </fieldset>
     <fieldset *ngIf="model.chart">
       <legend>_#(Tooltip Style)</legend>
-      <div class="row form-row-checkbox">
+      <div class="shell-form-row shell-form-row--checkbox">
         <div class="col">
           <div class="form-check">
             <input type="radio" class="form-check-input" id="styleDefault"

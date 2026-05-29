@@ -17,7 +17,7 @@
   -->
 <form [formGroup]="form" class="container-fluid">
   <fieldset>
-    <div class="form-row-float-label row">
+    <div class="shell-form-row--field row">
       <div class="col">
         <div class="form-floating">
           <dynamic-combo-box [(value)]="model.titleValue"
@@ -40,7 +40,7 @@
         </div>
       </div>
     </div>
-    <div class="form-row-float-label row">
+    <div class="shell-form-row--field row">
       <div class="col form-floating">
         <custom-select [options]="positionSelectOptions"
                        [ngModelOptions]="{standalone: true}"
@@ -72,13 +72,13 @@
   </fieldset>
   <fieldset>
     <legend>_#(Symbol)</legend>
-    <div class="form-row-float-label row">
+    <div class="shell-form-row--field row">
       <div class="col-6 form-floating" [ngClass]="{'has-error': !form.controls['symbolSize'].valid}">
         <number-stepper formControlName="symbolSize" [min]="6" [max]="50"
                         [invalid]="!form.controls['symbolSize'].valid">
         </number-stepper>
         <label>_#(Symbol Size)</label>
-        <div *ngIf="form.controls['symbolSize']?.errors" class="alert alert-danger">
+        <div *ngIf="form.controls['symbolSize']?.errors" class="shell-alert shell-alert--danger">
           _#(viewer.viewsheet.chart.legend.symbolSize.rangeWarning)
         </div>
       </div>
@@ -96,7 +96,7 @@
   </fieldset>
   <fieldset *ngIf="model.notShowNullVisible">
     <legend>_#(Options)</legend>
-    <div class="form-row-float-label row">
+    <div class="shell-form-row--field row">
       <div class="checkbox col-auto">
         <div class="form-check">
           <input type="checkbox" class="form-check-input" id="ignoreNull"

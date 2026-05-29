@@ -40,6 +40,7 @@ declare const window: any;
 @Component({
    selector: "image-preview-pane",
    templateUrl: "image-preview-pane.component.html",
+   styleUrls: ["./image-preview-pane.component.scss"]
 })
 export class ImagePreviewPane implements OnInit, AfterViewInit {
    @Input() model: ImagePreviewPaneModel;

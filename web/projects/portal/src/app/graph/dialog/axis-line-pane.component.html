@@ -18,7 +18,7 @@
 <form [formGroup]="form" class="container-fluid">
   <fieldset>
     <legend>_#(Options)</legend>
-    <div class="form-row-checkbox row">
+    <div class="shell-form-row shell-form-row--checkbox">
       <ng-container *ngIf="!linear">
         <div class="col-auto">
           <div class="form-check">
@@ -99,7 +99,7 @@
     </div>
   </fieldset>
   <fieldset [disabled]="!model.lineColorEnabled || !model.showAxisLine && !model.showTicks">
-    <div class="form-row-float-label row">
+    <div class="shell-form-row--field row">
       <div class="col-auto">
         <color-editor [(color)]="model.lineColor" label="_#(viewsheet.axisProdlg)(P)" data-test="axis-line-color"></color-editor>
       </div>
@@ -107,15 +107,15 @@
   </fieldset>
   <fieldset *ngIf="linear || timeSeries && !outer">
     <legend>_#(Scale)</legend>
-    <div class="form-row-float-label row max-min-fields">
+    <div class="shell-form-row--field row max-min-fields">
       <div class="col-auto mb-1 form-floating" [ngClass]="{ 'has-error' : !form.controls['minimum'].valid}"
            *ngIf="linear">
         <input id="minimum" type="number" class="form-control scale-input"
                formControlName="minimum"
                placeholder="_#(Minimum)" [(ngModel)]="model.minimum">
         <label><span>_#(Minimum)</span></label>
-        <div *ngIf="this.form.controls['minimum']?.errors && this.form.controls['minimum'].errors['lessThanEqualToZero']" class="alert alert-danger">_#(min.greater.zero)</div>
-        <div *ngIf="form.controls['minimum'].errors && form.controls['minimum'].errors['integerInRange']" class="alert alert-danger">_#(component.out.range)</div>
+        <div *ngIf="this.form.controls['minimum']?.errors && this.form.controls['minimum'].errors['lessThanEqualToZero']" class="shell-alert shell-alert--danger">_#(min.greater.zero)</div>
+        <div *ngIf="form.controls['minimum'].errors && form.controls['minimum'].errors['integerInRange']" class="shell-alert shell-alert--danger">_#(component.out.range)</div>
       </div>
       <div class="col-auto mb-1 form-floating" [ngClass]="{ 'has-error' : !form.controls['maximum'].valid}"
            *ngIf="linear">
@@ -123,10 +123,10 @@
                formControlName="maximum"
                placeholder="_#(Maximum)" [(ngModel)]="model.maximum">
         <label><span>_#(Maximum)</span></label>
-        <div *ngIf="this.form.controls['maximum']?.errors && this.form.controls['maximum'].errors['lessThanEqualToZero']" class="alert alert-danger">_#(max.greater.zero)</div>
-        <div *ngIf="!!this.model.maximum && !this.minmaxValid" class="alert alert-danger">_#(viewer.viewsheet.numberRange.maxMinWarning)</div>
+        <div *ngIf="this.form.controls['maximum']?.errors && this.form.controls['maximum'].errors['lessThanEqualToZero']" class="shell-alert shell-alert--danger">_#(max.greater.zero)</div>
+        <div *ngIf="!!this.model.maximum && !this.minmaxValid" class="shell-alert shell-alert--danger">_#(viewer.viewsheet.numberRange.maxMinWarning)</div>
         <div *ngIf="this.form.controls['maximum']?.errors && this.form.controls['maximum'].errors['integerInRange']"
-             class="alert alert-danger">_#(component.out.range)</div>
+             class="shell-alert shell-alert--danger">_#(component.out.range)</div>
       </div>
       <div class="col-auto mb-1 form-floating" [ngClass]="{ 'has-error' : !form.controls['majorIncrement'].valid}"
            *ngIf="linear || timeSeries && !outer">
@@ -135,8 +135,8 @@
                formControlName="majorIncrement" [(ngModel)]="model.increment">
         <label><span>_#(Major Increment)</span></label>
         <div *ngIf="this.form.controls['majorIncrement']?.errors && this.form.controls['majorIncrement'].errors['lessThanEqualToZero']"
-             class="alert alert-danger">_#(viewer.viewsheet.numberRange.notzeroWarning)</div>
-        <div *ngIf="!!this.model.increment && !this.incrementValid" class="alert alert-danger">_#(viewer.viewsheet.numberRange.incrementWarning)</div>
+             class="shell-alert shell-alert--danger">_#(viewer.viewsheet.numberRange.notzeroWarning)</div>
+        <div *ngIf="!!this.model.increment && !this.incrementValid" class="shell-alert shell-alert--danger">_#(viewer.viewsheet.numberRange.incrementWarning)</div>
       </div>
       <div class="col-auto mb-1 form-floating" [ngClass]="{ 'has-error' : !form.controls['minorIncrement'].valid}"
            *ngIf="linear">
@@ -144,7 +144,7 @@
                placeholder="_#(Minor Increment)"
                formControlName="minorIncrement" [(ngModel)]="model.minorIncrement">
         <label><span>_#(Minor Increment)</span></label>
-        <div *ngIf="form.controls['minorIncrement'].errors && form.controls['minorIncrement'].errors['lessThanEqualToZero']" class="alert alert-danger">_#(viewer.viewsheet.numberRange.notzeroWarning)</div>
+        <div *ngIf="form.controls['minorIncrement'].errors && form.controls['minorIncrement'].errors['lessThanEqualToZero']" class="shell-alert shell-alert--danger">_#(viewer.viewsheet.numberRange.notzeroWarning)</div>
       </div>
     </div>
   </fieldset>

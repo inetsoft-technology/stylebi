@@ -686,11 +686,21 @@ a:not([href]) {
 .table {
   --bs-table-bg: transparent;
   --bs-table-color: var(--inet-table-text-color);
+  --bs-table-border-color: var(--inet-table-border-color);
+  --bs-table-hover-bg: var(--inet-table-hover-bg-color);
+  --bs-table-hover-color: var(--inet-text-color);
+  --bs-table-active-bg: var(--inet-table-selected-bg-color);
+  --bs-table-active-color: var(--inet-text-color);
   color: var(--inet-table-text-color);
+  background-color: transparent;
+  margin-bottom: 0;
+  line-height: 1.4;
 
   th {
     color: var(--inet-table-heading-text-color);
     background-color: var(--inet-table-heading-bg-color, transparent);
+    border-bottom: $table-border-width solid var(--inet-table-border-color);
+    font-weight: 600;
   }
 
   .thead-light th {
@@ -701,6 +711,21 @@ a:not([href]) {
 
   td, th {
     border-color: var(--inet-table-border-color);
+    vertical-align: middle;
+  }
+
+  > :not(caption) > * > * {
+    padding-inline: var(--inet-space-4);
+  }
+
+  tbody tr.selected > *,
+  tbody tr.table-active > * {
+    color: var(--inet-text-color);
+    background-color: var(--inet-table-selected-bg-color);
+  }
+
+  tbody tr {
+    transition: background-color 120ms ease, color 120ms ease;
   }
 }
 
@@ -864,10 +889,14 @@ a:not([href]) {
 }
 
 .list-group-item {
+  background-color: var(--inet-list-bg-color);
+  border-color: var(--inet-list-border-color);
+  transition: background-color 120ms ease, color 120ms ease, border-color 120ms ease;
+
   &.active {
     color: var(--inet-text-color);
-    background-color: var(--inet-shell-selected-bg-color);
-    border-color: var(--inet-default-border-color);
+    background-color: var(--inet-list-selected-bg-color);
+    border-color: var(--inet-list-border-color);
 
     i {
       color: var(--inet-text-color);
@@ -876,7 +905,7 @@ a:not([href]) {
 
   &:hover:not(.not-selectable) {
     color: var(--inet-text-color);
-    background-color: var(--inet-ui-neutral-hover-bg-color);
+    background-color: var(--inet-list-hover-bg-color);
 
     i {
       color: var(--inet-text-color);
@@ -884,9 +913,13 @@ a:not([href]) {
   }
 }
 
-.table-hover tbody tr:hover {
+.table-hover tbody tr:hover:not(.selected):not(.table-active) {
   color: var(--inet-text-color);
-  background-color: var(--inet-ui-neutral-hover-bg-color);
+  background-color: var(--inet-table-hover-bg-color);
+}
+
+.table-hover tbody tr:hover:not(.selected):not(.table-active) > * {
+  background-color: var(--inet-table-hover-bg-color);
 }
 
 .breadcrumb {

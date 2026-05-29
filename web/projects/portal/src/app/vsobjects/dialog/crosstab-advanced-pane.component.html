@@ -18,7 +18,7 @@
 <form ngNoForm (submit)="$event.preventDefault()" class="container-fluid">
   <fieldset>
     <legend>_#(Options)</legend>
-    <div class="form-row-float-label row">
+    <div class="row shell-form-row--field">
       <div class="checkbox col">
         <div class="form-check">
           <input class="form-check-input" id="isBlankBox" type="checkbox"
@@ -38,7 +38,7 @@
         </div>
       </div>
     </div>
-    <div class="form-row-float-label row">
+    <div class="row shell-form-row--field">
       <div class="checkbox col">
         <div class="form-check">
           <input class="form-check-input" id="isEnabled" type="checkbox"
@@ -59,7 +59,7 @@
         </div>
       </div>
     </div>
-    <div class="form-row-float-label row">
+    <div class="row shell-form-row--field">
       <div class="checkbox col">
         <div class="form-check">
           <input class="form-check-input" id="isAdHoc" type="checkbox"
@@ -79,7 +79,7 @@
         </div>
       </div>
     </div>
-    <div class="form-row-float-label row">
+    <div class="row shell-form-row--field">
       <div class="checkbox col" *ngIf="!viewer && model.dateComparisonSupport">
         <div class="form-check">
           <input class="form-check-input" id="dateComparison" type="checkbox"
@@ -108,7 +108,7 @@
         </div>
       </div>
     </div>
-    <div class="form-row-float-label row">
+    <div class="row shell-form-row--field">
       <div class="checkbox col" *ngIf="(!viewer && model.dateComparisonSupport) && model.sortOthersLastEnabled">
         <div class="form-check">
           <input class="form-check-input" id="calculateTotal" type="checkbox"

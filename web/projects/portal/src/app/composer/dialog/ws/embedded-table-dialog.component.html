@@ -20,7 +20,7 @@
 </modal-header>
 <div class="modal-body" [enterSubmit]="formValid" (onEnter)="saveChanges()">
   <form *ngIf="model" [formGroup]="form" class="container-fluid">
-    <div class="form-row-float-label row">
+    <div class="shell-form-row--field row">
       <div class="col form-floating">
         <input type="text" id="tableName" trim class="form-control" formControlName="name"
                placeholder="_#(Name)">
@@ -28,22 +28,22 @@
       </div>
       <div class="col-12">
         <div *ngIf="form.controls['name'].errors && form.controls['name'].errors['required']"
-             class="alert alert-danger">
+             class="shell-alert shell-alert--danger">
           _#(viewer.nameValid)
         </div>
         <div *ngIf="form.controls['name'].errors &&
          (form.controls['name'].errors['calcSpecialCharacters']
          || form.controls['name'].errors['nameSpecialCharacters'] )"
-          class="alert alert-danger">
+          class="shell-alert shell-alert--danger">
           _#(viewer.worksheet.Grouping.SpecialChar)
         </div>
         <div *ngIf="form.controls['name'].errors && form.controls['name'].errors['exists']"
-             class="alert alert-danger">
+             class="shell-alert shell-alert--danger">
           _#(viewer.worksheet.Grouping.nameAlready)
         </div>
       </div>
     </div>
-    <div class="form-row-float-label row">
+    <div class="shell-form-row--field row">
       <div class="col form-floating">
         <input type="number" min="0" max="10000" id="tableRows" class="form-control"
                formControlName="rows" placeholder="_#(Rows)">
@@ -51,12 +51,12 @@
       </div>
       <div class="col-12">
         <div *ngIf="form.controls['rows'].errors && !form.controls['rows'].pristine"
-             class="alert alert-danger">
+             class="shell-alert shell-alert--danger">
           _#(common.worksheet.embedded.rowLimit)
         </div>
       </div>
     </div>
-    <div class="form-row-float-label row">
+    <div class="shell-form-row--field row">
       <div class="col d-flex flex-column">
         <label class="form-label">_#(Columns)</label>
         <number-stepper formControlName="cols" [min]="0" [max]="1000"
@@ -65,7 +65,7 @@
       </div>
       <div class="col-12">
         <div *ngIf="form.controls['cols'].errors && !form.controls['cols'].pristine"
-             class="alert alert-danger">
+             class="shell-alert shell-alert--danger">
           _#(common.worksheet.embedded.colLimit)
         </div>
       </div>

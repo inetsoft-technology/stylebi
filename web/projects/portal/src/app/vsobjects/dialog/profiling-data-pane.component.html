@@ -17,7 +17,7 @@
   -->
 <div class="profile-content">
     <div *ngIf="tableData">
-        <div class="form-row-float-label profile-content-option">
+        <div class="shell-form-row--field profile-content-option">
             <div *ngIf="showDetails"></div>
             <div class="form-check" *ngIf="!showDetails">
                 <input class="form-check-input" type="checkbox" id="showValue" [(ngModel)]="showValue"
@@ -35,26 +35,26 @@
             </div>
         </div>
 
-        <div class="form-row-float-label row" *ngIf="!showDetails">
+        <div class="row shell-form-row--field" *ngIf="!showDetails">
             <div class="col-12">
                 <div class="profile-banner bg-darken1">_#(Breakdown Chart)</div>
             </div>
         </div>
 
-        <div class="form-row-float-label row" *ngIf="!showDetails">
+        <div class="row shell-form-row--field" *ngIf="!showDetails">
             <div class="col-12 profiling-chart">
                 <img [src]="chartUrl" >
             </div>
         </div>
 
         <ng-container *ngIf="showDetails">
-            <div class="form-row-float-label row">
+            <div class="row shell-form-row--field">
                 <div class="col-12 profiling-table">
                     <simple-table [tableData]="tableData" (onSort)="sortClicked($event)"></simple-table>
                 </div>
             </div>
 
-            <div *ngIf="!tableData" class="form-row-float-label row">
+            <div *ngIf="!tableData" class="row shell-form-row--field">
                 <span>_#(no records)</span>
             </div>
         </ng-container>

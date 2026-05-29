@@ -16,7 +16,7 @@
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
 <ng-container [formGroup]="form">
-  <div class="form-row-float-label row start-time-editor__time-row" [class.single-option]="!timeRangeEnabled" *ngIf="startTimeEnabled">
+  <div class="row shell-form-row--field start-time-editor__time-row" [class.single-option]="!timeRangeEnabled" *ngIf="startTimeEnabled">
     <div class="col-auto select-type-option">
       <input
         class="form-check-input"
@@ -49,12 +49,12 @@
       </div>
     </div>
   </div>
-  <div class="form-row-float-label row start-time-editor__supplemental-row">
+  <div class="row shell-form-row--field start-time-editor__supplemental-row">
     <div class="col">
       <ng-content></ng-content>
     </div>
   </div>
-  <div class="form-row-float-label row time-range-row start-time-editor__range-row" [class.single-option]="!startTimeEnabled" *ngIf="timeRangeEnabled">
+  <div class="row shell-form-row--field time-range-row start-time-editor__range-row" [class.single-option]="!startTimeEnabled" *ngIf="timeRangeEnabled">
     <div class="col-auto select-type-option">
       <input
         class="form-check-input"
@@ -77,12 +77,12 @@
       </div>
     </div>
   </div>
-  <div class="alert alert-danger"
+  <div class="shell-alert shell-alert--danger"
        *ngIf="form.controls.startTime?.invalid && timeRangeEnabled||
        !!timeRanges && timeRanges.length != 0 && form.controls.timeRange?.invalid && timeRangeEnabled">
     _#(viewer.schedule.condition.startTimeValid)
   </div>
-  <div class="alert alert-danger" *ngIf="!startTimeSelected() && (!timeRanges || timeRanges.length == 0)">
+  <div class="shell-alert shell-alert--danger" *ngIf="!startTimeSelected() && (!timeRanges || timeRanges.length == 0)">
     _#(viewer.schedule.condition.timeRangeRequired)
   </div>
 </ng-container>

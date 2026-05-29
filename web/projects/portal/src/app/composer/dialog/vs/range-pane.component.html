@@ -18,7 +18,7 @@
 <form ngNoForm (submit)="$event.preventDefault()" class="container-fluid">
   <fieldset>
     <legend>_#(Color Ranges)</legend>
-    <div class="form-row-float-label row">
+    <div class="shell-form-row--field row">
       <div class="col-2"></div>
       <div class="col">
         <div class="checkbox">
@@ -38,7 +38,7 @@
       </div>
     </div>
     <div *ngFor="let rangeValue of values">
-      <div class="form-row-float-label row">
+      <div class="shell-form-row--field row">
         <label class="col-2" [wExpandString]="[getIndex(rangeValue.index)]">_#(Range.to):</label>
         <div class="col">
           <dynamic-combo-box [attr.data-test]="'range' + getIndex(rangeValue.index) + 'ToValue'"
@@ -56,7 +56,7 @@
   </fieldset>
   <fieldset *ngIf="targetSupported">
     <legend>_#(Target)</legend>
-    <div class="form-row-float-label row">
+    <div class="shell-form-row--field row">
       <div class="col-2"></div>
       <div class="col">
         <dynamic-combo-box [(value)]="model.targetValue" [variables]="variables"

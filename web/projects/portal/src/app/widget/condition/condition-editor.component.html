@@ -82,8 +82,8 @@
   </div>
 </div>
 <ng-template #dropdownMenu>
-  <ul role="menu" class="dropdown-pane">
-    <a *ngFor="let type of valueTypes" class="dropdown-item" (click)="selectType(type)"
+  <ul role="menu" class="dropdown-pane condition-editor__type-menu">
+    <a *ngFor="let type of valueTypes" class="dropdown-item condition-editor__type-menu-item" (click)="selectType(type)"
        role="menuitem" [class.selected]="value.type == type">
       {{type | conditionValueTypeToString}}
     </a>

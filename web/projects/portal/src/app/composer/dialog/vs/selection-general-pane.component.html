@@ -29,7 +29,7 @@
 <form [formGroup]="form" class="container-fluid">
   <fieldset>
     <legend>_#(Options)</legend>
-    <div *ngIf="model.showNonContainerProps" class="form-row-float-label row">
+    <div *ngIf="model.showNonContainerProps" class="shell-form-row--field row">
       <div class="col-8 pe-0">
         <fieldset class="float-title bd-gray mt-0">
           <legend>_#(Show as)</legend>
@@ -67,11 +67,11 @@
                         (valueChange)="model.listHeight = $event"
                         [invalid]="!form.controls['listHeight'].valid">
         </number-stepper>
-        <div *ngIf="form.controls['listHeight'].errors && form.controls['listHeight'].errors['required']" class="alert alert-danger">_#(Height is required)</div>
-        <div *ngIf="form.controls['listHeight'].errors && !form.controls['listHeight'].errors['required'] && form.controls['listHeight'].errors['lessThanEqualToZero']" class="alert alert-danger">_#(height.positive.nonZero)</div>
+        <div *ngIf="form.controls['listHeight'].errors && form.controls['listHeight'].errors['required']" class="shell-alert shell-alert--danger">_#(Height is required)</div>
+        <div *ngIf="form.controls['listHeight'].errors && !form.controls['listHeight'].errors['required'] && form.controls['listHeight'].errors['lessThanEqualToZero']" class="shell-alert shell-alert--danger">_#(height.positive.nonZero)</div>
       </div>
     </div>
-    <div *ngIf="model.showNonContainerProps" class="form-row-float-label row">
+    <div *ngIf="model.showNonContainerProps" class="shell-form-row--field row">
       <div class="col">
         <fieldset class="float-title bd-gray mt-0">
           <legend>_#(Sort)</legend>
@@ -112,7 +112,7 @@
         </fieldset>
       </div>
     </div>
-    <div class="form-row-float-label row">
+    <div class="shell-form-row--field row">
       <div class="col-auto">
         <div class="form-check">
           <input id="submitBox" type="checkbox" class="form-check-input"
@@ -165,7 +165,7 @@
   </fieldset>
   <fieldset *ngIf="columnMode && levels.length != 0">
     <legend>_#(Single Selection Levels)</legend>
-    <div class="form-row-float-label row">
+    <div class="shell-form-row--field row">
       <div class="col form-floating">
         <custom-select id="singleSelectionLevel"
                        [options]="levelOptions"
@@ -183,7 +183,7 @@
         </div>
       </div>
     </div>
-    <div class="form-row-float-label row">
+    <div class="shell-form-row--field row">
       <div class="col">
         <div class="bordered-box bd-gray levels_id" [class.disabled]="!model.singleSelection">
           <div [class.selected]="i === selectedLevelIndex && model.singleSelection"

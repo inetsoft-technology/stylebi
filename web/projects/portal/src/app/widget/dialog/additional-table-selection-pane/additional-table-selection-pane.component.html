@@ -36,12 +36,14 @@
     </div>
   </div>
 </div>
-<div *ngIf="isMergeable()" class="form-row-float-label row unhighlightable mt-3">
+<div *ngIf="isMergeable()" class="row shell-form-row--field unhighlightable mt-3">
   <div class="col-4">
     <div class="shell-form-group form-floating">
-      <div class="bordered-box bd-gray form-control" id="compatibleTables">
+      <div class="bordered-box form-control additional-table-selection-pane__list" id="compatibleTables">
         <div *ngFor="let _table of compatibleTables; let _i = index"
+             class="additional-table-selection-pane__list-item"
              [class.selected]="compatibleTableSelection.isSelected(_i)"
+             [attr.title]="_table"
              (mousedown)="selectCompatibleTable(_i, $event)">{{_table}}</div>
       </div>
       <label>_#(Compatible Tables)</label>
@@ -61,9 +63,11 @@
   </div>
   <div class="col-4">
     <div class="shell-form-group form-floating">
-      <div class="bordered-box bd-gray form-control" id="additionalTables">
+      <div class="bordered-box form-control additional-table-selection-pane__list" id="additionalTables">
         <div *ngFor="let _table of additionalTables; let _i = index"
+             class="additional-table-selection-pane__list-item"
              [class.selected]="additionalTableSelection.isSelected(_i)"
+             [attr.title]="_table"
              (mousedown)="selectAdditionalTable(_i, $event)">{{_table}}</div>
       </div>
       <label>_#(Additional Tables)</label>

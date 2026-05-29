@@ -366,7 +366,15 @@ $sqrt2: 1.41421356;
   --inet-table-text-color: var(--inet-text-color);
   --inet-table-border-color: var(--inet-default-border-color);
   --inet-table-heading-text-color: var(--inet-text-muted-color);
-  //--inet-table-heading-bg-color // not set by default
+  --inet-table-heading-bg-color: var(--inet-shell-surface-subtle);
+  --inet-table-hover-bg-color: var(--inet-ui-neutral-hover-bg-color);
+  --inet-table-selected-bg-color: var(--inet-shell-selected-bg-color);
+
+  // -> shell lists
+  --inet-list-bg-color: var(--inet-card-bg-color);
+  --inet-list-border-color: var(--inet-default-border-color);
+  --inet-list-hover-bg-color: var(--inet-ui-neutral-hover-bg-color);
+  --inet-list-selected-bg-color: var(--inet-shell-selected-bg-color);
 
   // -> buttons
   // --> primary

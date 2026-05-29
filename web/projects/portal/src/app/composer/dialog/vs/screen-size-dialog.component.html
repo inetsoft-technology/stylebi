@@ -21,25 +21,25 @@
 
 <div class="modal-body" [enterSubmit]="formValid" (onEnter)="saveChanges()" *ngIf="form && model">
   <form [formGroup]="form" class="container-fluid">
-    <div class="form-row-float-label row">
+    <div class="shell-form-row--field row">
       <label class="col-2 col-sm-2">_#(Label):</label>
       <div class="col-sm-10 col-10">
         <input type="text" class="form-control" formControlName="label" [(ngModel)]="model.label">
-        <div *ngIf="form.controls['label'].errors && form.controls['label'].errors['required']" class="alert alert-danger">
+        <div *ngIf="form.controls['label'].errors && form.controls['label'].errors['required']" class="shell-alert shell-alert--danger">
           <strong>_#(Error)</strong> _#(viewer.viewsheet.layout.screenEmptyLabel)
         </div>
-        <div *ngIf="duplicateLabel()" class="alert alert-danger">
+        <div *ngIf="duplicateLabel()" class="shell-alert shell-alert--danger">
           <strong>_#(Error)</strong> _#(viewer.viewsheet.layout.screenDuplicateLabel)
         </div>
       </div>
     </div>
-    <div class="form-row-float-label row">
+    <div class="shell-form-row--field row">
       <label class="col-2 col-sm-2">_#(Description):</label>
       <div class="col-sm-10 col-10">
         <textarea class="form-control" [(ngModel)]="model.description" [ngModelOptions]="{standalone: true}"></textarea>
       </div>
     </div>
-    <div class="form-row-float-label row">
+    <div class="shell-form-row--field row">
       <label class="col-sm-2 col-2">_#(Width):</label>
       <div class="col-sm-3 col-3">
         <input type="number" min="0" max="2147483647" formControlName="widthRangeStart" class="form-control" [(ngModel)]="model.minWidth">
@@ -50,19 +50,19 @@
       </div>
       <label class="col-sm-3 col-3" style="padding-top: 7px;">_#(px)</label>
       <div class="col-10 offset-2">
-        <div *ngIf="form.controls['widthRangeStart'].errors && form.controls['widthRangeStart'].errors['required']" class="alert alert-danger">
+        <div *ngIf="form.controls['widthRangeStart'].errors && form.controls['widthRangeStart'].errors['required']" class="shell-alert shell-alert--danger">
           <strong>_#(Error)</strong> _#(layout.device.screenFromWidthCheck)
         </div>
-        <div *ngIf="form.controls['widthRangeEnd'].errors && form.controls['widthRangeEnd'].errors['required']" class="alert alert-danger">
+        <div *ngIf="form.controls['widthRangeEnd'].errors && form.controls['widthRangeEnd'].errors['required']" class="shell-alert shell-alert--danger">
           <strong>_#(Error)</strong> _#(layout.device.screenToWidthCheck)
         </div>
-        <div *ngIf="form.controls['widthRangeStart'].errors && form.controls['widthRangeStart'].errors['positiveIntegerInRange']" class="alert alert-danger">
+        <div *ngIf="form.controls['widthRangeStart'].errors && form.controls['widthRangeStart'].errors['positiveIntegerInRange']" class="shell-alert shell-alert--danger">
           <strong>_#(Error)</strong> _#(viewer.viewsheet.layout.screenMinValid)
         </div>
-        <div *ngIf="form.controls['widthRangeEnd'].errors && form.controls['widthRangeEnd'].errors['positiveIntegerInRange']" class="alert alert-danger">
+        <div *ngIf="form.controls['widthRangeEnd'].errors && form.controls['widthRangeEnd'].errors['positiveIntegerInRange']" class="shell-alert shell-alert--danger">
           <strong>_#(Error)</strong> _#(viewer.viewsheet.layout.screenMaxValid)
         </div>
-        <div *ngIf="mismatch()" class="alert alert-danger">
+        <div *ngIf="mismatch()" class="shell-alert shell-alert--danger">
           <strong>_#(Error)</strong> _#(layout.device.screenWidthCheck)
         </div>
       </div>

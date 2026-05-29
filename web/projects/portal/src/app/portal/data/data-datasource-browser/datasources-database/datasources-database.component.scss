@@ -197,6 +197,15 @@
       > tbody tr {
         display: table;
         width: 100%;
+        transition: background-color 120ms ease, color 120ms ease;
+      }
+
+      > tbody tr:hover:not(.selected) > td {
+        background: var(--inet-table-hover-bg-color);
+      }
+
+      > tbody tr.selected > td {
+        background: var(--inet-table-selected-bg-color);
       }
 
       .pool-property-container {
@@ -213,15 +222,6 @@
         th {
           border-left: 0;
           border-right: 0;
-        }
-      }
-
-      > tbody .pool-property-row {
-        cursor: default;
-        transition: background-color 120ms ease;
-
-        &:hover {
-          background: var(--inet-ui-neutral-hover-bg-color);
         }
       }
     }
@@ -309,6 +309,40 @@
   padding: 6px;
 }
 
+.additional-datasource__list {
+  background: var(--inet-list-bg-color);
+  border-color: var(--inet-list-border-color);
+  padding: 0;
+  overflow: auto;
+}
+
+.additional-datasource__list-item {
+  align-items: center;
+  display: flex;
+  min-height: var(--inet-control-height-md);
+  padding: 0 var(--inet-space-3);
+  transition: background-color 120ms ease, color 120ms ease;
+
+  + .additional-datasource__list-item {
+    border-top: 1px solid var(--inet-list-border-color);
+  }
+
+  &.selected {
+    background-color: var(--inet-list-selected-bg-color);
+  }
+
+  &:hover {
+    background-color: var(--inet-list-hover-bg-color);
+  }
+}
+
+.additional-datasource__list-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  width: 100%;
+}
+
 .editor-option-row {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
@@ -322,14 +356,6 @@
 
 .editor-option-row__input {
   min-width: 0;
-}
-
-.alert.alert-info {
-  margin-top: 8px;
-  margin-bottom: 0;
-  border: 1px solid var(--inet-default-border-color);
-  background: var(--inet-shell-surface-subtle);
-  color: var(--inet-text-muted-color);
 }
 
 .bottom-button-container {
@@ -375,11 +401,6 @@
   font-weight: 600;
   border-top: 0;
   border-bottom: 1px solid var(--inet-default-border-color);
-}
-
-.pool-property-content .table tbody tr.selected,
-.bordered-box .selected {
-  background: var(--inet-shell-selected-bg-color);
 }
 
 @media (max-width: 900px) {

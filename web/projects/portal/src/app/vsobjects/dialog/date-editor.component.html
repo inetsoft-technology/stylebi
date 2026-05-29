@@ -16,7 +16,7 @@
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
 <form [formGroup]="form" class="container-fluid">
-  <div class="row form-row-float-label">
+  <div class="row shell-form-row--field">
     <div class="col form-floating">
         <input class="form-control" (ngModelChange)="updateMinDate($event)"
                placeholder="yyyy-mm-dd" formControlName="min" [ngModel]="minDate"
@@ -25,7 +25,7 @@
         <label>_#(Minimum)</label>
     </div>
   </div>
-  <div class="row form-row-float-label">
+  <div class="row shell-form-row--field">
     <div class="col form-floating">
         <input class="form-control" (ngModelChange)="updateMaxDate($event)"
                formControlName="max" placeholder="yyyy-mm-dd" d [ngModel]="maxDate"
@@ -34,7 +34,7 @@
         <label>_#(Maximum)</label>
     </div>
   </div>
-  <div class="row form-row-float-label">
+  <div class="row shell-form-row--field">
     <div class="col form-floating">
         <textarea class="form-control" [(ngModel)]="_model.errorMessage"
                   (ngModelChange)="onUpdate.emit(_model)"
@@ -42,7 +42,7 @@
         <label>_#(Error Message)</label>
     </div>
   </div>
-  <div *ngIf="form.hasError('dateGreaterThan')" class="alert alert-danger">
+  <div *ngIf="form.hasError('dateGreaterThan')" class="shell-alert shell-alert--danger">
     _#(viewer.formEditor.minMaxValid)
   </div>
 </form>

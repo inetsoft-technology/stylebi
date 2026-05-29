@@ -31,6 +31,11 @@
   width: 100%;
 }
 
+.graph-toolbar--surface {
+  border-bottom: 1px solid var(--inet-list-border-color);
+  background: var(--inet-table-heading-bg-color);
+}
+
 .graph-content-container {
   position: absolute;
   overflow: auto;

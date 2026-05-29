@@ -21,7 +21,7 @@
 </modal-header>
 <div class="modal-body" [enterSubmit]="enterSubmit" (onEnter)="ok()" *ngIf="model && form">
   <form [formGroup]="form">
-    <div class="form-row-float-label row">
+    <div class="add-parameter-dialog__row row">
       <div class="col">
         <div class="form-floating">
           <div class="input-group">
@@ -47,7 +47,7 @@
         </div>
       </div>
     </div>
-    <div class="form-row-float-label row">
+    <div class="add-parameter-dialog__row row">
       <div class="col">
         <div class="form-floating">
           <custom-select [options]="typeSelectOptions" formControlName="type"></custom-select>
@@ -63,7 +63,7 @@
         </div>
       </div>
     </div>
-    <div *ngIf="isSupportDynamic() && !model.array" class="form-row-float-label row">
+    <div *ngIf="isSupportDynamic() && !model.array" class="add-parameter-dialog__row row">
       <div class="col" *ngIf="!model.array">
         <div class="form-floating">
           <dynamic-value-editor *ngIf="!model.array"
@@ -76,12 +76,12 @@
           </dynamic-value-editor>
           <label>_#(Value)</label>
         </div>
-        <div *ngIf="!verifyDynamicValue()" class="alert alert-danger mb-0">
+        <div *ngIf="!verifyDynamicValue()" class="shell-alert shell-alert--danger mb-0">
           {{getErrorMessage()}}
         </div>
       </div>
     </div>
-    <div *ngIf="!isSupportDynamic() && !model.array" class="form-row-float-label row">
+    <div *ngIf="!isSupportDynamic() && !model.array" class="add-parameter-dialog__option-row row">
       <ng-container *ngIf="model.type == XSchema.BOOLEAN && !model.array">
         <div class="col-auto">
           <label class="form-check-label">_#(Value):</label>
@@ -123,12 +123,12 @@
       </div>
 
     </div>
-   <div class="form-row-float-label row">
+   <div class="add-parameter-dialog__row row">
      <div class="col" *ngIf="model.array">
        <div class="form-floating">
          <input type="text" class="form-control" formControlName="value" [(ngModel)]="model.value.value">
          <label>_#(Value)</label>
-         <div *ngIf="!verifyDynamicValue()" class="alert alert-danger mb-0">
+         <div *ngIf="!verifyDynamicValue()" class="shell-alert shell-alert--danger mb-0">
            {{getErrorMessage()}}
          </div>
        </div>

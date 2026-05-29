@@ -22,7 +22,7 @@
       <i class="submit-icon icon-size-small" aria-hidden="true"></i>
     </button>
   </div>
-  <div class="row form-row-float-label">
+  <div class="row shell-form-row--field">
     <div class="col form-floating">
       <custom-select [options]="sortOptions"
                      [(ngModel)]="order.type"
@@ -46,7 +46,7 @@
         </span>
     </div>
   </div>
-  <div class="row form-row-float-label">
+  <div class="row shell-form-row--field">
     <div class="col-4 pe-0">
       <div class="form-floating ranking_label_id">
         <custom-select [options]="rankingOptions"
@@ -75,7 +75,7 @@
       </div>
     </div>
   </div>
-  <div class="row form-row-float-label" *ngIf="topN.type != 0">
+  <div class="row shell-form-row--field" *ngIf="topN.type != 0">
     <div class="col group_other_id">
       <div class="form-check">
         <input type="checkbox" id="groupOthers" class="form-check-input"
@@ -87,7 +87,7 @@
       </div>
     </div>
   </div>
-  <div class="row form-row-float-label">
+  <div class="row shell-form-row--field">
     <div class="col">
       <div class="form-floating namedGroup_label_id">
         <custom-select [options]="namedGroupOptions"
@@ -104,7 +104,7 @@
               [disabled]="isDisabledNamedGroup()">_#(Edit)</button>
     </div>
   </div>
-  <div class="row form-row-float-label" *ngIf="isDateType()">
+  <div class="row shell-form-row--field" *ngIf="isDateType()">
     <div class="col-6">
       <div class="form-floating level_label_id">
         <dynamic-combo-box [valueOnly]="true"
@@ -133,10 +133,10 @@
     </div>
   </div>
   <div *ngIf="isDateType() && !(isDateIntervalDisabled() || cellBinding.timeSeries)
-        && order.interval <= 0" class="alert alert-danger">
+        && order.interval <= 0" class="shell-alert shell-alert--danger">
     _#(viewer.dialog.calcTableAdvance.periodsPositiveNumber)
   </div>
-  <div class="alert alert-danger" *ngIf="!isValidN()">
+  <div class="shell-alert shell-alert--danger" *ngIf="!isValidN()">
     _#(common.widget.SortOption.enterPositiveTop)
   </div>
 </div>

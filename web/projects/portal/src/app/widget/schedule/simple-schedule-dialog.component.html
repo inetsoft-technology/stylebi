@@ -23,7 +23,7 @@
   <form (submit)="$event.preventDefault()" class="container-fluid" [formGroup]="form">
     <fieldset>
       <legend id="format-label">_#(Format)</legend>
-      <div class="form-row-float-label row">
+      <div class="row shell-form-row--field">
         <div class="col">
           <custom-select [options]="formatSelectOptions"
                          ariaLabelledby="format-label"
@@ -33,7 +33,7 @@
           </custom-select>
         </div>
       </div>
-      <div class="row form-row-float-label"
+      <div class="row shell-form-row--field"
            *ngIf="isReport && model.actionModel.emailInfoModel.formatStr == 'CSV' ||
            !isReport && model.actionModel.emailInfoModel.formatType == FileFormatType.EXPORT_TYPE_CSV">
          <div class="col">
@@ -43,7 +43,7 @@
             </csv-config-pane>
          </div>
       </div>
-      <div class="form-row-float-label row"
+      <div class="row shell-form-row--field"
            *ngIf="dataSizeOptionVisible">
         <div class="col">
           <div class="form-check">
@@ -66,7 +66,7 @@
           </div>
         </div>
       </div>
-      <div class="form-row-float-label row" *ngIf="dataSizeOptionVisible">
+      <div class="row shell-form-row--field" *ngIf="dataSizeOptionVisible">
         <div class="col">
           <div class="form-check">
             <input type="checkbox" class="form-check-input"
@@ -92,7 +92,7 @@
           </div>
         </div>
       </div>
-      <div class="form-row-float-label row" *ngIf="dataSizeOptionVisible">
+      <div class="row shell-form-row--field" *ngIf="dataSizeOptionVisible">
         <div class="col" *ngIf="this.model.actionModel.emailInfoModel.formatType == FileFormatType.EXPORT_TYPE_EXCEL">
           <div class="form-check">
             <input type="checkbox" name="exportAllTabbedTables" class="form-check-input"
@@ -110,7 +110,7 @@
     <div *ngIf="model.emailDeliveryEnabled">
       <fieldset>
       <legend id="email-label">_#(Emails)</legend>
-      <div class="form-row-float-label row">
+      <div class="row shell-form-row--field">
         <div class="col form-floating" [class.pr-0]="!isReport && securityEnabled || isReport && model.isSecurity">
             <input type="email" class="form-control" aria-labelledby="email-label" formControlName="emails"
                    [value]="model.actionModel.emailInfoModel.emails"
@@ -132,7 +132,7 @@
         </div>
       </div>
       <legend id="cc-email-label">_#(CC)</legend>
-      <div class="form-row-float-label row">
+      <div class="row shell-form-row--field">
         <div class="col form-floating" [class.pr-0]="!isReport && securityEnabled || isReport && model.isSecurity">
             <input type="email" class="form-control" aria-labelledby="email-label"
                    formControlName="cc"
@@ -151,7 +151,7 @@
         </div>
       </div>
       <legend id="bcc-email-label">_#(BCC)</legend>
-      <div class="form-row-float-label row">
+      <div class="row shell-form-row--field">
         <div class="col form-floating" [class.pr-0]="!isReport && securityEnabled || isReport && model.isSecurity">
             <input type="email" class="form-control" aria-labelledby="email-label"
                    formControlName="bcc"
@@ -173,7 +173,7 @@
     </div>
 
     <fieldset>
-      <div class="form-row-float-label row">
+      <div class="row shell-form-row--field">
       <div class="col">
         <div class="form-check">
           <input type="radio" name="emailFreq" class="form-check-input" id="daily"
@@ -219,7 +219,7 @@
         (modelChange)="changeStartTimeModel($event)"
       >
         <ng-container>
-          <div class="form-row-float-label row" *ngIf="model?.startTimeEnabled">
+          <div class="row shell-form-row--field" *ngIf="model?.startTimeEnabled">
             <div class="col form-floating">
               <custom-select [options]="timeZoneSelectOptions"
                              formControlName="timeZone"
@@ -231,7 +231,7 @@
         </ng-container>
       </w-start-time-editor>
 
-      <div class="form-row-float-label row"
+      <div class="row shell-form-row--field"
            *ngIf="model.timeConditionModel.type == TimeConditionType.EVERY_DAY">
         <div class="col">
           <label class="form-check-label">
@@ -250,7 +250,7 @@
       </div>
 
       <ng-container *ngIf="model.timeConditionModel.type == TimeConditionType.EVERY_WEEK">
-        <div class="form-row-float-label row">
+        <div class="row shell-form-row--field">
           <div class="col-3">
             <label class="form-check-label">
               <input type="checkbox" class="form-check-input" (click)="selectDayOfWeek(1)"
@@ -276,7 +276,7 @@
             </label>
           </div>
         </div>
-        <div class="form-row-float-label row">
+        <div class="row shell-form-row--field">
           <div class="col-3">
             <label class="form-check-label">
               <input type="checkbox" class="form-check-input" (click)="selectDayOfWeek(5)"
@@ -296,7 +296,7 @@
             </label>
           </div>
         </div>
-        <div class="form-row-float-label row">
+        <div class="row shell-form-row--field">
           <div class="col-auto">
             <button class="col btn btn-default"
                     *ngIf="model.timeConditionModel.daysOfWeek.length < 7"
@@ -309,7 +309,7 @@
       </ng-container>
 
       <ng-container *ngIf="model.timeConditionModel.type == TimeConditionType.EVERY_MONTH">
-        <div class="form-row-float-label row">
+        <div class="row shell-form-row--field">
           <div class="col-auto">
             <input class="form-check-input" type="radio" name="monthlyRadio" [value]="true"
                    [ngModelOptions]="{standalone: true}"
@@ -327,7 +327,7 @@
             </div>
           </div>
         </div>
-        <div class="form-row-float-label row">
+        <div class="row shell-form-row--field">
           <div class="col-auto">
             <input class="form-check-input" type="radio" name="monthlyRadio" [value]="false"
                    [ngModelOptions]="{standalone: true}"

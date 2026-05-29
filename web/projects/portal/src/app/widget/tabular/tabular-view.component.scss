@@ -40,6 +40,9 @@
   }
 
   &.list-group-item {
+    border-color: var(--inet-list-border-color);
+    border-radius: var(--inet-radius-md);
+    background-color: var(--inet-list-bg-color);
     padding-bottom: 0;
     margin-bottom: 0.5em;
   }

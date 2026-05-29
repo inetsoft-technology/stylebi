@@ -15,11 +15,11 @@
   ~ You should have received a copy of the GNU Affero General Public License
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
-<div class="list-height-pillar" [style.height.px]="listContainerHeight"
+<div class="list-height-pillar condition-field-combo-list__surface" [style.height.px]="listContainerHeight"
      [style.min-width.px]="minWidth">
   <div class="list-container" [style.top.px]="getVisibleListTop()">
     <div *ngFor="let _i of visibleIndexRange">
-      <div class="condition-field-combo-list-item hover-bg-primary-selectable" (click)="selectField(listModel[_i])"
+      <div class="condition-field-combo-list-item" (click)="selectField(listModel[_i])"
            [class.grayed-out-field]="isGrayedOut(listModel[_i])"
            [class.selected]="isSelectedField(listModel[_i])"
            [title]="getTooltip(listModel[_i])">

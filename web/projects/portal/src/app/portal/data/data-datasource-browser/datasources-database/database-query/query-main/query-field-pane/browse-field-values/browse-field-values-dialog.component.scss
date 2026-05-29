@@ -15,11 +15,39 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-.bordered-box {
+.browse-field-values-list {
   height: 15em;
 }
 
 .browser-field-values-title {
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.browse-field-values-list {
+  background-color: var(--inet-list-bg-color);
+  border-color: var(--inet-list-border-color);
+  border-width: 1px;
+  border-style: solid;
+  border-radius: var(--inet-radius-md);
+  overflow-y: auto;
+  padding: var(--inet-space-1);
+}
+
+.browse-field-values-list__item {
+  min-height: calc(var(--inet-control-height-sm) + var(--inet-space-1));
+  padding: var(--inet-space-3) var(--inet-space-4);
+  border-radius: var(--inet-radius-sm);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: background-color 120ms ease, color 120ms ease;
+
+  &:not(.selected):hover {
+    background-color: var(--inet-list-hover-bg-color);
+  }
+
+  &.selected {
+    background-color: var(--inet-list-selected-bg-color);
+  }
 }

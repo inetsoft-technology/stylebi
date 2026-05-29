@@ -29,42 +29,44 @@
           _#(Disable All)
         </button>
       </div>
-      <table resizableTable class="table table-sm table-bordered" [style.max-height.px]="380">
-        <thead>
-        <tr>
-          <th>
-            _#(Dashboard)
-          </th>
-          <th>
-            _#(Enable)
-          </th>
-          <th>
-            _#(Arrange Order)
-          </th>
-        </tr>
-        </thead>
-        <tbody>
-        <tr *ngFor="let dashboard of model.dashboards; let i = index; trackBy: trackDashboard">
-          <td class="align-middle">
-            {{dashboard.label}}
-          </td>
-          <td class="align-middle">
-            <input type="checkbox" class="form-check-input" [(ngModel)]="dashboard.enabled"
-                   (change)="enabledChanged(i)"/>
-          </td>
-          <td>
-            <button type="button" class="btn btn-light-no-bg icon-hover-bg" (click)="moveDashboard(i, i - 1)"
-                    [disabled]="!canMoveUp(i)">
-              <i class="upward-icon" aria-hidden="true"></i>
-            </button>
-            <button type="button" class="btn btn-light-no-bg icon-hover-bg" (click)="moveDashboard(i, i + 1)"
-                    [disabled]="!canMoveDown(i)">
-              <i class="downward-icon" aria-hidden="true"></i>
-            </button>
-          </td>
-        </tr>
-        </tbody>
-      </table>
+      <div class="arrange-dashboard-table-shell">
+        <table resizableTable class="table table-hover table-sm table-bordered" [style.max-height.px]="380">
+          <thead>
+          <tr>
+            <th>
+              _#(Dashboard)
+            </th>
+            <th>
+              _#(Enable)
+            </th>
+            <th>
+              _#(Arrange Order)
+            </th>
+          </tr>
+          </thead>
+          <tbody>
+          <tr *ngFor="let dashboard of model.dashboards; let i = index; trackBy: trackDashboard">
+            <td class="align-middle">
+              {{dashboard.label}}
+            </td>
+            <td class="align-middle">
+              <input type="checkbox" class="form-check-input" [(ngModel)]="dashboard.enabled"
+                     (change)="enabledChanged(i)"/>
+            </td>
+            <td>
+              <button type="button" class="btn btn-light-no-bg icon-hover-bg" (click)="moveDashboard(i, i - 1)"
+                      [disabled]="!canMoveUp(i)">
+                <i class="upward-icon" aria-hidden="true"></i>
+              </button>
+              <button type="button" class="btn btn-light-no-bg icon-hover-bg" (click)="moveDashboard(i, i + 1)"
+                      [disabled]="!canMoveDown(i)">
+                <i class="downward-icon" aria-hidden="true"></i>
+              </button>
+            </td>
+          </tr>
+          </tbody>
+        </table>
+      </div>
     </div>
   </ng-template>
   <ng-template wDialogButtons>

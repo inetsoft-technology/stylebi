@@ -18,7 +18,7 @@
 <form [formGroup]="form" class="container-fluid">
   <fieldset>
     <legend>_#(Padding)</legend>
-    <div class="row form-row-float-label">
+    <div class="row shell-form-row--field">
       <div class="col">
         <div class="form-floating">
           <number-stepper formControlName="top" [min]="0"
@@ -57,7 +57,7 @@
       </div>
     </div>
   </fieldset>
-  <div class="alert alert-danger" *ngIf="form.controls['top'].errors || form.controls['left'].errors || form.controls['bottom'].errors || form.controls['right'].errors">
+  <div class="shell-alert shell-alert--danger" *ngIf="form.controls['top'].errors || form.controls['left'].errors || form.controls['bottom'].errors || form.controls['right'].errors">
     _#(viewer.viewsheet.layout.paddingValid)
   </div>
 </form>

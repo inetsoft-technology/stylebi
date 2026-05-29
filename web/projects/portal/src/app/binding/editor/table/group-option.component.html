@@ -27,7 +27,7 @@
                [grayedOutValues]="grayedOutValues" [timeSeries]="isTimeSeries()"
                [isOtherSupported]="!isOuterDimRef" [source]="source" (dialogOpen)="dialogOpen.emit($event)">
   </sort-option>
-  <div class="row form-row-float-label" *ngIf="isDateType()">
+  <div class="row shell-form-row--field" *ngIf="isDateType()">
     <div class="col">
         <div class="form-floating dateLevel_id">
           <dynamic-combo-box [values]="dateLevelOpts" [value]="field.dateLevel"
@@ -48,7 +48,7 @@
       </div>
     </div>
   </div>
-  <div *ngIf="isTable() || !isLast()" class="row form-row-float-label">
+  <div *ngIf="isTable() || !isLast()" class="row shell-form-row--field">
     <div class="col summarize_id">
       <div class="form-floating">
           <dynamic-combo-box [values]="summs" [value]="summarize"

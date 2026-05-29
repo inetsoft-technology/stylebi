@@ -17,7 +17,7 @@
   -->
 <div *ngIf="!listView && !!form" class="task-action-pane">
   <form [formGroup]="form" class="task-action-pane__form">
-    <div class="form-row-float-label row task-action-pane__selector-row">
+    <div class="row task-action-pane__selector-row">
       <div class="col-8 form-floating task-action-pane__selector-col">
           <div class="input-group input-with-actions scheduler-form"
                *ngIf="action.actionType == 'ViewsheetAction' && model.viewsheetEnabled">

@@ -18,7 +18,7 @@
 <div [formGroup]="form">
    <fieldset>
       <legend>_#(Plot)</legend>
-      <div class="form-row-float-label row">
+      <div class="shell-form-row--field row">
          <div class="col">
             <color-dropdown [(color)]="model.backgroundColor" label="_#(Background)"
                             [enabled]="model.backgroundEnabled"
@@ -45,13 +45,13 @@
             </div>
          </div>
       </div>
-      <div *ngIf="alphaInvalid" class="alert alert-danger">
+      <div *ngIf="alphaInvalid" class="shell-alert shell-alert--danger">
          _#(viewer.flash.format.invalidTransparencyError)
       </div>
    </fieldset>
    <fieldset *ngIf="(model.bandingXVisible || model.bandingYVisible) && model.lineTabVisible">
       <legend>_#(Banding)</legend>
-      <div class="form-row-float-label row">
+      <div class="shell-form-row--field row">
          <div *ngIf="model.bandingXVisible" class="banding-container col">
             <div class="d-flex flex-column">
                <label class="form-label">_#(X)</label>
@@ -87,17 +87,17 @@
             </div>
          </div>
       </div>
-      <div *ngIf="form.controls['bandingXSize']?.errors" class="alert alert-danger error">
+      <div *ngIf="form.controls['bandingXSize']?.errors" class="shell-alert shell-alert--danger error">
          _#(viewer.viewsheet.chart.bandingSize.notzeroWarning)
       </div>
-      <div *ngIf="form.controls['bandingYSize']?.errors" class="alert alert-danger error">
+      <div *ngIf="form.controls['bandingYSize']?.errors" class="shell-alert shell-alert--danger error">
          _#(viewer.viewsheet.chart.bandingSize.notzeroWarning)
       </div>
    </fieldset>
 
    <fieldset *ngIf="model.showValuesVisible || model.stackValuesVisible || model.explodedPieVisible || model.showReferenceLineVisible || model.keepElementInPlotVisible || model.polygonColorVisible || model.showPointsVisible || model.applyAestheticsToSourceVisible || model.barCornerRadiusVisible || model.nodeCornerRadiusVisible">
       <legend>_#(Plot Options)</legend>
-      <div class="form-row-float-label row">
+      <div class="shell-form-row--field row">
          <div class="checkbox col-auto" *ngIf="model.showValuesVisible">
             <div class="form-check">
                <input type="checkbox" class="form-check-input" [(ngModel)]="model.showValues"
@@ -245,7 +245,7 @@
            <label><span>_#(Font Scale)</span></label>
          </div>
       </div>
-      <div class="form-row-float-label row" *ngIf="model.barCornerRadiusVisible">
+      <div class="shell-form-row--field row" *ngIf="model.barCornerRadiusVisible">
          <div class="col-auto form-floating">
            <number-stepper formControlName="barCornerRadius" [min]="0" [max]="0.5" [step]="0.05"
                            (valueChange)="model.barCornerRadius = $event"
@@ -264,7 +264,7 @@
             </div>
          </div>
       </div>
-      <div class="form-row-float-label row" *ngIf="model.nodeCornerRadiusVisible">
+      <div class="shell-form-row--field row" *ngIf="model.nodeCornerRadiusVisible">
          <div class="col-auto form-floating">
            <number-stepper formControlName="nodeCornerRadius" [min]="0" [max]="0.5" [step]="0.05"
                            (valueChange)="model.nodeCornerRadius = $event"
@@ -274,21 +274,21 @@
          </div>
       </div>
    </fieldset>
-   <div *ngIf="form.controls['barCornerRadius']?.errors && model.barCornerRadius != null" class="alert alert-danger error">
+   <div *ngIf="form.controls['barCornerRadius']?.errors && model.barCornerRadius != null" class="shell-alert shell-alert--danger error">
      _#(viewer.viewsheet.chart.barCornerRadius.rangeWarning)
    </div>
-   <div *ngIf="form.controls['nodeCornerRadius']?.errors && model.nodeCornerRadius != null" class="alert alert-danger error">
+   <div *ngIf="form.controls['nodeCornerRadius']?.errors && model.nodeCornerRadius != null" class="shell-alert shell-alert--danger error">
      _#(viewer.viewsheet.chart.nodeCornerRadius.rangeWarning)
    </div>
-   <div *ngIf="form.controls['pieRatio']?.errors && model.pieRatio != null" class="alert alert-danger error">
+   <div *ngIf="form.controls['pieRatio']?.errors && model.pieRatio != null" class="shell-alert shell-alert--danger error">
      _#(viewer.viewsheet.chart.pieRatio.rangeWarning)
    </div>
-   <div *ngIf="form.controls['fontScale']?.errors" class="alert alert-danger error">
+   <div *ngIf="form.controls['fontScale']?.errors" class="shell-alert shell-alert--danger error">
      _#(viewer.viewsheet.chart.fontScale.rangeWarning)
    </div>
    <fieldset *ngIf="model.contourEnabled">
       <legend>_#(Density Contour)</legend>
-      <div class="form-row-float-label row">
+      <div class="shell-form-row--field row">
          <div class="col-3 form-floating">
            <number-stepper formControlName="contourLevels" [min]="1"
                            (valueChange)="model.contourLevels = $event"
@@ -318,22 +318,22 @@
            <label><span>_#(Cell Size)</span></label>
          </div>
       </div>
-      <div *ngIf="form.controls['contourLevels']?.errors" class="alert alert-danger error">
+      <div *ngIf="form.controls['contourLevels']?.errors" class="shell-alert shell-alert--danger error">
          _#(viewer.viewsheet.chart.densityContour.contourLevels.notzeroWarning)
       </div>
-      <div *ngIf="form.controls['contourBandwidth']?.errors" class="alert alert-danger error">
+      <div *ngIf="form.controls['contourBandwidth']?.errors" class="shell-alert shell-alert--danger error">
          _#(viewer.viewsheet.chart.densityContour.contourBandwidth.notzeroWarning)
       </div>
-      <div *ngIf="contourEdgeAlphaInvalid" class="alert alert-danger error">
+      <div *ngIf="contourEdgeAlphaInvalid" class="shell-alert shell-alert--danger error">
          _#(viewer.viewsheet.chart.densityContour.contourEdgeAlpha.shouldInRangeWarning)
       </div>
-      <div *ngIf="form.controls['contourCellSize']?.errors" class="alert alert-danger error">
+      <div *ngIf="form.controls['contourCellSize']?.errors" class="shell-alert shell-alert--danger error">
          _#(viewer.viewsheet.chart.densityContour.contourCellSize.notzeroWarning)
       </div>
    </fieldset>
    <fieldset *ngIf="model.fillTimeVisible">
       <legend>Time-Series</legend>
-      <div class="form-row-float-label row">
+      <div class="shell-form-row--field row">
          <div class="checkbox col-auto">
             <div class="form-check">
                <input type="checkbox" class="form-check-input" id="fillTime"
@@ -369,7 +369,7 @@
    </fieldset>
    <fieldset *ngIf="model.webMapVisible">
       <legend>Web Map</legend>
-      <div class="form-row-float-label row">
+      <div class="shell-form-row--field row">
          <div class="checkbox col-auto">
             <div class="form-check">
                <input type="checkbox" class="form-check-input" id="webMap"

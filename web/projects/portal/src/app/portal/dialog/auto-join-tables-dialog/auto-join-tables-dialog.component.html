@@ -59,7 +59,7 @@
       </div>
       <div class="auto-join-dialog__columns-field">
         <div class="auto-join-dialog__section-label">_#(Available Columns)</div>
-        <div class="bordered-box bd-gray auto-join-dialog__columns-list">
+        <div class="bordered-box auto-join-dialog__columns-list auto-join-dialog__columns-surface">
           <label class="auto-join-dialog__column" *ngFor="let column of availableColumns">
             <input class="form-check-input auto-join-dialog__column-input" type="checkbox" [(ngModel)]="column.selected">
             <span class="auto-join-dialog__column-label">{{column.label}}</span>

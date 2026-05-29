@@ -16,7 +16,8 @@
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
 <div *ngIf="_value" class="table-container">
-  <table class="table table-bordered table-sm row-header-table" [style.height.px]="getElementHeight(dataTable)">
+  <table class="table table-bordered table-sm row-header-table column-definition-table column-definition-table--labels"
+         [style.height.px]="getElementHeight(dataTable)">
     <tr [style.height.px]="getElementHeight(columnRow)">
       <th>_#(Column)</th>
     </tr>
@@ -34,7 +35,7 @@
     </tr>
   </table>
   <div class="data-table-container">
-    <table #dataTable class="table table-bordered table-sm data-table">
+    <table #dataTable class="table table-bordered table-sm data-table column-definition-table">
       <colgroup>
         <col *ngFor="let _width of columnWidths" [style.width.px]="_width">
       </colgroup>
@@ -91,10 +92,10 @@
 
 </div>
 <div *ngIf="required && _value == null">
-  <div class="alert alert-danger">_#(column.def.empty)</div>
+  <div class="shell-alert shell-alert--danger">_#(column.def.empty)</div>
 </div>
 <div *ngIf="_value != null && duplicateAlias != null">
-  <div class="alert alert-danger" [wExpandString]="[duplicateAlias]">
+  <div class="shell-alert shell-alert--danger" [wExpandString]="[duplicateAlias]">
     _#(tabular.validation.alias.duplicate)
   </div>
 </div>

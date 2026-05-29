@@ -21,7 +21,8 @@ import { VSDimensionMemberModel } from "../../model/vs-dimension-member-model";
 
 @Component({
    selector: "hierarchy-content-pane",
-   templateUrl: "hierarchy-content-pane.component.html"
+   templateUrl: "hierarchy-content-pane.component.html",
+   styleUrls: ["hierarchy-content-pane.component.scss"]
 })
 export class HierarchyContentPane {
    @Input() model: HierarchyContentPaneModel;

@@ -33,7 +33,7 @@
                        [(ngModel)]="model.field"
                        (selectionChange)="fieldChanged($event)">
         </custom-select>
-        <div *ngIf="form.controls['field'].errors && form.controls['field'].errors['required']" class="alert alert-danger">_#(field.required)</div>
+        <div *ngIf="form.controls['field'].errors && form.controls['field'].errors['required']" class="shell-alert shell-alert--danger">_#(field.required)</div>
       </div>
     </div>
     <div class="row shell-form-row shell-form-group new-aggr-dialog__row">
@@ -64,7 +64,7 @@
         <input id="np" type="text" class="form-control" [ngModelOptions]="{standalone:true}" [disabled]="!hasN()" [(ngModel)]="nStr">
       </div>
     </div>
-    <div *ngIf="hasN() && !isNValid()" class="alert alert-danger">
+    <div *ngIf="hasN() && !isNValid()" class="shell-alert shell-alert--danger">
       _#(table.formula.parameterError)
     </div>
   </form>

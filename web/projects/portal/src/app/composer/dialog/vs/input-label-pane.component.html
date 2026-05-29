@@ -19,7 +19,7 @@
 <form ngNoForm (submit)="$event.preventDefault()" class="container-fluid">
   <fieldset>
     <legend>_#(Label)</legend>
-    <div class="form-row-float-label row">
+    <div class="shell-form-row--field row">
       <div class="checkbox col-auto">
         <div class="form-check">
           <input type="checkbox" class="form-check-input"
@@ -31,7 +31,7 @@
         </div>
       </div>
     </div>
-    <div class="form-row-float-label row" *ngIf="model.showLabel">
+    <div class="shell-form-row--field row" *ngIf="model.showLabel">
       <div class="col form-floating">
         <dynamic-combo-box [editable]="true"
                            [variables]="variableValues"
@@ -42,7 +42,7 @@
         <label><span>_#(Label Text)</span></label>
       </div>
     </div>
-    <div class="form-row-float-label row input-label-pane__control-row" *ngIf="model.showLabel">
+    <div class="shell-form-row--field row input-label-pane__control-row" *ngIf="model.showLabel">
       <div class="col-6 form-floating mb-2">
         <custom-select [options]="positionOptions"
                        [(ngModel)]="model.labelPosition"
@@ -58,7 +58,7 @@
         </number-stepper>
       </div>
         <div class="col">
-          <div class="alert alert-danger" *ngIf="gap.invalid && gap.touched">
+          <div class="shell-alert shell-alert--danger" *ngIf="gap.invalid && gap.touched">
             _#(Gap must be a number between 0 and 1000)
           </div>
         </div>

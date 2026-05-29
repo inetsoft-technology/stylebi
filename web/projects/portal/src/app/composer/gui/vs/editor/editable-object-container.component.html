@@ -87,7 +87,7 @@
      (click)="showSlideout()"></i>
 
   <ng-container *ngIf="!isPreventDrag() && dragInteractionEnabled">
-    <div class="handle move bd-gray" [class.move-only]="true"
+    <div class="handle move composer-object__move-handle" [class.move-only]="true"
          [style.top.px]="vsObject.objectFormat.top < 16 ? vsObject.objectFormat.height : -16"
          [style.left.px]="vsObject.objectFormat.left < 16 ? vsObject.objectFormat.width : -16"
          *ngIf="!selectionChildModel">

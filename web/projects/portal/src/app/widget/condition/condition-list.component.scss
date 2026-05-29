@@ -15,3 +15,33 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+.condition-list__surface {
+  background-color: var(--inet-list-bg-color);
+  border-color: var(--inet-list-border-color);
+  padding: 0;
+  border-radius: var(--inet-radius-md);
+  overflow: auto;
+}
+
+.condition-list__item {
+  align-items: center;
+  display: flex;
+  min-height: var(--inet-control-height-md);
+  padding: 0 var(--inet-space-3);
+  transition: background-color 120ms ease, color 120ms ease;
+
+  &:not(.selected):hover {
+    background-color: var(--inet-list-hover-bg-color);
+  }
+
+  &.selected {
+    background-color: var(--inet-list-selected-bg-color);
+  }
+}
+
+.condition-list__text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

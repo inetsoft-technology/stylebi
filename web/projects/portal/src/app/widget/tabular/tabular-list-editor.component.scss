@@ -19,10 +19,32 @@
   .list-group {
     max-height: 30vh;
     overflow: auto;
-    padding: 0.25rem;
+    padding: var(--inet-space-1);
   }
 
   .query-parameter-checkbox {
     margin-bottom: 38px; // to center the checkbox with the inputs
+  }
+}
+
+.tabular-list-editor__list {
+  background-color: var(--inet-list-bg-color);
+  border: 1px solid var(--inet-list-border-color);
+  border-radius: var(--inet-radius-md);
+}
+
+.tabular-list-editor__row {
+  border-radius: var(--inet-radius-sm);
+  min-height: var(--inet-control-height-md);
+  padding: 0 var(--inet-space-2);
+  background-color: var(--inet-list-bg-color);
+  transition: background-color 120ms ease, color 120ms ease;
+
+  + .tabular-list-editor__row {
+    margin-top: 2px !important;
+  }
+
+  &:hover {
+    background-color: var(--inet-list-hover-bg-color);
   }
 }

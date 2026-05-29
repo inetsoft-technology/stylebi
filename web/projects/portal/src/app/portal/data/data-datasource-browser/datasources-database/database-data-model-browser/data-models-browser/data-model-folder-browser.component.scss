@@ -31,7 +31,7 @@ nav {
   min-height: 32px;
   padding-bottom: var(--inet-space-3);
   margin-bottom: var(--inet-space-3) !important;
-  border-bottom: 1px solid var(--inet-default-border-color);
+  border-bottom: 1px solid var(--inet-list-border-color);
 }
 
 .data-model-folder-browser__list {
@@ -41,6 +41,10 @@ nav {
   gap: 6px;
   min-height: 0;
   overflow-y: auto;
+  padding: var(--inet-space-2);
+  border: 1px solid var(--inet-list-border-color);
+  border-radius: var(--inet-radius-md);
+  background: var(--inet-list-bg-color);
 }
 
 .data-model-folder-browser__item {
@@ -49,23 +53,23 @@ nav {
   justify-content: space-between;
   gap: 12px;
   padding: 10px 12px;
-  border: 1px solid var(--inet-default-border-color);
-  border-radius: var(--inet-radius-md, 10px);
-  background: var(--inet-cell-bg-color, #fffdfa);
-  color: var(--inet-text-color, #2f2c25);
+  border: 1px solid transparent;
+  border-radius: var(--inet-radius-md);
+  background: transparent;
+  color: var(--inet-text-color);
   cursor: pointer;
   transition: border-color 0.18s ease, background-color 0.18s ease, box-shadow 0.18s ease;
 }
 
 .data-model-folder-browser__item:hover {
-  border-color: var(--inet-primary-color, #d7802b);
-  background: var(--inet-hover-bg, #f8f5ef);
+  border-color: var(--inet-list-border-color);
+  background: var(--inet-list-hover-bg-color);
 }
 
 .data-model-folder-browser__item.active {
-  border-color: var(--inet-primary-color, #d7802b);
-  background: var(--inet-selected-item-bg-color, rgba(215, 128, 43, 0.12));
-  box-shadow: 0 0 0 1px rgba(215, 128, 43, 0.12);
+  border-color: var(--inet-list-border-color);
+  background: var(--inet-list-selected-bg-color);
+  box-shadow: none;
 }
 
 .data-model-folder-browser__item-main {
@@ -82,7 +86,7 @@ nav {
   justify-content: center;
   width: 28px;
   height: 28px;
-  color: var(--inet-secondary-text-color, #6e6759);
+  color: var(--inet-text-muted-color);
   flex-shrink: 0;
 }
 
@@ -94,7 +98,7 @@ nav {
 }
 
 .data-model-folder-browser__item-trailing {
-  color: var(--inet-secondary-text-color, #6e6759);
+  color: var(--inet-text-muted-color);
   flex-shrink: 0;
 }
 
@@ -104,7 +108,7 @@ nav {
 }
 
 .data-model-folder-browser__item--parent:hover {
-  background: var(--inet-hover-bg, #f8f5ef);
+  background: var(--inet-list-hover-bg-color);
 }
 
 .breadcrumb-item.active {

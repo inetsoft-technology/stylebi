@@ -17,7 +17,7 @@
   -->
 <form ngNoForm (submit)="$event.preventDefault()" class="container-fluid">
   <fieldset>
-    <div class="form-row-checkbox row">
+    <div class="shell-form-row shell-form-row--checkbox">
       <div class="col">
         <div class="form-check">
           <input type="checkbox" class="form-check-input" id="merge"
@@ -29,7 +29,7 @@
         </div>
       </div>
     </div>
-    <div class="form-row-float-label row">
+    <div class="shell-form-row--field row">
       <div class="col">
         <div class="form-floating">
           <dynamic-combo-box [(value)]="cellBinding.mergeRowGroup" [disable]="!cellBinding.mergeCells" [values]="getCellNames()" [editable]="false"
@@ -39,7 +39,7 @@
         </div>
       </div>
     </div>
-    <div class="form-row-float-label row">
+    <div class="shell-form-row--field row">
       <div class="col">
         <div class="form-floating">
           <!--
