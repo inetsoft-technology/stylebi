@@ -1176,6 +1176,7 @@ public class WizAutoBindingService {
       vsModel.setPrimaryBinding(primaryBinding);
       vsModel.setRuntimeId(wizRuntimeId);
       vsModel.setViewsheetIdentifier(viewsheetIdentifier);
+      vsModel.setKeepCondition(true);
 
       final RuntimeViewsheet autoRvsForHook = capturedAutoBindingRvs;
       CreateViewsheetResult result = wizVsService.createViewsheetSkipExecution(vsModel, user,
