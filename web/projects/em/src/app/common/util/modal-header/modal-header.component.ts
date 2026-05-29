@@ -23,7 +23,6 @@ import { NgIf } from "@angular/common";
     selector: "em-modal-header",
     templateUrl: "./modal-header.component.html",
     styleUrls: ["./modal-header.component.scss"],
-    standalone: true,
     imports: [NgIf, HelpLinkDirective]
 })
 export class ModalHeaderComponent {

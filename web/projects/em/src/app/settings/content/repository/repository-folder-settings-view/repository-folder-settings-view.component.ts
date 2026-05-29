@@ -44,7 +44,6 @@ import { NgIf, NgFor } from "@angular/common";
     selector: "em-repository-folder-settings-view",
     templateUrl: "./repository-folder-settings-view.component.html",
     styleUrls: ["./repository-folder-settings-view.component.scss"],
-    standalone: true,
     imports: [NgIf, EditorPanelComponent, MatTabGroup, MatTab, MatTabContent, MatCard, MatCardContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatInput, MatError, NgFor, ResourcePermissionComponent]
 })
 export class RepositoryFolderSettingsViewComponent implements OnChanges, OnDestroy {

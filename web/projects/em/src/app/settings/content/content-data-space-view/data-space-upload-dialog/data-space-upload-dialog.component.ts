@@ -28,7 +28,6 @@ import { ModalHeaderComponent } from "../../../../common/util/modal-header/modal
     selector: "em-data-space-upload-dialog",
     templateUrl: "./data-space-upload-dialog.component.html",
     styleUrls: ["./data-space-upload-dialog.component.scss"],
-    standalone: true,
     imports: [ModalHeaderComponent, MatDialogContent, MatCheckbox, FormsModule, StagedFileChooserComponent, MatDialogActions, MatButton]
 })
 export class DataSpaceUploadDialogComponent implements OnInit {

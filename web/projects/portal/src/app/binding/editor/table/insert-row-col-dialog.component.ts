@@ -25,7 +25,6 @@ import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.
     selector: "insert-row-col-dialog",
     templateUrl: "insert-row-col-dialog.component.html",
     styleUrls: ["insert-row-col-dialog.component.scss"],
-    standalone: true,
     imports: [ModalHeaderComponent, FormsModule, NgIf, ApplyButtonComponent]
 })
 

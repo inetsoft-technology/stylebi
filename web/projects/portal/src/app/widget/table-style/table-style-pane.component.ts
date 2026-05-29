@@ -27,7 +27,6 @@ import { NgIf, NgFor } from "@angular/common";
     selector: "table-style-pane",
     templateUrl: "table-style-pane.component.html",
     styleUrls: ["table-style-pane.component.scss"],
-    standalone: true,
     imports: [TreeComponent, NgIf, NgFor]
 })
 export class TableStylePane implements OnInit {

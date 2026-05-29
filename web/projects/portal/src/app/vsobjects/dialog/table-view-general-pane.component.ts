@@ -29,7 +29,6 @@ import { NgIf } from "@angular/common";
 @Component({
     selector: "table-view-general-pane",
     templateUrl: "table-view-general-pane.component.html",
-    standalone: true,
     imports: [
         NgIf,
         GeneralPropPane,
@@ -38,7 +37,7 @@ import { NgIf } from "@angular/common";
         ReactiveFormsModule,
         TableStylePane,
         SizePositionPane,
-    ],
+    ]
 })
 export class TableViewGeneralPane implements OnInit {
    @Input() model: TableViewGeneralPaneModel;

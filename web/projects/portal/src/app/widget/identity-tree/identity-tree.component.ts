@@ -28,7 +28,6 @@ const EXPAND_IDENTITY_NODE_URI = "../api/vs/expand-identity-node";
 @Component({
     selector: "identity-tree",
     templateUrl: "identity-tree.component.html",
-    standalone: true,
     imports: [TreeComponent]
 })
 export class IdentityTreeComponent {

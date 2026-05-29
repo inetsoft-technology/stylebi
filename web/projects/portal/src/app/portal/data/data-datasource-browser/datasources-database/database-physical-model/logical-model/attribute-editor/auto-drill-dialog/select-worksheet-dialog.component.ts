@@ -45,7 +45,6 @@ const LOAD_PARMS_URL = "../api/portal/data/autodrill/worksheet/params";
     selector: "select-worksheet-dialog",
     templateUrl: "select-worksheet-dialog.component.html",
     styleUrls: ["select-worksheet-dialog.component.scss"],
-    standalone: true,
     imports: [ModalHeaderComponent, EnterSubmitDirective, AssetTreeComponent, NgIf, NgFor, FixedDropdownDirective, SelectAttributePaneComponent, SelectQueryFieldPaneComponent]
 })
 export class SelectWorksheetDialog {

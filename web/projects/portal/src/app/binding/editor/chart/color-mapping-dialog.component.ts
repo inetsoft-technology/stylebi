@@ -33,7 +33,6 @@ import { BlockMouseDirective } from "../../../widget/mouse-event/block-mouse.dir
     selector: "color-mapping-dialog",
     templateUrl: "color-mapping-dialog.component.html",
     styleUrls: ["color-mapping-dialog.component.scss"],
-    standalone: true,
     imports: [BlockMouseDirective, ModalHeaderComponent, NgIf, FormsModule, NgFor, NgStyle, ColorEditor]
 })
 export class ColorMappingDialog implements OnInit {

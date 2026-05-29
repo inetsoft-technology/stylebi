@@ -69,7 +69,6 @@ const DEFAULT_PROPERTY: PropertySetting = {
     selector: "em-property-settings-view",
     templateUrl: "./property-settings-view.component.html",
     styleUrls: ["./property-settings-view.component.scss"],
-    standalone: true,
     imports: [MatFormField, MatLabel, MatInput, NgIf, MatIconButton, MatSuffix, MatIcon, MatMiniFabButton, TopScrollDirective, MatTable, MatSort, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatSortHeader, MatCellDef, MatCell, FormsModule, MatAutocompleteTrigger, ReactiveFormsModule, MatAutocomplete, NgFor, MatOption, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, MatPaginator, AsyncPipe]
 })
 export class PropertySettingsViewComponent implements OnInit, AfterViewInit {

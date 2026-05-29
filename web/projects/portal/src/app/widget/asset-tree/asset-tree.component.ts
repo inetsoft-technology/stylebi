@@ -66,7 +66,6 @@ const isDataSource = (node: TreeNodeModel) => {
     styleUrls: ["asset-tree.component.scss"],
     changeDetection: ChangeDetectionStrategy.OnPush,
     providers: [AssetClientService, DebounceService],
-    standalone: true,
     imports: [NgIf, VirtualScrollTreeComponent, VariableInputDialog]
 })
 export class AssetTreeComponent implements OnInit, OnDestroy, OnChanges {

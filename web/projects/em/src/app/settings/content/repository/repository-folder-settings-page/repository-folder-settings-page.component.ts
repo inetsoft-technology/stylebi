@@ -38,7 +38,6 @@ export interface RepositoryFolderEditorModel extends RepositoryEditorModel {
     selector: "em-repository-folder-settings-page",
     templateUrl: "./repository-folder-settings-page.component.html",
     styleUrls: ["./repository-folder-settings-page.component.scss"],
-    standalone: true,
     imports: [NgIf, RepositoryFolderSettingsViewComponent]
 })
 export class RepositoryFolderSettingsPageComponent implements OnChanges {

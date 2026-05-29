@@ -33,7 +33,6 @@ import { NgFor, NgClass, NgIf } from "@angular/common";
     selector: "sql-query-dialog-list",
     templateUrl: "sql-query-dialog-list.component.html",
     styleUrls: ["sql-query-dialog-list.component.scss"],
-    standalone: true,
     imports: [NgFor, NgClass, NgIf]
 })
 export class SQLQueryDialogListComponent {

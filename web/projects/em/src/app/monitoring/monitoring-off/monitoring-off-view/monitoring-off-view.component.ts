@@ -22,7 +22,6 @@ import { MatCard, MatCardContent } from "@angular/material/card";
     selector: "em-monitoring-off-view",
     templateUrl: "./monitoring-off-view.component.html",
     styleUrls: ["./monitoring-off-view.component.scss"],
-    standalone: true,
     imports: [MatCard, MatCardContent]
 })
 export class MonitoringOffViewComponent {

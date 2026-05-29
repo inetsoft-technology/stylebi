@@ -25,12 +25,11 @@ import { FixedDropdownDirective } from "../../../../widget/fixed-dropdown/fixed-
     selector: "style-border-pane",
     templateUrl: "style-border-pane.component.html",
     styleUrls: ["table-style-format-pane.component.scss"],
-    standalone: true,
     imports: [
         FixedDropdownDirective,
         NgIf,
         NgFor,
-    ],
+    ]
 })
 export class StyleBorderPaneComponent implements OnInit, OnChanges {
    @Input() borderStyle: number = StyleConstants.THIN_LINE;

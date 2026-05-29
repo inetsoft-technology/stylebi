@@ -24,7 +24,6 @@ import { TabularTextEditor } from "./tabular-text-editor.component";
 @Component({
     selector: "tabular-http-parameter-editor",
     templateUrl: "tabular-http-parameter-editor.component.html",
-    standalone: true,
     imports: [TabularTextEditor, NgIf, FormsModule]
 })
 export class TabularHttpParameterEditorComponent implements OnInit {

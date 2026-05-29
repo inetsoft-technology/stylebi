@@ -23,7 +23,6 @@ import { NgFor } from "@angular/common";
     templateUrl: "datasource-category-pane.component.html",
     styleUrls: ["datasource-category-pane.component.scss"],
     changeDetection: ChangeDetectionStrategy.OnPush,
-    standalone: true,
     imports: [NgFor]
 })
 export class DatasourceCategoryPaneComponent {

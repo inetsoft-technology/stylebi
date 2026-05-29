@@ -31,7 +31,6 @@ import { MatToolbar } from "@angular/material/toolbar";
     selector: "em-data-space-tree-view",
     templateUrl: "./data-space-tree-view.component.html",
     styleUrls: ["./data-space-tree-view.component.scss"],
-    standalone: true,
     imports: [MatToolbar, MatIconButton, MatIcon, TopScrollDirective, FlatTreeViewComponent, NgIf, MatTooltip]
 })
 export class DataSpaceTreeViewComponent implements OnInit {

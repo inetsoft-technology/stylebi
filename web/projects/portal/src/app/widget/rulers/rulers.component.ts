@@ -22,7 +22,6 @@ import { Ruler } from "./ruler.component";
     selector: "w-rulers",
     templateUrl: "rulers.component.html",
     styleUrls: ["rulers.component.scss"],
-    standalone: true,
     imports: [Ruler]
 })
 export class Rulers {

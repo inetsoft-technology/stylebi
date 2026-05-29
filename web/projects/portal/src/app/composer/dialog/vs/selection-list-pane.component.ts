@@ -36,13 +36,12 @@ import { NgIf } from "@angular/common";
 @Component({
     selector: "selection-list-pane",
     templateUrl: "selection-list-pane.component.html",
-    standalone: true,
     imports: [
         NgIf,
         TreeComponent,
         AdditionalTableSelectionPaneComponent,
         SelectionMeasurePane,
-    ],
+    ]
 })
 export class SelectionListPane implements AfterViewInit {
    @Input() model: SelectionListPaneModel;

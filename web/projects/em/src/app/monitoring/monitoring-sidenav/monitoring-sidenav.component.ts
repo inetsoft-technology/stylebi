@@ -45,7 +45,6 @@ const SMALL_WIDTH_BREAKPOINT = 720;
     selector: "em-monitoring-sidenav",
     templateUrl: "./monitoring-sidenav.component.html",
     styleUrls: ["./monitoring-sidenav.component.scss"],
-    standalone: true,
     imports: [PageHeaderComponent, MatSidenavContainer, MatSidenav, MatFormField, MatInput, FormsModule, MatIconButton, MatSuffix, MatIcon, MatNavList, NgIf, MatListItem, RouterLink, RouterLinkActive, MatSidenavContent, TopScrollDirective, RouterOutlet]
 })
 export class MonitoringSidenavComponent implements OnInit, OnDestroy {

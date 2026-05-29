@@ -28,7 +28,6 @@ import { FormsModule } from "@angular/forms";
     selector: "formatting-pane",
     templateUrl: "formatting-pane.component.html",
     styleUrls: ["formatting-pane.component.scss"],
-    standalone: true,
     imports: [FormsModule, NgFor, NgIf, DynamicComboBox, ComboBox]
 })
 export class FormattingPane {

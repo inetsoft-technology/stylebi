@@ -36,7 +36,6 @@ const HIDE_ON_PRINT_LABEL: string = "_#(js:Hide on Print and Export)";
 @Component({
     selector: "basic-general-pane",
     templateUrl: "basic-general-pane.component.html",
-    standalone: true,
     imports: [
         FormsModule,
         ReactiveFormsModule,
@@ -45,7 +44,7 @@ const HIDE_ON_PRINT_LABEL: string = "_#(js:Hide on Print and Export)";
         NgClass,
         NgIf,
         DynamicComboBox,
-    ],
+    ]
 })
 export class BasicGeneralPane implements OnInit {
    @Input() vsId: string;

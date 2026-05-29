@@ -56,7 +56,6 @@ const SEARCH_VPM_URI: string = "../api/data/vpm/search";
 @Component({
     templateUrl: "./database-vpm-browser.component.html",
     styleUrls: ["database-vpm-browser.component.scss"],
-    standalone: true,
     imports: [NgClass, DatabaseDataModelToolbarComponent, NgIf, AssetItemListViewComponent, AssetDescriptionComponent, NotificationsComponent]
 })
 export class DatabaseVPMBrowserComponent implements OnDestroy, OnInit {

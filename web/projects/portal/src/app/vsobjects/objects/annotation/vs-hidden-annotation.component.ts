@@ -27,7 +27,6 @@ import { NgIf } from "@angular/common";
     templateUrl: "vs-hidden-annotation.component.html",
     styleUrls: ["vs-hidden-annotation.component.scss"],
     changeDetection: ChangeDetectionStrategy.OnPush,
-    standalone: true,
     imports: [NgIf, TooltipDirective]
 })
 export class VSHiddenAnnotation {

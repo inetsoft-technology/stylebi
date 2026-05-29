@@ -24,7 +24,6 @@ import { FixedDropdownDirective } from "../../../../widget/fixed-dropdown/fixed-
     selector: "texture-combo-box",
     templateUrl: "texture-combo-box.component.html",
     styleUrls: ["texture-combo-box.component.scss"],
-    standalone: true,
     imports: [FixedDropdownDirective, TextureItem, StaticTexturePane]
 })
 export class TextureComboBox {

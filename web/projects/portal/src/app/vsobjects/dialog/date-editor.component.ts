@@ -26,7 +26,6 @@ import { NgbInputDatepicker } from "@ng-bootstrap/ng-bootstrap";
     selector: "date-editor",
     templateUrl: "date-editor.component.html",
     styleUrls: ["date-editor.component.scss"],
-    standalone: true,
     imports: [FormsModule, ReactiveFormsModule, NgbInputDatepicker, NgIf]
 })
 export class DateEditor implements OnInit, OnDestroy {

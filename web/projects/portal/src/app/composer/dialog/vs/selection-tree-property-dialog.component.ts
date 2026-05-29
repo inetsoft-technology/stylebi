@@ -46,7 +46,6 @@ const GET_GRAYED_OUT_FIELDS_URI: string = "../api/composer/vs/selection-tree-pro
 @Component({
     selector: "selection-tree-property-dialog",
     templateUrl: "selection-tree-property-dialog.component.html",
-    standalone: true,
     imports: [
         ModalHeaderComponent,
         NgIf,
@@ -61,7 +60,7 @@ const GET_GRAYED_OUT_FIELDS_URI: string = "../api/composer/vs/selection-tree-pro
         VSAssemblyScriptPane,
         NgbNavOutlet,
         ApplyButtonComponent,
-    ],
+    ]
 })
 export class SelectionTreePropertyDialog extends PropertyDialog implements OnInit {
    @Input() model: SelectionTreePropertyDialogModel;

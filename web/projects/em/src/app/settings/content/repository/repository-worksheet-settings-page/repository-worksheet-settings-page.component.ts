@@ -34,7 +34,6 @@ export interface RepositoryWorksheetEditorModel extends RepositoryEditorModel {
     selector: "em-repository-worksheet-settings-page",
     templateUrl: "./repository-worksheet-settings-page.component.html",
     styleUrls: ["./repository-worksheet-settings-page.component.scss"],
-    standalone: true,
     imports: [RepositoryWorksheetSettingsViewComponent]
 })
 export class RepositoryWorksheetSettingsPageComponent implements OnChanges {

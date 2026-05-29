@@ -38,7 +38,6 @@ import { ModalHeaderComponent } from "../../../../../common/util/modal-header/mo
     templateUrl: "./select-asset-folder-dialog.component.html",
     styleUrls: ["./select-asset-folder-dialog.component.scss"],
     providers: [SelectAssetFolderDataSource],
-    standalone: true,
     imports: [ModalHeaderComponent, MatDialogContent, NgIf, FlatTreeViewComponent, MatProgressBar, MatDialogActions, MatButton]
 })
 export class SelectAssetFolderDialogComponent implements OnDestroy {

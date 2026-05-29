@@ -44,7 +44,6 @@ import { EditorPanelComponent } from "../../../common/util/editor-panel/editor-p
     selector: "em-logging-settings-page",
     templateUrl: "./logging-settings-page.component.html",
     styleUrls: ["./logging-settings-page.component.scss"],
-    standalone: true,
     imports: [EditorPanelComponent, LoggingSettingsViewComponent]
 })
 export class LoggingSettingsPageComponent implements OnInit {

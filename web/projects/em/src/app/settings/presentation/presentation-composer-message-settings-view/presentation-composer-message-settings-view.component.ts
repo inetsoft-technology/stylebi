@@ -34,7 +34,6 @@ import { NgIf } from "@angular/common";
     selector: "em-presentation-composer-message-settings-view",
     templateUrl: "./presentation-composer-message-settings-view.component.html",
     styleUrls: ["./presentation-composer-message-settings-view.component.scss"],
-    standalone: true,
     imports: [NgIf, MatCard, MatCardTitle, MatCardContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatInput]
 })
 export class PresentationComposerMessageSettingsViewComponent {

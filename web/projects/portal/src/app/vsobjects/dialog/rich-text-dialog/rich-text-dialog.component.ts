@@ -27,7 +27,6 @@ import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.
     selector: "rich-text-dialog",
     templateUrl: "./rich-text-dialog.component.html",
     styleUrls: ["./rich-text-dialog.component.scss"],
-    standalone: true,
     imports: [ModalHeaderComponent, NgIf, CkeditorWrapperComponent, FormsModule]
 })
 export class RichTextDialog implements OnInit {

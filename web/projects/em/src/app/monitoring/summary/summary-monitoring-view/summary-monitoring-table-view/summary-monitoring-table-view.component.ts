@@ -24,7 +24,6 @@ import { TableView } from "../../../../common/util/table/table-view.component";
     selector: "em-summary-monitoring-table-view",
     templateUrl: "./summary-monitoring-table-view.component.html",
     styleUrls: ["./summary-monitoring-table-view.component.scss"],
-    standalone: true,
     imports: [TableView]
 })
 export class SummaryMonitoringTableViewComponent {

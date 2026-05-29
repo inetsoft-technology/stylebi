@@ -26,7 +26,6 @@ import { NgIf } from "@angular/common";
     selector: "chart-high-low-pane",
     templateUrl: "chart-high-low-pane.component.html",
     styleUrls: ["aesthetic/aesthetic-pane.scss"],
-    standalone: true,
     imports: [NgIf, FieldPane, DropHighlightDirective]
 })
 export class ChartHighLowPane {

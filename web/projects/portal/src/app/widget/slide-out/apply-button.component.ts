@@ -23,7 +23,6 @@ import { NgIf } from "@angular/common";
     selector: "apply-button",
     templateUrl: "apply-button.component.html",
     styleUrls: ["apply-button.component.scss"],
-    standalone: true,
     imports: [NgIf]
 })
 export class ApplyButtonComponent {

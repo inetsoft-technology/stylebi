@@ -72,7 +72,6 @@ export class TaskItem {
     templateUrl: "./schedule-task-editor-page.component.html",
     styleUrls: ["./schedule-task-editor-page.component.scss"],
     encapsulation: ViewEncapsulation.None,
-    standalone: true,
     imports: [EditorPanelComponent, MatFormField, FormsModule, ReactiveFormsModule, MatLabel, MatInput, NgIf, MatError, MatTabGroup, MatTab, MatCard, MatCardContent, MatNavList, NgFor, MatListItem, MatTooltip, MatCardActions, MatButton, TaskConditionPaneComponent, MatTabContent, TaskActionPaneComponent, TaskOptionsPane, LoadingSpinnerComponent]
 })
 export class ScheduleTaskEditorPageComponent implements OnInit {

@@ -23,7 +23,6 @@ import { FormsModule } from "@angular/forms";
     templateUrl: "datasource-search.component.html",
     styleUrls: ["datasource-search.component.scss"],
     changeDetection: ChangeDetectionStrategy.OnPush,
-    standalone: true,
     imports: [FormsModule]
 })
 export class DatasourceSearchComponent {

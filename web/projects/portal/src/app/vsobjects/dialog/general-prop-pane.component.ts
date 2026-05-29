@@ -27,14 +27,13 @@ import { BasicGeneralPane } from "./basic-general-pane.component";
 @Component({
     selector: "general-prop-pane",
     templateUrl: "general-prop-pane.component.html",
-    standalone: true,
     imports: [
         BasicGeneralPane,
         NgIf,
         FormsModule,
         ReactiveFormsModule,
         DynamicComboBox,
-    ],
+    ]
 })
 export class GeneralPropPane implements OnInit {
    @Input() vsId: string;

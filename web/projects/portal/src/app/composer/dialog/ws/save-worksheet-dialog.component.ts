@@ -44,7 +44,6 @@ const CONFIRM_MESSAGE = {
 @Component({
     selector: "save-worksheet-dialog",
     templateUrl: "save-worksheet-dialog.component.html",
-    standalone: true,
     imports: [ModalHeaderComponent, NgIf, EnterSubmitDirective, NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, AssetRepositoryPane, WorksheetOptionPane, NgbNavOutlet]
 })
 export class SaveWorksheetDialog implements OnInit {

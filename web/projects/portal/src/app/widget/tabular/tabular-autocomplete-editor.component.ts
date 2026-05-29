@@ -34,7 +34,6 @@ import { debounceTime, distinctUntilChanged, filter, map } from "rxjs/operators"
     selector: "tabular-autocomplete-editor",
     templateUrl: "tabular-autocomplete-editor.component.html",
     styleUrls: ["tabular-autocomplete-editor.component.scss"],
-    standalone: true,
     imports: [FormsModule, NgbTypeahead, ReactiveFormsModule]
 })
 export class TabularAutocompleteEditor implements OnInit, OnChanges {

@@ -31,7 +31,6 @@ import { ModalHeaderComponent } from "../../widget/modal-header/modal-header.com
     selector: "new-viewsheet-dialog",
     templateUrl: "new-viewsheet-dialog.component.html",
     styleUrls: ["new-viewsheet-dialog.component.scss"],
-    standalone: true,
     imports: [ModalHeaderComponent, EnterSubmitDirective, AssetTreeComponent]
 })
 export class NewViewsheetDialog implements OnInit {

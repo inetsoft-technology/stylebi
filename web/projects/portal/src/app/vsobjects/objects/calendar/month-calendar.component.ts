@@ -52,7 +52,6 @@ interface DayInfo {
     selector: "month-calendar",
     templateUrl: "month-calendar.component.html",
     styleUrls: ["vs-calendar.component.scss"],
-    standalone: true,
     imports: [NgClass, SafeFontDirective, NgFor, NgIf]
 })
 export class MonthCalendar implements OnChanges, AfterViewInit {

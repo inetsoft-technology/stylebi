@@ -32,7 +32,6 @@ import { ModalHeaderComponent } from "../modal-header/modal-header.component";
 @Component({
     selector: "chart-target-dialog",
     templateUrl: "chart-target-dialog.component.html",
-    standalone: true,
     imports: [
         ModalHeaderComponent,
         NgIf,
@@ -45,7 +44,7 @@ import { ModalHeaderComponent } from "../modal-header/modal-header.component";
         BandPanel,
         StatPanel,
         NgbNavOutlet,
-    ],
+    ]
 })
 export class ChartTargetDialog implements OnInit {
    @Input() chartTarget: TargetInfo;

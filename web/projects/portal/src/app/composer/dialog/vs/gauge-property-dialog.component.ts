@@ -47,7 +47,6 @@ const CHECK_TRAP_URI: string = "../api/composer/vs/gauge-property-dialog-model/c
 @Component({
     selector: "gauge-property-dialog",
     templateUrl: "gauge-property-dialog.component.html",
-    standalone: true,
     imports: [
         ModalHeaderComponent,
         NgIf,
@@ -63,7 +62,7 @@ const CHECK_TRAP_URI: string = "../api/composer/vs/gauge-property-dialog-model/c
         VSAssemblyScriptPane,
         NgbNavOutlet,
         ApplyButtonComponent,
-    ],
+    ]
 })
 export class GaugePropertyDialog extends PropertyDialog implements OnInit {
    @Input() model: GaugePropertyDialogModel;

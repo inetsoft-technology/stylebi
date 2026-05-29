@@ -24,7 +24,6 @@ import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.
 @Component({
     selector: "table-layout-property-dialog",
     templateUrl: "table-layout-property-dialog.component.html",
-    standalone: true,
     imports: [ModalHeaderComponent, NgIf, FormsModule]
 })
 export class TableLayoutPropertyDialog {

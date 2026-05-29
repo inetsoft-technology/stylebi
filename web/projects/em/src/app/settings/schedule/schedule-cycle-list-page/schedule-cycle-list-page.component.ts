@@ -55,7 +55,6 @@ const UPDATE_CYCLES_URI = "schedule/cycles/update-cycles";
     selector: "em-schedule-cycle-list-page",
     templateUrl: "./schedule-cycle-list-page.component.html",
     styleUrls: ["./schedule-cycle-list-page.component.scss"],
-    standalone: true,
     imports: [ScheduleCycleListViewComponent, AsyncPipe]
 })
 export class ScheduleCycleListPageComponent {

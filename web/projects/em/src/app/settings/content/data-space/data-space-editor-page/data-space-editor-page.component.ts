@@ -31,7 +31,6 @@ export interface DataSpaceFileChange {
     selector: "em-data-space-editor-page",
     templateUrl: "./data-space-editor-page.component.html",
     styleUrls: ["./data-space-editor-page.component.scss"],
-    standalone: true,
     imports: [NgIf, DataSpaceFileSettingsViewComponent, DataSpaceFolderSettingsViewComponent]
 })
 export class DataSpaceEditorPageComponent implements OnInit {

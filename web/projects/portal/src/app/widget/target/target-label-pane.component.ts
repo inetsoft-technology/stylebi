@@ -30,7 +30,6 @@ import { FormsModule } from "@angular/forms";
 @Component({
     selector: "target-label-pane",
     templateUrl: "target-label-pane.component.html",
-    standalone: true,
     imports: [FixedDropdownDirective, FormsModule, NgFor]
 })
 export class TargetLabelPane {

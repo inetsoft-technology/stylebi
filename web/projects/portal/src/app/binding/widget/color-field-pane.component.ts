@@ -31,7 +31,6 @@ import { DefaultPalette } from "../../widget/color-picker/default-palette";
     selector: "color-field-pane",
     templateUrl: "color-field-pane.component.html",
     styleUrls: ["./color-field-pane.component.scss"],
-    standalone: true,
     imports: [ColorPane]
 })
 export class ColorFieldPane {

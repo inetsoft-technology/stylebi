@@ -27,7 +27,6 @@ import { NgIf } from "@angular/common";
     selector: "binding-size-pane",
     templateUrl: "binding-size-pane.component.html",
     styleUrls: ["binding-size-pane.component.scss"],
-    standalone: true,
     imports: [NgIf, RangeSlider, Slider]
 })
 export class BindingSizePane implements OnChanges, OnInit {

@@ -23,7 +23,6 @@ import { BlockMouseDirective } from "../mouse-event/block-mouse.directive";
     selector: "dropdown-view",
     templateUrl: "dropdown-view.component.html",
     styleUrls: ["dropdown-view.component.scss"],
-    standalone: true,
     imports: [BlockMouseDirective, FixedDropdownDirective]
 })
 export class DropdownView {

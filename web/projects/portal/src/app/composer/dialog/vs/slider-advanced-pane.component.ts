@@ -23,8 +23,7 @@ import { SliderLabelPane } from "../../../vsobjects/dialog/slider-label-pane.com
 @Component({
     selector: "slider-advanced-pane",
     templateUrl: "slider-advanced-pane.component.html",
-    standalone: true,
-    imports: [SliderLabelPane, FormsModule],
+    imports: [SliderLabelPane, FormsModule]
 })
 export class SliderAdvancedPane {
    @Input() model: SliderAdvancedPaneModel;

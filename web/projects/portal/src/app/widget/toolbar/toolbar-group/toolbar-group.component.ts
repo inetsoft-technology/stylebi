@@ -36,7 +36,6 @@ import { NgIf, NgClass, NgFor } from "@angular/common";
     selector: "toolbar-group",
     templateUrl: "toolbar-group.component.html",
     styleUrls: ["toolbar-group.component.scss"],
-    standalone: true,
     imports: [NgIf, NgbDropdown, NgbDropdownToggle, NgbTooltip, NgClass, NgbDropdownMenu, NgFor, FormsModule]
 })
 export class ToolbarGroup implements OnInit, AfterViewInit, OnDestroy {

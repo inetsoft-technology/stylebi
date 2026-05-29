@@ -23,7 +23,6 @@ import { NgIf } from "@angular/common";
 @Component({
     selector: "static-color-pane",
     templateUrl: "static-color-pane.component.html",
-    standalone: true,
     imports: [NgIf, ColorFieldPane]
 })
 export class StaticColorPane {

@@ -22,8 +22,7 @@ import { FormsModule } from "@angular/forms";
 @Component({
     selector: "linear-texture-pane",
     templateUrl: "linear-texture-pane.component.html",
-    standalone: true,
-    imports: [FormsModule],
+    imports: [FormsModule]
 })
 
 export class LinearTexturePane {

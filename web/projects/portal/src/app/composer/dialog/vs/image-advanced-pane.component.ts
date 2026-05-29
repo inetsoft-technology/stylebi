@@ -31,7 +31,6 @@ import { DynamicImagePane } from "./dynamic-image-pane.component";
 @Component({
     selector: "image-advanced-pane",
     templateUrl: "image-advanced-pane.component.html",
-    standalone: true,
     imports: [
         DynamicImagePane,
         ImageScalePane,
@@ -41,7 +40,7 @@ import { DynamicImagePane } from "./dynamic-image-pane.component";
         NgIf,
         NotificationsComponent,
         TruncatePipe,
-    ],
+    ]
 })
 export class ImageAdvancedPane {
    @Input() model: ImageAdvancedPaneModel;

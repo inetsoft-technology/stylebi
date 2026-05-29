@@ -40,7 +40,7 @@ import { ThemeCssModel } from "../theme-css-model";
 import { ThemeCssVariableModel } from "../theme-css-variable-model";
 import { ThemeCssEditorModel } from "./theme-css-editor-model";
 import { MatRadioGroup, MatRadioButton } from "@angular/material/radio";
-import { ColorPickerModule } from "ngx-color-picker";
+import { ColorPickerDirective } from "ngx-color-picker";
 import { MatSlideToggle } from "@angular/material/slide-toggle";
 import { MatSort } from "@angular/material/sort";
 import { MatIcon } from "@angular/material/icon";
@@ -61,8 +61,7 @@ const EM_DARK_TEXT_VAR = "var(--inet-em-dark-primary-text)";
     selector: "em-theme-css-view",
     templateUrl: "./theme-css-view.component.html",
     styleUrls: ["./theme-css-view.component.scss"],
-    standalone: true,
-    imports: [NgIf, MatCard, FormsModule, ReactiveFormsModule, MatCardTitle, MatCardContent, MatFormField, MatLabel, MatInput, MatIconButton, MatSuffix, MatIcon, MatTable, MatSort, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, NgTemplateOutlet, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, MatSlideToggle, ColorPickerModule, MatRadioGroup, MatRadioButton, MatError]
+    imports: [NgIf, MatCard, FormsModule, ReactiveFormsModule, MatCardTitle, MatCardContent, MatFormField, MatLabel, MatInput, MatIconButton, MatSuffix, MatIcon, MatTable, MatSort, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, NgTemplateOutlet, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, MatSlideToggle, ColorPickerDirective, MatRadioGroup, MatRadioButton, MatError]
 })
 export class ThemeCssViewComponent implements OnInit, OnDestroy, OnChanges {
    @Input() get theme(): CustomThemeModel {

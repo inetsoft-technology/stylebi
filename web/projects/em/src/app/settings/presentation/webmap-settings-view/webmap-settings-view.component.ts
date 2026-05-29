@@ -50,7 +50,6 @@ import { MatCard, MatCardTitle, MatCardContent } from "@angular/material/card";
     selector: "em-webmap-settings-view",
     templateUrl: "./webmap-settings-view.component.html",
     styleUrls: ["./webmap-settings-view.component.scss"],
-    standalone: true,
     imports: [MatCard, MatCardTitle, MatCardContent, NgIf, FormsModule, ReactiveFormsModule, MatButtonToggleGroup, MatButtonToggle, MatCheckbox, MatFormField, MatLabel, MatInput, MatError, MatSelect, NgFor, MatOption]
 })
 export class WebMapSettingsViewComponent {

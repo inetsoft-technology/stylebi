@@ -34,7 +34,6 @@ const DEFAULT_N_P_NVALUE: number = 1;
     selector: "calc-aggregate-option",
     templateUrl: "calc-aggregate-option.component.html",
     styleUrls: ["calc-aggregate-option.component.scss"],
-    standalone: true,
     imports: [FormsModule, NgFor, NgIf]
 })
 export class CalcAggregateOption implements OnInit, OnChanges {

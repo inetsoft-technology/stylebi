@@ -27,7 +27,6 @@ import { NgIf, NgFor } from "@angular/common";
     selector: "physical-model-table-tree-node",
     templateUrl: "physical-model-table-tree-node.component.html",
     styleUrls: ["physical-model-table-tree-node.component.scss"],
-    standalone: true,
     imports: [NgIf, FormsModule, NgFor, TreeSearchPipe]
 })
 export class PhysicalModelTableTreeNodeComponent {

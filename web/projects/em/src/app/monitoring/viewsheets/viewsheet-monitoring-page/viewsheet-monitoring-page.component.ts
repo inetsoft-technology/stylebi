@@ -58,8 +58,7 @@ import { ClusterSelectorComponent } from "../../cluster-selector/cluster-selecto
     templateUrl: "./viewsheet-monitoring-page.component.html",
     styleUrls: ["./viewsheet-monitoring-page.component.scss"],
     encapsulation: ViewEncapsulation.None,
-    host: { "class": "em-viewsheet-monitoring-page" }, // eslint-disable-line @angular-eslint/no-host-metadata-property
-    standalone: true,
+    host: { "class": "em-viewsheet-monitoring-page" },
     imports: [ClusterSelectorComponent, NgIf, ViewsheetMonitoringViewComponent]
 })
 export class ViewsheetMonitoringPageComponent implements OnInit, OnDestroy {

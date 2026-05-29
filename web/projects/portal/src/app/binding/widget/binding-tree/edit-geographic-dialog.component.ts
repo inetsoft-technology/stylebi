@@ -24,8 +24,7 @@ import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.
 @Component({
     selector: "edit-geographic-dialog",
     templateUrl: "edit-geographic-dialog.component.html",
-    standalone: true,
-    imports: [ModalHeaderComponent, GeoOptionPane],
+    imports: [ModalHeaderComponent, GeoOptionPane]
 })
 export class EditGeographicDialog implements OnInit {
    @Input()

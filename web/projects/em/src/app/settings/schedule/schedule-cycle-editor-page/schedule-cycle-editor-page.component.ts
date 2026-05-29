@@ -62,7 +62,6 @@ const EDIT_DATA_CYCLE_URI = "../api/em/schedule/edit-cycle";
     templateUrl: "./schedule-cycle-editor-page.component.html",
     styleUrls: ["./schedule-cycle-editor-page.component.scss"],
     encapsulation: ViewEncapsulation.None,
-    standalone: true,
     imports: [EditorPanelComponent, NgIf, MatFormField, MatLabel, MatInput, FormsModule, ReactiveFormsModule, MatError, MatTabGroup, MatTab, MatCard, MatCardContent, MatNavList, NgFor, MatListItem, MatTooltip, MatCardActions, MatButton, TaskConditionPaneComponent, ScheduleCycleOptionsPaneComponent, ResourcePermissionComponent]
 })
 export class ScheduleCycleEditorPageComponent implements OnInit, OnDestroy {

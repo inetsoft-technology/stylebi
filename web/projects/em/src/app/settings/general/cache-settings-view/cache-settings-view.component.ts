@@ -45,7 +45,6 @@ const CLEAN_UP_CACHE_URI = "../api/em/general/settings/cache/cleanup";
     selector: "em-cache-settings-view",
     templateUrl: "./cache-settings-view.component.html",
     styleUrls: ["./cache-settings-view.component.scss"],
-    standalone: true,
     imports: [MatCard, MatCardTitle, MatCardContent, NgIf, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatInput, MatSlideToggle, MatCardActions, MatButton]
 })
 export class CacheSettingsViewComponent {

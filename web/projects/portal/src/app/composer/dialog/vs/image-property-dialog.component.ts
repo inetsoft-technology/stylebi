@@ -40,7 +40,6 @@ const CHECK_TRAP_URI: string = "../api/composer/vs/image-property-dialog-model/c
 @Component({
     selector: "image-property-dialog",
     templateUrl: "image-property-dialog.component.html",
-    standalone: true,
     imports: [
         ModalHeaderComponent,
         NgIf,
@@ -56,7 +55,7 @@ const CHECK_TRAP_URI: string = "../api/composer/vs/image-property-dialog-model/c
         ClickableScriptPane,
         NgbNavOutlet,
         ApplyButtonComponent,
-    ],
+    ]
 })
 export class ImagePropertyDialog extends PropertyDialog implements OnInit {
    @Input() model: ImagePropertyDialogModel;

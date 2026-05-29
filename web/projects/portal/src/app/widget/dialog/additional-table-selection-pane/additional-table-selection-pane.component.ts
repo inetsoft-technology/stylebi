@@ -37,7 +37,6 @@ import { NgIf, NgFor } from "@angular/common";
     templateUrl: "additional-table-selection-pane.component.html",
     styleUrls: ["./additional-table-selection-pane.component.scss"],
     changeDetection: ChangeDetectionStrategy.OnPush,
-    standalone: true,
     imports: [NgIf, NgFor]
 })
 export class AdditionalTableSelectionPaneComponent implements OnChanges {

@@ -68,7 +68,6 @@ export class GeneralSettingsNavLink {
     selector: "em-general-settings-page",
     templateUrl: "./general-settings-page.component.html",
     styleUrls: ["./general-settings-page.component.scss"],
-    standalone: true,
     imports: [NgIf, EditorPanelComponent, NavigationScrollableComponent, NavigationScrollableItemDirective, DataSpaceSettingsViewComponent, LicenseKeySettingsViewComponent, LocalizationSettingsViewComponent, MVSettingsViewComponent, CacheSettingsViewComponent, EmailSettingsViewComponent, PerformanceSettingsViewComponent, MatNavList, NgFor, MatListItem, RouterLink, LoadingSpinnerComponent]
 })
 export class GeneralSettingsPageComponent implements OnInit, OnDestroy {

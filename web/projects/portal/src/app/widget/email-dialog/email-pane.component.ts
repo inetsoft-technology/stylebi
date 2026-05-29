@@ -43,7 +43,6 @@ import { NgIf } from "@angular/common";
     templateUrl: "email-pane.component.html",
     styleUrls: ["email-pane.component.scss"],
     encapsulation: ViewEncapsulation.None,
-    standalone: true,
     imports: [NgIf, FormsModule, ReactiveFormsModule, NgbTypeahead, DefaultFocusDirective, CkeditorWrapperComponent, EmailAddrDialog]
 })
 export class EmailPane implements OnInit, OnDestroy {

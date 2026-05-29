@@ -94,7 +94,6 @@ export interface PropertyInfo {
     selector: "datasources-database",
     templateUrl: "datasources-database.component.html",
     styleUrls: ["datasources-database.component.scss"],
-    standalone: true,
     imports: [NgIf, NgClass, FormsModule, NgFor, NgbTypeahead, ScrollableFlexTableDirective, DataNotificationsComponent, KeyValuePipe]
 })
 export class DatasourcesDatabaseComponent extends DataSourceSettingsPage implements OnInit, AfterViewInit {

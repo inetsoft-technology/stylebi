@@ -40,7 +40,6 @@ import { MatCard, MatCardTitle, MatCardContent } from "@angular/material/card";
     selector: "em-presentation-report-export-menu-settings-view",
     templateUrl: "./presentation-export-menu-settings-view.component.html",
     styleUrls: ["./presentation-export-menu-settings-view.component.scss"],
-    standalone: true,
     imports: [MatCard, MatCardTitle, NgIf, MatCardContent, ExportMenuOptionsViewComponent]
 })
 export class PresentationExportMenuSettingsViewComponent {

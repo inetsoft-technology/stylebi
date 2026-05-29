@@ -31,7 +31,6 @@ import { NgIf, NgClass } from "@angular/common";
     selector: "cp-color-picker",
     templateUrl: "color-picker.component.html",
     styleUrls: ["color-picker.component.scss"],
-    standalone: true,
     imports: [NgIf, NgClass, FixedDropdownDirective, ColorPane]
 })
 export class ColorPicker {

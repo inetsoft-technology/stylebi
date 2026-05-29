@@ -63,7 +63,6 @@ import { NgIf } from "@angular/common";
     selector: "vs-object-view",
     templateUrl: "vs-object-view.component.html",
     styleUrls: ["vs-object-view.component.scss"],
-    standalone: true,
     imports: [NgIf, ActionsContextmenuAnchorDirective, VSChart, VSTable, BTableActionHandlerDirective, VSCrosstab, BCrosstabActionHandlerDirective, CalcTableLayoutPane, BCalcTableActionHandlerDirective, MiniToolbar]
 })
 export class VSObjectView extends CommandProcessor implements OnDestroy, OnInit, AfterViewInit {

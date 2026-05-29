@@ -26,13 +26,12 @@ import { ModalHeaderComponent } from "../../modal-header/modal-header.component"
 @Component({
     selector: "variable-list-dialog",
     templateUrl: "variable-list-dialog.component.html",
-    standalone: true,
     imports: [
         ModalHeaderComponent,
         VariableListEditor,
         NgIf,
         NgFor,
-    ],
+    ]
 })
 export class VariableListDialog implements OnInit {
    @Input() model: VariableListDialogModel;

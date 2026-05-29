@@ -55,7 +55,6 @@ import { NgIf } from "@angular/common";
     templateUrl: "./repository-dashboard-settings-view.component.html",
     styleUrls: ["./repository-dashboard-settings-view.component.scss"],
     encapsulation: ViewEncapsulation.None,
-    standalone: true,
     imports: [NgIf, EditorPanelComponent, MatTabGroup, MatTab, MatCard, MatCardContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatInput, MatError, MatSelect, MatOption, MatTree, MatTreeNodeDef, MatTreeNode, MatTreeNodeToggle, MatTreeNodePadding, MatIconButton, MatIcon, MatProgressBar, MatSlideToggle, ResourcePermissionComponent]
 })
 export class RepositoryDashboardSettingsViewComponent implements OnChanges, OnInit, OnDestroy, AfterContentChecked {

@@ -24,7 +24,6 @@ import { VSFormatsPane } from "../format/vs-formats-pane.component";
     selector: "viewer-format-pane",
     templateUrl: "viewer-format-pane.component.html",
     styleUrls: ["viewer-format-pane.component.scss"],
-    standalone: true,
     imports: [VSFormatsPane]
 })
 export class ViewerFormatPane {

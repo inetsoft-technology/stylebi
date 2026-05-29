@@ -25,13 +25,12 @@ import { ModalHeaderComponent } from "../../widget/modal-header/modal-header.com
 @Component({
     selector: "selection-list-dialog",
     templateUrl: "selection-list-dialog.component.html",
-    standalone: true,
     imports: [
         ModalHeaderComponent,
         NgIf,
         EnterSubmitDirective,
         SelectionListEditor,
-    ],
+    ]
 })
 export class SelectionListDialog {
    @ViewChild(SelectionListEditor) selectionListEditor: SelectionListEditor;

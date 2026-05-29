@@ -34,7 +34,6 @@ export interface NotificationEmails {
     selector: "em-notification-emails",
     templateUrl: "./notification-emails.component.html",
     styleUrls: ["./notification-emails.component.scss"],
-    standalone: true,
     imports: [MatCard, MatCardHeader, MatCardTitle, MatCheckbox, FormsModule, NgIf, MatCardContent, EmailPickerComponent, ReactiveFormsModule]
 })
 export class NotificationEmailsComponent implements OnInit {

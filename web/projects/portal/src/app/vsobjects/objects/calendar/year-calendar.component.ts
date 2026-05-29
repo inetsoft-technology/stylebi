@@ -35,12 +35,11 @@ import { SafeFontDirective } from "../../directives/safe-font.directive";
     selector: "year-calendar",
     templateUrl: "year-calendar.component.html",
     styleUrls: ["vs-calendar.component.scss"],
-    standalone: true,
     imports: [
         SafeFontDirective,
         NgFor,
         NgClass,
-    ],
+    ]
 })
 export class YearCalendar implements OnChanges, AfterViewInit {
    @Input() model: VSCalendarModel;

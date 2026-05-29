@@ -54,8 +54,7 @@ import { ClusterSelectorComponent } from "../../cluster-selector/cluster-selecto
     templateUrl: "./cache-monitoring-page.component.html",
     styleUrls: ["./cache-monitoring-page.component.scss"],
     encapsulation: ViewEncapsulation.None,
-    host: { "class": "em-cache-monitoring-page" }, // eslint-disable-line @angular-eslint/no-host-metadata-property
-    standalone: true,
+    host: { "class": "em-cache-monitoring-page" },
     imports: [ClusterSelectorComponent, NgIf, CacheMonitoringViewComponent]
 })
 export class CacheMonitoringPageComponent implements OnInit, OnDestroy {

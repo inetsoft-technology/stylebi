@@ -26,14 +26,13 @@ import { GeneralPropPane } from "../../../vsobjects/dialog/general-prop-pane.com
 @Component({
     selector: "combobox-general-pane",
     templateUrl: "combobox-general-pane.component.html",
-    standalone: true,
     imports: [
         GeneralPropPane,
         FormsModule,
         ReactiveFormsModule,
         ListValuesPane,
         SizePositionPane,
-    ],
+    ]
 })
 export class ComboboxGeneralPane implements OnInit {
    @Input() model: ComboboxGeneralPaneModel;

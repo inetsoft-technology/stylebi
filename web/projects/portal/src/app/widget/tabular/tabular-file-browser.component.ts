@@ -35,7 +35,6 @@ import { NgIf } from "@angular/common";
     selector: "tabular-file-browser",
     templateUrl: "tabular-file-browser.component.html",
     styleUrls: ["tabular-file-browser.component.scss"],
-    standalone: true,
     imports: [NgIf, TreeComponent, FormsModule]
 })
 export class TabularFileBrowser implements AfterViewInit {

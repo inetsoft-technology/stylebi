@@ -32,7 +32,6 @@ import { NgIf, NgFor } from "@angular/common";
 @Component({
     selector: "top-n-editor",
     templateUrl: "top-n-editor.component.html",
-    standalone: true,
     imports: [NgIf, NumberValueEditor, VariableEditor, FormsModule, NgFor]
 })
 export class TopNEditor implements OnChanges {

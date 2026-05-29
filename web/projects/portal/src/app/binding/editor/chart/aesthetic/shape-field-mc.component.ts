@@ -51,7 +51,6 @@ import { DropHighlightDirective } from "../../../widget/drophighlight.directive"
     selector: "shape-field-mc",
     templateUrl: "shape-field-mc.component.html",
     styleUrls: ["aesthetic-field-mc.scss"],
-    standalone: true,
     imports: [
         DropHighlightDirective,
         OutOfZoneDirective,
@@ -70,7 +69,7 @@ import { DropHighlightDirective } from "../../../widget/drophighlight.directive"
         StaticLinePane,
         LinearLinePane,
         LinearTexturePane,
-    ],
+    ]
 })
 export class ShapeFieldMc extends AestheticFieldMc {
    constructor(editorService: ChartEditorService, dservice: DndService,

@@ -62,7 +62,6 @@ export interface DeliveryEmails {
     selector: "em-delivery-emails",
     templateUrl: "./delivery-emails.component.html",
     styleUrls: ["./delivery-emails.component.scss"],
-    standalone: true,
     imports: [MatCard, MatCardHeader, MatCardTitle, MatCheckbox, FormsModule, NgIf, MatCardContent, ReactiveFormsModule, MatFormField, MatLabel, MatInput, MatError, EmailPickerComponent, MatSelect, NgFor, MatOption, MatRadioGroup, MatRadioButton, EmCSVConfigPaneComponent, MatCkeditorComponent]
 })
 export class DeliveryEmailsComponent implements OnInit, OnChanges {

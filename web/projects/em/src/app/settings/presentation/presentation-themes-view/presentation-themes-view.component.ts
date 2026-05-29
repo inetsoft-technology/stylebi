@@ -58,7 +58,6 @@ interface CustomThemeList {
     selector: "em-presentation-themes-view",
     templateUrl: "./presentation-themes-view.component.html",
     styleUrls: ["./presentation-themes-view.component.scss"],
-    standalone: true,
     imports: [MatDrawerContainer, MatDrawer, ThemeListViewComponent, MatDrawerContent, ThemeEditorViewComponent]
 })
 export class PresentationThemesViewComponent implements OnInit {

@@ -23,8 +23,7 @@ import { LinePropPane } from "./line-prop-pane.component";
 @Component({
     selector: "line-property-pane",
     templateUrl: "line-property-pane.component.html",
-    standalone: true,
-    imports: [LinePropPane, LineArrowTypeDropdown],
+    imports: [LinePropPane, LineArrowTypeDropdown]
 })
 export class LinePropertyPane {
    @Input() model: LinePropertyPaneModel;

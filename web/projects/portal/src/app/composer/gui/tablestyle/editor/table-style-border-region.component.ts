@@ -22,7 +22,6 @@ import { NgClass, NgIf } from "@angular/common";
     selector: "table-style-border-region",
     templateUrl: "table-style-border-region.component.html",
     styleUrls: ["table-style-preview-pane.component.scss"],
-    standalone: true,
     imports: [NgClass, NgIf]
 })
 export class TableStyleBorderRegionComponent {

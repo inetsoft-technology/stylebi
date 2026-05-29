@@ -34,7 +34,6 @@ const GET_AUTO_SAVE_TIME: string = "../api/em/content/repository/autosave/gettim
 @Component({
     selector: "em-auto-save-recycle-bin-page",
     templateUrl: "./auto-save-recycle-bin-page.component.html",
-    standalone: true,
     imports: [NgIf, EditorPanelComponent, MatTabGroup, MatTab, AutoSaveRecycleBinComponent]
 })
 export class AutoSaveRecycleBinPageComponent {

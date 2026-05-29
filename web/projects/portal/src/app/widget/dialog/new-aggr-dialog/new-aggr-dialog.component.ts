@@ -28,7 +28,6 @@ import { ModalHeaderComponent } from "../../modal-header/modal-header.component"
 @Component({
     selector: "new-aggr-dialog",
     templateUrl: "./new-aggr-dialog.component.html",
-    standalone: true,
     imports: [ModalHeaderComponent, NgIf, FormsModule, ReactiveFormsModule, NgClass, NgFor]
 })
 export class NewAggrDialog implements OnInit {

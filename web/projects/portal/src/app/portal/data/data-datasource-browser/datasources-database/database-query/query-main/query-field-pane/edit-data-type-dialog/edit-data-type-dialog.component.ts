@@ -25,7 +25,6 @@ import { ModalHeaderComponent } from "../../../../../../../../widget/modal-heade
     selector: "edit-data-type-dialog",
     templateUrl: "./edit-data-type-dialog.component.html",
     styleUrls: ["./edit-data-type-dialog.component.scss"],
-    standalone: true,
     imports: [ModalHeaderComponent, FormsModule, NgFor]
 })
 export class EditDataTypeDialogComponent {

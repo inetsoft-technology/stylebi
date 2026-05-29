@@ -33,7 +33,6 @@ import { ModalHeaderComponent } from "../../../../common/util/modal-header/modal
     selector: "em-add-theme-dialog",
     templateUrl: "./add-theme-dialog.component.html",
     styleUrls: ["./add-theme-dialog.component.scss"],
-    standalone: true,
     imports: [ModalHeaderComponent, MatDialogContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatInput, NgIf, MatError, FileChooserComponent, MatIcon, MatSuffix, MatDialogActions, MatButton, MatDialogClose]
 })
 export class AddThemeDialogComponent implements OnInit {

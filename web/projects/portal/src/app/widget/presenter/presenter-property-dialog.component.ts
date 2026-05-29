@@ -36,7 +36,6 @@ import { ModalHeaderComponent } from "../modal-header/modal-header.component";
     selector: "presenter-property-dialog",
     templateUrl: "presenter-property-dialog.component.html",
     styleUrls: ["./presenter-property-dialog.component.scss"],
-    standalone: true,
     imports: [ModalHeaderComponent, NgIf, NgFor, NgSwitch, NgSwitchCase, StyleDropdown, FormsModule, FontPane, ColorEditor, EditImageDialog]
 })
 export class PresenterPropertyDialog {

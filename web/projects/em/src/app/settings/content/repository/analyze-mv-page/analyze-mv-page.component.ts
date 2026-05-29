@@ -54,7 +54,6 @@ const MATERIALIZATION_NO_ASSETS_MESSAGE = "_#(js:viewer.viewsheet.materializatio
     selector: "em-analyze-mv-page",
     templateUrl: "./analyze-mv-page.component.html",
     styleUrls: ["./analyze-mv-page.component.scss"],
-    standalone: true,
     imports: [NgIf, TableView, MatCard, MatCardTitle, MatCardContent, MatFormField, MatSelect, FormsModule, MatOption, MatCheckbox, MatLabel, NgFor, LoadingSpinnerComponent]
 })
 export class AnalyzeMvPageComponent implements OnInit, OnDestroy {

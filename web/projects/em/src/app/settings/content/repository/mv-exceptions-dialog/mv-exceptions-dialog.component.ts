@@ -28,7 +28,6 @@ import { ModalHeaderComponent } from "../../../../common/util/modal-header/modal
     selector: "em-mv-exceptions-dialog",
     templateUrl: "./mv-exceptions-dialog.component.html",
     styleUrls: ["./mv-exceptions-dialog.component.scss"],
-    standalone: true,
     imports: [ModalHeaderComponent, MatDialogContent, TableView, MatDialogActions, MatButton, MatDialogClose]
 })
 export class MvExceptionsDialogComponent implements OnInit {

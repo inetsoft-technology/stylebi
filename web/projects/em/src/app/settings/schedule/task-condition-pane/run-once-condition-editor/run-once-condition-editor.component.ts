@@ -36,7 +36,6 @@ import { MatCard, MatCardContent } from "@angular/material/card";
     selector: "em-run-once-condition-editor",
     templateUrl: "./run-once-condition-editor.component.html",
     styleUrls: ["./run-once-condition-editor.component.scss"],
-    standalone: true,
     imports: [MatCard, MatCardContent, FormsModule, ReactiveFormsModule, DatepickerComponent, TimePickerComponent, MatHint, NgIf, MatError, TimeZoneSelectComponent]
 })
 export class RunOnceConditionEditorComponent implements OnInit {

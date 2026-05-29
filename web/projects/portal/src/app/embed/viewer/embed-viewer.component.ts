@@ -53,20 +53,19 @@ import { ViewerAppComponent } from "../../vsobjects/viewer-app.component";
 declare const window: any;
 
 @Component({
-   standalone: true,
-   selector: "embed-viewer",
-   templateUrl: "./embed-viewer.component.html",
-   styleUrls: ["./embed-viewer.component.scss"],
-   imports: [NgIf, ViewerAppComponent, VSLoadingDisplay, DownloadTargetComponent],
-   providers: [
-      DownloadService,
-      TooltipService,
-      NgbModal,
-      DialogService,
-      FixedDropdownService,
-      InteractService,
-      DebounceService
-   ]
+    selector: "embed-viewer",
+    templateUrl: "./embed-viewer.component.html",
+    styleUrls: ["./embed-viewer.component.scss"],
+    imports: [NgIf, ViewerAppComponent, VSLoadingDisplay, DownloadTargetComponent],
+    providers: [
+        DownloadService,
+        TooltipService,
+        NgbModal,
+        DialogService,
+        FixedDropdownService,
+        InteractService,
+        DebounceService
+    ]
 })
 export class EmbedViewerComponent implements OnInit, OnDestroy, AfterViewInit {
    @Input() url: string;

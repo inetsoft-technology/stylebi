@@ -24,7 +24,6 @@ import { ParameterPage } from "../parameter-page/parameter-page.component";
     selector: "w-parameter-dialog",
     templateUrl: "./parameter-dialog.component.html",
     styleUrls: ["./parameter-dialog.component.scss"],
-    standalone: true,
     imports: [ParameterPage]
 })
 export class ParameterDialogComponent {

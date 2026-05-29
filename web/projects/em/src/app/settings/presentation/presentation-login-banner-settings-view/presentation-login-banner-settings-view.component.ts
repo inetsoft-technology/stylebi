@@ -45,7 +45,6 @@ import { MatCard, MatCardTitle, MatCardContent } from "@angular/material/card";
     selector: "em-presentation-login-banner-settings-view",
     templateUrl: "./presentation-login-banner-settings-view.component.html",
     styleUrls: ["./presentation-login-banner-settings-view.component.scss"],
-    standalone: true,
     imports: [MatCard, MatCardTitle, MatCardContent, NgIf, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatSelect, MatOption, MatInput]
 })
 export class PresentationLoginBannerSettingsViewComponent {

@@ -36,7 +36,6 @@ import { NgIf, NgFor } from "@angular/common";
     selector: "vpm-value-editor",
     templateUrl: "vpm-value-editor.component.html",
     styleUrls: ["vpm-value-editor.component.scss"],
-    standalone: true,
     imports: [NgIf, StringValueEditor, CharValueEditor, BooleanValueEditor, NumberValueEditor, DateValueEditorComponent, FormsModule, TimeValueEditorComponent, TimeInstantValueEditorComponent, FixedDropdownDirective, NgFor]
 })
 export class VPMValueEditorComponent implements OnChanges {

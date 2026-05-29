@@ -331,7 +331,6 @@ export interface ScrollViewportRect {
         FirstDayOfWeekService,
         PageTabService
     ],
-    standalone: true,
     imports: [NgIf, PagingControlComponent, OutOfZoneDirective, VsToolbarButtonDirective, FixedDropdownDirective, DefaultFocusDirective, EnterClickDirective, NgFor, BlockMouseDirective, ViewerMobileToolbarComponent, VsBookmarkPaneComponent, InteractContainerDirective, ViewerFormatPane, VSObjectContainer, StatusBar, VSLoadingDisplay, ExportDialog, EmailDialog, ScheduleDialog, BookmarkPropertyDialog, VariableInputDialog, ShareEmailDialogComponent, ShareGoogleChatDialog, ShareSlackDialog, ShareLinkDialog, RemoveBookmarksDialog, NotificationsComponent]
 })
 export class ViewerAppComponent extends CommandProcessor implements OnInit, AfterViewInit,

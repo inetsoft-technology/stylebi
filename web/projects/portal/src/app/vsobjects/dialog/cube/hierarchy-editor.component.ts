@@ -28,7 +28,6 @@ import { FormsModule } from "@angular/forms";
     selector: "hierarchy-editor",
     templateUrl: "hierarchy-editor.component.html",
     styleUrls: ["./hierarchy-editor.component.scss"],
-    standalone: true,
     imports: [FormsModule]
 })
 export class HierarchyEditor implements OnInit {

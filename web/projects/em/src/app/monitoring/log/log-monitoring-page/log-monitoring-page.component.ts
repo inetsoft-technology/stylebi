@@ -63,7 +63,6 @@ const DEFAULT_VIEW_VALUES: LogMonitoringModel = {
     selector: "em-log-monitoring-page",
     templateUrl: "./log-monitoring-page.component.html",
     styleUrls: ["./log-monitoring-page.component.scss"],
-    standalone: true,
     imports: [NgIf, MatCard, MatCardTitle, MatIcon, LogMonitoringViewComponent, AsyncPipe]
 })
 export class LogMonitoringPageComponent implements OnInit, OnDestroy {

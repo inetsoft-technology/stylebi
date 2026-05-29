@@ -25,7 +25,6 @@ import { NgIf } from "@angular/common";
     selector: "modal-header",
     templateUrl: "modal-header.component.html",
     styleUrls: ["./modal-header.component.scss"],
-    standalone: true,
     imports: [NgIf, EnterClickDirective, HelpLinkDirective]
 })
 export class ModalHeaderComponent {

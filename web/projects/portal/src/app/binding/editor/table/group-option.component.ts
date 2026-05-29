@@ -38,7 +38,6 @@ import { SortOption } from "../sort-option.component";
     selector: "group-option",
     templateUrl: "group-option.component.html",
     styleUrls: ["group-option.component.scss"],
-    standalone: true,
     imports: [SortOption, NgIf, DynamicComboBox, FormsModule]
 })
 export class GroupOption implements OnInit {

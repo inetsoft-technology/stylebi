@@ -27,12 +27,11 @@ import { DynamicValueEditorComponent } from "../../../widget/date-type-editor/dy
 @Component({
     selector: "calendar-advanced-pane",
     templateUrl: "calendar-advanced-pane.component.html",
-    standalone: true,
     imports: [
         FormsModule,
         DynamicValueEditorComponent,
         NgIf,
-    ],
+    ]
 })
 export class CalendarAdvancedPane implements OnInit {
    @Input() model: CalendarAdvancedPaneModel;

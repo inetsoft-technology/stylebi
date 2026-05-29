@@ -32,7 +32,6 @@ import { NgIf } from "@angular/common";
     selector: "tabular-number-editor",
     templateUrl: "tabular-number-editor.component.html",
     styleUrls: ["tabular-number-editor.component.scss"],
-    standalone: true,
     imports: [FormsModule, ReactiveFormsModule, NgIf]
 })
 export class TabularNumberEditor implements OnInit, OnChanges {

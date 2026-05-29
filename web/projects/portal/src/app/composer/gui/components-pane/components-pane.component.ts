@@ -48,7 +48,6 @@ import { NgIf } from "@angular/common";
     selector: "components-pane",
     templateUrl: "components-pane.component.html",
     styleUrls: ["components-pane.component.scss"],
-    standalone: true,
     imports: [NgIf, ComponentTree, TreeComponent]
 })
 export class ComponentsPane implements OnChanges, OnInit{

@@ -51,7 +51,6 @@ export interface TaskConditionType {
     selector: "em-task-condition-pane",
     templateUrl: "./task-condition-pane.component.html",
     styleUrls: ["./task-condition-pane.component.scss"],
-    standalone: true,
     imports: [MatCard, MatCardContent, MatFormField, MatLabel, MatSelect, NgFor, MatOption, NgSwitch, NgSwitchCase, TimeConditionEditorComponent, CompletionConditionEditorComponent]
 })
 export class TaskConditionPaneComponent implements OnChanges {

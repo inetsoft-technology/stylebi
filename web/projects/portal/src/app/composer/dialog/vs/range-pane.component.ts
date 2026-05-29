@@ -29,7 +29,6 @@ import { FormsModule } from "@angular/forms";
 @Component({
     selector: "range-pane",
     templateUrl: "range-pane.component.html",
-    standalone: true,
     imports: [
         FormsModule,
         ColorEditor,
@@ -37,7 +36,7 @@ import { FormsModule } from "@angular/forms";
         ExpandStringDirective,
         DynamicComboBox,
         NgIf,
-    ],
+    ]
 })
 export class RangePane implements OnChanges {
    @Input() model: RangePaneModel;

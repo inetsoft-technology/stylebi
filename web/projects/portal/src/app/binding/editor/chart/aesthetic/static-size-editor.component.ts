@@ -24,7 +24,6 @@ import { FixedDropdownDirective } from "../../../../widget/fixed-dropdown/fixed-
 @Component({
     selector: "static-size-editor",
     templateUrl: "static-size-editor.component.html",
-    standalone: true,
     imports: [SizeCell, FixedDropdownDirective, StaticSizePane]
 })
 export class StaticSizeEditor {

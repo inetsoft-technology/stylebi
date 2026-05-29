@@ -66,7 +66,6 @@ export interface UserFailedLoginMonitoring extends TableModel {
     selector: "em-user-monitoring-view",
     templateUrl: "./user-monitoring-view.component.html",
     styleUrls: ["./user-monitoring-view.component.scss"],
-    standalone: true,
     imports: [NgIf, MatCard, MatCardTitle, MatIcon, ClusterSelectorComponent, TableView]
 })
 export class UserMonitoringViewComponent implements OnInit, OnDestroy {

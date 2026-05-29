@@ -37,7 +37,6 @@ import { NgFor } from "@angular/common";
     templateUrl: "./vs-wizard-grid-pane.component.html",
     styleUrls: ["./vs-wizard-grid-pane.component.scss"],
     changeDetection: ChangeDetectionStrategy.OnPush,
-    standalone: true,
     imports: [NgFor, OutOfZoneDirective]
 })
 export class VsWizardGridPaneComponent implements OnChanges, OnDestroy {

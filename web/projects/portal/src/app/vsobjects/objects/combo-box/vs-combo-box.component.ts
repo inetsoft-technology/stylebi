@@ -85,7 +85,6 @@ dayjs.extend(customParseFormat);
     selector: "vs-combo-box",
     templateUrl: "vs-combo-box.component.html",
     styleUrls: ["vs-combo-box.component.scss"],
-    standalone: true,
     imports: [NgIf, VSInputLabelWrapper, VSDataTipDirective, VSPopComponentDirective, SafeFontDirective, FormsModule, NgFor, FixedDropdownDirective, NgbTypeahead, EnterClickDirective, CdkVirtualScrollViewport, CdkFixedSizeVirtualScroll, CdkVirtualForOf, NgbDatepicker, DefaultFocusDirective, BlockMouseDirective]
 })
 export class VSComboBox extends NavigationComponent<VSComboBoxModel> implements OnChanges, OnDestroy, OnInit {

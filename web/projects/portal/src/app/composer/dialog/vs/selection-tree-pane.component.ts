@@ -29,13 +29,12 @@ import { FormsModule } from "@angular/forms";
 @Component({
     selector: "selection-tree-pane",
     templateUrl: "selection-tree-pane.component.html",
-    standalone: true,
     imports: [
         FormsModule,
         SelectionTreeColumnsPane,
         SelectionTreeIdPane,
         SelectionMeasurePane,
-    ],
+    ]
 })
 export class SelectionTreePane implements OnInit {
    @Input() model: SelectionTreePaneModel;

@@ -62,7 +62,6 @@ import { NgIf, AsyncPipe } from "@angular/common";
     selector: "em-cluster-monitoring-page",
     templateUrl: "./cluster-monitoring-page.component.html",
     styleUrls: ["./cluster-monitoring-page.component.scss"],
-    standalone: true,
     imports: [NgIf, MatCard, ClusterMonitoringViewComponent, MatButton, MatCardTitle, MatIcon, AsyncPipe]
 })
 export class ClusterMonitoringPageComponent implements OnInit, OnDestroy {

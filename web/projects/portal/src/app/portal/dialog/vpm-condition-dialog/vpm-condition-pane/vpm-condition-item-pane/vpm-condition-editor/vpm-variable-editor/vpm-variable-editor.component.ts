@@ -23,7 +23,6 @@ import { NgClass, NgIf, NgFor } from "@angular/common";
     selector: "vpm-variable-editor",
     templateUrl: "vpm-variable-editor.component.html",
     styleUrls: ["vpm-variable-editor.component.scss"],
-    standalone: true,
     imports: [FormsModule, ReactiveFormsModule, NgClass, NgIf, NgFor]
 })
 export class VPMVariableEditor implements OnChanges {

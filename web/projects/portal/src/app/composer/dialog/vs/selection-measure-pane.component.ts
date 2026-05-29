@@ -33,7 +33,6 @@ const COLUMNS_URI: string = "../vs/dataOutput/selection/columns";
     selector: "selection-measure-pane",
     templateUrl: "selection-measure-pane.component.html",
     styleUrls: ["selection-measure-pane.component.scss"],
-    standalone: true,
     imports: [DynamicComboBox, FormsModule]
 })
 export class SelectionMeasurePane implements OnInit {

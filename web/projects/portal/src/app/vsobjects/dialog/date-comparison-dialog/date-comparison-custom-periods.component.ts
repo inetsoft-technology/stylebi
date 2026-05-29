@@ -36,7 +36,6 @@ import { NgFor, NgIf } from "@angular/common";
     selector: "date-comparison-custom-periods",
     templateUrl: "./date-comparison-custom-periods.component.html",
     styleUrls: ["./date-comparison-custom-periods.component.scss"],
-    standalone: true,
     imports: [NgFor, DynamicValueEditorComponent, NgIf]
 })
 export class DateComparisonCustomPeriodsComponent implements OnInit, OnChanges {

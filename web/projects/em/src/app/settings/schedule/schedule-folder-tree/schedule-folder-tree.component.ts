@@ -54,7 +54,6 @@ const CHECK_ADD_DUPLICATE_URI = "../api/em/schedule/add/checkDuplicate";
     selector: "em-schedule-folder-tree",
     templateUrl: "./schedule-folder-tree.component.html",
     styleUrls: ["./schedule-folder-tree.component.scss"],
-    standalone: true,
     imports: [TopScrollDirective, FlatTreeViewComponent, MultiSelectTreeNodeDirective]
 })
 export class ScheduleFolderTreeComponent implements OnInit, OnDestroy {

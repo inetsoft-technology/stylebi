@@ -26,13 +26,12 @@ import { GeneralPropPane } from "../../../vsobjects/dialog/general-prop-pane.com
 @Component({
     selector: "tab-general-pane",
     templateUrl: "tab-general-pane.component.html",
-    standalone: true,
     imports: [
         FormsModule,
         GeneralPropPane,
         TabListPane,
         SizePositionPane,
-    ],
+    ]
 })
 
 export class TabGeneralPane implements OnInit {

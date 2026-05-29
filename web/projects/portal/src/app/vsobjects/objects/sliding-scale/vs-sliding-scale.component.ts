@@ -30,7 +30,6 @@ import { NgIf } from "@angular/common";
     selector: "vs-sliding-scale",
     templateUrl: "vs-sliding-scale.component.html",
     styleUrls: ["vs-sliding-scale.component.scss"],
-    standalone: true,
     imports: [NgIf, VSDataTipDirective, VSPopComponentDirective]
 })
 

@@ -32,7 +32,6 @@ import { MatButton } from "@angular/material/button";
     selector: "em-debug-monitoring-page",
     templateUrl: "./debug-monitoring-page.component.html",
     styleUrls: ["./debug-monitoring-page.component.scss"],
-    standalone: true,
     imports: [MatButton]
 })
 export class DebugMonitoringPageComponent {

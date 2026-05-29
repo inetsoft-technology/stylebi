@@ -57,7 +57,6 @@ import { MatCard, MatCardTitle, MatCardContent, MatCardActions } from "@angular/
     selector: "em-email-settings-view",
     templateUrl: "./email-settings-view.component.html",
     styleUrls: ["./email-settings-view.component.scss"],
-    standalone: true,
     imports: [MatCard, MatCardTitle, MatCardContent, NgIf, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatInput, MatError, MatCheckbox, MatSelect, MatOption, MatIcon, MatSuffix, MatCardActions, MatButton]
 })
 export class EmailSettingsViewComponent implements OnDestroy {

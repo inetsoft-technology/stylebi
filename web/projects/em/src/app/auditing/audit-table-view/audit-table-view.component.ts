@@ -41,7 +41,6 @@ export interface AuditRowRenderer<R> {
     selector: "em-audit-table-view",
     templateUrl: "./audit-table-view.component.html",
     styleUrls: ["./audit-table-view.component.scss"],
-    standalone: true,
     imports: [LoadingSpinnerComponent, MatCard, MatCardContent, NgIf, MatSlider, MatSliderRangeThumb, FormsModule, MatButton, MatTable, MatSort, NgFor, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatSortHeader, MatCellDef, MatCell, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, MatPaginator]
 })
 export class AuditTableViewComponent<R> implements OnInit, AfterViewInit {

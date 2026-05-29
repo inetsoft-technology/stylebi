@@ -57,7 +57,6 @@ import { EditorPanelComponent } from "../../../../common/util/editor-panel/edito
     providers: [
         MVChangeService
     ],
-    standalone: true,
     imports: [EditorPanelComponent, MatFormField, MatLabel, MatSelect, NgFor, MatOption, TableView, MatCheckbox, FormsModule, NgIf, MatButton, LoadingSpinnerComponent]
 })
 export class MvManagementViewComponent implements OnInit, OnDestroy {

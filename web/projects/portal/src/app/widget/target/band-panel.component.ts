@@ -34,7 +34,6 @@ import { FormsModule } from "@angular/forms";
 @Component({
     selector: "band-panel",
     templateUrl: "band-panel.component.html",
-    standalone: true,
     imports: [
         FormsModule,
         NgFor,
@@ -47,7 +46,7 @@ import { FormsModule } from "@angular/forms";
         GridLineDropdown,
         ColorEditor,
         AlphaDropdown,
-    ],
+    ]
 })
 export class BandPanel {
    @Input() model: TargetInfo;

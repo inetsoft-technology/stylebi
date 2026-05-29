@@ -53,7 +53,6 @@ import { NgIf, NgClass, NgFor } from "@angular/common";
     templateUrl: "tree-node.component.html",
     styleUrls: ["tree-node.component.scss"],
     changeDetection: ChangeDetectionStrategy.OnPush,
-    standalone: true,
     imports: [
         NgIf,
         OutOfZoneDirective,
@@ -62,7 +61,7 @@ import { NgIf, NgClass, NgFor } from "@angular/common";
         TooltipDirective,
         NgFor,
         TreeSearchPipe,
-    ],
+    ]
 })
 export class TreeNodeComponent implements OnInit, OnDestroy, OnChanges {
    @Input() tree: TreeComponent;

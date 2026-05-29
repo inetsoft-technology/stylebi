@@ -29,7 +29,6 @@ import { NgIf, NgFor } from "@angular/common";
     selector: "task-folder-browser",
     templateUrl: "task-folder-browser.component.html",
     styleUrls: ["task-folder-browser.component.scss"],
-    standalone: true,
     imports: [NgbTooltip, NgIf, NgFor]
 })
 export class TaskFolderBrowserComponent implements OnInit{

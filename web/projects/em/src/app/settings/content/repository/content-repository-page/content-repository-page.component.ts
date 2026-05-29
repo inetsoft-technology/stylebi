@@ -76,7 +76,6 @@ const SMALL_WIDTH_BREAKPOINT = 720;
     providers: [
         RepositoryTreeDataSource
     ],
-    standalone: true,
     imports: [MatDrawerContainer, MatDrawer, RepositoryTreeViewComponent, MultiSelectTreeNodeDirective, MatDrawerContent, RepositoryEditorPageComponent, LoadingSpinnerComponent, AsyncPipe]
 })
 export class ContentRepositoryPageComponent implements OnInit, OnDestroy {

@@ -38,7 +38,6 @@ export interface RepositorySheetSettingsChange {
     selector: "em-repository-sheet-settings-view",
     templateUrl: "./repository-sheet-settings-view.component.html",
     styleUrls: ["./repository-sheet-settings-view.component.scss"],
-    standalone: true,
     imports: [NgIf, MatCard, MatCardHeader, MatError, MatCardContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatInput]
 })
 export class RepositorySheetSettingsViewComponent implements OnChanges, OnDestroy, OnInit {

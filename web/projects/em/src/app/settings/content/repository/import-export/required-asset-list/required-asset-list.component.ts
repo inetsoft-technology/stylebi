@@ -36,7 +36,6 @@ import { MatCheckbox } from "@angular/material/checkbox";
             transition("expanded <=> void", animate("225ms cubic-bezier(0.4, 0.0, 0.2, 1)"))
         ]),
     ],
-    standalone: true,
     imports: [MatTable, MatSort, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCheckbox, MatCellDef, MatCell, MatSortHeader, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow]
 })
 export class RequiredAssetListComponent implements OnInit {

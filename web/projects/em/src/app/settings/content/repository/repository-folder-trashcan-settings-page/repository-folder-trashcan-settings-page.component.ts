@@ -37,7 +37,6 @@ export interface RepositoryTrashcanFolderEditorModel extends RepositoryEditorMod
     selector: "em-repository-folder-trashcan-settings-page",
     templateUrl: "./repository-folder-trashcan-settings-page.component.html",
     styleUrls: ["./repository-folder-trashcan-settings-page.component.scss"],
-    standalone: true,
     imports: [RepositoryFolderTrashcanSettingsViewComponent]
 })
 export class RepositoryFolderTrashcanSettingsPageComponent implements OnChanges {

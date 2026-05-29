@@ -26,7 +26,6 @@ import { ExpertNamedGroupDialog } from "./expert-named-group-dialog.component";
     selector: "calc-named-group-dialog",
     templateUrl: "calc-named-group-dialog.component.html",
     styleUrls: ["calc-named-group-dialog.component.scss"],
-    standalone: true,
     imports: [ExpertNamedGroupDialog]
 })
 export class CalcNamedGroupDialog implements OnInit{

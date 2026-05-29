@@ -30,7 +30,6 @@ import { NgIf } from "@angular/common";
     selector: "wizard-detail-item",
     templateUrl: "./wizard-detail-item.component.html",
     styleUrls: ["./wizard-detail-item.component.scss", "./wizard-group-item.component.scss"],
-    standalone: true,
     imports: [NgIf, NgbTooltip, FixedDropdownDirective, FormattingPane]
 })
 export class VSWizardDetailItem extends VSWizardItem<DataRef> {

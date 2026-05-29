@@ -68,7 +68,6 @@ interface MavenSearchResponse {
     templateUrl: "./create-driver-dialog.component.html",
     styleUrls: ["./create-driver-dialog.component.scss"],
     encapsulation: ViewEncapsulation.None,
-    standalone: true,
     imports: [ModalHeaderComponent, MatDialogContent, MatStepper, MatStep, FormsModule, ReactiveFormsModule, MatRadioGroup, MatRadioButton, MatList, NgFor, MatListItem, MatIconButton, MatIcon, NgIf, MatError, MatButton, MatFormField, MatLabel, MatInput, MatAutocompleteTrigger, MatHint, MatAutocomplete, MatOption, MatProgressSpinner, MatSelectionList, MatListOption, MatStepperNext, MatStepperIcon, LoadingSpinnerComponent]
 })
 export class CreateDriverDialogComponent implements OnInit {

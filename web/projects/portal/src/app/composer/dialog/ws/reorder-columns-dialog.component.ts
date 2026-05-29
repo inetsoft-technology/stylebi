@@ -34,7 +34,6 @@ import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.
     selector: "reorder-columns-dialog",
     templateUrl: "reorder-columns-dialog.component.html",
     styleUrls: ["reorder-columns-dialog.component.scss"],
-    standalone: true,
     imports: [ModalHeaderComponent, NgIf, EnterSubmitDirective, LargeFormFieldComponent, CdkVirtualScrollViewport, CdkFixedSizeVirtualScroll, CdkVirtualForOf, TooltipDirective, VSLoadingDisplay]
 })
 export class ReorderColumnsDialog implements OnInit {

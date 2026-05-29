@@ -35,7 +35,6 @@ import { NgIf, NgFor } from "@angular/common";
     selector: "simple-table",
     templateUrl: "simple-table.component.html",
     styleUrls: ["simple-table.component.scss"],
-    standalone: true,
     imports: [NgIf, NgFor, TouchScrollDirective, NgbTooltip]
 })
 export class SimpleTableComponent {

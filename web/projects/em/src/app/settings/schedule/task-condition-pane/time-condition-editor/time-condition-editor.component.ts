@@ -36,7 +36,6 @@ import { NgSwitch, NgSwitchCase } from "@angular/common";
     templateUrl: "./time-condition-editor.component.html",
     styleUrls: ["./time-condition-editor.component.scss"],
     providers: [DateTimeService],
-    standalone: true,
     imports: [NgSwitch, NgSwitchCase, DailyConditionEditorComponent, WeeklyConditionEditorComponent, MonthlyConditionEditorComponent, HourlyConditionEditorComponent, RunOnceConditionEditorComponent]
 })
 export class TimeConditionEditorComponent implements OnInit {

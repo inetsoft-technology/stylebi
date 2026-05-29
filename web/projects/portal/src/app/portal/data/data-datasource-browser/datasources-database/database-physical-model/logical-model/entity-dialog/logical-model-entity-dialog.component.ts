@@ -25,7 +25,6 @@ import { ModalHeaderComponent } from "../../../../../../../widget/modal-header/m
     selector: "logical-model-entity-dialog",
     templateUrl: "logical-model-entity-dialog.component.html",
     styleUrls: ["logical-model-entity-dialog.component.scss"],
-    standalone: true,
     imports: [ModalHeaderComponent, LogicalModelEntityPane]
 })
 export class LogicalModelEntityDialog implements OnInit {

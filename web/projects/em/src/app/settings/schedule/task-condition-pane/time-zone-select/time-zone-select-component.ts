@@ -39,7 +39,6 @@ export interface TimeZoneValue {
             multi: true
         }
     ],
-    standalone: true,
     imports: [NgIf, MatFormField, MatLabel, MatSelect, NgFor, MatOption]
 })
 export class TimeZoneSelectComponent implements OnInit, ControlValueAccessor {

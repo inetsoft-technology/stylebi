@@ -97,7 +97,6 @@ const PADDING_V = 30; // mini-toolbar should display
             useFactory: VSWizardContextProviderFactory
         }
     ],
-    standalone: true,
     imports: [WizardToolBarComponent, SelectionBoxDirective, InteractContainerDirective, OutOfZoneDirective, VsWizardGridPaneComponent, NgFor, VsWizardObjectComponent, WizardNewObject]
 })
 export class VsWizardPane extends CommandProcessor implements OnInit, AfterViewInit, OnDestroy {

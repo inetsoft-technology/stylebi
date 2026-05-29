@@ -45,7 +45,6 @@ import { NgIf, NgFor, NgSwitch, NgSwitchCase, NgSwitchDefault } from "@angular/c
     selector: "vpm-condition-item-pane",
     templateUrl: "vpm-condition-item-pane.component.html",
     styleUrls: ["vpm-condition-item-pane.component.scss"],
-    standalone: true,
     imports: [NgIf, OneOfVpmConditionEditor, VPMConditionEditor, FormsModule, NgFor, NgSwitch, NgSwitchCase, VPMTrinaryConditionEditor, NgSwitchDefault]
 })
 export class VPMConditionItemPane implements OnInit, OnChanges {

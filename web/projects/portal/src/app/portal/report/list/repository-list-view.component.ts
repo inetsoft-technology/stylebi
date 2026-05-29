@@ -25,7 +25,6 @@ import { NgIf } from "@angular/common";
     selector: "p-repository-list-view",
     templateUrl: "./repository-list-view.component.html",
     styleUrls: ["./repository-list-view.component.scss"],
-    standalone: true,
     imports: [NgIf, RepositoryListComponent]
 })
 export class RepositoryListViewComponent implements OnInit {

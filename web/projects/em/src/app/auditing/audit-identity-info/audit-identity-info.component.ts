@@ -51,7 +51,6 @@ import { NgIf, NgFor } from "@angular/common";
     selector: "em-audit-identity-info",
     templateUrl: "./audit-identity-info.component.html",
     styleUrls: ["./audit-identity-info.component.scss"],
-    standalone: true,
     imports: [AuditTableViewComponent, FormsModule, ReactiveFormsModule, NgIf, MatFormField, MatLabel, MatSelect, NgFor, MatOption]
 })
 export class AuditIdentityInfoComponent implements OnInit, OnDestroy {

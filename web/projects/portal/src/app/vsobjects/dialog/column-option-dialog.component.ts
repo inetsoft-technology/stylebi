@@ -38,7 +38,6 @@ import { ModalHeaderComponent } from "../../widget/modal-header/modal-header.com
 @Component({
     selector: "column-option-dialog",
     templateUrl: "column-option-dialog.component.html",
-    standalone: true,
     imports: [
         ModalHeaderComponent,
         NgIf,
@@ -54,7 +53,7 @@ import { ModalHeaderComponent } from "../../widget/modal-header/modal-header.com
         FloatEditor,
         NgSwitchDefault,
         ApplyButtonComponent,
-    ],
+    ]
 })
 export class ColumnOptionDialog {
    _model: ColumnOptionDialogModel;

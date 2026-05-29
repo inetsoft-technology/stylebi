@@ -39,7 +39,6 @@ import { EditorPanelComponent } from "../../../../common/util/editor-panel/edito
     selector: "em-repository-data-source-settings-view",
     templateUrl: "./repository-data-source-settings-view.component.html",
     styleUrls: ["./repository-data-source-settings-view.component.scss"],
-    standalone: true,
     imports: [EditorPanelComponent, MatTabGroup, MatTab, MatTabContent, ResourcePermissionComponent]
 })
 export class RepositoryDataSourceSettingsViewComponent {

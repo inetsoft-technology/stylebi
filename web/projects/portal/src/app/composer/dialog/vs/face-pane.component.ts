@@ -23,7 +23,6 @@ import { NgFor } from "@angular/common";
     selector: "face-pane",
     templateUrl: "face-pane.component.html",
     styleUrls: ["face-pane.component.scss"],
-    standalone: true,
     imports: [NgFor]
 })
 export class FacePane {

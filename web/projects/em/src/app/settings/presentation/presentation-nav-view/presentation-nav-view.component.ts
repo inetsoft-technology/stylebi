@@ -40,7 +40,6 @@ interface Link {
     selector: "em-presentation-nav-view",
     templateUrl: "./presentation-nav-view.component.html",
     styleUrls: ["./presentation-nav-view.component.scss"],
-    standalone: true,
     imports: [MatTabNav, NgFor, MatTabLink, RouterLinkActive, RouterLink, MatTabNavPanel, TopScrollDirective, RouterOutlet]
 })
 export class PresentationNavViewComponent implements OnInit {

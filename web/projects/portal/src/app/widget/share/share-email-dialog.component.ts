@@ -36,7 +36,6 @@ import { ModalHeaderComponent } from "../modal-header/modal-header.component";
     selector: "share-email-dialog",
     templateUrl: "./share-email-dialog.component.html",
     styleUrls: ["./share-email-dialog.component.scss"],
-    standalone: true,
     imports: [ModalHeaderComponent, EnterSubmitDirective, NgIf, EmailPane]
 })
 export class ShareEmailDialogComponent implements OnInit {

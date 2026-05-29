@@ -30,7 +30,6 @@ import { NgIf } from "@angular/common";
     selector: "p-dashboard-landing",
     templateUrl: "./dashboard-landing.component.html",
     styleUrls: ["./dashboard-landing.component.scss"],
-    standalone: true,
     imports: [NgIf, EnterClickDirective, DefaultFocusDirective]
 })
 export class DashboardLandingComponent implements OnInit, OnDestroy {

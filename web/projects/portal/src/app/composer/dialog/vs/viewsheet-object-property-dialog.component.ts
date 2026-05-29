@@ -34,7 +34,6 @@ import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.
 @Component({
     selector: "viewsheet-object-property-dialog",
     templateUrl: "viewsheet-object-property-dialog.component.html",
-    standalone: true,
     imports: [
         ModalHeaderComponent,
         NgIf,
@@ -49,7 +48,7 @@ import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.
         VSAssemblyScriptPane,
         NgbNavOutlet,
         ApplyButtonComponent,
-    ],
+    ]
 })
 export class ViewsheetObjectPropertyDialog extends PropertyDialog implements OnInit {
    @Input() model: ViewsheetObjectPropertyDialogModel;

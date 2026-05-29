@@ -55,7 +55,6 @@ const SCHEDULER_STATUS_URL = "../api/em/settings/schedule/status";
     selector: "em-schedule-status-page",
     templateUrl: "./schedule-status-page.component.html",
     styleUrls: ["./schedule-status-page.component.scss"],
-    standalone: true,
     imports: [NgIf, MatCard, MatCardTitle, MatCardSubtitle, MatCardContent, MatProgressBar, MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatRadioGroup, FormsModule, MatRadioButton, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, MatCardActions, MatButton]
 })
 export class ScheduleStatusPageComponent implements OnChanges, OnInit {

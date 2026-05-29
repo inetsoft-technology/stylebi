@@ -26,7 +26,6 @@ import { NgIf } from "@angular/common";
 @Component({
     selector: "shape-cell",
     templateUrl: "shape-cell.component.html",
-    standalone: true,
     imports: [NgIf, ShapeItem, TextureItem, LineItem]
 })
 export class ShapeCell extends AestheticIconCell {

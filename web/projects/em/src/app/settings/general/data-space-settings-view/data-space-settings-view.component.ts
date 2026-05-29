@@ -66,7 +66,6 @@ export interface BackupData {
     templateUrl: "./data-space-settings-view.component.html",
     styleUrls: ["./data-space-settings-view.component.scss"],
     encapsulation: ViewEncapsulation.None,
-    standalone: true,
     imports: [NgIf, MatCard, MatCardTitle, MatCardContent, MatFormField, MatLabel, MatInput, MatHint, MatCardActions, MatButton]
 })
 export class DataSpaceSettingsViewComponent {
@@ -174,7 +173,6 @@ export class DataSpaceSettingsViewComponent {
 @Component({
     selector: "em-backup-dialog",
     templateUrl: "backup-dialog.html",
-    standalone: true,
     imports: [ModalHeaderComponent, MatDialogContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatInput, MatIcon, MatSuffix, NgIf, MatError, MatDialogActions, MatButton]
 })
 export class BackupDialog implements OnInit {

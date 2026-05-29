@@ -37,7 +37,6 @@ const TOP_OFFSET = 52;
     selector: "ai-assistant-panel",
     templateUrl: "./ai-assistant-panel.component.html",
     styleUrls: ["./ai-assistant-panel.component.scss"],
-    standalone: true,
     imports: [NgIf, NgSwitch, NgSwitchCase, AiAssistantDialogComponent, AsyncPipe]
 })
 export class AiAssistantPanelComponent implements OnInit, OnDestroy {

@@ -25,7 +25,6 @@ import { NgIf } from "@angular/common";
     selector: "collapse-toggle-button",
     templateUrl: "collapse-toggle-button.component.html",
     styleUrls: ["collapse-toggle-button.component.scss"],
-    standalone: true,
     imports: [NgIf]
 })
 export class CollapseToggleButton {

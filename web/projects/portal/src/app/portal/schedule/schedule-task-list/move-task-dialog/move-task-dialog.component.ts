@@ -41,7 +41,6 @@ export const FAKE_ROOT_PATH: string = "_fake_root_";
 @Component({
     selector: "move-task-dialog",
     templateUrl: "move-task-dialog.component.html",
-    standalone: true,
     imports: [ModalHeaderComponent, TaskFolderBrowserComponent, NgIf]
 })
 export class MoveTaskDialogComponent implements OnInit {

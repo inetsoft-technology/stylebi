@@ -46,7 +46,6 @@ import { NgClass, NgIf } from "@angular/common";
     templateUrl: "ws-assembly-thumbnail-title.component.html",
     styleUrls: ["ws-assembly-thumbnail-title.component.scss"],
     changeDetection: ChangeDetectionStrategy.OnPush,
-    standalone: true,
     imports: [NgClass, NgIf, MiniMenu, InputTrimDirective, FormsModule, BlockMouseDirective, DefaultFocusDirective, OutOfZoneDirective, ReactiveFormsModule]
 })
 export class WSAssemblyThumbnailTitleComponent {

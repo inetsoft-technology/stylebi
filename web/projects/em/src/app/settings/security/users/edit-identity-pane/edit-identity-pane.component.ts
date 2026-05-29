@@ -40,7 +40,6 @@ import { NgIf, AsyncPipe } from "@angular/common";
     selector: "em-edit-identity-pane",
     templateUrl: "./edit-identity-pane.component.html",
     styleUrls: ["./edit-identity-pane.component.scss"],
-    standalone: true,
     imports: [NgIf, EditIdentityViewComponent, AsyncPipe]
 })
 export class EditIdentityPaneComponent implements OnChanges {

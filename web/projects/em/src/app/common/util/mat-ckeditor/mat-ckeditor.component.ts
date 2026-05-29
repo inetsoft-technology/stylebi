@@ -34,29 +34,10 @@ import {
    Self
 } from "@angular/core";
 import { ControlValueAccessor, FormGroupDirective, NgControl, NgForm, FormsModule } from "@angular/forms";
-import {
-   ErrorStateMatcher,
-   mixinDisabled,
-   mixinDisableRipple,
-   mixinErrorState,
-   mixinTabIndex
-} from "@angular/material/core";
+import { ErrorStateMatcher, _ErrorStateTracker } from "@angular/material/core";
 import { MatFormFieldControl } from "@angular/material/form-field";
 import { Subject } from "rxjs";
 import { CkeditorWrapperComponent } from "../../../../../../shared/ckeditor-wrapper/ckeditor-wrapper.component";
-
-export class MatCkeditorBase {
-   stateChanges = new Subject<void>();
-
-   constructor(public _elementRef: ElementRef,
-               public _defaultErrorStateMatcher: ErrorStateMatcher,
-               public _parentForm: NgForm,
-               public _parentFormGroup: FormGroupDirective,
-               public ngControl: NgControl) {}
-}
-
-export const _MatCkEditorMixinBase =
-   mixinDisableRipple(mixinTabIndex(mixinDisabled(mixinErrorState(MatCkeditorBase))));
 
 @Component({
     selector: "em-mat-ckeditor",
@@ -65,15 +46,12 @@ export const _MatCkEditorMixinBase =
     providers: [
         { provide: MatFormFieldControl, useExisting: MatCkeditorComponent }
     ],
-    standalone: true,
     imports: [CkeditorWrapperComponent, FormsModule]
 })
 export class MatCkeditorComponent
-   extends _MatCkEditorMixinBase
    implements OnInit, OnDestroy, DoCheck, AfterViewInit, MatFormFieldControl<string>, ControlValueAccessor
 {
    @Input() advanced = true;
-   @Input() errorStateMatcher: ErrorStateMatcher;
    @Output() valueChange = new EventEmitter<string>();
    @HostBinding() id = `em-mat-ckeditor-${MatCkeditorComponent.nextId++}`;
    @HostBinding("attr.aria-describedby") describedBy = "";
@@ -145,7 +123,23 @@ export class MatCkeditorComponent
    stateChanges = new Subject<void>();
    focused = false;
    controlType = "em-mat-ckeditor";
+   tabIndex: number = 0;
+   disableRipple: boolean = false;
 
+   @Input()
+   get errorStateMatcher(): ErrorStateMatcher {
+      return this._errorStateTracker.matcher;
+   }
+   set errorStateMatcher(value: ErrorStateMatcher) {
+      this._errorStateTracker.matcher = value;
+   }
+   get errorState(): boolean {
+      return this._errorStateTracker.errorState;
+   }
+   set errorState(value: boolean) {
+      this._errorStateTracker.errorState = value;
+   }
+   private _errorStateTracker: _ErrorStateTracker;
    private _placeholder: string;
    private _required = false;
    private _disabled = false;
@@ -159,7 +153,8 @@ export class MatCkeditorComponent
                private element: ElementRef, defaultErrorStateMatcher: ErrorStateMatcher,
                @Optional() parentForm: NgForm, @Optional() parentFormGroup: FormGroupDirective)
    {
-      super(element, defaultErrorStateMatcher, parentForm, parentFormGroup, ngControl);
+      this._errorStateTracker = new _ErrorStateTracker(
+         defaultErrorStateMatcher, ngControl, parentFormGroup, parentForm, this.stateChanges);
       focusMonitor.monitor(element.nativeElement, true).subscribe((origin) => {
          const oldFocused = this.focused;
          this.focused = !!origin;
@@ -188,8 +183,12 @@ export class MatCkeditorComponent
 
    ngDoCheck() {
       if(this.ngControl) {
-         this.updateErrorState();
+         this._errorStateTracker.updateErrorState();
       }
+   }
+
+   updateErrorState(): void {
+      this._errorStateTracker.updateErrorState();
    }
 
    writeValue(obj: any): void {

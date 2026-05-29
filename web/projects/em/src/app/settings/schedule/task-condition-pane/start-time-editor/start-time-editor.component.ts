@@ -48,7 +48,6 @@ export interface StartTimeChange extends StartTimeData {
     selector: "em-start-time-editor",
     templateUrl: "./start-time-editor.component.html",
     styleUrls: ["./start-time-editor.component.scss"],
-    standalone: true,
     imports: [FormsModule, ReactiveFormsModule, MatRadioGroup, NgIf, MatRadioButton, TimePickerComponent, MatHint, MatError, MatFormField, MatSelect, NgFor, MatOption]
 })
 export class StartTimeEditorComponent implements OnInit, OnChanges {

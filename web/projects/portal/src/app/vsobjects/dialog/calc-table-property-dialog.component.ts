@@ -35,7 +35,6 @@ import { ModalHeaderComponent } from "../../widget/modal-header/modal-header.com
     selector: "calc-table-property-dialog",
     templateUrl: "calc-table-property-dialog.component.html",
     styleUrls: ["calc-table-property-dialog.component.scss"],
-    standalone: true,
     imports: [ModalHeaderComponent, NgIf, EnterSubmitDirective, NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, TableViewGeneralPane, CalcTableAdvancedPane, VSAssemblyScriptPane, NgbNavOutlet, ApplyButtonComponent]
 })
 export class CalcTablePropertyDialog extends PropertyDialog implements OnInit {

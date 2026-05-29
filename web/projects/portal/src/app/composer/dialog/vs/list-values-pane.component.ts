@@ -25,12 +25,11 @@ import { ComboBoxEditor } from "../../../vsobjects/dialog/combo-box-editor.compo
 @Component({
     selector: "list-values-pane",
     templateUrl: "list-values-pane.component.html",
-    standalone: true,
     imports: [
         ComboBoxEditor,
         FormsModule,
         NgIf,
-    ],
+    ]
 })
 export class ListValuesPane implements OnInit {
    @Input() model: ListValuesPaneModel;

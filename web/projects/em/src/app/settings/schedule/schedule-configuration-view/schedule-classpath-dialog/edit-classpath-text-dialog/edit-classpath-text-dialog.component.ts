@@ -28,7 +28,6 @@ import { ModalHeaderComponent } from "../../../../../common/util/modal-header/mo
     selector: "em-edit-classpath-text-dialog",
     templateUrl: "./edit-classpath-text-dialog.component.html",
     styleUrls: ["./edit-classpath-text-dialog.component.scss"],
-    standalone: true,
     imports: [ModalHeaderComponent, MatDialogContent, MatCard, FormsModule, ReactiveFormsModule, MatFormField, MatInput, MatDialogActions, MatButton, MatDialogClose]
 })
 export class EditClasspathTextDialogComponent implements OnInit {

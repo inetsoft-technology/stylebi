@@ -26,7 +26,6 @@ import { NgIf, NgFor } from "@angular/common";
 @Component({
     selector: "em-base-query-result",
     templateUrl: "./base-query-result.component.html",
-    standalone: true,
     imports: [NgIf, MatNavList, NgFor, MatListItem]
 })
 export class BaseQueryResult {

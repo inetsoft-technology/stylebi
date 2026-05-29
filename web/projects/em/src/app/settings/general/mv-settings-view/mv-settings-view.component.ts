@@ -48,7 +48,6 @@ import { MatCard, MatCardTitle, MatCardContent } from "@angular/material/card";
     selector: "em-mv-settings-view",
     templateUrl: "./mv-settings-view.component.html",
     styleUrls: ["./mv-settings-view.component.scss"],
-    standalone: true,
     imports: [MatCard, MatCardTitle, MatCardContent, NgIf, FormsModule, ReactiveFormsModule, MatSlideToggle, MatFormField, MatLabel, MatSelect, MatOption, NgFor, MatCheckbox]
 })
 export class MVSettingsViewComponent {

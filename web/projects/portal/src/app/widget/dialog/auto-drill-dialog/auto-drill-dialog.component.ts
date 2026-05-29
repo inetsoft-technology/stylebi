@@ -26,7 +26,6 @@ import { BlockMouseDirective } from "../../mouse-event/block-mouse.directive";
     selector: "auto-drill-dialog",
     templateUrl: "auto-drill-dialog.component.html",
     styleUrls: ["auto-drill-dialog.component.scss"],
-    standalone: true,
     imports: [BlockMouseDirective, NgFor]
 })
 export class AutoDrillDialog {

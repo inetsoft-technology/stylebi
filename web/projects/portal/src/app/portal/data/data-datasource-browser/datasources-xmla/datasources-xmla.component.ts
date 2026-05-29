@@ -85,7 +85,6 @@ interface CubeNode {
     selector: "datasources-xmla",
     templateUrl: "datasources-xmla.component.html",
     styleUrls: ["datasources-xmla.component.scss"],
-    standalone: true,
     imports: [NgIf, FormsModule, ReactiveFormsModule, FixedDropdownDirective, NgFor, TreeComponent, LoadingIndicatorPaneComponent, DropdownView, AttributeFormattingPane, DataNotificationsComponent]
 })
 export class DatasourcesXmlaComponent implements OnInit, OnDestroy, CanComponentDeactivate {

@@ -26,12 +26,11 @@ import { GeneralPropPane } from "../../../vsobjects/dialog/general-prop-pane.com
 @Component({
     selector: "spinner-general-pane",
     templateUrl: "spinner-general-pane.component.html",
-    standalone: true,
     imports: [
         GeneralPropPane,
         NumericRangePane,
         SizePositionPane,
-    ],
+    ]
 })
 export class SpinnerGeneralPane implements OnInit {
    @Input() model: SpinnerGeneralPaneModel;

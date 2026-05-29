@@ -42,7 +42,6 @@ import { NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, NgbNavOu
     templateUrl: "./query-grouping-pane.component.html",
     styleUrls: ["./query-grouping-pane.component.scss"],
     encapsulation: ViewEncapsulation.None,
-    standalone: true,
     imports: [NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, FieldsPaneComponent, QueryConditionsPaneComponent, NgbNavOutlet]
 })
 export class QueryGroupingPaneComponent {

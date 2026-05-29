@@ -111,7 +111,6 @@ let tableDataRequestId = 0;
     templateUrl: "ws-details-table-data.component.html",
     styleUrls: ["ws-details-table-data.component.scss"],
     changeDetection: ChangeDetectionStrategy.OnPush,
-    standalone: true,
     imports: [NgFor, WSHeaderCell, OutOfZoneDirective, FormsModule, ReactiveFormsModule, NgClass, TouchScrollDirective, NgIf, NgStyle, NotificationsComponent, AsyncPipe]
 })
 export class WSDetailsTableDataComponent extends CommandProcessor

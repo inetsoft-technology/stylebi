@@ -26,7 +26,6 @@ import { NgIf, NgFor } from "@angular/common";
     selector: "tabular-column-definition-editor",
     templateUrl: "tabular-column-definition-editor.component.html",
     styleUrls: ["tabular-column-definition-editor.component.scss"],
-    standalone: true,
     imports: [NgIf, NgFor, TabularTextEditor, FormsModule, ExpandStringDirective]
 })
 export class TabularColumnDefinitionEditor {

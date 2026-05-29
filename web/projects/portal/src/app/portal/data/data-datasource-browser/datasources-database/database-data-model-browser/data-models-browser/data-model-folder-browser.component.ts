@@ -27,7 +27,6 @@ import { NgFor, NgIf } from "@angular/common";
     selector: "data-models-browser",
     templateUrl: "./data-model-folder-browser.component.html",
     styleUrls: ["./data-model-folder-browser.component.scss"],
-    standalone: true,
     imports: [NgbTooltip, NgFor, NgIf]
 })
 export class DataModelFolderBrowserComponent implements OnInit {

@@ -35,7 +35,6 @@ import { NgIf } from "@angular/common";
     selector: "em-theme-properties-view",
     templateUrl: "./theme-properties-view.component.html",
     styleUrls: ["./theme-properties-view.component.scss"],
-    standalone: true,
     imports: [NgIf, MatCard, MatCardContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatInput, MatError, FileChooserComponent, MatIcon, MatSuffix, MatCheckbox]
 })
 export class ThemePropertiesViewComponent implements OnInit, OnDestroy {

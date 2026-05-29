@@ -47,7 +47,6 @@ interface InsertObject {
     templateUrl: "wizard-new-object.component.html",
     styleUrls: ["wizard-new-object.component.scss"],
     changeDetection: ChangeDetectionStrategy.OnPush,
-    standalone: true,
     imports: [OutOfZoneDirective, FixedDropdownDirective]
 })
 export class WizardNewObject implements OnChanges {

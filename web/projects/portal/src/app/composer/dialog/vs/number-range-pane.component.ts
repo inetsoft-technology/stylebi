@@ -27,14 +27,13 @@ import { NgClass, NgIf } from "@angular/common";
 @Component({
     selector: "number-range-pane",
     templateUrl: "number-range-pane.component.html",
-    standalone: true,
     imports: [
         FormsModule,
         ReactiveFormsModule,
         NgClass,
         DynamicComboBox,
         NgIf,
-    ],
+    ]
 })
 export class NumberRangePane implements OnInit {
    @Input() model: NumberRangePaneModel;

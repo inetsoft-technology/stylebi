@@ -56,20 +56,19 @@ const PORTAL_CHECK_SHOW_GETTING_STARTED_URI: string = "../api/portal/getting-sta
 declare const window: any;
 
 @Component({
-   standalone: true,
-   imports: [
-      NgIf,
-      RouterOutlet,
-      RouterLink,
-      RouterLinkActive,
-      AiAssistantPanelComponent,
-      FixedDropdownDirective,
-      EnterClickDirective,
-      DefaultFocusDirective
-   ],
-   selector: "portal-app",
-   templateUrl: "app.component.html",
-   styleUrls: ["app.component.scss"]
+    imports: [
+        NgIf,
+        RouterOutlet,
+        RouterLink,
+        RouterLinkActive,
+        AiAssistantPanelComponent,
+        FixedDropdownDirective,
+        EnterClickDirective,
+        DefaultFocusDirective
+    ],
+    selector: "portal-app",
+    templateUrl: "app.component.html",
+    styleUrls: ["app.component.scss"]
 })
 export class PortalAppComponent implements OnInit, OnDestroy {
    PortalTabs = PortalTabs;

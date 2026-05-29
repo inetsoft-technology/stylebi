@@ -40,7 +40,6 @@ const CHECK_TRAP_URI: string = "../api/composer/vs/checkbox-property-dialog-mode
 @Component({
     selector: "checkbox-property-dialog",
     templateUrl: "checkbox-property-dialog.component.html",
-    standalone: true,
     imports: [
         ModalHeaderComponent,
         NgIf,
@@ -55,7 +54,7 @@ const CHECK_TRAP_URI: string = "../api/composer/vs/checkbox-property-dialog-mode
         VSAssemblyScriptPane,
         NgbNavOutlet,
         ApplyButtonComponent,
-    ],
+    ]
 })
 export class CheckboxPropertyDialog extends PropertyDialog implements OnInit {
    @Input() model: CheckboxPropertyDialogModel;

@@ -44,7 +44,6 @@ import { NgIf, NgFor } from "@angular/common";
     selector: "combo-box-editor",
     templateUrl: "combo-box-editor.component.html",
     styleUrls: ["combo-box-editor.component.scss"],
-    standalone: true,
     imports: [NgIf, FormsModule, NgFor, DynamicComboBox, FixedDropdownDirective, SelectionListDialog, VariableListDialog, CdkVirtualScrollViewport, CdkFixedSizeVirtualScroll, CdkVirtualForOf]
 })
 export class ComboBoxEditor implements OnInit, OnChanges {

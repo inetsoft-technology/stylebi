@@ -50,7 +50,6 @@ import { NgIf } from "@angular/common";
     selector: "vs-spinner",
     templateUrl: "vs-spinner.component.html",
     styleUrls: ["vs-spinner.component.scss"],
-    standalone: true,
     imports: [NgIf, VSInputLabelWrapper, VSDataTipDirective, VSPopComponentDirective, FormsModule, SafeFontDirective]
 })
 export class VSSpinner extends NavigationComponent<VSSpinnerModel>

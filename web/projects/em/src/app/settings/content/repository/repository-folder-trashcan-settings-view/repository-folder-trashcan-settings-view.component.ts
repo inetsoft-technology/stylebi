@@ -27,7 +27,6 @@ import { NgIf } from "@angular/common";
     selector: "em-repository-folder-trashcan-settings-view",
     templateUrl: "./repository-folder-trashcan-settings-view.component.html",
     styleUrls: ["./repository-folder-trashcan-settings-view.component.scss"],
-    standalone: true,
     imports: [NgIf, EditorPanelComponent, MatTabGroup, MatTab, MatTabContent, TableView]
 })
 export class RepositoryFolderTrashcanSettingsViewComponent {

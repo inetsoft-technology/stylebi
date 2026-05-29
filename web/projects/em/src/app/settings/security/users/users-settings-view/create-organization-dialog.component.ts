@@ -39,7 +39,6 @@ import { ModalHeaderComponent } from "../../../../common/util/modal-header/modal
     selector: "em-create-organization-dialog",
     templateUrl: "./create-organization-dialog.component.html",
     styleUrls: ["./create-organization-dialog.component.scss"],
-    standalone: true,
     imports: [ModalHeaderComponent, MatIconButton, MatIcon, NgIf, MatFormField, MatLabel, MatInput, FormsModule, MatAutocompleteTrigger, MatSuffix, MatAutocomplete, NgFor, MatOption, MatSelect, ReactiveFormsModule, MatError, MatDialogActions, MatButton]
 })
 export class CreateOrganizationDialogComponent implements OnInit, OnDestroy {

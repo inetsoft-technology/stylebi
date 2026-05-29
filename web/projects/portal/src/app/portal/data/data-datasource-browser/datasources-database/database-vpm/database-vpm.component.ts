@@ -56,7 +56,6 @@ enum VPMTabs {
 @Component({
     templateUrl: "database-vpm.component.html",
     styleUrls: ["../database-physical-model/database-model-pane.scss", "database-vpm.component.scss"],
-    standalone: true,
     imports: [NgSwitch, NgSwitchCase, VPMConditionsComponent, VPMHiddenColumnsComponent, VPMLookupComponent, VPMTestComponent, NgbCollapse]
 })
 export class DatabaseVPMComponent implements OnInit, OnDestroy {

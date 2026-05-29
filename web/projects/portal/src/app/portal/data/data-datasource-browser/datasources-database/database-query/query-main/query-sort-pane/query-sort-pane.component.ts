@@ -25,7 +25,6 @@ import { FieldsPaneComponent } from "../fields-pane/fields-pane.component";
     selector: "query-sort-pane",
     templateUrl: "./query-sort-pane.component.html",
     styleUrls: ["./query-sort-pane.component.scss"],
-    standalone: true,
     imports: [FieldsPaneComponent]
 })
 export class QuerySortPaneComponent {

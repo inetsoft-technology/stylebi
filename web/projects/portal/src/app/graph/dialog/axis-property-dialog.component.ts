@@ -31,7 +31,6 @@ import { ModalHeaderComponent } from "../../widget/modal-header/modal-header.com
 @Component({
     selector: "axis-property-dialog",
     templateUrl: "axis-property-dialog.component.html",
-    standalone: true,
     imports: [
         ModalHeaderComponent,
         NgIf,
@@ -47,7 +46,7 @@ import { ModalHeaderComponent } from "../../widget/modal-header/modal-header.com
         AliasPane,
         NgbNavOutlet,
         ApplyButtonComponent,
-    ],
+    ]
 })
 export class AxisPropertyDialog {
    @Input() axisType: string;

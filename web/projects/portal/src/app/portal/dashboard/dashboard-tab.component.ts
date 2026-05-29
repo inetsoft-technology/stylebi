@@ -50,7 +50,6 @@ const DELETE_DASHBOARD_URI: string = "../api/portal/dashboard/deleteDashboard/";
     templateUrl: "dashboard-tab.component.html",
     styleUrls: ["../portal-tab.component.scss", "dashboard-tab.component.scss"],
     providers: [DashboardService],
-    standalone: true,
     imports: [NgIf, ResponsiveTabsComponent, EnterClickDirective, FixedDropdownDirective, DefaultFocusDirective, RouterOutlet]
 })
 export class DashboardTabComponent implements OnInit, OnDestroy {

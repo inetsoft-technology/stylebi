@@ -48,7 +48,6 @@ import { NgClass, NgFor, NgIf } from "@angular/common";
     selector: "vpm-condition-pane",
     templateUrl: "vpm-condition-pane.component.html",
     styleUrls: ["vpm-condition-pane.component.scss"],
-    standalone: true,
     imports: [NgClass, VPMConditionItemPane, FormsModule, NgFor, NgIf, ClausePipe, ConjunctionPipe]
 })
 export class VPMConditionPane implements OnInit {

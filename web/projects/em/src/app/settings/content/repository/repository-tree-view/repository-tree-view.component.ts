@@ -54,7 +54,6 @@ import { MatToolbar } from "@angular/material/toolbar";
     templateUrl: "./repository-tree-view.component.html",
     styleUrls: ["./repository-tree-view.component.scss"],
     changeDetection: ChangeDetectionStrategy.OnPush,
-    standalone: true,
     imports: [MatToolbar, MatIconButton, MatIcon, MatFormField, MatLabel, MatInput, FormsModule, MatSuffix, NgIf, MatMenuTrigger, TopScrollDirective, MatProgressBar, FlatTreeViewComponent, NgFor, MatMenu, MatMenuItem, ReactiveFormsModule, MatCheckbox, AsyncPipe]
 })
 export class RepositoryTreeViewComponent implements OnInit, OnDestroy, OnChanges {

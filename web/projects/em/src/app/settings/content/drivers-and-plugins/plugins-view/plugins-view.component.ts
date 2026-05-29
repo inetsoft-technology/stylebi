@@ -50,7 +50,6 @@ const PLUGIN_URI = "../api/em/settings/content/plugins";
     selector: "em-plugins-view",
     templateUrl: "./plugins-view.component.html",
     styleUrls: ["./plugins-view.component.scss"],
-    standalone: true,
     imports: [NgIf, StagedFileChooserComponent, MatButton, MatProgressBar, MatCard, MatCardContent, MatTable, MatSort, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCheckbox, MatCellDef, MatCell, MatSortHeader, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, MatCardActions]
 })
 export class PluginsViewComponent implements OnInit, AfterViewInit, OnDestroy {
@@ -252,7 +251,6 @@ export class PluginsViewComponent implements OnInit, AfterViewInit, OnDestroy {
 @Component({
     selector: "em-uninstall-dialog",
     templateUrl: "uninstall-dialog.html",
-    standalone: true,
     imports: [MatDialogTitle, MatDialogContent, MatDialogActions, MatButton, MatDialogClose]
 })
 export class UninstallDialog {

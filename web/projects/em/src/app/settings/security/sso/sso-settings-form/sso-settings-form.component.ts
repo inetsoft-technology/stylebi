@@ -25,7 +25,6 @@ import { NgIf, NgFor } from "@angular/common";
     selector: "em-sso-settings-form",
     templateUrl: "./sso-settings-form.component.html",
     styleUrls: ["./sso-settings-form.component.scss"],
-    standalone: true,
     imports: [NgIf, FormsModule, ReactiveFormsModule, NgFor, MatFormField, MatLabel, MatInput, MatError]
 })
 export class SSOSettingsFormComponent implements OnChanges {

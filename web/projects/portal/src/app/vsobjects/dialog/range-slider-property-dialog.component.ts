@@ -41,7 +41,6 @@ const CHECK_TRAP_URI: string = "../api/composer/vs/range-slider-property-dialog-
 @Component({
     selector: "range-slider-property-dialog",
     templateUrl: "range-slider-property-dialog.component.html",
-    standalone: true,
     imports: [
         ModalHeaderComponent,
         NgIf,
@@ -57,7 +56,7 @@ const CHECK_TRAP_URI: string = "../api/composer/vs/range-slider-property-dialog-
         VSAssemblyScriptPane,
         NgbNavOutlet,
         ApplyButtonComponent,
-    ],
+    ]
 })
 export class RangeSliderPropertyDialog extends PropertyDialog implements OnInit {
    @Input() model: RangeSliderPropertyDialogModel;

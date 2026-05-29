@@ -25,7 +25,6 @@ import { DateTimePickerComponent } from "../date-type-editor/date-time-picker.co
     selector: "date-time-value-dialog",
     templateUrl: "date-time-value-dialog.component.html",
     styleUrls: ["./date-time-value-dialog.component.scss"],
-    standalone: true,
     imports: [DateTimePickerComponent, NgIf]
 })
 export class DateTimeValueDialog implements OnInit {

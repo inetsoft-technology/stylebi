@@ -36,7 +36,6 @@ const DROPDOWN_TAB_WIDTH = 50;
     selector: "responsive-tabs",
     templateUrl: "responsive-tabs.component.html",
     styleUrls: ["responsive-tabs.component.scss"],
-    standalone: true,
     imports: [NgFor, NgIf, FixedDropdownDirective]
 })
 export class ResponsiveTabsComponent implements OnInit {

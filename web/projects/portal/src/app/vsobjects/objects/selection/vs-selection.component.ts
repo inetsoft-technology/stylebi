@@ -108,7 +108,6 @@ export enum FocusRegions {
     templateUrl: "vs-selection.component.html",
     styleUrls: ["vs-selection.component.scss"],
     changeDetection: ChangeDetectionStrategy.OnPush,
-    standalone: true,
     imports: [VSDataTipDirective, VSPopComponentDirective, OutOfZoneDirective, SafeFontDirective, NgIf, MiniMenu, CollapseToggleButton, TitleCell, InteractableDirective, TooltipDirective, FormsModule, TouchScrollDirective, NgFor, SelectionListCell, VSLoadingDisplay]
 })
 export class VSSelection extends NavigationComponent<VSSelectionBaseModel>

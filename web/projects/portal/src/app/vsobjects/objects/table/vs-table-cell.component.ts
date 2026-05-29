@@ -80,7 +80,6 @@ export enum CellType {
     styleUrls: ["vs-table-cell.component.scss"],
     changeDetection: ChangeDetectionStrategy.OnPush,
     exportAs: "vsTableCell",
-    standalone: true,
     imports: [NgIf, OutOfZoneDirective, NgSwitch, NgSwitchCase, FormsModule, DefaultFocusDirective, NgFor, VSHiddenAnnotation, NgClass]
 })
 /* eslint-enable */

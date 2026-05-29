@@ -41,7 +41,6 @@ interface PaperSize {
     selector: "viewsheet-print-layout-dialog",
     templateUrl: "viewsheet-print-layout-dialog.component.html",
     styleUrls: ["./viewsheet-print-layout-dialog.component.scss"],
-    standalone: true,
     imports: [StandardDialogComponent, DialogContentDirective, NgIf, FormsModule, ReactiveFormsModule, NgFor, NgbDropdown, NgbDropdownToggle, NgbDropdownMenu, DialogButtonsDirective]
 })
 export class ViewsheetPrintLayoutDialog implements OnInit {

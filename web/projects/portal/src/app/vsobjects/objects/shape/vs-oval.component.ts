@@ -32,7 +32,6 @@ import { NgIf, NgFor } from "@angular/common";
     selector: "vs-oval",
     templateUrl: "vs-oval.component.html",
     styleUrls: ["vs-oval.component.scss"],
-    standalone: true,
     imports: [NgIf, VSDataTipDirective, VSPopComponentDirective, NgFor, VSHiddenAnnotation, VSAnnotation]
 })
 export class VSOval extends VSShape<VSOvalModel> implements OnChanges {

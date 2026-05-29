@@ -46,7 +46,6 @@ import { NgIf, NgFor } from "@angular/common";
     selector: "value-editor",
     templateUrl: "value-editor.component.html",
     styleUrls: ["value-editor.component.scss"],
-    standalone: true,
     imports: [NgIf, StringValueEditor, CharValueEditor, BooleanValueEditor, NumberValueEditor, DateValueEditorComponent, FormsModule, TimeValueEditorComponent, TimeInstantValueEditorComponent, DateInValueEditor, FixedDropdownDirective, NgFor]
 })
 export class ValueEditor implements OnChanges {

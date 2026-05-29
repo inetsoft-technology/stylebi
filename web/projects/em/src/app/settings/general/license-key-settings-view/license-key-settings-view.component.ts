@@ -49,7 +49,6 @@ export interface ClusterLicense {
     selector: "em-license-key-settings-view",
     templateUrl: "./license-key-settings-view.component.html",
     styleUrls: ["./license-key-settings-view.component.scss"],
-    standalone: true,
     imports: [NgIf, LicenseKeyListComponent, ApiKeyComponent, MatCard, MatCardTitle, MatCardContent, MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow]
 })
 export class LicenseKeySettingsViewComponent {

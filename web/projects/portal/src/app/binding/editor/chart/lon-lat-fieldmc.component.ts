@@ -25,7 +25,6 @@ import { NgIf } from "@angular/common";
     selector: "lon-lat-fieldmc",
     templateUrl: "lon-lat-fieldmc.component.html",
     styleUrls: ["../data-editor.component.scss"],
-    standalone: true,
     imports: [NgIf]
 })
 export class LonLatFieldmc {

@@ -26,7 +26,6 @@ import { ModalHeaderComponent } from "../../../../widget/modal-header/modal-head
 @Component({
     selector: "edit-custom-patterns-dialog",
     templateUrl: "edit-custom-patterns-dialog.component.html",
-    standalone: true,
     imports: [
         ModalHeaderComponent,
         NgbNav,
@@ -38,7 +37,7 @@ import { ModalHeaderComponent } from "../../../../widget/modal-header/modal-head
         NgIf,
         NgFor,
         NgbNavOutlet,
-    ],
+    ]
 })
 export class EditCustomPatternsDialog {
    @Input() specModel: SpecificationModel;

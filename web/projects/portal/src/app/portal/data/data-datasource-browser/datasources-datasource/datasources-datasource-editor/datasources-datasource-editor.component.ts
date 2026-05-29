@@ -42,7 +42,6 @@ const PORTAL_DATABASE_REFRESH: string = "../api/portal/data/datasource/refresh-m
     selector: "datasources-datasource-editor",
     templateUrl: "./datasources-datasource-editor.component.html",
     styleUrls: ["./datasources-datasource-editor.component.scss"],
-    standalone: true,
     imports: [FormsModule, ReactiveFormsModule, NgIf, TabularViewComponent]
 })
 export class DatasourcesDatasourceEditorComponent implements OnInit, OnDestroy {

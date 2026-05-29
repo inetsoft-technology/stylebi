@@ -52,7 +52,6 @@ import { MatFormField, MatLabel, MatError } from "@angular/material/form-field";
     selector: "em-audit-inactive-user",
     templateUrl: "./audit-inactive-user.component.html",
     styleUrls: ["./audit-inactive-user.component.scss"],
-    standalone: true,
     imports: [AuditTableViewComponent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatSelect, NgFor, MatOption, MatInput, MatError]
 })
 export class AuditInactiveUserComponent implements OnInit, OnDestroy {

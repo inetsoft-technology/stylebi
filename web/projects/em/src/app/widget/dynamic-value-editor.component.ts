@@ -29,7 +29,6 @@ import { DynamicComboBoxComponent } from "./dynamic-combo-box.component";
     selector: "em-dynamic-value-editor",
     templateUrl: "./dynamic-value-editor.component.html",
     styleUrls: ["./dynamic-value-editor.component.scss"],
-    standalone: true,
     imports: [DynamicComboBoxComponent]
 })
 export class DynamicValueEditorComponent {

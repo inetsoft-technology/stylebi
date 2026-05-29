@@ -51,7 +51,6 @@ const DEFAULT_HEIGHT = 20;
 @Component({
     selector: "calendar-property-dialog",
     templateUrl: "calendar-property-dialog.component.html",
-    standalone: true,
     imports: [
         ModalHeaderComponent,
         NgIf,
@@ -67,7 +66,7 @@ const DEFAULT_HEIGHT = 20;
         VSAssemblyScriptPane,
         NgbNavOutlet,
         ApplyButtonComponent,
-    ],
+    ]
 })
 export class CalendarPropertyDialog extends PropertyDialog implements OnInit {
    @Input() model: CalendarPropertyDialogModel;

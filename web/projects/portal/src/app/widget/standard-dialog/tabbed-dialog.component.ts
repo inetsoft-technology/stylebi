@@ -37,7 +37,6 @@ import { ModalHeaderComponent } from "../modal-header/modal-header.component";
     templateUrl: "./tabbed-dialog.component.html",
     styleUrls: ["./tabbed-dialog.component.scss"],
     encapsulation: ViewEncapsulation.None,
-    standalone: true,
     imports: [ModalHeaderComponent, EnterSubmitDirective, NgbNav, NgFor, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, NgTemplateOutlet, NgbNavOutlet]
 })
 export class TabbedDialogComponent {

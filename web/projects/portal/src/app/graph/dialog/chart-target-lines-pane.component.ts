@@ -28,7 +28,6 @@ import { NgIf, NgFor } from "@angular/common";
     selector: "chart-target-lines-pane",
     templateUrl: "chart-target-lines-pane.component.html",
     styleUrls: ["chart-target-lines-pane.component.scss"],
-    standalone: true,
     imports: [NgIf, NgFor, ChartTargetDialog]
 })
 export class ChartTargetLinesPane implements OnInit {

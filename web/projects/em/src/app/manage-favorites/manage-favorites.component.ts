@@ -42,7 +42,6 @@ import { MatToolbar } from "@angular/material/toolbar";
     selector: "em-manage-favorites",
     templateUrl: "./manage-favorites.component.html",
     styleUrls: ["./manage-favorites.component.scss"],
-    standalone: true,
     imports: [MatToolbar, MatCard, MatCardContent, MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatIconButton, MatIcon, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow]
 })
 export class ManageFavoritesComponent implements OnInit, OnDestroy {

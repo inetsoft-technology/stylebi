@@ -39,7 +39,6 @@ const HEARTBEAT_URI = "../api/data/physicalmodel/heartbeat";
     styleUrls: ["physical-join-edit-pane.component.scss",
         "../../../../../../composer/gui/ws/jsplumb/jsplumb-shared.scss"],
     providers: [JoinThumbnailService],
-    standalone: true,
     imports: [NgIf, NgFor, EditJoinTableComponent]
 })
 export class PhysicalJoinEditPane implements

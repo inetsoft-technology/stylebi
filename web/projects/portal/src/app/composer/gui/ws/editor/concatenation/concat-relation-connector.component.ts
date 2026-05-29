@@ -22,7 +22,6 @@ import { NgIf } from "@angular/common";
     selector: "concat-relation-connector",
     templateUrl: "concat-relation-connector.component.html",
     changeDetection: ChangeDetectionStrategy.OnPush,
-    standalone: true,
     imports: [NgIf]
 })
 export class ConcatRelationConnectorComponent {

@@ -41,7 +41,6 @@ import { ContextHelp } from "../../../context-help";
     selector: "em-presentation-viewsheet-toolbar-options-view",
     templateUrl: "./presentation-viewsheet-toolbar-options-view.component.html",
     styleUrls: ["./presentation-viewsheet-toolbar-options-view.component.scss"],
-    standalone: true,
     imports: [ToolbarOptionsTableViewComponent]
 })
 export class PresentationViewsheetToolbarOptionsViewComponent {

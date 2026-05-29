@@ -47,7 +47,6 @@ const GET_PROVIDER_INFO = "../api/em/security/get-authorization-provider/";
     selector: "em-authorization-provider-detail-page",
     templateUrl: "./authorization-provider-detail-page.component.html",
     styleUrls: ["./authorization-provider-detail-page.component.scss"],
-    standalone: true,
     imports: [AuthorizationProviderDetailViewComponent, AsyncPipe]
 })
 export class AuthorizationProviderDetailPageComponent extends ProviderDetailPage implements OnInit {

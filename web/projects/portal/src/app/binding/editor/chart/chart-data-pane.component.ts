@@ -25,7 +25,6 @@ import { NgIf } from "@angular/common";
     selector: "chart-data-pane",
     templateUrl: "chart-data-pane.component.html",
     styleUrls: ["../data-pane.component.scss", "chart-data-pane.component.scss"],
-    standalone: true,
     imports: [NgIf, ChartDataEditor]
 })
 

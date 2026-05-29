@@ -27,7 +27,6 @@ import { ColorDropdown } from "../../widget/color-picker/color-dropdown.componen
     selector: "chart-plot-options-pane",
     templateUrl: "chart-plot-options-pane.component.html",
     styleUrls: ["chart-plot-options-pane.component.scss"],
-    standalone: true,
     imports: [FormsModule, ReactiveFormsModule, ColorDropdown, NgIf, AlphaDropdown, NgFor]
 })
 

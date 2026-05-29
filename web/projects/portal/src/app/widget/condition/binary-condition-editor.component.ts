@@ -34,7 +34,6 @@ import { ConditionEditor } from "./condition-editor.component";
     selector: "binary-condition-editor",
     templateUrl: "binary-condition-editor.component.html",
     styleUrls: ["./binary-condition-editor.component.scss"],
-    standalone: true,
     imports: [ConditionEditor]
 })
 export class BinaryConditionEditor {

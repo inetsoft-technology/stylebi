@@ -25,7 +25,6 @@ import { FormsModule } from "@angular/forms";
     selector: "format-presenter-pane",
     templateUrl: "format-presenter-pane.component.html",
     styleUrls: ["format-presenter-pane.component.scss"],
-    standalone: true,
     imports: [FormsModule, TreeDropdownComponent]
 })
 

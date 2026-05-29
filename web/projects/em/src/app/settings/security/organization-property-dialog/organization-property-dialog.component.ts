@@ -34,7 +34,6 @@ import { ModalHeaderComponent } from "../../../common/util/modal-header/modal-he
     selector: "em-organization-property-dialog",
     templateUrl: "./organization-property-dialog.component.html",
     styleUrls: ["./organization-property-dialog.component.scss"],
-    standalone: true,
     imports: [ModalHeaderComponent, MatDialogContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatSelect, MatOption, NgIf, MatError, MatInput, MatButton]
 })
 export class OrganizationPropertyDialogComponent {

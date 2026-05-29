@@ -85,7 +85,6 @@ import { NgIf, NgStyle, NgFor } from "@angular/common";
     selector: "chart-area",
     templateUrl: "chart-area.component.html",
     styleUrls: ["chart-area.component.scss"],
-    standalone: true,
     imports: [
         NgIf,
         NgStyle,
@@ -100,7 +99,7 @@ import { NgIf, NgStyle, NgFor } from "@angular/common";
         ChartLegendContainer,
         ChartLegendArea,
         ChartNavBar,
-    ],
+    ]
 })
 export class ChartArea implements OnInit, OnChanges, OnDestroy {
    @Input() zIndex: number;

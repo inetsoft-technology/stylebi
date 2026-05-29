@@ -41,7 +41,6 @@ const DATA_SOURCE_TREE_URI = "../api/data/datasource/query/data-source-tree";
         "./query-link-pane.component.scss",
         "../../../database-physical-model/database-model-pane.scss"
     ],
-    standalone: true,
     imports: [SplitPane, NgIf, TreeComponent, QueryLinkGraphPaneComponent]
 })
 export class QueryLinkPaneComponent implements OnInit {

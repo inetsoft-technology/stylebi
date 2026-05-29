@@ -27,7 +27,6 @@ import { NgIf } from "@angular/common";
     selector: "linear-color-pane",
     templateUrl: "linear-color-pane.component.html",
     styleUrls: ["linear-color-pane.component.scss"],
-    standalone: true,
     imports: [NgIf, FormsModule, GradientColorEditor, LinearColorDropdown]
 })
 export class LinearColorPane implements OnInit {

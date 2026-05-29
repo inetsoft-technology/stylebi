@@ -49,7 +49,6 @@ const JOIN_COMPATIBLE_INSERTION_TABLE_URI = "../api/composer/worksheet/join/comp
     templateUrl: "ws-composite-table-sidebar-pane.component.html",
     styleUrls: ["schema/sidebar-pane/subtable-list.component.scss"],
     changeDetection: ChangeDetectionStrategy.OnPush,
-    standalone: true,
     imports: [SplitPane, NgIf, NgFor, WSAssemblyThumbnailTitleComponent, SubtableListComponent]
 })
 export class WSCompositeTableSidebarPane implements OnChanges, OnDestroy {

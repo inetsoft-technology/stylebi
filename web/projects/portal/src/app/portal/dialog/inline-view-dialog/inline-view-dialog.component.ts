@@ -36,7 +36,6 @@ const SQL_TABLE_COLUMNS_URI: string = "../api/data/physicalmodel/views/columns";
 @Component({
     selector: "inline-view-dialog",
     templateUrl: "inline-view-dialog.component.html",
-    standalone: true,
     imports: [ModalHeaderComponent, FormsModule, ReactiveFormsModule, NgIf, DataModelScriptPane]
 })
 export class InlineViewDialog implements OnInit, AfterViewInit {

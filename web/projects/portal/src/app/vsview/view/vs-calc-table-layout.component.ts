@@ -61,7 +61,6 @@ import { OutOfZoneDirective } from "../../widget/directive/out-of-zone.directive
     templateUrl: "vs-calc-table-layout.component.html",
     styleUrls: ["vs-calc-table-layout.component.scss"],
     changeDetection: ChangeDetectionStrategy.OnPush,
-    standalone: true,
     imports: [OutOfZoneDirective, NgIf, NgFor, NgStyle, CalcTableCellComponent, VSLoadingDisplay]
 })
 export class CalcTableLayoutPane extends CommandProcessor implements AfterViewChecked {

@@ -31,7 +31,6 @@ import { InputTrimDirective } from "../../../widget/directive/input-trim.directi
 @Component({
     selector: "asset-repository-pane",
     templateUrl: "asset-repository-pane.component.html",
-    standalone: true,
     imports: [
         FormsModule,
         ReactiveFormsModule,
@@ -39,7 +38,7 @@ import { InputTrimDirective } from "../../../widget/directive/input-trim.directi
         DefaultFocusDirective,
         NgIf,
         AssetTreeComponent,
-    ],
+    ]
 })
 export class AssetRepositoryPane implements OnInit {
    @Input() model: AssetRepositoryPaneModel;

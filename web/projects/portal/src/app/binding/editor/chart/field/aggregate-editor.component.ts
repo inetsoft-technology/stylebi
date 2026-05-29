@@ -33,7 +33,6 @@ import { FormulaOption } from "../../formula-option.component";
     selector: "aggregate-editor",
     templateUrl: "aggregate-editor.component.html",
     styleUrls: ["./aggregate-editor.component.scss"],
-    standalone: true,
     imports: [FormulaOption, CalculatePane, NgIf, FormsModule]
 })
 export class AggregateEditor implements OnInit {

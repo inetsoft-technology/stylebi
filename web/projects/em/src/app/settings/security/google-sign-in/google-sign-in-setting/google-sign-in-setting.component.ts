@@ -28,7 +28,6 @@ import { EditorPanelComponent } from "../../../../common/util/editor-panel/edito
     selector: "em-google-sign-in-setting",
     templateUrl: "./google-sign-in-setting.component.html",
     styleUrls: ["./google-sign-in-setting.component.scss"],
-    standalone: true,
     imports: [EditorPanelComponent, MatCard, MatCardContent, MatSlideToggle, NgIf, OpenidSettingsFormComponent]
 })
 export class GoogleSignInSettingComponent implements OnDestroy {

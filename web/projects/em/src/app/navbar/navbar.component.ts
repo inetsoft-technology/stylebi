@@ -62,7 +62,6 @@ import { NgIf, NgFor, AsyncPipe } from "@angular/common";
             ])
         ])
     ],
-    standalone: true,
     imports: [NgIf, MatIcon, MatIconAnchor, RouterLink, RouterLinkActive, MatIconButton, MatMenuTrigger, MatMenu, MatMenuItem, NgFor, AsyncPipe]
 })
 export class NavbarComponent implements OnInit, OnDestroy {

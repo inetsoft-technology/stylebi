@@ -30,7 +30,6 @@ import { FormsModule } from "@angular/forms";
     selector: "filters-pane",
     templateUrl: "filters-pane.component.html",
     styleUrls: ["filters-pane.component.scss"],
-    standalone: true,
     imports: [
         FormsModule,
         ShuffleListComponent,
@@ -38,7 +37,7 @@ import { FormsModule } from "@angular/forms";
         NgFor,
         ElidedCellComponent,
         TooltipIfDirective,
-    ],
+    ]
 })
 export class FiltersPane implements OnInit {
    @Input() model: FiltersPaneModel;

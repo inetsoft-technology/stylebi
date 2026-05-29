@@ -23,7 +23,6 @@ import { NgIf } from "@angular/common";
     selector: "em-loading-spinner",
     templateUrl: "./loading-spinner.component.html",
     styleUrls: ["./loading-spinner.component.scss"],
-    standalone: true,
     imports: [NgIf, MatProgressSpinner]
 })
 export class LoadingSpinnerComponent {

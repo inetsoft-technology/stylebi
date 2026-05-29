@@ -73,7 +73,6 @@ import { NgIf, AsyncPipe } from "@angular/common";
     selector: "em-users-settings-page",
     templateUrl: "./users-settings-page.component.html",
     styleUrls: ["./users-settings-page.component.scss"],
-    standalone: true,
     imports: [NgIf, UsersSettingsViewComponent, LoadingSpinnerComponent, AsyncPipe]
 })
 export class UsersSettingsPageComponent implements OnInit, OnDestroy {

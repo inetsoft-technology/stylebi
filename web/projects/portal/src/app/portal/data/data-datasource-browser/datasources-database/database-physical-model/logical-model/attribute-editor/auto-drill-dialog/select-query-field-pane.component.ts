@@ -26,7 +26,6 @@ import { FormsModule } from "@angular/forms";
     selector: "select-query-field-pane",
     templateUrl: "select-query-field-pane.component.html",
     styleUrls: ["select-query-field-pane.component.scss"],
-    standalone: true,
     imports: [FormsModule, NgFor]
 })
 export class SelectQueryFieldPaneComponent {

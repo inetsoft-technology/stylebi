@@ -46,7 +46,6 @@ import { NgIf, NgFor } from "@angular/common";
     selector: "calc-data-pane",
     templateUrl: "calc-data-pane.component.html",
     styleUrls: ["calc-data-pane.component.scss"],
-    standalone: true,
     imports: [NgIf, OutOfZoneDirective, FormsModule, NgFor, FixedDropdownDirective, CalcGroupOption, CalcAggregateOption]
 })
 export class CalcDataPane {

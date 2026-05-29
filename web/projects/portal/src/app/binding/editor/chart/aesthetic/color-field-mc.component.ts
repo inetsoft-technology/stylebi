@@ -41,7 +41,6 @@ import { DropHighlightDirective } from "../../../widget/drophighlight.directive"
     selector: "color-field-mc",
     templateUrl: "color-field-mc.component.html",
     styleUrls: ["aesthetic-field-mc.scss"],
-    standalone: true,
     imports: [
         DropHighlightDirective,
         OutOfZoneDirective,
@@ -56,7 +55,7 @@ import { DropHighlightDirective } from "../../../widget/drophighlight.directive"
         CombinedColorPane,
         CategoricalColorPane,
         LinearColorPane,
-    ],
+    ]
 })
 export class ColorFieldMc extends AestheticFieldMc {
    constructor(editorService: ChartEditorService, dservice: DndService,

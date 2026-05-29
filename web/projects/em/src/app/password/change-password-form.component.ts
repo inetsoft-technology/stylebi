@@ -32,7 +32,6 @@ import { MatCard, MatCardTitle, MatCardContent, MatCardActions } from "@angular/
     selector: "em-change-password-form",
     templateUrl: "./change-password-form.component.html",
     styleUrls: ["./change-password-form.component.scss"],
-    standalone: true,
     imports: [MatCard, MatCardTitle, MatCardContent, FormsModule, ReactiveFormsModule, MatFormField, MatInput, MatIconButton, MatSuffix, MatIcon, MatLabel, NgIf, MatError, MatCardActions, MatButton]
 })
 export class ChangePasswordFormComponent implements OnInit {

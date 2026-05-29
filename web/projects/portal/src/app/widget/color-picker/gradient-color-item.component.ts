@@ -29,7 +29,6 @@ import { ColorPane } from "./cp-color-pane.component";
     selector: "gradient-color-item",
     templateUrl: "gradient-color-item.component.html",
     styleUrls: ["gradient-color-item.component.scss"],
-    standalone: true,
     imports: [FixedDropdownDirective, ColorPane]
 })
 export class GradientColorItem {

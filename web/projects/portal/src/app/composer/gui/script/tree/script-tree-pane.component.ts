@@ -25,8 +25,7 @@ import { TreeComponent } from "../../../../widget/tree/tree.component";
 @Component({
     selector: "script-tree-pane",
     templateUrl: "script-tree-pane.component.html",
-    standalone: true,
-    imports: [TreeComponent],
+    imports: [TreeComponent]
 })
 export class ScriptTreePane implements OnChanges {
    @HostBinding("hidden")

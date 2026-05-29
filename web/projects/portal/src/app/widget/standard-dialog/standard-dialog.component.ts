@@ -34,7 +34,6 @@ import { ModalHeaderComponent } from "../modal-header/modal-header.component";
     templateUrl: "./standard-dialog.component.html",
     styleUrls: ["./standard-dialog.component.scss"],
     encapsulation: ViewEncapsulation.None,
-    standalone: true,
     imports: [ModalHeaderComponent, EnterSubmitDirective, NgTemplateOutlet]
 })
 export class StandardDialogComponent {

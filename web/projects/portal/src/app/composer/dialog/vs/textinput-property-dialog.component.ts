@@ -36,7 +36,6 @@ import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.
 @Component({
     selector: "textinput-property-dialog",
     templateUrl: "textinput-property-dialog.component.html",
-    standalone: true,
     imports: [
         ModalHeaderComponent,
         NgIf,
@@ -53,7 +52,7 @@ import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.
         ClickableScriptPane,
         NgbNavOutlet,
         ApplyButtonComponent,
-    ],
+    ]
 })
 export class TextInputPropertyDialog extends PropertyDialog implements OnInit {
    @Input() model: TextInputPropertyDialogModel;

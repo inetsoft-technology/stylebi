@@ -26,7 +26,6 @@ import { NgFor } from "@angular/common";
     selector: "static-texture-pane",
     templateUrl: "static-texture-pane.component.html",
     styleUrls: ["static-texture-pane.component.scss"],
-    standalone: true,
     imports: [NgFor, TextureItem]
 })
 export class StaticTexturePane {

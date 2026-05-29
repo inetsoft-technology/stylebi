@@ -47,7 +47,6 @@ import { NgIf, NgFor } from "@angular/common";
     selector: "em-dynamic-combo-box",
     templateUrl: "./dynamic-combo-box.component.html",
     styleUrls: ["./dynamic-combo-box.component.scss"],
-    standalone: true,
     imports: [NgIf, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatInput, MatAutocompleteTrigger, MatIconButton, MatSuffix, MatMenuTrigger, MatIcon, MatError, MatAutocomplete, NgFor, MatOption, MatMenu, MatMenuItem, MatMenuContent, DateTimePickerComponent]
 })
 export class DynamicComboBoxComponent implements OnInit {

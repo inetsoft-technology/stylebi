@@ -25,7 +25,6 @@ import { FixedDropdownDirective } from "../fixed-dropdown/fixed-dropdown.directi
     selector: "style-dropdown",
     templateUrl: "style-dropdown.component.html",
     styleUrls: ["style-dropdown.component.scss"],
-    standalone: true,
     imports: [FixedDropdownDirective, NgFor]
 })
 export class StyleDropdown implements OnInit {

@@ -37,7 +37,6 @@ import { FormsModule } from "@angular/forms";
 @Component({
     selector: "crosstab-pane",
     templateUrl: "crosstab-pane.component.html",
-    standalone: true,
     imports: [FormsModule, NgFor, DynamicComboBox, NgIf]
 })
 export class CrosstabPane {

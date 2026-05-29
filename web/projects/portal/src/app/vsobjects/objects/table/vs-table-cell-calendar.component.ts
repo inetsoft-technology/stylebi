@@ -25,7 +25,6 @@ import { FormsModule } from "@angular/forms";
     selector: "vso-vs-table-cell-calendar",
     templateUrl: "vs-table-cell-calendar.component.html",
     styleUrls: ["vs-table-cell-calendar.component.scss"],
-    standalone: true,
     imports: [NgbDatepicker, FormsModule]
 })
 export class VSTableCellCalendar implements OnInit {

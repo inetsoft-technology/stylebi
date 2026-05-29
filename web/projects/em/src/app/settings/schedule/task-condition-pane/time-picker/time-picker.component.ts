@@ -42,7 +42,6 @@ export interface TimeData {
             multi: true
         }
     ],
-    standalone: true,
     imports: [MatFormField, MatLabel, MatInput, NgIf, MatButton]
 })
 export class TimePickerComponent implements OnInit, ControlValueAccessor {

@@ -39,7 +39,6 @@ export const DATE_VALUE_ACCESSOR: any = {
     templateUrl: "date-value-editor.component.html",
     styleUrls: ["date-value-editor.component.scss"],
     providers: [DATE_VALUE_ACCESSOR],
-    standalone: true,
     imports: [NgbInputDatepicker, FormsModule]
 })
 export class DateValueEditorComponent implements ControlValueAccessor {

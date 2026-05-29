@@ -57,7 +57,6 @@ const CHECK_CONDITION_TRAP_URI = "../api/composer/viewsheet/check-condition-trap
         ModelService,
         ConditionDialogService
     ],
-    standalone: true,
     imports: [ModalHeaderComponent, NgIf, EnterSubmitDirective, ConditionPane, ApplyButtonComponent]
 })
 export class VSConditionDialog extends BaseResizeableDialogComponent implements OnInit, AfterViewInit {

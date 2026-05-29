@@ -41,7 +41,6 @@ const SMALL_WIDTH_BREAKPOINT = 720;
     selector: "em-auditing-sidenav",
     templateUrl: "./auditing-sidenav.component.html",
     styleUrls: ["./auditing-sidenav.component.scss"],
-    standalone: true,
     imports: [PageHeaderComponent, MatSidenavContainer, MatSidenav, MatNavList, NgIf, MatListItem, RouterLink, RouterLinkActive, MatSidenavContent, TopScrollDirective, RouterOutlet]
 })
 export class AuditingSidenavComponent implements OnInit, OnDestroy {

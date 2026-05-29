@@ -33,7 +33,6 @@ import { NgIf, NgClass, NgFor } from "@angular/common";
     selector: "data-folder-list-view",
     templateUrl: "data-folder-list-view.component.html",
     styleUrls: ["data-folder-list-view.component.scss"],
-    standalone: true,
     imports: [NgIf, NgClass, NgFor, NgbDropdown, NgbDropdownToggle, NgbDropdownMenu, RouterLink]
 })
 export class DataFolderListViewComponent {

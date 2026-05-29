@@ -85,7 +85,6 @@ const CHECK_TRAP_URI = "../api/composer/viewsheet/objects/checkSelectionTrap";
     selector: "composer-selection-container-children",
     templateUrl: "composer-selection-container-children.component.html",
     styleUrls: ["composer-selection-container-children.component.scss"],
-    standalone: true,
     imports: [ActionsContextmenuAnchorDirective, OutOfZoneDirective, NgFor, CurrentSelection, SelectionContainerActionHandlerDirective, EditableObjectContainer, LayoutOptionDialog]
 })
 export class ComposerSelectionContainerChildren extends VSSelectionContainerChildren implements OnInit, OnDestroy, OnChanges {

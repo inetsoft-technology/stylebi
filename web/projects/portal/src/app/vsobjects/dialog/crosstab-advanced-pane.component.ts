@@ -25,13 +25,12 @@ import { FormsModule } from "@angular/forms";
 @Component({
     selector: "crosstab-advanced-pane",
     templateUrl: "crosstab-advanced-pane.component.html",
-    standalone: true,
     imports: [
         FormsModule,
         NgIf,
         TipPane,
         NotificationsComponent,
-    ],
+    ]
 })
 export class CrosstabAdvancedPane {
    @Input() model: CrosstabAdvancedPaneModel;

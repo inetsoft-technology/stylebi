@@ -41,7 +41,6 @@ import { NgFor, NgIf, NgTemplateOutlet } from "@angular/common";
     selector: "tabular-view",
     templateUrl: "tabular-view.component.html",
     styleUrls: ["tabular-view.component.scss"],
-    standalone: true,
     imports: [NgFor, NgIf, NgTemplateOutlet, TabularTextEditor, TabularBooleanEditor, TabularNumberEditor, TabularTagsEditor, TabularColumnDefinitionEditor, TabularDateEditor, TabularHttpParameterEditorComponent, TabularQueryParameterEditor, TabularRestParametersEditorComponent, TabularListEditor, TabularFileEditor, TabularAutocompleteEditor, TabularGooglePickerEditor]
 })
 export class TabularViewComponent {

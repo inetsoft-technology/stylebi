@@ -33,7 +33,6 @@ import { FormsModule } from "@angular/forms";
     selector: "attribute-formatting-pane",
     templateUrl: "attribute-formatting-pane.component.html",
     styleUrls: ["attribute-formatting-pane.component.scss"],
-    standalone: true,
     imports: [FormsModule, NgFor, NgIf, ComboBox]
 })
 export class AttributeFormattingPane implements OnChanges {

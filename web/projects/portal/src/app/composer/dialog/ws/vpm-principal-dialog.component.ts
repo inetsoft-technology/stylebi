@@ -29,7 +29,6 @@ const WORKSHEET_VPM_PRINCIPAL_URI = "../api/composer/ws/dialog/vpm-principal-dia
 @Component({
     selector: "vpm-principal-dialog",
     templateUrl: "vpm-principal-dialog.component.html",
-    standalone: true,
     imports: [EnterSubmitDirective, NgIf, FormsModule, ReactiveFormsModule, NgFor]
 })
 export class VPMPrincipalDialogComponent implements OnInit {

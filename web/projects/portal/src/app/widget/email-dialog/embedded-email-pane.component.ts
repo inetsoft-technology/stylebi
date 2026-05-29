@@ -43,7 +43,6 @@ const EXPAND_IDENTITY_NODE_URI = "../api/vs/expand-identity-node";
     selector: "embedded-email-pane",
     templateUrl: "embedded-email-pane.component.html",
     styleUrls: ["embedded-email-pane.component.scss"],
-    standalone: true,
     imports: [FormsModule, ReactiveFormsModule, ShuffleListComponent, IdentityTreeComponent, NgIf, NgFor, EnterClickDirective, NgClass, ScrollableTableDirective]
 })
 export class EmbeddedEmailPane implements OnInit, OnDestroy {

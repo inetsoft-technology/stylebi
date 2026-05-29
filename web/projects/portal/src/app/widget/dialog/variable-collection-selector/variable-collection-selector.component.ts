@@ -41,14 +41,13 @@ enum StyleType {
 @Component({
     selector: "variable-collection-selector",
     templateUrl: "variable-collection-selector.component.html",
-    standalone: true,
     imports: [
         NgSwitch,
         NgSwitchCase,
         FormsModule,
         NgFor,
         NgIf,
-    ],
+    ]
 })
 export class VariableCollectionSelector implements OnInit {
    @Input() style: number;

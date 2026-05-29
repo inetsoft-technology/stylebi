@@ -17,7 +17,6 @@ import { ModalHeaderComponent } from "../../../common/util/modal-header/modal-he
     selector: "em-session-expiration-dialog",
     templateUrl: "./session-expiration-dialog.component.html",
     styleUrls: ["./session-expiration-dialog.component.scss"],
-    standalone: true,
     imports: [ModalHeaderComponent, MatDialogContent, NgIf, MatDialogActions, MatButton]
 })
 export class SessionExpirationDialog implements OnDestroy {

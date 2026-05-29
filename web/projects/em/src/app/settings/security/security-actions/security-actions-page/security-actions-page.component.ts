@@ -51,7 +51,6 @@ const SMALL_WIDTH_BREAKPOINT = 720;
     selector: "em-security-actions-page",
     templateUrl: "./security-actions-page.component.html",
     styleUrls: ["./security-actions-page.component.scss"],
-    standalone: true,
     imports: [MatDrawerContainer, MatDrawer, TopScrollDirective, SecurityActionsTreeComponent, NgIf, MatButton, MatDrawerContent, SecurityActionsPermissionsComponent]
 })
 export class SecurityActionsPageComponent implements OnInit {

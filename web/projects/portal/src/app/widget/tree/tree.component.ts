@@ -54,7 +54,6 @@ export enum TreeView {
     selector: "tree",
     templateUrl: "tree.component.html",
     styleUrls: ["./tree.component.scss"],
-    standalone: true,
     imports: [NgIf, FormsModule, OutOfZoneDirective, TreeNodeComponent]
 })
 export class TreeComponent implements OnInit, OnChanges, AfterViewChecked, AfterViewInit, OnDestroy {

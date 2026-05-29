@@ -29,7 +29,6 @@ import { NgIf } from "@angular/common";
     selector: "em-date-time-picker",
     templateUrl: "date-time-picker.component.html",
     styleUrls: ["date-time-picker.component.scss"],
-    standalone: true,
     imports: [NgIf, MatCalendar, MatFormField, MatLabel, MatInput, FormsModule]
 })
 export class DateTimePickerComponent implements OnInit {

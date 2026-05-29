@@ -22,7 +22,6 @@ import { NgIf } from "@angular/common";
     selector: "physical-status-bar",
     templateUrl: "physical-status-bar.component.html",
     styleUrls: ["physical-status-bar.component.scss"],
-    standalone: true,
     imports: [NgIf]
 })
 export class PhysicalStatusBarComponent {

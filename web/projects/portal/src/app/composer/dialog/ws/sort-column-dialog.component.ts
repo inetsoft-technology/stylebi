@@ -30,7 +30,6 @@ import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.
     selector: "sort-column-dialog",
     templateUrl: "sort-column-dialog.component.html",
     styleUrls: ["sort-column-dialog.component.scss"],
-    standalone: true,
     imports: [ModalHeaderComponent, NgIf, EnterSubmitDirective, SortColumnEditor, VSLoadingDisplay]
 })
 export class SortColumnDialog implements OnInit {

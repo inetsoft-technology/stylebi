@@ -32,7 +32,6 @@ import { SubqueryDialog } from "./subquery-dialog.component";
 @Component({
     selector: "subquery-editor",
     templateUrl: "subquery-editor.component.html",
-    standalone: true,
     imports: [SubqueryDialog]
 })
 export class SubqueryEditor {

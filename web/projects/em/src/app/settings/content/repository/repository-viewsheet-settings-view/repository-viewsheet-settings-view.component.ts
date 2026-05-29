@@ -32,7 +32,6 @@ import { NgIf } from "@angular/common";
     selector: "em-repository-viewsheet-settings-view",
     templateUrl: "./repository-viewsheet-settings-view.component.html",
     styleUrls: ["./repository-viewsheet-settings-view.component.scss"],
-    standalone: true,
     imports: [NgIf, EditorPanelComponent, MatTabGroup, MatTab, MatTabContent, RepositorySheetSettingsViewComponent, ResourcePermissionComponent, AnalyzeMvPageComponent, MatButton]
 })
 export class RepositoryViewsheetSettingsViewComponent {

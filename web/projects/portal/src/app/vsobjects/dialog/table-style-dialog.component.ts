@@ -30,13 +30,12 @@ import { ModalHeaderComponent } from "../../widget/modal-header/modal-header.com
 @Component({
     selector: "table-style-dialog",
     templateUrl: "table-style-dialog.component.html",
-    standalone: true,
     imports: [
         ModalHeaderComponent,
         EnterSubmitDirective,
         BlockMouseDirective,
         TableStylePane,
-    ],
+    ]
 })
 export class TableStyleDialog {
    @Input() styleModel: TableStylePaneModel;

@@ -25,7 +25,6 @@ import { DefaultPalette } from "./default-palette";
     selector: "color-dropdown",
     templateUrl: "color-dropdown.component.html",
     styleUrls: ["color-dropdown.component.scss"],
-    standalone: true,
     imports: [ColorEditor]
 })
 export class ColorDropdown {

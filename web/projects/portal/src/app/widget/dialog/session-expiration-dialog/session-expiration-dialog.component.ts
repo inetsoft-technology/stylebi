@@ -27,7 +27,6 @@ import { StandardDialogComponent } from "../../standard-dialog/standard-dialog.c
     selector: "session-expiration-dialog",
     templateUrl: "session-expiration-dialog.component.html",
     styleUrls: ["session-expiration-dialog.component.scss"],
-    standalone: true,
     imports: [StandardDialogComponent, DialogContentDirective, NgIf, DialogButtonsDirective]
 })
 export class SessionExpirationDialog implements OnDestroy {

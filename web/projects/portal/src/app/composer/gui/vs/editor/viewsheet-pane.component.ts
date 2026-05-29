@@ -200,7 +200,6 @@ const COLLECT_PARAMS_URI = "/events/vs/collectParameters";
         VSBindingTreeService,
         ChatService
     ],
-    standalone: true,
     imports: [OutOfZoneDirective, NgIf, MobileToolbarComponent, Rulers, SelectionBoxDirective, ActionsContextmenuAnchorDirective, InteractContainerDirective, NgStyle, NgFor, EditableObjectContainer, ComposerSelectionContainerChildren, LayoutPane, PlaceholderDragElement, StatusBar, FormsModule, VSLoadingDisplay, VSSavingDisplay, NotificationsComponent, VariableInputDialog, ConsoleDialogComponent]
 })
 export class VSPane extends CommandProcessor implements OnInit, OnDestroy, AfterViewInit {

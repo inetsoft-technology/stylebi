@@ -28,7 +28,6 @@ import { NgFor } from "@angular/common";
     templateUrl: "./chart-facet.component.html",
     styleUrls: ["./chart-facet.component.scss"],
     changeDetection: ChangeDetectionStrategy.OnPush,
-    standalone: true,
     imports: [NgFor, ChartImageDirective]
 })
 export class ChartFacetArea extends ChartObjectAreaBase<Facet> {

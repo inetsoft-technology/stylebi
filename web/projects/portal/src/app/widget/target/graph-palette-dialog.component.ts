@@ -27,7 +27,6 @@ import { BlockMouseDirective } from "../mouse-event/block-mouse.directive";
     selector: "graph-palette-dialog",
     templateUrl: "graph-palette-dialog.component.html",
     styleUrls: ["graph-palette-dialog.component.scss"],
-    standalone: true,
     imports: [BlockMouseDirective, ModalHeaderComponent, NgIf, FormsModule, NgFor, NgStyle]
 })
 

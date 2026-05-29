@@ -44,7 +44,6 @@ const CHECK_TRAP_REST_URI: string = "../api/composer/viewsheet/check-highlight-d
 @Component({
     selector: "highlight-dialog",
     templateUrl: "highlight-dialog.component.html",
-    standalone: true,
     imports: [ModalHeaderComponent, NgIf, HighlightPane, ApplyButtonComponent, VSConditionDialog]
 })
 export class HighlightDialog extends AbstractHighlight implements OnInit {

@@ -35,7 +35,6 @@ import { ModalHeaderComponent } from "../../../../common/util/modal-header/modal
     selector: "em-materialize-sheet-dialog",
     templateUrl: "./materialize-sheet-dialog.component.html",
     styleUrls: ["./materialize-sheet-dialog.component.scss"],
-    standalone: true,
     imports: [ModalHeaderComponent, MatDialogContent, AnalyzeMvPageComponent, MatDialogActions, NgIf, MatButton]
 })
 export class MaterializeSheetDialogComponent extends BaseResizeableDialogComponent implements OnInit {

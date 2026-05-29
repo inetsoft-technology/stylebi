@@ -44,7 +44,6 @@ import { NgClass } from "@angular/common";
     selector: "tree-dropdown",
     templateUrl: "tree-dropdown.component.html",
     styleUrls: ["tree-dropdown.component.scss"],
-    standalone: true,
     imports: [NgClass, FixedDropdownDirective, TreeComponent]
 })
 export class TreeDropdownComponent extends TreeDataPane {

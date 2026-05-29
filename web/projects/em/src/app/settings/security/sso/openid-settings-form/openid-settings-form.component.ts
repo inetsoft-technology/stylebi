@@ -53,7 +53,6 @@ interface OpenIdDiscovery {
     selector: "em-openid-settings-form",
     templateUrl: "./openid-settings-form.component.html",
     styleUrls: ["./openid-settings-form.component.scss"],
-    standalone: true,
     imports: [NgIf, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatInput, MatButton, MatSuffix, MatAutocomplete, NgFor, MatOption, MatChipGrid, MatChipRow, MatChipRemove, MatIcon, MatAutocompleteTrigger, MatChipInput, MatHint, AsyncPipe]
 })
 export class OpenidSettingsFormComponent implements OnDestroy {

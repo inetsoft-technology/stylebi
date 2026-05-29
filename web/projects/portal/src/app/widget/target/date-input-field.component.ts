@@ -25,7 +25,6 @@ import { NgIf } from "@angular/common";
 @Component({
     selector: "date-input-field",
     templateUrl: "date-input-field.component.html",
-    standalone: true,
     imports: [NgIf, TargetComboBox, DynamicComboBox]
 })
 export class DateInputField implements OnInit {

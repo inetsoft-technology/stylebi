@@ -24,8 +24,7 @@ import { TimepickerComponent } from "./timepicker.component";
     selector: "time-value-editor",
     templateUrl: "time-value-editor.component.html",
     styleUrls: ["time-value-editor.component.scss"],
-    standalone: true,
-    imports: [TimepickerComponent],
+    imports: [TimepickerComponent]
 })
 export class TimeValueEditorComponent {
    @Input() format: string = DateTypeFormatter.ISO_8601_TIME_FORMAT;

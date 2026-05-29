@@ -33,7 +33,6 @@ import { NgIf } from "@angular/common";
     selector: "database-data-model-toolbar",
     templateUrl: "./database-data-model-toolbar.component.html",
     styleUrls: ["./database-data-model-toolbar.component.scss"],
-    standalone: true,
     imports: [NgIf, FormsModule, NgbTypeahead]
 })
 export class DatabaseDataModelToolbarComponent {

@@ -33,7 +33,6 @@ import { NgIf, NgFor } from "@angular/common";
             multi: true
         }
     ],
-    standalone: true,
     imports: [FormsModule, ReactiveFormsModule, NgIf, NgbTimepicker, NgFor]
 })
 export class StartTimeEditor implements OnInit, ControlValueAccessor {

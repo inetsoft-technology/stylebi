@@ -37,7 +37,6 @@ export enum TableAction {
     selector: "em-table-view",
     templateUrl: "./table-view.component.html",
     styleUrls: ["./table-view.component.scss"],
-    standalone: true,
     imports: [NgIf, MatCard, MatCardTitle, MatCardContent, NgTemplateOutlet, MatError, MatCardActions, MatButton, MatExpansionPanel, MatExpansionPanelHeader, MatExpansionPanelTitle, RegularTableComponent, ExpandableRowTableComponent]
 })
 export class TableView<T extends TableModel> implements OnChanges {

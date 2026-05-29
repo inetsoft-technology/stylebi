@@ -34,7 +34,6 @@ import { NgbTooltip } from "@ng-bootstrap/ng-bootstrap";
     selector: "vpm-field-editor",
     templateUrl: "vpm-field-editor.component.html",
     styleUrls: ["vpm-field-editor.component.scss"],
-    standalone: true,
     imports: [FixedDropdownDirective, NgbTooltip, NgFor]
 })
 export class VPMFieldEditorComponent implements OnChanges {

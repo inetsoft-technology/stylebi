@@ -32,7 +32,6 @@ import { NgSwitch, NgSwitchCase, NgIf } from "@angular/common";
     selector: "variable-value-editor",
     templateUrl: "variable-value-editor.component.html",
     styleUrls: ["variable-value-editor.component.scss"],
-    standalone: true,
     imports: [
         NgSwitch,
         NgSwitchCase,
@@ -42,7 +41,7 @@ import { NgSwitch, NgSwitchCase, NgIf } from "@angular/common";
         TimeInstantValueEditorComponent,
         TimeValueEditorComponent,
         DateValueEditorComponent,
-    ],
+    ]
 })
 export class VariableValueEditor implements OnInit {
    @ViewChild(DateValueEditorComponent) dateValueEditor;

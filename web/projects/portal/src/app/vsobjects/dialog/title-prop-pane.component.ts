@@ -25,12 +25,11 @@ import { DynamicComboBox } from "../../widget/dynamic-combo-box/dynamic-combo-bo
 @Component({
     selector: "title-prop-pane",
     templateUrl: "title-prop-pane.component.html",
-    standalone: true,
     imports: [
         DynamicComboBox,
         NgIf,
         FormsModule,
-    ],
+    ]
 })
 export class TitlePropPane {
    @Input() columnTreeRoot: TreeNodeModel = null;

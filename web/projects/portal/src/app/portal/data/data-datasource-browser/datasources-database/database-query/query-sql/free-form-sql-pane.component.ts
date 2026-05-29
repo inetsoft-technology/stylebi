@@ -42,7 +42,6 @@ const CLEAR_COLUMN_INFO_URL = "../api/data/datasource/query/clear/columnInfo";
     selector: "free-form-sql-pane",
     templateUrl: "./free-form-sql-pane.component.html",
     styleUrls: ["./free-form-sql-pane.component.scss"],
-    standalone: true,
     imports: [NgIf, FormsModule]
 })
 export class FreeFormSqlPaneComponent {

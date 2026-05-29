@@ -32,7 +32,6 @@ import { MatTabNav, MatTabLink, MatTabNavPanel } from "@angular/material/tabs";
     selector: "em-content-settings-view",
     templateUrl: "./content-settings-view.component.html",
     styleUrls: ["./content-settings-view.component.scss"],
-    standalone: true,
     imports: [MatTabNav, NgFor, MatTabLink, RouterLinkActive, RouterLink, MatTabNavPanel, TopScrollDirective, RouterOutlet]
 })
 export class ContentSettingsViewComponent implements OnInit {

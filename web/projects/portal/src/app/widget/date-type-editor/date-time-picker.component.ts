@@ -33,12 +33,11 @@ import { NgIf } from "@angular/common";
     selector: "date-time-picker",
     templateUrl: "date-time-picker.component.html",
     styleUrls: ["date-time-picker.component.scss"],
-    standalone: true,
     imports: [
         NgIf,
         DatePickerComponent,
         TimeValueEditorComponent,
-    ],
+    ]
 })
 export class DateTimePickerComponent implements OnInit {
    @Input() promptTime: boolean;

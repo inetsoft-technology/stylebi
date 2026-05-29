@@ -44,7 +44,6 @@ export interface EmailDialogData {
 @Component({
     selector: "email-addr-dialog",
     templateUrl: "email-addr-dialog.component.html",
-    standalone: true,
     imports: [ModalHeaderComponent, NgIf, EnterSubmitDirective, FormsModule, ReactiveFormsModule, EmbeddedEmailPane, NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, QueryEmailPane, NgbNavOutlet]
 })
 export class EmailAddrDialog implements OnChanges, AfterViewInit {

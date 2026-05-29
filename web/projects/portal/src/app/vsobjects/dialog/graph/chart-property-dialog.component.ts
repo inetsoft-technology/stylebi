@@ -41,7 +41,6 @@ const CHECK_TRAP_URI: string = "../api/composer/vs/chart-property-dialog-model/c
 @Component({
     selector: "chart-property-dialog",
     templateUrl: "chart-property-dialog.component.html",
-    standalone: true,
     imports: [
         ModalHeaderComponent,
         NgIf,
@@ -58,7 +57,7 @@ const CHECK_TRAP_URI: string = "../api/composer/vs/chart-property-dialog-model/c
         VSAssemblyScriptPane,
         NgbNavOutlet,
         ApplyButtonComponent,
-    ],
+    ]
 })
 export class ChartPropertyDialog extends PropertyDialog implements OnInit {
    @Input() model: ChartPropertyDialogModel;

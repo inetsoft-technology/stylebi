@@ -24,8 +24,7 @@ import { GeneralPropPane } from "../../../vsobjects/dialog/general-prop-pane.com
 @Component({
     selector: "output-general-pane",
     templateUrl: "output-general-pane.component.html",
-    standalone: true,
-    imports: [GeneralPropPane],
+    imports: [GeneralPropPane]
 })
 export class OutputGeneralPane implements OnInit {
    @Input() vsId: string;

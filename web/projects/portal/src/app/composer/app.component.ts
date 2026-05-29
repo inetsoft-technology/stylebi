@@ -31,10 +31,9 @@ import { ResizeHandlerService } from "./gui/resize-handler.service";
 import { ComposerRecentService } from "./gui/composer-recent.service";
 
 @Component({
-   standalone: true,
-   imports: [AiAssistantPanelComponent, ComposerMainComponent, DownloadTargetComponent],
-   selector: "composer-app",
-   templateUrl: "app.component.html",
+    imports: [AiAssistantPanelComponent, ComposerMainComponent, DownloadTargetComponent],
+    selector: "composer-app",
+    templateUrl: "app.component.html"
 })
 export class ComposerAppComponent implements OnInit, OnDestroy {
    initialSheet: string;

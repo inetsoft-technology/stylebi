@@ -27,13 +27,12 @@ import { GeneralPropPane } from "../../../vsobjects/dialog/general-prop-pane.com
 @Component({
     selector: "radiobutton-general-pane",
     templateUrl: "radiobutton-general-pane.component.html",
-    standalone: true,
     imports: [
         GeneralPropPane,
         TitlePropPane,
         ListValuesPane,
         SizePositionPane,
-    ],
+    ]
 })
 export class RadioButtonGeneralPane implements OnInit {
    @Input() model: RadioButtonGeneralPaneModel;

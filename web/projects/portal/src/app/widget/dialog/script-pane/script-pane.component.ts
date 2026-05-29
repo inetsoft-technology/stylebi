@@ -54,7 +54,6 @@ const LINT_MARKERS = "CodeMirror-lint-markers";
     selector: "script-pane",
     templateUrl: "script-pane.component.html",
     styleUrls: ["script-pane.component.scss"],
-    standalone: true,
     imports: [NgIf, VirtualScrollTreeComponent, TreeComponent, NgbTooltip, OutOfZoneDirective]
 })
 export class ScriptPane implements AfterViewInit, AfterViewChecked, OnInit, OnDestroy, OnChanges {

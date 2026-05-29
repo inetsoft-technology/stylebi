@@ -24,8 +24,7 @@ import { RangePane } from "./range-pane.component";
 @Component({
     selector: "gauge-advanced-pane",
     templateUrl: "gauge-advanced-pane.component.html",
-    standalone: true,
-    imports: [RangePane, FormsModule],
+    imports: [RangePane, FormsModule]
 })
 export class GaugeAdvancedPane {
    @Input() model: GaugeAdvancedPaneModel;

@@ -30,7 +30,6 @@ import { NgIf, NgFor } from "@angular/common";
     selector: "files-browser",
     templateUrl: "files-browser.component.html",
     styleUrls: ["files-browser.component.scss"],
-    standalone: true,
     imports: [NgbTooltip, NgIf, NgFor]
 })
 export class FilesBrowserComponent implements OnInit {

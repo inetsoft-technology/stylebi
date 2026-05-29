@@ -114,7 +114,6 @@ const SCRIPT_TREE_URL: string = "../api/vsscriptable/scriptTree";
     templateUrl: "vs-crosstab.component.html",
     styleUrls: ["base-table.scss", "vs-crosstab.component.scss"],
     changeDetection: ChangeDetectionStrategy.OnPush,
-    standalone: true,
     imports: [NgIf, VSDataTipDirective, VSPopComponentDirective, OutOfZoneDirective, TooltipDirective, VSTitle, NgbTooltip, SelectionBoxDirective, NgFor, VSSimpleCell, SafeFontDirective, VSTableCell, TouchScrollDirective, VSHiddenAnnotation, VSAnnotation, VSLoadingDisplay, VSPreviewTable]
 })
 export class VSCrosstab extends BaseTable<VSCrosstabModel> implements OnInit, OnChanges, OnDestroy {

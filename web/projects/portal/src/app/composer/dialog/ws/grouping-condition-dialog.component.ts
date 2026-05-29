@@ -44,7 +44,6 @@ import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.
 @Component({
     selector: "grouping-condition-dialog",
     templateUrl: "grouping-condition-dialog.component.html",
-    standalone: true,
     imports: [
         ModalHeaderComponent,
         EnterSubmitDirective,
@@ -53,7 +52,7 @@ import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.
         InputTrimDirective,
         NgIf,
         ConditionPane,
-    ],
+    ]
 })
 export class GroupingConditionDialog extends BaseResizeableDialogComponent implements OnInit {
    @Input() model: GroupingDialogModel;

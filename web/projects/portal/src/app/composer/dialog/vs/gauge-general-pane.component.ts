@@ -29,7 +29,6 @@ import { OutputGeneralPane } from "./output-general-pane.component";
 @Component({
     selector: "gauge-general-pane",
     templateUrl: "gauge-general-pane.component.html",
-    standalone: true,
     imports: [
         OutputGeneralPane,
         NumberRangePane,
@@ -37,7 +36,7 @@ import { OutputGeneralPane } from "./output-general-pane.component";
         TipPane,
         PaddingPane,
         SizePositionPane,
-    ],
+    ]
 })
 export class GaugeGeneralPane implements OnInit {
    @Input() model: GaugeGeneralPaneModel;

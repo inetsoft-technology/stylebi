@@ -37,7 +37,6 @@ import { MatCard, MatCardContent } from "@angular/material/card";
     selector: "em-monthly-condition-editor",
     templateUrl: "./monthly-condition-editor.component.html",
     styleUrls: ["./monthly-condition-editor.component.scss"],
-    standalone: true,
     imports: [MatCard, MatCardContent, FormsModule, ReactiveFormsModule, StartTimeEditorComponent, TimeZoneSelectComponent, MatRadioGroup, MatRadioButton, MatFormField, MatLabel, MatSelect, MatOption, MatError]
 })
 export class MonthlyConditionEditorComponent implements OnInit {

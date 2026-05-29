@@ -29,7 +29,6 @@ import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.
 @Component({
     selector: "vpm-condition-dialog",
     templateUrl: "vpm-condition-dialog.component.html",
-    standalone: true,
     imports: [ModalHeaderComponent, VPMConditionPane]
 })
 export class VPMConditionDialog implements OnInit {

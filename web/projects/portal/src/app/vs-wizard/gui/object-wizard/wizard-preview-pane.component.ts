@@ -48,7 +48,6 @@ import { WizardPreviewContainer } from "./wizard-preview-container.component";
     providers: [
         AssemblyActionFactory
     ],
-    standalone: true,
     imports: [WizardPreviewContainer]
 })
 export class VSWizardPreviewPane extends CommandProcessor

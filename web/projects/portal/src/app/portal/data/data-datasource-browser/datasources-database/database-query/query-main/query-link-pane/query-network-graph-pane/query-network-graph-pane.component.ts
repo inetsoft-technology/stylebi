@@ -121,7 +121,6 @@ const HEARTBEAT_INTERVAL_TIME = 20000;
         "./query-network-graph-pane.component.scss",
         "../../../../../../../../composer/gui/ws/jsplumb/jsplumb-shared.scss"
     ],
-    standalone: true,
     imports: [OutOfZoneDirective, SelectionBoxDirective, NgFor, JoinNodeGraphComponent, NgClass]
 })
 export class QueryNetworkGraphPaneComponent implements OnInit, AfterViewInit,

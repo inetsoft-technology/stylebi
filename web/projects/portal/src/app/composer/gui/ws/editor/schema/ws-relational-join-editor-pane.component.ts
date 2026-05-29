@@ -72,7 +72,6 @@ const RESIZE_SCHEMA_TABLE_URI = "/events/composer/worksheet/resize-schema-table"
         "../../jsplumb/jsplumb-shared.scss"
     ],
     providers: [SchemaThumbnailService],
-    standalone: true,
     imports: [SelectionBoxDirective, OutOfZoneDirective, NgFor, SchemaTableThumbnailComponent, AsyncPipe]
 })
 export class WSRelationalJoinEditorPaneComponent

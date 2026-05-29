@@ -30,8 +30,7 @@ import { VPMConditionEditor } from "../vpm-condition-editor/vpm-condition-editor
 @Component({
     selector: "vpm-trinary-condition-editor",
     templateUrl: "vpm-trinary-condition-editor.component.html",
-    standalone: true,
-    imports: [VPMConditionEditor, LowerCasePipe],
+    imports: [VPMConditionEditor, LowerCasePipe]
 })
 export class VPMTrinaryConditionEditor {
    @Input() operation: OperationModel;

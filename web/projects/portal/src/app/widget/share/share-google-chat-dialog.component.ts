@@ -30,7 +30,6 @@ import { ModalHeaderComponent } from "../modal-header/modal-header.component";
     selector: "share-google-chat-dialog",
     templateUrl: "share-google-chat-dialog.component.html",
     styleUrls: ["share-google-chat-dialog.component.scss"],
-    standalone: true,
     imports: [ModalHeaderComponent, EnterSubmitDirective, FormsModule, ReactiveFormsModule]
 })
 export class ShareGoogleChatDialog implements OnInit {

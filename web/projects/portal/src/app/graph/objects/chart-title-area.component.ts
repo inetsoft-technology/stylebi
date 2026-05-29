@@ -34,7 +34,6 @@ import { NgIf, NgFor } from "@angular/common";
             useExisting: ChartTitleArea
         }],
     changeDetection: ChangeDetectionStrategy.OnPush,
-    standalone: true,
     imports: [NgIf, NgFor, ChartImageDirective]
 })
 export class ChartTitleArea extends ChartObjectAreaBase<Title> {

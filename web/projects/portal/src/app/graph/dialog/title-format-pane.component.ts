@@ -32,7 +32,6 @@ import { UIContextService } from "../../common/services/ui-context.service";
          text-align:right;
       }
    `],
-    standalone: true,
     imports: [DynamicComboBox, RotationRadioGroup]
 })
 export class TitleFormatPane {

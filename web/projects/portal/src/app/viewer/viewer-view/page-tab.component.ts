@@ -32,7 +32,6 @@ import { ResizedDirective } from "../../../../../shared/resize-event/resized.dir
     selector: "page-tab",
     templateUrl: "page-tab.component.html",
     styleUrls: ["page-tab.component.scss"],
-    standalone: true,
     imports: [ResizedDirective, NgIf, NgFor]
 })
 export class PageTabComponent implements AfterViewInit, OnDestroy {

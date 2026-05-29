@@ -53,7 +53,6 @@ import { NgIf, NgClass } from "@angular/common";
     selector: "selection-list-cell",
     templateUrl: "selection-list-cell.component.html",
     styleUrls: ["selection-list-cell.component.scss"],
-    standalone: true,
     imports: [NgIf, InteractableDirective, TooltipIfDirective, NgClass, SafeFontDirective]
 })
 export class SelectionListCell implements OnInit, OnChanges, OnDestroy {

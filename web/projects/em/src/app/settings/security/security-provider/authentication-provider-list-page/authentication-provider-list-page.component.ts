@@ -46,7 +46,6 @@ import { MatCard, MatCardTitle, MatCardContent, MatCardActions } from "@angular/
     selector: "em-authentication-provider-list-page",
     templateUrl: "./authentication-provider-list-page.component.html",
     styleUrls: ["./authentication-provider-list-page.component.scss"],
-    standalone: true,
     imports: [MatCard, MatCardTitle, MatCardContent, SecurityListViewComponent, MatCardActions, MatButton]
 })
 export class AuthenticationProviderViewComponent implements OnInit, OnDestroy {

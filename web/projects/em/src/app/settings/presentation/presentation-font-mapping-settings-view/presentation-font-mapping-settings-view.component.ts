@@ -49,7 +49,6 @@ import { MatCard, MatCardTitle, MatCardContent, MatCardActions } from "@angular/
     selector: "em-presentation-font-mapping-settings-view",
     templateUrl: "./presentation-font-mapping-settings-view.component.html",
     styleUrls: ["./presentation-font-mapping-settings-view.component.scss"],
-    standalone: true,
     imports: [MatCard, MatCardTitle, MatCardContent, MatTable, MatSort, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCheckbox, MatCellDef, MatCell, MatSortHeader, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, MatPaginator, MatCardActions, MatButton]
 })
 export class PresentationFontMappingSettingsViewComponent implements OnInit {

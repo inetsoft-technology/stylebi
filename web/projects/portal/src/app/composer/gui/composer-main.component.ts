@@ -261,7 +261,6 @@ const CONFIRM_MESSAGE = {
             deps: [FontService, NgbModal, HttpClient]
         }
     ],
-    standalone: true,
     imports: [NgStyle, ComposerToolbarComponent, SplitPane, AssetTreePane, ToolboxPane, NgIf, ScriptTreePane, ComponentsPane, StyleTreePane, VSFormatsPane, WSCompositeTableSidebarPane, NgFor, WSPaneComponent, VSPane, ViewerAppComponent, ScriptEditPaneComponent, StylePaneComponent, ComposerEmptyEditor, SheetTabSelectorComponent, VSBindingPane, VsWizardComponent, NotificationsComponent, SaveViewsheetDialog, SaveTableStyleDialog, SaveWorksheetDialog, SaveScriptDialog, ScriptPropertyDialogComponent, EditCustomPatternsDialog, ViewsheetPropertyDialog, AsyncPipe]
 })
 export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {

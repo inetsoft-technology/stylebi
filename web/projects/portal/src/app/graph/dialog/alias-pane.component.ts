@@ -24,7 +24,6 @@ import { NgFor } from "@angular/common";
     selector: "alias-pane",
     templateUrl: "alias-pane.component.html",
     styleUrls: ["./alias-pane.component.scss"],
-    standalone: true,
     imports: [NgFor, FormsModule]
 })
 

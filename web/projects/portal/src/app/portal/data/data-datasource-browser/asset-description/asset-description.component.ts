@@ -24,7 +24,6 @@ import { NgIf } from "@angular/common";
     selector: "asset-description",
     templateUrl: "./asset-description.component.html",
     styleUrls: ["./asset-description.component.scss"],
-    standalone: true,
     imports: [NgIf]
 })
 export class AssetDescriptionComponent {

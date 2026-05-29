@@ -35,7 +35,6 @@ const GET_DATA_MODEL_URI: string = "../api/data/database/dataModel/folder/browse
 @Component({
     selector: "move-data-model-dialog",
     templateUrl: "./move-data-model-dialog.component.html",
-    standalone: true,
     imports: [ModalHeaderComponent, DataModelFolderBrowserComponent, NgIf, DefaultFocusDirective]
 })
 export class MoveDataModelDialog implements OnInit {

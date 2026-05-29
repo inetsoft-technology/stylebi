@@ -31,7 +31,6 @@ import { AuthenticationProviderViewComponent } from "../authentication-provider-
     selector: "em-security-provider-page",
     templateUrl: "./security-provider-page.component.html",
     styleUrls: ["./security-provider-page.component.scss"],
-    standalone: true,
     imports: [AuthenticationProviderViewComponent, AuthorizationProviderListPageComponent]
 })
 export class SecurityProviderPageComponent implements OnInit, AfterViewInit {

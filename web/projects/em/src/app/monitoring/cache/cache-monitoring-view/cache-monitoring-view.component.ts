@@ -23,7 +23,6 @@ import { TableView } from "../../../common/util/table/table-view.component";
     selector: "em-cache-monitoring-view",
     templateUrl: "./cache-monitoring-view.component.html",
     styleUrls: ["./cache-monitoring-view.component.scss"],
-    standalone: true,
     imports: [TableView]
 })
 export class CacheMonitoringViewComponent {

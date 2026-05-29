@@ -25,7 +25,6 @@ import { NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, NgbNavOu
     templateUrl: "vpm-lookup.component.html",
     styleUrls: ["vpm-lookup.component.scss"],
     encapsulation: ViewEncapsulation.None,
-    standalone: true,
     imports: [NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, NgFor, DataModelScriptPane, NgbNavOutlet]
 })
 export class VPMLookupComponent {

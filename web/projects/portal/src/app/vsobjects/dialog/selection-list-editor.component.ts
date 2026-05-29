@@ -28,7 +28,6 @@ const COLUMNS_URI: string = "../api/vs/selectionList/columns/";
 @Component({
     selector: "selection-list-editor",
     templateUrl: "selection-list-editor.component.html",
-    standalone: true,
     imports: [NgFor, FormsModule, NgClass, NgIf]
 })
 export class SelectionListEditor implements OnInit {

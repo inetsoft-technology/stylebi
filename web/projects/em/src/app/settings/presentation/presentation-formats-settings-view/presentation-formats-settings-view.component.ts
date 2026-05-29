@@ -40,7 +40,6 @@ import { MatCard, MatCardTitle, MatCardContent } from "@angular/material/card";
     selector: "em-presentation-formats-settings-view",
     templateUrl: "./presentation-formats-settings-view.component.html",
     styleUrls: ["./presentation-formats-settings-view.component.scss"],
-    standalone: true,
     imports: [MatCard, MatCardTitle, MatCardContent, NgIf, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatInput, MatHint]
 })
 export class PresentationFormatsSettingsViewComponent {

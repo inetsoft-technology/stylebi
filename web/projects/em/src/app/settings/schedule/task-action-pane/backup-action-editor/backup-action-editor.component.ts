@@ -31,7 +31,6 @@ import { BackupPathsSave, BackupFileComponent } from "../backup-file/backup-file
     selector: "em-backup-action-editor",
     templateUrl: "./backup-action-editor.component.html",
     styleUrls: ["./backup-action-editor.component.scss"],
-    standalone: true,
     imports: [BackupFileComponent]
 })
 export class BackupActionEditorComponent {

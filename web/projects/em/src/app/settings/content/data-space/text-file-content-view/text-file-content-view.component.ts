@@ -40,7 +40,6 @@ import { NgIf } from "@angular/common";
     selector: "em-text-file-content-view",
     templateUrl: "./text-file-content-view.component.html",
     styleUrls: ["./text-file-content-view.component.scss"],
-    standalone: true,
     imports: [NgIf, MatCard, MatCardTitle, MatCardContent, MatFormField, MatLabel, MatInput, CdkTextareaAutosize, FormsModule, MatHint, LoadingSpinnerComponent]
 })
 export class TextFileContentViewComponent implements OnInit, OnChanges {

@@ -86,22 +86,21 @@ const COLLECT_PARAMS_URI: string = "/events/vs/collectParameters";
 declare const window: any;
 
 @Component({
-   standalone: true,
-   imports: [NgIf, DownloadTargetComponent, ResizedDirective, VSChart, MiniToolbar, InteractContainerDirective],
-   selector: "embed-chart",
-   templateUrl: "./embed-chart.component.html",
-   styleUrls: ["./embed-chart.component.scss"],
-   providers: [
-      ViewsheetClientService,
-      DownloadService,
-      TooltipService,
-      NgbModal,
-      DialogService,
-      FixedDropdownService,
-      InteractService,
-      DebounceService,
-      AdhocFilterService
-   ]
+    imports: [NgIf, DownloadTargetComponent, ResizedDirective, VSChart, MiniToolbar, InteractContainerDirective],
+    selector: "embed-chart",
+    templateUrl: "./embed-chart.component.html",
+    styleUrls: ["./embed-chart.component.scss"],
+    providers: [
+        ViewsheetClientService,
+        DownloadService,
+        TooltipService,
+        NgbModal,
+        DialogService,
+        FixedDropdownService,
+        InteractService,
+        DebounceService,
+        AdhocFilterService
+    ]
 })
 export class EmbedChartComponent extends CommandProcessor implements OnInit, OnDestroy, AfterViewInit {
    @Input() url: string;

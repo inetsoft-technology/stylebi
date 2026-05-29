@@ -87,7 +87,6 @@ const DATE_TIME_PARTS: any[] = [
     selector: "formula-editor-dialog",
     templateUrl: "formula-editor-dialog.component.html",
     styleUrls: ["formula-editor-dialog.component.scss"],
-    standalone: true,
     imports: [ModalHeaderComponent, BlockMouseDirective, FormsModule, ReactiveFormsModule, NgIf, InputTrimDirective, NgFor, ScriptPane, NewAggrDialog]
 })
 export class FormulaEditorDialog extends BaseResizeableDialogComponent implements

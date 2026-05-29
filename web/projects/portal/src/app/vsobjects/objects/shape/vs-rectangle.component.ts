@@ -32,7 +32,6 @@ import { NgIf, NgFor } from "@angular/common";
     selector: "vs-rectangle",
     templateUrl: "vs-rectangle.component.html",
     styleUrls: ["vs-rectangle.component.scss"],
-    standalone: true,
     imports: [
         NgIf,
         VSDataTipDirective,
@@ -40,7 +39,7 @@ import { NgIf, NgFor } from "@angular/common";
         NgFor,
         VSHiddenAnnotation,
         VSAnnotation,
-    ],
+    ]
 })
 export class VSRectangle extends VSShape<VSRectangleModel> implements OnChanges {
    @Input() selected: boolean = false;

@@ -35,7 +35,6 @@ import { NgClass, NgFor, NgIf } from "@angular/common";
     templateUrl: "concatenated-table-thumbnail.component.html",
     changeDetection: ChangeDetectionStrategy.OnPush,
     styleUrls: ["concatenated-table-thumbnail.component.scss"],
-    standalone: true,
     imports: [NgClass, WSAssemblyThumbnailTitleComponent, NgFor, NgIf, NumberToArrayPipe]
 })
 export class ConcatenatedTableThumbnailComponent {

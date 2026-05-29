@@ -45,7 +45,6 @@ export interface ChartStylesModel {
     selector: "chart-style-pane",
     styleUrls: ["chart-style-pane.component.scss"],
     templateUrl: "chart-style-pane.component.html",
-    standalone: true,
     imports: [NgIf, NgFor, FormsModule]
 })
 export class ChartStylePane implements OnInit, OnChanges {

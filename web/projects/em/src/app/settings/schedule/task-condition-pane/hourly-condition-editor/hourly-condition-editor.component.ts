@@ -37,7 +37,6 @@ import { MatCard, MatCardContent } from "@angular/material/card";
     selector: "em-hourly-condition-editor",
     templateUrl: "./hourly-condition-editor.component.html",
     styleUrls: ["./hourly-condition-editor.component.scss"],
-    standalone: true,
     imports: [MatCard, MatCardContent, FormsModule, ReactiveFormsModule, MatLabel, TimePickerComponent, MatHint, NgIf, MatError, TimeZoneSelectComponent, MatFormField, MatInput, MatSelect, MatOption]
 })
 export class HourlyConditionEditorComponent implements OnInit {

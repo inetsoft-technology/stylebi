@@ -26,7 +26,6 @@ import { TableView } from "../../../common/util/table/table-view.component";
     selector: "em-cluster-monitoring-view",
     templateUrl: "./cluster-monitoring-view.component.html",
     styleUrls: ["./cluster-monitoring-view.component.scss"],
-    standalone: true,
     imports: [TableView]
 })
 export class ClusterMonitoringViewComponent {

@@ -39,7 +39,6 @@ const PATH_ITEM_HEIGHT: number = 41;
     templateUrl: "./schedule-classpath-dialog.component.html",
     styleUrls: ["./schedule-classpath-dialog.component.scss"],
     encapsulation: ViewEncapsulation.None,
-    standalone: true,
     imports: [ModalHeaderComponent, MatDialogContent, MatGridList, MatGridTile, MatCard, MatCardContent, MatFormField, MatLabel, MatInput, FormsModule, MatIconButton, MatSuffix, MatIcon, MatList, NgFor, NgIf, MatListItem, MatDivider, MatButton, MatDialogActions, MatDialogClose]
 })
 export class ScheduleClasspathDialogComponent implements OnInit {

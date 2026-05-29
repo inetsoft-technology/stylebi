@@ -45,7 +45,6 @@ import { ActionsContextmenuAnchorDirective } from "../../../../widget/fixed-drop
     selector: "variable-thumbnail",
     templateUrl: "variable-thumbnail.component.html",
     styleUrls: ["thumbnail-base.scss", "../jsplumb/jsplumb-shared.scss"],
-    standalone: true,
     imports: [ActionsContextmenuAnchorDirective, WSAssemblyThumbnailTitleComponent, NgIf]
 })
 export class VariableThumbnail extends WSAssemblyThumbnail

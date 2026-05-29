@@ -26,7 +26,6 @@ import { NgClass, NgIf } from "@angular/common";
 @Component({
     selector: "calc-table-advanced-pane",
     templateUrl: "calc-table-advanced-pane.component.html",
-    standalone: true,
     imports: [
         FormsModule,
         ReactiveFormsModule,
@@ -34,7 +33,7 @@ import { NgClass, NgIf } from "@angular/common";
         NgIf,
         TipPane,
         NotificationsComponent,
-    ],
+    ]
 })
 export class CalcTableAdvancedPane implements OnInit {
    @Input() model: CalcTableAdvancedPaneModel;

@@ -30,7 +30,6 @@ import { NgIf } from "@angular/common";
     selector: "vs-thermometer",
     templateUrl: "vs-thermometer.component.html",
     styleUrls: ["vs-thermometer.component.scss"],
-    standalone: true,
     imports: [NgIf, VSDataTipDirective, VSPopComponentDirective]
 })
 /**

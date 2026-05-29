@@ -38,7 +38,6 @@ const DATE_COMPARISON_URI: string = "composer/vs/date-comparison-model";
     selector: "date-comparison-dialog",
     templateUrl: "./date-comparison-dialog.component.html",
     styleUrls: ["./date-comparison-dialog.component.scss"],
-    standalone: true,
     imports: [ModalHeaderComponent, NgIf, DateComparisonSharePaneComponent, DateComparisonPaneComponent, ApplyButtonComponent]
 })
 export class DateComparisonDialog implements OnInit {

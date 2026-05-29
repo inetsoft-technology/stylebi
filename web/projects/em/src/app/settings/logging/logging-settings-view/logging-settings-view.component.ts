@@ -39,7 +39,6 @@ export interface LogSettingsChanges {
     selector: "em-logging-settings-view",
     templateUrl: "./logging-settings-view.component.html",
     styleUrls: ["./logging-settings-view.component.scss"],
-    standalone: true,
     imports: [NgIf, MatCardContent, FormsModule, ReactiveFormsModule, MatCardTitle, MatFormField, MatLabel, MatSelect, MatOption, MatCheckbox, MatInput, MatError, LoggingLevelTableComponent]
 })
 export class LoggingSettingsViewComponent {

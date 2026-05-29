@@ -38,7 +38,6 @@ import { NgIf } from "@angular/common";
     selector: "tabular-text-editor",
     templateUrl: "tabular-text-editor.component.html",
     styleUrls: ["tabular-text-editor.component.scss"],
-    standalone: true,
     imports: [NgIf, FormsModule, ReactiveFormsModule, CdkTextareaAutosize]
 })
 export class TabularTextEditor implements OnInit, OnChanges, AfterViewInit, OnDestroy {

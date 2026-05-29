@@ -105,7 +105,6 @@ const UPDATE_COLUMNS = "/events/vswizard/binding/update-columns";
     templateUrl: "vs-table.component.html",
     styleUrls: ["base-table.scss", "vs-table.component.scss"],
     changeDetection: ChangeDetectionStrategy.OnPush,
-    standalone: true,
     imports: [NgIf, VSDataTipDirective, VSPopComponentDirective, OutOfZoneDirective, VSTitle, NgbTooltip, NgFor, VSTableCell, TooltipDirective, SafeFontDirective, TouchScrollDirective, SelectionBoxDirective, VSHiddenAnnotation, VSAnnotation, VSLoadingDisplay, VSPreviewTable]
 })
 export class VSTable extends BaseTable<VSTableModel> implements OnInit, OnDestroy, AfterViewInit {

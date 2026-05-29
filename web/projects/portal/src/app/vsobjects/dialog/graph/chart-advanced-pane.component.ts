@@ -32,7 +32,6 @@ import { NgIf } from "@angular/common";
     selector: "chart-advanced-pane",
     templateUrl: "chart-advanced-pane.component.html",
     styleUrls: ["chart-advanced-pane.component.scss"],
-    standalone: true,
     imports: [FormsModule, ReactiveFormsModule, NgIf, ChartPlotOptionsPaneComponent, ChartTargetLinesPane]
 })
 export class ChartAdvancedPane implements OnInit {

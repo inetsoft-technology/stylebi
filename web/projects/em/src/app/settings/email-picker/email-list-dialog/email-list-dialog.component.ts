@@ -68,7 +68,6 @@ export class EmailFlatNode {
     selector: "em-email-list-dialog",
     templateUrl: "./email-list-dialog.component.html",
     styleUrls: ["./email-list-dialog.component.scss"],
-    standalone: true,
     imports: [ModalHeaderComponent, MatDialogContent, FormsModule, ReactiveFormsModule, MatFormField, MatInput, MatAutocompleteTrigger, MatIconButton, MatSuffix, MatIcon, NgIf, MatError, MatAutocomplete, MatTree, MatTreeNodeDef, MatTreeNode, MatTreeNodeToggle, MatTreeNodePadding, MatOption, MatList, NgFor, MatListItem, MatListItemIcon, MatDivider, MatDialogActions, MatButton, MatDialogClose]
 })
 export class EmailListDialogComponent implements OnInit, OnDestroy {

@@ -34,7 +34,6 @@ import { ModalHeaderComponent } from "../../widget/modal-header/modal-header.com
 @Component({
     selector: "bookmark-property-dialog",
     templateUrl: "bookmark-property-dialog.component.html",
-    standalone: true,
     imports: [
         ModalHeaderComponent,
         NgIf,
@@ -43,7 +42,7 @@ import { ModalHeaderComponent } from "../../widget/modal-header/modal-header.com
         ReactiveFormsModule,
         InputTrimDirective,
         EnterClickDirective,
-    ],
+    ]
 })
 export class BookmarkPropertyDialog implements OnInit {
    @Input() model: VSBookmarkInfoModel;

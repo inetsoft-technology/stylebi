@@ -31,7 +31,6 @@ import { FormsModule } from "@angular/forms";
     selector: "cp-color-component-editor",
     templateUrl: "color-component-editor.component.html",
     styleUrls: ["color-component-editor.component.scss"],
-    standalone: true,
     imports: [FormsModule]
 })
 export class ColorComponentEditor implements OnInit {

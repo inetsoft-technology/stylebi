@@ -34,7 +34,6 @@ const zeroTime = "00:00:00";
     templateUrl: "time-instant-value-editor.component.html",
     styleUrls: ["time-instant-value-editor.component.scss"],
     providers: [TIME_INSTANT_VALUE_ACCESSOR],
-    standalone: true,
     imports: [DateValueEditorComponent, FormsModule, TimeValueEditorComponent]
 })
 export class TimeInstantValueEditorComponent implements ControlValueAccessor {

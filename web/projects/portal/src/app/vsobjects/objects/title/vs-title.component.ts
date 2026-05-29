@@ -32,7 +32,6 @@ import { NgIf } from "@angular/common";
     templateUrl: "vs-title.component.html",
     styleUrls: ["vs-title.component.scss"],
     changeDetection: ChangeDetectionStrategy.OnPush,
-    standalone: true,
     imports: [NgIf, TooltipIfDirective, InteractableDirective, SafeFontDirective, FormsModule, DefaultFocusDirective]
 })
 export class VSTitle implements OnChanges {

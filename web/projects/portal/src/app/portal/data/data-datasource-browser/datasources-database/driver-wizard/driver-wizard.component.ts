@@ -52,7 +52,6 @@ interface MavenSearchResponse {
     selector: "driver-wizard",
     templateUrl: "./driver-wizard.component.html",
     styleUrls: ["./driver-wizard.component.scss"],
-    standalone: true,
     imports: [ModalHeaderComponent, BlockMouseDirective, LoadingIndicatorPaneComponent, NgIf, FormsModule, ReactiveFormsModule, NgFor, NgbTypeahead, DataNotificationsComponent]
 })
 export class DriverWizardComponent implements OnInit {

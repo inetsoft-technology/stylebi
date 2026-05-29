@@ -34,7 +34,6 @@ import { MatTabNav, MatTabLink, MatTabNavPanel } from "@angular/material/tabs";
     selector: "em-schedule-settings-page",
     templateUrl: "./schedule-settings-page.component.html",
     styleUrls: ["./schedule-settings-page.component.scss"],
-    standalone: true,
     imports: [MatTabNav, NgFor, MatTabLink, RouterLinkActive, RouterLink, MatTabNavPanel, TopScrollDirective, RouterOutlet]
 })
 export class ScheduleSettingsPageComponent implements OnInit {

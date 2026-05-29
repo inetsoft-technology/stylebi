@@ -26,7 +26,6 @@ import { FormsModule } from "@angular/forms";
     selector: "calc-option-pane",
     templateUrl: "calc-option-pane.component.html",
     styleUrls: ["calc-option-pane.component.scss"],
-    standalone: true,
     imports: [FormsModule, DynamicComboBox]
 })
 export class CalcOptionPane {

@@ -26,7 +26,6 @@ import { FixedDropdownDirective } from "../fixed-dropdown/fixed-dropdown.directi
     selector: "grid-line-dropdown",
     templateUrl: "grid-line-dropdown.component.html",
     styleUrls: ["grid-line-dropdown.component.scss"],
-    standalone: true,
     imports: [FixedDropdownDirective, NgFor]
 })
 export class GridLineDropdown implements OnInit {

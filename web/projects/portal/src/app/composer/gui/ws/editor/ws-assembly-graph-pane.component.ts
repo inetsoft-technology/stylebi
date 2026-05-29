@@ -128,7 +128,6 @@ const ARROW_KEY_MOVE_FACTOR_FINE = 0.5;
     selector: "ws-assembly-graph-pane",
     templateUrl: "ws-assembly-graph-pane.component.html",
     styleUrls: ["ws-assembly-graph-pane.component.scss", "../jsplumb/jsplumb-shared.scss"],
-    standalone: true,
     imports: [NgIf, SelectionBoxDirective, OutOfZoneDirective, NgFor, TableThumbnailComponent, NgClass, VariableThumbnail, GroupingThumbnail, VSSavingDisplay]
 })
 export class WSAssemblyGraphPaneComponent

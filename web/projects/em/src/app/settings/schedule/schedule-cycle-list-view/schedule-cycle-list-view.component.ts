@@ -41,7 +41,6 @@ import { MatCard, MatCardHeader, MatCardContent, MatCardActions } from "@angular
     selector: "em-schedule-cycle-list-view",
     templateUrl: "./schedule-cycle-list-view.component.html",
     styleUrls: ["./schedule-cycle-list-view.component.scss"],
-    standalone: true,
     imports: [MatCard, MatCardHeader, MatLine, MatFormField, MatLabel, MatInput, NgIf, MatIconButton, MatSuffix, MatIcon, MatCardContent, MatTable, MatSort, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCheckbox, MatCellDef, MatCell, MatSortHeader, RouterLink, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, MatCardActions, MatButton]
 })
 export class ScheduleCycleListViewComponent implements OnInit, OnChanges {

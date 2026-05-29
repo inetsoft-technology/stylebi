@@ -40,7 +40,6 @@ interface NotificationMessage {
     selector: "app-root",
     templateUrl: "./app.component.html",
     styleUrls: ["./app.component.scss"],
-    standalone: true,
     imports: [RouterOutlet, NotificationsComponent]
 })
 export class AppComponent implements OnInit, OnDestroy {

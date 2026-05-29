@@ -95,7 +95,6 @@ class NgbTime {
     selector: "time-picker",
     templateUrl: "timepicker.component.html",
     styleUrls: ["timepicker.component.scss"],
-    standalone: true,
     imports: [FormsModule, ReactiveFormsModule, NgIf, NgClass]
 })
 export class TimepickerComponent implements OnInit {

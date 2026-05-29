@@ -50,7 +50,6 @@ import {
     selector: "query-conditions-pane",
     templateUrl: "./query-conditions-pane.component.html",
     styleUrls: ["./query-conditions-pane.component.scss"],
-    standalone: true,
     imports: [VPMConditionPane]
 })
 export class QueryConditionsPaneComponent implements OnInit {

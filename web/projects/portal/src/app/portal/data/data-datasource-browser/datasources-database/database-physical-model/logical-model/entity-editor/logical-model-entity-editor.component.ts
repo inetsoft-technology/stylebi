@@ -25,7 +25,6 @@ import { LogicalModelEntityPane } from "../entity-pane/logical-model-entity-pane
     selector: "logical-model-entity-editor",
     templateUrl: "logical-model-entity-editor.component.html",
     styleUrls: ["../../database-model-pane.scss", "logical-model-entity-editor.component.scss"],
-    standalone: true,
     imports: [LogicalModelEntityPane]
 })
 export class LogicalModelEntityEditor {

@@ -33,7 +33,6 @@ const SAVE_MESSAGE_LEVELS_URI = "../api/composer/console-dialog/save-message-lev
     selector: "console-dialog",
     templateUrl: "./console-dialog.component.html",
     styleUrls: ["./console-dialog.component.scss"],
-    standalone: true,
     imports: [StandardDialogComponent, DialogContentDirective, NgIf, NgFor, NgClass, FixedDropdownDirective, FormsModule, DialogButtonsDirective]
 })
 export class ConsoleDialogComponent implements OnInit {

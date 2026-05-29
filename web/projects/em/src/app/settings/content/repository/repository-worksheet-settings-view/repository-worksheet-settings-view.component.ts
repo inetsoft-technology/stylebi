@@ -33,7 +33,6 @@ import { NgIf } from "@angular/common";
     selector: "em-repository-worksheet-settings-view",
     templateUrl: "./repository-worksheet-settings-view.component.html",
     styleUrls: ["./repository-worksheet-settings-view.component.scss"],
-    standalone: true,
     imports: [NgIf, EditorPanelComponent, MatTabGroup, MatTab, MatTabContent, RepositorySheetSettingsViewComponent, ResourcePermissionComponent, AnalyzeMvPageComponent, MatButton]
 })
 export class RepositoryWorksheetSettingsViewComponent {

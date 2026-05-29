@@ -71,7 +71,6 @@ declare const window: any;
     templateUrl: "vs-viewsheet.component.html",
     styleUrls: ["vs-viewsheet.component.scss"],
     changeDetection: ChangeDetectionStrategy.OnPush,
-    standalone: true,
     imports: [NgIf, forwardRef(() => VSObjectContainer)]
 })
 export class VSViewsheet extends NavigationComponent<VSViewsheetModel> implements OnChanges, OnDestroy {

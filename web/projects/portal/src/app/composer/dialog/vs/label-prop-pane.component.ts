@@ -22,7 +22,6 @@ import { UntypedFormGroup, FormsModule } from "@angular/forms";
 @Component({
     selector: "label-prop-pane",
     templateUrl: "label-prop-pane.component.html",
-    standalone: true,
     imports: [FormsModule]
 })
 export class LabelPropPane {

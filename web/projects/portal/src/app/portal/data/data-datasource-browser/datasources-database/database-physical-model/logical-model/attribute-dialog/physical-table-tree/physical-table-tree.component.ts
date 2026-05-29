@@ -25,7 +25,6 @@ import { PhysicalTableTreeNodeComponent } from "./physical-table-tree-node/physi
     selector: "physical-table-tree",
     templateUrl: "physical-table-tree.component.html",
     styleUrls: ["physical-table-tree.component.scss"],
-    standalone: true,
     imports: [PhysicalTableTreeNodeComponent]
 })
 export class PhysicalTableTreeComponent {

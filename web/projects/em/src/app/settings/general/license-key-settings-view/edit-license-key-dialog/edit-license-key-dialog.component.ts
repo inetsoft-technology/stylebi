@@ -33,7 +33,6 @@ import { ModalHeaderComponent } from "../../../../common/util/modal-header/modal
     selector: "em-edit-license-key-dialog",
     templateUrl: "./edit-license-key-dialog.component.html",
     styleUrls: ["./edit-license-key-dialog.component.scss"],
-    standalone: true,
     imports: [ModalHeaderComponent, MatDialogContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatInput, NgIf, MatError, MatDialogActions, MatButton]
 })
 export class EditLicenseKeyDialogComponent implements OnInit {

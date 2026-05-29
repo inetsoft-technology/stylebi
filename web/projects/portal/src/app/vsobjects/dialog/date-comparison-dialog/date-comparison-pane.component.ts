@@ -35,7 +35,6 @@ import { NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase } from "@ng-bootstrap/ng
     selector: "date-comparison-pane",
     templateUrl: "./date-comparison-pane.component.html",
     styleUrls: ["./date-comparison-pane.component.scss"],
-    standalone: true,
     imports: [NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, DateComparisonPeriodsPaneComponent, DateComparisonIntervalPaneComponent, FormsModule, NgFor, NgIf, CategoricalColorPane]
 })
 export class DateComparisonPaneComponent {

@@ -27,7 +27,6 @@ import { NgFor } from "@angular/common";
     selector: "tabular-rest-parameters-editor",
     templateUrl: "tabular-rest-parameters-editor.component.html",
     styleUrls: ["tabular-rest-parameters-editor.component.scss"],
-    standalone: true,
     imports: [NgFor, FormsModule]
 })
 export class TabularRestParametersEditorComponent implements OnInit, OnDestroy, OnChanges {

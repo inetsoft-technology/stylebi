@@ -36,7 +36,6 @@ import { ModalHeaderComponent } from "../../../../widget/modal-header/modal-head
     selector: "additional-datasource-dialog",
     templateUrl: "additional-datasource-dialog.html",
     styleUrls: ["additional-datasource-dialog.scss"],
-    standalone: true,
     imports: [ModalHeaderComponent, DatasourcesDatabaseComponent, NotificationsComponent]
 })
 export class AdditionalDatasourceDialog {

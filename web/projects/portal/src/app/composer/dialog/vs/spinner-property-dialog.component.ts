@@ -35,7 +35,6 @@ import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.
 @Component({
     selector: "spinner-property-dialog",
     templateUrl: "spinner-property-dialog.component.html",
-    standalone: true,
     imports: [
         ModalHeaderComponent,
         NgIf,
@@ -51,7 +50,7 @@ import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.
         VSAssemblyScriptPane,
         NgbNavOutlet,
         ApplyButtonComponent,
-    ],
+    ]
 })
 export class SpinnerPropertyDialog extends PropertyDialog implements OnInit {
    @Input() model: SpinnerPropertyDialogModel;

@@ -25,7 +25,6 @@ import { NgIf } from "@angular/common";
     selector: "gradient-color-editor",
     templateUrl: "gradient-color-editor.component.html",
     styleUrls: ["color-editor.scss"],
-    standalone: true,
     imports: [NgIf, StaticColorEditor, ColorCell]
 })
 

@@ -75,7 +75,6 @@ export enum SSOType {
     selector: "em-sso-settings-page",
     templateUrl: "./sso-settings-page.component.html",
     styleUrls: ["./sso-settings-page.component.scss"],
-    standalone: true,
     imports: [EditorPanelComponent, MatCard, MatCardTitle, MatCardContent, MatFormField, MatLabel, MatSelect, MatOption, NgIf, NgFor, MatIconButton, MatIcon, MatInput, FormsModule, MatCheckbox, SSOSettingsFormComponent, OpenidSettingsFormComponent, CustomSsoFormComponent]
 })
 export class SsoSettingsPageComponent implements OnDestroy {

@@ -23,7 +23,6 @@ import { ScrollableTableDirective } from "../../../../widget/scrollable-table/sc
     selector: "editable-table",
     templateUrl: "editable-table.component.html",
     styleUrls: ["editable-table.component.scss"],
-    standalone: true,
     imports: [ScrollableTableDirective, NgFor]
 })
 export class EditableTableComponent {

@@ -23,7 +23,6 @@ import { FormsModule } from "@angular/forms";
     selector: "session-data-editor",
     templateUrl: "session-data-editor.component.html",
     styleUrls: ["session-data-editor.component.scss"],
-    standalone: true,
     imports: [FormsModule, NgFor]
 })
 export class SessionDataEditor implements OnInit {

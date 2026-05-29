@@ -28,7 +28,6 @@ import { NgClass, NgIf, NgFor } from "@angular/common";
     selector: "variable-editor",
     templateUrl: "variable-editor.component.html",
     styleUrls: ["variable-editor.component.scss"],
-    standalone: true,
     imports: [FormsModule, ReactiveFormsModule, NgClass, NgIf, NgFor]
 })
 export class VariableEditor implements OnInit, OnChanges, AfterViewInit, OnDestroy {

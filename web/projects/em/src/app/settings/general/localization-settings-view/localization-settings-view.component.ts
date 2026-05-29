@@ -53,7 +53,6 @@ import { NgIf } from "@angular/common";
     selector: "em-localization-settings-view",
     templateUrl: "./localization-settings-view.component.html",
     styleUrls: ["./localization-settings-view.component.scss"],
-    standalone: true,
     imports: [NgIf, MatCard, MatCardTitle, MatMiniFabButton, MatTooltip, MatIcon, MatCardContent, MatTable, MatSort, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCheckbox, MatCellDef, MatCell, MatSortHeader, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, MatPaginator, MatCardActions, MatButton]
 })
 export class LocalizationSettingsViewComponent implements OnInit {

@@ -43,7 +43,6 @@ import { WSCompositeTableBreadcrumbComponent } from "./ws-composite-table-breadc
     selector: "ws-composite-table-focus-pane",
     templateUrl: "ws-composite-table-focus-pane.component.html",
     styleUrls: ["ws-composite-table-focus-pane.component.scss"],
-    standalone: true,
     imports: [WSCompositeTableBreadcrumbComponent, NgSwitch, NgSwitchCase, WSRelationalJoinEditorPaneComponent, WSMergeJoinEditorPaneComponent, WSConcatenationEditorPane]
 })
 export class WSCompositeTableFocusPaneComponent {

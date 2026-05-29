@@ -38,7 +38,6 @@ const PHYSICAL_TABLE_PATH_URI: string = VPM_URI + "physicalModel/tablePath/";
     selector: "choose-table-dialog",
     templateUrl: "choose-table-dialog.component.html",
     styleUrls: ["choose-table-dialog.component.scss"],
-    standalone: true,
     imports: [ModalHeaderComponent, TreeComponent, LoadingIndicatorPaneComponent]
 })
 export class ChooseTableDialog implements OnInit {

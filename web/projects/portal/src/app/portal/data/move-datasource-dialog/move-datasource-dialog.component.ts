@@ -42,7 +42,6 @@ const CHECK_MOVE_DUPLICATE_URI: string = "../api/data/datasources/move/checkDupl
 @Component({
     selector: "move-datasource-dialog",
     templateUrl: "move-datasource-dialog.component.html",
-    standalone: true,
     imports: [ModalHeaderComponent, DataSourcesBrowser, NgIf]
 })
 export class MoveDataSourceDialogComponent implements OnInit {

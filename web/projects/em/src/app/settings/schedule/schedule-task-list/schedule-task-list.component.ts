@@ -156,7 +156,6 @@ export enum DistributionType {
         EmScheduleChangeService,
         ScheduleTaskDragService
     ],
-    standalone: true,
     imports: [MatCard, MatCardHeader, MatIconButton, MatTooltip, MatIcon, MatFormField, MatLabel, MatInput, MatMenu, MatMenuItem, MatMenuTrigger, MatCardContent, MatDrawerContainer, NgIf, MatDrawer, ScheduleFolderTreeComponent, MatDrawerContent, MatTable, MatSort, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCheckbox, MatCellDef, MatCell, MatSortHeader, RouterLink, MatList, NgFor, MatListItem, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, MatPaginator, LoadingSpinnerComponent, MatCardActions, MatButton, ResizedDirective, MatProgressSpinner]
 })
 export class ScheduleTaskListComponent implements OnInit, AfterViewInit, OnDestroy {

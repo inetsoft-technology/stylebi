@@ -27,7 +27,6 @@ import { AddLoggingLevelDialogComponent } from "../add-logging-level-dialog/add-
     selector: "em-logging-level-table",
     templateUrl: "./logging-level-table.component.html",
     styleUrls: ["./logging-level-table.component.scss"],
-    standalone: true,
     imports: [TableView]
 })
 export class LoggingLevelTableComponent {

@@ -34,8 +34,7 @@ import { DynamicComboBox } from "../../widget/dynamic-combo-box/dynamic-combo-bo
 @Component({
     selector: "formula-option",
     templateUrl: "formula-option.component.html",
-    standalone: true,
-    imports: [DynamicComboBox, NgIf],
+    imports: [DynamicComboBox, NgIf]
 })
 export class FormulaOption implements OnInit {
    @Input() vsId: any;

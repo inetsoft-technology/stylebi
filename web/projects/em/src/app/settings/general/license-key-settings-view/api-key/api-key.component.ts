@@ -31,7 +31,6 @@ import { MatCard, MatCardTitle, MatCardContent } from "@angular/material/card";
     selector: "em-api-key",
     templateUrl: "./api-key.component.html",
     styleUrls: ["./api-key.component.scss"],
-    standalone: true,
     imports: [MatCard, MatCardTitle, MatCardContent, NgIf, MatFormField, MatInput, FormsModule, MatButton, MatAnchor]
 })
 export class ApiKeyComponent implements OnInit {

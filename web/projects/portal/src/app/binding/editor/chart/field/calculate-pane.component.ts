@@ -48,7 +48,6 @@ import { FormsModule } from "@angular/forms";
     selector: "calculate-pane",
     templateUrl: "calculate-pane.component.html",
     styleUrls: ["./calculate-pane.component.scss"],
-    standalone: true,
     imports: [FormsModule, NgFor]
 })
 export class CalculatePane {

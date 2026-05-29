@@ -37,13 +37,12 @@ const CUBE_COLUMNS_URI: string = "../vs/dataOutput/cube/columns";
 @Component({
     selector: "data-output-pane",
     templateUrl: "data-output-pane.component.html",
-    standalone: true,
     imports: [
         TreeDropdownComponent,
         DynamicComboBox,
         NgIf,
         FormsModule,
-    ],
+    ]
 })
 export class DataOutputPane implements OnInit {
    @Input() runtimeId: string;

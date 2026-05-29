@@ -57,7 +57,6 @@ const GET_MESSAGE_LEVELS_URI = "../api/composer/console-dialog/get-message-level
     selector: "binding-editor",
     templateUrl: "binding-editor.component.html",
     styleUrls: ["binding-editor.component.scss"],
-    standalone: true,
     imports: [NgIf, EditorTitleBar, NgClass, SplitPane, DataEditorTabPane, FormatsPane, DataEditorBindingTree, ChartEditorToolbar, ChartHighLowPane, AestheticPane, TableOption, CrosstabOption, CalcOptionPane, ChartDataPane, TableDataPane, CrosstabDataPane, CalcDataPane, StatusBar, NotificationsComponent, ConsoleDialogComponent]
 })
 export class BindingEditor implements OnInit, AfterViewInit, OnDestroy {

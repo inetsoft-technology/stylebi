@@ -77,7 +77,6 @@ interface ExternalUrlsMessage {
     selector: "vs-text",
     templateUrl: "vs-text.component.html",
     styleUrls: ["vs-text.component.scss"],
-    standalone: true,
     imports: [NgIf, VSDataTipDirective, VSPopComponentDirective, OutOfZoneDirective, TooltipDirective, SafeFontDirective, AutoCompleteText, VSHiddenAnnotation, NgFor, VSAnnotation, VSLoadingDisplay]
 })
 export class VSText extends AbstractVSObject<VSTextModel>

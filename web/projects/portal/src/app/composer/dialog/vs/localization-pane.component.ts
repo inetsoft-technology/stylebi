@@ -30,7 +30,6 @@ import { NgIf, NgFor } from "@angular/common";
     selector: "localization-pane",
     templateUrl: "localization-pane.component.html",
     styleUrls: ["localization-pane.component.scss"],
-    standalone: true,
     imports: [NgIf, FormsModule, ShuffleListComponent, TreeComponent, ScrollableTableDirective, NgFor, ElidedCellComponent]
 })
 

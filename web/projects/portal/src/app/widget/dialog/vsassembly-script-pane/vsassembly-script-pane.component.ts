@@ -28,8 +28,7 @@ import { FormsModule } from "@angular/forms";
 @Component({
     selector: "vsassembly-script-pane",
     templateUrl: "vsassembly-script-pane.component.html",
-    standalone: true,
-    imports: [ScriptPane, FormsModule],
+    imports: [ScriptPane, FormsModule]
 })
 export class VSAssemblyScriptPane {
    @Input() view: string;

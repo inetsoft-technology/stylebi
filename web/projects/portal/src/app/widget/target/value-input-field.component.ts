@@ -26,7 +26,6 @@ import { NgIf } from "@angular/common";
 @Component({
     selector: "value-input-field",
     templateUrl: "value-input-field.component.html",
-    standalone: true,
     imports: [NgIf, TargetComboBox, DynamicComboBox]
 })
 export class ValueInputField implements OnInit, OnChanges {

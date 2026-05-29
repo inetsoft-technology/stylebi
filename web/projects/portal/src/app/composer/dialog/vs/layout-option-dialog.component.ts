@@ -34,7 +34,6 @@ export enum Placement {
 @Component({
     selector: "layout-option-dialog",
     templateUrl: "layout-option-dialog.component.html",
-    standalone: true,
     imports: [NgIf, EnterSubmitDirective, FormsModule, ReactiveFormsModule]
 })
 export class LayoutOptionDialog implements OnInit {

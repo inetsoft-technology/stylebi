@@ -34,7 +34,6 @@ import { ModalHeaderComponent } from "../../widget/modal-header/modal-header.com
 @Component({
     selector: "table-view-property-dialog",
     templateUrl: "table-view-property-dialog.component.html",
-    standalone: true,
     imports: [
         ModalHeaderComponent,
         NgIf,
@@ -49,7 +48,7 @@ import { ModalHeaderComponent } from "../../widget/modal-header/modal-header.com
         VSAssemblyScriptPane,
         NgbNavOutlet,
         ApplyButtonComponent,
-    ],
+    ]
 })
 export class TableViewPropertyDialog extends PropertyDialog implements OnInit {
    @Input() model: TableViewPropertyDialogModel;

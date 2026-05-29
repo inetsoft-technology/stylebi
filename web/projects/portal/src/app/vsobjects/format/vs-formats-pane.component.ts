@@ -75,7 +75,6 @@ const COLOR_LABLE_MAP: Map<string, string> = new Map([
     selector: "vs-formats-pane",
     templateUrl: "vs-formats-pane.component.html",
     styleUrls: ["../../binding/editor/formats-pane.component.scss"],
-    standalone: true,
     imports: [NgIf, DropdownView, FontPane, DynamicComboBox, ColorDropdown, AlphaDropdown, BindingAlignmentPane, NgbTooltip, BindingBorderPane, RadiusDropdown, FormsModule, FormattingPane, FormatCSSPane, FormatPresenterPane, HelpLinkDirective, PresenterPropertyDialog]
 })
 export class VSFormatsPane implements OnInit, OnChanges {

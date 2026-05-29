@@ -103,7 +103,6 @@ declare const window: any;
     templateUrl: "./schedule-task-list.component.html",
     styleUrls: ["./schedule-task-list.component.scss"],
     providers: [ScheduleChangeService],
-    standalone: true,
     imports: [SplitPane, NgIf, TreeComponent, ScrollableFlexTableDirective, FormsModule, SortColumnDirective, NgFor]
 })
 export class ScheduleTaskListComponent implements OnInit, OnDestroy, AfterContentChecked {

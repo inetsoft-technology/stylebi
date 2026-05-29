@@ -37,7 +37,6 @@ export interface NumericRange {
     templateUrl: "value-range-selectable-list.component.html",
     styleUrls: ["value-range-selectable-list.component.scss"],
     changeDetection: ChangeDetectionStrategy.OnPush,
-    standalone: true,
     imports: [NgFor, FormsModule]
 })
 export class ValueRangeSelectableList {

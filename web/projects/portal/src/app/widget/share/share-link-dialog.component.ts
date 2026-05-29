@@ -28,7 +28,6 @@ import { ModalHeaderComponent } from "../modal-header/modal-header.component";
     selector: "share-link-dialog",
     templateUrl: "share-link-dialog.component.html",
     styleUrls: ["share-link-dialog.component.scss"],
-    standalone: true,
     imports: [ModalHeaderComponent, EnterSubmitDirective, FormsModule, ClipboardModule, NgIf, NotificationsComponent]
 })
 export class ShareLinkDialog implements OnInit {

@@ -27,7 +27,6 @@ import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.
 @Component({
     selector: "screen-size-dialog",
     templateUrl: "screen-size-dialog.component.html",
-    standalone: true,
     imports: [ModalHeaderComponent, NgIf, EnterSubmitDirective, FormsModule, ReactiveFormsModule]
 })
 export class ScreenSizeDialog implements OnInit {

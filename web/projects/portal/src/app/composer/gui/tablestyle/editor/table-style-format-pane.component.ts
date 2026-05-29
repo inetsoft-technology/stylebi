@@ -33,7 +33,6 @@ import { NgIf } from "@angular/common";
     selector: "table-style-format-pane",
     templateUrl: "table-style-format-pane.component.html",
     styleUrls: ["table-style-format-pane.component.scss"],
-    standalone: true,
     imports: [NgIf, DropdownView, FontPane, BindingAlignmentPane, ColorDropdown, StyleBorderPaneComponent]
 })
 export class TableStyleFormatPaneComponent implements OnInit {

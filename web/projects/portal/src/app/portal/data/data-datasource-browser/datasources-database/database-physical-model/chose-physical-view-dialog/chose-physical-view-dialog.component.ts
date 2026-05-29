@@ -27,7 +27,6 @@ const GET_DATABASE_PHYSICAL_VIEW_URI = "../api/data/physicalmodel/views";
 @Component({
     selector: "chose-physical-view-dialog",
     templateUrl: "./chose-physical-view-dialog.component.html",
-    standalone: true,
     imports: [ModalHeaderComponent, FormsModule, ReactiveFormsModule, DefaultFocusDirective, NgFor]
 })
 export class ChosePhysicalViewDialog implements OnInit {

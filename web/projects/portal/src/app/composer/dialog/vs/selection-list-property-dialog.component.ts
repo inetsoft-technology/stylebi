@@ -45,7 +45,6 @@ const GET_LIST_GRAYED_FIELDS_URI: string = "../api/composer/vs/selection-list-pr
 @Component({
     selector: "selection-list-property-dialog",
     templateUrl: "selection-list-property-dialog.component.html",
-    standalone: true,
     imports: [
         ModalHeaderComponent,
         NgIf,
@@ -60,7 +59,7 @@ const GET_LIST_GRAYED_FIELDS_URI: string = "../api/composer/vs/selection-list-pr
         VSAssemblyScriptPane,
         NgbNavOutlet,
         ApplyButtonComponent,
-    ],
+    ]
 })
 export class SelectionListPropertyDialog extends PropertyDialog implements OnInit {
    @Input() model: SelectionListPropertyDialogModel;

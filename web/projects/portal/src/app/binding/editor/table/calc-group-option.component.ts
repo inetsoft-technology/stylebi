@@ -60,7 +60,6 @@ import { NgIf, NgFor } from "@angular/common";
     selector: "calc-group-option",
     templateUrl: "calc-group-option.component.html",
     styleUrls: ["calc-group-option.component.scss"],
-    standalone: true,
     imports: [NgIf, FormsModule, NgFor, DynamicComboBox]
 })
 export class CalcGroupOption implements OnInit, OnChanges {

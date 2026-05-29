@@ -43,7 +43,6 @@ export interface SelectAssetsDialogData {
     templateUrl: "./select-assets-dialog.component.html",
     styleUrls: ["./select-assets-dialog.component.scss"],
     providers: [RepositoryTreeDataSource],
-    standalone: true,
     imports: [ModalHeaderComponent, MatDialogContent, NgIf, FlatTreeViewComponent, MultiSelectTreeNodeDirective, MatProgressBar, MatDialogActions, MatButton]
 })
 export class SelectAssetsDialogComponent implements OnInit {

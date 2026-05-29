@@ -32,7 +32,6 @@ import { DynamicComboBox } from "../../widget/dynamic-combo-box/dynamic-combo-bo
 @Component({
     selector: "legend-format-general-pane",
     templateUrl: "legend-format-general-pane.component.html",
-    standalone: true,
     imports: [
         FormsModule,
         ReactiveFormsModule,
@@ -42,7 +41,7 @@ import { DynamicComboBox } from "../../widget/dynamic-combo-box/dynamic-combo-bo
         ColorEditor,
         NgClass,
         NgIf,
-    ],
+    ]
 })
 export class LegendFormatGeneralPane implements OnInit, OnDestroy {
    public mode: ValueMode = ValueMode.TEXT;

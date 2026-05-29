@@ -46,7 +46,6 @@ import { NgIf } from "@angular/common";
             provide: ContextProvider,
             useFactory: ComposerContextProviderFactory
         }],
-    standalone: true,
     imports: [NgIf, FormsModule, ReactiveFormsModule, ViewsheetParametersDialog, SelectDataSourceDialog]
 })
 export class ViewsheetOptionsPane implements OnInit {

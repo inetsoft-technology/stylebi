@@ -56,7 +56,6 @@ import { NgIf, NgFor } from "@angular/common";
     selector: "em-audit-inactive-resource",
     templateUrl: "./audit-inactive-resource.component.html",
     styleUrls: ["./audit-inactive-resource.component.scss"],
-    standalone: true,
     imports: [AuditTableViewComponent, FormsModule, ReactiveFormsModule, NgIf, MatFormField, MatLabel, MatSelect, NgFor, MatOption, MatInput]
 })
 export class AuditInactiveResourceComponent implements OnInit, OnDestroy {

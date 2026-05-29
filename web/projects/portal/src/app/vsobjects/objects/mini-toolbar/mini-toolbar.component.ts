@@ -42,7 +42,6 @@ import { NgIf, NgFor } from "@angular/common";
     selector: "mini-toolbar",
     templateUrl: "mini-toolbar.component.html",
     styleUrls: ["mini-toolbar.component.scss"],
-    standalone: true,
     imports: [NgIf, NgFor]
 })
 export class MiniToolbar implements OnDestroy {

@@ -50,7 +50,6 @@ import { MatFormField, MatLabel } from "@angular/material/form-field";
     selector: "em-audit-logon-history",
     templateUrl: "./audit-logon-history.component.html",
     styleUrls: ["./audit-logon-history.component.scss"],
-    standalone: true,
     imports: [AuditTableViewComponent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatSelect, NgFor, MatOption]
 })
 export class AuditLogonHistoryComponent implements OnInit, OnDestroy {

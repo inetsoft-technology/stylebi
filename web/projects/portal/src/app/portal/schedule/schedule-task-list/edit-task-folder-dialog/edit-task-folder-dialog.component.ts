@@ -41,7 +41,6 @@ const TASK_FOLDER_CHECK_DUPLICATE_URI: string = "../api/portal/schedule/rename/c
     selector: "c-edit-task-folder-dialog",
     templateUrl: "./edit-task-folder-dialog.component.html",
     styleUrls: ["./edit-task-folder-dialog.component.scss"],
-    standalone: true,
     imports: [FormsModule, ReactiveFormsModule, NgIf]
 })
 export class EditTaskFolderDialog implements OnInit, OnChanges, AfterViewInit {

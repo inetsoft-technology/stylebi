@@ -27,7 +27,6 @@ import { StandardDialogComponent } from "../../../../widget/standard-dialog/stan
     selector: "mv-exceptions-portal-dialog",
     templateUrl: "./mv-exceptions-portal-dialog.component.html",
     styleUrls: ["./mv-exceptions-portal-dialog.component.scss"],
-    standalone: true,
     imports: [StandardDialogComponent, DialogContentDirective, ScrollableFlexTableDirective, NgFor, NgIf, DialogButtonsDirective]
 })
 export class MVExceptionsPortalDialogComponent {

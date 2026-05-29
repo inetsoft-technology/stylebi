@@ -22,7 +22,6 @@ import { FormsModule } from "@angular/forms";
     selector: "boolean-value-editor",
     templateUrl: "boolean-value-editor.component.html",
     styleUrls: ["boolean-value-editor.component.scss"],
-    standalone: true,
     imports: [FormsModule]
 })
 export class BooleanValueEditor {

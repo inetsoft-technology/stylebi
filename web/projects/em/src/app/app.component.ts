@@ -51,7 +51,6 @@ import { NavbarComponent } from "./navbar/navbar.component";
     selector: "em-root",
     templateUrl: "./app.component.html",
     styleUrls: ["./app.component.scss"],
-    standalone: true,
     imports: [NavbarComponent, RouterOutlet, AiAssistantPanelComponent, DownloadTargetComponent, MatDialogContent, MatDialogActions, MatButton, MatDialogClose]
 })
 export class AppComponent implements OnInit, OnDestroy {

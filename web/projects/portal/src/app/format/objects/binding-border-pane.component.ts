@@ -35,7 +35,6 @@ const borderSelectState = {
     selector: "binding-border-pane",
     styleUrls: ["binding-border-pane.component.scss"],
     templateUrl: "binding-border-pane.component.html",
-    standalone: true,
     imports: [BorderStylePane, NgIf, ColorDropdown]
 })
 export class BindingBorderPane implements AfterViewInit, OnChanges {

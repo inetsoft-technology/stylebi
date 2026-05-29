@@ -35,12 +35,11 @@ import { FormsModule } from "@angular/forms";
 @Component({
     selector: "selection-tree-id-pane",
     templateUrl: "selection-tree-id-pane.component.html",
-    standalone: true,
     imports: [
         TreeComponent,
         FormsModule,
         DynamicComboBox,
-    ],
+    ]
 })
 export class SelectionTreeIdPane implements OnInit, AfterViewInit {
    @Input() model: SelectionTreePaneModel;

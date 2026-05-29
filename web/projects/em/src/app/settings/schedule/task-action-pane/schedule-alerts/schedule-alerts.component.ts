@@ -65,7 +65,6 @@ export class AlertHighlightRow {
     selector: "em-schedule-alerts",
     templateUrl: "./schedule-alerts.component.html",
     styleUrls: ["./schedule-alerts.component.scss"],
-    standalone: true,
     imports: [MatCard, MatCardHeader, MatCardTitle, MatCheckbox, FormsModule, NgIf, MatCardContent, MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow]
 })
 export class ScheduleAlertsComponent implements OnInit, OnChanges {

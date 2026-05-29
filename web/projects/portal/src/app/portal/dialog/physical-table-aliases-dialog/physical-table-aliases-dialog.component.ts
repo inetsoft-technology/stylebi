@@ -33,7 +33,6 @@ const TABLE_ALIASES_URI: string = "../api/data/physicalmodel/aliases/";
     selector: "physical-table-aliases-dialog",
     templateUrl: "physical-table-aliases-dialog.component.html",
     styleUrls: ["physical-table-aliases-dialog.component.scss"],
-    standalone: true,
     imports: [ModalHeaderComponent, FormsModule, NgIf, NgFor, ExistsDirective, DefaultFocusDirective]
 })
 export class PhysicalTableAliasesDialog implements OnInit {

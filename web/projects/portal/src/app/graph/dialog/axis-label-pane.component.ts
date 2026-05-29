@@ -26,12 +26,11 @@ import { NgIf } from "@angular/common";
 @Component({
     selector: "axis-label-pane",
     templateUrl: "axis-label-pane.component.html",
-    standalone: true,
     imports: [
         FormsModule,
         NgIf,
         RotationRadioGroup,
-    ],
+    ]
 })
 export class AxisLabelPane {
    @Input() model: AxisLabelPaneModel;

@@ -38,7 +38,6 @@ import { MatCard, MatCardTitle, MatCardContent, MatCardActions } from "@angular/
     selector: "em-server-locations-view",
     templateUrl: "./server-locations-view.component.html",
     styleUrls: ["./server-locations-view.component.scss"],
-    standalone: true,
     imports: [MatCard, MatCardTitle, MatCardContent, MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCheckbox, MatCellDef, MatCell, NgIf, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, MatCardActions, MatButton]
 })
 export class ServerLocationsViewComponent implements OnInit, OnChanges {

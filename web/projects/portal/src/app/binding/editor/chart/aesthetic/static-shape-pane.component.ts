@@ -41,7 +41,6 @@ const NUM_SHAPES: number = 16;
     selector: "static-shape-pane",
     templateUrl: "static-shape-pane.component.html",
     styleUrls: ["static-shape-pane.component.scss"],
-    standalone: true,
     imports: [BlockMouseDirective, NgIf, NgFor, ShapeItem]
 })
 export class StaticShapePane implements OnInit {

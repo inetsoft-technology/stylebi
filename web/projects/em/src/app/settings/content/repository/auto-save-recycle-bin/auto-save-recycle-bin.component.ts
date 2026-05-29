@@ -25,7 +25,6 @@ import { MatCard, MatCardContent } from "@angular/material/card";
 @Component({
     selector: "em-auto-save-recycle-bin",
     templateUrl: "./auto-save-recycle-bin.component.html",
-    standalone: true,
     imports: [MatCard, MatCardContent, MatFormField, MatLabel, MatInput, FormsModule]
 })
 export class AutoSaveRecycleBinComponent {

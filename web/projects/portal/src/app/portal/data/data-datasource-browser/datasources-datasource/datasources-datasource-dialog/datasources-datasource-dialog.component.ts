@@ -26,7 +26,6 @@ import { ModalHeaderComponent } from "../../../../../widget/modal-header/modal-h
     selector: "datasources-datasource-dialog",
     templateUrl: "./datasources-datasource-dialog.component.html",
     styleUrls: ["./datasources-datasource-dialog.component.scss"],
-    standalone: true,
     imports: [ModalHeaderComponent, DatasourcesDatasourceEditorComponent, DataNotificationsComponent]
 })
 export class DatasourcesDatasourceDialogComponent implements OnInit {

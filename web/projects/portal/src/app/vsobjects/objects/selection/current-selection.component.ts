@@ -42,7 +42,6 @@ const URI_UPDATE_TITLE_RATIO: string = "/events/composer/viewsheet/currentSelect
     selector: "current-selection",
     templateUrl: "current-selection.component.html",
     styleUrls: ["current-selection.component.scss"],
-    standalone: true,
     imports: [ActionsContextmenuAnchorDirective, NgIf, MiniMenu, TitleCell, InteractableDirective]
 })
 export class CurrentSelection implements OnDestroy {

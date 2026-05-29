@@ -23,8 +23,7 @@ import { NgIf } from "@angular/common";
 @Component({
     selector: "table-format-option",
     templateUrl: "table-format-option.component.html",
-    standalone: true,
-    imports: [NgIf, FormsModule],
+    imports: [NgIf, FormsModule]
 })
 export class TableFormatOption {
    @Input() format: TableFormatInfo;

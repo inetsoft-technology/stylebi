@@ -51,7 +51,6 @@ const GET_MESSAGE_LEVELS_URI = "../api/composer/console-dialog/get-message-level
     selector: "wizard-preview-container",
     templateUrl: "./wizard-preview-container.component.html",
     styleUrls: ["./wizard-preview-container.component.scss"],
-    standalone: true,
     imports: [NgIf, FormsModule, InteractContainerDirective, VSCalendar, VSChart, VSCrosstab, VSGauge, VSRangeSlider, VSSelection, VSTable, VSText, StatusBar, MiniToolbar, ConsoleDialogComponent]
 })
 export class WizardPreviewContainer extends AbstractActionComponent {

@@ -35,7 +35,6 @@ import { MatCard, MatCardContent } from "@angular/material/card";
     selector: "em-daily-condition-editor",
     templateUrl: "./daily-condition-editor.component.html",
     styleUrls: ["./daily-condition-editor.component.scss"],
-    standalone: true,
     imports: [MatCard, MatCardContent, FormsModule, ReactiveFormsModule, StartTimeEditorComponent, TimeZoneSelectComponent, MatCheckbox, NgIf, MatFormField, MatLabel, MatInput, MatError, MatHint]
 })
 export class DailyConditionEditorComponent implements OnInit {

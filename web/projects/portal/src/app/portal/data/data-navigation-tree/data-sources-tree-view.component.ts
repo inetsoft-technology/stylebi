@@ -93,7 +93,6 @@ const CREATE_QUERY_URI = "/events/composer/ws/query/create";
     templateUrl: "data-sources-tree-view.component.html",
     styleUrls: ["data-sources-tree-view.component.scss"],
     providers: [ViewsheetClientService, AssetClientService],
-    standalone: true,
     imports: [NgIf, TreeComponent, DataNotificationsComponent]
 })
 export class DataSourcesTreeViewComponent extends CommandProcessor implements OnInit, OnDestroy {

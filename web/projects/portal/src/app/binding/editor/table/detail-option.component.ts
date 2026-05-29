@@ -24,7 +24,6 @@ import { NgIf } from "@angular/common";
     selector: "detail-option",
     templateUrl: "detail-option.component.html",
     styleUrls: ["./detail-option.component.scss"],
-    standalone: true,
     imports: [NgIf]
 })
 export class DetailOption {

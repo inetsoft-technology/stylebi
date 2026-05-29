@@ -26,7 +26,6 @@ import { NgIf, NgClass } from "@angular/common";
     selector: "chart-editor-toolbar",
     templateUrl: "chart-editor-toolbar.component.html",
     styleUrls: ["chart-editor-toolbar.component.scss"],
-    standalone: true,
     imports: [NgIf, ChartTypeButton, NgClass]
 })
 export class ChartEditorToolbar {

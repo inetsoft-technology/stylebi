@@ -61,7 +61,6 @@ export const EMAIL_PICKER_VALIDATOR: any = {
     templateUrl: "./email-picker.component.html",
     styleUrls: ["./email-picker.component.scss"],
     providers: [EMAIL_PICKER_VALUE_ACCESSOR, EMAIL_PICKER_VALIDATOR],
-    standalone: true,
     imports: [MatFormField, MatLabel, MatInput, FormsModule, ReactiveFormsModule, NgIf, MatIconButton, MatSuffix, MatIcon, MatError, MatButton]
 })
 export class EmailPickerComponent implements ControlValueAccessor, Validator, OnInit, OnChanges {

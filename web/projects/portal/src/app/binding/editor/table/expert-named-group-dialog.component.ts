@@ -40,7 +40,6 @@ import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.
     selector: "expert-named-group-dialog",
     templateUrl: "expert-named-group-dialog.component.html",
     styleUrls: ["expert-named-group-dialog.component.scss"],
-    standalone: true,
     imports: [ModalHeaderComponent, NgIf, LargeFormFieldComponent, NgFor, ConditionPane, FormsModule, ConditionPipe, JunctionOperatorPipe]
 })
 export class ExpertNamedGroupDialog implements OnInit {

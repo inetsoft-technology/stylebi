@@ -33,7 +33,6 @@ import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.
     selector: "reorder-subtables-dialog",
     templateUrl: "reorder-subtables-dialog.component.html",
     styleUrls: ["reorder-subtables-dialog.component.scss"],
-    standalone: true,
     imports: [ModalHeaderComponent, EnterSubmitDirective, FormsModule, LargeFormFieldComponent, NgFor]
 })
 export class ReorderSubtablesDialogComponent implements OnChanges {

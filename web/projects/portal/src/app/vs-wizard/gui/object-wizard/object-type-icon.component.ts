@@ -27,7 +27,6 @@ import { NgIf } from "@angular/common";
     selector: "object-type-icon",
     templateUrl: "object-type-icon.component.html",
     styleUrls: ["object-type-icon.component.scss"],
-    standalone: true,
     imports: [NgIf]
 })
 export class ObjectTypeIcon {

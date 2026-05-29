@@ -25,7 +25,6 @@ import { NgFor, NgIf } from "@angular/common";
     templateUrl: "datasource-listing-pane.component.html",
     styleUrls: ["datasource-listing-pane.component.scss"],
     changeDetection: ChangeDetectionStrategy.OnPush,
-    standalone: true,
     imports: [NgFor, DatasourceListingComponent, NgIf]
 })
 export class DatasourceListingPaneComponent {

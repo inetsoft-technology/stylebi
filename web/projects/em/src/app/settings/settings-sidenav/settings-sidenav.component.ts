@@ -46,7 +46,6 @@ const SMALL_WIDTH_BREAKPOINT = 720;
     selector: "em-settings-sidenav",
     templateUrl: "./settings-sidenav.component.html",
     styleUrls: ["./settings-sidenav.component.scss"],
-    standalone: true,
     imports: [PageHeaderComponent, MatSidenavContainer, MatSidenav, MatFormField, MatLabel, MatInput, FormsModule, MatIconButton, MatSuffix, MatIcon, MatNavList, NgIf, MatListItem, RouterLink, RouterLinkActive, MatSidenavContent, CdkScrollable, TopScrollDirective, RouterOutlet, LoadingSpinnerComponent]
 })
 export class SettingsSidenavComponent implements OnInit, OnDestroy {

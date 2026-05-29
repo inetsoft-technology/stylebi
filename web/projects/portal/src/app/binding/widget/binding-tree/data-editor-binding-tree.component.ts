@@ -43,7 +43,6 @@ import { BindingTreeComponent } from "./binding-tree.component";
 @Component({
     selector: "data-editor-binding-tree",
     templateUrl: "data-editor-binding-tree.component.html",
-    standalone: true,
     imports: [BindingTreeComponent]
 })
 export class DataEditorBindingTree implements OnChanges {

@@ -24,7 +24,6 @@ import { FormsModule } from "@angular/forms";
     selector: "linear-shape-pane",
     templateUrl: "linear-shape-pane.component.html",
     styleUrls: ["linear-shape-pane.component.scss"],
-    standalone: true,
     imports: [FormsModule]
 })
 export class LinearShapePane {

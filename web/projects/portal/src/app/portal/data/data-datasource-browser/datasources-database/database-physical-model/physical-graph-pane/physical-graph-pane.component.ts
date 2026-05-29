@@ -51,7 +51,6 @@ const UPDATE_GRAPH_PANE_SIZE = "../api/data/physicalmodel/graph/size/";
     selector: "physical-graph-pane",
     templateUrl: "physical-graph-pane.component.html",
     styleUrls: ["physical-graph-pane.component.scss"],
-    standalone: true,
     imports: [NgIf, FixedDropdownDirective, PhysicalModelNetworkGraphComponent, PhysicalJoinEditPane, LoadingIndicatorPaneComponent]
 })
 export class PhysicalGraphPane implements OnInit, AfterViewChecked, OnDestroy {

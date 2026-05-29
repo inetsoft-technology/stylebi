@@ -43,7 +43,6 @@ const INITIAL_COLUMN_WIDTH: number = 80;
     selector: "query-preview-table",
     templateUrl: "query-preview-table.component.html",
     styleUrls: ["query-preview-table.component.scss"],
-    standalone: true,
     imports: [NgIf, NgFor, OutOfZoneDirective, TouchScrollDirective, NotificationsComponent]
 })
 export class QueryPreviewTableComponent implements OnChanges, AfterViewChecked, AfterContentChecked {

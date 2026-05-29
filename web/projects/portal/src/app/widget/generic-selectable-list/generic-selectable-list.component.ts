@@ -22,7 +22,6 @@ import { NgFor } from "@angular/common";
     selector: "generic-selectable-list",
     templateUrl: "generic-selectable-list.component.html",
     styleUrls: ["./generic-selectable-list.component.scss"],
-    standalone: true,
     imports: [NgFor]
 })
 export class GenericSelectableList {

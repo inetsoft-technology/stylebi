@@ -86,7 +86,6 @@ const HEARTBEAT_MODEL_URI: string = "../api/data/physicalmodel/heartbeat";
     selector: "database-physical-model",
     templateUrl: "database-physical-model.component.html",
     styleUrls: ["database-model-pane.scss", "database-physical-model.component.scss"],
-    standalone: true,
     imports: [NgIf, SplitPane, AutoCollapseToolbarComponent, FormsModule, PhysicalModelTableTreeComponent, LoadingIndicatorPaneComponent, PhysicalModelEditTableComponent, PhysicalGraphPane, PhysicalStatusBarComponent, InputNameDialog, InlineViewDialog, AutoJoinTablesDialog, NotificationsComponent]
 })
 export class DatabasePhysicalModelComponent implements OnInit, DoCheck, OnDestroy, CanComponentDeactivate {

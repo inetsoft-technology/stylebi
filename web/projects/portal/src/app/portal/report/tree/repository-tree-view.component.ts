@@ -51,7 +51,6 @@ const GET_PORTAL_TREE_FOLDER = "../api/portal/tree";
     selector: "p-repository-tree-view",
     templateUrl: "./repository-tree-view.component.html",
     styleUrls: ["./repository-tree-view.component.scss"],
-    standalone: true,
     imports: [FormsModule, NgIf, EnterClickDirective, RepositoryTreeComponent]
 })
 export class RepositoryTreeViewComponent implements OnInit, AfterViewInit, OnDestroy {

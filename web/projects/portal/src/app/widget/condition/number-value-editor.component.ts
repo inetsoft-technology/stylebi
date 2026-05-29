@@ -21,7 +21,6 @@ import { FormsModule } from "@angular/forms";
 @Component({
     selector: "number-value-editor",
     templateUrl: "number-value-editor.component.html",
-    standalone: true,
     imports: [FormsModule]
 })
 export class NumberValueEditor {

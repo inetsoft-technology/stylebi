@@ -34,8 +34,7 @@ import { ConditionList } from "../../../widget/condition/condition-list.componen
 @Component({
     selector: "advanced-condition-pane",
     templateUrl: "advanced-condition-pane.component.html",
-    standalone: true,
-    imports: [ConditionList],
+    imports: [ConditionList]
 })
 export class AdvancedConditionPane implements OnInit, OnChanges {
    @Input() runtimeId: string;

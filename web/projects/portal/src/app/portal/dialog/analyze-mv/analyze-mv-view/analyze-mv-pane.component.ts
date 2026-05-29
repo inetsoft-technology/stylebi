@@ -29,7 +29,6 @@ import { FormsModule } from "@angular/forms";
     selector: "analyze-mv-pane",
     templateUrl: "./analyze-mv-pane.component.html",
     styleUrls: ["./analyze-mv-pane.component.scss"],
-    standalone: true,
     imports: [FormsModule, NgFor, SortColumnDirective, NgIf]
 })
 export class AnalyzeMVPane implements OnInit {

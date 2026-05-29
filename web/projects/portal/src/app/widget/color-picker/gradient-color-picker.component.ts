@@ -33,7 +33,6 @@ import { NgIf } from "@angular/common";
     selector: "gradient-color-picker",
     templateUrl: "gradient-color-picker.component.html",
     styleUrls: ["gradient-color-picker.component.scss"],
-    standalone: true,
     imports: [NgIf, FixedDropdownDirective, GradientColorPane]
 })
 export class GradientColorPicker {

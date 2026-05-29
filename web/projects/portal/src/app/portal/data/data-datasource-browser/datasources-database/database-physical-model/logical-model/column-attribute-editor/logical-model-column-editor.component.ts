@@ -25,7 +25,6 @@ import { LogicalModelAttributeEditor } from "../attribute-editor/logical-model-a
     selector: "logical-model-column-editor",
     templateUrl: "logical-model-column-editor.component.html",
     styleUrls: ["../../database-model-pane.scss", "logical-model-column-editor.component.scss"],
-    standalone: true,
     imports: [LogicalModelAttributeEditor]
 })
 export class LogicalModelColumnEditor {

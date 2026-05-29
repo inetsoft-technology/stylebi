@@ -23,7 +23,6 @@ import { FixedDropdownDirective } from "../../../../widget/fixed-dropdown/fixed-
     selector: "linear-color-dropdown",
     templateUrl: "linear-color-dropdown.component.html",
     styleUrls: ["linear-color-dropdown.component.scss"],
-    standalone: true,
     imports: [FixedDropdownDirective, NgFor]
 })
 export class LinearColorDropdown {

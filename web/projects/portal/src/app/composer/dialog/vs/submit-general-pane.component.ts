@@ -26,12 +26,11 @@ import { GeneralPropPane } from "../../../vsobjects/dialog/general-prop-pane.com
 @Component({
     selector: "submit-general-pane",
     templateUrl: "submit-general-pane.component.html",
-    standalone: true,
     imports: [
         GeneralPropPane,
         LabelPropPane,
         SizePositionPane,
-    ],
+    ]
 })
 export class SubmitGeneralPane implements OnInit {
    @Input() model: SubmitGeneralPaneModel;

@@ -51,7 +51,6 @@ import { NgIf } from "@angular/common";
     selector: "em-resource-permission",
     templateUrl: "./resource-permission.component.html",
     styleUrls: ["./resource-permission.component.scss"],
-    standalone: true,
     imports: [NgIf, MatCard, MatCardContent, MatCheckbox, MatRadioGroup, FormsModule, MatRadioButton, PermissionsTableComponent, MatCardActions, MatButton]
 })
 export class ResourcePermissionComponent implements OnInit, OnChanges, OnDestroy {

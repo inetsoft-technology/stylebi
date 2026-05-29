@@ -27,7 +27,6 @@ import { SearchResultsComponent } from "../search-results/search-results.compone
     selector: "em-search-results-view",
     templateUrl: "./search-results-view.component.html",
     styleUrls: ["./search-results-view.component.scss"],
-    standalone: true,
     imports: [SearchResultsComponent]
 })
 export class SearchResultsViewComponent implements OnInit, OnDestroy {

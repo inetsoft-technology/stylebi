@@ -27,7 +27,6 @@ import { SelectedAssetModel } from "../selected-asset-model";
     selector: "em-selected-asset-list",
     templateUrl: "./selected-asset-list.component.html",
     styleUrls: ["./selected-asset-list.component.scss"],
-    standalone: true,
     imports: [MatTable, MatSort, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatSortHeader, MatCellDef, MatCell, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow]
 })
 export class SelectedAssetListComponent implements OnInit {

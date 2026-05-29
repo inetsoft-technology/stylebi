@@ -23,7 +23,6 @@ import { NgIf } from "@angular/common";
 @Component({
     selector: "text-editor",
     templateUrl: "text-editor.component.html",
-    standalone: true,
     imports: [NgIf, FormsModule]
 })
 export class TextEditor {

@@ -23,7 +23,6 @@ import { ShapeItem } from "./shape-item.component";
 @Component({
     selector: "shape-combo-box",
     templateUrl: "shape-combo-box.component.html",
-    standalone: true,
     imports: [ShapeItem, FixedDropdownDirective, StaticShapePane]
 })
 export class ShapeComboBox {

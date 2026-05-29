@@ -66,7 +66,6 @@ const CHECK_TRAP_URI = "../api/viewsheet/objects/checkSelectionTrap";
     selector: "vs-selection-container-children",
     templateUrl: "vs-selection-container-children.component.html",
     styleUrls: ["vs-selection-container-children.component.scss"],
-    standalone: true,
     imports: [NgIf, OutOfZoneDirective, NgFor, CurrentSelection, VSRangeSlider, VSSelection]
 })
 export class VSSelectionContainerChildren extends CommandProcessor implements OnInit {

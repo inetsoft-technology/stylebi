@@ -34,7 +34,6 @@ import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.
 @Component({
     selector: "table-property-dialog",
     templateUrl: "table-property-dialog.component.html",
-    standalone: true,
     imports: [ModalHeaderComponent, EnterSubmitDirective, NgIf, FormsModule, ReactiveFormsModule, InputTrimDirective, DefaultFocusDirective]
 })
 export class TablePropertyDialog implements OnInit {

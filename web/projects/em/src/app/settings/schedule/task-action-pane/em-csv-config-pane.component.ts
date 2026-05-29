@@ -32,7 +32,6 @@ import { MatFormField, MatLabel, MatError } from "@angular/material/form-field";
     selector: "em-csv-config-pane",
     templateUrl: "./em-csv-config-pane.component.html",
     styleUrls: ["./em-csv-config-pane.component.scss"],
-    standalone: true,
     imports: [MatFormField, MatLabel, MatInput, FormsModule, MatCheckbox, NgIf, MatCard, MatCardContent, MatLine, MatList, NgFor, MatListItem, MatDivider, MatError]
 })
 export class EmCSVConfigPaneComponent implements OnInit{

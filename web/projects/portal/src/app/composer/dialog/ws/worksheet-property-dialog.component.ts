@@ -28,13 +28,12 @@ import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.
 @Component({
     selector: "worksheet-property-dialog",
     templateUrl: "worksheet-property-dialog.component.html",
-    standalone: true,
     imports: [
         ModalHeaderComponent,
         NgIf,
         EnterSubmitDirective,
         WorksheetOptionPane,
-    ],
+    ]
 })
 export class WorksheetPropertyDialog implements OnInit {
    @Input() runtimeId: string;

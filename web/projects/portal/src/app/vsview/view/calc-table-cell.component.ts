@@ -32,7 +32,6 @@ import { NgIf, NgStyle } from "@angular/common";
     selector: "calc-table-cell",
     templateUrl: "calc-table-cell.component.html",
     styleUrls: ["calc-table-cell.component.scss"],
-    standalone: true,
     imports: [NgIf, OutOfZoneDirective, NgStyle]
 })
 export class CalcTableCellComponent {

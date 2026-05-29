@@ -40,7 +40,6 @@ import { NgIf, NgFor } from "@angular/common";
     selector: "vs-radio-button",
     templateUrl: "vs-radio-button.component.html",
     styleUrls: ["vs-radio-button.component.scss", "../check-box/vs-compound.scss"],
-    standalone: true,
     imports: [NgIf, VSDataTipDirective, VSPopComponentDirective, SafeFontDirective, VSTitle, FormsModule, NgFor, InteractableDirective, TooltipIfDirective]
 })
 export class VSRadioButton extends VSCompound<VSRadioButtonModel> implements OnChanges, OnInit {

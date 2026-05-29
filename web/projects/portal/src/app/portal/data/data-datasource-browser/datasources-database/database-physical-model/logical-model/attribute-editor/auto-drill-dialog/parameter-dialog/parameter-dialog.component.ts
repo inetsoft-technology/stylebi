@@ -41,7 +41,6 @@ enum SourceType {
     selector: "parameter-dialog",
     templateUrl: "parameter-dialog.component.html",
     styleUrls: ["parameter-dialog.component.scss"],
-    standalone: true,
     imports: [ModalHeaderComponent, NgIf, FormsModule, ReactiveFormsModule, NgClass, NgFor, DateValueEditorComponent, TimeValueEditorComponent, TimeInstantValueEditorComponent]
 })
 export class ParameterDialog implements OnInit, AfterViewInit {

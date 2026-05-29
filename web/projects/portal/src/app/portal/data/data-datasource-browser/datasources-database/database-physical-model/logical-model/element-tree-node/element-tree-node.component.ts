@@ -38,7 +38,6 @@ export const DRAG_SEPARATOR = "^-^";
     selector: "element-tree-node",
     templateUrl: "element-tree-node.component.html",
     styleUrls: ["element-tree-node.component.scss"],
-    standalone: true,
     imports: [NgIf, NgClass, NgFor]
 })
 export class ElementTreeNode implements OnChanges {

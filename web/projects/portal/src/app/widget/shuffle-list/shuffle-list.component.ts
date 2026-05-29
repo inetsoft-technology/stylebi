@@ -22,7 +22,6 @@ import { NgIf } from "@angular/common";
     selector: "w-shuffle-list",
     templateUrl: "./shuffle-list.component.html",
     styleUrls: ["./shuffle-list.component.scss"],
-    standalone: true,
     imports: [NgIf]
 })
 export class ShuffleListComponent {

@@ -31,7 +31,6 @@ const CHANGE_SELECTED_TYPE: string = "/events/vswizard/visualization/change-sele
     selector: "wizard-visualization-pane",
     templateUrl: "wizard-visualization-pane.component.html",
     styleUrls: ["wizard-visualization-pane.component.scss"],
-    standalone: true,
     imports: [ObjectTypePane, ObjectSubTypePane]
 })
 export class WizardVisualizationPane {

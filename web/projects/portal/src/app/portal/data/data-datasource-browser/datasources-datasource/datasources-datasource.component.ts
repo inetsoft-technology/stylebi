@@ -48,7 +48,6 @@ export interface AdditionalInfo {
     selector: "datasources-datasource",
     templateUrl: "datasources-datasource.component.html",
     styleUrls: ["datasources-datasource.component.scss"],
-    standalone: true,
     imports: [DatasourcesDatasourceEditorComponent, NgIf, NgFor, DataNotificationsComponent]
 })
 export class DatasourcesDatasourceComponent implements OnInit, OnDestroy{

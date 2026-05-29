@@ -24,7 +24,6 @@ import { NgIf } from "@angular/common";
 @Component({
     selector: "integer-editor",
     templateUrl: "integer-editor.component.html",
-    standalone: true,
     imports: [FormsModule, ReactiveFormsModule, NgIf]
 })
 export class IntegerEditor implements OnInit, OnDestroy {

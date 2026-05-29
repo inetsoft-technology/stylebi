@@ -23,7 +23,6 @@ import { FormsModule } from "@angular/forms";
     selector: "combo-box",
     templateUrl: "combo-box.component.html",
     styleUrls: ["combo-box.component.scss"],
-    standalone: true,
     imports: [FormsModule, NgFor]
 })
 export class ComboBox {

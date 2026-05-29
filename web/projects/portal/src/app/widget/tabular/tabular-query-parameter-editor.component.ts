@@ -27,7 +27,6 @@ import { TabularTextEditor } from "./tabular-text-editor.component";
 @Component({
     selector: "tabular-query-parameter-editor",
     templateUrl: "tabular-query-parameter-editor.component.html",
-    standalone: true,
     imports: [
         TabularTextEditor,
         FormsModule,
@@ -35,7 +34,7 @@ import { TabularTextEditor } from "./tabular-text-editor.component";
         TabularBooleanEditor,
         TabularNumberEditor,
         TabularDateEditor,
-    ],
+    ]
 })
 export class TabularQueryParameterEditor implements OnInit {
    @Input() value: QueryParameter;

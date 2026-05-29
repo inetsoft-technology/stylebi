@@ -29,7 +29,6 @@ import { NgIf, NgFor } from "@angular/common";
     selector: "geo-option-pane",
     templateUrl: "geo-option-pane.component.html",
     styleUrls: ["geo-option-pane.component.scss"],
-    standalone: true,
     imports: [NgIf, FormsModule, NgFor]
 })
 export class GeoOptionPane implements OnInit {

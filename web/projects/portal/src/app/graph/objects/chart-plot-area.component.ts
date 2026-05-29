@@ -64,7 +64,6 @@ import { NgIf, NgFor } from "@angular/common";
             useExisting: ChartPlotArea
         }],
     changeDetection: ChangeDetectionStrategy.OnPush,
-    standalone: true,
     imports: [NgIf, SelectionBoxDirective, OutOfZoneDirective, ChartImageDirective, NgFor]
 })
 export class ChartPlotArea extends ChartObjectAreaBase<Plot> implements OnChanges {

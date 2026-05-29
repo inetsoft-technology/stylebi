@@ -27,7 +27,6 @@ import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.
     selector: "query-plan-dialog",
     templateUrl: "query-plan-dialog.component.html",
     styleUrls: ["query-plan-dialog.component.scss"],
-    standalone: true,
     imports: [ModalHeaderComponent, NgIf, TreeComponent, FormsModule]
 })
 export class QueryPlanDialog implements OnInit {

@@ -28,7 +28,6 @@ import { FormsModule } from "@angular/forms";
     selector: "static-size-pane",
     templateUrl: "static-size-pane.component.html",
     styleUrls: ["static-size-pane.component.scss"],
-    standalone: true,
     imports: [FormsModule, Slider]
 })
 export class StaticSizePane implements OnChanges, OnInit {

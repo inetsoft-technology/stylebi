@@ -25,7 +25,6 @@ import { NgFor } from "@angular/common";
     selector: "static-line-pane",
     templateUrl: "static-line-pane.component.html",
     styleUrls: ["static-line-pane.component.scss"],
-    standalone: true,
     imports: [NgFor]
 })
 export class StaticLinePane {

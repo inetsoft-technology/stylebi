@@ -36,7 +36,6 @@ const COMPOSER_CUSTOM_MESSAGE_URI: string = "../api/composer/customMessage";
     selector: "composer-empty-editor",
     templateUrl: "composer-empty-editor.component.html",
     styleUrls: ["composer-empty-editor.component.scss"],
-    standalone: true,
     imports: [OutOfZoneDirective]
 })
 export class ComposerEmptyEditor implements OnInit {

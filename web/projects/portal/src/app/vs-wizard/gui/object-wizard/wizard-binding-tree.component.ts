@@ -71,7 +71,6 @@ const OBJECT_WIZARD_REFRESH = "/events/vswizard/object-wizard/refresh";
     selector: "wizard-binding-tree",
     templateUrl: "./wizard-binding-tree.component.html",
     styleUrls: ["./wizard-binding-tree.component.scss"],
-    standalone: true,
     imports: [NgIf, TreeComponent, NotificationsComponent]
 })
 export class WizardBindingTree extends CommandProcessor implements OnInit, OnDestroy {

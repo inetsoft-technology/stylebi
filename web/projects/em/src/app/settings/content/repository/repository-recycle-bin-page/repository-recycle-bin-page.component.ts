@@ -40,7 +40,6 @@ const RECOVER_RECYCLE_BIN_ENTRY: string = "../api/em/content/repository/tree/rec
 @Component({
     selector: "em-repository-recycle-bin-page",
     templateUrl: "./repository-recycle-bin-page.component.html",
-    standalone: true,
     imports: [NgIf, EditorPanelComponent, MatTabGroup, MatTab, RepositoryRecycleBinViewComponent]
 })
 export class RepositoryRecycleBinPageComponent {

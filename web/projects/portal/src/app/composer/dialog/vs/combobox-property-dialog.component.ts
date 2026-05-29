@@ -42,7 +42,6 @@ const CHECK_TRAP_URI: string = "../api/composer/vs/combobox-property-dialog-mode
 @Component({
     selector: "combobox-property-dialog",
     templateUrl: "combobox-property-dialog.component.html",
-    standalone: true,
     imports: [
         ModalHeaderComponent,
         NgIf,
@@ -58,7 +57,7 @@ const CHECK_TRAP_URI: string = "../api/composer/vs/combobox-property-dialog-mode
         VSAssemblyScriptPane,
         NgbNavOutlet,
         ApplyButtonComponent,
-    ],
+    ]
 })
 export class ComboBoxPropertyDialog extends PropertyDialog implements OnInit {
    @Input() model: ComboboxPropertyDialogModel;

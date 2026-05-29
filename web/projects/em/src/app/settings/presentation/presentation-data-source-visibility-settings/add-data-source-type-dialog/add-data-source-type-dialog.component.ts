@@ -31,7 +31,6 @@ import { ModalHeaderComponent } from "../../../../common/util/modal-header/modal
     selector: "em-add-data-source-type-dialog",
     templateUrl: "./add-data-source-type-dialog.component.html",
     styleUrls: ["./add-data-source-type-dialog.component.scss"],
-    standalone: true,
     imports: [ModalHeaderComponent, MatDialogContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatSelect, NgFor, MatOption, NgIf, MatError, MatDialogActions, MatButton]
 })
 export class AddDataSourceTypeDialogComponent implements OnInit {

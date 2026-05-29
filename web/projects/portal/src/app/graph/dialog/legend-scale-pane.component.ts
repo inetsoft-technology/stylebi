@@ -23,8 +23,7 @@ import { FormsModule } from "@angular/forms";
 @Component({
     selector: "legend-scale-pane",
     templateUrl: "legend-scale-pane.component.html",
-    standalone: true,
-    imports: [FormsModule, NgIf],
+    imports: [FormsModule, NgIf]
 })
 export class LegendScalePane {
    @Input() model: LegendScalePaneModel;

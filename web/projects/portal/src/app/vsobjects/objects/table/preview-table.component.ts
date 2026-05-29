@@ -71,7 +71,6 @@ const INITIAL_COLUMN_WIDTH: number = 80;
     selector: "preview-table",
     templateUrl: "preview-table.component.html",
     styleUrls: ["preview-table.component.scss"],
-    standalone: true,
     imports: [NgIf, NgFor, OutOfZoneDirective, NgClass, FixedDropdownDirective, FormsModule, DefaultFocusDirective, TouchScrollDirective, NgStyle, NgbTooltip, NotificationsComponent, FormattingPane]
 })
 export class PreviewTableComponent implements OnDestroy, AfterViewChecked, AfterContentChecked {

@@ -39,7 +39,6 @@ import { MatFormField, MatLabel } from "@angular/material/form-field";
     templateUrl: "./log-monitoring-view.component.html",
     styleUrls: ["./log-monitoring-view.component.scss"],
     changeDetection: ChangeDetectionStrategy.OnPush,
-    standalone: true,
     imports: [MatFormField, MatLabel, MatSelect, NgFor, MatOption, MatInput, MatCheckbox, MatButton, MatDivider]
 })
 export class LogMonitoringViewComponent {

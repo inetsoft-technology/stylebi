@@ -31,7 +31,6 @@ import { NgIf } from "@angular/common";
     selector: "em-theme-editor-view",
     templateUrl: "./theme-editor-view.component.html",
     styleUrls: ["./theme-editor-view.component.scss"],
-    standalone: true,
     imports: [NgIf, EditorPanelComponent, MatTabGroup, MatTab, ThemePropertiesViewComponent, ThemeCssViewComponent, MatButton]
 })
 export class ThemeEditorViewComponent implements OnInit {

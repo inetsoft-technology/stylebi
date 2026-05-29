@@ -33,7 +33,6 @@ import { ModalHeaderComponent } from "../../../../../../../../widget/modal-heade
 @Component({
     selector: "edit-join-dialog",
     templateUrl: "edit-join-dialog.component.html",
-    standalone: true,
     imports: [ModalHeaderComponent, NgIf, FormsModule, DefaultFocusDirective, NgFor, MinNumberDirective, MaxNumberDirective]
 })
 export class EditJoinDialog {

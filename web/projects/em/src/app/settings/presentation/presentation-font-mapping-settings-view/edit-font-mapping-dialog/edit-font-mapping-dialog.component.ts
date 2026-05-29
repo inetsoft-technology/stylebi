@@ -30,7 +30,6 @@ import { ModalHeaderComponent } from "../../../../common/util/modal-header/modal
     selector: "em-edit-font-mapping-dialog",
     templateUrl: "./edit-font-mapping-dialog.component.html",
     styleUrls: ["./edit-font-mapping-dialog.component.scss"],
-    standalone: true,
     imports: [ModalHeaderComponent, MatDialogContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatInput, NgIf, MatError, MatDialogActions, MatButton]
 })
 export class EditFontMappingDialogComponent implements OnInit {

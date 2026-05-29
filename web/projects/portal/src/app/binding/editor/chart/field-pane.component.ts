@@ -38,7 +38,6 @@ import { OutOfZoneDirective } from "../../../widget/directive/out-of-zone.direct
     selector: "field-pane",
     templateUrl: "field-pane.component.html",
     styleUrls: ["./aesthetic/aesthetic-field-mc.scss", "../data-editor.component.scss"],
-    standalone: true,
     imports: [OutOfZoneDirective, NgIf, ChartFieldmc]
 })
 export class FieldPane {

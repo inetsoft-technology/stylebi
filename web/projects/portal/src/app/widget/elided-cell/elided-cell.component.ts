@@ -24,7 +24,6 @@ declare const window;
     selector: "w-elided-cell",
     templateUrl: "./elided-cell.component.html",
     styleUrls: ["./elided-cell.component.scss"],
-    standalone: true,
     imports: [TooltipIfDirective]
 })
 export class ElidedCellComponent implements AfterViewInit {

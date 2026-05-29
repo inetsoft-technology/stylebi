@@ -31,7 +31,6 @@ import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.
 @Component({
     selector: "date-range-option-dialog",
     templateUrl: "date-range-option-dialog.component.html",
-    standalone: true,
     imports: [ModalHeaderComponent, NgIf, EnterSubmitDirective, FormsModule, ReactiveFormsModule, InputTrimDirective]
 })
 export class DateRangeOptionDialog implements OnInit {

@@ -26,7 +26,6 @@ import { ModalHeaderComponent } from "../../widget/modal-header/modal-header.com
     selector: "hide-columns-dialog",
     templateUrl: "hide-columns-dialog.component.html",
     styleUrls: ["./hide-columns-dialog.component.scss"],
-    standalone: true,
     imports: [ModalHeaderComponent, NgIf, EnterSubmitDirective, NgFor, ApplyButtonComponent]
 })
 export class HideColumnsDialog {

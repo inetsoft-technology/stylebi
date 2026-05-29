@@ -22,7 +22,6 @@ import { ModalHeaderComponent } from "../../widget/modal-header/modal-header.com
 @Component({
     selector: "c-image-format-select",
     templateUrl: "./image-format-select.component.html",
-    standalone: true,
     imports: [ModalHeaderComponent, DefaultFocusDirective]
 })
 export class ImageFormatSelectComponent implements OnInit {

@@ -24,12 +24,11 @@ import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.
 @Component({
     selector: "vs-sorting-dialog",
     templateUrl: "vs-sorting-dialog.component.html",
-    standalone: true,
     imports: [
         ModalHeaderComponent,
         NgIf,
         VSSortingPane,
-    ],
+    ]
 })
 export class VSSortingDialog {
    @Input() model: VSSortingDialogModel;

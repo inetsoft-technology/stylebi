@@ -30,7 +30,6 @@ import { NgIf } from "@angular/common";
     selector: "vs-cylinder",
     templateUrl: "vs-cylinder.component.html",
     styleUrls: ["vs-cylinder.component.scss"],
-    standalone: true,
     imports: [NgIf, VSDataTipDirective, VSPopComponentDirective]
 })
 /**

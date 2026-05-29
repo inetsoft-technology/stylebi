@@ -36,7 +36,6 @@ import { FormsModule } from "@angular/forms";
     selector: "tabular-file-editor",
     templateUrl: "tabular-file-editor.component.html",
     styleUrls: ["tabular-file-editor.component.scss"],
-    standalone: true,
     imports: [FormsModule, NgIf, TabularFileBrowser]
 })
 export class TabularFileEditor implements OnInit {

@@ -54,7 +54,6 @@ const EDIT_QUERY_TABLE_PROPERTIES = "../api/data/datasource/query/table/properti
     templateUrl: "join-node-graph.component.html",
     styleUrls: ["join-node-graph.component.scss",
         "../../../../../../composer/gui/ws/jsplumb/jsplumb-shared.scss"],
-    standalone: true,
     imports: [NgIf, NgClass, NgFor]
 })
 export class JoinNodeGraphComponent implements AfterViewInit {

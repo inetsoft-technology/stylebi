@@ -32,7 +32,6 @@ import { PresentationSettingsViewComponent } from "./presentation-settings-view.
 @Component({
     selector: "em-presentation-org-settings-view",
     templateUrl: "./presentation-org-settings-view.component.html",
-    standalone: true,
     imports: [PresentationSettingsViewComponent]
 })
 export class PresentationOrgSettingsViewComponent {

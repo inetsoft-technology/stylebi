@@ -57,7 +57,6 @@ export enum SortTypes {
     selector: "fields-pane",
     templateUrl: "./fields-pane.component.html",
     styleUrls: ["./fields-pane.component.scss"],
-    standalone: true,
     imports: [NgIf, TreeComponent, NgFor, NgClass, BrowseFieldValuesDialogComponent]
 })
 export class FieldsPaneComponent implements OnInit {

@@ -49,7 +49,6 @@ import { NgClass, NgIf } from "@angular/common";
     selector: "condition-field-combo",
     templateUrl: "condition-field-combo.component.html",
     styleUrls: ["condition-field-combo.component.scss"],
-    standalone: true,
     imports: [NgClass, FixedDropdownDirective, NgIf, FormsModule, ConditionFieldComboListComponent, TreeComponent, SearchDataRefPipe]
 })
 export class ConditionFieldComboComponent implements OnChanges, OnInit {

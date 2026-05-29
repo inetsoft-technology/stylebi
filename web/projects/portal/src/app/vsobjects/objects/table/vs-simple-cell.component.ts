@@ -29,8 +29,7 @@ import { NgIf } from "@angular/common";
     templateUrl: "vs-simple-cell.component.html",
     styleUrls: ["vs-table-cell.component.scss", "vs-simple-cell.component.scss"],
     changeDetection: ChangeDetectionStrategy.OnPush,
-    standalone: true,
-    imports: [NgIf],
+    imports: [NgIf]
 })
 /* eslint-enable */
 export class VSSimpleCell implements OnInit {

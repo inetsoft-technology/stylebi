@@ -30,7 +30,6 @@ import { FormsModule } from "@angular/forms";
     selector: "clickable-script-pane",
     templateUrl: "clickable-script-pane.component.html",
     styleUrls: ["clickable-script-pane.component.scss"],
-    standalone: true,
     imports: [FormsModule, ScriptPane]
 })
 export class ClickableScriptPane implements OnInit{

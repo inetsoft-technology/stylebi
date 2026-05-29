@@ -31,7 +31,6 @@ import { WSAssemblyThumbnailTitleComponent } from "../ws-assembly-thumbnail-titl
     templateUrl: "merge-join-subtable.component.html",
     styleUrls: ["merge-join-subtable.component.scss"],
     changeDetection: ChangeDetectionStrategy.OnPush,
-    standalone: true,
     imports: [WSAssemblyThumbnailTitleComponent]
 })
 

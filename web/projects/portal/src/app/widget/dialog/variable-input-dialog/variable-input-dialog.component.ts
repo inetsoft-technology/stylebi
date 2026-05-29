@@ -40,7 +40,6 @@ import { NgIf, NgFor } from "@angular/common";
     selector: "variable-input-dialog",
     templateUrl: "variable-input-dialog.component.html",
     styleUrls: ["variable-input-dialog.component.scss"],
-    standalone: true,
     imports: [NgIf, BlockMouseDirective, EnterSubmitDirective, NgFor, VariableValueEditor, VariableCollectionSelector]
 })
 export class VariableInputDialog implements OnInit {

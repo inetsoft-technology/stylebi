@@ -64,7 +64,6 @@ import { NgIf, NgFor } from "@angular/common";
     selector: "action-accordion",
     templateUrl: "./action-accordion.component.html",
     styleUrls: ["./action-accordion.component.scss"],
-    standalone: true,
     imports: [NgIf, FormsModule, ReactiveFormsModule, NgFor, GenericSelectableList, NgbTypeahead, CSVConfigPane, CkeditorWrapperComponent, ParameterTable, EmailAddrDialog, NgbHighlight]
 })
 export class ActionAccordion implements OnInit, OnChanges, OnDestroy {

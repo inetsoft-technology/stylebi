@@ -45,7 +45,6 @@ const EMAIL_AUTO_COMPLETE_KEY = LocalStorage.MAIL_HISTORY_KEY;
     selector: "task-action-pane",
     templateUrl: "task-action-pane.component.html",
     styleUrls: ["task-action-pane.component.scss"],
-    standalone: true,
     imports: [NgIf, FormsModule, ReactiveFormsModule, ActionAccordion, EditableTableComponent, NotificationsComponent]
 })
 export class TaskActionPane implements OnInit {

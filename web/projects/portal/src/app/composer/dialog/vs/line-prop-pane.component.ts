@@ -25,12 +25,11 @@ import { ColorEditor } from "../../../widget/color-picker/color-editor.component
 @Component({
     selector: "line-prop-pane",
     templateUrl: "line-prop-pane.component.html",
-    standalone: true,
     imports: [
         DynamicComboBox,
         ColorEditor,
         StyleDropdown,
-    ],
+    ]
 })
 export class LinePropPane {
    @Input() model: LinePropPaneModel;

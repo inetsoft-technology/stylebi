@@ -27,7 +27,6 @@ import { NgIf } from "@angular/common";
     selector: "table-data-pane",
     templateUrl: "table-data-pane.component.html",
     styleUrls: ["../data-pane.component.scss"],
-    standalone: true,
     imports: [NgIf, TableDataEditor]
 })
 

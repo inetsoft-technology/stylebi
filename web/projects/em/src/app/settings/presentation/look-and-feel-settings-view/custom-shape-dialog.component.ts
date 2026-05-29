@@ -43,7 +43,6 @@ import { ModalHeaderComponent } from "../../../common/util/modal-header/modal-he
     selector: "em-custom-shape-dialog",
     templateUrl: "custom-shape-dialog.component.html",
     styleUrls: ["custom-shape-dialog.component.scss"],
-    standalone: true,
     imports: [
         ModalHeaderComponent,
         MatDialogContent,
@@ -57,7 +56,7 @@ import { ModalHeaderComponent } from "../../../common/util/modal-header/modal-he
         MultiSelectTreeNodeDirective,
         MatDialogActions,
         MatDialogClose,
-    ],
+    ]
 })
 export class CustomShapeDialogComponent {
    @ViewChild("fileChooser", { static: true }) fileChooser: StagedFileChooserComponent;

@@ -56,7 +56,6 @@ import { NgSwitch, NgSwitchCase, NgIf, NgStyle, NgSwitchDefault } from "@angular
     selector: "color-cell",
     templateUrl: "color-cell.component.html",
     styleUrls: ["color-cell.component.scss"],
-    standalone: true,
     imports: [NgSwitch, NgSwitchCase, NgIf, NgStyle, NgSwitchDefault]
 })
 export class ColorCell extends AestheticIconCell {

@@ -30,7 +30,6 @@ const ARRANGE_DASHBOARD_DIALOG_MODEL_URI: string = "../api/portal/arrange-dashbo
 @Component({
     selector: "arrange-dashboard-dialog",
     templateUrl: "arrange-dashboard-dialog.component.html",
-    standalone: true,
     imports: [
         StandardDialogComponent,
         DialogContentDirective,
@@ -39,7 +38,7 @@ const ARRANGE_DASHBOARD_DIALOG_MODEL_URI: string = "../api/portal/arrange-dashbo
         NgFor,
         FormsModule,
         DialogButtonsDirective,
-    ],
+    ]
 })
 export class ArrangeDashboardDialog implements OnInit {
    @Output() onCommit: EventEmitter<string> = new EventEmitter<string>();

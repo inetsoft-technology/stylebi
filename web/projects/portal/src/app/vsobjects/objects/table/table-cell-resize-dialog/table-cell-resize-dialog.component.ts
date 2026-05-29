@@ -32,7 +32,6 @@ export interface TableCellResizeDialogResult {
     selector: "table-cell-resize-dialog",
     templateUrl: "./table-cell-resize-dialog.component.html",
     styleUrls: ["./table-cell-resize-dialog.component.scss"],
-    standalone: true,
     imports: [ModalHeaderComponent, EnterSubmitDirective, NgIf, FormsModule, ReactiveFormsModule]
 })
 export class TableCellResizeDialogComponent implements OnInit {

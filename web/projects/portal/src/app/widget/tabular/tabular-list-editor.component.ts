@@ -33,7 +33,6 @@ import { NgFor, NgIf } from "@angular/common";
     selector: "tabular-list-editor",
     templateUrl: "tabular-list-editor.component.html",
     styleUrls: ["tabular-list-editor.component.scss"],
-    standalone: true,
     imports: [NgFor, FormsModule, NgIf, TabularTextEditor, TabularBooleanEditor, TabularNumberEditor, TabularColumnDefinitionEditor, TabularDateEditor, TabularHttpParameterEditorComponent, TabularQueryParameterEditor, TabularFileEditor, TabularTagsEditor, TabularAutocompleteEditor]
 })
 export class TabularListEditor implements OnInit {

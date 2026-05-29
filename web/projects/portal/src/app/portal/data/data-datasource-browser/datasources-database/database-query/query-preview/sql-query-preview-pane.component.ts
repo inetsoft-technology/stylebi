@@ -40,7 +40,6 @@ const LOAD_QUERY_DATA_URL = "../api/data/datasource/query/load/data";
 @Component({
     selector: "sql-query-preview-pane",
     templateUrl: "./sql-query-preview-pane.component.html",
-    standalone: true,
     imports: [NgIf, QueryPreviewTableComponent, LoadingIndicatorPaneComponent]
 })
 export class SqlQueryPreviewPaneComponent implements OnDestroy, OnInit {

@@ -24,12 +24,11 @@ import { FormsModule } from "@angular/forms";
 @Component({
     selector: "table-advanced-pane",
     templateUrl: "table-advanced-pane.component.html",
-    standalone: true,
     imports: [
         FormsModule,
         NgIf,
         TipPane,
-    ],
+    ]
 })
 export class TableAdvancedPane {
    @Input() model: TableAdvancedPaneModel;
