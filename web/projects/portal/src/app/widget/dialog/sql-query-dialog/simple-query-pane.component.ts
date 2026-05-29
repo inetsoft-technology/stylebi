@@ -15,15 +15,16 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { DOCUMENT, NgIf, NgFor } from "@angular/common";
+import { NgIf, NgFor } from "@angular/common";
 import { HttpClient, HttpParams } from "@angular/common/http";
 import {
-   Component,
-   ElementRef, EventEmitter,
-   Inject,
-   Input, Output,
-   TemplateRef,
-   ViewChild, ViewEncapsulation
+  Component,
+  ElementRef, EventEmitter,
+  Inject,
+  Input, Output,
+  TemplateRef,
+  ViewChild, ViewEncapsulation,
+  DOCUMENT
 } from "@angular/core";
 import { NgbModal, NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, NgbNavOutlet } from "@ng-bootstrap/ng-bootstrap";
 import { concat as observableConcat, Observable, of as observableOf } from "rxjs";

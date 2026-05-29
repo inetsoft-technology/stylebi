@@ -37,6 +37,7 @@
         "@angular-eslint/no-output-on-prefix": "off",
         "@angular-eslint/no-output-native": "off",
         "@angular-eslint/no-empty-lifecycle-method": "off",
+        "@angular-eslint/prefer-inject": "off",
         "@typescript-eslint/ban-types": "off",
         "@typescript-eslint/consistent-type-definitions": "error",
         "@typescript-eslint/consistent-type-assertions": "off",

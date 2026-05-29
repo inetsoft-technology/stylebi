@@ -16,21 +16,22 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import {
-   ChangeDetectorRef,
-   AfterViewChecked,
-   Component,
-   Inject,
-   EventEmitter,
-   HostListener,
-   Input,
-   NgZone,
-   Renderer2,
-   ViewChild,
-   ElementRef,
-   ChangeDetectionStrategy,
-   Output
+  ChangeDetectorRef,
+  AfterViewChecked,
+  Component,
+  Inject,
+  EventEmitter,
+  HostListener,
+  Input,
+  NgZone,
+  Renderer2,
+  ViewChild,
+  ElementRef,
+  ChangeDetectionStrategy,
+  Output,
+  DOCUMENT
 } from "@angular/core";
-import { DOCUMENT, NgIf, NgFor, NgStyle } from "@angular/common";
+import { NgIf, NgFor, NgStyle } from "@angular/common";
 import { AiAssistantService } from "../../../../../shared/ai-assistant/ai-assistant.service";
 import { GetCellBindingCommand } from "../../binding/command/get-cell-binding-command";
 import { GetCellScriptCommand } from "../../binding/command/get-cell-script-command";

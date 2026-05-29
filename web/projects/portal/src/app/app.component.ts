@@ -15,8 +15,8 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { DOCUMENT } from "@angular/common";
-import { Component, Inject, NgZone, OnDestroy, OnInit, ViewChild } from "@angular/core";
+
+import { Component, Inject, NgZone, OnDestroy, OnInit, ViewChild, DOCUMENT } from "@angular/core";
 import { NavigationEnd, Router, RouterOutlet } from "@angular/router";
 import { NgbModal, NgbModalRef } from "@ng-bootstrap/ng-bootstrap";
 import { Subscription } from "rxjs";

@@ -15,21 +15,22 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { DOCUMENT, NgFor, NgClass } from "@angular/common";
+import { NgFor, NgClass } from "@angular/common";
 import {
-   AfterViewInit,
-   Component,
-   ElementRef,
-   EventEmitter,
-   HostBinding,
-   HostListener,
-   Inject,
-   Input,
-   NgZone,
-   OnDestroy,
-   OnInit,
-   Output,
-   ViewChild
+  AfterViewInit,
+  Component,
+  ElementRef,
+  EventEmitter,
+  HostBinding,
+  HostListener,
+  Inject,
+  Input,
+  NgZone,
+  OnDestroy,
+  OnInit,
+  Output,
+  ViewChild,
+  DOCUMENT
 } from "@angular/core";
 import { ColumnRef } from "../../../../../binding/data/column-ref";
 import { AssemblyActionGroup } from "../../../../../common/action/assembly-action-group";

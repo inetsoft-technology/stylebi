@@ -15,18 +15,19 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { DOCUMENT, NgIf, NgFor } from "@angular/common";
+import { NgIf, NgFor } from "@angular/common";
 import { HttpClient, HttpHeaders, HttpParams } from "@angular/common/http";
 import {
-   Component,
-   ElementRef,
-   EventEmitter,
-   Inject,
-   Input,
-   OnInit,
-   Output,
-   TemplateRef,
-   ViewChild
+  Component,
+  ElementRef,
+  EventEmitter,
+  Inject,
+  Input,
+  OnInit,
+  Output,
+  TemplateRef,
+  ViewChild,
+  DOCUMENT
 } from "@angular/core";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { ConditionOperation } from "../../../common/data/condition/condition-operation";
