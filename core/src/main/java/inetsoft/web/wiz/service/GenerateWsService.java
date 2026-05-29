@@ -168,7 +168,7 @@ public class GenerateWsService {
       AbstractTableAssembly table = null;
       List<WorksheetConstructionModel.QueryField> fields = new ArrayList<>(model.getFields());
 
-      if(model.getJoinPaths() == null) {
+      if(model.getJoinPaths() == null || model.getJoinPaths().isEmpty()) {
          if(originWs != null) {
             WSAssembly baseTable = (WSAssembly) originWs.getAssembly(fields.getFirst().getTable().getName());
             table = new MirrorTableAssembly(originWs, model.getName(), baseTable);
@@ -186,19 +186,8 @@ public class GenerateWsService {
          fixJoinPathKey(joinPaths, model.getFields());
 
          for(WorksheetConstructionModel.JoinPath joinPath : joinPaths) {
-            WorksheetConstructionModel.QueryField leftField =
-               new WorksheetConstructionModel.QueryField(joinPath.getLeftTable(), joinPath.getLeftKey());
-
-            if(!fields.contains(leftField)) {
-               fields.add(leftField);
-            }
-
-            WorksheetConstructionModel.QueryField rightField =
-               new WorksheetConstructionModel.QueryField(joinPath.getRightTable(), joinPath.getRightKey());
-
-            if(!fields.contains(rightField)) {
-               fields.add(rightField);
-            }
+            addJoinKeyField(fields, joinPath.getLeftTable(), joinPath.getLeftKey());
+            addJoinKeyField(fields, joinPath.getRightTable(), joinPath.getRightKey());
          }
 
          if(containsMergeJoin) {
@@ -272,6 +261,30 @@ public class GenerateWsService {
       return new WorksheetBuildResult(worksheet, table);
    }
 
+   private boolean isJoinKeyRepresented(Collection<WorksheetConstructionModel.QueryField> fields,
+                                        WorksheetConstructionModel.TableInfo table, String key)
+   {
+      if(Tool.isEmptyString(key)) {
+         return true;
+      }
+
+      String tableName = table != null ? table.getName() : null;
+      return fields.stream().anyMatch(f ->
+         Objects.equals(f.getTable(), table) &&
+         (Objects.equals(f.getAlias(), key) ||
+          Objects.equals(f.getFieldName(), key) ||
+          Objects.equals(Tool.buildString(tableName, ".", f.getFieldName()), key))
+      );
+   }
+
+   private void addJoinKeyField(Collection<WorksheetConstructionModel.QueryField> fields,
+                                WorksheetConstructionModel.TableInfo table, String key)
+   {
+      if(!isJoinKeyRepresented(fields, table, key)) {
+         fields.add(new WorksheetConstructionModel.QueryField(table, key));
+      }
+   }
+
    private void fixJoinPathKey(List<WorksheetConstructionModel.JoinPath> joinPaths,
                                List<WorksheetConstructionModel.QueryField> fields)
    {
@@ -290,9 +303,9 @@ public class GenerateWsService {
    /**
     * Build a lookup map from fully-qualified field name (and its alias variants) to alias.
     * Each field is indexed by:
-    * 1. Its original fieldName (e.g. "col" or "table.col")
-    * 2. "tableName.fieldName" (if fieldName has no dot)
-    * 3. Its alias (if the alias differs from the fieldName)
+    * 1. "tableName.fieldName" (if fieldName has no dot) — qualified key avoids cross-table collision
+    * 2. Its original fieldName (e.g. "table.col" if fieldName already contains a dot)
+    * 3. Its alias (if the alias differs from the fieldName) — for alias-as-key lookups
     */
    private Map<String, String> buildKeyToAliasMap(List<WorksheetConstructionModel.QueryField> fields) {
       if(fields == null || fields.isEmpty()) {
@@ -309,13 +322,14 @@ public class GenerateWsService {
             continue;
          }
 
-         if(alias != null) {
-            map.put(fieldName, alias);
-         }
-
          if(!fieldName.contains(".")) {
+            // Index by qualified name only; unqualified names can collide across tables
             String fullName = Tool.buildString(field.getTable().getName(), ".", fieldName);
-            map.putIfAbsent(fullName, alias);
+            map.put(fullName, alias);
+         }
+         else {
+            // fieldName already qualified (e.g. "table.col")
+            map.putIfAbsent(fieldName, alias);
          }
 
          if(alias != null && !alias.equals(fieldName)) {
@@ -334,22 +348,23 @@ public class GenerateWsService {
          return key;
       }
 
-      // Direct lookup covers: alias-as-key, and already-qualified "table.col"
-      String alias = keyToAliasMap.get(key);
-
-      if(alias != null) {
-         return alias;
-      }
-
-      // Unqualified key: try qualifying with the table name
       if(!key.contains(".")) {
+         // For unqualified keys, qualify with the table name first to avoid cross-table collision
          String qualifiedKey = Tool.buildString(table.getName(), ".", key);
-         alias = keyToAliasMap.get(qualifiedKey);
 
+         if(keyToAliasMap.containsKey(qualifiedKey)) {
+            String alias = keyToAliasMap.get(qualifiedKey);
+            return alias != null ? alias : qualifiedKey;
+         }
+
+         // Fallback: direct lookup handles alias-as-key (e.g. key is already an alias)
+         String alias = keyToAliasMap.get(key);
          return alias != null ? alias : qualifiedKey;
       }
 
-      return key;
+      // Already-qualified "table.col": direct lookup
+      String alias = keyToAliasMap.get(key);
+      return alias != null ? alias : key;
    }
 
    private AssetEntry persistWorksheet(Worksheet worksheet, Principal user) throws Exception {
@@ -611,11 +626,10 @@ public class GenerateWsService {
 
          table = new PhysicalBoundTableAssembly(worksheet, tableInfo.getName());
          applySourceInfo(table, tableInfo);
-         WorksheetConstructionModel.QueryField queryField = new WorksheetConstructionModel.QueryField();
-         queryField.setFieldName(joinKey);
-         queryField.setTable(tableInfo);
          Set<WorksheetConstructionModel.QueryField> tableFields = getTableFields(allFields, tableInfo);
-         tableFields.add(queryField);
+
+         addJoinKeyField(tableFields, tableInfo, joinKey);
+
          applyColumnSelection(table, tableFields.stream().toList(), metaData);
          worksheet.addAssembly(table);
 

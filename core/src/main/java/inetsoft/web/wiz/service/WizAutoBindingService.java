@@ -139,23 +139,10 @@ public class WizAutoBindingService {
             .filter(f -> f != null && f.getField() != null)
             .collect(Collectors.toMap(SimpleFieldInfo::getField, f -> f, (a, b) -> a));
 
-         // Convert all columns to AssetEntry[]; fieldConfigs only adds config overrides
          final String tableNameFinal = tableName;
-         AssetEntry[] entries;
-
-         if(!worksheetColumns.isEmpty()) {
-            // Primary path: use all worksheet columns (fieldConfigs as overlay only)
-            entries = worksheetColumns.stream()
-               .map(col -> buildEntryFromColumn(
-                  col, worksheetId, tableNameFinal, configMap.get(col.getAttribute())))
-               .toArray(AssetEntry[]::new);
-         }
-         else {
-            // Fallback: worksheet not available, use fieldConfigs directly
-            entries = fieldConfigs.stream()
-               .map(field -> buildEntryFromFieldInfo(field, worksheetId, tableNameFinal))
-               .toArray(AssetEntry[]::new);
-         }
+         AssetEntry[] entries = worksheetColumns.stream()
+            .map(col -> buildEntryFromColumn(col, worksheetId, tableNameFinal))
+            .toArray(AssetEntry[]::new);
 
          bindingHandler.updateTemporaryFields(rvs, entries, tempInfo);
          tempInfo.getTempChart().setSourceInfo(bindingHandler.getCurrentSource(entries, tableName));
@@ -256,9 +243,7 @@ public class WizAutoBindingService {
 
    // ── AssetEntry building ──────────────────────────────────────────────────────
 
-   private AssetEntry buildEntryFromColumn(ColumnRef col, String wsPath, String tableName,
-                                           SimpleFieldInfo fc)
-   {
+   private AssetEntry buildEntryFromColumn(ColumnRef col, String wsPath, String tableName) {
       String colName = col.getAttribute();
       String path = (wsPath != null && tableName != null)
          ? wsPath + "/" + tableName + "/" + colName : colName;
@@ -274,43 +259,8 @@ public class WizAutoBindingService {
       String alias = col.getAlias();
       entry.setProperty("caption", alias != null ? alias : colName);
 
-      // fieldConfig fieldType takes precedence over dtype inference (design doc §4.3)
-      boolean isMeasure;
-
-      if(fc instanceof MeasureFieldInfo) {
-         isMeasure = true;
-      }
-      else if(fc instanceof DimensionFieldInfo) {
-         isMeasure = false;
-      }
-      else {
-         isMeasure = XSchema.isNumericType(dtype) && !XSchema.isDateType(dtype);
-      }
-
+      boolean isMeasure = XSchema.isNumericType(dtype) && !XSchema.isDateType(dtype);
       setRefType(entry, isMeasure);
-      applyFieldConfigToEntry(entry, fc, isMeasure);
-      return entry;
-   }
-
-   private AssetEntry buildEntryFromFieldInfo(SimpleFieldInfo field, String wsPath,
-                                              String tableName)
-   {
-      String fieldName = field.getField();
-      String path = (wsPath != null && tableName != null)
-         ? wsPath + "/" + tableName + "/" + fieldName : fieldName;
-
-      AssetEntry entry = new AssetEntry(
-         AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.COLUMN, path, null);
-      entry.setProperty("assembly", tableName != null ? tableName : "");
-      entry.setProperty("attribute", fieldName);
-
-      String dtype = field.getType() != null ? field.getType() : XSchema.STRING;
-      entry.setProperty("dtype", dtype);
-      entry.setProperty("caption", field.getTitle() != null ? field.getTitle() : fieldName);
-
-      boolean isMeasure = field instanceof MeasureFieldInfo;
-      setRefType(entry, isMeasure);
-      applyFieldConfigToEntry(entry, field, isMeasure);
       return entry;
    }
 
@@ -328,22 +278,6 @@ public class WizAutoBindingService {
       }
    }
 
-   private void applyFieldConfigToEntry(AssetEntry entry, SimpleFieldInfo fc, boolean isMeasure) {
-      if(fc == null) {
-         return;
-      }
-
-      // propagate date level as "interval" property consumed by setDefaultDateLevel
-      if(!isMeasure && fc instanceof DimensionFieldInfo dim && dim.getDateGroupLevel() != null) {
-         int level = WizVsService.getDateGroupLevel(dim.getDateGroupLevel());
-         entry.setProperty("interval", String.valueOf(level));
-      }
-
-      if(isMeasure && fc instanceof MeasureFieldInfo mea && mea.getAggregateFormula() != null) {
-         entry.setProperty("formula", mea.getAggregateFormula());
-      }
-   }
-
    // ── Apply fieldConfigs to generated ChartRefs ────────────────────────────────
 
    private void applyFieldConfigs(VSChartInfo chartInfo, Map<String, SimpleFieldInfo> configMap) {
@@ -354,15 +288,6 @@ public class WizAutoBindingService {
       for(ChartRef ref : chartInfo.getYFields()) {
          applyFieldConfig(ref, configMap);
       }
-
-      for(ChartRef ref : chartInfo.getGroupFields()) {
-         applyFieldConfig(ref, configMap);
-      }
-
-      applyAestheticFieldConfig(chartInfo.getColorField(), configMap);
-      applyAestheticFieldConfig(chartInfo.getSizeField(), configMap);
-      applyAestheticFieldConfig(chartInfo.getShapeField(), configMap);
-      applyAestheticFieldConfig(chartInfo.getTextField(), configMap);
    }
 
    private void applyAestheticFieldConfig(AestheticRef aestheticRef,
