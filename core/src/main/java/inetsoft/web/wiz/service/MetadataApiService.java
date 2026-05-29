@@ -995,6 +995,53 @@ public class MetadataApiService {
       return "org.postgresql.Driver".equals(driver);
    }
 
+   /**
+    * Authoritative partition-children probe for Postgres. Queries pg_inherits
+    * (inheritance children, including pre-PG10 inheritance-based partitioning AND
+    * PG10+ declarative partitioning). Returns lowercased "schema.table" keys.
+    *
+    * Package-private static for direct unit testing — the only side effect besides
+    * returning is consuming the supplied Connection.
+    *
+    * On error: this method does NOT swallow exceptions. Callers must catch
+    * SQLException and decide whether to log and continue with an empty filter
+    * (current policy: leak partitions through rather than block the whole metadata
+    * request).
+    */
+   static Set<String> findPostgresPartitionChildren(
+      JDBCDataSource ds, java.sql.Connection conn) throws java.sql.SQLException
+   {
+      if(!isPostgresDriver(ds)) {
+         return Set.of();
+      }
+
+      // pg_inherits is the implementation mechanism for both pre-PG10 inheritance-
+      // based partitioning AND PG10+ declarative partitioning, so this single
+      // subquery covers both eras without referencing pg_class.relispartition
+      // (PG10+ only — would break catalog queries on older Postgres).
+      String sql =
+         "SELECT n.nspname || '.' || c.relname AS qualified " +
+         "FROM pg_class c JOIN pg_namespace n ON c.relnamespace = n.oid " +
+         "WHERE c.oid IN (SELECT inhrelid FROM pg_inherits)";
+
+      Set<String> out = new HashSet<>();
+
+      try(java.sql.PreparedStatement ps = conn.prepareStatement(sql);
+          java.sql.ResultSet rs = ps.executeQuery())
+      {
+         while(rs.next()) {
+            String qualified = rs.getString(1);
+            if(qualified != null) {
+               // Locale.ROOT avoids Turkish-locale "I" → dotless-ı conversion, which
+               // would produce keys that don't match the comparison side downstream.
+               out.add(qualified.toLowerCase(Locale.ROOT));
+            }
+         }
+      }
+
+      return Set.copyOf(out);
+   }
+
    private final XRepository xrepository;
    private final DataSourceService dataSourceService;
    private final AssetRepository assetRepository;
