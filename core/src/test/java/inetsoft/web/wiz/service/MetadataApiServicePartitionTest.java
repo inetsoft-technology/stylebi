@@ -143,4 +143,58 @@ class MetadataApiServicePartitionTest {
 
       verify(ps).close();
    }
+
+   @Test
+   void isPartitionChild_bySchemaAndTable_matchesLowercased() {
+      java.util.Set<String> partitions = java.util.Set.of(
+         "public.payment_p2007_01", "public.payment_p2007_02"
+      );
+      assertTrue(
+         MetadataApiService.isPartitionChild("public", "payment_p2007_01", partitions));
+      assertTrue(
+         MetadataApiService.isPartitionChild("PUBLIC", "Payment_P2007_01", partitions));
+      assertFalse(
+         MetadataApiService.isPartitionChild("public", "payment", partitions));
+   }
+
+   @Test
+   void isPartitionChild_bySchemaAndTable_nullSchemaBuildsBareKey() {
+      java.util.Set<String> partitions = java.util.Set.of("payment_p2007_01");
+      assertTrue(
+         MetadataApiService.isPartitionChild(null, "payment_p2007_01", partitions));
+   }
+
+   @Test
+   void isPartitionChild_bySchemaAndTable_emptyPartitionSetMatchesNothing() {
+      java.util.Set<String> partitions = java.util.Set.of();
+      assertFalse(
+         MetadataApiService.isPartitionChild("public", "anything", partitions));
+   }
+
+   @Test
+   void isPartitionChild_byAssetPath_parsesWizFormat() {
+      java.util.Set<String> partitions = java.util.Set.of("public.payment_p2007_01");
+      // Wiz asset paths look like "dsName/TABLE/schema/tableName"
+      assertTrue(
+         MetadataApiService.isPartitionChild("postgres/TABLE/public/payment_p2007_01", partitions));
+      assertFalse(
+         MetadataApiService.isPartitionChild("postgres/TABLE/public/payment", partitions));
+      assertFalse(
+         MetadataApiService.isPartitionChild("postgres/VIEW/public/payment_p2007_01", partitions));
+   }
+
+   @Test
+   void isPartitionChild_byAssetPath_handlesShortOrEmptyPaths() {
+      java.util.Set<String> partitions = java.util.Set.of("public.payment_p2007_01");
+      assertFalse(
+         MetadataApiService.isPartitionChild((String) null, partitions));
+      assertFalse(
+         MetadataApiService.isPartitionChild("", partitions));
+      assertFalse(
+         MetadataApiService.isPartitionChild("postgres", partitions));
+      assertFalse(
+         MetadataApiService.isPartitionChild("postgres/TABLE", partitions));
+      assertFalse(
+         MetadataApiService.isPartitionChild("postgres/TABLE/public", partitions));
+   }
 }
