@@ -19,7 +19,7 @@ import { Component } from "@angular/core";
 import { ComponentFixture, fakeAsync, TestBed, tick } from "@angular/core/testing";
 import { FormsModule } from "@angular/forms";
 import { By } from "@angular/platform-browser";
-import { DropDownTestModule } from "../../common/test/test-module";
+import { CustomSelectModule } from "./custom-select.module";
 import { CustomSelectComponent, CustomSelectOption } from "./custom-select.component";
 
 // ---- Test host components ----
@@ -87,7 +87,7 @@ function getOptions(): NodeListOf<HTMLButtonElement> {
 describe("CustomSelectComponent", () => {
    beforeEach(async () => {
       await TestBed.configureTestingModule({
-         imports: [FormsModule, DropDownTestModule],
+         imports: [FormsModule, CustomSelectModule],
          declarations: [
             TestHostComponent,
             PlaceholderHostComponent,

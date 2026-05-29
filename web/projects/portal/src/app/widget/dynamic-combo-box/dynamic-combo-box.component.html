@@ -97,7 +97,7 @@
                    [ngModel]="value"
                    [disabled]="disable"
                    [ariaLabel]="label || '_#(Variable)'"
-                   (ngModelChange)="valueChange.emit($event)"
+                   (selectionChange)="valueChange.emit($event)"
                    data-test="variable-value-dropdown">
     </custom-select>
   </ng-container>

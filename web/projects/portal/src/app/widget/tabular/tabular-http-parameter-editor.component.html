@@ -28,7 +28,7 @@
     <div class="d-flex align-items-start flex-column ps-1" *ngIf="!queryOnly && !headerOnly">
       <custom-select [options]="typeSelectOptions"
                      [(ngModel)]="value.type"
-                     (ngModelChange)="valueChanged()"
+                     (selectionChange)="valueChanged()"
                      [disabled]="!enabled">
       </custom-select>
     </div>

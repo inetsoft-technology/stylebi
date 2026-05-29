@@ -31,7 +31,7 @@
                        formControlName="field"
                        [options]="fieldSelectOptions"
                        [(ngModel)]="model.field"
-                       (ngModelChange)="fieldChanged($event)">
+                       (selectionChange)="fieldChanged($event)">
         </custom-select>
         <div *ngIf="form.controls['field'].errors && form.controls['field'].errors['required']" class="alert alert-danger">_#(field.required)</div>
       </div>
@@ -43,7 +43,7 @@
                        [ngModelOptions]="{standalone:true}"
                        [options]="aggregateSelectOptions"
                        [(ngModel)]="model.aggregate"
-                       (ngModelChange)="changeWithCol($event)">
+                       (selectionChange)="changeWithCol($event)">
         </custom-select>
       </div>
     </div>

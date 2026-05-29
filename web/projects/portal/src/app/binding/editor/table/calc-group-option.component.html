@@ -51,7 +51,7 @@
       <div class="form-floating ranking_label_id">
         <custom-select [options]="rankingOptions"
                        [(ngModel)]="topN.type"
-                       (ngModelChange)="changeTopnType($event)"
+                       (selectionChange)="changeTopnType($event)"
                        [disabled]="isDisableRanking()"
                        placeholder="_#(Ranking)">
         </custom-select>
@@ -93,7 +93,7 @@
       <div class="form-floating namedGroup_label_id">
         <custom-select [options]="namedGroupOptions"
                        [ngModel]="order.info?.name"
-                       (ngModelChange)="changeNamedGroup($event)"
+                       (selectionChange)="changeNamedGroup($event)"
                        [disabled]="cellBinding.timeSeries"
                        placeholder="_#(Named Group)">
         </custom-select>

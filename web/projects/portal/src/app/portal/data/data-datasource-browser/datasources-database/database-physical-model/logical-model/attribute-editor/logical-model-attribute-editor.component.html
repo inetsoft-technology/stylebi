@@ -40,7 +40,7 @@
     <custom-select [options]="dataTypeSelectOptions"
                    [ngModel]="attribute.dataType"
                    formControlName="dataType"
-                   (ngModelChange)="updateDataType($event)"
+                   (selectionChange)="updateDataType($event)"
                    [invalid]="dataTypeControl.invalid">
     </custom-select>
     <label><span>_#(Data Type)</span></label>

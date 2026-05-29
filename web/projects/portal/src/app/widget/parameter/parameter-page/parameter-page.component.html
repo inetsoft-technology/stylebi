@@ -92,7 +92,7 @@
                       <custom-select *ngIf="param.type === 'ChoiceParameter' && !!param.choicesValue"
                                      [options]="getChoiceOptions(param)"
                                      [ngModel]="param.value"
-                                     (ngModelChange)="changeValue($event, param)">
+                                     (selectionChange)="changeValue($event, param)">
                       </custom-select>
                       <select class="form-control" [(ngModel)]="param.values" multiple size="6" *ngIf="param.type === 'ListParameter'">
                         <option *ngFor="let val of param.choicesValue; let i = index;" [value]="val">

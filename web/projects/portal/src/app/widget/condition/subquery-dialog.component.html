@@ -27,7 +27,7 @@
         <div class="col form-floating">
           <custom-select [options]="subqueryTableSelectOptions"
                          [ngModel]="value.query"
-                         (ngModelChange)="changeSelectedTable($event)">
+                         (selectionChange)="changeSelectedTable($event)">
           </custom-select>
           <label>_#(Subquery)</label>
         </div>
@@ -36,7 +36,7 @@
         <div class="col form-floating">
           <custom-select [options]="attributeSelectOptions"
                          [ngModel]="value.attribute"
-                         (ngModelChange)="attributeChanged($event)">
+                         (selectionChange)="attributeChanged($event)">
           </custom-select>
           <label>_#(In column)</label>
         </div>
@@ -51,7 +51,7 @@
         <div class="col form-floating">
           <custom-select [options]="subAttributeSelectOptions"
                          [ngModel]="value.subAttribute"
-                         (ngModelChange)="subAttributeChanged($event)">
+                         (selectionChange)="subAttributeChanged($event)">
           </custom-select>
           <label>_#(Subquery column)</label>
         </div>
@@ -63,7 +63,7 @@
         <div class="col form-floating">
           <custom-select [options]="mainAttributeSelectOptions"
                          [ngModel]="value.mainAttribute"
-                         (ngModelChange)="mainAttributeChanged($event)">
+                         (selectionChange)="mainAttributeChanged($event)">
           </custom-select>
           <label>_#(Current table column)</label>
         </div>

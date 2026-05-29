@@ -69,7 +69,7 @@
     <div class="form-group form-floating" *ngIf="source == SourceType.CONSTANT">
       <custom-select [options]="typeSelectOptions"
                      [(ngModel)]="model.type"
-                     (ngModelChange)="changeType($event)"
+                     (selectionChange)="changeType($event)"
                      formControlName="type">
       </custom-select>
       <label><span>_#(Type)</span></label>

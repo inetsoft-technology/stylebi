@@ -18,7 +18,7 @@
 <div>
   <custom-select [ngModelOptions]="{standalone: true}"
                  [(ngModel)]="alignment"
-                 (ngModelChange)="alignmentChange()"
+                 (selectionChange)="alignmentChange()"
                  [options]="alignOptions">
   </custom-select>
 </div>

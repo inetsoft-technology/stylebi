@@ -86,7 +86,7 @@
           <custom-select [options]="trendLineOptions"
                          [ngModelOptions]="{standalone: true}"
                          [(ngModel)]="model.trendLineType"
-                         (ngModelChange)="setEnabled()"
+                         (selectionChange)="setEnabled()"
                          placeholder="_#(Trend Line)">
           </custom-select>
           <label>_#(Trend Line)</label>

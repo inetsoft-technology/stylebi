@@ -58,7 +58,7 @@
           <div class="cell-content">
             <custom-select [options]="typeSelectOptions"
                            [(ngModel)]="column.type"
-                           (ngModelChange)="valueChanged()"
+                           (selectionChange)="valueChanged()"
                            [disabled]="!enabled">
             </custom-select>
           </div>

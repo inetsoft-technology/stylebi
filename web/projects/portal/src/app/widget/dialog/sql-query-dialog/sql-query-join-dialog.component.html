@@ -49,14 +49,14 @@
       <div class="col-4">
         <custom-select [options]="tableSelectOptions"
                        [(ngModel)]="join.table1"
-                       (ngModelChange)="tableChange($event, true)">
+                       (selectionChange)="tableChange($event, true)">
         </custom-select>
       </div>
       <div class="col-4"></div>
       <div class="col-4">
         <custom-select [options]="tableSelectOptions"
                        [(ngModel)]="join.table2"
-                       (ngModelChange)="tableChange($event, false)">
+                       (selectionChange)="tableChange($event, false)">
         </custom-select>
       </div>
     </div>
@@ -64,20 +64,20 @@
       <div class="col-4">
         <custom-select [options]="column1SelectOptions"
                        [ngModel]="tempColumn1"
-                       (ngModelChange)="tempColumn1 = $event; validate()"
+                       (selectionChange)="tempColumn1 = $event; validate()"
                        [disabled]="columns1 == null">
         </custom-select>
       </div>
       <div class="col-4">
         <custom-select [options]="operatorSelectOptions"
                        [ngModel]="join.operator"
-                       (ngModelChange)="changeOperator($event)">
+                       (selectionChange)="changeOperator($event)">
         </custom-select>
       </div>
       <div class="col-4">
         <custom-select [options]="column2SelectOptions"
                        [ngModel]="tempColumn2"
-                       (ngModelChange)="tempColumn2 = $event; validate()"
+                       (selectionChange)="tempColumn2 = $event; validate()"
                        [disabled]="columns2 == null">
         </custom-select>
       </div>

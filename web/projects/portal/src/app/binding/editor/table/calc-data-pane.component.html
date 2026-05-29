@@ -57,7 +57,7 @@
         <custom-select [options]="cellNameOptions"
                        [(ngModel)]="cellBinding.rowGroup"
                        [disabled]="!cellGroupEnabled"
-                       (ngModelChange)="changeGroup()"
+                       (selectionChange)="changeGroup()"
                        placeholder="_#(Row Group)">
         </custom-select>
         <label><span>_#(Row Group)</span></label>
@@ -88,7 +88,7 @@
         <custom-select [options]="cellNameOptions"
                        [(ngModel)]="cellBinding.colGroup"
                        [disabled]="!cellGroupEnabled"
-                       (ngModelChange)="changeGroup()"
+                       (selectionChange)="changeGroup()"
                        placeholder="_#(Column Group)">
         </custom-select>
         <label><span>_#(Column Group)</span></label>

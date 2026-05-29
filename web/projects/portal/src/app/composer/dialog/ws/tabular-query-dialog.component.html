@@ -51,7 +51,7 @@
   </div>
   <div class="form-floating">
     <custom-select [(ngModel)]="model.dataSource"
-                   (ngModelChange)="refreshView()"
+                   (selectionChange)="refreshView()"
                    [options]="dataSourceSelectOptions">
     </custom-select>
     <label><span>_#(Data Source)</span></label>

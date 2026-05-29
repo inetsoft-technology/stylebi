@@ -36,7 +36,7 @@
   <div class="form-floating">
     <custom-select [options]="formatOptions"
                    [ngModel]="formatModel?.format"
-                   (ngModelChange)="typeChange($event)"
+                   (selectionChange)="typeChange($event)"
                    placeholder="_#(Format)"
                    data-test="format-type-dropdown">
     </custom-select>
@@ -44,7 +44,7 @@
   </div>
   <custom-select [options]="dateFormatOptions"
                  [ngModel]="formatModel?.dateSpec"
-                 (ngModelChange)="formatModel.dateSpec = $event;"
+                 (selectionChange)="formatModel.dateSpec = $event;"
                  data-test="custom-date-dropdown"
                  *ngIf="formatModel?.format == 'DateFormat'"
                  class="mt-1">

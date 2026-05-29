@@ -49,7 +49,7 @@
 <ng-template #select>
   <custom-select [options]="selectOptions"
                  [ngModel]="value"
-                 (ngModelChange)="onSelectValueChanged($event)"
+                 (selectionChange)="onSelectValueChanged($event)"
                  [formControl]="valueControl">
   </custom-select>
 </ng-template>

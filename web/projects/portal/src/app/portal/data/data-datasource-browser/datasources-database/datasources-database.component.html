@@ -93,7 +93,7 @@
                            [invalid]="databaseTypeCtrl.invalid"
                            [options]="databaseTypeSelectOptions"
                            [(ngModel)]="database.type"
-                           (ngModelChange)="typeChanged($event, supportToggleCredential, useCredentialId)"
+                           (selectionChange)="typeChanged($event, supportToggleCredential, useCredentialId)"
                            required>
             </custom-select>
             <label><span>_#(data.databases.databaseType)</span></label>

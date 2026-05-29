@@ -18,5 +18,5 @@
 <custom-select class="full-width"
                [options]="booleanSelectOptions"
                [ngModel]="value ? 'true' : 'false'"
-               (ngModelChange)="valueChange.emit($event === 'true')">
+               (selectionChange)="valueChange.emit($event === 'true')">
 </custom-select>

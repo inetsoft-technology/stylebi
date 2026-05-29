@@ -19,7 +19,7 @@
   <custom-select *ngSwitchCase="StyleType.COMBOBOX"
                  [options]="comboBoxOptions"
                  [ngModel]="value[0]"
-                 (ngModelChange)="change($event)">
+                 (selectionChange)="change($event)">
   </custom-select>
 
   <select multiple class="form-control" *ngSwitchCase="StyleType.LIST"

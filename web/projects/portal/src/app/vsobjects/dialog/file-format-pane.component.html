@@ -21,7 +21,7 @@
       <div *ngIf="types" class="form-floating">
         <custom-select [options]="formatTypeSelectOptions"
           [ngModel]="model.formatType"
-          (ngModelChange)="changeFormatType($event)"
+          (selectionChange)="changeFormatType($event)"
           placeholder="_#(Format)"></custom-select>
         <label>_#(Format)</label>
       </div>

@@ -91,7 +91,7 @@
     <div class="form-floating">
       <custom-select [options]="cycleSelectOptions"
                      [(ngModel)]="mvCycle"
-                     (ngModelChange)="cycleChange()"
+                     (selectionChange)="cycleChange()"
                      placeholder="_#(Set Cycle)">
       </custom-select>
       <label>_#(Set Cycle)</label>

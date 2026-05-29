@@ -18,5 +18,5 @@
 <custom-select class="session-editor"
                [options]="sessionDataSelectOptions"
                [ngModel]="value"
-               (ngModelChange)="valueChange.emit($event)">
+               (selectionChange)="valueChange.emit($event)">
 </custom-select>

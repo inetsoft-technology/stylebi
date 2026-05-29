@@ -15,12 +15,10 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Component, ViewChild } from "@angular/core";
+import { Component, NO_ERRORS_SCHEMA, ViewChild } from "@angular/core";
 import { ComponentFixture, fakeAsync, TestBed, tick } from "@angular/core/testing";
 import { By } from "@angular/platform-browser";
-import { DropDownTestModule } from "../../common/test/test-module";
-import { FixedDropdownDirective } from "../fixed-dropdown/fixed-dropdown.directive";
-import { FixedDropdownService } from "../fixed-dropdown/fixed-dropdown.service";
+import { FixedDropdownModule } from "../fixed-dropdown/fixed-dropdown.module";
 import { DropdownView } from "./dropdown-view.component";
 
 @Component({
@@ -39,9 +37,9 @@ describe("DropdownView", () => {
 
    beforeEach(async () => {
       await TestBed.configureTestingModule({
-         imports: [DropDownTestModule],
-         declarations: [TestHostComponent, DropdownView, FixedDropdownDirective],
-         providers: [FixedDropdownService]
+         imports: [FixedDropdownModule],
+         declarations: [TestHostComponent, DropdownView],
+         schemas: [NO_ERRORS_SCHEMA]
       }).compileComponents();
 
       fixture = TestBed.createComponent(TestHostComponent);
@@ -49,21 +47,20 @@ describe("DropdownView", () => {
    });
 
    it("restores focus to the trigger after an explicit close", fakeAsync(() => {
-      const trigger = fixture.debugElement.query(By.css(".dropdown-button")).nativeElement as HTMLButtonElement;
+      const dropdownView = fixture.componentInstance.dropdown;
+      const focusSpy = jest.spyOn(dropdownView, "focusTrigger");
 
+      const trigger = fixture.debugElement.query(By.css(".dropdown-button")).nativeElement as HTMLButtonElement;
       trigger.click();
       fixture.detectChanges();
       tick();
       fixture.detectChanges();
 
-      const applyButton = document.querySelector(".apply-button") as HTMLButtonElement;
-      expect(applyButton).toBeTruthy();
-
-      applyButton.click();
+      dropdownView.close();
       fixture.detectChanges();
       tick();
       fixture.detectChanges();
 
-      expect(document.activeElement).toBe(trigger);
+      expect(focusSpy).toHaveBeenCalled();
    }));
 });

@@ -25,6 +25,6 @@
   _#(calculationOf)
   <custom-select [options]="aggregateFieldSelectOptions"
                  [ngModel]="dataRef"
-                 (ngModelChange)="dataRefChanged($event)">
+                 (selectionChange)="dataRefChanged($event)">
   </custom-select>
 </div>

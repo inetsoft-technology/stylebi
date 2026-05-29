@@ -29,7 +29,7 @@
       <custom-select class="condition-edit-row__select condition-edit-row__negation-select"
                      [options]="negationOptions"
                      [(ngModel)]="condition.negated"
-                     (ngModelChange)="conditionChanged()"
+                     (selectionChange)="conditionChanged()"
                      [disabled]="!negationAllowed"
                      ariaLabel="_#(Negation)">
       </custom-select>
@@ -38,7 +38,7 @@
                        dataTest="selectConditionDropdown"
                        [options]="operationOptions"
                        [(ngModel)]="condition.operation"
-                       (ngModelChange)="operationChanged()"
+                       (selectionChange)="operationChanged()"
                        ariaLabel="_#(Condition Operation)">
         </custom-select>
         <div *ngIf="condition.operation == ConditionOperation.LESS_THAN || condition.operation == ConditionOperation.GREATER_THAN" class="checkbox">

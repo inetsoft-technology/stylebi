@@ -26,16 +26,16 @@ export class PageHeaderService {
    private _orgVisible = false;
    private _currentOrgId: string = null;
 
-   get title(): string {
-      return this._title;
-   }
-
    get currentOrgId(): string {
       return this._currentOrgId;
    }
 
    set currentOrgId(orgId: string) {
       this._currentOrgId = orgId;
+   }
+
+   get title(): string {
+      return this._title;
    }
 
    set title(title: string) {

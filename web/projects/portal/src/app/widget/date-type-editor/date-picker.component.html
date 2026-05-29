@@ -21,7 +21,7 @@
     <div class="col-6 form-floating" *ngIf="months">
         <custom-select [options]="months"
                        [ngModel]="dateTime.months"
-                       (ngModelChange)="selectMonth($event)"
+                       (selectionChange)="selectMonth($event)"
                        ariaLabel="_#(Select a Month)">
         </custom-select>
         <label>_#(Select a Month)</label>
@@ -30,7 +30,7 @@
     <div class="col-6 form-floating" *ngIf="years">
         <custom-select [options]="years"
                        [ngModel]="dateTime.years"
-                       (ngModelChange)="selectYear($event)"
+                       (selectionChange)="selectYear($event)"
                        ariaLabel="_#(Select a Year)">
         </custom-select>
         <label>_#(Select a Year)</label>

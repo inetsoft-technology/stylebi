@@ -37,7 +37,7 @@
     <custom-select class="formatSelect"
                    [options]="formatTypeSelectOptions"
                    [ngModel]="formatModel?.format"
-                   (ngModelChange)="typeChange($event)"
+                   (selectionChange)="typeChange($event)"
                    placeholder="_#(Format)">
     </custom-select>
     <label><span>_#(Format Type)</span></label>
@@ -45,7 +45,7 @@
   <div class="popup-editor__field popup-editor__field--compact" *ngIf="formatModel?.format == 'DateFormat'">
     <custom-select [options]="dateFormatSelectOptions"
                    [ngModel]="dateFormat"
-                   (ngModelChange)="updateDateFormat($event)">
+                   (selectionChange)="updateDateFormat($event)">
     </custom-select>
   </div>
   <div class="popup-editor__field-group" *ngIf="showFormatSpec()">

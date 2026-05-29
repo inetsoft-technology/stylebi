@@ -69,7 +69,7 @@
               <div *ngIf="valueType == ValueType.FIELD" class="col web-field">
                 <custom-select [options]="webLinkFieldSelectOptions"
                                [ngModel]="model.webLink"
-                               (ngModelChange)="selectWebLink($event)"
+                               (selectionChange)="selectWebLink($event)"
                                class="form-control">
                 </custom-select>
               </div>
@@ -129,7 +129,7 @@
               <custom-select class="bookmark-menu"
                              [options]="bookmarkSelectOptions"
                              [ngModel]="getBookmark()"
-                             (ngModelChange)="changeBookmark($event)"
+                             (selectionChange)="changeBookmark($event)"
                              [disabled]="!bookmarks || bookmarks.length == 0"
                              placeholder="_#(Bookmark)">
               </custom-select>

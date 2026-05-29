@@ -31,7 +31,7 @@
       <div class="col form-floating">
         <custom-select [options]="sortOptions"
                        [(ngModel)]="model.sortType"
-                       (ngModelChange)="toggleSort($event)">
+                       (selectionChange)="toggleSort($event)">
         </custom-select>
         <label><span>_#(Sort)</span></label>
       </div>

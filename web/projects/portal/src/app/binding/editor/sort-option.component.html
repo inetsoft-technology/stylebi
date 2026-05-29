@@ -21,7 +21,7 @@
       <div class="form-floating sort_label_id">
         <custom-select [options]="sortOrderSelectOptions"
                        [ngModel]="getCurrentOrder()"
-                       (ngModelChange)="changeOrderType($event)"
+                       (selectionChange)="changeOrderType($event)"
                        [disabled]="!isSortEnabled()"
                        id="currentOrder">
         </custom-select>

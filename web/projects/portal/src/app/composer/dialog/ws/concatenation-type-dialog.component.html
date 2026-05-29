@@ -27,7 +27,7 @@
         <div class="col-4 text-right">{{model.leftTableName}}</div>
         <div class="col-4">
           <custom-select [ngModel]="model.operator.operation"
-                         (ngModelChange)="updateOperation($event)"
+                         (selectionChange)="updateOperation($event)"
                          [options]="operationSelectOptions">
           </custom-select>
         </div>

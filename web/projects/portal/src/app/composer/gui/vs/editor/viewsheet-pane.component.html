@@ -148,7 +148,7 @@
                          class="layout-dropdown form-control-sm"
                          [ngModel]="layoutName"
                          [ngModelOptions]="{standalone: true}"
-                         (ngModelChange)="layoutChanged($event)"
+                         (selectionChange)="layoutChanged($event)"
                          [options]="layoutSelectOptions">
           </custom-select>
         </form>

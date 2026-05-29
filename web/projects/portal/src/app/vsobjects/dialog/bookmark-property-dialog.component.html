@@ -64,7 +64,7 @@
           <custom-select id="selection"
                          class="w-100"
                          [disabled]="model.type == VSBookmarkType.PRIVATE"
-                         (ngModelChange)="selectType(sharedOption)"
+                         (selectionChange)="selectType(sharedOption)"
                          [(ngModel)]="sharedOption"
                          [ngModelOptions]="{standalone: true}"
                          [options]="shareTypeOptions">

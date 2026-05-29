@@ -71,7 +71,7 @@
       <div class="col">
         <custom-select [options]="tipViewOptions"
                        [ngModel]="selectedTipView"
-                       (ngModelChange)="onTipViewChange($event)"
+                       (selectionChange)="onTipViewChange($event)"
                        [disabled]="!model.tipOption || !model.dataViewEnabled">
         </custom-select>
       </div>

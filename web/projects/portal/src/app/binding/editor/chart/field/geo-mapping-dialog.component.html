@@ -27,7 +27,7 @@
         <div class="col form-floating">
           <custom-select [options]="algorithmOptions"
                          [(ngModel)]="algorithm"
-                         (ngModelChange)="changeAlgorithm()"
+                         (selectionChange)="changeAlgorithm()"
                          placeholder="_#(Algorithm)">
           </custom-select>
           <label><span>_#(Algorithm)</span></label>

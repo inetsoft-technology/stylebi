@@ -34,7 +34,7 @@
     <div class="col sort-column-editor__select-col">
       <custom-select class="sort-column-editor__select"
                      [ngModel]="_sortRef.name"
-                     (ngModelChange)="updateRow($event, _i)"
+                     (selectionChange)="updateRow($event, _i)"
                      [options]="getColumnSelectOptions(_sortRef)"
                      [disabled]="_i > model.selectedColumns.length">
       </custom-select>

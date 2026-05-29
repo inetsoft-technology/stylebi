@@ -33,7 +33,7 @@
   <div class="form-floating col">
     <custom-select [options]="columnSelectOptions"
                    [ngModel]="user"
-                   (ngModelChange)="updateUser($event)"
+                   (selectionChange)="updateUser($event)"
                    placeholder="_#(User)"></custom-select>
     <label>_#(User)</label>
   </div>
@@ -42,7 +42,7 @@
   <div class="form-floating col">
     <custom-select [options]="columnSelectOptions"
                    [ngModel]="email"
-                   (ngModelChange)="updateEmail($event)"
+                   (selectionChange)="updateEmail($event)"
                    placeholder="_#(Email)"></custom-select>
     <label>_#(Email)</label>
   </div>

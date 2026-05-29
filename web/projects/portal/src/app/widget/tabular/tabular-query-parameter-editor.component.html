@@ -23,7 +23,7 @@
     <div class="form-group align-items-start flex-column ps-1">
       <custom-select [options]="typeSelectOptions"
                      [(ngModel)]="value.type"
-                     (ngModelChange)="valueChanged()"
+                     (selectionChange)="valueChanged()"
                      [disabled]="!enabled">
       </custom-select>
       <div class="form-check mt-1">
