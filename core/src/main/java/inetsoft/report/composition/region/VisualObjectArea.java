@@ -196,9 +196,9 @@ public class VisualObjectArea extends InteractiveArea implements MenuArea {
          }
 
          AffineTransform trans2 = new AffineTransform();
-         // flip the coordinates. Use plotBounds.getMaxY() to ensure consistency
-         // with the plotBounds dimensions that define the canvas size on the frontend.
-         trans2.translate(-p.getX(), plotBounds.getMaxY());
+         // topY is the height of the chart's own rendering coordinate space,
+         // so Y-flipping arc shapes with it correctly maps graph-origin Y to screen Y.
+         trans2.translate(-p.getX(), topY);
          shape = GDefaults.FLIPY.createTransformedShape(shape);
          shape = trans2.createTransformedShape(shape);
          region = new AreaRegion(shape);
