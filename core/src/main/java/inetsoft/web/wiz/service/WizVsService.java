@@ -46,6 +46,7 @@ import org.springframework.stereotype.Service;
 
 import java.security.Principal;
 import java.util.*;
+import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
 @Service
@@ -1124,56 +1125,15 @@ public class WizVsService {
     * rehosted in a different viewsheet.
     */
    private VSAssembly rebindAssembly(Viewsheet vs, String name, VSAssembly src) {
-      final VSAssembly dest;
+      BiFunction<Viewsheet, String, VSAssembly> factory = ASSEMBLY_FACTORIES.get(src.getClass());
 
-      if(src instanceof ChartVSAssembly c) {
-         ChartVSAssembly chart = new ChartVSAssembly(vs, name);
-         chart.initDefaultFormat();
-         VSChartInfo vsci = c.getVSChartInfo();
-         chart.setVSChartInfo(vsci);
-         GraphUtil.fixVisualFrames(vsci);
-         dest = chart;
-      }
-      else if(src instanceof CrosstabVSAssembly c) {
-         CrosstabVSAssembly ct = new CrosstabVSAssembly(vs, name);
-         ct.initDefaultFormat();
-         ct.setVSCrosstabInfo(c.getVSCrosstabInfo());
-         dest = ct;
-      }
-      else if(src instanceof TableVSAssembly t) {
-         TableVSAssembly tbl = new TableVSAssembly(vs, name);
-         tbl.initDefaultFormat();
-         tbl.setColumnSelection(t.getColumnSelection());
-         dest = tbl;
-      }
-      else if(src instanceof GaugeVSAssembly g) {
-         GaugeVSAssembly gauge = new GaugeVSAssembly(vs, name);
-         gauge.initDefaultFormat();
-         gauge.setScalarBindingInfo(g.getScalarBindingInfo());
-         dest = gauge;
-      }
-      else if(src instanceof TextVSAssembly t) {
-         TextVSAssembly text = new TextVSAssembly(vs, name);
-         text.initDefaultFormat();
-         text.setScalarBindingInfo(t.getScalarBindingInfo());
-         dest = text;
-      }
-      else {
+      if(factory == null) {
          LOG.warn("rebindAssembly: unsupported assembly type {}; falling back to null", src.getClass().getName());
          return null;
       }
 
-      // Copy source info from the already-configured temp assembly.
-      if(dest instanceof DataVSAssembly destData && src instanceof DataVSAssembly srcData) {
-         destData.setSourceInfo(srcData.getSourceInfo());
-      }
-      else if(dest instanceof OutputVSAssembly destOut && src instanceof OutputVSAssembly srcOut) {
-         ScalarBindingInfo srcSb = srcOut.getScalarBindingInfo();
-         if(srcSb != null) {
-            destOut.getScalarBindingInfo().setTableName(srcSb.getTableName());
-         }
-      }
-
+      VSAssembly dest = factory.apply(vs, name);
+      dest.setVSAssemblyInfo(src.getVSAssemblyInfo());
       return dest;
    }
 
@@ -2618,5 +2578,12 @@ public class WizVsService {
    private final AssetRepository engine;
 
    private static final Logger LOG = LoggerFactory.getLogger(WizVsService.class);
+   private static final Map<Class<?>, BiFunction<Viewsheet, String, VSAssembly>> ASSEMBLY_FACTORIES = Map.of(
+      ChartVSAssembly.class, ChartVSAssembly::new,
+      CrosstabVSAssembly.class, CrosstabVSAssembly::new,
+      TableVSAssembly.class, TableVSAssembly::new,
+      GaugeVSAssembly.class, GaugeVSAssembly::new,
+      TextVSAssembly.class, TextVSAssembly::new
+   );
    static final int MAX_ROWS = 10_000;
 }
