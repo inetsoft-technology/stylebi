@@ -28,7 +28,7 @@ import {
    Renderer2,
    AfterViewChecked
 } from "@angular/core";
-import * as ECMASCRIPT_DEFS from "tern/defs/ecmascript.json";
+import ECMASCRIPT_DEFS from "tern/defs/ecmascript.json";
 import { GuiTool } from "../../../../../../common/util/gui-tool";
 import {
    CodemirrorService
