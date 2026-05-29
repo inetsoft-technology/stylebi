@@ -241,6 +241,15 @@ export class ConditionItemPane implements OnInit, OnChanges {
       this.conditionChange.emit(this.condition);
    }
 
+   onConditionValueChange(value: ConditionValue): void {
+      if(this.condition.values == null) {
+         this.condition.values = [];
+      }
+
+      this.condition.values[0] = value;
+      this.conditionChanged();
+   }
+
    operationChanged(): void {
       this.condition.values = this.getDefaultConditionValues();
       this.conditionChanged();

@@ -60,25 +60,25 @@
   $on-surface: if($is-dark-theme, #fff, #000);
 
   .em-app-background {
-    background: mat.get-color-from-palette($background, background);
+    background: mat.m2-get-color-from-palette($background, background);
   }
 
   .em-primary-header {
-    background: mat.get-color-from-palette($primary, 200);
+    background: mat.m2-get-color-from-palette($primary, 200);
 
     h1 {
-      color: mat.get-color-from-palette($primary, default-contrast);
+      color: mat.m2-get-color-from-palette($primary, default-contrast);
     }
   }
 
   .em-footer {
-    background: mat.get-color-from-palette($primary);
-    color: mat.get-color-from-palette($primary, default-contrast);
+    background: mat.m2-get-color-from-palette($primary);
+    color: mat.m2-get-color-from-palette($primary, default-contrast);
   }
 
   .links {
     text-decoration: none;
-    color: mat.get-color-from-palette($foreground, text);
+    color: mat.m2-get-color-from-palette($foreground, text);
   }
 
   .links:hover {
@@ -86,7 +86,7 @@
   }
 
   .mat-mdc-card.group-card {
-    border: 1px solid mat.get-color-from-palette($foreground, divider, if($is-dark-theme, 0.3, 0.12));
+    border: 1px solid mat.m2-get-color-from-palette($foreground, divider, if($is-dark-theme, 0.3, 0.12));
   }
 
   .mat-mdc-card {
@@ -99,17 +99,17 @@
   }
 
   span.mat-placeholder-required {
-    background-color: mat.get-color-from-palette($background);
+    background-color: mat.m2-get-color-from-palette($background);
   }
 
   .mat-mdc-table {
     .mat-mdc-header-row {
       @if $is-dark-theme {
-        background-color: mat.get-color-from-palette($primary);
-        color: mat.get-contrast-color-from-palette($primary, default);
+        background-color: mat.m2-get-color-from-palette($primary);
+        color: mat.m2-get-contrast-color-from-palette($primary, default);
       } @else {
-        background-color: mat.get-color-from-palette($primary, 100);
-        color: mat.get-contrast-color-from-palette($primary, 100);
+        background-color: mat.m2-get-color-from-palette($primary, 100);
+        color: mat.m2-get-contrast-color-from-palette($primary, 100);
       }
     }
 
@@ -137,7 +137,7 @@
     padding: 5px 24px 0 24px!important;
   }
 
-  $header-border: 1px solid mat.get-color-from-palette($foreground, divider);
+  $header-border: 1px solid mat.m2-get-color-from-palette($foreground, divider);
 
   .mat-mdc-tab-nav-bar,
   .mat-mdc-tab-header {
@@ -146,13 +146,13 @@
 
   .mat-mdc-checkbox {
     &.mat-primary {
-      --mdc-checkbox-selected-checkmark-color: #{mat.get-contrast-color-from-palette($primary, 500)};
+      --mdc-checkbox-selected-checkmark-color: #{mat.m2-get-contrast-color-from-palette($primary, 500)};
       --mdc-checkbox-disabled-selected-icon-color: #{if($is-dark-theme, #686868, #b0b0b0)};
       --mdc-checkbox-disabled-unselected-icon-color: #{if($is-dark-theme, #686868, #b0b0b0)};
     }
 
     &.mat-accent {
-      --mdc-checkbox-selected-checkmark-color: #{mat.get-contrast-color-from-palette($accent, 500)};
+      --mdc-checkbox-selected-checkmark-color: #{mat.m2-get-contrast-color-from-palette($accent, 500)};
       --mdc-checkbox-disabled-selected-icon-color: #{if($is-dark-theme, #686868, #b0b0b0)};
       --mdc-checkbox-disabled-unselected-icon-color: #{if($is-dark-theme, #686868, #b0b0b0)};
     }
@@ -173,7 +173,7 @@
       @include mdc-notched-outline.stroke-width(2px);
 
       &, &.mdc-text-field--focused {
-        @include mdc-notched-outline.color(mat.get-color-from-palette($warn, 500));
+        @include mdc-notched-outline.color(mat.m2-get-color-from-palette($warn, 500));
       }
     }
   }
@@ -182,7 +182,7 @@
   .mat-mdc-form-field.mat-primary {
     .mdc-text-field--focused:not(.mdc-text-field--disabled):not(.mdc-text-field--invalid) {
       .mdc-floating-label {
-        color: mat.get-color-from-palette($primary, 500, 0);
+        color: mat.m2-get-color-from-palette($primary, 500, 0);
       }
     }
   }
@@ -190,7 +190,7 @@
   .mat-mdc-form-field.mat-accent {
     .mdc-text-field--focused:not(.mdc-text-field--disabled):not(.mdc-text-field--invalid) {
       .mdc-floating-label {
-        color: mat.get-color-from-palette($accent, 500, 0);
+        color: mat.m2-get-color-from-palette($accent, 500, 0);
       }
     }
   }
@@ -204,27 +204,27 @@
   // The default contrast is either affected by how our theme is applied or there really is a problem
   // as noted by this github issue
   .mat-mdc-raised-button.mat-primary {
-    --mdc-protected-button-label-text-color: #{mat.get-contrast-color-from-palette($primary, 500)};
+    --mdc-protected-button-label-text-color: #{mat.m2-get-contrast-color-from-palette($primary, 500)};
   }
 
   .mat-mdc-unelevated-button.mat-primary {
-    --mdc-filled-button-label-text-color: #{mat.get-contrast-color-from-palette($primary, 500)};
+    --mdc-filled-button-label-text-color: #{mat.m2-get-contrast-color-from-palette($primary, 500)};
   }
 
   .mat-mdc-fab.mat-primary, .mat-mdc-mini-fab.mat-primary {
-    --mat-mdc-fab-color: #{mat.get-contrast-color-from-palette($primary, 500)};
+    --mat-mdc-fab-color: #{mat.m2-get-contrast-color-from-palette($primary, 500)};
   }
 
   .mat-mdc-fab.mat-accent, .mat-mdc-mini-fab.mat-accent {
-    --mat-mdc-fab-color: #{mat.get-contrast-color-from-palette($accent, 500)};
+    --mat-mdc-fab-color: #{mat.m2-get-contrast-color-from-palette($accent, 500)};
   }
 
   .mat-mdc-dialog-container {
-    --mdc-dialog-supporting-text-color: #{mat.get-color-from-palette($foreground, text)};
+    --mdc-dialog-supporting-text-color: #{mat.m2-get-color-from-palette($foreground, text)};
   }
 
   body {
-    color: mat.get-color-from-palette($foreground, text);
+    color: mat.m2-get-color-from-palette($foreground, text);
   }
 
   @include em-custom-theme($theme);
@@ -350,19 +350,19 @@ mat-paginator.mat-mdc-paginator {
 
   // use body-1 font size as the base for sidenav
   .mat-drawer {
-    font-size: mat.font-size($config, body-1);
+    font-size: mat.m2-font-size($config, body-1);
   }
 
   // use same typography for dialogs as cards
   .mat-mdc-dialog-title {
     font: {
-      size: mat.font-size($config, headline-1);
-      weight: mat.font-weight($config, headline-1);
+      size: mat.m2-font-size($config, headline-1);
+      weight: mat.m2-font-weight($config, headline-1);
     }
   }
 
   .mat-mdc-dialog-content, .mat-tree-node {
-    font-size: mat.font-size($config, body-1);
+    font-size: mat.m2-font-size($config, body-1);
   }
 
   .mat-mdc-button, .mat-mdc-raised-button, .mat-mdc-outlined-button, .mat-mdc-unelevated-button {
@@ -371,7 +371,7 @@ mat-paginator.mat-mdc-paginator {
 
   .mat-mdc-card-title {
     font: {
-      size: mat.font-size($config, headline-1);
+      size: mat.m2-font-size($config, headline-1);
       weight: 500;
     }
   }

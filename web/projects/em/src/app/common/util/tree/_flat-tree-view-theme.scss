@@ -29,12 +29,12 @@
     .flat-tree-node.selected,
     .flat-tree-node:hover
     {
-      background: mat.get-color-from-palette($background, hover, .12);
+      background: mat.m2-get-color-from-palette($background, hover, .12);
     }
 
     .flat-tree-node {
       .menu-selected-over:hover {
-        background: mat.get-color-from-palette($background, hover, .12);
+        background: mat.m2-get-color-from-palette($background, hover, .12);
       }
     }
   }

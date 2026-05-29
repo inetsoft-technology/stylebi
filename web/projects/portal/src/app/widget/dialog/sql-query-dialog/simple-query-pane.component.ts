@@ -76,7 +76,7 @@ import {
 import {
    SqlQueryPreviewPaneComponent
 } from "../../../portal/data/data-datasource-browser/datasources-database/database-query/query-preview/sql-query-preview-pane.component";
-import { NgbNavChangeEvent } from "@ng-bootstrap/ng-bootstrap/nav/nav";
+import { NgbNavChangeEvent } from "@ng-bootstrap/ng-bootstrap";
 import { ConjunctionPipe } from "../../../portal/data/model/datasources/database/vpm/condition/conjunction/conjunction.pipe";
 import { ClausePipe } from "../../../portal/data/model/datasources/database/vpm/condition/clause/clause.pipe";
 import { VPMConditionDialog } from "../../../portal/dialog/vpm-condition-dialog/vpm-condition-dialog.component";

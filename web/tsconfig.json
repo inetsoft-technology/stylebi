@@ -5,7 +5,6 @@
     "baseUrl": "./",
     "outDir": "./dist/out-tsc",
     "allowJs": true,
-    "allowSyntheticDefaultImports": true,
     "forceConsistentCasingInFileNames": true,
     "strict": false,
     "strictNullChecks": false,
@@ -17,15 +16,17 @@
     "sourceMap": true,
     "declaration": false,
     "disableSizeLimit": true,
-    "downlevelIteration": true,
     "experimentalDecorators": true,
-    "moduleResolution": "node",
+    "moduleResolution": "bundler",
     "importHelpers": true,
     "target": "ES2022",
     "module": "ES2022",
     "useDefineForClassFields": false,
     "esModuleInterop": true,
     "resolveJsonModule": true,
+    "paths": {
+      "ckeditor5/translations/*.js": ["./node_modules/ckeditor5/dist/translations/*"]
+    },
     "lib": [
       "ES2022",
       "dom"

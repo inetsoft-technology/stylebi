@@ -27,7 +27,7 @@
 
   .settings-sidenav-container {
     .mat-mdc-list-item.active {
-      background: mat.get-color-from-palette($background, hover);
+      background: mat.m2-get-color-from-palette($background, hover);
     }
   }
 }

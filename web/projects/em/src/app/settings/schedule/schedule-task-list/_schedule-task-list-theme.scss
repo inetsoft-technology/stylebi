@@ -28,47 +28,47 @@
   .task-list-table {
     @if $is-dark {
       .table-header-row {
-        background-color: mat.get-color-from-palette($primary);
-        color: mat.get-contrast-color-from-palette($primary, default);
+        background-color: mat.m2-get-color-from-palette($primary);
+        color: mat.m2-get-contrast-color-from-palette($primary, default);
       }
 
       tr.table-row {
         &.disabled-row {
-          background-color: mat.get-color-from-palette($foreground, base, 0.05);
-          color: mat.get-color-from-palette($foreground, disabled-text)
+          background-color: mat.m2-get-color-from-palette($foreground, base, 0.05);
+          color: mat.m2-get-color-from-palette($foreground, disabled-text)
         }
 
         &:not(.table-expanded-row):hover {
-          background-color: mat.get-color-from-palette($accent);
-          color: mat.get-contrast-color-from-palette($accent, default);
+          background-color: mat.m2-get-color-from-palette($accent);
+          color: mat.m2-get-contrast-color-from-palette($accent, default);
         }
 
         &:not(.table-expanded-row):active {
-          background-color: mat.get-color-from-palette($accent, 100);
-          color: mat.get-contrast-color-from-palette($accent, 100);
+          background-color: mat.m2-get-color-from-palette($accent, 100);
+          color: mat.m2-get-contrast-color-from-palette($accent, 100);
         }
       }
     }
     @else {
       .table-row-header {
-        background-color: mat.get-color-from-palette($primary, 200);
-        color: mat.get-contrast-color-from-palette($primary, 200);
+        background-color: mat.m2-get-color-from-palette($primary, 200);
+        color: mat.m2-get-contrast-color-from-palette($primary, 200);
       }
 
       tr.table-row {
         &.disabled-row {
-          background-color: mat.get-color-from-palette($foreground, base, 0.02);
-          color: mat.get-color-from-palette($foreground, disabled-text)
+          background-color: mat.m2-get-color-from-palette($foreground, base, 0.02);
+          color: mat.m2-get-color-from-palette($foreground, disabled-text)
         }
 
         &:not(.table-expanded-row):hover {
-          background-color: mat.get-color-from-palette($primary, 50);
-          color: mat.get-contrast-color-from-palette($primary, 50);
+          background-color: mat.m2-get-color-from-palette($primary, 50);
+          color: mat.m2-get-contrast-color-from-palette($primary, 50);
         }
 
         &:not(.table-expanded-row):active {
-          background-color: mat.get-color-from-palette($primary, 100);
-          color: mat.get-contrast-color-from-palette($primary, 100);
+          background-color: mat.m2-get-color-from-palette($primary, 100);
+          color: mat.m2-get-contrast-color-from-palette($primary, 100);
         }
       }
     }

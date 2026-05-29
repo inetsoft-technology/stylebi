@@ -15,13 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import {
-   HttpClient,
-   HttpEventType,
-   HttpParams,
-   HttpRequest,
-   HttpResponse
-} from "@angular/common/http";
+import { HttpClient, HttpEventType, HttpParams, HttpRequest, HttpResponse } from "@angular/common/http";
 import { ChangeDetectorRef, Component, HostBinding, Input, OnInit } from "@angular/core";
 import { MatSnackBar } from "@angular/material/snack-bar";
 import { Observable, Subject } from "rxjs";

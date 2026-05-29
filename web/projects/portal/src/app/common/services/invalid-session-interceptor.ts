@@ -15,13 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import {
-   HttpErrorResponse,
-   HttpEvent,
-   HttpHandler,
-   HttpInterceptor,
-   HttpRequest
-} from "@angular/common/http";
+import { HttpErrorResponse, HttpEvent, HttpHandler, HttpInterceptor, HttpRequest } from "@angular/common/http";
 import { Injectable, OnDestroy } from "@angular/core";
 import { NEVER, Observable, Subject, throwError } from "rxjs";
 import { catchError, takeUntil } from "rxjs/operators";

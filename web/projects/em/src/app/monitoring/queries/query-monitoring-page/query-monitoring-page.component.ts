@@ -24,7 +24,7 @@ import {Secured} from "../../../secured";
 import {MonitoringDataService} from "../../monitoring-data.service";
 import {ThreadStackTrace} from "../../thread-stack-trace";
 import {QueryMonitoringTableModel} from "../query-monitoring-table-model";
-import {HttpClient} from "@angular/common/http";
+import { HttpClient } from "@angular/common/http";
 import {Searchable} from "../../../searchable";
 import {AuthorizationService} from "../../../authorization/authorization.service";
 import {MonitorLevel, MonitorLevelService} from "../../monitor-level.service";

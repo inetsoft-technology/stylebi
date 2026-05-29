@@ -28,37 +28,37 @@
   .em-expandable-row-table {
     @if $is-dark {
       .table-header-row {
-        background-color: mat.get-color-from-palette($primary);
-        color: mat.get-contrast-color-from-palette($primary, default);
+        background-color: mat.m2-get-color-from-palette($primary);
+        color: mat.m2-get-contrast-color-from-palette($primary, default);
       }
 
       tr.table-row {
         &:not(.table-expanded-row):hover {
-          background-color: mat.get-color-from-palette($accent);
-          color: mat.get-contrast-color-from-palette($accent, default);
+          background-color: mat.m2-get-color-from-palette($accent);
+          color: mat.m2-get-contrast-color-from-palette($accent, default);
         }
 
         &:not(.table-expanded-row):active {
-          background-color: mat.get-color-from-palette($accent, 100);
-          color: mat.get-contrast-color-from-palette($accent, 100);
+          background-color: mat.m2-get-color-from-palette($accent, 100);
+          color: mat.m2-get-contrast-color-from-palette($accent, 100);
         }
       }
     }
     @else {
       .table-header-row {
-        background-color: mat.get-color-from-palette($primary, 100);
-        color: mat.get-contrast-color-from-palette($primary, 100);
+        background-color: mat.m2-get-color-from-palette($primary, 100);
+        color: mat.m2-get-contrast-color-from-palette($primary, 100);
       }
 
       tr.table-row {
         &:not(.table-expanded-row):hover {
-          background-color: mat.get-color-from-palette($primary, 50);
-          color: mat.get-contrast-color-from-palette($primary, 50);
+          background-color: mat.m2-get-color-from-palette($primary, 50);
+          color: mat.m2-get-contrast-color-from-palette($primary, 50);
         }
 
         &:not(.table-expanded-row):active {
-          background-color: mat.get-color-from-palette($primary, 100);
-          color: mat.get-contrast-color-from-palette($primary, 100);
+          background-color: mat.m2-get-color-from-palette($primary, 100);
+          color: mat.m2-get-contrast-color-from-palette($primary, 100);
         }
       }
     }
@@ -69,7 +69,7 @@
   .em-expandable-row-table {
     .mat-sort-header-button {
       font: {
-        size: mat.font-size($config, body-2);
+        size: mat.m2-font-size($config, body-2);
       }
     }
   }

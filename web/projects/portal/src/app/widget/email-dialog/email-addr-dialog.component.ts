@@ -28,7 +28,7 @@ import {
 } from "@angular/core";
 import { UntypedFormGroup, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, NgbNavOutlet } from "@ng-bootstrap/ng-bootstrap";
-import { NgbNavChangeEvent } from "@ng-bootstrap/ng-bootstrap/nav/nav";
+import { NgbNavChangeEvent } from "@ng-bootstrap/ng-bootstrap";
 import { EmailAddrDialogModel } from "./email-addr-dialog-model";
 import { EmbeddedEmailPane } from "./embedded-email-pane.component";
 import { QueryEmailPane } from "./query-email-pane.component";
