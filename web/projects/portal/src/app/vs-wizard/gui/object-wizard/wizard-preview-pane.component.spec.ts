@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { HttpClientTestingModule } from "@angular/common/http/testing";
 import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
@@ -33,7 +34,7 @@ describe("VSWizardPreviewPane", () => {
   let fixture: ComponentFixture<VSWizardPreviewPane>;
 
   beforeEach(waitForAsync(() => {
-    const viewsheetClientService = { sendEvent: jest.fn() };
+    const viewsheetClientService = { sendEvent: vi.fn() };
 
     TestBed.configureTestingModule({
       imports: [
@@ -43,9 +44,9 @@ describe("VSWizardPreviewPane", () => {
       providers: [
         { provide: ViewsheetClientService, useValue: viewsheetClientService },
         { provide: ContextProvider, useValue: { viewer: false, preview: false, composer: true, binding: false } },
-        { provide: DataTipService, useValue: { isDataTip: jest.fn(), showDataTip: jest.fn() } },
-        { provide: PopComponentService, useValue: { isPopComponent: jest.fn(), getPopComponent: jest.fn(), componentRegistered: new Subject<any>() } },
-        { provide: MiniToolbarService, useValue: { handleBodyMouseoverEvent: jest.fn(), setCurrentToolbar: jest.fn(), isMiniToolbarVisible: jest.fn() } },
+        { provide: DataTipService, useValue: { isDataTip: vi.fn(), showDataTip: vi.fn() } },
+        { provide: PopComponentService, useValue: { isPopComponent: vi.fn(), getPopComponent: vi.fn(), componentRegistered: new Subject<any>() } },
+        { provide: MiniToolbarService, useValue: { handleBodyMouseoverEvent: vi.fn(), setCurrentToolbar: vi.fn(), isMiniToolbarVisible: vi.fn() } },
         { provide: ScaleService, useClass: DefaultScaleService }
       ],
       schemas: [

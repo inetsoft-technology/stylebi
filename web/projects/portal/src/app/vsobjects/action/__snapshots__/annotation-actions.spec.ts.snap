@@ -1,4 +1,74 @@
-// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`AnnotationActions > check menu actions is created 1`] = `
+[
+  AssemblyActionGroup {
+    "actions": [
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+    ],
+    "icon": [Function],
+    "label": [Function],
+  },
+]
+`;
+
+exports[`AnnotationActions > check menu actions is created 2`] = `
+[
+  AssemblyActionGroup {
+    "actions": [
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+    ],
+    "icon": [Function],
+    "label": [Function],
+  },
+]
+`;
 
 exports[`AnnotationActions check menu actions is created 1`] = `
 [

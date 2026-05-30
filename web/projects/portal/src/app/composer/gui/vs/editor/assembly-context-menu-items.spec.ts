@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { EventEmitter } from "@angular/core";
 import { AssemblyContextMenuItemsComponent } from "./assembly-context-menu-items.component";
 
@@ -23,7 +24,7 @@ describe("AssemblyContextMenuItems tests", () => {
    let actions: AssemblyContextMenuItemsComponent;
 
    beforeEach(() => {
-      actionFactory = { createActions: jest.fn(() => ({ onAssemblyActionEvent: new EventEmitter() })) };
+      actionFactory = { createActions: vi.fn(() => ({ onAssemblyActionEvent: new EventEmitter() })) };
       actions = new AssemblyContextMenuItemsComponent(actionFactory);
    });
 

@@ -116,16 +116,16 @@ describe("Action Accordion Unit Test", () => {
       };
    };
 
-   let ngbService = { open: jest.fn() };
-   let deObservable = { debounceTime: jest.fn() };
+   let ngbService = { open: vi.fn() };
+   let deObservable = { debounceTime: vi.fn() };
    let scheduleUsersService = {
-      init: jest.fn(),
-      getOwners: jest.fn(() => new BehaviorSubject([]) ),
-      getGroups: jest.fn(() => new BehaviorSubject([]) ),
-      getRoles: jest.fn(() => new BehaviorSubject([]) ),
-      getEmailUsers: jest.fn(() => new BehaviorSubject([]) ),
-      getEmailGroups: jest.fn(() => new BehaviorSubject([]) ),
-      getAdminName: jest.fn(() => new BehaviorSubject("admin") ),
+      init: vi.fn(),
+      getOwners: vi.fn(() => new BehaviorSubject([]) ),
+      getGroups: vi.fn(() => new BehaviorSubject([]) ),
+      getRoles: vi.fn(() => new BehaviorSubject([]) ),
+      getEmailUsers: vi.fn(() => new BehaviorSubject([]) ),
+      getEmailGroups: vi.fn(() => new BehaviorSubject([]) ),
+      getAdminName: vi.fn(() => new BehaviorSubject("admin") ),
    };
    deObservable.debounceTime.mockImplementation(() => new Subject());
 
@@ -182,7 +182,7 @@ describe("Action Accordion Unit Test", () => {
    //Bug #19603 clear all parameters
    //Bug #21202 should display correct info when asset has parameter
    it("check clear all parameters", () => {
-      jest.spyOn(ComponentTool, "showConfirmDialog").mockImplementation(() => Promise.resolve("ok"));
+      vi.spyOn(ComponentTool, "showConfirmDialog").mockImplementation(() => Promise.resolve("ok"));
       actionAccordion.parameters = [
          {name: "a", type: "string", value: {value: "a", type: ValueTypes.VALUE}, array: false},
          {name: "b", type: "string", value: {value: "b", type: ValueTypes.VALUE}, array: false}];
@@ -208,7 +208,7 @@ describe("Action Accordion Unit Test", () => {
    //Bug #19792 options for dashboard 'deliver to emails'
    //Bug #21304 should not display email browser button when set in em
    //Bug #21313 should deal with burst action
-   xit("check Deliver to Emails status", () => {
+   it.skip("check Deliver to Emails status", () => {
       let match = fixture.debugElement.query(By.css("label.match-layout-id"));
       let expand = fixture.debugElement.query(By.css("label.expand-tables-and-charts-id"));
       let from = fixture.debugElement.query(By.css("input#from")).nativeElement;

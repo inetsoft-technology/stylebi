@@ -307,7 +307,7 @@ class TestApp {
 
 describe("ChartPlotArea Integration Tests", () => {
    let modelService: any;
-   let httpService = { get: jest.fn(), post: jest.fn() };
+   let httpService = { get: vi.fn(), post: vi.fn() };
    let responseObservable = new BehaviorSubject(new Subject());
    const contextProvider = {};
    httpService.get.mockImplementation(() => responseObservable);
@@ -347,12 +347,12 @@ describe("ChartPlotArea Integration Tests", () => {
       TestBed.compileComponents();
    }));
 
-   it("should have valid regions", (done) => {
+   it("should have valid regions", () => new Promise<void>((done, fail) => {
       let fixture = TestBed.createComponent(TestApp);
       let testComponent = fixture.componentInstance;
       let chartObjectDebugElement = fixture.debugElement.query(By.css("chart-plot-area"));
       let chartObjectComponent: ChartPlotArea = chartObjectDebugElement.componentInstance;
-      jest.spyOn(chartObjectComponent, "getSrc").mockImplementation((width, height) => "http://placehold.it/" + width + "x" + height);
+      vi.spyOn(chartObjectComponent, "getSrc").mockImplementation((width, height) => "http://placehold.it/" + width + "x" + height);
       fixture.detectChanges();
 
       try {
@@ -383,21 +383,22 @@ describe("ChartPlotArea Integration Tests", () => {
          expect(testRegions).toEqual(chartObjectRegions);
       }
       catch(e) {
-         done.fail(e);
+         fail(e);
+         return;
       }
 
       done();
-   });
+   }));
 
-   xit("should be able to select regions", () => {
+   it.skip("should be able to select regions", () => {
       let fixture = TestBed.createComponent(TestApp);
       let testComponent = fixture.componentInstance;
       let chartObjectDebugElement = fixture.debugElement.query(By.directive(ChartPlotArea));
       let chartObjectComponent: ChartPlotArea = chartObjectDebugElement.componentInstance;
-      const selectRegionSpy = jest.spyOn(testComponent, "selectRegion");
+      const selectRegionSpy = vi.spyOn(testComponent, "selectRegion");
       selectRegionSpy.mockImplementation(() => {});
-      jest.spyOn(chartObjectComponent, "getSrc").mockImplementation((width, height) => "http://placehold.it/" + width + "x" + height);
-      const selectRegionOutput = jest.spyOn(chartObjectComponent.selectRegion, "emit");
+      vi.spyOn(chartObjectComponent, "getSrc").mockImplementation((width, height) => "http://placehold.it/" + width + "x" + height);
+      const selectRegionOutput = vi.spyOn(chartObjectComponent.selectRegion, "emit");
       fixture.detectChanges();
 
       // Mock mouseup event,

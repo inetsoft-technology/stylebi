@@ -13,6 +13,7 @@
     "noPropertyAccessFromIndexSignature": false,
     "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true,
+    "skipLibCheck": true,
     "sourceMap": true,
     "declaration": false,
     "disableSizeLimit": true,
@@ -28,7 +29,7 @@
       "ckeditor5/translations/*.js": ["./node_modules/ckeditor5/dist/translations/*"]
     },
     "types": [
-      "jest",
+      "vitest/globals",
       "geojson",
       "node"
     ]

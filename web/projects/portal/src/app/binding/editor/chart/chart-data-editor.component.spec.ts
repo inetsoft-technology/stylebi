@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { ChangeDetectorRef, Component, NO_ERRORS_SCHEMA, ViewChild } from "@angular/core";
 import { ComponentFixture, TestBed } from "@angular/core/testing";
 import { NgbModule } from "@ng-bootstrap/ng-bootstrap";
@@ -50,19 +51,18 @@ describe("chart data editor unit case", function() {
    let fixture: ComponentFixture<TestApp>;
    let chartDataEditor: any;
 
-
    beforeEach(() => {
       dservice = {
-         setDragOverStyle: jest.fn(),
-         processOnDrop: jest.fn()
+         setDragOverStyle: vi.fn(),
+         processOnDrop: vi.fn()
       };
       editorService = {
-         isDropPaneAccept: jest.fn(),
-         getDNDType: jest.fn(),
-         convert: jest.fn()
+         isDropPaneAccept: vi.fn(),
+         getDNDType: vi.fn(),
+         convert: vi.fn()
       };
-      changeRef = { detectChanges: jest.fn() };
-      bindingService = { bindingModel: { availableFields: [] }, getURLParams: jest.fn(() => null) };
+      changeRef = { detectChanges: vi.fn() };
+      bindingService = { bindingModel: { availableFields: [] }, getURLParams: vi.fn(() => null) };
 
       TestBed.configureTestingModule({
          imports: [DropDownTestModule, NgbModule, TestApp, ChartDataEditor],
@@ -74,7 +74,7 @@ describe("chart data editor unit case", function() {
             {provide: ChangeDetectorRef, useValue: changeRef},
             {
                provide: BindingTreeService,
-               useValue: { root: null, treeChanged: { subscribe: jest.fn() }, getSelection: jest.fn(), setSelection: jest.fn() }
+               useValue: { root: null, treeChanged: { subscribe: vi.fn() }, getSelection: vi.fn(), setSelection: vi.fn() }
             }
          ],
          schemas: [NO_ERRORS_SCHEMA]

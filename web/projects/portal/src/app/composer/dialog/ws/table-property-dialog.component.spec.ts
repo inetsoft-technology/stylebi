@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { ColumnRef } from "../../../binding/data/column-ref";
 import { AttributeRef } from "../../../common/data/attribute-ref";
 import { DataRef } from "../../../common/data/data-ref";
@@ -67,7 +68,7 @@ describe("Table Property Dialog Tests", () => {
    } as WSTableAssembly;
 
    beforeEach(() => {
-      const worksheet: any = { assemblyNames: jest.fn() };
+      const worksheet: any = { assemblyNames: vi.fn() };
       tablePropertyDialog = new TablePropertyDialog();
       tablePropertyDialog.worksheet = worksheet;
    });

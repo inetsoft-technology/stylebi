@@ -40,7 +40,6 @@ import { ScheduleConditionModel } from "./model/schedule-condition-model";
 import { TimeConditionModel } from "./model/time-condition-model";
 import { TimeZoneModel } from "./model/time-zone-model";
 import { TimeZoneService } from "./time-zone.service";
-import { it } from "@jest/globals";
 
 describe("TimeZoneService", () => {
    let service: TimeZoneService;
@@ -248,7 +247,7 @@ describe("TimeZoneService", () => {
 
       // toLocaleString() throws RangeError for unknown timezone IDs; no guard in the implementation
       // Steps to reproduce: N/A via dropdown; possible when opening tasks with legacy/saved timeZone.
-      it.failing("[Risk 3] does not throw for an invalid IANA timezone ID (no error handling)", () => {
+      it.fails("[Risk 3] does not throw for an invalid IANA timezone ID (no error handling)", () => {
          expect(() => service.calculateTimezoneOffset("Invalid/Zone")).not.toThrow();
       });
    });

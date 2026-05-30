@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { ComponentFixture, TestBed, waitForAsync } from "@angular/core/testing";
 import { NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { NotificationsComponent } from "./notifications.component";
@@ -30,7 +31,6 @@ describe("NotificationsComponent Integration Tests", () => {
       });
       TestBed.compileComponents();
    }));
-
 
    function testAlert(type: string, message: string) {
       let fixture: ComponentFixture<NotificationsComponent> =
@@ -55,19 +55,19 @@ describe("NotificationsComponent Integration Tests", () => {
       expect(alertText).toEqual(message);
    }
 
-   xit("should create success alert", () => { // broken
+   it.skip("should create success alert", () => { // broken
       testAlert("success", "This is a success message");
    });
 
-   xit("should create info alert", () => { // broken
+   it.skip("should create info alert", () => { // broken
       testAlert("info", "This is a info message");
    });
 
-   xit("should create warning alert", () => { // broken
+   it.skip("should create warning alert", () => { // broken
       testAlert("warning", "This is a warning message");
    });
 
-   xit("should create danger alert", () => { // broken
+   it.skip("should create danger alert", () => { // broken
       testAlert("danger", "This is a danger message");
    });
 });

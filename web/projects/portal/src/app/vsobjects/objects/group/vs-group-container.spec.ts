@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { ComponentFixture, TestBed } from "@angular/core/testing";
 import { By } from "@angular/platform-browser";
@@ -34,9 +35,9 @@ describe("VS Group Container Unit Test", () => {
 
    beforeEach(() => {
       model = TestUtils.createMockVSGroupContainerModel("Group1");
-      viewsheetClient = { sendEvent: jest.fn() };
+      viewsheetClient = { sendEvent: vi.fn() };
       viewsheetClient.runtimeId = "Viewsheet1";
-      dataTipService = { isDataTip: jest.fn() };
+      dataTipService = { isDataTip: vi.fn() };
       const contextProvider = {};
 
       TestBed.configureTestingModule({

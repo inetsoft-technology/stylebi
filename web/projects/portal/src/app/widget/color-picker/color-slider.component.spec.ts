@@ -36,7 +36,7 @@ describe("ColorSlider Unit Tests", () => {
       expect(component.indicatorTop).toEqual("100%");
    });
 
-   it("Hue is emitted correctly from mouse click", (done) => {
+   it("Hue is emitted correctly from mouse click", () => new Promise<void>((done) => {
       let counter: number = 0;
       let values: number[] = [0, 50, 100];
       component.hueChanged.subscribe((value: number) => {
@@ -50,5 +50,5 @@ describe("ColorSlider Unit Tests", () => {
       component.setHuePosition({offsetY: 0});
       component.setHuePosition({offsetY: 180});
       component.setHuePosition({offsetY: 360});
-   });
+   }));
 });

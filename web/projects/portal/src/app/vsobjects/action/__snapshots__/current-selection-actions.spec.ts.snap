@@ -1,4 +1,394 @@
-// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`CurrentSelection > check status of menu actions of current selection in composer 1`] = `
+[
+  AssemblyActionGroup {
+    "actions": [
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+    ],
+    "icon": [Function],
+    "label": [Function],
+  },
+  AssemblyActionGroup {
+    "actions": [
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+    ],
+    "icon": [Function],
+    "label": [Function],
+  },
+  AssemblyActionGroup {
+    "actions": [
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+    ],
+    "icon": [Function],
+    "label": [Function],
+  },
+]
+`;
+
+exports[`CurrentSelection > check status of menu actions of current selection in composer 2`] = `
+[
+  AssemblyActionGroup {
+    "actions": [
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+    ],
+    "icon": [Function],
+    "label": [Function],
+  },
+]
+`;
+
+exports[`CurrentSelection > check status of menu actions of current selection in viewer and preview 1`] = `
+[
+  AssemblyActionGroup {
+    "actions": [
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+    ],
+    "icon": [Function],
+    "label": [Function],
+  },
+  AssemblyActionGroup {
+    "actions": [
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+    ],
+    "icon": [Function],
+    "label": [Function],
+  },
+  AssemblyActionGroup {
+    "actions": [
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+    ],
+    "icon": [Function],
+    "label": [Function],
+  },
+]
+`;
+
+exports[`CurrentSelection > check status of menu actions of current selection in viewer and preview 2`] = `
+[
+  AssemblyActionGroup {
+    "actions": [
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+    ],
+    "icon": [Function],
+    "label": [Function],
+  },
+]
+`;
+
+exports[`CurrentSelection > check status of menu actions of current selection in viewer and preview 3`] = `
+[
+  AssemblyActionGroup {
+    "actions": [
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+    ],
+    "icon": [Function],
+    "label": [Function],
+  },
+  AssemblyActionGroup {
+    "actions": [
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+    ],
+    "icon": [Function],
+    "label": [Function],
+  },
+  AssemblyActionGroup {
+    "actions": [
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+    ],
+    "icon": [Function],
+    "label": [Function],
+  },
+]
+`;
+
+exports[`CurrentSelection > check status of menu actions of current selection in viewer and preview 4`] = `
+[
+  AssemblyActionGroup {
+    "actions": [
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+    ],
+    "icon": [Function],
+    "label": [Function],
+  },
+]
+`;
 
 exports[`CurrentSelection check status of menu actions of current selection in composer 1`] = `
 [

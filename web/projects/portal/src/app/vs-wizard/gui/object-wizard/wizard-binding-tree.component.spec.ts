@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { of as observableOf } from "rxjs";
@@ -34,17 +35,17 @@ describe("WizardBindingTre", () => {
       const bindingTreeService = {
          refreshSubject: observableOf(null),
          recommenderSubject: observableOf(null),
-         refresh: jest.fn()
+         refresh: vi.fn()
       };
       const viewsheetClientService = {
-         sendEvent: jest.fn()
+         sendEvent: vi.fn()
       };
       const dropdownService = {};
       const debounceService = {
-         debounce: jest.fn()
+         debounce: vi.fn()
       };
       const treeService = {
-         getTableName: jest.fn(() => "Table")
+         getTableName: vi.fn(() => "Table")
       };
       const modelService = {};
       TestBed.configureTestingModule({

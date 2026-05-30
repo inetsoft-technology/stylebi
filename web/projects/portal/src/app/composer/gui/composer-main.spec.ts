@@ -64,52 +64,52 @@ describe("ComposerMain Unit Tests", () => {
    let fontService: any;
 
    beforeEach(() => {
-      composerObjectService = { getNewIndex: jest.fn() };
-      resizeHandlerService = { onVerticalDragEnd: jest.fn() };
-      clipboardService = { clipboardEmpty: false, sheetClosed: jest.fn() };
-      modelService = { getModel: jest.fn(() => observableOf({})) };
-      scriptService = { setClickedNode: jest.fn(), getClickedNode: jest.fn()};
+      composerObjectService = { getNewIndex: vi.fn() };
+      resizeHandlerService = { onVerticalDragEnd: vi.fn() };
+      clipboardService = { clipboardEmpty: false, sheetClosed: vi.fn() };
+      modelService = { getModel: vi.fn(() => observableOf({})) };
+      scriptService = { setClickedNode: vi.fn(), getClickedNode: vi.fn()};
       uiContextService = {
-         isVS: jest.fn(),
-         isAdhoc: jest.fn(() => false),
-         getDefaultTab: jest.fn(),
-         setDefaultTab: jest.fn(),
-         sheetHide: jest.fn(),
-         sheetClose: jest.fn(),
-         sheetShow: jest.fn()
+         isVS: vi.fn(),
+         isAdhoc: vi.fn(() => false),
+         getDefaultTab: vi.fn(),
+         setDefaultTab: vi.fn(),
+         sheetHide: vi.fn(),
+         sheetClose: vi.fn(),
+         sheetShow: vi.fn()
       };
       router = {
-         navigate: jest.fn(),
+         navigate: vi.fn(),
          events: new Subject<any>()
       };
 
       route = {
          snapshot: {
             _routerState: {
-               url: jest.fn().mockRejectedValue("")
+               url: vi.fn().mockRejectedValue("")
             }
          }
       };
 
       const stompClientConnection = {
-         subscribe: jest.fn(),
-         send: jest.fn(),
-         disconnect: jest.fn()
+         subscribe: vi.fn(),
+         send: vi.fn(),
+         disconnect: vi.fn()
       };
 
       composerRecentService = {
-         recentlyViewedChange: jest.fn(),
-         removeRecentlyViewed: jest.fn(),
-         addRecentlyViewed: jest.fn(),
-         removeNonExistItems: jest.fn()
+         recentlyViewedChange: vi.fn(),
+         removeRecentlyViewed: vi.fn(),
+         addRecentlyViewed: vi.fn(),
+         removeNonExistItems: vi.fn()
       };
 
-      stompClientService = { connect: jest.fn(() => observableOf(stompClientConnection)) };
+      stompClientService = { connect: vi.fn(() => observableOf(stompClientConnection)) };
 
-      httpService = { get: jest.fn(() => EMPTY), post: jest.fn(() => observableOf({})) };
+      httpService = { get: vi.fn(() => EMPTY), post: vi.fn(() => observableOf({})) };
 
       appInfoService = {
-         getCurrentOrgInfo: jest.fn(() => observableOf({})),
+         getCurrentOrgInfo: vi.fn(() => observableOf({})),
       };
 
       fontService = {
@@ -120,12 +120,12 @@ describe("ComposerMain Unit Tests", () => {
       viewsheet.localId = 1;
       viewsheet.label = "vs1";
       viewsheet.id = "Viewsheet1";
-      viewsheet.socketConnection = <any> { sendEvent: jest.fn() };
+      viewsheet.socketConnection = <any> { sendEvent: vi.fn() };
 
       worksheet = new Worksheet();
       worksheet.label = "ws1";
       worksheet.id = "Worksheet1";
-      window.BroadcastChannel = jest.fn().mockImplementation(() => ({onmessage: () => {}}));
+      window.BroadcastChannel = vi.fn().mockImplementation(() => ({onmessage: () => {}}));
 
       TestBed.configureTestingModule({
          imports: [

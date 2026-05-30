@@ -59,11 +59,11 @@ describe("RepositoryTreeViewComponent", () => {
 
    beforeEach(waitForAsync(() => {
       const stompConnection = {
-         subscribe: jest.fn(() => NEVER),
-         disconnect: jest.fn()
+         subscribe: vi.fn(() => NEVER),
+         disconnect: vi.fn()
       };
       stompClientService = {
-         connect: jest.fn(() => observableOf(stompConnection))
+         connect: vi.fn(() => observableOf(stompConnection))
       };
       TestBed.configureTestingModule({
          imports: [

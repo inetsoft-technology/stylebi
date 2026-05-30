@@ -30,7 +30,7 @@ describe("Condition Pane Tests", () => {
    let route: any;
 
    beforeEach(() => {
-      route = { open: jest.fn() };
+      route = { open: vi.fn() };
       conditionPane = new ConditionPane(route);
    });
 
@@ -135,7 +135,7 @@ describe("Condition Pane Tests", () => {
       con1.field = null;
       con1.values = [{value: "111", type: ConditionValueType.VALUE}];
       conditionPane.condition = con1;
-      let showMessageDialog = jest.spyOn(ComponentTool, "showMessageDialog");
+      let showMessageDialog = vi.spyOn(ComponentTool, "showMessageDialog");
       showMessageDialog.mockImplementation(() => Promise.resolve("ok"));
 
       conditionPane.insert();

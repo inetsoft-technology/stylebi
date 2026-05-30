@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { Subject } from "rxjs";
 import { IdentityType } from "../../../../../../shared/data/identity-type";
 import { ResourceAction } from "../../../../../../shared/util/security/resource-permission/resource-action.enum";

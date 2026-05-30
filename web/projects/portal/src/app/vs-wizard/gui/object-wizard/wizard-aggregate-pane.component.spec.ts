@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { ViewsheetClientService } from "../../../common/viewsheet-client";
 
 import { VSWizardAggregatePane } from "./wizard-aggregate-pane.component";
@@ -26,8 +27,8 @@ describe("VSWizardAggregatePane", () => {
   let zone: any;
 
   beforeEach(() => {
-    stompClient = { connect: jest.fn(), subscribe: jest.fn() };
-    zone = { run: jest.fn() };
+    stompClient = { connect: vi.fn(), subscribe: vi.fn() };
+    zone = { run: vi.fn() };
     viewsheetClientService = new ViewsheetClientService(stompClient, zone);
 
     component = new VSWizardAggregatePane(viewsheetClientService);

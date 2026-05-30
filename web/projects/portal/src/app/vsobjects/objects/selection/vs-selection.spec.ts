@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { HttpClient } from "@angular/common/http";
 import { HttpClientTestingModule } from "@angular/common/http/testing";
 import { ElementRef, NO_ERRORS_SCHEMA, Renderer2 } from "@angular/core";
@@ -142,7 +143,7 @@ let createTreeModel: () => VSSelectionTreeModel = () => {
 
 describe("VSSelection Test", () => {
    beforeAll(() => {
-      jest.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({
+      vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({
          font: "",
          measureText: (_text: string) => ({ width: 0 })
       } as any);
@@ -150,33 +151,33 @@ describe("VSSelection Test", () => {
 
    let vsSelection: VSSelection;
    let fixture: ComponentFixture<VSSelection>;
-   let viewsheetClientService: any = { sendEvent: jest.fn() };
+   let viewsheetClientService: any = { sendEvent: vi.fn() };
    viewsheetClientService.commands = observableOf([]);
    let renderer: any = {};
    let formDataService: any = {};
    let elementRef: any = {};
    let interactService: any = {
-      addInteractable: jest.fn(),
-      removeInteractable: jest.fn(),
-      notify: jest.fn()
+      addInteractable: vi.fn(),
+      removeInteractable: vi.fn(),
+      notify: vi.fn()
    };
    let contextService: any = {};
-   let dataTipService: any = { isDataTip: jest.fn() };
+   let dataTipService: any = { isDataTip: vi.fn() };
    let fixedDropdownService: any;
-   let adhocFilterService: any = { showFilter: jest.fn(), adhocFilterShowing: false };
+   let adhocFilterService: any = { showFilter: vi.fn(), adhocFilterShowing: false };
    let globalSubmitService: any = {};
-   let popService: any = { isCurrentPopComponent: jest.fn() };
-   const changeRef: any = { detectChanges: jest.fn() };
-   const zone: any = { run: jest.fn(), runOutsideAngular: jest.fn() };
-   const scaleService = { getScale: jest.fn(), setScale: jest.fn(), getCurrentScale: jest.fn() };
+   let popService: any = { isCurrentPopComponent: vi.fn() };
+   const changeRef: any = { detectChanges: vi.fn() };
+   const zone: any = { run: vi.fn(), runOutsideAngular: vi.fn() };
+   const scaleService = { getScale: vi.fn(), setScale: vi.fn(), getCurrentScale: vi.fn() };
    scaleService.getScale.mockImplementation(() => observableOf(1));
    let httpClient: HttpClient;
    let timerService: any;
 
    beforeEach(waitForAsync(() => {
-      fixedDropdownService = { open: jest.fn() };
+      fixedDropdownService = { open: vi.fn() };
       timerService = {
-         defer: jest.fn((fn) => {
+         defer: vi.fn((fn) => {
             fn();
          })
       };
@@ -528,19 +529,19 @@ describe("VSSelection - quick-switch overlay positioner", () => {
       setStyleCalls = [];
       listEl = {
          getBoundingClientRect: () => makeRect(0, 0, 200, 300),
-         querySelector: jest.fn(() => null),
-         querySelectorAll: jest.fn(() => [])
+         querySelector: vi.fn(() => null),
+         querySelectorAll: vi.fn(() => [])
       };
       btnEl = { offsetWidth: 24 };
 
       const renderer: any = {
          setStyle: (el: any, prop: string, value: string) =>
             setStyleCalls.push({ el, prop, value }),
-         removeStyle: jest.fn(),
-         setAttribute: jest.fn(),
-         addClass: jest.fn(),
-         removeClass: jest.fn(),
-         listen: jest.fn(() => () => {})
+         removeStyle: vi.fn(),
+         setAttribute: vi.fn(),
+         addClass: vi.fn(),
+         removeClass: vi.fn(),
+         listen: vi.fn(() => () => {})
       };
 
       const elementRef: any = {
@@ -553,24 +554,24 @@ describe("VSSelection - quick-switch overlay positioner", () => {
 
       const scaleService: any = {
          getScale: () => observableOf(1),
-         setScale: jest.fn(),
-         getCurrentScale: jest.fn()
+         setScale: vi.fn(),
+         getCurrentScale: vi.fn()
       };
 
       vsSelection = new VSSelection(
-         { sendEvent: jest.fn(), commands: observableOf([]) } as any,
+         { sendEvent: vi.fn(), commands: observableOf([]) } as any,
          {} as any,
          renderer,
-         { showFilter: jest.fn(), adhocFilterShowing: false } as any,
+         { showFilter: vi.fn(), adhocFilterShowing: false } as any,
          elementRef,
-         { detectChanges: jest.fn() } as any,
+         { detectChanges: vi.fn() } as any,
          zone,
          scaleService,
          {} as any,
-         { isDataTip: jest.fn() } as any,
-         { open: jest.fn() } as any,
+         { isDataTip: vi.fn() } as any,
+         { open: vi.fn() } as any,
          {} as any,
-         { isCurrentPopComponent: jest.fn() } as any,
+         { isCurrentPopComponent: vi.fn() } as any,
          {} as HttpClient,
          null
       );

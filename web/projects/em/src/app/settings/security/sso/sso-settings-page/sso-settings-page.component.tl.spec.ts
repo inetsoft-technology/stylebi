@@ -137,7 +137,7 @@ interface RenderOpts {
 async function renderComponent(opts: RenderOpts = {}) {
    const routeModel = opts.routeModel ?? makeSettingsModel();
    const resetModel = opts.resetModel ?? routeModel;
-   const scrollSpy = { scroll: jest.fn() };
+   const scrollSpy = { scroll: vi.fn() };
    const pageHeaderSpy = { title: "" };
 
    server.use(
@@ -348,8 +348,8 @@ describe("SsoSettingsPageComponent - user action state changes", () => {
    // mark the page dirty; otherwise Apply stays disabled after the visible role list changes.
    it("should deselect all role options and mark changed when roles are cleared", async () => {
       const { comp } = await renderComponent();
-      const first = { deselect: jest.fn() };
-      const second = { deselect: jest.fn() };
+      const first = { deselect: vi.fn() };
+      const second = { deselect: vi.fn() };
       comp.roleSelectionRef = { options: [first, second] } as any;
       comp.changed = false;
 

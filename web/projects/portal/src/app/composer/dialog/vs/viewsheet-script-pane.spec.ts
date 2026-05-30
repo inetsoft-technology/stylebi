@@ -57,30 +57,30 @@ describe("Viewsheet script pane Test", () => {
 
    beforeEach(() => {
       uiContextService = {
-         isVS: jest.fn(),
-         isAdhoc: jest.fn(),
-         getDefaultTab: jest.fn(),
-         setDefaultTab: jest.fn()
+         isVS: vi.fn(),
+         isAdhoc: vi.fn(),
+         getDefaultTab: vi.fn(),
+         setDefaultTab: vi.fn()
       };
       const ts = {
          options: {
             typeTip: "",
             hintDelay: 1700
          },
-         destroy: jest.fn()
+         destroy: vi.fn()
       };
       const codemirror = {
-         createTernServer: jest.fn(() => ts),
-         getEcmaScriptDefs: jest.fn(() => [{"Date": {"prototype": {}}}]),
-         hasToken: jest.fn(() => false),
-         createCodeMirrorInstance: jest.fn(() => ({
-            focus: jest.fn(),
-            setCursor: jest.fn(),
-            lineCount: jest.fn(() => 0),
-            lastLine: jest.fn(() => ""),
-            on: jest.fn(),
-            toTextArea: jest.fn(),
-            getLine: jest.fn(() => ""),
+         createTernServer: vi.fn(() => ts),
+         getEcmaScriptDefs: vi.fn(() => [{"Date": {"prototype": {}}}]),
+         hasToken: vi.fn(() => false),
+         createCodeMirrorInstance: vi.fn(() => ({
+            focus: vi.fn(),
+            setCursor: vi.fn(),
+            lineCount: vi.fn(() => 0),
+            lastLine: vi.fn(() => ""),
+            on: vi.fn(),
+            toTextArea: vi.fn(),
+            getLine: vi.fn(() => ""),
          }))
       };
 

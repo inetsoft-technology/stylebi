@@ -88,15 +88,15 @@ describe("geo mapping dialog component unit case", () => {
    let uiContextService: any;
 
    beforeEach(() => {
-      modelService = { getModel: jest.fn().mockReturnValue(observableOf(null)) };
+      modelService = { getModel: vi.fn().mockReturnValue(observableOf(null)) };
       geoProvider = {
-         getMappingData: jest.fn(() => observableOf(new HttpResponse({body: dataMapping}))),
-         getChartGeoModel: jest.fn(() => createGeoModel())
+         getMappingData: vi.fn(() => observableOf(new HttpResponse({body: dataMapping}))),
+         getChartGeoModel: vi.fn(() => createGeoModel())
       };
       uiContextService = {
-         isAdhoc: jest.fn(),
-         getDefaultTab: jest.fn(),
-         setDefaultTab: jest.fn()
+         isAdhoc: vi.fn(),
+         getDefaultTab: vi.fn(),
+         setDefaultTab: vi.fn()
       };
 
       TestBed.configureTestingModule({
@@ -139,7 +139,7 @@ describe("geo mapping dialog component unit case", () => {
 
    //Bug #19048 should refresh mapping data
    it("should refresh mapping data when switch algorithm", () => {
-      const unmatchedListChange = jest.spyOn(geoMappingDialog, "unmatchedListChange");
+      const unmatchedListChange = vi.spyOn(geoMappingDialog, "unmatchedListChange");
       geoMappingDialog.changeAlgorithm();
       expect(unmatchedListChange).toHaveBeenCalled();
    });

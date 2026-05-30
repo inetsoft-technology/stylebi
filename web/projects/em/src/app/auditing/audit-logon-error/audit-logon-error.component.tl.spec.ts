@@ -30,9 +30,8 @@ import { render } from "@testing-library/angular";
 import { http, HttpResponse as MswHttpResponse } from "msw";
 import { firstValueFrom } from "rxjs";
 import { ActivatedRoute } from "@angular/router";
-import { MatSelectStub, makeErrorServiceMock } from "../testing/audit-test-utils";
 
-import { it } from "@jest/globals";
+import { MatSelectStub, makeErrorServiceMock } from "../testing/audit-test-utils";
 import { server } from "../../../../../../mocks/server";
 import { AuditLogonErrorComponent } from "./audit-logon-error.component";
 import { PageHeaderService } from "../../page-header/page-header.service";
@@ -58,7 +57,6 @@ const EMPTY_ADDITIONAL = {
    selectedUsers: [] as string[],
    selectedHosts: [] as string[],
 };
-
 
 /** Renders the component with NO_ERRORS_SCHEMA so em-audit-table-view is stubbed. */
 async function renderComponent(errorService = makeErrorServiceMock()) {
@@ -132,7 +130,6 @@ describe("AuditLogonErrorComponent — fetchData", () => {
    it("should call errorService.showSnackBar and return empty rows on data API error", async () => {
       const errorService = makeErrorServiceMock();
       const { fixture } = await renderComponent(errorService);
-
 
       server.use(
          http.get("*/api/em/monitoring/audit/logonErrors", () =>

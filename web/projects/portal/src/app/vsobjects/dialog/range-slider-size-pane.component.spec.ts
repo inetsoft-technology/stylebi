@@ -100,7 +100,7 @@ describe("Range Slider Size Pane Component Unit Test:", () => {
    }));
 
    //Bug #19076 Bug #19079
-   it("check max/min range size status", (done) => {
+   it("check max/min range size status", () => new Promise<void>((done) => {
       //Bug #19079
       fixture.componentInstance.model.rangeType = 3;
       let minRangeSize = fixture.debugElement.query(By.css("#rangeSize")).nativeElement;
@@ -120,5 +120,5 @@ describe("Range Slider Size Pane Component Unit Test:", () => {
          expect(maxRangeSize.disabled).toBeTruthy();
          done();
       });
-   });
+   }));
 });

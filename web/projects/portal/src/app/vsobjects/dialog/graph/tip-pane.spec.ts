@@ -66,14 +66,14 @@ describe("Tip Pane Unit Test", () => {
    let modelService: any;
 
    beforeEach(() => {
-      modelService = { getModel: jest.fn() };
+      modelService = { getModel: vi.fn() };
       modelService.getModel.mockImplementation(() => observableOf({}));
       let uiContextService = {
-         isVS: jest.fn(),
-         isAdhoc: jest.fn(),
-         getDefaultTab: jest.fn(),
-         setDefaultTab: jest.fn(),
-         getObjectChange: jest.fn()
+         isVS: vi.fn(),
+         isAdhoc: vi.fn(),
+         getDefaultTab: vi.fn(),
+         setDefaultTab: vi.fn(),
+         getObjectChange: vi.fn()
       };
       uiContextService.getObjectChange.mockImplementation(() => new Subject<any>().asObservable());
 

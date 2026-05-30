@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+import { type Mock } from "vitest";
 import { HttpClientTestingModule } from "@angular/common/http/testing";
 import { NO_ERRORS_SCHEMA, Renderer2 } from "@angular/core";
 import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
@@ -34,7 +35,7 @@ import { ComposerContextProviderFactory, ContextProvider } from "../../context-p
 
 describe("Selection List Cell Test", () => {
    beforeAll(() => {
-      jest.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({
+      vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({
          font: "",
          measureText: (_text: string) => ({ width: 0 })
       } as any);
@@ -134,19 +135,19 @@ describe("Selection List Cell Test", () => {
 
    beforeEach(waitForAsync(() => {
       vsSelectionComponent = {
-         getMarginSize: jest.fn(),
-         setQuickSwitchHover: jest.fn(),
-         clearQuickSwitchHoverIfOwner: jest.fn(),
-         isQuickSwitchRetainTarget: jest.fn()
+         getMarginSize: vi.fn(),
+         setQuickSwitchHover: vi.fn(),
+         clearQuickSwitchHoverIfOwner: vi.fn(),
+         isQuickSwitchRetainTarget: vi.fn()
       };
-      selectionListController = { getCellFormat: jest.fn() };
-      selectionTreeController = { getCellFormat: jest.fn() };
+      selectionListController = { getCellFormat: vi.fn() };
+      selectionTreeController = { getCellFormat: vi.fn() };
       interactService = {
-         notify: jest.fn(),
-         addInteractable: jest.fn(),
-         removeInteractable: jest.fn()
+         notify: vi.fn(),
+         addInteractable: vi.fn(),
+         removeInteractable: vi.fn()
       };
-      renderer = { listen: jest.fn(() => ({})) };
+      renderer = { listen: vi.fn(() => ({})) };
 
       vsSelectionComponent.model = createSelectionListModel();
       vsSelectionComponent.model.measureFormats["Measure Text0"] = TestUtils.createMockVSFormatModel();
@@ -178,7 +179,7 @@ describe("Selection List Cell Test", () => {
    }));
 
    // Bug #10494 make sure selectionlist show text value properly.
-   it("should show text value when 'Text' is set to true", (done) => {
+   it("should show text value when 'Text' is set to true", () => new Promise<void>((done) => {
       selectionListCell.showText = true;
       fixture.detectChanges();
 
@@ -187,9 +188,9 @@ describe("Selection List Cell Test", () => {
          expect(cell).not.toBe(null);
          done();
       });
-   });
+   }));
 
-   it("should not show text value when 'Text' is set to false", (done) => {
+   it("should not show text value when 'Text' is set to false", () => new Promise<void>((done) => {
       selectionListCell.showText = false;
       fixture.detectChanges();
 
@@ -198,10 +199,10 @@ describe("Selection List Cell Test", () => {
          expect(cell).toBe(null);
          done();
       });
-   });
+   }));
 
    // Bug #10050 make sure selectionlist bar is displayed properly.
-   it("should show bar when 'Bar' is set to true", (done) => {
+   it("should show bar when 'Bar' is set to true", () => new Promise<void>((done) => {
       selectionListCell.showBar = true;
       fixture.detectChanges();
 
@@ -210,9 +211,9 @@ describe("Selection List Cell Test", () => {
          expect(cell).not.toBe(null);
          done();
       });
-   });
+   }));
 
-   it("should not show bar when 'Bar' is set to false", (done) => {
+   it("should not show bar when 'Bar' is set to false", () => new Promise<void>((done) => {
       selectionListCell.showBar = false;
       fixture.detectChanges();
 
@@ -221,10 +222,10 @@ describe("Selection List Cell Test", () => {
          expect(cell).toBe(null);
          done();
       });
-   });
+   }));
 
    // Bug #16317 use measure text format
-   it("should use measure text format", (done) => {
+   it("should use measure text format", () => new Promise<void>((done) => {
       vsSelectionComponent.model.showText = true;
       vsSelectionComponent.model.measureFormats["Measure Text0"].decoration = "underline line-through";
       selectionListCell.ngOnInit();
@@ -235,7 +236,7 @@ describe("Selection List Cell Test", () => {
          expect(cell.style["text-decoration"]).toEqual("underline line-through");
          done();
       });
-   });
+   }));
 
    //Bug #18047 should apply backgroud color on selection measure bar and text
    it("should set backgound color on selection measure bar and text", () => {
@@ -331,14 +332,14 @@ describe("Selection List Cell Test", () => {
 
       // Post-long-press click suppression
       it("should suppress the real browser click that follows a long-press", () => {
-         jest.useFakeTimers();
+         vi.useFakeTimers();
          selectionListCell.contextProvider = viewerContext();
-         const emitSpy = jest.spyOn(selectionListCell.selectionStateChanged, "emit");
+         const emitSpy = vi.spyOn(selectionListCell.selectionStateChanged, "emit");
 
          // Long-press: start timer, let it fire
          const mockEvent = { touches: [{}] } as unknown as TouchEvent;
          selectionListCell.onTouchStart(mockEvent);
-         jest.runAllTimers(); // fires → switching emit
+         vi.runAllTimers(); // fires → switching emit
 
          expect(emitSpy).toHaveBeenCalledWith({ toggle: true, toggleAll: false });
          emitSpy.mockClear();
@@ -347,12 +348,12 @@ describe("Selection List Cell Test", () => {
          selectionListCell.click(new MouseEvent("click"));
 
          expect(emitSpy).not.toHaveBeenCalled();
-         jest.useRealTimers();
+         vi.useRealTimers();
       });
 
       it("should not suppress a normal click that follows a regular tap", () => {
          selectionListCell.contextProvider = viewerContext();
-         const emitSpy = jest.spyOn(selectionListCell.selectionStateChanged, "emit");
+         const emitSpy = vi.spyOn(selectionListCell.selectionStateChanged, "emit");
 
          // Normal tap: start timer, cancel before it fires
          const mockEvent = { touches: [{}] } as unknown as TouchEvent;
@@ -365,13 +366,13 @@ describe("Selection List Cell Test", () => {
       });
 
       it("should not consume the suppression flag on a right-click after a long-press", () => {
-         jest.useFakeTimers();
+         vi.useFakeTimers();
          selectionListCell.contextProvider = viewerContext();
-         const emitSpy = jest.spyOn(selectionListCell.selectionStateChanged, "emit");
+         const emitSpy = vi.spyOn(selectionListCell.selectionStateChanged, "emit");
 
          const mockEvent = { touches: [{}] } as unknown as TouchEvent;
          selectionListCell.onTouchStart(mockEvent);
-         jest.runAllTimers(); // fires → switching emit
+         vi.runAllTimers(); // fires → switching emit
          emitSpy.mockClear();
 
          // Right-click arrives — must not consume the suppression flag
@@ -380,17 +381,17 @@ describe("Selection List Cell Test", () => {
          // The following left-click must still be suppressed
          selectionListCell.click(new MouseEvent("click"));
          expect(emitSpy).not.toHaveBeenCalled();
-         jest.useRealTimers();
+         vi.useRealTimers();
       });
 
       it("should reset the suppression flag when touchcancel fires after a long-press", () => {
-         jest.useFakeTimers();
+         vi.useFakeTimers();
          selectionListCell.contextProvider = viewerContext();
-         const emitSpy = jest.spyOn(selectionListCell.selectionStateChanged, "emit");
+         const emitSpy = vi.spyOn(selectionListCell.selectionStateChanged, "emit");
 
          const mockEvent = { touches: [{}] } as unknown as TouchEvent;
          selectionListCell.onTouchStart(mockEvent);
-         jest.runAllTimers(); // fires → switching emit
+         vi.runAllTimers(); // fires → switching emit
          emitSpy.mockClear();
 
          // OS intercepts (e.g. context menu) — touchcancel fires, browser click never arrives
@@ -399,21 +400,21 @@ describe("Selection List Cell Test", () => {
          // The next click (e.g. from mouse) must not be suppressed
          selectionListCell.click(new MouseEvent("click"));
          expect(emitSpy).toHaveBeenCalled();
-         jest.useRealTimers();
+         vi.useRealTimers();
       });
 
       // Tree-icon long-press: stale suppression flag cleanup
       it("should not toggle folder and should reset the suppression flag when a long-press fires on the tree icon", () => {
-         jest.useFakeTimers();
+         vi.useFakeTimers();
          selectionListCell.contextProvider = viewerContext();
-         const emitSpy = jest.spyOn(selectionListCell.selectionStateChanged, "emit");
-         vsSelectionComponent.controller.toggleNode = jest.fn();
-         vsSelectionComponent.folderToggled = jest.fn();
+         const emitSpy = vi.spyOn(selectionListCell.selectionStateChanged, "emit");
+         vsSelectionComponent.controller.toggleNode = vi.fn();
+         vsSelectionComponent.folderToggled = vi.fn();
 
          // Long-press fires
          const mockEvent = { touches: [{}] } as unknown as TouchEvent;
          selectionListCell.onTouchStart(mockEvent);
-         jest.runAllTimers(); // fires → switching emit
+         vi.runAllTimers(); // fires → switching emit
          emitSpy.mockClear();
 
          // Browser synthesizes click on tree icon — toggleFolder is called
@@ -425,21 +426,21 @@ describe("Selection List Cell Test", () => {
          // The suppression flag must be cleared — next mouse click must NOT be suppressed
          selectionListCell.click(new MouseEvent("click"));
          expect(emitSpy).toHaveBeenCalled();
-         jest.useRealTimers();
+         vi.useRealTimers();
       });
 
       // Tree-icon long-press: synthesized click consumed by click() leaves stale longPressFired
       it("should toggle folder on a mouse click even when longPressFired is stale after a non-folder long-press", () => {
-         jest.useFakeTimers();
+         vi.useFakeTimers();
          selectionListCell.contextProvider = viewerContext();
-         const emitSpy = jest.spyOn(selectionListCell.selectionStateChanged, "emit");
-         vsSelectionComponent.controller.toggleNode = jest.fn();
-         vsSelectionComponent.folderToggled = jest.fn();
+         const emitSpy = vi.spyOn(selectionListCell.selectionStateChanged, "emit");
+         vsSelectionComponent.controller.toggleNode = vi.fn();
+         vsSelectionComponent.folderToggled = vi.fn();
 
          // Long-press fires on a non-folder cell (e.g. the selection icon)
          const mockEvent = { touches: [{}] } as unknown as TouchEvent;
          selectionListCell.onTouchStart(mockEvent);
-         jest.runAllTimers(); // fires → switching emit
+         vi.runAllTimers(); // fires → switching emit
          emitSpy.mockClear();
 
          // Synthesized click lands on the selection icon, not the tree icon — click() consumes
@@ -451,38 +452,38 @@ describe("Selection List Cell Test", () => {
          selectionListCell.toggleFolder(new MouseEvent("click"));
          expect(vsSelectionComponent.controller.toggleNode).toHaveBeenCalled();
 
-         jest.useRealTimers();
+         vi.useRealTimers();
       });
 
       // Bubbling path: click() stopPropagation prevents label-container selectRegion call
       it("should stop event propagation when suppressing the click after a long-press", () => {
-         jest.useFakeTimers();
+         vi.useFakeTimers();
          selectionListCell.contextProvider = viewerContext();
 
          const mockTouchEvent = { touches: [{}] } as unknown as TouchEvent;
          selectionListCell.onTouchStart(mockTouchEvent);
-         jest.runAllTimers(); // fires long-press
+         vi.runAllTimers(); // fires long-press
 
          const clickEvent = new MouseEvent("click");
-         const stopPropSpy = jest.spyOn(clickEvent, "stopPropagation");
+         const stopPropSpy = vi.spyOn(clickEvent, "stopPropagation");
 
          selectionListCell.click(clickEvent);
 
          expect(stopPropSpy).toHaveBeenCalled();
-         jest.useRealTimers();
+         vi.useRealTimers();
       });
 
       // Direct-hit path: selectRegion() guard suppresses a synthesized click landing on the
       // label-container or measure areas directly, without click() or toggleFolder() clearing
       // the flag first.
       it("should not emit regionClicked when a long-press synthesized click lands directly on a selectRegion target", () => {
-         jest.useFakeTimers();
+         vi.useFakeTimers();
          selectionListCell.contextProvider = viewerContext();
-         const regionSpy = jest.spyOn(selectionListCell.regionClicked, "emit");
+         const regionSpy = vi.spyOn(selectionListCell.regionClicked, "emit");
 
          const mockTouchEvent = { touches: [{}] } as unknown as TouchEvent;
          selectionListCell.onTouchStart(mockTouchEvent);
-         jest.runAllTimers(); // fires long-press
+         vi.runAllTimers(); // fires long-press
 
          // Synthesized click lands directly on the label-container (no child handler fires first)
          selectionListCell.selectRegion(new MouseEvent("click"), CellRegion.LABEL);
@@ -493,7 +494,7 @@ describe("Selection List Cell Test", () => {
          selectionListCell.selectRegion(new MouseEvent("click"), CellRegion.LABEL);
          expect(regionSpy).toHaveBeenCalled();
 
-         jest.useRealTimers();
+         vi.useRealTimers();
       });
 
       // Mobile non-max-mode guard
@@ -512,7 +513,7 @@ describe("Selection List Cell Test", () => {
          vsSelectionComponent.model.quickSwitchAllowed = true;
          selectionListCell.contextProvider = viewerContext();
          selectionListCell.ngOnInit();
-         (vsSelectionComponent.setQuickSwitchHover as jest.Mock).mockClear();
+         (vsSelectionComponent.setQuickSwitchHover as Mock).mockClear();
 
          const altClick = new MouseEvent("click", { altKey: true });
          selectionListCell.click(altClick);
@@ -528,7 +529,7 @@ describe("Selection List Cell Test", () => {
          vsSelectionComponent.model.quickSwitchAllowed = false;
          selectionListCell.contextProvider = viewerContext();
          selectionListCell.ngOnInit();
-         (vsSelectionComponent.setQuickSwitchHover as jest.Mock).mockClear();
+         (vsSelectionComponent.setQuickSwitchHover as Mock).mockClear();
 
          const altClick = new MouseEvent("click", { altKey: true });
          selectionListCell.click(altClick);
@@ -540,7 +541,7 @@ describe("Selection List Cell Test", () => {
          vsSelectionComponent.model.quickSwitchAllowed = true;
          selectionListCell.contextProvider = viewerContext();
          selectionListCell.ngOnInit();
-         (vsSelectionComponent.setQuickSwitchHover as jest.Mock).mockClear();
+         (vsSelectionComponent.setQuickSwitchHover as Mock).mockClear();
 
          selectionListCell.click(new MouseEvent("click"));
 
@@ -550,9 +551,9 @@ describe("Selection List Cell Test", () => {
       describe("hover delegation (onMouseEnter / onMouseLeave)", () => {
          beforeEach(() => {
             selectionListCell.contextProvider = viewerContext();
-            (vsSelectionComponent.setQuickSwitchHover as jest.Mock).mockClear();
-            (vsSelectionComponent.clearQuickSwitchHoverIfOwner as jest.Mock).mockClear();
-            (vsSelectionComponent.isQuickSwitchRetainTarget as jest.Mock).mockClear();
+            (vsSelectionComponent.setQuickSwitchHover as Mock).mockClear();
+            (vsSelectionComponent.clearQuickSwitchHoverIfOwner as Mock).mockClear();
+            (vsSelectionComponent.isQuickSwitchRetainTarget as Mock).mockClear();
          });
 
          it("should hide overlay on enter when quickSwitchAllowed is false", () => {
@@ -572,7 +573,7 @@ describe("Selection List Cell Test", () => {
             selectionListCell.onMouseEnter();
 
             const [cellArg, singleArg, callbackArg] =
-               (vsSelectionComponent.setQuickSwitchHover as jest.Mock).mock.calls[0];
+               (vsSelectionComponent.setQuickSwitchHover as Mock).mock.calls[0];
             expect(cellArg).not.toBeNull();
             expect(singleArg).toBe(selectionListCell.singleSelection);
             expect(typeof callbackArg).toBe("function");
@@ -581,12 +582,12 @@ describe("Selection List Cell Test", () => {
          it("should invoke the quick-switch callback when the callback from onMouseEnter is called", () => {
             vsSelectionComponent.model.quickSwitchAllowed = true;
             selectionListCell.ngOnInit();
-            const emitSpy = jest.spyOn(selectionListCell.selectionStateChanged, "emit");
+            const emitSpy = vi.spyOn(selectionListCell.selectionStateChanged, "emit");
 
             selectionListCell.onMouseEnter();
 
             const callbackArg =
-               (vsSelectionComponent.setQuickSwitchHover as jest.Mock).mock.calls[0][2];
+               (vsSelectionComponent.setQuickSwitchHover as Mock).mock.calls[0][2];
             callbackArg();
 
             expect(emitSpy).toHaveBeenCalledWith({ toggle: true, toggleAll: false });

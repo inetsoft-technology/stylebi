@@ -86,9 +86,9 @@ async function renderComponent(props: Partial<BackupFileComponent> = {}) {
       selectedNodeChanges: selectedNodesMock.asObservable(),
       get selectedNodes() { return []; },
       set selectedNodes(_: any) {},
-      clearSelectedNodes: jest.fn(),
-      selectNode: jest.fn(),
-      hideTrash: jest.fn((data: any[]) => data),
+      clearSelectedNodes: vi.fn(),
+      selectNode: vi.fn(),
+      hideTrash: vi.fn((data: any[]) => data),
    };
 
    const dataSourceMock = {
@@ -96,7 +96,7 @@ async function renderComponent(props: Partial<BackupFileComponent> = {}) {
       treeControl: { expansionModel: { selected: [] } },
       loading: of(false),
       data: [],
-      refresh: jest.fn(() => of([])),
+      refresh: vi.fn(() => of([])),
    };
 
    const result = await render(BackupFileComponent, {
@@ -105,8 +105,8 @@ async function renderComponent(props: Partial<BackupFileComponent> = {}) {
       providers: [
          provideHttpClient(),
          { provide: ContentRepositoryService, useValue: serviceMock },
-         { provide: ExportAssetsService, useValue: { getUsers: jest.fn(() => []), loadUserNode: jest.fn(() => of({ nodes: [] })) } },
-         { provide: "MatSnackBar", useValue: { open: jest.fn() } },
+         { provide: ExportAssetsService, useValue: { getUsers: vi.fn(() => []), loadUserNode: vi.fn(() => of({ nodes: [] })) } },
+         { provide: "MatSnackBar", useValue: { open: vi.fn() } },
       ],
       componentProviders: [
          { provide: RepositoryTreeDataSource, useValue: dataSourceMock },

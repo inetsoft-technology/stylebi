@@ -101,22 +101,47 @@
           }
         },
         "test": {
-          "builder": "@angular-builders/jest:run",
+          "builder": "@angular/build:unit-test",
           "options": {
-            "ci": true,
-            "maxWorkers": 4,
-            "silent": true,
-            "zoneless": false,
-            "reporters": [
-              "default",
-              "jest-junit"
+            "buildTarget": "portal:build:development",
+            "runner": "vitest",
+            "runnerConfig": true,
+            "tsConfig": "projects/portal/tsconfig.spec.json",
+            "include": [
+              "**/*.spec.ts",
+              "../../shared/**/*.spec.ts"
+            ],
+            "exclude": [
+              "**/*.tl.spec.ts"
             ],
             "setupFiles": [
-              "jest-canvas-mock",
-              "<rootDir>/projects/portal/src/jest-setup.ts"
+              "vitest-bootstrap.ts",
+              "projects/portal/src/vitest-setup.ts"
             ],
-            "testPathIgnorePatterns": [
-              "\\.tl\\.spec\\.ts$"
+            "reporters": [
+              "default",
+              ["junit", { "outputFile": "junit.xml" }]
+            ]
+          }
+        },
+        "test-tl": {
+          "builder": "@angular/build:unit-test",
+          "options": {
+            "buildTarget": "portal:build:development",
+            "runner": "vitest",
+            "runnerConfig": true,
+            "tsConfig": "projects/portal/tsconfig.spec.json",
+            "include": [
+              "**/*.tl.spec.ts",
+              "../../shared/**/*.tl.spec.ts"
+            ],
+            "setupFiles": [
+              "vitest-bootstrap.ts",
+              "projects/portal/src/vitest-setup.ts"
+            ],
+            "reporters": [
+              "default",
+              ["junit", { "outputFile": "junit-tl.xml" }]
             ]
           }
         },
@@ -226,21 +251,24 @@
           }
         },
         "test": {
-          "builder": "@angular-builders/jest:run",
+          "builder": "@angular/build:unit-test",
           "options": {
-            "ci": true,
-            "maxWorkers": 4,
-            "silent": true,
-            "zoneless": false,
-            "reporters": [
-              "default",
-              "jest-junit"
+            "buildTarget": "em:build:development",
+            "runner": "vitest",
+            "runnerConfig": true,
+            "tsConfig": "projects/em/tsconfig.spec.json",
+            "include": [
+              "**/*.spec.ts"
+            ],
+            "exclude": [
+              "**/*.tl.spec.ts"
             ],
             "setupFiles": [
-              "jest-canvas-mock"
+              "vitest-bootstrap.ts"
             ],
-            "testPathIgnorePatterns": [
-              "\\.tl\\.spec\\.ts$"
+            "reporters": [
+              "default",
+              ["junit", { "outputFile": "junit.xml" }]
             ]
           }
         },

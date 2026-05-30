@@ -141,17 +141,17 @@ class MockCkeditorComponent implements ControlValueAccessor {
 
 describe("Task Action Pane Unit Test", () => {
    let portalModelService = {
-      isDashboardEnabled: jest.fn(() => true),
-      isReportEnabled: jest.fn(() => true)
+      isDashboardEnabled: vi.fn(() => true),
+      isReportEnabled: vi.fn(() => true)
    };
    let scheduleUsersService = {
-      init: jest.fn(),
-      getOwners: jest.fn(() => new BehaviorSubject([]) ),
-      getGroups: jest.fn(() => new BehaviorSubject([]) ),
-      getRoles: jest.fn(() => new BehaviorSubject([]) ),
-      getEmailUsers: jest.fn(() => new BehaviorSubject([]) ),
-      getEmailGroups: jest.fn(() => new BehaviorSubject([]) ),
-      getAdminName: jest.fn(() => new BehaviorSubject("admin") ),
+      init: vi.fn(),
+      getOwners: vi.fn(() => new BehaviorSubject([]) ),
+      getGroups: vi.fn(() => new BehaviorSubject([]) ),
+      getRoles: vi.fn(() => new BehaviorSubject([]) ),
+      getEmailUsers: vi.fn(() => new BehaviorSubject([]) ),
+      getEmailGroups: vi.fn(() => new BehaviorSubject([]) ),
+      getAdminName: vi.fn(() => new BehaviorSubject("admin") ),
    };
 
    let fixture: ComponentFixture<TestApp>;
@@ -215,7 +215,7 @@ describe("Task Action Pane Unit Test", () => {
 
    //Bug #19890 should pop up warning when to delete action
    it("should pop up warning when to delete action", () => {
-      let showConfirmDialog = jest.spyOn(ComponentTool, "showConfirmDialog");
+      let showConfirmDialog = vi.spyOn(ComponentTool, "showConfirmDialog");
       showConfirmDialog.mockImplementation(() => Promise.resolve("ok"));
       taskActionPane.deleteAction();
 

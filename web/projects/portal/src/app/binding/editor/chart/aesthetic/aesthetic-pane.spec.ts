@@ -60,10 +60,10 @@ import { TextureItem } from "./texture-item.component";
 
 describe("Aesthetic Pane Unit Test", () => {
    beforeAll(() => {
-      jest.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({
+      vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({
          font: "",
-         clearRect: jest.fn(),
-         fillRect: jest.fn(),
+         clearRect: vi.fn(),
+         fillRect: vi.fn(),
          measureText: (_text: string) => ({ width: 0 })
       } as any);
    });
@@ -129,18 +129,18 @@ describe("Aesthetic Pane Unit Test", () => {
    };
 
    const editorService = {
-      changeChartAesthetic: jest.fn(),
-      getDNDType: jest.fn(),
-      convert: jest.fn(),
-      isDropPaneAccept: jest.fn()
+      changeChartAesthetic: vi.fn(),
+      getDNDType: vi.fn(),
+      convert: vi.fn(),
+      isDropPaneAccept: vi.fn()
    };
-   const uiContextService = { isVS: jest.fn() };
+   const uiContextService = { isVS: vi.fn() };
    const dservice = {
-      processOnDrop: jest.fn(),
-      setDragOverStyle: jest.fn()
+      processOnDrop: vi.fn(),
+      setDragOverStyle: vi.fn()
    };
-   let modalService = { open: jest.fn() };
-   let recentColorService = { colorSelected: jest.fn() };
+   let modalService = { open: vi.fn() };
+   let recentColorService = { colorSelected: vi.fn() };
 
    let fixture: ComponentFixture<AestheticPane>;
    let aestheticPane: AestheticPane;
@@ -185,11 +185,11 @@ describe("Aesthetic Pane Unit Test", () => {
             { provide: RecentColorService, useValue: recentColorService },
             {
                provide: BindingService,
-               useValue: { bindingModel: { availableFields: [] }, getURLParams: jest.fn(() => null) }
+               useValue: { bindingModel: { availableFields: [] }, getURLParams: vi.fn(() => null) }
             },
             {
                provide: BindingTreeService,
-               useValue: { root: null, treeChanged: { subscribe: jest.fn() }, getSelection: jest.fn(), setSelection: jest.fn() }
+               useValue: { root: null, treeChanged: { subscribe: vi.fn() }, getSelection: vi.fn(), setSelection: vi.fn() }
             }
          ],
          schemas: [NO_ERRORS_SCHEMA]
@@ -365,7 +365,7 @@ describe("Aesthetic Pane Unit Test", () => {
    });
 
    //Bug #19085, shape cell icon load error on waterfall chart
-   it("shape cell icon load error on waterfall chart", (done) => {
+   it("shape cell icon load error on waterfall chart", () => new Promise<void>((done) => {
       let agg = createMockChartAggregateRef("id");
       agg.chartType = GraphTypes.CHART_WATERFALL;
       agg.rtchartType = GraphTypes.CHART_WATERFALL;
@@ -411,7 +411,7 @@ describe("Aesthetic Pane Unit Test", () => {
 
          done();
       });
-   });
+   }));
 
    //for Bug #19170
    it("should not display size cell on empty chart", () => {
@@ -591,7 +591,7 @@ describe("Aesthetic Pane Unit Test", () => {
    });
 
    //Bug #20921
-   it("test color frame and shape frame on waterfall chart", (done) => {
+   it("test color frame and shape frame on waterfall chart", () => new Promise<void>((done) => {
       let agg1 = createMockChartAggregateRef("id1");
       let agg2 = TestUtils.createMockChartAggregateRef("id2");
       let agg3 = createMockChartAggregateRef("id3");
@@ -633,10 +633,10 @@ describe("Aesthetic Pane Unit Test", () => {
 
          done();
       });
-   });
+   }));
 
    //Bug #20801
-   it("color pane should be auto closed", (done) => {
+   it("color pane should be auto closed", () => new Promise<void>((done) => {
       let aggr = createMockChartAggregateRef("id");
       aggr.colorFrame = mockStaticColorModel();
       bindingModel.yfields = [aggr];
@@ -651,7 +651,7 @@ describe("Aesthetic Pane Unit Test", () => {
       fixture.detectChanges();
 
       let colorFieldMc: ColorFieldMc = fixture.debugElement.query(By.directive(ColorFieldMc)).componentInstance;
-      let openChanged = jest.spyOn(colorFieldMc, "openChanged");
+      let openChanged = vi.spyOn(colorFieldMc, "openChanged");
       fixture.detectChanges();
 
       let colorEditIcon: HTMLElement = fixture.debugElement.query(By.css(".color_field_id .visual-edit-icon")).nativeElement;
@@ -670,7 +670,7 @@ describe("Aesthetic Pane Unit Test", () => {
             done();
          });
       });
-   });
+   }));
 
    //Bug #21290
    it("color and size frame is error when there is multi aggregate on map chart", () => {
@@ -706,7 +706,7 @@ describe("Aesthetic Pane Unit Test", () => {
    });
 
    //Bug #21320
-   it("shape pane should be auto closed", (done) => {
+   it("shape pane should be auto closed", () => new Promise<void>((done) => {
       let shapefield = TestUtils.createMockAestheticInfo();
       shapefield.frame = Object.assign({
          clazz: "inetsoft.web.binding.model.graph.aesthetic.FillShapeModel",
@@ -727,7 +727,7 @@ describe("Aesthetic Pane Unit Test", () => {
       fixture.detectChanges();
 
       let shapeFieldMc: ShapeFieldMc = fixture.debugElement.query(By.directive(ShapeFieldMc)).componentInstance;
-      let openChanged = jest.spyOn(shapeFieldMc, "openChanged");
+      let openChanged = vi.spyOn(shapeFieldMc, "openChanged");
       fixture.detectChanges();
 
       let shapeEditIcon: HTMLElement = fixture.debugElement.query(By.css(".shape_field_id .visual-cell-container .visual-cell")).nativeElement;
@@ -747,7 +747,7 @@ describe("Aesthetic Pane Unit Test", () => {
             done();
          });
       });
-   });
+   }));
 
    //Bug #21510
    it("shape edit icon should be enabled", () => {

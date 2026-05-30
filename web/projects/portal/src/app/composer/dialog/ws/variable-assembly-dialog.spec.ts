@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
@@ -72,8 +73,8 @@ describe("VariableAssemblyDialog Integration Test", () => {
 
    beforeEach(waitForAsync(() => {
       modelService = {
-         getModel: jest.fn(() => createMockModel()),
-         sendModel: jest.fn()
+         getModel: vi.fn(() => createMockModel()),
+         sendModel: vi.fn()
       };
 
       TestBed.configureTestingModule({

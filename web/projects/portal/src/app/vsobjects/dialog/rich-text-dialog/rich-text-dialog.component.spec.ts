@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { Component, DebugElement, NO_ERRORS_SCHEMA } from "@angular/core";
 import { waitForAsync, TestBed } from "@angular/core/testing";
 import { By } from "@angular/platform-browser";
@@ -60,7 +61,7 @@ describe("Rich Text Dialog Tests", () => {
    const fontObservable: Observable<string[]> = observableOf([]);
 
    beforeEach(waitForAsync(() => {
-      fontService = { getAllFonts: jest.fn() };
+      fontService = { getAllFonts: vi.fn() };
       fontService.getAllFonts.mockImplementation(() => fontObservable);
 
       TestBed.configureTestingModule({
@@ -116,7 +117,7 @@ describe("Rich Text Dialog Tests", () => {
    it("should get the rich text from tinymce", () => { // broken test
       TestBed.overrideTemplate(TestApp, doubleTemplate);
       let fixture = TestBed.createComponent(TestApp);
-      let onCommitSpy = jest.spyOn(fixture.componentInstance, "onCommit");
+      let onCommitSpy = vi.spyOn(fixture.componentInstance, "onCommit");
       fixture.detectChanges();
 
       fixture.whenStable().then(() => {

@@ -98,7 +98,7 @@ describe("Data Input Pane Test", () => {
    let treeService: any;
 
    beforeEach(() => {
-      treeService = { validateTreeNode: jest.fn() };
+      treeService = { validateTreeNode: vi.fn() };
       TestBed.configureTestingModule({
          imports: [DropDownTestModule, ReactiveFormsModule, FormsModule, NgbModule, HttpClientTestingModule, DataInputPane, DynamicComboBox, TreeComponent, TreeNodeComponent, TreeDropdownComponent, FixedDropdownDirective, TreeSearchPipe, TooltipDirective, EnterClickDirective],
          
@@ -152,7 +152,7 @@ describe("Data Input Pane Test", () => {
    });
 
    //Bug #19833
-   it("should input page number on popup table page", (done) => {
+   it("should input page number on popup table page", () => new Promise<void>((done) => {
       dataInputPane = <DataInputPane>fixture.componentInstance;
       dataInputPane.model = createModel();
       dataInputPane.model.rowValue = "1";
@@ -194,7 +194,7 @@ describe("Data Input Pane Test", () => {
          expect(id.trim()).toBe("11");
          done();
       });
-   });
+   }));
 
    it("row should update when change to expression", () => {
       let model = createModel();

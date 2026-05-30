@@ -15,19 +15,20 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+import { type Mock } from "vitest";
 import { of } from "rxjs";
 import * as stompClientModule from "./stomp-client";
 import { StompClientService } from "./stomp-client.service";
 
 // setupFilesAfterEnv eagerly loads StompClientService (and its StompClient import) before
-// jest.mock hoisting can intercept it. Use jest.spyOn on the shared exports object instead,
+// vi.mock hoisting can intercept it. Use vi.spyOn on the shared exports object instead,
 // which mutates the same reference that StompClientService already holds.
 
 function makeService() {
-   const zone = { runOutsideAngular: jest.fn((fn: () => any) => fn()) } as any;
+   const zone = { runOutsideAngular: vi.fn((fn: () => any) => fn()) } as any;
    const ssoHeartbeat = {} as any;
    const logout = {} as any;
-   const baseHref = { getBaseHref: jest.fn().mockReturnValue("/") } as any;
+   const baseHref = { getBaseHref: vi.fn().mockReturnValue("/") } as any;
    return new StompClientService(zone, ssoHeartbeat, logout, baseHref);
 }
 
@@ -35,15 +36,15 @@ describe("StompClientService", () => {
    let service: StompClientService;
 
    beforeEach(() => {
-      jest.spyOn(stompClientModule, "StompClient" as any).mockImplementation(() => ({
-         connect: jest.fn().mockReturnValue(of({ transport: "websocket" })),
+      vi.spyOn(stompClientModule, "StompClient" as any).mockImplementation(() => ({
+         connect: vi.fn().mockReturnValue(of({ transport: "websocket" })),
          reloadOnFailure: false
       }));
       service = makeService();
    });
 
    afterEach(() => {
-      jest.restoreAllMocks();
+      vi.restoreAllMocks();
    });
 
    // ── whenDisconnected / reconnectError ─────────────────────────────────────
@@ -68,12 +69,12 @@ describe("StompClientService", () => {
       expect(typeof obs.subscribe).toBe("function");
    });
 
-   it("connect() emits a connection for a new endpoint", (done) => {
+   it("connect() emits a connection for a new endpoint", () => new Promise<void>((done) => {
       service.connect("../vs-events").subscribe(conn => {
          expect(conn).toBeDefined();
          done();
       });
-   });
+   }));
 
    it("connect() reuses the existing StompClient for the same endpoint", () => {
       service.connect("../vs-events");
@@ -100,7 +101,7 @@ describe("StompClientService", () => {
       const connection = service.connect("../vs-events");
       connection.subscribe();
 
-      const mockInstance = (stompClientModule.StompClient as jest.Mock).mock.results[0].value;
+      const mockInstance = (stompClientModule.StompClient as Mock).mock.results[0].value;
 
       service.reloadOnFailure = true;
 

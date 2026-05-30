@@ -41,7 +41,7 @@ describe("manual ordering dialog Unit case: ", () => {
    }));
 
    //Bug #10872 and Bug #10874, and Bug #10473
-   it("check manual order execute", (done) => {
+   it("check manual order execute", () => new Promise<void>((done) => {
       manualOrderDialog.manualOrders = ["A", "B", "C", "D"];
       manualOrderDialog.valueLabelList = [
          {value: "A", label: "A"},
@@ -73,6 +73,6 @@ describe("manual ordering dialog Unit case: ", () => {
          done();
       });
       okBtn.click();
-   });
+   }));
 
 });

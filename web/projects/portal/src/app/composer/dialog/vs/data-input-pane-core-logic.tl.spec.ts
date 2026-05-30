@@ -48,7 +48,6 @@ import { ComboMode } from "../../../widget/dynamic-combo-box/dynamic-combo-box-m
 import { DataInputPaneModel } from "../../data/vs/data-input-pane-model";
 import { DataInputPane, PopupEmbeddedTable } from "./data-input-pane.component";
 import { server } from "../../../../../../../mocks/server";
-import { it } from "@jest/globals";  //must be import, or it.failing didn't work
 
 // ---------------------------------------------------------------------------
 // Shared helpers
@@ -152,7 +151,7 @@ describe("DataInputPane — selectRow — row index calculation and direct stora
    // Confirmed observation (dynamic input): setting select row to "ghost row" can produce rowValue: "0".
    // Current decision: document and guard this behavior for now, no functional change in this task.
    // Risk Point/Contract: row not in list → indexOf=-1, so rowValue="0" (SA≠SB: 0 is invalid 1-based index)
-   it.failing("should fallback to first row when selected row is not found", async () => {
+   it.fails("should fallback to first row when selected row is not found", async () => {
       const { fixture } = await renderPure();
       const comp = fixture.componentInstance;
 

@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { NgModule, NO_ERRORS_SCHEMA } from "@angular/core";
 import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormGroup, FormsModule, ReactiveFormsModule } from "@angular/forms";
@@ -36,7 +37,6 @@ import { TreeSearchPipe } from "../../../widget/tree/tree-search.pipe";
 import { TreeComponent } from "../../../widget/tree/tree.component";
 import { NumericRangePaneModel } from "../../data/vs/numeric-range-pane-model";
 import { NumericRangePane } from "./numeric-range-pane.component";
-
 
 // Default values taken from NumberRangePane when property dialog is opened on a new gauge with no data
 const createModel: () => NumericRangePaneModel = () => {

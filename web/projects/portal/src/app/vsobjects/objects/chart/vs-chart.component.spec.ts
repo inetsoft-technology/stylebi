@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { HttpClientTestingModule } from "@angular/common/http/testing";
 import { Component, NO_ERRORS_SCHEMA, Optional } from "@angular/core";
 import { waitForAsync, TestBed } from "@angular/core/testing";
@@ -55,11 +56,11 @@ import { VSChart } from "./vs-chart.component";
 
 @Component({
    selector: "test-app",
-   template: `<vs-chart [model]="mockObject"
-                        [viewer]="true">
+   template: `<vs-chart [model]="mockObject">
               </vs-chart>
    `,
-   standalone: true
+   standalone: true,
+   imports: [VSChart]
 })
 class TestApp {
    mockObject: VSChartModel = TestUtils.createMockVSChartModel("Chart1");
@@ -75,39 +76,39 @@ describe("VSChart Tests", () => {
    let fullscreenService: any;
 
    beforeEach(waitForAsync(() => {
-      let modelService: any = { getModel: jest.fn() };
-      let viewsheetClientService: any = { sendEvent: jest.fn() };
+      let modelService: any = { getModel: vi.fn() };
+      let viewsheetClientService: any = { sendEvent: vi.fn() };
       viewsheetClientService.commands = observableOf([]);
       let dndService = {};
       let dataTipService = {
-         showDataTip: jest.fn(),
-         isDataTip: jest.fn(),
-         isDataTipVisible: jest.fn(),
-         isDataTipSource: jest.fn(),
-         isFrozen: jest.fn(),
-         hideDataTip: jest.fn()
+         showDataTip: vi.fn(),
+         isDataTip: vi.fn(),
+         isDataTipVisible: vi.fn(),
+         isDataTipSource: vi.fn(),
+         isFrozen: vi.fn(),
+         hideDataTip: vi.fn()
       };
       let dropdownService = {};
-      let downloadService = { download: jest.fn() };
+      let downloadService = { download: vi.fn() };
       chartService = {
-         getXTitle: jest.fn(),
-         getX2Title: jest.fn(),
-         getYTitle: jest.fn(),
-         getY2Title: jest.fn(),
-         getXBottomAxis: jest.fn(),
-         getXTopAxis: jest.fn(),
-         getYLeftAxis: jest.fn(),
-         getYRightAxis: jest.fn()
+         getXTitle: vi.fn(),
+         getX2Title: vi.fn(),
+         getYTitle: vi.fn(),
+         getY2Title: vi.fn(),
+         getXBottomAxis: vi.fn(),
+         getXTopAxis: vi.fn(),
+         getYLeftAxis: vi.fn(),
+         getYRightAxis: vi.fn()
       };
-      const scaleService = { getScale: jest.fn(), setScale: jest.fn() };
+      const scaleService = { getScale: vi.fn(), setScale: vi.fn() };
       scaleService.getScale.mockImplementation(() => observableOf(1));
-      dialogService = { open: jest.fn() };
+      dialogService = { open: vi.fn() };
       adhocFilterService = {
-         showFilter: jest.fn(),
+         showFilter: vi.fn(),
          adhocFilterShowing: false
       };
       richTextService = {
-         showAnnotationDialog: jest.fn()
+         showAnnotationDialog: vi.fn()
       };
       vSTabService = {}
 
@@ -153,7 +154,7 @@ describe("VSChart Tests", () => {
       TestBed.compileComponents();
    }));
 
-   xit("should run callbacks for visible icons", () => {
+   it.skip("should run callbacks for visible icons", () => {
       let fixture = TestBed.createComponent(TestApp);
       fixture.componentInstance.mockObject.axes.push({
          areaName: "axis",
@@ -177,9 +178,9 @@ describe("VSChart Tests", () => {
       let actions: AssemblyAction[]  = chartComponent.componentInstance.getActions();
 
       // Spy on getActions and stub out callback
-      let getActionsSpy = jest.spyOn(chartComponent.componentInstance, "getActions")
+      let getActionsSpy = vi.spyOn(chartComponent.componentInstance, "getActions")
          .mockImplementation(() => actions.map((action) => {
-               action.action = jest.fn();
+               action.action = vi.fn();
                return action;
          }));
 
@@ -206,7 +207,7 @@ describe("VSChart Tests", () => {
       });
    });
 
-   xit("should not run callbacks for invisible icons", () => {
+   it.skip("should not run callbacks for invisible icons", () => {
       let fixture = TestBed.createComponent(TestApp);
       fixture.componentInstance.mockObject.axes.push({
          areaName: "axis",
@@ -230,9 +231,9 @@ describe("VSChart Tests", () => {
       let actions: AssemblyAction[]  = chartComponent.componentInstance.getActions();
 
       // Spy on getActions and stub out callback
-      let getActionsSpy = jest.spyOn(chartComponent.componentInstance, "getActions")
+      let getActionsSpy = vi.spyOn(chartComponent.componentInstance, "getActions")
          .mockImplementation(() => actions.map((action) => {
-            action.action = jest.fn();
+            action.action = vi.fn();
             return action;
          }));
 

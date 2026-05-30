@@ -16,8 +16,19 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+import "@testing-library/jest-dom/vitest";
+import { afterAll, afterEach, beforeAll } from "vitest";
 import { TestBed } from "@angular/core/testing";
 import { provideNgReflectAttributes } from "@angular/core";
+import { server } from "../../../mocks/server";
+
+// Mock ResizeObserver for components that use the resize-event shared library.
+// jsdom does not provide ResizeObserver.
+(globalThis as any).ResizeObserver = class ResizeObserver {
+   observe() {}
+   unobserve() {}
+   disconnect() {}
+};
 
 // Angular 20 stopped producing the legacy `ng-reflect-*` attributes by default.
 // Many existing tests assert against those attributes, so we register the
@@ -30,30 +41,8 @@ TestBed.configureTestingModule = function(moduleDef: any) {
    return _originalConfigureTestingModule(moduleDef);
 } as typeof TestBed.configureTestingModule;
 
-// Fix VSViewsheet ↔ VSObjectContainer circular dependency.
-//
-// Both components import each other in their @Component.imports arrays. In Jest's CommonJS
-// module loader, when vs-object-container.component.ts is first loaded (triggered by
-// VSViewsheet's import of it), it tries to re-import VSViewsheet — but VSViewsheet's module
-// is still mid-execution, so require() returns a partial export where VSViewsheet is undefined.
-// The @Component decorator runs immediately, storing undefined in ɵcmp.dependencies.
-//
-// By eagerly importing both here, VSObjectContainer's dependency chain (VSCalendar→MonthCalendar,
-// VSSelection→SelectionListCell, etc.) all load in the correct order with proper ɵcmp.dependencies
-// arrays. Only VSObjectContainer itself ends up with an undefined slot, which we fix below.
-//
-// This file must run in setupFilesAfterEnv (not setupFiles) because it imports Angular components
-// that require @angular/compiler to be available.
-import { VSViewsheet } from "./app/vsobjects/objects/viewsheet/vs-viewsheet.component";
-import { VSObjectContainer } from "./app/vsobjects/objects/vs-object-container.component";
-
-const _ocDef = (VSObjectContainer as any).ɵcmp;
-if (_ocDef) {
-   const _rawDeps = typeof _ocDef.dependencies === "function"
-      ? _ocDef.dependencies()
-      : _ocDef.dependencies;
-   if (Array.isArray(_rawDeps)) {
-      const _fixed = _rawDeps.map((d: any) => (d === undefined || d === null) ? VSViewsheet : d);
-      _ocDef.dependencies = _fixed;
-   }
-}
+// MSW request mocking server. Lifecycle hooks installed at the module level so
+// they apply to every test file that includes this setup.
+beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
+afterEach(() => server.resetHandlers());
+afterAll(() => server.close());

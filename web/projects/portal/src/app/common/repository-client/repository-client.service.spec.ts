@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+import { type Mocked } from "vitest";
 import { NgZone } from "@angular/core";
 import { Subject } from "rxjs";
 import { StompClientService } from "../viewsheet-client";
@@ -24,24 +25,24 @@ import { RepositoryClientService } from "./repository-client.service";
 function makeStompService() {
    const connSubject = new Subject<any>();
    return {
-      connect: jest.fn().mockReturnValue(connSubject.asObservable()),
+      connect: vi.fn().mockReturnValue(connSubject.asObservable()),
       _connSubject: connSubject
    } as any;
 }
 
 function makeConnection() {
    return {
-      subscribe: jest.fn().mockReturnValue({ unsubscribe: jest.fn() }),
-      disconnect: jest.fn()
+      subscribe: vi.fn().mockReturnValue({ unsubscribe: vi.fn() }),
+      disconnect: vi.fn()
    } as any;
 }
 
 function makeZone(): NgZone {
-   return { run: jest.fn((fn: () => any) => fn()) } as any;
+   return { run: vi.fn((fn: () => any) => fn()) } as any;
 }
 
-function makeDebounce(): jest.Mocked<DebounceService> {
-   return { debounce: jest.fn() } as any;
+function makeDebounce(): Mocked<DebounceService> {
+   return { debounce: vi.fn() } as any;
 }
 
 describe("RepositoryClientService", () => {

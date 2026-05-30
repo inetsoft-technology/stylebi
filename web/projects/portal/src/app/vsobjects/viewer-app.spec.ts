@@ -89,7 +89,7 @@ import { GlobalSubmitService } from "./util/global-submit.service";
 import { ViewerResizeService } from "./util/viewer-resize.service";
 import { ViewerAppComponent } from "./viewer-app.component";
 
-jest.mock("css-element-queries");
+vi.mock("css-element-queries");
 
 @NgModule({
    imports: [
@@ -152,23 +152,23 @@ describe("ViewerApp Unit Tests", () => {
 
    beforeEach(waitForAsync(() => {
       formDataService = {
-         checkFormData: jest.fn(),
-         removeObject: jest.fn(),
-         addObject: jest.fn(),
-         replaceObject: jest.fn(),
-         resetCount: jest.fn()
+         checkFormData: vi.fn(),
+         removeObject: vi.fn(),
+         addObject: vi.fn(),
+         replaceObject: vi.fn(),
+         resetCount: vi.fn()
       };
-      modelService = { getModel: jest.fn() };
+      modelService = { getModel: vi.fn() };
       modelService.getModel.mockImplementation(() => observableOf({}));
-      actionFactory = { createActions: jest.fn() };
+      actionFactory = { createActions: vi.fn() };
       actionFactory.createActions.mockImplementation(() => ({
          onAssemblyActionEvent: new EventEmitter<any>()
       }));
       debounceService = {
-         debounce: jest.fn((key, fn, delay, args) => fn(...args)),
-         cancel: jest.fn()
+         debounce: vi.fn((key, fn, delay, args) => fn(...args)),
+         cancel: vi.fn()
       };
-      popService = { getPopComponent: jest.fn() };
+      popService = { getPopComponent: vi.fn() };
       popService.getPopComponent.mockImplementation(() => "");
       contextProvider = {};
 
@@ -183,111 +183,111 @@ describe("ViewerApp Unit Tests", () => {
       viewsheet.localId = 1;
       viewsheet.label = "";
       viewsheet.id = "Viewsheet1";
-      viewsheet.socketConnection = <any> { sendEvent: jest.fn() };
+      viewsheet.socketConnection = <any> { sendEvent: vi.fn() };
 
-      downloadService = { download: jest.fn() };
-      chartService = { drill: jest.fn() };
-      scaleService = { getScale: jest.fn(), setScale: jest.fn() };
+      downloadService = { download: vi.fn() };
+      chartService = { drill: vi.fn() };
+      scaleService = { getScale: vi.fn(), setScale: vi.fn() };
       scaleService.getScale.mockImplementation(() => observableOf(1));
-      dialogService = { open: jest.fn(), ngOnDestroy: jest.fn() };
+      dialogService = { open: vi.fn(), ngOnDestroy: vi.fn() };
 
-      tooltipService = { createTooltip: jest.fn() };
+      tooltipService = { createTooltip: vi.fn() };
 
       viewDataService = new ViewDataService();
-      renderer = { listen: jest.fn() };
+      renderer = { listen: vi.fn() };
 
       fullScreenService = {
-         enterFullScreen: jest.fn(),
-         exitFullScreen: jest.fn()
+         enterFullScreen: vi.fn(),
+         exitFullScreen: vi.fn()
       };
       fullScreenService.fullScreenMode = false;
       fullScreenService.fullScreenChange = observableOf({});
 
-      hyperlinkService = { showURL: jest.fn() };
+      hyperlinkService = { showURL: vi.fn() };
       hyperlinkService.drillDownSubject = observableOf({});
       let domService = {
-         requestRead: jest.fn(),
-         requestWrite: jest.fn()
+         requestRead: vi.fn(),
+         requestWrite: vi.fn()
       };
 
-      titleService = { setTitle: jest.fn() };
+      titleService = { setTitle: vi.fn() };
 
-      firstDayOfWeekService = { getFirstDay: jest.fn() };
+      firstDayOfWeekService = { getFirstDay: vi.fn() };
       firstDayOfWeekService.getFirstDay.mockImplementation(() => observableOf({}));
 
-      shareService = { getConfig: jest.fn() };
+      shareService = { getConfig: vi.fn() };
       mockDocument = {
          body: {
             classList: {
-               add: jest.fn()
+               add: vi.fn()
             }
          }
       };
 
       richTextService = {
-         showAnnotationDialog: jest.fn()
+         showAnnotationDialog: vi.fn()
       };
 
       viewerToolbarMessageService = new ViewerToolbarMessageService(zone);
 
       mobileToolbarService = {
-         getShowingActions: jest.fn(),
-         getMoreActions: jest.fn()
+         getShowingActions: vi.fn(),
+         getMoreActions: vi.fn()
       };
 
       composerRecentService = {
          currentUser: null,
-         recentlyViewedChange: jest.fn(),
-         removeRecentlyViewed: jest.fn(),
-         addRecentlyViewed: jest.fn(),
-         removeNonExistItems: jest.fn()
+         recentlyViewedChange: vi.fn(),
+         removeRecentlyViewed: vi.fn(),
+         addRecentlyViewed: vi.fn(),
+         removeNonExistItems: vi.fn()
       };
 
       pageTabService = {
-         updateTabLabel: jest.fn(),
-         getDrillTabsTop: jest.fn().mockReturnValue(observableOf(false)),
+         updateTabLabel: vi.fn(),
+         getDrillTabsTop: vi.fn().mockReturnValue(observableOf(false)),
       };
 
       pagingControlService = {};
       globalSubmitService = {
-         updateState: jest.fn(),
-         globalSubmit: jest.fn(),
-         updateSelections: jest.fn(),
-         emitUpdateSelections: jest.fn
+         updateState: vi.fn(),
+         globalSubmit: vi.fn(),
+         updateSelections: vi.fn(),
+         emitUpdateSelections: vi.fn
       };
       selectionMobileService = {
-         hasAutoMaxMode: jest.fn(),
-         resetSelectionMaxMode: jest.fn(),
-         toggleSelectionMaxMode: jest.fn(),
+         hasAutoMaxMode: vi.fn(),
+         resetSelectionMaxMode: vi.fn(),
+         toggleSelectionMaxMode: vi.fn(),
          maxSelectionChanged: observableOf({})
       };
       miniToolbarService = {
-         hideMiniToolbar: jest.fn(),
-         isMiniToolbarHidden: jest.fn(),
-         hiddenFreeze: jest.fn(),
-         hiddenUnfreeze: jest.fn(),
-         isMouseVisited: jest.fn(),
-         mouseVisit: jest.fn(),
-         resetMiniToolbarHidden: jest.fn()
+         hideMiniToolbar: vi.fn(),
+         isMiniToolbarHidden: vi.fn(),
+         hiddenFreeze: vi.fn(),
+         hiddenUnfreeze: vi.fn(),
+         isMouseVisited: vi.fn(),
+         mouseVisit: vi.fn(),
+         resetMiniToolbarHidden: vi.fn()
       };
       assetLoadingService = {
-         isLoading: jest.fn(),
-         setLoading: jest.fn()
+         isLoading: vi.fn(),
+         setLoading: vi.fn()
       };
       viewContainerRef = {
-         element: jest.fn(),
+         element: vi.fn(),
       };
       baseHrefService = {
-         getBaseHref: jest.fn(),
+         getBaseHref: vi.fn(),
       };
       timerService = {
-         defer: jest.fn((fn) => {
+         defer: vi.fn((fn) => {
             fn();
          })
       };
 
 
-      window.IntersectionObserver = jest.fn().mockImplementation(() => ({
+      window.IntersectionObserver = vi.fn().mockImplementation(() => ({
          observe: () => {},
          disconnect: () => {}
       }));
@@ -387,7 +387,7 @@ describe("ViewerApp Unit Tests", () => {
    it("should remove the vsobject's actions when removing the vsobject", () => {
       const httpClient = TestBed.inject(HttpClient);
       const tooltipConfig = TestBed.inject(NgbTooltipConfig);
-      const currentUserService = { getPortalCurrentUser: jest.fn().mockReturnValue(observableOf(null)) };
+      const currentUserService = { getPortalCurrentUser: vi.fn().mockReturnValue(observableOf(null)) };
       const viewerApp = new ViewerAppComponent(
          viewsheetClientService, null, null, null, null, null, null, null,
          new NgbDatepickerConfig(), null, actionFactory, httpClient, null, formDataService,
@@ -440,7 +440,7 @@ describe("ViewerApp Unit Tests", () => {
    // Bug #16961 should refresh scale to screen vs when viewer root pane size changes
    // @by jasonshobe, this test case is failing, but it is bad (testing implementation instead of
    // behavior) so I'm disabling it.
-   xit("should refresh viewsheet on viewer root resize", waitForAsync(() => {
+   it.skip("should refresh viewsheet on viewer root resize", waitForAsync(() => {
       const fixture: ComponentFixture<ViewerAppComponent> = TestBed.createComponent(ViewerAppComponent);
       fixture.componentInstance.toolbarVisible = true;
       fixture.componentInstance.preview = true;
@@ -450,10 +450,10 @@ describe("ViewerApp Unit Tests", () => {
       fixture.componentInstance.active = true;
       fixture.detectChanges();
 
-      const onViewerRootResize = jest.spyOn(fixture.componentInstance, "onViewerRootResize");
-      const refreshViewsheet = jest.spyOn(fixture.componentInstance, "refreshViewsheet");
+      const onViewerRootResize = vi.spyOn(fixture.componentInstance, "onViewerRootResize");
+      const refreshViewsheet = vi.spyOn(fixture.componentInstance, "refreshViewsheet");
       fixture.componentInstance.viewerRoot.nativeElement.style.height = "200px";
-      const sendEvent = jest.spyOn(viewsheetClientService, "sendEvent");
+      const sendEvent = vi.spyOn(viewsheetClientService, "sendEvent");
       sendEvent.mockImplementation(() => {});
 
       fixture.detectChanges();
@@ -487,7 +487,7 @@ describe("ViewerApp Unit Tests", () => {
       expect(newVisibleButtonCount).toBe(visibleButtonCount + 1);
    });
 
-   xit("should open preview layout with scaled size", () => { // broken test
+   it.skip("should open preview layout with scaled size", () => { // broken test
       const fixture: ComponentFixture<ViewerAppComponent> = TestBed.createComponent(ViewerAppComponent);
       fixture.componentInstance.preview = true;
       fixture.componentInstance.runtimeId = "Foobar";
@@ -498,7 +498,7 @@ describe("ViewerApp Unit Tests", () => {
       fixture.componentInstance["scaleToScreen"] = true;
       fixture.componentInstance.active = true;
 
-      const sendEvent = jest.spyOn(viewsheetClientService, "sendEvent");
+      const sendEvent = vi.spyOn(viewsheetClientService, "sendEvent");
       sendEvent.mockImplementation(() => {});
 
       fixture.detectChanges();
@@ -536,7 +536,7 @@ describe("ViewerApp Unit Tests", () => {
          TestBed.createComponent(ViewerAppComponent);
 
       modelService.getModel.mockImplementation(() => observableOf(true));
-      let showConfirmDialog = jest.spyOn(ComponentTool, "showConfirmDialog");
+      let showConfirmDialog = vi.spyOn(ComponentTool, "showConfirmDialog");
       showConfirmDialog.mockImplementation(() => Promise.resolve("ok"));
 
       fixture.componentInstance.closeViewsheet();
@@ -545,7 +545,7 @@ describe("ViewerApp Unit Tests", () => {
       expect(showConfirmDialog.mock.calls[0][2]).toBe("_#(js:common.warnUnsavedChanges)");
    });
 
-   it("should send and receive viewer toolbar window messages", done => {
+   it("should send and receive viewer toolbar window messages", () => new Promise<void>((done) => {
       window["globalPostParams"] = null; // to resolve global var
       modelService.getModel.mockImplementation(() => observableOf([]));
 
@@ -578,10 +578,10 @@ describe("ViewerApp Unit Tests", () => {
          // change identifier so event is rejected by the service w/o error.
          messageFromService.data.identifier = null;
 
-         viewer.editViewsheet = jest.fn();
+         viewer.editViewsheet = vi.fn();
          window.postMessage(messageCommand, "*");
       });
 
       fixture.detectChanges();
-   });
+   }));
 });

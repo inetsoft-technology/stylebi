@@ -73,12 +73,12 @@ describe("Schedule Task Dialog Unit Test", () => {
    let fixture: ComponentFixture<TestApp>;
    let scheduleTaskDialog: ScheduleTaskDialog;
 
-   let httpService = { get: jest.fn(), post: jest.fn() };
+   let httpService = { get: vi.fn(), post: vi.fn() };
    let responseObservable = new BehaviorSubject(new Subject());
    httpService.get.mockImplementation(() => responseObservable);
    httpService.post.mockImplementation(() => responseObservable);
 
-   let scheduleTaskNamesService: any = { getAllTasks: jest.fn() };
+   let scheduleTaskNamesService: any = { getAllTasks: vi.fn() };
    let allTasksObservable = new BehaviorSubject([]);
    scheduleTaskNamesService.getAllTasks.mockImplementation(() => allTasksObservable);
 

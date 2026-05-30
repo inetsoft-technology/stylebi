@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { CommonModule } from "@angular/common";
 import { HttpClientTestingModule } from "@angular/common/http/testing";
 import { Component, NO_ERRORS_SCHEMA } from "@angular/core";
@@ -50,7 +51,8 @@ import createMockWSAssemblyModel = TestUtils.createMockWSAssemblyModel;
    template: `
      <variable-thumbnail [variable]="variable"></variable-thumbnail>
    `,
-   standalone: true
+   standalone: true,
+   imports: [VariableThumbnail]
 })
 class WSAssemblyThumbnailTest {
    variable: WSVariableAssembly;
@@ -59,9 +61,8 @@ class WSAssemblyThumbnailTest {
 describe("WSAssemblyThumbnail Tests", () => {
    let dialogService: any;
 
-
    beforeEach(() => {
-      dialogService = { open: jest.fn() };
+      dialogService = { open: vi.fn() };
       TestBed.configureTestingModule({
          imports: [
             NgbModule,
@@ -97,7 +98,7 @@ describe("WSAssemblyThumbnail Tests", () => {
       TestBed.compileComponents();
    });
 
-   xit("should have valid width/height before and after assembly changes", fakeAsync(() => { // broken test
+   it.skip("should have valid width/height before and after assembly changes", fakeAsync(() => { // broken test
       const originalAssembly: WSVariableAssembly = {
          ...createMockWSAssemblyModel(),
          name: "first assembly",

@@ -46,13 +46,13 @@ describe("Calc Aggregate Option Unit Test", () => {
    };
 
    let cellBinding = new CellBindingInfo();
-   let bindingService = { getBindingModel: jest.fn(() => createMockCalcTableBindingModel()),
-      isGrayedOutField: jest.fn()};
+   let bindingService = { getBindingModel: vi.fn(() => createMockCalcTableBindingModel()),
+      isGrayedOutField: vi.fn()};
    let editorService = {
-      getCellBinding: jest.fn(() => cellBinding),
-      hasRowGroup: jest.fn(),
-      hasColGroup: jest.fn(),
-      getGroupNum: jest.fn()
+      getCellBinding: vi.fn(() => cellBinding),
+      hasRowGroup: vi.fn(),
+      hasColGroup: vi.fn(),
+      getGroupNum: vi.fn()
    };
 
    let fixture: ComponentFixture<CalcAggregateOption>;

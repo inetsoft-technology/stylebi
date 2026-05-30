@@ -58,7 +58,7 @@ class TestApp {
 }
 
 describe("Add Parameter Dialog Unit Test", () => {
-   let ngbService = { open: jest.fn() };
+   let ngbService = { open: vi.fn() };
    let fixture: ComponentFixture<TestApp>;
    let addParaDialog: AddParameterDialog;
 
@@ -109,7 +109,7 @@ describe("Add Parameter Dialog Unit Test", () => {
       fixture.detectChanges();
 
       let okBtn = fixture.debugElement.query(By.css("button.btn.btn-primary")).nativeElement;
-      let showConfirmDialog = jest.spyOn(ComponentTool, "showConfirmDialog");
+      let showConfirmDialog = vi.spyOn(ComponentTool, "showConfirmDialog");
       showConfirmDialog.mockImplementation(() => Promise.resolve("ok"));
       okBtn.click();
       expect(showConfirmDialog).toHaveBeenCalled();
@@ -189,7 +189,7 @@ describe("Add Parameter Dialog Unit Test", () => {
    });
 
    //Bug #21445 can create time parameter
-   xit("create time parameters", () => {
+   it.skip("create time parameters", () => {
       fixture.componentInstance.index = -1;
       fixture.componentInstance.parameters = [];
       fixture.detectChanges();

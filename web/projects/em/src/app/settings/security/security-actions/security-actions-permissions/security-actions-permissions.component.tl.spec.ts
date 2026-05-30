@@ -37,6 +37,7 @@
  *   - restore() emits unsavedChanges=false and closed, then restores a clean model snapshot.
  */
 
+import { type Mock } from "vitest";
 import { HttpErrorResponse } from "@angular/common/http";
 import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { MatSnackBar } from "@angular/material/snack-bar";
@@ -86,18 +87,18 @@ interface RenderOpts {
    action?: ActionTreeNode | null;
    initialModel?: ResourcePermissionModel;
    savedModel?: ResourcePermissionModel;
-   getPermissions?: jest.Mock<Observable<ResourcePermissionModel>, any[]>;
-   setPermissions?: jest.Mock<Observable<ResourcePermissionModel>, any[]>;
+   getPermissions?: Mock<(...args: any[]) => Observable<ResourcePermissionModel>>;
+   setPermissions?: Mock<(...args: any[]) => Observable<ResourcePermissionModel>>;
 }
 
 async function renderComponent(opts: RenderOpts = {}) {
    const initialModel = opts.initialModel ?? makeModel();
    const savedModel = opts.savedModel ?? initialModel;
    const actionServiceSpy = {
-      getPermissions: opts.getPermissions ?? jest.fn().mockReturnValue(of(initialModel)),
-      setPermissions: opts.setPermissions ?? jest.fn().mockReturnValue(of(savedModel)),
+      getPermissions: opts.getPermissions ?? vi.fn().mockReturnValue(of(initialModel)),
+      setPermissions: opts.setPermissions ?? vi.fn().mockReturnValue(of(savedModel)),
    };
-   const snackBarSpy = { open: jest.fn() };
+   const snackBarSpy = { open: vi.fn() };
 
    const componentProperties: Partial<SecurityActionsPermissionsComponent> = {};
 
@@ -240,7 +241,7 @@ describe("SecurityActionsPermissionsComponent - permission service error reporti
    it("should show snackbar and rethrow the original error from handleSetPermissionsError", async () => {
       const { comp, snackBarSpy } = await renderComponent();
       const error = new HttpErrorResponse({ status: 500, statusText: "Server Error", url: "/set" });
-      const consoleSpy = jest.spyOn(console, "error").mockImplementation(() => {});
+      const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
       let thrownError: unknown = null;
 
       (comp as any).handleSetPermissionsError(error).subscribe({

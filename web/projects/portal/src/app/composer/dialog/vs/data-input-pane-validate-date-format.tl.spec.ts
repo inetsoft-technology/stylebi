@@ -104,13 +104,13 @@ describe("DataInputPane — validateDateFormat — char/token rules [Group 1, Ri
       expect(emitted).toEqual([false]);             // emitter fires once with correct value
 
       // Same formatted output for two dates must still be invalid (r1 === r2 branch).
-      const transformSpy = jest.spyOn((comp as any).datePipe, "transform").mockReturnValue("same");
+      const transformSpy = vi.spyOn((comp as any).datePipe, "transform").mockReturnValue("same");
       comp.validateDateFormat("yyyy-MM-dd");
       expect(comp.dateFormatInvalid).toBe(true);
       transformSpy.mockRestore();
 
       // DatePipe throwing should be caught and mapped to invalid=true.
-      const throwSpy = jest.spyOn((comp as any).datePipe, "transform").mockImplementation(() => {
+      const throwSpy = vi.spyOn((comp as any).datePipe, "transform").mockImplementation(() => {
          throw new Error("boom");
       });
       comp.validateDateFormat("yyyy-MM-dd");

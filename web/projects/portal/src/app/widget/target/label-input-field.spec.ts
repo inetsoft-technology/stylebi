@@ -44,10 +44,10 @@ describe("Label Input Field Test", () => {
    let fixture: ComponentFixture<LabelInputField>;
 
    beforeEach(() => {
-      changeDetectorRef = { detectChanges: jest.fn() };
+      changeDetectorRef = { detectChanges: vi.fn() };
       domService = {
-         requestRead: jest.fn(),
-         cancelAnimationFrame: jest.fn()
+         requestRead: vi.fn(),
+         cancelAnimationFrame: vi.fn()
       };
 
       TestBed.configureTestingModule({

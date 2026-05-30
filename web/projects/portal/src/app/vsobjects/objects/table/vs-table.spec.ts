@@ -203,31 +203,31 @@ describe("VSTable Unit Tests", () => {
    let timerService: any;
 
    beforeEach(waitForAsync(() => {
-      viewsheetClientService = { sendEvent: jest.fn() };
+      viewsheetClientService = { sendEvent: vi.fn() };
       viewsheetClientService.commands = observableOf([]);
       viewsheetClientService.runtimeId = "vs1_111";
       dndService = {};
       viewDataService = {};
-      dataTipService = { isDataTip: jest.fn(), isDataTipSource: jest.fn() };
+      dataTipService = { isDataTip: vi.fn(), isDataTipSource: vi.fn() };
       dataTipService.isDataTip.mockImplementation(() => false);
-      downloadService = { download: jest.fn() };
-      debounceService = { debounce: jest.fn() };
-      modelService = { sendModel: jest.fn() };
+      downloadService = { download: vi.fn() };
+      debounceService = { debounce: vi.fn() };
+      modelService = { sendModel: vi.fn() };
       contextProvider = { viewer: true };
-      adhocFilterService = { showFilter: jest.fn(), adhocFilterShowing: false };
+      adhocFilterService = { showFilter: vi.fn(), adhocFilterShowing: false };
       router = {
-         navigate: jest.fn(),
+         navigate: vi.fn(),
          events: new Subject<any>()
       };
       richTextService = {
-         showAnnotationDialog: jest.fn()
+         showAnnotationDialog: vi.fn()
       };
       vsTabService = { };
       vsTabService.tabDeselected = observableOf(null);
 
-      verticalScrollTooltip = { isOpen: jest.fn() };
+      verticalScrollTooltip = { isOpen: vi.fn() };
       timerService = {
-         defer: jest.fn((fn) => {
+         defer: vi.fn((fn) => {
             fn();
          })
       };
@@ -375,7 +375,7 @@ describe("VSTable Unit Tests", () => {
    });
 
    // Bug #10474 apply underline and strikethrough decoration on table cells
-   it("should have underline and line-through text-decoration", (done) => {
+   it("should have underline and line-through text-decoration", () => new Promise<void>((done) => {
       let fixture1: ComponentFixture<VSTable> = TestBed.createComponent(VSTable);
       fixture1.componentInstance.model = createModel(300, [30, 30, 30], 4);
       fixture1.componentInstance.model.visible = true;
@@ -400,10 +400,10 @@ describe("VSTable Unit Tests", () => {
 
          done();
       });
-   });
+   }));
 
    //Bug #18422, highlight dialog can not open
-   it("should fire event when highlight action is triggered", (done) => {
+   it("should fire event when highlight action is triggered", () => new Promise<void>((done) => {
       const model = createModel(300, [30, 30, 30], 4);
       const tableActions = new TableActions(model, ViewerContextProviderFactory(false));
       let fixture: ComponentFixture<VSTable> = TestBed.createComponent(VSTable);
@@ -417,7 +417,7 @@ describe("VSTable Unit Tests", () => {
       });
 
       tableActions.menuActions[1].actions[1].action(null);
-   });
+   }));
 
    //Bug #20169
    it("should clear flyover when unselect cell", () => {
@@ -436,7 +436,7 @@ describe("VSTable Unit Tests", () => {
    });
 
    //Bug #21413, Bug #21414
-   xit("should reload model on cancel action", () => { // broken test
+   it.skip("should reload model on cancel action", () => { // broken test
       let model = createModel(300, [30, 30, 30], 4);
       model.selectedData = new Map<number, number[]>();
       model.selectedData.set(1, [1]);
@@ -453,7 +453,7 @@ describe("VSTable Unit Tests", () => {
       formService.addObject(formTable);
       fixture.detectChanges();
 
-      let showMessageDialog = jest.spyOn(ComponentTool, "showMessageDialog");
+      let showMessageDialog = vi.spyOn(ComponentTool, "showMessageDialog");
       showMessageDialog.mockImplementation(() => Promise.resolve("no"));
 
       fixture.componentInstance.changeCellText("aa", cellModel);

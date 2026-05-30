@@ -51,9 +51,8 @@ import { MatMenuModule } from "@angular/material/menu";
 import { DomSanitizer } from "@angular/platform-browser";
 import { ErrorStateMatcher } from "@angular/material/core";
 import { Subject, EMPTY, of } from "rxjs";
-import { ActivatedRoute } from "@angular/router";
 
-import { it } from "@jest/globals";
+import { ActivatedRoute } from "@angular/router";
 import { server } from "../../../../../../../mocks/server";
 import { ScheduleTaskListComponent, DistributionType } from "./schedule-task-list.component";
 import { PageHeaderService } from "../../../page-header/page-header.service";
@@ -149,11 +148,11 @@ async function renderComponent() {
       schemas: [NO_ERRORS_SCHEMA],
       providers: [
          { provide: PageHeaderService, useValue: { title: "", currentOrgId: null } },
-         { provide: MatDialog, useValue: { open: jest.fn().mockReturnValue({ afterClosed: () => of(false) }) } },
-         { provide: MatSnackBar, useValue: { open: jest.fn() } },
-         { provide: MatBottomSheet, useValue: { open: jest.fn() } },
+         { provide: MatDialog, useValue: { open: vi.fn().mockReturnValue({ afterClosed: () => of(false) }) } },
+         { provide: MatSnackBar, useValue: { open: vi.fn() } },
+         { provide: MatBottomSheet, useValue: { open: vi.fn() } },
          { provide: ScheduleUsersService, useValue: { getEmailUsers: () => of([]), getEmailGroups: () => of([]) } },
-         { provide: DownloadService, useValue: { download: jest.fn() } },
+         { provide: DownloadService, useValue: { download: vi.fn() } },
          { provide: ActivatedRoute, useValue: { queryParamMap: of({ get: () => null }) } },
          { provide: DomSanitizer, useValue: { bypassSecurityTrustResourceUrl: (url: string) => url } },
          { provide: ErrorStateMatcher, useValue: { isErrorState: () => false } },
