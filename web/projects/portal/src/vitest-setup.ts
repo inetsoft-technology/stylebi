@@ -30,9 +30,9 @@ import { ComponentFixture, TestBed } from "@angular/core/testing";
 
 // Under @angular-builders/jest, Angular's NG0100 (ExpressionChangedAfterItHasBeenCheckedError)
 // was surfaced as a console.error but not as a test failure. In Angular 21 + Vitest, this
-// error is thrown as a RuntimeError both from fixture.detectChanges() and from zone-triggered
-// CD cycles. Patch fixture.detectChanges() to catch and suppress NG0100, then re-run without
-// the no-changes check to complete any pending binding updates.
+// error is thrown as a RuntimeError from fixture.detectChanges(). Patch detectChanges to
+// catch and suppress NG0100, then re-run without the no-changes check to complete any
+// pending binding updates. Matches the legacy non-fatal Jest behavior.
 // TODO: fix the underlying CD ordering issues in specs and remove this patch.
 const _origDetectChanges = (ComponentFixture.prototype as any).detectChanges;
 (ComponentFixture.prototype as any).detectChanges = function(checkNoChanges: boolean = true) {

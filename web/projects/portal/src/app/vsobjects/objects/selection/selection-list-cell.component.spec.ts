@@ -193,6 +193,7 @@ describe("Selection List Cell Test", () => {
       fixture.detectChanges();
 
       fixture.whenStable().then(() => {
+         fixture.detectChanges();
          cell = fixture.debugElement.query(By.css("div.selection-list-measure-text"));
          expect(cell).toBe(null);
          done();
@@ -216,6 +217,7 @@ describe("Selection List Cell Test", () => {
       fixture.detectChanges();
 
       fixture.whenStable().then(() => {
+         fixture.detectChanges();
          cell = fixture.debugElement.query(By.css("div.selection-list-bar-outer"));
          expect(cell).toBe(null);
          done();
@@ -230,6 +232,7 @@ describe("Selection List Cell Test", () => {
       fixture.detectChanges();
 
       fixture.whenStable().then(() => {
+         fixture.detectChanges();
          cell = fixture.nativeElement.querySelector("div.selection-list-measure-text");
          expect(cell.style["text-decoration"]).toEqual("underline line-through");
          done();
@@ -245,6 +248,7 @@ describe("Selection List Cell Test", () => {
       vsSelectionComponent.model.measureFormats["Measure Text0"] = vsformatModel;
       vsSelectionComponent.model.measureFormats["Measure Bar0"] = vsformatModel;
       selectionListCell.ngOnInit();
+      fixture.detectChanges();
       fixture.detectChanges();
 
       let cellText = fixture.nativeElement.querySelector("div.selection-list-measure-text");
@@ -656,6 +660,7 @@ describe("Selection List Cell Test", () => {
          }
       };
       selectionListCell.cellFormat = vsformats;
+      fixture.detectChanges();
       fixture.detectChanges();
 
       let listCell = fixture.debugElement.queryAll(By.css("div.selection-list-cell"))[0];
