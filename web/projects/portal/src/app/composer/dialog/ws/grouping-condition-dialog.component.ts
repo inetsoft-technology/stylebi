@@ -36,7 +36,7 @@ import { BaseResizeableDialogComponent } from "../../../vsobjects/dialog/base-re
 import { ConditionPane } from "../../../widget/condition/condition-pane.component";
 import { ConditionDialogService } from "../../../widget/condition/condition-dialog.service";
 import { Condition } from "../../../common/data/condition/condition";
-import { NgIf } from "@angular/common";
+
 import { InputTrimDirective } from "../../../widget/directive/input-trim.directive";
 import { EnterSubmitDirective } from "../../../widget/directive/enter-submit.directive";
 import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
@@ -45,14 +45,13 @@ import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.
     selector: "grouping-condition-dialog",
     templateUrl: "grouping-condition-dialog.component.html",
     imports: [
-        ModalHeaderComponent,
-        EnterSubmitDirective,
-        FormsModule,
-        ReactiveFormsModule,
-        InputTrimDirective,
-        NgIf,
-        ConditionPane,
-    ]
+    ModalHeaderComponent,
+    EnterSubmitDirective,
+    FormsModule,
+    ReactiveFormsModule,
+    InputTrimDirective,
+    ConditionPane
+]
 })
 export class GroupingConditionDialog extends BaseResizeableDialogComponent implements OnInit {
    @Input() model: GroupingDialogModel;

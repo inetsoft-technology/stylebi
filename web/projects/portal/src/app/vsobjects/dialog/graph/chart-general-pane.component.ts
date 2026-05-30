@@ -23,20 +23,19 @@ import { TipPane } from "./tip-pane.component";
 import { SizePositionPane } from "../size-position-pane.component";
 import { PaddingPane } from "../padding-pane.component";
 import { TitlePropPane } from "../title-prop-pane.component";
-import { NgIf } from "@angular/common";
+
 import { GeneralPropPane } from "../general-prop-pane.component";
 
 @Component({
     selector: "chart-general-pane",
     templateUrl: "chart-general-pane.component.html",
     imports: [
-        GeneralPropPane,
-        NgIf,
-        TitlePropPane,
-        TipPane,
-        PaddingPane,
-        SizePositionPane,
-    ]
+    GeneralPropPane,
+    TitlePropPane,
+    TipPane,
+    PaddingPane,
+    SizePositionPane
+]
 })
 export class ChartGeneralPane {
    @Input() vsId: string;

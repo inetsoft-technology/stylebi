@@ -44,7 +44,7 @@ import { LogicalModelColumnEditor } from "./column-attribute-editor/logical-mode
 import { LogicalModelEntityEditor } from "./entity-editor/logical-model-entity-editor.component";
 import { LoadingIndicatorPaneComponent } from "../../common-components/loading-indicator-pane/loading-indicator-pane.component";
 import { ElementTreeNode } from "./element-tree-node/element-tree-node.component";
-import { NgFor, NgIf, NgSwitch, NgSwitchCase } from "@angular/common";
+
 import { FixedDropdownDirective } from "../../../../../../widget/fixed-dropdown/fixed-dropdown.directive";
 import { SplitPane } from "../../../../../../widget/split-pane/split-pane.component";
 
@@ -54,7 +54,7 @@ const LOGICAL_MODEL_CHECK_DEPENDENCIES_URI: string = "../api/data/logicalmodel/c
     selector: "logical-model-property-pane",
     templateUrl: "logical-model-property-pane.component.html",
     styleUrls: ["../database-model-pane.scss", "logical-model-property-pane.component.scss"],
-    imports: [SplitPane, FixedDropdownDirective, NgFor, ElementTreeNode, LoadingIndicatorPaneComponent, NgIf, NgSwitch, NgSwitchCase, LogicalModelEntityEditor, LogicalModelColumnEditor, LogicalModelExpressionEditor]
+    imports: [SplitPane, FixedDropdownDirective, ElementTreeNode, LoadingIndicatorPaneComponent, LogicalModelEntityEditor, LogicalModelColumnEditor, LogicalModelExpressionEditor]
 })
 export class LogicalModelPropertyPane implements OnInit {
    @Input() databaseName: string;

@@ -33,7 +33,7 @@ import { HttpClient } from "@angular/common/http";
 import { Tool } from "../../../../../../../shared/util/tool";
 import { CheckDuplicateResponse } from "../../../data/commands/check-duplicate-response";
 import { FormValidators } from "../../../../../../../shared/util/form-validators";
-import { NgIf } from "@angular/common";
+
 
 const TASK_FOLDER_CHECK_DUPLICATE_URI: string = "../api/portal/schedule/rename/checkDuplicate";
 
@@ -41,7 +41,7 @@ const TASK_FOLDER_CHECK_DUPLICATE_URI: string = "../api/portal/schedule/rename/c
     selector: "c-edit-task-folder-dialog",
     templateUrl: "./edit-task-folder-dialog.component.html",
     styleUrls: ["./edit-task-folder-dialog.component.scss"],
-    imports: [FormsModule, ReactiveFormsModule, NgIf]
+    imports: [FormsModule, ReactiveFormsModule]
 })
 export class EditTaskFolderDialog implements OnInit, OnChanges, AfterViewInit {
   @Input() model: EditTaskFolderDialogModel;

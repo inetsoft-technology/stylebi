@@ -84,7 +84,7 @@ import {
 import { AssetConstants } from "../../../common/data/asset-constants";
 import { AssetDescriptionComponent } from "../data-datasource-browser/asset-description/asset-description.component";
 import { DataFolderListViewComponent } from "./data-folder-list-view/data-folder-list-view.component";
-import { NgClass, NgIf } from "@angular/common";
+import { NgClass } from "@angular/common";
 
 const FOLDER_URI: string = "../api/data/folders";
 const DATA_URI: string = "../api/data/datasets";
@@ -122,7 +122,7 @@ export interface DeleteDataSetResponse {
     templateUrl: "data-folder-browser.component.html",
     styleUrls: ["data-folder-browser.component.scss"],
     providers: [ViewsheetClientService],
-    imports: [NgClass, FormsModule, NgbTypeahead, NgbDropdown, NgIf, NgbDropdownToggle, NgbDropdownMenu, DataFolderListViewComponent, AssetDescriptionComponent, DataNotificationsComponent]
+    imports: [NgClass, FormsModule, NgbTypeahead, NgbDropdown, NgbDropdownToggle, NgbDropdownMenu, DataFolderListViewComponent, AssetDescriptionComponent, DataNotificationsComponent]
 })
 export class DataFolderBrowserComponent extends CommandProcessor implements OnInit, OnDestroy {
    datasets: WorksheetBrowserInfo[] = [];

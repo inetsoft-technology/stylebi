@@ -43,7 +43,7 @@ import { ComponentTool } from "../../common/util/component-tool";
 import { GuiTool } from "../../common/util/gui-tool";
 import { JunctionOperatorPipe } from "./junction-operator.pipe";
 import { ConditionPipe } from "./condition.pipe";
-import { NgFor, NgIf } from "@angular/common";
+
 import { FormsModule } from "@angular/forms";
 import { ConditionItemPane } from "./condition-item-pane.component";
 
@@ -51,7 +51,7 @@ import { ConditionItemPane } from "./condition-item-pane.component";
     selector: "condition-pane",
     templateUrl: "condition-pane.component.html",
     styleUrls: ["condition-pane.component.scss"],
-    imports: [ConditionItemPane, FormsModule, NgFor, NgIf, ConditionPipe, JunctionOperatorPipe]
+    imports: [ConditionItemPane, FormsModule, ConditionPipe, JunctionOperatorPipe]
 })
 export class ConditionPane implements OnInit {
    JunctionOperatorType = JunctionOperatorType;

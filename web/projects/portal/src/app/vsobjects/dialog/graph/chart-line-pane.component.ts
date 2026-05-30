@@ -22,13 +22,13 @@ import { FormValidators } from "../../../../../../shared/util/form-validators";
 import { MultiSelect } from "../../../widget/multi-select/multi-select.component";
 import { ColorEditor } from "../../../widget/color-picker/color-editor.component";
 import { GridLineDropdown } from "../../../widget/format/grid-line-dropdown.component";
-import { NgIf, NgFor } from "@angular/common";
+
 
 @Component({
     selector: "chart-line-pane",
     templateUrl: "chart-line-pane.component.html",
     styleUrls: ["chart-line-pane.component.scss"],
-    imports: [FormsModule, ReactiveFormsModule, NgIf, GridLineDropdown, ColorEditor, NgFor, MultiSelect]
+    imports: [FormsModule, ReactiveFormsModule, GridLineDropdown, ColorEditor, MultiSelect]
 })
 export class ChartLinePane implements OnInit {
    @Input() model: ChartLinePaneModel;

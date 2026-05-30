@@ -27,7 +27,7 @@ import {
 import { SortColumnEditorModel } from "../../data/ws/sort-column-editor-model";
 import { Tool } from "../../../../../../shared/util/tool";
 import { FormsModule } from "@angular/forms";
-import { NgFor } from "@angular/common";
+
 
 enum SortEnum {
    NONE = 0,
@@ -50,7 +50,7 @@ interface SortRef {
     selector: "sort-column-editor",
     templateUrl: "sort-column-editor.component.html",
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [NgFor, FormsModule]
+    imports: [FormsModule]
 })
 export class SortColumnEditor implements OnChanges {
    public SortEnum = SortEnum;

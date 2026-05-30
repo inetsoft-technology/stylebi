@@ -29,7 +29,7 @@ import { AssetTreeComponent } from "../../../../widget/asset-tree/asset-tree.com
 import { DefaultFocusDirective } from "../../../../widget/directive/default-focus.directive";
 import { InputTrimDirective } from "../../../../widget/directive/input-trim.directive";
 import { EnterSubmitDirective } from "../../../../widget/directive/enter-submit.directive";
-import { NgIf } from "@angular/common";
+
 import { ModalHeaderComponent } from "../../../../widget/modal-header/modal-header.component";
 
 const CONFIRM_MESSAGE = {
@@ -42,7 +42,7 @@ const CONFIRM_MESSAGE = {
 @Component({
     selector: "save-table-style-dialog",
     templateUrl: "save-table-style-dialog.component.html",
-    imports: [ModalHeaderComponent, NgIf, EnterSubmitDirective, FormsModule, ReactiveFormsModule, InputTrimDirective, DefaultFocusDirective, AssetTreeComponent]
+    imports: [ModalHeaderComponent, EnterSubmitDirective, FormsModule, ReactiveFormsModule, InputTrimDirective, DefaultFocusDirective, AssetTreeComponent]
 })
 export class SaveTableStyleDialog implements OnInit {
    @Input() defaultFolder: AssetEntry;

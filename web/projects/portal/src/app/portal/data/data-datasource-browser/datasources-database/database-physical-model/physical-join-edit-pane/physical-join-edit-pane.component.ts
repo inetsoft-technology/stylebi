@@ -29,7 +29,7 @@ import { GraphColumnInfo } from "../../../../model/datasources/database/physical
 import { JoinModel } from "../../../../model/datasources/database/physical-model/join-model";
 import { JoinThumbnailService } from "../../common-components/join-thumbnail.service";
 import { EditJoinTableComponent } from "../../common-components/edit-join-table.component";
-import { NgIf, NgFor } from "@angular/common";
+
 
 const HEARTBEAT_URI = "../api/data/physicalmodel/heartbeat";
 
@@ -39,7 +39,7 @@ const HEARTBEAT_URI = "../api/data/physicalmodel/heartbeat";
     styleUrls: ["physical-join-edit-pane.component.scss",
         "../../../../../../composer/gui/ws/jsplumb/jsplumb-shared.scss"],
     providers: [JoinThumbnailService],
-    imports: [NgIf, NgFor, EditJoinTableComponent]
+    imports: [EditJoinTableComponent]
 })
 export class PhysicalJoinEditPane implements
    OnChanges, OnInit, AfterViewInit, AfterViewChecked, OnDestroy

@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { NgIf } from "@angular/common";
+
 import { HttpClient, HttpParams } from "@angular/common/http";
 import { Component, EventEmitter, Inject, Input, OnInit, Output, DOCUMENT } from "@angular/core";
 import { NgbModal, NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, NgbNavOutlet } from "@ng-bootstrap/ng-bootstrap";
@@ -48,7 +48,7 @@ const CHECK_CONDITION_TRAP_URI = "../api/composer/worksheet/check-condition-trap
 @Component({
     selector: "assembly-condition-dialog",
     templateUrl: "assembly-condition-dialog.component.html",
-    imports: [ModalHeaderComponent, NgIf, EnterSubmitDirective, NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, FormsModule, SimpleConditionPane, AdvancedConditionPane, MVConditionPane, NgbNavOutlet]
+    imports: [ModalHeaderComponent, EnterSubmitDirective, NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, FormsModule, SimpleConditionPane, AdvancedConditionPane, MVConditionPane, NgbNavOutlet]
 })
 export class AssemblyConditionDialog implements OnInit {
    @Input() assemblyName: string;

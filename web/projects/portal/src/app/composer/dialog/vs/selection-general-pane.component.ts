@@ -25,7 +25,7 @@ import { TreeNodeModel } from "../../../widget/tree/tree-node-model";
 import { SelectionGeneralPaneModel } from "../../data/vs/selection-general-pane-model";
 import { SelectionTreePaneModel } from "../../data/vs/selection-tree-pane-model";
 import { SizePositionPane } from "../../../vsobjects/dialog/size-position-pane.component";
-import { NgIf, NgClass, NgFor } from "@angular/common";
+import { NgClass } from "@angular/common";
 import { TitlePropPane } from "../../../vsobjects/dialog/title-prop-pane.component";
 import { GeneralPropPane } from "../../../vsobjects/dialog/general-prop-pane.component";
 
@@ -33,15 +33,13 @@ import { GeneralPropPane } from "../../../vsobjects/dialog/general-prop-pane.com
     selector: "selection-general-pane",
     templateUrl: "selection-general-pane.component.html",
     imports: [
-        GeneralPropPane,
-        TitlePropPane,
-        FormsModule,
-        ReactiveFormsModule,
-        NgIf,
-        NgClass,
-        NgFor,
-        SizePositionPane,
-    ]
+    GeneralPropPane,
+    TitlePropPane,
+    FormsModule,
+    ReactiveFormsModule,
+    NgClass,
+    SizePositionPane
+]
 })
 export class SelectionGeneralPane implements OnInit, AfterViewInit {
    @Input() model: SelectionGeneralPaneModel;

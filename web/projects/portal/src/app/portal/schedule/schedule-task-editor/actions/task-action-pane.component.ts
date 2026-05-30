@@ -36,7 +36,7 @@ import { ScheduleTaskDialogModel } from "../../../../../../../shared/schedule/mo
 import { NotificationsComponent } from "../../../../widget/notifications/notifications.component";
 import { EditableTableComponent } from "../editable-table/editable-table.component";
 import { ActionAccordion } from "./action-accordian/action-accordion.component";
-import { NgIf } from "@angular/common";
+
 
 const ACTION_URI = "../api/portal/schedule/task/action";
 const EMAIL_AUTO_COMPLETE_KEY = LocalStorage.MAIL_HISTORY_KEY;
@@ -45,7 +45,7 @@ const EMAIL_AUTO_COMPLETE_KEY = LocalStorage.MAIL_HISTORY_KEY;
     selector: "task-action-pane",
     templateUrl: "task-action-pane.component.html",
     styleUrls: ["task-action-pane.component.scss"],
-    imports: [NgIf, FormsModule, ReactiveFormsModule, ActionAccordion, EditableTableComponent, NotificationsComponent]
+    imports: [FormsModule, ReactiveFormsModule, ActionAccordion, EditableTableComponent, NotificationsComponent]
 })
 export class TaskActionPane implements OnInit {
    @Input() executeAsGroup: boolean;

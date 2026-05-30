@@ -43,7 +43,7 @@ import { TreeNodeComponent } from "./tree-node.component";
 import { VirtualScrollTreeDatasource } from "./virtual-scroll-tree-datasource";
 import { OutOfZoneDirective } from "../directive/out-of-zone.directive";
 import { FormsModule } from "@angular/forms";
-import { NgIf } from "@angular/common";
+
 
 export enum TreeView {
    FULL_VIEW,
@@ -54,7 +54,7 @@ export enum TreeView {
     selector: "tree",
     templateUrl: "tree.component.html",
     styleUrls: ["./tree.component.scss"],
-    imports: [NgIf, FormsModule, OutOfZoneDirective, TreeNodeComponent]
+    imports: [FormsModule, OutOfZoneDirective, TreeNodeComponent]
 })
 export class TreeComponent implements OnInit, OnChanges, AfterViewChecked, AfterViewInit, OnDestroy {
    treeRef: TreeComponent = this;

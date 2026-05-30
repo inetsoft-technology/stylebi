@@ -30,13 +30,13 @@ import { DatePeriodModel } from "../../model/date-period-model";
 import { DynamicValueModel, ValueTypes } from "../../model/dynamic-value-model";
 import { DateComparisonService } from "../../util/date-comparison.service";
 import { DynamicValueEditorComponent } from "../../../widget/date-type-editor/dynamic-value-editor.component";
-import { NgFor, NgIf } from "@angular/common";
+
 
 @Component({
     selector: "date-comparison-custom-periods",
     templateUrl: "./date-comparison-custom-periods.component.html",
     styleUrls: ["./date-comparison-custom-periods.component.scss"],
-    imports: [NgFor, DynamicValueEditorComponent, NgIf]
+    imports: [DynamicValueEditorComponent]
 })
 export class DateComparisonCustomPeriodsComponent implements OnInit, OnChanges {
    @Input() customPeriodPaneModel: CustomPeriodPaneModel;

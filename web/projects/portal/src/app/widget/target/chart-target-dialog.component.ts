@@ -26,25 +26,24 @@ import { StatPanel } from "./stat-panel.component";
 import { UIContextService } from "../../common/services/ui-context.service";
 import { ComponentTool } from "../../common/util/component-tool";
 import { GraphTypes } from "../../common/graph-types";
-import { NgIf } from "@angular/common";
+
 import { ModalHeaderComponent } from "../modal-header/modal-header.component";
 
 @Component({
     selector: "chart-target-dialog",
     templateUrl: "chart-target-dialog.component.html",
     imports: [
-        ModalHeaderComponent,
-        NgIf,
-        NgbNav,
-        NgbNavItem,
-        NgbNavLink,
-        NgbNavLinkBase,
-        NgbNavContent,
-        LinePanel,
-        BandPanel,
-        StatPanel,
-        NgbNavOutlet,
-    ]
+    ModalHeaderComponent,
+    NgbNav,
+    NgbNavItem,
+    NgbNavLink,
+    NgbNavLinkBase,
+    NgbNavContent,
+    LinePanel,
+    BandPanel,
+    StatPanel,
+    NgbNavOutlet
+]
 })
 export class ChartTargetDialog implements OnInit {
    @Input() chartTarget: TargetInfo;

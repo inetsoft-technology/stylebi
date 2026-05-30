@@ -22,14 +22,14 @@ import { MaterializedModel } from "../../../../../../../shared/util/model/mv/mat
 import { NameLabelTuple } from "../../../../../../../shared/util/name-label-tuple";
 import { ComponentTool } from "../../../../common/util/component-tool";
 import { SortColumnDirective } from "../../../../widget/directive/sort-column.directive";
-import { NgFor, NgIf } from "@angular/common";
+
 import { FormsModule } from "@angular/forms";
 
 @Component({
     selector: "create-mv-pane",
     templateUrl: "./create-mv-pane.component.html",
     styleUrls: ["./create-mv-pane.component.scss"],
-    imports: [FormsModule, NgFor, SortColumnDirective, NgIf]
+    imports: [FormsModule, SortColumnDirective]
 })
 export class CreateMVPane implements OnInit {
    @Input() models: MaterializedModel[] = [];

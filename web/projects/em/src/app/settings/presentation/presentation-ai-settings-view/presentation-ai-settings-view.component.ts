@@ -26,7 +26,7 @@ import { MatFormField, MatLabel, MatHint } from "@angular/material/form-field";
 import { FormsModule } from "@angular/forms";
 import { MatCheckbox } from "@angular/material/checkbox";
 import { MatCard, MatCardTitle, MatCardContent } from "@angular/material/card";
-import { NgIf } from "@angular/common";
+
 
 @Searchable({
    route: "/settings/presentation/settings#ai-integration",
@@ -40,7 +40,7 @@ import { NgIf } from "@angular/common";
 @Component({
     selector: "em-presentation-ai-settings-view",
     templateUrl: "./presentation-ai-settings-view.component.html",
-    imports: [NgIf, MatCard, MatCardTitle, MatCardContent, MatCheckbox, FormsModule, MatFormField, MatLabel, MatInput, MatHint]
+    imports: [MatCard, MatCardTitle, MatCardContent, MatCheckbox, FormsModule, MatFormField, MatLabel, MatInput, MatHint]
 })
 export class PresentationAISettingsViewComponent {
    @Input() model: PresentationAISettingsModel;

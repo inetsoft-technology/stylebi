@@ -36,7 +36,7 @@ import { ActivatedRoute } from "@angular/router";
 import { MatOption } from "@angular/material/core";
 import { MatSelect } from "@angular/material/select";
 import { MatFormField, MatLabel } from "@angular/material/form-field";
-import { NgIf, NgFor } from "@angular/common";
+
 
 @Secured({
    route: "/auditing/schedule-history",
@@ -55,7 +55,7 @@ import { NgIf, NgFor } from "@angular/common";
     selector: "em-audit-schedule-history",
     templateUrl: "./audit-schedule-history.component.html",
     styleUrls: ["./audit-schedule-history.component.scss"],
-    imports: [AuditTableViewComponent, FormsModule, ReactiveFormsModule, NgIf, MatFormField, MatLabel, MatSelect, NgFor, MatOption]
+    imports: [AuditTableViewComponent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatSelect, MatOption]
 })
 export class AuditScheduleHistoryComponent implements OnInit, OnDestroy {
    tasks: AssetModel[] = [];

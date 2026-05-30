@@ -24,7 +24,7 @@ import { Tool } from "../../../../../../../shared/util/tool";
 import { MatButton } from "@angular/material/button";
 import { MatIcon } from "@angular/material/icon";
 import { FileChooserComponent } from "../../../../common/util/file-chooser/file-chooser/file-chooser.component";
-import { NgIf } from "@angular/common";
+
 import { MatInput } from "@angular/material/input";
 import { MatFormField, MatLabel, MatError, MatSuffix } from "@angular/material/form-field";
 import { ModalHeaderComponent } from "../../../../common/util/modal-header/modal-header.component";
@@ -33,7 +33,7 @@ import { ModalHeaderComponent } from "../../../../common/util/modal-header/modal
     selector: "em-add-theme-dialog",
     templateUrl: "./add-theme-dialog.component.html",
     styleUrls: ["./add-theme-dialog.component.scss"],
-    imports: [ModalHeaderComponent, MatDialogContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatInput, NgIf, MatError, FileChooserComponent, MatIcon, MatSuffix, MatDialogActions, MatButton, MatDialogClose]
+    imports: [ModalHeaderComponent, MatDialogContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatInput, MatError, FileChooserComponent, MatIcon, MatSuffix, MatDialogActions, MatButton, MatDialogClose]
 })
 export class AddThemeDialogComponent implements OnInit {
    form: UntypedFormGroup;

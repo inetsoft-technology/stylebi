@@ -45,7 +45,7 @@ import { MatSelect } from "@angular/material/select";
 import { MatFormField, MatLabel } from "@angular/material/form-field";
 import { MatCard, MatCardTitle, MatCardContent } from "@angular/material/card";
 import { TableView } from "../../../../common/util/table/table-view.component";
-import { NgIf, NgFor } from "@angular/common";
+
 
 const MATERIALIZATION_NO_MVS_MESSAGE = "_#(js:viewer.viewsheet.materialization.noMVs)";
 const MATERIALIZATION_NO_ASSETS_MESSAGE = "_#(js:viewer.viewsheet.materialization.noAssets)";
@@ -54,7 +54,7 @@ const MATERIALIZATION_NO_ASSETS_MESSAGE = "_#(js:viewer.viewsheet.materializatio
     selector: "em-analyze-mv-page",
     templateUrl: "./analyze-mv-page.component.html",
     styleUrls: ["./analyze-mv-page.component.scss"],
-    imports: [NgIf, TableView, MatCard, MatCardTitle, MatCardContent, MatFormField, MatSelect, FormsModule, MatOption, MatCheckbox, MatLabel, NgFor, LoadingSpinnerComponent]
+    imports: [TableView, MatCard, MatCardTitle, MatCardContent, MatFormField, MatSelect, FormsModule, MatOption, MatCheckbox, MatLabel, LoadingSpinnerComponent]
 })
 export class AnalyzeMvPageComponent implements OnInit, OnDestroy {
    @Input() nodesToAnalyze: RepositoryTreeNode[];

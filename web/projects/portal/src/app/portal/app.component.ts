@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { NgIf } from "@angular/common";
+
 import { HttpClient } from "@angular/common/http";
 import { Component, Inject, OnDestroy, OnInit, DOCUMENT } from "@angular/core";
 import { Title } from "@angular/platform-browser";
@@ -57,15 +57,14 @@ declare const window: any;
 
 @Component({
     imports: [
-        NgIf,
-        RouterOutlet,
-        RouterLink,
-        RouterLinkActive,
-        AiAssistantPanelComponent,
-        FixedDropdownDirective,
-        EnterClickDirective,
-        DefaultFocusDirective
-    ],
+    RouterOutlet,
+    RouterLink,
+    RouterLinkActive,
+    AiAssistantPanelComponent,
+    FixedDropdownDirective,
+    EnterClickDirective,
+    DefaultFocusDirective
+],
     selector: "portal-app",
     templateUrl: "app.component.html",
     styleUrls: ["app.component.scss"]

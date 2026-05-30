@@ -27,7 +27,7 @@ import { MatRadioGroup, MatRadioButton } from "@angular/material/radio";
 import { MatInput } from "@angular/material/input";
 import { MatFormField, MatLabel } from "@angular/material/form-field";
 import { MatCheckbox } from "@angular/material/checkbox";
-import { NgIf } from "@angular/common";
+
 import { MatCard, MatCardTitle, MatCardContent } from "@angular/material/card";
 
 @Searchable({
@@ -43,7 +43,7 @@ import { MatCard, MatCardTitle, MatCardContent } from "@angular/material/card";
     selector: "em-presentation-pdf-generation-settings-view",
     templateUrl: "./presentation-pdf-generation-settings-view.component.html",
     styleUrls: ["./presentation-pdf-generation-settings-view.component.scss"],
-    imports: [MatCard, MatCardTitle, MatCardContent, NgIf, FormsModule, ReactiveFormsModule, MatCheckbox, MatFormField, MatLabel, MatInput, MatRadioGroup, MatRadioButton]
+    imports: [MatCard, MatCardTitle, MatCardContent, FormsModule, ReactiveFormsModule, MatCheckbox, MatFormField, MatLabel, MatInput, MatRadioGroup, MatRadioButton]
 })
 export class PresentationPdfGenerationSettingsViewComponent {
    @Output() modelChanged = new EventEmitter<PresentationSettingsChanges>();

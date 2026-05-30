@@ -31,14 +31,14 @@ import { GradientColor, ColorStop} from "../../common/data/base-format-model";
 import { VSShape } from "../../vsobjects/objects/shape/vs-shape";
 import { ActionsContextmenuAnchorDirective } from "../fixed-dropdown/actions-contextmenu-anchor.directive";
 import { GradientColorItem } from "./gradient-color-item.component";
-import { NgIf, NgFor } from "@angular/common";
+
 import { FormsModule } from "@angular/forms";
 
 @Component({
     selector: "gradient-color-pane",
     templateUrl: "gradient-color-pane.component.html",
     styleUrls: ["gradient-color-pane.component.scss"],
-    imports: [FormsModule, NgIf, NgFor, GradientColorItem, ActionsContextmenuAnchorDirective]
+    imports: [FormsModule, GradientColorItem, ActionsContextmenuAnchorDirective]
 })
 export class GradientColorPane implements OnInit {
    @Input() gradientColor: GradientColor;

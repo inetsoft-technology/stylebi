@@ -29,7 +29,7 @@ import { FormValidators } from "../../../../../../../../../../../../shared/util/
 import { TimeInstantValueEditorComponent } from "../../../../../../../../../widget/date-type-editor/time-instant-value-editor.component";
 import { TimeValueEditorComponent } from "../../../../../../../../../widget/date-type-editor/time-value-editor.component";
 import { DateValueEditorComponent } from "../../../../../../../../../widget/date-type-editor/date-value-editor.component";
-import { NgIf, NgClass, NgFor } from "@angular/common";
+import { NgClass } from "@angular/common";
 import { ModalHeaderComponent } from "../../../../../../../../../widget/modal-header/modal-header.component";
 
 enum SourceType {
@@ -41,7 +41,7 @@ enum SourceType {
     selector: "parameter-dialog",
     templateUrl: "parameter-dialog.component.html",
     styleUrls: ["parameter-dialog.component.scss"],
-    imports: [ModalHeaderComponent, NgIf, FormsModule, ReactiveFormsModule, NgClass, NgFor, DateValueEditorComponent, TimeValueEditorComponent, TimeInstantValueEditorComponent]
+    imports: [ModalHeaderComponent, FormsModule, ReactiveFormsModule, NgClass, DateValueEditorComponent, TimeValueEditorComponent, TimeInstantValueEditorComponent]
 })
 export class ParameterDialog implements OnInit, AfterViewInit {
    @Input() index: number = -1;

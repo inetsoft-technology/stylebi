@@ -57,7 +57,7 @@ import { VSSelection } from "./vs-selection.component";
 import { VSRangeSlider } from "../range-slider/vs-range-slider.component";
 import { CurrentSelection } from "./current-selection.component";
 import { OutOfZoneDirective } from "../../../widget/directive/out-of-zone.directive";
-import { NgIf, NgFor } from "@angular/common";
+
 
 const INSERT_CHILD_URI = "/events/viewsheet/selectionContainer/insertChild/";
 const CHECK_TRAP_URI = "../api/viewsheet/objects/checkSelectionTrap";
@@ -66,7 +66,7 @@ const CHECK_TRAP_URI = "../api/viewsheet/objects/checkSelectionTrap";
     selector: "vs-selection-container-children",
     templateUrl: "vs-selection-container-children.component.html",
     styleUrls: ["vs-selection-container-children.component.scss"],
-    imports: [NgIf, OutOfZoneDirective, NgFor, CurrentSelection, VSRangeSlider, VSSelection]
+    imports: [OutOfZoneDirective, CurrentSelection, VSRangeSlider, VSSelection]
 })
 export class VSSelectionContainerChildren extends CommandProcessor implements OnInit {
    @Input() vsInfo: ViewsheetInfo;

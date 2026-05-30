@@ -23,13 +23,13 @@ import {ScheduleTaskModel} from "../../../../../../../../shared/schedule/model/s
 import {TaskFolderBrowserModel} from "../../../model/task-folder-browser-model";
 import {DataSourceInfo} from "../../../../data/model/data-source-info";
 import {TreeNodeModel} from "../../../../../widget/tree/tree-node-model";
-import { NgIf, NgFor } from "@angular/common";
+
 
 @Component({
     selector: "task-folder-browser",
     templateUrl: "task-folder-browser.component.html",
     styleUrls: ["task-folder-browser.component.scss"],
-    imports: [NgbTooltip, NgIf, NgFor]
+    imports: [NgbTooltip]
 })
 export class TaskFolderBrowserComponent implements OnInit{
    @Input() browserView: TaskFolderBrowserModel;

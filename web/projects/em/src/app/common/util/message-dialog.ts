@@ -19,7 +19,7 @@ import { MAT_DIALOG_DATA, MatDialogRef, MatDialogContent, MatDialogActions, MatD
 import { Component, Inject } from "@angular/core";
 import { Tool } from "../../../../../shared/util/tool";
 import { MatButton } from "@angular/material/button";
-import { NgIf } from "@angular/common";
+
 import { ModalHeaderComponent } from "./modal-header/modal-header.component";
 
 export enum MessageDialogType {
@@ -29,7 +29,7 @@ export enum MessageDialogType {
 @Component({
     selector: "em-message-dialog",
     templateUrl: "message-dialog.html",
-    imports: [ModalHeaderComponent, MatDialogContent, NgIf, MatDialogActions, MatButton, MatDialogClose]
+    imports: [ModalHeaderComponent, MatDialogContent, MatDialogActions, MatButton, MatDialogClose]
 })
 export class MessageDialog {
    // IMPORT MatDialogModule AND INCLUDE MessageDialog IN ENTRY COMPONENTS FOR MODULES USING THIS

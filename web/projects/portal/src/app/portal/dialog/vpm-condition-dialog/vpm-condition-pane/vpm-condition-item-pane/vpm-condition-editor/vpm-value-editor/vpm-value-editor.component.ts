@@ -30,13 +30,13 @@ import { NumberValueEditor } from "../../../../../../../widget/condition/number-
 import { BooleanValueEditor } from "../../../../../../../widget/condition/boolean-value-editor.component";
 import { CharValueEditor } from "../../../../../../../widget/condition/char-value-editor.component";
 import { StringValueEditor } from "../../../../../../../widget/condition/string-value-editor.component";
-import { NgIf, NgFor } from "@angular/common";
+
 
 @Component({
     selector: "vpm-value-editor",
     templateUrl: "vpm-value-editor.component.html",
     styleUrls: ["vpm-value-editor.component.scss"],
-    imports: [NgIf, StringValueEditor, CharValueEditor, BooleanValueEditor, NumberValueEditor, DateValueEditorComponent, FormsModule, TimeValueEditorComponent, TimeInstantValueEditorComponent, FixedDropdownDirective, NgFor]
+    imports: [StringValueEditor, CharValueEditor, BooleanValueEditor, NumberValueEditor, DateValueEditorComponent, FormsModule, TimeValueEditorComponent, TimeInstantValueEditorComponent, FixedDropdownDirective]
 })
 export class VPMValueEditorComponent implements OnChanges {
    @Input() value: string;

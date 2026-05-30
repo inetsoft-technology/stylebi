@@ -1,27 +1,33 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
-<div class="object-icon-container" *ngIf="!!type"
-     [attr.title]="getImageInfo()?.tooltip">
-  <img class="object-icon"
-    [src]="getImageInfo()?.src"
-    (click)="onSelected.emit()"/>
-  <div class="additional-icon" (click)="onSelected.emit()">
-    <i *ngIf="isFacet()" class="grid-icon"></i>
-    <i *ngIf="isDualAxis()" class="double-axis-icon"></i>
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
+@if (!!type) {
+  <div class="object-icon-container"
+    [attr.title]="getImageInfo()?.tooltip">
+    <img class="object-icon"
+      [src]="getImageInfo()?.src"
+      (click)="onSelected.emit()"/>
+    <div class="additional-icon" (click)="onSelected.emit()">
+      @if (isFacet()) {
+        <i class="grid-icon"></i>
+      }
+      @if (isDualAxis()) {
+        <i class="double-axis-icon"></i>
+      }
+    </div>
   </div>
-</div>
+}

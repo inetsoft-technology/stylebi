@@ -28,14 +28,14 @@ import { CalcTableAdvancedPane } from "./calc-table-advanced-pane.component";
 import { TableViewGeneralPane } from "./table-view-general-pane.component";
 import { NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, NgbNavOutlet } from "@ng-bootstrap/ng-bootstrap";
 import { EnterSubmitDirective } from "../../widget/directive/enter-submit.directive";
-import { NgIf } from "@angular/common";
+
 import { ModalHeaderComponent } from "../../widget/modal-header/modal-header.component";
 
 @Component({
     selector: "calc-table-property-dialog",
     templateUrl: "calc-table-property-dialog.component.html",
     styleUrls: ["calc-table-property-dialog.component.scss"],
-    imports: [ModalHeaderComponent, NgIf, EnterSubmitDirective, NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, TableViewGeneralPane, CalcTableAdvancedPane, VSAssemblyScriptPane, NgbNavOutlet, ApplyButtonComponent]
+    imports: [ModalHeaderComponent, EnterSubmitDirective, NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, TableViewGeneralPane, CalcTableAdvancedPane, VSAssemblyScriptPane, NgbNavOutlet, ApplyButtonComponent]
 })
 export class CalcTablePropertyDialog extends PropertyDialog implements OnInit {
    @Input() model: CalcTablePropertyDialogModel;

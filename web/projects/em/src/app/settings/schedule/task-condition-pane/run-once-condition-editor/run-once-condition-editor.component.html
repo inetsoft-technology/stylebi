@@ -1,39 +1,41 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <mat-card appearance="outlined">
   <mat-card-content [formGroup]="form">
     <em-datepicker [form]="form.controls['date']"
-                   [date]="dateValue" [isVisibleLabel]="true"
-                   (dateValue)="fireModelChanged($event)">
+      [date]="dateValue" [isVisibleLabel]="true"
+      (dateValue)="fireModelChanged($event)">
     </em-datepicker>
 
     <div class="time-content">
       <em-time-picker class="start-time time-content-item" formControlName="startTime"
-                      [meridian]="showMeridian"
+        [meridian]="showMeridian"
       ></em-time-picker>
       <mat-hint class="mat-form-field-wrapper time-content-item">HH:mm {{ timeZoneLabel }}</mat-hint>
     </div>
-    <mat-error *ngIf="form.controls.startTime?.errors">
-      _#(viewer.schedule.condition.startTimeValid)
-    </mat-error>
+    @if (form.controls.startTime?.errors) {
+      <mat-error>
+        _#(viewer.schedule.condition.startTimeValid)
+      </mat-error>
+    }
     <em-time-zone-select formControlName="timeZone"
-                         [timeZoneOptions]="timeZoneOptions"
-                         (changed)="fireModelChanged()">
+      [timeZoneOptions]="timeZoneOptions"
+      (changed)="fireModelChanged()">
     </em-time-zone-select>
   </mat-card-content>
 </mat-card>

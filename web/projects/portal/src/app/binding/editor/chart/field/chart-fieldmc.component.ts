@@ -41,13 +41,13 @@ import { DimensionEditor } from "./dimension-editor.component";
 import { ChartTypeButton } from "../../../widget/chart-type-button.component";
 import { FixedDropdownDirective } from "../../../../widget/fixed-dropdown/fixed-dropdown.directive";
 import { DynamicComboBox } from "../../../../widget/dynamic-combo-box/dynamic-combo-box.component";
-import { NgIf } from "@angular/common";
+
 
 @Component({
     selector: "chart-fieldmc",
     templateUrl: "chart-fieldmc.component.html",
     styleUrls: ["../../fieldmc.component.scss"],
-    imports: [NgIf, DynamicComboBox, FixedDropdownDirective, ChartTypeButton, DimensionEditor, AggregateEditor]
+    imports: [DynamicComboBox, FixedDropdownDirective, ChartTypeButton, DimensionEditor, AggregateEditor]
 })
 export class ChartFieldmc extends FieldMC {
    @Input() fieldType: string;

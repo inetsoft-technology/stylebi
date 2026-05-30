@@ -33,13 +33,13 @@ import { SizeFieldMc } from "./size-field-mc.component";
 import { ShapeFieldMc } from "./shape-field-mc.component";
 import { ColorFieldMc } from "./color-field-mc.component";
 import { NgbDropdown, NgbDropdownToggle, NgbDropdownMenu } from "@ng-bootstrap/ng-bootstrap";
-import { NgIf, NgFor } from "@angular/common";
+
 
 @Component({
     selector: "aesthetic-pane",
     templateUrl: "aesthetic-pane.component.html",
     styleUrls: ["aesthetic-pane.scss"],
-    imports: [NgIf, NgbDropdown, NgbDropdownToggle, NgbDropdownMenu, NgFor, ColorFieldMc, ShapeFieldMc, SizeFieldMc, TextFieldMc]
+    imports: [NgbDropdown, NgbDropdownToggle, NgbDropdownMenu, ColorFieldMc, ShapeFieldMc, SizeFieldMc, TextFieldMc]
 })
 export class AestheticPane implements OnChanges {
    @Input() vsId: string;

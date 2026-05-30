@@ -27,13 +27,13 @@ import { ColorDropdown } from "../../../../widget/color-picker/color-dropdown.co
 import { BindingAlignmentPane } from "../../../../format/objects/binding-alignment-pane.component";
 import { FontPane } from "../../../../widget/font-pane/font-pane.component";
 import { DropdownView } from "../../../../widget/dropdown-view/dropdown-view.component";
-import { NgIf } from "@angular/common";
+
 
 @Component({
     selector: "table-style-format-pane",
     templateUrl: "table-style-format-pane.component.html",
     styleUrls: ["table-style-format-pane.component.scss"],
-    imports: [NgIf, DropdownView, FontPane, BindingAlignmentPane, ColorDropdown, StyleBorderPaneComponent]
+    imports: [DropdownView, FontPane, BindingAlignmentPane, ColorDropdown, StyleBorderPaneComponent]
 })
 export class TableStyleFormatPaneComponent implements OnInit {
    @Input() selectedRegion: string;

@@ -31,7 +31,7 @@ import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { Observable } from "rxjs";
 import { FormValidators } from "../../../../../../shared/util/form-validators";
 import { ComponentTool } from "../../../common/util/component-tool";
-import { NgIf } from "@angular/common";
+
 import { DefaultFocusDirective } from "../../../widget/directive/default-focus.directive";
 import { EnterSubmitDirective } from "../../../widget/directive/enter-submit.directive";
 import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
@@ -50,7 +50,7 @@ export interface ValidatorMessageInfo {
     templateUrl: "input-name-desc-dialog.component.html",
     styleUrls: ["input-name-desc-dialog.component.scss"],
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [ModalHeaderComponent, EnterSubmitDirective, FormsModule, DefaultFocusDirective, ReactiveFormsModule, NgIf]
+    imports: [ModalHeaderComponent, EnterSubmitDirective, FormsModule, DefaultFocusDirective, ReactiveFormsModule]
 })
 export class InputNameDescDialog implements OnChanges, OnInit {
    @Input() validators: ValidatorFn[] = [

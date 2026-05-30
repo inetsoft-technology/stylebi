@@ -45,7 +45,7 @@ import { ChooseTableDialog } from "../../../../../dialog/choose-table-dialog/cho
 import { DataModelScriptPane } from "../../database-physical-model/data-model-script-pane/data-model-script-pane.component";
 import { ExistsDirective } from "../../../../../../widget/directive/exists-validator.directive";
 import { FormsModule } from "@angular/forms";
-import { NgFor, NgIf } from "@angular/common";
+
 import { SplitPane } from "../../../../../../widget/split-pane/split-pane.component";
 
 const TABLE_COLUMNS_URI: string = "../api/data/vpm/columns/";
@@ -56,7 +56,7 @@ const PHYSICAL_MODEL_COLUMNS_URI: string = "../api/data/vpm/physicalModel/tables
     templateUrl: "vpm-conditions.component.html",
     styleUrls: ["vpm-conditions.component.scss", "../../database-physical-model/database-model-pane.scss"],
     encapsulation: ViewEncapsulation.None,
-    imports: [SplitPane, NgFor, NgIf, FormsModule, ExistsDirective, NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, DataModelScriptPane, NgbNavOutlet, ChooseTableDialog, VPMConditionDialog, ClausePipe, ConjunctionPipe]
+    imports: [SplitPane, FormsModule, ExistsDirective, NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, DataModelScriptPane, NgbNavOutlet, ChooseTableDialog, VPMConditionDialog, ClausePipe, ConjunctionPipe]
 })
 export class VPMConditionsComponent {
    _conditions: ConditionModel[];

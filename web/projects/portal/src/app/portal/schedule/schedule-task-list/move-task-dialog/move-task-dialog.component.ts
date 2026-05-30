@@ -28,7 +28,7 @@ import {CheckDuplicateResponse} from "../../../data/commands/check-duplicate-res
 import {ComponentTool} from "../../../../common/util/component-tool";
 import {AssetEntry} from "../../../../../../../shared/data/asset-entry";
 import { AssetType } from "../../../../../../../shared/data/asset-type";
-import { NgIf } from "@angular/common";
+
 import { TaskFolderBrowserComponent } from "./task-folder-browser/task-folder-browser.component";
 import { ModalHeaderComponent } from "../../../../widget/modal-header/modal-header.component";
 
@@ -41,7 +41,7 @@ export const FAKE_ROOT_PATH: string = "_fake_root_";
 @Component({
     selector: "move-task-dialog",
     templateUrl: "move-task-dialog.component.html",
-    imports: [ModalHeaderComponent, TaskFolderBrowserComponent, NgIf]
+    imports: [ModalHeaderComponent, TaskFolderBrowserComponent]
 })
 export class MoveTaskDialogComponent implements OnInit {
    @Input() originalPaths: string[] = [];

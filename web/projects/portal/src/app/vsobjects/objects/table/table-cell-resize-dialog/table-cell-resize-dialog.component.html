@@ -1,48 +1,54 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <modal-header [title]="'_#(Resize Cell)'" (onCancel)="cancel()" [cshid]="'ResizeCell'">
 </modal-header>
 
 <div class="modal-body"
-     [enterSubmit]="true"
-     (onEnter)="ok()">
-  <form *ngIf="form" [formGroup]="form" class="container-fluid">
-    <div class="form-row-float-label row">
-      <div class="form-floating col">
-        <input class="form-control" formControlName="cellWidth" type="number" min="0" required>
-        <label>_#(Cell Width)</label>
-        <div *ngIf="cellWidth.errors"
-             class="alert alert-danger">
-          _#(composer.vs.table.cellSize.error)
+  [enterSubmit]="true"
+  (onEnter)="ok()">
+  @if (form) {
+    <form [formGroup]="form" class="container-fluid">
+      <div class="form-row-float-label row">
+        <div class="form-floating col">
+          <input class="form-control" formControlName="cellWidth" type="number" min="0" required>
+          <label>_#(Cell Width)</label>
+          @if (cellWidth.errors) {
+            <div
+              class="alert alert-danger">
+              _#(composer.vs.table.cellSize.error)
+            </div>
+          }
         </div>
       </div>
-    </div>
-    <div class="form-row-float-label row">
-      <div class="form-floating col">
-        <input class="form-control" formControlName="cellHeight" type="number" min="0" required>
-        <label>_#(Cell Height)</label>
-        <div *ngIf="cellHeight.errors"
-             class="alert alert-danger">
-          _#(composer.vs.table.cellSize.error)
+      <div class="form-row-float-label row">
+        <div class="form-floating col">
+          <input class="form-control" formControlName="cellHeight" type="number" min="0" required>
+          <label>_#(Cell Height)</label>
+          @if (cellHeight.errors) {
+            <div
+              class="alert alert-danger">
+              _#(composer.vs.table.cellSize.error)
+            </div>
+          }
         </div>
       </div>
-    </div>
-  </form>
+    </form>
+  }
 </div>
 
 <div class="modal-footer">

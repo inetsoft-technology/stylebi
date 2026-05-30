@@ -50,13 +50,13 @@ import {
    YlOrRdColorModel
 } from "../../../../common/data/visual-frame-model";
 import { AestheticIconCell } from "./aesthetic-icon-cell";
-import { NgSwitch, NgSwitchCase, NgIf, NgStyle, NgSwitchDefault } from "@angular/common";
+import { NgStyle } from "@angular/common";
 
 @Component({
     selector: "color-cell",
     templateUrl: "color-cell.component.html",
     styleUrls: ["color-cell.component.scss"],
-    imports: [NgSwitch, NgSwitchCase, NgIf, NgStyle, NgSwitchDefault]
+    imports: [NgStyle]
 })
 export class ColorCell extends AestheticIconCell {
    @Input() prefix: string = "";

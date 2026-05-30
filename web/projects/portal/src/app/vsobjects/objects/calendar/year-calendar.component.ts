@@ -28,7 +28,7 @@ import { TableDataPath } from "../../../common/data/table-data-path";
 import { DataPathConstants } from "../../../common/util/data-path-constants";
 import { ContextProvider } from "../../context-provider.service";
 import { VSUtil } from "../../util/vs-util";
-import { NgFor, NgClass } from "@angular/common";
+import { NgClass } from "@angular/common";
 import { SafeFontDirective } from "../../directives/safe-font.directive";
 
 @Component({
@@ -36,10 +36,9 @@ import { SafeFontDirective } from "../../directives/safe-font.directive";
     templateUrl: "year-calendar.component.html",
     styleUrls: ["vs-calendar.component.scss"],
     imports: [
-        SafeFontDirective,
-        NgFor,
-        NgClass,
-    ]
+    SafeFontDirective,
+    NgClass
+]
 })
 export class YearCalendar implements OnChanges, AfterViewInit {
    @Input() model: VSCalendarModel;

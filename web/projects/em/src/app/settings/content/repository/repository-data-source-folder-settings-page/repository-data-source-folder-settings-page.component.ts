@@ -32,13 +32,13 @@ import { Tool } from "../../../../../../../shared/util/tool";
 import { DataSourceFolderEditorModel } from "./data-source-folder-editor-model";
 import { DataSourceFolderSettingsModel } from "./data-source-folder-settings-model";
 import { RepositoryDataSourceFolderSettingsViewComponent } from "../repository-data-source-folder-settings-view/repository-data-source-folder-settings-view.component";
-import { NgIf } from "@angular/common";
+
 
 @Component({
     selector: "em-repository-data-source-folder-settings-page",
     templateUrl: "./repository-data-source-folder-settings-page.component.html",
     styleUrls: ["./repository-data-source-folder-settings-page.component.scss"],
-    imports: [NgIf, RepositoryDataSourceFolderSettingsViewComponent]
+    imports: [RepositoryDataSourceFolderSettingsViewComponent]
 })
 export class RepositoryDataSourceFolderSettingsPageComponent implements OnInit, OnChanges {
    @Input() model: DataSourceFolderEditorModel;

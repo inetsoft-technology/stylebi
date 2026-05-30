@@ -73,7 +73,7 @@ import { UIContextService } from "../../../common/services/ui-context.service";
 import { VSWizardPreviewPane } from "./wizard-preview-pane.component";
 import { ConsoleMessage } from "../../../widget/console-dialog/console-message";
 import { VSLoadingDisplay } from "../../../vsobjects/objects/vs-loading-display/vs-loading-display.component";
-import { NgIf } from "@angular/common";
+
 import { WizardVisualizationPane } from "./wizard-visualization-pane.component";
 import { VSWizardAggregatePane } from "./wizard-aggregate-pane.component";
 import { WizardBindingTree } from "./wizard-binding-tree.component";
@@ -97,7 +97,7 @@ const SWITCH_TO_META = "/events/vs/wizard/use-meta";
             deps: [[new Optional(), ComposerToken]]
         }
     ],
-    imports: [ObjectWizardToolBarComponent, SplitPane, WizardBindingTree, VSWizardAggregatePane, WizardVisualizationPane, VSWizardPreviewPane, NgIf, VSLoadingDisplay, NotificationsComponent]
+    imports: [ObjectWizardToolBarComponent, SplitPane, WizardBindingTree, VSWizardAggregatePane, WizardVisualizationPane, VSWizardPreviewPane, VSLoadingDisplay, NotificationsComponent]
 })
 export class ObjectWizardPane extends CommandProcessor implements OnInit, OnDestroy {
    @Input() runtimeId: string;

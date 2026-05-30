@@ -35,13 +35,13 @@ import { SlideOutRef } from "./slide-out-ref";
 import { NotificationsComponent } from "../notifications/notifications.component";
 import { FixedDropdownDirective } from "../fixed-dropdown/fixed-dropdown.directive";
 import { BlockMouseDirective } from "../mouse-event/block-mouse.directive";
-import { NgIf, NgFor } from "@angular/common";
+
 
 @Component({
     selector: "slide-out",
     templateUrl: "slide-out.component.html",
     styleUrls: ["slide-out.component.scss"],
-    imports: [NgIf, BlockMouseDirective, FixedDropdownDirective, NgFor, NotificationsComponent]
+    imports: [BlockMouseDirective, FixedDropdownDirective, NotificationsComponent]
 })
 export class SlideOutComponent implements AfterViewInit, OnDestroy {
    @Input() limitResize: boolean = true;

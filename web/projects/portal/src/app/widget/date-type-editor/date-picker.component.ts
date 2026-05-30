@@ -21,14 +21,14 @@ import { DateTypeFormatter } from "../../../../../shared/util/date-type-formatte
 import { TimeInstant } from "../../common/data/time-instant";
 import { DateTimeChangeType } from "./date-time-change-type";
 import { FormsModule } from "@angular/forms";
-import { NgIf, NgFor } from "@angular/common";
+
 import { BlockMouseDirective } from "../mouse-event/block-mouse.directive";
 
 @Component({
     selector: "date-picker",
     templateUrl: "./date-picker.component.html",
     styleUrls: ["./date-picker.component.scss"],
-    imports: [BlockMouseDirective, NgIf, FormsModule, NgFor]
+    imports: [BlockMouseDirective, FormsModule]
 })
 export class DatePickerComponent {
    @Input() promptTime: boolean = false;

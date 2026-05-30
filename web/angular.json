@@ -106,6 +106,7 @@
             "ci": true,
             "maxWorkers": 4,
             "silent": true,
+            "zoneless": false,
             "reporters": [
               "default",
               "jest-junit"
@@ -230,6 +231,7 @@
             "ci": true,
             "maxWorkers": 4,
             "silent": true,
+            "zoneless": false,
             "reporters": [
               "default",
               "jest-junit"

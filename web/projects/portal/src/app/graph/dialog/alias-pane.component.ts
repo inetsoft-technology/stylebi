@@ -18,13 +18,13 @@
 import { Component, Input } from "@angular/core";
 import { AliasPaneModel } from "../model/dialog/alias-pane-model";
 import { FormsModule } from "@angular/forms";
-import { NgFor } from "@angular/common";
+
 
 @Component({
     selector: "alias-pane",
     templateUrl: "alias-pane.component.html",
     styleUrls: ["./alias-pane.component.scss"],
-    imports: [NgFor, FormsModule]
+    imports: [FormsModule]
 })
 
 export class AliasPane {

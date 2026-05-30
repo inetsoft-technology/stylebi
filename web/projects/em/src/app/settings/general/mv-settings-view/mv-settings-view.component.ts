@@ -29,7 +29,7 @@ import { MatCheckbox } from "@angular/material/checkbox";
 import { MatSelect } from "@angular/material/select";
 import { MatFormField, MatLabel } from "@angular/material/form-field";
 import { MatSlideToggle } from "@angular/material/slide-toggle";
-import { NgIf, NgFor } from "@angular/common";
+
 import { MatCard, MatCardTitle, MatCardContent } from "@angular/material/card";
 
 @Searchable({
@@ -48,7 +48,7 @@ import { MatCard, MatCardTitle, MatCardContent } from "@angular/material/card";
     selector: "em-mv-settings-view",
     templateUrl: "./mv-settings-view.component.html",
     styleUrls: ["./mv-settings-view.component.scss"],
-    imports: [MatCard, MatCardTitle, MatCardContent, NgIf, FormsModule, ReactiveFormsModule, MatSlideToggle, MatFormField, MatLabel, MatSelect, MatOption, NgFor, MatCheckbox]
+    imports: [MatCard, MatCardTitle, MatCardContent, FormsModule, ReactiveFormsModule, MatSlideToggle, MatFormField, MatLabel, MatSelect, MatOption, MatCheckbox]
 })
 export class MVSettingsViewComponent {
    @Output() modelChanged = new EventEmitter<GeneralSettingsChanges>();

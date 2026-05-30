@@ -27,7 +27,7 @@ import { MatButton } from "@angular/material/button";
 import { MatSlideToggle } from "@angular/material/slide-toggle";
 import { MatInput } from "@angular/material/input";
 import { MatFormField, MatLabel } from "@angular/material/form-field";
-import { NgIf } from "@angular/common";
+
 import { MatCard, MatCardTitle, MatCardContent, MatCardActions } from "@angular/material/card";
 
 const CLEAN_UP_CACHE_URI = "../api/em/general/settings/cache/cleanup";
@@ -45,7 +45,7 @@ const CLEAN_UP_CACHE_URI = "../api/em/general/settings/cache/cleanup";
     selector: "em-cache-settings-view",
     templateUrl: "./cache-settings-view.component.html",
     styleUrls: ["./cache-settings-view.component.scss"],
-    imports: [MatCard, MatCardTitle, MatCardContent, NgIf, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatInput, MatSlideToggle, MatCardActions, MatButton]
+    imports: [MatCard, MatCardTitle, MatCardContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatInput, MatSlideToggle, MatCardActions, MatButton]
 })
 export class CacheSettingsViewComponent {
    @Output() modelChanged = new EventEmitter<GeneralSettingsChanges>();

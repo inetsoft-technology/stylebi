@@ -30,7 +30,7 @@ import { Tool } from "../../../../../../../../shared/util/tool";
 import { TreeSelectionEvent } from "../../content-repository-page/content-repository-page.component";
 import { MatButton } from "@angular/material/button";
 import { MatProgressBar } from "@angular/material/progress-bar";
-import { NgIf } from "@angular/common";
+
 import { ModalHeaderComponent } from "../../../../../common/util/modal-header/modal-header.component";
 
 @Component({
@@ -38,7 +38,7 @@ import { ModalHeaderComponent } from "../../../../../common/util/modal-header/mo
     templateUrl: "./select-asset-folder-dialog.component.html",
     styleUrls: ["./select-asset-folder-dialog.component.scss"],
     providers: [SelectAssetFolderDataSource],
-    imports: [ModalHeaderComponent, MatDialogContent, NgIf, FlatTreeViewComponent, MatProgressBar, MatDialogActions, MatButton]
+    imports: [ModalHeaderComponent, MatDialogContent, FlatTreeViewComponent, MatProgressBar, MatDialogActions, MatButton]
 })
 export class SelectAssetFolderDialogComponent implements OnDestroy {
    @Input() defaultSelectedNode: RepositoryFlatNode;

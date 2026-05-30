@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { NgIf } from "@angular/common";
+
 import { HttpParams } from "@angular/common/http";
 import { Component, EventEmitter, Inject, Input, OnInit, Output, DOCUMENT } from "@angular/core";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
@@ -91,7 +91,7 @@ const CHECK_MODEL_TRAP_REST_URI: string = "../api/composer/worksheet/check-model
     selector: "aggregate-dialog",
     templateUrl: "aggregate-dialog.component.html",
     styleUrls: ["aggregate-dialog.component.scss"],
-    imports: [ModalHeaderComponent, NgIf, EnterSubmitDirective, AggregatePane, CrosstabPane]
+    imports: [ModalHeaderComponent, EnterSubmitDirective, AggregatePane, CrosstabPane]
 })
 export class AggregateDialog implements OnInit {
    @Input() runtimeId: string;

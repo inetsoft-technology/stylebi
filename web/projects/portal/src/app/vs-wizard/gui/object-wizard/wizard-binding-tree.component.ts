@@ -60,7 +60,7 @@ import { InitWizardBindingTreeCommand } from "../../model/command/init-wizard-bi
 import { VsWizardEditModes } from "../../model/vs-wizard-edit-modes";
 import { VirtualScrollService } from "../../../widget/tree/virtual-scroll.service";
 import { VirtualScrollTreeDatasource } from "../../../widget/tree/virtual-scroll-tree-datasource";
-import { NgIf } from "@angular/common";
+
 
 const GET_BINDING_TREE_URI = "/events/vswizard/binding/tree";
 const REFRESH_BINDING_FIELDS_URI = "/events/vswizard/binding/tree/refresh-fields";
@@ -71,7 +71,7 @@ const OBJECT_WIZARD_REFRESH = "/events/vswizard/object-wizard/refresh";
     selector: "wizard-binding-tree",
     templateUrl: "./wizard-binding-tree.component.html",
     styleUrls: ["./wizard-binding-tree.component.scss"],
-    imports: [NgIf, TreeComponent, NotificationsComponent]
+    imports: [TreeComponent, NotificationsComponent]
 })
 export class WizardBindingTree extends CommandProcessor implements OnInit, OnDestroy {
    @Input() runtimeId: string;

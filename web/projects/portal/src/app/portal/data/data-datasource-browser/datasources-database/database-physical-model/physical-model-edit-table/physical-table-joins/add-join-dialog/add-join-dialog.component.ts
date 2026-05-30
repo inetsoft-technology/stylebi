@@ -31,7 +31,7 @@ import {
 import { ComponentTool } from "../../../../../../../../common/util/component-tool";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { GetTableColumnEvent } from "../../../../../../model/datasources/database/events/get-table-column-event";
-import { NgFor, NgIf } from "@angular/common";
+
 import { FormsModule } from "@angular/forms";
 import { ModalHeaderComponent } from "../../../../../../../../widget/modal-header/modal-header.component";
 
@@ -43,7 +43,7 @@ const CHECK_JOIN_EXIST_URI: string = "../api/data/physicalmodel/join/exist";
 @Component({
     selector: "add-join-dialog",
     templateUrl: "add-join-dialog.component.html",
-    imports: [ModalHeaderComponent, FormsModule, NgFor, NgIf]
+    imports: [ModalHeaderComponent, FormsModule]
 })
 export class AddJoinDialog implements OnInit, AfterViewInit {
    @Input() database: string;

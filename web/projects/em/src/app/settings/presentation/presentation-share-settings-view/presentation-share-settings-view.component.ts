@@ -29,7 +29,7 @@ import { MatIconAnchor } from "@angular/material/button";
 import { MatInput } from "@angular/material/input";
 import { MatFormField, MatLabel, MatSuffix, MatError } from "@angular/material/form-field";
 import { MatCheckbox } from "@angular/material/checkbox";
-import { NgIf } from "@angular/common";
+
 import { MatCard, MatCardTitle, MatCardContent } from "@angular/material/card";
 
 @Searchable({
@@ -49,7 +49,7 @@ import { MatCard, MatCardTitle, MatCardContent } from "@angular/material/card";
     selector: "em-presentation-share-settings-view",
     templateUrl: "./presentation-share-settings-view.component.html",
     styleUrls: ["./presentation-share-settings-view.component.scss"],
-    imports: [MatCard, MatCardTitle, NgIf, MatCardContent, FormsModule, ReactiveFormsModule, MatCheckbox, MatFormField, MatLabel, MatInput, MatIconAnchor, MatSuffix, MatIcon, MatError]
+    imports: [MatCard, MatCardTitle, MatCardContent, FormsModule, ReactiveFormsModule, MatCheckbox, MatFormField, MatLabel, MatInput, MatIconAnchor, MatSuffix, MatIcon, MatError]
 })
 export class PresentationShareSettingsViewComponent implements OnInit, AfterViewInit {
    @Output() modelChanged = new EventEmitter<PresentationSettingsChanges>();

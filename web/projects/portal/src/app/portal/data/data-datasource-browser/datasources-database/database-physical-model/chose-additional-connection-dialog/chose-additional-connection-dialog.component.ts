@@ -20,7 +20,7 @@ import { HttpClient, HttpParams } from "@angular/common/http";
 import { Observable } from "rxjs";
 import { ComponentTool } from "../../../../../../common/util/component-tool";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
-import { NgFor } from "@angular/common";
+
 import { DefaultFocusDirective } from "../../../../../../widget/directive/default-focus.directive";
 import { FormsModule } from "@angular/forms";
 import { ModalHeaderComponent } from "../../../../../../widget/modal-header/modal-header.component";
@@ -34,7 +34,7 @@ const EXTENDED_PHYSICAL_DUPLICATE_NAME_CHECK_URI: string = "../api/data/physical
     selector: "chose-additional-connection-dialog",
     templateUrl: "./chose-additional-connection-dialog.component.html",
     styleUrls: ["./chose-additional-connection-dialog.component.scss"],
-    imports: [ModalHeaderComponent, FormsModule, DefaultFocusDirective, NgFor]
+    imports: [ModalHeaderComponent, FormsModule, DefaultFocusDirective]
 })
 export class ChoseAdditionalConnectionDialog implements OnInit {
   @Input() database: string;

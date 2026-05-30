@@ -27,7 +27,7 @@ import { FormsModule } from "@angular/forms";
 import { BlockMouseDirective } from "../../widget/mouse-event/block-mouse.directive";
 import { EnterClickDirective } from "../../widget/directive/enter-click.directive";
 import { DefaultFocusDirective } from "../../widget/directive/default-focus.directive";
-import { NgIf, NgClass, NgFor } from "@angular/common";
+import { NgClass } from "@angular/common";
 
 enum BookmarkFilter {
    ALL,
@@ -39,7 +39,7 @@ enum BookmarkFilter {
     selector: "vs-bookmark-pane",
     templateUrl: "./vs-bookmark-pane.component.html",
     styleUrls: ["./vs-bookmark-pane.component.scss"],
-    imports: [NgIf, DefaultFocusDirective, EnterClickDirective, BlockMouseDirective, FormsModule, NgClass, FixedDropdownDirective, NgFor]
+    imports: [DefaultFocusDirective, EnterClickDirective, BlockMouseDirective, FormsModule, NgClass, FixedDropdownDirective]
 })
 export class VsBookmarkPaneComponent implements OnInit {
    @Input() preview: boolean;

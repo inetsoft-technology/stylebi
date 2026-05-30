@@ -58,13 +58,13 @@ import { ParameterTable } from "../../parameter-table/parameter-table.component"
 import { CkeditorWrapperComponent } from "../../../../../../../../shared/ckeditor-wrapper/ckeditor-wrapper.component";
 import { CSVConfigPane } from "../../../../../widget/schedule/csv-config-pane.component";
 import { GenericSelectableList } from "../../../../../widget/generic-selectable-list/generic-selectable-list.component";
-import { NgIf, NgFor } from "@angular/common";
+
 
 @Component({
     selector: "action-accordion",
     templateUrl: "./action-accordion.component.html",
     styleUrls: ["./action-accordion.component.scss"],
-    imports: [NgIf, FormsModule, ReactiveFormsModule, NgFor, GenericSelectableList, NgbTypeahead, CSVConfigPane, CkeditorWrapperComponent, ParameterTable, EmailAddrDialog, NgbHighlight]
+    imports: [FormsModule, ReactiveFormsModule, GenericSelectableList, NgbTypeahead, CSVConfigPane, CkeditorWrapperComponent, ParameterTable, EmailAddrDialog, NgbHighlight]
 })
 export class ActionAccordion implements OnInit, OnChanges, OnDestroy {
    @Input() executeAsGroup: boolean;

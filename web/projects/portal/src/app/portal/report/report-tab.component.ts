@@ -50,7 +50,7 @@ import { RepositoryMobileViewComponent } from "./mobile/repository-mobile-view.c
 import { RepositoryDesktopViewComponent } from "./desktop/repository-desktop-view.component";
 import { RepositoryListViewComponent } from "./list/repository-list-view.component";
 import { EnterClickDirective } from "../../widget/directive/enter-click.directive";
-import { NgIf, NgFor, NgSwitch, NgSwitchCase } from "@angular/common";
+
 
 const CURRENT_USER_URI: string = "../api/portal/get-current-user";
 const MAX_RECENTLY_VIEWED: number = 5;
@@ -59,7 +59,7 @@ const MAX_RECENTLY_VIEWED: number = 5;
     templateUrl: "report-tab.component.html",
     styleUrls: ["../portal-tab.component.scss", "report-tab.component.scss"],
     providers: [ViewsheetClientService],
-    imports: [NgIf, NgFor, EnterClickDirective, NgSwitch, NgSwitchCase, RepositoryListViewComponent, RouterOutlet, RepositoryDesktopViewComponent, RepositoryMobileViewComponent, NotificationsComponent]
+    imports: [EnterClickDirective, RepositoryListViewComponent, RouterOutlet, RepositoryDesktopViewComponent, RepositoryMobileViewComponent, NotificationsComponent]
 })
 export class ReportTabComponent extends CommandProcessor implements OnInit, OnDestroy {
    rootNode: TreeNodeModel;

@@ -42,7 +42,7 @@ import { MatCheckbox } from "@angular/material/checkbox";
 import { MatProgressBar } from "@angular/material/progress-bar";
 import { TopScrollDirective } from "../../../../top-scroll/top-scroll.directive";
 import { MatMenuTrigger, MatMenu, MatMenuItem } from "@angular/material/menu";
-import { NgIf, NgFor, AsyncPipe } from "@angular/common";
+import { AsyncPipe } from "@angular/common";
 import { MatInput } from "@angular/material/input";
 import { MatFormField, MatLabel, MatSuffix } from "@angular/material/form-field";
 import { MatIcon } from "@angular/material/icon";
@@ -54,7 +54,7 @@ import { MatToolbar } from "@angular/material/toolbar";
     templateUrl: "./repository-tree-view.component.html",
     styleUrls: ["./repository-tree-view.component.scss"],
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [MatToolbar, MatIconButton, MatIcon, MatFormField, MatLabel, MatInput, FormsModule, MatSuffix, NgIf, MatMenuTrigger, TopScrollDirective, MatProgressBar, FlatTreeViewComponent, NgFor, MatMenu, MatMenuItem, ReactiveFormsModule, MatCheckbox, AsyncPipe]
+    imports: [MatToolbar, MatIconButton, MatIcon, MatFormField, MatLabel, MatInput, FormsModule, MatSuffix, MatMenuTrigger, TopScrollDirective, MatProgressBar, FlatTreeViewComponent, MatMenu, MatMenuItem, ReactiveFormsModule, MatCheckbox, AsyncPipe]
 })
 export class RepositoryTreeViewComponent implements OnInit, OnDestroy, OnChanges {
    @Input() dataSource: RepositoryTreeDataSource;

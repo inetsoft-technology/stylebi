@@ -36,7 +36,7 @@ import { ChangePasswordDialog } from "./change-password-dialog.component";
 import { DialogButtonsDirective } from "../../widget/standard-dialog/dialog-buttons.directive";
 import { EnterClickDirective } from "../../widget/directive/enter-click.directive";
 import { DefaultFocusDirective } from "../../widget/directive/default-focus.directive";
-import { NgIf } from "@angular/common";
+
 import { DialogContentDirective } from "../../widget/standard-dialog/dialog-content.directive";
 import { StandardDialogComponent } from "../../widget/standard-dialog/standard-dialog.component";
 
@@ -46,7 +46,7 @@ const PREFERENCES_DIALOG_MODEL_URI: string = "../api/portal/preferences-dialog-m
     selector: "preferences-dialog",
     templateUrl: "preferences-dialog.component.html",
     styleUrls: ["preferences-dialog.component.scss"],
-    imports: [StandardDialogComponent, DialogContentDirective, NgIf, FormsModule, DefaultFocusDirective, ReactiveFormsModule, EnterClickDirective, DialogButtonsDirective, ChangePasswordDialog]
+    imports: [StandardDialogComponent, DialogContentDirective, FormsModule, DefaultFocusDirective, ReactiveFormsModule, EnterClickDirective, DialogButtonsDirective, ChangePasswordDialog]
 })
 export class PreferencesDialog implements OnInit {
    @Output() onCommit: EventEmitter<string> = new EventEmitter<string>();

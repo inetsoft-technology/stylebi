@@ -45,7 +45,7 @@ import { ConditionPane } from "../../widget/condition/condition-pane.component";
 import { BaseResizeableDialogComponent } from "./base-resizeable-dialog.component";
 import { ApplyButtonComponent } from "../../widget/slide-out/apply-button.component";
 import { EnterSubmitDirective } from "../../widget/directive/enter-submit.directive";
-import { NgIf } from "@angular/common";
+
 import { ModalHeaderComponent } from "../../widget/modal-header/modal-header.component";
 
 const CHECK_CONDITION_TRAP_URI = "../api/composer/viewsheet/check-condition-trap/";
@@ -57,7 +57,7 @@ const CHECK_CONDITION_TRAP_URI = "../api/composer/viewsheet/check-condition-trap
         ModelService,
         ConditionDialogService
     ],
-    imports: [ModalHeaderComponent, NgIf, EnterSubmitDirective, ConditionPane, ApplyButtonComponent]
+    imports: [ModalHeaderComponent, EnterSubmitDirective, ConditionPane, ApplyButtonComponent]
 })
 export class VSConditionDialog extends BaseResizeableDialogComponent implements OnInit, AfterViewInit {
    @Input() highlightModel: VSConditionDialogModel;

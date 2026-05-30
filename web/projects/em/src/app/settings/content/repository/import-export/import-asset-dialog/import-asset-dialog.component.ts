@@ -41,7 +41,7 @@ import { MatInput } from "@angular/material/input";
 import { MatIcon } from "@angular/material/icon";
 import { FileChooserComponent } from "../../../../../common/util/file-chooser/file-chooser/file-chooser.component";
 import { MatFormField, MatLabel, MatSuffix, MatError } from "@angular/material/form-field";
-import { NgIf } from "@angular/common";
+
 import { ModalHeaderComponent } from "../../../../../common/util/modal-header/modal-header.component";
 
 @Component({
@@ -49,7 +49,7 @@ import { ModalHeaderComponent } from "../../../../../common/util/modal-header/mo
     templateUrl: "./import-asset-dialog.component.html",
     styleUrls: ["./import-asset-dialog.component.scss"],
     encapsulation: ViewEncapsulation.None,
-    imports: [ModalHeaderComponent, MatDialogContent, NgIf, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, FileChooserComponent, MatIcon, MatSuffix, MatError, MatInput, MatIconButton, MatCheckbox, SelectedAssetListComponent, RequiredAssetListComponent, MatProgressBar, MatDialogActions, MatButton]
+    imports: [ModalHeaderComponent, MatDialogContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, FileChooserComponent, MatIcon, MatSuffix, MatError, MatInput, MatIconButton, MatCheckbox, SelectedAssetListComponent, RequiredAssetListComponent, MatProgressBar, MatDialogActions, MatButton]
 })
 export class ImportAssetDialogComponent implements OnDestroy {
    @HostBinding("class") hostClass = "import-asset-dialog";

@@ -38,7 +38,7 @@ import { ContextProvider } from "../../context-provider.service";
 import { GuiTool } from "../../../common/util/gui-tool";
 import { VSUtil } from "../../util/vs-util";
 import { SafeFontDirective } from "../../directives/safe-font.directive";
-import { NgClass, NgFor, NgIf } from "@angular/common";
+import { NgClass } from "@angular/common";
 
 interface DayInfo {
    year: number;
@@ -52,7 +52,7 @@ interface DayInfo {
     selector: "month-calendar",
     templateUrl: "month-calendar.component.html",
     styleUrls: ["vs-calendar.component.scss"],
-    imports: [NgClass, SafeFontDirective, NgFor, NgIf]
+    imports: [NgClass, SafeFontDirective]
 })
 export class MonthCalendar implements OnChanges, AfterViewInit {
    @Input() model: VSCalendarModel;

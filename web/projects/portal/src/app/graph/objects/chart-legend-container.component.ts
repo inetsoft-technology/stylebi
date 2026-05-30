@@ -33,14 +33,14 @@ import { LegendContainer } from "../model/legend-container";
 import { LegendOption } from "../model/legend-option";
 import { LegendResizeInfo } from "../model/legend-resize-info";
 import { ChartAreaName } from "../model/chart-area-name";
-import { NgIf } from "@angular/common";
+
 
 @Component({
     selector: "chart-legend-container",
     templateUrl: "chart-legend-container.component.html",
     styleUrls: ["chart-legend-container.component.scss"],
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [NgIf, ElementInteractDirective]
+    imports: [ElementInteractDirective]
 })
 export class ChartLegendContainer implements OnInit, OnChanges {
    @Input() plotRegion: Rectangle;

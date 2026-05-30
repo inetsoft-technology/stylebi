@@ -53,7 +53,7 @@ import { SummaryMonitoringTableViewComponent } from "../summary-monitoring-view/
 import { SummaryMonitoringChartViewComponent } from "../summary-monitoring-view/summary-monitoring-chart-view/summary-monitoring-chart-view.component";
 import { MatGridList, MatGridTile } from "@angular/material/grid-list";
 import { MatButton } from "@angular/material/button";
-import { NgIf, NgFor, KeyValuePipe } from "@angular/common";
+import { KeyValuePipe } from "@angular/common";
 import { ClusterSelectorComponent } from "../../cluster-selector/cluster-selector.component";
 
 const SMALL_WIDTH_BREAKPOINT = 720;
@@ -97,7 +97,7 @@ export interface ChartInfo {
     selector: "em-summary-monitoring-page",
     templateUrl: "./summary-monitoring-page.component.html",
     styleUrls: ["./summary-monitoring-page.component.scss"],
-    imports: [ClusterSelectorComponent, NgIf, MatButton, MatGridList, MatGridTile, SummaryMonitoringChartViewComponent, SummaryMonitoringTableViewComponent, MatCard, NgFor, KeyValuePipe]
+    imports: [ClusterSelectorComponent, MatButton, MatGridList, MatGridTile, SummaryMonitoringChartViewComponent, SummaryMonitoringTableViewComponent, MatCard, KeyValuePipe]
 })
 export class SummaryMonitoringPageComponent implements OnInit, OnDestroy, AfterContentChecked {
    @ViewChild("summaryPageContainer", { static: true }) pageContainer;

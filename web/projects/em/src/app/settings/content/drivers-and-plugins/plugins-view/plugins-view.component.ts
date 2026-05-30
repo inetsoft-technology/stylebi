@@ -42,7 +42,7 @@ import { MatCheckbox } from "@angular/material/checkbox";
 import { MatCard, MatCardContent, MatCardActions } from "@angular/material/card";
 import { MatProgressBar } from "@angular/material/progress-bar";
 import { MatButton } from "@angular/material/button";
-import { NgIf } from "@angular/common";
+
 
 const PLUGIN_URI = "../api/em/settings/content/plugins";
 
@@ -50,7 +50,7 @@ const PLUGIN_URI = "../api/em/settings/content/plugins";
     selector: "em-plugins-view",
     templateUrl: "./plugins-view.component.html",
     styleUrls: ["./plugins-view.component.scss"],
-    imports: [NgIf, StagedFileChooserComponent, MatButton, MatProgressBar, MatCard, MatCardContent, MatTable, MatSort, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCheckbox, MatCellDef, MatCell, MatSortHeader, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, MatCardActions]
+    imports: [StagedFileChooserComponent, MatButton, MatProgressBar, MatCard, MatCardContent, MatTable, MatSort, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCheckbox, MatCellDef, MatCell, MatSortHeader, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, MatCardActions]
 })
 export class PluginsViewComponent implements OnInit, AfterViewInit, OnDestroy {
    @ViewChild("fileChooser") fileChooser: StagedFileChooserComponent;

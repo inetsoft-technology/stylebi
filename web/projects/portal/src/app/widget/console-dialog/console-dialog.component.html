@@ -1,50 +1,56 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <w-standard-dialog [title]="'_#(Console)'"
-                   (onClose)="closeDialog()"
-                   [cshid]="'VisualComposerConsole'">
+  (onClose)="closeDialog()"
+  [cshid]="'VisualComposerConsole'">
   <ng-template wDialogContent>
     <div class="container-fluid">
-      <div class="row justify-content-end mt-1" *ngIf="!!messages && messages.length > 0">
-        <div class="col-auto p-0 level-counter">
-          <ng-container *ngFor="let item of levelOptions; let i = index">
-            <div class="ms-3">
-              <i class="icon-size-small" [ngClass]="getLevelIcon(item)" [title]="item"></i>
-              <span>{{getLevelCounter(item)}}</span>
-            </div>
-          </ng-container>
+      @if (!!messages && messages.length > 0) {
+        <div class="row justify-content-end mt-1">
+          <div class="col-auto p-0 level-counter">
+            @for (item of levelOptions; track item; let i = $index) {
+              <div class="ms-3">
+                <i class="icon-size-small" [ngClass]="getLevelIcon(item)" [title]="item"></i>
+                <span>{{getLevelCounter(item)}}</span>
+              </div>
+            }
+          </div>
+          <div class="col-2">
+            <button class="form-control dropdown-toggle level-button" type="button"
+              [fixedDropdown]="dropdownMenu" [autoClose]="false"
+              dropdownPlacement="bottom">
+              <div>{{getLevelButtonLabel()}}</div>
+            </button>
+          </div>
         </div>
-        <div class="col-2">
-          <button class="form-control dropdown-toggle level-button" type="button"
-                  [fixedDropdown]="dropdownMenu" [autoClose]="false"
-                  dropdownPlacement="bottom">
-            <div>{{getLevelButtonLabel()}}</div>
-          </button>
-        </div>
-      </div>
+      }
       <div class="mt-4">
-        <p *ngIf="!visibleMessages || visibleMessages.length == 0" class="text-center">_#(vs.noMessage)</p>
-        <div *ngFor="let message of visibleMessages" class="alert message-content mb-2"
-             [class.alert-danger]="message.type == 'ERROR'"
-             [class.alert-warning]="message.type == 'WARNING'"
-             [class.alert-info]="message.type == 'INFO'"
-             [innerHTML]="message.message">
-        </div>
+        @if (!visibleMessages || visibleMessages.length == 0) {
+          <p class="text-center">_#(vs.noMessage)</p>
+        }
+        @for (message of visibleMessages; track message) {
+          <div class="alert message-content mb-2"
+            [class.alert-danger]="message.type == 'ERROR'"
+            [class.alert-warning]="message.type == 'WARNING'"
+            [class.alert-info]="message.type == 'INFO'"
+            [innerHTML]="message.message">
+          </div>
+        }
       </div>
     </div>
   </ng-template>
@@ -52,32 +58,34 @@
     <div class="dropdown-pane">
       <div class="form-check">
         <input type="checkbox" class="form-check-input" id="all"
-               [ngModel]="selectedLevels.length == levelOptions.length"
-               (change)="levelChanged($event, 'all')">
+          [ngModel]="selectedLevels.length == levelOptions.length"
+          (change)="levelChanged($event, 'all')">
         <label class="form-check-label" for="all">
           _#(All)
         </label>
       </div>
-      <div *ngFor="let item of levelOptions; let i = index">
-        <div class="form-check">
-          <input type="checkbox" class="form-check-input" [id]="item"
-                 [value]="item" [ngModel]="isSelected(item)"
-                 (change)="levelChanged($event, 'others')">
-          <label class="form-check-label" [for]="item">
-            {{item}}
-          </label>
+      @for (item of levelOptions; track item; let i = $index) {
+        <div>
+          <div class="form-check">
+            <input type="checkbox" class="form-check-input" [id]="item"
+              [value]="item" [ngModel]="isSelected(item)"
+              (change)="levelChanged($event, 'others')">
+            <label class="form-check-label" [for]="item">
+              {{item}}
+            </label>
+          </div>
         </div>
-      </div>
+      }
     </div>
   </ng-template>
 
   <ng-template wDialogButtons>
     <button type="button" class="btn btn-primary" [disabled]="!messages || messages.length == 0"
-            (click)="clearMessages()">
+      (click)="clearMessages()">
       _#(Clear)
     </button>
     <button type="button" class="btn btn-primary" [disabled]="!messages || messages.length == 0"
-            (click)="ok()">
+      (click)="ok()">
       _#(OK)
     </button>
     <button type="button" class="btn btn-default" (click)="closeDialog()">

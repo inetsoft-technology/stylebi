@@ -40,7 +40,7 @@ import { LoadingIndicatorPaneComponent } from "../../common-components/loading-i
 import { PhysicalJoinEditPane } from "../physical-join-edit-pane/physical-join-edit-pane.component";
 import { PhysicalModelNetworkGraphComponent } from "../physical-model-network-graph/physical-model-network-graph.component";
 import { FixedDropdownDirective } from "../../../../../../widget/fixed-dropdown/fixed-dropdown.directive";
-import { NgIf } from "@angular/common";
+
 
 const CLOSE_JOIN_EDIT_PANE_URI = "../api/data/physicalmodel/join-edit/close";
 const PHYSICAL_GRAPH_PANE_MODEL_URI = "../api/data/physicalmodel/graph";
@@ -51,7 +51,7 @@ const UPDATE_GRAPH_PANE_SIZE = "../api/data/physicalmodel/graph/size/";
     selector: "physical-graph-pane",
     templateUrl: "physical-graph-pane.component.html",
     styleUrls: ["physical-graph-pane.component.scss"],
-    imports: [NgIf, FixedDropdownDirective, PhysicalModelNetworkGraphComponent, PhysicalJoinEditPane, LoadingIndicatorPaneComponent]
+    imports: [FixedDropdownDirective, PhysicalModelNetworkGraphComponent, PhysicalJoinEditPane, LoadingIndicatorPaneComponent]
 })
 export class PhysicalGraphPane implements OnInit, AfterViewChecked, OnDestroy {
    @Input() physicalView: string;

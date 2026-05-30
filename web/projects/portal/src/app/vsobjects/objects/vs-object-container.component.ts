@@ -89,13 +89,13 @@ import { VSCalcTable } from "./table/vs-calctable.component";
 import { VSAnnotation } from "./annotation/vs-annotation.component";
 import { VSPopComponentDirective } from "./data-tip/vs-pop-component.directive";
 import { VSDataTipDirective } from "./data-tip/vs-data-tip.directive";
-import { NgFor, NgIf } from "@angular/common";
+
 
 @Component({
     selector: "vs-object-container",
     templateUrl: "vs-object-container.component.html",
     styleUrls: ["vs-object-container.component.scss"],
-    imports: [NgFor, NgIf, VSDataTipDirective, VSPopComponentDirective, VSAnnotation, VSCalcTable, VSCalendar, VSChart, VSCheckBox, VSComboBox, VSCrosstab, VSCylinder, VSGauge, VSGroupContainer, VSImage, VSLine, VSOval, VSRadioButton, VSRectangle, VSRangeSlider, VSSelection, VSSelectionContainer, VSSelectionContainerChildren, VSSlider, VSSlidingScale, VSSpinner, VSSubmit, VSTab, VSTable, VSText, VSTextInput, VSThermometer, VSViewsheet, MiniToolbar, PlaceholderDragElement]
+    imports: [VSDataTipDirective, VSPopComponentDirective, VSAnnotation, VSCalcTable, VSCalendar, VSChart, VSCheckBox, VSComboBox, VSCrosstab, VSCylinder, VSGauge, VSGroupContainer, VSImage, VSLine, VSOval, VSRadioButton, VSRectangle, VSRangeSlider, VSSelection, VSSelectionContainer, VSSelectionContainerChildren, VSSlider, VSSlidingScale, VSSpinner, VSSubmit, VSTab, VSTable, VSText, VSTextInput, VSThermometer, VSViewsheet, MiniToolbar, PlaceholderDragElement]
 })
 export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
    @Input() public vsInfo: ViewsheetInfo;

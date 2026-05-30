@@ -141,7 +141,7 @@ export class FixedDropdownDirective implements OnDestroy {
    }
 
    @HostListener("click", ["$event"])
-   private clicked(event: MouseEvent) {
+   public clicked(event: MouseEvent) {
       if(this.disabledSelfAction) {
          return;
       }

@@ -27,7 +27,7 @@ import {TaskConditionChanges} from "../task-condition-pane.component";
 import { TimeZoneValue, TimeZoneSelectComponent } from "../time-zone-select/time-zone-select-component";
 import { MatInput } from "@angular/material/input";
 import { MatFormField, MatLabel, MatError, MatHint } from "@angular/material/form-field";
-import { NgIf } from "@angular/common";
+
 import { MatCheckbox } from "@angular/material/checkbox";
 import { MatCard, MatCardContent } from "@angular/material/card";
 
@@ -35,7 +35,7 @@ import { MatCard, MatCardContent } from "@angular/material/card";
     selector: "em-daily-condition-editor",
     templateUrl: "./daily-condition-editor.component.html",
     styleUrls: ["./daily-condition-editor.component.scss"],
-    imports: [MatCard, MatCardContent, FormsModule, ReactiveFormsModule, StartTimeEditorComponent, TimeZoneSelectComponent, MatCheckbox, NgIf, MatFormField, MatLabel, MatInput, MatError, MatHint]
+    imports: [MatCard, MatCardContent, FormsModule, ReactiveFormsModule, StartTimeEditorComponent, TimeZoneSelectComponent, MatCheckbox, MatFormField, MatLabel, MatInput, MatError, MatHint]
 })
 export class DailyConditionEditorComponent implements OnInit {
    @Input() timeZone: string;

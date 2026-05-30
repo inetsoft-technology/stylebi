@@ -1,58 +1,61 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
-<em-editor-panel
-  *ngIf="sheetModel"
-  contentClass="tabbed-editor-panel-content"
-  [applyDisabled]="mvActive || !valid"
-  [resetDisabled]="mvActive && !mvPage?.analyzed"
-  (applyClicked)="editSheet()"
-  (resetClicked)="reset(); mvPage?.clearAnalysis()"
-  (unsavedChanges)="unsavedChanges.emit($event)"
->
-  <mat-tab-group color="accent" [selectedIndex]="selectedTab" (selectedTabChange)="onSelectedTabChanged($event)">
-    <mat-tab label="_#(Viewsheet)">
-      <ng-template matTabContent>
-        <em-repository-sheet-settings-view [model]="sheetModel" (sheetSettingsChanged)="changeViewsheetSettings($event)">
-        </em-repository-sheet-settings-view>
-      </ng-template>
-    </mat-tab>
-    <mat-tab *ngIf="sheetModel.permissionTableModel" label="_#(Security)">
-      <ng-template matTabContent>
-        <em-resource-permission [model]="sheetModel.permissionTableModel" [showCopyPaste]="true" [copyPasteContext]="copyPasteContext" (permissionChanged)="_viewsheetChanged = true">
-        </em-resource-permission>
-      </ng-template>
-    </mat-tab>
-    <mat-tab #mvTab [disabled]="!hasMVPermission" label="_#(MV)">
-      <ng-template matTabContent>
-        <em-analyze-mv-page #mvPage [nodesToAnalyze]="[editingNode]" (mvChanged)="mvChanged.emit($event)"></em-analyze-mv-page>
-      </ng-template>
-    </mat-tab>
-  </mat-tab-group>
-  <ng-container em-editor-panel-actions>
-    <ng-container *ngIf="mvActive">
-      <ng-container *ngIf="!mvAnalyzed" >
-        <button mat-button (click)="analyzeMV()">_#(Analyze)</button>
-        <button mat-button [disabled]="mvSelectionLength === 0" (click)="deleteMVSelected()">_#(Delete)</button>
-      </ng-container>
-      <ng-container *ngIf="mvPage?.analyzed">
-        <button mat-button (click)="mvPage?.create()" [disabled]="mvPage?.showCreateUpdateDisabled">_#(Create/Update)</button>
-        <button mat-button (click)="mvPage?.showPlan()" [disabled]="mvPage?.showPlanDisabled">_#(Show Plan)</button>
-      </ng-container>
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
+@if (sheetModel) {
+  <em-editor-panel
+    contentClass="tabbed-editor-panel-content"
+    [applyDisabled]="mvActive || !valid"
+    [resetDisabled]="mvActive && !mvPage?.analyzed"
+    (applyClicked)="editSheet()"
+    (resetClicked)="reset(); mvPage?.clearAnalysis()"
+    (unsavedChanges)="unsavedChanges.emit($event)"
+    >
+    <mat-tab-group color="accent" [selectedIndex]="selectedTab" (selectedTabChange)="onSelectedTabChanged($event)">
+      <mat-tab label="_#(Viewsheet)">
+        <ng-template matTabContent>
+          <em-repository-sheet-settings-view [model]="sheetModel" (sheetSettingsChanged)="changeViewsheetSettings($event)">
+          </em-repository-sheet-settings-view>
+        </ng-template>
+      </mat-tab>
+      @if (sheetModel.permissionTableModel) {
+        <mat-tab label="_#(Security)">
+          <ng-template matTabContent>
+            <em-resource-permission [model]="sheetModel.permissionTableModel" [showCopyPaste]="true" [copyPasteContext]="copyPasteContext" (permissionChanged)="_viewsheetChanged = true">
+            </em-resource-permission>
+          </ng-template>
+        </mat-tab>
+      }
+      <mat-tab #mvTab [disabled]="!hasMVPermission" label="_#(MV)">
+        <ng-template matTabContent>
+          <em-analyze-mv-page #mvPage [nodesToAnalyze]="[editingNode]" (mvChanged)="mvChanged.emit($event)"></em-analyze-mv-page>
+        </ng-template>
+      </mat-tab>
+    </mat-tab-group>
+    <ng-container em-editor-panel-actions>
+      @if (mvActive) {
+        @if (!mvAnalyzed) {
+          <button mat-button (click)="analyzeMV()">_#(Analyze)</button>
+          <button mat-button [disabled]="mvSelectionLength === 0" (click)="deleteMVSelected()">_#(Delete)</button>
+        }
+        @if (mvPage?.analyzed) {
+          <button mat-button (click)="mvPage?.create()" [disabled]="mvPage?.showCreateUpdateDisabled">_#(Create/Update)</button>
+          <button mat-button (click)="mvPage?.showPlan()" [disabled]="mvPage?.showPlanDisabled">_#(Show Plan)</button>
+        }
+      }
     </ng-container>
-  </ng-container>
-</em-editor-panel>
+  </em-editor-panel>
+}

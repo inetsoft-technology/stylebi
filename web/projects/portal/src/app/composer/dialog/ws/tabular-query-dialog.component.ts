@@ -38,14 +38,14 @@ import { ApplyButtonComponent } from "../../../widget/slide-out/apply-button.com
 import { TabularViewComponent } from "../../../widget/tabular/tabular-view.component";
 import { InputTrimDirective } from "../../../widget/directive/input-trim.directive";
 import { EnterSubmitDirective } from "../../../widget/directive/enter-submit.directive";
-import { NgIf, NgFor } from "@angular/common";
+
 import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
 
 @Component({
     selector: "tabular-query-dialog",
     templateUrl: "tabular-query-dialog.component.html",
     styleUrls: ["tabular-query-dialog.component.scss"],
-    imports: [ModalHeaderComponent, NgIf, EnterSubmitDirective, FormsModule, ReactiveFormsModule, InputTrimDirective, TabularViewComponent, NgFor, ApplyButtonComponent]
+    imports: [ModalHeaderComponent, EnterSubmitDirective, FormsModule, ReactiveFormsModule, InputTrimDirective, TabularViewComponent, ApplyButtonComponent]
 })
 export class TabularQueryDialog implements OnInit {
    @Input() runtimeId: string;

@@ -23,7 +23,7 @@ import { PageHeaderService } from "../../../page-header/page-header.service";
 import { Secured } from "../../../secured";
 import { TopScrollDirective } from "../../../top-scroll/top-scroll.directive";
 import { RouterLinkActive, RouterLink, RouterOutlet } from "@angular/router";
-import { NgFor } from "@angular/common";
+
 import { MatTabNav, MatTabLink, MatTabNavPanel } from "@angular/material/tabs";
 
 @Secured({
@@ -34,7 +34,7 @@ import { MatTabNav, MatTabLink, MatTabNavPanel } from "@angular/material/tabs";
     selector: "em-schedule-settings-page",
     templateUrl: "./schedule-settings-page.component.html",
     styleUrls: ["./schedule-settings-page.component.scss"],
-    imports: [MatTabNav, NgFor, MatTabLink, RouterLinkActive, RouterLink, MatTabNavPanel, TopScrollDirective, RouterOutlet]
+    imports: [MatTabNav, MatTabLink, RouterLinkActive, RouterLink, MatTabNavPanel, TopScrollDirective, RouterOutlet]
 })
 export class ScheduleSettingsPageComponent implements OnInit {
    links = [

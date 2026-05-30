@@ -33,7 +33,7 @@ import {
    BookmarkHistoryParameters
 } from "./bookmark-history";
 import { MatOption } from "@angular/material/core";
-import { NgFor } from "@angular/common";
+
 import { MatSelect } from "@angular/material/select";
 import { MatFormField, MatLabel } from "@angular/material/form-field";
 
@@ -54,7 +54,7 @@ import { MatFormField, MatLabel } from "@angular/material/form-field";
     selector: "em-audit-bookmark-history",
     templateUrl: "./audit-bookmark-history.component.html",
     styleUrls: ["./audit-bookmark-history.component.scss"],
-    imports: [AuditTableViewComponent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatSelect, NgFor, MatOption]
+    imports: [AuditTableViewComponent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatSelect, MatOption]
 })
 export class AuditBookmarkHistoryComponent implements OnInit, OnDestroy {
    users: string[] = [];

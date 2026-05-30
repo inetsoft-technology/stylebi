@@ -39,14 +39,14 @@ import { DefaultFocusDirective } from "../../../../widget/directive/default-focu
 import { BlockMouseDirective } from "../../../../widget/mouse-event/block-mouse.directive";
 import { InputTrimDirective } from "../../../../widget/directive/input-trim.directive";
 import { MiniMenu } from "../../../../vsobjects/objects/mini-toolbar/mini-menu.component";
-import { NgClass, NgIf } from "@angular/common";
+import { NgClass } from "@angular/common";
 
 @Component({
     selector: "ws-assembly-thumbnail-title",
     templateUrl: "ws-assembly-thumbnail-title.component.html",
     styleUrls: ["ws-assembly-thumbnail-title.component.scss"],
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [NgClass, NgIf, MiniMenu, InputTrimDirective, FormsModule, BlockMouseDirective, DefaultFocusDirective, OutOfZoneDirective, ReactiveFormsModule]
+    imports: [NgClass, MiniMenu, InputTrimDirective, FormsModule, BlockMouseDirective, DefaultFocusDirective, OutOfZoneDirective, ReactiveFormsModule]
 })
 export class WSAssemblyThumbnailTitleComponent {
    @Input() editable: boolean = false;

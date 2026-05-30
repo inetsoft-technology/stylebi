@@ -35,7 +35,7 @@ import { ResourcePermissionTableModel } from "../resource-permission/resource-pe
 import { SelectionTransfer } from "../resource-permission/selection-transfer";
 import {convertToKey, IdentityId} from "../users/identity-id";
 import { MatDivider } from "@angular/material/divider";
-import { NgFor } from "@angular/common";
+
 import { MatIcon } from "@angular/material/icon";
 import { MatCheckbox } from "@angular/material/checkbox";
 
@@ -44,24 +44,23 @@ import { MatCheckbox } from "@angular/material/checkbox";
     templateUrl: "./permissions-table.component.html",
     styleUrls: ["./permissions-table.component.scss"],
     imports: [
-        MatTable,
-        MatSort,
-        MatColumnDef,
-        MatHeaderCellDef,
-        MatHeaderCell,
-        MatCheckbox,
-        MatCellDef,
-        MatCell,
-        MatIcon,
-        MatSortHeader,
-        NgFor,
-        MatHeaderRowDef,
-        MatHeaderRow,
-        MatRowDef,
-        MatRow,
-        MatDivider,
-        MatPaginator,
-    ]
+    MatTable,
+    MatSort,
+    MatColumnDef,
+    MatHeaderCellDef,
+    MatHeaderCell,
+    MatCheckbox,
+    MatCellDef,
+    MatCell,
+    MatIcon,
+    MatSortHeader,
+    MatHeaderRowDef,
+    MatHeaderRow,
+    MatRowDef,
+    MatRow,
+    MatDivider,
+    MatPaginator
+]
 })
 export class PermissionsTableComponent implements OnChanges, AfterViewInit, SelectionTransfer<ResourcePermissionTableModel> {
    @ViewChild(MatSort, { static: true }) sort: MatSort;

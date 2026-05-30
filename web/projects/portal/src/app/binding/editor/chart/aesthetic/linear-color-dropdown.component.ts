@@ -16,14 +16,14 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, Input, Output, EventEmitter } from "@angular/core";
-import { NgFor } from "@angular/common";
+
 import { FixedDropdownDirective } from "../../../../widget/fixed-dropdown/fixed-dropdown.directive";
 
 @Component({
     selector: "linear-color-dropdown",
     templateUrl: "linear-color-dropdown.component.html",
     styleUrls: ["linear-color-dropdown.component.scss"],
-    imports: [FixedDropdownDirective, NgFor]
+    imports: [FixedDropdownDirective]
 })
 export class LinearColorDropdown {
    @Input() colorFrame: string;

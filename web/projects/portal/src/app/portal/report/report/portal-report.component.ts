@@ -22,13 +22,13 @@ import { fromEvent, Subscription } from "rxjs";
 import { filter, map } from "rxjs/operators";
 import { RepositoryTreeService } from "../../../widget/repository-tree/repository-tree.service";
 import { HideNavService } from "../../services/hide-nav.service";
-import { NgIf } from "@angular/common";
+
 
 @Component({
     selector: "p-portal-report",
     templateUrl: "./portal-report.component.html",
     styleUrls: ["./portal-report.component.scss"],
-    imports: [NgIf]
+    imports: []
 })
 export class PortalReportComponent implements OnInit, OnDestroy {
    contentSource: SafeResourceUrl;

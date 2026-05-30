@@ -23,7 +23,7 @@ import {
    OnChanges,
    SimpleChanges
 } from "@angular/core";
-import { NgIf, NgFor } from "@angular/common";
+
 import { FormsModule } from "@angular/forms";
 import { NgbDropdown, NgbDropdownToggle, NgbDropdownMenu } from "@ng-bootstrap/ng-bootstrap";
 import { EnterSubmitDirective } from "../directive/enter-submit.directive";
@@ -32,7 +32,7 @@ import { EnterSubmitDirective } from "../directive/enter-submit.directive";
     selector: "format-css-pane",
     templateUrl: "format-css-pane.component.html",
     styleUrls: ["format-css-pane.component.scss"],
-    imports: [EnterSubmitDirective, NgbDropdown, FormsModule, NgbDropdownToggle, NgIf, NgbDropdownMenu, NgFor]
+    imports: [EnterSubmitDirective, NgbDropdown, FormsModule, NgbDropdownToggle, NgbDropdownMenu]
 })
 export class FormatCSSPane implements OnChanges {
    @Input() cssID: string;

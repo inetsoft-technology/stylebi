@@ -21,12 +21,12 @@ import { AestheticIconCell } from "./aesthetic-icon-cell";
 import { LineItem } from "./line-item.component";
 import { TextureItem } from "./texture-item.component";
 import { ShapeItem } from "./shape-item.component";
-import { NgIf } from "@angular/common";
+
 
 @Component({
     selector: "shape-cell",
     templateUrl: "shape-cell.component.html",
-    imports: [NgIf, ShapeItem, TextureItem, LineItem]
+    imports: [ShapeItem, TextureItem, LineItem]
 })
 export class ShapeCell extends AestheticIconCell {
    get isStaticShape(): boolean {

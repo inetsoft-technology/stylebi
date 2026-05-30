@@ -41,7 +41,7 @@ import { DefaultFocusDirective } from "../../widget/directive/default-focus.dire
 import { FixedDropdownDirective } from "../../widget/fixed-dropdown/fixed-dropdown.directive";
 import { EnterClickDirective } from "../../widget/directive/enter-click.directive";
 import { ResponsiveTabsComponent } from "../../widget/responsive-tabs/responsive-tabs.component";
-import { NgIf } from "@angular/common";
+
 
 const DASHBOARD_TAB_MODEL_URI: string = "../api/portal/dashboard-tab-model";
 const DELETE_DASHBOARD_URI: string = "../api/portal/dashboard/deleteDashboard/";
@@ -50,7 +50,7 @@ const DELETE_DASHBOARD_URI: string = "../api/portal/dashboard/deleteDashboard/";
     templateUrl: "dashboard-tab.component.html",
     styleUrls: ["../portal-tab.component.scss", "dashboard-tab.component.scss"],
     providers: [DashboardService],
-    imports: [NgIf, ResponsiveTabsComponent, EnterClickDirective, FixedDropdownDirective, DefaultFocusDirective, RouterOutlet]
+    imports: [ResponsiveTabsComponent, EnterClickDirective, FixedDropdownDirective, DefaultFocusDirective, RouterOutlet]
 })
 export class DashboardTabComponent implements OnInit, OnDestroy {
    model: DashboardTabModel;

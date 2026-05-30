@@ -32,14 +32,14 @@ import { DateLevelExamplesService } from "../../../../common/services/date-level
 import { StyleConstants } from "../../../../common/util/style-constants";
 import { FormsModule } from "@angular/forms";
 import { DynamicComboBox } from "../../../../widget/dynamic-combo-box/dynamic-combo-box.component";
-import { NgIf } from "@angular/common";
+
 import { SortOption } from "../../sort-option.component";
 
 @Component({
     selector: "dimension-editor",
     templateUrl: "dimension-editor.component.html",
     styleUrls: ["dimension-editor.component.scss"],
-    imports: [SortOption, NgIf, DynamicComboBox, FormsModule]
+    imports: [SortOption, DynamicComboBox, FormsModule]
 })
 export class DimensionEditor implements OnInit {
    @Input() dimension: ChartDimensionRef;

@@ -47,7 +47,7 @@ import { VSGauge } from "../../../vsobjects/objects/output/gauge/vs-gauge.compon
 import { VSCrosstab } from "../../../vsobjects/objects/table/vs-crosstab.component";
 import { VSChart } from "../../../vsobjects/objects/chart/vs-chart.component";
 import { VSCalendar } from "../../../vsobjects/objects/calendar/vs-calendar.component";
-import { NgIf } from "@angular/common";
+
 import { OutOfZoneDirective } from "../../../widget/directive/out-of-zone.directive";
 import { InteractableDirective } from "../../../widget/interact/interactable.directive";
 
@@ -55,7 +55,7 @@ import { InteractableDirective } from "../../../widget/interact/interactable.dir
     selector: "vs-wizard-object",
     templateUrl: "./vs-wizard-object.component.html",
     styleUrls: ["./vs-wizard-object.component.scss"],
-    imports: [InteractableDirective, OutOfZoneDirective, NgIf, VSCalendar, VSChart, VSCrosstab, VSGauge, VSImage, VSRangeSlider, VSSelection, VSTable, VSText, MiniToolbar]
+    imports: [InteractableDirective, OutOfZoneDirective, VSCalendar, VSChart, VSCrosstab, VSGauge, VSImage, VSRangeSlider, VSSelection, VSTable, VSText, MiniToolbar]
 })
 export class VsWizardObjectComponent implements OnInit, OnDestroy {
    @Input() vsObject: VSObjectModel;

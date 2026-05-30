@@ -22,14 +22,14 @@ import { FormValidators } from "../../../../../../../shared/util/form-validators
 import { Tool } from "../../../../../../../shared/util/tool";
 import { PropertyInfo } from "./datasources-database.component";
 import { EnterSubmitDirective } from "../../../../widget/directive/enter-submit.directive";
-import { NgIf } from "@angular/common";
+
 import { ModalHeaderComponent } from "../../../../widget/modal-header/modal-header.component";
 
 @Component({
     selector: "edit-property-dialog",
     templateUrl: "edit-property-dialog.component.html",
     styleUrls: ["edit-property-dialog.component.scss"],
-    imports: [ModalHeaderComponent, NgIf, EnterSubmitDirective, FormsModule, ReactiveFormsModule]
+    imports: [ModalHeaderComponent, EnterSubmitDirective, FormsModule, ReactiveFormsModule]
 })
 export class EditPropertyDialogComponent implements OnInit {
    @Input() info: any = {

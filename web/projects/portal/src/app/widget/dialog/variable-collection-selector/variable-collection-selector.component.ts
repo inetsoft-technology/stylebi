@@ -17,7 +17,7 @@
  */
 import { Component, Input, EventEmitter, Output, OnInit } from "@angular/core";
 import { FormsModule } from "@angular/forms";
-import { NgSwitch, NgSwitchCase, NgFor, NgIf } from "@angular/common";
+
 
 enum StyleType {
    /**
@@ -42,12 +42,8 @@ enum StyleType {
     selector: "variable-collection-selector",
     templateUrl: "variable-collection-selector.component.html",
     imports: [
-        NgSwitch,
-        NgSwitchCase,
-        FormsModule,
-        NgFor,
-        NgIf,
-    ]
+    FormsModule
+]
 })
 export class VariableCollectionSelector implements OnInit {
    @Input() style: number;

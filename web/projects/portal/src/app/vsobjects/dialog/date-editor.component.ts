@@ -19,14 +19,14 @@ import { Component, Input, OnInit, OnDestroy, EventEmitter, Output } from "@angu
 import { UntypedFormGroup, UntypedFormControl, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { DateEditorModel } from "../model/date-editor-model";
 import { FormValidators } from "../../../../../shared/util/form-validators";
-import { NgIf } from "@angular/common";
+
 import { NgbInputDatepicker } from "@ng-bootstrap/ng-bootstrap";
 
 @Component({
     selector: "date-editor",
     templateUrl: "date-editor.component.html",
     styleUrls: ["date-editor.component.scss"],
-    imports: [FormsModule, ReactiveFormsModule, NgbInputDatepicker, NgIf]
+    imports: [FormsModule, ReactiveFormsModule, NgbInputDatepicker]
 })
 export class DateEditor implements OnInit, OnDestroy {
    @Input() set model(value: DateEditorModel) {

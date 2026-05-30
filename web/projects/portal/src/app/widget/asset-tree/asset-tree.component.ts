@@ -53,7 +53,7 @@ import { VirtualScrollTreeComponent } from "../tree/virtual-scroll-tree/virtual-
 import { TreeTool } from "../../common/util/tree-tool";
 import { CurrentUserService } from "../../../../../shared/util/current-user.service";
 import { VariableInputDialog } from "../dialog/variable-input-dialog/variable-input-dialog.component";
-import { NgIf } from "@angular/common";
+
 
 const isDataSource = (node: TreeNodeModel) => {
    const entry = node.data as AssetEntry;
@@ -66,7 +66,7 @@ const isDataSource = (node: TreeNodeModel) => {
     styleUrls: ["asset-tree.component.scss"],
     changeDetection: ChangeDetectionStrategy.OnPush,
     providers: [AssetClientService, DebounceService],
-    imports: [NgIf, VirtualScrollTreeComponent, VariableInputDialog]
+    imports: [VirtualScrollTreeComponent, VariableInputDialog]
 })
 export class AssetTreeComponent implements OnInit, OnDestroy, OnChanges {
    @Input() reportRepositoryEnabled: boolean = false;

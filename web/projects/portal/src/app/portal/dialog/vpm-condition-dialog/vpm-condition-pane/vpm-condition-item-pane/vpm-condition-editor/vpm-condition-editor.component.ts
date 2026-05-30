@@ -31,13 +31,13 @@ import { SessionDataEditor } from "../../../../../../widget/condition/session-da
 import { VPMFieldEditorComponent } from "./vpm-field-editor/vpm-field-editor.component";
 import { VPMVariableEditor } from "./vpm-variable-editor/vpm-variable-editor.component";
 import { VPMValueEditorComponent } from "./vpm-value-editor/vpm-value-editor.component";
-import { NgIf, NgFor } from "@angular/common";
+
 
 @Component({
     selector: "vpm-condition-editor",
     templateUrl: "vpm-condition-editor.component.html",
     styleUrls: ["vpm-condition-editor.component.scss"],
-    imports: [NgIf, VPMValueEditorComponent, VPMVariableEditor, VPMFieldEditorComponent, SessionDataEditor, VpmSubqueryEditorComponent, FixedDropdownDirective, NgFor, ClauseValueTypePipe]
+    imports: [VPMValueEditorComponent, VPMVariableEditor, VPMFieldEditorComponent, SessionDataEditor, VpmSubqueryEditorComponent, FixedDropdownDirective, ClauseValueTypePipe]
 })
 export class VPMConditionEditor implements OnChanges {
    @Input() value: ClauseValueModel;

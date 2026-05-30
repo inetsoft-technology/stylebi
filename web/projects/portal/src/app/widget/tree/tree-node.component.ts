@@ -46,7 +46,7 @@ import { TreeSearchPipe } from "./tree-search.pipe";
 import { TooltipDirective } from "../tooltip/tooltip.directive";
 import { EnterClickDirective } from "../directive/enter-click.directive";
 import { OutOfZoneDirective } from "../directive/out-of-zone.directive";
-import { NgIf, NgClass, NgFor } from "@angular/common";
+import { NgClass } from "@angular/common";
 
 @Component({
     selector: "tree-node",
@@ -54,14 +54,12 @@ import { NgIf, NgClass, NgFor } from "@angular/common";
     styleUrls: ["tree-node.component.scss"],
     changeDetection: ChangeDetectionStrategy.OnPush,
     imports: [
-        NgIf,
-        OutOfZoneDirective,
-        EnterClickDirective,
-        NgClass,
-        TooltipDirective,
-        NgFor,
-        TreeSearchPipe,
-    ]
+    OutOfZoneDirective,
+    EnterClickDirective,
+    NgClass,
+    TooltipDirective,
+    TreeSearchPipe
+]
 })
 export class TreeNodeComponent implements OnInit, OnDestroy, OnChanges {
    @Input() tree: TreeComponent;

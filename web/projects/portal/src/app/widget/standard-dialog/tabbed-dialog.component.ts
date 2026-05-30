@@ -27,7 +27,7 @@ import {
 import { DialogButtonsDirective } from "./dialog-buttons.directive";
 import { DialogTabDirective } from "./dialog-tab.directive";
 import { UIContextService } from "../../common/services/ui-context.service";
-import { NgFor, NgTemplateOutlet } from "@angular/common";
+import { NgTemplateOutlet } from "@angular/common";
 import { NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, NgbNavOutlet } from "@ng-bootstrap/ng-bootstrap";
 import { EnterSubmitDirective } from "../directive/enter-submit.directive";
 import { ModalHeaderComponent } from "../modal-header/modal-header.component";
@@ -37,7 +37,7 @@ import { ModalHeaderComponent } from "../modal-header/modal-header.component";
     templateUrl: "./tabbed-dialog.component.html",
     styleUrls: ["./tabbed-dialog.component.scss"],
     encapsulation: ViewEncapsulation.None,
-    imports: [ModalHeaderComponent, EnterSubmitDirective, NgbNav, NgFor, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, NgTemplateOutlet, NgbNavOutlet]
+    imports: [ModalHeaderComponent, EnterSubmitDirective, NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, NgTemplateOutlet, NgbNavOutlet]
 })
 export class TabbedDialogComponent {
    @Input() title: string;

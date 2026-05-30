@@ -22,18 +22,17 @@ import { ModelService } from "../../../widget/services/model.service";
 import { WorksheetPropertyDialogModel } from "../../data/ws/worksheet-property-dialog-model";
 import { WorksheetOptionPane } from "./worksheet-option-pane.component";
 import { EnterSubmitDirective } from "../../../widget/directive/enter-submit.directive";
-import { NgIf } from "@angular/common";
+
 import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
 
 @Component({
     selector: "worksheet-property-dialog",
     templateUrl: "worksheet-property-dialog.component.html",
     imports: [
-        ModalHeaderComponent,
-        NgIf,
-        EnterSubmitDirective,
-        WorksheetOptionPane,
-    ]
+    ModalHeaderComponent,
+    EnterSubmitDirective,
+    WorksheetOptionPane
+]
 })
 export class WorksheetPropertyDialog implements OnInit {
    @Input() runtimeId: string;

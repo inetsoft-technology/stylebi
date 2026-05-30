@@ -29,13 +29,13 @@ import { ModelService } from "../services/model.service";
 import { NgbTooltip } from "@ng-bootstrap/ng-bootstrap";
 import { XConstants } from "../../common/util/xconstants";
 import { TouchScrollDirective } from "../scroll/touch-scroll.directive";
-import { NgIf, NgFor } from "@angular/common";
+
 
 @Component({
     selector: "simple-table",
     templateUrl: "simple-table.component.html",
     styleUrls: ["simple-table.component.scss"],
-    imports: [NgIf, NgFor, TouchScrollDirective, NgbTooltip]
+    imports: [TouchScrollDirective, NgbTooltip]
 })
 export class SimpleTableComponent {
    @Input() sortEnabled: boolean = true;

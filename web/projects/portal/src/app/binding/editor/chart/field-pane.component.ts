@@ -31,14 +31,14 @@ import { ChartBindingModel } from "../../data/chart/chart-binding-model";
 import { Tool } from "../../../../../../shared/util/tool";
 import { ObjectType } from "../../../common/data/dnd-transfer";
 import { ChartFieldmc } from "./field/chart-fieldmc.component";
-import { NgIf } from "@angular/common";
+
 import { OutOfZoneDirective } from "../../../widget/directive/out-of-zone.directive";
 
 @Component({
     selector: "field-pane",
     templateUrl: "field-pane.component.html",
     styleUrls: ["./aesthetic/aesthetic-field-mc.scss", "../data-editor.component.scss"],
-    imports: [OutOfZoneDirective, NgIf, ChartFieldmc]
+    imports: [OutOfZoneDirective, ChartFieldmc]
 })
 export class FieldPane {
    @Input() field: ChartRef;

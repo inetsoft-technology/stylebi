@@ -26,7 +26,7 @@ import { BatchActionEditorComponent } from "./batch-action-editor/batch-action-e
 import { BackupActionEditorComponent } from "./backup-action-editor/backup-action-editor.component";
 import { ViewsheetActionEditorComponent } from "./viewsheet-action-editor/viewsheet-action-editor.component";
 import { MatOption } from "@angular/material/core";
-import { NgIf, NgSwitch, NgSwitchCase } from "@angular/common";
+
 import { MatSelect } from "@angular/material/select";
 import { MatFormField, MatLabel } from "@angular/material/form-field";
 import { MatCard, MatCardContent } from "@angular/material/card";
@@ -40,7 +40,7 @@ export interface TaskActionChanges {
     selector: "em-schedule-task-action-pane",
     templateUrl: "./task-action-pane.component.html",
     styleUrls: ["./task-action-pane.component.scss"],
-    imports: [MatCard, MatCardContent, MatFormField, MatLabel, MatSelect, NgIf, MatOption, NgSwitch, NgSwitchCase, ViewsheetActionEditorComponent, BackupActionEditorComponent, BatchActionEditorComponent]
+    imports: [MatCard, MatCardContent, MatFormField, MatLabel, MatSelect, MatOption, ViewsheetActionEditorComponent, BackupActionEditorComponent, BatchActionEditorComponent]
 })
 export class TaskActionPaneComponent {
    @Output() modelChanged = new EventEmitter<TaskActionChanges>();

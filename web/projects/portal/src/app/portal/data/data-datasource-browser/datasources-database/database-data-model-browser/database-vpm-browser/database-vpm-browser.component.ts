@@ -45,7 +45,7 @@ import { AssetListBrowseModel } from "../../../../model/datasources/database/ass
 import { SearchCommand } from "../../../../commands/search-command";
 import { AssetDescriptionComponent } from "../../../asset-description/asset-description.component";
 import { DatabaseDataModelToolbarComponent } from "../database-data-model-toolbar.component";
-import { NgClass, NgIf } from "@angular/common";
+import { NgClass } from "@angular/common";
 
 const VPM_URI: string = "../api/data/vpm/browse/";
 const RENAME_VPM_URI: string = "../api/data/vpm/rename";
@@ -56,7 +56,7 @@ const SEARCH_VPM_URI: string = "../api/data/vpm/search";
 @Component({
     templateUrl: "./database-vpm-browser.component.html",
     styleUrls: ["database-vpm-browser.component.scss"],
-    imports: [NgClass, DatabaseDataModelToolbarComponent, NgIf, AssetItemListViewComponent, AssetDescriptionComponent, NotificationsComponent]
+    imports: [NgClass, DatabaseDataModelToolbarComponent, AssetItemListViewComponent, AssetDescriptionComponent, NotificationsComponent]
 })
 export class DatabaseVPMBrowserComponent implements OnDestroy, OnInit {
    @ViewChild("notifications") notifications: NotificationsComponent;

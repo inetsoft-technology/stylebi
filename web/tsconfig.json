@@ -27,10 +27,6 @@
     "paths": {
       "ckeditor5/translations/*.js": ["./node_modules/ckeditor5/dist/translations/*"]
     },
-    "lib": [
-      "ES2022",
-      "dom"
-    ],
     "types": [
       "jest",
       "geojson",

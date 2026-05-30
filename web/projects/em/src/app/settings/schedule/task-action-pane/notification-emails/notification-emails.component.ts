@@ -18,7 +18,7 @@
 import { Component, EventEmitter, Input, OnInit, Output } from "@angular/core";
 import { UntypedFormControl, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { EmailPickerComponent } from "../../../email-picker/email-picker.component";
-import { NgIf } from "@angular/common";
+
 import { MatCheckbox } from "@angular/material/checkbox";
 import { MatCard, MatCardHeader, MatCardTitle, MatCardContent } from "@angular/material/card";
 
@@ -34,7 +34,7 @@ export interface NotificationEmails {
     selector: "em-notification-emails",
     templateUrl: "./notification-emails.component.html",
     styleUrls: ["./notification-emails.component.scss"],
-    imports: [MatCard, MatCardHeader, MatCardTitle, MatCheckbox, FormsModule, NgIf, MatCardContent, EmailPickerComponent, ReactiveFormsModule]
+    imports: [MatCard, MatCardHeader, MatCardTitle, MatCheckbox, FormsModule, MatCardContent, EmailPickerComponent, ReactiveFormsModule]
 })
 export class NotificationEmailsComponent implements OnInit {
    @Input() enabled: boolean = false;

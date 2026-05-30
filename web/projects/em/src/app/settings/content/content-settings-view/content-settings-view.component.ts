@@ -21,7 +21,7 @@ import { AuthorizationService } from "../../../authorization/authorization.servi
 import { Secured } from "../../../secured";
 import { TopScrollDirective } from "../../../top-scroll/top-scroll.directive";
 import { RouterLinkActive, RouterLink, RouterOutlet } from "@angular/router";
-import { NgFor } from "@angular/common";
+
 import { MatTabNav, MatTabLink, MatTabNavPanel } from "@angular/material/tabs";
 
 @Secured({
@@ -32,7 +32,7 @@ import { MatTabNav, MatTabLink, MatTabNavPanel } from "@angular/material/tabs";
     selector: "em-content-settings-view",
     templateUrl: "./content-settings-view.component.html",
     styleUrls: ["./content-settings-view.component.scss"],
-    imports: [MatTabNav, NgFor, MatTabLink, RouterLinkActive, RouterLink, MatTabNavPanel, TopScrollDirective, RouterOutlet]
+    imports: [MatTabNav, MatTabLink, RouterLinkActive, RouterLink, MatTabNavPanel, TopScrollDirective, RouterOutlet]
 })
 export class ContentSettingsViewComponent implements OnInit {
    readonly links = [

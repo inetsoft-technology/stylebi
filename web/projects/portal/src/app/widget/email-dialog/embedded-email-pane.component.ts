@@ -34,7 +34,7 @@ import { CurrentUserService } from "../../../../../shared/util/current-user.serv
 import { equalsIdentity, IdentityId } from "../../../../../em/src/app/settings/security/users/identity-id";
 import { ScrollableTableDirective } from "../scrollable-table/scrollable-table.directive";
 import { EnterClickDirective } from "../directive/enter-click.directive";
-import { NgIf, NgFor, NgClass } from "@angular/common";
+import { NgClass } from "@angular/common";
 import { ShuffleListComponent } from "../shuffle-list/shuffle-list.component";
 
 const EXPAND_IDENTITY_NODE_URI = "../api/vs/expand-identity-node";
@@ -43,7 +43,7 @@ const EXPAND_IDENTITY_NODE_URI = "../api/vs/expand-identity-node";
     selector: "embedded-email-pane",
     templateUrl: "embedded-email-pane.component.html",
     styleUrls: ["embedded-email-pane.component.scss"],
-    imports: [FormsModule, ReactiveFormsModule, ShuffleListComponent, IdentityTreeComponent, NgIf, NgFor, EnterClickDirective, NgClass, ScrollableTableDirective]
+    imports: [FormsModule, ReactiveFormsModule, ShuffleListComponent, IdentityTreeComponent, EnterClickDirective, NgClass, ScrollableTableDirective]
 })
 export class EmbeddedEmailPane implements OnInit, OnDestroy {
    @Input() embeddedOnly: boolean = true;

@@ -23,7 +23,7 @@ import { Searchable } from "../../../searchable";
 import { PluginsModel } from "../../../../../../shared/util/model/plugins-model";
 import { Secured } from "../../../secured";
 import { PluginsViewComponent } from "../drivers-and-plugins/plugins-view/plugins-view.component";
-import { NgIf } from "@angular/common";
+
 import { TopScrollDirective } from "../../../top-scroll/top-scroll.directive";
 
 @Secured({
@@ -44,7 +44,7 @@ import { TopScrollDirective } from "../../../top-scroll/top-scroll.directive";
     selector: "em-content-drivers-and-plugins-view",
     templateUrl: "./content-drivers-and-plugins-view.component.html",
     styleUrls: ["./content-drivers-and-plugins-view.component.scss"],
-    imports: [TopScrollDirective, NgIf, PluginsViewComponent]
+    imports: [TopScrollDirective, PluginsViewComponent]
 })
 export class ContentDriversAndPluginsViewComponent implements OnInit {
    pluginsModel: PluginsModel;

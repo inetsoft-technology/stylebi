@@ -22,7 +22,7 @@ import { Sheet } from "../../../data/sheet";
 import { VSObjectTreeNode } from "../../../data/vs-object-tree-node";
 import { AssemblyContextMenuItemsComponent } from "../../vs/editor/assembly-context-menu-items.component";
 import { NgbDropdown, NgbDropdownToggle, NgbDropdownMenu } from "@ng-bootstrap/ng-bootstrap";
-import { NgFor, NgIf } from "@angular/common";
+
 
 const CSS_CLASSES: {[type: string]: string} = {
    "VSChart": "chart",
@@ -54,7 +54,7 @@ const CSS_CLASSES: {[type: string]: string} = {
     selector: "component-tree",
     templateUrl: "component-tree.component.html",
     styleUrls: ["component-tree.component.scss"],
-    imports: [NgFor, NgIf, NgbDropdown, NgbDropdownToggle, NgbDropdownMenu, AssemblyContextMenuItemsComponent]
+    imports: [NgbDropdown, NgbDropdownToggle, NgbDropdownMenu, AssemblyContextMenuItemsComponent]
 })
 export class ComponentTree  {
    @Input() children: VSObjectTreeNode[];

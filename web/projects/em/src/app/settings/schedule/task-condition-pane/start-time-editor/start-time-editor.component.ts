@@ -31,7 +31,7 @@ import { MatOption } from "@angular/material/core";
 import { MatSelect } from "@angular/material/select";
 import { MatHint, MatError, MatFormField } from "@angular/material/form-field";
 import { TimePickerComponent } from "../time-picker/time-picker.component";
-import { NgIf, NgFor } from "@angular/common";
+
 import { MatRadioGroup, MatRadioButton } from "@angular/material/radio";
 
 export interface StartTimeData {
@@ -48,7 +48,7 @@ export interface StartTimeChange extends StartTimeData {
     selector: "em-start-time-editor",
     templateUrl: "./start-time-editor.component.html",
     styleUrls: ["./start-time-editor.component.scss"],
-    imports: [FormsModule, ReactiveFormsModule, MatRadioGroup, NgIf, MatRadioButton, TimePickerComponent, MatHint, MatError, MatFormField, MatSelect, NgFor, MatOption]
+    imports: [FormsModule, ReactiveFormsModule, MatRadioGroup, MatRadioButton, TimePickerComponent, MatHint, MatError, MatFormField, MatSelect, MatOption]
 })
 export class StartTimeEditorComponent implements OnInit, OnChanges {
    @Input() timeRanges: TimeRange[] = [];

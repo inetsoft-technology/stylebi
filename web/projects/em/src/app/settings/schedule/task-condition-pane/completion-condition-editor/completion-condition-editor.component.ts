@@ -23,7 +23,7 @@ import { NameLabelTuple } from "../../../../../../../shared/util/name-label-tupl
 import { TaskConditionChanges } from "../task-condition-pane.component";
 import { MatProgressSpinner } from "@angular/material/progress-spinner";
 import { MatOption } from "@angular/material/core";
-import { NgFor, NgIf } from "@angular/common";
+
 import { MatSelect } from "@angular/material/select";
 import { MatFormField, MatLabel, MatError, MatSuffix } from "@angular/material/form-field";
 import { MatCard, MatCardContent } from "@angular/material/card";
@@ -32,7 +32,7 @@ import { MatCard, MatCardContent } from "@angular/material/card";
     selector: "em-completion-condition-editor",
     templateUrl: "./completion-condition-editor.component.html",
     styleUrls: ["./completion-condition-editor.component.scss"],
-    imports: [MatCard, MatCardContent, MatFormField, FormsModule, ReactiveFormsModule, MatLabel, MatSelect, NgFor, NgIf, MatOption, MatError, MatProgressSpinner, MatSuffix]
+    imports: [MatCard, MatCardContent, MatFormField, FormsModule, ReactiveFormsModule, MatLabel, MatSelect, MatOption, MatError, MatProgressSpinner, MatSuffix]
 })
 export class CompletionConditionEditorComponent implements OnInit {
    @Input() originalTaskName: string = null;

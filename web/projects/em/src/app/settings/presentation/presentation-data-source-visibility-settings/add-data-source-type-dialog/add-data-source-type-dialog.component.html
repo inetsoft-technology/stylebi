@@ -1,29 +1,33 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <em-modal-header [cshid]="'EMDataSourceVisibility'" [title]="title">
 </em-modal-header>
 <div mat-dialog-content [formGroup]="form">
   <mat-form-field appearance="outline" color="accent">
     <mat-label>_#(Data Source Type)</mat-label>
     <mat-select formControlName="dataSource" placeholder="_#(Data Source Type)">
-      <mat-option *ngFor="let type of listings" [value]="type.key">{{type.value}}</mat-option>
+      @for (type of listings; track type) {
+        <mat-option [value]="type.key">{{type.value}}</mat-option>
+      }
     </mat-select>
-    <mat-error *ngIf="form.controls.dataSource?.errors?.duplicateName">_#(em.dataSource.duplicateType)</mat-error>
+    @if (form.controls.dataSource?.errors?.duplicateName) {
+      <mat-error>_#(em.dataSource.duplicateType)</mat-error>
+    }
   </mat-form-field>
 </div>
 <div mat-dialog-actions>

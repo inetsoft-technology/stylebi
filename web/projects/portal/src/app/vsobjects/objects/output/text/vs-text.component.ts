@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { ɵparseCookieValue as parseCookieValue, NgIf, NgFor } from "@angular/common";
+import { ɵparseCookieValue as parseCookieValue } from "@angular/common";
 import {
   AfterViewChecked,
   AfterViewInit,
@@ -78,7 +78,7 @@ interface ExternalUrlsMessage {
     selector: "vs-text",
     templateUrl: "vs-text.component.html",
     styleUrls: ["vs-text.component.scss"],
-    imports: [NgIf, VSDataTipDirective, VSPopComponentDirective, OutOfZoneDirective, TooltipDirective, SafeFontDirective, AutoCompleteText, VSHiddenAnnotation, NgFor, VSAnnotation, VSLoadingDisplay]
+    imports: [VSDataTipDirective, VSPopComponentDirective, OutOfZoneDirective, TooltipDirective, SafeFontDirective, AutoCompleteText, VSHiddenAnnotation, VSAnnotation, VSLoadingDisplay]
 })
 export class VSText extends AbstractVSObject<VSTextModel>
    implements OnInit, OnDestroy, OnChanges, AfterViewInit, AfterViewChecked

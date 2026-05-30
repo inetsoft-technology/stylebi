@@ -23,7 +23,7 @@ import {
    Input,
    ViewChild
 } from "@angular/core";
-import { NgIf, NgClass } from "@angular/common";
+import { NgClass } from "@angular/common";
 import { ResizedDirective } from "../../../../../shared/resize-event/resized.directive";
 
 declare const window;
@@ -32,7 +32,7 @@ declare const window;
     selector: "w-ruler",
     templateUrl: "ruler.component.html",
     styleUrls: ["ruler.component.scss"],
-    imports: [ResizedDirective, NgIf, NgClass]
+    imports: [ResizedDirective, NgClass]
 })
 export class Ruler implements AfterViewInit {
    @Input() horizontal: boolean = true;

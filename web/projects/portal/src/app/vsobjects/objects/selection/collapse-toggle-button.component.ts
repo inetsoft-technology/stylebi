@@ -19,13 +19,13 @@ import { Component, EventEmitter, Input, Output } from "@angular/core";
 import { GuiTool } from "../../../common/util/gui-tool";
 import { AbstractVSActions } from "../../action/abstract-vs-actions";
 import { ContextProvider } from "../../context-provider.service";
-import { NgIf } from "@angular/common";
+
 
 @Component({
     selector: "collapse-toggle-button",
     templateUrl: "collapse-toggle-button.component.html",
     styleUrls: ["collapse-toggle-button.component.scss"],
-    imports: [NgIf]
+    imports: []
 })
 export class CollapseToggleButton {
    @Input() public collapsed = false;

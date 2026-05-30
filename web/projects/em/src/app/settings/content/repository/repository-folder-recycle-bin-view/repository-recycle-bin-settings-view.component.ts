@@ -26,13 +26,13 @@ import { MatCheckbox } from "@angular/material/checkbox";
 import { MatCard } from "@angular/material/card";
 import { MatTabGroup, MatTab, MatTabContent } from "@angular/material/tabs";
 import { EditorPanelComponent } from "../../../../common/util/editor-panel/editor-panel.component";
-import { NgIf } from "@angular/common";
+
 
 @Component({
     selector: "em-repository-recycle-bin-settings-view",
     templateUrl: "./repository-recycle-bin-settings-view.component.html",
     styleUrls: ["./repository-recycle-bin-settings-view.component.scss"],
-    imports: [NgIf, EditorPanelComponent, MatTabGroup, MatTab, MatTabContent, MatCard, FormsModule, ReactiveFormsModule, MatCheckbox, TableView, MatButton]
+    imports: [EditorPanelComponent, MatTabGroup, MatTab, MatTabContent, MatCard, FormsModule, ReactiveFormsModule, MatCheckbox, TableView, MatButton]
 })
 export class RepositoryRecycleBinSettingsViewComponent implements OnInit {
    @Input() model: RepositoryRecycleBinTableModel[];

@@ -19,18 +19,17 @@ import { Component, EventEmitter, Input, OnDestroy, Output } from "@angular/core
 import { UntypedFormControl, UntypedFormGroup, Validators, AbstractControl, ValidationErrors, ValidatorFn, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { Subject } from "rxjs";
 import { takeUntil } from "rxjs/operators";
-import { NgIf } from "@angular/common";
+
 import { ModalHeaderComponent } from "../../widget/modal-header/modal-header.component";
 
 @Component({
     selector: "range-slider-edit-dialog",
     templateUrl: "range-slider-edit-dialog.component.html",
     imports: [
-        ModalHeaderComponent,
-        FormsModule,
-        ReactiveFormsModule,
-        NgIf,
-    ]
+    ModalHeaderComponent,
+    FormsModule,
+    ReactiveFormsModule
+]
 })
 export class RangeSliderEditDialog implements OnDestroy {
    @Input() currentMin: number | Date;

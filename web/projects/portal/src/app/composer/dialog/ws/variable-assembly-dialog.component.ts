@@ -50,7 +50,7 @@ import { FixedDropdownDirective } from "../../../widget/fixed-dropdown/fixed-dro
 import { ExpressionEditor } from "../../../widget/condition/expression-editor.component";
 import { InputTrimDirective } from "../../../widget/directive/input-trim.directive";
 import { EnterSubmitDirective } from "../../../widget/directive/enter-submit.directive";
-import { NgIf, NgFor, NgClass } from "@angular/common";
+import { NgClass } from "@angular/common";
 import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
 
 enum UserVariable {
@@ -78,21 +78,19 @@ enum UserVariable {
     templateUrl: "variable-assembly-dialog.component.html",
     styleUrls: ["variable-assembly-dialog.component.scss"],
     imports: [
-        ModalHeaderComponent,
-        NgIf,
-        EnterSubmitDirective,
-        FormsModule,
-        ReactiveFormsModule,
-        InputTrimDirective,
-        NgFor,
-        VariableValueEditor,
-        ExpressionEditor,
-        NgClass,
-        FixedDropdownDirective,
-        VariableListDialog,
-        VariableTableListDialog,
-        ConditionValueTypePipe,
-    ]
+    ModalHeaderComponent,
+    EnterSubmitDirective,
+    FormsModule,
+    ReactiveFormsModule,
+    InputTrimDirective,
+    VariableValueEditor,
+    ExpressionEditor,
+    NgClass,
+    FixedDropdownDirective,
+    VariableListDialog,
+    VariableTableListDialog,
+    ConditionValueTypePipe
+]
 })
 export class VariableAssemblyDialog implements OnInit {
    @Input() worksheet: Worksheet;

@@ -38,7 +38,7 @@ import { MatButton } from "@angular/material/button";
 import { FormsModule } from "@angular/forms";
 import { MatCheckbox } from "@angular/material/checkbox";
 import { MatCard, MatCardTitle, MatCardContent } from "@angular/material/card";
-import { NgIf } from "@angular/common";
+
 import { ScheduleTaskSelectComponent } from "../schedule-task-select/schedule-task-select.component";
 
 
@@ -46,7 +46,7 @@ import { ScheduleTaskSelectComponent } from "../schedule-task-select/schedule-ta
     selector: "em-batch-action-editor",
     templateUrl: "./batch-action-editor.component.html",
     styleUrls: ["./batch-action-editor.component.scss"],
-    imports: [ScheduleTaskSelectComponent, NgIf, MatCard, MatCardTitle, MatCardContent, MatCheckbox, FormsModule, MatButton]
+    imports: [ScheduleTaskSelectComponent, MatCard, MatCardTitle, MatCardContent, MatCheckbox, FormsModule, MatButton]
 })
 export class BatchActionEditorComponent implements OnInit {
    @Input() originalTaskName: string;

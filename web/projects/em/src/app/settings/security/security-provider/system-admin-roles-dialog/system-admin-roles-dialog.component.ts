@@ -28,7 +28,7 @@ import { convertToKey, IdentityId } from "../../users/identity-id";
 import { MatDivider } from "@angular/material/divider";
 import { MatList, MatListItem } from "@angular/material/list";
 import { MatOption } from "@angular/material/core";
-import { NgIf, NgFor, AsyncPipe } from "@angular/common";
+import { AsyncPipe } from "@angular/common";
 import { MatIcon } from "@angular/material/icon";
 import { MatIconButton, MatButton } from "@angular/material/button";
 import { MatAutocompleteTrigger, MatAutocomplete } from "@angular/material/autocomplete";
@@ -46,7 +46,7 @@ export interface SystemAdminRolesData {
     selector: "em-system-admin-roles-dialog",
     templateUrl: "./system-admin-roles-dialog.component.html",
     styleUrls: ["./system-admin-roles-dialog.component.scss"],
-    imports: [ModalHeaderComponent, MatDialogContent, MatFormField, MatLabel, MatInput, FormsModule, MatAutocompleteTrigger, ReactiveFormsModule, MatIconButton, MatSuffix, MatIcon, NgIf, MatError, MatAutocomplete, NgFor, MatOption, MatList, MatListItem, MatDivider, MatDialogActions, MatButton, AsyncPipe]
+    imports: [ModalHeaderComponent, MatDialogContent, MatFormField, MatLabel, MatInput, FormsModule, MatAutocompleteTrigger, ReactiveFormsModule, MatIconButton, MatSuffix, MatIcon, MatError, MatAutocomplete, MatOption, MatList, MatListItem, MatDivider, MatDialogActions, MatButton, AsyncPipe]
 })
 export class SystemAdminRolesDialogComponent implements OnInit, OnDestroy {
    adminRoles: string[];

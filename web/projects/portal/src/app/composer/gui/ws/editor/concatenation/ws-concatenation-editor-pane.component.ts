@@ -57,7 +57,7 @@ import { ConcatenationPaneDropTargetComponent } from "./concatenation-pane-drop-
 import { ConcatenatedTableThumbnailComponent } from "./concatenated-table-thumbnail.component";
 import { ConcatRelationDescriptorComponent } from "./concat-relation-descriptor.component";
 import { ConcatRelationConnectorComponent } from "./concat-relation-connector.component";
-import { NgFor, NgIf, NgClass, AsyncPipe } from "@angular/common";
+import { NgClass, AsyncPipe } from "@angular/common";
 
 export const CONCAT_REORDER_SUBTABLE_ID: string = "reorder subtable";
 const CONCAT_ADD_TABLE_URI: string = "/events/composer/worksheet/concatenate/add-table";
@@ -70,7 +70,7 @@ const REORDER_SUBTABLES_URI = "/events/composer/worksheet/reorder-subtables";
     templateUrl: "ws-concatenation-editor-pane.component.html",
     styleUrls: ["ws-concatenation-editor-pane.component.scss"],
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [NgFor, ConcatRelationConnectorComponent, NgIf, ConcatRelationDescriptorComponent, ConcatenatedTableThumbnailComponent, NgClass, ConcatenationPaneDropTargetComponent, AsyncPipe, NumberToArrayPipe]
+    imports: [ConcatRelationConnectorComponent, ConcatRelationDescriptorComponent, ConcatenatedTableThumbnailComponent, NgClass, ConcatenationPaneDropTargetComponent, AsyncPipe, NumberToArrayPipe]
 })
 export class WSConcatenationEditorPane implements OnChanges, OnInit, OnDestroy {
    @Input() worksheet: Worksheet;

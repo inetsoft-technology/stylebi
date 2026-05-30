@@ -56,7 +56,7 @@ import { FormulaEditorDialog } from "../formula-editor/formula-editor-dialog.com
 import { ConditionEditor } from "./condition-editor.component";
 import { BinaryConditionEditor } from "./binary-condition-editor.component";
 import { OneOfConditionEditor } from "./one-of-condition-editor.component";
-import { NgFor, NgIf, NgSwitch, NgSwitchCase, NgSwitchDefault } from "@angular/common";
+
 import { FormsModule } from "@angular/forms";
 import { ConditionFieldComboComponent } from "./condition-field-combo.component";
 
@@ -64,7 +64,7 @@ import { ConditionFieldComboComponent } from "./condition-field-combo.component"
     selector: "condition-item-pane",
     templateUrl: "condition-item-pane.component.html",
     styleUrls: ["condition-item-pane.component.scss"],
-    imports: [ConditionFieldComboComponent, FormsModule, NgFor, NgIf, NgSwitch, NgSwitchCase, OneOfConditionEditor, BinaryConditionEditor, NgSwitchDefault, ConditionEditor, FormulaEditorDialog, ConditionOperationPipe]
+    imports: [ConditionFieldComboComponent, FormsModule, OneOfConditionEditor, BinaryConditionEditor, ConditionEditor, FormulaEditorDialog, ConditionOperationPipe]
 })
 export class ConditionItemPane implements OnInit, OnChanges {
    public XSchema = XSchema;

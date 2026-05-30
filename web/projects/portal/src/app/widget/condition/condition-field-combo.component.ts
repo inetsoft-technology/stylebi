@@ -43,13 +43,13 @@ import { SearchDataRefPipe } from "../pipe/search-data-ref.pipe";
 import { TreeComponent } from "../tree/tree.component";
 import { ConditionFieldComboListComponent } from "./condition-field-combo-list.component";
 import { FormsModule } from "@angular/forms";
-import { NgClass, NgIf } from "@angular/common";
+import { NgClass } from "@angular/common";
 
 @Component({
     selector: "condition-field-combo",
     templateUrl: "condition-field-combo.component.html",
     styleUrls: ["condition-field-combo.component.scss"],
-    imports: [NgClass, FixedDropdownDirective, NgIf, FormsModule, ConditionFieldComboListComponent, TreeComponent, SearchDataRefPipe]
+    imports: [NgClass, FixedDropdownDirective, FormsModule, ConditionFieldComboListComponent, TreeComponent, SearchDataRefPipe]
 })
 export class ConditionFieldComboComponent implements OnChanges, OnInit {
    @Input() field: DataRef;

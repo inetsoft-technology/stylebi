@@ -64,7 +64,7 @@ import { AlphaDropdown } from "../../widget/format/alpha-dropdown.component";
 import { DynamicComboBox } from "../../widget/dynamic-combo-box/dynamic-combo-box.component";
 import { FontPane } from "../../widget/font-pane/font-pane.component";
 import { DropdownView } from "../../widget/dropdown-view/dropdown-view.component";
-import { NgIf } from "@angular/common";
+
 
 const PRESENTER_PROPERTY_URI: string = "composer/vs/presenter-property-dialog-model/";
 const COLOR_LABLE_MAP: Map<string, string> = new Map([
@@ -75,7 +75,7 @@ const COLOR_LABLE_MAP: Map<string, string> = new Map([
     selector: "vs-formats-pane",
     templateUrl: "vs-formats-pane.component.html",
     styleUrls: ["../../binding/editor/formats-pane.component.scss"],
-    imports: [NgIf, DropdownView, FontPane, DynamicComboBox, ColorDropdown, AlphaDropdown, BindingAlignmentPane, NgbTooltip, BindingBorderPane, RadiusDropdown, FormsModule, FormattingPane, FormatCSSPane, FormatPresenterPane, HelpLinkDirective, PresenterPropertyDialog]
+    imports: [DropdownView, FontPane, DynamicComboBox, ColorDropdown, AlphaDropdown, BindingAlignmentPane, NgbTooltip, BindingBorderPane, RadiusDropdown, FormsModule, FormattingPane, FormatCSSPane, FormatPresenterPane, HelpLinkDirective, PresenterPropertyDialog]
 })
 export class VSFormatsPane implements OnInit, OnChanges {
    @Input() inactive: boolean;

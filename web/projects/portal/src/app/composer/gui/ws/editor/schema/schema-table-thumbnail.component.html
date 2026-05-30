@@ -1,45 +1,45 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <div #handle [class.schema-table-title--selected]="selected"
-     [class.font-weight-bold]="selected"
-     class="schema-table-title jsplumb-draggable-handle bb-gray"
-     (mousedown)="interactWithSubtable($event, true)"
-     (click)="interactWithSubtable($event, false)"
-     (dblclick)="focusCompositeTable()">
+  [class.font-weight-bold]="selected"
+  class="schema-table-title jsplumb-draggable-handle bb-gray"
+  (mousedown)="interactWithSubtable($event, true)"
+  (click)="interactWithSubtable($event, false)"
+  (dblclick)="focusCompositeTable()">
   <ws-assembly-thumbnail-title [assembly]="schemaTable"
-                               [menuActions]="createActions()"
-                               [isVertical]="true"
+    [menuActions]="createActions()"
+    [isVertical]="true"
   ></ws-assembly-thumbnail-title>
 </div>
-<ng-container *ngFor="let _col of columns">
+@for (_col of columns; track _col) {
   <schema-column [schemaTable]="schemaTable" [column]="_col" [twoStepJoinColumn]="twoStepJoinColumn"
-                 mouseEvent (rightMouseDown)="interactWithSubtable($event, true)"
-                 class="schema-table-body bb-gray">
+    mouseEvent (rightMouseDown)="interactWithSubtable($event, true)"
+    class="schema-table-body bb-gray">
   </schema-column>
-</ng-container>
+}
 
 <div class="schema-table__resize-handle schema-table__resize-handle--left"
-     [ngClass]="{'schema-table__resize-handle--dragging': resizeActiveSide === 'left'}"
-     [style.transform]="resizeActiveSide === 'left' ? 'translateX(' + resizeXOffset + 'px)' : null"
-     (mousedown)="startResize($event, 'left')">
+  [ngClass]="{'schema-table__resize-handle--dragging': resizeActiveSide === 'left'}"
+  [style.transform]="resizeActiveSide === 'left' ? 'translateX(' + resizeXOffset + 'px)' : null"
+  (mousedown)="startResize($event, 'left')">
 </div>
 <div class="schema-table__resize-handle schema-table__resize-handle--right"
-     [ngClass]="{'schema-table__resize-handle--dragging': resizeActiveSide === 'right'}"
-     [style.transform]="resizeActiveSide === 'right' ? 'translateX(' + resizeXOffset + 'px)' : null"
-     (mousedown)="startResize($event, 'right')">
+  [ngClass]="{'schema-table__resize-handle--dragging': resizeActiveSide === 'right'}"
+  [style.transform]="resizeActiveSide === 'right' ? 'translateX(' + resizeXOffset + 'px)' : null"
+  (mousedown)="startResize($event, 'right')">
 </div>

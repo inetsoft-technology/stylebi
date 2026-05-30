@@ -28,14 +28,14 @@ import { MatDivider } from "@angular/material/divider";
 import { MatIcon } from "@angular/material/icon";
 import { MatIconButton, MatButton } from "@angular/material/button";
 import { MatList, MatListItem } from "@angular/material/list";
-import { NgIf, NgFor } from "@angular/common";
+
 import { MatCard, MatCardHeader, MatCardContent, MatCardActions } from "@angular/material/card";
 
 @Component({
     selector: "em-staged-file-chooser",
     templateUrl: "./staged-file-chooser.component.html",
     styleUrls: ["./staged-file-chooser.component.scss"],
-    imports: [MatCard, NgIf, MatCardHeader, MatCardContent, MatList, NgFor, MatListItem, MatIconButton, MatIcon, MatDivider, FormsModule, MatFormField, MatInput, MatProgressBar, MatCardActions, MatButton]
+    imports: [MatCard, MatCardHeader, MatCardContent, MatList, MatListItem, MatIconButton, MatIcon, MatDivider, FormsModule, MatFormField, MatInput, MatProgressBar, MatCardActions, MatButton]
 })
 export class StagedFileChooserComponent implements OnInit {
    @HostBinding("class") hostClass = "em-staged-file-chooser";

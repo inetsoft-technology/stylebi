@@ -25,7 +25,7 @@ import { MatSnackBar } from "@angular/material/snack-bar";
 import { convertToKey, IdentityId } from "../../../../security/users/identity-id";
 import { RepositoryDashboardSettingsModel } from "./repository-dashboard-settings-model";
 import { RepositoryDashboardSettingsViewComponent } from "../repository-dashboard-settings-view/repository-dashboard-settings-view.component";
-import { NgIf } from "@angular/common";
+
 
 export interface RepositoryDashboardEditorModel extends RepositoryEditorModel {
    dashboardSettings: RepositoryDashboardSettingsModel;
@@ -36,7 +36,7 @@ export interface RepositoryDashboardEditorModel extends RepositoryEditorModel {
     selector: "em-repository-dashboard-settings-page",
     templateUrl: "./repository-dashboard-settings-page.component.html",
     styleUrls: ["./repository-dashboard-settings-page.component.scss"],
-    imports: [NgIf, RepositoryDashboardSettingsViewComponent]
+    imports: [RepositoryDashboardSettingsViewComponent]
 })
 export class RepositoryDashboardSettingsPageComponent {
    @Input() model: RepositoryDashboardEditorModel;

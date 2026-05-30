@@ -16,14 +16,14 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, Input, Output, EventEmitter } from "@angular/core";
-import { NgFor } from "@angular/common";
+
 import { FormsModule } from "@angular/forms";
 
 @Component({
     selector: "combo-box",
     templateUrl: "combo-box.component.html",
     styleUrls: ["combo-box.component.scss"],
-    imports: [FormsModule, NgFor]
+    imports: [FormsModule]
 })
 export class ComboBox {
    @Input() dataModel: string | null;

@@ -33,7 +33,7 @@ import { EmailPickerComponent } from "../../email-picker/email-picker.component"
 import { MatDivider } from "@angular/material/divider";
 import { MatCheckbox } from "@angular/material/checkbox";
 import { MatButton } from "@angular/material/button";
-import { NgIf } from "@angular/common";
+
 import { MatInput } from "@angular/material/input";
 import { MatFormField, MatLabel, MatError, MatHint } from "@angular/material/form-field";
 import { MatCard, MatCardTitle, MatCardContent, MatCardActions } from "@angular/material/card";
@@ -47,7 +47,7 @@ export interface ScheduleConfiguration {
     selector: "em-schedule-configuration-view",
     templateUrl: "./schedule-configuration-view.component.html",
     styleUrls: ["./schedule-configuration-view.component.scss"],
-    imports: [FormsModule, ReactiveFormsModule, MatCard, MatCardTitle, MatCardContent, MatFormField, MatLabel, MatInput, MatError, NgIf, MatCardActions, MatButton, MatCheckbox, MatHint, MatDivider, EmailPickerComponent, TimeRangesViewComponent, ServerLocationsViewComponent]
+    imports: [FormsModule, ReactiveFormsModule, MatCard, MatCardTitle, MatCardContent, MatFormField, MatLabel, MatInput, MatError, MatCardActions, MatButton, MatCheckbox, MatHint, MatDivider, EmailPickerComponent, TimeRangesViewComponent, ServerLocationsViewComponent]
 })
 export class ScheduleConfigurationViewComponent implements OnDestroy {
    @Output() onChange = new EventEmitter<ScheduleConfiguration>();

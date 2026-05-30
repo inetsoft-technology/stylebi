@@ -22,13 +22,13 @@ import { XSchema } from "../../../common/data/xschema";
 import { AssetUtil } from "../../../binding/util/asset-util";
 import { AggregateFormula } from "../../../binding/util/aggregate-formula";
 import { SummaryAttrUtil } from "../../../binding/util/summary-attr-util";
-import { NgIf, NgClass, NgFor } from "@angular/common";
+import { NgClass } from "@angular/common";
 import { ModalHeaderComponent } from "../../modal-header/modal-header.component";
 
 @Component({
     selector: "new-aggr-dialog",
     templateUrl: "./new-aggr-dialog.component.html",
-    imports: [ModalHeaderComponent, NgIf, FormsModule, ReactiveFormsModule, NgClass, NgFor]
+    imports: [ModalHeaderComponent, FormsModule, ReactiveFormsModule, NgClass]
 })
 export class NewAggrDialog implements OnInit {
    @Input() model: NewAggrDialogModel;

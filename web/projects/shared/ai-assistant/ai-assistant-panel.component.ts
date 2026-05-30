@@ -20,7 +20,7 @@ import { Component, ElementRef, HostListener, NgZone, OnDestroy, OnInit, Rendere
 import { Subscription } from "rxjs";
 import { AiAssistantService } from "./ai-assistant.service";
 import { AiAssistantDialogComponent } from "./ai-assistant-dialog.component";
-import { NgIf, NgSwitch, NgSwitchCase, AsyncPipe } from "@angular/common";
+import { AsyncPipe } from "@angular/common";
 
 type PanelMode = "side" | "bottom";
 
@@ -37,7 +37,7 @@ const TOP_OFFSET = 52;
     selector: "ai-assistant-panel",
     templateUrl: "./ai-assistant-panel.component.html",
     styleUrls: ["./ai-assistant-panel.component.scss"],
-    imports: [NgIf, NgSwitch, NgSwitchCase, AiAssistantDialogComponent, AsyncPipe]
+    imports: [AiAssistantDialogComponent, AsyncPipe]
 })
 export class AiAssistantPanelComponent implements OnInit, OnDestroy {
    mode: PanelMode = "side";

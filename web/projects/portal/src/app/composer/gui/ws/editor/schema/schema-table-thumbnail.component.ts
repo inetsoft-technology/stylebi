@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { NgFor, NgClass } from "@angular/common";
+import { NgClass } from "@angular/common";
 import {
   AfterViewInit,
   Component,
@@ -57,7 +57,7 @@ type ResizeActiveSide = "left" | "right" | null;
     selector: "schema-table-thumbnail",
     templateUrl: "schema-table-thumbnail.component.html",
     styleUrls: ["schema-table-thumbnail.component.scss"],
-    imports: [WSAssemblyThumbnailTitleComponent, NgFor, SchemaColumnComponent, MouseEventDirective, NgClass]
+    imports: [WSAssemblyThumbnailTitleComponent, SchemaColumnComponent, MouseEventDirective, NgClass]
 })
 export class SchemaTableThumbnailComponent implements OnInit, AfterViewInit, OnDestroy {
    @Input() schemaTable: AbstractTableAssembly;

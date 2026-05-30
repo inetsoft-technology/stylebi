@@ -27,13 +27,13 @@ import {DataType} from "../../../../common-components/join-thumbnail.service";
 import { MaxNumberDirective } from "../../../../../../../../widget/directive/max-number-validator.directive";
 import { MinNumberDirective } from "../../../../../../../../widget/directive/min-number-validator.directive";
 import { DefaultFocusDirective } from "../../../../../../../../widget/directive/default-focus.directive";
-import { NgIf, NgFor } from "@angular/common";
+
 import { ModalHeaderComponent } from "../../../../../../../../widget/modal-header/modal-header.component";
 
 @Component({
     selector: "edit-join-dialog",
     templateUrl: "edit-join-dialog.component.html",
-    imports: [ModalHeaderComponent, NgIf, FormsModule, DefaultFocusDirective, NgFor, MinNumberDirective, MaxNumberDirective]
+    imports: [ModalHeaderComponent, FormsModule, DefaultFocusDirective, MinNumberDirective, MaxNumberDirective]
 })
 export class EditJoinDialog {
    @Input() removeEnabled: boolean = true;

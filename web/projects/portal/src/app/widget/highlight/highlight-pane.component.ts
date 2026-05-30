@@ -40,12 +40,12 @@ import { DropdownView } from "../dropdown-view/dropdown-view.component";
 import { ColorEditor } from "../color-picker/color-editor.component";
 import { LargeFormFieldComponent } from "../large-form-field/large-form-field.component";
 import { EnterSubmitDirective } from "../directive/enter-submit.directive";
-import { NgIf, NgFor } from "@angular/common";
+
 
 @Component({
     selector: "highlight-pane",
     templateUrl: "highlight-pane.component.html",
-    imports: [NgIf, EnterSubmitDirective, LargeFormFieldComponent, NgFor, ColorEditor, DropdownView, FontPane, FormsModule, ConditionPipe, JunctionOperatorPipe]
+    imports: [EnterSubmitDirective, LargeFormFieldComponent, ColorEditor, DropdownView, FontPane, FormsModule, ConditionPipe, JunctionOperatorPipe]
 })
 export class HighlightPane implements OnInit {
    @Input() model: HighlightDialogModel;

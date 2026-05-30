@@ -24,7 +24,7 @@ import {MatSnackBar} from "@angular/material/snack-bar";
 import {RepositoryFolderDashboardSettingsModel} from "./repository-folder-dashboard-settings-model";
 import {Tool} from "../../../../../../../../shared/util/tool";
 import { RepositoryFolderDashboardSettingsViewComponent } from "../repository-dashboard-folder-settings-view/repository-folder-dashboard-settings-view.component";
-import { NgIf } from "@angular/common";
+
 
 export interface RepositoryFolderDashboardEditorModel extends RepositoryEditorModel {
    dashboardFolderSettings: RepositoryFolderDashboardSettingsModel;
@@ -35,7 +35,7 @@ export interface RepositoryFolderDashboardEditorModel extends RepositoryEditorMo
     selector: "em-repository-folder-dashboard-settings-page",
     templateUrl: "./repository-folder-dashboard-settings-page.component.html",
     styleUrls: ["./repository-folder-dashboard-settings-page.component.scss"],
-    imports: [NgIf, RepositoryFolderDashboardSettingsViewComponent]
+    imports: [RepositoryFolderDashboardSettingsViewComponent]
 })
 export class RepositoryFolderDashboardSettingsPageComponent {
    @Input() model: RepositoryFolderDashboardEditorModel;

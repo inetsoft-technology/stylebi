@@ -33,14 +33,14 @@ import { JunctionOperatorPipe } from "../../../widget/condition/junction-operato
 import { ConditionPipe } from "../../../widget/condition/condition.pipe";
 import { FormsModule } from "@angular/forms";
 import { LargeFormFieldComponent } from "../../../widget/large-form-field/large-form-field.component";
-import { NgIf, NgFor } from "@angular/common";
+
 import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
 
 @Component({
     selector: "expert-named-group-dialog",
     templateUrl: "expert-named-group-dialog.component.html",
     styleUrls: ["expert-named-group-dialog.component.scss"],
-    imports: [ModalHeaderComponent, NgIf, LargeFormFieldComponent, NgFor, ConditionPane, FormsModule, ConditionPipe, JunctionOperatorPipe]
+    imports: [ModalHeaderComponent, LargeFormFieldComponent, ConditionPane, FormsModule, ConditionPipe, JunctionOperatorPipe]
 })
 export class ExpertNamedGroupDialog implements OnInit {
    @Input() namedGroupInfo: NamedGroupInfo;

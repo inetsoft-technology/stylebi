@@ -20,7 +20,7 @@ import { VPMDefinitionModel } from "../../../../model/datasources/database/vpm/v
 import { TestDataModel } from "../../../../model/datasources/database/vpm/test-data-model";
 import { HttpClient, HttpErrorResponse } from "@angular/common/http";
 import { VpmTestEvent } from "../../../../model/datasources/database/events/vpm-test-event";
-import { NgIf, NgFor } from "@angular/common";
+
 import { FormsModule } from "@angular/forms";
 
 const VPM_TEST_URI: string = "../api/data/vpm/test";
@@ -28,7 +28,7 @@ const VPM_TEST_URI: string = "../api/data/vpm/test";
 @Component({
     selector: "vpm-test",
     templateUrl: "vpm-test.component.html",
-    imports: [FormsModule, NgIf, NgFor]
+    imports: [FormsModule]
 })
 export class VPMTestComponent {
    @Input() vpm: VPMDefinitionModel;

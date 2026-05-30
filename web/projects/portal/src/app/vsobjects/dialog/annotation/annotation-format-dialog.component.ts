@@ -26,7 +26,7 @@ import { RadiusDropdown } from "../../../widget/format/radius-dropdown.component
 import { ColorEditor } from "../../../widget/color-picker/color-editor.component";
 import { StyleDropdown } from "../../../widget/format/style-dropdown.component";
 import { EnterSubmitDirective } from "../../../widget/directive/enter-submit.directive";
-import { NgIf } from "@angular/common";
+
 import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
 
 const INIT_VIEWSHEET_FORMAT_URI = "../annotation/resetViewsheetFormat";
@@ -37,16 +37,15 @@ const INIT_DATA_FORMAT_URI = "../annotation/resetDataFormat";
     selector: "annotation-format-dialog",
     templateUrl: "annotation-format-dialog.component.html",
     imports: [
-        ModalHeaderComponent,
-        NgIf,
-        EnterSubmitDirective,
-        StyleDropdown,
-        ColorEditor,
-        RadiusDropdown,
-        AlphaDropdown,
-        FormsModule,
-        LineArrowTypeDropdown,
-    ]
+    ModalHeaderComponent,
+    EnterSubmitDirective,
+    StyleDropdown,
+    ColorEditor,
+    RadiusDropdown,
+    AlphaDropdown,
+    FormsModule,
+    LineArrowTypeDropdown
+]
 })
 export class AnnotationFormatDialog implements OnInit {
    @Input() model: AnnotationFormatDialogModel;

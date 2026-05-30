@@ -17,13 +17,13 @@
  */
 import { Component, Input, Output, EventEmitter, Optional } from "@angular/core";
 import { InSlideOutSignService } from "./in-slide-out-sign.service";
-import { NgIf } from "@angular/common";
+
 
 @Component({
     selector: "apply-button",
     templateUrl: "apply-button.component.html",
     styleUrls: ["apply-button.component.scss"],
-    imports: [NgIf]
+    imports: []
 })
 export class ApplyButtonComponent {
    @Input() disabled: boolean = false;

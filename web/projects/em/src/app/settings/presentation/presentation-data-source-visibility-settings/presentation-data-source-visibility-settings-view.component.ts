@@ -28,7 +28,7 @@ import { MatDivider } from "@angular/material/divider";
 import { MatIcon } from "@angular/material/icon";
 import { MatTooltip } from "@angular/material/tooltip";
 import { MatMiniFabButton, MatIconButton } from "@angular/material/button";
-import { NgIf, NgFor } from "@angular/common";
+
 import { MatCard, MatCardTitle, MatCardContent, MatCardSubtitle } from "@angular/material/card";
 
 @Searchable({
@@ -46,7 +46,7 @@ import { MatCard, MatCardTitle, MatCardContent, MatCardSubtitle } from "@angular
     selector: "em-presentation-data-source-visibility-settings-view",
     templateUrl: "./presentation-data-source-visibility-settings-view.component.html",
     styleUrls: ["./presentation-data-source-visibility-settings-view.component.scss"],
-    imports: [MatCard, MatCardTitle, NgIf, MatCardContent, MatMiniFabButton, MatTooltip, MatIcon, NgFor, MatCardSubtitle, MatIconButton, MatDivider]
+    imports: [MatCard, MatCardTitle, MatCardContent, MatMiniFabButton, MatTooltip, MatIcon, MatCardSubtitle, MatIconButton, MatDivider]
 })
 export class PresentationDataSourceVisibilitySettingsViewComponent {
    @Output() modelChanged: EventEmitter<PresentationSettingsChanges> = new EventEmitter();

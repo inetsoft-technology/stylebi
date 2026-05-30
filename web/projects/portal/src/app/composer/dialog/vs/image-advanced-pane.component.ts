@@ -23,7 +23,7 @@ import { PopLocation, PopComponentService} from "../../../vsobjects/objects/data
 import { TruncatePipe } from "../../../widget/pipe/truncate.pipe";
 import { NotificationsComponent } from "../../../widget/notifications/notifications.component";
 import { AlphaDropdown } from "../../../widget/format/alpha-dropdown.component";
-import { NgFor, NgIf } from "@angular/common";
+
 import { FormsModule } from "@angular/forms";
 import { ImageScalePane } from "./image-scale-pane.component";
 import { DynamicImagePane } from "./dynamic-image-pane.component";
@@ -32,15 +32,13 @@ import { DynamicImagePane } from "./dynamic-image-pane.component";
     selector: "image-advanced-pane",
     templateUrl: "image-advanced-pane.component.html",
     imports: [
-        DynamicImagePane,
-        ImageScalePane,
-        FormsModule,
-        NgFor,
-        AlphaDropdown,
-        NgIf,
-        NotificationsComponent,
-        TruncatePipe,
-    ]
+    DynamicImagePane,
+    ImageScalePane,
+    FormsModule,
+    AlphaDropdown,
+    NotificationsComponent,
+    TruncatePipe
+]
 })
 export class ImageAdvancedPane {
    @Input() model: ImageAdvancedPaneModel;

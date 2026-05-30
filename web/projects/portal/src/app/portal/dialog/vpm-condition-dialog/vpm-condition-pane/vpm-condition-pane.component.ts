@@ -42,13 +42,13 @@ import { ConjunctionPipe } from "../../../data/model/datasources/database/vpm/co
 import { ClausePipe } from "../../../data/model/datasources/database/vpm/condition/clause/clause.pipe";
 import { FormsModule } from "@angular/forms";
 import { VPMConditionItemPane } from "./vpm-condition-item-pane/vpm-condition-item-pane.component";
-import { NgClass, NgFor, NgIf } from "@angular/common";
+import { NgClass } from "@angular/common";
 
 @Component({
     selector: "vpm-condition-pane",
     templateUrl: "vpm-condition-pane.component.html",
     styleUrls: ["vpm-condition-pane.component.scss"],
-    imports: [NgClass, VPMConditionItemPane, FormsModule, NgFor, NgIf, ClausePipe, ConjunctionPipe]
+    imports: [NgClass, VPMConditionItemPane, FormsModule, ClausePipe, ConjunctionPipe]
 })
 export class VPMConditionPane implements OnInit {
    @Input() fields: VPMColumnModel[];

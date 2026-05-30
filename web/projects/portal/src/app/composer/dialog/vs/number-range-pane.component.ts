@@ -22,18 +22,17 @@ import { NumberRangePaneModel } from "../../data/vs/number-range-pane-model";
 import { ValueMode } from "../../../widget/dynamic-combo-box/dynamic-combo-box-model";
 import { FormValidators } from "../../../../../../shared/util/form-validators";
 import { DynamicComboBox } from "../../../widget/dynamic-combo-box/dynamic-combo-box.component";
-import { NgClass, NgIf } from "@angular/common";
+import { NgClass } from "@angular/common";
 
 @Component({
     selector: "number-range-pane",
     templateUrl: "number-range-pane.component.html",
     imports: [
-        FormsModule,
-        ReactiveFormsModule,
-        NgClass,
-        DynamicComboBox,
-        NgIf,
-    ]
+    FormsModule,
+    ReactiveFormsModule,
+    NgClass,
+    DynamicComboBox
+]
 })
 export class NumberRangePane implements OnInit {
    @Input() model: NumberRangePaneModel;

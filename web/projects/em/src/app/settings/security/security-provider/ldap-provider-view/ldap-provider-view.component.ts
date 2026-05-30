@@ -39,13 +39,13 @@ import { MatInput } from "@angular/material/input";
 import { MatSelect } from "@angular/material/select";
 import { MatFormField, MatLabel, MatHint, MatError, MatSuffix } from "@angular/material/form-field";
 import { MatCard, MatCardContent, MatCardActions } from "@angular/material/card";
-import { NgIf, NgFor } from "@angular/common";
+
 
 @Component({
     selector: "em-ldap-provider-view",
     templateUrl: "./ldap-provider-view.component.html",
     styleUrls: ["./ldap-provider-view.component.scss"],
-    imports: [FormsModule, ReactiveFormsModule, NgIf, MatCard, MatCardContent, MatFormField, MatLabel, MatSelect, MatOption, MatHint, MatInput, MatError, MatCheckbox, MatCardActions, MatButton, MatProgressSpinner, MatIconButton, MatSuffix, MatIcon]
+    imports: [FormsModule, ReactiveFormsModule, MatCard, MatCardContent, MatFormField, MatLabel, MatSelect, MatOption, MatHint, MatInput, MatError, MatCheckbox, MatCardActions, MatButton, MatProgressSpinner, MatIconButton, MatSuffix, MatIcon]
 })
 export class LdapProviderViewComponent implements OnInit, OnDestroy {
    @Input() form: UntypedFormGroup;
@@ -296,11 +296,9 @@ export class LdapProviderViewComponent implements OnInit, OnDestroy {
     selector: "em-ldap-query-result",
     templateUrl: "ldap-query-result.html",
     imports: [
-        NgIf,
-        MatList,
-        NgFor,
-        MatListItem,
-    ]
+    MatList,
+    MatListItem
+]
 })
 export class LDAPQueryResult {
    queryResult: string[];

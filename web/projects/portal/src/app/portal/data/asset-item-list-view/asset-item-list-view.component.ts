@@ -22,7 +22,7 @@ import { SortTypes } from "../../../../../../shared/util/sort/sort-types";
 import { MultiObjectSelectList } from "../../../common/util/multi-object-select-list";
 import { NgbDropdown, NgbDropdownToggle } from "@ng-bootstrap/ng-bootstrap";
 import { RouterLink } from "@angular/router";
-import { NgIf, NgClass, NgFor } from "@angular/common";
+import { NgClass } from "@angular/common";
 
 export interface RouteLinkEntry {
    path: string;
@@ -42,7 +42,7 @@ export interface ListColumn {
     selector: "asset-item-list-view",
     templateUrl: "./asset-item-list-view.component.html",
     styleUrls: ["./asset-item-list-view.component.scss"],
-    imports: [NgIf, NgClass, NgFor, RouterLink, NgbDropdown, NgbDropdownToggle]
+    imports: [NgClass, RouterLink, NgbDropdown, NgbDropdownToggle]
 })
 export class AssetItemListViewComponent {
    @Input() set assets(assets: AssetItem[]) {

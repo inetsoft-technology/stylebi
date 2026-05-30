@@ -1,28 +1,30 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2025  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2025  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 
 <div class="input-group">
   <input type="text" class="form-control file-input"
-         [ngModel]="value?.selectedFile?.name" readonly="true" [disabled]="!enabled"/>
+    [ngModel]="value?.selectedFile?.name" readonly="true" [disabled]="!enabled"/>
   <button type="button" title="_#(Browse)" class="btn btn-default input-group-btn-addon"
-          (click)="openPicker()" [disabled]="!enabled">
+    (click)="openPicker()" [disabled]="!enabled">
     <i class="folder-expanded-icon"></i></button>
-</div>
-<span class="form-floating" *ngIf="valueControl.getError('required')">
-  <span class="invalid-feedback">_#(enter.value)</span>
-</span>
+  </div>
+  @if (valueControl.getError('required')) {
+    <span class="form-floating">
+      <span class="invalid-feedback">_#(enter.value)</span>
+    </span>
+  }

@@ -41,7 +41,7 @@ import { DataSpaceSettingsViewComponent } from "../data-space-settings-view/data
 import { NavigationScrollableItemDirective } from "../../../common/util/scroll-nav/navigation-scrollable-item/navigation-scrollable-item.directive";
 import { NavigationScrollableComponent } from "../../../common/util/scroll-nav/navigation-scrollable/navigation-scrollable.component";
 import { EditorPanelComponent } from "../../../common/util/editor-panel/editor-panel.component";
-import { NgIf, NgFor } from "@angular/common";
+
 
 const GENERAL_SETTINGS_PAGE_MODEL_URI = "../api/em/general/settings/model";
 
@@ -68,7 +68,7 @@ export class GeneralSettingsNavLink {
     selector: "em-general-settings-page",
     templateUrl: "./general-settings-page.component.html",
     styleUrls: ["./general-settings-page.component.scss"],
-    imports: [NgIf, EditorPanelComponent, NavigationScrollableComponent, NavigationScrollableItemDirective, DataSpaceSettingsViewComponent, LicenseKeySettingsViewComponent, LocalizationSettingsViewComponent, MVSettingsViewComponent, CacheSettingsViewComponent, EmailSettingsViewComponent, PerformanceSettingsViewComponent, MatNavList, NgFor, MatListItem, RouterLink, LoadingSpinnerComponent]
+    imports: [EditorPanelComponent, NavigationScrollableComponent, NavigationScrollableItemDirective, DataSpaceSettingsViewComponent, LicenseKeySettingsViewComponent, LocalizationSettingsViewComponent, MVSettingsViewComponent, CacheSettingsViewComponent, EmailSettingsViewComponent, PerformanceSettingsViewComponent, MatNavList, MatListItem, RouterLink, LoadingSpinnerComponent]
 })
 export class GeneralSettingsPageComponent implements OnInit, OnDestroy {
    model: GeneralSettingsPageModel;

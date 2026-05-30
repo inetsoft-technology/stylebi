@@ -79,7 +79,7 @@ import { ExpiredSheetCommand } from "../../composer/gui/ws/socket/expired-sheet/
 import { VSLoadingDisplay } from "../../vsobjects/objects/vs-loading-display/vs-loading-display.component";
 import { ObjectWizardPane } from "./object-wizard/object-wizard-pane.component";
 import { VsWizardPane } from "./wizard-pane/vs-wizard-pane.component";
-import { NgIf } from "@angular/common";
+
 
 const TOUCH_EVENT_URI = "/events/composer/touch-asset";
 const OPEN_WIZARD_URL = "/events/vswizard/dialog/open";
@@ -130,7 +130,7 @@ export enum WizardPanes {
             useExisting: VSChartService
         }
     ],
-    imports: [NgIf, VsWizardPane, ObjectWizardPane, VSLoadingDisplay]
+    imports: [VsWizardPane, ObjectWizardPane, VSLoadingDisplay]
 })
 export class VsWizardComponent extends CommandProcessor implements OnInit, OnDestroy {
    private _model: VsWizardModel;

@@ -19,7 +19,7 @@ import { Component, EventEmitter, Input, OnDestroy, OnInit, Output, Renderer2,
          ChangeDetectorRef } from "@angular/core";
 import { SliderOptions } from "./slider-options";
 import { GuiTool } from "../../common/util/gui-tool";
-import { NgFor } from "@angular/common";
+
 
 interface SliderTick {
    left: string;
@@ -30,7 +30,7 @@ interface SliderTick {
     selector: "slider",
     templateUrl: "slider.component.html",
     styleUrls: ["slider.component.scss"],
-    imports: [NgFor]
+    imports: []
 })
 export class Slider implements OnInit, OnDestroy {
    @Input() model: SliderOptions;

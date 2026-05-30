@@ -1,51 +1,57 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <em-modal-header [cshid]="'EMGeneralLocalization'" [title]="title">
 </em-modal-header>
 <div mat-dialog-content [formGroup]="form">
   <mat-form-field appearance="outline" class="full-width" color="accent">
     <mat-label>_#(Language Code)</mat-label>
     <input matInput formControlName="language"
-           placeholder="_#(Language Code)"
-           maxLength="2"
-           #lang [value]="lang.value.toLowerCase()">
-    <mat-error *ngIf="form.controls['language'].errors">_#(em.localeAdd.codeInvalid)</mat-error>
+      placeholder="_#(Language Code)"
+      maxLength="2"
+      #lang [value]="lang.value.toLowerCase()">
+    @if (form.controls['language'].errors) {
+      <mat-error>_#(em.localeAdd.codeInvalid)</mat-error>
+    }
   </mat-form-field>
 
   <mat-form-field appearance="outline" class="full-width" color="accent" >
     <mat-label>_#(Country Code)</mat-label>
     <input matInput formControlName="country"
-           placeholder="_#(Country Code)"
-           maxLength="2"
-           #country [value]="country.value.toUpperCase()">
-    <mat-error *ngIf="form.controls['country'].errors">_#(em.locale.countryCodeInvalid)</mat-error>
+      placeholder="_#(Country Code)"
+      maxLength="2"
+      #country [value]="country.value.toUpperCase()">
+    @if (form.controls['country'].errors) {
+      <mat-error>_#(em.locale.countryCodeInvalid)</mat-error>
+    }
   </mat-form-field>
 
   <mat-form-field appearance="outline" class="full-width" color="accent">
     <mat-label>_#(Locale Label)</mat-label>
     <input matInput formControlName="label" placeholder="_#(Locale Label)">
-    <mat-error *ngIf="form.controls['label'].errors">_#(em.localeAdd.localelabelInvalid)</mat-error>
+    @if (form.controls['label'].errors) {
+      <mat-error>_#(em.localeAdd.localelabelInvalid)</mat-error>
+    }
   </mat-form-field>
 </div>
 <div mat-dialog-actions>
   <button mat-raised-button
-          color="primary"
-          [disabled]="form.invalid"
-          (click)="adding ? save('adding') : save('editing')">_#(Save)</button>
+    color="primary"
+    [disabled]="form.invalid"
+  (click)="adding ? save('adding') : save('editing')">_#(Save)</button>
   <button mat-button (click)="cancel()">_#(Cancel)</button>
 </div>

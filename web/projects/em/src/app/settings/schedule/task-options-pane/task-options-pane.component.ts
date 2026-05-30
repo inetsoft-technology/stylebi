@@ -42,7 +42,7 @@ import { MatDatepickerInput, MatDatepickerToggle, MatDatepicker } from "@angular
 import { MatInput } from "@angular/material/input";
 import { MatFormField, MatLabel, MatSuffix, MatError } from "@angular/material/form-field";
 import { MatCheckbox } from "@angular/material/checkbox";
-import { NgIf, NgFor, AsyncPipe } from "@angular/common";
+import { AsyncPipe } from "@angular/common";
 import { MatSlideToggle } from "@angular/material/slide-toggle";
 
 export interface TaskOptionChanges {
@@ -66,7 +66,7 @@ export class GroupErrorState implements ErrorStateMatcher {
     templateUrl: "./task-options-pane.component.html",
     styleUrls: ["./task-options-pane.component.scss"],
     providers: [DateTimeService],
-    imports: [FormsModule, ReactiveFormsModule, MatSlideToggle, NgIf, MatCheckbox, MatFormField, MatLabel, MatInput, MatDatepickerInput, MatDatepickerToggle, MatSuffix, MatDatepicker, MatError, MatButton, TimeZoneSelectComponent, MatSelect, MatOption, NgFor, MatAutocompleteTrigger, MatAutocomplete, MatProgressSpinner, MatIconButton, MatTooltip, MatIcon, AsyncPipe]
+    imports: [FormsModule, ReactiveFormsModule, MatSlideToggle, MatCheckbox, MatFormField, MatLabel, MatInput, MatDatepickerInput, MatDatepickerToggle, MatSuffix, MatDatepicker, MatError, MatButton, TimeZoneSelectComponent, MatSelect, MatOption, MatAutocompleteTrigger, MatAutocomplete, MatProgressSpinner, MatIconButton, MatTooltip, MatIcon, AsyncPipe]
 })
 export class TaskOptionsPane {
    @Input() timeZoneOptions: TimeZoneModel[];

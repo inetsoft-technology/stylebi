@@ -1,25 +1,29 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
-<ng-template ngFor let-group [ngForOf]="actions.menuActions">
-  <ng-template ngIf="group.visible">
-    <div class="dropdown-divider" *ngIf="actions.requiresMenuSeparator(group)"></div>
-    <ng-template ngFor let-action [ngForOf]="group.actions">
-      <a class="dropdown-item" *ngIf="action.visible()" [class.disable-link]="!action.enabled()" (click)="action.action()">{{action.label()}}</a>
-    </ng-template>
-  </ng-template>
-</ng-template>
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
+@for (group of actions.menuActions; track group) {
+  @if (group.visible) {
+    @if (actions.requiresMenuSeparator(group)) {
+      <div class="dropdown-divider"></div>
+    }
+    @for (action of group.actions; track action) {
+      @if (action.visible()) {
+        <a class="dropdown-item" [class.disable-link]="!action.enabled()" (click)="action.action()">{{action.label()}}</a>
+      }
+    }
+  }
+}

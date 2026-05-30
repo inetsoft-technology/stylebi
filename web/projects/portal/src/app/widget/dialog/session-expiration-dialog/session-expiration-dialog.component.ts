@@ -19,7 +19,7 @@
 import { Component, EventEmitter, HostListener, Input, OnDestroy, Output } from "@angular/core";
 import { DateTypeFormatter } from "../../../../../../shared/util/date-type-formatter";
 import { DialogButtonsDirective } from "../../standard-dialog/dialog-buttons.directive";
-import { NgIf } from "@angular/common";
+
 import { DialogContentDirective } from "../../standard-dialog/dialog-content.directive";
 import { StandardDialogComponent } from "../../standard-dialog/standard-dialog.component";
 
@@ -27,7 +27,7 @@ import { StandardDialogComponent } from "../../standard-dialog/standard-dialog.c
     selector: "session-expiration-dialog",
     templateUrl: "session-expiration-dialog.component.html",
     styleUrls: ["session-expiration-dialog.component.scss"],
-    imports: [StandardDialogComponent, DialogContentDirective, NgIf, DialogButtonsDirective]
+    imports: [StandardDialogComponent, DialogContentDirective, DialogButtonsDirective]
 })
 export class SessionExpirationDialog implements OnDestroy {
    @Input() nodeProtection: boolean;

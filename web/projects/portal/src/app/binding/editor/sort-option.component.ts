@@ -45,7 +45,7 @@ import { XConstants } from "../../common/util/xconstants";
 import { SourceInfo } from "../data/source-info";
 import { DynamicComboBox } from "../../widget/dynamic-combo-box/dynamic-combo-box.component";
 import { FormsModule } from "@angular/forms";
-import { NgIf, NgFor } from "@angular/common";
+
 
 const GENERAL_SORT_OPTIONS: any[] = [
    {label: "_#(js:None)", value: StyleConstants.SORT_NONE},
@@ -69,7 +69,7 @@ const RANKING_OPTIONS: any[] = [
     selector: "sort-option",
     templateUrl: "sort-option.component.html",
     styleUrls: ["sort-option.component.scss"],
-    imports: [NgIf, FormsModule, NgFor, DynamicComboBox]
+    imports: [FormsModule, DynamicComboBox]
 })
 export class SortOption implements OnInit {
    @Input() set dimension(dim: BDimensionRef) {

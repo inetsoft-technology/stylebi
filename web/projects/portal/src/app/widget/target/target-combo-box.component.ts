@@ -23,7 +23,7 @@ import {
 } from "@angular/core";
 import { ValueMode } from "../dynamic-combo-box/dynamic-combo-box-model";
 import { FormsModule } from "@angular/forms";
-import { NgIf, NgFor } from "@angular/common";
+
 import { NgbDropdown, NgbDropdownToggle, NgbDropdownMenu } from "@ng-bootstrap/ng-bootstrap";
 
 @Component({
@@ -31,13 +31,11 @@ import { NgbDropdown, NgbDropdownToggle, NgbDropdownMenu } from "@ng-bootstrap/n
     templateUrl: "target-combo-box.component.html",
     styleUrls: ["./target-combo-box.component.scss"],
     imports: [
-        NgbDropdown,
-        NgIf,
-        FormsModule,
-        NgbDropdownToggle,
-        NgbDropdownMenu,
-        NgFor,
-    ]
+    NgbDropdown,
+    FormsModule,
+    NgbDropdownToggle,
+    NgbDropdownMenu
+]
 })
 export class TargetComboBox {
    public ValueMode = ValueMode;

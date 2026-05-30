@@ -17,13 +17,13 @@
  */
 import { Component, Input } from "@angular/core";
 import { FacePaneModel } from "../../data/vs/face-pane-model";
-import { NgFor } from "@angular/common";
+
 
 @Component({
     selector: "face-pane",
     templateUrl: "face-pane.component.html",
     styleUrls: ["face-pane.component.scss"],
-    imports: [NgFor]
+    imports: []
 })
 export class FacePane {
    @Input() model: FacePaneModel;

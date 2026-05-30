@@ -31,13 +31,13 @@ import { XConstants } from "../../../common/util/xconstants";
 import { Tool } from "../../../../../../shared/util/tool";
 import { DateLevelExamplesService } from "../../../common/services/date-level-examples.service";
 import { DynamicComboBox } from "../../../widget/dynamic-combo-box/dynamic-combo-box.component";
-import { NgFor, NgIf } from "@angular/common";
+
 import { FormsModule } from "@angular/forms";
 
 @Component({
     selector: "crosstab-pane",
     templateUrl: "crosstab-pane.component.html",
-    imports: [FormsModule, NgFor, DynamicComboBox, NgIf]
+    imports: [FormsModule, DynamicComboBox]
 })
 export class CrosstabPane {
    @Input() trapFields: ColumnRef[] = [];

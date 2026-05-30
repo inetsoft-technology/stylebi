@@ -32,16 +32,15 @@ import { VSUtil } from "../../../vsobjects/util/vs-util";
 import { TreeDataPane } from "./tree-data-pane";
 import { DataTreeValidatorService } from "../../../vsobjects/dialog/data-tree-validator.service";
 import { AdditionalTableSelectionPaneComponent } from "../../../widget/dialog/additional-table-selection-pane/additional-table-selection-pane.component";
-import { NgFor } from "@angular/common";
+
 
 @Component({
     selector: "selection-tree-columns-pane",
     templateUrl: "selection-tree-columns-pane.component.html",
     imports: [
-        TreeComponent,
-        NgFor,
-        AdditionalTableSelectionPaneComponent,
-    ]
+    TreeComponent,
+    AdditionalTableSelectionPaneComponent
+]
 })
 export class SelectionTreeColumnsPane extends TreeDataPane implements AfterViewInit {
    @Input() model: SelectionTreePaneModel;

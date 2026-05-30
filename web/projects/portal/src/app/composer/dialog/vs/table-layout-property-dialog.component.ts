@@ -18,13 +18,13 @@
 import {Component, EventEmitter, Input, Output} from "@angular/core";
 import { TableLayoutPropertyDialogModel, ReportTableLayout } from "../../data/vs/table-layout-property-dialog-model";
 import { FormsModule } from "@angular/forms";
-import { NgIf } from "@angular/common";
+
 import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
 
 @Component({
     selector: "table-layout-property-dialog",
     templateUrl: "table-layout-property-dialog.component.html",
-    imports: [ModalHeaderComponent, NgIf, FormsModule]
+    imports: [ModalHeaderComponent, FormsModule]
 })
 export class TableLayoutPropertyDialog {
    @Input() model: TableLayoutPropertyDialogModel;

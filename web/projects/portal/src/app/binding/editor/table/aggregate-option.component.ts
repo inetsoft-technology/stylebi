@@ -33,13 +33,13 @@ import {ChartAggregateRef} from "../../data/chart/chart-aggregate-ref";
 import { CalculatePane } from "../chart/field/calculate-pane.component";
 import { DynamicComboBox } from "../../../widget/dynamic-combo-box/dynamic-combo-box.component";
 import { FormulaOption } from "../formula-option.component";
-import { NgIf } from "@angular/common";
+
 
 @Component({
     selector: "aggregate-option",
     templateUrl: "aggregate-option.component.html",
     styleUrls: ["aggregate-option.component.scss"],
-    imports: [NgIf, FormulaOption, DynamicComboBox, CalculatePane]
+    imports: [FormulaOption, DynamicComboBox, CalculatePane]
 })
 export class AggregateOption implements OnInit {
    @Input() groupNum: number;

@@ -20,7 +20,7 @@ import { UntypedFormGroup, Validators, UntypedFormControl, FormsModule, Reactive
 import { VariableTableListDialogModel } from "../../data/ws/variable-table-list-dialog-model";
 import { AbstractTableAssembly, getHeader } from "../../data/ws/abstract-table-assembly";
 import { ColumnRef } from "../../../binding/data/column-ref";
-import { NgFor } from "@angular/common";
+
 import { EnterSubmitDirective } from "../../../widget/directive/enter-submit.directive";
 import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
 
@@ -28,7 +28,7 @@ import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.
     selector: "variable-table-list-dialog",
     templateUrl: "variable-table-list-dialog.component.html",
     styleUrls: ["variable-table-list-dialog.component.scss"],
-    imports: [ModalHeaderComponent, EnterSubmitDirective, FormsModule, ReactiveFormsModule, NgFor]
+    imports: [ModalHeaderComponent, EnterSubmitDirective, FormsModule, ReactiveFormsModule]
 })
 
 export class VariableTableListDialog implements OnInit {

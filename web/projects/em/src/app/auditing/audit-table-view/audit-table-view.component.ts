@@ -27,7 +27,7 @@ import { DateTypeFormatter } from "../../../../../shared/util/date-type-formatte
 import { AuditRecordList, AuditRecordParameters } from "./audit-record";
 import { MatButton } from "@angular/material/button";
 import { MatSlider, MatSliderRangeThumb } from "@angular/material/slider";
-import { NgIf, NgFor } from "@angular/common";
+
 import { MatCard, MatCardContent } from "@angular/material/card";
 import { LoadingSpinnerComponent } from "../../common/util/loading-spinner/loading-spinner.component";
 
@@ -41,7 +41,7 @@ export interface AuditRowRenderer<R> {
     selector: "em-audit-table-view",
     templateUrl: "./audit-table-view.component.html",
     styleUrls: ["./audit-table-view.component.scss"],
-    imports: [LoadingSpinnerComponent, MatCard, MatCardContent, NgIf, MatSlider, MatSliderRangeThumb, FormsModule, MatButton, MatTable, MatSort, NgFor, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatSortHeader, MatCellDef, MatCell, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, MatPaginator]
+    imports: [LoadingSpinnerComponent, MatCard, MatCardContent, MatSlider, MatSliderRangeThumb, FormsModule, MatButton, MatTable, MatSort, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatSortHeader, MatCellDef, MatCell, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, MatPaginator]
 })
 export class AuditTableViewComponent<R> implements OnInit, AfterViewInit {
    @Input() dateRangeVisible = true;

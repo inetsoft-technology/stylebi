@@ -32,7 +32,7 @@ import { MonitoringDataService } from "../../monitoring-data.service";
 import { ThreadStackTrace } from "../../thread-stack-trace";
 import { ViewsheetMonitoringTableModel } from "../viewsheet-monitoring-model/viewsheet-monitoring-table-model";
 import { ViewsheetMonitoringViewComponent } from "../viewsheet-monitoring-view/viewsheet-monitoring-view.component";
-import { NgIf } from "@angular/common";
+
 import { ClusterSelectorComponent } from "../../cluster-selector/cluster-selector.component";
 
 @Secured({
@@ -59,7 +59,7 @@ import { ClusterSelectorComponent } from "../../cluster-selector/cluster-selecto
     styleUrls: ["./viewsheet-monitoring-page.component.scss"],
     encapsulation: ViewEncapsulation.None,
     host: { "class": "em-viewsheet-monitoring-page" },
-    imports: [ClusterSelectorComponent, NgIf, ViewsheetMonitoringViewComponent]
+    imports: [ClusterSelectorComponent, ViewsheetMonitoringViewComponent]
 })
 export class ViewsheetMonitoringPageComponent implements OnInit, OnDestroy {
    executingVisible = false;

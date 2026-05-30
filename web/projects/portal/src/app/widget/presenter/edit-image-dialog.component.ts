@@ -21,12 +21,12 @@ import {
 import { UntypedFormGroup } from "@angular/forms";
 import { ImagePreviewPaneModel } from "../image-editor/image-preview-pane-model";
 import { ImagePreviewPane } from "../image-editor/image-preview-pane.component";
-import { NgIf } from "@angular/common";
+
 
 @Component({
     selector: "edit-image-dialog",
     templateUrl: "edit-image-dialog.component.html",
-    imports: [NgIf, ImagePreviewPane]
+    imports: [ImagePreviewPane]
 })
 export class EditImageDialog implements OnInit {
    @Input() model: ImagePreviewPaneModel;

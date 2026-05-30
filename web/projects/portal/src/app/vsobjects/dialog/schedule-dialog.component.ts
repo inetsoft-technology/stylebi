@@ -34,7 +34,7 @@ import { ScheduleDialogModel } from "../model/schedule/schedule-dialog-model";
 import { SimpleScheduleDialogModel } from "../model/schedule/simple-schedule-dialog-model";
 import { ComponentTool } from "../../common/util/component-tool";
 import { SimpleScheduleDialog } from "../../widget/schedule/simple-schedule-dialog.component";
-import { NgIf } from "@angular/common";
+
 import { EnterSubmitDirective } from "../../widget/directive/enter-submit.directive";
 import { ModalHeaderComponent } from "../../widget/modal-header/modal-header.component";
 
@@ -45,12 +45,11 @@ const SIMPLE_SCHEDULE_URI: string = "../api/vs/simple-schedule-dialog-model/";
     selector: "schedule-dialog",
     templateUrl: "schedule-dialog.component.html",
     imports: [
-        ModalHeaderComponent,
-        EnterSubmitDirective,
-        NgIf,
-        FormsModule,
-        SimpleScheduleDialog,
-    ]
+    ModalHeaderComponent,
+    EnterSubmitDirective,
+    FormsModule,
+    SimpleScheduleDialog
+]
 })
 export class ScheduleDialog implements OnInit {
    @Input() model: ScheduleDialogModel;

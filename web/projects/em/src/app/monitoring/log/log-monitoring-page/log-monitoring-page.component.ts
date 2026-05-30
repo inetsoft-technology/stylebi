@@ -31,7 +31,7 @@ import { LogViewLinks } from "../log-view-links";
 import { LogMonitoringViewComponent } from "../log-monitoring-view/log-monitoring-view.component";
 import { MatIcon } from "@angular/material/icon";
 import { MatCard, MatCardTitle } from "@angular/material/card";
-import { NgIf, AsyncPipe } from "@angular/common";
+import { AsyncPipe } from "@angular/common";
 
 const GET_LOGVIEWER_MODEL_URL = "../em/monitoring/logviewer/all-logs";
 const AUTO_REFRESH_LOG_URL = "/logviewer/auto_refresh/";
@@ -63,7 +63,7 @@ const DEFAULT_VIEW_VALUES: LogMonitoringModel = {
     selector: "em-log-monitoring-page",
     templateUrl: "./log-monitoring-page.component.html",
     styleUrls: ["./log-monitoring-page.component.scss"],
-    imports: [NgIf, MatCard, MatCardTitle, MatIcon, LogMonitoringViewComponent, AsyncPipe]
+    imports: [MatCard, MatCardTitle, MatIcon, LogMonitoringViewComponent, AsyncPipe]
 })
 export class LogMonitoringPageComponent implements OnInit, OnDestroy {
    fluentdLogging = false;

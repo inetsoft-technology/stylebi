@@ -57,7 +57,7 @@ import {
 import { SchemaThumbnailService } from "./schema-thumbnail.service";
 import { reorderColumns, TableColumnsPair } from "./sort-schema-column.controller";
 import { WsChangeService } from "../ws-change.service";
-import { NgFor, AsyncPipe } from "@angular/common";
+import { AsyncPipe } from "@angular/common";
 import { OutOfZoneDirective } from "../../../../../widget/directive/out-of-zone.directive";
 
 const DELETE_SUBTABLE_URI = "/events/ws/joins/delete-sub-table";
@@ -72,7 +72,7 @@ const RESIZE_SCHEMA_TABLE_URI = "/events/composer/worksheet/resize-schema-table"
         "../../jsplumb/jsplumb-shared.scss"
     ],
     providers: [SchemaThumbnailService],
-    imports: [SelectionBoxDirective, OutOfZoneDirective, NgFor, SchemaTableThumbnailComponent, AsyncPipe]
+    imports: [SelectionBoxDirective, OutOfZoneDirective, SchemaTableThumbnailComponent, AsyncPipe]
 })
 export class WSRelationalJoinEditorPaneComponent
    implements OnChanges, OnInit, AfterViewInit, AfterViewChecked, OnDestroy

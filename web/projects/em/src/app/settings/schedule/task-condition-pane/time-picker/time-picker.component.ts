@@ -21,7 +21,7 @@ import {
    NG_VALUE_ACCESSOR,
 } from "@angular/forms";
 import { MatButton } from "@angular/material/button";
-import { NgIf } from "@angular/common";
+
 import { MatInput } from "@angular/material/input";
 import { MatFormField, MatLabel } from "@angular/material/form-field";
 
@@ -42,7 +42,7 @@ export interface TimeData {
             multi: true
         }
     ],
-    imports: [MatFormField, MatLabel, MatInput, NgIf, MatButton]
+    imports: [MatFormField, MatLabel, MatInput, MatButton]
 })
 export class TimePickerComponent implements OnInit, ControlValueAccessor {
    _model: TimeData;

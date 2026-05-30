@@ -35,17 +35,15 @@ import { DateLevelExamplesService } from "../../../common/services/date-level-ex
 import { SummaryAttrUtil } from "../../../binding/util/summary-attr-util";
 import { DynamicComboBox } from "../../../widget/dynamic-combo-box/dynamic-combo-box.component";
 import { FormsModule } from "@angular/forms";
-import { NgFor, NgIf } from "@angular/common";
+
 
 @Component({
     selector: "aggregate-pane",
     templateUrl: "aggregate-pane.component.html",
     imports: [
-        NgFor,
-        FormsModule,
-        NgIf,
-        DynamicComboBox,
-    ]
+    FormsModule,
+    DynamicComboBox
+]
 })
 export class AggregatePane {
    @Input() trapFields: ColumnRef[] = [];

@@ -24,7 +24,7 @@ import { ContextHelp } from "../../../context-help";
 import { MatInput } from "@angular/material/input";
 import { MatFormField, MatLabel } from "@angular/material/form-field";
 import { MatCard, MatCardTitle, MatCardContent } from "@angular/material/card";
-import { NgIf } from "@angular/common";
+
 
 @ContextHelp({
   route: "/settings/presentation/settings#composer-message",
@@ -34,7 +34,7 @@ import { NgIf } from "@angular/common";
     selector: "em-presentation-composer-message-settings-view",
     templateUrl: "./presentation-composer-message-settings-view.component.html",
     styleUrls: ["./presentation-composer-message-settings-view.component.scss"],
-    imports: [NgIf, MatCard, MatCardTitle, MatCardContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatInput]
+    imports: [MatCard, MatCardTitle, MatCardContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatInput]
 })
 export class PresentationComposerMessageSettingsViewComponent {
   @Input() set model(model: PresentationComposerMessageSettingsModel) {

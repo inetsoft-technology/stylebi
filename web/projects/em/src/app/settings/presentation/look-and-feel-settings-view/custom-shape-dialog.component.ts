@@ -33,7 +33,7 @@ import { ShapesTreeDataSource } from "./shapes-tree-data-source";
 import { MultiSelectTreeNodeDirective } from "../../../common/util/tree/multi-select-tree-node.directive";
 import { FlatTreeViewComponent } from "../../../common/util/tree/flat-tree-view.component";
 import { MatProgressBar } from "@angular/material/progress-bar";
-import { NgIf } from "@angular/common";
+
 import { MatButton } from "@angular/material/button";
 import { FormsModule } from "@angular/forms";
 import { MatCheckbox } from "@angular/material/checkbox";
@@ -44,19 +44,18 @@ import { ModalHeaderComponent } from "../../../common/util/modal-header/modal-he
     templateUrl: "custom-shape-dialog.component.html",
     styleUrls: ["custom-shape-dialog.component.scss"],
     imports: [
-        ModalHeaderComponent,
-        MatDialogContent,
-        MatCheckbox,
-        FormsModule,
-        StagedFileChooserComponent,
-        MatButton,
-        NgIf,
-        MatProgressBar,
-        FlatTreeViewComponent,
-        MultiSelectTreeNodeDirective,
-        MatDialogActions,
-        MatDialogClose,
-    ]
+    ModalHeaderComponent,
+    MatDialogContent,
+    MatCheckbox,
+    FormsModule,
+    StagedFileChooserComponent,
+    MatButton,
+    MatProgressBar,
+    FlatTreeViewComponent,
+    MultiSelectTreeNodeDirective,
+    MatDialogActions,
+    MatDialogClose
+]
 })
 export class CustomShapeDialogComponent {
    @ViewChild("fileChooser", { static: true }) fileChooser: StagedFileChooserComponent;

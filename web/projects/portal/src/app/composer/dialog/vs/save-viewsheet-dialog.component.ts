@@ -31,7 +31,7 @@ import { AssetTreeComponent } from "../../../widget/asset-tree/asset-tree.compon
 import { DefaultFocusDirective } from "../../../widget/directive/default-focus.directive";
 import { InputTrimDirective } from "../../../widget/directive/input-trim.directive";
 import { EnterSubmitDirective } from "../../../widget/directive/enter-submit.directive";
-import { NgIf } from "@angular/common";
+
 import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
 
 const SAVE_VIEWSHEET_DIALOG_VALIDATION_URI = "../api/composer/vs/save-viewsheet-dialog-model/";
@@ -46,7 +46,7 @@ const CONFIRM_MESSAGE = {
     selector: "save-viewsheet-dialog",
     templateUrl: "save-viewsheet-dialog.component.html",
     styleUrls: ["./save-viewsheet-dialog.component.scss"],
-    imports: [ModalHeaderComponent, NgIf, EnterSubmitDirective, NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, FormsModule, ReactiveFormsModule, InputTrimDirective, DefaultFocusDirective, AssetTreeComponent, ViewsheetOptionsPane, NgbNavOutlet]
+    imports: [ModalHeaderComponent, EnterSubmitDirective, NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, FormsModule, ReactiveFormsModule, InputTrimDirective, DefaultFocusDirective, AssetTreeComponent, ViewsheetOptionsPane, NgbNavOutlet]
 })
 export class SaveViewsheetDialog implements OnInit {
    @Input() model: SaveViewsheetDialogModel;

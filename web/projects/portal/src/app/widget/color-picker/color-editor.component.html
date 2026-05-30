@@ -1,31 +1,41 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
-<div [ngSwitch]="mode" blockMouse class="w-100">
-  <div *ngSwitchCase="ColorMode.TEXT_INPUT" class="form-floating">
-      <input id="color" class="form-control" [(style.background)]="color"
-             [(ngModel)]="color" [disabled]="!enabled" >
-      <label>{{label}}</label>
-  </div>
-  <div *ngSwitchCase="ColorMode.BUTTON">
-    <cp-color-picker *ngIf="!gradient" [color]="color" [enabled]="enabled" [palette]="palette"
-                     [isTableStyle]="isTableStyle" [label]="label" (colorChanged)="changeColor($event)">
-    </cp-color-picker>
-    <gradient-color-picker *ngIf="gradient" [gradientColor]="gradientModel"
-                           (gradientColorChanged)="changeGradientColor($event)"></gradient-color-picker>
-  </div>
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
+<div blockMouse class="w-100">
+  @switch (mode) {
+    @case (ColorMode.TEXT_INPUT) {
+      <div class="form-floating">
+        <input id="color" class="form-control" [(style.background)]="color"
+          [(ngModel)]="color" [disabled]="!enabled" >
+        <label>{{label}}</label>
+      </div>
+    }
+    @case (ColorMode.BUTTON) {
+      <div>
+        @if (!gradient) {
+          <cp-color-picker [color]="color" [enabled]="enabled" [palette]="palette"
+            [isTableStyle]="isTableStyle" [label]="label" (colorChanged)="changeColor($event)">
+          </cp-color-picker>
+        }
+        @if (gradient) {
+          <gradient-color-picker [gradientColor]="gradientModel"
+          (gradientColorChanged)="changeGradientColor($event)"></gradient-color-picker>
+        }
+      </div>
+    }
+  }
 </div>

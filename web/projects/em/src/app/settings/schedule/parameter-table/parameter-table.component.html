@@ -1,24 +1,26 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <mat-card appearance="outlined">
-  <mat-card-header *ngIf="title">
-    <mat-card-title>{{title}}</mat-card-title>
-  </mat-card-header>
+  @if (title) {
+    <mat-card-header>
+      <mat-card-title>{{title}}</mat-card-title>
+    </mat-card-header>
+  }
   <mat-card-content>
     <table mat-table class="parameter-table" [dataSource]="dataSource">
       <ng-container matColumnDef="name">
@@ -55,11 +57,15 @@
       <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
       <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
     </table>
-    <mat-error *ngIf="missingParameters">_#(Required Parameters):&nbsp;{{missingParameters}}</mat-error>
+    @if (missingParameters) {
+      <mat-error>_#(Required Parameters):&nbsp;{{missingParameters}}</mat-error>
+    }
   </mat-card-content>
   <mat-card-actions>
     <button mat-button (click)="openParameterDialog()">_#(Add)</button>
-    <button *ngIf="creationParametersButtonVisible" mat-button (click)="setCreationParameters()">_#(Creation Parameters)</button>
+    @if (creationParametersButtonVisible) {
+      <button mat-button (click)="setCreationParameters()">_#(Creation Parameters)</button>
+    }
     <button mat-button (click)="clearAllParameters()" [disabled]="!parameters || parameters.length == 0">_#(Clear All)</button>
   </mat-card-actions>
 </mat-card>

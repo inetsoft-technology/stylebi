@@ -108,7 +108,7 @@ import { VSTitle } from "../title/vs-title.component";
 import { TooltipDirective } from "../../../widget/tooltip/tooltip.directive";
 import { VSPopComponentDirective } from "../data-tip/vs-pop-component.directive";
 import { VSDataTipDirective } from "../data-tip/vs-data-tip.directive";
-import { NgIf, NgFor } from "@angular/common";
+
 
 const CHART_AREAS_URI: string = "/events/vschart/areas";
 const CHART_PLOT_RESIZE_URL: string = "/events/vschart/resize-plot";
@@ -127,7 +127,7 @@ const CHART_WIZARD_CHANGE_TITLE_URL = "/events/vswizard/preview/changeDescriptio
     selector: "vs-chart",
     templateUrl: "vs-chart.component.html",
     styleUrls: ["vs-chart.component.scss"],
-    imports: [NgIf, VSDataTipDirective, VSPopComponentDirective, TooltipDirective, VSTitle, ChartArea, OutOfZoneDirective, VSHiddenAnnotation, VSPreviewTable, NgFor, VSAnnotation, VSLoadingDisplay]
+    imports: [VSDataTipDirective, VSPopComponentDirective, TooltipDirective, VSTitle, ChartArea, OutOfZoneDirective, VSHiddenAnnotation, VSPreviewTable, VSAnnotation, VSLoadingDisplay]
 })
 export class VSChart extends AbstractVSObject<VSChartModel>
    implements OnInit, OnDestroy, SelectableObject

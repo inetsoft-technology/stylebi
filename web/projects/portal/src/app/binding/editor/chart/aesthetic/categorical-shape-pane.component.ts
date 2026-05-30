@@ -25,13 +25,13 @@ import { ChartConfig } from "../../../../common/util/chart-config";
 import { TextureComboBox } from "./texture-combo-box.component";
 import { LineComboBox } from "./line-combo-box.component";
 import { ShapeComboBox } from "./shape-combo-box.component";
-import { NgIf, NgFor } from "@angular/common";
+
 
 @Component({
     selector: "categorical-shape-pane",
     templateUrl: "categorical-shape-pane.component.html",
     styleUrls: ["categorical-pane.scss"],
-    imports: [NgIf, NgFor, ShapeComboBox, LineComboBox, TextureComboBox]
+    imports: [ShapeComboBox, LineComboBox, TextureComboBox]
 })
 export class CategoricalShapePane extends CategoricalFramePane {
    @Input() frameModel: ShapeFrameModel;

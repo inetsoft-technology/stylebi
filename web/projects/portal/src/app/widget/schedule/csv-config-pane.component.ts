@@ -19,13 +19,13 @@ import { Component, Input, OnDestroy, OnInit, ViewChild } from "@angular/core";
 import { CSVConfigModel } from "../../../../../shared/schedule/model/csv-config-model";
 import { UntypedFormControl, UntypedFormGroup, ValidationErrors, ValidatorFn, FormsModule } from "@angular/forms";
 import { GenericSelectableList } from "../generic-selectable-list/generic-selectable-list.component";
-import { NgIf, NgFor } from "@angular/common";
+
 
 @Component({
     selector: "csv-config-pane",
     templateUrl: "./csv-config-pane.component.html",
     styleUrls: ["./csv-config-pane.component.scss"],
-    imports: [FormsModule, NgIf, NgFor]
+    imports: [FormsModule]
 })
 export class CSVConfigPane implements OnInit, OnDestroy {
    @Input() parentForm: UntypedFormGroup;

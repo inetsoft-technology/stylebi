@@ -1,20 +1,20 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <script src="restore-asset-dialog.component.ts"></script>
 <em-modal-header [cshid]="'EMRestoreAssets'" [title]="'_#(Restore Assets)'">
 </em-modal-header>
@@ -24,9 +24,15 @@
       <mat-form-field appearance="outline" color="accent">
         <mat-label>_#(Name)</mat-label>
         <input matInput formControlName="fileName" placeholder="_#(Restore Name)"/>
-        <mat-error *ngIf="form.controls.fileName?.errors?.required">_#(viewer.nameValid)</mat-error>
-        <mat-error *ngIf="form.controls.fileName?.errors?.assetEntryBannedCharacters">_#(composer.sheet.checkSpeChar)</mat-error>
-        <mat-error *ngIf="form.controls.fileName?.errors?.assetNameStartWithCharDigit">_#(asset.tree.checkStart)</mat-error>
+        @if (form.controls.fileName?.errors?.required) {
+          <mat-error>_#(viewer.nameValid)</mat-error>
+        }
+        @if (form.controls.fileName?.errors?.assetEntryBannedCharacters) {
+          <mat-error>_#(composer.sheet.checkSpeChar)</mat-error>
+        }
+        @if (form.controls.fileName?.errors?.assetNameStartWithCharDigit) {
+          <mat-error>_#(asset.tree.checkStart)</mat-error>
+        }
       </mat-form-field>
       <mat-checkbox formControlName="overwrite">_#(Overwrite Existing Files)</mat-checkbox>
     </mat-card-content>
@@ -37,7 +43,7 @@
       <mat-card-content class="tree-pane">
         <mat-tree [dataSource]="dataSource" [treeControl]="treeControl" class="select-viewsheet-tree">
           <mat-tree-node *matTreeNodeDef="let node; when: hasChild" matTreeNodePadding (click)="selectNode(node)"
-                         [class.selected-node]="selectedFolder == node.id">
+            [class.selected-node]="selectedFolder == node.id">
             <button mat-icon-button matTreeNodeToggle [attr.aria-label]="'_#(Toggle) ' + node.name">
               <mat-icon fontSet="ineticons" [fontIcon]="treeControl.isExpanded(node) ? 'downward-icon' : 'forward-icon'">
               </mat-icon>
@@ -50,12 +56,16 @@
     </mat-card>
   </div>
   <div class="progress-bar-container">
-    <h3 *ngIf="loading">_#(Loading)...</h3>
-    <mat-progress-bar *ngIf="loading" mode="indeterminate" class="viewsheet-tree-progress"></mat-progress-bar>
+    @if (loading) {
+      <h3>_#(Loading)...</h3>
+    }
+    @if (loading) {
+      <mat-progress-bar mode="indeterminate" class="viewsheet-tree-progress"></mat-progress-bar>
+    }
   </div>
 </div>
 <div class="mat-dialog-actions">
   <button mat-raised-button color="primary" [disabled]="form.invalid || loading"
-          (click)="restore()">_#(Restore)</button>
+  (click)="restore()">_#(Restore)</button>
   <button mat-button (click)="cancel()">_#(Cancel)</button>
 </div>

@@ -28,7 +28,7 @@ import { GraphTypes } from "../../common/graph-types";
 import { UIContextService } from "../../common/services/ui-context.service";
 import { ModelService } from "../../widget/services/model.service";
 import { FormsModule } from "@angular/forms";
-import { NgIf, NgFor } from "@angular/common";
+
 
 export interface ChartStyle {
    label: string;
@@ -45,7 +45,7 @@ export interface ChartStylesModel {
     selector: "chart-style-pane",
     styleUrls: ["chart-style-pane.component.scss"],
     templateUrl: "chart-style-pane.component.html",
-    imports: [NgIf, NgFor, FormsModule]
+    imports: [FormsModule]
 })
 export class ChartStylePane implements OnInit, OnChanges {
    @Input() chartType: number;

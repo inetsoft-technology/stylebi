@@ -25,7 +25,7 @@ import { ChartAggregateRef } from "../../../data/chart/chart-aggregate-ref";
 import { AggregateFormula } from "../../../util/aggregate-formula";
 import { AssetUtil } from "../../../util/asset-util";
 import { FormsModule } from "@angular/forms";
-import { NgIf } from "@angular/common";
+
 import { CalculatePane } from "./calculate-pane.component";
 import { FormulaOption } from "../../formula-option.component";
 
@@ -33,7 +33,7 @@ import { FormulaOption } from "../../formula-option.component";
     selector: "aggregate-editor",
     templateUrl: "aggregate-editor.component.html",
     styleUrls: ["./aggregate-editor.component.scss"],
-    imports: [FormulaOption, CalculatePane, NgIf, FormsModule]
+    imports: [FormulaOption, CalculatePane, FormsModule]
 })
 export class AggregateEditor implements OnInit {
    @Input() fieldType: string;

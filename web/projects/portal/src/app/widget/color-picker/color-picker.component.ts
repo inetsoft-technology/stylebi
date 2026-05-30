@@ -25,13 +25,13 @@ import { ColorPane } from "./cp-color-pane.component";
 import { DropdownRef } from "../fixed-dropdown/fixed-dropdown-ref";
 import { DropdownOptions } from "../fixed-dropdown/dropdown-options";
 import { FixedDropdownDirective } from "../fixed-dropdown/fixed-dropdown.directive";
-import { NgIf, NgClass } from "@angular/common";
+import { NgClass } from "@angular/common";
 
 @Component({
     selector: "cp-color-picker",
     templateUrl: "color-picker.component.html",
     styleUrls: ["color-picker.component.scss"],
-    imports: [NgIf, NgClass, FixedDropdownDirective, ColorPane]
+    imports: [NgClass, FixedDropdownDirective, ColorPane]
 })
 export class ColorPicker {
    @Input() color: string = "#000000";

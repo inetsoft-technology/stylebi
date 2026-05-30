@@ -30,7 +30,7 @@ import { Worksheet } from "../../data/ws/worksheet";
 import { WorksheetOptionPane } from "./worksheet-option-pane.component";
 import { AssetRepositoryPane } from "./asset-repository-pane.component";
 import { EnterSubmitDirective } from "../../../widget/directive/enter-submit.directive";
-import { NgIf } from "@angular/common";
+
 import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
 
 const SAVE_WORKSHEET_DIALOG_VALIDATION_URI = "../api/composer/ws/dialog/save-worksheet-dialog-model/";
@@ -44,7 +44,7 @@ const CONFIRM_MESSAGE = {
 @Component({
     selector: "save-worksheet-dialog",
     templateUrl: "save-worksheet-dialog.component.html",
-    imports: [ModalHeaderComponent, NgIf, EnterSubmitDirective, NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, AssetRepositoryPane, WorksheetOptionPane, NgbNavOutlet]
+    imports: [ModalHeaderComponent, EnterSubmitDirective, NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, AssetRepositoryPane, WorksheetOptionPane, NgbNavOutlet]
 })
 export class SaveWorksheetDialog implements OnInit {
    @Input() worksheet: Worksheet;

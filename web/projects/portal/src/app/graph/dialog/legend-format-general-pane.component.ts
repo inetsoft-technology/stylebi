@@ -26,22 +26,20 @@ import { LineStyle } from "../../common/data/line-style";
 import { UIContextService } from "../../common/services/ui-context.service";
 import { ColorEditor } from "../../widget/color-picker/color-editor.component";
 import { StyleDropdown } from "../../widget/format/style-dropdown.component";
-import { NgFor, NgClass, NgIf } from "@angular/common";
+import { NgClass } from "@angular/common";
 import { DynamicComboBox } from "../../widget/dynamic-combo-box/dynamic-combo-box.component";
 
 @Component({
     selector: "legend-format-general-pane",
     templateUrl: "legend-format-general-pane.component.html",
     imports: [
-        FormsModule,
-        ReactiveFormsModule,
-        DynamicComboBox,
-        NgFor,
-        StyleDropdown,
-        ColorEditor,
-        NgClass,
-        NgIf,
-    ]
+    FormsModule,
+    ReactiveFormsModule,
+    DynamicComboBox,
+    StyleDropdown,
+    ColorEditor,
+    NgClass
+]
 })
 export class LegendFormatGeneralPane implements OnInit, OnDestroy {
    public mode: ValueMode = ValueMode.TEXT;

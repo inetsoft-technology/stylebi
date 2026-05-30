@@ -71,7 +71,7 @@ import {
 import { PortalDataType } from "../../data-navigation-tree/portal-data-type";
 import { AppInfoService } from "../../../../../../../shared/util/app-info.service";
 import { ScrollableFlexTableDirective } from "../../../../widget/scrollable-table/scrollable-flex-table.directive";
-import { NgIf, NgClass, NgFor, KeyValuePipe } from "@angular/common";
+import { NgClass, KeyValuePipe } from "@angular/common";
 
 const CHECK_DELETE_ADDITIONAL = "../api/portal/data/databases/additional/check/";
 const DATABASES_URI: string = "../api/data/databases";
@@ -94,7 +94,7 @@ export interface PropertyInfo {
     selector: "datasources-database",
     templateUrl: "datasources-database.component.html",
     styleUrls: ["datasources-database.component.scss"],
-    imports: [NgIf, NgClass, FormsModule, NgFor, NgbTypeahead, ScrollableFlexTableDirective, DataNotificationsComponent, KeyValuePipe]
+    imports: [NgClass, FormsModule, NgbTypeahead, ScrollableFlexTableDirective, DataNotificationsComponent, KeyValuePipe]
 })
 export class DatasourcesDatabaseComponent extends DataSourceSettingsPage implements OnInit, AfterViewInit {
    @Input() uploadEnabled = false;

@@ -17,13 +17,13 @@
  */
 import { Component, Input } from "@angular/core";
 import { SliderLabelPaneModel } from "../model/slider-label-pane-model";
-import { NgIf } from "@angular/common";
+
 import { FormsModule } from "@angular/forms";
 
 @Component({
     selector: "slider-label-pane",
     templateUrl: "slider-label-pane.component.html",
-    imports: [FormsModule, NgIf]
+    imports: [FormsModule]
 })
 export class SliderLabelPane {
    @Input() model: SliderLabelPaneModel;

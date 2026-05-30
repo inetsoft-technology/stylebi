@@ -35,13 +35,13 @@ import { TabularTagsEditor } from "./tabular-tags-editor.component";
 import { TabularNumberEditor } from "./tabular-number-editor.component";
 import { TabularBooleanEditor } from "./tabular-boolean-editor.component";
 import { TabularTextEditor } from "./tabular-text-editor.component";
-import { NgFor, NgIf, NgTemplateOutlet } from "@angular/common";
+import { NgTemplateOutlet } from "@angular/common";
 
 @Component({
     selector: "tabular-view",
     templateUrl: "tabular-view.component.html",
     styleUrls: ["tabular-view.component.scss"],
-    imports: [NgFor, NgIf, NgTemplateOutlet, TabularTextEditor, TabularBooleanEditor, TabularNumberEditor, TabularTagsEditor, TabularColumnDefinitionEditor, TabularDateEditor, TabularHttpParameterEditorComponent, TabularQueryParameterEditor, TabularRestParametersEditorComponent, TabularListEditor, TabularFileEditor, TabularAutocompleteEditor, TabularGooglePickerEditor]
+    imports: [NgTemplateOutlet, TabularTextEditor, TabularBooleanEditor, TabularNumberEditor, TabularTagsEditor, TabularColumnDefinitionEditor, TabularDateEditor, TabularHttpParameterEditorComponent, TabularQueryParameterEditor, TabularRestParametersEditorComponent, TabularListEditor, TabularFileEditor, TabularAutocompleteEditor, TabularGooglePickerEditor]
 })
 export class TabularViewComponent {
    @Input() browseFunction: (path: string, property: string) => Observable<TreeNodeModel>;

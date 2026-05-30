@@ -34,7 +34,7 @@ import { TimeValueEditorComponent } from "../../../../widget/date-type-editor/ti
 import { DateValueEditorComponent } from "../../../../widget/date-type-editor/date-value-editor.component";
 import { DynamicValueEditorComponent } from "../../../../widget/date-type-editor/dynamic-value-editor.component";
 import { EnterSubmitDirective } from "../../../../widget/directive/enter-submit.directive";
-import { NgIf, NgClass, NgFor } from "@angular/common";
+import { NgClass } from "@angular/common";
 import { ModalHeaderComponent } from "../../../../widget/modal-header/modal-header.component";
 
 const DATE_PATTERN = /^(?:(?!0000)[0-9]{4}(-?)(?:(?:0?[1-9]|1[0-2])\1(?:0?[1-9]|1[0-9]|2[0-8])|(?:0?[13-9]|1[0-2])\1(?:29|30)|(?:0?[13578]|1[02])\1(?:31))|(?:[0-9]{2}(?:0[48]|[2468][048]|[13579][26])|(?:0[48]|[2468][048]|[13579][26])00)(-?)0?2\2(?:29))$/;
@@ -45,7 +45,7 @@ const DATE_TIME_PATTERN = /^(?:(?!0000)[0-9]{4}(-?)(?:(?:0?[1-9]|1[0-2])\1(?:0?[
     selector: "add-parameter-dialog",
     templateUrl: "add-parameter-dialog.component.html",
     styleUrls: ["add-parameter-dialog.component.scss"],
-    imports: [ModalHeaderComponent, NgIf, EnterSubmitDirective, FormsModule, ReactiveFormsModule, NgClass, NgFor, DynamicValueEditorComponent, DateValueEditorComponent, TimeValueEditorComponent, TimeInstantValueEditorComponent]
+    imports: [ModalHeaderComponent, EnterSubmitDirective, FormsModule, ReactiveFormsModule, NgClass, DynamicValueEditorComponent, DateValueEditorComponent, TimeValueEditorComponent, TimeInstantValueEditorComponent]
 })
 export class AddParameterDialog implements OnInit {
    @Input() index: number;

@@ -34,13 +34,13 @@ import {
 } from "../variable-list-dialog/variable-value-editor/variable-value-editor.component";
 import { EnterSubmitDirective } from "../../directive/enter-submit.directive";
 import { BlockMouseDirective } from "../../mouse-event/block-mouse.directive";
-import { NgIf, NgFor } from "@angular/common";
+
 
 @Component({
     selector: "variable-input-dialog",
     templateUrl: "variable-input-dialog.component.html",
     styleUrls: ["variable-input-dialog.component.scss"],
-    imports: [NgIf, BlockMouseDirective, EnterSubmitDirective, NgFor, VariableValueEditor, VariableCollectionSelector]
+    imports: [BlockMouseDirective, EnterSubmitDirective, VariableValueEditor, VariableCollectionSelector]
 })
 export class VariableInputDialog implements OnInit {
    @ViewChildren(VariableValueEditor) valueEditors: QueryList<VariableValueEditor>;

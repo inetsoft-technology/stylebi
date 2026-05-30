@@ -31,7 +31,7 @@ import { ModelService } from "../../../widget/services/model.service";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { ComposerTabModel } from "../composer-tab-model";
 import { LibraryAsset } from "../../data/library-asset";
-import { NgFor, NgIf } from "@angular/common";
+
 
 /**
  * The worksheet tab selector component for the composer.
@@ -40,7 +40,7 @@ import { NgFor, NgIf } from "@angular/common";
     selector: "sheet-tab-selector",
     templateUrl: "sheet-tab-selector.component.html",
     styleUrls: ["sheet-tab-selector.component.scss", "tab-selector-shared.scss"],
-    imports: [NgFor, NgIf]
+    imports: []
 })
 export class SheetTabSelectorComponent {
    /** Array of currently open tabs */

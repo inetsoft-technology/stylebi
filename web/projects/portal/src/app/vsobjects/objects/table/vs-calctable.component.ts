@@ -77,14 +77,14 @@ import { VSTitle } from "../title/vs-title.component";
 import { OutOfZoneDirective } from "../../../widget/directive/out-of-zone.directive";
 import { VSPopComponentDirective } from "../data-tip/vs-pop-component.directive";
 import { VSDataTipDirective } from "../data-tip/vs-data-tip.directive";
-import { NgIf, NgFor } from "@angular/common";
+
 
 @Component({
     selector: "vs-calctable",
     templateUrl: "vs-calctable.component.html",
     styleUrls: ["base-table.scss", "vs-calctable.component.scss"],
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [NgIf, VSDataTipDirective, VSPopComponentDirective, OutOfZoneDirective, VSTitle, NgbTooltip, SelectionBoxDirective, TouchScrollDirective, NgFor, VSSimpleCell, SafeFontDirective, VSTableCell, TooltipDirective, VSHiddenAnnotation, VSAnnotation, VSLoadingDisplay, VSPreviewTable, NumberToArrayPipe]
+    imports: [VSDataTipDirective, VSPopComponentDirective, OutOfZoneDirective, VSTitle, NgbTooltip, SelectionBoxDirective, TouchScrollDirective, VSSimpleCell, SafeFontDirective, VSTableCell, TooltipDirective, VSHiddenAnnotation, VSAnnotation, VSLoadingDisplay, VSPreviewTable, NumberToArrayPipe]
 })
 export class VSCalcTable extends BaseTable<VSCalcTableModel> implements OnDestroy {
    @Output() onOpenFormatPane = new EventEmitter<VSCalcTableModel>();

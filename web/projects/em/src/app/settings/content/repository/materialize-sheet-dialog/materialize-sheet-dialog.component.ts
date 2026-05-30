@@ -27,7 +27,7 @@ import { MAT_DIALOG_DATA, MatDialogRef, MatDialogContent, MatDialogActions } fro
 import { RepositoryTreeNode } from "../repository-tree-node";
 import { BaseResizeableDialogComponent } from "../../../../common/util/base-dialog/resize-dialog/base-resizeable-dialog.component";
 import { MatButton } from "@angular/material/button";
-import { NgIf } from "@angular/common";
+
 import { AnalyzeMvPageComponent } from "../analyze-mv-page/analyze-mv-page.component";
 import { ModalHeaderComponent } from "../../../../common/util/modal-header/modal-header.component";
 
@@ -35,7 +35,7 @@ import { ModalHeaderComponent } from "../../../../common/util/modal-header/modal
     selector: "em-materialize-sheet-dialog",
     templateUrl: "./materialize-sheet-dialog.component.html",
     styleUrls: ["./materialize-sheet-dialog.component.scss"],
-    imports: [ModalHeaderComponent, MatDialogContent, AnalyzeMvPageComponent, MatDialogActions, NgIf, MatButton]
+    imports: [ModalHeaderComponent, MatDialogContent, AnalyzeMvPageComponent, MatDialogActions, MatButton]
 })
 export class MaterializeSheetDialogComponent extends BaseResizeableDialogComponent implements OnInit {
    selectedNodes: RepositoryTreeNode[];

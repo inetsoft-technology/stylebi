@@ -1,20 +1,20 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <div class="modal-header">
   <h3 class="modal-title">_#(em.schedule.task.folderEdit)</h3>
   <button type="button" class="btn-close" (click)="cancel()" [attr.title]="'_#(Close)'" aria-label="Close">
@@ -24,26 +24,34 @@
   <form class="container-fluid" [formGroup]="form">
     <div class="row">
       <div class="col form-floating">
-          <input #inputFocus id="inputNameField" type="text" class="form-control" autofocus
-                 formControlName="folderName"
-                 [placeholder]="'_#(Folder Name)'"
-                 [class.is-invalid]="form.controls.folderName?.invalid || duplicate || unchanged">
-          <label>_#(Folder Name)</label>
-          <span class="invalid-feedback" *ngIf="form.controls.folderName?.errors?.required">
+        <input #inputFocus id="inputNameField" type="text" class="form-control" autofocus
+          formControlName="folderName"
+          [placeholder]="'_#(Folder Name)'"
+          [class.is-invalid]="form.controls.folderName?.invalid || duplicate || unchanged">
+        <label>_#(Folder Name)</label>
+        @if (form.controls.folderName?.errors?.required) {
+          <span class="invalid-feedback">
             _#(viewer.nameValid)
           </span>
-          <span *ngIf="form.controls['folderName'].errors &&
-                       form.controls['folderName'].errors['invalidTaskName']"
-                class="invalid-feedback">
+        }
+        @if (form.controls['folderName'].errors &&
+          form.controls['folderName'].errors['invalidTaskName']) {
+          <span
+            class="invalid-feedback">
             _#(schedule.task.name.invalid)
           </span>
+        }
+        @if (duplicate && !(form.errors && form.errors['folderName'])) {
           <span class="invalid-feedback"
-                *ngIf="duplicate && !(form.errors && form.errors['folderName'])">
+            >
             _#(Duplicate Name)
           </span>
-          <span class="invalid-feedback" *ngIf="unchanged">
+        }
+        @if (unchanged) {
+          <span class="invalid-feedback">
             _#(Name is unchanged)
           </span>
+        }
       </div>
     </div>
   </form>

@@ -25,7 +25,7 @@ import { MatCheckbox } from "@angular/material/checkbox";
 import { MatInput } from "@angular/material/input";
 import { MatFormField, MatLabel } from "@angular/material/form-field";
 import { MatCard, MatCardTitle, MatCardContent } from "@angular/material/card";
-import { NgIf } from "@angular/common";
+
 
 @ContextHelp({
    route: "/settings/presentation/settings#time-settings",
@@ -35,7 +35,7 @@ import { NgIf } from "@angular/common";
     selector: "em-presentation-time-settings-view",
     templateUrl: "./presentation-time-settings-view.component.html",
     styleUrls: ["./presentation-time-settings-view.component.scss"],
-    imports: [NgIf, MatCard, MatCardTitle, MatCardContent, MatFormField, MatLabel, MatInput, FormsModule, MatCheckbox]
+    imports: [MatCard, MatCardTitle, MatCardContent, MatFormField, MatLabel, MatInput, FormsModule, MatCheckbox]
 })
 export class PresentationTimeSettingsViewComponent {
    @Input() isSysAdmin: boolean;

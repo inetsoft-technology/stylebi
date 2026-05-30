@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { NgIf, NgFor, NgClass } from "@angular/common";
+import { NgClass } from "@angular/common";
 import {
   AfterContentInit,
   AfterViewChecked,
@@ -129,7 +129,7 @@ const ARROW_KEY_MOVE_FACTOR_FINE = 0.5;
     selector: "ws-assembly-graph-pane",
     templateUrl: "ws-assembly-graph-pane.component.html",
     styleUrls: ["ws-assembly-graph-pane.component.scss", "../jsplumb/jsplumb-shared.scss"],
-    imports: [NgIf, SelectionBoxDirective, OutOfZoneDirective, NgFor, TableThumbnailComponent, NgClass, VariableThumbnail, GroupingThumbnail, VSSavingDisplay]
+    imports: [SelectionBoxDirective, OutOfZoneDirective, TableThumbnailComponent, NgClass, VariableThumbnail, GroupingThumbnail, VSSavingDisplay]
 })
 export class WSAssemblyGraphPaneComponent
    extends CommandProcessor

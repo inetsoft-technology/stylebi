@@ -82,7 +82,7 @@ import { TooltipDirective } from "../../../widget/tooltip/tooltip.directive";
 import { InteractableDirective } from "../../../widget/interact/interactable.directive";
 import { TitleCell } from "../title-cell/title-cell.component";
 import { CollapseToggleButton } from "./collapse-toggle-button.component";
-import { NgIf, NgFor } from "@angular/common";
+
 import { SafeFontDirective } from "../../directives/safe-font.directive";
 import { OutOfZoneDirective } from "../../../widget/directive/out-of-zone.directive";
 import { VSPopComponentDirective } from "../data-tip/vs-pop-component.directive";
@@ -108,7 +108,7 @@ export enum FocusRegions {
     templateUrl: "vs-selection.component.html",
     styleUrls: ["vs-selection.component.scss"],
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [VSDataTipDirective, VSPopComponentDirective, OutOfZoneDirective, SafeFontDirective, NgIf, MiniMenu, CollapseToggleButton, TitleCell, InteractableDirective, TooltipDirective, FormsModule, TouchScrollDirective, NgFor, SelectionListCell, VSLoadingDisplay]
+    imports: [VSDataTipDirective, VSPopComponentDirective, OutOfZoneDirective, SafeFontDirective, MiniMenu, CollapseToggleButton, TitleCell, InteractableDirective, TooltipDirective, FormsModule, TouchScrollDirective, SelectionListCell, VSLoadingDisplay]
 })
 export class VSSelection extends NavigationComponent<VSSelectionBaseModel>
    implements OnInit, OnDestroy, AfterViewInit

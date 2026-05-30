@@ -29,13 +29,13 @@ import { DateLevelExamplesService } from "../../../common/services/date-level-ex
 import { FormattingPane } from "../../../format/objects/formatting-pane.component";
 import { FixedDropdownDirective } from "../../../widget/fixed-dropdown/fixed-dropdown.directive";
 import { DynamicComboBox } from "../../../widget/dynamic-combo-box/dynamic-combo-box.component";
-import { NgIf } from "@angular/common";
+
 
 @Component({
     selector: "wizard-group-item",
     templateUrl: "./wizard-group-item.component.html",
     styleUrls: ["./wizard-group-item.component.scss"],
-    imports: [NgIf, NgbTooltip, DynamicComboBox, FixedDropdownDirective, FormattingPane]
+    imports: [NgbTooltip, DynamicComboBox, FixedDropdownDirective, FormattingPane]
 })
 export class VSWizardGroupItem extends VSWizardItem<BDimensionRef> implements OnInit {
    @Input() showName: boolean;

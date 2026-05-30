@@ -21,7 +21,7 @@ import { MatSnackBar, MatSnackBarConfig } from "@angular/material/snack-bar";
 import { Tool } from "../../../../../../../shared/util/tool";
 import { EditClasspathTextDialogComponent } from "./edit-classpath-text-dialog/edit-classpath-text-dialog.component";
 import { MatDivider } from "@angular/material/divider";
-import { NgFor, NgIf } from "@angular/common";
+
 import { MatList, MatListItem } from "@angular/material/list";
 import { MatIcon } from "@angular/material/icon";
 import { MatIconButton, MatButton } from "@angular/material/button";
@@ -39,7 +39,7 @@ const PATH_ITEM_HEIGHT: number = 41;
     templateUrl: "./schedule-classpath-dialog.component.html",
     styleUrls: ["./schedule-classpath-dialog.component.scss"],
     encapsulation: ViewEncapsulation.None,
-    imports: [ModalHeaderComponent, MatDialogContent, MatGridList, MatGridTile, MatCard, MatCardContent, MatFormField, MatLabel, MatInput, FormsModule, MatIconButton, MatSuffix, MatIcon, MatList, NgFor, NgIf, MatListItem, MatDivider, MatButton, MatDialogActions, MatDialogClose]
+    imports: [ModalHeaderComponent, MatDialogContent, MatGridList, MatGridTile, MatCard, MatCardContent, MatFormField, MatLabel, MatInput, FormsModule, MatIconButton, MatSuffix, MatIcon, MatList, MatListItem, MatDivider, MatButton, MatDialogActions, MatDialogClose]
 })
 export class ScheduleClasspathDialogComponent implements OnInit {
   @HostBinding("class") hostClass = "schedule-classpath-dialog";

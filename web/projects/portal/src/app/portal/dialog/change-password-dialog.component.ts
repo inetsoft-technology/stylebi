@@ -21,7 +21,7 @@ import { ModelService } from "../../widget/services/model.service";
 import { UntypedFormControl, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { FormValidators } from "../../../../../shared/util/form-validators";
 import { DialogButtonsDirective } from "../../widget/standard-dialog/dialog-buttons.directive";
-import { NgIf } from "@angular/common";
+
 import { DialogContentDirective } from "../../widget/standard-dialog/dialog-content.directive";
 import { StandardDialogComponent } from "../../widget/standard-dialog/standard-dialog.component";
 
@@ -31,7 +31,7 @@ const CHANGE_PASSWORD_DIALOG_MODEL_URI: string = "../api/portal/change-password-
     selector: "change-password-dialog",
     templateUrl: "change-password-dialog.component.html",
     styleUrls: ["change-password-dialog.component.scss"],
-    imports: [StandardDialogComponent, DialogContentDirective, NgIf, FormsModule, ReactiveFormsModule, DialogButtonsDirective]
+    imports: [StandardDialogComponent, DialogContentDirective, FormsModule, ReactiveFormsModule, DialogButtonsDirective]
 })
 export class ChangePasswordDialog implements OnInit {
    @Output() onCommit: EventEmitter<string> = new EventEmitter<string>();

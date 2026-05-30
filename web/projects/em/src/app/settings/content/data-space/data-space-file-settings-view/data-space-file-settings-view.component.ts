@@ -51,14 +51,14 @@ import { MatIcon } from "@angular/material/icon";
 import { FileChooserComponent } from "../../../../common/util/file-chooser/file-chooser/file-chooser.component";
 import { MatInput } from "@angular/material/input";
 import { MatFormField, MatLabel, MatError, MatSuffix } from "@angular/material/form-field";
-import { NgIf } from "@angular/common";
+
 import { MatCard, MatCardTitle, MatCardContent } from "@angular/material/card";
 
 @Component({
     selector: "em-data-space-file-settings-view",
     templateUrl: "./data-space-file-settings-view.component.html",
     styleUrls: ["./data-space-file-settings-view.component.scss"],
-    imports: [EditorPanelComponent, MatCard, MatCardTitle, MatCardContent, NgIf, MatFormField, MatLabel, MatInput, FormsModule, ReactiveFormsModule, MatError, FileChooserComponent, MatIcon, MatSuffix, TextFileContentViewComponent, MatButton]
+    imports: [EditorPanelComponent, MatCard, MatCardTitle, MatCardContent, MatFormField, MatLabel, MatInput, FormsModule, ReactiveFormsModule, MatError, FileChooserComponent, MatIcon, MatSuffix, TextFileContentViewComponent, MatButton]
 })
 export class DataSpaceFileSettingsViewComponent implements OnInit, OnChanges, OnDestroy {
    @ViewChild("textContent") textContent: TextFileContentViewComponent;
@@ -253,7 +253,7 @@ export class DataSpaceFileSettingsViewComponent implements OnInit, OnChanges, On
 @Component({
     selector: "em-delete-dialog",
     templateUrl: "./delete-dialog.html",
-    imports: [ModalHeaderComponent, MatDialogContent, NgIf, MatDialogActions, MatButton, MatDialogClose]
+    imports: [ModalHeaderComponent, MatDialogContent, MatDialogActions, MatButton, MatDialogClose]
 })
 export class DeleteDialog {
    constructor(public dialogRef: MatDialogRef<DeleteDialog>, @Inject(MAT_DIALOG_DATA) public model: DataSpaceTreeNode) {

@@ -18,7 +18,7 @@
 import { Component, Input, OnInit } from "@angular/core";
 import { TabListPaneModel } from "../../data/vs/tab-list-pane-model";
 import { FormsModule } from "@angular/forms";
-import { NgFor } from "@angular/common";
+
 import { ScrollableTableDirective } from "../../../widget/scrollable-table/scrollable-table.directive";
 import { LargeFormFieldComponent } from "../../../widget/large-form-field/large-form-field.component";
 
@@ -26,7 +26,7 @@ import { LargeFormFieldComponent } from "../../../widget/large-form-field/large-
     selector: "tab-list-pane",
     templateUrl: "tab-list-pane.component.html",
     styleUrls: ["tab-list-pane.component.scss"],
-    imports: [LargeFormFieldComponent, ScrollableTableDirective, NgFor, FormsModule]
+    imports: [LargeFormFieldComponent, ScrollableTableDirective, FormsModule]
 })
 export class TabListPane implements OnInit {
    @Input() model: TabListPaneModel;

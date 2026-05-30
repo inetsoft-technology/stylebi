@@ -64,7 +64,7 @@ import { SafeFontDirective } from "../../directives/safe-font.directive";
 import { VSPopComponentDirective } from "../data-tip/vs-pop-component.directive";
 import { VSDataTipDirective } from "../data-tip/vs-data-tip.directive";
 import { VSInputLabelWrapper } from "../input-label-wrapper/vs-input-label-wrapper.component";
-import { NgIf, NgFor } from "@angular/common";
+
 
 enum FocusRegions {
    NONE,
@@ -85,7 +85,7 @@ dayjs.extend(customParseFormat);
     selector: "vs-combo-box",
     templateUrl: "vs-combo-box.component.html",
     styleUrls: ["vs-combo-box.component.scss"],
-    imports: [NgIf, VSInputLabelWrapper, VSDataTipDirective, VSPopComponentDirective, SafeFontDirective, FormsModule, NgFor, FixedDropdownDirective, NgbTypeahead, EnterClickDirective, CdkVirtualScrollViewport, CdkFixedSizeVirtualScroll, CdkVirtualForOf, NgbDatepicker, DefaultFocusDirective, BlockMouseDirective]
+    imports: [VSInputLabelWrapper, VSDataTipDirective, VSPopComponentDirective, SafeFontDirective, FormsModule, FixedDropdownDirective, NgbTypeahead, EnterClickDirective, CdkVirtualScrollViewport, CdkFixedSizeVirtualScroll, CdkVirtualForOf, NgbDatepicker, DefaultFocusDirective, BlockMouseDirective]
 })
 export class VSComboBox extends NavigationComponent<VSComboBoxModel> implements OnChanges, OnDestroy, OnInit {
    @Input() set model(value: VSComboBoxModel) {

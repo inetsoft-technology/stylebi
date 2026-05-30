@@ -21,17 +21,16 @@ import { TreeNodeModel } from "../../../widget/tree/tree-node-model";
 import { UntypedFormControl, UntypedFormGroup, ValidationErrors, Validators, FormsModule } from "@angular/forms";
 import { FormValidators } from "../../../../../../shared/util/form-validators";
 import { DynamicValueModel, ValueTypes } from "../../../vsobjects/model/dynamic-value-model";
-import { NgIf } from "@angular/common";
+
 import { DynamicValueEditorComponent } from "../../../widget/date-type-editor/dynamic-value-editor.component";
 
 @Component({
     selector: "calendar-advanced-pane",
     templateUrl: "calendar-advanced-pane.component.html",
     imports: [
-        FormsModule,
-        DynamicValueEditorComponent,
-        NgIf,
-    ]
+    FormsModule,
+    DynamicValueEditorComponent
+]
 })
 export class CalendarAdvancedPane implements OnInit {
    @Input() model: CalendarAdvancedPaneModel;

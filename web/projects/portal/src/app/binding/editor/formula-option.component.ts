@@ -28,13 +28,13 @@ import { BindingService } from "../services/binding.service";
 import { Tool } from "../../../../../shared/util/tool";
 import isEmpty = Tool.isEmpty;
 import { DataRefType } from "../../common/data/data-ref-type";
-import { NgIf } from "@angular/common";
+
 import { DynamicComboBox } from "../../widget/dynamic-combo-box/dynamic-combo-box.component";
 
 @Component({
     selector: "formula-option",
     templateUrl: "formula-option.component.html",
-    imports: [DynamicComboBox, NgIf]
+    imports: [DynamicComboBox]
 })
 export class FormulaOption implements OnInit {
    @Input() vsId: any;

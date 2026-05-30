@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { NgFor, NgClass } from "@angular/common";
+import { NgClass } from "@angular/common";
 import { HttpClient } from "@angular/common/http";
 import {
   Component, Input, Output, EventEmitter, ElementRef, ViewChild,
@@ -74,7 +74,7 @@ const GRAPH_REMOVE_TABLES_URI = "../api/data/physicalmodel/tables/remove";
     templateUrl: "physical-model-network-graph.component.html",
     styleUrls: ["physical-model-network-graph.component.scss",
         "../../../../../../composer/gui/ws/jsplumb/jsplumb-shared.scss"],
-    imports: [OutOfZoneDirective, SelectionBoxDirective, NgFor, JoinNodeGraphComponent, NgClass]
+    imports: [OutOfZoneDirective, SelectionBoxDirective, JoinNodeGraphComponent, NgClass]
 })
 export class PhysicalModelNetworkGraphComponent implements OnInit, OnChanges, AfterViewChecked,
    AfterViewInit, OnDestroy

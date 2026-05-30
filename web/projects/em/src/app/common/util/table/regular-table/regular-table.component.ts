@@ -22,13 +22,13 @@ import { MatTableDataSource, MatTable, MatColumnDef, MatHeaderCellDef, MatHeader
 import { TableInfo } from "../table-info";
 import { TableModel } from "../table-model";
 import { MatCheckbox } from "@angular/material/checkbox";
-import { NgIf, NgFor } from "@angular/common";
+
 
 @Component({
     selector: "em-regular-table",
     templateUrl: "./regular-table.component.html",
     styleUrls: ["./regular-table.component.scss"],
-    imports: [NgIf, MatTable, MatSort, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCheckbox, MatCellDef, MatCell, NgFor, MatSortHeader, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow]
+    imports: [MatTable, MatSort, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCheckbox, MatCellDef, MatCell, MatSortHeader, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow]
 })
 export class RegularTableComponent<T extends TableModel> implements AfterViewInit {
    @Input() maxHeight: number;

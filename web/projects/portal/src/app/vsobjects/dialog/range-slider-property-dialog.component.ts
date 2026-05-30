@@ -33,7 +33,7 @@ import { RangeSliderAdvancedPane } from "./range-slider-advanced-pane.component"
 import { RangeSliderDataPane } from "./range-slider-data-pane.component";
 import { RangeSliderGeneralPane } from "./range-slider-general-pane.component";
 import { EnterSubmitDirective } from "../../widget/directive/enter-submit.directive";
-import { NgIf } from "@angular/common";
+
 import { ModalHeaderComponent } from "../../widget/modal-header/modal-header.component";
 
 const CHECK_TRAP_URI: string = "../api/composer/vs/range-slider-property-dialog-model/checkTrap/";
@@ -42,21 +42,20 @@ const CHECK_TRAP_URI: string = "../api/composer/vs/range-slider-property-dialog-
     selector: "range-slider-property-dialog",
     templateUrl: "range-slider-property-dialog.component.html",
     imports: [
-        ModalHeaderComponent,
-        NgIf,
-        EnterSubmitDirective,
-        NgbNav,
-        NgbNavItem,
-        NgbNavLink,
-        NgbNavLinkBase,
-        NgbNavContent,
-        RangeSliderGeneralPane,
-        RangeSliderDataPane,
-        RangeSliderAdvancedPane,
-        VSAssemblyScriptPane,
-        NgbNavOutlet,
-        ApplyButtonComponent,
-    ]
+    ModalHeaderComponent,
+    EnterSubmitDirective,
+    NgbNav,
+    NgbNavItem,
+    NgbNavLink,
+    NgbNavLinkBase,
+    NgbNavContent,
+    RangeSliderGeneralPane,
+    RangeSliderDataPane,
+    RangeSliderAdvancedPane,
+    VSAssemblyScriptPane,
+    NgbNavOutlet,
+    ApplyButtonComponent
+]
 })
 export class RangeSliderPropertyDialog extends PropertyDialog implements OnInit {
    @Input() model: RangeSliderPropertyDialogModel;

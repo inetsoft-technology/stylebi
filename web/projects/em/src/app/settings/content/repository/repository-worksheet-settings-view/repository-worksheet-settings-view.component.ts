@@ -27,13 +27,13 @@ import { COPY_PASTE_CONTEXT_REPOSITORY } from "../../../security/resource-permis
 import { MatButton } from "@angular/material/button";
 import { ResourcePermissionComponent } from "../../../security/resource-permission/resource-permission.component";
 import { EditorPanelComponent } from "../../../../common/util/editor-panel/editor-panel.component";
-import { NgIf } from "@angular/common";
+
 
 @Component({
     selector: "em-repository-worksheet-settings-view",
     templateUrl: "./repository-worksheet-settings-view.component.html",
     styleUrls: ["./repository-worksheet-settings-view.component.scss"],
-    imports: [NgIf, EditorPanelComponent, MatTabGroup, MatTab, MatTabContent, RepositorySheetSettingsViewComponent, ResourcePermissionComponent, AnalyzeMvPageComponent, MatButton]
+    imports: [EditorPanelComponent, MatTabGroup, MatTab, MatTabContent, RepositorySheetSettingsViewComponent, ResourcePermissionComponent, AnalyzeMvPageComponent, MatButton]
 })
 export class RepositoryWorksheetSettingsViewComponent {
    @Input() entry: RepositoryEntry;

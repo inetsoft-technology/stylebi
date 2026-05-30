@@ -48,13 +48,13 @@ import { FieldEditor } from "./field-editor.component";
 import { ExpressionEditor } from "./expression-editor.component";
 import { VariableEditor } from "./variable-editor.component";
 import { TopNEditor } from "./top-n-editor.component";
-import { NgIf, NgFor } from "@angular/common";
+
 
 @Component({
     selector: "condition-editor",
     templateUrl: "condition-editor.component.html",
     styleUrls: ["condition-editor.component.scss"],
-    imports: [NgIf, TopNEditor, ValueEditor, VariableEditor, ExpressionEditor, FieldEditor, SubqueryEditor, SessionDataEditor, FixedDropdownDirective, NgFor, ConditionValueTypePipe]
+    imports: [TopNEditor, ValueEditor, VariableEditor, ExpressionEditor, FieldEditor, SubqueryEditor, SessionDataEditor, FixedDropdownDirective, ConditionValueTypePipe]
 })
 export class ConditionEditor implements OnChanges {
    public XSchema = XSchema;

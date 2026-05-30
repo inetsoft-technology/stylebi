@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { NgFor } from "@angular/common";
+
 import {
   AfterViewInit, Component, ElementRef, HostBinding, Inject, Input, NgZone,
   DOCUMENT
@@ -33,7 +33,7 @@ const MIN_LEFT_CONNECTION_GAP = 40;
     selector: "edit-join-table",
     templateUrl: "edit-join-table.component.html",
     styleUrls: ["edit-join-table.component.scss"],
-    imports: [NgFor, EditJoinTableColumnComponent]
+    imports: [EditJoinTableColumnComponent]
 })
 export class EditJoinTableComponent implements AfterViewInit {
    @Input() table: TableGraphModel;

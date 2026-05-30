@@ -37,14 +37,14 @@ import {Tool} from "../../../../../../../shared/util/tool";
 import { DynamicComboBox } from "../../../../widget/dynamic-combo-box/dynamic-combo-box.component";
 import { FormsModule } from "@angular/forms";
 import { BlockMouseDirective } from "../../../../widget/mouse-event/block-mouse.directive";
-import { NgIf, NgFor } from "@angular/common";
+
 import { ModalHeaderComponent } from "../../../../widget/modal-header/modal-header.component";
 
 @Component({
     selector: "calculate-pane-dialog",
     templateUrl: "calculate-pane-dialog.component.html",
     styleUrls: ["calculate-pane-dialog.component.scss"],
-    imports: [ModalHeaderComponent, NgIf, BlockMouseDirective, FormsModule, NgFor, DynamicComboBox]
+    imports: [ModalHeaderComponent, BlockMouseDirective, FormsModule, DynamicComboBox]
 })
 export class CalculatePaneDialog implements OnInit {
    @Input() aggreName: string;

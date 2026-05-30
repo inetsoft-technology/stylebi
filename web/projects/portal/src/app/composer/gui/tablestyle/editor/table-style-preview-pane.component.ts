@@ -19,14 +19,14 @@ import { Component, EventEmitter, Input, Output } from "@angular/core";
 import { TableStyleUtil } from "../../../../common/util/table-style-util";
 import { CSSTableStyleModel } from "../../../data/tablestyle/css/css-table-style-model";
 import { SafeFontDirective } from "../../../../vsobjects/directives/safe-font.directive";
-import { NgFor, NgClass } from "@angular/common";
+import { NgClass } from "@angular/common";
 import { TableStyleBorderRegionComponent } from "./table-style-border-region.component";
 
 @Component({
     selector: "table-style-preview-pane",
     templateUrl: "table-style-preview-pane.component.html",
     styleUrls: ["table-style-preview-pane.component.scss"],
-    imports: [TableStyleBorderRegionComponent, NgFor, NgClass, SafeFontDirective]
+    imports: [TableStyleBorderRegionComponent, NgClass, SafeFontDirective]
 })
 export class TableStylePreviewPaneComponent {
    @Input() selectedRegion: string;

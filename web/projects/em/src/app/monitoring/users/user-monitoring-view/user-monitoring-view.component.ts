@@ -37,7 +37,7 @@ import { TableView } from "../../../common/util/table/table-view.component";
 import { ClusterSelectorComponent } from "../../cluster-selector/cluster-selector.component";
 import { MatIcon } from "@angular/material/icon";
 import { MatCard, MatCardTitle } from "@angular/material/card";
-import { NgIf } from "@angular/common";
+
 
 export interface UserFailedLoginMonitoring extends TableModel {
    user: string;
@@ -66,7 +66,7 @@ export interface UserFailedLoginMonitoring extends TableModel {
     selector: "em-user-monitoring-view",
     templateUrl: "./user-monitoring-view.component.html",
     styleUrls: ["./user-monitoring-view.component.scss"],
-    imports: [NgIf, MatCard, MatCardTitle, MatIcon, ClusterSelectorComponent, TableView]
+    imports: [MatCard, MatCardTitle, MatIcon, ClusterSelectorComponent, TableView]
 })
 export class UserMonitoringViewComponent implements OnInit, OnDestroy {
    clusterNodes: string[];

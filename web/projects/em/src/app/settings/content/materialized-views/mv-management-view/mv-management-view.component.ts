@@ -45,7 +45,7 @@ import { FormsModule } from "@angular/forms";
 import { MatCheckbox } from "@angular/material/checkbox";
 import { TableView } from "../../../../common/util/table/table-view.component";
 import { MatOption } from "@angular/material/core";
-import { NgFor, NgIf } from "@angular/common";
+
 import { MatSelect } from "@angular/material/select";
 import { MatFormField, MatLabel } from "@angular/material/form-field";
 import { EditorPanelComponent } from "../../../../common/util/editor-panel/editor-panel.component";
@@ -57,7 +57,7 @@ import { EditorPanelComponent } from "../../../../common/util/editor-panel/edito
     providers: [
         MVChangeService
     ],
-    imports: [EditorPanelComponent, MatFormField, MatLabel, MatSelect, NgFor, MatOption, TableView, MatCheckbox, FormsModule, NgIf, MatButton, LoadingSpinnerComponent]
+    imports: [EditorPanelComponent, MatFormField, MatLabel, MatSelect, MatOption, TableView, MatCheckbox, FormsModule, MatButton, LoadingSpinnerComponent]
 })
 export class MvManagementViewComponent implements OnInit, OnDestroy {
    // Table

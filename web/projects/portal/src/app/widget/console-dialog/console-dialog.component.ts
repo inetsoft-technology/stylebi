@@ -23,7 +23,7 @@ import { SaveConsoleMessageLevelsEvent } from "../../composer/gui/ws/socket/save
 import { DialogButtonsDirective } from "../standard-dialog/dialog-buttons.directive";
 import { FormsModule } from "@angular/forms";
 import { FixedDropdownDirective } from "../fixed-dropdown/fixed-dropdown.directive";
-import { NgIf, NgFor, NgClass } from "@angular/common";
+import { NgClass } from "@angular/common";
 import { DialogContentDirective } from "../standard-dialog/dialog-content.directive";
 import { StandardDialogComponent } from "../standard-dialog/standard-dialog.component";
 
@@ -33,7 +33,7 @@ const SAVE_MESSAGE_LEVELS_URI = "../api/composer/console-dialog/save-message-lev
     selector: "console-dialog",
     templateUrl: "./console-dialog.component.html",
     styleUrls: ["./console-dialog.component.scss"],
-    imports: [StandardDialogComponent, DialogContentDirective, NgIf, NgFor, NgClass, FixedDropdownDirective, FormsModule, DialogButtonsDirective]
+    imports: [StandardDialogComponent, DialogContentDirective, NgClass, FixedDropdownDirective, FormsModule, DialogButtonsDirective]
 })
 export class ConsoleDialogComponent implements OnInit {
    @Input() runtimeId: string;

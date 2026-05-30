@@ -18,7 +18,7 @@
 import { Component, OnChanges, Input, Output, EventEmitter } from "@angular/core";
 import { ValueLabelModel } from "../data/value-label-model";
 import { DefaultFocusDirective } from "../../widget/directive/default-focus.directive";
-import { NgIf, NgFor } from "@angular/common";
+
 import { LargeFormFieldComponent } from "../../widget/large-form-field/large-form-field.component";
 import { BlockMouseDirective } from "../../widget/mouse-event/block-mouse.directive";
 import { ModalHeaderComponent } from "../../widget/modal-header/modal-header.component";
@@ -27,7 +27,7 @@ import { ModalHeaderComponent } from "../../widget/modal-header/modal-header.com
     selector: "manual-ordering-dialog",
     templateUrl: "manual-ordering-dialog.component.html",
     styleUrls: ["manual-ordering-dialog.component.scss"],
-    imports: [ModalHeaderComponent, BlockMouseDirective, LargeFormFieldComponent, NgIf, NgFor, DefaultFocusDirective]
+    imports: [ModalHeaderComponent, BlockMouseDirective, LargeFormFieldComponent, DefaultFocusDirective]
 })
 export class ManualOrderingDialog implements OnChanges {
    @Input() manualOrders: string[];

@@ -105,7 +105,7 @@ import { SQLQueryDialog } from "../../../widget/dialog/sql-query-dialog/sql-quer
 import { ImportCSVDialog } from "../../dialog/ws/import-csv-dialog.component";
 import { FormsModule } from "@angular/forms";
 import { ToolbarGroup } from "../../../widget/toolbar/toolbar-group/toolbar-group.component";
-import { NgIf, NgFor } from "@angular/common";
+
 
 declare const window;
 
@@ -141,7 +141,7 @@ const COMPOSER_WIZARD_STATUS_URI: string = "../api/composer/wizard/status";
     templateUrl: "composer-toolbar.component.html",
     styleUrls: ["composer-toolbar.component.scss"],
     providers: [FullScreenService, NgbTooltipConfig],
-    imports: [NgIf, ToolbarGroup, NgbDropdown, NgbDropdownToggle, NgbTooltip, NgbDropdownMenu, FormsModule, NgFor, ImportCSVDialog, SQLQueryDialog, TabularQueryDialog, GroupingDialog, SelectDataSourceDialog, EmbeddedTableDialog, WorksheetPropertyDialog, VariableAssemblyDialog, VariableInputDialog, VPMPrincipalDialogComponent, NewWorksheetDialog]
+    imports: [ToolbarGroup, NgbDropdown, NgbDropdownToggle, NgbTooltip, NgbDropdownMenu, FormsModule, ImportCSVDialog, SQLQueryDialog, TabularQueryDialog, GroupingDialog, SelectDataSourceDialog, EmbeddedTableDialog, WorksheetPropertyDialog, VariableAssemblyDialog, VariableInputDialog, VPMPrincipalDialogComponent, NewWorksheetDialog]
 })
 export class ComposerToolbarComponent implements OnInit, AfterViewInit, OnDestroy {
    _sheet: Sheet;

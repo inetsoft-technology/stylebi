@@ -27,14 +27,14 @@ import {RepositoryEntryType} from "../../../../../../../shared/data/repository-e
 import { AutoSaveRecycleBinComponent } from "./auto-save-recycle-bin.component";
 import { MatTabGroup, MatTab } from "@angular/material/tabs";
 import { EditorPanelComponent } from "../../../../common/util/editor-panel/editor-panel.component";
-import { NgIf } from "@angular/common";
+
 
 const GET_AUTO_SAVE_TIME: string = "../api/em/content/repository/autosave/gettime";
 
 @Component({
     selector: "em-auto-save-recycle-bin-page",
     templateUrl: "./auto-save-recycle-bin-page.component.html",
-    imports: [NgIf, EditorPanelComponent, MatTabGroup, MatTab, AutoSaveRecycleBinComponent]
+    imports: [EditorPanelComponent, MatTabGroup, MatTab, AutoSaveRecycleBinComponent]
 })
 export class AutoSaveRecycleBinPageComponent {
    @Input() nodeType: string;

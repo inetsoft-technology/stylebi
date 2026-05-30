@@ -34,7 +34,7 @@ import { MatRadioGroup, MatRadioButton } from "@angular/material/radio";
 import { MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow } from "@angular/material/table";
 import { MatProgressBar } from "@angular/material/progress-bar";
 import { MatCard, MatCardTitle, MatCardSubtitle, MatCardContent, MatCardActions } from "@angular/material/card";
-import { NgIf } from "@angular/common";
+
 
 const SCHEDULER_STATUS_URL = "../api/em/settings/schedule/status";
 
@@ -55,7 +55,7 @@ const SCHEDULER_STATUS_URL = "../api/em/settings/schedule/status";
     selector: "em-schedule-status-page",
     templateUrl: "./schedule-status-page.component.html",
     styleUrls: ["./schedule-status-page.component.scss"],
-    imports: [NgIf, MatCard, MatCardTitle, MatCardSubtitle, MatCardContent, MatProgressBar, MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatRadioGroup, FormsModule, MatRadioButton, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, MatCardActions, MatButton]
+    imports: [MatCard, MatCardTitle, MatCardSubtitle, MatCardContent, MatProgressBar, MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatRadioGroup, FormsModule, MatRadioButton, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, MatCardActions, MatButton]
 })
 export class ScheduleStatusPageComponent implements OnChanges, OnInit {
    model: ScheduleStatusModel;

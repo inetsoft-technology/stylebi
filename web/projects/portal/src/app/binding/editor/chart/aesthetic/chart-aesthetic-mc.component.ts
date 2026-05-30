@@ -19,13 +19,13 @@ import { Component, Input, Output, EventEmitter } from "@angular/core";
 import { AestheticInfo } from "../../../data/chart/aesthetic-info";
 import { ChartAggregateRef } from "../../../data/chart/chart-aggregate-ref";
 import { ChartFieldmc } from "../field/chart-fieldmc.component";
-import { NgIf } from "@angular/common";
+
 
 @Component({
     selector: "chart-aesthetic-mc",
     templateUrl: "chart-aesthetic-mc.component.html",
     styleUrls: ["../../data-editor.component.scss"],
-    imports: [NgIf, ChartFieldmc]
+    imports: [ChartFieldmc]
 })
 export class ChartAestheticMc {
    @Input() isMixed: boolean;

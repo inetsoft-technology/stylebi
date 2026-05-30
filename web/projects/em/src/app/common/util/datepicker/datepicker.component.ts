@@ -26,7 +26,7 @@ import customParseFormat from "dayjs/plugin/customParseFormat";
 import { MatIcon } from "@angular/material/icon";
 import { MatDatepickerInput, MatDatepickerToggle, MatDatepickerToggleIcon, MatDatepicker } from "@angular/material/datepicker";
 import { MatInput } from "@angular/material/input";
-import { NgIf } from "@angular/common";
+
 import { MatFormField, MatLabel, MatSuffix, MatError } from "@angular/material/form-field";
 
 dayjs.extend(customParseFormat);
@@ -52,20 +52,19 @@ export const DEFAULT_FORMATS = {
         { provide: MAT_DATE_FORMATS, useValue: DEFAULT_FORMATS },
     ],
     imports: [
-        MatFormField,
-        FormsModule,
-        ReactiveFormsModule,
-        NgIf,
-        MatLabel,
-        MatInput,
-        MatDatepickerInput,
-        MatDatepickerToggle,
-        MatSuffix,
-        MatIcon,
-        MatDatepickerToggleIcon,
-        MatDatepicker,
-        MatError,
-    ]
+    MatFormField,
+    FormsModule,
+    ReactiveFormsModule,
+    MatLabel,
+    MatInput,
+    MatDatepickerInput,
+    MatDatepickerToggle,
+    MatSuffix,
+    MatIcon,
+    MatDatepickerToggleIcon,
+    MatDatepicker,
+    MatError
+]
 })
 export class DatepickerComponent implements OnInit, OnDestroy {
    @Input() isVisibleLabel: boolean;

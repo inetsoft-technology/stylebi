@@ -47,7 +47,7 @@ import { createAssetEntry } from "../../../../../../../../../../../shared/data/a
 import {
    QueryFieldModel
 } from "../../../../../../model/datasources/database/query/query-field-model";
-import { NgFor, NgIf } from "@angular/common";
+
 import { ModalHeaderComponent } from "../../../../../../../../widget/modal-header/modal-header.component";
 
 enum LinkType {
@@ -62,7 +62,7 @@ const GET_VIEWSHEET_AUTO_DRILL_PARAMETERS: string = "../api/data/logicalModel/vs
     selector: "data-auto-drill-dialog",
     templateUrl: "data-auto-drill-dialog.component.html",
     styleUrls: ["data-auto-drill-dialog.component.scss"],
-    imports: [ModalHeaderComponent, NgFor, NgIf, FormsModule, ReactiveFormsModule, NgbDropdown, NgbDropdownToggle, NgbDropdownMenu, RepositoryTreeComponent]
+    imports: [ModalHeaderComponent, FormsModule, ReactiveFormsModule, NgbDropdown, NgbDropdownToggle, NgbDropdownMenu, RepositoryTreeComponent]
 })
 export class AutoDrillDialog implements OnInit, AfterViewInit {
    @Input() entities: EntityModel[];

@@ -1,35 +1,38 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
-<i *ngIf="!collapsed && hideButtonVisible; else showButton" title="_#(Hide)"
-   class="collapse-toggle-button"
-   [class.upward-icon]="!flipped"
-   [class.downward-icon]="flipped"
-   [class.icon-size-large]="!mobileDevice"
-   [class.mobile-icon-size-large]="mobileDevice"
-   (click)="clickHide($event)">
-</i>
-<ng-template #showButton>
-  <i *ngIf="collapsed && showButtonVisible" title="_#(Show)"
-     class="collapse-toggle-button"
-     [class.downward-icon]="!flipped"
-     [class.upward-icon]="flipped"
-     [class.icon-size-large]="!mobileDevice"
-     [class.mobile-icon-size-large]="mobileDevice"
-     (click)="clickShow($event)">
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
+@if (!collapsed && hideButtonVisible) {
+  <i title="_#(Hide)"
+    class="collapse-toggle-button"
+    [class.upward-icon]="!flipped"
+    [class.downward-icon]="flipped"
+    [class.icon-size-large]="!mobileDevice"
+    [class.mobile-icon-size-large]="mobileDevice"
+    (click)="clickHide($event)">
   </i>
-</ng-template>
+} @else {
+  @if (collapsed && showButtonVisible) {
+    <i title="_#(Show)"
+      class="collapse-toggle-button"
+      [class.downward-icon]="!flipped"
+      [class.upward-icon]="flipped"
+      [class.icon-size-large]="!mobileDevice"
+      [class.mobile-icon-size-large]="mobileDevice"
+      (click)="clickShow($event)">
+    </i>
+  }
+}

@@ -66,7 +66,7 @@ import { InteractContainerDirective } from "../../../../widget/interact/interact
 import { ResizeHandlerService } from "../../resize-handler.service";
 import { LayoutObject } from "./layout-object.component";
 import { ResizedDirective } from "../../../../../../../shared/resize-event/resized.directive";
-import { NgStyle, NgIf, NgFor } from "@angular/common";
+import { NgStyle } from "@angular/common";
 import { ActionsContextmenuAnchorDirective } from "../../../../widget/fixed-dropdown/actions-contextmenu-anchor.directive";
 import { OutOfZoneDirective } from "../../../../widget/directive/out-of-zone.directive";
 
@@ -75,7 +75,7 @@ import { OutOfZoneDirective } from "../../../../widget/directive/out-of-zone.dir
     templateUrl: "layout-pane.component.html",
     styleUrls: ["layout-pane.component.scss"],
     providers: [ViewsheetClientService],
-    imports: [OutOfZoneDirective, InteractContainerDirective, SelectionBoxDirective, ActionsContextmenuAnchorDirective, NgStyle, ResizedDirective, NgIf, NgFor, LayoutObject]
+    imports: [OutOfZoneDirective, InteractContainerDirective, SelectionBoxDirective, ActionsContextmenuAnchorDirective, NgStyle, ResizedDirective, LayoutObject]
 })
 export class LayoutPane extends CommandProcessor implements OnInit, OnChanges, OnDestroy {
    @Input() layoutChange: Observable<any>;

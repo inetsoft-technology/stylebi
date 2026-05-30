@@ -38,7 +38,7 @@ import { MatAutocompleteTrigger, MatAutocomplete } from "@angular/material/autoc
 import { FormsModule } from "@angular/forms";
 import { MatInput } from "@angular/material/input";
 import { MatFormField, MatLabel, MatSuffix } from "@angular/material/form-field";
-import { NgIf, NgFor } from "@angular/common";
+
 import { MatIcon } from "@angular/material/icon";
 import { MatIconButton } from "@angular/material/button";
 import { MatToolbar } from "@angular/material/toolbar";
@@ -47,7 +47,7 @@ import { MatToolbar } from "@angular/material/toolbar";
     selector: "em-page-header",
     templateUrl: "./page-header.component.html",
     styleUrls: ["./page-header.component.scss"],
-    imports: [MatToolbar, MatIconButton, MatIcon, NgIf, MatFormField, MatLabel, MatInput, FormsModule, MatAutocompleteTrigger, MatSuffix, MatAutocomplete, NgFor, MatOption, MatSelect]
+    imports: [MatToolbar, MatIconButton, MatIcon, MatFormField, MatLabel, MatInput, FormsModule, MatAutocompleteTrigger, MatSuffix, MatAutocomplete, MatOption, MatSelect]
 })
 export class PageHeaderComponent implements OnInit, OnDestroy {
    @Input() title: string;

@@ -27,14 +27,14 @@ import { TooltipDirective } from "../../../widget/tooltip/tooltip.directive";
 import { CdkVirtualScrollViewport, CdkFixedSizeVirtualScroll, CdkVirtualForOf } from "@angular/cdk/scrolling";
 import { LargeFormFieldComponent } from "../../../widget/large-form-field/large-form-field.component";
 import { EnterSubmitDirective } from "../../../widget/directive/enter-submit.directive";
-import { NgIf } from "@angular/common";
+
 import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
 
 @Component({
     selector: "reorder-columns-dialog",
     templateUrl: "reorder-columns-dialog.component.html",
     styleUrls: ["reorder-columns-dialog.component.scss"],
-    imports: [ModalHeaderComponent, NgIf, EnterSubmitDirective, LargeFormFieldComponent, CdkVirtualScrollViewport, CdkFixedSizeVirtualScroll, CdkVirtualForOf, TooltipDirective, VSLoadingDisplay]
+    imports: [ModalHeaderComponent, EnterSubmitDirective, LargeFormFieldComponent, CdkVirtualScrollViewport, CdkFixedSizeVirtualScroll, CdkVirtualForOf, TooltipDirective, VSLoadingDisplay]
 })
 export class ReorderColumnsDialog implements OnInit {
    @Input() tableName: string;

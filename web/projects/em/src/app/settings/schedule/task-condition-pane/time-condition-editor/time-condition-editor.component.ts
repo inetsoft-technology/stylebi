@@ -29,14 +29,14 @@ import { HourlyConditionEditorComponent } from "../hourly-condition-editor/hourl
 import { MonthlyConditionEditorComponent } from "../monthly-condition-editor/monthly-condition-editor.component";
 import { WeeklyConditionEditorComponent } from "../weekly-condition-editor/weekly-condition-editor.component";
 import { DailyConditionEditorComponent } from "../daily-condition-editor/daily-condition-editor.component";
-import { NgSwitch, NgSwitchCase } from "@angular/common";
+
 
 @Component({
     selector: "em-time-condition-editor",
     templateUrl: "./time-condition-editor.component.html",
     styleUrls: ["./time-condition-editor.component.scss"],
     providers: [DateTimeService],
-    imports: [NgSwitch, NgSwitchCase, DailyConditionEditorComponent, WeeklyConditionEditorComponent, MonthlyConditionEditorComponent, HourlyConditionEditorComponent, RunOnceConditionEditorComponent]
+    imports: [DailyConditionEditorComponent, WeeklyConditionEditorComponent, MonthlyConditionEditorComponent, HourlyConditionEditorComponent, RunOnceConditionEditorComponent]
 })
 export class TimeConditionEditorComponent implements OnInit {
    @Input() model: TaskConditionPaneModel;

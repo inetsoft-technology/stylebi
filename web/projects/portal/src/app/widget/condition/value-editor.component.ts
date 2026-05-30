@@ -40,13 +40,13 @@ import { NumberValueEditor } from "./number-value-editor.component";
 import { BooleanValueEditor } from "./boolean-value-editor.component";
 import { CharValueEditor } from "./char-value-editor.component";
 import { StringValueEditor } from "./string-value-editor.component";
-import { NgIf, NgFor } from "@angular/common";
+
 
 @Component({
     selector: "value-editor",
     templateUrl: "value-editor.component.html",
     styleUrls: ["value-editor.component.scss"],
-    imports: [NgIf, StringValueEditor, CharValueEditor, BooleanValueEditor, NumberValueEditor, DateValueEditorComponent, FormsModule, TimeValueEditorComponent, TimeInstantValueEditorComponent, DateInValueEditor, FixedDropdownDirective, NgFor]
+    imports: [StringValueEditor, CharValueEditor, BooleanValueEditor, NumberValueEditor, DateValueEditorComponent, FormsModule, TimeValueEditorComponent, TimeInstantValueEditorComponent, DateInValueEditor, FixedDropdownDirective]
 })
 export class ValueEditor implements OnChanges {
    @Input() field: DataRef;

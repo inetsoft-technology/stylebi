@@ -30,13 +30,13 @@ import { ComponentTool } from "../../../../common/util/component-tool";
 import { ExecuteAsDialog } from "../execute-as-dialog/execute-as-dialog.component";
 import { Observable } from "rxjs";
 import { ScheduleTaskDialogModel } from "../../../../../../../shared/schedule/model/schedule-task-dialog-model";
-import { NgIf, NgFor } from "@angular/common";
+
 
 @Component({
     selector: "task-options-pane",
     templateUrl: "./task-options-pane.component.html",
     styleUrls: ["./task-options-pane.component.scss"],
-    imports: [FormsModule, ReactiveFormsModule, NgbInputDatepicker, NgIf, NgFor]
+    imports: [FormsModule, ReactiveFormsModule, NgbInputDatepicker]
 })
 export class TaskOptionsPane implements OnInit {
    @Input() set model(value: TaskOptionsPaneModel) {

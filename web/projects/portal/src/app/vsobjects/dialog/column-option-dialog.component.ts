@@ -32,28 +32,23 @@ import { DateEditor } from "./date-editor.component";
 import { ComboBoxEditor } from "./combo-box-editor.component";
 import { TextEditor } from "./text-editor.component";
 import { EnterSubmitDirective } from "../../widget/directive/enter-submit.directive";
-import { NgIf, NgFor, NgSwitch, NgSwitchCase, NgSwitchDefault } from "@angular/common";
+
 import { ModalHeaderComponent } from "../../widget/modal-header/modal-header.component";
 
 @Component({
     selector: "column-option-dialog",
     templateUrl: "column-option-dialog.component.html",
     imports: [
-        ModalHeaderComponent,
-        NgIf,
-        EnterSubmitDirective,
-        FormsModule,
-        NgFor,
-        NgSwitch,
-        NgSwitchCase,
-        TextEditor,
-        ComboBoxEditor,
-        DateEditor,
-        IntegerEditor,
-        FloatEditor,
-        NgSwitchDefault,
-        ApplyButtonComponent,
-    ]
+    ModalHeaderComponent,
+    EnterSubmitDirective,
+    FormsModule,
+    TextEditor,
+    ComboBoxEditor,
+    DateEditor,
+    IntegerEditor,
+    FloatEditor,
+    ApplyButtonComponent
+]
 })
 export class ColumnOptionDialog {
    _model: ColumnOptionDialogModel;

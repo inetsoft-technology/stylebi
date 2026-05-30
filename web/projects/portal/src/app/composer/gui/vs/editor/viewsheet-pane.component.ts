@@ -160,7 +160,7 @@ import { EditableObjectContainer } from "./editable-object-container.component";
 import { ActionsContextmenuAnchorDirective } from "../../../../widget/fixed-dropdown/actions-contextmenu-anchor.directive";
 import { Rulers } from "../../../../widget/rulers/rulers.component";
 import { MobileToolbarComponent } from "./mobile-toolbar.component";
-import { NgIf, NgStyle, NgFor } from "@angular/common";
+import { NgStyle } from "@angular/common";
 import { OutOfZoneDirective } from "../../../../widget/directive/out-of-zone.directive";
 
 const COLLECT_PARAMS_URI = "/events/vs/collectParameters";
@@ -200,7 +200,7 @@ const COLLECT_PARAMS_URI = "/events/vs/collectParameters";
         VSBindingTreeService,
         ChatService
     ],
-    imports: [OutOfZoneDirective, NgIf, MobileToolbarComponent, Rulers, SelectionBoxDirective, ActionsContextmenuAnchorDirective, InteractContainerDirective, NgStyle, NgFor, EditableObjectContainer, ComposerSelectionContainerChildren, LayoutPane, PlaceholderDragElement, StatusBar, FormsModule, VSLoadingDisplay, VSSavingDisplay, NotificationsComponent, VariableInputDialog, ConsoleDialogComponent]
+    imports: [OutOfZoneDirective, MobileToolbarComponent, Rulers, SelectionBoxDirective, ActionsContextmenuAnchorDirective, InteractContainerDirective, NgStyle, EditableObjectContainer, ComposerSelectionContainerChildren, LayoutPane, PlaceholderDragElement, StatusBar, FormsModule, VSLoadingDisplay, VSSavingDisplay, NotificationsComponent, VariableInputDialog, ConsoleDialogComponent]
 })
 export class VSPane extends CommandProcessor implements OnInit, OnDestroy, AfterViewInit {
    _vs: Viewsheet;

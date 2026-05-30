@@ -15,17 +15,17 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Component, Input, AfterViewInit } from "@angular/core";
+import { Component, Input, OnInit } from "@angular/core";
 import { RotationRadioGroupModel } from "./rotation-radio-group-model";
-import { NgFor } from "@angular/common";
+
 
 @Component({
     selector: "rotation-radio-group",
     templateUrl: "rotation-radio-group.component.html",
     styleUrls: ["rotation-radio-group.component.scss"],
-    imports: [NgFor]
+    imports: []
 })
-export class RotationRadioGroup implements AfterViewInit {
+export class RotationRadioGroup implements OnInit {
    @Input() auto: boolean;
    @Input() model: RotationRadioGroupModel;
    rotationStyles: {clazz: string, value: string}[] = [
@@ -36,7 +36,10 @@ export class RotationRadioGroup implements AfterViewInit {
       {clazz: "rotation-radio-button rotation-90", value: "-90.0"}
    ];
 
-   ngAfterViewInit(): void {
+   ngOnInit(): void {
+      // Mutate the array before the view binds to it (was previously ngAfterViewInit,
+      // which Angular 21's dev-mode change detection now flags as
+      // ExpressionChangedAfterItHasBeenCheckedError).
       if(this.auto) {
          this.rotationStyles.push({clazz: "rotation-auto", value: "auto"});
       }

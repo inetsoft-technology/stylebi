@@ -66,7 +66,7 @@ import { FormsModule } from "@angular/forms";
 import { TooltipIfDirective } from "../../../widget/tooltip/tooltip-if.directive";
 import { InteractableDirective } from "../../../widget/interact/interactable.directive";
 import { CollapseToggleButton } from "../selection/collapse-toggle-button.component";
-import { NgIf } from "@angular/common";
+
 import { SafeFontDirective } from "../../directives/safe-font.directive";
 import { VSPopComponentDirective } from "../data-tip/vs-pop-component.directive";
 import { VSDataTipDirective } from "../data-tip/vs-data-tip.directive";
@@ -91,19 +91,18 @@ const FORMATE_CALENDAR_TITLE = "../api/calendar/formatTitle";
     templateUrl: "vs-calendar.component.html",
     styleUrls: ["vs-calendar.component.scss"],
     imports: [
-        VSDataTipDirective,
-        VSPopComponentDirective,
-        SafeFontDirective,
-        NgIf,
-        MiniMenu,
-        CollapseToggleButton,
-        InteractableDirective,
-        TooltipIfDirective,
-        FormsModule,
-        DefaultFocusDirective,
-        MonthCalendar,
-        YearCalendar,
-    ]
+    VSDataTipDirective,
+    VSPopComponentDirective,
+    SafeFontDirective,
+    MiniMenu,
+    CollapseToggleButton,
+    InteractableDirective,
+    TooltipIfDirective,
+    FormsModule,
+    DefaultFocusDirective,
+    MonthCalendar,
+    YearCalendar
+]
 })
 export class VSCalendar extends NavigationComponent<VSCalendarModel>
    implements AfterViewInit, DoCheck, OnDestroy, OnChanges, OnInit {

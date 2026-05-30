@@ -17,13 +17,13 @@
  */
 import { Component, Input } from "@angular/core";
 import { MatProgressSpinner } from "@angular/material/progress-spinner";
-import { NgIf } from "@angular/common";
+
 
 @Component({
     selector: "em-loading-spinner",
     templateUrl: "./loading-spinner.component.html",
     styleUrls: ["./loading-spinner.component.scss"],
-    imports: [NgIf, MatProgressSpinner]
+    imports: [MatProgressSpinner]
 })
 export class LoadingSpinnerComponent {
    @Input() loading = false;

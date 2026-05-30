@@ -20,18 +20,17 @@ import { UntypedFormControl, UntypedFormGroup, Validators, FormsModule, Reactive
 
 import { FormValidators } from "../../../../../../shared/util/form-validators";
 import { WorksheetOptionPaneModel } from "../../data/ws/worksheet-option-pane-model";
-import { NgIf } from "@angular/common";
+
 import { InputTrimDirective } from "../../../widget/directive/input-trim.directive";
 
 @Component({
     selector: "worksheet-option-pane",
     templateUrl: "worksheet-option-pane.component.html",
     imports: [
-        FormsModule,
-        ReactiveFormsModule,
-        InputTrimDirective,
-        NgIf,
-    ]
+    FormsModule,
+    ReactiveFormsModule,
+    InputTrimDirective
+]
 })
 export class WorksheetOptionPane implements OnInit {
    @Input() model: WorksheetOptionPaneModel;

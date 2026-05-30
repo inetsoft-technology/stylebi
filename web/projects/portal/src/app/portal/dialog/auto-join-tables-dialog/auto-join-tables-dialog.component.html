@@ -1,23 +1,23 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <modal-header [title]="'_#(Generate Joins)'"
-              [cshid]="'EditPhysicalViewAutomaticallyCreateJoins'"
-              (onCancel)="cancel()">
+  [cshid]="'EditPhysicalViewAutomaticallyCreateJoins'"
+  (onCancel)="cancel()">
 </modal-header>
 <div class="modal-body">
   <div class="container-fluid">
@@ -25,33 +25,35 @@
       <div class="form-check form-check-inline">
         <label class="form-check-label">
           <input #radioInput class="form-check-input" type="radio"
-                 name="joinOnRadio"
-                 [disabled]="!autoJoinColumns.metaAvailable"
-                 [value]="false"
-                 [(ngModel)]="joinOnName"
-                 (ngModelChange)="joinOnChanged()">
+            name="joinOnRadio"
+            [disabled]="!autoJoinColumns.metaAvailable"
+            [value]="false"
+            [(ngModel)]="joinOnName"
+            (ngModelChange)="joinOnChanged()">
           {{'_#(Key Relations)'}}
         </label>
       </div>
       <div class="form-check form-check-inline">
         <label class="form-check-label">
           <input class="form-check-input" type="radio"
-                 name="joinOnRadio"
-                 [value]="true"
-                 [(ngModel)]="joinOnName"
-                 (ngModelChange)="joinOnChanged()">
+            name="joinOnRadio"
+            [value]="true"
+            [(ngModel)]="joinOnName"
+            (ngModelChange)="joinOnChanged()">
           {{'_#(Column Names)'}}
         </label>
       </div>
     </div>
     <div class="form-floating">
       <div class="bordered-box bd-gray">
-        <div class="form-check d-flex align-items-center pt-1 ps-1 availableCols_check_id" *ngFor="let column of availableColumns">
-          <label class="form-check-label action-style ps-1 no-float-label">
-            <input class="form-check-input" type="checkbox" [(ngModel)]="column.selected">
-            {{column.label}}
-          </label>
-        </div>
+        @for (column of availableColumns; track column) {
+          <div class="form-check d-flex align-items-center pt-1 ps-1 availableCols_check_id">
+            <label class="form-check-label action-style ps-1 no-float-label">
+              <input class="form-check-input" type="checkbox" [(ngModel)]="column.selected">
+              {{column.label}}
+            </label>
+          </div>
+        }
       </div>
       <label>_#(Available Columns)</label>
     </div>
@@ -62,7 +64,7 @@
     _#(OK)
   </button>
   <button type="button" class="btn btn-secondary" data-dismiss="modal"
-          (click)="cancel()">
+    (click)="cancel()">
     _#(Cancel)
   </button>
 </div>

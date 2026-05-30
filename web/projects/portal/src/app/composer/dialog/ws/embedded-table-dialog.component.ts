@@ -23,7 +23,7 @@ import { ModelService } from "../../../widget/services/model.service";
 import { EmbeddedTableDialogModel } from "../../data/ws/embedded-table-dialog-model";
 import { Worksheet } from "../../data/ws/worksheet";
 import { InputTrimDirective } from "../../../widget/directive/input-trim.directive";
-import { NgIf } from "@angular/common";
+
 import { EnterSubmitDirective } from "../../../widget/directive/enter-submit.directive";
 import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
 
@@ -32,7 +32,7 @@ const EMBEDDED_TABLE_DIALOG_URI = "../api/composer/ws/dialog/embedded-table-dial
 @Component({
     selector: "embedded-table-dialog",
     templateUrl: "embedded-table-dialog.component.html",
-    imports: [ModalHeaderComponent, EnterSubmitDirective, NgIf, FormsModule, ReactiveFormsModule, InputTrimDirective]
+    imports: [ModalHeaderComponent, EnterSubmitDirective, FormsModule, ReactiveFormsModule, InputTrimDirective]
 })
 export class EmbeddedTableDialog implements OnInit {
    @Input() worksheet: Worksheet;

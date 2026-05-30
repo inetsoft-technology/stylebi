@@ -71,7 +71,7 @@ import { AttributeFormattingPane } from "../../../database-physical-model/logica
 import { DropdownView } from "../../../../../../../widget/dropdown-view/dropdown-view.component";
 import { FormsModule } from "@angular/forms";
 import { TreeComponent } from "../../../../../../../widget/tree/tree.component";
-import { NgIf, NgClass, NgFor } from "@angular/common";
+import { NgClass } from "@angular/common";
 
 const QUERY_FIELDS_TREE_URI = "../api/data/datasource/query/data-source-fields-tree";
 const FORMAT_STRING_URI: string = "../api/data/datasource/query/field/format";
@@ -85,7 +85,7 @@ const QUERY_SAVE_EXPRESSION_URI: string = "../api/data/datasource/query/expressi
     selector: "query-fields-pane",
     templateUrl: "./query-fields-pane.component.html",
     styleUrls: ["./query-fields-pane.component.scss"],
-    imports: [NgIf, NgClass, TreeComponent, NgFor, FormsModule, DropdownView, AttributeFormattingPane, BrowseFieldValuesDialogComponent]
+    imports: [NgClass, TreeComponent, FormsModule, DropdownView, AttributeFormattingPane, BrowseFieldValuesDialogComponent]
 })
 export class QueryFieldsPaneComponent implements OnInit, OnChanges {
    @Input() model: QueryFieldPaneModel;

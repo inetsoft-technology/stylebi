@@ -1,113 +1,125 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
-<div class="container-fluid p-1" *ngIf="!!model">
-  <form [formGroup]="form">
-    <div class="form-row-float-label row">
-      <div class="col form-floating">
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
+@if (!!model) {
+  <div class="container-fluid p-1">
+    <form [formGroup]="form">
+      <div class="form-row-float-label row">
+        <div class="col form-floating">
           <input type="text" class="form-control" id="taskName"
-                 [attr.disabled]="model.internalTask ? '' : null"
-                 [class.is-invalid]="!form.controls['name'].valid"
-                 formControlName="name"/>
+            [attr.disabled]="model.internalTask ? '' : null"
+            [class.is-invalid]="!form.controls['name'].valid"
+            formControlName="name"/>
           <label>_#(Name)</label>
-          <span class="invalid-feedback"
-                *ngIf="form && !!form.controls['name'] &&
-                       form.controls['name'].errors &&
-                       form.controls['name'].errors['required']">
-            _#(viewer.nameValid)
-          </span>
-          <span class="invalid-feedback"
-                *ngIf="form && !!form.controls['name'] &&
-                       form.controls['name'].errors &&
-                       form.controls['name'].errors['invalidTaskName']">
-            schedule.task.name.invalid)
-          </span>
+          @if (form && !!form.controls['name'] &&
+            form.controls['name'].errors &&
+            form.controls['name'].errors['required']) {
+            <span class="invalid-feedback"
+              >
+              _#(viewer.nameValid)
+            </span>
+          }
+          @if (form && !!form.controls['name'] &&
+            form.controls['name'].errors &&
+            form.controls['name'].errors['invalidTaskName']) {
+            <span class="invalid-feedback"
+              >
+              schedule.task.name.invalid)
+            </span>
+          }
+        </div>
       </div>
-    </div>
-  </form>
-  <ul role="tablist" class="nav nav-tabs justify-content-start">
-    <li class="nav-item">
-      <a class="nav-link" [class.active]="selectedTab === 'condition'" role="tab"
-         (click)="selectedTab = 'condition'; resetConditionListView();">
-        _#(Condition)
-      </a>
-    </li>
-    <li class="nav-item">
-      <a class="nav-link" [class.active]="selectedTab === 'action'" role="tab"
-         [class.disabled]="model.internalTask"
-         (click)="!model.internalTask ? (selectedTab = 'action') : null">
-        _#(Action)
-      </a>
-    </li>
-    <li class="nav-item">
-      <a class="nav-link" [class.active]="selectedTab === 'options'" role="tab"
-         (click)="selectedTab = 'options'">
-        _#(Options)
-      </a>
-    </li>
-  </ul>
-  <task-condition-pane *ngIf="selectedTab === 'condition'"
-                       [model]="model.taskConditionPaneModel"
-                       [oldTaskName]="model.name"
-                       [taskName]="model.label"
-                       [timeZone]="model.timeZone"
-                       [timeZoneOptions]="model?.timeZoneOptions"
-                       [taskDefaultTimeProperty]="model.taskDefaultTime"
-                       [parentForm]="form"
-                       [listView]="conditionListView"
-                       [timeRanges]="model.timeRanges"
-                       [startTimeEnabled]="model.startTimeEnabled"
-                       [timeRangeEnabled]="model.timeRangeEnabled"
-                       [newTask]="newTask"
-                       [saveTask]="saveTask" [isSaving]="isSaving"
-                       (listViewChanged)="conditionListView = $event"
-                       (loaded)="updateConditionModel($event)"
-                       (updateTaskName)="updateOldTaskName($event)"
-                       (closeEditor)="onCloseEditor()"
-                       (cancelTask)="onCancelTask()"
-                       (showMessage)="notifications.warning($event)">
-  </task-condition-pane>
-  <task-action-pane *ngIf="selectedTab === 'action'"
-                    [model]="model.taskActionPaneModel"
-                    [oldTaskName]="model.name"
-                    [taskName]="model.label"
-                    [taskOwner]="model.taskOptionsPaneModel?.owner"
-                    [parentForm]="form"
-                    [executeAsGroup]="executeAsGroup"
-                    [multiCondition]="model.taskConditionPaneModel.conditions.length > 1"
-                    [newTask]="newTask"
-                    [saveTask]="saveTask"
-                    (loaded)="updateActionModel($event)"
-                    (updateTaskName)="updateOldTaskName($event)"
-                    (closeEditor)="onCloseEditor()"
-                    (cancelTask)="onCancelTask()">
-  </task-action-pane>
-  <task-options-pane *ngIf="selectedTab === 'options'"
-                     [model]="model.taskOptionsPaneModel"
-                     [oldTaskName]="model.name"
-                     [taskName]="model.label"
-                     [parentForm]="form"
-                     [newTask]="newTask"
-                     [timeZoneOptions]="model?.timeZoneOptions"
-                     [saveTask]="saveTask"
-                     (doneLoading)="updateOptionsModel($event)"
-                     (updateTaskName)="updateOldTaskName($event)"
-                     (closeEditor)="onCloseEditor()"
-                     (cancelTask)="onCancelTask()">
-  </task-options-pane>
-</div>
+    </form>
+    <ul role="tablist" class="nav nav-tabs justify-content-start">
+      <li class="nav-item">
+        <a class="nav-link" [class.active]="selectedTab === 'condition'" role="tab"
+          (click)="selectedTab = 'condition'; resetConditionListView();">
+          _#(Condition)
+        </a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link" [class.active]="selectedTab === 'action'" role="tab"
+          [class.disabled]="model.internalTask"
+          (click)="!model.internalTask ? (selectedTab = 'action') : null">
+          _#(Action)
+        </a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link" [class.active]="selectedTab === 'options'" role="tab"
+          (click)="selectedTab = 'options'">
+          _#(Options)
+        </a>
+      </li>
+    </ul>
+    @if (selectedTab === 'condition') {
+      <task-condition-pane
+        [model]="model.taskConditionPaneModel"
+        [oldTaskName]="model.name"
+        [taskName]="model.label"
+        [timeZone]="model.timeZone"
+        [timeZoneOptions]="model?.timeZoneOptions"
+        [taskDefaultTimeProperty]="model.taskDefaultTime"
+        [parentForm]="form"
+        [listView]="conditionListView"
+        [timeRanges]="model.timeRanges"
+        [startTimeEnabled]="model.startTimeEnabled"
+        [timeRangeEnabled]="model.timeRangeEnabled"
+        [newTask]="newTask"
+        [saveTask]="saveTask" [isSaving]="isSaving"
+        (listViewChanged)="conditionListView = $event"
+        (loaded)="updateConditionModel($event)"
+        (updateTaskName)="updateOldTaskName($event)"
+        (closeEditor)="onCloseEditor()"
+        (cancelTask)="onCancelTask()"
+        (showMessage)="notifications.warning($event)">
+      </task-condition-pane>
+    }
+    @if (selectedTab === 'action') {
+      <task-action-pane
+        [model]="model.taskActionPaneModel"
+        [oldTaskName]="model.name"
+        [taskName]="model.label"
+        [taskOwner]="model.taskOptionsPaneModel?.owner"
+        [parentForm]="form"
+        [executeAsGroup]="executeAsGroup"
+        [multiCondition]="model.taskConditionPaneModel.conditions.length > 1"
+        [newTask]="newTask"
+        [saveTask]="saveTask"
+        (loaded)="updateActionModel($event)"
+        (updateTaskName)="updateOldTaskName($event)"
+        (closeEditor)="onCloseEditor()"
+        (cancelTask)="onCancelTask()">
+      </task-action-pane>
+    }
+    @if (selectedTab === 'options') {
+      <task-options-pane
+        [model]="model.taskOptionsPaneModel"
+        [oldTaskName]="model.name"
+        [taskName]="model.label"
+        [parentForm]="form"
+        [newTask]="newTask"
+        [timeZoneOptions]="model?.timeZoneOptions"
+        [saveTask]="saveTask"
+        (doneLoading)="updateOptionsModel($event)"
+        (updateTaskName)="updateOldTaskName($event)"
+        (closeEditor)="onCloseEditor()"
+        (cancelTask)="onCancelTask()">
+      </task-options-pane>
+    }
+  </div>
+}
 <notifications #notifications class="notifications-task-edit" [timeout]="5000"></notifications>

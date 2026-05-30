@@ -52,7 +52,7 @@ import {DataModelBrowserModel} from "./data-model-browser-model";
 import { AppInfoService } from "../../../../../../../../shared/util/app-info.service";
 import { AssetDescriptionComponent } from "../../asset-description/asset-description.component";
 import { DatabaseDataModelToolbarComponent } from "./database-data-model-toolbar.component";
-import { NgClass, NgIf } from "@angular/common";
+import { NgClass } from "@angular/common";
 
 const LOGICAL_MODEL_ASSET: string = "logical_model";
 const PHYSICAL_VIEW_ASSET: string = "physical_model";
@@ -69,7 +69,7 @@ export enum ActionType {
 @Component({
     templateUrl: "./database-data-model-browser.component.html",
     styleUrls: ["./database-data-model-browser.component.scss"],
-    imports: [NgClass, DatabaseDataModelToolbarComponent, NgIf, AssetItemListViewComponent, AssetDescriptionComponent, NotificationsComponent]
+    imports: [NgClass, DatabaseDataModelToolbarComponent, AssetItemListViewComponent, AssetDescriptionComponent, NotificationsComponent]
 })
 export class DatabaseDataModelBrowserComponent implements OnDestroy, OnInit {
    @ViewChild("notifications") notifications: NotificationsComponent;

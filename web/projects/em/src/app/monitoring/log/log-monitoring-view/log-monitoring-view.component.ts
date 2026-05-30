@@ -30,7 +30,7 @@ import { MatButton } from "@angular/material/button";
 import { MatCheckbox } from "@angular/material/checkbox";
 import { MatInput } from "@angular/material/input";
 import { MatOption } from "@angular/material/core";
-import { NgFor } from "@angular/common";
+
 import { MatSelect } from "@angular/material/select";
 import { MatFormField, MatLabel } from "@angular/material/form-field";
 
@@ -39,7 +39,7 @@ import { MatFormField, MatLabel } from "@angular/material/form-field";
     templateUrl: "./log-monitoring-view.component.html",
     styleUrls: ["./log-monitoring-view.component.scss"],
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [MatFormField, MatLabel, MatSelect, NgFor, MatOption, MatInput, MatCheckbox, MatButton, MatDivider]
+    imports: [MatFormField, MatLabel, MatSelect, MatOption, MatInput, MatCheckbox, MatButton, MatDivider]
 })
 export class LogMonitoringViewComponent {
    @Input() model: LogMonitoringModel;

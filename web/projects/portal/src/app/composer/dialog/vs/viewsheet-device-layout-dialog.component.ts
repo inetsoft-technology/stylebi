@@ -36,7 +36,7 @@ import { ComponentTool } from "../../../common/util/component-tool";
 import { ScreenSizeDialog } from "./screen-size-dialog.component";
 import { InputTrimDirective } from "../../../widget/directive/input-trim.directive";
 import { EnterSubmitDirective } from "../../../widget/directive/enter-submit.directive";
-import { NgIf, NgFor } from "@angular/common";
+
 import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
 
 const URI_NEW_DEViCE = "../api/composer/device/new";
@@ -48,15 +48,13 @@ const URI_GET_DELETE_DEViCE = "../api/composer/device/delete";
     templateUrl: "viewsheet-device-layout-dialog.component.html",
     styleUrls: ["viewsheet-device-layout-dialog.component.scss"],
     imports: [
-        ModalHeaderComponent,
-        NgIf,
-        EnterSubmitDirective,
-        FormsModule,
-        ReactiveFormsModule,
-        NgFor,
-        InputTrimDirective,
-        ScreenSizeDialog,
-    ]
+    ModalHeaderComponent,
+    EnterSubmitDirective,
+    FormsModule,
+    ReactiveFormsModule,
+    InputTrimDirective,
+    ScreenSizeDialog
+]
 })
 export class ViewsheetDeviceLayoutDialog implements OnInit {
    @Input() index: number = -1;

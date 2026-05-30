@@ -1,375 +1,410 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
-<ng-container *ngFor="let vsObject of vsInfo.vsObjects; let i = index; trackBy:trackByName">
-  <div *ngIf="isObjectRendered(vsObject); else notRendered" [style.display]="isMaxModeHidden(vsObject) ? 'none' : 'block'">
-    <div class="focus-assembly {{getAssemblyAsClass(vsObject)}}"
-         [id]="getAssemblyDivId(vsObject)"
-         VSDataTip [dataTipName]="vsObject.absoluteName"
-         VSPopComponent [popComponentName]="vsObject.absoluteName"
-         [popContainerName]="vsObject.container"
-         [popZIndex]="zIndex(vsObject)"
-         [popBackground]="vsObject.objectType == 'VSGauge' ? 'transparent' : 'white'"
-         [style.display]="!viewer || vsObject.visible && (vsObject.container && vsObject.active || !vsObject.container) && vsObject.containerType ? null : 'none'"
-         [class.bd-selected-assembly]="isFocused(vsObject) || mobile && isSelected(i) && vsObjectActions[i].toolbarActions.length > 0"
-         [style.width.px]="getActualWidth(vsObject)"
-         [style.height.px]="vsObject.objectHeight || vsObject.objectFormat.height"
-         [style.top.px]="getVsObjectPosition(vsObject, i, true)"
-         [style.left.px]="getVsObjectPosition(vsObject, i, false)"
-         [style.z-index]="zIndex(vsObject) + 1"
-         tabindex="-1" [attr.role]="vsObject.objectType === 'VSViewsheet' ? 'link' : null"
-         [attr.aria-label]="vsObject.objectType + ' ' + vsObject.absoluteName" (mouseenter)="onMouseEnter(vsObject, $event)"></div>
-    <div [id]="vsObject.absoluteName"
-         [attr.data-name]="vsObject.absoluteName"
-         (contextmenu)="select(i, $event); showContextMenu($event, vsObjectActions[i])"
-         class="vs-object-parent-container"
-         [class.popup-showing]="isPopupShowing(vsObject)"
-         [class.max-mode]="vsObject.maxMode"
-         [class.force-show-toolbar]="forceShowMiniToolbar && isFocused(vsObject)"
-         [style.z-index]="isActivePopComponent(vsObject) || needsZIndexBoost(vsObject) ? zIndex(vsObject) + getPopUpContentBoostZIndex() : zIndex(vsObject)"
-         (click)="select(i, $event)" (mouseenter)="onMouseEnter(vsObject, $event)">
-      <vs-annotation *ngIf="vsObject.objectType == 'VSAnnotation'"
-                     (remove)="removeAnnotations.emit()"
-                     [selected]="isSelected(i)" [actions]="vsObjectActions[i]"
-                     [vsInfo]="vsInfo" [embeddedVS]="embeddedVS"
-                     [model]="vsObject">
-      </vs-annotation>
-
-      <vs-calctable *ngIf="vsObject.objectType == 'VSCalcTable'"
-                    [model]="vsObject" [actions]="vsObjectActions[i]"
-                    [vsInfo]="vsInfo" [embeddedVS]="embeddedVS"
-                    [selected]="isSelected(i)"
-                    [container]="containerRef"
-                    [popupShowing]="popupShowing"
-                    [atBottom]="isAtBottom(i, false)"
-                    [guideType]="guideType"
-                    [globalLoadingIndicator]="globalLoadingIndicator"
-                    (maxModeChange)="onMaxModeChange($event)"
-                    (onOpenEditPane)="onEditTable.emit($event)"
-                    (removeAnnotations)="removeAnnotations.emit()"
-                    (onOpenConditionDialog)="onOpenConditionDialog.emit($event)"
-                    (onOpenHighlightDialog)="onOpenHighlightDialog.emit($event)"
-                    (onLoadingStateChanged)="onLoadingStateChanged.emit($event)">
-      </vs-calctable>
-
-      <vs-calendar *ngIf="vsObject.objectType == 'VSCalendar'"
-                   [selected]="isSelected(i)"
-                   [vsInfo]="vsInfo" [embeddedVS]="embeddedVS"
-                   [model]="vsObject" [actions]="vsObjectActions[i]" [atBottom]="isAtBottom(i, true)"
-                   [objectContainerHeight]="this.containerBounds.height"
-                   [keyNavigation]="keyNavigation"
-                   (showHideMiniToolbar)="showToolbar($event)"
-                   (onToggleDoubleCalendar)="onToggleDoubleCalendar.emit($event)">
-      </vs-calendar>
-
-      <vs-chart *ngIf="vsObject.objectType == 'VSChart'"
-                [vsInfo]="vsInfo" [model]="vsObject" [actions]="vsObjectActions[i]"
-                [appSize]="appSize"
-                [embeddedVS]="embeddedVS"
-                [embeddedVSBounds]="embeddedVSBounds"
-                [selected]="isSelected(i)"
-                [variableValues]="variableValues"
-                [container]="containerRef"
-                [popupShowing]="popupShowing"
-                [viewsheetLoading]="viewsheetLoading"
-                [globalLoadingIndicator]="globalLoadingIndicator"
-                (removeAnnotations)="removeAnnotations.emit()"
-                (onOpenEditPane)="onEditChart.emit($event)"
-                (onOpenWizardPane)="openWizardPane($event)"
-                (onOpenFormatPane)="onOpenChartFormatPane.emit($event)"
-                (maxModeChange)="onMaxModeChange($event)"
-                (onLoadFormatModel)="onLoadFormatModel.emit($event)"
-                (onLoadingStateChanged)="onLoadingStateChanged.emit($event)">
-      </vs-chart>
-
-      <vs-check-box *ngIf="vsObject.objectType == 'VSCheckBox'"
-                    [selected]="isSelected(i)"
-                    [vsInfo]="vsInfo" [embeddedVS]="embeddedVS"
-                    [model]="vsObject" [submitted]="submitted"
-                    [keyNavigation]="keyNavigation">
-      </vs-check-box>
-
-      <vs-combo-box *ngIf="vsObject.objectType == 'VSComboBox'"
-                    [vsInfo]="vsInfo" [embeddedVS]="embeddedVS"
-                    [model]="vsObject" [submitted]="submitted"
-                    [keyNavigation]="keyNavigation">
-      </vs-combo-box>
-
-      <vs-crosstab *ngIf="vsObject.objectType == 'VSCrosstab'"
-                   [model]="vsObject" [actions]="vsObjectActions[i]"
-                   [vsInfo]="vsInfo" [embeddedVS]="embeddedVS"
-                   [embeddedVSBounds]="embeddedVSBounds"
-                   [selected]="isSelected(i)"
-                   [popupShowing]="popupShowing"
-                   [atBottom]="isAtBottom(i, false)"
-                   [container]="containerRef"
-                   [guideType]="guideType"
-                   [globalLoadingIndicator]="globalLoadingIndicator"
-                   (maxModeChange)="onMaxModeChange($event)"
-                   (onOpenEditPane)="onEditTable.emit(vsObject)"
-                   (removeAnnotations)="removeAnnotations.emit()"
-                   (onOpenConditionDialog)="onOpenConditionDialog.emit($event)"
-                   (onOpenHighlightDialog)="onOpenHighlightDialog.emit($event)"
-                   (onLoadingStateChanged)="onLoadingStateChanged.emit($event)">
-      </vs-crosstab>
-
-      <vs-cylinder *ngIf="vsObject.objectType == 'VSCylinder'"
-                   [vsInfo]="vsInfo" [embeddedVS]="embeddedVS"
-                   [model]="vsObject">
-      </vs-cylinder>
-
-      <vs-gauge *ngIf="vsObject.objectType == 'VSGauge'"
-                [selected]="isSelected(i)"
-                (removeAnnotations)="removeAnnotations.emit()"
-                [vsInfo]="vsInfo" [embeddedVS]="embeddedVS"
-                [alwaysAllowClickPropagation]="true"
-                [model]="vsObject" [actions]="vsObjectActions[i]"
-                [globalLoadingIndicator]="globalLoadingIndicator"
-                (onLoadingStateChanged)="onLoadingStateChanged.emit($event)">
-      </vs-gauge>
-
-      <vs-group-container *ngIf="vsObject.objectType == 'VSGroupContainer'"
-                          [vsInfo]="vsInfo" [embeddedVS]="embeddedVS"
-                          [model]="vsObject">
-      </vs-group-container>
-
-      <vs-image *ngIf="vsObject.objectType == 'VSImage'"
-                [selected]="isSelected(i)"
-                [vsInfo]="vsInfo" [embeddedVS]="embeddedVS"
-                (removeAnnotations)="removeAnnotations.emit()"
-                [alwaysAllowClickPropagation]="true"
-                [model]="vsObject" [actions]="vsObjectActions[i]"
-                [globalLoadingIndicator]="globalLoadingIndicator"
-                (onLoadingStateChanged)="onLoadingStateChanged.emit($event)">
-      </vs-image>
-
-      <vs-line *ngIf="vsObject.objectType == 'VSLine'"
-               [vsInfo]="vsInfo" [embeddedVS]="embeddedVS"
-               [model]="vsObject" [actions]="vsObjectActions[i]">
-      </vs-line>
-
-      <vs-oval *ngIf="vsObject.objectType == 'VSOval'"
-               [vsInfo]="vsInfo" [embeddedVS]="embeddedVS"
-               [model]="vsObject" [actions]="vsObjectActions[i]">
-      </vs-oval>
-
-      <vs-radio-button *ngIf="vsObject.objectType == 'VSRadioButton'"
-                       [selected]="isSelected(i)"
-                       [submitted]="submitted"
-                       [vsInfo]="vsInfo" [embeddedVS]="embeddedVS"
-                       [model]="vsObject"
-                       [keyNavigation]="keyNavigation">
-      </vs-radio-button>
-
-      <vs-rectangle *ngIf="vsObject.objectType == 'VSRectangle'"
-                    [vsInfo]="vsInfo" [embeddedVS]="embeddedVS"
-                    [model]="vsObject" [actions]="vsObjectActions[i]">
-      </vs-rectangle>
-
-      <vs-range-slider *ngIf="vsObject.objectType == 'VSRangeSlider'"
-                       [vsInfo]="vsInfo" [embeddedVS]="embeddedVS"
-                       [model]="vsObject" [actions]="vsObjectActions[i]"
-                       [container]="containerRef"
-                       (maxModeChange)="onMaxModeChange($event)"
-                       [keyNavigation]="keyNavigation" (showHideMiniToolbar)="showToolbar($event)">
-      </vs-range-slider>
-
-      <vs-selection *ngIf="vsObject.objectType == 'VSSelectionList' || vsObject.objectType == 'VSSelectionTree'"
-                    [selected]="isSelected(i)"
-                    [vsInfo]="vsInfo" [embeddedVS]="embeddedVS"
-                    [popupShowing]="popupShowing"
-                    [container]="containerRef"
-                    (maxModeChange)="onMaxModeChange($event)"
-                    [model]="vsObject" [actions]="vsObjectActions[i]" [atBottom]="isAtBottom(i, true)"
-                    [objectContainerHeight]="this.containerBounds.height"
-                    [keyNavigation]="keyNavigation" (showHideMiniToolbar)="showToolbar($event)">
-      </vs-selection>
-
-      <ng-template [ngIf]="vsObject.objectType == 'VSSelectionContainer'">
-        <vs-selection-container [vsInfo]="vsInfo" [embeddedVS]="embeddedVS"
-                                [model]="vsObject" [actions]="vsObjectActions[i]" [container]="containerRef"
-                                (maxModeChange)="onMaxModeChange($event)">
-        </vs-selection-container>
-
-        <vs-selection-container-children
-        *ngIf="vsObject.outerSelections || vsObject.childObjects" [vsObject]="vsObject"
-        [placeholderDragElementModel]="placeholderDragElementModel" [containerRef]="containerRef"
-        [vsInfo]="vsInfo" [keyNavigation]="keyNavigation"
-        (containerChildContextMenu)="showContextMenu($event.event, $event.actions)">
-        </vs-selection-container-children>
-      </ng-template>
-
-      <vs-slider *ngIf="vsObject.objectType == 'VSSlider'"
-                 [model]="vsObject"
-                 [vsInfo]="vsInfo" [embeddedVS]="embeddedVS"
-                 [submitted]="submitted"
-                 [keyNavigation]="keyNavigation">
-      </vs-slider>
-
-      <vs-sliding-scale *ngIf="vsObject.objectType == 'VSSlidingScale'"
-                        [vsInfo]="vsInfo" [embeddedVS]="embeddedVS"
-                        [model]="vsObject">
-      </vs-sliding-scale>
-
-      <vs-spinner *ngIf="vsObject.objectType == 'VSSpinner'"
-                  [vsInfo]="vsInfo" [embeddedVS]="embeddedVS"
-                  [model]="vsObject" [submitted]="submitted"
-                  [keyNavigation]="keyNavigation">
-      </vs-spinner>
-
-      <vs-submit *ngIf="vsObject.objectType == 'VSSubmit'"
-                 [model]="vsObject"
-                 [vsInfo]="vsInfo" [embeddedVS]="embeddedVS"
-                 (submitClicked)="submitClicked($event)"
-                 [keyNavigation]="keyNavigation">
-      </vs-submit>
-
-      <vs-tab *ngIf="vsObject.objectType == 'VSTab'" [vsInfo]="vsInfo" [embeddedVS]="embeddedVS"
-              [model]="vsObject" [keyNavigation]="keyNavigation" [selected]="isSelected(i)">
-      </vs-tab>
-
-      <vs-table *ngIf="vsObject.objectType == 'VSTable'"
-                [model]="vsObject" [actions]="vsObjectActions[i]"
-                [vsInfo]="vsInfo" [embeddedVS]="embeddedVS"
-                [selected]="isSelected(i)"
-                [container]="containerRef"
-                [popupShowing]="popupShowing"
-                [atBottom]="isAtBottom(i, false)"
-                [guideType]="guideType"
-                [globalLoadingIndicator]="globalLoadingIndicator"
-                (removeAnnotations)="removeAnnotations.emit()"
-                (maxModeChange)="onMaxModeChange($event)"
-                (onOpenEditPane)="onEditTable.emit(vsObject)"
-                (onOpenConditionDialog)="onOpenConditionDialog.emit($event)"
-                (onOpenHighlightDialog)="onOpenHighlightDialog.emit($event)"
-                (onLoadingStateChanged)="onLoadingStateChanged.emit($event)">
-      </vs-table>
-
-      <vs-text *ngIf="vsObject.objectType == 'VSText'"
-               [vsInfo]="vsInfo" [embeddedVS]="embeddedVS"
-               [selected]="isSelected(i)"
-               (removeAnnotations)="removeAnnotations.emit()"
-               [alwaysAllowClickPropagation]="true"
-               [model]="vsObject" [actions]="vsObjectActions[i]"
-               [globalLoadingIndicator]="globalLoadingIndicator"
-               (onLoadingStateChanged)="onLoadingStateChanged.emit($event)">
-      </vs-text>
-
-      <vs-text-input *ngIf="vsObject.objectType == 'VSTextInput'"
-                     [vsInfo]="vsInfo" [embeddedVS]="embeddedVS"
-                     [selected]="isSelected(i)"
-                     [model]="vsObject" [submitted]="submitted"
-                     [keyNavigation]="keyNavigation">
-      </vs-text-input>
-
-      <vs-thermometer *ngIf="vsObject.objectType == 'VSThermometer'"
-                      [vsInfo]="vsInfo" [embeddedVS]="embeddedVS"
-                      [model]="vsObject">
-      </vs-thermometer>
-
-      <vs-viewsheet *ngIf="vsObject.objectType == 'VSViewsheet'"
-                    [model]="vsObject"
-                    [vsInfo]="vsInfo" [embeddedVS]="embeddedVS"
-                    [variableValues]="variableValues"
-                    [selectedAssemblies]="selectedAssemblies"
-                    [containerRef]="containerRef"
-                    [appSize]="appSize"
-                    (removeAnnotations)="removeAnnotations.emit()"
-                    (onOpenChartFormatPane)="onOpenChartFormatPane.emit($event)"
-                    (maxModeChange)="onMaxModeChange($event)"
-                    (onOpenViewsheet)="onOpenViewsheet.emit($event)"
-                    (onSelectedAssemblyChanged)="onSelectedAssemblyChanged.emit($event)"
-                    (onEditTable)="onEditTable.emit($event)"
-                    (onEditChart)="onEditChart.emit($event)"
-                    [submitted]="submitted"
-                    (submitClicked)="submitClicked($event)"
-                    [touchDevice]="touchDevice"
-                    (onOpenConditionDialog)="onOpenConditionDialog.emit($event)"
-                    (onOpenHighlightDialog)="onOpenHighlightDialog.emit($event)"
-                    (onOpenAnnotationDialog)="onOpenAnnotationDialog.emit($event)"
-                    [keyNavigation]="keyNavigation"
-                    [globalLoadingIndicator]="globalLoadingIndicator"
-                    (onLoadingStateChanged)="onLoadingStateChanged.emit($event)">
-      </vs-viewsheet>
-    </div>
-    <mini-toolbar *ngIf="!hideMiniToolbar && isMiniToolbarVisible(vsObject) && vsObject.enabled"
-                  VSDataTip [dataTipName]="vsObject.absoluteName" [miniToolbar]="true"
-                  VSPopComponent [popComponentName]="vsObject.absoluteName"
-                  [popContainerName]="vsObject.container"
-                  [containerBounds]="containerBounds"
-                  [actionsWidth]="this.getActionsWidth(vsObject, i)"
-                  [popZIndex]="zIndex(vsObject)"
-                  [forceAbove]="vsObject.searchDisplayed || embeddedVS && !vsObject.maxMode && embeddedVSBounds && embeddedVSBounds.y > 16"
-                  [actions]="vsObjectActions[i]"
-                  [top]="getToolbarTop(vsObject, i)"
-                  [left]="getToolbarLeft(vsObject, i)"
-                  [width]="getToolbarWidth(vsObject)"
-                  [style.display]="isAssemblyVisible(vsObject) ? 'block' : 'none'"
-                  [visible]="isAssemblyVisible(vsObject)"
-                  [forceShow]="forceShowMiniToolbar"
-                  [assembly]="vsObject.absoluteName"
-                  [keyNavigation]="keyNavigation" [forceHide]="toolbarForceHidden(vsObject)">
-    </mini-toolbar>
-  </div>
-  <ng-template #notRendered>
-    <div [class.non-rendered-placeholder]="vsObject.visible"
-         [style.display]="isMaxModeHidden(vsObject) ? 'none' : 'block'"
-         [style.width.px]="getActualWidth(vsObject)"
-         [style.height.px]="vsObject.objectHeight || vsObject.objectFormat.height"
-         [style.top.px]="getVsObjectPosition(vsObject, i, true)"
-         [style.left.px]="getVsObjectPosition(vsObject, i, false)"
-         [style.z-index]="zIndex(vsObject) + 1"
-    >
-      <div *ngIf="vsObject.visible" class="nrp-content">
-        <span class="nrp-label">
-          <i class="loading-icon--spin loading-icon fa-spin icon-4x fa-fw" aria-hidden="true"></i><br>
-          _#(Loading data)...
-        </span>
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
+@for (vsObject of vsInfo.vsObjects; track trackByName(i, vsObject); let i = $index) {
+  @if (isObjectRendered(vsObject)) {
+    <div [style.display]="isMaxModeHidden(vsObject) ? 'none' : 'block'">
+      <div class="focus-assembly {{getAssemblyAsClass(vsObject)}}"
+        [id]="getAssemblyDivId(vsObject)"
+        VSDataTip [dataTipName]="vsObject.absoluteName"
+        VSPopComponent [popComponentName]="vsObject.absoluteName"
+        [popContainerName]="vsObject.container"
+        [popZIndex]="zIndex(vsObject)"
+        [popBackground]="vsObject.objectType == 'VSGauge' ? 'transparent' : 'white'"
+        [style.display]="!viewer || vsObject.visible && (vsObject.container && vsObject.active || !vsObject.container) && vsObject.containerType ? null : 'none'"
+        [class.bd-selected-assembly]="isFocused(vsObject) || mobile && isSelected(i) && vsObjectActions[i].toolbarActions.length > 0"
+        [style.width.px]="getActualWidth(vsObject)"
+        [style.height.px]="vsObject.objectHeight || vsObject.objectFormat.height"
+        [style.top.px]="getVsObjectPosition(vsObject, i, true)"
+        [style.left.px]="getVsObjectPosition(vsObject, i, false)"
+        [style.z-index]="zIndex(vsObject) + 1"
+        tabindex="-1" [attr.role]="vsObject.objectType === 'VSViewsheet' ? 'link' : null"
+      [attr.aria-label]="vsObject.objectType + ' ' + vsObject.absoluteName" (mouseenter)="onMouseEnter(vsObject, $event)"></div>
+      <div [id]="vsObject.absoluteName"
+        [attr.data-name]="vsObject.absoluteName"
+        (contextmenu)="select(i, $event); showContextMenu($event, vsObjectActions[i])"
+        class="vs-object-parent-container"
+        [class.popup-showing]="isPopupShowing(vsObject)"
+        [class.max-mode]="vsObject.maxMode"
+        [class.force-show-toolbar]="forceShowMiniToolbar && isFocused(vsObject)"
+        [style.z-index]="isActivePopComponent(vsObject) || needsZIndexBoost(vsObject) ? zIndex(vsObject) + getPopUpContentBoostZIndex() : zIndex(vsObject)"
+        (click)="select(i, $event)" (mouseenter)="onMouseEnter(vsObject, $event)">
+        @if (vsObject.objectType == 'VSAnnotation') {
+          <vs-annotation
+            (remove)="removeAnnotations.emit()"
+            [selected]="isSelected(i)" [actions]="vsObjectActions[i]"
+            [vsInfo]="vsInfo" [embeddedVS]="embeddedVS"
+            [model]="vsObject">
+          </vs-annotation>
+        }
+        @if (vsObject.objectType == 'VSCalcTable') {
+          <vs-calctable
+            [model]="vsObject" [actions]="vsObjectActions[i]"
+            [vsInfo]="vsInfo" [embeddedVS]="embeddedVS"
+            [selected]="isSelected(i)"
+            [container]="containerRef"
+            [popupShowing]="popupShowing"
+            [atBottom]="isAtBottom(i, false)"
+            [guideType]="guideType"
+            [globalLoadingIndicator]="globalLoadingIndicator"
+            (maxModeChange)="onMaxModeChange($event)"
+            (onOpenEditPane)="onEditTable.emit($event)"
+            (removeAnnotations)="removeAnnotations.emit()"
+            (onOpenConditionDialog)="onOpenConditionDialog.emit($event)"
+            (onOpenHighlightDialog)="onOpenHighlightDialog.emit($event)"
+            (onLoadingStateChanged)="onLoadingStateChanged.emit($event)">
+          </vs-calctable>
+        }
+        @if (vsObject.objectType == 'VSCalendar') {
+          <vs-calendar
+            [selected]="isSelected(i)"
+            [vsInfo]="vsInfo" [embeddedVS]="embeddedVS"
+            [model]="vsObject" [actions]="vsObjectActions[i]" [atBottom]="isAtBottom(i, true)"
+            [objectContainerHeight]="this.containerBounds.height"
+            [keyNavigation]="keyNavigation"
+            (showHideMiniToolbar)="showToolbar($event)"
+            (onToggleDoubleCalendar)="onToggleDoubleCalendar.emit($event)">
+          </vs-calendar>
+        }
+        @if (vsObject.objectType == 'VSChart') {
+          <vs-chart
+            [vsInfo]="vsInfo" [model]="vsObject" [actions]="vsObjectActions[i]"
+            [appSize]="appSize"
+            [embeddedVS]="embeddedVS"
+            [embeddedVSBounds]="embeddedVSBounds"
+            [selected]="isSelected(i)"
+            [variableValues]="variableValues"
+            [container]="containerRef"
+            [popupShowing]="popupShowing"
+            [viewsheetLoading]="viewsheetLoading"
+            [globalLoadingIndicator]="globalLoadingIndicator"
+            (removeAnnotations)="removeAnnotations.emit()"
+            (onOpenEditPane)="onEditChart.emit($event)"
+            (onOpenWizardPane)="openWizardPane($event)"
+            (onOpenFormatPane)="onOpenChartFormatPane.emit($event)"
+            (maxModeChange)="onMaxModeChange($event)"
+            (onLoadFormatModel)="onLoadFormatModel.emit($event)"
+            (onLoadingStateChanged)="onLoadingStateChanged.emit($event)">
+          </vs-chart>
+        }
+        @if (vsObject.objectType == 'VSCheckBox') {
+          <vs-check-box
+            [selected]="isSelected(i)"
+            [vsInfo]="vsInfo" [embeddedVS]="embeddedVS"
+            [model]="vsObject" [submitted]="submitted"
+            [keyNavigation]="keyNavigation">
+          </vs-check-box>
+        }
+        @if (vsObject.objectType == 'VSComboBox') {
+          <vs-combo-box
+            [vsInfo]="vsInfo" [embeddedVS]="embeddedVS"
+            [model]="vsObject" [submitted]="submitted"
+            [keyNavigation]="keyNavigation">
+          </vs-combo-box>
+        }
+        @if (vsObject.objectType == 'VSCrosstab') {
+          <vs-crosstab
+            [model]="vsObject" [actions]="vsObjectActions[i]"
+            [vsInfo]="vsInfo" [embeddedVS]="embeddedVS"
+            [embeddedVSBounds]="embeddedVSBounds"
+            [selected]="isSelected(i)"
+            [popupShowing]="popupShowing"
+            [atBottom]="isAtBottom(i, false)"
+            [container]="containerRef"
+            [guideType]="guideType"
+            [globalLoadingIndicator]="globalLoadingIndicator"
+            (maxModeChange)="onMaxModeChange($event)"
+            (onOpenEditPane)="onEditTable.emit(vsObject)"
+            (removeAnnotations)="removeAnnotations.emit()"
+            (onOpenConditionDialog)="onOpenConditionDialog.emit($event)"
+            (onOpenHighlightDialog)="onOpenHighlightDialog.emit($event)"
+            (onLoadingStateChanged)="onLoadingStateChanged.emit($event)">
+          </vs-crosstab>
+        }
+        @if (vsObject.objectType == 'VSCylinder') {
+          <vs-cylinder
+            [vsInfo]="vsInfo" [embeddedVS]="embeddedVS"
+            [model]="vsObject">
+          </vs-cylinder>
+        }
+        @if (vsObject.objectType == 'VSGauge') {
+          <vs-gauge
+            [selected]="isSelected(i)"
+            (removeAnnotations)="removeAnnotations.emit()"
+            [vsInfo]="vsInfo" [embeddedVS]="embeddedVS"
+            [alwaysAllowClickPropagation]="true"
+            [model]="vsObject" [actions]="vsObjectActions[i]"
+            [globalLoadingIndicator]="globalLoadingIndicator"
+            (onLoadingStateChanged)="onLoadingStateChanged.emit($event)">
+          </vs-gauge>
+        }
+        @if (vsObject.objectType == 'VSGroupContainer') {
+          <vs-group-container
+            [vsInfo]="vsInfo" [embeddedVS]="embeddedVS"
+            [model]="vsObject">
+          </vs-group-container>
+        }
+        @if (vsObject.objectType == 'VSImage') {
+          <vs-image
+            [selected]="isSelected(i)"
+            [vsInfo]="vsInfo" [embeddedVS]="embeddedVS"
+            (removeAnnotations)="removeAnnotations.emit()"
+            [alwaysAllowClickPropagation]="true"
+            [model]="vsObject" [actions]="vsObjectActions[i]"
+            [globalLoadingIndicator]="globalLoadingIndicator"
+            (onLoadingStateChanged)="onLoadingStateChanged.emit($event)">
+          </vs-image>
+        }
+        @if (vsObject.objectType == 'VSLine') {
+          <vs-line
+            [vsInfo]="vsInfo" [embeddedVS]="embeddedVS"
+            [model]="vsObject" [actions]="vsObjectActions[i]">
+          </vs-line>
+        }
+        @if (vsObject.objectType == 'VSOval') {
+          <vs-oval
+            [vsInfo]="vsInfo" [embeddedVS]="embeddedVS"
+            [model]="vsObject" [actions]="vsObjectActions[i]">
+          </vs-oval>
+        }
+        @if (vsObject.objectType == 'VSRadioButton') {
+          <vs-radio-button
+            [selected]="isSelected(i)"
+            [submitted]="submitted"
+            [vsInfo]="vsInfo" [embeddedVS]="embeddedVS"
+            [model]="vsObject"
+            [keyNavigation]="keyNavigation">
+          </vs-radio-button>
+        }
+        @if (vsObject.objectType == 'VSRectangle') {
+          <vs-rectangle
+            [vsInfo]="vsInfo" [embeddedVS]="embeddedVS"
+            [model]="vsObject" [actions]="vsObjectActions[i]">
+          </vs-rectangle>
+        }
+        @if (vsObject.objectType == 'VSRangeSlider') {
+          <vs-range-slider
+            [vsInfo]="vsInfo" [embeddedVS]="embeddedVS"
+            [model]="vsObject" [actions]="vsObjectActions[i]"
+            [container]="containerRef"
+            (maxModeChange)="onMaxModeChange($event)"
+            [keyNavigation]="keyNavigation" (showHideMiniToolbar)="showToolbar($event)">
+          </vs-range-slider>
+        }
+        @if (vsObject.objectType == 'VSSelectionList' || vsObject.objectType == 'VSSelectionTree') {
+          <vs-selection
+            [selected]="isSelected(i)"
+            [vsInfo]="vsInfo" [embeddedVS]="embeddedVS"
+            [popupShowing]="popupShowing"
+            [container]="containerRef"
+            (maxModeChange)="onMaxModeChange($event)"
+            [model]="vsObject" [actions]="vsObjectActions[i]" [atBottom]="isAtBottom(i, true)"
+            [objectContainerHeight]="this.containerBounds.height"
+            [keyNavigation]="keyNavigation" (showHideMiniToolbar)="showToolbar($event)">
+          </vs-selection>
+        }
+        @if (vsObject.objectType == 'VSSelectionContainer') {
+          <vs-selection-container [vsInfo]="vsInfo" [embeddedVS]="embeddedVS"
+            [model]="vsObject" [actions]="vsObjectActions[i]" [container]="containerRef"
+            (maxModeChange)="onMaxModeChange($event)">
+          </vs-selection-container>
+          @if (vsObject.outerSelections || vsObject.childObjects) {
+            <vs-selection-container-children
+              [vsObject]="vsObject"
+              [placeholderDragElementModel]="placeholderDragElementModel" [containerRef]="containerRef"
+              [vsInfo]="vsInfo" [keyNavigation]="keyNavigation"
+              (containerChildContextMenu)="showContextMenu($event.event, $event.actions)">
+            </vs-selection-container-children>
+          }
+        }
+        @if (vsObject.objectType == 'VSSlider') {
+          <vs-slider
+            [model]="vsObject"
+            [vsInfo]="vsInfo" [embeddedVS]="embeddedVS"
+            [submitted]="submitted"
+            [keyNavigation]="keyNavigation">
+          </vs-slider>
+        }
+        @if (vsObject.objectType == 'VSSlidingScale') {
+          <vs-sliding-scale
+            [vsInfo]="vsInfo" [embeddedVS]="embeddedVS"
+            [model]="vsObject">
+          </vs-sliding-scale>
+        }
+        @if (vsObject.objectType == 'VSSpinner') {
+          <vs-spinner
+            [vsInfo]="vsInfo" [embeddedVS]="embeddedVS"
+            [model]="vsObject" [submitted]="submitted"
+            [keyNavigation]="keyNavigation">
+          </vs-spinner>
+        }
+        @if (vsObject.objectType == 'VSSubmit') {
+          <vs-submit
+            [model]="vsObject"
+            [vsInfo]="vsInfo" [embeddedVS]="embeddedVS"
+            (submitClicked)="submitClicked($event)"
+            [keyNavigation]="keyNavigation">
+          </vs-submit>
+        }
+        @if (vsObject.objectType == 'VSTab') {
+          <vs-tab [vsInfo]="vsInfo" [embeddedVS]="embeddedVS"
+            [model]="vsObject" [keyNavigation]="keyNavigation" [selected]="isSelected(i)">
+          </vs-tab>
+        }
+        @if (vsObject.objectType == 'VSTable') {
+          <vs-table
+            [model]="vsObject" [actions]="vsObjectActions[i]"
+            [vsInfo]="vsInfo" [embeddedVS]="embeddedVS"
+            [selected]="isSelected(i)"
+            [container]="containerRef"
+            [popupShowing]="popupShowing"
+            [atBottom]="isAtBottom(i, false)"
+            [guideType]="guideType"
+            [globalLoadingIndicator]="globalLoadingIndicator"
+            (removeAnnotations)="removeAnnotations.emit()"
+            (maxModeChange)="onMaxModeChange($event)"
+            (onOpenEditPane)="onEditTable.emit(vsObject)"
+            (onOpenConditionDialog)="onOpenConditionDialog.emit($event)"
+            (onOpenHighlightDialog)="onOpenHighlightDialog.emit($event)"
+            (onLoadingStateChanged)="onLoadingStateChanged.emit($event)">
+          </vs-table>
+        }
+        @if (vsObject.objectType == 'VSText') {
+          <vs-text
+            [vsInfo]="vsInfo" [embeddedVS]="embeddedVS"
+            [selected]="isSelected(i)"
+            (removeAnnotations)="removeAnnotations.emit()"
+            [alwaysAllowClickPropagation]="true"
+            [model]="vsObject" [actions]="vsObjectActions[i]"
+            [globalLoadingIndicator]="globalLoadingIndicator"
+            (onLoadingStateChanged)="onLoadingStateChanged.emit($event)">
+          </vs-text>
+        }
+        @if (vsObject.objectType == 'VSTextInput') {
+          <vs-text-input
+            [vsInfo]="vsInfo" [embeddedVS]="embeddedVS"
+            [selected]="isSelected(i)"
+            [model]="vsObject" [submitted]="submitted"
+            [keyNavigation]="keyNavigation">
+          </vs-text-input>
+        }
+        @if (vsObject.objectType == 'VSThermometer') {
+          <vs-thermometer
+            [vsInfo]="vsInfo" [embeddedVS]="embeddedVS"
+            [model]="vsObject">
+          </vs-thermometer>
+        }
+        @if (vsObject.objectType == 'VSViewsheet') {
+          <vs-viewsheet
+            [model]="vsObject"
+            [vsInfo]="vsInfo" [embeddedVS]="embeddedVS"
+            [variableValues]="variableValues"
+            [selectedAssemblies]="selectedAssemblies"
+            [containerRef]="containerRef"
+            [appSize]="appSize"
+            (removeAnnotations)="removeAnnotations.emit()"
+            (onOpenChartFormatPane)="onOpenChartFormatPane.emit($event)"
+            (maxModeChange)="onMaxModeChange($event)"
+            (onOpenViewsheet)="onOpenViewsheet.emit($event)"
+            (onSelectedAssemblyChanged)="onSelectedAssemblyChanged.emit($event)"
+            (onEditTable)="onEditTable.emit($event)"
+            (onEditChart)="onEditChart.emit($event)"
+            [submitted]="submitted"
+            (submitClicked)="submitClicked($event)"
+            [touchDevice]="touchDevice"
+            (onOpenConditionDialog)="onOpenConditionDialog.emit($event)"
+            (onOpenHighlightDialog)="onOpenHighlightDialog.emit($event)"
+            (onOpenAnnotationDialog)="onOpenAnnotationDialog.emit($event)"
+            [keyNavigation]="keyNavigation"
+            [globalLoadingIndicator]="globalLoadingIndicator"
+            (onLoadingStateChanged)="onLoadingStateChanged.emit($event)">
+          </vs-viewsheet>
+        }
       </div>
+      @if (!hideMiniToolbar && isMiniToolbarVisible(vsObject) && vsObject.enabled) {
+        <mini-toolbar
+          VSDataTip [dataTipName]="vsObject.absoluteName" [miniToolbar]="true"
+          VSPopComponent [popComponentName]="vsObject.absoluteName"
+          [popContainerName]="vsObject.container"
+          [containerBounds]="containerBounds"
+          [actionsWidth]="this.getActionsWidth(vsObject, i)"
+          [popZIndex]="zIndex(vsObject)"
+          [forceAbove]="vsObject.searchDisplayed || embeddedVS && !vsObject.maxMode && embeddedVSBounds && embeddedVSBounds.y > 16"
+          [actions]="vsObjectActions[i]"
+          [top]="getToolbarTop(vsObject, i)"
+          [left]="getToolbarLeft(vsObject, i)"
+          [width]="getToolbarWidth(vsObject)"
+          [style.display]="isAssemblyVisible(vsObject) ? 'block' : 'none'"
+          [visible]="isAssemblyVisible(vsObject)"
+          [forceShow]="forceShowMiniToolbar"
+          [assembly]="vsObject.absoluteName"
+          [keyNavigation]="keyNavigation" [forceHide]="toolbarForceHidden(vsObject)">
+        </mini-toolbar>
+      }
     </div>
-  </ng-template>
-</ng-container>
+  } @else {
+    <div [class.non-rendered-placeholder]="vsObject.visible"
+      [style.display]="isMaxModeHidden(vsObject) ? 'none' : 'block'"
+      [style.width.px]="getActualWidth(vsObject)"
+      [style.height.px]="vsObject.objectHeight || vsObject.objectFormat.height"
+      [style.top.px]="getVsObjectPosition(vsObject, i, true)"
+      [style.left.px]="getVsObjectPosition(vsObject, i, false)"
+      [style.z-index]="zIndex(vsObject) + 1"
+      >
+      @if (vsObject.visible) {
+        <div class="nrp-content">
+          <span class="nrp-label">
+            <i class="loading-icon--spin loading-icon fa-spin icon-4x fa-fw" aria-hidden="true"></i><br>
+            _#(Loading data)...
+          </span>
+        </div>
+      }
+    </div>
+  }
+}
 <!-- Chart data annotations rendered outside all VS object stacking contexts -->
 <div class="chart-annotation-overlay">
-  <ng-container *ngFor="let vsObject of vsInfo.vsObjects; let i = index">
-    <ng-container *ngIf="vsObject.objectType === 'VSChart' && viewer && !context.binding &&
-                         !$any(vsObject).maxMode && !!$any(vsObject).plot">
+  @for (vsObject of vsInfo.vsObjects; track vsObject; let i = $index) {
+    @if (vsObject.objectType === 'VSChart' && viewer && !context.binding &&
+      !$any(vsObject).maxMode && !!$any(vsObject).plot) {
       <div [style.top.px]="getVsObjectPosition(vsObject, i, true)"
-           [style.left.px]="getVsObjectPosition(vsObject, i, false)"
-           style="position: absolute;">
-        <vs-annotation *ngFor="let ann of getChartDataAnnotations(vsObject)"
-                       [model]="ann"
-                       [vsInfo]="vsInfo"
-                       [actions]="vsObjectActions[i]"
-                       [tetherTo]="getChartAnnotationTetherTo(vsObject)"
-                       [restrictTo]="getChartAnnotationRestrictTo(vsObject)"
-                       [offsetX]="-($any(vsObject).annotationScrollLeft || 0)"
-                       [offsetY]="-($any(vsObject).annotationScrollTop || 0)"
-                       [selected]="isChartAnnotationSelected(ann, vsObject)"
-                       (remove)="removeAnnotationFromOverlay(ann, vsObject)"
-                       (mouseSelect)="annotationMouseSelect($event, vsObject)">
-        </vs-annotation>
+        [style.left.px]="getVsObjectPosition(vsObject, i, false)"
+        style="position: absolute;">
+        @for (ann of getChartDataAnnotations(vsObject); track ann) {
+          <vs-annotation
+            [model]="ann"
+            [vsInfo]="vsInfo"
+            [actions]="vsObjectActions[i]"
+            [tetherTo]="getChartAnnotationTetherTo(vsObject)"
+            [restrictTo]="getChartAnnotationRestrictTo(vsObject)"
+            [offsetX]="-($any(vsObject).annotationScrollLeft || 0)"
+            [offsetY]="-($any(vsObject).annotationScrollTop || 0)"
+            [selected]="isChartAnnotationSelected(ann, vsObject)"
+            (remove)="removeAnnotationFromOverlay(ann, vsObject)"
+            (mouseSelect)="annotationMouseSelect($event, vsObject)">
+          </vs-annotation>
+        }
       </div>
-    </ng-container>
-  </ng-container>
+    }
+  }
 </div>
 <placeholder-drag-element [model]="placeholderDragElementModel" #placeholderDragElement></placeholder-drag-element>
-<ng-container *ngIf="showingPopUpOrDataTip() && (containerBounds || embeddedVSBounds)">
+@if (showingPopUpOrDataTip() && (containerBounds || embeddedVSBounds)) {
   <canvas #popUpDim class="pop-component-bg" [style.z-index]="getPopDimZIndex()" [attr.height]="getPopDimHeight()"
-          [attr.width]="getPopDimWidth()">
+    [attr.width]="getPopDimWidth()">
   </canvas>
-</ng-container>
+}

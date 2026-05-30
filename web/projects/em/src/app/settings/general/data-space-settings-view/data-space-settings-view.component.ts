@@ -39,7 +39,7 @@ import { GeneralSettingsType } from "../general-settings-page/general-settings-t
 import { DataSpaceSettingsModel } from "./data-space-settings-model";
 import { MatCard, MatCardTitle, MatCardContent, MatCardActions } from "@angular/material/card";
 import { MatButton } from "@angular/material/button";
-import { NgIf } from "@angular/common";
+
 import { MatIcon } from "@angular/material/icon";
 import { MatInput } from "@angular/material/input";
 import { MatFormField, MatLabel, MatSuffix, MatError, MatHint } from "@angular/material/form-field";
@@ -66,7 +66,7 @@ export interface BackupData {
     templateUrl: "./data-space-settings-view.component.html",
     styleUrls: ["./data-space-settings-view.component.scss"],
     encapsulation: ViewEncapsulation.None,
-    imports: [NgIf, MatCard, MatCardTitle, MatCardContent, MatFormField, MatLabel, MatInput, MatHint, MatCardActions, MatButton]
+    imports: [MatCard, MatCardTitle, MatCardContent, MatFormField, MatLabel, MatInput, MatHint, MatCardActions, MatButton]
 })
 export class DataSpaceSettingsViewComponent {
    @Output() modelChanged = new EventEmitter<GeneralSettingsChanges>();
@@ -173,7 +173,7 @@ export class DataSpaceSettingsViewComponent {
 @Component({
     selector: "em-backup-dialog",
     templateUrl: "backup-dialog.html",
-    imports: [ModalHeaderComponent, MatDialogContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatInput, MatIcon, MatSuffix, NgIf, MatError, MatDialogActions, MatButton]
+    imports: [ModalHeaderComponent, MatDialogContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatInput, MatIcon, MatSuffix, MatError, MatDialogActions, MatButton]
 })
 export class BackupDialog implements OnInit {
    form: UntypedFormGroup;

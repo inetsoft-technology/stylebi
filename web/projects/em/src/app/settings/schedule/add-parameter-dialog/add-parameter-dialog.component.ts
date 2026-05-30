@@ -43,7 +43,7 @@ import { MatAutocompleteTrigger, MatAutocomplete } from "@angular/material/autoc
 import { MatInput } from "@angular/material/input";
 import { MatFormField, MatLabel, MatError } from "@angular/material/form-field";
 import { MatRadioGroup, MatRadioButton } from "@angular/material/radio";
-import { NgIf, NgFor } from "@angular/common";
+
 import { ModalHeaderComponent } from "../../../common/util/modal-header/modal-header.component";
 
 @Component({
@@ -51,28 +51,26 @@ import { ModalHeaderComponent } from "../../../common/util/modal-header/modal-he
     templateUrl: "./add-parameter-dialog.component.html",
     styleUrls: ["./add-parameter-dialog.component.scss"],
     imports: [
-        ModalHeaderComponent,
-        NgIf,
-        MatRadioGroup,
-        FormsModule,
-        MatRadioButton,
-        ReactiveFormsModule,
-        MatFormField,
-        MatLabel,
-        MatInput,
-        MatAutocompleteTrigger,
-        MatError,
-        MatAutocomplete,
-        NgFor,
-        MatOption,
-        MatSelect,
-        MatCheckbox,
-        DynamicValueEditorComponent,
-        DateTimeEditorComponent,
-        MatDialogActions,
-        MatButton,
-        MatDialogClose,
-    ]
+    ModalHeaderComponent,
+    MatRadioGroup,
+    FormsModule,
+    MatRadioButton,
+    ReactiveFormsModule,
+    MatFormField,
+    MatLabel,
+    MatInput,
+    MatAutocompleteTrigger,
+    MatError,
+    MatAutocomplete,
+    MatOption,
+    MatSelect,
+    MatCheckbox,
+    DynamicValueEditorComponent,
+    DateTimeEditorComponent,
+    MatDialogActions,
+    MatButton,
+    MatDialogClose
+]
 })
 export class AddParameterDialogComponent implements OnInit {
    index: number;

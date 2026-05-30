@@ -41,7 +41,7 @@ import {
    QueryTablePropertiesDialogComponent
 } from "../../database-query/query-main/query-link-pane/query-table-properties-dialog/query-table-properties-dialog.component";
 import { DataType } from "../join-thumbnail.service";
-import { NgIf, NgClass, NgFor } from "@angular/common";
+import { NgClass } from "@angular/common";
 
 const CREATE_ALIAS_TABLE = "../api/data/physicalmodel/graph/alias";
 const CHECK_ALIAS_HAS_DUPLICATE = "../api/data/physicalmodel/graph/alias/status";
@@ -54,7 +54,7 @@ const EDIT_QUERY_TABLE_PROPERTIES = "../api/data/datasource/query/table/properti
     templateUrl: "join-node-graph.component.html",
     styleUrls: ["join-node-graph.component.scss",
         "../../../../../../composer/gui/ws/jsplumb/jsplumb-shared.scss"],
-    imports: [NgIf, NgClass, NgFor]
+    imports: [NgClass]
 })
 export class JoinNodeGraphComponent implements AfterViewInit {
    @Input() runtimeId: string;

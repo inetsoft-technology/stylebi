@@ -33,13 +33,13 @@ import { DataRefWrapper } from "../../common/data/data-ref-wrapper";
 import { GroupRef } from "../../common/data/group-ref";
 import { Range } from "../../common/data/range";
 import { AggregateRef } from "../../common/data/aggregate-ref";
-import { NgFor } from "@angular/common";
+
 
 @Component({
     selector: "condition-field-combo-list",
     templateUrl: "condition-field-combo-list.component.html",
     styleUrls: ["condition-field-combo-list.component.scss"],
-    imports: [NgFor]
+    imports: []
 })
 export class ConditionFieldComboListComponent implements OnInit, OnChanges, AfterContentInit {
    @Input() field: DataRef;

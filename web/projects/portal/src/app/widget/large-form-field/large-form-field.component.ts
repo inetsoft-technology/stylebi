@@ -19,14 +19,14 @@ import { Component, EventEmitter, Input, Output, ViewEncapsulation } from "@angu
 import { EnterClickDirective } from "../directive/enter-click.directive";
 import { EnterSubmitDirective } from "../directive/enter-submit.directive";
 import { FormsModule } from "@angular/forms";
-import { NgIf } from "@angular/common";
+
 
 @Component({
     selector: "w-large-form-field",
     templateUrl: "./large-form-field.component.html",
     styleUrls: ["./large-form-field.component.scss"],
     encapsulation: ViewEncapsulation.None,
-    imports: [NgIf, FormsModule, EnterSubmitDirective, EnterClickDirective]
+    imports: [FormsModule, EnterSubmitDirective, EnterClickDirective]
 })
 export class LargeFormFieldComponent {
    @Input() search: boolean = false;

@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, EventEmitter, Input, Output } from "@angular/core";
-import { NgIf } from "@angular/common";
+
 import { DynamicComboBox } from "../../../widget/dynamic-combo-box/dynamic-combo-box.component";
 import { FormsModule } from "@angular/forms";
 
@@ -24,7 +24,7 @@ import { FormsModule } from "@angular/forms";
     selector: "date-comparison-share-pane",
     templateUrl: "./date-comparison-share-pane.component.html",
     styleUrls: ["./date-comparison-share-pane.component.scss"],
-    imports: [FormsModule, DynamicComboBox, NgIf]
+    imports: [FormsModule, DynamicComboBox]
 })
 export class DateComparisonSharePaneComponent {
    @Input() isShareDateComparison: boolean;

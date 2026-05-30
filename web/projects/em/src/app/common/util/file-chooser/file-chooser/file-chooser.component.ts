@@ -39,7 +39,7 @@ import { Subject } from "rxjs";
 import { FileData } from "../../../../../../../shared/util/model/file-data";
 import { Tool } from "../../../../../../../shared/util/tool";
 import { MatInput } from "@angular/material/input";
-import { NgIf } from "@angular/common";
+
 
 @Component({
     selector: "em-file-chooser",
@@ -49,10 +49,9 @@ import { NgIf } from "@angular/common";
         { provide: MatFormFieldControl, useExisting: FileChooserComponent }
     ],
     imports: [
-        NgIf,
-        MatInput,
-        FormsModule,
-    ]
+    MatInput,
+    FormsModule
+]
 })
 export class FileChooserComponent
    implements OnInit, OnDestroy, DoCheck, AfterViewInit, MatFormFieldControl<FileData[]>, ControlValueAccessor

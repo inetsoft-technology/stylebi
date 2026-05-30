@@ -38,13 +38,13 @@ import { SelectionListDialog } from "./selection-list-dialog.component";
 import { FixedDropdownDirective } from "../../widget/fixed-dropdown/fixed-dropdown.directive";
 import { DynamicComboBox } from "../../widget/dynamic-combo-box/dynamic-combo-box.component";
 import { FormsModule } from "@angular/forms";
-import { NgIf, NgFor } from "@angular/common";
+
 
 @Component({
     selector: "combo-box-editor",
     templateUrl: "combo-box-editor.component.html",
     styleUrls: ["combo-box-editor.component.scss"],
-    imports: [NgIf, FormsModule, NgFor, DynamicComboBox, FixedDropdownDirective, SelectionListDialog, VariableListDialog, CdkVirtualScrollViewport, CdkFixedSizeVirtualScroll, CdkVirtualForOf]
+    imports: [FormsModule, DynamicComboBox, FixedDropdownDirective, SelectionListDialog, VariableListDialog, CdkVirtualScrollViewport, CdkFixedSizeVirtualScroll, CdkVirtualForOf]
 })
 export class ComboBoxEditor implements OnInit, OnChanges {
    @ViewChild("selectionListDialog") selectionListDialog: TemplateRef<any>;

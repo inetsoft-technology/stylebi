@@ -52,13 +52,13 @@ import { AggregateOption } from "./aggregate-option.component";
 import { GroupOption } from "./group-option.component";
 import { FieldOption } from "./field-option-dialog.component";
 import { DetailOption } from "./detail-option.component";
-import { NgIf } from "@angular/common";
+
 
 @Component({
     selector: "table-fieldmc",
     templateUrl: "table-fieldmc.component.html",
     styleUrls: ["../fieldmc.component.scss"],
-    imports: [NgIf, DynamicComboBox, FixedDropdownDirective, DetailOption, FieldOption, GroupOption, AggregateOption]
+    imports: [DynamicComboBox, FixedDropdownDirective, DetailOption, FieldOption, GroupOption, AggregateOption]
 })
 export class TableFieldmc extends FieldMC {
    @Input() fieldType: string;

@@ -24,7 +24,7 @@ import { COPY_PASTE_CONTEXT_REPOSITORY } from "../../../security/resource-permis
 import { ResourcePermissionComponent } from "../../../security/resource-permission/resource-permission.component";
 import { MatTabGroup, MatTab } from "@angular/material/tabs";
 import { EditorPanelComponent } from "../../../../common/util/editor-panel/editor-panel.component";
-import { NgIf } from "@angular/common";
+
 
 export interface RepositoryPermissionEditorModel extends RepositoryEditorModel {
    label: string;
@@ -35,7 +35,7 @@ export interface RepositoryPermissionEditorModel extends RepositoryEditorModel {
     selector: "em-repository-permission-editor-page",
     templateUrl: "./repository-permission-editor-page.component.html",
     styleUrls: ["./repository-permission-editor-page.component.scss"],
-    imports: [NgIf, EditorPanelComponent, MatTabGroup, MatTab, ResourcePermissionComponent]
+    imports: [EditorPanelComponent, MatTabGroup, MatTab, ResourcePermissionComponent]
 })
 export class RepositoryPermissionEditorPageComponent implements OnChanges {
    @Input() model: RepositoryPermissionEditorModel;

@@ -18,13 +18,13 @@
 import { Component, Input } from "@angular/core";
 import { PhysicalTableTreeComponent } from "../physical-table-tree.component";
 import { TreeNodeModel } from "../../../../../../../../../widget/tree/tree-node-model";
-import { NgIf, NgFor } from "@angular/common";
+
 
 @Component({
     selector: "physical-table-tree-node",
     templateUrl: "physical-table-tree-node.component.html",
     styleUrls: ["physical-table-tree-node.component.scss"],
-    imports: [NgIf, NgFor]
+    imports: []
 })
 export class PhysicalTableTreeNodeComponent {
    @Input() tree: PhysicalTableTreeComponent;

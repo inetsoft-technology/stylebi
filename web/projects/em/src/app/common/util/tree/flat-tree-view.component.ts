@@ -23,7 +23,7 @@ import { FlatTreeNode, FlatTreeNodeMenuItem } from "./flat-tree-model";
 import { MatMenuTrigger, MatMenu, MatMenuContent, MatMenuItem } from "@angular/material/menu";
 import { MatIcon } from "@angular/material/icon";
 import { MatIconButton } from "@angular/material/button";
-import { NgIf, NgFor } from "@angular/common";
+
 import { CdkVirtualScrollViewport, CdkFixedSizeVirtualScroll, CdkVirtualForOf } from "@angular/cdk/scrolling";
 
 export interface FlatTreeSelectNodeEvent {
@@ -40,7 +40,7 @@ export interface FlatTreeContextMenuEvent {
     selector: "em-flat-tree-view",
     templateUrl: "./flat-tree-view.component.html",
     styleUrls: ["./flat-tree-view.component.scss"],
-    imports: [CdkVirtualScrollViewport, CdkFixedSizeVirtualScroll, CdkVirtualForOf, NgIf, MatIconButton, MatIcon, MatMenuTrigger, MatMenu, MatMenuContent, NgFor, MatMenuItem]
+    imports: [CdkVirtualScrollViewport, CdkFixedSizeVirtualScroll, CdkVirtualForOf, MatIconButton, MatIcon, MatMenuTrigger, MatMenu, MatMenuContent, MatMenuItem]
 })
 export class FlatTreeViewComponent {
    @Input() dataSource: DataSource<FlatTreeNode>;

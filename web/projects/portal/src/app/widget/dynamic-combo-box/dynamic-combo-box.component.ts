@@ -30,22 +30,20 @@ import { TreeComponent } from "../tree/tree.component";
 import { BlockMouseDirective } from "../mouse-event/block-mouse.directive";
 import { FormsModule } from "@angular/forms";
 import { TooltipIfDirective } from "../tooltip/tooltip-if.directive";
-import { NgIf, NgClass, NgFor } from "@angular/common";
+import { NgClass } from "@angular/common";
 
 @Component({
     selector: "dynamic-combo-box",
     templateUrl: "dynamic-combo-box.component.html",
     styleUrls: ["./dynamic-combo-box.component.scss"],
     imports: [
-        NgIf,
-        TooltipIfDirective,
-        NgClass,
-        FixedDropdownDirective,
-        FormsModule,
-        BlockMouseDirective,
-        NgFor,
-        TreeComponent,
-    ]
+    TooltipIfDirective,
+    NgClass,
+    FixedDropdownDirective,
+    FormsModule,
+    BlockMouseDirective,
+    TreeComponent
+]
 })
 export class DynamicComboBox implements OnInit, OnChanges {
    public ComboMode = ComboMode;

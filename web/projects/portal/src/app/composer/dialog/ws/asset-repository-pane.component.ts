@@ -24,7 +24,7 @@ import { TreeNodeModel } from "../../../widget/tree/tree-node-model";
 import { AssetRepositoryPaneModel } from "../../data/vs/asset-respository-pane-model";
 import { AssetType } from "../../../../../../shared/data/asset-type";
 import { AssetTreeComponent } from "../../../widget/asset-tree/asset-tree.component";
-import { NgIf } from "@angular/common";
+
 import { DefaultFocusDirective } from "../../../widget/directive/default-focus.directive";
 import { InputTrimDirective } from "../../../widget/directive/input-trim.directive";
 
@@ -32,13 +32,12 @@ import { InputTrimDirective } from "../../../widget/directive/input-trim.directi
     selector: "asset-repository-pane",
     templateUrl: "asset-repository-pane.component.html",
     imports: [
-        FormsModule,
-        ReactiveFormsModule,
-        InputTrimDirective,
-        DefaultFocusDirective,
-        NgIf,
-        AssetTreeComponent,
-    ]
+    FormsModule,
+    ReactiveFormsModule,
+    InputTrimDirective,
+    DefaultFocusDirective,
+    AssetTreeComponent
+]
 })
 export class AssetRepositoryPane implements OnInit {
    @Input() model: AssetRepositoryPaneModel;

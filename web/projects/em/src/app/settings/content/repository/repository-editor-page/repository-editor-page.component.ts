@@ -38,13 +38,13 @@ import { RepositoryWorksheetSettingsPageComponent } from "../repository-workshee
 import { RepositoryViewsheetSettingsPageComponent } from "../repository-viewsheet-settings-page/repository-viewsheet-settings-page.component";
 import { AutoSaveFolderPageComponent } from "../auto-save-recycle-bin/auto-save-folder-page.component";
 import { AutoSaveRecycleBinPageComponent } from "../auto-save-recycle-bin/auto-save-recycle-bin-page.component";
-import { NgIf, NgSwitch, NgSwitchCase, NgSwitchDefault } from "@angular/common";
+
 
 @Component({
     selector: "em-repository-editor-page",
     templateUrl: "./repository-editor-page.component.html",
     styleUrls: ["./repository-editor-page.component.scss"],
-    imports: [NgIf, NgSwitch, NgSwitchCase, AutoSaveRecycleBinPageComponent, AutoSaveFolderPageComponent, RepositoryViewsheetSettingsPageComponent, RepositoryWorksheetSettingsPageComponent, RepositoryDashboardSettingsPageComponent, RepositoryDataSourceSettingsPageComponent, RepositoryFolderTrashcanSettingsPageComponent, RepositoryFolderRecycleBinPageComponent, RepositoryScriptSettingsPageComponent, MatButton, LoadingSpinnerComponent, RepositoryFolderDashboardSettingsPageComponent, RepositoryFolderSettingsPageComponent, RepositoryDataSourceFolderSettingsPageComponent, RepositoryPermissionEditorPageComponent, RepositoryRecycleBinPageComponent, RepositoryScheduleTaskFolderSettingsPageComponent, NgSwitchDefault]
+    imports: [AutoSaveRecycleBinPageComponent, AutoSaveFolderPageComponent, RepositoryViewsheetSettingsPageComponent, RepositoryWorksheetSettingsPageComponent, RepositoryDashboardSettingsPageComponent, RepositoryDataSourceSettingsPageComponent, RepositoryFolderTrashcanSettingsPageComponent, RepositoryFolderRecycleBinPageComponent, RepositoryScriptSettingsPageComponent, MatButton, LoadingSpinnerComponent, RepositoryFolderDashboardSettingsPageComponent, RepositoryFolderSettingsPageComponent, RepositoryDataSourceFolderSettingsPageComponent, RepositoryPermissionEditorPageComponent, RepositoryRecycleBinPageComponent, RepositoryScheduleTaskFolderSettingsPageComponent]
 })
 export class RepositoryEditorPageComponent implements OnChanges, OnInit {
    previousEditorPath: string;

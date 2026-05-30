@@ -25,7 +25,7 @@ import { MessageCommand } from "../../common/viewsheet-client/message-command";
 import { ModelService } from "../services/model.service";
 import { AddRepositoryFolderEvent } from "./add-repository-folder-event";
 import { DialogButtonsDirective } from "../standard-dialog/dialog-buttons.directive";
-import { NgIf } from "@angular/common";
+
 import { DialogContentDirective } from "../standard-dialog/dialog-content.directive";
 import { StandardDialogComponent } from "../standard-dialog/standard-dialog.component";
 
@@ -34,7 +34,7 @@ const ADD_FOLDER_URI = "../api/portal/tree/add-folder";
 @Component({
     selector: "add-repository-folder-dialog",
     templateUrl: "add-repository-folder-dialog.component.html",
-    imports: [StandardDialogComponent, DialogContentDirective, FormsModule, ReactiveFormsModule, NgIf, DialogButtonsDirective]
+    imports: [StandardDialogComponent, DialogContentDirective, FormsModule, ReactiveFormsModule, DialogButtonsDirective]
 })
 export class AddRepositoryFolderDialog implements OnInit {
    @Output() onCommit: EventEmitter<string> = new EventEmitter<string>();

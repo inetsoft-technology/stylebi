@@ -82,7 +82,7 @@ import { ColumnTypeDialog } from "../../../dialog/ws/column-type-dialog.componen
 import { ImportCSVDialog } from "../../../dialog/ws/import-csv-dialog.component";
 import { WSDetailsTableDataComponent } from "./ws-details-table-data.component";
 import { FormsModule } from "@angular/forms";
-import { NgIf, NgClass, NgFor } from "@angular/common";
+import { NgClass } from "@angular/common";
 
 interface WSTableButtonInfo {
    id: string;
@@ -116,7 +116,7 @@ const COLUMN_DESCRIPTION_SOCKET_URI = "/events/composer/worksheet/column-descrip
     selector: "ws-details-pane",
     templateUrl: "ws-details-pane.component.html",
     styleUrls: ["ws-details-pane.component.scss"],
-    imports: [NgIf, NgClass, NgFor, FixedDropdownDirective, FormsModule, WSDetailsTableDataComponent, ImportCSVDialog, ColumnTypeDialog, ColumnDescriptionDialog, ConsoleDialogComponent]
+    imports: [NgClass, FixedDropdownDirective, FormsModule, WSDetailsTableDataComponent, ImportCSVDialog, ColumnTypeDialog, ColumnDescriptionDialog, ConsoleDialogComponent]
 })
 export class WSDetailsPaneComponent implements OnChanges, OnDestroy, OnInit {
    @Input() worksheet: Worksheet;

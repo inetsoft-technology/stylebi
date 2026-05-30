@@ -30,24 +30,22 @@ import { TargetLabelPane } from "./target-label-pane.component";
 import { LabelInputField } from "./label-input-field.component";
 import { ValueInputField } from "./value-input-field.component";
 import { FormsModule } from "@angular/forms";
-import { NgIf, NgFor, NgClass } from "@angular/common";
+import { NgClass } from "@angular/common";
 
 @Component({
     selector: "line-panel",
     templateUrl: "line-panel.component.html",
     imports: [
-        NgIf,
-        FormsModule,
-        NgFor,
-        NgClass,
-        ValueInputField,
-        DateInputField,
-        LabelInputField,
-        TargetLabelPane,
-        GridLineDropdown,
-        ColorEditor,
-        AlphaDropdown,
-    ]
+    FormsModule,
+    NgClass,
+    ValueInputField,
+    DateInputField,
+    LabelInputField,
+    TargetLabelPane,
+    GridLineDropdown,
+    ColorEditor,
+    AlphaDropdown
+]
 })
 export class LinePanel {
    @Input() model: TargetInfo;

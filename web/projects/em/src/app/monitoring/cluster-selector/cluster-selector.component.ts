@@ -25,13 +25,13 @@ import { MatFabButton } from "@angular/material/button";
 import { MatOption } from "@angular/material/core";
 import { MatSelect } from "@angular/material/select";
 import { MatFormField } from "@angular/material/form-field";
-import { NgIf, NgFor } from "@angular/common";
+
 
 @Component({
     selector: "em-cluster-selector",
     templateUrl: "./cluster-selector.component.html",
     styleUrls: ["./cluster-selector.component.scss"],
-    imports: [NgIf, MatFormField, MatSelect, NgFor, MatOption, MatFabButton, MatIcon]
+    imports: [MatFormField, MatSelect, MatOption, MatFabButton, MatIcon]
 })
 export class ClusterSelectorComponent implements OnDestroy {
    @Input() refreshEnable = false;

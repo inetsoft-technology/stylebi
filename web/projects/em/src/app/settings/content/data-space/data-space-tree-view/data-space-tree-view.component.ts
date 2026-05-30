@@ -21,7 +21,7 @@ import { DataSpaceTreeNode } from "../data-space-tree-node";
 import { FlatTreeNode, FlatTreeNodeMenuItem } from "../../../../common/util/tree/flat-tree-model";
 import { FlatTreeSelectNodeEvent, FlatTreeViewComponent } from "../../../../common/util/tree/flat-tree-view.component";
 import { MatTooltip } from "@angular/material/tooltip";
-import { NgIf } from "@angular/common";
+
 import { TopScrollDirective } from "../../../../top-scroll/top-scroll.directive";
 import { MatIcon } from "@angular/material/icon";
 import { MatIconButton } from "@angular/material/button";
@@ -31,7 +31,7 @@ import { MatToolbar } from "@angular/material/toolbar";
     selector: "em-data-space-tree-view",
     templateUrl: "./data-space-tree-view.component.html",
     styleUrls: ["./data-space-tree-view.component.scss"],
-    imports: [MatToolbar, MatIconButton, MatIcon, TopScrollDirective, FlatTreeViewComponent, NgIf, MatTooltip]
+    imports: [MatToolbar, MatIconButton, MatIcon, TopScrollDirective, FlatTreeViewComponent, MatTooltip]
 })
 export class DataSpaceTreeViewComponent implements OnInit {
    @Input() dataSource: DataSpaceTreeDataSource;

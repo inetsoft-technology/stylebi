@@ -23,7 +23,7 @@ import { EntityModel } from "../../../../../model/datasources/database/physical-
 import { TreeNodeModel } from "../../../../../../../widget/tree/tree-node-model";
 import { AttributeModel } from "../../../../../model/datasources/database/physical-model/logical-model/attribute-model";
 import { GetModelEvent } from "../../../../../model/datasources/database/events/get-model-event";
-import { NgFor, NgIf } from "@angular/common";
+
 import { ModalHeaderComponent } from "../../../../../../../widget/modal-header/modal-header.component";
 
 const TABLES_URI: string = "../api/data/logicalModel/tables/nodes";
@@ -32,7 +32,7 @@ const TABLES_URI: string = "../api/data/logicalModel/tables/nodes";
     selector: "logical-model-attribute-dialog",
     templateUrl: "logical-model-attribute-dialog.component.html",
     styleUrls: ["logical-model-attribute-dialog.component.scss"],
-    imports: [ModalHeaderComponent, FormsModule, ReactiveFormsModule, NgFor, NgIf, PhysicalTableTreeComponent]
+    imports: [ModalHeaderComponent, FormsModule, ReactiveFormsModule, PhysicalTableTreeComponent]
 })
 export class LogicalModelAttributeDialog implements OnInit, AfterViewInit {
    @ViewChild("physicalTree") tree: PhysicalTableTreeComponent;

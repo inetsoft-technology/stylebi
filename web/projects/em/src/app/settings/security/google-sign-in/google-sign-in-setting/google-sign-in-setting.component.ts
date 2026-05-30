@@ -10,7 +10,7 @@ import { Secured } from "../../../../secured";
 import { OpenIdAttributesModel } from "../../sso/sso-settings-model";
 import { GoogleSignInModel } from "./google-sign-in-model";
 import { OpenidSettingsFormComponent } from "../../sso/openid-settings-form/openid-settings-form.component";
-import { NgIf } from "@angular/common";
+
 import { MatSlideToggle } from "@angular/material/slide-toggle";
 import { MatCard, MatCardContent } from "@angular/material/card";
 import { EditorPanelComponent } from "../../../../common/util/editor-panel/editor-panel.component";
@@ -28,7 +28,7 @@ import { EditorPanelComponent } from "../../../../common/util/editor-panel/edito
     selector: "em-google-sign-in-setting",
     templateUrl: "./google-sign-in-setting.component.html",
     styleUrls: ["./google-sign-in-setting.component.scss"],
-    imports: [EditorPanelComponent, MatCard, MatCardContent, MatSlideToggle, NgIf, OpenidSettingsFormComponent]
+    imports: [EditorPanelComponent, MatCard, MatCardContent, MatSlideToggle, OpenidSettingsFormComponent]
 })
 export class GoogleSignInSettingComponent implements OnDestroy {
    private readonly subscription: Subscription;

@@ -31,7 +31,7 @@ import { MatSelect } from "@angular/material/select";
 import { EmailPickerComponent } from "../../../email-picker/email-picker.component";
 import { MatInput } from "@angular/material/input";
 import { MatFormField, MatLabel, MatError } from "@angular/material/form-field";
-import { NgIf, NgFor } from "@angular/common";
+
 import { MatCheckbox } from "@angular/material/checkbox";
 import { MatCard, MatCardHeader, MatCardTitle, MatCardContent } from "@angular/material/card";
 
@@ -62,7 +62,7 @@ export interface DeliveryEmails {
     selector: "em-delivery-emails",
     templateUrl: "./delivery-emails.component.html",
     styleUrls: ["./delivery-emails.component.scss"],
-    imports: [MatCard, MatCardHeader, MatCardTitle, MatCheckbox, FormsModule, NgIf, MatCardContent, ReactiveFormsModule, MatFormField, MatLabel, MatInput, MatError, EmailPickerComponent, MatSelect, NgFor, MatOption, MatRadioGroup, MatRadioButton, EmCSVConfigPaneComponent, MatCkeditorComponent]
+    imports: [MatCard, MatCardHeader, MatCardTitle, MatCheckbox, FormsModule, MatCardContent, ReactiveFormsModule, MatFormField, MatLabel, MatInput, MatError, EmailPickerComponent, MatSelect, MatOption, MatRadioGroup, MatRadioButton, EmCSVConfigPaneComponent, MatCkeditorComponent]
 })
 export class DeliveryEmailsComponent implements OnInit, OnChanges {
    @Input() enabled: boolean = false;

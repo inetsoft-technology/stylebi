@@ -30,7 +30,7 @@ import { ActivatedRoute } from "@angular/router";
 import { of, Subscription } from "rxjs";
 import { MatInput } from "@angular/material/input";
 import { MatOption } from "@angular/material/core";
-import { NgFor } from "@angular/common";
+
 import { MatSelect } from "@angular/material/select";
 import { MatFormField, MatLabel } from "@angular/material/form-field";
 
@@ -51,7 +51,7 @@ import { MatFormField, MatLabel } from "@angular/material/form-field";
     selector: "em-audit-user-session",
     templateUrl: "./audit-user-session.component.html",
     styleUrls: ["./audit-user-session.component.scss"],
-    imports: [AuditTableViewComponent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatSelect, NgFor, MatOption, MatInput]
+    imports: [AuditTableViewComponent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatSelect, MatOption, MatInput]
 })
 export class AuditUserSessionComponent implements OnInit, OnDestroy {
    users: string[] = [];

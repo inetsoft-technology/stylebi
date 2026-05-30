@@ -20,14 +20,14 @@ import { ChartPlotOptionsPaneModel } from "../model/dialog/chart-plot-options-pa
 import { UntypedFormControl, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { FormValidators } from "../../../../../shared/util/form-validators";
 import { AlphaDropdown } from "../../widget/format/alpha-dropdown.component";
-import { NgIf, NgFor } from "@angular/common";
+
 import { ColorDropdown } from "../../widget/color-picker/color-dropdown.component";
 
 @Component({
     selector: "chart-plot-options-pane",
     templateUrl: "chart-plot-options-pane.component.html",
     styleUrls: ["chart-plot-options-pane.component.scss"],
-    imports: [FormsModule, ReactiveFormsModule, ColorDropdown, NgIf, AlphaDropdown, NgFor]
+    imports: [FormsModule, ReactiveFormsModule, ColorDropdown, AlphaDropdown]
 })
 
 export class ChartPlotOptionsPaneComponent implements OnInit {
