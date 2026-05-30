@@ -15,9 +15,9 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { DOCUMENT, NgIf } from "@angular/common";
+import { NgIf } from "@angular/common";
 import { HttpParams } from "@angular/common/http";
-import { Component, EventEmitter, Inject, Input, OnInit, Output, } from "@angular/core";
+import { Component, EventEmitter, Inject, Input, OnInit, Output, DOCUMENT } from "@angular/core";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { Tool } from "../../../../../../shared/util/tool";
 import { AggregateInfo } from "../../../binding/data/aggregate-info";

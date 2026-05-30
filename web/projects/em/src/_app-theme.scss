@@ -146,15 +146,15 @@
 
   .mat-mdc-checkbox {
     &.mat-primary {
-      --mdc-checkbox-selected-checkmark-color: #{mat.m2-get-contrast-color-from-palette($primary, 500)};
-      --mdc-checkbox-disabled-selected-icon-color: #{if($is-dark-theme, #686868, #b0b0b0)};
-      --mdc-checkbox-disabled-unselected-icon-color: #{if($is-dark-theme, #686868, #b0b0b0)};
+      --mat-checkbox-selected-checkmark-color: #{mat.m2-get-contrast-color-from-palette($primary, 500)};
+      --mat-checkbox-disabled-selected-icon-color: #{if($is-dark-theme, #686868, #b0b0b0)};
+      --mat-checkbox-disabled-unselected-icon-color: #{if($is-dark-theme, #686868, #b0b0b0)};
     }
 
     &.mat-accent {
-      --mdc-checkbox-selected-checkmark-color: #{mat.m2-get-contrast-color-from-palette($accent, 500)};
-      --mdc-checkbox-disabled-selected-icon-color: #{if($is-dark-theme, #686868, #b0b0b0)};
-      --mdc-checkbox-disabled-unselected-icon-color: #{if($is-dark-theme, #686868, #b0b0b0)};
+      --mat-checkbox-selected-checkmark-color: #{mat.m2-get-contrast-color-from-palette($accent, 500)};
+      --mat-checkbox-disabled-selected-icon-color: #{if($is-dark-theme, #686868, #b0b0b0)};
+      --mat-checkbox-disabled-unselected-icon-color: #{if($is-dark-theme, #686868, #b0b0b0)};
     }
   }
 
@@ -204,23 +204,25 @@
   // The default contrast is either affected by how our theme is applied or there really is a problem
   // as noted by this github issue
   .mat-mdc-raised-button.mat-primary {
-    --mdc-protected-button-label-text-color: #{mat.m2-get-contrast-color-from-palette($primary, 500)};
+    --mat-button-protected-label-text-color: #{mat.m2-get-contrast-color-from-palette($primary, 500)};
   }
 
   .mat-mdc-unelevated-button.mat-primary {
-    --mdc-filled-button-label-text-color: #{mat.m2-get-contrast-color-from-palette($primary, 500)};
+    --mat-button-filled-label-text-color: #{mat.m2-get-contrast-color-from-palette($primary, 500)};
   }
 
   .mat-mdc-fab.mat-primary, .mat-mdc-mini-fab.mat-primary {
-    --mat-mdc-fab-color: #{mat.m2-get-contrast-color-from-palette($primary, 500)};
+    --mat-fab-foreground-color: #{mat.m2-get-contrast-color-from-palette($primary, 500)};
+    --mat-fab-small-foreground-color: #{mat.m2-get-contrast-color-from-palette($primary, 500)};
   }
 
   .mat-mdc-fab.mat-accent, .mat-mdc-mini-fab.mat-accent {
-    --mat-mdc-fab-color: #{mat.m2-get-contrast-color-from-palette($accent, 500)};
+    --mat-fab-foreground-color: #{mat.m2-get-contrast-color-from-palette($accent, 500)};
+    --mat-fab-small-foreground-color: #{mat.m2-get-contrast-color-from-palette($accent, 500)};
   }
 
   .mat-mdc-dialog-container {
-    --mdc-dialog-supporting-text-color: #{mat.m2-get-color-from-palette($foreground, text)};
+    --mat-dialog-supporting-text-color: #{mat.m2-get-color-from-palette($foreground, text)};
   }
 
   body {

@@ -15,24 +15,25 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { DOCUMENT, ɵparseCookieValue as parseCookieValue, NgIf, NgFor } from "@angular/common";
+import { ɵparseCookieValue as parseCookieValue, NgIf, NgFor } from "@angular/common";
 import {
-   AfterViewChecked,
-   AfterViewInit,
-   ChangeDetectorRef,
-   Component,
-   ElementRef,
-   EventEmitter,
-   Inject,
-   Input,
-   NgZone,
-   OnChanges,
-   OnDestroy,
-   OnInit,
-   Output, Renderer2,
-   SecurityContext,
-   SimpleChanges,
-   ViewChild
+  AfterViewChecked,
+  AfterViewInit,
+  ChangeDetectorRef,
+  Component,
+  ElementRef,
+  EventEmitter,
+  Inject,
+  Input,
+  NgZone,
+  OnChanges,
+  OnDestroy,
+  OnInit,
+  Output, Renderer2,
+  SecurityContext,
+  SimpleChanges,
+  ViewChild,
+  DOCUMENT
 } from "@angular/core";
 import { DomSanitizer, SafeResourceUrl } from "@angular/platform-browser";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";

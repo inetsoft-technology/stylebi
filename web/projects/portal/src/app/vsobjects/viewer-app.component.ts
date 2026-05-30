@@ -15,30 +15,31 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { DOCUMENT, NgIf, NgFor } from "@angular/common";
+import { NgIf, NgFor } from "@angular/common";
 import { HttpClient, HttpParams } from "@angular/common/http";
 import {
-   AfterContentInit,
-   AfterViewChecked,
-   AfterViewInit,
-   ChangeDetectorRef,
-   Component,
-   ElementRef,
-   EventEmitter,
-   HostListener,
-   Inject,
-   Injector,
-   Input,
-   NgZone,
-   OnDestroy,
-   OnInit,
-   Optional,
-   Output,
-   QueryList,
-   Renderer2,
-   TemplateRef,
-   ViewChild,
-   ViewChildren, ViewContainerRef
+  AfterContentInit,
+  AfterViewChecked,
+  AfterViewInit,
+  ChangeDetectorRef,
+  Component,
+  ElementRef,
+  EventEmitter,
+  HostListener,
+  Inject,
+  Injector,
+  Input,
+  NgZone,
+  OnDestroy,
+  OnInit,
+  Optional,
+  Output,
+  QueryList,
+  Renderer2,
+  TemplateRef,
+  ViewChild,
+  ViewChildren, ViewContainerRef,
+  DOCUMENT
 } from "@angular/core";
 import { DomSanitizer, SafeStyle, Title } from "@angular/platform-browser";
 import { Router } from "@angular/router";

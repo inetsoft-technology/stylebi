@@ -15,9 +15,10 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { DOCUMENT, NgFor } from "@angular/common";
+import { NgFor } from "@angular/common";
 import {
-   AfterViewInit, Component, ElementRef, HostBinding, Inject, Input, NgZone
+  AfterViewInit, Component, ElementRef, HostBinding, Inject, Input, NgZone,
+  DOCUMENT
 } from "@angular/core";
 import {
    DEFAULT_ANCHOR, LEFT_INVALID_ANCHOR, PHYSICAL_VIEW_TYPE_COLUMN

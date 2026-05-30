@@ -15,12 +15,13 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { DOCUMENT, NgFor, NgClass } from "@angular/common";
+import { NgFor, NgClass } from "@angular/common";
 import { HttpClient } from "@angular/common/http";
 import {
-   Component, Input, Output, EventEmitter, ElementRef, ViewChild,
-   NgZone, OnDestroy, OnInit, Renderer2, AfterViewInit, Inject, OnChanges, AfterViewChecked,
-   SimpleChanges, HostListener
+  Component, Input, Output, EventEmitter, ElementRef, ViewChild,
+  NgZone, OnDestroy, OnInit, Renderer2, AfterViewInit, Inject, OnChanges, AfterViewChecked,
+  SimpleChanges, HostListener,
+  DOCUMENT
 } from "@angular/core";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { ConnectionMadeEventInfo } from "jsplumb";

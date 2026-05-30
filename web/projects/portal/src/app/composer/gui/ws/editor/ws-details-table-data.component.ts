@@ -15,26 +15,27 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { DOCUMENT, NgFor, NgClass, NgIf, NgStyle, AsyncPipe } from "@angular/common";
+import { NgFor, NgClass, NgIf, NgStyle, AsyncPipe } from "@angular/common";
 import { HttpParams } from "@angular/common/http";
 import {
-   AfterContentInit,
-   ChangeDetectionStrategy,
-   ChangeDetectorRef,
-   Component,
-   ElementRef,
-   EventEmitter,
-   HostListener,
-   Inject,
-   Input,
-   NgZone,
-   OnChanges,
-   OnDestroy,
-   Output,
-   Renderer2,
-   SimpleChange,
-   SimpleChanges,
-   ViewChild
+  AfterContentInit,
+  ChangeDetectionStrategy,
+  ChangeDetectorRef,
+  Component,
+  ElementRef,
+  EventEmitter,
+  HostListener,
+  Inject,
+  Input,
+  NgZone,
+  OnChanges,
+  OnDestroy,
+  Output,
+  Renderer2,
+  SimpleChange,
+  SimpleChanges,
+  ViewChild,
+  DOCUMENT
 } from "@angular/core";
 import { UntypedFormControl, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";

@@ -15,24 +15,25 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { DOCUMENT, NgIf, NgFor, NgClass } from "@angular/common";
+import { NgIf, NgFor, NgClass } from "@angular/common";
 import {
-   AfterContentInit,
-   AfterViewChecked,
-   Component,
-   ElementRef,
-   EventEmitter,
-   HostListener,
-   Inject,
-   Input,
-   NgZone,
-   OnChanges,
-   OnDestroy,
-   OnInit,
-   Output,
-   Renderer2,
-   SimpleChanges,
-   ViewChild
+  AfterContentInit,
+  AfterViewChecked,
+  Component,
+  ElementRef,
+  EventEmitter,
+  HostListener,
+  Inject,
+  Input,
+  NgZone,
+  OnChanges,
+  OnDestroy,
+  OnInit,
+  Output,
+  Renderer2,
+  SimpleChanges,
+  ViewChild,
+  DOCUMENT
 } from "@angular/core";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { Subscription } from "rxjs";

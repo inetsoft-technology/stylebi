@@ -15,18 +15,19 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { DOCUMENT, NgIf, NgFor } from "@angular/common";
+import { NgIf, NgFor } from "@angular/common";
 import {
-   ChangeDetectorRef,
-   Component,
-   ElementRef,
-   EventEmitter,
-   Inject,
-   Input,
-   OnInit,
-   Output,
-   Renderer2,
-   ViewChild
+  ChangeDetectorRef,
+  Component,
+  ElementRef,
+  EventEmitter,
+  Inject,
+  Input,
+  OnInit,
+  Output,
+  Renderer2,
+  ViewChild,
+  DOCUMENT
 } from "@angular/core";
 import { NgbTooltip } from "@ng-bootstrap/ng-bootstrap";
 import { GuiTool } from "../../common/util/gui-tool";

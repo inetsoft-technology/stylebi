@@ -16,6 +16,20 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+import { TestBed } from "@angular/core/testing";
+import { provideNgReflectAttributes } from "@angular/core";
+
+// Angular 20 stopped producing the legacy `ng-reflect-*` attributes by default.
+// Many existing tests assert against those attributes, so we register the
+// `provideNgReflectAttributes()` EnvironmentProviders into every TestBed module
+// configuration to opt back into the legacy behavior in dev/test mode only.
+const _originalConfigureTestingModule = TestBed.configureTestingModule.bind(TestBed);
+TestBed.configureTestingModule = function(moduleDef: any) {
+   moduleDef = moduleDef ?? {};
+   moduleDef.providers = [provideNgReflectAttributes(), ...(moduleDef.providers ?? [])];
+   return _originalConfigureTestingModule(moduleDef);
+} as typeof TestBed.configureTestingModule;
+
 // Fix VSViewsheet ↔ VSObjectContainer circular dependency.
 //
 // Both components import each other in their @Component.imports arrays. In Jest's CommonJS
