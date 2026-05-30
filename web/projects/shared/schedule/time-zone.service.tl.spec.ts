@@ -249,7 +249,9 @@ describe("TimeZoneService", () => {
       // Steps to reproduce: N/A via dropdown; possible when opening tasks with legacy/saved timeZone.
       // NOTE: This test documents a known defect — the implementation does NOT
       // handle invalid timezone IDs and toLocaleString() throws RangeError.
-      // Skipped because Vitest 4 dropped it.fails support.
+      // Known defect: no error handling for invalid timezone IDs. it.skip preserves
+      // the test documentation; change to it.fails once @angular/build:unit-test properly
+      // reports it.fails tests in TL test suites.
       it.skip("[Risk 3] does not throw for an invalid IANA timezone ID (no error handling)", () => {
          expect(() => service.calculateTimezoneOffset("Invalid/Zone")).not.toThrow();
       });

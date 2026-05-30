@@ -334,8 +334,9 @@ describe("ScheduleUsersService", () => {
       // ssoEnable is declared in the service but ngOnDestroy() never calls ssoEnable.complete()
       // Steps to reproduce: N/A — lifecycle defect verified by unit test only; no user-visible
       // symptom under normal EM/Portal navigation.
-      // Skipped: Vitest 4 dropped it.fails. The test documents a known defect —
-      // ngOnDestroy does not call ssoEnable.complete().
+      // Known defect: ngOnDestroy does not call ssoEnable.complete(). it.skip preserves
+      // the test documentation; change to it.fails once @angular/build:unit-test properly
+      // reports it.fails tests in TL test suites.
       it.skip("[Risk 3] ssoEnable BehaviorSubject is not completed in ngOnDestroy", () => {
          let completed = false;
          service.ssoEnable.subscribe({ complete: () => (completed = true) });

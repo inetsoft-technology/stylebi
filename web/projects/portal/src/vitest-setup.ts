@@ -22,7 +22,7 @@ import { ComponentFixture, ComponentFixtureAutoDetect, TestBed } from "@angular/
 
 // A no-op standalone directive used as a placeholder for undefined dep slots caused by
 // circular ESM imports. Angular's TestBed will accept this without crashing.
-@Directive({ selector: "ng-circular-dep-placeholder", standalone: true })
+@Directive({ selector: "[ngCircularDepPlaceholder]", standalone: true })
 class _CircularDepPlaceholder {}
 
 // Mock ResizeObserver for components that use the resize-event shared library.

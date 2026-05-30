@@ -636,7 +636,7 @@ describe("Aesthetic Pane Unit Test", () => {
    }));
 
    //Bug #20801
-   it("color pane should be auto closed", () => new Promise<void>((done) => {
+   it("color pane should be auto closed", () => new Promise<void>((resolve, reject) => {
       let aggr = createMockChartAggregateRef("id");
       aggr.colorFrame = mockStaticColorModel();
       bindingModel.yfields = [aggr];
@@ -658,16 +658,24 @@ describe("Aesthetic Pane Unit Test", () => {
       colorEditIcon.click();
       fixture.detectChanges();
 
+      // Fixed-dropdown renders asynchronously after the click triggers a setTimeout in the
+      // component. Use real setTimeout to wait for the DOM to update, but route assertion
+      // failures through reject() so they surface as test failures rather than unhandled
+      // promise rejections.
       setTimeout(() => {
-         let fixedDropdown = document.getElementsByTagName("fixed-dropdown")[0];
-         let colorBtn: any = fixedDropdown.querySelector(".color-picker-palette button[style='background-color: rgb(98, 166, 64);']");
-         colorBtn.dispatchEvent(new Event("mousedown"));
-         fixture.detectChanges();
+         try {
+            let fixedDropdown = document.getElementsByTagName("fixed-dropdown")[0];
+            let colorBtn: any = fixedDropdown.querySelector(".color-picker-palette button[style='background-color: rgb(98, 166, 64);']");
+            colorBtn.dispatchEvent(new Event("mousedown"));
+            fixture.detectChanges();
 
-         setTimeout(() => {
-            expect(openChanged).toHaveBeenCalledWith(false);
-            done();
-         }, 50);
+            setTimeout(() => {
+               try {
+                  expect(openChanged).toHaveBeenCalledWith(false);
+                  resolve();
+               } catch(e) { reject(e); }
+            }, 50);
+         } catch(e) { reject(e); }
       }, 50);
    }));
 
