@@ -95,7 +95,9 @@ let createVSActionModel: () => ViewsheetActionModel = () => {
    };
 };
 
-describe("simple schedule dialog component unit case test", function() {
+// Both tests in this suite are .skip; mark the describe .skip so Vitest 4
+// doesn't fail with "No test found in suite".
+describe.skip("simple schedule dialog component unit case test", function() {
    let modalService: any;
    let simpleDialog: SimpleScheduleDialog;
    let fixture: ComponentFixture<SimpleScheduleDialog>;

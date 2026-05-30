@@ -137,7 +137,8 @@
             ],
             "setupFiles": [
               "vitest-bootstrap.ts",
-              "projects/portal/src/vitest-setup.ts"
+              "projects/portal/src/vitest-setup.ts",
+              "projects/portal/src/vitest-setup-tl.ts"
             ],
             "reporters": [
               "default",

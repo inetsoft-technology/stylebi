@@ -13,7 +13,6 @@
     "noPropertyAccessFromIndexSignature": false,
     "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true,
-    "skipLibCheck": true,
     "sourceMap": true,
     "declaration": false,
     "disableSizeLimit": true,

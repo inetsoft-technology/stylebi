@@ -58,7 +58,9 @@ class WSAssemblyThumbnailTest {
    variable: WSVariableAssembly;
 }
 
-describe("WSAssemblyThumbnail Tests", () => {
+// All tests in this suite are currently .skip; mark the describe .skip so
+// Vitest 4 doesn't fail with "No test found in suite".
+describe.skip("WSAssemblyThumbnail Tests", () => {
    let dialogService: any;
 
    beforeEach(() => {

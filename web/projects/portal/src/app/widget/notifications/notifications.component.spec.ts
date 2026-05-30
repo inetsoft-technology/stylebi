@@ -20,7 +20,9 @@ import { ComponentFixture, TestBed, waitForAsync } from "@angular/core/testing";
 import { NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { NotificationsComponent } from "./notifications.component";
 
-describe("NotificationsComponent Integration Tests", () => {
+// All tests in this suite are currently skipped; the surrounding suite is
+// marked .skip so Vitest 4 doesn't fail with "No test found in suite".
+describe.skip("NotificationsComponent Integration Tests", () => {
    beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [

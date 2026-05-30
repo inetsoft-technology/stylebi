@@ -66,7 +66,9 @@ class TestApp {
    mockObject: VSChartModel = TestUtils.createMockVSChartModel("Chart1");
 }
 
-describe("VSChart Tests", () => {
+// All tests in this suite are currently .skip; mark the describe .skip so
+// Vitest 4 doesn't fail with "No test found in suite".
+describe.skip("VSChart Tests", () => {
    let chartService: any;
    let dialogService: any;
    let adhocFilterService: any;

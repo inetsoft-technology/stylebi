@@ -171,11 +171,9 @@ describe("Selection List Cell Test", () => {
          ]
       }).compileComponents();
       fixture = TestBed.createComponent(SelectionListCell);
-      fixture.whenStable().then(() => {
-         selectionListCell = <SelectionListCell>fixture.componentInstance;
-         selectionListCell.selectionValue = createModel();
-         fixture.detectChanges();
-      });
+      selectionListCell = <SelectionListCell>fixture.componentInstance;
+      selectionListCell.selectionValue = createModel();
+      fixture.detectChanges();
    }));
 
    // Bug #10494 make sure selectionlist show text value properly.

@@ -134,15 +134,20 @@ describe("AiAssistantService", () => {
 
    // ── setContextType ────────────────────────────────────────────────────────────
 
-   it.each([
+   // it.each() does not currently work with the zone.js vitest-patch; expand
+   // into individual it() calls instead.
+   const setContextTypeCases: ReadonlyArray<readonly [string, string]> = [
       ["VSChart",      ContextType.CHART],
       ["VSCrosstab",   ContextType.CROSSTAB],
       ["VSCalcTable",  ContextType.FREEHAND],
       ["VSTable",      ContextType.TABLE],
-   ])("setContextType(%s) sets contextType to %s", (objectType, expected) => {
-      service.setContextType(objectType);
-      expect(service.getContextField("contextType")).toBe(expected);
-   });
+   ];
+   for(const [objectType, expected] of setContextTypeCases) {
+      it(`setContextType(${objectType}) sets contextType to ${expected}`, () => {
+         service.setContextType(objectType);
+         expect(service.getContextField("contextType")).toBe(expected);
+      });
+   }
 
    it("setContextType with unknown type does not set contextType", () => {
       service.setContextType("VSGauge");

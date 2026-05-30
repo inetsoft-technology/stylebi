@@ -2,6 +2,7 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "outDir": "./out-tsc/spec",
+    "skipLibCheck": true,
     "types": [
       "vitest/globals",
       "node"
@@ -10,7 +11,6 @@
   "include": [
     "projects/**/*.tl.spec.ts",
     "projects/**/*.d.ts",
-    "setup-vitest.ts",
     "mocks/**/*.ts"
   ]
 }
