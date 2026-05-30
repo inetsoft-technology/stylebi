@@ -212,11 +212,13 @@
   }
 
   .mat-mdc-fab.mat-primary, .mat-mdc-mini-fab.mat-primary {
-    --mat-mdc-fab-color: #{mat.m2-get-contrast-color-from-palette($primary, 500)};
+    --mat-fab-foreground-color: #{mat.m2-get-contrast-color-from-palette($primary, 500)};
+    --mat-fab-small-foreground-color: #{mat.m2-get-contrast-color-from-palette($primary, 500)};
   }
 
   .mat-mdc-fab.mat-accent, .mat-mdc-mini-fab.mat-accent {
-    --mat-mdc-fab-color: #{mat.m2-get-contrast-color-from-palette($accent, 500)};
+    --mat-fab-foreground-color: #{mat.m2-get-contrast-color-from-palette($accent, 500)};
+    --mat-fab-small-foreground-color: #{mat.m2-get-contrast-color-from-palette($accent, 500)};
   }
 
   .mat-mdc-dialog-container {
