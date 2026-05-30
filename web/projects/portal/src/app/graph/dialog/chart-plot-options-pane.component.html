@@ -97,136 +97,106 @@
 
    <fieldset *ngIf="model.showValuesVisible || model.stackValuesVisible || model.explodedPieVisible || model.showReferenceLineVisible || model.keepElementInPlotVisible || model.polygonColorVisible || model.showPointsVisible || model.applyAestheticsToSourceVisible || model.barCornerRadiusVisible || model.nodeCornerRadiusVisible">
       <legend>_#(Plot Options)</legend>
-      <div class="shell-form-row--field row">
-         <div class="checkbox col-auto" *ngIf="model.showValuesVisible">
-            <div class="form-check">
-               <input type="checkbox" class="form-check-input" [(ngModel)]="model.showValues"
-                      [ngModelOptions]="{standalone: true}"
-                      [disabled]="!model.showValuesEnabled" id="showValues">
-               <label class="form-check-label" for="showValues">
-                  _#(Show Values)
-               </label>
-            </div>
+      <div class="shell-form-row shell-form-row--checkbox gap-3">
+         <div class="form-check mb-0" *ngIf="model.showValuesVisible">
+            <input type="checkbox" class="form-check-input" [(ngModel)]="model.showValues"
+                   [ngModelOptions]="{standalone: true}"
+                   [disabled]="!model.showValuesEnabled" id="showValues">
+            <label class="form-check-label" for="showValues">_#(Show Values)</label>
          </div>
-         <div class="checkbox col-auto" *ngIf="model.stackValuesVisible">
-            <div class="form-check">
-               <input type="checkbox" class="form-check-input" [(ngModel)]="model.stackValues"
-                      [ngModelOptions]="{standalone: true}" id="stackValue"
-                      [disabled]="!model.showValues || !model.stackValuesEnabled">
-               <label class="form-check-label" for="stackValue">
-                  _#(Stack Value)
-               </label>
-            </div>
+         <div class="form-check mb-0" *ngIf="model.stackValuesVisible">
+            <input type="checkbox" class="form-check-input" [(ngModel)]="model.stackValues"
+                   [ngModelOptions]="{standalone: true}" id="stackValue"
+                   [disabled]="!model.showValues || !model.stackValuesEnabled">
+            <label class="form-check-label" for="stackValue">_#(Stack Value)</label>
          </div>
-         <div class="checkbox col-auto" *ngIf="model.explodedPieVisible">
-            <div class="form-check">
-               <input type="checkbox" class="form-check-input" id="explodePie"
-                      [(ngModel)]="model.explodedPie"
-                      [ngModelOptions]="{standalone: true}">
-               <label class="form-check-label" for="explodePie">
-                  _#(Explode Pie)
-               </label>
-            </div>
+         <div class="form-check mb-0" *ngIf="model.explodedPieVisible">
+            <input type="checkbox" class="form-check-input" id="explodePie"
+                   [(ngModel)]="model.explodedPie"
+                   [ngModelOptions]="{standalone: true}">
+            <label class="form-check-label" for="explodePie">_#(Explode Pie)</label>
          </div>
-         <div class="checkbox col-auto form-floating" *ngIf="model.explodedPieVisible">
-           <input class="form-control number-input pie-ratio"
-                  type="number" min="0.1" max="1" step="0.05"
-                  placeholder="_#(Pie Ratio)"
-                  [(ngModel)]="model.pieRatio"
-                  formControlName="pieRatio">
+         <div class="form-floating" *ngIf="model.explodedPieVisible">
+           <number-stepper formControlName="pieRatio"
+                           (valueChange)="model.pieRatio = $event"
+                           [min]="0.1" [max]="1" [step]="0.05"
+                           [inputmode]="'decimal'">
+           </number-stepper>
            <label><span>_#(Pie Ratio)</span></label>
          </div>
-         <div class="checkbox col-auto" *ngIf="model.showReferenceLineVisible">
-            <div class="form-check">
-               <input type="checkbox" class="form-check-input" id="showRef"
-                      [(ngModel)]="model.showReferenceLine"
-                      [ngModelOptions]="{standalone: true}">
-               <label class="form-check-label" for="showRef">
-                  _#(Show Reference Line)
-               </label>
-            </div>
+         <div class="form-check mb-0" *ngIf="model.showReferenceLineVisible">
+            <input type="checkbox" class="form-check-input" id="showRef"
+                   [(ngModel)]="model.showReferenceLine"
+                   [ngModelOptions]="{standalone: true}">
+            <label class="form-check-label" for="showRef">
+               _#(Show Reference Line)
+            </label>
          </div>
-         <div class="checkbox col-auto" *ngIf="model.keepElementInPlotVisible">
-            <div class="form-check">
-               <input type="checkbox" class="form-check-input" id="keepInPlot"
-                      [(ngModel)]="model.keepElementInPlot"
-                      [ngModelOptions]="{standalone: true}">
-               <label class="form-check-label" for="keepInPlot">
-                  _#(Keep Element in Plot)
-               </label>
-            </div>
+         <div class="form-check mb-0" *ngIf="model.keepElementInPlotVisible">
+            <input type="checkbox" class="form-check-input" id="keepInPlot"
+                   [(ngModel)]="model.keepElementInPlot"
+                   [ngModelOptions]="{standalone: true}">
+            <label class="form-check-label" for="keepInPlot">
+               _#(Keep Element in Plot)
+            </label>
          </div>
-         <div class="checkbox col-auto" *ngIf="model.polygonColorVisible">
-            <div class="form-check">
-               <input type="checkbox" class="form-check-input"
-                      [(ngModel)]="model.polygonColor" id="showColorInMap"
-                      [ngModelOptions]="{standalone: true}">
-               <label class="form-check-label" for="showColorInMap">
-                  _#(Always Show Color in Map)
-               </label>
-            </div>
+         <div class="form-check mb-0" *ngIf="model.polygonColorVisible">
+            <input type="checkbox" class="form-check-input"
+                   [(ngModel)]="model.polygonColor" id="showColorInMap"
+                   [ngModelOptions]="{standalone: true}">
+            <label class="form-check-label" for="showColorInMap">
+               _#(Always Show Color in Map)
+            </label>
          </div>
-         <div class="checkbox col-auto" *ngIf="model.showPointsVisible">
-            <div class="form-check">
-               <input type="checkbox" class="form-check-input"
-                      [(ngModel)]="model.showPoints" id="showPoints"
-                      [ngModelOptions]="{standalone: true}">
-               <label class="form-check-label" for="showPoints">
-                  {{model.showPointsLabel}}
-               </label>
-            </div>
+         <div class="form-check mb-0" *ngIf="model.showPointsVisible">
+            <input type="checkbox" class="form-check-input"
+                   [(ngModel)]="model.showPoints" id="showPoints"
+                   [ngModelOptions]="{standalone: true}">
+            <label class="form-check-label" for="showPoints">
+               {{model.showPointsLabel}}
+            </label>
          </div>
-         <div class="checkbox col-auto"
+         <div class="form-check mb-0"
               *ngIf="model.showPointsVisible && model.showPointsLabel == '_#(Show Lines)'">
-            <div class="form-check">
-               <input type="checkbox" class="form-check-input"
-                      [(ngModel)]="model.oneLine" id="oneLine"
-                      [disabled]="!model.showPoints"
-                      [ngModelOptions]="{standalone: true}">
-               <label class="form-check-label" for="oneLine">
-                  _#(As One Line)
-               </label>
-            </div>
+            <input type="checkbox" class="form-check-input"
+                   [(ngModel)]="model.oneLine" id="oneLine"
+                   [disabled]="!model.showPoints"
+                   [ngModelOptions]="{standalone: true}">
+            <label class="form-check-label" for="oneLine">
+               _#(As One Line)
+            </label>
          </div>
-         <div class="checkbox col-auto" *ngIf="model.includeParentLabelsVisible">
-            <div class="form-check">
-               <input type="checkbox" class="form-check-input"
-                      [(ngModel)]="model.includeParentLabels" id="includeParents"
-                      [ngModelOptions]="{standalone: true}">
-               <label class="form-check-label" for="includeParents">
-                  _#(Include Parent Labels)
-               </label>
-            </div>
+         <div class="form-check mb-0" *ngIf="model.includeParentLabelsVisible">
+            <input type="checkbox" class="form-check-input"
+                   [(ngModel)]="model.includeParentLabels" id="includeParents"
+                   [ngModelOptions]="{standalone: true}">
+            <label class="form-check-label" for="includeParents">
+               _#(Include Parent Labels)
+            </label>
          </div>
-         <div class="checkbox col-auto" *ngIf="model.applyAestheticsToSourceVisible">
-            <div class="form-check">
-               <input type="checkbox" class="form-check-input"
-                      [(ngModel)]="model.applyAestheticsToSource" id="includeParents"
-                      [ngModelOptions]="{standalone: true}">
-               <label class="form-check-label" for="includeParents">
-                  _#(Apply Aesthetics to Source Nodes)
-               </label>
-            </div>
+         <div class="form-check mb-0" *ngIf="model.applyAestheticsToSourceVisible">
+            <input type="checkbox" class="form-check-input"
+                   [(ngModel)]="model.applyAestheticsToSource" id="includeParents"
+                   [ngModelOptions]="{standalone: true}">
+            <label class="form-check-label" for="includeParents">
+               _#(Apply Aesthetics to Source Nodes)
+            </label>
          </div>
-         <div class="checkbox col-auto" *ngIf="model.fillGapWithDashVisible">
-            <div class="form-check">
-               <input type="checkbox" class="form-check-input"
-                      [(ngModel)]="model.fillGapWithDash" id="fillGapWithDash"
-                      [ngModelOptions]="{standalone: true}">
-               <label class="form-check-label" for="fillGapWithDash">
-                 _#(Fill Missing Data with Dash Line)
-               </label>
-            </div>
+         <div class="form-check mb-0" *ngIf="model.fillGapWithDashVisible">
+            <input type="checkbox" class="form-check-input"
+                   [(ngModel)]="model.fillGapWithDash" id="fillGapWithDash"
+                   [ngModelOptions]="{standalone: true}">
+            <label class="form-check-label" for="fillGapWithDash">
+               _#(Fill Missing Data with Dash Line)
+            </label>
          </div>
-         <div class="checkbox col-auto" *ngIf="model.smoothLinesVisible">
-            <div class="form-check">
-               <input type="checkbox" class="form-check-input"
-                      [(ngModel)]="model.smoothLines" id="smoothLines"
-                      [ngModelOptions]="{standalone: true}">
-               <label class="form-check-label" for="smoothLines">
-                 _#(Smooth Lines)
-               </label>
-            </div>
+         <div class="form-check mb-0" *ngIf="model.smoothLinesVisible">
+            <input type="checkbox" class="form-check-input"
+                   [(ngModel)]="model.smoothLines" id="smoothLines"
+                   [ngModelOptions]="{standalone: true}">
+            <label class="form-check-label" for="smoothLines">
+               _#(Smooth Lines)
+            </label>
          </div>
          <div class="col-auto form-floating" *ngIf="model.treeLayoutVisible">
             <custom-select class="tree-layout" id="treeLayout"
@@ -334,7 +304,7 @@
    <fieldset *ngIf="model.fillTimeVisible">
       <legend>Time-Series</legend>
       <div class="shell-form-row--field row">
-         <div class="checkbox col-auto">
+         <div class="form-check mb-0">
             <div class="form-check">
                <input type="checkbox" class="form-check-input" id="fillTime"
                       [(ngModel)]="model.fillTimeGap"
@@ -370,7 +340,7 @@
    <fieldset *ngIf="model.webMapVisible">
       <legend>Web Map</legend>
       <div class="shell-form-row--field row">
-         <div class="checkbox col-auto">
+         <div class="form-check mb-0">
             <div class="form-check">
                <input type="checkbox" class="form-check-input" id="webMap"
                       [(ngModel)]="model.webMap"

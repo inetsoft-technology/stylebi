@@ -80,7 +80,7 @@
         </div>
       </div>
       <div class="shell-form-row shell-form-row--checkbox">
-        <div class="col-auto">
+        <div class="col">
           <div class="form-check">
             <input type="checkbox" class="form-check-input" [(ngModel)]="model.hideNotifications"
                    [ngModelOptions]="{standalone: true}" id="hideNotifications"/>
@@ -90,44 +90,40 @@
           </div>
         </div>
       </div>
-      <div class="shell-form-row shell-form-row--checkbox">
-        <div class="col-auto">
-          <div class="form-check">
-            <input type="checkbox" class="form-check-input" [(ngModel)]="model.promptForParams"
-                 [ngModelOptions]="{standalone: true}" id="prompt"/>
-            <label class="form-check-label" for="prompt">
-              _#(Prompt for Parameters)
-            </label>
-          </div>
+      <div class="shell-form-row shell-form-row--checkbox gap-2">
+        <div class="form-check form-switch mb-0">
+          <input class="form-check-input" type="checkbox" role="switch"
+               [ngModelOptions]="{standalone: true}" [(ngModel)]="model.promptForParams"
+               id="prompt"/>
+          <label class="form-check-label" for="prompt">
+            _#(Prompt for Parameters)
+          </label>
         </div>
-        <div class="col-auto">
-          <button type="button" class="btn btn-default" [disabled]="!model.promptForParams"
-                  (click)="showViewsheetParametersDialog()">
-            _#(Customize)
-          </button>
-        </div>
+        <button type="button" class="btn btn-default" [disabled]="!model.promptForParams"
+                (click)="showViewsheetParametersDialog()">
+          _#(Customize)
+        </button>
       </div>
       <div class="row shell-form-row--field form-check viewsheet-options-pane__size-row">
-        <div class="form-floating col-6">
-          <div class="input-group">
-            <input type="number" class="form-control" formControlName="maxRows"
-                   [(ngModel)]="model.maxRows"
-                   [class.is-invalid]="form.controls['maxRows'].errors"/>
-            <span class="invalid-feedback">The sample size should be non-zero integer.</span>
-          </div>
-          <label><span>_#(Design mode sample data size)</span></label>
+        <div class="col-6 d-flex flex-column">
+          <label class="form-label">_#(Design mode sample data size)</label>
+          <number-stepper formControlName="maxRows"
+                          (valueChange)="model.maxRows = $event"
+                          [invalid]="!!form.controls['maxRows'].errors">
+          </number-stepper>
+          <span class="invalid-feedback d-block" *ngIf="form.controls['maxRows'].errors">
+            The sample size should be non-zero integer.
+          </span>
         </div>
-        <div class="col-6 d-flex justify-content-center">
-          <div class="stepper-float-label">
-            <span class="stepper-float-label__text">_#(Snap Grid)</span>
-            <number-stepper formControlName="snapGrid" [min]="1" [step]="5"
-                            (valueChange)="model.snapGrid = $event"
-                            [invalid]="!!form.controls['snapGrid'].errors">
-            </number-stepper>
-            <span class="invalid-feedback d-block" *ngIf="form.controls['snapGrid'].errors">
-              _#(composer.vs.options.snapGrid)
-            </span>
-          </div>
+        <div class="col-6 d-flex flex-column">
+          <label class="form-label">_#(Snap Grid)</label>
+          <number-stepper formControlName="snapGrid" [min]="1" [step]="5"
+                          (valueChange)="model.snapGrid = $event"
+                          [invalid]="!!form.controls['snapGrid'].errors">
+          </number-stepper>
+          <span class="invalid-feedback d-block" *ngIf="form.controls['snapGrid'].errors">
+            _#(composer.vs.options.snapGrid)
+          </span>
         </div>
       </div>
     </fieldset>
@@ -153,10 +149,11 @@
           </div>
         </div>
       </div>
-      <div class="shell-form-row shell-form-row--checkbox">
+      <div class="shell-form-row shell-form-row--checkbox align-items-end gap-3">
         <div class="col-auto">
-          <div class="form-check">
-            <input class="form-check-input" type="checkbox" [ngModelOptions]="{standalone: true}"
+          <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" role="switch"
+                 [ngModelOptions]="{standalone: true}"
                  [(ngModel)]="model.serverSideUpdate"
                  (ngModelChange)="changeServerSideUpdate()"
                  [disabled]="!model.autoRefreshEnabled"
@@ -167,17 +164,15 @@
             </label>
           </div>
         </div>
-        <div class="col form-floating">
-          <div class="input-group">
-            <input type="number" class="form-control" formControlName="touchInterval"
-                   [class.is-invalid]="form.controls['touchInterval'].errors"
-                   placeholder="_#(Refresh Interval)"
-                   [(ngModel)]="model.touchInterval"/>
-            <span class="invalid-feedback">
-              _#(composer.vs.options.refreshIntervalValid)
-            </span>
-          </div>
-          <label><span>_#(Refresh Interval [seconds])</span></label>
+        <div class="col-auto d-flex flex-column">
+          <label class="form-label">_#(Refresh Interval [seconds])</label>
+          <number-stepper formControlName="touchInterval"
+                          (valueChange)="model.touchInterval = $event"
+                          [invalid]="!!form.controls['touchInterval'].errors">
+          </number-stepper>
+          <span class="invalid-feedback d-block" *ngIf="form.controls['touchInterval'].errors">
+            _#(composer.vs.options.refreshIntervalValid)
+          </span>
         </div>
       </div>
       <div class="row shell-form-row--field">

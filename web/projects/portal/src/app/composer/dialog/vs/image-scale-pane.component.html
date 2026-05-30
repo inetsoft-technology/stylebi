@@ -52,37 +52,37 @@
           </div>
           <fieldset class="m-3" [disabled]="model.maintainAspectRatio">
             <div class="shell-form-row--field form-row">
-              <div class="col form-floating">
-                <div class="input-group">
-                  <input type="number" class="form-control" id="top" [(ngModel)]="model.top"
-                         [disabled]="animateGif" placeholder="_#(Top)" (change)="reloadImg()">
-                  <div class="input-group-text">_#(px)</div>
-                </div>
-                <label><span>_#(Top)</span></label>
+              <div class="col d-flex flex-column">
+                <label class="form-label">_#(Top)</label>
+                <number-stepper [(ngModel)]="model.top"
+                                [disabled]="animateGif"
+                                [unit]="'px'"
+                                (valueChange)="reloadImg()">
+                </number-stepper>
               </div>
-              <div class="col form-floating">
-                <div class="input-group px-input-group">
-                  <input type="number" class="form-control" id="left" [(ngModel)]="model.left"
-                         [disabled]="animateGif" placeholder="_#(Left)" (change)="reloadImg()">
-                  <div class="input-group-text">_#(px)</div>
-                </div>
-                <label><span>_#(Left)</span></label>
+              <div class="col d-flex flex-column">
+                <label class="form-label">_#(Left)</label>
+                <number-stepper [(ngModel)]="model.left"
+                                [disabled]="animateGif"
+                                [unit]="'px'"
+                                (valueChange)="reloadImg()">
+                </number-stepper>
               </div>
-              <div class="col form-floating">
-                <div class="input-group px-input-group">
-                  <input type="number" class="form-control" id="bottom" [(ngModel)]="model.bottom"
-                         [disabled]="animateGif" placeholder="_#(Bottom)" (change)="reloadImg()">
-                  <div class="input-group-text">_#(px)</div>
-                </div>
-                <label><span>_#(Bottom)</span></label>
+              <div class="col d-flex flex-column">
+                <label class="form-label">_#(Bottom)</label>
+                <number-stepper [(ngModel)]="model.bottom"
+                                [disabled]="animateGif"
+                                [unit]="'px'"
+                                (valueChange)="reloadImg()">
+                </number-stepper>
               </div>
-              <div class="col form-floating">
-                <div class="input-group px-input-group">
-                  <input type="number" class="form-control" id="right" [(ngModel)]="model.right"
-                         [disabled]="animateGif" placeholder="_#(Right)" (change)="reloadImg()">
-                  <div class="input-group-text">_#(px)</div>
-                </div>
-                <label><span>_#(Right)</span></label>
+              <div class="col d-flex flex-column">
+                <label class="form-label">_#(Right)</label>
+                <number-stepper [(ngModel)]="model.right"
+                                [disabled]="animateGif"
+                                [unit]="'px'"
+                                (valueChange)="reloadImg()">
+                </number-stepper>
               </div>
             </div>
           </fieldset>

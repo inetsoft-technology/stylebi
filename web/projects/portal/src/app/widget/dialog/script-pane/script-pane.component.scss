@@ -80,8 +80,7 @@
 }
 
 .script-pane__tree-surface {
-  background-color: var(--inet-list-bg-color);
-  border-color: var(--inet-list-border-color);
+  border: 1px solid var(--inet-list-border-color);
   border-radius: var(--inet-radius-md);
   overflow: hidden;
 }

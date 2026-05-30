@@ -29,7 +29,7 @@
           </number-stepper>
         </div>
       </div>
-      <div class="col layout-col-offset">
+      <div class="col">
         <div class="d-flex flex-column">
           <label class="form-label">_#(Left)</label>
           <number-stepper formControlName="left"
@@ -39,8 +39,8 @@
           </number-stepper>
         </div>
       </div>
-      <div class="col layout-col-offset">
-        <div class="d-flex flex-column" *ngIf="!isGroup && !isViewsheet">
+      <div class="col" *ngIf="!isGroup && !isViewsheet">
+        <div class="d-flex flex-column">
           <label class="form-label">_#(Width)</label>
           <number-stepper formControlName="width"
                           (valueChange)="model.width = $event"
@@ -49,8 +49,8 @@
           </number-stepper>
         </div>
       </div>
-      <div class="col layout-col-offset">
-        <div class="d-flex flex-column" *ngIf="!isGroup && !isViewsheet">
+      <div class="col" *ngIf="!isGroup && !isViewsheet">
+        <div class="d-flex flex-column">
           <label class="form-label">_#(Height)</label>
           <number-stepper formControlName="height"
                           (valueChange)="model.height = $event"
@@ -59,18 +59,20 @@
           </number-stepper>
         </div>
       </div>
-      <div class="col layout-col-offset" *ngIf="showTitleHeight">
+    </div>
+    <div class="row shell-form-row--field" *ngIf="showTitleHeight || showCellHeight">
+      <div class="col" *ngIf="showTitleHeight">
         <div class="d-flex flex-column">
-          <label class="form-label">_#(Title Height)</label>
+          <label class="form-label fw-bold mt-2">_#(Title Height)</label>
           <number-stepper formControlName="titleHeight"
                           (valueChange)="model.titleHeight = $event"
                           [invalid]="!!form.controls['titleHeight'].errors">
           </number-stepper>
         </div>
       </div>
-      <div class="col layout-col-offset" *ngIf="showCellHeight">
+      <div class="col" *ngIf="showCellHeight">
         <div class="d-flex flex-column">
-          <label class="form-label">_#(Cell Height)</label>
+          <label class="form-label fw-bold mt-2">_#(Cell Height)</label>
           <number-stepper formControlName="cellHeight"
                           (valueChange)="model.cellHeight = $event"
                           [invalid]="!!form.controls['cellHeight'].errors">

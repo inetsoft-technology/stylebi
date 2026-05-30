@@ -19,21 +19,21 @@
   <fieldset>
     <legend>_#(Options)</legend>
     <div class="row shell-form-row--field">
-      <div class="col pe-0 d-flex flex-column" [ngClass]="{ 'has-error' : !form.controls['length'].valid}">
+      <div class="col-auto pe-0 d-flex flex-column" [ngClass]="{ 'has-error' : !form.controls['length'].valid}">
           <label class="form-label">_#(Slider Size)</label>
           <number-stepper formControlName="length" [min]="1"
                           (valueChange)="model.length = $event"
                           [invalid]="!form.controls['length'].valid">
           </number-stepper>
       </div>
-      <div class="col-auto ps-1" *ngIf="!dataModel.composite && rangeOptions.length > 1">
+      <div class="col-auto ps-1 align-self-end" *ngIf="!dataModel.composite && rangeOptions.length > 1">
         <custom-select [options]="rangeSelectOptions"
                        [ngModelOptions]="{standalone: true}"
                        [(ngModel)]="model.rangeType"
                        ariaLabel="_#(Range Type)">
         </custom-select>
       </div>
-      <div class="col-auto" *ngIf="dataModel.composite">_#(periods)</div>
+      <div class="col-auto align-self-end" *ngIf="dataModel.composite">_#(periods)</div>
     </div>
     <div *ngIf="form.controls['length'].errors" class="shell-alert shell-alert--danger">
       _#(viewer.viewsheet.timeSlider.sliderSizeWarning)

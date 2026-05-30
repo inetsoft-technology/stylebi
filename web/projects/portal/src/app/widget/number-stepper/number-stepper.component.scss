@@ -20,7 +20,7 @@
 :host {
    display: inline-flex;
    align-items: stretch;
-   align-self: stretch;
+   align-self: flex-start;
    width: max-content;
 }
 

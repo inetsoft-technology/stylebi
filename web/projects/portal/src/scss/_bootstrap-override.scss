@@ -228,10 +228,6 @@ label {
 }
 
 /* fieldset related */
-.container-fluid > fieldset > legend {
-  margin-left: -($grid-gutter-width * 0.5);
-}
-
 :not(.modal-body) > fieldset:first-child {
   margin-top: .5rem;
 }

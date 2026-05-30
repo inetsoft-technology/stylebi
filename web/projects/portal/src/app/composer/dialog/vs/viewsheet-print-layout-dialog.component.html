@@ -37,51 +37,43 @@
             </div>
           </div>
           <div class="form-row shell-form-row--field" *ngIf="model.paperSize === '(Custom Size)'">
-            <div class="form-floating col">
-              <input type="number" class="form-control" [(ngModel)]="model.customWidth"
-                     formControlName="customWidth" placeholder="_#(Width)"
-                     [class.is-invalid]="formPrint.controls.customWidth.errors?.required || formPrint.controls.customWidth.errors?.positiveIntegerInRange"/>
-              <label><span>_#(Width)</span></label>
-              <span class="invalid-feedback"
-                    *ngIf="formPrint.controls.customWidth.errors?.required">
+            <div class="col d-flex flex-column">
+              <label class="form-label">_#(Width)</label>
+              <number-stepper formControlName="customWidth"
+                              (valueChange)="model.customWidth = $event"
+                              [invalid]="!!(formPrint.controls.customWidth.errors?.required || formPrint.controls.customWidth.errors?.positiveIntegerInRange)">
+              </number-stepper>
+              <span class="invalid-feedback d-block" *ngIf="formPrint.controls.customWidth.errors?.required">
                 _#(layout.device.printWidthCheck)
               </span>
-              <span class="invalid-feedback"
-                    *ngIf="formPrint.controls.customWidth.errors?.positiveIntegerInRange">
+              <span class="invalid-feedback d-block" *ngIf="formPrint.controls.customWidth.errors?.positiveIntegerInRange">
                 _#(viewer.viewsheet.layout.screenValid)
               </span>
             </div>
-            <div class="form-floating col">
-              <input type="number" class="form-control" [(ngModel)]="model.customHeight"
-                     formControlName="customHeight" placeholder="_#(Height)"
-                     [class.is-invalid]="formPrint.controls.customHeight.errors?.required || formPrint.controls.customHeight.errors?.positiveIntegerInRange"/>
-              <label><span>_#(Height)</span></label>
-              <span class="invalid-feedback"
-                    *ngIf="formPrint.controls.customHeight.errors?.required">
+            <div class="col d-flex flex-column">
+              <label class="form-label">_#(Height)</label>
+              <number-stepper formControlName="customHeight"
+                              (valueChange)="model.customHeight = $event"
+                              [invalid]="!!(formPrint.controls.customHeight.errors?.required || formPrint.controls.customHeight.errors?.positiveIntegerInRange)">
+              </number-stepper>
+              <span class="invalid-feedback d-block" *ngIf="formPrint.controls.customHeight.errors?.required">
                 _#(layout.device.printHeightCheck)
               </span>
-              <span class="invalid-feedback"
-                    *ngIf="formPrint.controls.customHeight.errors?.positiveIntegerInRange">
+              <span class="invalid-feedback d-block" *ngIf="formPrint.controls.customHeight.errors?.positiveIntegerInRange">
                 _#(viewer.viewsheet.layout.screenValid)
               </span>
             </div>
           </div>
-          <div class="shell-form-row--field form-row">
-            <div class="col-auto">
-              <div class="form-check">
-                <input type="checkbox" class="form-check-input" [(ngModel)]="model.landscape"
-                     [ngModelOptions]="{standalone: true}" id="landscape"/>
-                <label class="form-check-label" for="landscape">
-                  _#(Landscape)
-                </label>
-              </div>
+          <div class="shell-form-row--field form-row align-items-center gap-4">
+            <div class="form-check mb-0">
+              <input type="checkbox" class="form-check-input"
+                   [(ngModel)]="model.landscape"
+                   [ngModelOptions]="{standalone: true}" id="landscape"/>
+              <label class="form-check-label" for="landscape">
+                _#(Landscape)
+              </label>
             </div>
-          </div>
-        </fieldset>
-        <fieldset>
-          <legend>_#(Units)</legend>
-          <div class="shell-form-row--field form-row">
-            <div class="form-floating col-auto">
+            <div class="form-floating">
               <custom-select class="unit_select_id"
                              [ngModel]="model.units"
                              [ngModelOptions]="{standalone: true}"
@@ -96,12 +88,15 @@
         <fieldset>
           <legend>_#(Options)</legend>
           <div class="shell-form-row--field form-row">
-            <div class="form-floating col-12">
-              <input class="form-control" type="number" [(ngModel)]="model.numberingStart"
-                     formControlName="numberingStart" placeholder="_#(viewer.viewsheet.layout.pageProp.startPageIndex)"
-                     [class.is-invalid]="formPrint.controls.numberingStart?.errors">
-              <label><span>_#(viewer.viewsheet.layout.pageProp.startAtPageIndex)</span></label>
-              <span class="invalid-feedback">_#(viewer.viewsheet.layout.pageProp.startPageIndexValid)</span>
+            <div class="col-12 d-flex flex-column">
+              <label class="form-label">_#(viewer.viewsheet.layout.pageProp.startAtPageIndex)</label>
+              <number-stepper formControlName="numberingStart"
+                              (valueChange)="model.numberingStart = $event"
+                              [invalid]="!!formPrint.controls.numberingStart?.errors">
+              </number-stepper>
+              <span class="invalid-feedback d-block" *ngIf="formPrint.controls.numberingStart?.errors">
+                _#(viewer.viewsheet.layout.pageProp.startPageIndexValid)
+              </span>
             </div>
           </div>
           <div class="shell-form-row--field form-row">

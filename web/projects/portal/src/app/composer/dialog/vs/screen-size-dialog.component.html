@@ -40,16 +40,23 @@
       </div>
     </div>
     <div class="shell-form-row--field row">
-      <label class="col-sm-2 col-2">_#(Width):</label>
-      <div class="col-sm-3 col-3">
-        <input type="number" min="0" max="2147483647" formControlName="widthRangeStart" class="form-control" [(ngModel)]="model.minWidth">
+      <label class="col-auto align-self-center">_#(Width):</label>
+      <div class="col-auto">
+        <number-stepper formControlName="widthRangeStart"
+                        [min]="0" [max]="2147483647"
+                        [unit]="'px'"
+                        (valueChange)="model.minWidth = $event">
+        </number-stepper>
       </div>
-      <label class="col-sm-1 col-1" style="padding-top: 7px;">_#(to)</label>
-      <div class="col-sm-3 col-3">
-        <input type="number" min="0" max="2147483647" formControlName="widthRangeEnd" class="form-control" [(ngModel)]="model.maxWidth">
+      <label class="col-auto align-self-center">_#(to)</label>
+      <div class="col-auto">
+        <number-stepper formControlName="widthRangeEnd"
+                        [min]="0" [max]="2147483647"
+                        [unit]="'px'"
+                        (valueChange)="model.maxWidth = $event">
+        </number-stepper>
       </div>
-      <label class="col-sm-3 col-3" style="padding-top: 7px;">_#(px)</label>
-      <div class="col-10 offset-2">
+      <div class="col-12">
         <div *ngIf="form.controls['widthRangeStart'].errors && form.controls['widthRangeStart'].errors['required']" class="shell-alert shell-alert--danger">
           <strong>_#(Error)</strong> _#(layout.device.screenFromWidthCheck)
         </div>

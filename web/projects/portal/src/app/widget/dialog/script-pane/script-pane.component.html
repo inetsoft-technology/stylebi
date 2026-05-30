@@ -74,7 +74,9 @@
     </div>
     <div class="script-pane__editor-shell" [class.stretch-empty]="fullContainer" outOfZone
          (onKeydown)="blockKeys($event)" (contextmenu)="rightClick($event)">
-      <div #scriptEditorContainer class="script-pane__editor script-pane__editor-surface" [class.full-container]="fullContainer">
+      <div #scriptEditorContainer class="script-pane__editor script-pane__editor-surface"
+           [class.full-container]="fullContainer"
+           [class.grayed-out-field]="disabled">
         <textarea #scriptEditor></textarea>
       </div>
     </div>
