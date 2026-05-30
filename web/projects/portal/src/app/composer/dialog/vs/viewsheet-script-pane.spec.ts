@@ -81,6 +81,10 @@ describe("Viewsheet script pane Test", () => {
             on: vi.fn(),
             toTextArea: vi.fn(),
             getLine: vi.fn(() => ""),
+            // ScriptPane.ngAfterViewInit() schedules a setTimeout that calls
+            // codemirrorInstance.refresh(); missing it caused a post-teardown
+            // TypeError when the timer fired after the fixture was destroyed.
+            refresh: vi.fn(),
          }))
       };
 
@@ -111,6 +115,20 @@ describe("Viewsheet script pane Test", () => {
 
    //Bug #18853 should select onRefresh by default
    it("check ui on script pane", () => {
+      // In jsdom, scriptEditorContainer.getClientRects() returns an empty list,
+      // so ScriptPane.isEditorElementDisplayed() is false and ngAfterViewInit
+      // schedules a setTimeout that calls codemirrorInstance.refresh(). The
+      // fixture is destroyed (which nulls codemirrorInstance) before the timer
+      // fires, leading to a "Cannot read properties of null (reading 'refresh')"
+      // unhandled error. Force getClientRects() to return a non-empty list so
+      // the post-init refresh is never scheduled.
+      vi.spyOn(Element.prototype, "getClientRects").mockImplementation(() => ({
+         length: 1,
+         0: new DOMRect(0, 0, 100, 100),
+         item: () => new DOMRect(0, 0, 100, 100),
+         [Symbol.iterator]: function*() { yield new DOMRect(0, 0, 100, 100); }
+      }) as any);
+
       fixture = TestBed.createComponent(ViewsheetScriptPane);
       viewsheetScriptPane = <ViewsheetScriptPane> fixture.componentInstance;
       viewsheetScriptPane.scriptTreeModel = createTreeModel();

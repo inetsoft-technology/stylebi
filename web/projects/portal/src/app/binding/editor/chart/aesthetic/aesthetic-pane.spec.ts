@@ -30,6 +30,7 @@ import { TestUtils } from "../../../../common/test/test-utils";
 import { StyleConstants } from "../../../../common/util/style-constants";
 import { ColorPane } from "../../../../widget/color-picker/cp-color-pane.component";
 import { RecentColorService } from "../../../../widget/color-picker/recent-color.service";
+import { FixedDropdownComponent } from "../../../../widget/fixed-dropdown/fixed-dropdown.component";
 import { FixedDropdownDirective } from "../../../../widget/fixed-dropdown/fixed-dropdown.directive";
 import { AestheticInfo } from "../../../data/chart/aesthetic-info";
 import { AllChartAggregateRef } from "../../../data/chart/all-chart-aggregate-ref";
@@ -66,6 +67,23 @@ describe("Aesthetic Pane Unit Test", () => {
          fillRect: vi.fn(),
          measureText: (_text: string) => ({ width: 0 })
       } as any);
+
+      // The FixedDropdownComponent's `style.opacity` HostBinding returns 0
+      // during ngOnInit, then 1 after `dropdownBounds` is set (synchronously
+      // when the service opens it). With dev-mode change detection this trips
+      // NG0100 (ExpressionChangedAfterItHasBeenCheckedError) as an unhandled
+      // error after tests in this suite that open the dropdown. Replace the
+      // getter on the prototype with a constant so the binding is stable.
+      Object.defineProperty(FixedDropdownComponent.prototype, "_opacity", {
+         get() { return 1; },
+         configurable: true
+      });
+   });
+
+   afterEach(() => {
+      // Clean up any overlay elements appended to document.body so DOM queries
+      // in later tests don't pick up stale dropdowns.
+      document.querySelectorAll("fixed-dropdown").forEach(el => el.remove());
    });
    let createMockChartAggregateRef: (name?: string) => ChartAggregateRef = (name?: string) => {
       let aggRef = TestUtils.createMockChartAggregateRef(name);

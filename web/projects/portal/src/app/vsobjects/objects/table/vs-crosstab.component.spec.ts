@@ -16,7 +16,8 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { CommonModule } from "@angular/common";
-import { HttpClient, HttpClientModule } from "@angular/common/http";
+import { HttpClient } from "@angular/common/http";
+import { HttpClientTestingModule } from "@angular/common/http/testing";
 import { NO_ERRORS_SCHEMA, Optional } from "@angular/core";
 import { ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
@@ -139,7 +140,11 @@ describe("VSCrosstab", () => {
       };
       pagingControlService = {
          scrollTop: vi.fn(() => observableOf({})),
-         scrollLeft: vi.fn(() => observableOf({}))
+         scrollLeft: vi.fn(() => observableOf({})),
+         // base-table subscribes to scrollTop/scrollLeft and immediately invokes
+         // getCurrentAssembly() to filter events for its assembly; without this,
+         // the subscription throws after the test fixture is destroyed.
+         getCurrentAssembly: vi.fn(() => "")
       };
       vsTabService = { };
       vsTabService.tabDeselected = observableOf(null);
@@ -150,7 +155,11 @@ describe("VSCrosstab", () => {
             FormsModule,
             ReactiveFormsModule,
             NgbModule,
-            HttpClientModule,
+            // Replaces HttpClientModule so AppInfoService's startup
+            // loadCurrentOrgInfo() call doesn't make a real HTTP request that
+            // would fail with "Http failure response for ../api/org/info" after
+            // the test completes.
+            HttpClientTestingModule,
             VSCrosstab,
             VSTableCell,
          ],

@@ -16,13 +16,12 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-import { of as observableOf } from "rxjs";
+import { of as observableOf, Subject } from "rxjs";
 import { AssetType } from "../../../../../../shared/data/asset-type";
 import { TestUtils } from "../../../common/test/test-utils";
 import { ComponentTool } from "../../../common/util/component-tool";
 import { Viewsheet } from "../../../composer/data/vs/viewsheet";
 import { TreeNodeModel } from "../../../widget/tree/tree-node-model";
-import { CreateCalcDialog } from "../calculate-dialog/create-calc-dialog.component";
 import { VSBindingTreeActions } from "./vs-binding-tree-actions";
 
 describe("vs binding tree action unit case", () => {
@@ -55,7 +54,14 @@ describe("vs binding tree action unit case", () => {
       let treeActions = new VSBindingTreeActions(viewsheet, selectedNode, [selectedNode],
          dialogService, treeService, modelService, "chart1", null, false);
       let showDialog = vi.spyOn(ComponentTool, "showDialog");
-      showDialog.mockImplementation(() => new CreateCalcDialog(modelService));
+      // Return a plain stub object instead of `new CreateCalcDialog(...)` -
+      // CreateCalcDialog declares `dataType` as a getter, so the production
+      // code's `calcDialog.dataType = "string"` assignment throws
+      // "Cannot set property dataType ... which has only a getter".
+      showDialog.mockImplementation(() => ({
+         aggregateModify: new Subject<any>(),
+         aggregateDelete: new Subject<any>()
+      } as any));
       let col1 = TestUtils.createMockDataRef("state");
       let col2 = TestUtils.createMockDataRef("id");
       col2.dataType = "integer";

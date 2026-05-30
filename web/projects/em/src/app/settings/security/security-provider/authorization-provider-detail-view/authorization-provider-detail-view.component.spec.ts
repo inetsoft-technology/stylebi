@@ -27,6 +27,7 @@ import { MatIconModule } from "@angular/material/icon";
 import { MatInputModule } from "@angular/material/input";
 import { MatSelectModule } from "@angular/material/select";
 import { NoopAnimationsModule } from "@angular/platform-browser/animations";
+import { NEVER, of } from "rxjs";
 import { AppInfoService } from "../../../../../../../shared/util/app-info.service";
 import { AuthorizationProviderDetailViewComponent } from "./authorization-provider-detail-view.component";
 
@@ -57,7 +58,23 @@ describe("AuthorizationProviderDetailViewComponent", () => {
             HttpClientTestingModule,
             AuthorizationProviderDetailViewComponent],
          providers: [
-            AppInfoService
+            {
+               // The real AppInfoService is providedIn:"root" and its constructor
+               // fires loadCurrentOrgInfo() against a live HttpClient + completes
+               // its `currentOrgInfo` BehaviorSubject on destroy. Late HTTP
+               // responses (or other tests' subscriptions) then hit the closed
+               // Subject and surface as ObjectUnsubscribedError. Mock it.
+               provide: AppInfoService,
+               useValue: {
+                  isEnterprise: () => of(false),
+                  isLdapProviderUsed: () => NEVER,
+                  setLdapProviderUsed: () => {},
+                  loadCurrentOrgInfo: () => NEVER,
+                  getCurrentOrgInfo: () => NEVER,
+                  getAllOrgnanizations: () => NEVER,
+                  currentOrgInfo: { subscribe: () => ({ unsubscribe: () => {} }) }
+               }
+            }
          ],
          schemas: [
             NO_ERRORS_SCHEMA

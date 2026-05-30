@@ -21,7 +21,7 @@ import { HttpClientTestingModule, HttpTestingController } from "@angular/common/
 import { ChangeDetectorRef, NO_ERRORS_SCHEMA } from "@angular/core";
 import { ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
-import { NgbModule } from "@ng-bootstrap/ng-bootstrap";
+import { NgbModal, NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { AggregateFormula } from "../../../binding/util/aggregate-formula";
 import { DropDownTestModule } from "../../../common/test/test-module";
 import { NewAggrDialog } from "../../../widget/dialog/new-aggr-dialog/new-aggr-dialog.component";
@@ -77,7 +77,21 @@ describe("Selection Measure Pane Test", () => {
          
          providers: [
             {provide: ChangeDetectorRef, useValue: changeDetectorRef},
-            {provide: DragService, useValue: dragService}
+            {provide: DragService, useValue: dragService},
+            {
+               // Stub NgbModal so the dynamic-combo-box's setTimeout-based formula
+               // editor dialog (fired when EXPRESSION mode is selected) doesn't try
+               // to open against a destroyed injector after the fixture is torn down.
+               provide: NgbModal,
+               useValue: {
+                  open: () => ({
+                     componentInstance: {},
+                     result: new Promise<any>(() => {}),
+                     close: () => {},
+                     dismiss: () => {}
+                  })
+               }
+            }
          ],
          schemas: [ NO_ERRORS_SCHEMA ]
       }).compileComponents();
@@ -104,7 +118,9 @@ describe("Selection Measure Pane Test", () => {
          return request.url === "../vs/dataOutput/selection/columns" && request.params.has("runtimeId");
       });
       expect(requests.length).toBe(1);
-      requests.forEach(request => request.flush({}));
+      // Flush with [] (not {}) so the component's `for(measure of measures)`
+      // iteration doesn't throw "this.measures is not iterable" after the test.
+      requests.forEach(request => request.flush([]));
       expect(measurePane.isAggregateDisabled()).toBeTruthy();
    });
 

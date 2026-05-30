@@ -34,6 +34,7 @@
 (globalThis as any).process ??= {};
 (globalThis as any).process.browser = true;
 
+
 // The zone.js vitest patch wraps `globalThis.vitest.it`, `.describe`, etc.,
 // to run each test inside a `ProxyZone`. The patch is keyed on
 // `context["vitest"]`, so we expose the Vitest test API as `globalThis.vitest`

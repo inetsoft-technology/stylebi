@@ -19,7 +19,7 @@ import { Component } from "@angular/core";
 import { waitForAsync, TestBed } from "@angular/core/testing";
 import { By } from "@angular/platform-browser";
 import { HttpClient } from "@angular/common/http";
-import { BehaviorSubject, Subject } from "rxjs";
+import { NEVER } from "rxjs";
 import { Rectangle } from "../../common/data/rectangle";
 import { ContextProvider } from "../../vsobjects/context-provider.service";
 import { SelectionBoxDirective } from "../../widget/directive/selection-box.directive";
@@ -308,10 +308,14 @@ class TestApp {
 describe("ChartPlotArea Integration Tests", () => {
    let modelService: any;
    let httpService = { get: vi.fn(), post: vi.fn() };
-   let responseObservable = new BehaviorSubject(new Subject());
    const contextProvider = {};
-   httpService.get.mockImplementation(() => responseObservable);
-   httpService.post.mockImplementation(() => responseObservable);
+   // chart-image.directive subscribes to the chart image GET and calls
+   // URL.createObjectURL(response.body). The previous BehaviorSubject<Subject>
+   // emitted a Subject (with no `.body`) which threw an "obj argument must be an
+   // instance of Blob" error after the test fixture was destroyed. Use NEVER so
+   // the subscriber callback is never invoked.
+   httpService.get.mockImplementation(() => NEVER);
+   httpService.post.mockImplementation(() => NEVER);
 
    beforeEach(waitForAsync(() => {
       modelService = {};

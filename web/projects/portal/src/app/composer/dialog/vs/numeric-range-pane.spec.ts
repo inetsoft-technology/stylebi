@@ -19,7 +19,7 @@
 import { NgModule, NO_ERRORS_SCHEMA } from "@angular/core";
 import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormGroup, FormsModule, ReactiveFormsModule } from "@angular/forms";
-import { NgbModule } from "@ng-bootstrap/ng-bootstrap";
+import { NgbModal, NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { TestUtils } from "../../../common/test/test-utils";
 import { MessageDialog } from "../../../widget/dialog/message-dialog/message-dialog.component";
 import { NewAggrDialog } from "../../../widget/dialog/new-aggr-dialog/new-aggr-dialog.component";
@@ -80,7 +80,25 @@ describe("Numeric Range Pane Tests", () => {
             DynamicComboBox,
          ],
          
-         providers: [FixedDropdownService, DropdownStackService],
+         providers: [
+            FixedDropdownService,
+            DropdownStackService,
+            {
+               provide: NgbModal,
+               // Return a stub modal so the dynamic-combo-box's setTimeout-based
+               // formula editor dialog doesn't try to open against a destroyed
+               // injector after the test fixture is torn down. The result promise
+               // is intentionally non-settling so onCommit/onCancel never fire.
+               useValue: {
+                  open: () => ({
+                     componentInstance: {},
+                     result: new Promise<any>(() => {}),
+                     close: () => {},
+                     dismiss: () => {}
+                  })
+               }
+            }
+         ],
          schemas: [ NO_ERRORS_SCHEMA ]
       });
 
