@@ -240,4 +240,4 @@ _patchCircularDeps(YearCalendar, VSCalendar);
 // NOTE: MSW is intentionally NOT started here for the main portal test suite.
 // Under the old Jest setup, setup-jest.ts (which had MSW) was only wired to
 // jest.tl.config.js (the TL test suite), not to the main portal tests.
-// MSW is started in vitest.tl.config.ts's setupFiles for the TL suite instead.
+// MSW is started in vitest-setup-tl.ts's setupFiles for the TL suite instead.

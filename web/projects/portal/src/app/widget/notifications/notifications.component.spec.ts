@@ -22,7 +22,7 @@ import { NotificationsComponent } from "./notifications.component";
 
 // All tests in this suite are currently skipped; the surrounding suite is
 // marked .skip so Vitest 4 doesn't fail with "No test found in suite".
-describe.skip("NotificationsComponent Integration Tests", () => {
+describe("NotificationsComponent Integration Tests", () => {
    beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [

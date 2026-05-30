@@ -55,5 +55,8 @@ export default defineConfig({
       // jest-canvas-mock replacement.
       // Listed first so canvas patches are installed before any test code runs.
       setupFiles: ["vitest-canvas-mock"],
+      // Spec files that contain only it.skip tests (all tests disabled) should not
+      // cause a build failure. These files document known-broken tests.
+      passWithNoTests: true,
    },
 });
