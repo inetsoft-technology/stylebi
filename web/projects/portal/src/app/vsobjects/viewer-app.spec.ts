@@ -287,10 +287,11 @@ describe("ViewerApp Unit Tests", () => {
       };
 
 
-      window.IntersectionObserver = vi.fn().mockImplementation(() => ({
-         observe: () => {},
-         disconnect: () => {}
-      }));
+      (window as any).IntersectionObserver = class IntersectionObserver {
+         observe() {}
+         unobserve() {}
+         disconnect() {}
+      };
 
       TestBed.configureTestingModule({
          imports: [

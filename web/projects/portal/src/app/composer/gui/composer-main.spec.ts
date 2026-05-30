@@ -125,7 +125,11 @@ describe("ComposerMain Unit Tests", () => {
       worksheet = new Worksheet();
       worksheet.label = "ws1";
       worksheet.id = "Worksheet1";
-      window.BroadcastChannel = vi.fn().mockImplementation(() => ({onmessage: () => {}}));
+      (window as any).BroadcastChannel = class BroadcastChannel {
+         onmessage: any = null;
+         postMessage() {}
+         close() {}
+      };
 
       TestBed.configureTestingModule({
          imports: [

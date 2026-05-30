@@ -87,7 +87,7 @@ describe("Column option dialog Test", () => {
 
       expect(okBtn.hasAttribute("disabled")).toBeTruthy();
       expect(warning.textContent).toContain(
-         "_#(viewer.formEditor.minMaxValid) ");
+         "_#(viewer.formEditor.minMaxValid)");
 
       maxDate.value = "2017-10-23";
       maxDate.dispatchEvent(new Event("input"));

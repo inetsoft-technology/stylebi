@@ -33,11 +33,9 @@ import { TimerService } from "../data-tip/timer.service";
 import { VSPopComponentDirective } from "../data-tip/vs-pop-component.directive";
 import { VSSlider } from "./vs-slider.component";
 
-global.ResizeObserver = vi.fn().mockImplementation(() => ({
-   observe: vi.fn(),
-   unobserve: vi.fn(),
-   disconnect: vi.fn()
-}));
+// ResizeObserver is mocked globally in vitest-setup.ts. Avoid replacing it here with a
+// vi.fn() factory because that breaks `new ResizeObserver()` constructor semantics for any
+// other spec running in the same worker (e.g. viewer-app).
 
 describe("VSSlider Unit Tests", () => {
    beforeAll(() => {
@@ -45,11 +43,6 @@ describe("VSSlider Unit Tests", () => {
          font: "",
          measureText: (_text: string) => ({ width: 0 })
       } as any);
-      (global as any).ResizeObserver = vi.fn().mockImplementation(() => ({
-         observe: vi.fn(),
-         unobserve: vi.fn(),
-         disconnect: vi.fn()
-      }));
    });
 
    let stompClient: any;
