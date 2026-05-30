@@ -114,8 +114,11 @@
           <time-instant-value-editor *ngIf="model.type == XSchema.TIME_INSTANT && !model.array"
                                      [(ngModel)]="model.value.value" [ngModelOptions]="{standalone: true}"
                                      class="w-100" (timeChange)="changeValue($event)"></time-instant-value-editor>
-          <input type="number" class="form-control" formControlName="value"
-                 [(ngModel)]="model.value.value" *ngIf="XSchema.isNumericType(model.type) && !model.array">
+          <number-stepper formControlName="value"
+                          (valueChange)="model.value.value = $event"
+                          [inputmode]="'decimal'"
+                          *ngIf="XSchema.isNumericType(model.type) && !model.array">
+          </number-stepper>
           <input type="text" class="form-control" formControlName="value"
                  [(ngModel)]="model.value.value" *ngIf="model.type == XSchema.STRING || model.type == XSchema.CHARACTER && !model.array">
           <label>_#(Value)</label>

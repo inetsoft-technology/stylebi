@@ -107,9 +107,11 @@
                                    [ngModel]="model.field" [fullContainer]="true">
         </time-instant-value-editor>
         <ng-container *ngIf="XSchema.isNumericType(model.type)">
-          <input type="number" class="form-control" formControlName="value"
-                 [class.is-invalid]="!valueControl.valid"
-                 [(ngModel)]="model.field">
+          <number-stepper formControlName="value"
+                          (valueChange)="model.field = $event"
+                          [inputmode]="'decimal'"
+                          [invalid]="!valueControl.valid">
+          </number-stepper>
         </ng-container>
         <ng-container *ngIf="XSchema.isStringType(model.type)">
           <input type="text" class="form-control" formControlName="value"

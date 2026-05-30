@@ -44,10 +44,11 @@
       </div>
     </div>
     <div class="shell-form-row--field row">
-      <div class="col form-floating">
-        <input type="number" min="0" max="10000" id="tableRows" class="form-control"
-               formControlName="rows" placeholder="_#(Rows)">
-        <label><span>_#(Rows)</span></label>
+      <div class="col d-flex flex-column">
+        <label class="form-label">_#(Rows)</label>
+        <number-stepper formControlName="rows" [min]="0" [max]="10000"
+                        [invalid]="!!(form.controls['rows'].errors && !form.controls['rows'].pristine)">
+        </number-stepper>
       </div>
       <div class="col-12">
         <div *ngIf="form.controls['rows'].errors && !form.controls['rows'].pristine"

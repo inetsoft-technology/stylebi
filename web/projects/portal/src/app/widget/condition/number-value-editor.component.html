@@ -15,7 +15,8 @@
   ~ You should have received a copy of the GNU Affero General Public License
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
-<input class="form-control w-100" type="number" min="{{min}}" [(ngModel)]="value"
-       (ngModelChange)="valueChange.emit($event)" (focusout)="updateValue()"
-       (keydown.enter)="$event.stopPropagation()"
-       (keyup.enter)="addValue.emit($event); $event.stopPropagation()"/>
+<number-stepper class="w-100" [min]="min" [(ngModel)]="value"
+                (valueChange)="valueChange.emit($event)"
+                (keydown.enter)="$event.stopPropagation()"
+                (keyup.enter)="addValue.emit($event); $event.stopPropagation()">
+</number-stepper>

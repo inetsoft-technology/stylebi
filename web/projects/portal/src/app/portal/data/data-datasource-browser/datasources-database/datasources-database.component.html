@@ -115,15 +115,15 @@
                   _#(data.databases.enterHostname)
                 </span>
               </div>
-              <div class="shell-form-group form-floating">
-                <input type="number" #portCtrl="ngModel"
-                       name="port"
-                       class="form-control"
-                       [class.is-invalid]="portCtrl.invalid"
-                       [(ngModel)]="database.network.portNumber"
-                       [required]="!isCustom(database.type)">
-                <label><span>_#(Port)</span></label>
-                <span class="invalid-feedback" *ngIf="portCtrl.invalid">
+              <div class="shell-form-group d-flex flex-column">
+                <label class="form-label">_#(Port)</label>
+                <number-stepper name="port"
+                                [(ngModel)]="database.network.portNumber"
+                                [min]="0" [max]="65535"
+                                [invalid]="!database.network.portNumber && !isCustom(database.type)">
+                </number-stepper>
+                <span class="invalid-feedback d-block"
+                      *ngIf="!database.network.portNumber && !isCustom(database.type)">
                   _#(data.databases.enterPort)
                 </span>
               </div>

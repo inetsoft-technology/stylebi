@@ -29,6 +29,7 @@ import {FormsModule} from "@angular/forms";
 import {WidgetDirectivesModule} from "../directive/widget-directives.module";
 import {ImageEditorModule} from "../image-editor/image-editor.module";
 import {TreeModule} from "../tree/tree.module";
+import { NumberStepperModule } from "../number-stepper/number-stepper.module";
 
 @NgModule({
    imports: [
@@ -42,6 +43,7 @@ import {TreeModule} from "../tree/tree.module";
       ImageEditorModule,
       TreeModule,
       ModalHeaderModule,
+      NumberStepperModule,
    ],
    declarations: [
       EditImageDialog,

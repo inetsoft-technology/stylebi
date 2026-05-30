@@ -815,7 +815,7 @@ a:not([href]) {
 .btn.btn-default {
   color: var(--inet-button-default-text-color);
   background-color: var(--inet-button-default-bg-color);
-  border: 1px solid var(--inet-button-default-border-color);
+  border: 1px solid var(--inet-default-border-color);
 
   &:hover:not(:disabled), &:active:not(:disabled),
   &:not(:disabled):not(.disabled):not(.condition-field-combo-toggle.disabled):active,
@@ -824,6 +824,12 @@ a:not([href]) {
     color: var(--inet-button-default-hover-text-color);
     background-color: var(--inet-button-default-hover-bg-color);
     border: 1px solid var(--inet-button-default-hover-border-color);
+  }
+
+  &:disabled, &.disabled {
+    opacity: var(--inet-input-disabled-opacity);
+    cursor: not-allowed;
+    pointer-events: none;
   }
 }
 

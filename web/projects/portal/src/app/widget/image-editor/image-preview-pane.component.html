@@ -38,10 +38,9 @@
     <div class="col row">
       <notifications #notifications [timeout]="5000"></notifications>
       <div class="col-auto">
-        <button type="button" class="btn btn-default" (click)="openUpload()">_#(Upload)
-          <input class="hidden-input col-10" type="file" id="imageInput" name="imageInput"
-                 accept=".jpg,.gif,.png,.svg,.tif,.tiff" (change)="fileChanged($event)" hidden #uploadInput/>
-        </button>
+        <button type="button" class="btn btn-default" (click)="openUpload()">_#(Upload)</button>
+        <input type="file" id="imageInput" name="imageInput"
+               accept=".jpg,.gif,.png,.svg,.tif,.tiff" (change)="fileChanged($event)" hidden #uploadInput/>
       </div>
       <div class="col-auto">
         <button type="button" class="btn btn-default" (click)="deleteUpload()"

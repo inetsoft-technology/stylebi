@@ -50,20 +50,22 @@
         </div>
       </div>
       <div *ngIf="form.controls['rowCount']" class="shell-form-row--field row">
-        <div class="col form-floating">
-          <input type="number" class="form-control" min="0" formControlName="rowCount"
-                 placeholder="_#(Row Count)">
-          <label><span>_#(Row Count)</span></label>
+        <div class="col d-flex flex-column">
+          <label class="form-label">_#(Row Count)</label>
+          <number-stepper formControlName="rowCount" [min]="0"
+                          [invalid]="!!form.controls['rowCount'].errors">
+          </number-stepper>
         </div>
         <div *ngIf="form.controls['rowCount'].errors" class="shell-alert shell-alert--danger w-100">
           _#(viewer.worksheet.Grouping.RowPositiveNumber)
         </div>
       </div>
       <div class="shell-form-row--field row">
-        <div class="col form-floating">
-          <input type="number" class="form-control" min="0" formControlName="maxRows"
-                 placeholder="_#(Max Rows)">
-          <label><span>_#(Max Rows)</span></label>
+        <div class="col d-flex flex-column">
+          <label class="form-label">_#(Max Rows)</label>
+          <number-stepper formControlName="maxRows" [min]="0"
+                          [invalid]="!!form.controls['maxRows'].errors">
+          </number-stepper>
         </div>
       </div>
       <div *ngIf="form.controls['maxRows'].errors" class="shell-alert shell-alert--danger">

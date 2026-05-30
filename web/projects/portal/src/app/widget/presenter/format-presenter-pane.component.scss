@@ -21,6 +21,13 @@
     right: 5px;
 }
 
+.format-control {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--inet-text-color);
+}
+
 .format-css-pane-body {
     min-width: 200px;
 }

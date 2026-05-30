@@ -124,9 +124,10 @@
                                *ngIf="model.type == XSchema.BOOLEAN">
                 </custom-select>
 
-                <input type="number" class="form-control"
-                       placeholder="_#(Value for Parameter)" formControlName="alphaNumericValue"
-                       *ngIf="XSchema.isNumericType(model.type)">
+                <number-stepper formControlName="alphaNumericValue"
+                               [inputmode]="'decimal'"
+                               *ngIf="XSchema.isNumericType(model.type)">
+                </number-stepper>
                 <input type="text" class="form-control"
                        placeholder="_#(Value for Parameter)"
                        formControlName="alphaNumericValue"
