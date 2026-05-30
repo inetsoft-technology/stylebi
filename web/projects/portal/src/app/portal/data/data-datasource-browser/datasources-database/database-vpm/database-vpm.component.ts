@@ -39,7 +39,7 @@ import { VPMTestComponent } from "./vpm-test/vpm-test.component";
 import { VPMLookupComponent } from "./vpm-lookup/vpm-lookup.component";
 import { VPMHiddenColumnsComponent } from "./vpm-hidden-columns/vpm-hidden-columns.component";
 import { VPMConditionsComponent } from "./vpm-conditions/vpm-conditions.component";
-import { NgSwitch, NgSwitchCase } from "@angular/common";
+
 
 const VPM_URI: string = "../api/data/vpm/";
 const VPM_MODELS_URI: string = "../api/data/vpm/models";
@@ -56,7 +56,7 @@ enum VPMTabs {
 @Component({
     templateUrl: "database-vpm.component.html",
     styleUrls: ["../database-physical-model/database-model-pane.scss", "database-vpm.component.scss"],
-    imports: [NgSwitch, NgSwitchCase, VPMConditionsComponent, VPMHiddenColumnsComponent, VPMLookupComponent, VPMTestComponent, NgbCollapse]
+    imports: [VPMConditionsComponent, VPMHiddenColumnsComponent, VPMLookupComponent, VPMTestComponent, NgbCollapse]
 })
 export class DatabaseVPMComponent implements OnInit, OnDestroy {
    @ViewChild("conditionPane") conditionPane: any;

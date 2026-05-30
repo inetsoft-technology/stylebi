@@ -38,14 +38,14 @@ import { ViewsheetDeviceLayoutDialog } from "./viewsheet-device-layout-dialog.co
 import { GenericSelectableList } from "../../../widget/generic-selectable-list/generic-selectable-list.component";
 import { LargeFormFieldComponent } from "../../../widget/large-form-field/large-form-field.component";
 import { OutOfZoneDirective } from "../../../widget/directive/out-of-zone.directive";
-import { NgIf } from "@angular/common";
+
 
 @Component({
     encapsulation: ViewEncapsulation.None,
     selector: "screens-pane",
     templateUrl: "screens-pane.component.html",
     styleUrls: ["screens-pane.component.scss"],
-    imports: [NgIf, OutOfZoneDirective, FormsModule, ReactiveFormsModule, LargeFormFieldComponent, GenericSelectableList, ViewsheetDeviceLayoutDialog, ViewsheetPrintLayoutDialog]
+    imports: [OutOfZoneDirective, FormsModule, ReactiveFormsModule, LargeFormFieldComponent, GenericSelectableList, ViewsheetDeviceLayoutDialog, ViewsheetPrintLayoutDialog]
 })
 export class ScreensPane implements OnInit, OnChanges {
    @Input() model: ScreensPaneModel;

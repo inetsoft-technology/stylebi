@@ -43,7 +43,7 @@ import { VSChart } from "../../../vsobjects/objects/chart/vs-chart.component";
 import { VSCalendar } from "../../../vsobjects/objects/calendar/vs-calendar.component";
 import { InteractContainerDirective } from "../../../widget/interact/interact-container.directive";
 import { FormsModule } from "@angular/forms";
-import { NgIf } from "@angular/common";
+
 
 const GET_MESSAGE_LEVELS_URI = "../api/composer/console-dialog/get-message-levels/";
 
@@ -51,7 +51,7 @@ const GET_MESSAGE_LEVELS_URI = "../api/composer/console-dialog/get-message-level
     selector: "wizard-preview-container",
     templateUrl: "./wizard-preview-container.component.html",
     styleUrls: ["./wizard-preview-container.component.scss"],
-    imports: [NgIf, FormsModule, InteractContainerDirective, VSCalendar, VSChart, VSCrosstab, VSGauge, VSRangeSlider, VSSelection, VSTable, VSText, StatusBar, MiniToolbar, ConsoleDialogComponent]
+    imports: [FormsModule, InteractContainerDirective, VSCalendar, VSChart, VSCrosstab, VSGauge, VSRangeSlider, VSSelection, VSTable, VSText, StatusBar, MiniToolbar, ConsoleDialogComponent]
 })
 export class WizardPreviewContainer extends AbstractActionComponent {
    vsObject: VSObjectModel;

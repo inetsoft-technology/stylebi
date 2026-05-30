@@ -16,14 +16,14 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, EventEmitter, Input, Output } from "@angular/core";
-import { NgIf, NgFor } from "@angular/common";
+
 import { ModalHeaderComponent } from "../../../../../../../../widget/modal-header/modal-header.component";
 
 @Component({
     selector: "browse-field-values-dialog",
     templateUrl: "./browse-field-values-dialog.component.html",
     styleUrls: ["./browse-field-values-dialog.component.scss"],
-    imports: [ModalHeaderComponent, NgIf, NgFor]
+    imports: [ModalHeaderComponent]
 })
 export class BrowseFieldValuesDialogComponent {
    @Input() title: string;

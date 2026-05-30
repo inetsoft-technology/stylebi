@@ -1,54 +1,60 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <div>
-   <!--toolbar-->
+  <!--toolbar-->
   <div class="toolbar">
     <a (click)="reset()">
-       <i class="reset-icon icon-size-small" title="_#(Reset to Default)"></i>
+      <i class="reset-icon icon-size-small" title="_#(Reset to Default)"></i>
     </a>
     <div class="ms-2">
       <i class="submit-icon icon-size-small" aria-hidden="true" (click)="applyClick()" title="_#(Apply)"></i>
     </div>
-   </div>
+  </div>
 
-   <div class="content m-1" *ngIf="isPaneVisible()">
-     <i class="chevron-circle-arrow-left-icon icon-size-small me-2"
+  @if (isPaneVisible()) {
+    <div class="content m-1">
+      <i class="chevron-circle-arrow-left-icon icon-size-small me-2"
         [class.fade]="currIndex <= 0"
-        aria-hidden="true" (click)="showPrevious()"></i>
-
+      aria-hidden="true" (click)="showPrevious()"></i>
       <!--display eight color editors-->
-      <span class="shape-pane m-1" *ngFor="let i of currentViewIndices">
-         <shape-combo-box *ngIf="type == 'shapetype'" [index]="i"
-            [(shapeStr)]="shapeModel.shapes[i]" (shapeChanged)="changeShape($event, i)">
-         </shape-combo-box>
-
-         <line-combo-box *ngIf="type == 'linetype'" [index]="i"
-            [(line)]="lineModel.lines[i]" (lineChanged)="changeShape($event, i)">
-         </line-combo-box>
-
-         <texture-combo-box *ngIf="type == 'texturetype'"
-            [(texture)]="textureModel.textures[i]" [index]="i"
-            (textureChanged)="changeShape($event, i)">
-         </texture-combo-box>
-      </span>
-
+      @for (i of currentViewIndices; track i) {
+        <span class="shape-pane m-1">
+          @if (type == 'shapetype') {
+            <shape-combo-box [index]="i"
+              [(shapeStr)]="shapeModel.shapes[i]" (shapeChanged)="changeShape($event, i)">
+            </shape-combo-box>
+          }
+          @if (type == 'linetype') {
+            <line-combo-box [index]="i"
+              [(line)]="lineModel.lines[i]" (lineChanged)="changeShape($event, i)">
+            </line-combo-box>
+          }
+          @if (type == 'texturetype') {
+            <texture-combo-box
+              [(texture)]="textureModel.textures[i]" [index]="i"
+              (textureChanged)="changeShape($event, i)">
+            </texture-combo-box>
+          }
+        </span>
+      }
       <i class="chevron-circle-arrow-right-icon icon-size-small ms-2"
-         [class.fade]="currIndex >= this.getNumItems() - NUM_EDITORS"
-         aria-hidden="true" (click)="showNext()"></i>
-   </div>
+        [class.fade]="currIndex >= this.getNumItems() - NUM_EDITORS"
+      aria-hidden="true" (click)="showNext()"></i>
+    </div>
+  }
 </div>

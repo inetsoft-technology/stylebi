@@ -23,7 +23,7 @@ import { FontInfo } from "../../common/data/format-info-model";
 import { FontService } from "../services/font.service";
 import { DebounceService } from "../services/debounce.service";
 import { FormsModule } from "@angular/forms";
-import { NgFor } from "@angular/common";
+
 
 let scrollPos: any;
 
@@ -31,7 +31,7 @@ let scrollPos: any;
     selector: "font-pane",
     templateUrl: "font-pane.component.html",
     styleUrls: ["font-pane.component.scss"],
-    imports: [NgFor, FormsModule]
+    imports: [FormsModule]
 })
 export class FontPane implements OnInit, OnChanges {
    @Input() fontModel: FontInfo;

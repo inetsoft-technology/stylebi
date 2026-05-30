@@ -61,7 +61,7 @@ import { TouchScrollDirective } from "../../../widget/scroll/touch-scroll.direct
 import { DefaultFocusDirective } from "../../../widget/directive/default-focus.directive";
 import { FormsModule } from "@angular/forms";
 import { OutOfZoneDirective } from "../../../widget/directive/out-of-zone.directive";
-import { NgIf, NgFor, NgClass, NgStyle } from "@angular/common";
+import { NgClass, NgStyle } from "@angular/common";
 
 const CHART_DETAIL_COLWIDTH_URI: string = "../api/vs/showdetails/colwidth";
 const CHART_DATA_COLWIDTH_URI: string = "../api/vs/showdata/colwidth";
@@ -71,7 +71,7 @@ const INITIAL_COLUMN_WIDTH: number = 80;
     selector: "preview-table",
     templateUrl: "preview-table.component.html",
     styleUrls: ["preview-table.component.scss"],
-    imports: [NgIf, NgFor, OutOfZoneDirective, NgClass, FixedDropdownDirective, FormsModule, DefaultFocusDirective, TouchScrollDirective, NgStyle, NgbTooltip, NotificationsComponent, FormattingPane]
+    imports: [OutOfZoneDirective, NgClass, FixedDropdownDirective, FormsModule, DefaultFocusDirective, TouchScrollDirective, NgStyle, NgbTooltip, NotificationsComponent, FormattingPane]
 })
 export class PreviewTableComponent implements OnDestroy, AfterViewChecked, AfterContentChecked {
    @Input() sortEnabled: boolean = false;

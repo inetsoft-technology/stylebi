@@ -19,14 +19,14 @@ import { Component, EventEmitter, Input, Output } from "@angular/core";
 import {
    QueryFieldModel
 } from "../../../../../../model/datasources/database/query/query-field-model";
-import { NgFor } from "@angular/common";
+
 import { FormsModule } from "@angular/forms";
 
 @Component({
     selector: "select-query-field-pane",
     templateUrl: "select-query-field-pane.component.html",
     styleUrls: ["select-query-field-pane.component.scss"],
-    imports: [FormsModule, NgFor]
+    imports: [FormsModule]
 })
 export class SelectQueryFieldPaneComponent {
    @Input() fields: QueryFieldModel[];

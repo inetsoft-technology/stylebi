@@ -28,7 +28,7 @@ import { Tool } from "../../../../../../shared/util/tool";
 import { FileFormatPane } from "../file-format-pane.component";
 import { EmailPane } from "../../../widget/email-dialog/email-pane.component";
 import { EnterSubmitDirective } from "../../../widget/directive/enter-submit.directive";
-import { NgIf } from "@angular/common";
+
 import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
 
 const CHECK_EMAIL_VALID_URI: string = "../api/vs/check-email-valid";
@@ -38,18 +38,17 @@ const MAIL_HISTORY_KEY = LocalStorage.MAIL_HISTORY_KEY;
     selector: "email-dialog",
     templateUrl: "email-dialog.component.html",
     imports: [
-        ModalHeaderComponent,
-        NgIf,
-        EnterSubmitDirective,
-        NgbNav,
-        NgbNavItem,
-        NgbNavLink,
-        NgbNavLinkBase,
-        NgbNavContent,
-        EmailPane,
-        FileFormatPane,
-        NgbNavOutlet,
-    ]
+    ModalHeaderComponent,
+    EnterSubmitDirective,
+    NgbNav,
+    NgbNavItem,
+    NgbNavLink,
+    NgbNavLinkBase,
+    NgbNavContent,
+    EmailPane,
+    FileFormatPane,
+    NgbNavOutlet
+]
 })
 export class EmailDialog implements OnInit {
    @Input() model: EmailDialogModel;

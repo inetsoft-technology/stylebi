@@ -24,13 +24,13 @@ import { SortOptions } from "../../../../../../../shared/util/sort/sort-options"
 import { Tool } from "../../../../../../../shared/util/tool";
 import { ComponentTool } from "../../../../common/util/component-tool";
 import { WorksheetBrowserInfo } from "../../model/worksheet-browser-info";
-import { NgIf, NgFor } from "@angular/common";
+
 
 @Component({
     selector: "files-browser",
     templateUrl: "files-browser.component.html",
     styleUrls: ["files-browser.component.scss"],
-    imports: [NgbTooltip, NgIf, NgFor]
+    imports: [NgbTooltip]
 })
 export class FilesBrowserComponent implements OnInit {
    @Input() browserView: DataFolderBrowserModel;

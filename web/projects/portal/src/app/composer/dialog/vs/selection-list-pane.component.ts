@@ -31,17 +31,16 @@ import { SelectionListPaneModel } from "../../data/vs/selection-list-pane-model"
 import { DataTreeValidatorService } from "../../../vsobjects/dialog/data-tree-validator.service";
 import { SelectionMeasurePane } from "./selection-measure-pane.component";
 import { AdditionalTableSelectionPaneComponent } from "../../../widget/dialog/additional-table-selection-pane/additional-table-selection-pane.component";
-import { NgIf } from "@angular/common";
+
 
 @Component({
     selector: "selection-list-pane",
     templateUrl: "selection-list-pane.component.html",
     imports: [
-        NgIf,
-        TreeComponent,
-        AdditionalTableSelectionPaneComponent,
-        SelectionMeasurePane,
-    ]
+    TreeComponent,
+    AdditionalTableSelectionPaneComponent,
+    SelectionMeasurePane
+]
 })
 export class SelectionListPane implements AfterViewInit {
    @Input() model: SelectionListPaneModel;

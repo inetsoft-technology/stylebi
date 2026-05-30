@@ -70,7 +70,7 @@ import { AttributeFormattingPane } from "../datasources-database/database-physic
 import { DropdownView } from "../../../../widget/dropdown-view/dropdown-view.component";
 import { LoadingIndicatorPaneComponent } from "../datasources-database/common-components/loading-indicator-pane/loading-indicator-pane.component";
 import { TreeComponent } from "../../../../widget/tree/tree.component";
-import { NgIf, NgFor } from "@angular/common";
+
 
 const XMLA_DATASOURCE_URI: string = "../api/portal/data/datasource/xmla/";
 const FORMAT_STRING_URI: string = "../api/data/logicalModel/attribute/format";
@@ -85,7 +85,7 @@ interface CubeNode {
     selector: "datasources-xmla",
     templateUrl: "datasources-xmla.component.html",
     styleUrls: ["datasources-xmla.component.scss"],
-    imports: [NgIf, FormsModule, ReactiveFormsModule, FixedDropdownDirective, NgFor, TreeComponent, LoadingIndicatorPaneComponent, DropdownView, AttributeFormattingPane, DataNotificationsComponent]
+    imports: [FormsModule, ReactiveFormsModule, FixedDropdownDirective, TreeComponent, LoadingIndicatorPaneComponent, DropdownView, AttributeFormattingPane, DataNotificationsComponent]
 })
 export class DatasourcesXmlaComponent implements OnInit, OnDestroy, CanComponentDeactivate {
    @ViewChild("dataNotifications") dataNotifications: DataNotificationsComponent;

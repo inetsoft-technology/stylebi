@@ -33,7 +33,7 @@ import {MessageDialog, MessageDialogType} from "../../../common/util/message-dia
 import {ExpandableRowTableInfo} from "../../../common/util/table/expandable-row-table/expandable-row-table-info";
 import {Tool} from "../../../../../../shared/util/tool";
 import { QueryMonitoringViewComponent } from "../query-monitoring-view/query-monitoring-view.component";
-import { NgIf, AsyncPipe } from "@angular/common";
+import { AsyncPipe } from "@angular/common";
 import { ClusterSelectorComponent } from "../../cluster-selector/cluster-selector.component";
 
 @Secured({
@@ -58,7 +58,7 @@ import { ClusterSelectorComponent } from "../../cluster-selector/cluster-selecto
     styleUrls: ["./query-monitoring-page.component.scss"],
     encapsulation: ViewEncapsulation.None,
     host: { "class": "em-query-monitoring-page" },
-    imports: [ClusterSelectorComponent, NgIf, QueryMonitoringViewComponent, AsyncPipe]
+    imports: [ClusterSelectorComponent, QueryMonitoringViewComponent, AsyncPipe]
 })
 export class QueryMonitoringPageComponent implements OnDestroy {
    executingTableInfo: ExpandableRowTableInfo;

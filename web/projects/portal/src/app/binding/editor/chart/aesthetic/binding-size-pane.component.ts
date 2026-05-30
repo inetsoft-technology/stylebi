@@ -21,13 +21,13 @@ import { RangeSliderOptions } from "../../../widget/range-slider-options";
 import { SliderOptions } from "../../../widget/slider-options";
 import { Slider } from "../../../widget/slider.component";
 import { RangeSlider } from "../../../widget/range-slider.component";
-import { NgIf } from "@angular/common";
+
 
 @Component({
     selector: "binding-size-pane",
     templateUrl: "binding-size-pane.component.html",
     styleUrls: ["binding-size-pane.component.scss"],
-    imports: [NgIf, RangeSlider, Slider]
+    imports: [RangeSlider, Slider]
 })
 export class BindingSizePane implements OnChanges, OnInit {
    @Input() frameModel: SizeFrameModel;

@@ -46,7 +46,7 @@ import { OutOfZoneDirective } from "../../../widget/directive/out-of-zone.direct
 import { VSPopComponentDirective } from "../data-tip/vs-pop-component.directive";
 import { VSDataTipDirective } from "../data-tip/vs-data-tip.directive";
 import { VSInputLabelWrapper } from "../input-label-wrapper/vs-input-label-wrapper.component";
-import { NgIf, NgFor } from "@angular/common";
+
 
 interface SliderTick {
    left: number;
@@ -63,7 +63,7 @@ const GET_OBJECT_MODEL_URL: string = "/events/vsview/object/model";
     selector: "vs-slider",
     templateUrl: "vs-slider.component.html",
     styleUrls: ["vs-slider.component.scss"],
-    imports: [NgIf, VSInputLabelWrapper, VSDataTipDirective, VSPopComponentDirective, OutOfZoneDirective, SafeFontDirective, NgFor]
+    imports: [VSInputLabelWrapper, VSDataTipDirective, VSPopComponentDirective, OutOfZoneDirective, SafeFontDirective]
 })
 export class VSSlider extends NavigationComponent<VSSliderModel> implements OnChanges, OnDestroy, AfterViewInit {
    private _selected: boolean = false;

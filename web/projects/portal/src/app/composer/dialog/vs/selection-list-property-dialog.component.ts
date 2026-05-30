@@ -36,7 +36,7 @@ import { VSAssemblyScriptPane } from "../../../widget/dialog/vsassembly-script-p
 import { SelectionListPane } from "./selection-list-pane.component";
 import { SelectionGeneralPane } from "./selection-general-pane.component";
 import { EnterSubmitDirective } from "../../../widget/directive/enter-submit.directive";
-import { NgIf } from "@angular/common";
+
 import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
 
 const CHECK_TRAP_URI: string = "../api/composer/vs/selection-list-property-dialog-model/checkTrap/";
@@ -46,20 +46,19 @@ const GET_LIST_GRAYED_FIELDS_URI: string = "../api/composer/vs/selection-list-pr
     selector: "selection-list-property-dialog",
     templateUrl: "selection-list-property-dialog.component.html",
     imports: [
-        ModalHeaderComponent,
-        NgIf,
-        EnterSubmitDirective,
-        NgbNav,
-        NgbNavItem,
-        NgbNavLink,
-        NgbNavLinkBase,
-        NgbNavContent,
-        SelectionGeneralPane,
-        SelectionListPane,
-        VSAssemblyScriptPane,
-        NgbNavOutlet,
-        ApplyButtonComponent,
-    ]
+    ModalHeaderComponent,
+    EnterSubmitDirective,
+    NgbNav,
+    NgbNavItem,
+    NgbNavLink,
+    NgbNavLinkBase,
+    NgbNavContent,
+    SelectionGeneralPane,
+    SelectionListPane,
+    VSAssemblyScriptPane,
+    NgbNavOutlet,
+    ApplyButtonComponent
+]
 })
 export class SelectionListPropertyDialog extends PropertyDialog implements OnInit {
    @Input() model: SelectionListPropertyDialogModel;

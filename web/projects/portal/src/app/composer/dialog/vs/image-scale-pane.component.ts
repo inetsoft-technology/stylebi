@@ -19,7 +19,7 @@ import { Component, Input, OnInit } from "@angular/core";
 import { Tool } from "../../../../../../shared/util/tool";
 import { ImageScalePaneModel } from "../../data/vs/image-scale-pane-model";
 import { getImageName, getImageType } from "../../util/image-util";
-import { NgIf, NgStyle } from "@angular/common";
+import { NgStyle } from "@angular/common";
 import { FormsModule } from "@angular/forms";
 
 declare const window: any;
@@ -31,7 +31,7 @@ const EMPTY_IMAGE: string = "assets/emptyimage.gif";
     selector: "image-scale-pane",
     templateUrl: "image-scale-pane.component.html",
     styleUrls: ["image-scale-pane.component.scss"],
-    imports: [FormsModule, NgIf, NgStyle]
+    imports: [FormsModule, NgStyle]
 })
 export class ImageScalePane implements OnInit {
    @Input() model: ImageScalePaneModel;

@@ -21,13 +21,13 @@ import { TreeNodeModel } from "../tree/tree-node-model";
 import { Tool } from "../../../../../shared/util/tool";
 import { TreeComponent } from "../tree/tree.component";
 import { BaseHrefService } from "../../common/services/base-href.service";
-import { NgIf, NgFor } from "@angular/common";
+
 
 @Component({
     selector: "table-style-pane",
     templateUrl: "table-style-pane.component.html",
     styleUrls: ["table-style-pane.component.scss"],
-    imports: [TreeComponent, NgIf, NgFor]
+    imports: [TreeComponent]
 })
 export class TableStylePane implements OnInit {
    @Input() model: TableStylePaneModel;

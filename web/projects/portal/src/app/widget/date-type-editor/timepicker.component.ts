@@ -20,7 +20,7 @@ import {
 } from "@angular/core";
 import { NgbTimeStruct } from "@ng-bootstrap/ng-bootstrap";
 import { UntypedFormControl, UntypedFormGroup, FormsModule, ReactiveFormsModule } from "@angular/forms";
-import { NgIf, NgClass } from "@angular/common";
+import { NgClass } from "@angular/common";
 
 /* Copied from ng-bootstrap, no longer exported */
 function padNumber(value: number): string {
@@ -95,7 +95,7 @@ class NgbTime {
     selector: "time-picker",
     templateUrl: "timepicker.component.html",
     styleUrls: ["timepicker.component.scss"],
-    imports: [FormsModule, ReactiveFormsModule, NgIf, NgClass]
+    imports: [FormsModule, ReactiveFormsModule, NgClass]
 })
 export class TimepickerComponent implements OnInit {
    @Input() meridian: boolean = false;

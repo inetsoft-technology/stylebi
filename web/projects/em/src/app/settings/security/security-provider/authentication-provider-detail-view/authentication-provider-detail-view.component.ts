@@ -31,7 +31,7 @@ import { LdapProviderViewComponent } from "../ldap-provider-view/ldap-provider-v
 import { CustomProviderViewComponent } from "../custom-provider-view/custom-provider-view.component";
 import { MatOption } from "@angular/material/core";
 import { MatSelect } from "@angular/material/select";
-import { NgIf } from "@angular/common";
+
 import { MatInput } from "@angular/material/input";
 import { MatFormField, MatLabel, MatError } from "@angular/material/form-field";
 import { MatCard, MatCardContent } from "@angular/material/card";
@@ -41,7 +41,7 @@ import { EditorPanelComponent } from "../../../../common/util/editor-panel/edito
     selector: "em-authentication-provider-detail-view",
     templateUrl: "./authentication-provider-detail-view.component.html",
     styleUrls: ["./authentication-provider-detail-view.component.scss"],
-    imports: [EditorPanelComponent, FormsModule, ReactiveFormsModule, MatCard, MatCardContent, MatFormField, MatLabel, MatInput, NgIf, MatError, MatSelect, MatOption, CustomProviderViewComponent, LdapProviderViewComponent, DatabaseProviderViewComponent]
+    imports: [EditorPanelComponent, FormsModule, ReactiveFormsModule, MatCard, MatCardContent, MatFormField, MatLabel, MatInput, MatError, MatSelect, MatOption, CustomProviderViewComponent, LdapProviderViewComponent, DatabaseProviderViewComponent]
 })
 export class AuthenticationProviderDetailViewComponent implements OnInit, OnDestroy {
    SecurityProviderType = SecurityProviderType;

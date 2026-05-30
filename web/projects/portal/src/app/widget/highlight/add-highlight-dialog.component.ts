@@ -21,7 +21,7 @@ import { HighlightModel } from "./highlight-model";
 import { FormValidators } from "../../../../../shared/util/form-validators";
 import { InputTrimDirective } from "../directive/input-trim.directive";
 import { EnterSubmitDirective } from "../directive/enter-submit.directive";
-import { NgIf } from "@angular/common";
+
 import { ModalHeaderComponent } from "../modal-header/modal-header.component";
 
 const DEFAULT_HIGHLIGHT_PREFIX = "highlight";
@@ -30,7 +30,7 @@ const DEFAULT_HIGHLIGHT_PREFIX = "highlight";
     selector: "add-highlight-dialog",
     templateUrl: "add-highlight-dialog.component.html",
     viewProviders: [FormValidators],
-    imports: [ModalHeaderComponent, NgIf, EnterSubmitDirective, FormsModule, ReactiveFormsModule, InputTrimDirective]
+    imports: [ModalHeaderComponent, EnterSubmitDirective, FormsModule, ReactiveFormsModule, InputTrimDirective]
 })
 export class AddHighlightDialog implements OnInit {
    @Input() highlights: HighlightModel[] = [];

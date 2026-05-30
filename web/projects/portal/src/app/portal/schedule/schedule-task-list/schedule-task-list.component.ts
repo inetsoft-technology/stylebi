@@ -75,7 +75,7 @@ import {
 import { SortColumnDirective } from "../../../widget/directive/sort-column.directive";
 import { FormsModule } from "@angular/forms";
 import { ScrollableFlexTableDirective } from "../../../widget/scrollable-table/scrollable-flex-table.directive";
-import { NgIf, NgFor } from "@angular/common";
+
 import { SplitPane } from "../../../widget/split-pane/split-pane.component";
 
 const GET_SCHEDULED_TASKS_URI = "../api/portal/scheduledTasks";
@@ -103,7 +103,7 @@ declare const window: any;
     templateUrl: "./schedule-task-list.component.html",
     styleUrls: ["./schedule-task-list.component.scss"],
     providers: [ScheduleChangeService],
-    imports: [SplitPane, NgIf, TreeComponent, ScrollableFlexTableDirective, FormsModule, SortColumnDirective, NgFor]
+    imports: [SplitPane, TreeComponent, ScrollableFlexTableDirective, FormsModule, SortColumnDirective]
 })
 export class ScheduleTaskListComponent implements OnInit, OnDestroy, AfterContentChecked {
    @ViewChild("tree") tree: TreeComponent;

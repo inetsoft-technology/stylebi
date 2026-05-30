@@ -35,7 +35,7 @@ import { ScriptTreeFlatNode, ScriptTreeNode } from "./script-tree-node";
 import { ScriptTreeDataSource } from "./script-tree-data-source";
 import { CodemirrorService } from "../../../../shared/util/codemirror/codemirror.service";
 import { MatError } from "@angular/material/form-field";
-import { NgIf } from "@angular/common";
+
 import { ScriptTreeViewComponent } from "./script-tree-view.component";
 import { MatGridList, MatGridTile } from "@angular/material/grid-list";
 
@@ -45,7 +45,7 @@ const LINT_MARKERS = "CodeMirror-lint-markers";
     selector: "em-script-pane",
     templateUrl: "./script-pane.component.html",
     styleUrls: ["./script-pane.component.scss"],
-    imports: [MatGridList, MatGridTile, ScriptTreeViewComponent, NgIf, MatError]
+    imports: [MatGridList, MatGridTile, ScriptTreeViewComponent, MatError]
 })
 export class ScriptPaneComponent implements OnInit, AfterViewInit, OnChanges, OnDestroy, AfterViewChecked {
    @Input() columnTreeRoot: ScriptTreeDataSource;

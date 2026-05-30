@@ -27,7 +27,7 @@ import { Secured } from "../../secured";
 import { LoadingSpinnerComponent } from "../../common/util/loading-spinner/loading-spinner.component";
 import { TopScrollDirective } from "../../top-scroll/top-scroll.directive";
 import { CdkScrollable } from "@angular/cdk/scrolling";
-import { NgIf } from "@angular/common";
+
 import { MatNavList, MatListItem } from "@angular/material/list";
 import { MatIcon } from "@angular/material/icon";
 import { MatIconButton } from "@angular/material/button";
@@ -46,7 +46,7 @@ const SMALL_WIDTH_BREAKPOINT = 720;
     selector: "em-settings-sidenav",
     templateUrl: "./settings-sidenav.component.html",
     styleUrls: ["./settings-sidenav.component.scss"],
-    imports: [PageHeaderComponent, MatSidenavContainer, MatSidenav, MatFormField, MatLabel, MatInput, FormsModule, MatIconButton, MatSuffix, MatIcon, MatNavList, NgIf, MatListItem, RouterLink, RouterLinkActive, MatSidenavContent, CdkScrollable, TopScrollDirective, RouterOutlet, LoadingSpinnerComponent]
+    imports: [PageHeaderComponent, MatSidenavContainer, MatSidenav, MatFormField, MatLabel, MatInput, FormsModule, MatIconButton, MatSuffix, MatIcon, MatNavList, MatListItem, RouterLink, RouterLinkActive, MatSidenavContent, CdkScrollable, TopScrollDirective, RouterOutlet, LoadingSpinnerComponent]
 })
 export class SettingsSidenavComponent implements OnInit, OnDestroy {
    @ViewChild(MatSidenav, { static: true }) sidenav: MatSidenav;

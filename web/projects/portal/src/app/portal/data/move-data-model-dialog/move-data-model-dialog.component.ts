@@ -25,7 +25,7 @@ import { AssetItem } from "../model/datasources/database/asset-item";
 import { DataModelBrowserModel } from "../data-datasource-browser/datasources-database/database-data-model-browser/data-model-browser-model";
 import { DataModelBrowserViewModel } from "../model/data-model-browser-view-model";
 import { DefaultFocusDirective } from "../../../widget/directive/default-focus.directive";
-import { NgIf } from "@angular/common";
+
 import { DataModelFolderBrowserComponent } from "../data-datasource-browser/datasources-database/database-data-model-browser/data-models-browser/data-model-folder-browser.component";
 import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
 
@@ -35,7 +35,7 @@ const GET_DATA_MODEL_URI: string = "../api/data/database/dataModel/folder/browse
 @Component({
     selector: "move-data-model-dialog",
     templateUrl: "./move-data-model-dialog.component.html",
-    imports: [ModalHeaderComponent, DataModelFolderBrowserComponent, NgIf, DefaultFocusDirective]
+    imports: [ModalHeaderComponent, DataModelFolderBrowserComponent, DefaultFocusDirective]
 })
 export class MoveDataModelDialog implements OnInit {
   @Input() database: string;

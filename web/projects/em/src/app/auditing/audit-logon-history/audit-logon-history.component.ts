@@ -29,7 +29,7 @@ import { Secured } from "../../secured";
 import { AuditTableViewComponent } from "../audit-table-view/audit-table-view.component";
 import { LogonHistory, LogonHistoryList, LogonHistoryParameters } from "./logon-history";
 import { MatOption } from "@angular/material/core";
-import { NgFor } from "@angular/common";
+
 import { MatSelect } from "@angular/material/select";
 import { MatFormField, MatLabel } from "@angular/material/form-field";
 
@@ -50,7 +50,7 @@ import { MatFormField, MatLabel } from "@angular/material/form-field";
     selector: "em-audit-logon-history",
     templateUrl: "./audit-logon-history.component.html",
     styleUrls: ["./audit-logon-history.component.scss"],
-    imports: [AuditTableViewComponent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatSelect, NgFor, MatOption]
+    imports: [AuditTableViewComponent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatSelect, MatOption]
 })
 export class AuditLogonHistoryComponent implements OnInit, OnDestroy {
    users: string[] = [];

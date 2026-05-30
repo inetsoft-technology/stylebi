@@ -32,14 +32,14 @@ import { ChartEditorService } from "../../services/chart/chart-editor.service";
 import { DataEditor } from "../data-editor";
 import { LonLatFieldmc } from "./lon-lat-fieldmc.component";
 import { ChartFieldmc } from "./field/chart-fieldmc.component";
-import { NgFor, NgIf } from "@angular/common";
+
 import { OutOfZoneDirective } from "../../../widget/directive/out-of-zone.directive";
 
 @Component({
     selector: "chart-data-editor",
     templateUrl: "chart-data-editor.component.html",
     styleUrls: ["../data-editor.component.scss"],
-    imports: [OutOfZoneDirective, NgFor, ChartFieldmc, NgIf, LonLatFieldmc]
+    imports: [OutOfZoneDirective, ChartFieldmc, LonLatFieldmc]
 })
 export class ChartDataEditor extends DataEditor {
    @Input() fieldType: string;

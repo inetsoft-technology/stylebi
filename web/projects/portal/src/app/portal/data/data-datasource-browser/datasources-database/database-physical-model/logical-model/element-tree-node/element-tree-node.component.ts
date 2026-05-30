@@ -30,7 +30,7 @@ import { EntityModel } from "../../../../../model/datasources/database/physical-
 import { Tool } from "../../../../../../../../../../shared/util/tool";
 import { SelectedItem } from "../logical-model.component";
 import { AttributeModel } from "../../../../../model/datasources/database/physical-model/logical-model/attribute-model";
-import { NgIf, NgClass, NgFor } from "@angular/common";
+import { NgClass } from "@angular/common";
 
 export const DRAG_SEPARATOR = "^-^";
 
@@ -38,7 +38,7 @@ export const DRAG_SEPARATOR = "^-^";
     selector: "element-tree-node",
     templateUrl: "element-tree-node.component.html",
     styleUrls: ["element-tree-node.component.scss"],
-    imports: [NgIf, NgClass, NgFor]
+    imports: [NgClass]
 })
 export class ElementTreeNode implements OnChanges {
    @Input() node: ElementModel;

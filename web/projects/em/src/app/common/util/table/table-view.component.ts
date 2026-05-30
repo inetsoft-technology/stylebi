@@ -27,7 +27,7 @@ import { MatExpansionPanel, MatExpansionPanelHeader, MatExpansionPanelTitle } fr
 import { MatButton } from "@angular/material/button";
 import { MatError } from "@angular/material/form-field";
 import { MatCard, MatCardTitle, MatCardContent, MatCardActions } from "@angular/material/card";
-import { NgIf, NgTemplateOutlet } from "@angular/common";
+import { NgTemplateOutlet } from "@angular/common";
 
 export enum TableAction {
    DELETE, EDIT, ADD
@@ -37,7 +37,7 @@ export enum TableAction {
     selector: "em-table-view",
     templateUrl: "./table-view.component.html",
     styleUrls: ["./table-view.component.scss"],
-    imports: [NgIf, MatCard, MatCardTitle, MatCardContent, NgTemplateOutlet, MatError, MatCardActions, MatButton, MatExpansionPanel, MatExpansionPanelHeader, MatExpansionPanelTitle, RegularTableComponent, ExpandableRowTableComponent]
+    imports: [MatCard, MatCardTitle, MatCardContent, NgTemplateOutlet, MatError, MatCardActions, MatButton, MatExpansionPanel, MatExpansionPanelHeader, MatExpansionPanelTitle, RegularTableComponent, ExpandableRowTableComponent]
 })
 export class TableView<T extends TableModel> implements OnChanges {
    TableAction = TableAction;

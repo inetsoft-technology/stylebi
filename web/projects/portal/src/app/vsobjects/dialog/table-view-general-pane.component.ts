@@ -24,20 +24,19 @@ import { SizePositionPane } from "./size-position-pane.component";
 import { TableStylePane } from "../../widget/table-style/table-style-pane.component";
 import { TitlePropPane } from "./title-prop-pane.component";
 import { GeneralPropPane } from "./general-prop-pane.component";
-import { NgIf } from "@angular/common";
+
 
 @Component({
     selector: "table-view-general-pane",
     templateUrl: "table-view-general-pane.component.html",
     imports: [
-        NgIf,
-        GeneralPropPane,
-        TitlePropPane,
-        FormsModule,
-        ReactiveFormsModule,
-        TableStylePane,
-        SizePositionPane,
-    ]
+    GeneralPropPane,
+    TitlePropPane,
+    FormsModule,
+    ReactiveFormsModule,
+    TableStylePane,
+    SizePositionPane
+]
 })
 export class TableViewGeneralPane implements OnInit {
    @Input() model: TableViewGeneralPaneModel;

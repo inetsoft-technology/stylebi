@@ -18,13 +18,13 @@
 import { Component, EventEmitter, Input, Output } from "@angular/core";
 import { AssetItem } from "../../model/datasources/database/asset-item";
 import { LogicalModelBrowserInfo } from "../../model/datasources/database/physical-model/logical-model/logical-model-browser-info";
-import { NgIf } from "@angular/common";
+
 
 @Component({
     selector: "asset-description",
     templateUrl: "./asset-description.component.html",
     styleUrls: ["./asset-description.component.scss"],
-    imports: [NgIf]
+    imports: []
 })
 export class AssetDescriptionComponent {
   @Input() selectedFile: AssetItem;

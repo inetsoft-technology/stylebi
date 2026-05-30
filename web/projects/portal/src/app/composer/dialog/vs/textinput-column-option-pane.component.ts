@@ -23,21 +23,18 @@ import { FloatEditor } from "../../../vsobjects/dialog/float-editor.component";
 import { IntegerEditor } from "../../../vsobjects/dialog/integer-editor.component";
 import { DateEditor } from "../../../vsobjects/dialog/date-editor.component";
 import { TextEditor } from "../../../vsobjects/dialog/text-editor.component";
-import { NgFor, NgSwitch, NgSwitchCase } from "@angular/common";
+
 
 @Component({
     selector: "textinput-column-option-pane",
     templateUrl: "textinput-column-option-pane.component.html",
     imports: [
-        FormsModule,
-        NgFor,
-        NgSwitch,
-        NgSwitchCase,
-        TextEditor,
-        DateEditor,
-        IntegerEditor,
-        FloatEditor,
-    ]
+    FormsModule,
+    TextEditor,
+    DateEditor,
+    IntegerEditor,
+    FloatEditor
+]
 })
 export class TextInputColumnOptionPane implements OnInit {
    @Input() model: TextInputColumnOptionPaneModel;

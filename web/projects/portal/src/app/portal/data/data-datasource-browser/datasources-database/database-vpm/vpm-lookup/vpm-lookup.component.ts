@@ -17,7 +17,7 @@
  */
 import { Component, Input, Output, EventEmitter, ViewEncapsulation } from "@angular/core";
 import { DataModelScriptPane } from "../../database-physical-model/data-model-script-pane/data-model-script-pane.component";
-import { NgFor } from "@angular/common";
+
 import { NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, NgbNavOutlet } from "@ng-bootstrap/ng-bootstrap";
 
 @Component({
@@ -25,7 +25,7 @@ import { NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, NgbNavOu
     templateUrl: "vpm-lookup.component.html",
     styleUrls: ["vpm-lookup.component.scss"],
     encapsulation: ViewEncapsulation.None,
-    imports: [NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, NgFor, DataModelScriptPane, NgbNavOutlet]
+    imports: [NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, DataModelScriptPane, NgbNavOutlet]
 })
 export class VPMLookupComponent {
    @Input() expression: string = "";

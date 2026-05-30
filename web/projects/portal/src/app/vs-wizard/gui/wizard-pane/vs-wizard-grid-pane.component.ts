@@ -30,14 +30,14 @@ import { DebounceService } from "../../../widget/services/debounce.service";
 import { VSWizardConstants } from "../../model/vs-wizard-constants";
 import { WizardNewObjectModel } from "../objects/wizard-new-object-model";
 import { OutOfZoneDirective } from "../../../widget/directive/out-of-zone.directive";
-import { NgFor } from "@angular/common";
+
 
 @Component({
     selector: "vs-wizard-grid-pane",
     templateUrl: "./vs-wizard-grid-pane.component.html",
     styleUrls: ["./vs-wizard-grid-pane.component.scss"],
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [NgFor, OutOfZoneDirective]
+    imports: [OutOfZoneDirective]
 })
 export class VsWizardGridPaneComponent implements OnChanges, OnDestroy {
    @Input() cellWidth: number = 100;

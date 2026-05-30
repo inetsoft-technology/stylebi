@@ -37,7 +37,7 @@ import { VSAssemblyScriptPane } from "../../../widget/dialog/vsassembly-script-p
 import { SelectionTreePane } from "./selection-tree-pane.component";
 import { SelectionGeneralPane } from "./selection-general-pane.component";
 import { EnterSubmitDirective } from "../../../widget/directive/enter-submit.directive";
-import { NgIf } from "@angular/common";
+
 import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
 
 const CHECK_TRAP_URI: string = "../api/composer/vs/selection-tree-property-dialog-model/checkTrap/";
@@ -47,20 +47,19 @@ const GET_GRAYED_OUT_FIELDS_URI: string = "../api/composer/vs/selection-tree-pro
     selector: "selection-tree-property-dialog",
     templateUrl: "selection-tree-property-dialog.component.html",
     imports: [
-        ModalHeaderComponent,
-        NgIf,
-        EnterSubmitDirective,
-        NgbNav,
-        NgbNavItem,
-        NgbNavLink,
-        NgbNavLinkBase,
-        NgbNavContent,
-        SelectionGeneralPane,
-        SelectionTreePane,
-        VSAssemblyScriptPane,
-        NgbNavOutlet,
-        ApplyButtonComponent,
-    ]
+    ModalHeaderComponent,
+    EnterSubmitDirective,
+    NgbNav,
+    NgbNavItem,
+    NgbNavLink,
+    NgbNavLinkBase,
+    NgbNavContent,
+    SelectionGeneralPane,
+    SelectionTreePane,
+    VSAssemblyScriptPane,
+    NgbNavOutlet,
+    ApplyButtonComponent
+]
 })
 export class SelectionTreePropertyDialog extends PropertyDialog implements OnInit {
    @Input() model: SelectionTreePropertyDialogModel;

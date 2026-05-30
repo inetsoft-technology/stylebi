@@ -28,7 +28,7 @@ import { VSObjectModel } from "../../model/vs-object-model";
 import { MiniToolbarService } from "./mini-toolbar.service";
 import { FocusObjectEventModel } from "../../model/focus-object-event-model";
 import { ToolbarActionsHandler } from "../../toolbar-actions-handler";
-import { NgIf, NgFor } from "@angular/common";
+
 
 /**
  * Mini-toolbar usage: (see vs-calendar.copmonent.html)
@@ -42,7 +42,7 @@ import { NgIf, NgFor } from "@angular/common";
     selector: "mini-toolbar",
     templateUrl: "mini-toolbar.component.html",
     styleUrls: ["mini-toolbar.component.scss"],
-    imports: [NgIf, NgFor]
+    imports: []
 })
 export class MiniToolbar implements OnDestroy {
    @Input() actions: AbstractVSActions<any>;

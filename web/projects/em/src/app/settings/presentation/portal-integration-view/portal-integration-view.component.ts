@@ -35,7 +35,7 @@ import { MatMiniFabButton, MatIconButton } from "@angular/material/button";
 import { FormsModule } from "@angular/forms";
 import { MatCheckbox } from "@angular/material/checkbox";
 import { MatCard, MatCardTitle, MatCardContent, MatCardSubtitle } from "@angular/material/card";
-import { NgIf, NgFor } from "@angular/common";
+
 
 @Searchable({
    route: "/settings/presentation/settings#portal-integration",
@@ -53,7 +53,7 @@ import { NgIf, NgFor } from "@angular/common";
     selector: "em-portal-integration-view",
     templateUrl: "./portal-integration-view.component.html",
     styleUrls: ["./portal-integration-view.component.scss"],
-    imports: [NgIf, MatCard, MatCardTitle, MatCardContent, MatCheckbox, FormsModule, MatMiniFabButton, MatTooltip, MatIcon, NgFor, MatCardSubtitle, MatIconButton, MatDivider, MatFormField, MatLabel, MatInput]
+    imports: [MatCard, MatCardTitle, MatCardContent, MatCheckbox, FormsModule, MatMiniFabButton, MatTooltip, MatIcon, MatCardSubtitle, MatIconButton, MatDivider, MatFormField, MatLabel, MatInput]
 })
 export class PortalIntegrationViewComponent {
    @Input() model: PortalIntegrationSettingsModel;

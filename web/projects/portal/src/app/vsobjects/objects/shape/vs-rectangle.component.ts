@@ -26,20 +26,18 @@ import { VSAnnotation } from "../annotation/vs-annotation.component";
 import { VSHiddenAnnotation } from "../annotation/vs-hidden-annotation.component";
 import { VSPopComponentDirective } from "../data-tip/vs-pop-component.directive";
 import { VSDataTipDirective } from "../data-tip/vs-data-tip.directive";
-import { NgIf, NgFor } from "@angular/common";
+
 
 @Component({
     selector: "vs-rectangle",
     templateUrl: "vs-rectangle.component.html",
     styleUrls: ["vs-rectangle.component.scss"],
     imports: [
-        NgIf,
-        VSDataTipDirective,
-        VSPopComponentDirective,
-        NgFor,
-        VSHiddenAnnotation,
-        VSAnnotation,
-    ]
+    VSDataTipDirective,
+    VSPopComponentDirective,
+    VSHiddenAnnotation,
+    VSAnnotation
+]
 })
 export class VSRectangle extends VSShape<VSRectangleModel> implements OnChanges {
    @Input() selected: boolean = false;

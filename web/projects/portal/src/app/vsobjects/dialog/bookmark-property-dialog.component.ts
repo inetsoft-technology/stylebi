@@ -28,21 +28,20 @@ import { FormValidators } from "../../../../../shared/util/form-validators";
 import { EnterClickDirective } from "../../widget/directive/enter-click.directive";
 import { InputTrimDirective } from "../../widget/directive/input-trim.directive";
 import { EnterSubmitDirective } from "../../widget/directive/enter-submit.directive";
-import { NgIf } from "@angular/common";
+
 import { ModalHeaderComponent } from "../../widget/modal-header/modal-header.component";
 
 @Component({
     selector: "bookmark-property-dialog",
     templateUrl: "bookmark-property-dialog.component.html",
     imports: [
-        ModalHeaderComponent,
-        NgIf,
-        EnterSubmitDirective,
-        FormsModule,
-        ReactiveFormsModule,
-        InputTrimDirective,
-        EnterClickDirective,
-    ]
+    ModalHeaderComponent,
+    EnterSubmitDirective,
+    FormsModule,
+    ReactiveFormsModule,
+    InputTrimDirective,
+    EnterClickDirective
+]
 })
 export class BookmarkPropertyDialog implements OnInit {
    @Input() model: VSBookmarkInfoModel;

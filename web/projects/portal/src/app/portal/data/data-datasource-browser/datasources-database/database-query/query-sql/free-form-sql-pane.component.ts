@@ -33,7 +33,7 @@ import {
    AdvancedSqlQueryModel
 } from "../../../../model/datasources/database/query/advanced-sql-query-model";
 import { FormsModule } from "@angular/forms";
-import { NgIf } from "@angular/common";
+
 
 const GET_COLUMN_INFO_URL = "../api/data/datasource/query/get/columnInfo";
 const CLEAR_COLUMN_INFO_URL = "../api/data/datasource/query/clear/columnInfo";
@@ -42,7 +42,7 @@ const CLEAR_COLUMN_INFO_URL = "../api/data/datasource/query/clear/columnInfo";
     selector: "free-form-sql-pane",
     templateUrl: "./free-form-sql-pane.component.html",
     styleUrls: ["./free-form-sql-pane.component.scss"],
-    imports: [NgIf, FormsModule]
+    imports: [FormsModule]
 })
 export class FreeFormSqlPaneComponent {
    @Input() runtimeId: string;

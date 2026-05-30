@@ -47,13 +47,13 @@ import { ContextProvider } from "../../context-provider.service";
 import { SafeFontDirective } from "../../directives/safe-font.directive";
 import { TooltipIfDirective } from "../../../widget/tooltip/tooltip-if.directive";
 import { InteractableDirective } from "../../../widget/interact/interactable.directive";
-import { NgIf, NgClass } from "@angular/common";
+import { NgClass } from "@angular/common";
 
 @Component({
     selector: "selection-list-cell",
     templateUrl: "selection-list-cell.component.html",
     styleUrls: ["selection-list-cell.component.scss"],
-    imports: [NgIf, InteractableDirective, TooltipIfDirective, NgClass, SafeFontDirective]
+    imports: [InteractableDirective, TooltipIfDirective, NgClass, SafeFontDirective]
 })
 export class SelectionListCell implements OnInit, OnChanges, OnDestroy {
    static INDENT_SIZE = 8;

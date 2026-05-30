@@ -37,7 +37,7 @@ import { ConcatenatedTableAssembly } from "../../../data/ws/concatenated-table-a
 import { Worksheet } from "../../../data/ws/worksheet";
 import { SubtableListComponent } from "./schema/sidebar-pane/subtable-list.component";
 import { WSAssemblyThumbnailTitleComponent } from "./ws-assembly-thumbnail-title.component";
-import { NgIf, NgFor } from "@angular/common";
+
 import { SplitPane } from "../../../../widget/split-pane/split-pane.component";
 
 export const DRAG_TABLE_ID = "Add table";
@@ -49,7 +49,7 @@ const JOIN_COMPATIBLE_INSERTION_TABLE_URI = "../api/composer/worksheet/join/comp
     templateUrl: "ws-composite-table-sidebar-pane.component.html",
     styleUrls: ["schema/sidebar-pane/subtable-list.component.scss"],
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [SplitPane, NgIf, NgFor, WSAssemblyThumbnailTitleComponent, SubtableListComponent]
+    imports: [SplitPane, WSAssemblyThumbnailTitleComponent, SubtableListComponent]
 })
 export class WSCompositeTableSidebarPane implements OnChanges, OnDestroy {
    @Input() worksheet: Worksheet;

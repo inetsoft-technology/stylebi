@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { NgIf, NgFor } from "@angular/common";
+
 import { HttpClient, HttpParams } from "@angular/common/http";
 import {
   Component,
@@ -97,7 +97,7 @@ const UPDATE_QUERY_URI: string = "../api/composer/ws/sql-query-dialog/query/upda
     templateUrl: "simple-query-pane.component.html",
     styleUrls: ["simple-query-pane.component.scss"],
     encapsulation: ViewEncapsulation.None,
-    imports: [NgIf, NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, TreeComponent, SQLQueryDialogListComponent, NgFor, FormsModule, HelpLinkDirective, SqlQueryPreviewPaneComponent, NgbNavOutlet, SQLQueryJoinDialog, VPMConditionDialog, ClausePipe, ConjunctionPipe]
+    imports: [NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, TreeComponent, SQLQueryDialogListComponent, FormsModule, HelpLinkDirective, SqlQueryPreviewPaneComponent, NgbNavOutlet, SQLQueryJoinDialog, VPMConditionDialog, ClausePipe, ConjunctionPipe]
 })
 export class SimpleQueryPaneComponent {
    @Input() queryModel: SqlQueryDialogModel;

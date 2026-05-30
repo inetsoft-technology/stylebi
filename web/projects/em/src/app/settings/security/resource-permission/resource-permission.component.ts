@@ -45,13 +45,13 @@ import { FormsModule } from "@angular/forms";
 import { MatRadioGroup, MatRadioButton } from "@angular/material/radio";
 import { MatCheckbox } from "@angular/material/checkbox";
 import { MatCard, MatCardContent, MatCardActions } from "@angular/material/card";
-import { NgIf } from "@angular/common";
+
 
 @Component({
     selector: "em-resource-permission",
     templateUrl: "./resource-permission.component.html",
     styleUrls: ["./resource-permission.component.scss"],
-    imports: [NgIf, MatCard, MatCardContent, MatCheckbox, MatRadioGroup, FormsModule, MatRadioButton, PermissionsTableComponent, MatCardActions, MatButton]
+    imports: [MatCard, MatCardContent, MatCheckbox, MatRadioGroup, FormsModule, MatRadioButton, PermissionsTableComponent, MatCardActions, MatButton]
 })
 export class ResourcePermissionComponent implements OnInit, OnChanges, OnDestroy {
    @Input() model: ResourcePermissionModel;

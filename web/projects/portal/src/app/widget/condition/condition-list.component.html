@@ -1,47 +1,55 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <div class="container">
   <div class="row">
     <div class="bordered-box bd-gray col">
-      <div *ngFor="let item of conditionList; let even = even; let i = index;"
-           class="unhighlightable" [class.selected]="selectedIndex === i"
-           (click)="selectedIndex = i">
-        <div *ngIf="even">
-          {{item | conditionToString}}
+      @for (item of conditionList; track item; let even = $even; let i = $index) {
+        <div
+          class="unhighlightable" [class.selected]="selectedIndex === i"
+          (click)="selectedIndex = i">
+          @if (even) {
+            <div>
+              {{item | conditionToString}}
+            </div>
+          }
+          @if (!even) {
+            <div>
+              {{item | junctionOperatorToString}}
+            </div>
+          }
         </div>
-        <div *ngIf="!even">
-          {{item | junctionOperatorToString}}
-        </div>
+      }
+    </div>
+    @if (showDefaultButtons) {
+      <div class="col-auto btn-container-vertical">
+        <button type="button" class="btn btn-default" (click)="edit()">_#(Edit)</button>
+        <button type="button" class="btn btn-default" (click)="clear()"
+        [disabled]="conditionList == null || conditionList.length == 0">_#(Clear)</button>
       </div>
-    </div>
-    <div *ngIf="showDefaultButtons" class="col-auto btn-container-vertical">
-      <button type="button" class="btn btn-default" (click)="edit()">_#(Edit)</button>
-      <button type="button" class="btn btn-default" (click)="clear()"
-              [disabled]="conditionList == null || conditionList.length == 0">_#(Clear)</button>
-    </div>
+    }
   </div>
 </div>
 <ng-template #conditionDialog let-close="close" let-dismiss="dismiss">
   <condition-dialog (onCommit)="close($event)" (onCancel)="dismiss($event)"
-                    [simplePane]="simplePane" [provider]="provider"
-                    [subqueryTables]="subqueryTables" [fields]="fields"
-                    [conditionList]="conditionList" [isVSContext]="isVSContext"
-                    [resizeable]="true"
-                    [showOriginalName]="showOriginalName"
-                    (conditionListUpdated)="conditionListChange.emit($event)"></condition-dialog>
+    [simplePane]="simplePane" [provider]="provider"
+    [subqueryTables]="subqueryTables" [fields]="fields"
+    [conditionList]="conditionList" [isVSContext]="isVSContext"
+    [resizeable]="true"
+    [showOriginalName]="showOriginalName"
+  (conditionListUpdated)="conditionListChange.emit($event)"></condition-dialog>
 </ng-template>

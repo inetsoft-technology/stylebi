@@ -31,7 +31,7 @@ import {
   Output,
   DOCUMENT
 } from "@angular/core";
-import { NgIf, NgFor, NgStyle } from "@angular/common";
+import { NgStyle } from "@angular/common";
 import { AiAssistantService } from "../../../../../shared/ai-assistant/ai-assistant.service";
 import { GetCellBindingCommand } from "../../binding/command/get-cell-binding-command";
 import { GetCellScriptCommand } from "../../binding/command/get-cell-script-command";
@@ -62,7 +62,7 @@ import { OutOfZoneDirective } from "../../widget/directive/out-of-zone.directive
     templateUrl: "vs-calc-table-layout.component.html",
     styleUrls: ["vs-calc-table-layout.component.scss"],
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [OutOfZoneDirective, NgIf, NgFor, NgStyle, CalcTableCellComponent, VSLoadingDisplay]
+    imports: [OutOfZoneDirective, NgStyle, CalcTableCellComponent, VSLoadingDisplay]
 })
 export class CalcTableLayoutPane extends CommandProcessor implements AfterViewChecked {
    @Output() calcTableLayout = new EventEmitter<CalcTableLayout>();

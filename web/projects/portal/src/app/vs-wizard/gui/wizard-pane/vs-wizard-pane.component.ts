@@ -72,7 +72,7 @@ import { DragMoveStartOptions } from "./drag-move-start-options";
 import { FollowDirection } from "./follow-direction";
 import { WizardNewObject } from "../objects/wizard-new-object.component";
 import { VsWizardObjectComponent } from "../objects/vs-wizard-object.component";
-import { NgFor } from "@angular/common";
+
 import { VsWizardGridPaneComponent } from "./vs-wizard-grid-pane.component";
 import { OutOfZoneDirective } from "../../../widget/directive/out-of-zone.directive";
 import { InteractContainerDirective } from "../../../widget/interact/interact-container.directive";
@@ -97,7 +97,7 @@ const PADDING_V = 30; // mini-toolbar should display
             useFactory: VSWizardContextProviderFactory
         }
     ],
-    imports: [WizardToolBarComponent, SelectionBoxDirective, InteractContainerDirective, OutOfZoneDirective, VsWizardGridPaneComponent, NgFor, VsWizardObjectComponent, WizardNewObject]
+    imports: [WizardToolBarComponent, SelectionBoxDirective, InteractContainerDirective, OutOfZoneDirective, VsWizardGridPaneComponent, VsWizardObjectComponent, WizardNewObject]
 })
 export class VsWizardPane extends CommandProcessor implements OnInit, AfterViewInit, OnDestroy {
    @Input() currentVSObject: VSObjectModel = null;

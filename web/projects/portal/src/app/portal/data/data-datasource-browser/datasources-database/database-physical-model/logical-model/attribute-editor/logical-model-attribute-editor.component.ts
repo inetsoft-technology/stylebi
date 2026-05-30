@@ -42,7 +42,7 @@ import { EntityModel } from "../../../../../model/datasources/database/physical-
 import { AttributeFormattingPane } from "./format-dialog/attribute-formatting-pane.component";
 import { DropdownView } from "../../../../../../../widget/dropdown-view/dropdown-view.component";
 import { TreeDropdownComponent } from "../../../../../../../widget/tree/tree-dropdown.component";
-import { NgIf, NgFor } from "@angular/common";
+
 
 const COLUMNS_URI: string = "../api/data/logicalModel/tables/nodes";
 const FORMAT_STRING_URI: string = "../api/data/logicalModel/attribute/format";
@@ -52,7 +52,7 @@ const FORMAT_STRING_URI: string = "../api/data/logicalModel/attribute/format";
     templateUrl: "logical-model-attribute-editor.component.html",
     styleUrls: ["logical-model-attribute-editor.component.scss",
         "../../../../../../../widget/tree/tree-dropdown.component.scss"],
-    imports: [FormsModule, ReactiveFormsModule, NgIf, NgFor, TreeDropdownComponent, DropdownView, AttributeFormattingPane, NgbDropdown, NgbDropdownToggle, NgbDropdownMenu]
+    imports: [FormsModule, ReactiveFormsModule, TreeDropdownComponent, DropdownView, AttributeFormattingPane, NgbDropdown, NgbDropdownToggle, NgbDropdownMenu]
 })
 export class LogicalModelAttributeEditor implements OnInit, OnDestroy {
    @Input() databaseName: string;

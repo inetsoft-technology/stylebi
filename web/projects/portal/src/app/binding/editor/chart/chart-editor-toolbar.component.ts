@@ -20,13 +20,13 @@ import { ChartBindingModel } from "../../data/chart/chart-binding-model";
 import { ChartEditorService } from "../../services/chart/chart-editor.service";
 import { GraphTypes } from "../../../common/graph-types";
 import { ChartTypeButton } from "../../widget/chart-type-button.component";
-import { NgIf, NgClass } from "@angular/common";
+import { NgClass } from "@angular/common";
 
 @Component({
     selector: "chart-editor-toolbar",
     templateUrl: "chart-editor-toolbar.component.html",
     styleUrls: ["chart-editor-toolbar.component.scss"],
-    imports: [NgIf, ChartTypeButton, NgClass]
+    imports: [ChartTypeButton, NgClass]
 })
 export class ChartEditorToolbar {
    @Input() bindingModel: ChartBindingModel;

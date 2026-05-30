@@ -1,31 +1,33 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <button #dropdownBody id="simple-btn-keyboard-nav" type="button" [disabled]="disabled"
-        [class.disabled]="disabled"
-        [fixedDropdown]="dropdownMenu" dropdownPlacement="bottom"
-        class="btn form-control bd-gray dropdown-toggle" >
+  [class.disabled]="disabled"
+  [fixedDropdown]="dropdownMenu" dropdownPlacement="bottom"
+  class="btn form-control bd-gray dropdown-toggle" >
   <div class="line-display line-style-{{getLineStyleName(lineStyle)}}"></div>
 </button>
 <ng-template #dropdownMenu>
   <div class="dropdown-pane" [style.min-width.px]="dropdownMinWidth">
-    <div class="dropdown-item" [class.selected]="_lineStyle == lineStyle"
-         *ngFor="let _lineStyle of lineStyles" (click)="choose(_lineStyle)">
-      <div class="line-display line-style-{{getLineStyleName(_lineStyle)}}"></div>
-    </div>
+    @for (_lineStyle of lineStyles; track _lineStyle) {
+      <div class="dropdown-item" [class.selected]="_lineStyle == lineStyle"
+        (click)="choose(_lineStyle)">
+        <div class="line-display line-style-{{getLineStyleName(_lineStyle)}}"></div>
+      </div>
+    }
   </div>
 </ng-template>

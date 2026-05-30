@@ -35,7 +35,7 @@ import { MessageDialog, MessageDialogType } from "../../../common/util/message-d
 import { equalsIdentity } from "../users/identity-id";
 import { MatTooltip } from "@angular/material/tooltip";
 import { MatButton } from "@angular/material/button";
-import { NgIf } from "@angular/common";
+
 import { MatIcon } from "@angular/material/icon";
 import { MatCheckbox } from "@angular/material/checkbox";
 import { MatCard, MatCardHeader, MatCardContent, MatCardActions } from "@angular/material/card";
@@ -44,7 +44,7 @@ import { MatCard, MatCardHeader, MatCardContent, MatCardActions } from "@angular
     selector: "em-security-table-view",
     templateUrl: "./security-table-view.component.html",
     styleUrls: ["./security-table-view.component.scss"],
-    imports: [MatCard, MatCardHeader, MatCardContent, MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCheckbox, MatCellDef, MatCell, MatIcon, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, MatPaginator, MatCardActions, NgIf, MatButton, MatTooltip]
+    imports: [MatCard, MatCardHeader, MatCardContent, MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCheckbox, MatCellDef, MatCell, MatIcon, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, MatPaginator, MatCardActions, MatButton, MatTooltip]
 })
 export class SecurityTableViewComponent implements OnChanges, AfterViewInit {
    @Input() name: string;

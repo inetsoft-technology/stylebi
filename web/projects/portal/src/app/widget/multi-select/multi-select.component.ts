@@ -17,14 +17,14 @@
  */
 import { Component, Input, Output, EventEmitter } from "@angular/core";
 import { FormsModule } from "@angular/forms";
-import { NgIf, NgFor } from "@angular/common";
+
 import { FixedDropdownDirective } from "../fixed-dropdown/fixed-dropdown.directive";
 
 @Component({
     selector: "multi-select",
     templateUrl: "multi-select.component.html",
     styleUrls: ["multi-select.component.scss"],
-    imports: [FixedDropdownDirective, NgIf, NgFor, FormsModule]
+    imports: [FixedDropdownDirective, FormsModule]
 })
 export class MultiSelect {
    @Input() items: any[] = [];

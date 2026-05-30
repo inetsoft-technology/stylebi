@@ -52,14 +52,14 @@ import { GroupingConditionDialog } from "./grouping-condition-dialog.component";
 import { LargeFormFieldComponent } from "../../../widget/large-form-field/large-form-field.component";
 import { InputTrimDirective } from "../../../widget/directive/input-trim.directive";
 import { EnterSubmitDirective } from "../../../widget/directive/enter-submit.directive";
-import { NgIf, NgFor } from "@angular/common";
+
 import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
 
 @Component({
     selector: "grouping-dialog",
     templateUrl: "grouping-dialog.component.html",
     styleUrls: ["grouping-dialog.component.scss"],
-    imports: [ModalHeaderComponent, NgIf, EnterSubmitDirective, FormsModule, ReactiveFormsModule, InputTrimDirective, NgFor, TreeDropdownComponent, LargeFormFieldComponent, GroupingConditionDialog, ConditionPipe, JunctionOperatorPipe]
+    imports: [ModalHeaderComponent, EnterSubmitDirective, FormsModule, ReactiveFormsModule, InputTrimDirective, TreeDropdownComponent, LargeFormFieldComponent, GroupingConditionDialog, ConditionPipe, JunctionOperatorPipe]
 })
 export class GroupingDialog implements OnInit {
    @Input() groupingName: string;

@@ -23,7 +23,7 @@ import { LogLevelDTO } from "../LogLevelDTO";
 import { MessageDialog, MessageDialogType } from "../../../common/util/message-dialog";
 import { MatButton } from "@angular/material/button";
 import { MatInput } from "@angular/material/input";
-import { NgIf, NgFor } from "@angular/common";
+
 import { MatOption } from "@angular/material/core";
 import { MatSelect } from "@angular/material/select";
 import { MatFormField, MatLabel, MatError } from "@angular/material/form-field";
@@ -33,7 +33,7 @@ import { ModalHeaderComponent } from "../../../common/util/modal-header/modal-he
     selector: "em-add-logging-level-dialog",
     templateUrl: "./add-logging-level-dialog.component.html",
     styleUrls: ["./add-logging-level-dialog.component.scss"],
-    imports: [ModalHeaderComponent, MatDialogContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatSelect, MatOption, NgIf, MatInput, MatError, NgFor, MatDialogActions, MatButton, MatDialogClose]
+    imports: [ModalHeaderComponent, MatDialogContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatSelect, MatOption, MatInput, MatError, MatDialogActions, MatButton, MatDialogClose]
 })
 export class AddLoggingLevelDialogComponent implements OnInit {
    index: number;

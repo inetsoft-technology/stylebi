@@ -38,13 +38,13 @@ import { MatInput } from "@angular/material/input";
 import { MatFormField, MatLabel, MatError } from "@angular/material/form-field";
 import { MatCard, MatCardContent } from "@angular/material/card";
 import { EditorPanelComponent } from "../../../../common/util/editor-panel/editor-panel.component";
-import { NgIf, NgFor } from "@angular/common";
+
 
 @Component({
     selector: "em-repository-folder-settings-view",
     templateUrl: "./repository-folder-settings-view.component.html",
     styleUrls: ["./repository-folder-settings-view.component.scss"],
-    imports: [NgIf, EditorPanelComponent, MatTabGroup, MatTab, MatTabContent, MatCard, MatCardContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatInput, MatError, NgFor, ResourcePermissionComponent]
+    imports: [EditorPanelComponent, MatTabGroup, MatTab, MatTabContent, MatCard, MatCardContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatInput, MatError, ResourcePermissionComponent]
 })
 export class RepositoryFolderSettingsViewComponent implements OnChanges, OnDestroy {
    @Input() model: RepositoryFolderSettingsModel;

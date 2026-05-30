@@ -44,13 +44,13 @@ import { FormsModule } from "@angular/forms";
 import { VSPopComponentDirective } from "../data-tip/vs-pop-component.directive";
 import { VSDataTipDirective } from "../data-tip/vs-data-tip.directive";
 import { VSInputLabelWrapper } from "../input-label-wrapper/vs-input-label-wrapper.component";
-import { NgIf } from "@angular/common";
+
 
 @Component({
     selector: "vs-spinner",
     templateUrl: "vs-spinner.component.html",
     styleUrls: ["vs-spinner.component.scss"],
-    imports: [NgIf, VSInputLabelWrapper, VSDataTipDirective, VSPopComponentDirective, FormsModule, SafeFontDirective]
+    imports: [VSInputLabelWrapper, VSDataTipDirective, VSPopComponentDirective, FormsModule, SafeFontDirective]
 })
 export class VSSpinner extends NavigationComponent<VSSpinnerModel>
 implements OnInit, OnChanges, OnDestroy

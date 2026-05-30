@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { NgIf } from "@angular/common";
+
 import { Component, OnDestroy, OnInit } from "@angular/core";
 import { ActivatedRoute, RouterOutlet } from "@angular/router";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
@@ -26,7 +26,7 @@ import { StompClientService } from "../common/viewsheet-client";
 import { ComponentTool } from "../common/util/component-tool";
 
 @Component({
-    imports: [RouterOutlet, DownloadTargetComponent, AiAssistantPanelComponent, NgIf],
+    imports: [RouterOutlet, DownloadTargetComponent, AiAssistantPanelComponent],
     selector: "v-viewer-root",
     templateUrl: "viewer-root.component.html",
     styleUrls: ["viewer-root.component.scss"]

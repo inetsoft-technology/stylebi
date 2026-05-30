@@ -127,7 +127,7 @@ import vi from "ckeditor5/translations/vi.js";
 import zh from "ckeditor5/translations/zh.js";
 import zhcn from "ckeditor5/translations/zh-cn.js";
 import { CKEditorModule } from "@ckeditor/ckeditor5-angular";
-import { NgIf } from "@angular/common";
+
 
 @Component({
     selector: "ckeditor-wrapper",
@@ -140,7 +140,7 @@ import { NgIf } from "@angular/common";
             multi: true
         }
     ],
-    imports: [NgIf, CKEditorModule, FormsModule]
+    imports: [CKEditorModule, FormsModule]
 })
 export class CkeditorWrapperComponent implements OnInit, AfterViewInit, ControlValueAccessor {
    @Input() advanced = false;

@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { NgFor, NgClass, NgIf, NgStyle, AsyncPipe } from "@angular/common";
+import { NgClass, NgStyle, AsyncPipe } from "@angular/common";
 import { HttpParams } from "@angular/common/http";
 import {
   AfterContentInit,
@@ -112,7 +112,7 @@ let tableDataRequestId = 0;
     templateUrl: "ws-details-table-data.component.html",
     styleUrls: ["ws-details-table-data.component.scss"],
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [NgFor, WSHeaderCell, OutOfZoneDirective, FormsModule, ReactiveFormsModule, NgClass, TouchScrollDirective, NgIf, NgStyle, NotificationsComponent, AsyncPipe]
+    imports: [WSHeaderCell, OutOfZoneDirective, FormsModule, ReactiveFormsModule, NgClass, TouchScrollDirective, NgStyle, NotificationsComponent, AsyncPipe]
 })
 export class WSDetailsTableDataComponent extends CommandProcessor
    implements OnDestroy, AfterContentInit, OnChanges

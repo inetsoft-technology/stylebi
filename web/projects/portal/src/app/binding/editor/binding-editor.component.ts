@@ -49,7 +49,7 @@ import { ChartEditorToolbar } from "./chart/chart-editor-toolbar.component";
 import { DataEditorBindingTree } from "../widget/binding-tree/data-editor-binding-tree.component";
 import { SplitPane } from "../../widget/split-pane/split-pane.component";
 import { EditorTitleBar } from "./editor-title-bar.component";
-import { NgIf, NgClass } from "@angular/common";
+import { NgClass } from "@angular/common";
 
 const GET_MESSAGE_LEVELS_URI = "../api/composer/console-dialog/get-message-levels/";
 
@@ -57,7 +57,7 @@ const GET_MESSAGE_LEVELS_URI = "../api/composer/console-dialog/get-message-level
     selector: "binding-editor",
     templateUrl: "binding-editor.component.html",
     styleUrls: ["binding-editor.component.scss"],
-    imports: [NgIf, EditorTitleBar, NgClass, SplitPane, DataEditorTabPane, FormatsPane, DataEditorBindingTree, ChartEditorToolbar, ChartHighLowPane, AestheticPane, TableOption, CrosstabOption, CalcOptionPane, ChartDataPane, TableDataPane, CrosstabDataPane, CalcDataPane, StatusBar, NotificationsComponent, ConsoleDialogComponent]
+    imports: [EditorTitleBar, NgClass, SplitPane, DataEditorTabPane, FormatsPane, DataEditorBindingTree, ChartEditorToolbar, ChartHighLowPane, AestheticPane, TableOption, CrosstabOption, CalcOptionPane, ChartDataPane, TableDataPane, CrosstabDataPane, CalcDataPane, StatusBar, NotificationsComponent, ConsoleDialogComponent]
 })
 export class BindingEditor implements OnInit, AfterViewInit, OnDestroy {
    @Input() objectModel: any;

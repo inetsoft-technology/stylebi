@@ -27,14 +27,14 @@ import { TabularTableAssembly } from "../../data/ws/tabular-table-assembly";
 import { Worksheet } from "../../data/ws/worksheet";
 import { DefaultFocusDirective } from "../../../widget/directive/default-focus.directive";
 import { InputTrimDirective } from "../../../widget/directive/input-trim.directive";
-import { NgIf } from "@angular/common";
+
 import { EnterSubmitDirective } from "../../../widget/directive/enter-submit.directive";
 import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
 
 @Component({
     selector: "table-property-dialog",
     templateUrl: "table-property-dialog.component.html",
-    imports: [ModalHeaderComponent, EnterSubmitDirective, NgIf, FormsModule, ReactiveFormsModule, InputTrimDirective, DefaultFocusDirective]
+    imports: [ModalHeaderComponent, EnterSubmitDirective, FormsModule, ReactiveFormsModule, InputTrimDirective, DefaultFocusDirective]
 })
 export class TablePropertyDialog implements OnInit {
    @Input() worksheet: Worksheet;

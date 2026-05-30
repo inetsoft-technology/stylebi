@@ -18,14 +18,14 @@
 import { Component, EventEmitter, Input, OnInit, Output, ViewChild,
          ElementRef } from "@angular/core";
 import { LineStyle } from "../../common/data/line-style";
-import { NgFor } from "@angular/common";
+
 import { FixedDropdownDirective } from "../fixed-dropdown/fixed-dropdown.directive";
 
 @Component({
     selector: "style-dropdown",
     templateUrl: "style-dropdown.component.html",
     styleUrls: ["style-dropdown.component.scss"],
-    imports: [FixedDropdownDirective, NgFor]
+    imports: [FixedDropdownDirective]
 })
 export class StyleDropdown implements OnInit {
    @Input() style: string;

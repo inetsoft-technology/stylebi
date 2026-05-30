@@ -34,14 +34,14 @@ import { FixedDropdownService } from "../fixed-dropdown/fixed-dropdown.service";
 import { DropdownOptions } from "../fixed-dropdown/dropdown-options";
 import { DropdownRef } from "../fixed-dropdown/fixed-dropdown-ref";
 import { DefaultFocusDirective } from "../directive/default-focus.directive";
-import { NgFor } from "@angular/common";
+
 
 @Component({
     selector: "auto-complete-text",
     templateUrl: "auto-complete-text.component.html",
     styleUrls: ["auto-complete-text.component.scss"],
     encapsulation: ViewEncapsulation.None,
-    imports: [NgFor, DefaultFocusDirective]
+    imports: [DefaultFocusDirective]
 })
 export class AutoCompleteText implements OnInit {
    @Input() adhoc: boolean = false;

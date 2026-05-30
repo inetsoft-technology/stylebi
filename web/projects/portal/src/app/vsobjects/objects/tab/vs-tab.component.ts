@@ -46,7 +46,7 @@ import { DataTipService } from "../data-tip/data-tip.service";
 import { NavigationKeys } from "../navigation-keys";
 import { VSTabService } from "../../util/vs-tab.service";
 import { TooltipIfDirective } from "../../../widget/tooltip/tooltip-if.directive";
-import { NgIf, NgFor, NgStyle } from "@angular/common";
+import { NgStyle } from "@angular/common";
 
 interface MaxBorderWidths {
    left: number;
@@ -59,7 +59,7 @@ interface MaxBorderWidths {
     selector: "vs-tab",
     templateUrl: "vs-tab.component.html",
     styleUrls: ["vs-tab.component.scss"],
-    imports: [NgIf, NgFor, TooltipIfDirective, NgStyle]
+    imports: [TooltipIfDirective, NgStyle]
 })
 export class VSTab extends NavigationComponent<VSTabModel> implements OnChanges, AfterViewInit, OnDestroy {
    @Input() changeEnabled = true;

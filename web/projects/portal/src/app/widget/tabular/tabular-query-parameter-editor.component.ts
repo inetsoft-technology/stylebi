@@ -20,7 +20,7 @@ import { QueryParameter } from "../../common/data/tabular/query-parameter";
 import { TabularDateEditor } from "./tabular-date-editor.component";
 import { TabularNumberEditor } from "./tabular-number-editor.component";
 import { TabularBooleanEditor } from "./tabular-boolean-editor.component";
-import { NgIf } from "@angular/common";
+
 import { FormsModule } from "@angular/forms";
 import { TabularTextEditor } from "./tabular-text-editor.component";
 
@@ -28,13 +28,12 @@ import { TabularTextEditor } from "./tabular-text-editor.component";
     selector: "tabular-query-parameter-editor",
     templateUrl: "tabular-query-parameter-editor.component.html",
     imports: [
-        TabularTextEditor,
-        FormsModule,
-        NgIf,
-        TabularBooleanEditor,
-        TabularNumberEditor,
-        TabularDateEditor,
-    ]
+    TabularTextEditor,
+    FormsModule,
+    TabularBooleanEditor,
+    TabularNumberEditor,
+    TabularDateEditor
+]
 })
 export class TabularQueryParameterEditor implements OnInit {
    @Input() value: QueryParameter;

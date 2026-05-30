@@ -24,13 +24,13 @@ import { SortOptions } from "../../../../../../../shared/util/sort/sort-options"
 import { Tool } from "../../../../../../../shared/util/tool";
 import { ComponentTool } from "../../../../common/util/component-tool";
 import { DataSourceInfo } from "../../model/data-source-info";
-import { NgIf, NgFor } from "@angular/common";
+
 
 @Component({
     selector: "data-sources-browser",
     templateUrl: "data-sources-browser.component.html",
     styleUrls: ["data-sources-browser.component.scss"],
-    imports: [NgbTooltip, NgIf, NgFor]
+    imports: [NgbTooltip]
 })
 export class DataSourcesBrowser implements OnInit {
    @Input() browserView: DataSourceBrowserViewModel;

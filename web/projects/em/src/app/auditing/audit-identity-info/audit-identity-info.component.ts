@@ -32,7 +32,7 @@ import { IdentityInfo, IdentityInfoList, IdentityInfoParameters } from "./identi
 import { MatOption } from "@angular/material/core";
 import { MatSelect } from "@angular/material/select";
 import { MatFormField, MatLabel } from "@angular/material/form-field";
-import { NgIf, NgFor } from "@angular/common";
+
 
 @Secured({
    route: "/auditing/identity-info",
@@ -51,7 +51,7 @@ import { NgIf, NgFor } from "@angular/common";
     selector: "em-audit-identity-info",
     templateUrl: "./audit-identity-info.component.html",
     styleUrls: ["./audit-identity-info.component.scss"],
-    imports: [AuditTableViewComponent, FormsModule, ReactiveFormsModule, NgIf, MatFormField, MatLabel, MatSelect, NgFor, MatOption]
+    imports: [AuditTableViewComponent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatSelect, MatOption]
 })
 export class AuditIdentityInfoComponent implements OnInit, OnDestroy {
    types = [ "u", "g", "r", "o" ];

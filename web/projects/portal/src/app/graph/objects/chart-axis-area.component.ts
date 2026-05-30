@@ -47,7 +47,7 @@ import { FlyoverInfo } from "../model/flyover-info";
 import { ChartTile } from "../model/chart-tile";
 import { ChartImageDirective } from "./chart-image.directive";
 import { OutOfZoneDirective } from "../../widget/directive/out-of-zone.directive";
-import { NgIf, NgFor } from "@angular/common";
+
 
 @Component({
     selector: "chart-axis-area",
@@ -58,7 +58,7 @@ import { NgIf, NgFor } from "@angular/common";
             useExisting: ChartAxisArea
         }],
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [NgIf, OutOfZoneDirective, NgFor, ChartImageDirective]
+    imports: [OutOfZoneDirective, ChartImageDirective]
 })
 export class ChartAxisArea extends ChartObjectAreaBase<Axis> implements OnChanges {
    @Input() scrollbarWidth: number;

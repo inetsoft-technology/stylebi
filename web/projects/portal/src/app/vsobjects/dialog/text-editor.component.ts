@@ -18,12 +18,12 @@
 import { Component, Input } from "@angular/core";
 import { TextEditorModel } from "../model/text-editor-model";
 import { FormsModule } from "@angular/forms";
-import { NgIf } from "@angular/common";
+
 
 @Component({
     selector: "text-editor",
     templateUrl: "text-editor.component.html",
-    imports: [NgIf, FormsModule]
+    imports: [FormsModule]
 })
 export class TextEditor {
    @Input() model: TextEditorModel;

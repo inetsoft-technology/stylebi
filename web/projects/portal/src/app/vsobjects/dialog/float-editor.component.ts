@@ -19,12 +19,12 @@ import { Component, Input, OnInit, OnDestroy } from "@angular/core";
 import { UntypedFormGroup, UntypedFormControl, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { FloatEditorModel } from "../model/float-editor-model";
 import { FormValidators } from "../../../../../shared/util/form-validators";
-import { NgIf } from "@angular/common";
+
 
 @Component({
     selector: "float-editor",
     templateUrl: "float-editor.component.html",
-    imports: [FormsModule, ReactiveFormsModule, NgIf]
+    imports: [FormsModule, ReactiveFormsModule]
 })
 export class FloatEditor implements OnInit, OnDestroy {
    @Input() model: FloatEditorModel;

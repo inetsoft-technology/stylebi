@@ -36,14 +36,14 @@ import { EmailPaneModel } from "../../vsobjects/model/email-pane-model";
 import { EmailDialogData, EmailAddrDialog } from "./email-addr-dialog.component";
 import { CkeditorWrapperComponent } from "../../../../../shared/ckeditor-wrapper/ckeditor-wrapper.component";
 import { DefaultFocusDirective } from "../directive/default-focus.directive";
-import { NgIf } from "@angular/common";
+
 
 @Component({
     selector: "email-pane",
     templateUrl: "email-pane.component.html",
     styleUrls: ["email-pane.component.scss"],
     encapsulation: ViewEncapsulation.None,
-    imports: [NgIf, FormsModule, ReactiveFormsModule, NgbTypeahead, DefaultFocusDirective, CkeditorWrapperComponent, EmailAddrDialog]
+    imports: [FormsModule, ReactiveFormsModule, NgbTypeahead, DefaultFocusDirective, CkeditorWrapperComponent, EmailAddrDialog]
 })
 export class EmailPane implements OnInit, OnDestroy {
    @Input()

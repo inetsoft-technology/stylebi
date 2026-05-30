@@ -40,13 +40,13 @@ import { CalcAggregateOption } from "./calc-aggregate-option.component";
 import { CalcGroupOption } from "./calc-group-option.component";
 import { FormsModule } from "@angular/forms";
 import { OutOfZoneDirective } from "../../../widget/directive/out-of-zone.directive";
-import { NgIf, NgFor } from "@angular/common";
+
 
 @Component({
     selector: "calc-data-pane",
     templateUrl: "calc-data-pane.component.html",
     styleUrls: ["calc-data-pane.component.scss"],
-    imports: [NgIf, OutOfZoneDirective, FormsModule, NgFor, FixedDropdownDirective, CalcGroupOption, CalcAggregateOption]
+    imports: [OutOfZoneDirective, FormsModule, FixedDropdownDirective, CalcGroupOption, CalcAggregateOption]
 })
 export class CalcDataPane {
    @Input() vsId: string;

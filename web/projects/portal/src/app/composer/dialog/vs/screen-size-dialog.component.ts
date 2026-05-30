@@ -21,13 +21,13 @@ import { FormValidators } from "../../../../../../shared/util/form-validators";
 import { ScreenSizeDialogModel } from "../../data/vs/screen-size-dialog-model";
 import { Tool } from "../../../../../../shared/util/tool";
 import { EnterSubmitDirective } from "../../../widget/directive/enter-submit.directive";
-import { NgIf } from "@angular/common";
+
 import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
 
 @Component({
     selector: "screen-size-dialog",
     templateUrl: "screen-size-dialog.component.html",
-    imports: [ModalHeaderComponent, NgIf, EnterSubmitDirective, FormsModule, ReactiveFormsModule]
+    imports: [ModalHeaderComponent, EnterSubmitDirective, FormsModule, ReactiveFormsModule]
 })
 export class ScreenSizeDialog implements OnInit {
    @Input() index: number;

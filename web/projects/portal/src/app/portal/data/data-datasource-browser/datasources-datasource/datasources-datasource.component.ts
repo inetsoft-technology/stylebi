@@ -34,7 +34,7 @@ import {
 } from "../../../../widget/dialog/getting-started-dialog/service/getting-started.service";
 import { PortalDataType } from "../../data-navigation-tree/portal-data-type";
 import { AppInfoService } from "../../../../../../../shared/util/app-info.service";
-import { NgIf, NgFor } from "@angular/common";
+
 import { DatasourcesDatasourceEditorComponent } from "./datasources-datasource-editor/datasources-datasource-editor.component";
 
 const DATASOURCES_URI: string = "../api/portal/data/datasources";
@@ -48,7 +48,7 @@ export interface AdditionalInfo {
     selector: "datasources-datasource",
     templateUrl: "datasources-datasource.component.html",
     styleUrls: ["datasources-datasource.component.scss"],
-    imports: [DatasourcesDatasourceEditorComponent, NgIf, NgFor, DataNotificationsComponent]
+    imports: [DatasourcesDatasourceEditorComponent, DataNotificationsComponent]
 })
 export class DatasourcesDatasourceComponent implements OnInit, OnDestroy{
    @ViewChild("dataNotifications") dataNotifications: DataNotificationsComponent;

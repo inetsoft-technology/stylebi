@@ -23,7 +23,7 @@ import { MatDivider } from "@angular/material/divider";
 import { MatList, MatListItem } from "@angular/material/list";
 import { MatLine } from "@angular/material/core";
 import { MatCard, MatCardContent } from "@angular/material/card";
-import { NgIf, NgFor } from "@angular/common";
+
 import { MatCheckbox } from "@angular/material/checkbox";
 import { MatInput } from "@angular/material/input";
 import { MatFormField, MatLabel, MatError } from "@angular/material/form-field";
@@ -32,7 +32,7 @@ import { MatFormField, MatLabel, MatError } from "@angular/material/form-field";
     selector: "em-csv-config-pane",
     templateUrl: "./em-csv-config-pane.component.html",
     styleUrls: ["./em-csv-config-pane.component.scss"],
-    imports: [MatFormField, MatLabel, MatInput, FormsModule, MatCheckbox, NgIf, MatCard, MatCardContent, MatLine, MatList, NgFor, MatListItem, MatDivider, MatError]
+    imports: [MatFormField, MatLabel, MatInput, FormsModule, MatCheckbox, MatCard, MatCardContent, MatLine, MatList, MatListItem, MatDivider, MatError]
 })
 export class EmCSVConfigPaneComponent implements OnInit{
    @Input() csvConfigModel: CSVConfigModel = new CSVConfigModel();

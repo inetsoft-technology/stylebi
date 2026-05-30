@@ -38,13 +38,13 @@ import { MatFormField, MatLabel, MatError } from "@angular/material/form-field";
 import { MatCard, MatCardContent } from "@angular/material/card";
 import { MatTabGroup, MatTab, MatTabContent } from "@angular/material/tabs";
 import { EditorPanelComponent } from "../../../../common/util/editor-panel/editor-panel.component";
-import { NgIf, NgFor } from "@angular/common";
+
 
 @Component({
     selector: "em-repository-data-source-folder-settings-view",
     templateUrl: "./repository-data-source-folder-settings-view.component.html",
     styleUrls: ["./repository-data-source-folder-settings-view.component.scss"],
-    imports: [NgIf, EditorPanelComponent, MatTabGroup, MatTab, MatTabContent, MatCard, MatCardContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatInput, MatError, NgFor, ResourcePermissionComponent]
+    imports: [EditorPanelComponent, MatTabGroup, MatTab, MatTabContent, MatCard, MatCardContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatInput, MatError, ResourcePermissionComponent]
 })
 export class RepositoryDataSourceFolderSettingsViewComponent implements OnInit, OnChanges, OnDestroy {
    @Input() model: DataSourceFolderSettingsModel;

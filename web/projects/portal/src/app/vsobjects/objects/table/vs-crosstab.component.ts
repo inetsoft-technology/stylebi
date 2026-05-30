@@ -99,7 +99,7 @@ import { TooltipDirective } from "../../../widget/tooltip/tooltip.directive";
 import { OutOfZoneDirective } from "../../../widget/directive/out-of-zone.directive";
 import { VSPopComponentDirective } from "../data-tip/vs-pop-component.directive";
 import { VSDataTipDirective } from "../data-tip/vs-data-tip.directive";
-import { NgIf, NgFor } from "@angular/common";
+
 
 const CROSSTAB_ACTION_DRILL = "/events/crosstab/action/drill";
 const CROSSTAB_DRILL_CELLS_URI = "/events/table/drill/cells";
@@ -114,7 +114,7 @@ const SCRIPT_TREE_URL: string = "../api/vsscriptable/scriptTree";
     templateUrl: "vs-crosstab.component.html",
     styleUrls: ["base-table.scss", "vs-crosstab.component.scss"],
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [NgIf, VSDataTipDirective, VSPopComponentDirective, OutOfZoneDirective, TooltipDirective, VSTitle, NgbTooltip, SelectionBoxDirective, NgFor, VSSimpleCell, SafeFontDirective, VSTableCell, TouchScrollDirective, VSHiddenAnnotation, VSAnnotation, VSLoadingDisplay, VSPreviewTable]
+    imports: [VSDataTipDirective, VSPopComponentDirective, OutOfZoneDirective, TooltipDirective, VSTitle, NgbTooltip, SelectionBoxDirective, VSSimpleCell, SafeFontDirective, VSTableCell, TouchScrollDirective, VSHiddenAnnotation, VSAnnotation, VSLoadingDisplay, VSPreviewTable]
 })
 export class VSCrosstab extends BaseTable<VSCrosstabModel> implements OnInit, OnChanges, OnDestroy {
    @Input() set model(model: VSCrosstabModel) {

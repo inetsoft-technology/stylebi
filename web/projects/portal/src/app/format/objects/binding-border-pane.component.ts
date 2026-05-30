@@ -23,7 +23,7 @@ import { FormatInfoModel } from "../../common/data/format-info-model";
 import { StyleConstants } from "../../common/util/style-constants";
 import { BaseHrefService } from "../../common/services/base-href.service";
 import { ColorDropdown } from "../../widget/color-picker/color-dropdown.component";
-import { NgIf } from "@angular/common";
+
 import { BorderStylePane } from "./border-style-pane.component";
 
 const borderSelectState = {
@@ -35,7 +35,7 @@ const borderSelectState = {
     selector: "binding-border-pane",
     styleUrls: ["binding-border-pane.component.scss"],
     templateUrl: "binding-border-pane.component.html",
-    imports: [BorderStylePane, NgIf, ColorDropdown]
+    imports: [BorderStylePane, ColorDropdown]
 })
 export class BindingBorderPane implements AfterViewInit, OnChanges {
    @Input() formatModel: FormatInfoModel;

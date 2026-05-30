@@ -41,13 +41,13 @@ import { SafeFontDirective } from "../../directives/safe-font.directive";
 import { VSPopComponentDirective } from "../data-tip/vs-pop-component.directive";
 import { VSDataTipDirective } from "../data-tip/vs-data-tip.directive";
 import { TooltipIfDirective } from "../../../widget/tooltip/tooltip-if.directive";
-import { NgIf, NgStyle } from "@angular/common";
+import { NgStyle } from "@angular/common";
 
 @Component({
     selector: "vs-submit",
     templateUrl: "vs-submit.component.html",
     styleUrls: ["vs-submit.component.scss"],
-    imports: [NgIf, TooltipIfDirective, VSDataTipDirective, VSPopComponentDirective, SafeFontDirective, NgStyle]
+    imports: [TooltipIfDirective, VSDataTipDirective, VSPopComponentDirective, SafeFontDirective, NgStyle]
 })
 export class VSSubmit extends NavigationComponent<VSSubmitModel> implements OnChanges {
    @Input() selected: boolean = false;

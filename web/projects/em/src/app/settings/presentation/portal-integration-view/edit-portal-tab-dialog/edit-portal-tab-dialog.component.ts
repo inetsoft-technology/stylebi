@@ -21,7 +21,7 @@ import { MAT_DIALOG_DATA, MatDialogRef, MatDialogContent, MatDialogActions } fro
 import {FormValidators} from "../../../../../../../shared/util/form-validators";
 import {EditPortalTabDialogData} from "./edit-portal-tab-dialog-data";
 import { MatButton } from "@angular/material/button";
-import { NgIf } from "@angular/common";
+
 import { MatInput } from "@angular/material/input";
 import { MatFormField, MatLabel, MatError } from "@angular/material/form-field";
 import { ModalHeaderComponent } from "../../../../common/util/modal-header/modal-header.component";
@@ -30,7 +30,7 @@ import { ModalHeaderComponent } from "../../../../common/util/modal-header/modal
     selector: "em-add-portal-tab-dialog",
     templateUrl: "./edit-portal-tab-dialog.component.html",
     styleUrls: ["./edit-portal-tab-dialog.component.scss"],
-    imports: [ModalHeaderComponent, MatDialogContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatInput, NgIf, MatError, MatDialogActions, MatButton]
+    imports: [ModalHeaderComponent, MatDialogContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatInput, MatError, MatDialogActions, MatButton]
 })
 export class EditPortalTabDialogComponent implements OnInit {
    title: string;

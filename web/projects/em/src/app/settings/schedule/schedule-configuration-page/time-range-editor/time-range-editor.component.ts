@@ -32,7 +32,7 @@ import { ResourcePermissionModel } from "../../../security/resource-permission/r
 import { MatButton } from "@angular/material/button";
 import { ResourcePermissionComponent } from "../../../security/resource-permission/resource-permission.component";
 import { MatCheckbox } from "@angular/material/checkbox";
-import { NgIf } from "@angular/common";
+
 import { MatInput } from "@angular/material/input";
 import { MatFormField, MatLabel, MatError } from "@angular/material/form-field";
 import { MatCard, MatCardContent } from "@angular/material/card";
@@ -49,7 +49,7 @@ export interface TimeRangeData {
     templateUrl: "./time-range-editor.component.html",
     styleUrls: ["./time-range-editor.component.scss"],
     encapsulation: ViewEncapsulation.None,
-    imports: [ModalHeaderComponent, MatDialogContent, FormsModule, ReactiveFormsModule, MatTabGroup, MatTab, MatCard, MatCardContent, MatFormField, MatLabel, MatInput, NgIf, MatError, MatCheckbox, ResourcePermissionComponent, MatDialogActions, MatButton]
+    imports: [ModalHeaderComponent, MatDialogContent, FormsModule, ReactiveFormsModule, MatTabGroup, MatTab, MatCard, MatCardContent, MatFormField, MatLabel, MatInput, MatError, MatCheckbox, ResourcePermissionComponent, MatDialogActions, MatButton]
 })
 export class TimeRangeEditorComponent implements OnInit {
    form: UntypedFormGroup;

@@ -79,27 +79,25 @@ import { ChartAxisArea } from "./chart-axis-area.component";
 import { ChartFacetArea } from "./chart-facet.component";
 import { MouseEventDirective } from "../../widget/mouse-event/mouse-event.directive";
 import { OutOfZoneDirective } from "../../widget/directive/out-of-zone.directive";
-import { NgIf, NgStyle, NgFor } from "@angular/common";
+import { NgStyle } from "@angular/common";
 
 @Component({
     selector: "chart-area",
     templateUrl: "chart-area.component.html",
     styleUrls: ["chart-area.component.scss"],
     imports: [
-        NgIf,
-        NgStyle,
-        OutOfZoneDirective,
-        MouseEventDirective,
-        NgFor,
-        ChartFacetArea,
-        ChartAxisArea,
-        TooltipDirective,
-        ChartPlotArea,
-        ChartTitleArea,
-        ChartLegendContainer,
-        ChartLegendArea,
-        ChartNavBar,
-    ]
+    NgStyle,
+    OutOfZoneDirective,
+    MouseEventDirective,
+    ChartFacetArea,
+    ChartAxisArea,
+    TooltipDirective,
+    ChartPlotArea,
+    ChartTitleArea,
+    ChartLegendContainer,
+    ChartLegendArea,
+    ChartNavBar
+]
 })
 export class ChartArea implements OnInit, OnChanges, OnDestroy {
    @Input() zIndex: number;

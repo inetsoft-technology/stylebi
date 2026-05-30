@@ -25,7 +25,7 @@ import { VSDimensionModel } from "../../model/vs-dimension-model";
 import { Tool } from "../../../../../../shared/util/tool";
 import { DateRangeRef } from "../../../common/util/date-range-ref";
 import { HierarchyEditor } from "./hierarchy-editor.component";
-import { NgFor, NgClass } from "@angular/common";
+import { NgClass } from "@angular/common";
 import { OutOfZoneDirective } from "../../../widget/directive/out-of-zone.directive";
 
 interface DragSourceEl {
@@ -42,7 +42,7 @@ interface DragSourceEl {
     selector: "hierarchy-property-pane",
     templateUrl: "hierarchy-property-pane.component.html",
     styleUrls: ["./hierarchy-property-pane.component.scss"],
-    imports: [OutOfZoneDirective, NgFor, NgClass, HierarchyEditor]
+    imports: [OutOfZoneDirective, NgClass, HierarchyEditor]
 })
 export class HierarchyPropertyPane implements OnInit {
    @Input() model: HierarchyPropertyPaneModel;

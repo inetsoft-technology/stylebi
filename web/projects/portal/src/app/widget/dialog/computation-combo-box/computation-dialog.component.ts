@@ -20,7 +20,7 @@ import { ComboMode } from "../../dynamic-combo-box/dynamic-combo-box-model";
 import { ValueMode } from "../../dynamic-combo-box/dynamic-combo-box-model";
 import { StrategyInfo } from "../../target/target-info";
 import { Tool } from "../../../../../../shared/util/tool";
-import { NgIf, NgSwitch, NgSwitchCase } from "@angular/common";
+
 import { DynamicComboBox } from "../../dynamic-combo-box/dynamic-combo-box.component";
 import { FormsModule } from "@angular/forms";
 import { ModalHeaderComponent } from "../../modal-header/modal-header.component";
@@ -29,13 +29,10 @@ import { ModalHeaderComponent } from "../../modal-header/modal-header.component"
     selector: "computation-dialog",
     templateUrl: "computation-dialog.component.html",
     imports: [
-        ModalHeaderComponent,
-        FormsModule,
-        DynamicComboBox,
-        NgIf,
-        NgSwitch,
-        NgSwitchCase,
-    ]
+    ModalHeaderComponent,
+    FormsModule,
+    DynamicComboBox
+]
 })
 export class ComputationDialog implements OnInit {
    @Input() model: StrategyInfo;

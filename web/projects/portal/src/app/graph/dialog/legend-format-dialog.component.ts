@@ -24,26 +24,25 @@ import { AliasPane } from "./alias-pane.component";
 import { LegendScalePane } from "./legend-scale-pane.component";
 import { LegendFormatGeneralPane } from "./legend-format-general-pane.component";
 import { NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, NgbNavOutlet } from "@ng-bootstrap/ng-bootstrap";
-import { NgIf } from "@angular/common";
+
 import { ModalHeaderComponent } from "../../widget/modal-header/modal-header.component";
 
 @Component({
     selector: "legend-format-dialog",
     templateUrl: "legend-format-dialog.component.html",
     imports: [
-        ModalHeaderComponent,
-        NgIf,
-        NgbNav,
-        NgbNavItem,
-        NgbNavLink,
-        NgbNavLinkBase,
-        NgbNavContent,
-        LegendFormatGeneralPane,
-        LegendScalePane,
-        AliasPane,
-        NgbNavOutlet,
-        ApplyButtonComponent,
-    ]
+    ModalHeaderComponent,
+    NgbNav,
+    NgbNavItem,
+    NgbNavLink,
+    NgbNavLinkBase,
+    NgbNavContent,
+    LegendFormatGeneralPane,
+    LegendScalePane,
+    AliasPane,
+    NgbNavOutlet,
+    ApplyButtonComponent
+]
 })
 export class LegendFormatDialog implements OnInit {
    @Input() model: LegendFormatDialogModel;

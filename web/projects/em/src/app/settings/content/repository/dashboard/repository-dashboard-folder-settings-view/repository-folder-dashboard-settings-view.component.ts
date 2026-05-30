@@ -39,7 +39,7 @@ import { MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, Ma
 import { MatCard, MatCardContent } from "@angular/material/card";
 import { MatTabGroup, MatTab, MatTabContent } from "@angular/material/tabs";
 import { EditorPanelComponent } from "../../../../../common/util/editor-panel/editor-panel.component";
-import { NgIf } from "@angular/common";
+
 
 export interface DashboardOption {
    name: string;
@@ -50,7 +50,7 @@ export interface DashboardOption {
     selector: "em-repository-folder-dashboard-settings-view",
     templateUrl: "./repository-folder-dashboard-settings-view.component.html",
     styleUrls: ["./repository-folder-dashboard-settings-view.component.scss"],
-    imports: [NgIf, EditorPanelComponent, MatTabGroup, MatTab, MatTabContent, MatCard, MatCardContent, MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatIconButton, MatIcon, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, ResourcePermissionComponent]
+    imports: [EditorPanelComponent, MatTabGroup, MatTab, MatTabContent, MatCard, MatCardContent, MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatIconButton, MatIcon, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, ResourcePermissionComponent]
 })
 export class RepositoryFolderDashboardSettingsViewComponent implements OnChanges {
    @Input() model: RepositoryFolderDashboardSettingsModel;

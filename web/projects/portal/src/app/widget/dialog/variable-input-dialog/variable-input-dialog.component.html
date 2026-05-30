@@ -1,20 +1,20 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <!-- Modal Header -->
 <div class="modal-header">
   <h3 [style.width]="'50%'" class="modal-title">_#(Enter Parameters)</h3>
@@ -24,30 +24,38 @@
 </div>
 
 <!-- Modal Body -->
-<div class="modal-body" [enterSubmit]="formValid" (onEnter)="saveChanges()"
-   (onEsc)="cancel()" *ngIf="model" blockMouse>
-  <div (mouseup)="onMouseUp($event)">
-    <div *ngFor="let _variableInfo of model.varInfos let i = index">
-      <fieldset>
-        <legend>{{_variableInfo.alias ? _variableInfo.alias : _variableInfo.name}}</legend>
-        <variable-value-editor *ngIf="_variableInfo.style === 0"
-                               [value]="getVariableValueString(_variableInfo)"
-                               [oneOf]="_variableInfo.usedInOneOf"
-                               (valueChange)="setVariableValueString(_variableInfo, $event)"
-                               [type]="_variableInfo.type" [timeInstantFormat]="timeInstantFormat">
-        </variable-value-editor>
-        <variable-collection-selector *ngIf="_variableInfo.style > 0" [style]="_variableInfo.style"
-                                      [varIndex]="i"
-                                      [value]="_variableInfo.value"
-                                      [labels]="_variableInfo.choices"
-                                      [values]="getVariableValues(_variableInfo)"
-                                      [dataTruncated]="_variableInfo.dataTruncated"
-                                      (valueChange)="setVariableValue(_variableInfo, $event)">
-        </variable-collection-selector>
-      </fieldset>
+@if (model) {
+  <div class="modal-body" [enterSubmit]="formValid" (onEnter)="saveChanges()"
+    (onEsc)="cancel()" blockMouse>
+    <div (mouseup)="onMouseUp($event)">
+      @for (_variableInfo of model.varInfos; track _variableInfo; let i = $index) {
+        <div>
+          <fieldset>
+            <legend>{{_variableInfo.alias ? _variableInfo.alias : _variableInfo.name}}</legend>
+            @if (_variableInfo.style === 0) {
+              <variable-value-editor
+                [value]="getVariableValueString(_variableInfo)"
+                [oneOf]="_variableInfo.usedInOneOf"
+                (valueChange)="setVariableValueString(_variableInfo, $event)"
+                [type]="_variableInfo.type" [timeInstantFormat]="timeInstantFormat">
+              </variable-value-editor>
+            }
+            @if (_variableInfo.style > 0) {
+              <variable-collection-selector [style]="_variableInfo.style"
+                [varIndex]="i"
+                [value]="_variableInfo.value"
+                [labels]="_variableInfo.choices"
+                [values]="getVariableValues(_variableInfo)"
+                [dataTruncated]="_variableInfo.dataTruncated"
+                (valueChange)="setVariableValue(_variableInfo, $event)">
+              </variable-collection-selector>
+            }
+          </fieldset>
+        </div>
+      }
     </div>
   </div>
-</div>
+}
 
 <!-- Modal Footer -->
 <div class="modal-footer" blockMouse>

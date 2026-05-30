@@ -26,7 +26,7 @@ import {CustomSSOAttributesModel} from "../sso-settings-model";
 import {DefaultCodemirrorService} from "../../../../../../../shared/util/codemirror/default-codemirror.service";
 import { MatInput } from "@angular/material/input";
 import { MatFormField, MatLabel } from "@angular/material/form-field";
-import { NgIf } from "@angular/common";
+
 import { FormsModule } from "@angular/forms";
 import { MatRadioGroup, MatRadioButton } from "@angular/material/radio";
 
@@ -39,7 +39,7 @@ import { MatRadioGroup, MatRadioButton } from "@angular/material/radio";
             useClass: DefaultCodemirrorService,
             deps: []
         }],
-    imports: [MatRadioGroup, FormsModule, MatRadioButton, NgIf, MatFormField, MatInput, MatLabel]
+    imports: [MatRadioGroup, FormsModule, MatRadioButton, MatFormField, MatInput, MatLabel]
 })
 export class CustomSsoFormComponent implements OnInit, AfterViewInit, AfterViewChecked, OnDestroy {
    @ViewChild("scriptEditor", { static: true }) scriptEditor: ElementRef;

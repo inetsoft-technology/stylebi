@@ -27,7 +27,7 @@ import { Tool } from "../../../../../../../shared/util/tool";
 import { MatInput } from "@angular/material/input";
 import { MatError, MatFormField, MatLabel } from "@angular/material/form-field";
 import { MatCard, MatCardHeader, MatCardContent } from "@angular/material/card";
-import { NgIf } from "@angular/common";
+
 
 export interface RepositorySheetSettingsChange {
    model: RepositorySheetSettingsModel;
@@ -38,7 +38,7 @@ export interface RepositorySheetSettingsChange {
     selector: "em-repository-sheet-settings-view",
     templateUrl: "./repository-sheet-settings-view.component.html",
     styleUrls: ["./repository-sheet-settings-view.component.scss"],
-    imports: [NgIf, MatCard, MatCardHeader, MatError, MatCardContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatInput]
+    imports: [MatCard, MatCardHeader, MatError, MatCardContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatInput]
 })
 export class RepositorySheetSettingsViewComponent implements OnChanges, OnDestroy, OnInit {
    @Input() model: RepositorySheetSettingsModel;

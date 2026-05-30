@@ -20,7 +20,7 @@ import { Component, EventEmitter, Input, Output } from "@angular/core";
 import { TreeNodeModel } from "../tree/tree-node-model";
 import { QueryColumnsModel } from "./query-columns-model";
 import { EmailDialogData } from "./email-addr-dialog.component";
-import { NgFor } from "@angular/common";
+
 import { FormsModule } from "@angular/forms";
 import { AssetTreeComponent } from "../asset-tree/asset-tree.component";
 
@@ -29,7 +29,7 @@ const QUERY_COLUMN_URI = "../api/portal/schedule/emails/query/columns";
 @Component({
     selector: "query-email-pane",
     templateUrl: "query-email-pane.component.html",
-    imports: [AssetTreeComponent, FormsModule, NgFor]
+    imports: [AssetTreeComponent, FormsModule]
 })
 export class QueryEmailPane {
    @Input() set addressString(value: string) {

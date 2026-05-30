@@ -1,59 +1,68 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
-<div *ngIf="model" class="report-tab-body">
-  <div *ngIf="historyBarEnabled && recentlyViewed && recentlyViewed.length > 0 && !mobile"
-       class="portal-sub-navbar bg-white4">
-    <div class="d-flex align-items-center px-2">
-      <i class="recent-outline-icon icon-size-large" aria-hidden="true" title="_#(History)"></i>
-    </div>
-    <ul class="nav">
-      <li class="nav-item" *ngFor="let entry of recentlyViewed">
-        <a class="nav-link" (click)="showEntry(entry)" tabindex="-1" enterClick>{{ entry.alias || entry.label }}</a>
-      </li>
-    </ul>
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
+@if (model) {
+  <div class="report-tab-body">
+    @if (historyBarEnabled && recentlyViewed && recentlyViewed.length > 0 && !mobile) {
+      <div
+        class="portal-sub-navbar bg-white4">
+        <div class="d-flex align-items-center px-2">
+          <i class="recent-outline-icon icon-size-large" aria-hidden="true" title="_#(History)"></i>
+        </div>
+        <ul class="nav">
+          @for (entry of recentlyViewed; track entry) {
+            <li class="nav-item">
+              <a class="nav-link" (click)="showEntry(entry)" tabindex="-1" enterClick>{{ entry.alias || entry.label }}</a>
+            </li>
+          }
+        </ul>
+      </div>
+    }
+    @switch (viewType) {
+      @case ('list') {
+        <p-repository-list-view class="h-100"
+          [rootNode]="rootNode"
+          [childRouteShown]="childRouteShown"
+          [wizardShown]="wizardShown"
+          (entryOpened)="showEntry($event)">
+          <router-outlet></router-outlet>
+        </p-repository-list-view>
+      }
+      @case ('desktop') {
+        <p-repository-desktop-view [model]="model"
+          [rootNode]="rootNode" [selectedEntry]="selectedEntry"
+          [treePaneCollapsed]="treePaneCollapsed"
+          [openedEntrys]="openedEntrys"
+          (entryOpened)="showEntry($event)" (entryDeleted)="deletedEntry($event)"
+          (editViewsheet)="editViewsheet($event)"
+          (collapseTree)="collapseTree($event)">
+          <router-outlet></router-outlet>
+        </p-repository-desktop-view>
+      }
+      @case ('mobile') {
+        <p-repository-mobile-view [model]="model" #mobileView
+          [rootNode]="rootNode" [selectedEntry]="selectedEntry"
+          [childRouteShown]="childRouteShown" (entryOpened)="showEntry($event)"
+          (editViewsheet)="editViewsheet($event)">
+          <router-outlet></router-outlet>
+        </p-repository-mobile-view>
+      }
+    }
   </div>
-
-  <ng-container [ngSwitch]="viewType">
-    <p-repository-list-view *ngSwitchCase="'list'" class="h-100"
-                            [rootNode]="rootNode"
-                            [childRouteShown]="childRouteShown"
-                            [wizardShown]="wizardShown"
-                            (entryOpened)="showEntry($event)">
-      <router-outlet></router-outlet>
-    </p-repository-list-view>
-
-    <p-repository-desktop-view *ngSwitchCase="'desktop'" [model]="model"
-                               [rootNode]="rootNode" [selectedEntry]="selectedEntry"
-                               [treePaneCollapsed]="treePaneCollapsed"
-                               [openedEntrys]="openedEntrys"
-                               (entryOpened)="showEntry($event)" (entryDeleted)="deletedEntry($event)"
-                               (editViewsheet)="editViewsheet($event)"
-                               (collapseTree)="collapseTree($event)">
-      <router-outlet></router-outlet>
-    </p-repository-desktop-view>
-
-    <p-repository-mobile-view *ngSwitchCase="'mobile'" [model]="model" #mobileView
-                              [rootNode]="rootNode" [selectedEntry]="selectedEntry"
-                              [childRouteShown]="childRouteShown" (entryOpened)="showEntry($event)"
-                              (editViewsheet)="editViewsheet($event)">
-      <router-outlet></router-outlet>
-    </p-repository-mobile-view>
-  </ng-container>
-</div>
+}
 
 <notifications #notifications class="notifications-report-tab" [timeout]="5000"></notifications>

@@ -28,7 +28,7 @@ import { CloseWizardModel } from "../../vs-wizard/model/close-wizard-model";
 import { VSWizardConstants } from "../../vs-wizard/model/vs-wizard-constants";
 import { VsWizardComponent } from "../../vs-wizard/gui/vs-wizard.component";
 import { VSBindingPane } from "../../vsview/edit/vs-binding-pane.component";
-import { NgIf } from "@angular/common";
+
 
 export enum EditorMode {
    DEFAULT,
@@ -41,7 +41,7 @@ export enum EditorMode {
     templateUrl: "viewer-edit.component.html",
     styleUrls: ["viewer-edit.component.scss"],
     providers: [ViewsheetClientService],
-    imports: [NgIf, VSBindingPane, VsWizardComponent]
+    imports: [VSBindingPane, VsWizardComponent]
 })
 export class ViewerEditComponent implements OnInit, OnDestroy {
    viewData: ViewData;

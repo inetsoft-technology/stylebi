@@ -52,7 +52,7 @@ import { TreeComponent } from "../tree/tree.component";
 import { RepositoryBaseComponent } from "./repository-base-component";
 import { RepositoryTreeAction } from "./repository-tree-action.enum";
 import { RepositoryTreeService } from "./repository-tree.service";
-import { NgIf } from "@angular/common";
+
 
 @Component({
     selector: "repository-tree",
@@ -61,7 +61,7 @@ import { NgIf } from "@angular/common";
     providers: [
         RepositoryClientService
     ],
-    imports: [NgIf, TreeComponent]
+    imports: [TreeComponent]
 })
 export class RepositoryTreeComponent extends RepositoryBaseComponent implements OnInit, AfterViewChecked, OnDestroy {
    @Input() showRoot: boolean;

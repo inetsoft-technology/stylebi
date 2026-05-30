@@ -18,17 +18,16 @@
 import { Component, Input } from "@angular/core";
 import { TableAdvancedPaneModel } from "../model/table-advanced-pane-model";
 import { TipPane } from "./graph/tip-pane.component";
-import { NgIf } from "@angular/common";
+
 import { FormsModule } from "@angular/forms";
 
 @Component({
     selector: "table-advanced-pane",
     templateUrl: "table-advanced-pane.component.html",
     imports: [
-        FormsModule,
-        NgIf,
-        TipPane,
-    ]
+    FormsModule,
+    TipPane
+]
 })
 export class TableAdvancedPane {
    @Input() model: TableAdvancedPaneModel;

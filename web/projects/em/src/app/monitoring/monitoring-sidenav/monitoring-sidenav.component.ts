@@ -26,7 +26,7 @@ import { AuthorizationService } from "../../authorization/authorization.service"
 import { PageHeaderService } from "../../page-header/page-header.service";
 import { Secured } from "../../secured";
 import { TopScrollDirective } from "../../top-scroll/top-scroll.directive";
-import { NgIf } from "@angular/common";
+
 import { MatNavList, MatListItem } from "@angular/material/list";
 import { MatIcon } from "@angular/material/icon";
 import { MatIconButton } from "@angular/material/button";
@@ -45,7 +45,7 @@ const SMALL_WIDTH_BREAKPOINT = 720;
     selector: "em-monitoring-sidenav",
     templateUrl: "./monitoring-sidenav.component.html",
     styleUrls: ["./monitoring-sidenav.component.scss"],
-    imports: [PageHeaderComponent, MatSidenavContainer, MatSidenav, MatFormField, MatInput, FormsModule, MatIconButton, MatSuffix, MatIcon, MatNavList, NgIf, MatListItem, RouterLink, RouterLinkActive, MatSidenavContent, TopScrollDirective, RouterOutlet]
+    imports: [PageHeaderComponent, MatSidenavContainer, MatSidenav, MatFormField, MatInput, FormsModule, MatIconButton, MatSuffix, MatIcon, MatNavList, MatListItem, RouterLink, RouterLinkActive, MatSidenavContent, TopScrollDirective, RouterOutlet]
 })
 export class MonitoringSidenavComponent implements OnInit, OnDestroy {
    @ViewChild(MatSidenav, { static: true }) sidenav: MatSidenav;

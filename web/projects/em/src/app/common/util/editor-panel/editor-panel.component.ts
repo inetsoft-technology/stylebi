@@ -34,7 +34,7 @@ import { Subject } from "rxjs";
 import { TopScrollSupport } from "../../../top-scroll/top-scroll-support";
 import { MatButton } from "@angular/material/button";
 import { MatCard, MatCardContent } from "@angular/material/card";
-import { NgStyle, NgClass, NgIf } from "@angular/common";
+import { NgStyle, NgClass } from "@angular/common";
 
 const SMALL_WIDTH_BREAKPOINT = 720;
 
@@ -45,7 +45,7 @@ const SMALL_WIDTH_BREAKPOINT = 720;
     encapsulation: ViewEncapsulation.None,
     providers: [TopScrollSupport],
     host: { "class": "editor-panel" },
-    imports: [NgStyle, NgClass, MatCard, MatCardContent, NgIf, MatButton]
+    imports: [NgStyle, NgClass, MatCard, MatCardContent, MatButton]
 })
 export class EditorPanelComponent implements OnChanges, AfterViewInit, AfterContentChecked {
    @Input() applyVisible = true;

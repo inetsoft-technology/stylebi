@@ -28,14 +28,14 @@ import { AbstractTableAssembly, } from "../../../../data/ws/abstract-table-assem
 import { AssemblyActionGroup } from "../../../../../common/action/assembly-action-group";
 import { NumberToArrayPipe } from "../../../../../widget/pipe/number-to-array.pipe";
 import { WSAssemblyThumbnailTitleComponent } from "../ws-assembly-thumbnail-title.component";
-import { NgClass, NgFor, NgIf } from "@angular/common";
+import { NgClass } from "@angular/common";
 
 @Component({
     selector: "concatenated-table-thumbnail",
     templateUrl: "concatenated-table-thumbnail.component.html",
     changeDetection: ChangeDetectionStrategy.OnPush,
     styleUrls: ["concatenated-table-thumbnail.component.scss"],
-    imports: [NgClass, WSAssemblyThumbnailTitleComponent, NgFor, NgIf, NumberToArrayPipe]
+    imports: [NgClass, WSAssemblyThumbnailTitleComponent, NumberToArrayPipe]
 })
 export class ConcatenatedTableThumbnailComponent {
    @Input() table: AbstractTableAssembly;

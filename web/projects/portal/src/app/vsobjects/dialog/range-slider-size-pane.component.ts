@@ -22,7 +22,7 @@ import { FormValidators } from "../../../../../shared/util/form-validators";
 import { RangeSliderDataPaneModel } from "../model/range-slider-data-pane-model";
 import { RangeSliderSizePaneModel } from "../model/range-slider-size-pane-model";
 import { TimeInfoType } from "../../composer/data/vs/time-info-type";
-import { NgClass, NgIf, NgFor } from "@angular/common";
+import { NgClass } from "@angular/common";
 
 interface RangeType {
    label: string;
@@ -32,7 +32,7 @@ interface RangeType {
 @Component({
     selector: "range-slider-size-pane",
     templateUrl: "range-slider-size-pane.component.html",
-    imports: [FormsModule, ReactiveFormsModule, NgClass, NgIf, NgFor]
+    imports: [FormsModule, ReactiveFormsModule, NgClass]
 })
 
 export class RangeSliderSizePane implements OnInit {

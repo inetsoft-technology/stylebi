@@ -23,7 +23,7 @@ import { PhysicalTableModel } from "../../data/model/datasources/database/physic
 import { AutoAliasJoinModel } from "../../data/model/datasources/database/physical-model/auto-alias-join-model";
 import { DefaultFocusDirective } from "../../../widget/directive/default-focus.directive";
 import { ExistsDirective } from "../../../widget/directive/exists-validator.directive";
-import { NgIf, NgFor } from "@angular/common";
+
 import { FormsModule } from "@angular/forms";
 import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
 
@@ -33,7 +33,7 @@ const TABLE_ALIASES_URI: string = "../api/data/physicalmodel/aliases/";
     selector: "physical-table-aliases-dialog",
     templateUrl: "physical-table-aliases-dialog.component.html",
     styleUrls: ["physical-table-aliases-dialog.component.scss"],
-    imports: [ModalHeaderComponent, FormsModule, NgIf, NgFor, ExistsDirective, DefaultFocusDirective]
+    imports: [ModalHeaderComponent, FormsModule, ExistsDirective, DefaultFocusDirective]
 })
 export class PhysicalTableAliasesDialog implements OnInit {
    @Input() physicalModel: PhysicalModelDefinition;

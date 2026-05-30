@@ -43,7 +43,7 @@ import { FullDataBaseTreeModel } from "../../../../model/full-database-tree-mode
 import { SearchComparator } from "../../../../../../widget/tree/search-comparator";
 import { DataModelScriptPane } from "../../database-physical-model/data-model-script-pane/data-model-script-pane.component";
 import { LoadingIndicatorPaneComponent } from "../../common-components/loading-indicator-pane/loading-indicator-pane.component";
-import { NgIf, NgFor } from "@angular/common";
+
 import { FormsModule } from "@angular/forms";
 
 const DATABASE_TREE_URI: string = "../api/data/vpm/hiddenColumn/tree";
@@ -55,7 +55,7 @@ const MAX_HIDDEN_COLUMN = 500;
     templateUrl: "vpm-hidden-columns.component.html",
     styleUrls: ["vpm-hidden-columns.component.scss"],
     encapsulation: ViewEncapsulation.None,
-    imports: [NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, FormsModule, NgIf, TreeComponent, LoadingIndicatorPaneComponent, NgFor, DataModelScriptPane, NgbNavOutlet]
+    imports: [NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, FormsModule, TreeComponent, LoadingIndicatorPaneComponent, DataModelScriptPane, NgbNavOutlet]
 })
 export class VPMHiddenColumnsComponent implements OnInit, OnDestroy {
    @Input() hidden: HiddenColumnsModel;

@@ -51,7 +51,7 @@ import { MatTooltip } from "@angular/material/tooltip";
 import { MatNavList, MatListItem } from "@angular/material/list";
 import { MatCard, MatCardContent, MatCardActions } from "@angular/material/card";
 import { MatTabGroup, MatTab, MatTabContent } from "@angular/material/tabs";
-import { NgIf, NgFor } from "@angular/common";
+
 import { MatInput } from "@angular/material/input";
 import { MatFormField, MatLabel, MatError } from "@angular/material/form-field";
 import { EditorPanelComponent } from "../../../common/util/editor-panel/editor-panel.component";
@@ -72,7 +72,7 @@ export class TaskItem {
     templateUrl: "./schedule-task-editor-page.component.html",
     styleUrls: ["./schedule-task-editor-page.component.scss"],
     encapsulation: ViewEncapsulation.None,
-    imports: [EditorPanelComponent, MatFormField, FormsModule, ReactiveFormsModule, MatLabel, MatInput, NgIf, MatError, MatTabGroup, MatTab, MatCard, MatCardContent, MatNavList, NgFor, MatListItem, MatTooltip, MatCardActions, MatButton, TaskConditionPaneComponent, MatTabContent, TaskActionPaneComponent, TaskOptionsPane, LoadingSpinnerComponent]
+    imports: [EditorPanelComponent, MatFormField, FormsModule, ReactiveFormsModule, MatLabel, MatInput, MatError, MatTabGroup, MatTab, MatCard, MatCardContent, MatNavList, MatListItem, MatTooltip, MatCardActions, MatButton, TaskConditionPaneComponent, MatTabContent, TaskActionPaneComponent, TaskOptionsPane, LoadingSpinnerComponent]
 })
 export class ScheduleTaskEditorPageComponent implements OnInit {
    @HostBinding("class") hostClass = "schedule-task-editor";

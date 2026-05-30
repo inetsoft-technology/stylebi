@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { NgFor, NgClass } from "@angular/common";
+import { NgClass } from "@angular/common";
 import { HttpClient, HttpParams } from "@angular/common/http";
 import {
   AfterViewChecked,
@@ -122,7 +122,7 @@ const HEARTBEAT_INTERVAL_TIME = 20000;
         "./query-network-graph-pane.component.scss",
         "../../../../../../../../composer/gui/ws/jsplumb/jsplumb-shared.scss"
     ],
-    imports: [OutOfZoneDirective, SelectionBoxDirective, NgFor, JoinNodeGraphComponent, NgClass]
+    imports: [OutOfZoneDirective, SelectionBoxDirective, JoinNodeGraphComponent, NgClass]
 })
 export class QueryNetworkGraphPaneComponent implements OnInit, AfterViewInit,
    AfterViewChecked, OnChanges, OnDestroy

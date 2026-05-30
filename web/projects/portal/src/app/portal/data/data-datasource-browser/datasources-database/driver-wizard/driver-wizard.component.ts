@@ -34,7 +34,7 @@ import { DriverList } from "../../../../../../../../em/src/app/settings/content/
 import { PluginsModel } from "../../../../../../../../shared/util/model/plugins-model";
 import { DataNotificationsComponent } from "../../../data-notifications.component";
 import { NgbTypeahead } from "@ng-bootstrap/ng-bootstrap";
-import { NgIf, NgFor } from "@angular/common";
+
 import { LoadingIndicatorPaneComponent } from "../common-components/loading-indicator-pane/loading-indicator-pane.component";
 import { BlockMouseDirective } from "../../../../../widget/mouse-event/block-mouse.directive";
 import { ModalHeaderComponent } from "../../../../../widget/modal-header/modal-header.component";
@@ -52,7 +52,7 @@ interface MavenSearchResponse {
     selector: "driver-wizard",
     templateUrl: "./driver-wizard.component.html",
     styleUrls: ["./driver-wizard.component.scss"],
-    imports: [ModalHeaderComponent, BlockMouseDirective, LoadingIndicatorPaneComponent, NgIf, FormsModule, ReactiveFormsModule, NgFor, NgbTypeahead, DataNotificationsComponent]
+    imports: [ModalHeaderComponent, BlockMouseDirective, LoadingIndicatorPaneComponent, FormsModule, ReactiveFormsModule, NgbTypeahead, DataNotificationsComponent]
 })
 export class DriverWizardComponent implements OnInit {
    @Input() plugins: string[] = [];

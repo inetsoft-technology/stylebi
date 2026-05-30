@@ -16,14 +16,14 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, Input, Output, EventEmitter } from "@angular/core";
-import { NgFor } from "@angular/common";
+
 import { ScrollableTableDirective } from "../../../../widget/scrollable-table/scrollable-table.directive";
 
 @Component({
     selector: "editable-table",
     templateUrl: "editable-table.component.html",
     styleUrls: ["editable-table.component.scss"],
-    imports: [ScrollableTableDirective, NgFor]
+    imports: [ScrollableTableDirective]
 })
 export class EditableTableComponent {
    @Input() items: any[];

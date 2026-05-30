@@ -21,7 +21,7 @@ import { TimeZoneModel } from "../../../../../../../shared/schedule/model/time-z
 import { MatOption } from "@angular/material/core";
 import { MatSelect } from "@angular/material/select";
 import { MatFormField, MatLabel } from "@angular/material/form-field";
-import { NgIf, NgFor } from "@angular/common";
+
 
 export interface TimeZoneValue {
    timeZoneId: string;
@@ -39,7 +39,7 @@ export interface TimeZoneValue {
             multi: true
         }
     ],
-    imports: [NgIf, MatFormField, MatLabel, MatSelect, NgFor, MatOption]
+    imports: [MatFormField, MatLabel, MatSelect, MatOption]
 })
 export class TimeZoneSelectComponent implements OnInit, ControlValueAccessor {
    selectedTimeZone: TimeZoneModel;

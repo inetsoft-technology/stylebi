@@ -21,7 +21,7 @@ import {
 import { UntypedFormBuilder, UntypedFormControl, UntypedFormGroup, FormGroupDirective, NgForm, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { ErrorStateMatcher } from "@angular/material/core";
 import { FormValidators } from "../../../../shared/util/form-validators";
-import { NgIf } from "@angular/common";
+
 import { MatIcon } from "@angular/material/icon";
 import { MatIconButton, MatButton } from "@angular/material/button";
 import { MatInput } from "@angular/material/input";
@@ -32,7 +32,7 @@ import { MatCard, MatCardTitle, MatCardContent, MatCardActions } from "@angular/
     selector: "em-change-password-form",
     templateUrl: "./change-password-form.component.html",
     styleUrls: ["./change-password-form.component.scss"],
-    imports: [MatCard, MatCardTitle, MatCardContent, FormsModule, ReactiveFormsModule, MatFormField, MatInput, MatIconButton, MatSuffix, MatIcon, MatLabel, NgIf, MatError, MatCardActions, MatButton]
+    imports: [MatCard, MatCardTitle, MatCardContent, FormsModule, ReactiveFormsModule, MatFormField, MatInput, MatIconButton, MatSuffix, MatIcon, MatLabel, MatError, MatCardActions, MatButton]
 })
 export class ChangePasswordFormComponent implements OnInit {
    @Input()

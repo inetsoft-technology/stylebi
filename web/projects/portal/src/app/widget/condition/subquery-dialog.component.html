@@ -1,23 +1,23 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <modal-header [title]="'_#(Subquery)'"
-              (onCancel)="cancel()"
-              [cshid]="'DataBlockConditions'">
+  (onCancel)="cancel()"
+  [cshid]="'DataBlockConditions'">
 </modal-header>
 <div class="modal-body">
   <form ngNoForm (submit)="$event.preventDefault()">
@@ -26,11 +26,13 @@
       <div class="row form-row-float-label">
         <div class="col form-floating">
           <select class="form-control" [ngModel]="value.query"
-                  (ngModelChange)="changeSelectedTable($event)">
-            <option *ngFor="let _subqueryTable of getAvailableTables()"
-                    [value]="_subqueryTable.name" [attr.title]="_subqueryTable.description">
-              {{_subqueryTable.name}}
-            </option>
+            (ngModelChange)="changeSelectedTable($event)">
+            @for (_subqueryTable of getAvailableTables(); track _subqueryTable) {
+              <option
+                [value]="_subqueryTable.name" [attr.title]="_subqueryTable.description">
+                {{_subqueryTable.name}}
+              </option>
+            }
           </select>
           <label>_#(Subquery)</label>
         </div>
@@ -38,34 +40,40 @@
       <div class="row form-row-float-label">
         <div class="col form-floating">
           <select class="form-control" [compareWith]="dataRefsEqual"
-                  [ngModel]="value.attribute"
-                  (ngModelChange)="attributeChanged($event)">
-            <option *ngFor="let _field of selectedTable?.columns"
-                    [ngValue]="_field"
-                    [attr.title]="getTooltip(_field)">
-              {{_field.name}}
-            </option>
+            [ngModel]="value.attribute"
+            (ngModelChange)="attributeChanged($event)">
+            @for (_field of selectedTable?.columns; track _field) {
+              <option
+                [ngValue]="_field"
+                [attr.title]="getTooltip(_field)">
+                {{_field.name}}
+              </option>
+            }
           </select>
           <label>_#(In column)</label>
         </div>
       </div>
-      <div *ngIf="!isValid()" class="alert alert-danger">
-        _#(identification.columns.empty.or.nonempty)
-      </div>
+      @if (!isValid()) {
+        <div class="alert alert-danger">
+          _#(identification.columns.empty.or.nonempty)
+        </div>
+      }
     </fieldset>
     <fieldset>
       <legend>_#(Where)</legend>
       <div class="row form-row-float-label">
         <div class="col form-floating">
           <select class="form-control" [compareWith]="dataRefsEqual"
-                  [ngModel]="value.subAttribute"
-                  (ngModelChange)="subAttributeChanged($event)">
+            [ngModel]="value.subAttribute"
+            (ngModelChange)="subAttributeChanged($event)">
             <option [ngValue]="null"></option>
-            <option *ngFor="let _field of selectedTable?.columns"
-                    [ngValue]="_field"
-                    [attr.title]="getTooltip(_field)">
-              {{_field.name}}
-            </option>
+            @for (_field of selectedTable?.columns; track _field) {
+              <option
+                [ngValue]="_field"
+                [attr.title]="getTooltip(_field)">
+                {{_field.name}}
+              </option>
+            }
           </select>
           <label>_#(Subquery column)</label>
         </div>
@@ -76,14 +84,16 @@
       <div class="row form-row-float-label">
         <div class="col form-floating">
           <select class="form-control" [compareWith]="dataRefsEqual"
-                  [ngModel]="value.mainAttribute"
-                  (ngModelChange)="mainAttributeChanged($event)">
+            [ngModel]="value.mainAttribute"
+            (ngModelChange)="mainAttributeChanged($event)">
             <option [ngValue]="null"></option>
-            <option *ngFor="let _field of getCurrentTableColumns()"
-                    [ngValue]="_field"
-                    [attr.title]="getTooltip(_field)">
-              {{_field.name}}
-            </option>
+            @for (_field of getCurrentTableColumns(); track _field) {
+              <option
+                [ngValue]="_field"
+                [attr.title]="getTooltip(_field)">
+                {{_field.name}}
+              </option>
+            }
           </select>
           <label>_#(Current table column)</label>
         </div>

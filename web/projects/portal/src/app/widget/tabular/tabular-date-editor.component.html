@@ -1,24 +1,32 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
-<time-instant-value-editor *ngIf="type == 'TIME_INSTANT'" [(ngModel)]="value" (ngModelChange)="valueChanged($event)" [format]="DATE_FORMAT" [disabled]="!enabled"></time-instant-value-editor>
-<date-value-editor *ngIf="type == 'DATE'" [(ngModel)]="value" (ngModelChange)="valueChanged($event)" [format]="DATE_FORMAT" [disabled]="!enabled"></date-value-editor>
-<time-value-editor *ngIf="type == 'TIME'" [model]="value" (timeChange)="valueChanged($event)" [format]="DATE_FORMAT" [disabled]="!enabled"></time-value-editor>
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
+@if (type == 'TIME_INSTANT') {
+  <time-instant-value-editor [(ngModel)]="value" (ngModelChange)="valueChanged($event)" [format]="DATE_FORMAT" [disabled]="!enabled"></time-instant-value-editor>
+}
+@if (type == 'DATE') {
+  <date-value-editor [(ngModel)]="value" (ngModelChange)="valueChanged($event)" [format]="DATE_FORMAT" [disabled]="!enabled"></date-value-editor>
+}
+@if (type == 'TIME') {
+  <time-value-editor [model]="value" (timeChange)="valueChanged($event)" [format]="DATE_FORMAT" [disabled]="!enabled"></time-value-editor>
+}
 
-<div *ngIf="required && value == null">
-  <div class="alert alert-danger">_#(enter.date)</div>
-</div>
+@if (required && value == null) {
+  <div>
+    <div class="alert alert-danger">_#(enter.date)</div>
+  </div>
+}

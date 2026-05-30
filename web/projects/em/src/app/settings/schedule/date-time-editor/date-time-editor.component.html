@@ -1,31 +1,37 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
-<em-datepicker *ngIf="type == XSchema.DATE || type == XSchema.TIME_INSTANT"
-               [date]="date" [isVisibleLabel]="true"
-               (dateValue)="changeValue($event)">
-</em-datepicker>
-<mat-form-field *ngIf="type == XSchema.TIME || type == XSchema.TIME_INSTANT"
-                appearance="outline" color="accent">
-  <mat-label>_#(Time)</mat-label>
-  <input class="time-input" matInput type="time" placeholder="_#(Time)" step="1"
-         [(ngModel)]="time" (ngModelChange)="changeValue()"
-         #timeControl="ngModel" name="time" required>
-  <mat-error *ngIf="timeControl.hasError('required')">
-    _#(em.schedule.condition.timeRequired)
-  </mat-error>
-</mat-form-field>
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
+@if (type == XSchema.DATE || type == XSchema.TIME_INSTANT) {
+  <em-datepicker
+    [date]="date" [isVisibleLabel]="true"
+    (dateValue)="changeValue($event)">
+  </em-datepicker>
+}
+@if (type == XSchema.TIME || type == XSchema.TIME_INSTANT) {
+  <mat-form-field
+    appearance="outline" color="accent">
+    <mat-label>_#(Time)</mat-label>
+    <input class="time-input" matInput type="time" placeholder="_#(Time)" step="1"
+      [(ngModel)]="time" (ngModelChange)="changeValue()"
+      #timeControl="ngModel" name="time" required>
+    @if (timeControl.hasError('required')) {
+      <mat-error>
+        _#(em.schedule.condition.timeRequired)
+      </mat-error>
+    }
+  </mat-form-field>
+}

@@ -17,13 +17,13 @@
  */
 import { Component, EventEmitter, Input, Output } from "@angular/core";
 import { LineComboBox } from "./line-combo-box.component";
-import { NgIf } from "@angular/common";
+
 
 @Component({
     selector: "static-line-editor",
     templateUrl: "static-line-editor.component.html",
     styleUrls: ["combined-visual-pane.scss"],
-    imports: [NgIf, LineComboBox]
+    imports: [LineComboBox]
 })
 export class StaticLineEditor {
    @Input() aggrName: string;

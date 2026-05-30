@@ -21,13 +21,13 @@ import { TableInfo } from "../../../../common/util/table/table-info";
 import { TableView } from "../../../../common/util/table/table-view.component";
 import { MatTabGroup, MatTab, MatTabContent } from "@angular/material/tabs";
 import { EditorPanelComponent } from "../../../../common/util/editor-panel/editor-panel.component";
-import { NgIf } from "@angular/common";
+
 
 @Component({
     selector: "em-repository-folder-trashcan-settings-view",
     templateUrl: "./repository-folder-trashcan-settings-view.component.html",
     styleUrls: ["./repository-folder-trashcan-settings-view.component.scss"],
-    imports: [NgIf, EditorPanelComponent, MatTabGroup, MatTab, MatTabContent, TableView]
+    imports: [EditorPanelComponent, MatTabGroup, MatTab, MatTabContent, TableView]
 })
 export class RepositoryFolderTrashcanSettingsViewComponent {
    @Input() model: RepositoryFolderTrashcanTableModel[];

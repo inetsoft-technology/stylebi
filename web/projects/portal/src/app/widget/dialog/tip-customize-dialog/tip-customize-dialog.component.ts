@@ -21,13 +21,13 @@ import { NgbModal, NgbAlert } from "@ng-bootstrap/ng-bootstrap";
 import { UIContextService } from "../../../common/services/ui-context.service";
 import { ComponentTool } from "../../../common/util/component-tool";
 import { TipCustomizeDialogModel } from "./tip-customize-dialog-model";
-import { NgIf, NgFor } from "@angular/common";
+
 import { ModalHeaderComponent } from "../../modal-header/modal-header.component";
 
 @Component({
     selector: "tip-customize-dialog",
     templateUrl: "tip-customize-dialog.component.html",
-    imports: [ModalHeaderComponent, FormsModule, ReactiveFormsModule, NgIf, NgbAlert, NgFor]
+    imports: [ModalHeaderComponent, FormsModule, ReactiveFormsModule, NgbAlert]
 })
 export class TipCustomizeDialog implements OnChanges {
    @Input() model: TipCustomizeDialogModel;

@@ -22,7 +22,7 @@ import { FormValidators } from "../../../../../shared/util/form-validators";
 import { TreeNodeModel } from "../../widget/tree/tree-node-model";
 import { BasicGeneralPaneModel } from "../model/basic-general-pane-model";
 import { DynamicComboBox } from "../../widget/dynamic-combo-box/dynamic-combo-box.component";
-import { NgClass, NgIf } from "@angular/common";
+import { NgClass } from "@angular/common";
 import { DefaultFocusDirective } from "../../widget/directive/default-focus.directive";
 import { InputTrimDirective } from "../../widget/directive/input-trim.directive";
 
@@ -37,14 +37,13 @@ const HIDE_ON_PRINT_LABEL: string = "_#(js:Hide on Print and Export)";
     selector: "basic-general-pane",
     templateUrl: "basic-general-pane.component.html",
     imports: [
-        FormsModule,
-        ReactiveFormsModule,
-        InputTrimDirective,
-        DefaultFocusDirective,
-        NgClass,
-        NgIf,
-        DynamicComboBox,
-    ]
+    FormsModule,
+    ReactiveFormsModule,
+    InputTrimDirective,
+    DefaultFocusDirective,
+    NgClass,
+    DynamicComboBox
+]
 })
 export class BasicGeneralPane implements OnInit {
    @Input() vsId: string;

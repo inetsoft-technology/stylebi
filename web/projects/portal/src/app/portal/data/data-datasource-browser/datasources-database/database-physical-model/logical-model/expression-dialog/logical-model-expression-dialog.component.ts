@@ -25,7 +25,7 @@ import { StringWrapper } from "../../../../../model/datasources/database/string-
 import { TreeNodeModel } from "../../../../../../../widget/tree/tree-node-model";
 import { GetModelEvent } from "../../../../../model/datasources/database/events/get-model-event";
 import { ScriptPane } from "../../../../../../../widget/dialog/script-pane/script-pane.component";
-import { NgIf, NgFor } from "@angular/common";
+
 import { ModalHeaderComponent } from "../../../../../../../widget/modal-header/modal-header.component";
 
 const CHECK_EXPRESSION_URI: string = "../api/data/logicalModel/attribute/expression";
@@ -35,7 +35,7 @@ const FIELDS_URI: string = "../api/data/logicalModel/tables/nodes";
     selector: "logical-model-expression-dialog",
     templateUrl: "logical-model-expression-dialog.component.html",
     styleUrls: ["logical-model-expression-dialog.component.scss"],
-    imports: [ModalHeaderComponent, FormsModule, ReactiveFormsModule, NgIf, NgFor, ScriptPane, NotificationsComponent]
+    imports: [ModalHeaderComponent, FormsModule, ReactiveFormsModule, ScriptPane, NotificationsComponent]
 })
 export class LogicalModelExpressionDialog implements OnInit {
    @Input() entities: EntityModel[];

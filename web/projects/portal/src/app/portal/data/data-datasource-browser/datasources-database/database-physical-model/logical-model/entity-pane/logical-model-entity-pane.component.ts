@@ -28,13 +28,13 @@ import { UntypedFormGroup, Validators, UntypedFormControl, AbstractControl, Vali
 import { EntityModel } from "../../../../../model/datasources/database/physical-model/logical-model/entity-model";
 import { FormValidators } from "../../../../../../../../../../shared/util/form-validators";
 import { Subscription } from "rxjs";
-import { NgIf } from "@angular/common";
+
 
 @Component({
     selector: "logical-model-entity-pane",
     templateUrl: "logical-model-entity-pane.component.html",
     styleUrls: ["logical-model-entity-pane.component.scss"],
-    imports: [FormsModule, ReactiveFormsModule, NgIf]
+    imports: [FormsModule, ReactiveFormsModule]
 })
 export class LogicalModelEntityPane implements AfterViewInit, OnChanges, OnDestroy {
    @Input() existNames: string[] = [];

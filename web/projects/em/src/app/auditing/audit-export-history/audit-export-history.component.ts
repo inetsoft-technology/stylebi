@@ -30,7 +30,7 @@ import { ExportHistory, ExportHistoryList, ExportHistoryParameters } from "./exp
 import { of, Subscription } from "rxjs";
 import { ActivatedRoute } from "@angular/router";
 import { MatOption } from "@angular/material/core";
-import { NgFor } from "@angular/common";
+
 import { MatSelect } from "@angular/material/select";
 import { MatFormField, MatLabel } from "@angular/material/form-field";
 
@@ -51,7 +51,7 @@ import { MatFormField, MatLabel } from "@angular/material/form-field";
     selector: "em-audit-export-history",
     templateUrl: "./audit-export-history.component.html",
     styleUrls: ["./audit-export-history.component.scss"],
-    imports: [AuditTableViewComponent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatSelect, NgFor, MatOption]
+    imports: [AuditTableViewComponent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatSelect, MatOption]
 })
 export class AuditExportHistoryComponent implements OnInit, OnDestroy {
    objectTypes: string[] = [];

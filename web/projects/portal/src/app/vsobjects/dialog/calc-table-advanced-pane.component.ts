@@ -21,19 +21,18 @@ import { CalcTableAdvancedPaneModel } from "../model/calc-table-advanced-pane-mo
 import { UntypedFormControl, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { FormValidators } from "../../../../../shared/util/form-validators";
 import { NotificationsComponent } from "../../widget/notifications/notifications.component";
-import { NgClass, NgIf } from "@angular/common";
+import { NgClass } from "@angular/common";
 
 @Component({
     selector: "calc-table-advanced-pane",
     templateUrl: "calc-table-advanced-pane.component.html",
     imports: [
-        FormsModule,
-        ReactiveFormsModule,
-        NgClass,
-        NgIf,
-        TipPane,
-        NotificationsComponent,
-    ]
+    FormsModule,
+    ReactiveFormsModule,
+    NgClass,
+    TipPane,
+    NotificationsComponent
+]
 })
 export class CalcTableAdvancedPane implements OnInit {
    @Input() model: CalcTableAdvancedPaneModel;

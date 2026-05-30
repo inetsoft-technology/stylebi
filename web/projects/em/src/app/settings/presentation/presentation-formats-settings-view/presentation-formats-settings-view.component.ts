@@ -24,7 +24,7 @@ import { PresentationSettingsType } from "../presentation-settings-view/presenta
 import { ContextHelp } from "../../../context-help";
 import { MatInput } from "@angular/material/input";
 import { MatFormField, MatLabel, MatHint } from "@angular/material/form-field";
-import { NgIf } from "@angular/common";
+
 import { MatCard, MatCardTitle, MatCardContent } from "@angular/material/card";
 
 @Searchable({
@@ -40,7 +40,7 @@ import { MatCard, MatCardTitle, MatCardContent } from "@angular/material/card";
     selector: "em-presentation-formats-settings-view",
     templateUrl: "./presentation-formats-settings-view.component.html",
     styleUrls: ["./presentation-formats-settings-view.component.scss"],
-    imports: [MatCard, MatCardTitle, MatCardContent, NgIf, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatInput, MatHint]
+    imports: [MatCard, MatCardTitle, MatCardContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatInput, MatHint]
 })
 export class PresentationFormatsSettingsViewComponent {
    DATE_REGEX = "^(?:(?:(?:full)|(?:long)|(?:medium)|(?:short))|(?:(?:[^A-Za-z]+)|(?:[GyYMwWDdFEuaHkKhmsSzZX]+)|(?:'[^']*'))*)$";

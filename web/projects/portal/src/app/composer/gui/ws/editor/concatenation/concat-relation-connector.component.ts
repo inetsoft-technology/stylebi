@@ -16,13 +16,13 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { ChangeDetectionStrategy, Component, Input } from "@angular/core";
-import { NgIf } from "@angular/common";
+
 
 @Component({
     selector: "concat-relation-connector",
     templateUrl: "concat-relation-connector.component.html",
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [NgIf]
+    imports: []
 })
 export class ConcatRelationConnectorComponent {
    @Input() first: boolean;

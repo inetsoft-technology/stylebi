@@ -26,13 +26,13 @@ import {
 } from "@angular/core";
 import { AbstractControl, UntypedFormControl, ValidatorFn, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { debounceTime } from "rxjs/operators";
-import { NgIf } from "@angular/common";
+
 
 @Component({
     selector: "tabular-number-editor",
     templateUrl: "tabular-number-editor.component.html",
     styleUrls: ["tabular-number-editor.component.scss"],
-    imports: [FormsModule, ReactiveFormsModule, NgIf]
+    imports: [FormsModule, ReactiveFormsModule]
 })
 export class TabularNumberEditor implements OnInit, OnChanges {
    @Input() value: number;

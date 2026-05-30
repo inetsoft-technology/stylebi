@@ -26,7 +26,7 @@ import { ContextHelp } from "../../../context-help";
 import { MatCheckbox } from "@angular/material/checkbox";
 import { MatInput } from "@angular/material/input";
 import { MatFormField, MatLabel, MatError } from "@angular/material/form-field";
-import { NgIf } from "@angular/common";
+
 import { MatCard, MatCardTitle, MatCardContent } from "@angular/material/card";
 
 @Searchable({
@@ -42,7 +42,7 @@ import { MatCard, MatCardTitle, MatCardContent } from "@angular/material/card";
     selector: "em-performance-settings-view",
     templateUrl: "./performance-settings-view.component.html",
     styleUrls: ["./performance-settings-view.component.scss"],
-    imports: [MatCard, MatCardTitle, MatCardContent, NgIf, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatInput, MatError, MatCheckbox]
+    imports: [MatCard, MatCardTitle, MatCardContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatInput, MatError, MatCheckbox]
 })
 export class PerformanceSettingsViewComponent {
    @Output() modelChanged = new EventEmitter<GeneralSettingsChanges>();

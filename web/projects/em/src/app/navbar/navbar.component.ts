@@ -40,7 +40,7 @@ import { SendNotificationDialogComponent } from "./send-notification-dialog.comp
 import { MatMenuTrigger, MatMenu, MatMenuItem } from "@angular/material/menu";
 import { MatIconAnchor, MatIconButton } from "@angular/material/button";
 import { MatIcon } from "@angular/material/icon";
-import { NgIf, NgFor, AsyncPipe } from "@angular/common";
+import { AsyncPipe } from "@angular/common";
 
 @Component({
     selector: "em-navbar",
@@ -62,7 +62,7 @@ import { NgIf, NgFor, AsyncPipe } from "@angular/common";
             ])
         ])
     ],
-    imports: [NgIf, MatIcon, MatIconAnchor, RouterLink, RouterLinkActive, MatIconButton, MatMenuTrigger, MatMenu, MatMenuItem, NgFor, AsyncPipe]
+    imports: [MatIcon, MatIconAnchor, RouterLink, RouterLinkActive, MatIconButton, MatMenuTrigger, MatMenu, MatMenuItem, AsyncPipe]
 })
 export class NavbarComponent implements OnInit, OnDestroy {
    @Input()

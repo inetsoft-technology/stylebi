@@ -44,7 +44,7 @@ import { Worksheet } from "../../data/ws/worksheet";
 import { ComponentTool } from "../../../common/util/component-tool";
 import { PreviewTableComponent } from "../../../vsobjects/objects/table/preview-table.component";
 import { EnterSubmitDirective } from "../../../widget/directive/enter-submit.directive";
-import { NgIf, NgFor } from "@angular/common";
+
 import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
 
 const MODEL_URI = "../api/composer/ws/import-csv-dialog-model/";
@@ -58,7 +58,7 @@ const TOUCH_FILE_URI = "../api/composer/ws/import-csv-dialog-model/touch-file/";
             provide: ContextProvider,
             useFactory: ComposerContextProviderFactory
         }],
-    imports: [ModalHeaderComponent, NgIf, EnterSubmitDirective, FormsModule, ReactiveFormsModule, NgbProgressbar, NgFor, PreviewTableComponent]
+    imports: [ModalHeaderComponent, EnterSubmitDirective, FormsModule, ReactiveFormsModule, NgbProgressbar, PreviewTableComponent]
 })
 export class ImportCSVDialog implements OnInit, AfterViewChecked, OnDestroy {
    @Input() worksheet: Worksheet;

@@ -31,7 +31,7 @@ import { MatButton } from "@angular/material/button";
 import { MatProgressBar } from "@angular/material/progress-bar";
 import { MultiSelectTreeNodeDirective } from "../../../../../common/util/tree/multi-select-tree-node.directive";
 import { FlatTreeViewComponent } from "../../../../../common/util/tree/flat-tree-view.component";
-import { NgIf } from "@angular/common";
+
 import { ModalHeaderComponent } from "../../../../../common/util/modal-header/modal-header.component";
 
 export interface SelectAssetsDialogData {
@@ -43,7 +43,7 @@ export interface SelectAssetsDialogData {
     templateUrl: "./select-assets-dialog.component.html",
     styleUrls: ["./select-assets-dialog.component.scss"],
     providers: [RepositoryTreeDataSource],
-    imports: [ModalHeaderComponent, MatDialogContent, NgIf, FlatTreeViewComponent, MultiSelectTreeNodeDirective, MatProgressBar, MatDialogActions, MatButton]
+    imports: [ModalHeaderComponent, MatDialogContent, FlatTreeViewComponent, MultiSelectTreeNodeDirective, MatProgressBar, MatDialogActions, MatButton]
 })
 export class SelectAssetsDialogComponent implements OnInit {
    selectedNodes: FlatTreeNode<RepositoryTreeNode>[] = [];

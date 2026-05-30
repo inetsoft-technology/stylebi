@@ -26,7 +26,7 @@ import { ChartObjectAreaBase } from "./chart-object-area-base";
 import { TooltipInfo } from "../model/tooltip-info";
 import { ChartImageDirective } from "./chart-image.directive";
 import { OutOfZoneDirective } from "../../widget/directive/out-of-zone.directive";
-import { NgIf, NgFor } from "@angular/common";
+
 
 @Component({
     selector: "chart-legend-area",
@@ -37,7 +37,7 @@ import { NgIf, NgFor } from "@angular/common";
             useExisting: ChartLegendArea
         }],
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [NgIf, OutOfZoneDirective, NgFor, ChartImageDirective]
+    imports: [OutOfZoneDirective, ChartImageDirective]
 })
 export class ChartLegendArea extends ChartObjectAreaBase<Legend> {
    @Input() maxHeight: number;

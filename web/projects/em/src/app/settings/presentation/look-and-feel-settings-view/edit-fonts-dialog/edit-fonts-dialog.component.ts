@@ -26,7 +26,7 @@ import { FontFaceModel } from "../font-face-model";
 import { AddFontFaceDialogData } from "../add-font-face-dialog-data";
 import { MatIcon } from "@angular/material/icon";
 import { MatIconButton, MatButton } from "@angular/material/button";
-import { NgFor } from "@angular/common";
+
 import { MatCheckbox } from "@angular/material/checkbox";
 import { ModalHeaderComponent } from "../../../../common/util/modal-header/modal-header.component";
 
@@ -48,28 +48,27 @@ interface FontFamilyElement {
         ]),
     ],
     imports: [
-        ModalHeaderComponent,
-        MatDialogContent,
-        MatTable,
-        MatSort,
-        MatColumnDef,
-        MatHeaderCellDef,
-        MatHeaderCell,
-        MatCheckbox,
-        MatCellDef,
-        MatCell,
-        MatSortHeader,
-        NgFor,
-        MatIconButton,
-        MatIcon,
-        MatHeaderRowDef,
-        MatHeaderRow,
-        MatRowDef,
-        MatRow,
-        MatDialogActions,
-        MatButton,
-        MatDialogClose,
-    ]
+    ModalHeaderComponent,
+    MatDialogContent,
+    MatTable,
+    MatSort,
+    MatColumnDef,
+    MatHeaderCellDef,
+    MatHeaderCell,
+    MatCheckbox,
+    MatCellDef,
+    MatCell,
+    MatSortHeader,
+    MatIconButton,
+    MatIcon,
+    MatHeaderRowDef,
+    MatHeaderRow,
+    MatRowDef,
+    MatRow,
+    MatDialogActions,
+    MatButton,
+    MatDialogClose
+]
 })
 export class EditFontsDialogComponent implements OnInit, AfterViewInit {
    @ViewChild(MatSort, { static: true }) sort: MatSort;

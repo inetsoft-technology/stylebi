@@ -25,13 +25,13 @@ import { ThemePropertiesModel } from "../theme-properties-view/theme-properties-
 import { MatButton } from "@angular/material/button";
 import { ThemePropertiesViewComponent } from "../theme-properties-view/theme-properties-view.component";
 import { EditorPanelComponent } from "../../../../common/util/editor-panel/editor-panel.component";
-import { NgIf } from "@angular/common";
+
 
 @Component({
     selector: "em-theme-editor-view",
     templateUrl: "./theme-editor-view.component.html",
     styleUrls: ["./theme-editor-view.component.scss"],
-    imports: [NgIf, EditorPanelComponent, MatTabGroup, MatTab, ThemePropertiesViewComponent, ThemeCssViewComponent, MatButton]
+    imports: [EditorPanelComponent, MatTabGroup, MatTab, ThemePropertiesViewComponent, ThemeCssViewComponent, MatButton]
 })
 export class ThemeEditorViewComponent implements OnInit {
    @Input() get theme(): CustomThemeModel {

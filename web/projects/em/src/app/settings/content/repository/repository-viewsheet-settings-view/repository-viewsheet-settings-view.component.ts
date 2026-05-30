@@ -26,13 +26,13 @@ import { COPY_PASTE_CONTEXT_REPOSITORY } from "../../../security/resource-permis
 import { MatButton } from "@angular/material/button";
 import { ResourcePermissionComponent } from "../../../security/resource-permission/resource-permission.component";
 import { EditorPanelComponent } from "../../../../common/util/editor-panel/editor-panel.component";
-import { NgIf } from "@angular/common";
+
 
 @Component({
     selector: "em-repository-viewsheet-settings-view",
     templateUrl: "./repository-viewsheet-settings-view.component.html",
     styleUrls: ["./repository-viewsheet-settings-view.component.scss"],
-    imports: [NgIf, EditorPanelComponent, MatTabGroup, MatTab, MatTabContent, RepositorySheetSettingsViewComponent, ResourcePermissionComponent, AnalyzeMvPageComponent, MatButton]
+    imports: [EditorPanelComponent, MatTabGroup, MatTab, MatTabContent, RepositorySheetSettingsViewComponent, ResourcePermissionComponent, AnalyzeMvPageComponent, MatButton]
 })
 export class RepositoryViewsheetSettingsViewComponent {
    @Input() selectedTab = 0;

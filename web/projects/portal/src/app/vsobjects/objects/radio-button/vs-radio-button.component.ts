@@ -34,13 +34,13 @@ import { VSTitle } from "../title/vs-title.component";
 import { SafeFontDirective } from "../../directives/safe-font.directive";
 import { VSPopComponentDirective } from "../data-tip/vs-pop-component.directive";
 import { VSDataTipDirective } from "../data-tip/vs-data-tip.directive";
-import { NgIf, NgFor } from "@angular/common";
+
 
 @Component({
     selector: "vs-radio-button",
     templateUrl: "vs-radio-button.component.html",
     styleUrls: ["vs-radio-button.component.scss", "../check-box/vs-compound.scss"],
-    imports: [NgIf, VSDataTipDirective, VSPopComponentDirective, SafeFontDirective, VSTitle, FormsModule, NgFor, InteractableDirective, TooltipIfDirective]
+    imports: [VSDataTipDirective, VSPopComponentDirective, SafeFontDirective, VSTitle, FormsModule, InteractableDirective, TooltipIfDirective]
 })
 export class VSRadioButton extends VSCompound<VSRadioButtonModel> implements OnChanges, OnInit {
    selectIndex: number = 0;

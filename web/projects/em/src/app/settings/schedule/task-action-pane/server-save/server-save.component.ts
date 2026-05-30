@@ -32,7 +32,7 @@ import { MatOption } from "@angular/material/core";
 import { MatSelect } from "@angular/material/select";
 import { MatFormField, MatError, MatLabel } from "@angular/material/form-field";
 import { MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow } from "@angular/material/table";
-import { NgIf, NgFor } from "@angular/common";
+
 import { MatCheckbox } from "@angular/material/checkbox";
 import { MatCard, MatCardHeader, MatCardTitle, MatCardContent } from "@angular/material/card";
 
@@ -63,7 +63,7 @@ export interface ServerSave {
     selector: "em-server-save",
     templateUrl: "./server-save.component.html",
     styleUrls: ["./server-save.component.scss"],
-    imports: [MatCard, MatCardHeader, MatCardTitle, MatCheckbox, FormsModule, NgIf, MatCardContent, MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatFormField, MatSelect, NgFor, MatOption, MatError, ReactiveFormsModule, MatInput, MatLabel, MatIconButton, MatIcon, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, MatMiniFabButton, MatRadioGroup, MatRadioButton, EmCSVConfigPaneComponent]
+    imports: [MatCard, MatCardHeader, MatCardTitle, MatCheckbox, FormsModule, MatCardContent, MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatFormField, MatSelect, MatOption, MatError, ReactiveFormsModule, MatInput, MatLabel, MatIconButton, MatIcon, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, MatMiniFabButton, MatRadioGroup, MatRadioButton, EmCSVConfigPaneComponent]
 })
 export class ServerSaveComponent implements OnInit {
    @Input() enabled = false;

@@ -22,7 +22,7 @@ import { FixedDropdownDirective } from "../../../widget/fixed-dropdown/fixed-dro
 import { ComboMode } from "../../../widget/dynamic-combo-box/dynamic-combo-box-model";
 import { TreeNodeModel } from "../../../widget/tree/tree-node-model";
 import { DataInputPaneModel } from "../../data/vs/data-input-pane-model";
-import { DatePipe, NgIf, NgFor } from "@angular/common";
+import { DatePipe } from "@angular/common";
 import { XSchema } from "../../../common/data/xschema";
 import { OutOfZoneDirective } from "../../../widget/directive/out-of-zone.directive";
 import { FormsModule } from "@angular/forms";
@@ -38,7 +38,7 @@ const POPUP_TABLE_URI: string = "../vs/dataInput/popupTable/";
     templateUrl: "data-input-pane.component.html",
     styleUrls: ["data-input-pane.component.scss"],
     providers: [DatePipe],
-    imports: [TreeDropdownComponent, NgIf, FixedDropdownDirective, DynamicComboBox, FormsModule, OutOfZoneDirective, NgFor]
+    imports: [TreeDropdownComponent, FixedDropdownDirective, DynamicComboBox, FormsModule, OutOfZoneDirective]
 })
 export class DataInputPane implements OnInit, OnChanges {
    @Input() model: DataInputPaneModel;

@@ -16,12 +16,12 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, ElementRef } from "@angular/core";
-import { NgIf } from "@angular/common";
+
 
 @Component({
     selector: "app-error-message",
     templateUrl: "app-error-message.component.html",
-    imports: [NgIf]
+    imports: []
 })
 
 export class AppErrorMessage {

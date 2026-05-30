@@ -48,7 +48,7 @@ import { ParseResult } from "./query-sql/parse-result";
 import { ComponentTool } from "../../../../../common/util/component-tool";
 import { SqlQueryPreviewPaneComponent } from "./query-preview/sql-query-preview-pane.component";
 import { FreeFormSqlPaneComponent } from "./query-sql/free-form-sql-pane.component";
-import { NgIf } from "@angular/common";
+
 import { QuerySortPaneComponent } from "./query-main/query-sort-pane/query-sort-pane.component";
 import { QueryFieldsPaneComponent } from "./query-main/query-field-pane/query-fields-pane.component";
 
@@ -63,7 +63,7 @@ const QUERY_UPDATE_URI = "../api/data/datasource/query/update";
         "./database-query.component.scss"
     ],
     encapsulation: ViewEncapsulation.None,
-    imports: [NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, QueryLinkPaneComponent, QueryFieldsPaneComponent, QueryConditionsPaneComponent, QuerySortPaneComponent, QueryGroupingPaneComponent, NgIf, FreeFormSqlPaneComponent, SqlQueryPreviewPaneComponent, NgbNavOutlet]
+    imports: [NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, QueryLinkPaneComponent, QueryFieldsPaneComponent, QueryConditionsPaneComponent, QuerySortPaneComponent, QueryGroupingPaneComponent, FreeFormSqlPaneComponent, SqlQueryPreviewPaneComponent, NgbNavOutlet]
 })
 export class DatabaseQueryComponent implements OnDestroy {
    @Input() runtimeId: string;

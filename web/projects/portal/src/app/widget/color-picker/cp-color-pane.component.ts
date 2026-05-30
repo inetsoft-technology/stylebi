@@ -25,13 +25,13 @@ import { getColorHex } from "./color-utils";
 import { ColorEditorDialog } from "./color-editor-dialog.component";
 import { FormsModule } from "@angular/forms";
 import { BlockMouseDirective } from "../mouse-event/block-mouse.directive";
-import { NgIf, NgFor, NgClass } from "@angular/common";
+import { NgClass } from "@angular/common";
 
 @Component({
     selector: "cp-color-pane",
     templateUrl: "cp-color-pane.component.html",
     styleUrls: ["cp-color-pane.component.scss"],
-    imports: [NgIf, BlockMouseDirective, FormsModule, NgFor, NgClass, ColorEditorDialog]
+    imports: [BlockMouseDirective, FormsModule, NgClass, ColorEditorDialog]
 })
 export class ColorPane implements OnInit {
    @Input() color: string = "#000000";

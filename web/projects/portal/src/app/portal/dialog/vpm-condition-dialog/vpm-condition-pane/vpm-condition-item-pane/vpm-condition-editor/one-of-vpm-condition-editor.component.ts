@@ -31,14 +31,14 @@ import { XSchema } from "../../../../../../common/data/xschema";
 import { Observable } from "rxjs";
 import { ClauseValueTypes } from "../../../../../data/model/datasources/database/vpm/condition/clause/clause-value-types";
 import { Tool } from "../../../../../../../../../shared/util/tool";
-import { NgIf, NgFor } from "@angular/common";
+
 import { VPMConditionEditor } from "./vpm-condition-editor.component";
 
 @Component({
     selector: "one-of-vpm-condition-editor",
     templateUrl: "one-of-vpm-condition-editor.component.html",
     styleUrls: ["one-of-vpm-condition-editor.component.scss"],
-    imports: [VPMConditionEditor, NgIf, NgFor]
+    imports: [VPMConditionEditor]
 })
 export class OneOfVpmConditionEditor implements OnChanges {
    _valueModel: ClauseValueModel;

@@ -25,14 +25,14 @@ import { FormsModule } from "@angular/forms";
 import { SafeFontDirective } from "../../directives/safe-font.directive";
 import { InteractableDirective } from "../../../widget/interact/interactable.directive";
 import { TooltipIfDirective } from "../../../widget/tooltip/tooltip-if.directive";
-import { NgIf } from "@angular/common";
+
 
 @Component({
     selector: "vs-title",
     templateUrl: "vs-title.component.html",
     styleUrls: ["vs-title.component.scss"],
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [NgIf, TooltipIfDirective, InteractableDirective, SafeFontDirective, FormsModule, DefaultFocusDirective]
+    imports: [TooltipIfDirective, InteractableDirective, SafeFontDirective, FormsModule, DefaultFocusDirective]
 })
 export class VSTitle implements OnChanges {
    @Input() titleContent: string;

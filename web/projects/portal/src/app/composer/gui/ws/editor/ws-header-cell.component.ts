@@ -53,7 +53,7 @@ import { WSSortColumnEvent } from "../socket/ws-sort-column-event";
 import { UnpivotTableAssembly } from "../../../data/ws/unpivot-table-assembly";
 import { MiniMenu } from "../../../../vsobjects/objects/mini-toolbar/mini-menu.component";
 import { TooltipDirective } from "../../../../widget/tooltip/tooltip.directive";
-import { NgClass, NgIf, NgFor } from "@angular/common";
+import { NgClass } from "@angular/common";
 
 interface ColumnButton {
    label: string;
@@ -72,7 +72,7 @@ const CONTROLLER_SORT_COLUMN = "/events/composer/worksheet/sort-column";
     selector: "ws-header-cell",
     templateUrl: "ws-header-cell.component.html",
     styleUrls: ["ws-header-cell.component.scss"],
-    imports: [NgClass, TooltipDirective, NgIf, NgFor, MiniMenu]
+    imports: [NgClass, TooltipDirective, MiniMenu]
 })
 export class WSHeaderCell implements OnInit, OnChanges, AfterViewInit {
    @Input() table: AbstractTableAssembly;

@@ -27,7 +27,7 @@ import { OutputCubeModel } from "../../data/vs/output-cube-model";
 import { Tool } from "../../../../../../shared/util/tool";
 import { HttpClient, HttpHeaders, HttpParams } from "@angular/common/http";
 import { FormsModule } from "@angular/forms";
-import { NgIf } from "@angular/common";
+
 import { DynamicComboBox } from "../../../widget/dynamic-combo-box/dynamic-combo-box.component";
 import { TreeDropdownComponent } from "../../../widget/tree/tree-dropdown.component";
 
@@ -38,11 +38,10 @@ const CUBE_COLUMNS_URI: string = "../vs/dataOutput/cube/columns";
     selector: "data-output-pane",
     templateUrl: "data-output-pane.component.html",
     imports: [
-        TreeDropdownComponent,
-        DynamicComboBox,
-        NgIf,
-        FormsModule,
-    ]
+    TreeDropdownComponent,
+    DynamicComboBox,
+    FormsModule
+]
 })
 export class DataOutputPane implements OnInit {
    @Input() runtimeId: string;

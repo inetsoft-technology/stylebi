@@ -34,13 +34,13 @@ import {
 import {catchError, finalize } from "rxjs/operators";
 import {Tool} from "../../../../../../../shared/util/tool";
 import { EditIdentityViewComponent } from "../edit-identity-view/edit-identity-view.component";
-import { NgIf, AsyncPipe } from "@angular/common";
+import { AsyncPipe } from "@angular/common";
 
 @Component({
     selector: "em-edit-identity-pane",
     templateUrl: "./edit-identity-pane.component.html",
     styleUrls: ["./edit-identity-pane.component.scss"],
-    imports: [NgIf, EditIdentityViewComponent, AsyncPipe]
+    imports: [EditIdentityViewComponent, AsyncPipe]
 })
 export class EditIdentityPaneComponent implements OnChanges {
    @Input() selectedIdentity: SecurityTreeNode;

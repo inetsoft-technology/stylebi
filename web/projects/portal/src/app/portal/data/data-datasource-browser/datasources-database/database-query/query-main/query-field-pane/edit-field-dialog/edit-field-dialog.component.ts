@@ -24,7 +24,7 @@ import { TreeNodeModel } from "../../../../../../../../widget/tree/tree-node-mod
 import { DataQueryModelService, getFieldFullName } from "../../../data-query-model.service";
 import { FormsModule } from "@angular/forms";
 import { TreeComponent } from "../../../../../../../../widget/tree/tree.component";
-import { NgIf } from "@angular/common";
+
 import { ModalHeaderComponent } from "../../../../../../../../widget/modal-header/modal-header.component";
 
 const QUERY_FIELDS_TREE_URI = "../api/data/datasource/query/data-source-fields-tree";
@@ -34,7 +34,7 @@ const QUERY_EXPRESSION_CHECK_URI = "../api/data/datasource/query/expression/chec
     selector: "edit-field-dialog",
     templateUrl: "./edit-field-dialog.component.html",
     styleUrls: ["./edit-field-dialog.component.scss"],
-    imports: [ModalHeaderComponent, NgIf, TreeComponent, FormsModule]
+    imports: [ModalHeaderComponent, TreeComponent, FormsModule]
 })
 export class EditFieldDialogComponent implements OnInit {
    @Input() title: string;

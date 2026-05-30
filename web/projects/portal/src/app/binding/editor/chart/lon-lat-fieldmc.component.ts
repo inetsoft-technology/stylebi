@@ -19,13 +19,13 @@ import { Component, Input } from "@angular/core";
 import { GraphTypes } from "../../../common/graph-types";
 import { ChartBindingModel } from "../../data/chart/chart-binding-model";
 import { ChartRef } from "../../../common/data/chart-ref";
-import { NgIf } from "@angular/common";
+
 
 @Component({
     selector: "lon-lat-fieldmc",
     templateUrl: "lon-lat-fieldmc.component.html",
     styleUrls: ["../data-editor.component.scss"],
-    imports: [NgIf]
+    imports: []
 })
 export class LonLatFieldmc {
    @Input() fieldType: string;

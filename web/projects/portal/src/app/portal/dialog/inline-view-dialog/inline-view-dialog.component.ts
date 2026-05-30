@@ -28,7 +28,7 @@ import { ComponentTool } from "../../../common/util/component-tool";
 import { UntypedFormControl, FormGroup, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { FormValidators } from "../../../../../../shared/util/form-validators";
 import { DataModelScriptPane } from "../../data/data-datasource-browser/datasources-database/database-physical-model/data-model-script-pane/data-model-script-pane.component";
-import { NgIf } from "@angular/common";
+
 import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
 
 const SQL_TABLE_COLUMNS_URI: string = "../api/data/physicalmodel/views/columns";
@@ -36,7 +36,7 @@ const SQL_TABLE_COLUMNS_URI: string = "../api/data/physicalmodel/views/columns";
 @Component({
     selector: "inline-view-dialog",
     templateUrl: "inline-view-dialog.component.html",
-    imports: [ModalHeaderComponent, FormsModule, ReactiveFormsModule, NgIf, DataModelScriptPane]
+    imports: [ModalHeaderComponent, FormsModule, ReactiveFormsModule, DataModelScriptPane]
 })
 export class InlineViewDialog implements OnInit, AfterViewInit {
    @Input() model: InlineViewDialogModel;

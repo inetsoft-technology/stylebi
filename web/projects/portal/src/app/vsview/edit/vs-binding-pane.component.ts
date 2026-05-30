@@ -111,7 +111,7 @@ import { VSLoadingDisplay } from "../../vsobjects/objects/vs-loading-display/vs-
 import { VSFormatsPane } from "../../vsobjects/format/vs-formats-pane.component";
 import { InteractContainerDirective } from "../../widget/interact/interact-container.directive";
 import { BindingEditor } from "../../binding/editor/binding-editor.component";
-import { NgIf } from "@angular/common";
+
 
 @Component({
     selector: "vs-binding-pane",
@@ -174,7 +174,7 @@ import { NgIf } from "@angular/common";
             useClass: VSBindingTreeService
         },
     ],
-    imports: [NgIf, BindingEditor, InteractContainerDirective, VSFormatsPane, VSObjectView, NotificationsComponent, VSLoadingDisplay]
+    imports: [BindingEditor, InteractContainerDirective, VSFormatsPane, VSObjectView, NotificationsComponent, VSLoadingDisplay]
 })
 export class VSBindingPane extends CommandProcessor implements OnInit, OnDestroy {
    @Input() set runtimeId(id: string) {

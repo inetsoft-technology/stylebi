@@ -31,7 +31,7 @@ import { of, Subscription } from "rxjs";
 import { ActivatedRoute } from "@angular/router";
 import { MatInput } from "@angular/material/input";
 import { MatOption } from "@angular/material/core";
-import { NgFor } from "@angular/common";
+
 import { MatSelect } from "@angular/material/select";
 import { MatFormField, MatLabel, MatError } from "@angular/material/form-field";
 
@@ -52,7 +52,7 @@ import { MatFormField, MatLabel, MatError } from "@angular/material/form-field";
     selector: "em-audit-inactive-user",
     templateUrl: "./audit-inactive-user.component.html",
     styleUrls: ["./audit-inactive-user.component.scss"],
-    imports: [AuditTableViewComponent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatSelect, NgFor, MatOption, MatInput, MatError]
+    imports: [AuditTableViewComponent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatSelect, MatOption, MatInput, MatError]
 })
 export class AuditInactiveUserComponent implements OnInit, OnDestroy {
    hosts: string[] = [];

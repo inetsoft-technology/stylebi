@@ -57,7 +57,7 @@ import { Subscription } from "rxjs";
 import { DynamicDate } from "../../portal/schedule/schedule-task-editor/dynamic-date";
 import { NewAggrDialog } from "../dialog/new-aggr-dialog/new-aggr-dialog.component";
 import { InputTrimDirective } from "../directive/input-trim.directive";
-import { NgIf, NgFor } from "@angular/common";
+
 import { BlockMouseDirective } from "../mouse-event/block-mouse.directive";
 import { ModalHeaderComponent } from "../modal-header/modal-header.component";
 
@@ -87,7 +87,7 @@ const DATE_TIME_PARTS: any[] = [
     selector: "formula-editor-dialog",
     templateUrl: "formula-editor-dialog.component.html",
     styleUrls: ["formula-editor-dialog.component.scss"],
-    imports: [ModalHeaderComponent, BlockMouseDirective, FormsModule, ReactiveFormsModule, NgIf, InputTrimDirective, NgFor, ScriptPane, NewAggrDialog]
+    imports: [ModalHeaderComponent, BlockMouseDirective, FormsModule, ReactiveFormsModule, InputTrimDirective, ScriptPane, NewAggrDialog]
 })
 export class FormulaEditorDialog extends BaseResizeableDialogComponent implements
    OnInit, OnDestroy, AfterViewInit

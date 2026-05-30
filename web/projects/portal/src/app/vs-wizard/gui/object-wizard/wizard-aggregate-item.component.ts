@@ -33,13 +33,13 @@ import { XSchema } from "../../../common/data/xschema";
 import { FormattingPane } from "../../../format/objects/formatting-pane.component";
 import { FixedDropdownDirective } from "../../../widget/fixed-dropdown/fixed-dropdown.directive";
 import { DynamicComboBox } from "../../../widget/dynamic-combo-box/dynamic-combo-box.component";
-import { NgIf } from "@angular/common";
+
 
 @Component({
     selector: "wizard-aggregate-item",
     templateUrl: "./wizard-aggregate-item.component.html",
     styleUrls: ["./wizard-aggregate-item.component.scss", "./wizard-group-item.component.scss"],
-    imports: [NgIf, NgbTooltip, DynamicComboBox, FixedDropdownDirective, FormattingPane]
+    imports: [NgbTooltip, DynamicComboBox, FixedDropdownDirective, FormattingPane]
 })
 export class VSWizardAggregateItem extends VSWizardItem<BAggregateRef> implements OnInit {
    @Input() showName: boolean;

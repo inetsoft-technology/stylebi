@@ -1,95 +1,101 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <div class="tree-div force-focus-highlight"
-     [style.width]="'100%'"
-     [style.min-width]="fillHeight || _searchEnabled ? '100%' : 'fit-content'"
-     [style.height]="fillHeight || _searchEnabled ? '100%' : null"
-     tabindex="0" role="tree" (keyup)="onKey($event)">
-  <div class="py-1 px-1 search-box" [class.sticky-search]="stickySearch" *ngIf="_searchEnabled">
-    <ng-container *ngIf="_searchEnabled">
-      <div class="p-1 search-input-container">
-        <input #searchInput class="form-control form-control-sm" type="text" placeholder="_#(Search)"
-               [ngModel]="searchStr" (ngModelChange)="search($event)" (keydown.escape)="onSearchEscape($event)" [disabled]="disabled"/>
-      </div>
-      <div class="p-1 search-icon-container">
-        <i class="close-icon icon-size-medium" aria-hidden="true" (click)="clearSearchContent()"
-           title="_#(Delete)"></i>
-      </div>
-      <i *ngIf="showHelpLink" class="help-question-mark-icon cursor-pointer" (click)="openHelp()" tabindex="0"
-         aria-label="_#(Help Information)" role="link" title="_#(Help)"></i>
-    </ng-container>
-    <ng-container *ngIf="recentEnabled && getRecentTreeFun">
-      <div class="p-1 search-icon-container">
-        <i class="icon-size-medium"
-           [class.recent-outline-icon]="!isRecentView"
-           [class.recent-icon]="isRecentView"
-           [class.focus-icon-color]="isRecentView"
-           aria-hidden="true" (click)="switchRecent()" title="_#(Recent)">
-        </i>
-      </div>
-    </ng-container>
-  </div>
-  <div *ngIf="empty && searchStr && searchStr.trim() && (!root || !root.loading)">_#(common.searchFailed)</div>
+  [style.width]="'100%'"
+  [style.min-width]="fillHeight || _searchEnabled ? '100%' : 'fit-content'"
+  [style.height]="fillHeight || _searchEnabled ? '100%' : null"
+  tabindex="0" role="tree" (keyup)="onKey($event)">
+  @if (_searchEnabled) {
+    <div class="py-1 px-1 search-box" [class.sticky-search]="stickySearch">
+      @if (_searchEnabled) {
+        <div class="p-1 search-input-container">
+          <input #searchInput class="form-control form-control-sm" type="text" placeholder="_#(Search)"
+            [ngModel]="searchStr" (ngModelChange)="search($event)" (keydown.escape)="onSearchEscape($event)" [disabled]="disabled"/>
+        </div>
+        <div class="p-1 search-icon-container">
+          <i class="close-icon icon-size-medium" aria-hidden="true" (click)="clearSearchContent()"
+          title="_#(Delete)"></i>
+        </div>
+        @if (showHelpLink) {
+          <i class="help-question-mark-icon cursor-pointer" (click)="openHelp()" tabindex="0"
+          aria-label="_#(Help Information)" role="link" title="_#(Help)"></i>
+        }
+      }
+      @if (recentEnabled && getRecentTreeFun) {
+        <div class="p-1 search-icon-container">
+          <i class="icon-size-medium"
+            [class.recent-outline-icon]="!isRecentView"
+            [class.recent-icon]="isRecentView"
+            [class.focus-icon-color]="isRecentView"
+            aria-hidden="true" (click)="switchRecent()" title="_#(Recent)">
+          </i>
+        </div>
+      }
+    </div>
+  }
+  @if (empty && searchStr && searchStr.trim() && (!root || !root.loading)) {
+    <div>_#(common.searchFailed)</div>
+  }
   <div class="tree-container" #treeContainer
-       [style.width]="'100%'"
-       [style.min-width]="fillHeight || _searchEnabled ? '100%' : 'fit-content'"
-       [style.max-height]="treeContainerMaxHeight"
-       [style.min-height]="useVirtualScroll && maxHeight > 0 ? treeContainerMaxHeight : '0px'"
-       [class.vscrollable-always]="(fillHeight || vscrollY > 0 || isMobile)"
-       [class.vscrollable-on-hover]="hoverShowScroll && !isMobile"
-       (drop)="onDrop({node: null, evt: $event})"
-       outOfZone (onDragover)="onDragOver($event)" (onScroll)="onScroll($event)"
-       [class.disabled]="disabled"
-       [class.grayed-out-field]="disabled">
+    [style.width]="'100%'"
+    [style.min-width]="fillHeight || _searchEnabled ? '100%' : 'fit-content'"
+    [style.max-height]="treeContainerMaxHeight"
+    [style.min-height]="useVirtualScroll && maxHeight > 0 ? treeContainerMaxHeight : '0px'"
+    [class.vscrollable-always]="(fillHeight || vscrollY > 0 || isMobile)"
+    [class.vscrollable-on-hover]="hoverShowScroll && !isMobile"
+    (drop)="onDrop({node: null, evt: $event})"
+    outOfZone (onDragover)="onDragOver($event)" (onScroll)="onScroll($event)"
+    [class.disabled]="disabled"
+    [class.grayed-out-field]="disabled">
     <div [style.height.px]="useVirtualScroll ? virtualTop : 0"></div>
-    <ng-container *ngIf="useVirtualScroll && !outerScrollContainer">
+    @if (useVirtualScroll && !outerScrollContainer) {
       <div [style.height.px]="virtualMid">
         <tree-node [node]="root" [showRoot]="showRoot" [draggable]="draggable" [tree]="treeRef"
-                   [multiSelect]="multiSelect" [nodeSelectable]="nodeSelectable"
-                   [droppable]="droppable" [iconFunction]="iconFunction"
-                   [isRepositoryTree]="isRepositoryTree" [checkboxEnable]="checkboxEnable"
-                   [isPortalDataSourcesTree]="isPortalDataSourcesTree"
-                   [isSelectedNode]="isSelectedNode" [selectOnClick]="selectOnClick"
-                   [contextmenu]="contextmenu" [searchStr]="searchStr?.trim()" [showIcon]="showIcon"
-                   [showTooltip]="showTooltip" [showFavoriteIcon]="showFavoriteIcon"
-                   [ellipsisOverflowText]="ellipsisOverflowText"
-                   [dataSource]="dataSource"
-                   [useVirtualScroll]="useVirtualScroll"
-                   [showOriginalName]="showOriginalName" [searchEndNode]="searchEndNode"
-                   (onContextmenu)="onContextmenu.emit([$event[0], $event[1], selectedNodes])">
+          [multiSelect]="multiSelect" [nodeSelectable]="nodeSelectable"
+          [droppable]="droppable" [iconFunction]="iconFunction"
+          [isRepositoryTree]="isRepositoryTree" [checkboxEnable]="checkboxEnable"
+          [isPortalDataSourcesTree]="isPortalDataSourcesTree"
+          [isSelectedNode]="isSelectedNode" [selectOnClick]="selectOnClick"
+          [contextmenu]="contextmenu" [searchStr]="searchStr?.trim()" [showIcon]="showIcon"
+          [showTooltip]="showTooltip" [showFavoriteIcon]="showFavoriteIcon"
+          [ellipsisOverflowText]="ellipsisOverflowText"
+          [dataSource]="dataSource"
+          [useVirtualScroll]="useVirtualScroll"
+          [showOriginalName]="showOriginalName" [searchEndNode]="searchEndNode"
+          (onContextmenu)="onContextmenu.emit([$event[0], $event[1], selectedNodes])">
         </tree-node>
       </div>
-    </ng-container>
-    <ng-container *ngIf="!(useVirtualScroll && !outerScrollContainer)">
+    }
+    @if (!(useVirtualScroll && !outerScrollContainer)) {
       <tree-node [node]="root" [showRoot]="showRoot" [draggable]="draggable" [tree]="treeRef"
-                 [multiSelect]="multiSelect" [nodeSelectable]="nodeSelectable"
-                 [droppable]="droppable" [iconFunction]="iconFunction"
-                 [isRepositoryTree]="isRepositoryTree" [checkboxEnable]="checkboxEnable"
-                 [isPortalDataSourcesTree]="isPortalDataSourcesTree"
-                 [isSelectedNode]="isSelectedNode" [selectOnClick]="selectOnClick"
-                 [contextmenu]="contextmenu" [searchStr]="searchStr?.trim()" [showIcon]="showIcon"
-                 [showTooltip]="showTooltip" [showFavoriteIcon]="showFavoriteIcon"
-                 [ellipsisOverflowText]="ellipsisOverflowText"
-                 [showOriginalName]="showOriginalName"
-                 [dataSource]="dataSource" [useVirtualScroll]="useVirtualScroll" [searchEndNode]="searchEndNode"
-                 (onContextmenu)="onContextmenu.emit([$event[0], $event[1], selectedNodes])">
+        [multiSelect]="multiSelect" [nodeSelectable]="nodeSelectable"
+        [droppable]="droppable" [iconFunction]="iconFunction"
+        [isRepositoryTree]="isRepositoryTree" [checkboxEnable]="checkboxEnable"
+        [isPortalDataSourcesTree]="isPortalDataSourcesTree"
+        [isSelectedNode]="isSelectedNode" [selectOnClick]="selectOnClick"
+        [contextmenu]="contextmenu" [searchStr]="searchStr?.trim()" [showIcon]="showIcon"
+        [showTooltip]="showTooltip" [showFavoriteIcon]="showFavoriteIcon"
+        [ellipsisOverflowText]="ellipsisOverflowText"
+        [showOriginalName]="showOriginalName"
+        [dataSource]="dataSource" [useVirtualScroll]="useVirtualScroll" [searchEndNode]="searchEndNode"
+        (onContextmenu)="onContextmenu.emit([$event[0], $event[1], selectedNodes])">
       </tree-node>
-    </ng-container>
+    }
     <div [style.height.px]="useVirtualScroll ? getVirtualBottom() : 0"></div>
   </div>
 </div>

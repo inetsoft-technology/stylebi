@@ -28,7 +28,7 @@ import { MatOption } from "@angular/material/core";
 import { MatSelect } from "@angular/material/select";
 import { MatFormField, MatLabel, MatError } from "@angular/material/form-field";
 import { MatCardContent, MatCardTitle } from "@angular/material/card";
-import { NgIf } from "@angular/common";
+
 
 export interface LogSettingsChanges {
    changes: LogSettingsModel;
@@ -39,7 +39,7 @@ export interface LogSettingsChanges {
     selector: "em-logging-settings-view",
     templateUrl: "./logging-settings-view.component.html",
     styleUrls: ["./logging-settings-view.component.scss"],
-    imports: [NgIf, MatCardContent, FormsModule, ReactiveFormsModule, MatCardTitle, MatFormField, MatLabel, MatSelect, MatOption, MatCheckbox, MatInput, MatError, LoggingLevelTableComponent]
+    imports: [MatCardContent, FormsModule, ReactiveFormsModule, MatCardTitle, MatFormField, MatLabel, MatSelect, MatOption, MatCheckbox, MatInput, MatError, LoggingLevelTableComponent]
 })
 export class LoggingSettingsViewComponent {
    @Output() logSettingsChanged = new EventEmitter<LogSettingsChanges>();

@@ -39,13 +39,13 @@ import { VPMTrinaryConditionEditor } from "./vpm-trinary-condition-editor/vpm-tr
 import { FormsModule } from "@angular/forms";
 import { VPMConditionEditor } from "./vpm-condition-editor/vpm-condition-editor.component";
 import { OneOfVpmConditionEditor } from "./vpm-condition-editor/one-of-vpm-condition-editor.component";
-import { NgIf, NgFor, NgSwitch, NgSwitchCase, NgSwitchDefault } from "@angular/common";
+
 
 @Component({
     selector: "vpm-condition-item-pane",
     templateUrl: "vpm-condition-item-pane.component.html",
     styleUrls: ["vpm-condition-item-pane.component.scss"],
-    imports: [NgIf, OneOfVpmConditionEditor, VPMConditionEditor, FormsModule, NgFor, NgSwitch, NgSwitchCase, VPMTrinaryConditionEditor, NgSwitchDefault]
+    imports: [OneOfVpmConditionEditor, VPMConditionEditor, FormsModule, VPMTrinaryConditionEditor]
 })
 export class VPMConditionItemPane implements OnInit, OnChanges {
    @Input() condition: ClauseModel;

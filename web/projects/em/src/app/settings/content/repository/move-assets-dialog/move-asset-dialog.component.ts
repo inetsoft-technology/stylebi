@@ -23,7 +23,7 @@ import { RepositoryTreeDataSource } from "../repository-tree-data-source";
 import { RepositoryFlatNode, RepositoryTreeNode } from "../repository-tree-node";
 import { MatButton } from "@angular/material/button";
 import { MatProgressBar } from "@angular/material/progress-bar";
-import { NgIf } from "@angular/common";
+
 import { ModalHeaderComponent } from "../../../../common/util/modal-header/modal-header.component";
 
 @Component({
@@ -31,7 +31,7 @@ import { ModalHeaderComponent } from "../../../../common/util/modal-header/modal
     templateUrl: "./move-asset-dialog.component.html",
     styleUrls: ["./move-asset-dialog.component.scss"],
     providers: [RepositoryTreeDataSource],
-    imports: [ModalHeaderComponent, MatDialogContent, NgIf, FlatTreeViewComponent, MatProgressBar, MatDialogActions, MatButton]
+    imports: [ModalHeaderComponent, MatDialogContent, FlatTreeViewComponent, MatProgressBar, MatDialogActions, MatButton]
 })
 export class MoveAssetDialogComponent {
    @Input() onlyForDatabase: boolean = false;

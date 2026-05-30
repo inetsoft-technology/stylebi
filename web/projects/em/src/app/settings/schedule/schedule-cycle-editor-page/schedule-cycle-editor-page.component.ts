@@ -47,7 +47,7 @@ import { MatCard, MatCardContent, MatCardActions } from "@angular/material/card"
 import { MatTabGroup, MatTab } from "@angular/material/tabs";
 import { MatInput } from "@angular/material/input";
 import { MatFormField, MatLabel, MatError } from "@angular/material/form-field";
-import { NgIf, NgFor } from "@angular/common";
+
 import { EditorPanelComponent } from "../../../common/util/editor-panel/editor-panel.component";
 
 const GET_DATA_CYCLE_DIALOG_MODEL_URI = "../api/em/schedule/cycle-dialog-model/";
@@ -62,7 +62,7 @@ const EDIT_DATA_CYCLE_URI = "../api/em/schedule/edit-cycle";
     templateUrl: "./schedule-cycle-editor-page.component.html",
     styleUrls: ["./schedule-cycle-editor-page.component.scss"],
     encapsulation: ViewEncapsulation.None,
-    imports: [EditorPanelComponent, NgIf, MatFormField, MatLabel, MatInput, FormsModule, ReactiveFormsModule, MatError, MatTabGroup, MatTab, MatCard, MatCardContent, MatNavList, NgFor, MatListItem, MatTooltip, MatCardActions, MatButton, TaskConditionPaneComponent, ScheduleCycleOptionsPaneComponent, ResourcePermissionComponent]
+    imports: [EditorPanelComponent, MatFormField, MatLabel, MatInput, FormsModule, ReactiveFormsModule, MatError, MatTabGroup, MatTab, MatCard, MatCardContent, MatNavList, MatListItem, MatTooltip, MatCardActions, MatButton, TaskConditionPaneComponent, ScheduleCycleOptionsPaneComponent, ResourcePermissionComponent]
 })
 export class ScheduleCycleEditorPageComponent implements OnInit, OnDestroy {
    @HostBinding("class") hostClass = "schedule-cycle-editor";

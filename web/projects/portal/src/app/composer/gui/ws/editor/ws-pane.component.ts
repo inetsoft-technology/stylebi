@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { NgIf } from "@angular/common";
+
 import {
   ChangeDetectorRef,
   Component,
@@ -170,7 +170,7 @@ const TABLE_DATA_COUNT_MILLISECOND_DELAY = 500;
         },
         WsChangeService
     ],
-    imports: [SplitPane, NgIf, WSAssemblyGraphPaneComponent, WSCompositeTableFocusPaneComponent, WSDetailsPaneComponent, VSLoadingDisplay, NotificationsComponent, ConcatenateTablesDialog, VariableInputDialog]
+    imports: [SplitPane, WSAssemblyGraphPaneComponent, WSCompositeTableFocusPaneComponent, WSDetailsPaneComponent, VSLoadingDisplay, NotificationsComponent, ConcatenateTablesDialog, VariableInputDialog]
 })
 export class WSPaneComponent extends CommandProcessor implements OnDestroy, OnInit, OnChanges {
    _worksheet: Worksheet;

@@ -20,13 +20,13 @@ import { StaticTextureModel } from "../../../../common/data/visual-frame-model";
 import { ChartConfig } from "../../../../common/util/chart-config";
 import { ChartAggregateRef } from "../../../data/chart/chart-aggregate-ref";
 import { TextureItem } from "./texture-item.component";
-import { NgFor } from "@angular/common";
+
 
 @Component({
     selector: "static-texture-pane",
     templateUrl: "static-texture-pane.component.html",
     styleUrls: ["static-texture-pane.component.scss"],
-    imports: [NgFor, TextureItem]
+    imports: [TextureItem]
 })
 export class StaticTexturePane {
    @Input() texture: number;

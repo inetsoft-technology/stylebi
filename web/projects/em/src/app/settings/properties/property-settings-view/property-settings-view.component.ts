@@ -35,7 +35,7 @@ import { MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, Ma
 import { TopScrollDirective } from "../../../top-scroll/top-scroll.directive";
 import { MatIcon } from "@angular/material/icon";
 import { MatIconButton, MatMiniFabButton } from "@angular/material/button";
-import { NgIf, NgFor, AsyncPipe } from "@angular/common";
+import { AsyncPipe } from "@angular/common";
 import { MatFormField, MatLabel, MatSuffix } from "@angular/material/form-field";
 
 export interface PropertySetting {
@@ -69,7 +69,7 @@ const DEFAULT_PROPERTY: PropertySetting = {
     selector: "em-property-settings-view",
     templateUrl: "./property-settings-view.component.html",
     styleUrls: ["./property-settings-view.component.scss"],
-    imports: [MatFormField, MatLabel, MatInput, NgIf, MatIconButton, MatSuffix, MatIcon, MatMiniFabButton, TopScrollDirective, MatTable, MatSort, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatSortHeader, MatCellDef, MatCell, FormsModule, MatAutocompleteTrigger, ReactiveFormsModule, MatAutocomplete, NgFor, MatOption, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, MatPaginator, AsyncPipe]
+    imports: [MatFormField, MatLabel, MatInput, MatIconButton, MatSuffix, MatIcon, MatMiniFabButton, TopScrollDirective, MatTable, MatSort, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatSortHeader, MatCellDef, MatCell, FormsModule, MatAutocompleteTrigger, ReactiveFormsModule, MatAutocomplete, MatOption, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, MatPaginator, AsyncPipe]
 })
 export class PropertySettingsViewComponent implements OnInit, AfterViewInit {
 

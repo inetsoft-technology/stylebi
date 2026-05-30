@@ -29,7 +29,7 @@ import { LogonError, LogonErrorList, LogonErrorParameters } from "./logon-error"
 import { of, Subscription } from "rxjs";
 import { ActivatedRoute } from "@angular/router";
 import { MatOption } from "@angular/material/core";
-import { NgFor } from "@angular/common";
+
 import { MatSelect } from "@angular/material/select";
 import { MatFormField, MatLabel } from "@angular/material/form-field";
 
@@ -50,7 +50,7 @@ import { MatFormField, MatLabel } from "@angular/material/form-field";
     selector: "em-audit-logon-error",
     templateUrl: "./audit-logon-error.component.html",
     styleUrls: ["./audit-logon-error.component.scss"],
-    imports: [AuditTableViewComponent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatSelect, NgFor, MatOption]
+    imports: [AuditTableViewComponent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatSelect, MatOption]
 })
 export class AuditLogonErrorComponent implements OnInit, OnDestroy {
    users: string[] = [];

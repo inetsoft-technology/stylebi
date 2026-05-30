@@ -25,13 +25,13 @@ import { ValueRangeDialogModel } from "../../data/ws/value-range-dialog-model";
 import { DateLevelExamplesService } from "../../../common/services/date-level-examples.service";
 import { InputTrimDirective } from "../../../widget/directive/input-trim.directive";
 import { EnterSubmitDirective } from "../../../widget/directive/enter-submit.directive";
-import { NgIf } from "@angular/common";
+
 import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
 
 @Component({
     selector: "date-range-option-dialog",
     templateUrl: "date-range-option-dialog.component.html",
-    imports: [ModalHeaderComponent, NgIf, EnterSubmitDirective, FormsModule, ReactiveFormsModule, InputTrimDirective]
+    imports: [ModalHeaderComponent, EnterSubmitDirective, FormsModule, ReactiveFormsModule, InputTrimDirective]
 })
 export class DateRangeOptionDialog implements OnInit {
    @Input() model: ValueRangeDialogModel;

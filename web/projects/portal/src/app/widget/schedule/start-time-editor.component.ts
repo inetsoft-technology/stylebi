@@ -20,7 +20,7 @@ import { ControlValueAccessor, UntypedFormBuilder, UntypedFormGroup, NG_VALUE_AC
 import { TimeRange } from "../../../../../shared/schedule/model/time-condition-model";
 import { StartTimeData } from "./start-time-data";
 import { NgbTimepicker } from "@ng-bootstrap/ng-bootstrap";
-import { NgIf, NgFor } from "@angular/common";
+
 
 @Component({
     selector: "w-start-time-editor",
@@ -33,7 +33,7 @@ import { NgIf, NgFor } from "@angular/common";
             multi: true
         }
     ],
-    imports: [FormsModule, ReactiveFormsModule, NgIf, NgbTimepicker, NgFor]
+    imports: [FormsModule, ReactiveFormsModule, NgbTimepicker]
 })
 export class StartTimeEditor implements OnInit, ControlValueAccessor {
    @Input() timeRanges: TimeRange[] = [];

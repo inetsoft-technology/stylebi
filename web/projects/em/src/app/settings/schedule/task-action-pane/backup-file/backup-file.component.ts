@@ -46,7 +46,7 @@ import { MatMiniFabButton } from "@angular/material/button";
 import { MatProgressBar } from "@angular/material/progress-bar";
 import { MatInput } from "@angular/material/input";
 import { MatFormField, MatError, MatLabel } from "@angular/material/form-field";
-import { NgIf, NgFor, AsyncPipe } from "@angular/common";
+import { AsyncPipe } from "@angular/common";
 import { MatCheckbox } from "@angular/material/checkbox";
 import { MatCard, MatCardHeader, MatCardTitle, MatCardContent } from "@angular/material/card";
 
@@ -69,7 +69,7 @@ export interface BackupPathsSave {
     providers: [
         RepositoryTreeDataSource
     ],
-    imports: [MatCard, MatCardHeader, MatCardTitle, MatCheckbox, FormsModule, NgIf, MatCardContent, ReactiveFormsModule, MatFormField, MatInput, MatError, MatLabel, MatProgressBar, FlatTreeViewComponent, MatMiniFabButton, MatList, NgFor, MatListItem, MatIcon, AsyncPipe]
+    imports: [MatCard, MatCardHeader, MatCardTitle, MatCheckbox, FormsModule, MatCardContent, ReactiveFormsModule, MatFormField, MatInput, MatError, MatLabel, MatProgressBar, FlatTreeViewComponent, MatMiniFabButton, MatList, MatListItem, MatIcon, AsyncPipe]
 })
 export class BackupFileComponent implements OnDestroy {
    @Input() enabled = true;

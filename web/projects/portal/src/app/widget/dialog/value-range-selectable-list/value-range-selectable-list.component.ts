@@ -23,7 +23,7 @@ import {
    ChangeDetectionStrategy
 } from "@angular/core";
 import { FormsModule } from "@angular/forms";
-import { NgFor } from "@angular/common";
+
 
 export interface NumericRange {
    top: number;
@@ -37,7 +37,7 @@ export interface NumericRange {
     templateUrl: "value-range-selectable-list.component.html",
     styleUrls: ["value-range-selectable-list.component.scss"],
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [NgFor, FormsModule]
+    imports: [FormsModule]
 })
 export class ValueRangeSelectableList {
    @Input() rangeList: NumericRange[];

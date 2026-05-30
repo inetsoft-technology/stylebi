@@ -20,13 +20,13 @@ import { ChartBindingModel } from "../../data/chart/chart-binding-model";
 import { GraphTypes } from "../../../common/graph-types";
 import { DropHighlightDirective } from "../../widget/drophighlight.directive";
 import { FieldPane } from "./field-pane.component";
-import { NgIf } from "@angular/common";
+
 
 @Component({
     selector: "chart-high-low-pane",
     templateUrl: "chart-high-low-pane.component.html",
     styleUrls: ["aesthetic/aesthetic-pane.scss"],
-    imports: [NgIf, FieldPane, DropHighlightDirective]
+    imports: [FieldPane, DropHighlightDirective]
 })
 export class ChartHighLowPane {
    @Input() bindingModel: ChartBindingModel;

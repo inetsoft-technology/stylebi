@@ -34,7 +34,7 @@ import { VSTitle } from "../title/vs-title.component";
 import { SafeFontDirective } from "../../directives/safe-font.directive";
 import { VSPopComponentDirective } from "../data-tip/vs-pop-component.directive";
 import { VSDataTipDirective } from "../data-tip/vs-data-tip.directive";
-import { NgIf, NgFor } from "@angular/common";
+
 
 const CHECKBOX_PADDING = 18;
 
@@ -42,7 +42,7 @@ const CHECKBOX_PADDING = 18;
     selector: "vs-check-box",
     templateUrl: "vs-check-box.component.html",
     styleUrls: ["vs-check-box.component.scss", "vs-compound.scss"],
-    imports: [NgIf, VSDataTipDirective, VSPopComponentDirective, SafeFontDirective, VSTitle, NgFor, InteractableDirective, TooltipIfDirective]
+    imports: [VSDataTipDirective, VSPopComponentDirective, SafeFontDirective, VSTitle, InteractableDirective, TooltipIfDirective]
 })
 export class VSCheckBox extends VSCompound<VSCheckBoxModel> implements OnChanges, OnDestroy {
    constructor(socket: ViewsheetClientService,

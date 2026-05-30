@@ -45,7 +45,7 @@ import { MatDrawerContainer, MatDrawer, MatDrawerContent } from "@angular/materi
 import { MatOption } from "@angular/material/core";
 import { MatSelect } from "@angular/material/select";
 import { MatFormField, MatLabel } from "@angular/material/form-field";
-import { NgIf, NgFor } from "@angular/common";
+
 
 const SMALL_WIDTH_BREAKPOINT = 720;
 
@@ -53,7 +53,7 @@ const SMALL_WIDTH_BREAKPOINT = 720;
     selector: "em-users-settings-view",
     templateUrl: "./users-settings-view.component.html",
     styleUrls: ["./users-settings-view.component.scss"],
-    imports: [NgIf, MatFormField, MatLabel, MatSelect, NgFor, MatOption, MatDrawerContainer, MatDrawer, TopScrollDirective, SecurityTreeViewComponent, MatButton, MatDrawerContent, EditIdentityPaneComponent]
+    imports: [MatFormField, MatLabel, MatSelect, MatOption, MatDrawerContainer, MatDrawer, TopScrollDirective, SecurityTreeViewComponent, MatButton, MatDrawerContent, EditIdentityPaneComponent]
 })
 export class UsersSettingsViewComponent implements OnInit {
    @Input() treeData: SecurityTreeNode[];

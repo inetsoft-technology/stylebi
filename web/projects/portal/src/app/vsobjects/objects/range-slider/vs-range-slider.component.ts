@@ -70,7 +70,7 @@ import { DefaultFocusDirective } from "../../../widget/directive/default-focus.d
 import { FormsModule } from "@angular/forms";
 import { TooltipIfDirective } from "../../../widget/tooltip/tooltip-if.directive";
 import { CollapseToggleButton } from "../selection/collapse-toggle-button.component";
-import { NgIf, NgFor } from "@angular/common";
+
 import { SafeFontDirective } from "../../directives/safe-font.directive";
 import { VSPopComponentDirective } from "../data-tip/vs-pop-component.directive";
 import { VSDataTipDirective } from "../data-tip/vs-data-tip.directive";
@@ -84,7 +84,7 @@ enum Handle { Left, Middle, Right, None }
     selector: "vs-range-slider",
     templateUrl: "vs-range-slider.component.html",
     styleUrls: ["vs-range-slider.component.scss"],
-    imports: [VSDataTipDirective, VSPopComponentDirective, SafeFontDirective, NgIf, CollapseToggleButton, MiniMenu, TooltipIfDirective, FormsModule, DefaultFocusDirective, InteractableDirective, TooltipDirective, NgFor]
+    imports: [VSDataTipDirective, VSPopComponentDirective, SafeFontDirective, CollapseToggleButton, MiniMenu, TooltipIfDirective, FormsModule, DefaultFocusDirective, InteractableDirective, TooltipDirective]
 })
 export class VSRangeSlider extends NavigationComponent<VSRangeSliderModel>
    implements OnInit, OnDestroy, OnChanges

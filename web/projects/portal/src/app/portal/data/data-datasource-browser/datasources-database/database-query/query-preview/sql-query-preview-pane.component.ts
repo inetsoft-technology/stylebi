@@ -33,14 +33,14 @@ import { ComponentTool } from "../../../../../../common/util/component-tool";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { LoadingIndicatorPaneComponent } from "../../common-components/loading-indicator-pane/loading-indicator-pane.component";
 import { QueryPreviewTableComponent } from "./query-preview-table.component";
-import { NgIf } from "@angular/common";
+
 
 const LOAD_QUERY_DATA_URL = "../api/data/datasource/query/load/data";
 
 @Component({
     selector: "sql-query-preview-pane",
     templateUrl: "./sql-query-preview-pane.component.html",
-    imports: [NgIf, QueryPreviewTableComponent, LoadingIndicatorPaneComponent]
+    imports: [QueryPreviewTableComponent, LoadingIndicatorPaneComponent]
 })
 export class SqlQueryPreviewPaneComponent implements OnDestroy, OnInit {
    @Input() runtimeId: string;

@@ -1,176 +1,221 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <div #summaryPageContainer (window:resize)="getGridCols()">
   <em-cluster-selector [clusterNodes]="clusterNodes"
-                       [refreshEnable]="true"
-                       (selectedNodeChange)="selectedNodeChange()">
+    [refreshEnable]="true"
+    (selectedNodeChange)="selectedNodeChange()">
   </em-cluster-selector>
-    <ng-container *ngIf="serverModel">
-      <section class="flex-row margin-top">
-        <section class="flex">
-          <div class="server-stats-table">
-            <table>
+  @if (serverModel) {
+    <section class="flex-row margin-top">
+      <section class="flex">
+        <div class="server-stats-table">
+          <table>
+            <tr>
+              <th>_#(Server Uptime):</th><td>{{serverUpTime}}</td>
+              @if (!serverModel.isCloud) {
+                <th>_#(Scheduler Uptime):</th>
+                }@if (!serverModel.isCloud) {
+                <td>{{schedulerUpTime}}</td>
+              }
+            </tr>
+            <tr>
+              <th>_#(Version Number):</th><td>{{versionNumber}}</td>
+              <th>_#(Build Number):</th><td>{{buildNumber}}</td>
+            </tr>
+            @if (!!currentNode) {
               <tr>
-                <th>_#(Server Uptime):</th><td>{{serverUpTime}}</td>
-                <th *ngIf="!serverModel.isCloud">_#(Scheduler Uptime):</th><td *ngIf="!serverModel.isCloud">{{schedulerUpTime}}</td>
-              </tr>
-              <tr>
-                <th>_#(Version Number):</th><td>{{versionNumber}}</td>
-                <th>_#(Build Number):</th><td>{{buildNumber}}</td>
-              </tr>
-              <tr *ngIf="!!currentNode">
                 <th>_#(Current Node):</th><td>{{currentNode}}</td>
               </tr>
-              <tr>
-                <th>_#(Server Time):</th><td>{{serverTime}}</td>
-              </tr>
-            </table>
+            }
+            <tr>
+              <th>_#(Server Time):</th><td>{{serverTime}}</td>
+            </tr>
+          </table>
+        </div>
+      </section>
+      <section class="flex-row">
+        <section class="flex">
+          <div class="server-status-container">
+            <button mat-raised-button (click)="getThreadDump()">_#(Get Thread Dump)</button>
+            <button mat-raised-button (click)="getHeapDump()">_#(Get Heap Dump)</button>
+            <button mat-raised-button (click)="getUsageHistory()">_#(Get Usage History)</button>
+            <button mat-raised-button (click)="getClusterCacheUsage()">_#(Get Cluster Cache Usage)</button>
           </div>
         </section>
-        <section class="flex-row">
-          <section class="flex">
-            <div class="server-status-container">
-              <button mat-raised-button (click)="getThreadDump()">_#(Get Thread Dump)</button>
-              <button mat-raised-button (click)="getHeapDump()">_#(Get Heap Dump)</button>
-              <button mat-raised-button (click)="getUsageHistory()">_#(Get Usage History)</button>
-              <button mat-raised-button (click)="getClusterCacheUsage()">_#(Get Cluster Cache Usage)</button>
-            </div>
-          </section>
-        </section>
       </section>
-    </ng-container>
-    <mat-grid-list [cols]="cols" rowHeight="2:1" gutterSize="5" class="margin-top">
-      <mat-grid-tile *ngIf="heapMemoryVisible">
-        <em-summary-monitoring-chart-view *ngIf="serverModel" id="heapMemory"
-                                          class="fill-container"
-                                          [info]="heapMemoryInfo"
-                                          [legends]="memLegends"
-                                          [timestamp]="serverModel.timestamp"
-                                          [clusterEnabled]="clusterEnabled"
-                                          [selectedClusterNode]="selectedClusterNode">
-        </em-summary-monitoring-chart-view>
+    </section>
+  }
+  <mat-grid-list [cols]="cols" rowHeight="2:1" gutterSize="5" class="margin-top">
+    @if (heapMemoryVisible) {
+      <mat-grid-tile>
+        @if (serverModel) {
+          <em-summary-monitoring-chart-view id="heapMemory"
+            class="fill-container"
+            [info]="heapMemoryInfo"
+            [legends]="memLegends"
+            [timestamp]="serverModel.timestamp"
+            [clusterEnabled]="clusterEnabled"
+            [selectedClusterNode]="selectedClusterNode">
+          </em-summary-monitoring-chart-view>
+        }
       </mat-grid-tile>
-      <mat-grid-tile *ngIf="offHeapMemoryVisible">
-        <em-summary-monitoring-chart-view *ngIf="serverModel" id="offHeapMemory"
-                                          class="fill-container"
-                                          [info]="offHeapMemoryInfo"
-                                          [legends]="offHeapMemLegends"
-                                          [timestamp]="serverModel.timestamp"
-                                          [clusterEnabled]="clusterEnabled"
-                                          [selectedClusterNode]="selectedClusterNode">
-        </em-summary-monitoring-chart-view>
+    }
+    @if (offHeapMemoryVisible) {
+      <mat-grid-tile>
+        @if (serverModel) {
+          <em-summary-monitoring-chart-view id="offHeapMemory"
+            class="fill-container"
+            [info]="offHeapMemoryInfo"
+            [legends]="offHeapMemLegends"
+            [timestamp]="serverModel.timestamp"
+            [clusterEnabled]="clusterEnabled"
+            [selectedClusterNode]="selectedClusterNode">
+          </em-summary-monitoring-chart-view>
+        }
       </mat-grid-tile>
-      <mat-grid-tile *ngIf="cpuUsageVisible">
-        <em-summary-monitoring-chart-view *ngIf="serverModel" id="cpuUsage"
-                                          #cpuUsageChartContainer
-                                          class="fill-container"
-                                          [info]="cpuUsageInfo"
-                                          [legends]="cpuLegends"
-                                          [timestamp]="serverModel.timestamp"
-                                          [clusterEnabled]="clusterEnabled"
-                                          [selectedClusterNode]="selectedClusterNode">
-        </em-summary-monitoring-chart-view>
+    }
+    @if (cpuUsageVisible) {
+      <mat-grid-tile>
+        @if (serverModel) {
+          <em-summary-monitoring-chart-view id="cpuUsage"
+            #cpuUsageChartContainer
+            class="fill-container"
+            [info]="cpuUsageInfo"
+            [legends]="cpuLegends"
+            [timestamp]="serverModel.timestamp"
+            [clusterEnabled]="clusterEnabled"
+            [selectedClusterNode]="selectedClusterNode">
+          </em-summary-monitoring-chart-view>
+        }
       </mat-grid-tile>
-      <mat-grid-tile *ngIf="gcCountVisible">
-        <em-summary-monitoring-chart-view *ngIf="serverModel" id="gcCount"
-                                          #gcCountChartContainer
-                                          class="fill-container"
-                                          [info]="gcCountInfo"
-                                          [legends]="gcCountLegends"
-                                          [timestamp]="serverModel.timestamp"
-                                          [clusterEnabled]="clusterEnabled"
-                                          [selectedClusterNode]="selectedClusterNode">
-        </em-summary-monitoring-chart-view>
+    }
+    @if (gcCountVisible) {
+      <mat-grid-tile>
+        @if (serverModel) {
+          <em-summary-monitoring-chart-view id="gcCount"
+            #gcCountChartContainer
+            class="fill-container"
+            [info]="gcCountInfo"
+            [legends]="gcCountLegends"
+            [timestamp]="serverModel.timestamp"
+            [clusterEnabled]="clusterEnabled"
+            [selectedClusterNode]="selectedClusterNode">
+          </em-summary-monitoring-chart-view>
+        }
       </mat-grid-tile>
-      <mat-grid-tile *ngIf="gcTimeVisible">
-        <em-summary-monitoring-chart-view *ngIf="serverModel" id="gcTime"
-                                          #gcTimeChartContainer
-                                          class="fill-container"
-                                          [info]="gcTimeInfo"
-                                          [legends]="gcTimeLegends"
-                                          [timestamp]="serverModel.timestamp"
-                                          [clusterEnabled]="clusterEnabled"
-                                          [selectedClusterNode]="selectedClusterNode">
-        </em-summary-monitoring-chart-view>
+    }
+    @if (gcTimeVisible) {
+      <mat-grid-tile>
+        @if (serverModel) {
+          <em-summary-monitoring-chart-view id="gcTime"
+            #gcTimeChartContainer
+            class="fill-container"
+            [info]="gcTimeInfo"
+            [legends]="gcTimeLegends"
+            [timestamp]="serverModel.timestamp"
+            [clusterEnabled]="clusterEnabled"
+            [selectedClusterNode]="selectedClusterNode">
+          </em-summary-monitoring-chart-view>
+        }
       </mat-grid-tile>
-      <mat-grid-tile *ngIf="memoryCacheVisible">
-        <em-summary-monitoring-chart-view *ngIf="serverModel" id="memoryCache"
-                                          #memoryCacheChartContainer
-                                          class="fill-container"
-                                          [info]="memoryCacheInfo"
-                                          [legends]="memoryCacheLegends"
-                                          [timestamp]="serverModel.timestamp"
-                                          [clusterEnabled]="clusterEnabled"
-                                          [selectedClusterNode]="selectedClusterNode"
-                                          [chartLink]="getChartLink('memCache')"
-                                          (onLinkClick)="handleLinks($event)">
-        </em-summary-monitoring-chart-view>
+    }
+    @if (memoryCacheVisible) {
+      <mat-grid-tile>
+        @if (serverModel) {
+          <em-summary-monitoring-chart-view id="memoryCache"
+            #memoryCacheChartContainer
+            class="fill-container"
+            [info]="memoryCacheInfo"
+            [legends]="memoryCacheLegends"
+            [timestamp]="serverModel.timestamp"
+            [clusterEnabled]="clusterEnabled"
+            [selectedClusterNode]="selectedClusterNode"
+            [chartLink]="getChartLink('memCache')"
+            (onLinkClick)="handleLinks($event)">
+          </em-summary-monitoring-chart-view>
+        }
       </mat-grid-tile>
-      <mat-grid-tile *ngIf="executionVisible">
-        <em-summary-monitoring-chart-view *ngIf="serverModel" id="execution"
-                                          #executionChartContainer
-                                          class="fill-container"
-                                          [info]="executionInfo"
-                                          [legends]="executionLegends"
-                                          [timestamp]="serverModel.timestamp"
-                                          [clusterEnabled]="clusterEnabled"
-                                          [selectedClusterNode]="selectedClusterNode"
-                                          (onLinkClick)="handleLinks($event)">
-        </em-summary-monitoring-chart-view>
+    }
+    @if (executionVisible) {
+      <mat-grid-tile>
+        @if (serverModel) {
+          <em-summary-monitoring-chart-view id="execution"
+            #executionChartContainer
+            class="fill-container"
+            [info]="executionInfo"
+            [legends]="executionLegends"
+            [timestamp]="serverModel.timestamp"
+            [clusterEnabled]="clusterEnabled"
+            [selectedClusterNode]="selectedClusterNode"
+            (onLinkClick)="handleLinks($event)">
+          </em-summary-monitoring-chart-view>
+        }
       </mat-grid-tile>
-      <mat-grid-tile *ngIf="diskCacheVisible">
-        <em-summary-monitoring-chart-view *ngIf="serverModel" id="diskCache"
-                                          #diskCacheChartContainer
-                                          class="fill-container"
-                                          [info]="diskCacheInfo"
-                                          [legends]="diskCacheLegends"
-                                          [timestamp]="serverModel.timestamp"
-                                          [clusterEnabled]="clusterEnabled"
-                                          [selectedClusterNode]="selectedClusterNode"
-                                          [chartLink]="getChartLink('diskCache')"
-                                          (onLinkClick)="handleLinks($event)">
-        </em-summary-monitoring-chart-view>
+    }
+    @if (diskCacheVisible) {
+      <mat-grid-tile>
+        @if (serverModel) {
+          <em-summary-monitoring-chart-view id="diskCache"
+            #diskCacheChartContainer
+            class="fill-container"
+            [info]="diskCacheInfo"
+            [legends]="diskCacheLegends"
+            [timestamp]="serverModel.timestamp"
+            [clusterEnabled]="clusterEnabled"
+            [selectedClusterNode]="selectedClusterNode"
+            [chartLink]="getChartLink('diskCache')"
+            (onLinkClick)="handleLinks($event)">
+          </em-summary-monitoring-chart-view>
+        }
       </mat-grid-tile>
-      <mat-grid-tile *ngIf="swappingVisible">
-        <em-summary-monitoring-chart-view *ngIf="serverModel" id="swapping"
-                                          #swappingChartContainer
-                                          class="fill-container"
-                                          [info]="swappingInfo"
-                                          [legends]="swappingLegends"
-                                          [timestamp]="serverModel.timestamp"
-                                          [clusterEnabled]="clusterEnabled"
-                                          [selectedClusterNode]="selectedClusterNode"
-                                          [chartLink]="getChartLink('swapping')"
-                                          (onLinkClick)="handleLinks($event)">
-        </em-summary-monitoring-chart-view>
+    }
+    @if (swappingVisible) {
+      <mat-grid-tile>
+        @if (serverModel) {
+          <em-summary-monitoring-chart-view id="swapping"
+            #swappingChartContainer
+            class="fill-container"
+            [info]="swappingInfo"
+            [legends]="swappingLegends"
+            [timestamp]="serverModel.timestamp"
+            [clusterEnabled]="clusterEnabled"
+            [selectedClusterNode]="selectedClusterNode"
+            [chartLink]="getChartLink('swapping')"
+            (onLinkClick)="handleLinks($event)">
+          </em-summary-monitoring-chart-view>
+        }
       </mat-grid-tile>
-    </mat-grid-list>
-    <section class="flex-row flex-start">
-      <div *ngIf="top5UsersVisible && securitySettingsEnabled" class="flex margin-top top5">
+    }
+  </mat-grid-list>
+  <section class="flex-row flex-start">
+    @if (top5UsersVisible && securitySettingsEnabled) {
+      <div class="flex margin-top top5">
         <em-summary-monitoring-table-view id="top5Users"
-                                          class="fill-container"
-                                          [tableInfo]="top5UsersTableInfo"
-                                          [dataSource]="top5Users"
-                                          (clickCell)="handleLinks({link: 'users', text: ''})">
+          class="fill-container"
+          [tableInfo]="top5UsersTableInfo"
+          [dataSource]="top5Users"
+          (clickCell)="handleLinks({link: 'users', text: ''})">
         </em-summary-monitoring-table-view>
       </div>
-    </section>
-    <mat-card appearance="outlined" *ngIf="!!reverseProxyModel && reverseProxyModel.active" class="margin-top em-card fill-width">
+    }
+  </section>
+  @if (!!reverseProxyModel && reverseProxyModel.active) {
+    <mat-card appearance="outlined" class="margin-top em-card fill-width">
       <h3 class="light-gray-bg table-cell-padding-sm m-0 mat-h3"><span>_#(Reverse Proxy)</span></h3>
       <section class="flex-row margin-top">
         <section class="flex">
@@ -180,16 +225,20 @@
                 <th>_#(Active):</th>
                 <td>{{reverseProxyModel.active}}</td>
               </tr>
-              <tr *ngFor="let header of reverseProxyModel.requestHeaders | keyvalue">
-                <th>{{header.key}}:</th>
-                <td>{{header.value}}</td>
-              </tr>
+              @for (header of reverseProxyModel.requestHeaders | keyvalue; track header) {
+                <tr>
+                  <th>{{header.key}}:</th>
+                  <td>{{header.value}}</td>
+                </tr>
+              }
             </table>
           </div>
         </section>
       </section>
     </mat-card>
-    <mat-card appearance="outlined" *ngIf="!!jvmModel" class="margin-top em-card fill-width">
+  }
+  @if (!!jvmModel) {
+    <mat-card appearance="outlined" class="margin-top em-card fill-width">
       <h3 class="light-gray-bg table-cell-padding-sm m-0 mat-h3"><span>_#(Java Runtime)</span></h3>
       <section class="flex-row margin-top">
         <section class="flex">
@@ -201,15 +250,15 @@
               </tr>
               <tr>
                 <th>_#(JVM Version):</th>
-                  <td>{{jvmModel.version}}</td>
+                <td>{{jvmModel.version}}</td>
               </tr>
               <tr>
                 <th>_#(Java Home Directory):</th>
-                  <td>{{jvmModel.javaHome}}</td>
+                <td>{{jvmModel.javaHome}}</td>
               </tr>
               <tr>
                 <th>_#(Classpath):</th>
-                  <td><span [innerHTML]="jvmModel.classPath"></span></td>
+                <td><span [innerHTML]="jvmModel.classPath"></span></td>
               </tr>
             </table>
             <div class="jvm" [innerHTML]="'_#(em.java)'"></div>
@@ -217,4 +266,5 @@
         </section>
       </section>
     </mat-card>
+  }
 </div>

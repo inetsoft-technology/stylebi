@@ -40,7 +40,7 @@ import { ComponentTool } from "../../common/util/component-tool";
 import { DialogButtonsDirective } from "../../widget/standard-dialog/dialog-buttons.directive";
 import { DefaultFocusDirective } from "../../widget/directive/default-focus.directive";
 import { InputTrimDirective } from "../../widget/directive/input-trim.directive";
-import { NgIf } from "@angular/common";
+
 import { DialogContentDirective } from "../../widget/standard-dialog/dialog-content.directive";
 import { StandardDialogComponent } from "../../widget/standard-dialog/standard-dialog.component";
 
@@ -52,7 +52,7 @@ const DASHBOARD_DUPLICATE_URI: string = "../api/portal/dashboard/duplicate/";
     selector: "edit-dashboard-dialog",
     templateUrl: "edit-dashboard-dialog.component.html",
     styleUrls: ["edit-dashboard-dialog.component.scss"],
-    imports: [StandardDialogComponent, DialogContentDirective, NgIf, InputTrimDirective, FormsModule, DefaultFocusDirective, ReactiveFormsModule, RepositoryTreeComponent, DialogButtonsDirective]
+    imports: [StandardDialogComponent, DialogContentDirective, InputTrimDirective, FormsModule, DefaultFocusDirective, ReactiveFormsModule, RepositoryTreeComponent, DialogButtonsDirective]
 })
 export class EditDashboardDialog implements OnInit {
    @Input() dashboard: DashboardModel;

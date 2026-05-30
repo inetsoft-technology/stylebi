@@ -35,7 +35,7 @@ import { ImagePreviewPaneModel } from "./image-preview-pane-model";
 import { ComponentTool } from "../../common/util/component-tool";
 import { NotificationsComponent } from "../notifications/notifications.component";
 import { AlphaDropdown } from "../format/alpha-dropdown.component";
-import { NgIf } from "@angular/common";
+
 
 declare const window: any;
 
@@ -43,12 +43,11 @@ declare const window: any;
     selector: "image-preview-pane",
     templateUrl: "image-preview-pane.component.html",
     imports: [
-        TreeComponent,
-        NotificationsComponent,
-        NgIf,
-        AlphaDropdown,
-        FormsModule,
-    ]
+    TreeComponent,
+    NotificationsComponent,
+    AlphaDropdown,
+    FormsModule
+]
 })
 export class ImagePreviewPane implements OnInit, AfterViewInit {
    @Input() model: ImagePreviewPaneModel;

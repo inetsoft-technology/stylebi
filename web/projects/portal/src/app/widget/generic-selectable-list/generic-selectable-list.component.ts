@@ -16,13 +16,13 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, Input, Output, EventEmitter } from "@angular/core";
-import { NgFor } from "@angular/common";
+
 
 @Component({
     selector: "generic-selectable-list",
     templateUrl: "generic-selectable-list.component.html",
     styleUrls: ["./generic-selectable-list.component.scss"],
-    imports: [NgFor]
+    imports: []
 })
 export class GenericSelectableList {
    @Input() elementToString: (x: any) => string;

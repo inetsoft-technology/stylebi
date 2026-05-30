@@ -89,7 +89,7 @@ import { ResizedDirective } from "../../../../../../shared/resize-event/resized.
 import { LoadingSpinnerComponent } from "../../../common/util/loading-spinner/loading-spinner.component";
 import { MatList, MatListItem } from "@angular/material/list";
 import { MatCheckbox } from "@angular/material/checkbox";
-import { NgIf, NgFor } from "@angular/common";
+
 import { MatDrawerContainer, MatDrawer, MatDrawerContent } from "@angular/material/sidenav";
 import { MatMenu, MatMenuItem, MatMenuTrigger } from "@angular/material/menu";
 import { MatInput } from "@angular/material/input";
@@ -156,7 +156,7 @@ export enum DistributionType {
         EmScheduleChangeService,
         ScheduleTaskDragService
     ],
-    imports: [MatCard, MatCardHeader, MatIconButton, MatTooltip, MatIcon, MatFormField, MatLabel, MatInput, MatMenu, MatMenuItem, MatMenuTrigger, MatCardContent, MatDrawerContainer, NgIf, MatDrawer, ScheduleFolderTreeComponent, MatDrawerContent, MatTable, MatSort, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCheckbox, MatCellDef, MatCell, MatSortHeader, RouterLink, MatList, NgFor, MatListItem, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, MatPaginator, LoadingSpinnerComponent, MatCardActions, MatButton, ResizedDirective, MatProgressSpinner]
+    imports: [MatCard, MatCardHeader, MatIconButton, MatTooltip, MatIcon, MatFormField, MatLabel, MatInput, MatMenu, MatMenuItem, MatMenuTrigger, MatCardContent, MatDrawerContainer, MatDrawer, ScheduleFolderTreeComponent, MatDrawerContent, MatTable, MatSort, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCheckbox, MatCellDef, MatCell, MatSortHeader, RouterLink, MatList, MatListItem, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, MatPaginator, LoadingSpinnerComponent, MatCardActions, MatButton, ResizedDirective, MatProgressSpinner]
 })
 export class ScheduleTaskListComponent implements OnInit, AfterViewInit, OnDestroy {
    @ViewChild("chartDiv", { static: false }) chartDiv: ElementRef;

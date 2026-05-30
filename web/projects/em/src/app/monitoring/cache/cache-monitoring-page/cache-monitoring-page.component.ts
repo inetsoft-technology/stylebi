@@ -29,7 +29,7 @@ import { MonitorLevel, MonitorLevelService } from "../../monitor-level.service";
 import { MonitoringDataService } from "../../monitoring-data.service";
 import { CacheMonitoringTableModel } from "../cache-monitoring-table-model";
 import { CacheMonitoringViewComponent } from "../cache-monitoring-view/cache-monitoring-view.component";
-import { NgIf } from "@angular/common";
+
 import { ClusterSelectorComponent } from "../../cluster-selector/cluster-selector.component";
 
 @Secured({
@@ -55,7 +55,7 @@ import { ClusterSelectorComponent } from "../../cluster-selector/cluster-selecto
     styleUrls: ["./cache-monitoring-page.component.scss"],
     encapsulation: ViewEncapsulation.None,
     host: { "class": "em-cache-monitoring-page" },
-    imports: [ClusterSelectorComponent, NgIf, CacheMonitoringViewComponent]
+    imports: [ClusterSelectorComponent, CacheMonitoringViewComponent]
 })
 export class CacheMonitoringPageComponent implements OnInit, OnDestroy {
    dataGridVisible = false;

@@ -27,7 +27,7 @@ import { LogViewLinks } from "../../monitoring/log/log-view-links";
 import { PageHeaderService } from "../../page-header/page-header.service";
 import { Secured } from "../../secured";
 import { TopScrollDirective } from "../../top-scroll/top-scroll.directive";
-import { NgIf } from "@angular/common";
+
 import { MatNavList, MatListItem } from "@angular/material/list";
 import { PageHeaderComponent } from "../../page-header/page-header.component";
 
@@ -41,7 +41,7 @@ const SMALL_WIDTH_BREAKPOINT = 720;
     selector: "em-auditing-sidenav",
     templateUrl: "./auditing-sidenav.component.html",
     styleUrls: ["./auditing-sidenav.component.scss"],
-    imports: [PageHeaderComponent, MatSidenavContainer, MatSidenav, MatNavList, NgIf, MatListItem, RouterLink, RouterLinkActive, MatSidenavContent, TopScrollDirective, RouterOutlet]
+    imports: [PageHeaderComponent, MatSidenavContainer, MatSidenav, MatNavList, MatListItem, RouterLink, RouterLinkActive, MatSidenavContent, TopScrollDirective, RouterOutlet]
 })
 export class AuditingSidenavComponent implements OnInit, OnDestroy {
    @ViewChild(MatSidenav, {static: true}) sidenav: MatSidenav;

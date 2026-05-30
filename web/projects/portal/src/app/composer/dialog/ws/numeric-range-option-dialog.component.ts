@@ -24,14 +24,14 @@ import { ValueRangeDialogModel } from "../../data/ws/value-range-dialog-model";
 import { InclusiveType } from "../../../common/data/inclusive-type.enum";
 import { InputTrimDirective } from "../../../widget/directive/input-trim.directive";
 import { EnterSubmitDirective } from "../../../widget/directive/enter-submit.directive";
-import { NgIf } from "@angular/common";
+
 import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
 
 @Component({
     selector: "numeric-range-option-dialog",
     templateUrl: "numeric-range-option-dialog.component.html",
     styleUrls: ["numeric-range-option-dialog.component.scss"],
-    imports: [ModalHeaderComponent, NgIf, FormsModule, EnterSubmitDirective, InputTrimDirective, ReactiveFormsModule, ValueRangeSelectableList]
+    imports: [ModalHeaderComponent, FormsModule, EnterSubmitDirective, InputTrimDirective, ReactiveFormsModule, ValueRangeSelectableList]
 })
 export class NumericRangeOptionDialog implements OnInit {
    @Input() model: ValueRangeDialogModel;

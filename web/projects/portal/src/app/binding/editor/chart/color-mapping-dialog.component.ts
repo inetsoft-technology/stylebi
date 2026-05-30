@@ -25,7 +25,7 @@ import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { ComponentTool } from "../../../common/util/component-tool";
 import { ValueLabelModel } from "../../data/value-label-model";
 import { ColorEditor } from "../../../widget/color-picker/color-editor.component";
-import { NgIf, NgFor, NgStyle } from "@angular/common";
+import { NgStyle } from "@angular/common";
 import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
 import { BlockMouseDirective } from "../../../widget/mouse-event/block-mouse.directive";
 
@@ -33,7 +33,7 @@ import { BlockMouseDirective } from "../../../widget/mouse-event/block-mouse.dir
     selector: "color-mapping-dialog",
     templateUrl: "color-mapping-dialog.component.html",
     styleUrls: ["color-mapping-dialog.component.scss"],
-    imports: [BlockMouseDirective, ModalHeaderComponent, NgIf, FormsModule, NgFor, NgStyle, ColorEditor]
+    imports: [BlockMouseDirective, ModalHeaderComponent, FormsModule, NgStyle, ColorEditor]
 })
 export class ColorMappingDialog implements OnInit {
    @Input() model: ColorMappingDialogModel;

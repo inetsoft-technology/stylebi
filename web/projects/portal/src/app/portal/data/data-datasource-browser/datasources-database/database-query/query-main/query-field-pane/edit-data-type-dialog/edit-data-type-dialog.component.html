@@ -1,20 +1,20 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <modal-header [title]="'Data Type'" (onCancel)="cancel()">
 </modal-header>
 <div class="modal-body">
@@ -24,10 +24,12 @@
       <div class="form-row-float-label row">
         <div class="col form-floating">
           <select class="form-control" id="dataType" [(ngModel)]="dataType"
-                  [ngModelOptions]="{standalone: true}">
-            <option *ngFor="let _dataType of dataTypeList" [value]="_dataType.data">
-              {{_dataType.label}}
-            </option>
+            [ngModelOptions]="{standalone: true}">
+            @for (_dataType of dataTypeList; track _dataType) {
+              <option [value]="_dataType.data">
+                {{_dataType.label}}
+              </option>
+            }
           </select>
           <label><span>_#(Type)</span></label>
         </div>

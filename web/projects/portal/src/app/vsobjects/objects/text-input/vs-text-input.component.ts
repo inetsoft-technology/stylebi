@@ -53,7 +53,7 @@ import { FormsModule } from "@angular/forms";
 import { VSPopComponentDirective } from "../data-tip/vs-pop-component.directive";
 import { VSDataTipDirective } from "../data-tip/vs-data-tip.directive";
 import { VSInputLabelWrapper } from "../input-label-wrapper/vs-input-label-wrapper.component";
-import { NgIf } from "@angular/common";
+
 
 enum FocusRegions {
    NONE,
@@ -65,7 +65,7 @@ enum FocusRegions {
     selector: "vs-text-input",
     templateUrl: "vs-text-input.component.html",
     styleUrls: ["vs-text-input.component.scss"],
-    imports: [AppErrorMessage, NgIf, VSInputLabelWrapper, VSDataTipDirective, VSPopComponentDirective, FormsModule, SafeFontDirective, EnterClickDirective, FixedDropdownDirective, NgbDatepicker, DefaultFocusDirective]
+    imports: [AppErrorMessage, VSInputLabelWrapper, VSDataTipDirective, VSPopComponentDirective, FormsModule, SafeFontDirective, EnterClickDirective, FixedDropdownDirective, NgbDatepicker, DefaultFocusDirective]
 })
 export class VSTextInput extends NavigationComponent<VSTextInputModel>
    implements OnInit, OnChanges, OnDestroy

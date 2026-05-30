@@ -21,19 +21,18 @@ import { ValueMode } from "../../widget/dynamic-combo-box/dynamic-combo-box-mode
 import { TreeNodeModel } from "../../widget/tree/tree-node-model";
 import { GeneralPropPaneModel } from "../model/general-prop-pane-model";
 import { DynamicComboBox } from "../../widget/dynamic-combo-box/dynamic-combo-box.component";
-import { NgIf } from "@angular/common";
+
 import { BasicGeneralPane } from "./basic-general-pane.component";
 
 @Component({
     selector: "general-prop-pane",
     templateUrl: "general-prop-pane.component.html",
     imports: [
-        BasicGeneralPane,
-        NgIf,
-        FormsModule,
-        ReactiveFormsModule,
-        DynamicComboBox,
-    ]
+    BasicGeneralPane,
+    FormsModule,
+    ReactiveFormsModule,
+    DynamicComboBox
+]
 })
 export class GeneralPropPane implements OnInit {
    @Input() vsId: string;

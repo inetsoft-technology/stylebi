@@ -1,39 +1,41 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <table class="value-range-table-header table-bordered">
   <thead>
-  <tr>
-    <th>_#(Label)</th>
-    <th>_#(Range)</th>
-  </tr>
+    <tr>
+      <th>_#(Label)</th>
+      <th>_#(Range)</th>
+    </tr>
   </thead>
 </table>
 <div class="bordered-box bd-gray">
   <table class="table-bordered table-sm table-layout-fixed w-100">
     <tbody>
-      <tr *ngFor="let _range of rangeList; let _i = index" (click)="select(_i)"
+      @for (_range of rangeList; track _range; let _i = $index) {
+        <tr (click)="select(_i)"
           [class.selected]="_i === selectedIndex">
-      <td>
-        <input #input class="value-range-table-input form-control bd-gray" [ngModel]="_range.label"
-               (ngModelChange)="editLabel(_i, $event)">
-      </td>
-      <td class="value-range-table-data" [attr.title]="_range.key">{{_range.key}}</td>
-    </tr>
+          <td>
+            <input #input class="value-range-table-input form-control bd-gray" [ngModel]="_range.label"
+              (ngModelChange)="editLabel(_i, $event)">
+          </td>
+          <td class="value-range-table-data" [attr.title]="_range.key">{{_range.key}}</td>
+        </tr>
+      }
     </tbody>
   </table>
 </div>

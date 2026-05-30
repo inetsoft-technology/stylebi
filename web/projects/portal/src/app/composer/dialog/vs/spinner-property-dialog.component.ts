@@ -29,28 +29,27 @@ import { DataInputPane } from "./data-input-pane.component";
 import { SpinnerGeneralPane } from "./spinner-general-pane.component";
 import { NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, NgbNavOutlet } from "@ng-bootstrap/ng-bootstrap";
 import { EnterSubmitDirective } from "../../../widget/directive/enter-submit.directive";
-import { NgIf } from "@angular/common";
+
 import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
 
 @Component({
     selector: "spinner-property-dialog",
     templateUrl: "spinner-property-dialog.component.html",
     imports: [
-        ModalHeaderComponent,
-        NgIf,
-        EnterSubmitDirective,
-        NgbNav,
-        NgbNavItem,
-        NgbNavLink,
-        NgbNavLinkBase,
-        NgbNavContent,
-        SpinnerGeneralPane,
-        DataInputPane,
-        InputLabelPane,
-        VSAssemblyScriptPane,
-        NgbNavOutlet,
-        ApplyButtonComponent,
-    ]
+    ModalHeaderComponent,
+    EnterSubmitDirective,
+    NgbNav,
+    NgbNavItem,
+    NgbNavLink,
+    NgbNavLinkBase,
+    NgbNavContent,
+    SpinnerGeneralPane,
+    DataInputPane,
+    InputLabelPane,
+    VSAssemblyScriptPane,
+    NgbNavOutlet,
+    ApplyButtonComponent
+]
 })
 export class SpinnerPropertyDialog extends PropertyDialog implements OnInit {
    @Input() model: SpinnerPropertyDialogModel;

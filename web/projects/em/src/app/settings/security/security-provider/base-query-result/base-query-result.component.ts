@@ -21,12 +21,12 @@ import { SortOptions } from "../../../../../../../shared/util/sort/sort-options"
 import { SortTypes } from "../../../../../../../shared/util/sort/sort-types";
 import { Tool } from "../../../../../../../shared/util/tool";
 import { MatNavList, MatListItem } from "@angular/material/list";
-import { NgIf, NgFor } from "@angular/common";
+
 
 @Component({
     selector: "em-base-query-result",
     templateUrl: "./base-query-result.component.html",
-    imports: [NgIf, MatNavList, NgFor, MatListItem]
+    imports: [MatNavList, MatListItem]
 })
 export class BaseQueryResult {
    queryResult: string[];

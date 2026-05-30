@@ -19,12 +19,12 @@ import { Component, Input, OnInit, OnDestroy } from "@angular/core";
 import { UntypedFormGroup, UntypedFormControl, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { IntegerEditorModel } from "../model/integer-editor-model";
 import { FormValidators } from "../../../../../shared/util/form-validators";
-import { NgIf } from "@angular/common";
+
 
 @Component({
     selector: "integer-editor",
     templateUrl: "integer-editor.component.html",
-    imports: [FormsModule, ReactiveFormsModule, NgIf]
+    imports: [FormsModule, ReactiveFormsModule]
 })
 export class IntegerEditor implements OnInit, OnDestroy {
    @Input() model: IntegerEditorModel;

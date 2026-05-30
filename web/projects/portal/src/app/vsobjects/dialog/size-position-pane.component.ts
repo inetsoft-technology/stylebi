@@ -19,13 +19,13 @@ import { Component, Input, OnInit } from "@angular/core";
 import { SizePositionPaneModel } from "../model/size-position-pane-model";
 import { UntypedFormControl, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { FormValidators } from "../../../../../shared/util/form-validators";
-import { NgIf } from "@angular/common";
+
 
 @Component({
     selector: "size-position-pane",
     templateUrl: "size-position-pane.component.html",
     styleUrls: ["size-position-pane.component.scss"],
-    imports: [FormsModule, ReactiveFormsModule, NgIf]
+    imports: [FormsModule, ReactiveFormsModule]
 })
 export class SizePositionPane implements OnInit {
    @Input() model: SizePositionPaneModel;

@@ -49,7 +49,7 @@ import { FixedDropdownDirective } from "../../../widget/fixed-dropdown/fixed-dro
 import { ExpressionEditor } from "../../../widget/condition/expression-editor.component";
 import { FormsModule } from "@angular/forms";
 import { EnterSubmitDirective } from "../../../widget/directive/enter-submit.directive";
-import { NgIf, NgSwitch, NgSwitchCase, NgFor, NgSwitchDefault } from "@angular/common";
+
 import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
 enum LinkType {
    WEB_LINK = 1,
@@ -71,7 +71,7 @@ const GET_REPOSITORY_TREE_URI: string = "../api/composer/vs/hyperlink-dialog-mod
     selector: "hyperlink-dialog",
     templateUrl: "hyperlink-dialog.component.html",
     styleUrls: ["hyperlink-dialog.component.scss"],
-    imports: [ModalHeaderComponent, NgIf, EnterSubmitDirective, NgSwitch, NgSwitchCase, FormsModule, NgFor, ExpressionEditor, FixedDropdownDirective, NgSwitchDefault, NgbDropdown, NgbDropdownToggle, NgbDropdownMenu, RepositoryTreeComponent, LargeFormFieldComponent, GenericSelectableList, ApplyButtonComponent, InputParameterDialog]
+    imports: [ModalHeaderComponent, EnterSubmitDirective, FormsModule, ExpressionEditor, FixedDropdownDirective, NgbDropdown, NgbDropdownToggle, NgbDropdownMenu, RepositoryTreeComponent, LargeFormFieldComponent, GenericSelectableList, ApplyButtonComponent, InputParameterDialog]
 })
 export class HyperlinkDialog implements OnInit {
    @Input() objectName: string;

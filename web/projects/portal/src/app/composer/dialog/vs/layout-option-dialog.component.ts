@@ -20,7 +20,7 @@ import { UntypedFormControl, UntypedFormGroup, Validators, FormsModule, Reactive
 import { LayoutOptionDialogModel } from "../../data/vs/layout-option-dialog-model";
 import { ViewsheetClientService } from "../../../common/viewsheet-client";
 import { EnterSubmitDirective } from "../../../widget/directive/enter-submit.directive";
-import { NgIf } from "@angular/common";
+
 
 /**
  * Grouping Options
@@ -34,7 +34,7 @@ export enum Placement {
 @Component({
     selector: "layout-option-dialog",
     templateUrl: "layout-option-dialog.component.html",
-    imports: [NgIf, EnterSubmitDirective, FormsModule, ReactiveFormsModule]
+    imports: [EnterSubmitDirective, FormsModule, ReactiveFormsModule]
 })
 export class LayoutOptionDialog implements OnInit {
    @Input() model: LayoutOptionDialogModel;

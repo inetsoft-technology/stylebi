@@ -25,7 +25,7 @@ import { AssetUtil } from "../../util/asset-util";
 import { StyleConstants } from "../../../common/util/style-constants";
 import { SummaryAttrUtil } from "../../util/summary-attr-util";
 import { XSchema } from "../../../common/data/xschema";
-import { NgFor, NgIf } from "@angular/common";
+
 import { FormsModule } from "@angular/forms";
 
 const DEFAULT_N_P_NVALUE: number = 1;
@@ -34,7 +34,7 @@ const DEFAULT_N_P_NVALUE: number = 1;
     selector: "calc-aggregate-option",
     templateUrl: "calc-aggregate-option.component.html",
     styleUrls: ["calc-aggregate-option.component.scss"],
-    imports: [FormsModule, NgFor, NgIf]
+    imports: [FormsModule]
 })
 export class CalcAggregateOption implements OnInit, OnChanges {
    @Input() dataRef: DataRef;

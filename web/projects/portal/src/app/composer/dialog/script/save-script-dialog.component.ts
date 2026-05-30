@@ -30,7 +30,7 @@ import { AssetTreeComponent } from "../../../widget/asset-tree/asset-tree.compon
 import { DefaultFocusDirective } from "../../../widget/directive/default-focus.directive";
 import { InputTrimDirective } from "../../../widget/directive/input-trim.directive";
 import { EnterSubmitDirective } from "../../../widget/directive/enter-submit.directive";
-import { NgIf } from "@angular/common";
+
 import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
 
 const SAVE_SCRIPT_DIALOG_VALIDATION_URI = "../api/composer/script/save-script-dialog/";
@@ -44,15 +44,14 @@ const CONFIRM_MESSAGE = {
     selector: "save-script-dialog",
     templateUrl: "save-script-dialog.component.html",
     imports: [
-        ModalHeaderComponent,
-        NgIf,
-        EnterSubmitDirective,
-        FormsModule,
-        ReactiveFormsModule,
-        InputTrimDirective,
-        DefaultFocusDirective,
-        AssetTreeComponent,
-    ]
+    ModalHeaderComponent,
+    EnterSubmitDirective,
+    FormsModule,
+    ReactiveFormsModule,
+    InputTrimDirective,
+    DefaultFocusDirective,
+    AssetTreeComponent
+]
 })
 export class SaveScriptDialog implements OnInit {
    @Input() defaultFolder: AssetEntry;

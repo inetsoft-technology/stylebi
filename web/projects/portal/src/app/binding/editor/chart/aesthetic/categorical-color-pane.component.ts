@@ -48,7 +48,7 @@ import { CategoricalFramePane } from "./categorical-frame-pane";
 import { ChartEditorService } from "../../../services/chart/chart-editor.service";
 import { StaticColorEditor } from "./static-color-editor.component";
 import { FormsModule } from "@angular/forms";
-import { NgIf, NgClass, NgFor } from "@angular/common";
+import { NgClass } from "@angular/common";
 
 const COLOR_PALETTES_URI: string = "../api/composer/chart/colorpalettes";
 const COLOR_MAPPING_URI: string = "../api/composer/vs/getColorMappingDialogModel";
@@ -57,7 +57,7 @@ const COLOR_MAPPING_URI: string = "../api/composer/vs/getColorMappingDialogModel
     selector: "categorical-color-pane",
     templateUrl: "categorical-color-pane.component.html",
     styleUrls: ["categorical-pane.scss", "categorical-color-pane.component.scss"],
-    imports: [NgIf, FormsModule, NgClass, NgFor, StaticColorEditor, PaletteDialog]
+    imports: [FormsModule, NgClass, StaticColorEditor, PaletteDialog]
 })
 export class CategoricalColorPane extends CategoricalFramePane implements OnInit {
    @Input() vsId: string;

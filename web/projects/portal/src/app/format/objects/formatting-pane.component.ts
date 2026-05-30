@@ -21,14 +21,14 @@ import { LabelValueTuple } from "../../../../../shared/util/label-value-tuple";
 import { Format } from "../../common/util/format";
 import { ComboBox } from "./combo-box.component";
 import { DynamicComboBox } from "../../widget/dynamic-combo-box/dynamic-combo-box.component";
-import { NgFor, NgIf } from "@angular/common";
+
 import { FormsModule } from "@angular/forms";
 
 @Component({
     selector: "formatting-pane",
     templateUrl: "formatting-pane.component.html",
     styleUrls: ["formatting-pane.component.scss"],
-    imports: [FormsModule, NgFor, NgIf, DynamicComboBox, ComboBox]
+    imports: [FormsModule, DynamicComboBox, ComboBox]
 })
 export class FormattingPane {
    @Input() formatModel: FormatInfoModel;

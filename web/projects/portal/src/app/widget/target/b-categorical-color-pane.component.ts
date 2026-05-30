@@ -31,13 +31,13 @@ import { createAssetEntry } from "../../../../../shared/data/asset-entry";
 import { CategoricalColorModel } from "../../common/data/visual-frame-model";
 import { GraphPaletteDialog } from "./graph-palette-dialog.component";
 import { ColorEditor } from "../color-picker/color-editor.component";
-import { NgFor, NgIf } from "@angular/common";
+
 
 @Component({
     selector: "b-categorical-color-pane",
     templateUrl: "b-categorical-color-pane.component.html",
     styleUrls: ["b-categorical-color-pane.component.scss"],
-    imports: [NgbDropdown, NgbDropdownToggle, NgbDropdownMenu, NgFor, NgIf, ColorEditor, GraphPaletteDialog]
+    imports: [NgbDropdown, NgbDropdownToggle, NgbDropdownMenu, ColorEditor, GraphPaletteDialog]
 })
 export class BCategoricalColorPane implements OnInit {
    @ViewChild("paletteDialog") paletteDialog: TemplateRef<any>;

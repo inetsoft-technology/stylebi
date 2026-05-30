@@ -1,25 +1,25 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <div class="presentation-settings-container">
   <em-navigation-scrollable
     class="presentation-settings-content"
     (navigationScrolled)="onNavigationScrolled($event)"
-  >
+    >
     <div class="em-presentation-container em-content-container">
       <div id="general-format" emNavigationScrollableItem="general-format">
         <em-presentation-formats-settings-view
@@ -27,13 +27,15 @@
           (modelChanged)="onModelChanged($event)">
         </em-presentation-formats-settings-view>
       </div>
-      <div id="export-menu" emNavigationScrollableItem="export-menu"
-           *ngIf="model?.exportMenuSettingsModel">
-        <em-presentation-report-export-menu-settings-view
-          [model]="model?.exportMenuSettingsModel"
-          (modelChanged)="onModelChanged($event)">
-        </em-presentation-report-export-menu-settings-view>
-      </div>
+      @if (model?.exportMenuSettingsModel) {
+        <div id="export-menu" emNavigationScrollableItem="export-menu"
+          >
+          <em-presentation-report-export-menu-settings-view
+            [model]="model?.exportMenuSettingsModel"
+            (modelChanged)="onModelChanged($event)">
+          </em-presentation-report-export-menu-settings-view>
+        </div>
+      }
       <div id="look-and-feel" emNavigationScrollableItem="look-and-feel">
         <em-look-and-feel-settings-view
           [isSysAdmin]="isSysAdmin"
@@ -57,24 +59,27 @@
       </div>
       <div id="composer-message" emNavigationScrollableItem="composer-message">
         <em-presentation-composer-message-settings-view
-                [model]="model?.composerSettingMessageModel"
-                (modelChanged)="onModelChanged($event)">
+          [model]="model?.composerSettingMessageModel"
+          (modelChanged)="onModelChanged($event)">
         </em-presentation-composer-message-settings-view>
       </div>
       <div id="dashboard-settings" emNavigationScrollableItem="dashboard-settings">
-        <em-presentation-dashboard-settings-view
-          *ngIf="model?.dashboardSettingsModel"
-          [model]="model?.dashboardSettingsModel"
-          (modelChanged)="onModelChanged($event)">
-        </em-presentation-dashboard-settings-view>
+        @if (model?.dashboardSettingsModel) {
+          <em-presentation-dashboard-settings-view
+            [model]="model?.dashboardSettingsModel"
+            (modelChanged)="onModelChanged($event)">
+          </em-presentation-dashboard-settings-view>
+        }
       </div>
-      <div id="viewsheet-toolbar" *ngIf="model?.viewsheetToolbarOptionsModel"
-           emNavigationScrollableItem="viewsheet-toolbar">
-        <em-presentation-viewsheet-toolbar-options-view
-          [model]="model?.viewsheetToolbarOptionsModel"
-          (modelChanged)="onModelChanged($event)">
-        </em-presentation-viewsheet-toolbar-options-view>
-      </div>
+      @if (model?.viewsheetToolbarOptionsModel) {
+        <div id="viewsheet-toolbar"
+          emNavigationScrollableItem="viewsheet-toolbar">
+          <em-presentation-viewsheet-toolbar-options-view
+            [model]="model?.viewsheetToolbarOptionsModel"
+            (modelChanged)="onModelChanged($event)">
+          </em-presentation-viewsheet-toolbar-options-view>
+        </div>
+      }
       <div id="portal-integration" emNavigationScrollableItem="portal-integration">
         <em-portal-integration-view
           [isSysAdmin]="isSysAdmin"
@@ -95,53 +100,65 @@
           (modelChanged)="onModelChanged($event)">
         </em-presentation-pdf-generation-settings-view>
       </div>
-      <div *ngIf="isSysAdmin" id="font-mapping" emNavigationScrollableItem="font-mapping">
-        <em-presentation-font-mapping-settings-view
-          [model]="model?.fontMappingSettingsModel"
-          (modelChanged)="onModelChanged($event)">
-        </em-presentation-font-mapping-settings-view>
-      </div>
-      <div id="data-source-visibility" emNavigationScrollableItem="data-source-visibility"
-           *ngIf="model?.dataSourceVisibilitySettingsModel">
-        <em-presentation-data-source-visibility-settings-view
-          [model]="model?.dataSourceVisibilitySettingsModel"
-          (modelChanged)="onModelChanged($event)"
-        ></em-presentation-data-source-visibility-settings-view>
-      </div>
-      <div id="webmap" *ngIf="model?.webMapSettingsModel != null" emNavigationScrollableItem="webmap">
-        <em-webmap-settings-view
-          [model]="model.webMapSettingsModel"
-          (modelChanged)="onModelChanged($event)">
-        </em-webmap-settings-view>
-      </div>
-      <div id="sharing" emNavigationScrollableItem="sharing"
-           *ngIf="model?.shareSettingsModel">
-        <em-presentation-share-settings-view
-          [model]="model?.shareSettingsModel"
-          (modelChanged)="onModelChanged($event)"
-        ></em-presentation-share-settings-view>
-      </div>
-      <div id="ai-integration" emNavigationScrollableItem="ai-integration"
-           *ngIf="model?.aiSettingsModel">
-        <em-presentation-ai-settings-view
-          [model]="model?.aiSettingsModel"
-          (modelChanged)="onModelChanged($event)"
-        ></em-presentation-ai-settings-view>
-      </div>
+      @if (isSysAdmin) {
+        <div id="font-mapping" emNavigationScrollableItem="font-mapping">
+          <em-presentation-font-mapping-settings-view
+            [model]="model?.fontMappingSettingsModel"
+            (modelChanged)="onModelChanged($event)">
+          </em-presentation-font-mapping-settings-view>
+        </div>
+      }
+      @if (model?.dataSourceVisibilitySettingsModel) {
+        <div id="data-source-visibility" emNavigationScrollableItem="data-source-visibility"
+          >
+          <em-presentation-data-source-visibility-settings-view
+            [model]="model?.dataSourceVisibilitySettingsModel"
+            (modelChanged)="onModelChanged($event)"
+          ></em-presentation-data-source-visibility-settings-view>
+        </div>
+      }
+      @if (model?.webMapSettingsModel != null) {
+        <div id="webmap" emNavigationScrollableItem="webmap">
+          <em-webmap-settings-view
+            [model]="model.webMapSettingsModel"
+            (modelChanged)="onModelChanged($event)">
+          </em-webmap-settings-view>
+        </div>
+      }
+      @if (model?.shareSettingsModel) {
+        <div id="sharing" emNavigationScrollableItem="sharing"
+          >
+          <em-presentation-share-settings-view
+            [model]="model?.shareSettingsModel"
+            (modelChanged)="onModelChanged($event)"
+          ></em-presentation-share-settings-view>
+        </div>
+      }
+      @if (model?.aiSettingsModel) {
+        <div id="ai-integration" emNavigationScrollableItem="ai-integration"
+          >
+          <em-presentation-ai-settings-view
+            [model]="model?.aiSettingsModel"
+            (modelChanged)="onModelChanged($event)"
+          ></em-presentation-ai-settings-view>
+        </div>
+      }
     </div>
   </em-navigation-scrollable>
   <div class="presentation-settings-nav">
     <mat-nav-list dense>
-      <a *ngFor="let link of navLinks"
-         mat-list-item
-         [attr.id]="link.id + '-navlink'"
-         routerLink="."
-         [fragment]="link.id"
-         [class.mat-active]="link.id === currentView"
-         (click)="scrollToItem(link.id)"
-         >
-        {{ link.label }}
-      </a>
+      @for (link of navLinks; track link) {
+        <a
+          mat-list-item
+          [attr.id]="link.id + '-navlink'"
+          routerLink="."
+          [fragment]="link.id"
+          [class.mat-active]="link.id === currentView"
+          (click)="scrollToItem(link.id)"
+          >
+          {{ link.label }}
+        </a>
+      }
     </mat-nav-list>
   </div>
 </div>

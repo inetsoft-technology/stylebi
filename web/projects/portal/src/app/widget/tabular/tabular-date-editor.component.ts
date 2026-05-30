@@ -20,12 +20,12 @@ import { TimeValueEditorComponent } from "../date-type-editor/time-value-editor.
 import { DateValueEditorComponent } from "../date-type-editor/date-value-editor.component";
 import { FormsModule } from "@angular/forms";
 import { TimeInstantValueEditorComponent } from "../date-type-editor/time-instant-value-editor.component";
-import { NgIf } from "@angular/common";
+
 
 @Component({
     selector: "tabular-date-editor",
     templateUrl: "tabular-date-editor.component.html",
-    imports: [NgIf, TimeInstantValueEditorComponent, FormsModule, DateValueEditorComponent, TimeValueEditorComponent]
+    imports: [TimeInstantValueEditorComponent, FormsModule, DateValueEditorComponent, TimeValueEditorComponent]
 })
 export class TabularDateEditor implements OnInit {
    @Input() value: string;

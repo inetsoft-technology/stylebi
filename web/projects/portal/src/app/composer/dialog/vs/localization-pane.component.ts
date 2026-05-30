@@ -24,13 +24,13 @@ import { ScrollableTableDirective } from "../../../widget/scrollable-table/scrol
 import { TreeComponent } from "../../../widget/tree/tree.component";
 import { ShuffleListComponent } from "../../../widget/shuffle-list/shuffle-list.component";
 import { FormsModule } from "@angular/forms";
-import { NgIf, NgFor } from "@angular/common";
+
 
 @Component({
     selector: "localization-pane",
     templateUrl: "localization-pane.component.html",
     styleUrls: ["localization-pane.component.scss"],
-    imports: [NgIf, FormsModule, ShuffleListComponent, TreeComponent, ScrollableTableDirective, NgFor, ElidedCellComponent]
+    imports: [FormsModule, ShuffleListComponent, TreeComponent, ScrollableTableDirective, ElidedCellComponent]
 })
 
 export class LocalizationPane {

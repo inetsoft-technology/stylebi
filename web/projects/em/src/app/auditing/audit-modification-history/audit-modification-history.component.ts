@@ -38,7 +38,7 @@ import { Tool } from "../../../../../shared/util/tool";
 import { MatOption } from "@angular/material/core";
 import { MatSelect } from "@angular/material/select";
 import { MatFormField, MatLabel } from "@angular/material/form-field";
-import { NgIf, NgFor } from "@angular/common";
+
 
 @Secured({
    route: "/auditing/modification-history",
@@ -57,7 +57,7 @@ import { NgIf, NgFor } from "@angular/common";
     selector: "em-audit-modification-history",
     templateUrl: "./audit-modification-history.component.html",
     styleUrls: ["./audit-modification-history.component.scss"],
-    imports: [AuditTableViewComponent, FormsModule, ReactiveFormsModule, NgIf, MatFormField, MatLabel, MatSelect, NgFor, MatOption]
+    imports: [AuditTableViewComponent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatSelect, MatOption]
 })
 export class AuditModificationHistoryComponent implements OnInit, OnDestroy {
    users: string[] = [];

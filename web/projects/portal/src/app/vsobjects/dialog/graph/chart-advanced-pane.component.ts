@@ -26,13 +26,13 @@ import { FormControl, UntypedFormGroup, FormsModule, ReactiveFormsModule } from 
 import { FormValidators } from "../../../../../../shared/util/form-validators";
 import { ChartTargetLinesPane } from "../../../graph/dialog/chart-target-lines-pane.component";
 import { ChartPlotOptionsPaneComponent } from "../../../graph/dialog/chart-plot-options-pane.component";
-import { NgIf } from "@angular/common";
+
 
 @Component({
     selector: "chart-advanced-pane",
     templateUrl: "chart-advanced-pane.component.html",
     styleUrls: ["chart-advanced-pane.component.scss"],
-    imports: [FormsModule, ReactiveFormsModule, NgIf, ChartPlotOptionsPaneComponent, ChartTargetLinesPane]
+    imports: [FormsModule, ReactiveFormsModule, ChartPlotOptionsPaneComponent, ChartTargetLinesPane]
 })
 export class ChartAdvancedPane implements OnInit {
    @Input() model: ChartAdvancedPaneModel;

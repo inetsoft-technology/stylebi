@@ -53,7 +53,7 @@ import { ChartObjectAreaBase } from "./chart-object-area-base";
 import { Point } from "../../common/data/point";
 import { ChartImageDirective } from "./chart-image.directive";
 import { OutOfZoneDirective } from "../../widget/directive/out-of-zone.directive";
-import { NgIf, NgFor } from "@angular/common";
+
 
 @Component({
     selector: "chart-plot-area",
@@ -64,7 +64,7 @@ import { NgIf, NgFor } from "@angular/common";
             useExisting: ChartPlotArea
         }],
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [NgIf, SelectionBoxDirective, OutOfZoneDirective, ChartImageDirective, NgFor]
+    imports: [SelectionBoxDirective, OutOfZoneDirective, ChartImageDirective]
 })
 export class ChartPlotArea extends ChartObjectAreaBase<Plot> implements OnChanges {
    @Input() dataTip: string;

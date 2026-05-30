@@ -30,13 +30,13 @@ import {
 import {Tool} from "../../../../../../shared/util/tool";
 import {DateTimeValueDialog} from "../date-time-value-dialog.component";
 import { FormsModule } from "@angular/forms";
-import { NgIf, NgClass, NgFor, NgSwitch, NgSwitchCase, NgSwitchDefault } from "@angular/common";
+import { NgClass } from "@angular/common";
 
 @Component({
     selector: "parameter-page",
     templateUrl: "parameter-page.component.html",
     styleUrls: ["./parameter-page.component.scss"],
-    imports: [NgIf, NgClass, NgFor, NgSwitch, NgSwitchCase, FormsModule, NgSwitchDefault]
+    imports: [NgClass, FormsModule]
 })
 export class ParameterPage {
    @Input() isDialog = false;

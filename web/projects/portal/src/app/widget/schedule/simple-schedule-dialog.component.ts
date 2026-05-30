@@ -49,7 +49,7 @@ import { EmailDialogData, EmailAddrDialog } from "../email-dialog/email-addr-dia
 import { ViewsheetActionModel } from "../../vsobjects/model/schedule/viewsheet-action-model";
 import { StartTimeEditor } from "./start-time-editor.component";
 import { CSVConfigPane } from "./csv-config-pane.component";
-import { NgIf, NgFor } from "@angular/common";
+
 import { EnterSubmitDirective } from "../directive/enter-submit.directive";
 import { ModalHeaderComponent } from "../modal-header/modal-header.component";
 
@@ -60,17 +60,15 @@ const CHECK_EMAIL_VALID_URI: string = "../api/vs/check-email-valid";
     selector: "simple-schedule-dialog",
     templateUrl: "simple-schedule-dialog.component.html",
     imports: [
-        ModalHeaderComponent,
-        EnterSubmitDirective,
-        FormsModule,
-        ReactiveFormsModule,
-        NgIf,
-        NgFor,
-        CSVConfigPane,
-        NgbTypeahead,
-        StartTimeEditor,
-        EmailAddrDialog,
-    ]
+    ModalHeaderComponent,
+    EnterSubmitDirective,
+    FormsModule,
+    ReactiveFormsModule,
+    CSVConfigPane,
+    NgbTypeahead,
+    StartTimeEditor,
+    EmailAddrDialog
+]
 })
 export class SimpleScheduleDialog implements OnInit, OnDestroy {
    @Input() model: SimpleScheduleDialogModel;

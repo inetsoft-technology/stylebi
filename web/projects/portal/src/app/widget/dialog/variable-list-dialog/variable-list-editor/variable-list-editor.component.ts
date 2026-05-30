@@ -20,7 +20,7 @@ import { Component, EventEmitter, Input, OnInit, Output } from "@angular/core";
 import { VariableListDialog } from "../variable-list-dialog.component";
 import { XSchema } from "../../../../common/data/xschema";
 import { FormsModule } from "@angular/forms";
-import { NgFor } from "@angular/common";
+
 import { LargeFormFieldComponent } from "../../../large-form-field/large-form-field.component";
 
 export interface VariableListTuple {
@@ -33,7 +33,7 @@ export interface VariableListTuple {
     selector: "variable-list-editor",
     templateUrl: "variable-list-editor.component.html",
     styleUrls: ["variable-list-editor.component.scss"],
-    imports: [LargeFormFieldComponent, NgFor, FormsModule]
+    imports: [LargeFormFieldComponent, FormsModule]
 })
 export class VariableListEditor implements OnInit {
    @Input() variableList: VariableListTuple[];

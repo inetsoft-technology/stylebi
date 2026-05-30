@@ -22,7 +22,7 @@ import { ColumnInfo } from "../../data/ws/column-info";
 import { ColumnTypeDialogModel } from "../../data/ws/column-type-dialog-model";
 import { ComboBox } from "../../../format/objects/combo-box.component";
 import { EnterSubmitDirective } from "../../../widget/directive/enter-submit.directive";
-import { NgIf, NgFor } from "@angular/common";
+
 import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
 
 interface FormatPair {
@@ -70,7 +70,7 @@ const numberFmts: FormatPair[] = [
     selector: "column-type-dialog",
     templateUrl: "column-type-dialog.component.html",
     styleUrls: ["column-type-dialog.component.scss"],
-    imports: [ModalHeaderComponent, NgIf, EnterSubmitDirective, FormsModule, ReactiveFormsModule, NgFor, ComboBox]
+    imports: [ModalHeaderComponent, EnterSubmitDirective, FormsModule, ReactiveFormsModule, ComboBox]
 })
 export class ColumnTypeDialog implements OnInit {
    @Input() colInfo: ColumnInfo;

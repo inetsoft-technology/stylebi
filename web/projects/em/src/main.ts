@@ -19,7 +19,7 @@ import { HammerModule, bootstrapApplication } from "@angular/platform-browser";
 import { provideAnimations } from "@angular/platform-browser/animations";
 import { provideRouter, withInMemoryScrolling, withRouterConfig } from "@angular/router";
 import { provideHttpClient, withInterceptorsFromDi } from "@angular/common/http";
-import { importProvidersFrom } from "@angular/core";
+import { importProvidersFrom, provideZoneChangeDetection } from "@angular/core";
 import { LayoutModule } from "@angular/cdk/layout";
 import { ReactiveFormsModule } from "@angular/forms";
 import { MatButtonModule } from "@angular/material/button";
@@ -44,7 +44,7 @@ import { httpInterceptorProviders } from "./app/http-interceptor-providers";
 
 bootstrapApplication(AppComponent, {
    providers: [
-      importProvidersFrom(ReactiveFormsModule, HammerModule, LayoutModule,
+      provideZoneChangeDetection(),importProvidersFrom(ReactiveFormsModule, HammerModule, LayoutModule,
          MatButtonModule, MatCardModule, MatDialogModule, MatFormFieldModule, MatIconModule,
          MatInputModule, MatMenuModule, MatSnackBarModule, MatTableModule, MatToolbarModule,
          MatSelectModule),

@@ -51,13 +51,13 @@ import { VSHiddenAnnotation } from "../../annotation/vs-hidden-annotation.compon
 import { TooltipDirective } from "../../../../widget/tooltip/tooltip.directive";
 import { VSPopComponentDirective } from "../../data-tip/vs-pop-component.directive";
 import { VSDataTipDirective } from "../../data-tip/vs-data-tip.directive";
-import { NgIf, NgStyle, NgFor } from "@angular/common";
+import { NgStyle } from "@angular/common";
 
 @Component({
     selector: "vs-image",
     templateUrl: "vs-image.component.html",
     styleUrls: ["vs-image.component.scss"],
-    imports: [NgIf, VSDataTipDirective, VSPopComponentDirective, TooltipDirective, NgStyle, VSHiddenAnnotation, NgFor, VSAnnotation, VSLoadingDisplay]
+    imports: [VSDataTipDirective, VSPopComponentDirective, TooltipDirective, NgStyle, VSHiddenAnnotation, VSAnnotation, VSLoadingDisplay]
 })
 export class VSImage extends AbstractImageComponent<VSImageModel>
    implements OnInit, OnChanges, OnDestroy

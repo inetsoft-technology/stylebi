@@ -48,7 +48,7 @@ import { PresentationLoginBannerSettingsViewComponent } from "../presentation-lo
 import { WelcomePageSettingsViewComponent } from "../welcome-page-settings-view/welcome-page-settings-view.component";
 import { LookAndFeelSettingsViewComponent } from "../look-and-feel-settings-view/look-and-feel-settings-view.component";
 import { PresentationExportMenuSettingsViewComponent } from "../presentation-export-menu-settings-view/presentation-export-menu-settings-view.component";
-import { NgIf, NgFor } from "@angular/common";
+
 import { PresentationFormatsSettingsViewComponent } from "../presentation-formats-settings-view/presentation-formats-settings-view.component";
 import { NavigationScrollableItemDirective } from "../../../common/util/scroll-nav/navigation-scrollable-item/navigation-scrollable-item.directive";
 import { NavigationScrollableComponent } from "../../../common/util/scroll-nav/navigation-scrollable/navigation-scrollable.component";
@@ -75,7 +75,7 @@ export class PresentationSettingsNavLink {
     selector: "em-presentation-settings-view",
     templateUrl: "./presentation-settings-view.component.html",
     styleUrls: ["./presentation-settings-view.component.scss"],
-    imports: [NavigationScrollableComponent, NavigationScrollableItemDirective, PresentationFormatsSettingsViewComponent, NgIf, PresentationExportMenuSettingsViewComponent, LookAndFeelSettingsViewComponent, WelcomePageSettingsViewComponent, PresentationLoginBannerSettingsViewComponent, PresentationComposerMessageSettingsViewComponent, PresentationDashboardSettingsViewComponent, PresentationViewsheetToolbarOptionsViewComponent, PortalIntegrationViewComponent, PresentationTimeSettingsViewComponent, PresentationPdfGenerationSettingsViewComponent, PresentationFontMappingSettingsViewComponent, PresentationDataSourceVisibilitySettingsViewComponent, WebMapSettingsViewComponent, PresentationShareSettingsViewComponent, PresentationAISettingsViewComponent, MatNavList, NgFor, MatListItem, RouterLink, MatCard, MatCardContent, MatButton]
+    imports: [NavigationScrollableComponent, NavigationScrollableItemDirective, PresentationFormatsSettingsViewComponent, PresentationExportMenuSettingsViewComponent, LookAndFeelSettingsViewComponent, WelcomePageSettingsViewComponent, PresentationLoginBannerSettingsViewComponent, PresentationComposerMessageSettingsViewComponent, PresentationDashboardSettingsViewComponent, PresentationViewsheetToolbarOptionsViewComponent, PortalIntegrationViewComponent, PresentationTimeSettingsViewComponent, PresentationPdfGenerationSettingsViewComponent, PresentationFontMappingSettingsViewComponent, PresentationDataSourceVisibilitySettingsViewComponent, WebMapSettingsViewComponent, PresentationShareSettingsViewComponent, PresentationAISettingsViewComponent, MatNavList, MatListItem, RouterLink, MatCard, MatCardContent, MatButton]
 })
 export class PresentationSettingsViewComponent implements OnInit, OnDestroy {
    @Input() orgSettings: boolean = false;

@@ -46,7 +46,7 @@ import { NotificationsComponent } from "../../../widget/notifications/notificati
 import { TaskOptionsPane } from "./options/task-options-pane.component";
 import { TaskActionPane } from "./actions/task-action-pane.component";
 import { TaskConditionPane } from "./conditions/task-condition-pane.component";
-import { NgIf } from "@angular/common";
+
 
 const EDIT_TASKS_URI = "../api/portal/schedule/edit";
 const SAVE_TASKS_URI = "../api/portal/schedule/save";
@@ -57,7 +57,7 @@ const REMOVE_TASKS_URI = "../api/portal/schedule/remove";
     selector: "p-schedule-task-editor",
     templateUrl: "./schedule-task-editor.component.html",
     styleUrls: ["./schedule-task-editor.component.scss"],
-    imports: [NgIf, FormsModule, ReactiveFormsModule, TaskConditionPane, TaskActionPane, TaskOptionsPane, NotificationsComponent]
+    imports: [FormsModule, ReactiveFormsModule, TaskConditionPane, TaskActionPane, TaskOptionsPane, NotificationsComponent]
 })
 export class ScheduleTaskEditorComponent implements OnInit {
    @ViewChild("notifications") notifications: NotificationsComponent;

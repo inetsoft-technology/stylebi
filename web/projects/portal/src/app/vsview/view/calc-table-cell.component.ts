@@ -26,13 +26,13 @@ import { DndService } from "../../common/dnd/dnd.service";
 import { Tool } from "../../../../../shared/util/tool";
 import { VSFormatModel } from "../../vsobjects/model/vs-format-model";
 import { OutOfZoneDirective } from "../../widget/directive/out-of-zone.directive";
-import { NgIf, NgStyle } from "@angular/common";
+import { NgStyle } from "@angular/common";
 
 @Component({
     selector: "calc-table-cell",
     templateUrl: "calc-table-cell.component.html",
     styleUrls: ["calc-table-cell.component.scss"],
-    imports: [NgIf, OutOfZoneDirective, NgStyle]
+    imports: [OutOfZoneDirective, NgStyle]
 })
 export class CalcTableCellComponent {
    _cell: TableCell;

@@ -21,14 +21,14 @@ import { AbstractTableAssembly } from "../../data/ws/abstract-table-assembly";
 import { ViewsheetClientService } from "../../../common/viewsheet-client/viewsheet-client.service";
 import { WSConcatenateEvent } from "../../gui/ws/socket/ws-concatenate-event";
 import { WorksheetTableOperator } from "../../data/ws/ws-table.operators";
-import { NgFor } from "@angular/common";
+
 import { FormsModule } from "@angular/forms";
 import { EnterSubmitDirective } from "../../../widget/directive/enter-submit.directive";
 
 @Component({
     selector: "concatenate-tables-dialog",
     templateUrl: "concatenate-tables-dialog.component.html",
-    imports: [EnterSubmitDirective, FormsModule, NgFor]
+    imports: [EnterSubmitDirective, FormsModule]
 })
 export class ConcatenateTablesDialog {
    @Input() tables: AbstractTableAssembly[];

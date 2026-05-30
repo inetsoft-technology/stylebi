@@ -1,47 +1,53 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <div #toolbarContainer class="auto-toolbar-container"
-     [style.justify-content]="flowRight ? 'flex-end' : 'flex-start'"
-     (resized)="resize($event)">
+  [style.justify-content]="flowRight ? 'flex-end' : 'flex-start'"
+  (resized)="resize($event)">
   <div #buttonsContainer class="auto-buttons-container">
-    <ng-container *ngFor="let action of actions">
-      <button *ngIf="!collapse && action.visible()" type="button" class="btn btn-light-no-bg btn-sm"
-              [ngClass]="action.buttonClass"
-              [title]="!!action.tooltip ? action.tooltip() : ''"
-              [disabled]="!action.enabled()" (click)="clickAction(action)">
-        <i [ngClass]="action.iconClass"></i>
+    @for (action of actions; track action) {
+      @if (!collapse && action.visible()) {
+        <button type="button" class="btn btn-light-no-bg btn-sm"
+          [ngClass]="action.buttonClass"
+          [title]="!!action.tooltip ? action.tooltip() : ''"
+          [disabled]="!action.enabled()" (click)="clickAction(action)">
+          <i [ngClass]="action.iconClass"></i>
+        </button>
+      }
+    }
+    @if (collapse) {
+      <button type="button" class="btn btn-light-no-bg btn-sm"
+        [fixedDropdown]="treeDropdownMenu">
+        <i class="menu-sandwich-icon"></i>
       </button>
-    </ng-container>
-    <button *ngIf="collapse" type="button" class="btn btn-light-no-bg btn-sm"
-            [fixedDropdown]="treeDropdownMenu">
-      <i class="menu-sandwich-icon"></i>
-    </button>
+    }
   </div>
 </div>
 
 <ng-template #treeDropdownMenu>
   <div class="dropdown-pane">
-    <ng-container *ngFor="let action of actions">
-      <button *ngIf="collapse && action.visible()" type="button" class="dropdown-item"
-              (click)="clickAction(action)">
-        {{ action.label }}
-      </button>
-    </ng-container>
+    @for (action of actions; track action) {
+      @if (collapse && action.visible()) {
+        <button type="button" class="dropdown-item"
+          (click)="clickAction(action)">
+          {{ action.label }}
+        </button>
+      }
+    }
   </div>
 </ng-template>
 

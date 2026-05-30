@@ -30,14 +30,14 @@ import { DataRefType } from "../../../common/data/data-ref-type";
 import { MultiSelectList } from "../../../common/util/multi-select-list";
 import { OutputColumnRefModel } from "../../../vsobjects/model/output-column-ref-model";
 import { TreeNodeModel } from "../../tree/tree-node-model";
-import { NgIf, NgFor } from "@angular/common";
+
 
 @Component({
     selector: "additional-table-selection-pane",
     templateUrl: "additional-table-selection-pane.component.html",
     styleUrls: ["./additional-table-selection-pane.component.scss"],
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [NgIf, NgFor]
+    imports: []
 })
 export class AdditionalTableSelectionPaneComponent implements OnChanges {
    @Input() tree: TreeNodeModel;

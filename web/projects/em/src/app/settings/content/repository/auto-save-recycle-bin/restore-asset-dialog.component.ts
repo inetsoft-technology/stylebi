@@ -37,7 +37,7 @@ import { MatIcon } from "@angular/material/icon";
 import { MatIconButton, MatButton } from "@angular/material/button";
 import { MatTree, MatTreeNodeDef, MatTreeNode, MatTreeNodePadding, MatTreeNodeToggle } from "@angular/material/tree";
 import { MatCheckbox } from "@angular/material/checkbox";
-import { NgIf } from "@angular/common";
+
 import { MatInput } from "@angular/material/input";
 import { MatFormField, MatLabel, MatError } from "@angular/material/form-field";
 import { MatCard, MatCardContent } from "@angular/material/card";
@@ -109,28 +109,27 @@ const RECOVER_AUTO_SAVE_ENTRY: string = "../api/em/content/repository/autosave/r
     templateUrl: "./restore-asset-dialog.component.html",
     styleUrls: ["./restore-asset-dialog.component.scss"],
     imports: [
-        ModalHeaderComponent,
-        MatDialogContent,
-        FormsModule,
-        ReactiveFormsModule,
-        MatCard,
-        MatCardContent,
-        MatFormField,
-        MatLabel,
-        MatInput,
-        NgIf,
-        MatError,
-        MatCheckbox,
-        MatTree,
-        MatTreeNodeDef,
-        MatTreeNode,
-        MatTreeNodePadding,
-        MatIconButton,
-        MatTreeNodeToggle,
-        MatIcon,
-        MatProgressBar,
-        MatButton,
-    ]
+    ModalHeaderComponent,
+    MatDialogContent,
+    FormsModule,
+    ReactiveFormsModule,
+    MatCard,
+    MatCardContent,
+    MatFormField,
+    MatLabel,
+    MatInput,
+    MatError,
+    MatCheckbox,
+    MatTree,
+    MatTreeNodeDef,
+    MatTreeNode,
+    MatTreeNodePadding,
+    MatIconButton,
+    MatTreeNodeToggle,
+    MatIcon,
+    MatProgressBar,
+    MatButton
+]
 })
 
 export class RestoreAssetDialogComponent implements OnInit {

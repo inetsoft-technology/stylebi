@@ -19,18 +19,17 @@ import { Component, ViewChild, Input, Output, EventEmitter } from "@angular/core
 import { SelectionListDialogModel } from "../model/selection-list-dialog-model";
 import { SelectionListEditor } from "./selection-list-editor.component";
 import { EnterSubmitDirective } from "../../widget/directive/enter-submit.directive";
-import { NgIf } from "@angular/common";
+
 import { ModalHeaderComponent } from "../../widget/modal-header/modal-header.component";
 
 @Component({
     selector: "selection-list-dialog",
     templateUrl: "selection-list-dialog.component.html",
     imports: [
-        ModalHeaderComponent,
-        NgIf,
-        EnterSubmitDirective,
-        SelectionListEditor,
-    ]
+    ModalHeaderComponent,
+    EnterSubmitDirective,
+    SelectionListEditor
+]
 })
 export class SelectionListDialog {
    @ViewChild(SelectionListEditor) selectionListEditor: SelectionListEditor;

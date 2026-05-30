@@ -38,7 +38,7 @@ import { MatOption } from "@angular/material/core";
 import { MatButton } from "@angular/material/button";
 import { MatInput } from "@angular/material/input";
 import { MatFormField, MatLabel, MatSuffix, MatHint } from "@angular/material/form-field";
-import { NgIf, NgFor, AsyncPipe } from "@angular/common";
+import { AsyncPipe } from "@angular/common";
 
 interface OpenIdDiscovery {
    issuer?: string;
@@ -53,7 +53,7 @@ interface OpenIdDiscovery {
     selector: "em-openid-settings-form",
     templateUrl: "./openid-settings-form.component.html",
     styleUrls: ["./openid-settings-form.component.scss"],
-    imports: [NgIf, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatInput, MatButton, MatSuffix, MatAutocomplete, NgFor, MatOption, MatChipGrid, MatChipRow, MatChipRemove, MatIcon, MatAutocompleteTrigger, MatChipInput, MatHint, AsyncPipe]
+    imports: [FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatInput, MatButton, MatSuffix, MatAutocomplete, MatOption, MatChipGrid, MatChipRow, MatChipRemove, MatIcon, MatAutocompleteTrigger, MatChipInput, MatHint, AsyncPipe]
 })
 export class OpenidSettingsFormComponent implements OnDestroy {
    @Input() googleSignIn: boolean = false;

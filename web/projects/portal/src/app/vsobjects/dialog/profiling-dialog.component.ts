@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { NgIf, NgFor } from "@angular/common";
+
 import {
   ChangeDetectorRef,
   Component,
@@ -61,7 +61,7 @@ interface GroupByFieldList {
     selector: "profiling-dialog",
     templateUrl: "profiling-dialog.component.html",
     styleUrls: ["./profiling-dialog.component.scss"],
-    imports: [ModalHeaderComponent, NgIf, FormsModule, NgFor, TouchScrollDirective, NgbTooltip, OutOfZoneDirective, DefaultFocusDirective]
+    imports: [ModalHeaderComponent, FormsModule, TouchScrollDirective, NgbTooltip, OutOfZoneDirective, DefaultFocusDirective]
 })
 export class ProfilingDialog implements OnInit {
    @Input() objName: string;

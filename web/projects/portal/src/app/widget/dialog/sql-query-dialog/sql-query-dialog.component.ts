@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { NgIf, NgFor } from "@angular/common";
+
 import { HttpClient, HttpHeaders, HttpParams } from "@angular/common/http";
 import {
   Component,
@@ -71,7 +71,7 @@ const CLEAR_MODEL_URI = "../api/composer/ws/sql-query-dialog/clear";
     selector: "sql-query-dialog",
     templateUrl: "sql-query-dialog.component.html",
     styleUrls: ["sql-query-dialog.component.scss"],
-    imports: [ModalHeaderComponent, NgIf, EnterSubmitDirective, FormsModule, ReactiveFormsModule, InputTrimDirective, NgFor, SimpleQueryPaneComponent, DatabaseQueryComponent, ApplyButtonComponent]
+    imports: [ModalHeaderComponent, EnterSubmitDirective, FormsModule, ReactiveFormsModule, InputTrimDirective, SimpleQueryPaneComponent, DatabaseQueryComponent, ApplyButtonComponent]
 })
 export class SQLQueryDialog implements OnInit {
    @Input() model: SqlQueryDialogModel;

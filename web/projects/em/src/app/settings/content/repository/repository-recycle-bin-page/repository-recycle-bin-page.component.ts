@@ -25,7 +25,7 @@ import { Tool } from "../../../../../../../shared/util/tool";
 import { RepositoryRecycleBinViewComponent } from "../repository-recycle-bin-view/repository-recycle-bin-view.component";
 import { MatTabGroup, MatTab } from "@angular/material/tabs";
 import { EditorPanelComponent } from "../../../../common/util/editor-panel/editor-panel.component";
-import { NgIf } from "@angular/common";
+
 
 export interface RepositoryRecycleBinModel extends RepositoryEditorModel {
    originalPath: string;
@@ -40,7 +40,7 @@ const RECOVER_RECYCLE_BIN_ENTRY: string = "../api/em/content/repository/tree/rec
 @Component({
     selector: "em-repository-recycle-bin-page",
     templateUrl: "./repository-recycle-bin-page.component.html",
-    imports: [NgIf, EditorPanelComponent, MatTabGroup, MatTab, RepositoryRecycleBinViewComponent]
+    imports: [EditorPanelComponent, MatTabGroup, MatTab, RepositoryRecycleBinViewComponent]
 })
 export class RepositoryRecycleBinPageComponent {
    @Input() model: RepositoryRecycleBinModel;

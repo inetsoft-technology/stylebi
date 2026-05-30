@@ -33,7 +33,7 @@ import {
 import { DebounceService } from "../../../../../widget/services/debounce.service";
 import { TreeNodeModel } from "../../../../../widget/tree/tree-node-model";
 import { TabularViewComponent } from "../../../../../widget/tabular/tabular-view.component";
-import { NgIf } from "@angular/common";
+
 
 const DATASOURCES_URI: string = "../api/portal/data/datasources";
 const PORTAL_DATABASE_REFRESH: string = "../api/portal/data/datasource/refresh-metadata";
@@ -42,7 +42,7 @@ const PORTAL_DATABASE_REFRESH: string = "../api/portal/data/datasource/refresh-m
     selector: "datasources-datasource-editor",
     templateUrl: "./datasources-datasource-editor.component.html",
     styleUrls: ["./datasources-datasource-editor.component.scss"],
-    imports: [FormsModule, ReactiveFormsModule, NgIf, TabularViewComponent]
+    imports: [FormsModule, ReactiveFormsModule, TabularViewComponent]
 })
 export class DatasourcesDatasourceEditorComponent implements OnInit, OnDestroy {
    @Input()

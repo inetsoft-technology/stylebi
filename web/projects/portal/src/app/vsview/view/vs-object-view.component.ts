@@ -57,13 +57,13 @@ import { VSCrosstab } from "../../vsobjects/objects/table/vs-crosstab.component"
 import { BTableActionHandlerDirective } from "../action/b-table-action-handler.directive";
 import { VSTable } from "../../vsobjects/objects/table/vs-table.component";
 import { ActionsContextmenuAnchorDirective } from "../../widget/fixed-dropdown/actions-contextmenu-anchor.directive";
-import { NgIf } from "@angular/common";
+
 
 @Component({
     selector: "vs-object-view",
     templateUrl: "vs-object-view.component.html",
     styleUrls: ["vs-object-view.component.scss"],
-    imports: [NgIf, ActionsContextmenuAnchorDirective, VSChart, VSTable, BTableActionHandlerDirective, VSCrosstab, BCrosstabActionHandlerDirective, CalcTableLayoutPane, BCalcTableActionHandlerDirective, MiniToolbar]
+    imports: [ActionsContextmenuAnchorDirective, VSChart, VSTable, BTableActionHandlerDirective, VSCrosstab, BCrosstabActionHandlerDirective, CalcTableLayoutPane, BCalcTableActionHandlerDirective, MiniToolbar]
 })
 export class VSObjectView extends CommandProcessor implements OnDestroy, OnInit, AfterViewInit {
    @Input() linkUri: string;

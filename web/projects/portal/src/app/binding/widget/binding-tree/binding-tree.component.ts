@@ -48,7 +48,7 @@ import { TreeNodeModel } from "../../../widget/tree/tree-node-model";
 import { BindingTreeService } from "./binding-tree.service";
 import { VirtualScrollTreeDatasource } from "../../../widget/tree/virtual-scroll-tree-datasource";
 import { TreeComponent } from "../../../widget/tree/tree.component";
-import { NgIf } from "@angular/common";
+
 
 const GET_PARAMETERS_URI = "../api/vs/bindingtree/getConnectionParameters";
 const SET_CONNECTION_VARIABLES = "../api/composer/asset_tree/set-connection-variables";
@@ -56,7 +56,7 @@ const SET_CONNECTION_VARIABLES = "../api/composer/asset_tree/set-connection-vari
 @Component({
     selector: "binding-tree",
     templateUrl: "binding-tree.component.html",
-    imports: [NgIf, TreeComponent]
+    imports: [TreeComponent]
 })
 export class BindingTreeComponent implements OnChanges {
    @Input() selectedNodes: TreeNodeModel[] = [];

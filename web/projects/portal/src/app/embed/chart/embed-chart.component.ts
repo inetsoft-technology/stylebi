@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { NgIf } from "@angular/common";
+
 import {
    AfterViewInit,
    ChangeDetectorRef,
@@ -86,7 +86,7 @@ const COLLECT_PARAMS_URI: string = "/events/vs/collectParameters";
 declare const window: any;
 
 @Component({
-    imports: [NgIf, DownloadTargetComponent, ResizedDirective, VSChart, MiniToolbar, InteractContainerDirective],
+    imports: [DownloadTargetComponent, ResizedDirective, VSChart, MiniToolbar, InteractContainerDirective],
     selector: "embed-chart",
     templateUrl: "./embed-chart.component.html",
     styleUrls: ["./embed-chart.component.scss"],

@@ -37,7 +37,7 @@ import { MatInput } from "@angular/material/input";
 import { MatOption } from "@angular/material/core";
 import { MatSelect } from "@angular/material/select";
 import { MatFormField, MatLabel } from "@angular/material/form-field";
-import { NgIf, NgFor } from "@angular/common";
+
 
 @Secured({
    route: "/auditing/inactive-resource",
@@ -56,7 +56,7 @@ import { NgIf, NgFor } from "@angular/common";
     selector: "em-audit-inactive-resource",
     templateUrl: "./audit-inactive-resource.component.html",
     styleUrls: ["./audit-inactive-resource.component.scss"],
-    imports: [AuditTableViewComponent, FormsModule, ReactiveFormsModule, NgIf, MatFormField, MatLabel, MatSelect, NgFor, MatOption, MatInput]
+    imports: [AuditTableViewComponent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatSelect, MatOption, MatInput]
 })
 export class AuditInactiveResourceComponent implements OnInit, OnDestroy {
    objectTypes: ResourceType[] = [];

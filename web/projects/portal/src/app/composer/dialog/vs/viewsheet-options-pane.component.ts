@@ -37,7 +37,7 @@ import { ViewsheetParametersDialogModel } from "../../data/vs/viewsheet-paramete
 import { LocalStorage } from "../../../common/util/local-storage.util";
 import { SelectDataSourceDialog } from "./select-data-source-dialog.component";
 import { ViewsheetParametersDialog } from "./viewsheet-parameters-dialog.component";
-import { NgIf } from "@angular/common";
+
 
 @Component({
     selector: "viewsheet-options-pane",
@@ -46,7 +46,7 @@ import { NgIf } from "@angular/common";
             provide: ContextProvider,
             useFactory: ComposerContextProviderFactory
         }],
-    imports: [NgIf, FormsModule, ReactiveFormsModule, ViewsheetParametersDialog, SelectDataSourceDialog]
+    imports: [FormsModule, ReactiveFormsModule, ViewsheetParametersDialog, SelectDataSourceDialog]
 })
 export class ViewsheetOptionsPane implements OnInit {
    @Input() model: ViewsheetOptionsPaneModel;

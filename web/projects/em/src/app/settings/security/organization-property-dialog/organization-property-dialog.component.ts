@@ -24,7 +24,7 @@ import { FormValidators } from "../../../../../../shared/util/form-validators";
 import { DataSpaceTreeNode } from "../../content/data-space/data-space-tree-node";
 import { MatButton } from "@angular/material/button";
 import { MatInput } from "@angular/material/input";
-import { NgIf } from "@angular/common";
+
 import { MatOption } from "@angular/material/core";
 import { MatSelect } from "@angular/material/select";
 import { MatFormField, MatLabel, MatError } from "@angular/material/form-field";
@@ -34,7 +34,7 @@ import { ModalHeaderComponent } from "../../../common/util/modal-header/modal-he
     selector: "em-organization-property-dialog",
     templateUrl: "./organization-property-dialog.component.html",
     styleUrls: ["./organization-property-dialog.component.scss"],
-    imports: [ModalHeaderComponent, MatDialogContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatSelect, MatOption, NgIf, MatError, MatInput, MatButton]
+    imports: [ModalHeaderComponent, MatDialogContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatSelect, MatOption, MatError, MatInput, MatButton]
 })
 export class OrganizationPropertyDialogComponent {
    propertyName: string;

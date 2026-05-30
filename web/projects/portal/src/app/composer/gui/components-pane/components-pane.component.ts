@@ -42,13 +42,13 @@ import { AssemblyType } from "../vs/assembly-type";
 import { ComponentTool } from "../../../common/util/component-tool";
 import { TreeComponent } from "../../../widget/tree/tree.component";
 import { ComponentTree } from "./tree/component-tree.component";
-import { NgIf } from "@angular/common";
+
 
 @Component({
     selector: "components-pane",
     templateUrl: "components-pane.component.html",
     styleUrls: ["components-pane.component.scss"],
-    imports: [NgIf, ComponentTree, TreeComponent]
+    imports: [ComponentTree, TreeComponent]
 })
 export class ComponentsPane implements OnChanges, OnInit{
    @HostBinding("hidden")

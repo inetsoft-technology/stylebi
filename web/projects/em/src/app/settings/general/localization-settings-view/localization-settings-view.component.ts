@@ -38,7 +38,7 @@ import { MatIcon } from "@angular/material/icon";
 import { MatTooltip } from "@angular/material/tooltip";
 import { MatMiniFabButton, MatButton } from "@angular/material/button";
 import { MatCard, MatCardTitle, MatCardContent, MatCardActions } from "@angular/material/card";
-import { NgIf } from "@angular/common";
+
 
 @Searchable({
    route: "/settings/general#localization",
@@ -53,7 +53,7 @@ import { NgIf } from "@angular/common";
     selector: "em-localization-settings-view",
     templateUrl: "./localization-settings-view.component.html",
     styleUrls: ["./localization-settings-view.component.scss"],
-    imports: [NgIf, MatCard, MatCardTitle, MatMiniFabButton, MatTooltip, MatIcon, MatCardContent, MatTable, MatSort, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCheckbox, MatCellDef, MatCell, MatSortHeader, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, MatPaginator, MatCardActions, MatButton]
+    imports: [MatCard, MatCardTitle, MatMiniFabButton, MatTooltip, MatIcon, MatCardContent, MatTable, MatSort, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCheckbox, MatCellDef, MatCell, MatSortHeader, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, MatPaginator, MatCardActions, MatButton]
 })
 export class LocalizationSettingsViewComponent implements OnInit {
    @Output() modelChanged = new EventEmitter<GeneralSettingsChanges>();

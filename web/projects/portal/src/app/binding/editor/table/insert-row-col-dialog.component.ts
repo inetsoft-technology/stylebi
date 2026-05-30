@@ -17,7 +17,7 @@
  */
 import { Component, EventEmitter, Input, Output } from "@angular/core";
 import { ApplyButtonComponent } from "../../../widget/slide-out/apply-button.component";
-import { NgIf } from "@angular/common";
+
 import { FormsModule } from "@angular/forms";
 import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
 
@@ -25,7 +25,7 @@ import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.
     selector: "insert-row-col-dialog",
     templateUrl: "insert-row-col-dialog.component.html",
     styleUrls: ["insert-row-col-dialog.component.scss"],
-    imports: [ModalHeaderComponent, FormsModule, NgIf, ApplyButtonComponent]
+    imports: [ModalHeaderComponent, FormsModule, ApplyButtonComponent]
 })
 
 export class InsertRowColDialog {

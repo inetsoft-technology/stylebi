@@ -30,29 +30,28 @@ import { DataInputPane } from "./data-input-pane.component";
 import { TextInputGeneralPane } from "./textinput-general-pane.component";
 import { NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, NgbNavOutlet } from "@ng-bootstrap/ng-bootstrap";
 import { EnterSubmitDirective } from "../../../widget/directive/enter-submit.directive";
-import { NgIf } from "@angular/common";
+
 import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
 
 @Component({
     selector: "textinput-property-dialog",
     templateUrl: "textinput-property-dialog.component.html",
     imports: [
-        ModalHeaderComponent,
-        NgIf,
-        EnterSubmitDirective,
-        NgbNav,
-        NgbNavItem,
-        NgbNavLink,
-        NgbNavLinkBase,
-        NgbNavContent,
-        TextInputGeneralPane,
-        DataInputPane,
-        TextInputColumnOptionPane,
-        InputLabelPane,
-        ClickableScriptPane,
-        NgbNavOutlet,
-        ApplyButtonComponent,
-    ]
+    ModalHeaderComponent,
+    EnterSubmitDirective,
+    NgbNav,
+    NgbNavItem,
+    NgbNavLink,
+    NgbNavLinkBase,
+    NgbNavContent,
+    TextInputGeneralPane,
+    DataInputPane,
+    TextInputColumnOptionPane,
+    InputLabelPane,
+    ClickableScriptPane,
+    NgbNavOutlet,
+    ApplyButtonComponent
+]
 })
 export class TextInputPropertyDialog extends PropertyDialog implements OnInit {
    @Input() model: TextInputPropertyDialogModel;

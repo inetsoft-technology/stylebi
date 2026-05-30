@@ -37,7 +37,7 @@ import { MatIcon } from "@angular/material/icon";
 import { MatButton } from "@angular/material/button";
 import { ClusterMonitoringViewComponent } from "../cluster-monitoring-view/cluster-monitoring-view.component";
 import { MatCard, MatCardTitle } from "@angular/material/card";
-import { NgIf, AsyncPipe } from "@angular/common";
+import { AsyncPipe } from "@angular/common";
 
 @Secured({
    route: "/monitoring/cluster",
@@ -62,7 +62,7 @@ import { NgIf, AsyncPipe } from "@angular/common";
     selector: "em-cluster-monitoring-page",
     templateUrl: "./cluster-monitoring-page.component.html",
     styleUrls: ["./cluster-monitoring-page.component.scss"],
-    imports: [NgIf, MatCard, ClusterMonitoringViewComponent, MatButton, MatCardTitle, MatIcon, AsyncPipe]
+    imports: [MatCard, ClusterMonitoringViewComponent, MatButton, MatCardTitle, MatIcon, AsyncPipe]
 })
 export class ClusterMonitoringPageComponent implements OnInit, OnDestroy {
 

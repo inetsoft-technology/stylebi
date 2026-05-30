@@ -36,7 +36,7 @@ import { DependentAsset, DependentAssetList, DependentAssetParameters } from "./
 import { of, Subscription } from "rxjs";
 import { ActivatedRoute } from "@angular/router";
 import { MatOption } from "@angular/material/core";
-import { NgFor } from "@angular/common";
+
 import { MatSelect } from "@angular/material/select";
 import { MatFormField, MatLabel } from "@angular/material/form-field";
 import { AuditTableViewComponent } from "../audit-table-view/audit-table-view.component";
@@ -58,7 +58,7 @@ import { AuditTableViewComponent } from "../audit-table-view/audit-table-view.co
     selector: "em-audit-dependent-assets",
     templateUrl: "./audit-dependent-assets.component.html",
     styleUrls: ["./audit-dependent-assets.component.scss"],
-    imports: [AuditTableViewComponent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatSelect, NgFor, MatOption]
+    imports: [AuditTableViewComponent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatSelect, MatOption]
 })
 export class AuditDependentAssetsComponent implements OnInit, OnDestroy {
    allUsers: AssetOption[] = [];

@@ -38,7 +38,7 @@ import { CalendarDataPane } from "./calendar-data-pane.component";
 import { CalendarGeneralPane } from "./calendar-general-pane.component";
 import { NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, NgbNavOutlet } from "@ng-bootstrap/ng-bootstrap";
 import { EnterSubmitDirective } from "../../../widget/directive/enter-submit.directive";
-import { NgIf } from "@angular/common";
+
 import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
 
 const CHECK_TRAP_URI: string = "../api/composer/vs/calendar-property-dialog-model/checkTrap/";
@@ -52,21 +52,20 @@ const DEFAULT_HEIGHT = 20;
     selector: "calendar-property-dialog",
     templateUrl: "calendar-property-dialog.component.html",
     imports: [
-        ModalHeaderComponent,
-        NgIf,
-        EnterSubmitDirective,
-        NgbNav,
-        NgbNavItem,
-        NgbNavLink,
-        NgbNavLinkBase,
-        NgbNavContent,
-        CalendarGeneralPane,
-        CalendarDataPane,
-        CalendarAdvancedPane,
-        VSAssemblyScriptPane,
-        NgbNavOutlet,
-        ApplyButtonComponent,
-    ]
+    ModalHeaderComponent,
+    EnterSubmitDirective,
+    NgbNav,
+    NgbNavItem,
+    NgbNavLink,
+    NgbNavLinkBase,
+    NgbNavContent,
+    CalendarGeneralPane,
+    CalendarDataPane,
+    CalendarAdvancedPane,
+    VSAssemblyScriptPane,
+    NgbNavOutlet,
+    ApplyButtonComponent
+]
 })
 export class CalendarPropertyDialog extends PropertyDialog implements OnInit {
    @Input() model: CalendarPropertyDialogModel;

@@ -24,13 +24,13 @@ import {
    Output
 } from "@angular/core";
 import { PagingControlService } from "../../common/services/paging-control.service";
-import { NgIf } from "@angular/common";
+
 
 @Component({
     selector: "paging-control",
     templateUrl: "paging-control.component.html",
     styleUrls: ["paging-control.component.scss"],
-    imports: [NgIf]
+    imports: []
 })
 export class PagingControlComponent implements AfterViewInit, OnDestroy {
    @Input() assemblyName: string;

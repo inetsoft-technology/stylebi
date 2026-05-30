@@ -27,7 +27,7 @@ import { FileFormatPaneModel } from "../model/file-format-pane-model";
 import { ComponentTool } from "../../common/util/component-tool";
 import { FileFormatType } from "../model/file-format-type";
 import { FileFormatPane } from "./file-format-pane.component";
-import { NgIf } from "@angular/common";
+
 import { ModalHeaderComponent } from "../../widget/modal-header/modal-header.component";
 
 const CHECK_EXPORT_VALID_URI: string = "../api/vs/check-export-valid/";
@@ -37,10 +37,9 @@ const modelKey = "filePaneModel";
     selector: "export-dialog",
     templateUrl: "export-dialog.component.html",
     imports: [
-        ModalHeaderComponent,
-        NgIf,
-        FileFormatPane,
-    ]
+    ModalHeaderComponent,
+    FileFormatPane
+]
 })
 export class ExportDialog implements OnInit {
    @Input() model: ExportDialogModel;

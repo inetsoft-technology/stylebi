@@ -18,7 +18,7 @@
 import { Component, EventEmitter, Inject, OnInit, Output } from "@angular/core";
 import { MVExceptionModel } from "../../../../../../../shared/util/model/mv/mv-exception-model";
 import { DialogButtonsDirective } from "../../../../widget/standard-dialog/dialog-buttons.directive";
-import { NgFor, NgIf } from "@angular/common";
+
 import { ScrollableFlexTableDirective } from "../../../../widget/scrollable-table/scrollable-flex-table.directive";
 import { DialogContentDirective } from "../../../../widget/standard-dialog/dialog-content.directive";
 import { StandardDialogComponent } from "../../../../widget/standard-dialog/standard-dialog.component";
@@ -27,7 +27,7 @@ import { StandardDialogComponent } from "../../../../widget/standard-dialog/stan
     selector: "mv-exceptions-portal-dialog",
     templateUrl: "./mv-exceptions-portal-dialog.component.html",
     styleUrls: ["./mv-exceptions-portal-dialog.component.scss"],
-    imports: [StandardDialogComponent, DialogContentDirective, ScrollableFlexTableDirective, NgFor, NgIf, DialogButtonsDirective]
+    imports: [StandardDialogComponent, DialogContentDirective, ScrollableFlexTableDirective, DialogButtonsDirective]
 })
 export class MVExceptionsPortalDialogComponent {
    @Output() onCommit: EventEmitter<string> = new EventEmitter<string>();

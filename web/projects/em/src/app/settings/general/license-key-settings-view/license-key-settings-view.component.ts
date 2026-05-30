@@ -25,7 +25,7 @@ import { LicenseKeyModel, LicenseKeySettingsModel } from "./license-key-settings
 import { MatCard, MatCardTitle, MatCardContent } from "@angular/material/card";
 import { ApiKeyComponent } from "./api-key/api-key.component";
 import { LicenseKeyListComponent } from "./license-key-list/license-key-list.component";
-import { NgIf } from "@angular/common";
+
 
 export interface ClusterLicense {
    server: string;
@@ -49,7 +49,7 @@ export interface ClusterLicense {
     selector: "em-license-key-settings-view",
     templateUrl: "./license-key-settings-view.component.html",
     styleUrls: ["./license-key-settings-view.component.scss"],
-    imports: [NgIf, LicenseKeyListComponent, ApiKeyComponent, MatCard, MatCardTitle, MatCardContent, MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow]
+    imports: [LicenseKeyListComponent, ApiKeyComponent, MatCard, MatCardTitle, MatCardContent, MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow]
 })
 export class LicenseKeySettingsViewComponent {
    @Input() isEnterprise: boolean;

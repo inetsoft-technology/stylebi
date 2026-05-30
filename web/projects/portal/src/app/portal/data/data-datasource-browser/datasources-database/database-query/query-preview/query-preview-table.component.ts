@@ -35,7 +35,7 @@ import { Range } from "../../../../../../common/data/range";
 import { NotificationsComponent } from "../../../../../../widget/notifications/notifications.component";
 import { TouchScrollDirective } from "../../../../../../widget/scroll/touch-scroll.directive";
 import { OutOfZoneDirective } from "../../../../../../widget/directive/out-of-zone.directive";
-import { NgIf, NgFor } from "@angular/common";
+
 
 const INITIAL_COLUMN_WIDTH: number = 80;
 
@@ -43,7 +43,7 @@ const INITIAL_COLUMN_WIDTH: number = 80;
     selector: "query-preview-table",
     templateUrl: "query-preview-table.component.html",
     styleUrls: ["query-preview-table.component.scss"],
-    imports: [NgIf, NgFor, OutOfZoneDirective, TouchScrollDirective, NotificationsComponent]
+    imports: [OutOfZoneDirective, TouchScrollDirective, NotificationsComponent]
 })
 export class QueryPreviewTableComponent implements OnChanges, AfterViewChecked, AfterContentChecked {
    @Input() containerSize: Rectangle;

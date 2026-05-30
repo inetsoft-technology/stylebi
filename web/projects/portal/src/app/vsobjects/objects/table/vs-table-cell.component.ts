@@ -57,7 +57,7 @@ import { VSHiddenAnnotation } from "../annotation/vs-hidden-annotation.component
 import { DefaultFocusDirective } from "../../../widget/directive/default-focus.directive";
 import { FormsModule } from "@angular/forms";
 import { OutOfZoneDirective } from "../../../widget/directive/out-of-zone.directive";
-import { NgIf, NgSwitch, NgSwitchCase, NgFor, NgClass } from "@angular/common";
+import { NgClass } from "@angular/common";
 
 export enum CellType {
    TEXT,
@@ -80,7 +80,7 @@ export enum CellType {
     styleUrls: ["vs-table-cell.component.scss"],
     changeDetection: ChangeDetectionStrategy.OnPush,
     exportAs: "vsTableCell",
-    imports: [NgIf, OutOfZoneDirective, NgSwitch, NgSwitchCase, FormsModule, DefaultFocusDirective, NgFor, VSHiddenAnnotation, NgClass]
+    imports: [OutOfZoneDirective, FormsModule, DefaultFocusDirective, VSHiddenAnnotation, NgClass]
 })
 /* eslint-enable */
 export class VSTableCell implements OnInit, OnChanges, OnDestroy {

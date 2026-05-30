@@ -24,13 +24,13 @@ import { AbstractVSObject } from "../abstract-vsobject.component";
 import { DataTipService } from "../data-tip/data-tip.service";
 import { VSPopComponentDirective } from "../data-tip/vs-pop-component.directive";
 import { VSDataTipDirective } from "../data-tip/vs-data-tip.directive";
-import { NgIf } from "@angular/common";
+
 
 @Component({
     selector: "vs-cylinder",
     templateUrl: "vs-cylinder.component.html",
     styleUrls: ["vs-cylinder.component.scss"],
-    imports: [NgIf, VSDataTipDirective, VSPopComponentDirective]
+    imports: [VSDataTipDirective, VSPopComponentDirective]
 })
 /**
  * @deprecated since version 12.1

@@ -62,7 +62,7 @@ import { SelectionMobileService } from "../selection/services/selection-mobile.s
 import { VSSelectionBaseModel } from "../../model/vs-selection-base-model";
 import { VSCalendarModel } from "../../model/calendar/vs-calendar-model";
 import { VSObjectContainer } from "../vs-object-container.component";
-import { NgIf } from "@angular/common";
+
 
 declare const window: any;
 
@@ -71,7 +71,7 @@ declare const window: any;
     templateUrl: "vs-viewsheet.component.html",
     styleUrls: ["vs-viewsheet.component.scss"],
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [NgIf, forwardRef(() => VSObjectContainer)]
+    imports: [forwardRef(() => VSObjectContainer)]
 })
 export class VSViewsheet extends NavigationComponent<VSViewsheetModel> implements OnChanges, OnDestroy {
    @Input() deployed: boolean;

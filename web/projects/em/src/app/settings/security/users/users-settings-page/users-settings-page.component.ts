@@ -54,7 +54,7 @@ import {ScheduleUsersService} from "../../../../../../../shared/schedule/schedul
 import { convertToKey, equalsIdentity, IdentityId } from "../identity-id";
 import { LoadingSpinnerComponent } from "../../../../common/util/loading-spinner/loading-spinner.component";
 import { UsersSettingsViewComponent } from "../users-settings-view/users-settings-view.component";
-import { NgIf, AsyncPipe } from "@angular/common";
+import { AsyncPipe } from "@angular/common";
 
 @Secured({
    route: "/settings/security/users",
@@ -73,7 +73,7 @@ import { NgIf, AsyncPipe } from "@angular/common";
     selector: "em-users-settings-page",
     templateUrl: "./users-settings-page.component.html",
     styleUrls: ["./users-settings-page.component.scss"],
-    imports: [NgIf, UsersSettingsViewComponent, LoadingSpinnerComponent, AsyncPipe]
+    imports: [UsersSettingsViewComponent, LoadingSpinnerComponent, AsyncPipe]
 })
 export class UsersSettingsPageComponent implements OnInit, OnDestroy {
    public treeData: Observable<SecurityTreeNode[]>;

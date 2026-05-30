@@ -18,7 +18,7 @@
 import { Component, EventEmitter, Input, OnInit, Output, ViewChild } from "@angular/core";
 import { ShareService } from "./share.service";
 import { NotificationsComponent } from "../notifications/notifications.component";
-import { NgIf } from "@angular/common";
+
 import { ClipboardModule } from "ngx-clipboard";
 import { FormsModule } from "@angular/forms";
 import { EnterSubmitDirective } from "../directive/enter-submit.directive";
@@ -28,7 +28,7 @@ import { ModalHeaderComponent } from "../modal-header/modal-header.component";
     selector: "share-link-dialog",
     templateUrl: "share-link-dialog.component.html",
     styleUrls: ["share-link-dialog.component.scss"],
-    imports: [ModalHeaderComponent, EnterSubmitDirective, FormsModule, ClipboardModule, NgIf, NotificationsComponent]
+    imports: [ModalHeaderComponent, EnterSubmitDirective, FormsModule, ClipboardModule, NotificationsComponent]
 })
 export class ShareLinkDialog implements OnInit {
    @Input() viewsheetId: string;

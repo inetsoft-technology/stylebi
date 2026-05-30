@@ -26,13 +26,13 @@ import { VSAnnotation } from "../annotation/vs-annotation.component";
 import { VSHiddenAnnotation } from "../annotation/vs-hidden-annotation.component";
 import { VSPopComponentDirective } from "../data-tip/vs-pop-component.directive";
 import { VSDataTipDirective } from "../data-tip/vs-data-tip.directive";
-import { NgIf, NgFor } from "@angular/common";
+
 
 @Component({
     selector: "vs-oval",
     templateUrl: "vs-oval.component.html",
     styleUrls: ["vs-oval.component.scss"],
-    imports: [NgIf, VSDataTipDirective, VSPopComponentDirective, NgFor, VSHiddenAnnotation, VSAnnotation]
+    imports: [VSDataTipDirective, VSPopComponentDirective, VSHiddenAnnotation, VSAnnotation]
 })
 export class VSOval extends VSShape<VSOvalModel> implements OnChanges {
    @Input() selected: boolean = false;

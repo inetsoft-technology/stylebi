@@ -27,17 +27,16 @@ import { TimeInstant } from "../../common/data/time-instant";
 import { DateTimeChangeType } from "./date-time-change-type";
 import { TimeValueEditorComponent } from "./time-value-editor.component";
 import { DatePickerComponent } from "./date-picker.component";
-import { NgIf } from "@angular/common";
+
 
 @Component({
     selector: "date-time-picker",
     templateUrl: "date-time-picker.component.html",
     styleUrls: ["date-time-picker.component.scss"],
     imports: [
-        NgIf,
-        DatePickerComponent,
-        TimeValueEditorComponent,
-    ]
+    DatePickerComponent,
+    TimeValueEditorComponent
+]
 })
 export class DateTimePickerComponent implements OnInit {
    @Input() promptTime: boolean;

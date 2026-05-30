@@ -22,13 +22,13 @@ import { MatButton } from "@angular/material/button";
 import { FormsModule } from "@angular/forms";
 import { MatInput } from "@angular/material/input";
 import { MatFormField, MatLabel } from "@angular/material/form-field";
-import { NgFor } from "@angular/common";
+
 
 @Component({
     selector: "em-input-query-params-dialog",
     templateUrl: "./input-query-params-dialog.component.html",
     styleUrls: ["./input-query-params-dialog.component.scss"],
-    imports: [MatDialogTitle, MatDialogContent, NgFor, MatFormField, MatLabel, MatInput, FormsModule, MatDialogActions, MatButton]
+    imports: [MatDialogTitle, MatDialogContent, MatFormField, MatLabel, MatInput, FormsModule, MatDialogActions, MatButton]
 })
 export class InputQueryParamsDialogComponent implements OnInit {
    title: string = "_#(js:Query Parameters)";

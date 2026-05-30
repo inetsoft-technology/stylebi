@@ -26,22 +26,19 @@ import {
 } from "../../../date-type-editor/time-instant-value-editor.component";
 import { DateValueEditorComponent } from "../../../date-type-editor/date-value-editor.component";
 import { TimeValueEditorComponent } from "../../../date-type-editor/time-value-editor.component";
-import { NgSwitch, NgSwitchCase, NgIf } from "@angular/common";
+
 
 @Component({
     selector: "variable-value-editor",
     templateUrl: "variable-value-editor.component.html",
     styleUrls: ["variable-value-editor.component.scss"],
     imports: [
-        NgSwitch,
-        NgSwitchCase,
-        NgIf,
-        FormsModule,
-        ReactiveFormsModule,
-        TimeInstantValueEditorComponent,
-        TimeValueEditorComponent,
-        DateValueEditorComponent,
-    ]
+    FormsModule,
+    ReactiveFormsModule,
+    TimeInstantValueEditorComponent,
+    TimeValueEditorComponent,
+    DateValueEditorComponent
+]
 })
 export class VariableValueEditor implements OnInit {
    @ViewChild(DateValueEditorComponent) dateValueEditor;

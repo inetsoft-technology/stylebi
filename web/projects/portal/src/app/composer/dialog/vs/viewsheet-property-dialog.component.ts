@@ -44,7 +44,7 @@ import { ScreensPane } from "./screens-pane.component";
 import { FiltersPane } from "./filters-pane.component";
 import { ViewsheetOptionsPane } from "./viewsheet-options-pane.component";
 import { DialogTabDirective } from "../../../widget/standard-dialog/dialog-tab.directive";
-import { NgIf } from "@angular/common";
+
 import { TabbedDialogComponent } from "../../../widget/standard-dialog/tabbed-dialog.component";
 
 const VIEWSHEET_PROPERTY_TEST_SCRIPT_URL = "../api/composer/vs/viewsheet-property-dialog-model/test-script";
@@ -53,16 +53,15 @@ const VIEWSHEET_PROPERTY_TEST_SCRIPT_URL = "../api/composer/vs/viewsheet-propert
     selector: "viewsheet-property-dialog",
     templateUrl: "viewsheet-property-dialog.component.html",
     imports: [
-        TabbedDialogComponent,
-        NgIf,
-        DialogTabDirective,
-        ViewsheetOptionsPane,
-        FiltersPane,
-        ScreensPane,
-        LocalizationPane,
-        ViewsheetScriptPane,
-        DialogButtonsDirective,
-    ]
+    TabbedDialogComponent,
+    DialogTabDirective,
+    ViewsheetOptionsPane,
+    FiltersPane,
+    ScreensPane,
+    LocalizationPane,
+    ViewsheetScriptPane,
+    DialogButtonsDirective
+]
 })
 export class ViewsheetPropertyDialog extends BaseResizeableDialogComponent implements OnInit {
    @Input() model: ViewsheetPropertyDialogModel;

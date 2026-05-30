@@ -18,18 +18,17 @@
 import { Component, Input, Output, EventEmitter, ViewChild } from "@angular/core";
 import { ColorFieldPane } from "../../../widget/color-field-pane.component";
 import { FixedDropdownDirective } from "../../../../widget/fixed-dropdown/fixed-dropdown.directive";
-import { NgIf, NgStyle } from "@angular/common";
+import { NgStyle } from "@angular/common";
 
 @Component({
     selector: "static-color-editor",
     templateUrl: "static-color-editor.component.html",
     styleUrls: ["static-color-editor.component.scss", "combined-visual-pane.scss"],
     imports: [
-        NgIf,
-        FixedDropdownDirective,
-        NgStyle,
-        ColorFieldPane,
-    ]
+    FixedDropdownDirective,
+    NgStyle,
+    ColorFieldPane
+]
 })
 export class StaticColorEditor {
    @Input() aggrName: string;

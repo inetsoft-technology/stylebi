@@ -26,7 +26,7 @@ import { MatInput } from "@angular/material/input";
 import { MatOption } from "@angular/material/core";
 import { MatSelect } from "@angular/material/select";
 import { MatFormField, MatLabel } from "@angular/material/form-field";
-import { NgIf } from "@angular/common";
+
 import { MatCard, MatCardTitle, MatCardContent } from "@angular/material/card";
 
 @Searchable({
@@ -45,7 +45,7 @@ import { MatCard, MatCardTitle, MatCardContent } from "@angular/material/card";
     selector: "em-presentation-login-banner-settings-view",
     templateUrl: "./presentation-login-banner-settings-view.component.html",
     styleUrls: ["./presentation-login-banner-settings-view.component.scss"],
-    imports: [MatCard, MatCardTitle, MatCardContent, NgIf, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatSelect, MatOption, MatInput]
+    imports: [MatCard, MatCardTitle, MatCardContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatSelect, MatOption, MatInput]
 })
 export class PresentationLoginBannerSettingsViewComponent {
    private _model: PresentationLoginBannerSettingsModel;

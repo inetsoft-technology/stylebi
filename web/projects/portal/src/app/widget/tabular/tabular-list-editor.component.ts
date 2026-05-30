@@ -27,13 +27,13 @@ import { TabularNumberEditor } from "./tabular-number-editor.component";
 import { TabularBooleanEditor } from "./tabular-boolean-editor.component";
 import { TabularTextEditor } from "./tabular-text-editor.component";
 import { FormsModule } from "@angular/forms";
-import { NgFor, NgIf } from "@angular/common";
+
 
 @Component({
     selector: "tabular-list-editor",
     templateUrl: "tabular-list-editor.component.html",
     styleUrls: ["tabular-list-editor.component.scss"],
-    imports: [NgFor, FormsModule, NgIf, TabularTextEditor, TabularBooleanEditor, TabularNumberEditor, TabularColumnDefinitionEditor, TabularDateEditor, TabularHttpParameterEditorComponent, TabularQueryParameterEditor, TabularFileEditor, TabularTagsEditor, TabularAutocompleteEditor]
+    imports: [FormsModule, TabularTextEditor, TabularBooleanEditor, TabularNumberEditor, TabularColumnDefinitionEditor, TabularDateEditor, TabularHttpParameterEditorComponent, TabularQueryParameterEditor, TabularFileEditor, TabularTagsEditor, TabularAutocompleteEditor]
 })
 export class TabularListEditor implements OnInit {
    @Input() value: any[];

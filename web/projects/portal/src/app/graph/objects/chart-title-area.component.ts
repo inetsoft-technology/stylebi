@@ -23,7 +23,7 @@ import { ChartService } from "../services/chart.service";
 import { ChartObjectAreaBase } from "./chart-object-area-base";
 import { GuiTool } from "../../common/util/gui-tool";
 import { ChartImageDirective } from "./chart-image.directive";
-import { NgIf, NgFor } from "@angular/common";
+
 
 @Component({
     selector: "chart-title-area",
@@ -34,7 +34,7 @@ import { NgIf, NgFor } from "@angular/common";
             useExisting: ChartTitleArea
         }],
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [NgIf, NgFor, ChartImageDirective]
+    imports: [ChartImageDirective]
 })
 export class ChartTitleArea extends ChartObjectAreaBase<Title> {
    @Output() selectRegion = new EventEmitter();

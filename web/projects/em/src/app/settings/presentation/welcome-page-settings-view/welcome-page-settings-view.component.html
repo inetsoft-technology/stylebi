@@ -1,21 +1,21 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
-<ng-container *ngIf="!!model">
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
+@if (!!model) {
   <mat-card appearance="outlined" class="em-card">
     <mat-card-title>
       _#(Welcome Page)
@@ -24,37 +24,41 @@
       <form [formGroup]="form">
         <mat-radio-group formControlName="type" (change)="changeType($event.value)" class="flex-col">
           <mat-radio-button [value]="WelcomeType.NONE"
-                            class="margin-bottom-sm flex">_#(None)
+            class="margin-bottom-sm flex">_#(None)
           </mat-radio-button>
-
           <mat-radio-button [value]="WelcomeType.URI"
-                            class=" margin-bottom-sm flex flex-row">_#(URI)
+            class=" margin-bottom-sm flex flex-row">_#(URI)
           </mat-radio-button>
-          <mat-form-field *ngIf="model.type === WelcomeType.URI"
-                          class="margin-left margin-bottom"
-                          appearance="outline" color="accent">
-            <mat-label>_#(URI)</mat-label>
-            <input matInput formControlName="source" (keyup)="updateSource($event.target.value)">
-            <mat-error *ngIf="form.controls['source'].errors && form.controls['source'].errors['required']">
-              _#(em.portalTheme.welcomePage.invalidURI)
-            </mat-error>
-          </mat-form-field>
-
+          @if (model.type === WelcomeType.URI) {
+            <mat-form-field
+              class="margin-left margin-bottom"
+              appearance="outline" color="accent">
+              <mat-label>_#(URI)</mat-label>
+              <input matInput formControlName="source" (keyup)="updateSource($event.target.value)">
+              @if (form.controls['source'].errors && form.controls['source'].errors['required']) {
+                <mat-error>
+                  _#(em.portalTheme.welcomePage.invalidURI)
+                </mat-error>
+              }
+            </mat-form-field>
+          }
           <mat-radio-button [value]="WelcomeType.RESOURCE"
-                            class="margin-bottom-sm flex">_#(Resource)
+            class="margin-bottom-sm flex">_#(Resource)
           </mat-radio-button>
-          <mat-form-field *ngIf="model.type == WelcomeType.RESOURCE" class="margin-left"
-                          appearance="outline" color="accent">
-            <mat-label>_#(Resource)</mat-label>
-            <input matInput formControlName="source" (input)="updateSource($event.target.value)">
-            <mat-error *ngIf="form.controls['source'].errors && form.controls['source'].errors['required']">
-              _#(em.portalTheme.welcomePage.invalidResource)
-            </mat-error>
-          </mat-form-field>
-
+          @if (model.type == WelcomeType.RESOURCE) {
+            <mat-form-field class="margin-left"
+              appearance="outline" color="accent">
+              <mat-label>_#(Resource)</mat-label>
+              <input matInput formControlName="source" (input)="updateSource($event.target.value)">
+              @if (form.controls['source'].errors && form.controls['source'].errors['required']) {
+                <mat-error>
+                  _#(em.portalTheme.welcomePage.invalidResource)
+                </mat-error>
+              }
+            </mat-form-field>
+          }
         </mat-radio-group>
       </form>
-
     </mat-card-content>
   </mat-card>
-</ng-container>
+}

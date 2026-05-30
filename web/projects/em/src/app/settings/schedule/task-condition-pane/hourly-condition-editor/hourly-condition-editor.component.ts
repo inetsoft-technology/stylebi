@@ -28,7 +28,7 @@ import {TaskConditionChanges} from "../task-condition-pane.component";
 import { TimeZoneValue, TimeZoneSelectComponent } from "../time-zone-select/time-zone-select-component";
 import { MatSelect } from "@angular/material/select";
 import { MatInput } from "@angular/material/input";
-import { NgIf } from "@angular/common";
+
 import { TimePickerComponent } from "../time-picker/time-picker.component";
 import { MatLabel, MatHint, MatError, MatFormField } from "@angular/material/form-field";
 import { MatCard, MatCardContent } from "@angular/material/card";
@@ -37,7 +37,7 @@ import { MatCard, MatCardContent } from "@angular/material/card";
     selector: "em-hourly-condition-editor",
     templateUrl: "./hourly-condition-editor.component.html",
     styleUrls: ["./hourly-condition-editor.component.scss"],
-    imports: [MatCard, MatCardContent, FormsModule, ReactiveFormsModule, MatLabel, TimePickerComponent, MatHint, NgIf, MatError, TimeZoneSelectComponent, MatFormField, MatInput, MatSelect, MatOption]
+    imports: [MatCard, MatCardContent, FormsModule, ReactiveFormsModule, MatLabel, TimePickerComponent, MatHint, MatError, TimeZoneSelectComponent, MatFormField, MatInput, MatSelect, MatOption]
 })
 export class HourlyConditionEditorComponent implements OnInit {
    @Input() showMeridian: boolean;

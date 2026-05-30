@@ -94,7 +94,7 @@ import { VSTitle } from "../title/vs-title.component";
 import { OutOfZoneDirective } from "../../../widget/directive/out-of-zone.directive";
 import { VSPopComponentDirective } from "../data-tip/vs-pop-component.directive";
 import { VSDataTipDirective } from "../data-tip/vs-data-tip.directive";
-import { NgIf, NgFor } from "@angular/common";
+
 
 const ADD_DATA_URI: string = "/events/annotation/add-data-annotation";
 const ADD_ASSEMBLY_URI: string = "/events/annotation/add-assembly-annotation";
@@ -105,7 +105,7 @@ const UPDATE_COLUMNS = "/events/vswizard/binding/update-columns";
     templateUrl: "vs-table.component.html",
     styleUrls: ["base-table.scss", "vs-table.component.scss"],
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [NgIf, VSDataTipDirective, VSPopComponentDirective, OutOfZoneDirective, VSTitle, NgbTooltip, NgFor, VSTableCell, TooltipDirective, SafeFontDirective, TouchScrollDirective, SelectionBoxDirective, VSHiddenAnnotation, VSAnnotation, VSLoadingDisplay, VSPreviewTable]
+    imports: [VSDataTipDirective, VSPopComponentDirective, OutOfZoneDirective, VSTitle, NgbTooltip, VSTableCell, TooltipDirective, SafeFontDirective, TouchScrollDirective, SelectionBoxDirective, VSHiddenAnnotation, VSAnnotation, VSLoadingDisplay, VSPreviewTable]
 })
 export class VSTable extends BaseTable<VSTableModel> implements OnInit, OnDestroy, AfterViewInit {
    @Input()

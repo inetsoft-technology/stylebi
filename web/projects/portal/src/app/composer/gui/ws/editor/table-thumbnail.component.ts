@@ -52,7 +52,7 @@ import { WSTableActions } from "../action/ws-table.actions";
 import { WSInsertColumnsEvent } from "../socket/ws-insert-columns/ws-insert-columns-event";
 import { WSAssemblyThumbnail } from "./ws-assembly-thumbnail";
 import { WSAssemblyThumbnailTitleComponent } from "./ws-assembly-thumbnail-title.component";
-import { NgIf } from "@angular/common";
+
 import { DataBlockStatusIndicatorComponent } from "./data-block-status-indicator.component";
 import { ActionsContextmenuAnchorDirective } from "../../../../widget/fixed-dropdown/actions-contextmenu-anchor.directive";
 
@@ -77,7 +77,7 @@ const MINUS_ICON = "－";
         "table-thumbnail.component.scss",
         "../jsplumb/jsplumb-shared.scss"
     ],
-    imports: [ActionsContextmenuAnchorDirective, WSAssemblyThumbnailTitleComponent, DataBlockStatusIndicatorComponent, NgIf]
+    imports: [ActionsContextmenuAnchorDirective, WSAssemblyThumbnailTitleComponent, DataBlockStatusIndicatorComponent]
 })
 export class TableThumbnailComponent extends WSAssemblyThumbnail
    implements OnChanges, AfterViewInit, OnDestroy

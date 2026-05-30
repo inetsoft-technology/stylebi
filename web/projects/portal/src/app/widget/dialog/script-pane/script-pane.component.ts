@@ -46,7 +46,7 @@ import { OutOfZoneDirective } from "../../directive/out-of-zone.directive";
 import { NgbTooltip } from "@ng-bootstrap/ng-bootstrap";
 import { TreeComponent } from "../../tree/tree.component";
 import { VirtualScrollTreeComponent } from "../../tree/virtual-scroll-tree/virtual-scroll-tree.component";
-import { NgIf } from "@angular/common";
+
 
 const LINT_MARKERS = "CodeMirror-lint-markers";
 
@@ -54,7 +54,7 @@ const LINT_MARKERS = "CodeMirror-lint-markers";
     selector: "script-pane",
     templateUrl: "script-pane.component.html",
     styleUrls: ["script-pane.component.scss"],
-    imports: [NgIf, VirtualScrollTreeComponent, TreeComponent, NgbTooltip, OutOfZoneDirective]
+    imports: [VirtualScrollTreeComponent, TreeComponent, NgbTooltip, OutOfZoneDirective]
 })
 export class ScriptPane implements AfterViewInit, AfterViewChecked, OnInit, OnDestroy, OnChanges {
    @Input() columnTreeRoot: TreeNodeModel;

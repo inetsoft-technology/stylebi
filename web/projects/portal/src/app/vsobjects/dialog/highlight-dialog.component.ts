@@ -36,7 +36,7 @@ import {DataRef} from "../../common/data/data-ref";
 import { VSConditionDialog } from "./vs-condition-dialog.component";
 import { ApplyButtonComponent } from "../../widget/slide-out/apply-button.component";
 import { HighlightPane } from "../../widget/highlight/highlight-pane.component";
-import { NgIf } from "@angular/common";
+
 import { ModalHeaderComponent } from "../../widget/modal-header/modal-header.component";
 
 const CHECK_TRAP_REST_URI: string = "../api/composer/viewsheet/check-highlight-dialog-trap/";
@@ -44,7 +44,7 @@ const CHECK_TRAP_REST_URI: string = "../api/composer/viewsheet/check-highlight-d
 @Component({
     selector: "highlight-dialog",
     templateUrl: "highlight-dialog.component.html",
-    imports: [ModalHeaderComponent, NgIf, HighlightPane, ApplyButtonComponent, VSConditionDialog]
+    imports: [ModalHeaderComponent, HighlightPane, ApplyButtonComponent, VSConditionDialog]
 })
 export class HighlightDialog extends AbstractHighlight implements OnInit {
    @Input() runtimeId: string;

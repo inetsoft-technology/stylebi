@@ -28,7 +28,7 @@ import { MatDialog } from "@angular/material/dialog";
 import { SecurityActionsTreeComponent } from "../security-actions-tree/security-actions-tree.component";
 import { SecurityActionsPermissionsComponent } from "../security-actions-permissions/security-actions-permissions.component";
 import { MatButton } from "@angular/material/button";
-import { NgIf } from "@angular/common";
+
 import { TopScrollDirective } from "../../../../top-scroll/top-scroll.directive";
 import { MatDrawerContainer, MatDrawer, MatDrawerContent } from "@angular/material/sidenav";
 
@@ -51,7 +51,7 @@ const SMALL_WIDTH_BREAKPOINT = 720;
     selector: "em-security-actions-page",
     templateUrl: "./security-actions-page.component.html",
     styleUrls: ["./security-actions-page.component.scss"],
-    imports: [MatDrawerContainer, MatDrawer, TopScrollDirective, SecurityActionsTreeComponent, NgIf, MatButton, MatDrawerContent, SecurityActionsPermissionsComponent]
+    imports: [MatDrawerContainer, MatDrawer, TopScrollDirective, SecurityActionsTreeComponent, MatButton, MatDrawerContent, SecurityActionsPermissionsComponent]
 })
 export class SecurityActionsPageComponent implements OnInit {
    @ViewChild(SecurityActionsTreeComponent, { static: true }) tree: SecurityActionsTreeComponent;

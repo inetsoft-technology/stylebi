@@ -29,12 +29,12 @@ import { AssemblyActionFactory } from "../../../../vsobjects/action/assembly-act
 import { VSObjectModel } from "../../../../vsobjects/model/vs-object-model";
 import { Viewsheet } from "../../../data/vs/viewsheet";
 import { AbstractActionComponent } from "./abstract-action-component";
-import { NgFor, NgIf } from "@angular/common";
+
 
 @Component({
     selector: "assembly-context-menu-items",
     templateUrl: "assembly-context-menu-items.component.html",
-    imports: [NgFor, NgIf]
+    imports: []
 })
 export class AssemblyContextMenuItemsComponent
    extends AbstractActionComponent implements OnChanges, OnDestroy

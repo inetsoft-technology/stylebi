@@ -19,13 +19,13 @@ import { Component, Input, Output, EventEmitter } from "@angular/core";
 import { ChartConfig } from "../../../../common/util/chart-config";
 import { StaticLineModel } from "../../../../common/data/visual-frame-model";
 import { StyleConstants } from "../../../../common/util/style-constants";
-import { NgFor } from "@angular/common";
+
 
 @Component({
     selector: "static-line-pane",
     templateUrl: "static-line-pane.component.html",
     styleUrls: ["static-line-pane.component.scss"],
-    imports: [NgFor]
+    imports: []
 })
 export class StaticLinePane {
    @Input() line: number;

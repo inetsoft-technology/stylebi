@@ -23,7 +23,7 @@ import { ServerPathInfoModel } from "../../../../../../../portal/src/app/vsobjec
 import { ServerLocation } from "../../../../../../../shared/schedule/model/server-location";
 import { FormValidators } from "../../../../../../../shared/util/form-validators";
 import { MatButton } from "@angular/material/button";
-import { NgIf } from "@angular/common";
+
 import { MatInput } from "@angular/material/input";
 import { MatFormField, MatLabel, MatError } from "@angular/material/form-field";
 import { MatCard, MatCardContent } from "@angular/material/card";
@@ -39,7 +39,7 @@ export interface ServerLocationData {
     selector: "em-server-location-editor",
     templateUrl: "./server-location-editor.component.html",
     styleUrls: ["./server-location-editor.component.scss"],
-    imports: [ModalHeaderComponent, MatDialogContent, FormsModule, ReactiveFormsModule, MatCard, MatCardContent, MatFormField, MatLabel, MatInput, NgIf, MatError, MatCheckbox, MatDialogActions, MatButton]
+    imports: [ModalHeaderComponent, MatDialogContent, FormsModule, ReactiveFormsModule, MatCard, MatCardContent, MatFormField, MatLabel, MatInput, MatError, MatCheckbox, MatDialogActions, MatButton]
 })
 export class ServerLocationEditorComponent implements OnInit {
    form: UntypedFormGroup;

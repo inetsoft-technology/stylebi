@@ -38,7 +38,7 @@ import { MatList, MatListItem } from "@angular/material/list";
 import { MatCheckbox } from "@angular/material/checkbox";
 import { MatSort, MatSortHeader } from "@angular/material/sort";
 import { MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow } from "@angular/material/table";
-import { NgIf, NgFor } from "@angular/common";
+
 
 export enum DeviceType {
    SMALL = 0,
@@ -59,24 +59,22 @@ export enum DeviceType {
         ]),
     ],
     imports: [
-        NgIf,
-        MatTable,
-        MatSort,
-        MatColumnDef,
-        MatHeaderCellDef,
-        MatHeaderCell,
-        MatCheckbox,
-        MatCellDef,
-        MatCell,
-        NgFor,
-        MatSortHeader,
-        MatList,
-        MatListItem,
-        MatHeaderRowDef,
-        MatHeaderRow,
-        MatRowDef,
-        MatRow,
-    ]
+    MatTable,
+    MatSort,
+    MatColumnDef,
+    MatHeaderCellDef,
+    MatHeaderCell,
+    MatCheckbox,
+    MatCellDef,
+    MatCell,
+    MatSortHeader,
+    MatList,
+    MatListItem,
+    MatHeaderRowDef,
+    MatHeaderRow,
+    MatRowDef,
+    MatRow
+]
 })
 export class ExpandableRowTableComponent<T extends TableModel> extends RegularTableComponent<T> implements OnChanges, OnInit, OnDestroy {
    @Input() tableInfo: ExpandableRowTableInfo;

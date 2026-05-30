@@ -24,7 +24,7 @@ import { FormValidators } from "../../../../../../../shared/util/form-validators
 import { LicenseKeyModel } from "../license-key-settings-model";
 import { EditLicenseKeyDialogData } from "./edit-license-key-dialog-data";
 import { MatButton } from "@angular/material/button";
-import { NgIf } from "@angular/common";
+
 import { MatInput } from "@angular/material/input";
 import { MatFormField, MatLabel, MatError } from "@angular/material/form-field";
 import { ModalHeaderComponent } from "../../../../common/util/modal-header/modal-header.component";
@@ -33,7 +33,7 @@ import { ModalHeaderComponent } from "../../../../common/util/modal-header/modal
     selector: "em-edit-license-key-dialog",
     templateUrl: "./edit-license-key-dialog.component.html",
     styleUrls: ["./edit-license-key-dialog.component.scss"],
-    imports: [ModalHeaderComponent, MatDialogContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatInput, NgIf, MatError, MatDialogActions, MatButton]
+    imports: [ModalHeaderComponent, MatDialogContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatInput, MatError, MatDialogActions, MatButton]
 })
 export class EditLicenseKeyDialogComponent implements OnInit {
    isEnterprise: boolean;

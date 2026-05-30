@@ -54,7 +54,7 @@ import { Tool } from "../../../../../shared/util/tool";
 import { map, mergeMap } from "rxjs/operators";
 import { ModelService } from "../../widget/services/model.service";
 import { PageTabComponent } from "./page-tab.component";
-import { NgIf, NgFor } from "@angular/common";
+
 
 @Component({
     selector: "v-viewer-view",
@@ -65,7 +65,7 @@ import { NgIf, NgFor } from "@angular/common";
             useFactory: ViewerContextProviderFactory,
             deps: [[new Optional(), ComposerToken], [new Optional(), EmbedToken]]
         }],
-    imports: [NgIf, NgFor, ViewerAppComponent, PageTabComponent]
+    imports: [ViewerAppComponent, PageTabComponent]
 })
 export class ViewerViewComponent implements OnInit, OnDestroy, CanComponentDeactivate, AfterViewChecked {
    @ViewChildren("viewerApp") viewerApps: QueryList<ViewerAppComponent>;

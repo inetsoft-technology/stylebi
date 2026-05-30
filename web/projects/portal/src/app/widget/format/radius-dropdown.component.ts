@@ -20,7 +20,7 @@ import { UntypedFormControl, UntypedFormGroup, Validators, FormsModule, Reactive
 import { FormValidators } from "../../../../../shared/util/form-validators";
 import { DebounceService } from "../services/debounce.service";
 import { debounceTime } from "rxjs/operators";
-import { NgIf } from "@angular/common";
+
 import { DisableDropDirective } from "../directive/disable-drop.directive";
 
 const RADIUS_INPUT_DKEY = "radiusDropdownInputKey";
@@ -28,7 +28,7 @@ const RADIUS_INPUT_DKEY = "radiusDropdownInputKey";
 @Component({
     selector: "radius-dropdown",
     templateUrl: "radius-dropdown.component.html",
-    imports: [FormsModule, ReactiveFormsModule, DisableDropDirective, NgIf]
+    imports: [FormsModule, ReactiveFormsModule, DisableDropDirective]
 })
 export class RadiusDropdown implements OnInit {
    @Input() set radius(value: number) {

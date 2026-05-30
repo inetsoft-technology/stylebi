@@ -29,7 +29,7 @@ import {
 } from "./query-link-graph-pane/query-link-graph-pane.component";
 import { DataQueryModelService } from "../../data-query-model.service";
 import { TreeComponent } from "../../../../../../../widget/tree/tree.component";
-import { NgIf } from "@angular/common";
+
 import { SplitPane } from "../../../../../../../widget/split-pane/split-pane.component";
 
 const DATA_SOURCE_TREE_URI = "../api/data/datasource/query/data-source-tree";
@@ -41,7 +41,7 @@ const DATA_SOURCE_TREE_URI = "../api/data/datasource/query/data-source-tree";
         "./query-link-pane.component.scss",
         "../../../database-physical-model/database-model-pane.scss"
     ],
-    imports: [SplitPane, NgIf, TreeComponent, QueryLinkGraphPaneComponent]
+    imports: [SplitPane, TreeComponent, QueryLinkGraphPaneComponent]
 })
 export class QueryLinkPaneComponent implements OnInit {
    @Input() queryName: string;

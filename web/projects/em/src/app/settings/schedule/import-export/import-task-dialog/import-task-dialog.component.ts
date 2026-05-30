@@ -34,14 +34,14 @@ import { MatIcon } from "@angular/material/icon";
 import { FileChooserComponent } from "../../../../common/util/file-chooser/file-chooser/file-chooser.component";
 import { MatFormField, MatLabel, MatSuffix, MatError } from "@angular/material/form-field";
 import { MatCard, MatCardContent, MatCardTitle } from "@angular/material/card";
-import { NgIf } from "@angular/common";
+
 
 @Component({
     selector: "em-import-task-dialog",
     templateUrl: "./import-task-dialog.component.html",
     styleUrls: ["./import-task-dialog.component.scss"],
     encapsulation: ViewEncapsulation.None,
-    imports: [MatDialogTitle, MatDialogContent, NgIf, FormsModule, ReactiveFormsModule, MatCard, MatCardContent, MatFormField, MatLabel, FileChooserComponent, MatIcon, MatSuffix, MatError, MatCheckbox, MatCardTitle, MatTable, MatSort, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, MatDialogActions, MatButton]
+    imports: [MatDialogTitle, MatDialogContent, FormsModule, ReactiveFormsModule, MatCard, MatCardContent, MatFormField, MatLabel, FileChooserComponent, MatIcon, MatSuffix, MatError, MatCheckbox, MatCardTitle, MatTable, MatSort, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, MatDialogActions, MatButton]
 })
 export class ImportTaskDialogComponent {
    @HostBinding("class") hostClass = "import-task-dialog";

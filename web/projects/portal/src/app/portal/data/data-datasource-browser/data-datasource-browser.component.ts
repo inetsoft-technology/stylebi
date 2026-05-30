@@ -59,7 +59,7 @@ import {SelectedDataSourcesRequest} from "../commands/selected-datasources-reque
 import {AssetUtil} from "../../../binding/util/asset-util";
 import {MultiObjectSelectList} from "../../../common/util/multi-object-select-list";
 import { FormsModule } from "@angular/forms";
-import { NgIf, NgClass, NgFor } from "@angular/common";
+import { NgClass } from "@angular/common";
 
 const CREATE_QUERY_URI = "/events/composer/ws/query/create";
 const DATASOURCES_URI: string = "../api/data/datasources";
@@ -79,7 +79,7 @@ const DATASOURCE_STATUSES_URI  = DATASOURCES_URI + "/statuses";
     templateUrl: "data-datasource-browser.component.html",
     styleUrls: ["data-datasource-browser.component.scss"],
     providers: [ViewsheetClientService],
-    imports: [NgIf, FormsModule, NgbTypeahead, NgClass, NgFor, NgbDropdown, NgbDropdownToggle, NgbDropdownMenu, RouterLink, DataNotificationsComponent]
+    imports: [FormsModule, NgbTypeahead, NgClass, NgbDropdown, NgbDropdownToggle, NgbDropdownMenu, RouterLink, DataNotificationsComponent]
 })
 export class DataDatasourceBrowserComponent extends CommandProcessor implements AfterViewInit, OnInit, OnDestroy {
    @ViewChild("dataNotifications") dataNotifications: DataNotificationsComponent;

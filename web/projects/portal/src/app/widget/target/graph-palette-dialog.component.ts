@@ -19,7 +19,7 @@
 import { Component, Input, Output, EventEmitter } from "@angular/core";
 import { CategoricalColorModel } from "../../common/data/visual-frame-model";
 import { FormsModule } from "@angular/forms";
-import { NgIf, NgFor, NgStyle } from "@angular/common";
+import { NgStyle } from "@angular/common";
 import { ModalHeaderComponent } from "../modal-header/modal-header.component";
 import { BlockMouseDirective } from "../mouse-event/block-mouse.directive";
 
@@ -27,7 +27,7 @@ import { BlockMouseDirective } from "../mouse-event/block-mouse.directive";
     selector: "graph-palette-dialog",
     templateUrl: "graph-palette-dialog.component.html",
     styleUrls: ["graph-palette-dialog.component.scss"],
-    imports: [BlockMouseDirective, ModalHeaderComponent, NgIf, FormsModule, NgFor, NgStyle]
+    imports: [BlockMouseDirective, ModalHeaderComponent, FormsModule, NgStyle]
 })
 
 export class GraphPaletteDialog {

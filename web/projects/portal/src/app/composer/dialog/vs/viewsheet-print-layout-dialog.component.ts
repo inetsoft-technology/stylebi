@@ -28,7 +28,7 @@ import { ViewsheetPrintLayoutDialogModel } from "../../data/vs/viewsheet-print-l
 import { PrintLayoutMeasures } from "../../data/vs/vs-layout-model";
 import { DialogButtonsDirective } from "../../../widget/standard-dialog/dialog-buttons.directive";
 import { NgbDropdown, NgbDropdownToggle, NgbDropdownMenu } from "@ng-bootstrap/ng-bootstrap";
-import { NgIf, NgFor } from "@angular/common";
+
 import { DialogContentDirective } from "../../../widget/standard-dialog/dialog-content.directive";
 import { StandardDialogComponent } from "../../../widget/standard-dialog/standard-dialog.component";
 
@@ -41,7 +41,7 @@ interface PaperSize {
     selector: "viewsheet-print-layout-dialog",
     templateUrl: "viewsheet-print-layout-dialog.component.html",
     styleUrls: ["./viewsheet-print-layout-dialog.component.scss"],
-    imports: [StandardDialogComponent, DialogContentDirective, NgIf, FormsModule, ReactiveFormsModule, NgFor, NgbDropdown, NgbDropdownToggle, NgbDropdownMenu, DialogButtonsDirective]
+    imports: [StandardDialogComponent, DialogContentDirective, FormsModule, ReactiveFormsModule, NgbDropdown, NgbDropdownToggle, NgbDropdownMenu, DialogButtonsDirective]
 })
 export class ViewsheetPrintLayoutDialog implements OnInit {
    @Input() model: ViewsheetPrintLayoutDialogModel;

@@ -18,7 +18,7 @@
 import { Component, EventEmitter, Input, OnInit, Output } from "@angular/core";
 import { ListValuesPaneModel } from "../../data/vs/list-values-pane-model";
 import { ComboboxGeneralPaneModel } from "../../data/vs/combobox-general-pane-model";
-import { NgIf } from "@angular/common";
+
 import { FormsModule } from "@angular/forms";
 import { ComboBoxEditor } from "../../../vsobjects/dialog/combo-box-editor.component";
 
@@ -26,10 +26,9 @@ import { ComboBoxEditor } from "../../../vsobjects/dialog/combo-box-editor.compo
     selector: "list-values-pane",
     templateUrl: "list-values-pane.component.html",
     imports: [
-        ComboBoxEditor,
-        FormsModule,
-        NgIf,
-    ]
+    ComboBoxEditor,
+    FormsModule
+]
 })
 export class ListValuesPane implements OnInit {
    @Input() model: ListValuesPaneModel;

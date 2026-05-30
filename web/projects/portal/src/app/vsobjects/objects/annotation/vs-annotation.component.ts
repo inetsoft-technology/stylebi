@@ -50,14 +50,14 @@ import { TooltipDirective } from "../../../widget/tooltip/tooltip.directive";
 import { OutOfZoneDirective } from "../../../widget/directive/out-of-zone.directive";
 import { InteractableDirective } from "../../../widget/interact/interactable.directive";
 import { VSLine } from "../shape/vs-line.component";
-import { NgIf } from "@angular/common";
+
 
 @Component({
     selector: "vs-annotation",
     templateUrl: "./vs-annotation.component.html",
     styleUrls: ["./vs-annotation.component.scss"],
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [NgIf, VSLine, InteractableDirective, OutOfZoneDirective, TooltipDirective]
+    imports: [VSLine, InteractableDirective, OutOfZoneDirective, TooltipDirective]
 })
 export class VSAnnotation extends AbstractVSObject<VSAnnotationModel> implements OnDestroy {
    @Input() selected: boolean = false;

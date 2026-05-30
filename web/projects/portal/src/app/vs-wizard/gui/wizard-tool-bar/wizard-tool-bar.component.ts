@@ -30,7 +30,7 @@ import { ComponentTool } from "../../../common/util/component-tool";
 import { ToolbarActionGroup } from "../../../widget/toolbar/toolbar-action-group";
 import { ToolbarAction } from "../../../widget/toolbar/toolbar-action";
 import { ToolbarGroup } from "../../../widget/toolbar/toolbar-group/toolbar-group.component";
-import { NgIf } from "@angular/common";
+
 
 declare const window;
 
@@ -39,7 +39,7 @@ declare const window;
     templateUrl: "wizard-tool-bar.component.html",
     styleUrls: ["wizard-tool-bar.component.scss",
         "../../../composer/gui/toolbar/composer-toolbar.component.scss"],
-    imports: [NgIf, ToolbarGroup]
+    imports: [ToolbarGroup]
 })
 export class WizardToolBarComponent implements OnInit, OnDestroy {
    @Input() sheet: Viewsheet;

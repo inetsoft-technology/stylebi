@@ -41,7 +41,7 @@ import { MatCheckbox } from "@angular/material/checkbox";
 import { MatInput } from "@angular/material/input";
 import { MatIcon } from "@angular/material/icon";
 import { MatIconButton } from "@angular/material/button";
-import { NgIf, NgFor } from "@angular/common";
+
 import { MatOption } from "@angular/material/core";
 import { MatFormField, MatLabel } from "@angular/material/form-field";
 import { MatCard, MatCardTitle, MatCardContent } from "@angular/material/card";
@@ -75,7 +75,7 @@ export enum SSOType {
     selector: "em-sso-settings-page",
     templateUrl: "./sso-settings-page.component.html",
     styleUrls: ["./sso-settings-page.component.scss"],
-    imports: [EditorPanelComponent, MatCard, MatCardTitle, MatCardContent, MatFormField, MatLabel, MatSelect, MatOption, NgIf, NgFor, MatIconButton, MatIcon, MatInput, FormsModule, MatCheckbox, SSOSettingsFormComponent, OpenidSettingsFormComponent, CustomSsoFormComponent]
+    imports: [EditorPanelComponent, MatCard, MatCardTitle, MatCardContent, MatFormField, MatLabel, MatSelect, MatOption, MatIconButton, MatIcon, MatInput, FormsModule, MatCheckbox, SSOSettingsFormComponent, OpenidSettingsFormComponent, CustomSsoFormComponent]
 })
 export class SsoSettingsPageComponent implements OnDestroy {
    @ViewChild("roleSelection") roleSelectionRef: MatSelect;

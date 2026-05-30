@@ -35,7 +35,7 @@ import { ScheduleTaskModel } from "../../../../../../../shared/schedule/model/sc
 import { removeOrganization } from "../../../security/users/identity-id";
 import { ScheduleTaskListComponent } from "../../schedule-task-list/schedule-task-list.component";
 import { MatIcon } from "@angular/material/icon";
-import { NgIf } from "@angular/common";
+
 import { MatIconButton } from "@angular/material/button";
 import { MatOption } from "@angular/material/core";
 import { MatSelect } from "@angular/material/select";
@@ -67,7 +67,7 @@ export class ScheduleTaskFlatNode {
     templateUrl: "./schedule-task-select.component.html",
     styleUrls: ["./schedule-task-select.component.scss"],
     providers: [SCHEDULE_TASK_SELECT_VALUE_ACCESSOR],
-    imports: [MatCard, MatCardContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatSelect, MatOption, MatTree, MatTreeNodeDef, MatTreeNode, MatTreeNodeToggle, MatTreeNodePadding, MatIconButton, NgIf, MatIcon, MatError]
+    imports: [MatCard, MatCardContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatSelect, MatOption, MatTree, MatTreeNodeDef, MatTreeNode, MatTreeNodeToggle, MatTreeNodePadding, MatIconButton, MatIcon, MatError]
 })
 export class ScheduleTaskSelectComponent implements OnInit, OnChanges, ControlValueAccessor {
    @Input() tasks: ScheduleTaskModel[];

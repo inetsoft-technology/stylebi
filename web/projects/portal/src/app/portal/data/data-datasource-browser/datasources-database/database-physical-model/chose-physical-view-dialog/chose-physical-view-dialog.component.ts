@@ -19,7 +19,7 @@ import { Component, EventEmitter, Input, OnInit, Output } from "@angular/core";
 import { HttpClient, HttpParams } from "@angular/common/http";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { UntypedFormControl, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
-import { NgFor } from "@angular/common";
+
 import { DefaultFocusDirective } from "../../../../../../widget/directive/default-focus.directive";
 import { ModalHeaderComponent } from "../../../../../../widget/modal-header/modal-header.component";
 const GET_DATABASE_PHYSICAL_VIEW_URI = "../api/data/physicalmodel/views";
@@ -27,7 +27,7 @@ const GET_DATABASE_PHYSICAL_VIEW_URI = "../api/data/physicalmodel/views";
 @Component({
     selector: "chose-physical-view-dialog",
     templateUrl: "./chose-physical-view-dialog.component.html",
-    imports: [ModalHeaderComponent, FormsModule, ReactiveFormsModule, DefaultFocusDirective, NgFor]
+    imports: [ModalHeaderComponent, FormsModule, ReactiveFormsModule, DefaultFocusDirective]
 })
 export class ChosePhysicalViewDialog implements OnInit {
   @Input() database: string;

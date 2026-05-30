@@ -17,13 +17,13 @@
  */
 import { Component, Input } from "@angular/core";
 import { HelpLinkDirective } from "../../../help/help-link.directive";
-import { NgIf } from "@angular/common";
+
 
 @Component({
     selector: "em-modal-header",
     templateUrl: "./modal-header.component.html",
     styleUrls: ["./modal-header.component.scss"],
-    imports: [NgIf, HelpLinkDirective]
+    imports: [HelpLinkDirective]
 })
 export class ModalHeaderComponent {
    @Input() title: string = "";
