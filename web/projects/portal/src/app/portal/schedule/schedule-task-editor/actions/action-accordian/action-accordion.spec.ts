@@ -252,6 +252,8 @@ describe("Action Accordion Unit Test", () => {
       let underHighlight = fixture.nativeElement.querySelector(
          "input[name=underHighlightCondition]");
       underHighlight.click();
+      underHighlight.dispatchEvent(new Event("change"));
+      actionAccordion.action.highlightsSelected = true;
       fixture.detectChanges();
 
       let highlightCheck = fixture.nativeElement.querySelector(

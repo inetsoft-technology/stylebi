@@ -79,6 +79,7 @@ describe("fill prop pane unit case: ", () => {
 
       let typeToggle = fixture.nativeElement.querySelector("button.type-toggle");
       typeToggle.click();
+      fixture.detectChanges();
       TestUtils.changeDynamicComboValueType(1);
       fixture.detectChanges();
 
@@ -88,6 +89,7 @@ describe("fill prop pane unit case: ", () => {
       expect(colorEditor.getAttribute("class")).toContain("disable-actions-fade");
 
       typeToggle.click();
+      fixture.detectChanges();
       TestUtils.changeDynamicComboValueType(2);
       fixture.detectChanges();
       colorInput = fixture.nativeElement.querySelector("dynamic-combo-box input");
@@ -96,6 +98,7 @@ describe("fill prop pane unit case: ", () => {
 
       //Bug #20262
       typeToggle.click();
+      fixture.detectChanges();
       TestUtils.changeDynamicComboValueType(0);
       fixture.detectChanges();
       colorInput = fixture.nativeElement.querySelector("dynamic-combo-box");

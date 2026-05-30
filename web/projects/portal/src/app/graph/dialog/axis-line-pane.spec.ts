@@ -97,20 +97,20 @@ describe("AxisLinePane Unit Tests", () => {
    }));
 
    // Bug #10087 Truncate variable does not update
-   it("should toggle truncate variable", () => new Promise<void>((done) => {
+   it("should toggle truncate variable", async () => {
       fixture.componentInstance.linear = false;
       fixture.componentInstance.model.truncate = false;
       fixture.detectChanges();
       let truncateInput: any = fixture.nativeElement.querySelector(
          ".truncate_long_label_id");
-      truncateInput.click();
+      truncateInput.checked = true;
+      truncateInput.dispatchEvent(new Event("change"));
       fixture.detectChanges();
 
-      fixture.whenStable().then(() => {
-         expect(fixture.componentInstance.model.truncate).toBe(true);
-         done();
-      });
-   }));
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(fixture.componentInstance.model.truncate).toBe(true);
+   });
 
    // Bug #16369 Use correct checks for axis line pane elements visibility
    // Bug #19013 major increment should not allow negative number

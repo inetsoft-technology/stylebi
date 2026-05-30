@@ -658,18 +658,17 @@ describe("Aesthetic Pane Unit Test", () => {
       colorEditIcon.click();
       fixture.detectChanges();
 
-      fixture.whenStable().then(() => {
+      setTimeout(() => {
          let fixedDropdown = document.getElementsByTagName("fixed-dropdown")[0];
          let colorBtn: any = fixedDropdown.querySelector(".color-picker-palette button[style='background-color: rgb(98, 166, 64);']");
          colorBtn.dispatchEvent(new Event("mousedown"));
          fixture.detectChanges();
 
-         fixture.whenStable().then(() => {
+         setTimeout(() => {
             expect(openChanged).toHaveBeenCalledWith(false);
-
             done();
-         });
-      });
+         }, 50);
+      }, 50);
    }));
 
    //Bug #21290

@@ -132,6 +132,7 @@ describe("Selection Measure Pane Test", () => {
 
       let typeToggles = fixture.nativeElement.querySelectorAll("button.type-toggle");
       typeToggles[0].click();
+      fixture.detectChanges();
       let fixs = document.getElementsByTagName("fixed-dropdown");
       let temp = fixs[0].querySelectorAll("a");
       temp[2].click();

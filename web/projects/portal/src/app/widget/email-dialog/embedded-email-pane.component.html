@@ -56,8 +56,8 @@
             <i class="backward-icon icon-size-large" aria-hidden="true"></i>
           </button>
         </ng-container>
-        @if (embeddedOnly) {
-          <div shuffleRight>
+        <div shuffleRight>
+          @if (embeddedOnly) {
             <div class="input-group">
               <input type="text" class="form-control" [ngModelOptions]="{standalone: true}"
                 [ngModel]="searchIdentityText" (ngModelChange)="updateSearchIdentityText($event)"
@@ -102,10 +102,7 @@
                 </span>
               }
             </div>
-          </div>
-        }
-        @if (!embeddedOnly) {
-          <div shuffleRight>
+          } @else {
             <table class="table table-sm table-bordered user-email-table" wScrollableTable>
               <thead class="thead-default">
                 <tr>
@@ -125,8 +122,8 @@
                 }
               </tbody>
             </table>
-          </div>
-        }
+          }
+        </div>
       </w-shuffle-list>
     </div>
   </div>

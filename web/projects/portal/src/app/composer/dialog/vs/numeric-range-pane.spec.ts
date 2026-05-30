@@ -111,6 +111,7 @@ describe("Numeric Range Pane Tests", () => {
    function changeValueType(valueIndex, num) {
       let typeToggles = element.querySelectorAll("button.type-toggle");
       typeToggles[num].click();
+      fixture.detectChanges();
 
       let fixs = document.getElementsByTagName("fixed-dropdown");
       let temp = fixs[0].querySelectorAll("a");

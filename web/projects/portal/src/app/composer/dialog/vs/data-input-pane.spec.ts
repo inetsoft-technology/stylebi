@@ -209,6 +209,7 @@ describe("Data Input Pane Test", () => {
 
       let typeToggles = fixture.nativeElement.querySelectorAll("button.type-toggle");
       typeToggles[1].click();
+      fixture.detectChanges();
       TestUtils.changeDynamicComboValueType(2);
       fixture.detectChanges();
       let rowInput = fixture.debugElement.query(By.css(".row_id .dynamic-combo-box-body input")).nativeElement;

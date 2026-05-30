@@ -78,6 +78,7 @@ describe("line prop pane component unit case", () => {
 
       let typeToggle = fixture.nativeElement.querySelector("button.type-toggle");
       typeToggle.click();
+      fixture.detectChanges();
       TestUtils.changeDynamicComboValueType(1);
       fixture.detectChanges();
       colorInput = fixture.nativeElement.querySelector("dynamic-combo-box select");
@@ -85,6 +86,7 @@ describe("line prop pane component unit case", () => {
       expect(colorEditor.getAttribute("class")).toContain("disable-actions-fade");
 
       typeToggle.click();
+      fixture.detectChanges();
       TestUtils.changeDynamicComboValueType(2);
       fixture.detectChanges();
       colorInput = fixture.nativeElement.querySelector("dynamic-combo-box input");

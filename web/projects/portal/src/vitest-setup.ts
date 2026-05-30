@@ -212,7 +212,28 @@ _patchCircularDeps(VSViewsheet, VSObjectContainer);
 import { VSCalendar } from "./app/vsobjects/objects/calendar/vs-calendar.component";
 import { MonthCalendar } from "./app/vsobjects/objects/calendar/month-calendar.component";
 import { YearCalendar } from "./app/vsobjects/objects/calendar/year-calendar.component";
-_patchCircularDeps(VSCalendar, YearCalendar);
+// VSCalendar's imports list contains both MonthCalendar and YearCalendar; either may be the
+// undefined slot depending on module load order. Iterate over both placements explicitly.
+function _patchVSCalendarDeps() {
+   const def = (VSCalendar as any)?.ɵcmp;
+   if (!def) return;
+   const raw = typeof def.dependencies === "function" ? def.dependencies() : def.dependencies;
+   if (!Array.isArray(raw)) return;
+   const replacements = [MonthCalendar, YearCalendar].filter(Boolean);
+   let ri = 0;
+   for (let i = 0; i < raw.length; i++) {
+      if ((raw[i] === undefined || raw[i] === null) && ri < replacements.length) {
+         raw[i] = replacements[ri++];
+      }
+   }
+   // If only one slot was undefined, append the missing one defensively.
+   for (const cls of replacements) {
+      if (cls && !raw.includes(cls)) {
+         raw.push(cls);
+      }
+   }
+}
+_patchVSCalendarDeps();
 _patchCircularDeps(MonthCalendar, VSCalendar);
 _patchCircularDeps(YearCalendar, VSCalendar);
 
