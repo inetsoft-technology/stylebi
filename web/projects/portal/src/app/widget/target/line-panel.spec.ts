@@ -52,6 +52,7 @@ import { TargetComboBox } from "./target-combo-box.component";
 import { TargetInfo } from "./target-info";
 import { TargetLabelPane } from "./target-label-pane.component";
 import { ValueInputField } from "./value-input-field.component";
+import { NumberStepperModule } from "../number-stepper/number-stepper.module";
 import { DebounceService } from "../services/debounce.service";
 
 let createModel: () => TargetInfo = () => {
@@ -128,6 +129,7 @@ describe("LinePanel Unit Tests", () => {
             FormsModule,
             ReactiveFormsModule,
             DropDownTestModule,
+            NumberStepperModule,
          ],
          declarations: [
             LinePanel,
@@ -214,12 +216,12 @@ describe("LinePanel Unit Tests", () => {
    //Bug #19222 and Bug #18990
    it("value input warning check", () => {
       fixture.detectChanges();
-      let warning = document.querySelector(".alert-danger");
+      let warning = document.querySelector(".shell-alert--danger");
       expect(warning.textContent).toContain("_#(common.invalidNumber)");
 
       linePanel.model.value = "11";
       fixture.detectChanges();
-      warning = document.querySelector(".alert-danger");
+      warning = document.querySelector(".shell-alert--danger");
       expect(warning).toBe(null);
    });
 

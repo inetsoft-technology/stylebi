@@ -43,6 +43,7 @@ import { AlphaDropdown } from "../../widget/format/alpha-dropdown.component";
 import { FormatCSSPane } from "../../widget/format/format-css-pane.component";
 import { DebounceService } from "../../widget/services/debounce.service";
 import { FontService } from "../../widget/services/font.service";
+import { NumberStepperModule } from "../../widget/number-stepper/number-stepper.module";
 import { ModelService } from "../../widget/services/model.service";
 import { VSImageModel } from "../model/output/vs-image-model";
 import { VSChartModel } from "../model/vs-chart-model";
@@ -76,7 +77,7 @@ describe("VS Formats Pane Unit case", () => {
 
       TestBed.configureTestingModule({
          imports: [ReactiveFormsModule, FormsModule, NgbModule, DropDownTestModule,
-            HttpClientTestingModule],
+            HttpClientTestingModule, NumberStepperModule],
          declarations: [VSFormatsPane, DropdownView, DynamicComboBox, AlphaDropdown, ColorEditor, ColorPicker, ColorPane,
                         FontPane, FormattingPane, ColorDropdown,
                         ColorFieldPane, ColorPane, BindingAlignmentPane, BindingBorderPane,

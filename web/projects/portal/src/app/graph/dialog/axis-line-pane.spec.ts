@@ -35,6 +35,7 @@ import { AxisLinePaneModel } from "../model/dialog/axis-line-pane-model";
 import { AxisLinePane } from "./axis-line-pane.component";
 import { ActionsContextmenuAnchorDirective } from "../../widget/fixed-dropdown/actions-contextmenu-anchor.directive";
 import { DropDownTestModule } from "../../common/test/test-module";
+import { NumberStepperModule } from "../../widget/number-stepper/number-stepper.module";
 import { TestUtils } from "../../common/test/test-utils";
 
 let createModel: () => AxisLinePaneModel = () => {
@@ -67,7 +68,8 @@ describe("AxisLinePane Unit Tests", () => {
             NgbModule,
             FormsModule,
             ReactiveFormsModule,
-            DropDownTestModule
+            DropDownTestModule,
+            NumberStepperModule
          ],
          declarations: [
             AxisLinePane,
@@ -122,30 +124,32 @@ describe("AxisLinePane Unit Tests", () => {
       fixture.componentInstance.incrementValid = true;
       fixture.detectChanges();
 
-      let minimum: any = fixture.debugElement.query(By.css("[id=minimum]"));
-      let maximum = fixture.debugElement.query(By.css("[id=maximum]"));
-      let minorIncrement = fixture.debugElement.query(By.css("[id=minorIncrement]"));
-      let majorIncrement = fixture.debugElement.query(By.css("[id=majorIncrement]")).nativeElement;
+      let minimum: any = fixture.debugElement.query(By.css("number-stepper[ng-reflect-name=minimum]"));
+      let maximum = fixture.debugElement.query(By.css("number-stepper[ng-reflect-name=maximum]"));
+      let minorIncrement = fixture.debugElement.query(By.css("number-stepper[ng-reflect-name=minorIncrement]"));
+      let majorIncrementInput = fixture.debugElement.query(By.css("number-stepper[ng-reflect-name=majorIncrement] input")).nativeElement;
 
       expect(minimum).toBeFalsy();
       expect(maximum).toBeFalsy();
       expect(minorIncrement).toBeFalsy();
-      expect(majorIncrement).toBeTruthy();
+      expect(majorIncrementInput).toBeTruthy();
 
-      majorIncrement.value = "-2";
-      majorIncrement.dispatchEvent(new Event("input"));
+      majorIncrementInput.value = "-2";
+      majorIncrementInput.dispatchEvent(new Event("input"));
+      majorIncrementInput.dispatchEvent(new Event("blur"));
       fixture.detectChanges();
 
       let warningsHTML = [];
-      fixture.nativeElement.querySelectorAll("div.alert.alert-danger")
+      fixture.nativeElement.querySelectorAll("div.shell-alert--danger")
          .forEach((warning) => warningsHTML.push(TestUtils.toString(warning.textContent.trim())));
       expect(warningsHTML).toContain("viewer.viewsheet.numberRange.notzeroWarning");
 
-      majorIncrement.value = "0.5";
-      majorIncrement.dispatchEvent(new Event("input"));
+      majorIncrementInput.value = "0.5";
+      majorIncrementInput.dispatchEvent(new Event("input"));
+      majorIncrementInput.dispatchEvent(new Event("blur"));
       fixture.detectChanges();
 
-      let warnings = fixture.debugElement.query(By.css("div.alert.alert-danger"));
+      let warnings = fixture.debugElement.query(By.css("div.shell-alert--danger"));
       expect(warnings).toBeNull();
    });
 
@@ -155,7 +159,7 @@ describe("AxisLinePane Unit Tests", () => {
       fixture.detectChanges();
 
       fixture.whenStable().then(() => {
-         let majorIncre = fixture.debugElement.query(By.css("[id=majorIncrement]")).nativeElement;
+         let majorIncre = fixture.debugElement.query(By.css("number-stepper[ng-reflect-name=majorIncrement] input")).nativeElement;
          expect(majorIncre.hasAttribute("disabled")).toBeTruthy();
          done();
       });
@@ -167,19 +171,22 @@ describe("AxisLinePane Unit Tests", () => {
       fixture.componentInstance.linear = true;
       fixture.detectChanges();
 
-      let minorIncre = fixture.debugElement.query(By.css("[id=minorIncrement]")).nativeElement;
-      let minimum: any = fixture.debugElement.query(By.css("[id=minimum]")).nativeElement;
-      let maximum = fixture.debugElement.query(By.css("[id=maximum]")).nativeElement;
+      let minorIncre = fixture.debugElement.query(By.css("number-stepper[ng-reflect-name=minorIncrement] input")).nativeElement;
+      let minimum: any = fixture.debugElement.query(By.css("number-stepper[ng-reflect-name=minimum] input")).nativeElement;
+      let maximum = fixture.debugElement.query(By.css("number-stepper[ng-reflect-name=maximum] input")).nativeElement;
       minorIncre.value = "-2";
       minorIncre.dispatchEvent(new Event("input"));
+      minorIncre.dispatchEvent(new Event("blur"));
       minimum.value = "100";
       minimum.dispatchEvent(new Event("input"));
+      minimum.dispatchEvent(new Event("blur"));
       maximum.value = "50";
       maximum.dispatchEvent(new Event("input"));
+      maximum.dispatchEvent(new Event("blur"));
       fixture.detectChanges();
 
       let warningsHTML = [];
-      fixture.nativeElement.querySelectorAll("div.alert.alert-danger")
+      fixture.nativeElement.querySelectorAll("div.shell-alert--danger")
          .forEach((warning) => warningsHTML.push(TestUtils.toString(warning.textContent.trim())));
       expect(warningsHTML).toContain("viewer.viewsheet.numberRange.incrementWarning");
       expect(warningsHTML).toContain("viewer.viewsheet.numberRange.maxMinWarning");

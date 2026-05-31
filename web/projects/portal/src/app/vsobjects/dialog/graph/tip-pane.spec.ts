@@ -31,6 +31,7 @@ import { LargeFormFieldComponent } from "../../../widget/large-form-field/large-
 import { ModelService } from "../../../widget/services/model.service";
 import { TipPaneModel } from "../../model/tip-pane-model";
 import { TipPane } from "./tip-pane.component";
+import { NumberStepperModule } from "../../../widget/number-stepper/number-stepper.module";
 import { DebounceService } from "../../../widget/services/debounce.service";
 
 let createModel: () => TipPaneModel = () => {
@@ -78,7 +79,7 @@ describe("Tip Pane Unit Test", () => {
 
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule, DropDownTestModule
+            FormsModule, ReactiveFormsModule, NgbModule, DropDownTestModule, NumberStepperModule
          ],
          declarations: [
             TipPane, TipCustomizeDialog, AlphaDropdown,

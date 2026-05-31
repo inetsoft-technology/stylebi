@@ -36,6 +36,7 @@ import { DialogButtonsDirective } from "../../../widget/standard-dialog/dialog-b
 import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
 import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { Tool } from "../../../../../../shared/util/tool";
+import { NumberStepperModule } from "../../../widget/number-stepper/number-stepper.module";
 import { ComponentTool } from "../../../common/util/component-tool";
 
 describe("Screens Pane Test", () => {
@@ -90,7 +91,7 @@ describe("Screens Pane Test", () => {
    beforeEach(() => {
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule
+            FormsModule, ReactiveFormsModule, NgbModule, NumberStepperModule
          ],
          declarations: [
             ScreensPane, ViewsheetPrintLayoutDialog, ViewsheetDeviceLayoutDialog,

@@ -42,6 +42,7 @@ import { RadiusDropdown } from "../../../widget/format/radius-dropdown.component
 import { StyleDropdown } from "../../../widget/format/style-dropdown.component";
 import { AnnotationFormatDialogModel } from "./annotation-format-dialog-model";
 import { AnnotationFormatDialog } from "./annotation-format-dialog.component";
+import { NumberStepperModule } from "../../../widget/number-stepper/number-stepper.module";
 import { DebounceService } from "../../../widget/services/debounce.service";
 
 @Component({
@@ -78,7 +79,8 @@ describe("Annotation Format Dialog Tests", () => {
             NgbDropdownModule,
             NgbModalModule,
             DropDownTestModule,
-            HttpClientTestingModule
+            HttpClientTestingModule,
+            NumberStepperModule
          ],
          declarations: [
             AnnotationFormatDialog,

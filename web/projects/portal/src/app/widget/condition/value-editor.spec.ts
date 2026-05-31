@@ -30,6 +30,7 @@ import { StringValueEditor } from "./string-value-editor.component";
 import { ValueEditor } from "./value-editor.component";
 import { TimepickerComponent } from "../date-type-editor/timepicker.component";
 import { CharValueEditor } from "./char-value-editor.component";
+import { NumberStepperModule } from "../number-stepper/number-stepper.module";
 import { DropDownTestModule } from "../../common/test/test-module";
 
 describe("Value Editor Component Unit Case", () => {
@@ -39,7 +40,7 @@ describe("Value Editor Component Unit Case", () => {
    beforeEach(() => {
       TestBed.configureTestingModule({
          imports: [
-            ReactiveFormsModule, FormsModule, NgbModule, DropDownTestModule
+            ReactiveFormsModule, FormsModule, NgbModule, DropDownTestModule, NumberStepperModule
          ],
          declarations: [
             ValueEditor, StringValueEditor, NumberValueEditor, BooleanValueEditor,

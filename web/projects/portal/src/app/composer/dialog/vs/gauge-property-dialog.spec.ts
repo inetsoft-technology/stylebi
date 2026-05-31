@@ -64,6 +64,7 @@ import { GaugeGeneralPane } from "./gauge-general-pane.component";
 import { GaugePropertyDialog } from "./gauge-property-dialog.component";
 import { NumberRangePane } from "./number-range-pane.component";
 import { OutputGeneralPane } from "./output-general-pane.component";
+import { NumberStepperModule } from "../../../widget/number-stepper/number-stepper.module";
 import { RangePane } from "./range-pane.component";
 
 
@@ -146,7 +147,7 @@ describe("GaugePropertyDialog Integration Test", () => {
 
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule
+            FormsModule, ReactiveFormsModule, NgbModule, NumberStepperModule
          ],
          declarations: [
             GaugePropertyDialog, GaugeGeneralPane, DataOutputPane, GaugeAdvancedPane,

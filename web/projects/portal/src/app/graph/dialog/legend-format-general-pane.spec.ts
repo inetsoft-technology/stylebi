@@ -42,6 +42,7 @@ import { TreeSearchPipe } from "../../widget/tree/tree-search.pipe";
 import { TreeComponent } from "../../widget/tree/tree.component";
 import { LegendFormatGeneralPaneModel } from "../model/dialog/legend-format-general-pane-model";
 import { LegendFormatGeneralPane } from "./legend-format-general-pane.component";
+import { NumberStepperModule } from "../../widget/number-stepper/number-stepper.module";
 import { DebounceService } from "../../widget/services/debounce.service";
 
 let createModel: () => LegendFormatGeneralPaneModel = () => {
@@ -79,6 +80,7 @@ describe("LegendFormatGeneralPane Unit Tests", () => {
             FormsModule,
             ReactiveFormsModule,
             DropDownTestModule,
+            NumberStepperModule,
          ],
          declarations: [
             LegendFormatGeneralPane,

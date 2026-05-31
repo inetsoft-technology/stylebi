@@ -30,6 +30,7 @@ import { TableAdvancedPaneModel } from "../model/table-advanced-pane-model";
 import { TipPaneModel } from "../model/tip-pane-model";
 import { TipPane } from "./graph/tip-pane.component";
 import { TableAdvancedPane } from "./table-advanced-pane.component";
+import { NumberStepperModule } from "../../widget/number-stepper/number-stepper.module";
 import { DebounceService } from "../../widget/services/debounce.service";
 
 let createModel: () => TableAdvancedPaneModel = () => {
@@ -81,7 +82,7 @@ describe("Table Advanced Pane Unit Test", () => {
 
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule, DropDownTestModule
+            FormsModule, ReactiveFormsModule, NgbModule, DropDownTestModule, NumberStepperModule
          ],
          declarations: [
             TableAdvancedPane, TipPane, TipCustomizeDialog, AlphaDropdown, LargeFormFieldComponent

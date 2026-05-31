@@ -17,6 +17,7 @@
  */
 import { By } from "@angular/platform-browser";
 import { SizePositionPaneModel } from "../model/size-position-pane-model";
+import { NumberStepperModule } from "../../widget/number-stepper/number-stepper.module";
 import { SizePositionPane } from "./size-position-pane.component";
 import { ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
@@ -42,7 +43,7 @@ describe("size position pane unit case", () => {
 
    beforeEach(() => {
       TestBed.configureTestingModule({
-         imports: [ ReactiveFormsModule, FormsModule, NgbModule ],
+         imports: [ ReactiveFormsModule, FormsModule, NgbModule, NumberStepperModule ],
          declarations: [SizePositionPane]
       }).compileComponents();
 
@@ -66,7 +67,7 @@ describe("size position pane unit case", () => {
       model.top = 10.5;
       sizePosiitonPane.model = model;
       fixture.detectChanges();
-      let errors = fixture.debugElement.queryAll(By.css("div.alert-danger"));
+      let errors = fixture.debugElement.queryAll(By.css("div.shell-alert--danger"));
       expect(errors[0].nativeElement.textContent).toContain("viewer.viewsheet.layout.topValid");
       expect(errors[1].nativeElement.textContent).toContain("viewer.viewsheet.layout.leftValid");
       expect(errors[2].nativeElement.textContent).toContain("viewer.viewsheet.layout.widthValid");

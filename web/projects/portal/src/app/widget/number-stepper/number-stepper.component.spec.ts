@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component } from "@angular/core";
-import { ComponentFixture, fakeAsync, TestBed, tick } from "@angular/core/testing";
+import { ComponentFixture, fakeAsync, flushMicrotasks, TestBed, tick } from "@angular/core/testing";
 import { FormsModule } from "@angular/forms";
 import { By } from "@angular/platform-browser";
 import { NumberStepperComponent } from "./number-stepper.component";
@@ -91,31 +91,33 @@ describe("NumberStepperComponent", () => {
    }));
 
    it("does not go below min", fakeAsync(() => {
-      host.value = 0;
+      const stepperEl = fixture.debugElement.query(By.directive(NumberStepperComponent));
+      const stepperInstance = stepperEl.componentInstance as NumberStepperComponent;
       host.min = 0;
-      fixture.detectChanges();
+      stepperInstance.writeValue(0);
       tick();
       fixture.detectChanges();
+      expect(stepperInstance.isDecrementDisabled).toBe(true);
       const [decrement] = getButtons(fixture);
-      expect(decrement.disabled).toBeTrue();
       decrement.click();
       tick();
       fixture.detectChanges();
-      expect(host.value).toBe(0);
+      expect(stepperInstance.value).toBe(0);
    }));
 
    it("does not go above max", fakeAsync(() => {
-      host.value = 10;
+      const stepperEl = fixture.debugElement.query(By.directive(NumberStepperComponent));
+      const stepperInstance = stepperEl.componentInstance as NumberStepperComponent;
       host.max = 10;
-      fixture.detectChanges();
+      stepperInstance.writeValue(10);
       tick();
       fixture.detectChanges();
+      expect(stepperInstance.isIncrementDisabled).toBe(true);
       const [, increment] = getButtons(fixture);
-      expect(increment.disabled).toBeTrue();
       increment.click();
       tick();
       fixture.detectChanges();
-      expect(host.value).toBe(10);
+      expect(stepperInstance.value).toBe(10);
    }));
 
    it("restores last valid value on blur with NaN input", fakeAsync(() => {

@@ -23,6 +23,7 @@ import { EnterSubmitDirective } from "../../../widget/directive/enter-submit.dir
 import { ModelService } from "../../../widget/services/model.service";
 import { EmbeddedTableDialogModel } from "../../data/ws/embedded-table-dialog-model";
 import { Worksheet } from "../../data/ws/worksheet";
+import { NumberStepperModule } from "../../../widget/number-stepper/number-stepper.module";
 import { EmbeddedTableDialog } from "./embedded-table-dialog.component";
 
 describe("Embedded Table Dialog Tests", () => {
@@ -38,7 +39,7 @@ describe("Embedded Table Dialog Tests", () => {
 
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule
+            FormsModule, ReactiveFormsModule, NumberStepperModule
          ],
          declarations: [
             EmbeddedTableDialog, EnterSubmitDirective
