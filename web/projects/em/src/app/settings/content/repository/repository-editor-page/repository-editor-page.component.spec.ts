@@ -46,17 +46,8 @@ describe("RepositoryEditorPageComponent", () => {
       TestBed.configureTestingModule({
          imports: [
             RouterModule.forRoot([]), FormsModule, ReactiveFormsModule, MatCheckboxModule,
-            MatSelectModule, MatOptionModule, MatInputModule, HttpClientTestingModule
-         ],
-         declarations: [
-            RepositoryEditorPageComponent,
-            RepositoryViewsheetSettingsPageComponent,
-            RepositoryWorksheetSettingsPageComponent,
-            RepositoryDataSourceSettingsPageComponent,
-            RepositoryFolderTrashcanSettingsPageComponent,
-            RepositoryFolderSettingsPageComponent,
-            RepositoryPermissionEditorPageComponent
-         ],
+            MatSelectModule, MatOptionModule, MatInputModule, HttpClientTestingModule,
+            RepositoryEditorPageComponent, RepositoryViewsheetSettingsPageComponent, RepositoryWorksheetSettingsPageComponent, RepositoryDataSourceSettingsPageComponent, RepositoryFolderTrashcanSettingsPageComponent, RepositoryFolderSettingsPageComponent, RepositoryPermissionEditorPageComponent],
          providers: [{provide: ContentRepositoryService, useValue: service}],
          schemas: [
             NO_ERRORS_SCHEMA

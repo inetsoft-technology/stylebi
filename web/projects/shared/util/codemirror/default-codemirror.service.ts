@@ -32,7 +32,7 @@ import "codemirror/addon/tern/tern";
 import "codemirror/mode/javascript/javascript";
 import "codemirror/mode/sql/sql";
 import "codemirror/mode/groovy/groovy";
-import * as ECMASCRIPT_DEFS from "tern/defs/ecmascript.json";
+import ECMASCRIPT_DEFS from "tern/defs/ecmascript.json";
 import { Injectable } from "@angular/core";
 import { CodemirrorService, TokenType } from "./codemirror.service";
 
@@ -45,7 +45,7 @@ export class DefaultCodemirrorService extends CodemirrorService {
    }
 
    getEcmaScriptDefs(): object[] {
-      return [ECMASCRIPT_DEFS["default"]];
+      return [ECMASCRIPT_DEFS];
    }
 
    createCodeMirrorInstance(element: HTMLTextAreaElement, config: CodeMirror.EditorConfiguration): CodeMirror.Editor {

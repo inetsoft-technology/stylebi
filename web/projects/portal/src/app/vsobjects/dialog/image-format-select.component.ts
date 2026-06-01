@@ -16,10 +16,13 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, EventEmitter, OnInit, Output } from "@angular/core";
+import { DefaultFocusDirective } from "../../widget/directive/default-focus.directive";
+import { ModalHeaderComponent } from "../../widget/modal-header/modal-header.component";
 
 @Component({
-  selector: "c-image-format-select",
-  templateUrl: "./image-format-select.component.html"
+    selector: "c-image-format-select",
+    templateUrl: "./image-format-select.component.html",
+    imports: [ModalHeaderComponent, DefaultFocusDirective]
 })
 export class ImageFormatSelectComponent implements OnInit {
 

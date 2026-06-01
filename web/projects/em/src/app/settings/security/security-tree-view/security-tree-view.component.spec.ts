@@ -23,6 +23,7 @@ import { MatTreeModule } from "@angular/material/tree";
 import { SecurityTreeViewComponent } from "./security-tree-view.component";
 import { ScrollingModule } from "@angular/cdk/scrolling";
 import { MatProgressBarModule } from "@angular/material/progress-bar";
+import { NoopAnimationsModule } from "@angular/platform-browser/animations";
 
 describe("SecurityTreeViewComponent", () => {
    let component: SecurityTreeViewComponent;
@@ -35,9 +36,9 @@ describe("SecurityTreeViewComponent", () => {
             MatButtonModule,
             MatIconModule,
             ScrollingModule,
-            MatProgressBarModule
-         ],
-         declarations: [SecurityTreeViewComponent],
+            MatProgressBarModule,
+            NoopAnimationsModule,
+            SecurityTreeViewComponent],
          schemas: [NO_ERRORS_SCHEMA]
       })
          .compileComponents();

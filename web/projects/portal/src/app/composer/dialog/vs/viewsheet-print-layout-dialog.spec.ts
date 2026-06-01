@@ -66,11 +66,14 @@ describe("Viewsheet print layout dialog Test", () => {
             FormsModule,
             NgbDropdownModule,
             HttpClientTestingModule,
+            ViewsheetPrintLayoutDialog,
+            EnterSubmitDirective,
+            StandardDialogComponent,
+            DialogContentDirective,
+            DialogButtonsDirective,
+            ModalHeaderComponent,
          ],
-         declarations: [
-            ViewsheetPrintLayoutDialog, EnterSubmitDirective, StandardDialogComponent,
-            DialogContentDirective, DialogButtonsDirective, ModalHeaderComponent
-         ],
+         
          schemas: [NO_ERRORS_SCHEMA]
       });
       TestBed.compileComponents();

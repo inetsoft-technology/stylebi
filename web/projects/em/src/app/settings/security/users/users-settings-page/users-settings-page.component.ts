@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import {FlatTreeControl} from "@angular/cdk/tree";
-import {HttpClient, HttpErrorResponse} from "@angular/common/http";
+import { HttpClient, HttpErrorResponse } from "@angular/common/http";
 import { Component, OnDestroy, OnInit } from "@angular/core";
 import { MatDialog, MatDialogConfig } from "@angular/material/dialog";
 import {MatSnackBar} from "@angular/material/snack-bar";
@@ -52,6 +52,9 @@ import {DeleteIdentitiesResponse} from "./delete-identities-response";
 import {SecurityEnabledEvent} from "../../security-settings-page/security-enabled-event";
 import {ScheduleUsersService} from "../../../../../../../shared/schedule/schedule-users.service";
 import { convertToKey, equalsIdentity, IdentityId } from "../identity-id";
+import { LoadingSpinnerComponent } from "../../../../common/util/loading-spinner/loading-spinner.component";
+import { UsersSettingsViewComponent } from "../users-settings-view/users-settings-view.component";
+import { AsyncPipe } from "@angular/common";
 
 @Secured({
    route: "/settings/security/users",
@@ -67,9 +70,10 @@ import { convertToKey, equalsIdentity, IdentityId } from "../identity-id";
    link: "EMSettingsSecurityUsers"
 })
 @Component({
-   selector: "em-users-settings-page",
-   templateUrl: "./users-settings-page.component.html",
-   styleUrls: ["./users-settings-page.component.scss"]
+    selector: "em-users-settings-page",
+    templateUrl: "./users-settings-page.component.html",
+    styleUrls: ["./users-settings-page.component.scss"],
+    imports: [UsersSettingsViewComponent, LoadingSpinnerComponent, AsyncPipe]
 })
 export class UsersSettingsPageComponent implements OnInit, OnDestroy {
    public treeData: Observable<SecurityTreeNode[]>;

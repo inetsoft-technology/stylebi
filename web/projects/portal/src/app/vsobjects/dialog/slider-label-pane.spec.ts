@@ -38,9 +38,12 @@ describe("Slider Label Pane Unit Test", () => {
    beforeEach(() => {
       TestBed.configureTestingModule({
          imports: [
-            ReactiveFormsModule, FormsModule, NgbModule
+            ReactiveFormsModule,
+            FormsModule,
+            NgbModule,
+            SliderLabelPane,
          ],
-         declarations: [SliderLabelPane],
+         
       }).compileComponents();
    });
 

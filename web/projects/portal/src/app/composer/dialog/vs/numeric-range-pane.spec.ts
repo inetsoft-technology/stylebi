@@ -48,7 +48,7 @@ const createModel: () => NumericRangePaneModel = () => {
 };
 
 @NgModule({
-   declarations: [
+   imports: [
       FixedDropdownComponent,
       FixedDropdownContextmenuComponent,
    ],
@@ -64,13 +64,22 @@ describe("Numeric Range Pane Tests", () => {
    beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
-            NgbModule, ReactiveFormsModule, FormsModule, TestModule
+            NgbModule,
+            ReactiveFormsModule,
+            FormsModule,
+            TestModule,
+            NumericRangePane,
+            FormulaEditorDialog,
+            NewAggrDialog,
+            MessageDialog,
+            ScriptPane,
+            TreeComponent,
+            TreeNodeComponent,
+            TreeSearchPipe,
+            FixedDropdownDirective,
+            DynamicComboBox,
          ],
-         declarations: [
-            NumericRangePane, FormulaEditorDialog,
-            NewAggrDialog, MessageDialog, ScriptPane, TreeComponent,
-            TreeNodeComponent, TreeSearchPipe, FixedDropdownDirective, DynamicComboBox
-         ],
+         
          providers: [FixedDropdownService, DropdownStackService],
          schemas: [ NO_ERRORS_SCHEMA ]
       });

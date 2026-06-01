@@ -16,18 +16,26 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, EventEmitter, Input, OnDestroy, OnInit, Output } from "@angular/core";
-import { AbstractControl, UntypedFormBuilder, UntypedFormGroup, Validators } from "@angular/forms";
+import { AbstractControl, UntypedFormBuilder, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { interval, Subject } from "rxjs";
 import { debounce, takeUntil } from "rxjs/operators";
 import { FormValidators } from "../../../../../../../shared/util/form-validators";
 import { FileData } from "../../../../../../../shared/util/model/file-data";
 import { CustomThemeModel } from "../custom-theme-model";
 import { ThemePropertiesModel } from "./theme-properties-model";
+import { MatCheckbox } from "@angular/material/checkbox";
+import { MatIcon } from "@angular/material/icon";
+import { FileChooserComponent } from "../../../../common/util/file-chooser/file-chooser/file-chooser.component";
+import { MatInput } from "@angular/material/input";
+import { MatFormField, MatLabel, MatError, MatSuffix } from "@angular/material/form-field";
+import { MatCard, MatCardContent } from "@angular/material/card";
+
 
 @Component({
-   selector: "em-theme-properties-view",
-   templateUrl: "./theme-properties-view.component.html",
-   styleUrls: ["./theme-properties-view.component.scss"]
+    selector: "em-theme-properties-view",
+    templateUrl: "./theme-properties-view.component.html",
+    styleUrls: ["./theme-properties-view.component.scss"],
+    imports: [MatCard, MatCardContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatInput, MatError, FileChooserComponent, MatIcon, MatSuffix, MatCheckbox]
 })
 export class ThemePropertiesViewComponent implements OnInit, OnDestroy {
    @Input() get isMultiTenant(): boolean {

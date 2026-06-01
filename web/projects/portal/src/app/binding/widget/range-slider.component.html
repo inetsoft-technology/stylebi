@@ -1,52 +1,54 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <div [style.width]="model.width + 'px'"
-     class="range-slider-container unselectable-canvas"
-     #rangeSlider>
+  class="range-slider-container unselectable-canvas"
+  #rangeSlider>
   <div class="wrapper">
     <!-- Inactive track (full width, with overhang caps via ::before / ::after) -->
     <div class="slider-track"></div>
 
     <!-- Active track — spans between the two handles; draggable to move the whole range -->
     <div class="slider-tracked"
-         [style.left.px]="getRangeX()"
-         [style.width.px]="getRangeWidth()"
-         [class.is-dragging]="isDraggingMiddle"
-         (mousedown)="mouseDown($event, handleType.Middle)">
+      [style.left.px]="getRangeX()"
+      [style.width.px]="getRangeWidth()"
+      [class.is-dragging]="isDraggingMiddle"
+      (mousedown)="mouseDown($event, handleType.Middle)">
     </div>
 
     <!-- Left handle -->
     <div class="slider-handle"
-         [style.left.px]="getRangeX()"
-         [class.is-dragging]="isDraggingLeft"
-         (mousedown)="mouseDown($event, handleType.Left)"
-         #leftHandle>
+      [style.left.px]="getRangeX()"
+      [class.is-dragging]="isDraggingLeft"
+      (mousedown)="mouseDown($event, handleType.Left)"
+      #leftHandle>
     </div>
 
     <!-- Right handle -->
     <div class="slider-handle"
-         [style.left.px]="getRangeX() + getRangeWidth()"
-         [class.is-dragging]="isDraggingRight"
-         (mousedown)="mouseDown($event, handleType.Right)">
+      [style.left.px]="getRangeX() + getRangeWidth()"
+      [class.is-dragging]="isDraggingRight"
+      (mousedown)="mouseDown($event, handleType.Right)">
     </div>
 
     <!-- Tick dots -->
-    <div class="slider-tick" *ngFor="let tick of ticks" [style.left]="tick.left"></div>
+    @for (tick of ticks; track tick) {
+      <div class="slider-tick" [style.left]="tick.left"></div>
+    }
 
     <!-- Value label — centred between the two handles -->
     <div class="slider-value" [style.left.px]="getRangeX() + getRangeWidth() / 2">

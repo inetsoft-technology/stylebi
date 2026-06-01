@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { ChangeDetectorRef, NgModule, NO_ERRORS_SCHEMA } from "@angular/core";
+import { ChangeDetectorRef, NO_ERRORS_SCHEMA } from "@angular/core";
 import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormGroup, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { NgbModal, NgbModule } from "@ng-bootstrap/ng-bootstrap";
@@ -94,28 +94,41 @@ let createModel: () => TableViewGeneralPaneModel = () => {
    };
 };
 
-@NgModule({
-   declarations: [
-      FixedDropdownComponent,
-      FixedDropdownContextmenuComponent
-   ],
-})
-class TestModule {}
-
 describe("TableViewGeneralPane Unit Test", () => {
    beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule, TestModule
+            FormsModule,
+            ReactiveFormsModule,
+            NgbModule,
+            TableViewGeneralPane,
+            FixedDropdownComponent,
+            FixedDropdownContextmenuComponent,
+            TitlePropPane,
+            TreeDropdownComponent,
+            GeneralPropPane,
+            TreeComponent,
+            FormulaEditorDialog,
+            ColorEditor,
+            TableStylePane,
+            BasicGeneralPane,
+            TreeNodeComponent,
+            NewAggrDialog,
+            ColorPicker,
+            ScriptPane,
+            ColorEditorDialog,
+            ColorMap,
+            ColorSlider,
+            ColorComponentEditor,
+            ColorPane,
+            MessageDialog,
+            TreeSearchPipe,
+            FixedDropdownDirective,
+            DefaultFocusDirective,
+            FixedDropdownDirective,
+            SizePositionPane,
          ],
-         declarations: [
-            TableViewGeneralPane, TitlePropPane, TreeDropdownComponent,
-            GeneralPropPane, TreeComponent, FormulaEditorDialog, ColorEditor, TableStylePane,
-            BasicGeneralPane, TreeNodeComponent, NewAggrDialog, ColorPicker, ScriptPane,
-            ColorEditorDialog, ColorMap, ColorSlider, ColorComponentEditor, ColorPane,
-            MessageDialog, TreeSearchPipe, FixedDropdownDirective, DefaultFocusDirective,
-            FixedDropdownDirective, SizePositionPane
-         ],
+         
          providers: [
             ChangeDetectorRef, NgbModal, DragService, FixedDropdownService,
             DropdownStackService

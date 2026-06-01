@@ -24,8 +24,8 @@
   $warn: map-get($theme, warn);
   $background: map-get($theme, background);
   $foreground: map-get($theme, foreground);
-  $label-color: mat.get-color-from-palette($foreground, secondary-text, 0.6);
-  $underline-color: mat.get-color-from-palette($foreground, divider, 0.87);
+  $label-color: mat.m2-get-color-from-palette($foreground, secondary-text, 0.6);
+  $underline-color: mat.m2-get-color-from-palette($foreground, divider, 0.87);
 
   .groovy-label {
     color: $label-color;

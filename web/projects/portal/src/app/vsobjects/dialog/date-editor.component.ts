@@ -16,14 +16,17 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, Input, OnInit, OnDestroy, EventEmitter, Output } from "@angular/core";
-import { UntypedFormGroup, UntypedFormControl } from "@angular/forms";
+import { UntypedFormGroup, UntypedFormControl, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { DateEditorModel } from "../model/date-editor-model";
 import { FormValidators } from "../../../../../shared/util/form-validators";
 
+import { NgbInputDatepicker } from "@ng-bootstrap/ng-bootstrap";
+
 @Component({
-   selector: "date-editor",
-   templateUrl: "date-editor.component.html",
-   styleUrls: ["date-editor.component.scss"]
+    selector: "date-editor",
+    templateUrl: "date-editor.component.html",
+    styleUrls: ["date-editor.component.scss"],
+    imports: [FormsModule, ReactiveFormsModule, NgbInputDatepicker]
 })
 export class DateEditor implements OnInit, OnDestroy {
    @Input() set model(value: DateEditorModel) {

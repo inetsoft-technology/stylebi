@@ -27,6 +27,13 @@ import {
    TimeRange
 } from "../../../../../../shared/schedule/model/time-condition-model";
 import { TimeZoneModel } from "../../../../../../shared/schedule/model/time-zone-model";
+import { CompletionConditionEditorComponent } from "./completion-condition-editor/completion-condition-editor.component";
+import { TimeConditionEditorComponent } from "./time-condition-editor/time-condition-editor.component";
+import { MatOption } from "@angular/material/core";
+
+import { MatSelect } from "@angular/material/select";
+import { MatFormField, MatLabel } from "@angular/material/form-field";
+import { MatCard, MatCardContent } from "@angular/material/card";
 
 export interface TaskConditionChanges {
    valid: boolean;
@@ -41,9 +48,10 @@ export interface TaskConditionType {
 }
 
 @Component({
-   selector: "em-task-condition-pane",
-   templateUrl: "./task-condition-pane.component.html",
-   styleUrls: ["./task-condition-pane.component.scss"]
+    selector: "em-task-condition-pane",
+    templateUrl: "./task-condition-pane.component.html",
+    styleUrls: ["./task-condition-pane.component.scss"],
+    imports: [MatCard, MatCardContent, MatFormField, MatLabel, MatSelect, MatOption, TimeConditionEditorComponent, CompletionConditionEditorComponent]
 })
 export class TaskConditionPaneComponent implements OnChanges {
    @Input() condition: ScheduleConditionModel;

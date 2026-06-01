@@ -16,8 +16,19 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { SlideOutComponent } from "./slide-out.component";
-import { ComponentRef } from "@angular/core";
-import { ContentRef } from "@ng-bootstrap/ng-bootstrap/util/popup";
+import { ComponentRef, ViewRef } from "@angular/core";
+
+/**
+ * Local copy of ng-bootstrap's internal ContentRef type. The original
+ * `@ng-bootstrap/ng-bootstrap/util/popup` deep import is no longer accessible
+ * starting with ng-bootstrap 17 (the package's `exports` field restricts deep
+ * imports to the root entry point).
+ */
+export class ContentRef {
+   constructor(public nodes: Node[][],
+               public viewRef?: ViewRef,
+               public componentRef?: ComponentRef<any>) {}
+}
 
 /**
  * A reference to a newly opened slide out component. (Equivalent to NgbModalRef)

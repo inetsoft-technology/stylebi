@@ -16,6 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { HttpClient } from "@angular/common/http";
+import { AsyncPipe, NgClass, NgFor, NgIf, NgStyle } from "@angular/common";
 import { HttpClientTestingModule } from "@angular/common/http/testing";
 import {
    Component,
@@ -100,7 +101,8 @@ class TestModule {
 
 @Component({
    selector: "notifications", // eslint-disable-line @angular-eslint/component-selector
-   template: "<div></div>"
+   template: "<div></div>",
+   standalone: true
 })
 class MockNotificationsComponent {
    info(message: string): void {
@@ -293,7 +295,15 @@ describe("ViewerApp Unit Tests", () => {
       TestBed.configureTestingModule({
          imports: [
             NgbModule,
-            TestModule, DropDownTestModule, HttpClientTestingModule
+            TestModule,
+            DropDownTestModule,
+            HttpClientTestingModule,
+            ViewerAppComponent,
+            ActionsContextmenuComponent,
+            InteractContainerDirective,
+            VSPopComponentDirective,
+            TooltipDirective,
+            MockNotificationsComponent,
          ],
          providers: [
             {provide: StompClientService, useValue: stompClient},
@@ -333,14 +343,12 @@ describe("ViewerApp Unit Tests", () => {
             AppInfoService,
             { provide: TimerService, useValue: timerService },
          ],
-         declarations: [
-            ViewerAppComponent, ActionsContextmenuComponent, InteractContainerDirective,
-            VSPopComponentDirective, TooltipDirective, MockNotificationsComponent
-         ],
+         
          schemas: [ NO_ERRORS_SCHEMA ]
       });
       TestBed.overrideComponent(ViewerAppComponent, {
          set: {
+            imports: [NgIf, NgFor, NgClass, NgStyle, AsyncPipe],
             providers: [
                {provide: AssemblyActionFactory, useValue: actionFactory},
                {provide: ViewsheetClientService, useValue: viewsheetClientService},

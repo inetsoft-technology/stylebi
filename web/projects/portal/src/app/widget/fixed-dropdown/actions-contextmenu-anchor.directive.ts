@@ -34,7 +34,8 @@ import { DropdownRef } from "./fixed-dropdown-ref";
 import { FixedDropdownService } from "./fixed-dropdown.service";
 
 @Directive({
-   selector: "[actionsContextmenuAnchor]"
+    selector: "[actionsContextmenuAnchor]",
+    standalone: true
 })
 export class ActionsContextmenuAnchorDirective implements OnInit, OnDestroy {
    @Input() position: Point = new Point();

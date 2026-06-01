@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import {HttpClient} from "@angular/common/http";
+import { HttpClient } from "@angular/common/http";
 import {
    ChangeDetectorRef,
    Component,
@@ -27,15 +27,8 @@ import {
    Output,
    SimpleChanges
 } from "@angular/core";
-import {
-   FormGroupDirective,
-   NgForm,
-   UntypedFormBuilder,
-   UntypedFormControl,
-   UntypedFormGroup,
-   Validators
-} from "@angular/forms";
-import {ErrorStateMatcher} from "@angular/material/core";
+import { FormGroupDirective, NgForm, UntypedFormBuilder, UntypedFormControl, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
+import { ErrorStateMatcher, MatOption } from "@angular/material/core";
 import { Observable, Subject, Subscription } from "rxjs";
 import {map} from "rxjs/operators";
 import {IdentityType} from "../../../../../../../shared/data/identity-type";
@@ -54,6 +47,16 @@ import {
 import {GetIdentityNameResponse} from "../get-identity-name-response";
 import { convertToKey, IdentityId } from "../identity-id";
 import { SecurityBusyService } from "../security-busy.service";
+import { IdentityTablesPaneComponent } from "../identity-tables-pane/identity-tables-pane.component";
+import { MatIcon } from "@angular/material/icon";
+import { MatIconButton } from "@angular/material/button";
+import { MatSelect } from "@angular/material/select";
+import { EmailPickerComponent } from "../../../email-picker/email-picker.component";
+import { MatInput } from "@angular/material/input";
+import { MatFormField, MatLabel, MatError, MatSuffix } from "@angular/material/form-field";
+import { EditorPanelComponent } from "../../../../common/util/editor-panel/editor-panel.component";
+import { MatCheckbox } from "@angular/material/checkbox";
+
 
 interface IdentityTheme {
    id: string;
@@ -65,9 +68,10 @@ interface IdentityThemeList {
 }
 
 @Component({
-   selector: "em-edit-identity-view",
-   templateUrl: "./edit-identity-view.component.html",
-   styleUrls: ["./edit-identity-view.component.scss"]
+    selector: "em-edit-identity-view",
+    templateUrl: "./edit-identity-view.component.html",
+    styleUrls: ["./edit-identity-view.component.scss"],
+    imports: [FormsModule, ReactiveFormsModule, MatCheckbox, EditorPanelComponent, MatFormField, MatLabel, MatInput, MatError, EmailPickerComponent, MatSelect, MatOption, MatIconButton, MatSuffix, MatIcon, IdentityTablesPaneComponent]
 })
 export class EditIdentityViewComponent implements OnInit, OnChanges, OnDestroy {
    _model: EditIdentityPaneModel;

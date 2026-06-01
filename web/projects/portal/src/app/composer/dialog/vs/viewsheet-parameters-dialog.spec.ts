@@ -37,8 +37,8 @@ describe("Viewsheet Parameters Dialog Unit Test", () => {
 
    beforeEach(() => {
       TestBed.configureTestingModule({
-         imports: [HttpClientTestingModule],
-         declarations: [ViewsheetParametersDialog, EnterSubmitDirective, ShuffleListComponent, ModalHeaderComponent],
+         imports: [HttpClientTestingModule, ViewsheetParametersDialog, EnterSubmitDirective, ShuffleListComponent, ModalHeaderComponent],
+         
          schemas: [NO_ERRORS_SCHEMA]
       });
       TestBed.compileComponents();

@@ -31,12 +31,36 @@ import {HierarchyPropertyPaneModel} from "../model/hierarchy-property-pane-model
 import {VSAssemblyScriptPaneModel} from "../../widget/dialog/vsassembly-script-pane/vsassembly-script-pane-model";
 import { ContextProvider } from "../context-provider.service";
 import { VSTrapService } from "../util/vs-trap.service";
+import { ApplyButtonComponent } from "../../widget/slide-out/apply-button.component";
+import { VSAssemblyScriptPane } from "../../widget/dialog/vsassembly-script-pane/vsassembly-script-pane.component";
+import { HierarchyPropertyPane } from "./cube/hierarchy-property-pane.component";
+import { CrosstabAdvancedPane } from "./crosstab-advanced-pane.component";
+import { TableViewGeneralPane } from "./table-view-general-pane.component";
+import { NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, NgbNavOutlet } from "@ng-bootstrap/ng-bootstrap";
+import { EnterSubmitDirective } from "../../widget/directive/enter-submit.directive";
+
+import { ModalHeaderComponent } from "../../widget/modal-header/modal-header.component";
 
 const CHECK_TRAP_URI: string = "../api/composer/vs/crosstab-property-dialog-model/checkTrap/";
 
 @Component({
-   selector: "crosstab-property-dialog",
-   templateUrl: "crosstab-property-dialog.component.html",
+    selector: "crosstab-property-dialog",
+    templateUrl: "crosstab-property-dialog.component.html",
+    imports: [
+    ModalHeaderComponent,
+    EnterSubmitDirective,
+    NgbNav,
+    NgbNavItem,
+    NgbNavLink,
+    NgbNavLinkBase,
+    NgbNavContent,
+    TableViewGeneralPane,
+    CrosstabAdvancedPane,
+    HierarchyPropertyPane,
+    VSAssemblyScriptPane,
+    NgbNavOutlet,
+    ApplyButtonComponent
+]
 })
 export class CrosstabPropertyDialog extends PropertyDialog implements OnInit {
    @Input() model: CrosstabPropertyDialogModel;

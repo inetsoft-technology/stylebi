@@ -54,10 +54,8 @@ describe("Reorder Columns Dialog Test", () => {
       tooltipService = { createToolTip: jest.fn() };
 
       TestBed.configureTestingModule({
-         imports: [ NgbModule, HttpClientTestingModule ],
-         declarations: [
-            ReorderColumnsDialog, EnterSubmitDirective, LargeFormFieldComponent, TooltipDirective, ModalHeaderComponent
-         ],
+         imports: [NgbModule, HttpClientTestingModule, ReorderColumnsDialog, EnterSubmitDirective, LargeFormFieldComponent, TooltipDirective, ModalHeaderComponent],
+         
          providers: [
             { provide: ModelService, useValue: modelService },
             { provide: TooltipService, useValue: tooltipService },

@@ -19,11 +19,13 @@ import { Component, Input } from "@angular/core";
 import {
    QuerySortPaneModel
 } from "../../../../../model/datasources/database/query/query-sort-pane-model";
+import { FieldsPaneComponent } from "../fields-pane/fields-pane.component";
 
 @Component({
-   selector: "query-sort-pane",
-   templateUrl: "./query-sort-pane.component.html",
-   styleUrls: ["./query-sort-pane.component.scss"]
+    selector: "query-sort-pane",
+    templateUrl: "./query-sort-pane.component.html",
+    styleUrls: ["./query-sort-pane.component.scss"],
+    imports: [FieldsPaneComponent]
 })
 export class QuerySortPaneComponent {
    @Input() runtimeId: string;

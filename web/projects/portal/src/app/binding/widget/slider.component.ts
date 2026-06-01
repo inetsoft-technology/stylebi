@@ -20,15 +20,17 @@ import { Component, EventEmitter, Input, OnDestroy, OnInit, Output, Renderer2,
 import { SliderOptions } from "./slider-options";
 import { GuiTool } from "../../common/util/gui-tool";
 
+
 interface SliderTick {
    left: string;
    label: string;
 }
 
 @Component({
-   selector: "slider", // eslint-disable-line @angular-eslint/component-selector
-   templateUrl: "slider.component.html",
-   styleUrls: ["slider.component.scss"]
+    selector: "slider",
+    templateUrl: "slider.component.html",
+    styleUrls: ["slider.component.scss"],
+    imports: []
 })
 export class Slider implements OnInit, OnDestroy {
    @Input() model: SliderOptions;

@@ -39,6 +39,9 @@ import {
    getFieldFullNameByEntry,
    getShiftIndexesRange
 } from "../../data-query-model.service";
+import { BrowseFieldValuesDialogComponent } from "../query-field-pane/browse-field-values/browse-field-values-dialog.component";
+import { TreeComponent } from "../../../../../../../widget/tree/tree.component";
+import { NgClass } from "@angular/common";
 
 const QUERY_COLUMN_CHECK_EXPRESSION_URI: string = "../api/data/datasource/query/column/check/expression";
 const QUERY_COLUMN_BROWSE_URI: string = "../api/data/datasource/query/column/browse";
@@ -51,9 +54,10 @@ export enum SortTypes {
 }
 
 @Component({
-   selector: "fields-pane",
-   templateUrl: "./fields-pane.component.html",
-   styleUrls: ["./fields-pane.component.scss"]
+    selector: "fields-pane",
+    templateUrl: "./fields-pane.component.html",
+    styleUrls: ["./fields-pane.component.scss"],
+    imports: [TreeComponent, NgClass, BrowseFieldValuesDialogComponent]
 })
 export class FieldsPaneComponent implements OnInit {
    @Input() runtimeId: string;

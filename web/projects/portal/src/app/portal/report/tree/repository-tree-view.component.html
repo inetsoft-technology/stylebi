@@ -1,32 +1,34 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <div class="repository-tree-toolbar bg-white2">
   <div class="my-1 mx-1 search-container">
     <input class="form-control form-control-sm" type="text" [(ngModel)]="searchString"
-           (ngModelChange)="searchStringChanged()" placeholder="_#(Search)" aria-label="_#(Search Repository Tree)"
-           (keyup.enter)="search()" [disabled]="!model.searchEnabled">
-    <i *ngIf="searchString" class="close-icon icon-size-medium icon-color-default"
-       aria-hidden="true" (click)="resetSearchMode()"></i>
+      (ngModelChange)="searchStringChanged()" placeholder="_#(Search)" aria-label="_#(Search Repository Tree)"
+      (keyup.enter)="search()" [disabled]="!model.searchEnabled">
+    @if (searchString) {
+      <i class="close-icon icon-size-medium icon-color-default"
+      aria-hidden="true" (click)="resetSearchMode()"></i>
+    }
   </div>
   <ul class="nav nav-inline ms-auto">
     <li class="nav-item">
       <a class="nav-link nav-icon icon-size-medium p-2" (click)="search()" role="button"
-         title="_#(Search)" tabindex="0" aria-label="_#(Execute Search)" enterClick>
+        title="_#(Search)" tabindex="0" aria-label="_#(Execute Search)" enterClick>
         <i class="search-icon icon-size-medium icon-color-default" aria-hidden="true"></i>
         <span class="visually-hidden">_#(Search)</span>
       </a>
@@ -37,9 +39,9 @@
       <a class="nav-link nav-icon icon-size-medium p-2" (click)="clickFavoritesBtn()" role="button"
         title="_#(Favorites)" tabindex="0" aria-label="_#(Favorites Tree)" enterClick>
         <i class="icon-size-medium" aria-hidden="true"
-           [class.focus-icon-color]="favoritesMode"
-           [class.star-outline-icon]="!favoritesMode"
-           [class.star-icon]="favoritesMode">
+          [class.focus-icon-color]="favoritesMode"
+          [class.star-outline-icon]="!favoritesMode"
+          [class.star-icon]="favoritesMode">
         </i>
         <span class="visually-hidden">_#(Favorites)</span>
       </a>
@@ -64,6 +66,8 @@
     (updateRootNode)="updateRootNode($event)">
   </repository-tree>
 </div>
-<div *ngIf="loading" class="tree-loading-icon">
-  <i class="loading-icon--spin icon-size-xlarge loading-icon"></i>
-</div>
+@if (loading) {
+  <div class="tree-loading-icon">
+    <i class="loading-icon--spin icon-size-xlarge loading-icon"></i>
+  </div>
+}

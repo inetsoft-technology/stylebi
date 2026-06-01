@@ -36,9 +36,8 @@ describe("PresentationTimeSettingsViewComponent", () => {
         MatFormFieldModule,
         MatInputModule,
         MatCardModule,
-      ],
-      declarations: [ PresentationTimeSettingsViewComponent ]
-    })
+            PresentationTimeSettingsViewComponent]
+         })
     .compileComponents();
   });
 

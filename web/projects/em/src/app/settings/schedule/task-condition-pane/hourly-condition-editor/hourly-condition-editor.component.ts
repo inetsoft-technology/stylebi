@@ -16,16 +16,8 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import {Component, EventEmitter, Input, OnInit, Output} from "@angular/core";
-import {
-   FormGroupDirective,
-   NgForm,
-   UntypedFormBuilder,
-   UntypedFormControl,
-   UntypedFormGroup,
-   ValidationErrors,
-   Validators
-} from "@angular/forms";
-import {ErrorStateMatcher} from "@angular/material/core";
+import { FormGroupDirective, NgForm, UntypedFormBuilder, UntypedFormControl, UntypedFormGroup, ValidationErrors, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
+import { ErrorStateMatcher, MatOption } from "@angular/material/core";
 import {TimeConditionModel} from "../../../../../../../shared/schedule/model/time-condition-model";
 import {TimeZoneModel} from "../../../../../../../shared/schedule/model/time-zone-model";
 import {DateTypeFormatter} from "../../../../../../../shared/util/date-type-formatter";
@@ -33,12 +25,19 @@ import {FormValidators} from "../../../../../../../shared/util/form-validators";
 import {Tool} from "../../../../../../../shared/util/tool";
 import {DateTimeService} from "../date-time.service";
 import {TaskConditionChanges} from "../task-condition-pane.component";
-import {TimeZoneValue} from "../time-zone-select/time-zone-select-component";
+import { TimeZoneValue, TimeZoneSelectComponent } from "../time-zone-select/time-zone-select-component";
+import { MatSelect } from "@angular/material/select";
+import { MatInput } from "@angular/material/input";
+
+import { TimePickerComponent } from "../time-picker/time-picker.component";
+import { MatLabel, MatHint, MatError, MatFormField } from "@angular/material/form-field";
+import { MatCard, MatCardContent } from "@angular/material/card";
 
 @Component({
-   selector: "em-hourly-condition-editor",
-   templateUrl: "./hourly-condition-editor.component.html",
-   styleUrls: ["./hourly-condition-editor.component.scss"]
+    selector: "em-hourly-condition-editor",
+    templateUrl: "./hourly-condition-editor.component.html",
+    styleUrls: ["./hourly-condition-editor.component.scss"],
+    imports: [MatCard, MatCardContent, FormsModule, ReactiveFormsModule, MatLabel, TimePickerComponent, MatHint, MatError, TimeZoneSelectComponent, MatFormField, MatInput, MatSelect, MatOption]
 })
 export class HourlyConditionEditorComponent implements OnInit {
    @Input() showMeridian: boolean;

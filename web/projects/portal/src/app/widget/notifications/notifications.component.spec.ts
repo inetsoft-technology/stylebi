@@ -24,10 +24,8 @@ describe("NotificationsComponent Integration Tests", () => {
       TestBed.configureTestingModule({
          imports: [
             // NoopAnimationsModule,
-            NgbModule
-         ],
-         declarations: [
-            NotificationsComponent
+            NgbModule,
+            NotificationsComponent,
          ]
       });
       TestBed.compileComponents();

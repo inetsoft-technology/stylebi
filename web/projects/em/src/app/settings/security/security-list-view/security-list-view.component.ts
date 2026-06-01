@@ -17,11 +17,16 @@
  */
 import { Component, EventEmitter, Input, Output, } from "@angular/core";
 import { SecurityProviderStatus } from "../security-provider/security-provider-model/security-provider-status-list";
+import { MatIcon } from "@angular/material/icon";
+import { MatIconButton } from "@angular/material/button";
+
+import { MatList, MatListItem } from "@angular/material/list";
 
 @Component({
-   selector: "em-security-list-view",
-   templateUrl: "./security-list-view.component.html",
-   styleUrls: ["./security-list-view.component.scss"]
+    selector: "em-security-list-view",
+    templateUrl: "./security-list-view.component.html",
+    styleUrls: ["./security-list-view.component.scss"],
+    imports: [MatList, MatListItem, MatIconButton, MatIcon]
 })
 export class SecurityListViewComponent {
    @Input() providers: SecurityProviderStatus[];

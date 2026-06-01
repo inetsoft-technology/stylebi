@@ -34,6 +34,11 @@ import { ColumnInfo } from "../column-info";
 import { RegularTableComponent } from "../regular-table/regular-table.component";
 import { TableModel } from "../table-model";
 import { ExpandableRowTableInfo } from "./expandable-row-table-info";
+import { MatList, MatListItem } from "@angular/material/list";
+import { MatCheckbox } from "@angular/material/checkbox";
+import { MatSort, MatSortHeader } from "@angular/material/sort";
+import { MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow } from "@angular/material/table";
+
 
 export enum DeviceType {
    SMALL = 0,
@@ -42,17 +47,34 @@ export enum DeviceType {
 }
 
 @Component({
-   selector: "em-expandable-row-table",
-   templateUrl: "./expandable-row-table.component.html",
-   styleUrls: ["./expandable-row-table.component.scss"],
-   animations: [
-      trigger("detailExpand", [
-         state("collapsed, void", style({height: "0px", minHeight: "0"})),
-         state("expanded", style({height: "*"})),
-         transition("expanded <=> collapsed", animate("225ms cubic-bezier(0.4, 0.0, 0.2, 1)")),
-         transition("expanded <=> void", animate("225ms cubic-bezier(0.4, 0.0, 0.2, 1)")),
-      ]),
-   ],
+    selector: "em-expandable-row-table",
+    templateUrl: "./expandable-row-table.component.html",
+    styleUrls: ["./expandable-row-table.component.scss"],
+    animations: [
+        trigger("detailExpand", [
+            state("collapsed, void", style({ height: "0px", minHeight: "0" })),
+            state("expanded", style({ height: "*" })),
+            transition("expanded <=> collapsed", animate("225ms cubic-bezier(0.4, 0.0, 0.2, 1)")),
+            transition("expanded <=> void", animate("225ms cubic-bezier(0.4, 0.0, 0.2, 1)")),
+        ]),
+    ],
+    imports: [
+    MatTable,
+    MatSort,
+    MatColumnDef,
+    MatHeaderCellDef,
+    MatHeaderCell,
+    MatCheckbox,
+    MatCellDef,
+    MatCell,
+    MatSortHeader,
+    MatList,
+    MatListItem,
+    MatHeaderRowDef,
+    MatHeaderRow,
+    MatRowDef,
+    MatRow
+]
 })
 export class ExpandableRowTableComponent<T extends TableModel> extends RegularTableComponent<T> implements OnChanges, OnInit, OnDestroy {
    @Input() tableInfo: ExpandableRowTableInfo;

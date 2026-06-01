@@ -1,32 +1,36 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
-<ng-container *ngIf="clustorEnable">
-   <mat-form-field>
-      <mat-select placeholder="_#(Cluster Node)" [(value)]="selectedNode"
-                  (valueChange)="selectedNodeChange.emit(null)">
-         <mat-option *ngFor="let clusterNode of clusterNodes" [value]="clusterNode">
-            {{clusterNode}}
-         </mat-option>
-      </mat-select>
-   </mat-form-field>
-</ng-container>
-<span *ngIf="refreshEnable" class="refresh-button">
-   <button mat-fab (click)="refresh()">
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
+@if (clustorEnable) {
+  <mat-form-field>
+    <mat-select placeholder="_#(Cluster Node)" [(value)]="selectedNode"
+      (valueChange)="selectedNodeChange.emit(null)">
+      @for (clusterNode of clusterNodes; track clusterNode) {
+        <mat-option [value]="clusterNode">
+          {{clusterNode}}
+        </mat-option>
+      }
+    </mat-select>
+  </mat-form-field>
+}
+@if (refreshEnable) {
+  <span class="refresh-button">
+    <button mat-fab (click)="refresh()">
       <mat-icon fontSet="ineticons" fontIcon="refresh-icon"></mat-icon>
-   </button>
-</span>
+    </button>
+  </span>
+}

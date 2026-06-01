@@ -20,6 +20,9 @@ import { find } from "rxjs/operators";
 import { VSObjectModel } from "../../../../vsobjects/model/vs-object-model";
 import { Sheet } from "../../../data/sheet";
 import { VSObjectTreeNode } from "../../../data/vs-object-tree-node";
+import { AssemblyContextMenuItemsComponent } from "../../vs/editor/assembly-context-menu-items.component";
+import { NgbDropdown, NgbDropdownToggle, NgbDropdownMenu } from "@ng-bootstrap/ng-bootstrap";
+
 
 const CSS_CLASSES: {[type: string]: string} = {
    "VSChart": "chart",
@@ -48,9 +51,10 @@ const CSS_CLASSES: {[type: string]: string} = {
 };
 
 @Component({
-   selector: "component-tree",
-   templateUrl: "component-tree.component.html",
-   styleUrls: ["component-tree.component.scss"]
+    selector: "component-tree",
+    templateUrl: "component-tree.component.html",
+    styleUrls: ["component-tree.component.scss"],
+    imports: [NgbDropdown, NgbDropdownToggle, NgbDropdownMenu, AssemblyContextMenuItemsComponent]
 })
 export class ComponentTree  {
    @Input() children: VSObjectTreeNode[];

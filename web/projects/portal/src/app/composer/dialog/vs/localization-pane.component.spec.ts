@@ -80,12 +80,17 @@ describe("Localization Pane Unit Test", () => {
 
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule
+            FormsModule,
+            ReactiveFormsModule,
+            NgbModule,
+            LocalizationPane,
+            ShuffleListComponent,
+            TreeComponent,
+            ElidedCellComponent,
+            TreeNodeComponent,
+            TreeSearchPipe,
          ],
-         declarations: [
-            LocalizationPane, ShuffleListComponent, TreeComponent, ElidedCellComponent,
-            TreeNodeComponent, TreeSearchPipe
-         ],
+         
          providers: [
             {provide: DragService, useValue: dragService}
          ],

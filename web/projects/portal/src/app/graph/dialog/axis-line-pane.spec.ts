@@ -68,9 +68,7 @@ describe("AxisLinePane Unit Tests", () => {
             NgbModule,
             FormsModule,
             ReactiveFormsModule,
-            DropDownTestModule
-         ],
-         declarations: [
+            DropDownTestModule,
             AxisLinePane,
             ActionsContextmenuAnchorDirective,
             ColorEditor,
@@ -83,8 +81,9 @@ describe("AxisLinePane Unit Tests", () => {
             ColorSlider,
             ColorComponentEditor,
             ColorPane,
-            FixedDropdownDirective
+            FixedDropdownDirective,
          ],
+         
          providers: [
             NgbModal,
             RecentColorService

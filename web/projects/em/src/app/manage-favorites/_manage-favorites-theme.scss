@@ -26,8 +26,8 @@
   $foreground: map-get($theme, foreground);
 
   .favorites-toolbar {
-    background-color: mat.get-color-from-palette($accent);
-    color: mat.get-color-from-palette($accent, default-contrast);
+    background-color: mat.m2-get-color-from-palette($accent);
+    color: mat.m2-get-color-from-palette($accent, default-contrast);
     height: 44px !important;
 
     h1.favorites-page-title {

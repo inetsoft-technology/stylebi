@@ -31,6 +31,9 @@ import { Searchable } from "../../../searchable";
 import { Secured } from "../../../secured";
 import { AddThemeDialogComponent } from "./add-theme-dialog/add-theme-dialog.component";
 import { CustomThemeModel } from "./custom-theme-model";
+import { ThemeEditorViewComponent } from "./theme-editor-view/theme-editor-view.component";
+import { ThemeListViewComponent } from "./theme-list-view/theme-list-view.component";
+import { MatDrawerContainer, MatDrawer, MatDrawerContent } from "@angular/material/sidenav";
 
 const SMALL_WIDTH_BREAKPOINT = 720;
 
@@ -52,9 +55,10 @@ interface CustomThemeList {
    link: "EMThemes"
 })
 @Component({
-   selector: "em-presentation-themes-view",
-   templateUrl: "./presentation-themes-view.component.html",
-   styleUrls: ["./presentation-themes-view.component.scss"]
+    selector: "em-presentation-themes-view",
+    templateUrl: "./presentation-themes-view.component.html",
+    styleUrls: ["./presentation-themes-view.component.scss"],
+    imports: [MatDrawerContainer, MatDrawer, ThemeListViewComponent, MatDrawerContent, ThemeEditorViewComponent]
 })
 export class PresentationThemesViewComponent implements OnInit {
    themes: CustomThemeModel[] = [];

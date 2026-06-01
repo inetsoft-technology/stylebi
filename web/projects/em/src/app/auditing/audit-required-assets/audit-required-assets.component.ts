@@ -17,7 +17,7 @@
  */
 import { HttpClient, HttpParams } from "@angular/common/http";
 import { Component, OnDestroy, OnInit } from "@angular/core";
-import { FormBuilder, FormGroup, Validators } from "@angular/forms";
+import { FormBuilder, FormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { catchError, tap } from "rxjs/operators";
 import { ErrorHandlerService } from "../../common/util/error/error-handler.service";
 import { ContextHelp } from "../../context-help";
@@ -38,6 +38,11 @@ import { RequiredAssetList, RequiredAssetParameters } from "./required-asset";
 import { of, Subscription } from "rxjs";
 import { ActivatedRoute } from "@angular/router";
 import { RequiredAssetEvent } from "./required-asset-event";
+import { MatOption } from "@angular/material/core";
+
+import { MatSelect } from "@angular/material/select";
+import { MatFormField, MatLabel } from "@angular/material/form-field";
+import { AuditTableViewComponent } from "../audit-table-view/audit-table-view.component";
 
 @Secured({
    route: "/auditing/required-assets",
@@ -53,9 +58,10 @@ import { RequiredAssetEvent } from "./required-asset-event";
    link: "EMViewAudit"
 })
 @Component({
-  selector: "em-audit-required-assets",
-  templateUrl: "./audit-required-assets.component.html",
-  styleUrls: ["./audit-required-assets.component.scss"]
+    selector: "em-audit-required-assets",
+    templateUrl: "./audit-required-assets.component.html",
+    styleUrls: ["./audit-required-assets.component.scss"],
+    imports: [AuditTableViewComponent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatSelect, MatOption]
 })
 export class AuditRequiredAssetsComponent implements OnInit, OnDestroy {
    allUsers: AssetOption[] = [];

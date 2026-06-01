@@ -37,7 +37,9 @@ import { DataTreeValidatorService } from "./data-tree-validator.service";
 import { RangeSliderDataPane } from "./range-slider-data-pane.component";
 
 @Component({
+   standalone: true,
    selector: "test-app",
+   imports: [RangeSliderDataPane],
    template: `<range-slider-data-pane [model]="mockModel" [sizeModel]="mockSizeModel">
                  </range-slider-data-pane>`
 })
@@ -80,11 +82,16 @@ describe("Range Slider Data Pane Test", () => {
 
       TestBed.configureTestingModule({
          imports: [
-            NgbModule, ReactiveFormsModule, FormsModule
+            NgbModule,
+            ReactiveFormsModule,
+            FormsModule,
+            TestApp,
+            RangeSliderDataPane,
+            TreeComponent,
+            TreeNodeComponent,
+            TreeSearchPipe,
          ],
-         declarations: [
-            TestApp, RangeSliderDataPane, TreeComponent, TreeNodeComponent, TreeSearchPipe
-         ],
+         
          providers: [
             {provide: ChangeDetectorRef, useValue: changeDetectorRef},
             {provide: DragService, useValue: dragService},

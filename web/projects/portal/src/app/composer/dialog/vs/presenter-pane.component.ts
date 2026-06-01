@@ -17,10 +17,14 @@
  */
 import { Component, Input } from "@angular/core";
 import { PresenterPaneModel } from "../../data/vs/presenter-pane-model";
+import { NgFor } from "@angular/common";
+import { FormsModule } from "@angular/forms";
 
 @Component({
-   selector: "presenter-pane",
-   templateUrl: "presenter-pane.component.html"
+    selector: "presenter-pane",
+    templateUrl: "presenter-pane.component.html",
+    standalone: true,
+    imports: [FormsModule, NgFor]
 })
 export class PresenterPane {
    @Input() model: PresenterPaneModel;

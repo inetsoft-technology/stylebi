@@ -34,8 +34,8 @@ describe("linear color pane componnet unit case", () => {
 
    beforeEach(() => {
       TestBed.configureTestingModule({
-         imports: [ReactiveFormsModule, FormsModule, NgbModule],
-         declarations: [LinearColorPane, GradientColorEditor, HslColorEditor, StaticColorEditor, ColorCell, ColorFieldPane, ColorFieldPane, ColorPane],
+         imports: [ReactiveFormsModule, FormsModule, NgbModule, LinearColorPane, GradientColorEditor, HslColorEditor, StaticColorEditor, ColorCell, ColorFieldPane, ColorFieldPane, ColorPane],
+         
          schemas: [NO_ERRORS_SCHEMA]
       }).compileComponents();
 

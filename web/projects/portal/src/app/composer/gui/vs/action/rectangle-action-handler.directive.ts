@@ -36,7 +36,8 @@ import { ContextProvider } from "../../../../vsobjects/context-provider.service"
 const RECTANGLE_PROPERTY_URI: string = "composer/vs/rectangle-property-dialog-model/";
 
 @Directive({
-   selector: "[cRectangleActionHandler]"
+    selector: "[cRectangleActionHandler]",
+    standalone: true
 })
 export class RectangleActionHandlerDirective extends AbstractActionHandler implements OnDestroy {
    @Input() model: VSRectangleModel;

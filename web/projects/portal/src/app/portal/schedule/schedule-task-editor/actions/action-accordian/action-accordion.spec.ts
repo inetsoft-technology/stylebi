@@ -135,17 +135,34 @@ describe("Action Accordion Unit Test", () => {
    beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule, HttpClientTestingModule
+            FormsModule,
+            ReactiveFormsModule,
+            NgbModule,
+            HttpClientTestingModule,
+            ActionAccordion,
+            GenericSelectableList,
+            ParameterTable,
+            AddParameterDialog,
+            EnterSubmitDirective,
+            EmailAddrDialog,
+            EmbeddedEmailPane,
+            QueryEmailPane,
+            IdentityTreeComponent,
+            ShuffleListComponent,
+            AssetTreeComponent,
+            TreeComponent,
+            TreeNodeComponent,
+            TooltipDirective,
+            TreeSearchPipe,
+            VariableInputDialog,
+            VariableValueEditor,
+            VariableCollectionSelector,
+            TimeInstantValueEditorComponent,
+            TimeValueEditorComponent,
+            DateValueEditorComponent,
+            TimepickerComponent,
          ],
-         declarations: [
-            ActionAccordion, GenericSelectableList, ParameterTable,
-            AddParameterDialog, EnterSubmitDirective, EmailAddrDialog, EmbeddedEmailPane,
-            QueryEmailPane, IdentityTreeComponent, ShuffleListComponent,
-            AssetTreeComponent, TreeComponent, TreeNodeComponent, TooltipDirective,
-            TreeSearchPipe, VariableInputDialog, VariableValueEditor, VariableCollectionSelector,
-            TimeInstantValueEditorComponent, TimeValueEditorComponent, DateValueEditorComponent,
-            TimepickerComponent
-         ],
+         
          providers: [
             { provide: NgbModal, useValue: ngbService },
             { provide: Observable, useValue: deObservable },

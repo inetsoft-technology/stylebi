@@ -36,7 +36,9 @@ import { SelectionTreePaneModel } from "../../data/vs/selection-tree-pane-model"
 import { SelectionTreeIdPane } from "./selection-tree-id-pane.component";
 
 @Component({
+   standalone: true,
    selector: "test-app",
+   imports: [SelectionTreeIdPane],
    template: `<selection-tree-id-pane [model]="model" [targetIdTree]="targetIdTree"
               [localRefs]="localRefs" [variableValues]="variableValues">
                  </selection-tree-id-pane>`
@@ -110,13 +112,23 @@ describe("Selection Tree Id Pane Test", () => {
 
       TestBed.configureTestingModule({
          imports: [
-            NgbModule, ReactiveFormsModule, FormsModule, DropDownTestModule
+            NgbModule,
+            ReactiveFormsModule,
+            FormsModule,
+            DropDownTestModule,
+            TestApp,
+            SelectionTreeIdPane,
+            TreeComponent,
+            TreeNodeComponent,
+            TreeSearchPipe,
+            FormulaEditorDialog,
+            ScriptPane,
+            NewAggrDialog,
+            MessageDialog,
+            FixedDropdownDirective,
+            DynamicComboBox,
          ],
-         declarations: [
-            TestApp, SelectionTreeIdPane, TreeComponent, TreeNodeComponent,
-            TreeSearchPipe, FormulaEditorDialog, ScriptPane,
-            NewAggrDialog, MessageDialog, FixedDropdownDirective, DynamicComboBox
-         ],
+         
          providers: [
             {provide: ChangeDetectorRef, useValue: changeDetectorRef},
             {provide: DragService, useValue: dragService}

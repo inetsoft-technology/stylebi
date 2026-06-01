@@ -16,12 +16,16 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, Input, OnChanges, SimpleChanges } from "@angular/core";
-import { UntypedFormGroup } from "@angular/forms";
+import { UntypedFormGroup, FormsModule, ReactiveFormsModule } from "@angular/forms";
+import { MatInput } from "@angular/material/input";
+import { MatFormField, MatLabel, MatError } from "@angular/material/form-field";
+
 
 @Component({
-   selector: "em-sso-settings-form",
-   templateUrl: "./sso-settings-form.component.html",
-   styleUrls: ["./sso-settings-form.component.scss"]
+    selector: "em-sso-settings-form",
+    templateUrl: "./sso-settings-form.component.html",
+    styleUrls: ["./sso-settings-form.component.scss"],
+    imports: [FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatInput, MatError]
 })
 export class SSOSettingsFormComponent implements OnChanges {
    @Input() public form: UntypedFormGroup;

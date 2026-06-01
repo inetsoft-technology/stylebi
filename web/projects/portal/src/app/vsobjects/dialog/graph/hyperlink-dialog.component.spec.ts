@@ -41,6 +41,7 @@ import { VSTrapService } from "../../util/vs-trap.service";
 import { HyperlinkDialog } from "./hyperlink-dialog.component";
 
 @Component({
+   standalone: true,
    selector: "input-parameter-dialog",
    template: "<div></div>"
 })
@@ -53,6 +54,7 @@ class InputParameterDialog {
 }
 
 @Component({
+   standalone: true,
    selector: "repository-tree",
    template: "<div></div>"
 })
@@ -155,7 +157,8 @@ describe("hyperlink dialog componnet unit case", () => {
       repositoryTreeService = {
          getRootFolder: jest.fn(),
          getFolder: jest.fn(),
-         getAliasedPath: jest.fn()
+         getAliasedPath: jest.fn(),
+         getCSSIcon: jest.fn()
       };
       modelService = { getModel: jest.fn() };
       modelService.getModel.mockImplementation(() => observableOf(treeNode));
@@ -169,8 +172,8 @@ describe("hyperlink dialog componnet unit case", () => {
       }));
 
       TestBed.configureTestingModule({
-         imports: [ReactiveFormsModule, FormsModule, NgbModule, DropDownTestModule, HttpClientTestingModule],
-         declarations: [HyperlinkDialog, InputParameterDialog, LargeFormFieldComponent, RepositoryTreeComponent, GenericSelectableList, EnterSubmitDirective, TooltipDirective, FixedDropdownDirective],
+         imports: [ReactiveFormsModule, FormsModule, NgbModule, DropDownTestModule, HttpClientTestingModule, HyperlinkDialog, InputParameterDialog, LargeFormFieldComponent, RepositoryTreeComponent, GenericSelectableList, EnterSubmitDirective, TooltipDirective, FixedDropdownDirective],
+         
          providers: [TooltipService,
             {provide: VSTrapService, useValue: trapService},
             {provide: NgbModal, useValue: modalService},

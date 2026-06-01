@@ -25,6 +25,13 @@ import { ShowHideColumnsDialogModel } from "../../data/vs/show-hide-columns-dial
 import { WSSetColumnVisibilityEvent } from "../../gui/ws/socket/ws-set-column-visibility-event";
 import { ComponentTool } from "../../../common/util/component-tool";
 import { AbstractTableAssembly } from "../../data/ws/abstract-table-assembly";
+import { VSLoadingDisplay } from "../../../vsobjects/objects/vs-loading-display/vs-loading-display.component";
+import { TooltipDirective } from "../../../widget/tooltip/tooltip.directive";
+import { CdkVirtualScrollViewport, CdkFixedSizeVirtualScroll, CdkVirtualForOf } from "@angular/cdk/scrolling";
+import { LargeFormFieldComponent } from "../../../widget/large-form-field/large-form-field.component";
+import { EnterSubmitDirective } from "../../../widget/directive/enter-submit.directive";
+
+import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
 
 const SHOW_HIDE_DIALOG_MODEL_URI: string = "../api/composer/ws/dialog/show-hide-columns-dialog-model/";
 const CONTROLLER_SET_COLUMN_VISIBILITY = "/events/composer/worksheet/set-column-visibility";
@@ -35,9 +42,10 @@ export interface SearchResult {
 }
 
 @Component({
-   selector: "show-hide-columns-dialog",
-   templateUrl: "./show-hide-columns-dialog.component.html",
-   styleUrls: ["./show-hide-columns-dialog.component.scss"]
+    selector: "show-hide-columns-dialog",
+    templateUrl: "./show-hide-columns-dialog.component.html",
+    styleUrls: ["./show-hide-columns-dialog.component.scss"],
+    imports: [ModalHeaderComponent, EnterSubmitDirective, LargeFormFieldComponent, CdkVirtualScrollViewport, CdkFixedSizeVirtualScroll, CdkVirtualForOf, TooltipDirective, VSLoadingDisplay]
 })
 export class ShowHideColumnsDialogComponent implements OnInit {
    @Input() table: AbstractTableAssembly;

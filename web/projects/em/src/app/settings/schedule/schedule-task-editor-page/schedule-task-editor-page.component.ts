@@ -16,8 +16,8 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { HttpErrorResponse } from "@angular/common/http";
-import { Component, OnInit, ViewEncapsulation } from "@angular/core";
-import { UntypedFormBuilder, UntypedFormGroup, Validators } from "@angular/forms";
+import { Component, HostBinding, OnInit, ViewEncapsulation } from "@angular/core";
+import { UntypedFormBuilder, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { MatDialog } from "@angular/material/dialog";
 import { MatSnackBar } from "@angular/material/snack-bar";
 import { ActivatedRoute, Router } from "@angular/router";
@@ -40,11 +40,21 @@ import { Tool } from "../../../../../../shared/util/tool";
 import { ContextHelp } from "../../../context-help";
 import { PageHeaderService } from "../../../page-header/page-header.service";
 import { convertToKey } from "../../security/users/identity-id";
-import { TaskActionChanges } from "../task-action-pane/task-action-pane.component";
-import { TaskConditionChanges } from "../task-condition-pane/task-condition-pane.component";
-import { TaskOptionChanges } from "../task-options-pane/task-options-pane.component";
+import { TaskActionChanges, TaskActionPaneComponent } from "../task-action-pane/task-action-pane.component";
+import { TaskConditionChanges, TaskConditionPaneComponent } from "../task-condition-pane/task-condition-pane.component";
+import { TaskOptionChanges, TaskOptionsPane } from "../task-options-pane/task-options-pane.component";
 import { MessageDialog, MessageDialogType } from "../../../common/util/message-dialog";
 import { ScheduleTaskEditorDataService } from "./schedule-task-editor-data.service";
+import { LoadingSpinnerComponent } from "../../../common/util/loading-spinner/loading-spinner.component";
+import { MatButton } from "@angular/material/button";
+import { MatTooltip } from "@angular/material/tooltip";
+import { MatNavList, MatListItem } from "@angular/material/list";
+import { MatCard, MatCardContent, MatCardActions } from "@angular/material/card";
+import { MatTabGroup, MatTab, MatTabContent } from "@angular/material/tabs";
+
+import { MatInput } from "@angular/material/input";
+import { MatFormField, MatLabel, MatError } from "@angular/material/form-field";
+import { EditorPanelComponent } from "../../../common/util/editor-panel/editor-panel.component";
 
 export class TaskItem {
    valid = true;
@@ -58,15 +68,14 @@ export class TaskItem {
    link: "EMSettingsScheduleTask"
 })
 @Component({
-   selector: "em-schedule-task-editor-page",
-   templateUrl: "./schedule-task-editor-page.component.html",
-   styleUrls: ["./schedule-task-editor-page.component.scss"],
-   encapsulation: ViewEncapsulation.None,
-   host: { // eslint-disable-line @angular-eslint/no-host-metadata-property
-      "class": "schedule-task-editor"
-   }
+    selector: "em-schedule-task-editor-page",
+    templateUrl: "./schedule-task-editor-page.component.html",
+    styleUrls: ["./schedule-task-editor-page.component.scss"],
+    encapsulation: ViewEncapsulation.None,
+    imports: [EditorPanelComponent, MatFormField, FormsModule, ReactiveFormsModule, MatLabel, MatInput, MatError, MatTabGroup, MatTab, MatCard, MatCardContent, MatNavList, MatListItem, MatTooltip, MatCardActions, MatButton, TaskConditionPaneComponent, MatTabContent, TaskActionPaneComponent, TaskOptionsPane, LoadingSpinnerComponent]
 })
 export class ScheduleTaskEditorPageComponent implements OnInit {
+   @HostBinding("class") hostClass = "schedule-task-editor";
    originalModel: ScheduleTaskDialogModel;
    model: ScheduleTaskDialogModel;
 

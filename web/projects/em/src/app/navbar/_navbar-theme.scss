@@ -32,26 +32,26 @@
 
   .em-navbar-name-menu {
     @if $is-dark {
-      color: mat.get-color-from-palette($foreground, base) !important;
-      border-left: solid 5px mat.get-color-from-palette($primary) !important;
+      color: mat.m2-get-color-from-palette($foreground, base) !important;
+      border-left: solid 5px mat.m2-get-color-from-palette($primary) !important;
     }
     @else {
       color: inherit !important;
-      border-left: solid 5px mat.get-color-from-palette($accent) !important;
+      border-left: solid 5px mat.m2-get-color-from-palette($accent) !important;
     }
 
     opacity: 1 !important;
   }
 
   em-navbar {
-    color: var(--inet-em-navbar-text-color, mat.get-color-from-palette($primary, default-contrast));
+    color: var(--inet-em-navbar-text-color, mat.m2-get-color-from-palette($primary, default-contrast));
 
     .em-navbar, .em-navbar-header {
-      background: var(--inet-em-navbar-bg-color, mat.get-color-from-palette($primary, 500));
+      background: var(--inet-em-navbar-bg-color, mat.m2-get-color-from-palette($primary, 500));
 
       > .em-logo {
         img {
-          color: var(--inet-em-navbar-logo-color, mat.get-color-from-palette($accent));
+          color: var(--inet-em-navbar-logo-color, mat.m2-get-color-from-palette($accent));
           font-size: 50px;
           height: 50px;
           vertical-align: middle;
@@ -61,7 +61,7 @@
           margin-top: 2px;
           padding-left: 12px;
           padding-right: 12px;
-          color: var(--inet-em-navbar-logo-color, mat.get-color-from-palette($accent));
+          color: var(--inet-em-navbar-logo-color, mat.m2-get-color-from-palette($accent));
           font-size: 50px;
           width: 50px;
           height: 46px;
@@ -74,7 +74,7 @@
 
         .mat-icon {
           background-color: var(--inet-em-navbar-home-bg-color);
-          color: var(--inet-em-navbar-home-icon-color, var(--inet-em-navbar-text-color, mat.get-color-from-palette($primary, '500-contrast')));
+          color: var(--inet-em-navbar-home-icon-color, var(--inet-em-navbar-text-color, mat.m2-get-color-from-palette($primary, '500-contrast')));
           font-size: 24px;
           width: 48px;
           height: 52px;
@@ -93,15 +93,15 @@
         border-radius: unset;
 
         &.active {
-          border-bottom: 4px solid var(--inet-em-navbar-selected-border-color, mat.get-color-from-palette($accent));
+          border-bottom: 4px solid var(--inet-em-navbar-selected-border-color, mat.m2-get-color-from-palette($accent));
 
           .mat-icon {
-            color: var(--inet-em-navbar-text-color, mat.get-color-from-palette($accent, '500-contrast'));
+            color: var(--inet-em-navbar-text-color, mat.m2-get-color-from-palette($accent, '500-contrast'));
           }
         }
 
         .mat-icon {
-          color: var(--inet-em-navbar-text-color, mat.get-color-from-palette($accent, '500-contrast'));
+          color: var(--inet-em-navbar-text-color, mat.m2-get-color-from-palette($accent, '500-contrast'));
           font-size: 24px;
         }
       }

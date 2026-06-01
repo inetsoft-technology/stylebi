@@ -29,9 +29,9 @@ import {
    TemplateRef,
    ViewChild
 } from "@angular/core";
-import { NgForm, UntypedFormControl, UntypedFormGroup, Validators } from "@angular/forms";
+import { NgForm, UntypedFormControl, UntypedFormGroup, Validators, FormsModule } from "@angular/forms";
 import { ActivatedRoute, ParamMap, Router } from "@angular/router";
-import { NgbModal, NgbModalOptions } from "@ng-bootstrap/ng-bootstrap";
+import { NgbModal, NgbModalOptions, NgbTypeahead } from "@ng-bootstrap/ng-bootstrap";
 import { Observable, of as observableOf, Subscription, throwError } from "rxjs";
 import { catchError, debounceTime, distinctUntilChanged, map, switchMap, tap } from "rxjs/operators";
 import { RepositoryEntryType } from "../../../../../../../shared/data/repository-entry-type.enum";
@@ -61,7 +61,7 @@ import { DeleteDatasourceInfo } from "../../commands/delete-datasource-info";
 import { DataNotificationsComponent } from "../../data-notifications.component";
 import { DatabaseDefinitionModel } from "../../../../../../../shared/util/model/database-definition-model";
 import { InputNameDescDialog } from "../../input-name-desc-dialog/input-name-desc-dialog.component";
-import { AdditionalDatasourceDialog } from "./additional-datasource-dialog";
+import type { AdditionalDatasourceDialog } from "./additional-datasource-dialog";
 import { NetworkLocationModel } from "../../../../../../../shared/util/model/network-location-model";
 import { DriverWizardComponent } from "./driver-wizard/driver-wizard.component";
 import { EditPropertyDialogComponent } from "./edit-property-dialog.component";
@@ -70,6 +70,8 @@ import {
 } from "../../../../widget/dialog/getting-started-dialog/service/getting-started.service";
 import { PortalDataType } from "../../data-navigation-tree/portal-data-type";
 import { AppInfoService } from "../../../../../../../shared/util/app-info.service";
+import { ScrollableFlexTableDirective } from "../../../../widget/scrollable-table/scrollable-flex-table.directive";
+import { NgClass, KeyValuePipe } from "@angular/common";
 
 const CHECK_DELETE_ADDITIONAL = "../api/portal/data/databases/additional/check/";
 const DATABASES_URI: string = "../api/data/databases";
@@ -89,9 +91,10 @@ export interface PropertyInfo {
 }
 
 @Component({
-   selector: "datasources-database",
-   templateUrl: "datasources-database.component.html",
-   styleUrls: ["datasources-database.component.scss"]
+    selector: "datasources-database",
+    templateUrl: "datasources-database.component.html",
+    styleUrls: ["datasources-database.component.scss"],
+    imports: [NgClass, FormsModule, NgbTypeahead, ScrollableFlexTableDirective, DataNotificationsComponent, KeyValuePipe]
 })
 export class DatasourcesDatabaseComponent extends DataSourceSettingsPage implements OnInit, AfterViewInit {
    @Input() uploadEnabled = false;
@@ -381,7 +384,8 @@ export class DatasourcesDatabaseComponent extends DataSourceSettingsPage impleme
    }
 
    newAdditional() {
-      this.httpClient.get("../api/data/database/default").subscribe((model: DataSourceSettingsModel) => {
+      this.httpClient.get("../api/data/database/default").subscribe(async (model: DataSourceSettingsModel) => {
+         const { AdditionalDatasourceDialog } = await import("./additional-datasource-dialog");
          let dialog = ComponentTool.showDialog(this.modalService, AdditionalDatasourceDialog,
             (additional: DatabaseDefinitionModel) => {
 
@@ -469,10 +473,11 @@ export class DatasourcesDatabaseComponent extends DataSourceSettingsPage impleme
       this.updateAdditionalList();
    }
 
-   editAdditional() {
+   async editAdditional() {
       const dss = this.getSelectedAdditional();
 
       if(!!dss && dss.length == 1) {
+         const { AdditionalDatasourceDialog } = await import("./additional-datasource-dialog");
          let ds = dss[0];
          let dialog = ComponentTool.showDialog(this.modalService, AdditionalDatasourceDialog,
             (model: DatabaseDefinitionModel) => {

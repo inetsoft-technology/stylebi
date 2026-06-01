@@ -1,4 +1,4 @@
-// Jest Snapshot v1, https://goo.gl/fbAQLP
+// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing
 
 exports[`FormattingPane Decrease Decimal Unit Tests currency format should decrease decimal 1`] = `"¤#.0"`;
 

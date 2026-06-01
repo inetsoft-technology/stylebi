@@ -43,10 +43,8 @@ describe("DataSpaceEditorPageComponent", () => {
             MatButtonModule,
             FormsModule,
             ReactiveFormsModule,
-            NoopAnimationsModule
-         ],
-         declarations: [DataSpaceEditorPageComponent, DataSpaceFileSettingsViewComponent,
-            TextFileContentViewComponent, DataSpaceFolderSettingsViewComponent],
+            NoopAnimationsModule,
+            DataSpaceEditorPageComponent, DataSpaceFileSettingsViewComponent, TextFileContentViewComponent, DataSpaceFolderSettingsViewComponent],
          schemas: [NO_ERRORS_SCHEMA]
       })
          .compileComponents();

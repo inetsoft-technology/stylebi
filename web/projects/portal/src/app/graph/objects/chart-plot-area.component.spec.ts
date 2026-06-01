@@ -39,7 +39,9 @@ import { ChartPlotArea } from "./chart-plot-area.component";
    template: `<chart-plot-area [chartObject]="mockObject" [viewerMode]="true"
                                (selectRegion)="selectRegion($event)">
               </chart-plot-area>
-   `
+   `,
+   standalone: true,
+   imports: [ChartPlotArea]
 })
 class TestApp {
    public mockObject: Plot = {
@@ -315,7 +317,7 @@ describe("ChartPlotArea Integration Tests", () => {
       modelService = {};
 
       TestBed.configureTestingModule({
-         declarations: [
+         imports: [
             TestApp,
             ChartPlotArea,
             MouseEventDirective,

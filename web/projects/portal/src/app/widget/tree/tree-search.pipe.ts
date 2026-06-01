@@ -20,7 +20,8 @@ import { TreeNodeModel } from "./tree-node-model";
 import { SearchComparator } from "./search-comparator";
 
 @Pipe({
-  name: "search"
+    name: "search",
+    standalone: true
 })
 export class TreeSearchPipe implements PipeTransform {
    transform(nodes: TreeNodeModel[], input: string, onlySearchLeaf: boolean = false,

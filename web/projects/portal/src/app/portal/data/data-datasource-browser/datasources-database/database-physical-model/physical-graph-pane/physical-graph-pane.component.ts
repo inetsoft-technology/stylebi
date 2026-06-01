@@ -36,6 +36,11 @@ import { GraphModel } from "../../../../model/datasources/database/physical-mode
 import { Point } from "../../../../../../common/data/point";
 import { GraphViewModel } from "../../../../model/datasources/database/physical-model/graph/graph-view-model";
 import { GraphNodeModel } from "../../../../model/datasources/database/physical-model/graph/graph-node-model";
+import { LoadingIndicatorPaneComponent } from "../../common-components/loading-indicator-pane/loading-indicator-pane.component";
+import { PhysicalJoinEditPane } from "../physical-join-edit-pane/physical-join-edit-pane.component";
+import { PhysicalModelNetworkGraphComponent } from "../physical-model-network-graph/physical-model-network-graph.component";
+import { FixedDropdownDirective } from "../../../../../../widget/fixed-dropdown/fixed-dropdown.directive";
+
 
 const CLOSE_JOIN_EDIT_PANE_URI = "../api/data/physicalmodel/join-edit/close";
 const PHYSICAL_GRAPH_PANE_MODEL_URI = "../api/data/physicalmodel/graph";
@@ -43,9 +48,10 @@ const PHYSICAL_GRAPH_AUTO_LAYOUT_URI = "../api/data/physicalmodel/graph/layout/"
 const UPDATE_GRAPH_PANE_SIZE = "../api/data/physicalmodel/graph/size/";
 
 @Component({
-   selector: "physical-graph-pane",
-   templateUrl: "physical-graph-pane.component.html",
-   styleUrls: ["physical-graph-pane.component.scss"]
+    selector: "physical-graph-pane",
+    templateUrl: "physical-graph-pane.component.html",
+    styleUrls: ["physical-graph-pane.component.scss"],
+    imports: [FixedDropdownDirective, PhysicalModelNetworkGraphComponent, PhysicalJoinEditPane, LoadingIndicatorPaneComponent]
 })
 export class PhysicalGraphPane implements OnInit, AfterViewChecked, OnDestroy {
    @Input() physicalView: string;

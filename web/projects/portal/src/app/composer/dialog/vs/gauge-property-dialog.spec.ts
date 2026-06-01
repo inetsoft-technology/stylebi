@@ -65,6 +65,7 @@ import { GaugePropertyDialog } from "./gauge-property-dialog.component";
 import { NumberRangePane } from "./number-range-pane.component";
 import { OutputGeneralPane } from "./output-general-pane.component";
 import { RangePane } from "./range-pane.component";
+import { HttpClientTestingModule } from "@angular/common/http/testing";
 
 
 let createModel = () => {
@@ -146,18 +147,41 @@ describe("GaugePropertyDialog Integration Test", () => {
 
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule
+            
+            HttpClientTestingModule,FormsModule,
+            ReactiveFormsModule,
+            NgbModule,
+            GaugePropertyDialog,
+            GaugeGeneralPane,
+            DataOutputPane,
+            GaugeAdvancedPane,
+            VSAssemblyScriptPane,
+            OutputGeneralPane,
+            NumberRangePane,
+            FacePane,
+            TreeDropdownComponent,
+            RangePane,
+            ScriptPane,
+            GeneralPropPane,
+            TreeComponent,
+            FormulaEditorDialog,
+            ColorEditor,
+            BasicGeneralPane,
+            TreeNodeComponent,
+            NewAggrDialog,
+            ColorPicker,
+            ColorEditorDialog,
+            ColorMap,
+            ColorSlider,
+            ColorComponentEditor,
+            ColorPane,
+            TreeSearchPipe,
+            FixedDropdownDirective,
+            EnterSubmitDirective,
+            DefaultFocusDirective,
+            SizePositionPane,
          ],
-         declarations: [
-            GaugePropertyDialog, GaugeGeneralPane, DataOutputPane, GaugeAdvancedPane,
-            VSAssemblyScriptPane, OutputGeneralPane, NumberRangePane, FacePane,
-            TreeDropdownComponent, RangePane, ScriptPane,
-            GeneralPropPane, TreeComponent, FormulaEditorDialog, ColorEditor,
-            BasicGeneralPane, TreeNodeComponent, NewAggrDialog, ColorPicker,
-            ColorEditorDialog, ColorMap, ColorSlider, ColorComponentEditor, ColorPane,
-            TreeSearchPipe, FixedDropdownDirective, EnterSubmitDirective,
-            DefaultFocusDirective, SizePositionPane
-         ],
+         
          providers: [
             { provide: FixedDropdownService, useValue: fixedDropdownService },
             { provide: UIContextService, useValue: contextService },

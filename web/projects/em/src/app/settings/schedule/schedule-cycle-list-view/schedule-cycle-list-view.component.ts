@@ -24,14 +24,24 @@ import {
    SimpleChanges, ViewChild
 } from "@angular/core";
 import { SelectionModel } from "@angular/cdk/collections";
-import { MatSort } from "@angular/material/sort";
-import { MatTableDataSource } from "@angular/material/table";
+import { MatSort, MatSortHeader } from "@angular/material/sort";
+import { MatTableDataSource, MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow } from "@angular/material/table";
 import { DataCycleInfo } from "../model/data-cycle-list-model";
+import { RouterLink } from "@angular/router";
+import { MatCheckbox } from "@angular/material/checkbox";
+import { MatIcon } from "@angular/material/icon";
+import { MatIconButton, MatButton } from "@angular/material/button";
+
+import { MatInput } from "@angular/material/input";
+import { MatFormField, MatLabel, MatSuffix } from "@angular/material/form-field";
+import { MatLine } from "@angular/material/core";
+import { MatCard, MatCardHeader, MatCardContent, MatCardActions } from "@angular/material/card";
 
 @Component({
-   selector: "em-schedule-cycle-list-view",
-   templateUrl: "./schedule-cycle-list-view.component.html",
-   styleUrls: ["./schedule-cycle-list-view.component.scss"]
+    selector: "em-schedule-cycle-list-view",
+    templateUrl: "./schedule-cycle-list-view.component.html",
+    styleUrls: ["./schedule-cycle-list-view.component.scss"],
+    imports: [MatCard, MatCardHeader, MatLine, MatFormField, MatLabel, MatInput, MatIconButton, MatSuffix, MatIcon, MatCardContent, MatTable, MatSort, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCheckbox, MatCellDef, MatCell, MatSortHeader, RouterLink, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, MatCardActions, MatButton]
 })
 export class ScheduleCycleListViewComponent implements OnInit, OnChanges {
    _dataSource: DataCycleInfo[];

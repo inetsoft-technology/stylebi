@@ -16,11 +16,13 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, Input } from "@angular/core";
+import { Ruler } from "./ruler.component";
 
 @Component({
-   selector: "w-rulers",
-   templateUrl: "rulers.component.html",
-   styleUrls: ["rulers.component.scss"]
+    selector: "w-rulers",
+    templateUrl: "rulers.component.html",
+    styleUrls: ["rulers.component.scss"],
+    imports: [Ruler]
 })
 export class Rulers {
    @Input() showGuides: boolean = false;

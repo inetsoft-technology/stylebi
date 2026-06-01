@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import {HttpClient, HttpParams} from "@angular/common/http";
+import { HttpClient, HttpParams } from "@angular/common/http";
 import {Component, EventEmitter, Input, OnChanges, Output, SimpleChanges} from "@angular/core";
 import {Tool} from "../../../../../../../shared/util/tool";
 import { convertToKey, IdentityId } from "../../../security/users/identity-id";
@@ -23,6 +23,7 @@ import {RepositorySheetSettingsModel} from "./repository-sheet-settings.model";
 import {RepositoryEditorModel} from "../../../../../../../shared/util/model/repository-editor-model";
 import {MatSnackBar} from "@angular/material/snack-bar";
 import {RepositoryTreeNode} from "../repository-tree-node";
+import { RepositoryWorksheetSettingsViewComponent } from "../repository-worksheet-settings-view/repository-worksheet-settings-view.component";
 
 export interface RepositoryWorksheetEditorModel extends RepositoryEditorModel {
    worksheetSettings: RepositorySheetSettingsModel;
@@ -30,9 +31,10 @@ export interface RepositoryWorksheetEditorModel extends RepositoryEditorModel {
 }
 
 @Component({
-   selector: "em-repository-worksheet-settings-page",
-   templateUrl: "./repository-worksheet-settings-page.component.html",
-   styleUrls: ["./repository-worksheet-settings-page.component.scss"]
+    selector: "em-repository-worksheet-settings-page",
+    templateUrl: "./repository-worksheet-settings-page.component.html",
+    styleUrls: ["./repository-worksheet-settings-page.component.scss"],
+    imports: [RepositoryWorksheetSettingsViewComponent]
 })
 export class RepositoryWorksheetSettingsPageComponent implements OnChanges {
    @Input() model: RepositoryWorksheetEditorModel;

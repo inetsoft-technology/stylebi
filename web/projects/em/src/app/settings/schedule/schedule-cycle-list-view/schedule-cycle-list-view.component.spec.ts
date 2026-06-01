@@ -42,12 +42,9 @@ describe("ScheduleCycleListViewComponent", () => {
             MatInputModule,
             NoopAnimationsModule,
             MatIconModule,
-            RouterModule.forRoot([])
-         ],
-         declarations: [
-            ScheduleCycleListViewComponent
-         ]
-      })
+            RouterModule.forRoot([]),
+            ScheduleCycleListViewComponent]
+         })
          .compileComponents();
 
       fixture = TestBed.createComponent(ScheduleCycleListViewComponent);

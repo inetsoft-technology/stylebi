@@ -28,13 +28,8 @@ import {
    TemplateRef,
    ViewChild
 } from "@angular/core";
-import {
-   AbstractControl,
-   UntypedFormControl,
-   UntypedFormGroup,
-   ValidationErrors
-} from "@angular/forms";
-import { NgbModal, NgbModalOptions } from "@ng-bootstrap/ng-bootstrap";
+import { AbstractControl, UntypedFormControl, UntypedFormGroup, ValidationErrors, FormsModule, ReactiveFormsModule } from "@angular/forms";
+import { NgbModal, NgbModalOptions, NgbTypeahead, NgbHighlight } from "@ng-bootstrap/ng-bootstrap";
 import { Observable, Subscription } from "rxjs";
 import { debounceTime, map, tap } from "rxjs/operators";
 import { DashboardOptions } from "../../../../../../../../em/src/app/settings/schedule/model/dashboard-options";
@@ -56,14 +51,20 @@ import { GuiTool } from "../../../../../common/util/gui-tool";
 import { ServerPathInfoModel } from "../../../../../vsobjects/model/server-path-info-model";
 import { VSBookmarkInfoModel } from "../../../../../vsobjects/model/vs-bookmark-info-model";
 import { EmailAddrDialogModel } from "../../../../../widget/email-dialog/email-addr-dialog-model";
-import { EmailDialogData } from "../../../../../widget/email-dialog/email-addr-dialog.component";
+import { EmailDialogData, EmailAddrDialog } from "../../../../../widget/email-dialog/email-addr-dialog.component";
 import { TreeNodeModel } from "../../../../../widget/tree/tree-node-model";
 import { ScheduleAlertModel } from "../../../model/schedule-alert-model";
+import { ParameterTable } from "../../parameter-table/parameter-table.component";
+import { CkeditorWrapperComponent } from "../../../../../../../../shared/ckeditor-wrapper/ckeditor-wrapper.component";
+import { CSVConfigPane } from "../../../../../widget/schedule/csv-config-pane.component";
+import { GenericSelectableList } from "../../../../../widget/generic-selectable-list/generic-selectable-list.component";
+
 
 @Component({
-   selector: "action-accordion",
-   templateUrl: "./action-accordion.component.html",
-   styleUrls: ["./action-accordion.component.scss"]
+    selector: "action-accordion",
+    templateUrl: "./action-accordion.component.html",
+    styleUrls: ["./action-accordion.component.scss"],
+    imports: [FormsModule, ReactiveFormsModule, GenericSelectableList, NgbTypeahead, CSVConfigPane, CkeditorWrapperComponent, ParameterTable, EmailAddrDialog, NgbHighlight]
 })
 export class ActionAccordion implements OnInit, OnChanges, OnDestroy {
    @Input() executeAsGroup: boolean;

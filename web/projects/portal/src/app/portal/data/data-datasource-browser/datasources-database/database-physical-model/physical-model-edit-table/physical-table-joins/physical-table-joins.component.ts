@@ -46,6 +46,8 @@ import { Tool } from "../../../../../../../../../../shared/util/tool";
 import {
    DataPhysicalModelService, HighlightInfo
 } from "../../../../../services/data-physical-model.service";
+import { EditJoinDialog } from "./edit-join-dialog/edit-join-dialog.component";
+import { AddJoinDialog } from "./add-join-dialog/add-join-dialog.component";
 
 const JOIN_CARDINALITY_URI: string = "../api/data/physicalmodel/cardinality/";
 const JOIN_EDIT_URI: string = "../api/data/physicalmodel/join/";
@@ -61,9 +63,10 @@ class JoinTreeType {
 }
 
 @Component({
-   selector: "physical-table-joins",
-   templateUrl: "physical-table-joins.component.html",
-   styleUrls: ["physical-table-joins.component.scss"]
+    selector: "physical-table-joins",
+    templateUrl: "physical-table-joins.component.html",
+    styleUrls: ["physical-table-joins.component.scss"],
+    imports: [TreeComponent, AddJoinDialog, EditJoinDialog]
 })
 export class PhysicalTableJoinsComponent implements DoCheck, OnDestroy {
    @Input() physicalModel: PhysicalModelDefinition;

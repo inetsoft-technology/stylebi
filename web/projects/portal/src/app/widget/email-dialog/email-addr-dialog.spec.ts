@@ -33,6 +33,7 @@ import { EmailAddrDialogModel } from "./email-addr-dialog-model";
 import { EmailAddrDialog } from "./email-addr-dialog.component";
 import { EmbeddedEmailPane } from "./embedded-email-pane.component";
 import { QueryEmailPane } from "./query-email-pane.component";
+import { HttpClientTestingModule } from "@angular/common/http/testing";
 
 let createModel: () => EmailAddrDialogModel = () => {
    return {
@@ -72,11 +73,20 @@ describe("Email Addr Dialog Unit Test", () => {
       currentUserService.getPortalCurrentUser.mockImplementation(() => observableOf(null));
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule
+            
+            HttpClientTestingModule,FormsModule,
+            ReactiveFormsModule,
+            NgbModule,
+            EmailAddrDialog,
+            EmbeddedEmailPane,
+            QueryEmailPane,
+            ShuffleListComponent,
+            IdentityTreeComponent,
+            TreeComponent,
+            TreeNodeComponent,
+            TreeSearchPipe,
          ],
-         declarations: [
-            EmailAddrDialog, EmbeddedEmailPane, QueryEmailPane, ShuffleListComponent, IdentityTreeComponent, TreeComponent, TreeNodeComponent, TreeSearchPipe
-         ],
+         
          providers: [{
             provide: ChangeDetectorRef, useValue: changeDetectorRef
          },

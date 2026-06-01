@@ -18,11 +18,16 @@
 
 import { Component, Input, Output, EventEmitter } from "@angular/core";
 import { CategoricalColorModel } from "../../common/data/visual-frame-model";
+import { FormsModule } from "@angular/forms";
+import { NgStyle } from "@angular/common";
+import { ModalHeaderComponent } from "../modal-header/modal-header.component";
+import { BlockMouseDirective } from "../mouse-event/block-mouse.directive";
 
 @Component({
-   selector: "graph-palette-dialog",
-   templateUrl: "graph-palette-dialog.component.html",
-   styleUrls: ["graph-palette-dialog.component.scss"]
+    selector: "graph-palette-dialog",
+    templateUrl: "graph-palette-dialog.component.html",
+    styleUrls: ["graph-palette-dialog.component.scss"],
+    imports: [BlockMouseDirective, ModalHeaderComponent, FormsModule, NgStyle]
 })
 
 export class GraphPaletteDialog {

@@ -24,15 +24,17 @@ import {
    OnDestroy,
    Output, ViewChild
 } from "@angular/core";
-import { UntypedFormGroup, Validators, UntypedFormControl, AbstractControl, ValidatorFn } from "@angular/forms";
+import { UntypedFormGroup, Validators, UntypedFormControl, AbstractControl, ValidatorFn, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { EntityModel } from "../../../../../model/datasources/database/physical-model/logical-model/entity-model";
 import { FormValidators } from "../../../../../../../../../../shared/util/form-validators";
 import { Subscription } from "rxjs";
 
+
 @Component({
-   selector: "logical-model-entity-pane",
-   templateUrl: "logical-model-entity-pane.component.html",
-   styleUrls: ["logical-model-entity-pane.component.scss"]
+    selector: "logical-model-entity-pane",
+    templateUrl: "logical-model-entity-pane.component.html",
+    styleUrls: ["logical-model-entity-pane.component.scss"],
+    imports: [FormsModule, ReactiveFormsModule]
 })
 export class LogicalModelEntityPane implements AfterViewInit, OnChanges, OnDestroy {
    @Input() existNames: string[] = [];

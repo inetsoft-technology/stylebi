@@ -28,6 +28,13 @@ import { PageHeaderService } from "../../../page-header/page-header.service";
 import { Searchable } from "../../../searchable";
 import { Secured } from "../../../secured";
 import { ScheduleStatusModel } from "../model/schedule-status-model";
+import { MatButton } from "@angular/material/button";
+import { FormsModule } from "@angular/forms";
+import { MatRadioGroup, MatRadioButton } from "@angular/material/radio";
+import { MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow } from "@angular/material/table";
+import { MatProgressBar } from "@angular/material/progress-bar";
+import { MatCard, MatCardTitle, MatCardSubtitle, MatCardContent, MatCardActions } from "@angular/material/card";
+
 
 const SCHEDULER_STATUS_URL = "../api/em/settings/schedule/status";
 
@@ -45,9 +52,10 @@ const SCHEDULER_STATUS_URL = "../api/em/settings/schedule/status";
    link: "EMSchedulerStatus"
 })
 @Component({
-   selector: "em-schedule-status-page",
-   templateUrl: "./schedule-status-page.component.html",
-   styleUrls: ["./schedule-status-page.component.scss"]
+    selector: "em-schedule-status-page",
+    templateUrl: "./schedule-status-page.component.html",
+    styleUrls: ["./schedule-status-page.component.scss"],
+    imports: [MatCard, MatCardTitle, MatCardSubtitle, MatCardContent, MatProgressBar, MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatRadioGroup, FormsModule, MatRadioButton, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, MatCardActions, MatButton]
 })
 export class ScheduleStatusPageComponent implements OnChanges, OnInit {
    model: ScheduleStatusModel;

@@ -16,11 +16,14 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, Input, OnInit } from "@angular/core";
+import { NgIf } from "@angular/common";
 
 @Component({
-  selector: "em-shared-layout",
-  templateUrl: "./shared-layout.component.html",
-  styleUrls: ["./shared-layout.component.scss"]
+    selector: "em-shared-layout",
+    templateUrl: "./shared-layout.component.html",
+    styleUrls: ["./shared-layout.component.scss"],
+    standalone: true,
+    imports: [NgIf]
 })
 export class SharedLayoutComponent implements OnInit {
   @Input() splitView: boolean = false;

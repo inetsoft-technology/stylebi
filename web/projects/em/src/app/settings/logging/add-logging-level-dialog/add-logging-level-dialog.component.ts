@@ -16,20 +16,24 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, Inject, OnInit } from "@angular/core";
-import {
-   UntypedFormBuilder,
-   UntypedFormGroup,
-   Validators
-} from "@angular/forms";
+import { UntypedFormBuilder, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { Tool } from "../../../../../../shared/util/tool";
-import { MAT_DIALOG_DATA, MatDialog, MatDialogConfig, MatDialogRef } from "@angular/material/dialog";
+import { MAT_DIALOG_DATA, MatDialog, MatDialogConfig, MatDialogRef, MatDialogContent, MatDialogActions, MatDialogClose } from "@angular/material/dialog";
 import { LogLevelDTO } from "../LogLevelDTO";
 import { MessageDialog, MessageDialogType } from "../../../common/util/message-dialog";
+import { MatButton } from "@angular/material/button";
+import { MatInput } from "@angular/material/input";
+
+import { MatOption } from "@angular/material/core";
+import { MatSelect } from "@angular/material/select";
+import { MatFormField, MatLabel, MatError } from "@angular/material/form-field";
+import { ModalHeaderComponent } from "../../../common/util/modal-header/modal-header.component";
 
 @Component({
-   selector: "em-add-logging-level-dialog",
-   templateUrl: "./add-logging-level-dialog.component.html",
-   styleUrls: ["./add-logging-level-dialog.component.scss"]
+    selector: "em-add-logging-level-dialog",
+    templateUrl: "./add-logging-level-dialog.component.html",
+    styleUrls: ["./add-logging-level-dialog.component.scss"],
+    imports: [ModalHeaderComponent, MatDialogContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatSelect, MatOption, MatInput, MatError, MatDialogActions, MatButton, MatDialogClose]
 })
 export class AddLoggingLevelDialogComponent implements OnInit {
    index: number;

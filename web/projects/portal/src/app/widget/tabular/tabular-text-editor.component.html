@@ -1,42 +1,54 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
-<div *ngIf="rows <= 1 && !autoSize">
-  <input *ngIf="!password" type="text" class="form-control" [(ngModel)]="value"
-         [formControl]="valueControl" [placeholder]="placeholder" (blur)="valueChanged()"/>
-  <div *ngIf="password" class="input-group">
-    <input [type]="passwordVisible ? 'text' : 'password'" class="form-control"
-           [(ngModel)]="value" [formControl]="valueControl" (blur)="valueChanged()"/>
-    <button class="input-group-btn-addon btn btn-icon form-control"
-            (click)="passwordVisible = !passwordVisible" aria-label="_#(Show/Hide)">
-      <i [class.eye-off-icon]="!passwordVisible" [class.eye-icon]="passwordVisible"
-         class="btn-icon-color align-middle" aria-hidden="true"></i>
-    </button>
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
+@if (rows <= 1 && !autoSize) {
+  <div>
+    @if (!password) {
+      <input type="text" class="form-control" [(ngModel)]="value"
+        [formControl]="valueControl" [placeholder]="placeholder" (blur)="valueChanged()"/>
+    }
+    @if (password) {
+      <div class="input-group">
+        <input [type]="passwordVisible ? 'text' : 'password'" class="form-control"
+          [(ngModel)]="value" [formControl]="valueControl" (blur)="valueChanged()"/>
+        <button class="input-group-btn-addon btn btn-icon form-control"
+          (click)="passwordVisible = !passwordVisible" aria-label="_#(Show/Hide)">
+          <i [class.eye-off-icon]="!passwordVisible" [class.eye-icon]="passwordVisible"
+          class="btn-icon-color align-middle" aria-hidden="true"></i>
+        </button>
+      </div>
+    }
   </div>
-</div>
-<div *ngIf="rows <= 1 && autoSize">
-  <textarea class="form-control auto-size-textarea" [(ngModel)]="value"
-            [formControl]="valueControl" [placeholder]="placeholder" (blur)="valueChanged()"
-            cdkTextareaAutosize [cdkAutosizeMinRows]="1"></textarea>
-</div>
-<div *ngIf="rows > 1">
-  <textarea class="form-control" rows="{{rows}}" cols="{{columns}}" [(ngModel)]="value"
-            [formControl]="valueControl" (ngModelChange)="valueChanged()"></textarea>
-</div>
-<span class="form-floating" *ngIf="valueControl.getError('required')">
-  <span class="invalid-feedback">_#(enter.value)</span>
-</span>
+}
+@if (rows <= 1 && autoSize) {
+  <div>
+    <textarea class="form-control auto-size-textarea" [(ngModel)]="value"
+      [formControl]="valueControl" [placeholder]="placeholder" (blur)="valueChanged()"
+    cdkTextareaAutosize [cdkAutosizeMinRows]="1"></textarea>
+  </div>
+}
+@if (rows > 1) {
+  <div>
+    <textarea class="form-control" rows="{{rows}}" cols="{{columns}}" [(ngModel)]="value"
+    [formControl]="valueControl" (ngModelChange)="valueChanged()"></textarea>
+  </div>
+}
+@if (valueControl.getError('required')) {
+  <span class="form-floating">
+    <span class="invalid-feedback">_#(enter.value)</span>
+  </span>
+}

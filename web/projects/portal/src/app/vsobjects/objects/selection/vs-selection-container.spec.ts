@@ -55,11 +55,15 @@ describe("VSSelectionContainer Unit Tests", () => {
 
       TestBed.configureTestingModule({
          imports: [
-            NgbModule, FormsModule, ReactiveFormsModule, HttpClientTestingModule
+            NgbModule,
+            FormsModule,
+            ReactiveFormsModule,
+            HttpClientTestingModule,
+            VSSelectionContainer,
+            MiniToolbar,
+            InteractableDirective,
          ],
-         declarations: [
-            VSSelectionContainer, MiniToolbar, InteractableDirective
-         ],
+         
          schemas: [ NO_ERRORS_SCHEMA ],
          providers: [
             ViewsheetClientService,

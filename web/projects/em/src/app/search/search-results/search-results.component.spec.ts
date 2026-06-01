@@ -31,9 +31,8 @@ describe("SearchResultsComponent", () => {
          imports: [
             NoopAnimationsModule,
             MatPaginatorModule,
-            MatTableModule
-         ],
-         declarations: [SearchResultsComponent],
+            MatTableModule,
+            SearchResultsComponent],
          schemas: [NO_ERRORS_SCHEMA]
       }).compileComponents();
    }));

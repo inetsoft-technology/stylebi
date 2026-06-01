@@ -31,9 +31,9 @@ import { MatTableModule } from "@angular/material/table";
 import { MatTabsModule } from "@angular/material/tabs";
 import { NoopAnimationsModule } from "@angular/platform-browser/animations";
 import { RouterModule } from "@angular/router";
-import { LoadingSpinnerModule } from "../../../../common/util/loading-spinner/loading-spinner.module";
+import { LoadingSpinnerComponent } from "../../../../common/util/loading-spinner/loading-spinner.component";
 import { TableView } from "../../../../common/util/table/table-view.component";
-import { ResourcePermissionModule } from "../../../security/resource-permission/resource-permission.module";
+import { ResourcePermissionComponent } from "../../../security/resource-permission/resource-permission.component";
 import { AnalyzeMvPageComponent } from "../analyze-mv-page/analyze-mv-page.component";
 import { RepositorySheetSettingsViewComponent } from "../repository-sheet-settings-view/repository-sheet-settings-view.component";
 import { RepositoryWorksheetSettingsViewComponent } from "./repository-worksheet-settings-view.component";
@@ -47,14 +47,9 @@ describe("RepositoryWorksheetSettingsViewComponent", () => {
          imports: [HttpClientTestingModule, RouterModule.forRoot([]), MatCardModule,
             MatButtonModule, MatInputModule, MatSelectModule, NoopAnimationsModule,
             MatOptionModule, MatTabsModule, MatFormFieldModule, FormsModule, ReactiveFormsModule,
-            MatRadioModule, MatCheckboxModule, ResourcePermissionModule, LoadingSpinnerModule,
-            MatTableModule],
-         declarations: [
-            AnalyzeMvPageComponent,
-            RepositoryWorksheetSettingsViewComponent,
-            RepositorySheetSettingsViewComponent,
-            TableView
-         ],
+            MatRadioModule, MatCheckboxModule, ResourcePermissionComponent, LoadingSpinnerComponent,
+            MatTableModule,
+            AnalyzeMvPageComponent, RepositoryWorksheetSettingsViewComponent, RepositorySheetSettingsViewComponent, TableView],
          schemas: [
             NO_ERRORS_SCHEMA
          ]

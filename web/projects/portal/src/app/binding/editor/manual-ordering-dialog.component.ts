@@ -17,11 +17,17 @@
  */
 import { Component, OnChanges, Input, Output, EventEmitter } from "@angular/core";
 import { ValueLabelModel } from "../data/value-label-model";
+import { DefaultFocusDirective } from "../../widget/directive/default-focus.directive";
+
+import { LargeFormFieldComponent } from "../../widget/large-form-field/large-form-field.component";
+import { BlockMouseDirective } from "../../widget/mouse-event/block-mouse.directive";
+import { ModalHeaderComponent } from "../../widget/modal-header/modal-header.component";
 
 @Component({
-   selector: "manual-ordering-dialog",
-   templateUrl: "manual-ordering-dialog.component.html",
-   styleUrls: ["manual-ordering-dialog.component.scss"]
+    selector: "manual-ordering-dialog",
+    templateUrl: "manual-ordering-dialog.component.html",
+    styleUrls: ["manual-ordering-dialog.component.scss"],
+    imports: [ModalHeaderComponent, BlockMouseDirective, LargeFormFieldComponent, DefaultFocusDirective]
 })
 export class ManualOrderingDialog implements OnChanges {
    @Input() manualOrders: string[];

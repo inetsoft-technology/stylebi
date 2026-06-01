@@ -18,11 +18,14 @@
 import { Component, EventEmitter, Input, OnInit, Output } from "@angular/core";
 import { ModelService } from "../services/model.service";
 import { TreeNodeModel } from "../tree/tree-node-model";
+import { TreeDropdownComponent } from "../tree/tree-dropdown.component";
+import { FormsModule } from "@angular/forms";
 
 @Component({
-   selector: "format-presenter-pane",
-   templateUrl: "format-presenter-pane.component.html",
-   styleUrls: ["format-presenter-pane.component.scss"]
+    selector: "format-presenter-pane",
+    templateUrl: "format-presenter-pane.component.html",
+    styleUrls: ["format-presenter-pane.component.scss"],
+    imports: [FormsModule, TreeDropdownComponent]
 })
 
 export class FormatPresenterPane implements OnInit {

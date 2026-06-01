@@ -55,15 +55,23 @@ import { BaseTableCellModel } from "../../model/base-table-cell-model";
 import { ShowHyperlinkService } from "../../show-hyperlink.service";
 import { DetailDndInfo } from "./detail-dnd-info";
 import { SortInfo } from "./sort-info";
+import { FormattingPane } from "../../../format/objects/formatting-pane.component";
+import { NotificationsComponent } from "../../../widget/notifications/notifications.component";
+import { TouchScrollDirective } from "../../../widget/scroll/touch-scroll.directive";
+import { DefaultFocusDirective } from "../../../widget/directive/default-focus.directive";
+import { FormsModule } from "@angular/forms";
+import { OutOfZoneDirective } from "../../../widget/directive/out-of-zone.directive";
+import { NgClass, NgStyle } from "@angular/common";
 
 const CHART_DETAIL_COLWIDTH_URI: string = "../api/vs/showdetails/colwidth";
 const CHART_DATA_COLWIDTH_URI: string = "../api/vs/showdata/colwidth";
 const INITIAL_COLUMN_WIDTH: number = 80;
 
 @Component({
-   selector: "preview-table",
-   templateUrl: "preview-table.component.html",
-   styleUrls: ["preview-table.component.scss"]
+    selector: "preview-table",
+    templateUrl: "preview-table.component.html",
+    styleUrls: ["preview-table.component.scss"],
+    imports: [OutOfZoneDirective, NgClass, FixedDropdownDirective, FormsModule, DefaultFocusDirective, TouchScrollDirective, NgStyle, NgbTooltip, NotificationsComponent, FormattingPane]
 })
 export class PreviewTableComponent implements OnDestroy, AfterViewChecked, AfterContentChecked {
    @Input() sortEnabled: boolean = false;

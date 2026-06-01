@@ -40,7 +40,7 @@ import { FillPropPane } from "./fill-prop-pane.component";
 import { DebounceService } from "../../../widget/services/debounce.service";
 
 @NgModule({
-   declarations: [
+   imports: [
       FixedDropdownComponent,
       FixedDropdownContextmenuComponent
    ],
@@ -61,8 +61,8 @@ describe("fill prop pane unit case: ", () => {
 
    beforeEach(() => {
       TestBed.configureTestingModule({
-         imports: [TestModule, ReactiveFormsModule, FormsModule, NgbModule],
-         declarations: [AlphaDropdown, FillPropPane, DynamicComboBox, ColorEditor, ColorPicker, ColorPane, TreeComponent, TreeNodeComponent, TreeDropdownComponent, TreeSearchPipe, FixedDropdownDirective,  TooltipDirective],
+         imports: [TestModule, ReactiveFormsModule, FormsModule, NgbModule, AlphaDropdown, FillPropPane, DynamicComboBox, ColorEditor, ColorPicker, ColorPane, TreeComponent, TreeNodeComponent, TreeDropdownComponent, TreeSearchPipe, FixedDropdownDirective, TooltipDirective],
+         
          providers: [FixedDropdownService, DropdownStackService, DebounceService],
          schemas: [NO_ERRORS_SCHEMA]
       }).compileComponents();

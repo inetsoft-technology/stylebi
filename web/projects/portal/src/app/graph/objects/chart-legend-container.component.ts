@@ -27,22 +27,20 @@ import {
 } from "@angular/core";
 import { Rectangle } from "../../common/data/rectangle";
 import { GuiTool } from "../../common/util/gui-tool";
-import {
-   InteractArea,
-   InteractInfo,
-   ResizeOptions
-} from "../../widget/resize/element-interact.directive";
+import { InteractArea, InteractInfo, ResizeOptions, ElementInteractDirective } from "../../widget/resize/element-interact.directive";
 import { ContextProvider } from "../../vsobjects/context-provider.service";
 import { LegendContainer } from "../model/legend-container";
 import { LegendOption } from "../model/legend-option";
 import { LegendResizeInfo } from "../model/legend-resize-info";
 import { ChartAreaName } from "../model/chart-area-name";
 
+
 @Component({
-   selector: "chart-legend-container",
-   templateUrl: "chart-legend-container.component.html",
-   styleUrls: ["chart-legend-container.component.scss"],
-   changeDetection: ChangeDetectionStrategy.OnPush
+    selector: "chart-legend-container",
+    templateUrl: "chart-legend-container.component.html",
+    styleUrls: ["chart-legend-container.component.scss"],
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    imports: [ElementInteractDirective]
 })
 export class ChartLegendContainer implements OnInit, OnChanges {
    @Input() plotRegion: Rectangle;

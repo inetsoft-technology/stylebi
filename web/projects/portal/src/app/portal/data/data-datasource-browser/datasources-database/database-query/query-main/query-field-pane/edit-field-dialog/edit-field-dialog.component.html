@@ -1,20 +1,20 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <modal-header [title]="title" [cshid]="'AdvancedQuery'" (onCancel)="cancel()">
 </modal-header>
 <div class="modal-body">
@@ -26,20 +26,24 @@
     <div class="row">
       <div class="col-6">
         <div class="bordered-box bd-gray">
-          <tree *ngIf="fieldsTree" [root]="fieldsTree"
-                [showTooltip]="true" [selectOnClick]="true"
-                [showRoot]="false" [iconFunction]="iconFunction" (dblclickNode)="fieldDown($event)"
-                (nodesSelected)="selectFieldNodes($event)">
-          </tree>
+          @if (fieldsTree) {
+            <tree [root]="fieldsTree"
+              [showTooltip]="true" [selectOnClick]="true"
+              [showRoot]="false" [iconFunction]="iconFunction" (dblclickNode)="fieldDown($event)"
+              (nodesSelected)="selectFieldNodes($event)">
+            </tree>
+          }
         </div>
       </div>
       <div class="col-6">
         <div class="bordered-box bd-gray">
-          <tree *ngIf="functionsTree" [root]="functionsTree"
-                [showTooltip]="true" [selectOnClick]="true"
-                [showRoot]="false" [iconFunction]="expressionIconFunction" (dblclickNode)="functionDown($event)"
-                (nodesSelected)="selectFunctionNodes($event)">
-          </tree>
+          @if (functionsTree) {
+            <tree [root]="functionsTree"
+              [showTooltip]="true" [selectOnClick]="true"
+              [showRoot]="false" [iconFunction]="expressionIconFunction" (dblclickNode)="functionDown($event)"
+              (nodesSelected)="selectFunctionNodes($event)">
+            </tree>
+          }
         </div>
       </div>
     </div>
@@ -62,9 +66,11 @@
     </div>
     <div class="row">
       <div class="col-12">
-        <div *ngIf="!expression" class="alert alert-danger">
-          _#(data.query.expressionNull)
-        </div>
+        @if (!expression) {
+          <div class="alert alert-danger">
+            _#(data.query.expressionNull)
+          </div>
+        }
       </div>
     </div>
   </div>

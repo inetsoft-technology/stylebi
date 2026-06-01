@@ -17,10 +17,10 @@
  */
 import { HttpClient } from "@angular/common/http";
 import { AfterViewInit, Component, OnInit, ViewChild } from "@angular/core";
-import { UntypedFormControl } from "@angular/forms";
+import { UntypedFormControl, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { MatInput } from "@angular/material/input";
 import { MatPaginator } from "@angular/material/paginator";
-import { MatSort } from "@angular/material/sort";
+import { MatSort, MatSortHeader } from "@angular/material/sort";
 import { merge as mergeObservables, Observable } from "rxjs";
 import { delay, map, tap } from "rxjs/operators";
 import { ContextHelp } from "../../../context-help";
@@ -29,6 +29,14 @@ import { Searchable } from "../../../searchable";
 import { Secured } from "../../../secured";
 import { PropertySettingsDatasourceService } from "../property-settings-services/property-settings-datasource.service";
 import { PropertiesTool } from "./properties-tool";
+import { MatOption } from "@angular/material/core";
+import { MatAutocompleteTrigger, MatAutocomplete } from "@angular/material/autocomplete";
+import { MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow } from "@angular/material/table";
+import { TopScrollDirective } from "../../../top-scroll/top-scroll.directive";
+import { MatIcon } from "@angular/material/icon";
+import { MatIconButton, MatMiniFabButton } from "@angular/material/button";
+import { AsyncPipe } from "@angular/common";
+import { MatFormField, MatLabel, MatSuffix } from "@angular/material/form-field";
 
 export interface PropertySetting {
    propertyName: string;
@@ -58,9 +66,10 @@ const DEFAULT_PROPERTY: PropertySetting = {
    link: "EMSettingsProperties"
 })
 @Component({
-   selector: "em-property-settings-view",
-   templateUrl: "./property-settings-view.component.html",
-   styleUrls: ["./property-settings-view.component.scss"]
+    selector: "em-property-settings-view",
+    templateUrl: "./property-settings-view.component.html",
+    styleUrls: ["./property-settings-view.component.scss"],
+    imports: [MatFormField, MatLabel, MatInput, MatIconButton, MatSuffix, MatIcon, MatMiniFabButton, TopScrollDirective, MatTable, MatSort, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatSortHeader, MatCellDef, MatCell, FormsModule, MatAutocompleteTrigger, ReactiveFormsModule, MatAutocomplete, MatOption, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, MatPaginator, AsyncPipe]
 })
 export class PropertySettingsViewComponent implements OnInit, AfterViewInit {
 

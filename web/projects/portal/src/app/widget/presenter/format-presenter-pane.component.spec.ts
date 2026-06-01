@@ -44,11 +44,8 @@ describe("format presenter pane componnet unit case", () => {
       treeService = { validateTreeNode: jest.fn() };
 
       TestBed.configureTestingModule({
-         imports: [DropDownTestModule, ReactiveFormsModule, FormsModule, NgbModule],
-         declarations: [
-            FormatPresenterPane, FixedDropdownDirective, TreeComponent, TreeSearchPipe,
-            TreeNodeComponent, TreeDropdownComponent
-         ],
+         imports: [DropDownTestModule, ReactiveFormsModule, FormsModule, NgbModule, FormatPresenterPane, FixedDropdownDirective, TreeComponent, TreeSearchPipe, TreeNodeComponent, TreeDropdownComponent],
+         
          providers: [
             {provide: ModelService, useValue: modelService},
             {provide: NgbModal, useValue: modalService},

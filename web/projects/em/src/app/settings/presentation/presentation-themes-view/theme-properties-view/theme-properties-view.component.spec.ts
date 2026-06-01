@@ -29,11 +29,8 @@ describe("ThemePropertiesViewComponent", () => {
       await TestBed.configureTestingModule({
          imports: [
             NoopAnimationsModule,
-            ReactiveFormsModule
-         ],
-         declarations: [
-            ThemePropertiesViewComponent
-         ],
+            ReactiveFormsModule,
+            ThemePropertiesViewComponent],
          schemas: [
             NO_ERRORS_SCHEMA
          ]

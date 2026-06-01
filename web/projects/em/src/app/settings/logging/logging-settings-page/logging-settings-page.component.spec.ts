@@ -27,10 +27,10 @@ import { MatInputModule } from "@angular/material/input";
 import { MatSelectModule } from "@angular/material/select";
 import { NoopAnimationsModule } from "@angular/platform-browser/animations";
 import { RouterModule } from "@angular/router";
-import { DownloadModule } from "../../../../../../shared/download/download.module";
+import { DownloadTargetComponent } from "../../../../../../shared/download/download-target.component";
 import { AppInfoService } from "../../../../../../shared/util/app-info.service";
-import { EditorPanelModule } from "../../../common/util/editor-panel/editor-panel.module";
-import { TableViewModule } from "../../../common/util/table/table-view.module";
+import { EditorPanelComponent } from "../../../common/util/editor-panel/editor-panel.component";
+import { TableView } from "../../../common/util/table/table-view.component";
 import { LoggingLevelTableComponent } from "../logging-level-table/logging-level-table.component";
 import { LoggingSettingsViewComponent } from "../logging-settings-view/logging-settings-view.component";
 import { LoggingSettingsPageComponent } from "./logging-settings-page.component";
@@ -41,12 +41,8 @@ describe("LoggingSettingsPageComponent", () => {
 
    beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
-         declarations: [
-            LoggingSettingsPageComponent,
-            LoggingSettingsViewComponent,
-            LoggingLevelTableComponent
-         ],
          imports: [
+            LoggingSettingsPageComponent, LoggingSettingsViewComponent, LoggingLevelTableComponent,
             HttpClientTestingModule,
             FormsModule,
             ReactiveFormsModule,
@@ -59,9 +55,9 @@ describe("LoggingSettingsPageComponent", () => {
             MatInputModule,
             MatSelectModule,
             NoopAnimationsModule,
-            DownloadModule,
-            EditorPanelModule,
-            TableViewModule
+            DownloadTargetComponent,
+            EditorPanelComponent,
+            TableView
          ],
          providers: [
             AppInfoService

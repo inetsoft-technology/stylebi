@@ -29,11 +29,15 @@ import { AssetType } from "../../../../../../shared/data/asset-type";
 import { MoveAssetDialogDataConfig } from "../data-folder-browser/move-asset-dialog-data-config";
 import { PortalDataBrowserModel } from "../data-folder-browser/portal-data-browser-model";
 
+import { FilesBrowserComponent } from "../data-folder-browser/files-browser/files-browser.component";
+import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
+
 export const FAKE_ROOT_PATH: string = "_fake_root_";
 
 @Component({
-   selector: "move-asset-dialog",
-   templateUrl: "move-asset-dialog.component.html"
+    selector: "move-asset-dialog",
+    templateUrl: "move-asset-dialog.component.html",
+    imports: [ModalHeaderComponent, FilesBrowserComponent]
 })
 export class MoveAssetDialogComponent implements OnInit {
    @Input() originalPaths: string[] = [];

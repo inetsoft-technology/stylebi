@@ -597,6 +597,7 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
          OrganizationManager.getInstance().getCurrentOrgID();
       String nId = norg instanceof Organization ? ((Organization) norg).getId() :
          OrganizationManager.getInstance().getCurrentOrgID();
+      Set<String> allKeys = getKeys(null, oId);
       int numThreads = Runtime.getRuntime().availableProcessors();
       ExecutorService executor = Executors.newFixedThreadPool(numThreads, r -> {
          Thread t = new Thread(r, "BlobStorageMigrateOrg");
@@ -604,7 +605,7 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
          return t;
       });
 
-      for(String key : getKeys(null, oId)) {
+      for(String key : allKeys) {
          final AssetEntry entry = AssetEntry.createAssetEntry(key);
 
          if(entry.isViewsheet()) {

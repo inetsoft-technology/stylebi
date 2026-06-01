@@ -26,12 +26,34 @@ import { UIContextService } from "../../../common/services/ui-context.service";
 import { XSchema } from "../../../common/data/xschema";
 import { PropertyDialogService } from "../../../vsobjects/util/property-dialog.service";
 import { PropertyDialog } from "./property-dialog.component";
+import { ApplyButtonComponent } from "../../../widget/slide-out/apply-button.component";
+import { VSAssemblyScriptPane } from "../../../widget/dialog/vsassembly-script-pane/vsassembly-script-pane.component";
+import { DataInputPane } from "./data-input-pane.component";
+import { RadioButtonGeneralPane } from "./radiobutton-general-pane.component";
+import { NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, NgbNavOutlet } from "@ng-bootstrap/ng-bootstrap";
+import { EnterSubmitDirective } from "../../../widget/directive/enter-submit.directive";
+
+import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
 
 const CHECK_TRAP_URI: string = "../api/composer/vs/radiobutton-property-dialog-model/checkTrap/";
 
 @Component({
-   selector: "radiobutton-property-dialog",
-   templateUrl: "radiobutton-property-dialog.component.html",
+    selector: "radiobutton-property-dialog",
+    templateUrl: "radiobutton-property-dialog.component.html",
+    imports: [
+    ModalHeaderComponent,
+    EnterSubmitDirective,
+    NgbNav,
+    NgbNavItem,
+    NgbNavLink,
+    NgbNavLinkBase,
+    NgbNavContent,
+    RadioButtonGeneralPane,
+    DataInputPane,
+    VSAssemblyScriptPane,
+    NgbNavOutlet,
+    ApplyButtonComponent
+]
 })
 export class RadioButtonPropertyDialog extends PropertyDialog {
    @Input() model: RadioButtonPropertyDialogModel;

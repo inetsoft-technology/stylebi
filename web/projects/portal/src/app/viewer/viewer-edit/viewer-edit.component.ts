@@ -26,6 +26,9 @@ import { VsWizardEditModes } from "../../vs-wizard/model/vs-wizard-edit-modes";
 import { VsWizardModel, WizardOriginalInfo } from "../../vs-wizard/model/vs-wizard-model";
 import { CloseWizardModel } from "../../vs-wizard/model/close-wizard-model";
 import { VSWizardConstants } from "../../vs-wizard/model/vs-wizard-constants";
+import { VsWizardComponent } from "../../vs-wizard/gui/vs-wizard.component";
+import { VSBindingPane } from "../../vsview/edit/vs-binding-pane.component";
+
 
 export enum EditorMode {
    DEFAULT,
@@ -34,10 +37,11 @@ export enum EditorMode {
 }
 
 @Component({
-   selector: "v-viewer-edit",
-   templateUrl: "viewer-edit.component.html",
-   styleUrls: ["viewer-edit.component.scss"],
-   providers: [ViewsheetClientService]
+    selector: "v-viewer-edit",
+    templateUrl: "viewer-edit.component.html",
+    styleUrls: ["viewer-edit.component.scss"],
+    providers: [ViewsheetClientService],
+    imports: [VSBindingPane, VsWizardComponent]
 })
 export class ViewerEditComponent implements OnInit, OnDestroy {
    viewData: ViewData;

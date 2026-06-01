@@ -16,14 +16,19 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { AfterViewInit, Component, HostListener, Inject, OnInit, ViewChild } from "@angular/core";
-import { MAT_DIALOG_DATA, MatDialog, MatDialogRef } from "@angular/material/dialog";
-import { MatSort } from "@angular/material/sort";
-import { MatTableDataSource } from "@angular/material/table";
+import { MAT_DIALOG_DATA, MatDialog, MatDialogRef, MatDialogContent, MatDialogActions, MatDialogClose } from "@angular/material/dialog";
+import { MatSort, MatSortHeader } from "@angular/material/sort";
+import { MatTableDataSource, MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow } from "@angular/material/table";
 import { AddFontFaceDialogComponent } from "../add-font-dialog/add-font-face-dialog.component";
 import { UserFontModel } from "../user-font-model";
 import { animate, state, style, transition, trigger } from "@angular/animations";
 import { FontFaceModel } from "../font-face-model";
 import { AddFontFaceDialogData } from "../add-font-face-dialog-data";
+import { MatIcon } from "@angular/material/icon";
+import { MatIconButton, MatButton } from "@angular/material/button";
+
+import { MatCheckbox } from "@angular/material/checkbox";
+import { ModalHeaderComponent } from "../../../../common/util/modal-header/modal-header.component";
 
 interface FontFamilyElement {
    select: boolean;
@@ -32,16 +37,38 @@ interface FontFamilyElement {
 }
 
 @Component({
-   selector: "em-add-user-font-dialog",
-   templateUrl: "./edit-fonts-dialog.component.html",
-   styleUrls: ["./edit-fonts-dialog.component.scss"],
-   animations: [
-      trigger("detailExpand", [
-         state("collapsed", style({height: "0px", minHeight: "0"})),
-         state("expanded", style({height: "*"})),
-         transition("expanded <=> collapsed", animate("225ms cubic-bezier(0.4, 0.0, 0.2, 1)")),
-      ]),
-   ],
+    selector: "em-add-user-font-dialog",
+    templateUrl: "./edit-fonts-dialog.component.html",
+    styleUrls: ["./edit-fonts-dialog.component.scss"],
+    animations: [
+        trigger("detailExpand", [
+            state("collapsed", style({ height: "0px", minHeight: "0" })),
+            state("expanded", style({ height: "*" })),
+            transition("expanded <=> collapsed", animate("225ms cubic-bezier(0.4, 0.0, 0.2, 1)")),
+        ]),
+    ],
+    imports: [
+    ModalHeaderComponent,
+    MatDialogContent,
+    MatTable,
+    MatSort,
+    MatColumnDef,
+    MatHeaderCellDef,
+    MatHeaderCell,
+    MatCheckbox,
+    MatCellDef,
+    MatCell,
+    MatSortHeader,
+    MatIconButton,
+    MatIcon,
+    MatHeaderRowDef,
+    MatHeaderRow,
+    MatRowDef,
+    MatRow,
+    MatDialogActions,
+    MatButton,
+    MatDialogClose
+]
 })
 export class EditFontsDialogComponent implements OnInit, AfterViewInit {
    @ViewChild(MatSort, { static: true }) sort: MatSort;

@@ -16,7 +16,8 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, EventEmitter, Input, AfterViewInit, NgZone, OnInit, Output } from "@angular/core";
-import { UntypedFormControl, UntypedFormGroup, Validators } from "@angular/forms";
+import { NgIf } from "@angular/common";
+import { FormsModule, ReactiveFormsModule, UntypedFormControl, UntypedFormGroup, Validators } from "@angular/forms";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { TreeNodeModel } from "../../../../widget/tree/tree-node-model";
 import { SaveViewsheetDialogModel } from "../../../data/vs/save-viewsheet-dialog-model";
@@ -26,6 +27,8 @@ import { ModelService } from "../../../../widget/services/model.service";
 import { FormValidators } from "../../../../../../../shared/util/form-validators";
 import { Tool } from "../../../../../../../shared/util/tool";
 import { ComponentTool } from "../../../../common/util/component-tool";
+import { ModalHeaderComponent } from "../../../../widget/modal-header/modal-header.component";
+import { AssetTreeComponent } from "../../../../widget/asset-tree/asset-tree.component";
 
 export type VisualizationScope = "public" | "shared" | "private";
 
@@ -44,7 +47,9 @@ const CONFIRM_MESSAGE = {
 @Component({
    selector: "save-wiz-visualization-dialog",
    templateUrl: "./save-wiz-visualization-dialog.component.html",
-   styleUrls: ["./save-wiz-visualization-dialog.component.scss"]
+   styleUrls: ["./save-wiz-visualization-dialog.component.scss"],
+   standalone: true,
+   imports: [NgIf, FormsModule, ReactiveFormsModule, ModalHeaderComponent, AssetTreeComponent]
 })
 export class SaveWizVisualizationDialog implements OnInit, AfterViewInit {
    @Input() model: SaveWizVisualizationDialogModel;

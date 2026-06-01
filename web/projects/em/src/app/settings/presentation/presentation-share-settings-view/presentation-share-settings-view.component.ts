@@ -16,14 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, EventEmitter, Input, OnInit, Output, AfterViewInit } from "@angular/core";
-import {
-   AbstractControl,
-   UntypedFormBuilder, UntypedFormControl,
-   UntypedFormGroup,
-   FormGroupDirective,
-   NgForm,
-   Validators
-} from "@angular/forms";
+import { AbstractControl, UntypedFormBuilder, UntypedFormControl, UntypedFormGroup, FormGroupDirective, NgForm, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { ErrorStateMatcher } from "@angular/material/core";
 import { Searchable } from "../../../searchable";
 import { PresentationSettingsType } from "../presentation-settings-view/presentation-settings-type.enum";
@@ -31,6 +24,13 @@ import { PresentationSettingsChanges } from "../presentation-settings-view/prese
 import { PresentationShareSettingsModel } from "./presentation-share-settings-model";
 import { Tool } from "../../../../../../shared/util/tool";
 import { ContextHelp } from "../../../context-help";
+import { MatIcon } from "@angular/material/icon";
+import { MatIconAnchor } from "@angular/material/button";
+import { MatInput } from "@angular/material/input";
+import { MatFormField, MatLabel, MatSuffix, MatError } from "@angular/material/form-field";
+import { MatCheckbox } from "@angular/material/checkbox";
+
+import { MatCard, MatCardTitle, MatCardContent } from "@angular/material/card";
 
 @Searchable({
    route: "/settings/presentation/settings#sharing",
@@ -46,9 +46,10 @@ import { ContextHelp } from "../../../context-help";
    link: "EMPresentationSocialSharing"
 })
 @Component({
-   selector: "em-presentation-share-settings-view",
-   templateUrl: "./presentation-share-settings-view.component.html",
-   styleUrls: ["./presentation-share-settings-view.component.scss"]
+    selector: "em-presentation-share-settings-view",
+    templateUrl: "./presentation-share-settings-view.component.html",
+    styleUrls: ["./presentation-share-settings-view.component.scss"],
+    imports: [MatCard, MatCardTitle, MatCardContent, FormsModule, ReactiveFormsModule, MatCheckbox, MatFormField, MatLabel, MatInput, MatIconAnchor, MatSuffix, MatIcon, MatError]
 })
 export class PresentationShareSettingsViewComponent implements OnInit, AfterViewInit {
    @Output() modelChanged = new EventEmitter<PresentationSettingsChanges>();

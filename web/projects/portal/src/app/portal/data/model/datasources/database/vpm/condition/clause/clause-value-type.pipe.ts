@@ -25,7 +25,8 @@ import { ClauseValueTypes } from "./clause-value-types";
  *
  */
 @Pipe({
-   name: "clauseValueTypeToString"
+    name: "clauseValueTypeToString",
+    standalone: true
 })
 export class ClauseValueTypePipe implements PipeTransform {
    constructor() {

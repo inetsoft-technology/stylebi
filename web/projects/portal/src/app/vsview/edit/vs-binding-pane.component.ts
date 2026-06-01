@@ -107,68 +107,74 @@ import { AestheticInfo } from "../../binding/data/chart/aesthetic-info";
 import { VirtualScrollService } from "../../widget/tree/virtual-scroll.service";
 import { VSBindingTreeService } from "../../binding/widget/binding-tree/vs-binding-tree.service";
 import { ConsoleMessage } from "../../widget/console-dialog/console-message";
+import { VSLoadingDisplay } from "../../vsobjects/objects/vs-loading-display/vs-loading-display.component";
+import { VSFormatsPane } from "../../vsobjects/format/vs-formats-pane.component";
+import { InteractContainerDirective } from "../../widget/interact/interact-container.directive";
+import { BindingEditor } from "../../binding/editor/binding-editor.component";
+
 
 @Component({
-   selector: "vs-binding-pane",
-   templateUrl: "vs-binding-pane.component.html",
-   styleUrls: ["vs-binding-pane.component.scss"],
-   providers: [
-      ViewsheetClientService,
-      DataTipService,
-      AdhocFilterService,
-      PopComponentService,
-      ModelService, // use separate instance for custom error handler,
-      VSChartService,
-      DebounceService,
-      {
-         provide: ScaleService,
-         useClass: DefaultScaleService
-      },
-      {
-         provide: ContextProvider,
-         useFactory: BindingContextProviderFactory,
-         deps: [[new Optional(), ComposerToken]]
-      },
-      AssemblyActionFactory,
-      {
-         provide: BindingService,
-         useClass: VSBindingService,
-         deps: [ModelService, HttpClient, UIContextService]
-      },
-      {
-         provide: ChartEditorService,
-         useClass: VSChartEditorService,
-         deps: [BindingService, ModelService, ViewsheetClientService]
-      },
-      {
-         provide: TableEditorService,
-         useClass: VSTableEditorService,
-         deps: [BindingService, ViewsheetClientService, ModelService]
-      },
-      {
-         provide: DndService,
-         useClass: VSDndService,
-         deps: [ModelService, NgbModal, ViewsheetClientService]
-      },
-      {
-         provide: VSCalcTableEditorService,
-         useClass: VSCalcTableEditorService,
-         deps: [BindingService, ViewsheetClientService, NgbModal, ModelService]
-      },
-      {
-         provide: ChartService,
-         useExisting: VSChartService
-      },
-      {
-         provide: DialogService,
-         useFactory: BindingDialogServiceFactory,
-         deps: [NgbModal, SlideOutService, Injector, UIContextService]
-      },
-      {
-         provide: BindingTreeService,
-         useClass: VSBindingTreeService
-      },
-   ]
+    selector: "vs-binding-pane",
+    templateUrl: "vs-binding-pane.component.html",
+    styleUrls: ["vs-binding-pane.component.scss"],
+    providers: [
+        ViewsheetClientService,
+        DataTipService,
+        AdhocFilterService,
+        PopComponentService,
+        ModelService,
+        VSChartService,
+        DebounceService,
+        {
+            provide: ScaleService,
+            useClass: DefaultScaleService
+        },
+        {
+            provide: ContextProvider,
+            useFactory: BindingContextProviderFactory,
+            deps: [[new Optional(), ComposerToken]]
+        },
+        AssemblyActionFactory,
+        {
+            provide: BindingService,
+            useClass: VSBindingService,
+            deps: [ModelService, HttpClient, UIContextService]
+        },
+        {
+            provide: ChartEditorService,
+            useClass: VSChartEditorService,
+            deps: [BindingService, ModelService, ViewsheetClientService]
+        },
+        {
+            provide: TableEditorService,
+            useClass: VSTableEditorService,
+            deps: [BindingService, ViewsheetClientService, ModelService]
+        },
+        {
+            provide: DndService,
+            useClass: VSDndService,
+            deps: [ModelService, NgbModal, ViewsheetClientService]
+        },
+        {
+            provide: VSCalcTableEditorService,
+            useClass: VSCalcTableEditorService,
+            deps: [BindingService, ViewsheetClientService, NgbModal, ModelService]
+        },
+        {
+            provide: ChartService,
+            useExisting: VSChartService
+        },
+        {
+            provide: DialogService,
+            useFactory: BindingDialogServiceFactory,
+            deps: [NgbModal, SlideOutService, Injector, UIContextService]
+        },
+        {
+            provide: BindingTreeService,
+            useClass: VSBindingTreeService
+        },
+    ],
+    imports: [BindingEditor, InteractContainerDirective, VSFormatsPane, VSObjectView, NotificationsComponent, VSLoadingDisplay]
 })
 export class VSBindingPane extends CommandProcessor implements OnInit, OnDestroy {
    @Input() set runtimeId(id: string) {

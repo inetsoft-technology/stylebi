@@ -35,7 +35,8 @@ import { ContextProvider } from "../../../../vsobjects/context-provider.service"
 const GROUP_PROPERTY_URI: string = "composer/vs/group-container-property-dialog-model/";
 
 @Directive({
-   selector: "[cGroupContainerActionHandler]"
+    selector: "[cGroupContainerActionHandler]",
+    standalone: true
 })
 export class GroupContainerActionHandlerDirective extends AbstractActionHandler implements OnDestroy {
    @Input() model: VSGroupContainerModel;

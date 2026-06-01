@@ -1,73 +1,85 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <modal-header [title]="'_#(Add Join)'"
-              [cshid]="'CreatePhysicalView'"
-              (onCancel)="cancel()">
+  [cshid]="'CreatePhysicalView'"
+  (onCancel)="cancel()">
 </modal-header>
 <div class="modal-body">
   <form #joinForm="ngForm">
     <div class="form-group form-floating">
-        <select #selectFocus #columnCtrl="ngModel"
-                name="column"
-                class="form-control"
-                [class.is-invalid]="columnCtrl.invalid"
-                [(ngModel)]="join.column"
-                (ngModelChange)="joinSelectionChanged()"
-                required>
-          <option></option>
-          <option *ngFor="let column of columns" [value]="column">{{column}}</option>
-        </select>
-        <label>_#(Column)</label>
-        <span class="invalid-feedback" *ngIf="columnCtrl.invalid">_#(data.physicalmodel.columnRequired)
+      <select #selectFocus #columnCtrl="ngModel"
+        name="column"
+        class="form-control"
+        [class.is-invalid]="columnCtrl.invalid"
+        [(ngModel)]="join.column"
+        (ngModelChange)="joinSelectionChanged()"
+        required>
+        <option></option>
+        @for (column of columns; track column) {
+          <option [value]="column">{{column}}</option>
+        }
+      </select>
+      <label>_#(Column)</label>
+      @if (columnCtrl.invalid) {
+        <span class="invalid-feedback">_#(data.physicalmodel.columnRequired)
         </span>
+      }
     </div>
     <div class="form-group form-floating">
-        <select #foreignTableCtrl="ngModel"
-                name="foreignTable"
-                class="form-control"
-                [class.is-invalid]="foreignTableCtrl.invalid"
-                [(ngModel)]="join.foreignTable"
-                (ngModelChange)="joinSelectionChanged(true)"
-                required>
-          <option></option>
-          <option *ngFor="let foreignTable of foreignTables" [ngValue]="foreignTable.qualifiedName">
+      <select #foreignTableCtrl="ngModel"
+        name="foreignTable"
+        class="form-control"
+        [class.is-invalid]="foreignTableCtrl.invalid"
+        [(ngModel)]="join.foreignTable"
+        (ngModelChange)="joinSelectionChanged(true)"
+        required>
+        <option></option>
+        @for (foreignTable of foreignTables; track foreignTable) {
+          <option [ngValue]="foreignTable.qualifiedName">
             {{foreignTable.qualifiedName}}
           </option>
-        </select>
-        <label>_#(data.physicalmodel.foreignTable)</label>
-        <span class="invalid-feedback" *ngIf="foreignTableCtrl.invalid">
+        }
+      </select>
+      <label>_#(data.physicalmodel.foreignTable)</label>
+      @if (foreignTableCtrl.invalid) {
+        <span class="invalid-feedback">
           _#(data.physicalmodel.foreignTableRequired)
         </span>
+      }
     </div>
     <div class="form-group form-floating">
-        <select #foreignColumnCtrl="ngModel"
-                name="foreignColumn"
-                class="form-control"
-                [class.is-invalid]="foreignColumnCtrl.invalid"
-                [(ngModel)]="join.foreignColumn"
-                required>
-          <option></option>
-          <option *ngFor="let column of filteredForeignColumns" [value]="column">{{column}}</option>
-        </select>
-        <label>_#(data.physicalmodel.foreignColumn)</label>
-        <span class="invalid-feedback" *ngIf="foreignColumnCtrl.invalid">
+      <select #foreignColumnCtrl="ngModel"
+        name="foreignColumn"
+        class="form-control"
+        [class.is-invalid]="foreignColumnCtrl.invalid"
+        [(ngModel)]="join.foreignColumn"
+        required>
+        <option></option>
+        @for (column of filteredForeignColumns; track column) {
+          <option [value]="column">{{column}}</option>
+        }
+      </select>
+      <label>_#(data.physicalmodel.foreignColumn)</label>
+      @if (foreignColumnCtrl.invalid) {
+        <span class="invalid-feedback">
           _#(data.physicalmodel.foreignColumnRequired)
         </span>
+      }
     </div>
   </form>
 </div>

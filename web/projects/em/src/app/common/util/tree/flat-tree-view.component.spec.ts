@@ -48,7 +48,9 @@ class TestTreeDataSource extends FlatTreeDataSource<any, any> {
 }
 
 @Component({
+   standalone: true,
    selector: "em-test-content-tree-view",
+   imports: [FlatTreeViewComponent],
    template: `
      <em-flat-tree-view [dataSource]="dataSource"
                         [treeControl]="treeControl"
@@ -74,11 +76,8 @@ describe("FlatTreeViewComponent", () => {
             MatMenuModule,
             MatButtonModule,
             MatIconModule,
-            ScrollingModule
-         ],
-         declarations: [
-            TestContentTreeView,
-            FlatTreeViewComponent
+            ScrollingModule,
+            TestContentTreeView
          ],
          schemas: [
             NO_ERRORS_SCHEMA

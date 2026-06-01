@@ -26,8 +26,7 @@ describe("VSInputLabelWrapper", () => {
 
    beforeEach(async () => {
       await TestBed.configureTestingModule({
-         imports: [CommonModule],
-         declarations: [VSInputLabelWrapper, SafeFontDirective]
+         imports: [CommonModule, VSInputLabelWrapper, SafeFontDirective]
       }).compileComponents();
 
       fixture = TestBed.createComponent(VSInputLabelWrapper);

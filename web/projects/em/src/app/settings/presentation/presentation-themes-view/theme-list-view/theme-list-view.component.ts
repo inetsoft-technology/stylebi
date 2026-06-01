@@ -28,11 +28,19 @@ import {
 import { Subject } from "rxjs";
 import { takeUntil } from "rxjs/operators";
 import { CustomThemeModel } from "../custom-theme-model";
+import { MatActionList, MatListItem } from "@angular/material/list";
+import { TopScrollDirective } from "../../../../top-scroll/top-scroll.directive";
+import { MatIcon } from "@angular/material/icon";
+import { MatMenuTrigger, MatMenu, MatMenuItem } from "@angular/material/menu";
+import { MatIconButton } from "@angular/material/button";
+
+import { MatToolbar } from "@angular/material/toolbar";
 
 @Component({
-   selector: "em-theme-list-view",
-   templateUrl: "./theme-list-view.component.html",
-   styleUrls: ["./theme-list-view.component.scss"]
+    selector: "em-theme-list-view",
+    templateUrl: "./theme-list-view.component.html",
+    styleUrls: ["./theme-list-view.component.scss"],
+    imports: [MatToolbar, MatIconButton, MatMenuTrigger, MatIcon, TopScrollDirective, MatActionList, MatListItem, MatMenu, MatMenuItem]
 })
 export class ThemeListViewComponent implements OnInit, OnDestroy {
    @Input() get themes(): CustomThemeModel[] {

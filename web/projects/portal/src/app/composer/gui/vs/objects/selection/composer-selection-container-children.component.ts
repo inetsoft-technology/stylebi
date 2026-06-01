@@ -64,6 +64,12 @@ import { DragService } from "../../../../../widget/services/drag.service";
 import { EditableObjectContainer } from "../../editor/editable-object-container.component";
 import { ComponentTool } from "../../../../../common/util/component-tool";
 import { ComposerVsSearchService } from "../../composer-vs-search.service";
+import { LayoutOptionDialog } from "../../../../dialog/vs/layout-option-dialog.component";
+import { SelectionContainerActionHandlerDirective } from "../../action/selection-container-action-handler.directive";
+import { CurrentSelection } from "../../../../../vsobjects/objects/selection/current-selection.component";
+
+import { OutOfZoneDirective } from "../../../../../widget/directive/out-of-zone.directive";
+import { ActionsContextmenuAnchorDirective } from "../../../../../widget/fixed-dropdown/actions-contextmenu-anchor.directive";
 
 export enum DragBorderType {
    NONE = 0, // "none"
@@ -76,9 +82,10 @@ const INSERT_CHILD_URI = "/events/composer/viewsheet/selectionContainer/insertCh
 const CHECK_TRAP_URI = "../api/composer/viewsheet/objects/checkSelectionTrap";
 
 @Component({
-   selector: "composer-selection-container-children",
-   templateUrl: "composer-selection-container-children.component.html",
-   styleUrls: ["composer-selection-container-children.component.scss"]
+    selector: "composer-selection-container-children",
+    templateUrl: "composer-selection-container-children.component.html",
+    styleUrls: ["composer-selection-container-children.component.scss"],
+    imports: [ActionsContextmenuAnchorDirective, OutOfZoneDirective, CurrentSelection, SelectionContainerActionHandlerDirective, EditableObjectContainer, LayoutOptionDialog]
 })
 export class ComposerSelectionContainerChildren extends VSSelectionContainerChildren implements OnInit, OnDestroy, OnChanges {
    @Input() viewsheet: Viewsheet;

@@ -21,6 +21,8 @@ import { By } from "@angular/platform-browser";
 import { MouseEventDirective } from "./mouse-event.directive";
 
 @Component({
+   standalone: true,
+   imports: [MouseEventDirective],
    template: `
      <div mouseEvent>Has Directive</div>
      <div>No Directive</div>`
@@ -34,7 +36,7 @@ describe("Mouse Event Directive Tests", () => {
 
    beforeEach(() => {
       const fixture = TestBed.configureTestingModule({
-         declarations: [
+         imports: [
             TestApp,
             MouseEventDirective
          ]

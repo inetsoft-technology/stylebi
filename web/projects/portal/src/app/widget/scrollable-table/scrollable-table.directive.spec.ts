@@ -21,6 +21,8 @@ import { ScrollableTableDirective } from "./scrollable-table.directive";
 import { By } from "@angular/platform-browser";
 
 @Component({
+   standalone: true,
+   imports: [ScrollableTableDirective],
    selector: "test-component",
    template: `
    <table class="table table-bordered table-hover" wScrollableTable>
@@ -88,7 +90,7 @@ describe("ScrollableTableDirective", () => {
 
    beforeEach(() => {
       TestBed.configureTestingModule({
-         declarations: [ TestComponent, ScrollableTableDirective ],
+         imports: [ TestComponent, ScrollableTableDirective ],
          schemas: [ NO_ERRORS_SCHEMA ]
       });
       TestBed.compileComponents();

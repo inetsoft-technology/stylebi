@@ -26,6 +26,8 @@ import { Searchable } from "../../../../searchable";
 import { ProviderDetailPage } from "../provider-detail-page";
 import { AuthorizationProviderModel } from "../security-provider-model/authorization-provider-model";
 import { SecurityProviderService } from "../security-provider.service";
+import { AsyncPipe } from "@angular/common";
+import { AuthorizationProviderDetailViewComponent } from "../authorization-provider-detail-view/authorization-provider-detail-view.component";
 
 const GET_PROVIDER_INFO = "../api/em/security/get-authorization-provider/";
 
@@ -42,9 +44,10 @@ const GET_PROVIDER_INFO = "../api/em/security/get-authorization-provider/";
    link: "EMSettingsSecurityProviderAuthorization"
 })
 @Component({
-   selector: "em-authorization-provider-detail-page",
-   templateUrl: "./authorization-provider-detail-page.component.html",
-   styleUrls: ["./authorization-provider-detail-page.component.scss"]
+    selector: "em-authorization-provider-detail-page",
+    templateUrl: "./authorization-provider-detail-page.component.html",
+    styleUrls: ["./authorization-provider-detail-page.component.scss"],
+    imports: [AuthorizationProviderDetailViewComponent, AsyncPipe]
 })
 export class AuthorizationProviderDetailPageComponent extends ProviderDetailPage implements OnInit {
    form: UntypedFormGroup;

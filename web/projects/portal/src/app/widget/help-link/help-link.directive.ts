@@ -19,7 +19,8 @@ import { AfterViewInit, Directive, ElementRef, HostListener, Input } from "@angu
 import { HelpUrlService } from "./help-url.service";
 
 @Directive({
-   selector: "[helpLink]"
+    selector: "[helpLink]",
+    standalone: true
 })
 export class HelpLinkDirective implements AfterViewInit {
    @Input() helpLink: string;

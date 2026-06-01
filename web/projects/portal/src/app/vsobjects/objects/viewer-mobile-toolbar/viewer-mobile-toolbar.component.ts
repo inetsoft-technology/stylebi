@@ -24,11 +24,14 @@ import { DropdownOptions } from "../../../widget/fixed-dropdown/dropdown-options
 import { DropdownRef } from "../../../widget/fixed-dropdown/fixed-dropdown-ref";
 import { AssemblyActionGroup } from "../../../common/action/assembly-action-group";
 import { ToolbarActionsHandler } from "../../toolbar-actions-handler";
+import { FixedDropdownDirective } from "../../../widget/fixed-dropdown/fixed-dropdown.directive";
+
 
 @Component({
-   selector: "viewer-mobile-toolbar",
-   templateUrl: "viewer-mobile-toolbar.component.html",
-   styleUrls: ["viewer-mobile-toolbar.component.scss"]
+    selector: "viewer-mobile-toolbar",
+    templateUrl: "viewer-mobile-toolbar.component.html",
+    styleUrls: ["viewer-mobile-toolbar.component.scss"],
+    imports: [FixedDropdownDirective]
 })
 export class ViewerMobileToolbarComponent {
    _actions: AbstractVSActions<any>;

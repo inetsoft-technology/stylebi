@@ -28,7 +28,8 @@ import { FlatTreeDataSource } from "./flat-tree-data-source";
 import { FlatTreeControl } from "@angular/cdk/tree";
 
 @Directive({
-   selector: "[emMultiSelectTree]"
+    selector: "[emMultiSelectTree]",
+    standalone: true
 })
 export class MultiSelectTreeNodeDirective {
    @Input() tree: FlatTreeDataSource<any, any>;

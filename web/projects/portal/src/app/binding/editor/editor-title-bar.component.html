@@ -1,39 +1,43 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <div class="composer-header object-wizard-toolbar editor-tool-bar">
   <div class="title-bar btn-toolbar composer-btn-toolbar" role="toolbar">
     <div class="title">
       <i class="composer-icon editor-breadcrumb txt-primary"></i>
-      <ng-container *ngIf="sourceName || elementName">
+      @if (sourceName || elementName) {
         <i class="editor-breadcrumb-1 me-2 {{getAssemblyTypeIcon()}}"></i>
         <h4>{{elementName}}</h4>
-        <h5 *ngIf="sourceName">-> {{sourceName}}</h5>
-      </ng-container>
+        @if (sourceName) {
+          <h5>-> {{sourceName}}</h5>
+        }
+      }
     </div>
 
     <toolbar-group class="btn-toolbar-pull-right" [showTooltips]="true"
-                   [actionGroup]="actionGroup" [asMenu]="false"></toolbar-group>
+    [actionGroup]="actionGroup" [asMenu]="false"></toolbar-group>
     <div>
-      <button *ngIf="aiAssistantDialogService.aiAssistantVisible" type="button" class="btn-toolbar btn composer-btn ai-assistant-icon"
-              (click)="openAiAssistantDialog()">
-      </button>
+      @if (aiAssistantDialogService.aiAssistantVisible) {
+        <button type="button" class="btn-toolbar btn composer-btn ai-assistant-icon"
+          (click)="openAiAssistantDialog()">
+        </button>
+      }
       <button type="button" class="btn-toolbar btn composer-btn help-button"
-              [helpLink]="helpLink">
+        [helpLink]="helpLink">
       </button>
     </div>
   </div>

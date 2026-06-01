@@ -31,10 +31,16 @@ import { SelectionTreePaneModel } from "../../data/vs/selection-tree-pane-model"
 import { VSUtil } from "../../../vsobjects/util/vs-util";
 import { TreeDataPane } from "./tree-data-pane";
 import { DataTreeValidatorService } from "../../../vsobjects/dialog/data-tree-validator.service";
+import { AdditionalTableSelectionPaneComponent } from "../../../widget/dialog/additional-table-selection-pane/additional-table-selection-pane.component";
+
 
 @Component({
-   selector: "selection-tree-columns-pane",
-   templateUrl: "selection-tree-columns-pane.component.html",
+    selector: "selection-tree-columns-pane",
+    templateUrl: "selection-tree-columns-pane.component.html",
+    imports: [
+    TreeComponent,
+    AdditionalTableSelectionPaneComponent
+]
 })
 export class SelectionTreeColumnsPane extends TreeDataPane implements AfterViewInit {
    @Input() model: SelectionTreePaneModel;

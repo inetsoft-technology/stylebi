@@ -16,13 +16,18 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, EventEmitter, Input, OnDestroy, OnInit, Output } from "@angular/core";
-import { UntypedFormControl, UntypedFormGroup, Validators } from "@angular/forms";
+import { UntypedFormControl, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { DateAdapter, MAT_DATE_FORMATS } from "@angular/material/core";
 import { DateTypeFormatter } from "../../../../../../shared/util/date-type-formatter";
 import { Subscription } from "rxjs";
 import { DayjsDateAdapter } from "./dayjs-date-adapter.service";
 import dayjs from "dayjs";
 import customParseFormat from "dayjs/plugin/customParseFormat";
+import { MatIcon } from "@angular/material/icon";
+import { MatDatepickerInput, MatDatepickerToggle, MatDatepickerToggleIcon, MatDatepicker } from "@angular/material/datepicker";
+import { MatInput } from "@angular/material/input";
+
+import { MatFormField, MatLabel, MatSuffix, MatError } from "@angular/material/form-field";
 
 dayjs.extend(customParseFormat);
 
@@ -39,13 +44,27 @@ export const DEFAULT_FORMATS = {
 };
 
 @Component({
-   selector: "em-datepicker",
-   templateUrl: "datepicker.component.html",
-   styleUrls: ["datepicker.component.scss"],
-   providers: [
-      {provide: DateAdapter, useClass: DayjsDateAdapter},
-      {provide: MAT_DATE_FORMATS, useValue: DEFAULT_FORMATS},
-   ],
+    selector: "em-datepicker",
+    templateUrl: "datepicker.component.html",
+    styleUrls: ["datepicker.component.scss"],
+    providers: [
+        { provide: DateAdapter, useClass: DayjsDateAdapter },
+        { provide: MAT_DATE_FORMATS, useValue: DEFAULT_FORMATS },
+    ],
+    imports: [
+    MatFormField,
+    FormsModule,
+    ReactiveFormsModule,
+    MatLabel,
+    MatInput,
+    MatDatepickerInput,
+    MatDatepickerToggle,
+    MatSuffix,
+    MatIcon,
+    MatDatepickerToggleIcon,
+    MatDatepicker,
+    MatError
+]
 })
 export class DatepickerComponent implements OnInit, OnDestroy {
    @Input() isVisibleLabel: boolean;

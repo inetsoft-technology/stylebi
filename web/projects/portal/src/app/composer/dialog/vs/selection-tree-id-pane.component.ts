@@ -29,10 +29,17 @@ import { OutputColumnRefModel } from "../../../vsobjects/model/output-column-ref
 import { ComboMode } from "../../../widget/dynamic-combo-box/dynamic-combo-box-model";
 import { Tool } from "../../../../../../shared/util/tool";
 import { DataRefType } from "../../../common/data/data-ref-type";
+import { DynamicComboBox } from "../../../widget/dynamic-combo-box/dynamic-combo-box.component";
+import { FormsModule } from "@angular/forms";
 
 @Component({
-   selector: "selection-tree-id-pane",
-   templateUrl: "selection-tree-id-pane.component.html",
+    selector: "selection-tree-id-pane",
+    templateUrl: "selection-tree-id-pane.component.html",
+    imports: [
+        TreeComponent,
+        FormsModule,
+        DynamicComboBox,
+    ]
 })
 export class SelectionTreeIdPane implements OnInit, AfterViewInit {
    @Input() model: SelectionTreePaneModel;

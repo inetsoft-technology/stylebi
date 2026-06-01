@@ -32,9 +32,8 @@ describe("CollapsibleContainerComponent", () => {
          imports: [
             NoopAnimationsModule,
             MatExpansionModule,
-            MatFormFieldModule
-         ],
-         declarations: [CollapsibleContainerComponent],
+            MatFormFieldModule,
+            CollapsibleContainerComponent],
          schemas: [NO_ERRORS_SCHEMA]
       }).compileComponents();
    }));

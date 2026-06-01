@@ -1,20 +1,20 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <em-modal-header [cshid]="'ScheduleTaskSchedulerOptions'" [title]="'_#(Execute As)'">
 </em-modal-header>
 <div>
@@ -29,16 +29,22 @@
     <mat-form-field>
       <mat-label>_#(Execute As)</mat-label>
       <input matInput placeholder="" formControlName="idName"
-             [matAutocomplete]="auto">
+        [matAutocomplete]="auto">
       <mat-autocomplete #auto="matAutocomplete">
-        <mat-option *ngFor="let id of filteredIdentities | async" [value]="id.name">{{id.name}}</mat-option>
+        @for (id of filteredIdentities | async; track id) {
+          <mat-option [value]="id.name">{{id.name}}</mat-option>
+        }
       </mat-autocomplete>
-      <mat-error *ngIf="form.controls['idName'].errors && form.controls['idName'].errors['invalidUser']">
-        _#(Invalid user)
-      </mat-error>
-      <mat-error *ngIf="form.controls['idName'].errors && form.controls['idName'].errors['invalidGroup']">
-        _#(Invalid group)
-      </mat-error>
+      @if (form.controls['idName'].errors && form.controls['idName'].errors['invalidUser']) {
+        <mat-error>
+          _#(Invalid user)
+        </mat-error>
+      }
+      @if (form.controls['idName'].errors && form.controls['idName'].errors['invalidGroup']) {
+        <mat-error>
+          _#(Invalid group)
+        </mat-error>
+      }
     </mat-form-field>
   </form>
 </div>

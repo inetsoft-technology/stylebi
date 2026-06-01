@@ -18,11 +18,16 @@
 import { Component, EventEmitter, Input, OnInit, Output } from "@angular/core";
 import { TreeNodeModel } from "../../../widget/tree/tree-node-model";
 import { QueryNode } from "../../data/ws/query-node";
+import { FormsModule } from "@angular/forms";
+import { TreeComponent } from "../../../widget/tree/tree.component";
+
+import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
 
 @Component({
-   selector: "query-plan-dialog",
-   templateUrl: "query-plan-dialog.component.html",
-   styleUrls: ["query-plan-dialog.component.scss"]
+    selector: "query-plan-dialog",
+    templateUrl: "query-plan-dialog.component.html",
+    styleUrls: ["query-plan-dialog.component.scss"],
+    imports: [ModalHeaderComponent, TreeComponent, FormsModule]
 })
 export class QueryPlanDialog implements OnInit {
    @Input() runtimeId: string;

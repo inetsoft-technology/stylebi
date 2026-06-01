@@ -56,11 +56,8 @@ describe("CustomProviderViewComponent", () => {
             FormsModule,
             ReactiveFormsModule,
             MatInputModule,
-            MatIconModule
-         ],
-         declarations: [
-            CustomProviderViewComponent
-         ],
+            MatIconModule,
+            CustomProviderViewComponent],
          schemas: [
             NO_ERRORS_SCHEMA
          ]

@@ -19,11 +19,24 @@ import { Component, Input, OnInit } from "@angular/core";
 import { Range } from "../../../common/data/range";
 import { MultiSelectList } from "../../../common/util/multi-select-list";
 import { FiltersPaneModel } from "../../data/vs/filters-pane-model";
+import { TooltipIfDirective } from "../../../widget/tooltip/tooltip-if.directive";
+import { ElidedCellComponent } from "../../../widget/elided-cell/elided-cell.component";
+
+import { ScrollableTableDirective } from "../../../widget/scrollable-table/scrollable-table.directive";
+import { ShuffleListComponent } from "../../../widget/shuffle-list/shuffle-list.component";
+import { FormsModule } from "@angular/forms";
 
 @Component({
-   selector: "filters-pane",
-   templateUrl: "filters-pane.component.html",
-   styleUrls: ["filters-pane.component.scss"],
+    selector: "filters-pane",
+    templateUrl: "filters-pane.component.html",
+    styleUrls: ["filters-pane.component.scss"],
+    imports: [
+    FormsModule,
+    ShuffleListComponent,
+    ScrollableTableDirective,
+    ElidedCellComponent,
+    TooltipIfDirective
+]
 })
 export class FiltersPane implements OnInit {
    @Input() model: FiltersPaneModel;

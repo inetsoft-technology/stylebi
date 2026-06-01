@@ -18,10 +18,17 @@
 import { Component, Input } from "@angular/core";
 import { TitlePropPaneModel } from "../model/title-prop-pane-model";
 import { TreeNodeModel } from "../../widget/tree/tree-node-model";
+import { FormsModule } from "@angular/forms";
+
+import { DynamicComboBox } from "../../widget/dynamic-combo-box/dynamic-combo-box.component";
 
 @Component({
-   selector: "title-prop-pane",
-   templateUrl: "title-prop-pane.component.html",
+    selector: "title-prop-pane",
+    templateUrl: "title-prop-pane.component.html",
+    imports: [
+    DynamicComboBox,
+    FormsModule
+]
 })
 export class TitlePropPane {
    @Input() columnTreeRoot: TreeNodeModel = null;

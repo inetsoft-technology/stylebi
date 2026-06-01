@@ -28,11 +28,19 @@ import {
 import { Tool } from "../../../../../../../shared/util/tool";
 import { DataSpaceFileContentModel } from "./data-space-file-content-model";
 import { DataSpaceTreeDataSource } from "../data-space-tree-data-source";
+import { LoadingSpinnerComponent } from "../../../../common/util/loading-spinner/loading-spinner.component";
+import { FormsModule } from "@angular/forms";
+import { CdkTextareaAutosize } from "@angular/cdk/text-field";
+import { MatInput } from "@angular/material/input";
+import { MatFormField, MatLabel, MatHint } from "@angular/material/form-field";
+import { MatCard, MatCardTitle, MatCardContent } from "@angular/material/card";
+
 
 @Component({
-   selector: "em-text-file-content-view",
-   templateUrl: "./text-file-content-view.component.html",
-   styleUrls: ["./text-file-content-view.component.scss"]
+    selector: "em-text-file-content-view",
+    templateUrl: "./text-file-content-view.component.html",
+    styleUrls: ["./text-file-content-view.component.scss"],
+    imports: [MatCard, MatCardTitle, MatCardContent, MatFormField, MatLabel, MatInput, CdkTextareaAutosize, FormsModule, MatHint, LoadingSpinnerComponent]
 })
 export class TextFileContentViewComponent implements OnInit, OnChanges {
    @Output() contentChanged = new EventEmitter<DataSpaceFileContentModel>();

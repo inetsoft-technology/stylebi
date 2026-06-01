@@ -17,7 +17,7 @@
  */
 import { HttpClient } from "@angular/common/http";
 import { Component, HostListener, Inject, OnInit } from "@angular/core";
-import { MAT_DIALOG_DATA, MatDialog, MatDialogRef } from "@angular/material/dialog";
+import { MAT_DIALOG_DATA, MatDialog, MatDialogRef, MatDialogContent, MatDialogActions } from "@angular/material/dialog";
 import { CommonKVModel } from "../../../../../../../../portal/src/app/common/data/common-kv-model";
 import { RepositoryEntryType } from "../../../../../../../../shared/data/repository-entry-type.enum";
 import { Tool } from "../../../../../../../../shared/util/tool";
@@ -27,16 +27,23 @@ import { RepositoryTreeDataSource } from "../../repository-tree-data-source";
 import { RepositoryFlatNode, RepositoryTreeNode } from "../../repository-tree-node";
 import { SelectedAssetModel } from "../selected-asset-model";
 import { ExportAssetsService } from "../export-assets.service";
+import { MatButton } from "@angular/material/button";
+import { MatProgressBar } from "@angular/material/progress-bar";
+import { MultiSelectTreeNodeDirective } from "../../../../../common/util/tree/multi-select-tree-node.directive";
+import { FlatTreeViewComponent } from "../../../../../common/util/tree/flat-tree-view.component";
+
+import { ModalHeaderComponent } from "../../../../../common/util/modal-header/modal-header.component";
 
 export interface SelectAssetsDialogData {
    selectedAssets: SelectedAssetModel[];
 }
 
 @Component({
-   selector: "em-select-assets-dialog",
-   templateUrl: "./select-assets-dialog.component.html",
-   styleUrls: ["./select-assets-dialog.component.scss"],
-   providers: [RepositoryTreeDataSource]
+    selector: "em-select-assets-dialog",
+    templateUrl: "./select-assets-dialog.component.html",
+    styleUrls: ["./select-assets-dialog.component.scss"],
+    providers: [RepositoryTreeDataSource],
+    imports: [ModalHeaderComponent, MatDialogContent, FlatTreeViewComponent, MultiSelectTreeNodeDirective, MatProgressBar, MatDialogActions, MatButton]
 })
 export class SelectAssetsDialogComponent implements OnInit {
    selectedNodes: FlatTreeNode<RepositoryTreeNode>[] = [];

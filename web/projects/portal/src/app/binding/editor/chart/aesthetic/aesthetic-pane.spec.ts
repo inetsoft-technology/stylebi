@@ -35,6 +35,8 @@ import { AestheticInfo } from "../../../data/chart/aesthetic-info";
 import { AllChartAggregateRef } from "../../../data/chart/all-chart-aggregate-ref";
 import { ChartAggregateRef } from "../../../data/chart/chart-aggregate-ref";
 import { ChartBindingModel } from "../../../data/chart/chart-binding-model";
+import { BindingService } from "../../../services/binding.service";
+import { BindingTreeService } from "../../../widget/binding-tree/binding-tree.service";
 import { ChartEditorService } from "../../../services/chart/chart-editor.service";
 import { ColorFieldPane } from "../../../widget/color-field-pane.component";
 import { AestheticPane } from "./aesthetic-pane.component";
@@ -147,17 +149,48 @@ describe("Aesthetic Pane Unit Test", () => {
    beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule, HttpClientTestingModule, DropDownTestModule
+            FormsModule,
+            ReactiveFormsModule,
+            NgbModule,
+            HttpClientTestingModule,
+            DropDownTestModule,
+            AestheticPane,
+            ColorFieldMc,
+            ColorCell,
+            ShapeFieldMc,
+            ShapeCell,
+            SizeFieldMc,
+            SizeCell,
+            CombinedShapePane,
+            TextureItem,
+            LineItem,
+            ShapeItem,
+            ChartAestheticMc,
+            StaticTextureEditor,
+            StaticTexturePane,
+            StaticColorPane,
+            StaticColorEditor,
+            LinearShapePane,
+            ColorFieldPane,
+            ColorPane,
+            TextFieldMc,
+            FixedDropdownDirective,
          ],
-         declarations: [
-            AestheticPane, ColorFieldMc, ColorCell, ShapeFieldMc, ShapeCell, SizeFieldMc, SizeCell, CombinedShapePane, TextureItem, LineItem, ShapeItem, ChartAestheticMc, StaticTextureEditor, StaticTexturePane, StaticColorPane, StaticColorEditor, LinearShapePane, ColorFieldPane, ColorPane, TextFieldMc, FixedDropdownDirective
-         ],
+         
          providers: [
             { provide: ChartEditorService, useValue: editorService },
             { provide: UIContextService, useValue: uiContextService},
             { provide: DndService, useValue: dservice },
             { provide: NgbModal, useValue: modalService },
-            { provide: RecentColorService, useValue: recentColorService }
+            { provide: RecentColorService, useValue: recentColorService },
+            {
+               provide: BindingService,
+               useValue: { bindingModel: { availableFields: [] }, getURLParams: jest.fn(() => null) }
+            },
+            {
+               provide: BindingTreeService,
+               useValue: { root: null, treeChanged: { subscribe: jest.fn() }, getSelection: jest.fn(), setSelection: jest.fn() }
+            }
          ],
          schemas: [NO_ERRORS_SCHEMA]
       });

@@ -15,25 +15,26 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { DOCUMENT } from "@angular/common";
+import { NgClass } from "@angular/common";
 import { HttpClient, HttpParams } from "@angular/common/http";
 import {
-   AfterViewChecked,
-   AfterViewInit,
-   Component,
-   ElementRef,
-   EventEmitter,
-   HostListener,
-   Inject,
-   Input,
-   NgZone,
-   OnChanges,
-   OnDestroy,
-   OnInit,
-   Output,
-   Renderer2,
-   SimpleChanges,
-   ViewChild
+  AfterViewChecked,
+  AfterViewInit,
+  Component,
+  ElementRef,
+  EventEmitter,
+  HostListener,
+  Inject,
+  Input,
+  NgZone,
+  OnChanges,
+  OnDestroy,
+  OnInit,
+  Output,
+  Renderer2,
+  SimpleChanges,
+  ViewChild,
+  DOCUMENT
 } from "@angular/core";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { ConnectionMadeEventInfo } from "jsplumb";
@@ -51,7 +52,7 @@ import {
 import {
    DEPENDENCY_TYPE_OVERLAY_ID
 } from "../../../../../../../../composer/gui/ws/jsplumb/jsplumb-dependency-type-overlays";
-import { SelectionBoxEvent } from "../../../../../../../../widget/directive/selection-box.directive";
+import { SelectionBoxEvent, SelectionBoxDirective } from "../../../../../../../../widget/directive/selection-box.directive";
 import { DomService } from "../../../../../../../../widget/dom-service/dom.service";
 import {
    ActionsContextmenuComponent
@@ -101,6 +102,8 @@ import {
    DataType
 } from "../../../../common-components/join-thumbnail.service";
 import { DataQueryModelService } from "../../../data-query-model.service";
+import { JoinNodeGraphComponent } from "../../../../common-components/join-node-graph/join-node-graph.component";
+import { OutOfZoneDirective } from "../../../../../../../../widget/directive/out-of-zone.directive";
 
 const OPEN_JOIN_EDIT_PANE_URI = "../api/data/datasource/query/join-edit/open/";
 const GRAPH_CLEAR_JOINS_URI = "../api/data/datasource/query/joins/";
@@ -113,12 +116,13 @@ const HEARTBEAT_URI = "../api/data/query/heartbeat";
 const HEARTBEAT_INTERVAL_TIME = 20000;
 
 @Component({
-   selector: "query-network-graph-pane",
-   templateUrl: "./query-network-graph-pane.component.html",
-   styleUrls: [
-      "./query-network-graph-pane.component.scss",
-      "../../../../../../../../composer/gui/ws/jsplumb/jsplumb-shared.scss"
-   ]
+    selector: "query-network-graph-pane",
+    templateUrl: "./query-network-graph-pane.component.html",
+    styleUrls: [
+        "./query-network-graph-pane.component.scss",
+        "../../../../../../../../composer/gui/ws/jsplumb/jsplumb-shared.scss"
+    ],
+    imports: [OutOfZoneDirective, SelectionBoxDirective, JoinNodeGraphComponent, NgClass]
 })
 export class QueryNetworkGraphPaneComponent implements OnInit, AfterViewInit,
    AfterViewChecked, OnChanges, OnDestroy

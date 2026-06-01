@@ -27,8 +27,9 @@ import {
 import { AestheticIconCell } from "./aesthetic-icon-cell";
 
 @Component({
-   selector: "size-cell",
-   template: `<canvas #canvasElem style="vertical-align:middle;"></canvas>`
+    selector: "size-cell",
+    template: `<canvas #canvasElem style="vertical-align:middle;"></canvas>`,
+    standalone: true
 })
 export class SizeCell extends AestheticIconCell implements AfterViewInit, DoCheck {
    @ViewChild("canvasElem") canvasElem: ElementRef;

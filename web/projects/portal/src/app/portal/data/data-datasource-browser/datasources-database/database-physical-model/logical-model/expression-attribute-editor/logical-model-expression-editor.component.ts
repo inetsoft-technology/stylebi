@@ -17,7 +17,7 @@
  */
 import { HttpClient } from "@angular/common/http";
 import { Component, EventEmitter, Input, OnInit, Output } from "@angular/core";
-import { AbstractControl, UntypedFormGroup } from "@angular/forms";
+import { AbstractControl, UntypedFormGroup, FormsModule } from "@angular/forms";
 import { AttributeModel } from "../../../../../model/datasources/database/physical-model/logical-model/attribute-model";
 import { Tool } from "../../../../../../../../../../shared/util/tool";
 import { TreeNodeModel } from "../../../../../../../widget/tree/tree-node-model";
@@ -26,14 +26,17 @@ import { StringWrapper } from "../../../../../model/datasources/database/string-
 import { ScriptTreeNodeData } from "../../../../../../../widget/formula-editor/script-tree-node-data";
 import { ScriptPane } from "../../../../../../../widget/dialog/script-pane/script-pane.component";
 import { EntityModel } from "../../../../../model/datasources/database/physical-model/logical-model/entity-model";
+import { LogicalModelAttributeEditor } from "../attribute-editor/logical-model-attribute-editor.component";
+import { SplitPane } from "../../../../../../../widget/split-pane/split-pane.component";
 
 const CHECK_EXPRESSION_URI: string = "../api/data/logicalModel/attribute/expression";
 const FIELDS_URI: string = "../api/data/logicalModel/tables/nodes";
 
 @Component({
-   selector: "logical-model-expression-editor",
-   templateUrl: "logical-model-expression-editor.component.html",
-   styleUrls: ["logical-model-expression-editor.component.scss"]
+    selector: "logical-model-expression-editor",
+    templateUrl: "logical-model-expression-editor.component.html",
+    styleUrls: ["logical-model-expression-editor.component.scss"],
+    imports: [SplitPane, LogicalModelAttributeEditor, FormsModule, ScriptPane]
 })
 export class LogicalModelExpressionEditor implements OnInit {
    @Input() databaseName: string;

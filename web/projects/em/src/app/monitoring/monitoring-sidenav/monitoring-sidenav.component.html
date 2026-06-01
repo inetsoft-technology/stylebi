@@ -1,25 +1,25 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <div class="monitoring-sidenav-root" [class.monitoring-sidenav-mobile]="isScreenSmall()">
   <em-page-header (toggleSidenav)="sidenav.toggle()"></em-page-header>
   <mat-sidenav-container class="monitoring-sidenav-container">
     <mat-sidenav #sidenav [mode]="isScreenSmall() ? 'over' : 'side'" [opened]="!isScreenSmall()"
-                 [fixedInViewport]="true" [fixedTopGap]="92" class="mat-elevation-z2">
+      [fixedInViewport]="true" [fixedTopGap]="92" class="mat-elevation-z2">
       <mat-form-field>
         <input matInput type="search" placeholder="_#(Search)" [(ngModel)]="searchText" (keyup.enter)="search()"/>
         <button matSuffix mat-icon-button aria-label="_#(Search)" (click)="search()">
@@ -27,13 +27,27 @@
         </button>
       </mat-form-field>
       <mat-nav-list>
-        <a *ngIf="summaryVisible" mat-list-item routerLink="/monitoring/summary" routerLinkActive="active">_#(Summary)</a>
-        <a *ngIf="viewsheetsVisible" mat-list-item routerLink="/monitoring/viewsheets" routerLinkActive="active">_#(Viewsheets)</a>
-        <a *ngIf="queriesVisible" mat-list-item routerLink="/monitoring/queries" routerLinkActive="active">_#(Queries)</a>
-        <a *ngIf="cacheVisible" mat-list-item routerLink="/monitoring/cache" routerLinkActive="active">_#(Cache)</a>
-        <a *ngIf="usersVisible" mat-list-item routerLink="/monitoring/users" routerLinkActive="active">_#(Users)</a>
-        <a *ngIf="clusterVisible && isEnterprise" mat-list-item routerLink="/monitoring/cluster" routerLinkActive="active">_#(Cluster)</a>
-        <a *ngIf="logVisible" mat-list-item routerLink="/monitoring/log" routerLinkActive="active">_#(Logs)</a>
+        @if (summaryVisible) {
+          <a mat-list-item routerLink="/monitoring/summary" routerLinkActive="active">_#(Summary)</a>
+        }
+        @if (viewsheetsVisible) {
+          <a mat-list-item routerLink="/monitoring/viewsheets" routerLinkActive="active">_#(Viewsheets)</a>
+        }
+        @if (queriesVisible) {
+          <a mat-list-item routerLink="/monitoring/queries" routerLinkActive="active">_#(Queries)</a>
+        }
+        @if (cacheVisible) {
+          <a mat-list-item routerLink="/monitoring/cache" routerLinkActive="active">_#(Cache)</a>
+        }
+        @if (usersVisible) {
+          <a mat-list-item routerLink="/monitoring/users" routerLinkActive="active">_#(Users)</a>
+        }
+        @if (clusterVisible && isEnterprise) {
+          <a mat-list-item routerLink="/monitoring/cluster" routerLinkActive="active">_#(Cluster)</a>
+        }
+        @if (logVisible) {
+          <a mat-list-item routerLink="/monitoring/log" routerLinkActive="active">_#(Logs)</a>
+        }
       </mat-nav-list>
     </mat-sidenav>
 

@@ -42,9 +42,9 @@ describe("RegularTableComponent", () => {
             MatCheckboxModule,
             MatExpansionModule,
             MatFormFieldModule,
-            MatListModule
+            MatListModule,
+            RegularTableComponent
          ],
-         declarations: [RegularTableComponent],
          schemas: [NO_ERRORS_SCHEMA]
       })
          .compileComponents();

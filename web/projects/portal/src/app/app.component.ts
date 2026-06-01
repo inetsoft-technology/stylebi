@@ -15,9 +15,9 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { DOCUMENT } from "@angular/common";
-import { Component, Inject, NgZone, OnDestroy, OnInit, ViewChild } from "@angular/core";
-import { NavigationEnd, Router } from "@angular/router";
+
+import { Component, Inject, NgZone, OnDestroy, OnInit, ViewChild, DOCUMENT } from "@angular/core";
+import { NavigationEnd, Router, RouterOutlet } from "@angular/router";
 import { NgbModal, NgbModalRef } from "@ng-bootstrap/ng-bootstrap";
 import { Subscription } from "rxjs";
 import { SsoHeartbeatDispatcherService } from "../../../shared/sso/sso-heartbeat-dispatcher.service";
@@ -37,9 +37,10 @@ interface NotificationMessage {
 }
 
 @Component({
-   selector: "app-root",
-   templateUrl: "./app.component.html",
-   styleUrls: ["./app.component.scss"]
+    selector: "app-root",
+    templateUrl: "./app.component.html",
+    styleUrls: ["./app.component.scss"],
+    imports: [RouterOutlet, NotificationsComponent]
 })
 export class AppComponent implements OnInit, OnDestroy {
    @ViewChild("notifications") notifications: NotificationsComponent;

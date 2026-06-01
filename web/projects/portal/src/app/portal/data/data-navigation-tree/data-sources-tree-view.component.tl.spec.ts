@@ -54,8 +54,7 @@ import { render, waitFor } from "@testing-library/angular";
 import { it } from "@jest/globals";
 import { http, HttpResponse as MswHttpResponse } from "msw";
 import { EMPTY, of } from "rxjs";
-import { AssetClientService } from "../../../common/asset-client/asset-client.service";
-import { StompClientService, ViewsheetClientService } from "../../../common/viewsheet-client";
+import { StompClientService } from "../../../common/viewsheet-client";
 import { RepositoryClientService } from "../../../common/repository-client/repository-client.service";
 import { DebounceService } from "../../../widget/services/debounce.service";
 import { DragService } from "../../../widget/services/drag.service";
@@ -364,8 +363,8 @@ describe("DataSourcesTreeViewComponent — getDataNavigationTree — loading + r
       expect(comp.loading).toBe(false);
    });
 
-   // 🔁 Regression-sensitive: loading must be reset to false on error; a missing error handler
-   //    leaves the spinner running indefinitely after a network failure.
+   // 🔁 Regression-sensitive: subscribe() error callback must reset loading; without it the
+   //    spinner runs indefinitely after a failed tree fetch.
    it("should reset loading to false when the HTTP request errors", async () => {
       const { comp } = await renderComponent();
 
@@ -374,7 +373,7 @@ describe("DataSourcesTreeViewComponent — getDataNavigationTree — loading + r
       );
 
       comp.getDataNavigationTree();
-      expect(comp.loading).toBe(true); // set synchronously before HTTP
+      expect(comp.loading).toBe(true); // synchronous — set before HTTP response
 
       await waitFor(() => expect(comp.loading).toBe(false));
    });

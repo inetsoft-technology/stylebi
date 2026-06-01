@@ -17,10 +17,21 @@
  */
 import { Component, Output, EventEmitter, Input } from "@angular/core";
 import { TitleFormatDialogModel } from "../model/dialog/title-format-dialog-model";
+import { ApplyButtonComponent } from "../../widget/slide-out/apply-button.component";
+import { TitleFormatPane } from "./title-format-pane.component";
+import { EnterSubmitDirective } from "../../widget/directive/enter-submit.directive";
+
+import { ModalHeaderComponent } from "../../widget/modal-header/modal-header.component";
 
 @Component({
-   selector: "title-format-dialog",
-   templateUrl: "title-format-dialog.component.html",
+    selector: "title-format-dialog",
+    templateUrl: "title-format-dialog.component.html",
+    imports: [
+    ModalHeaderComponent,
+    EnterSubmitDirective,
+    TitleFormatPane,
+    ApplyButtonComponent
+]
 })
 export class TitleFormatDialog {
    @Input() model: TitleFormatDialogModel;

@@ -17,21 +17,20 @@
  */
 import { HttpClient } from "@angular/common/http";
 import { Component, EventEmitter, Input, Output } from "@angular/core";
-import {
-   FormGroupDirective,
-   NgForm,
-   UntypedFormBuilder,
-   UntypedFormControl,
-   UntypedFormGroup,
-   Validators
-} from "@angular/forms";
-import { ErrorStateMatcher } from "@angular/material/core";
+import { FormGroupDirective, NgForm, UntypedFormBuilder, UntypedFormControl, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
+import { ErrorStateMatcher, MatOption } from "@angular/material/core";
 import { MatSnackBar } from "@angular/material/snack-bar";
 import { ContextHelp } from "../../../context-help";
 import { Searchable } from "../../../searchable";
 import { GeneralSettingsChanges } from "../general-settings-page/general-settings-page.component";
 import { GeneralSettingsType } from "../general-settings-page/general-settings-type.enum";
 import { MVSettingsModel, MVType } from "./mv-settings-model";
+import { MatCheckbox } from "@angular/material/checkbox";
+import { MatSelect } from "@angular/material/select";
+import { MatFormField, MatLabel } from "@angular/material/form-field";
+import { MatSlideToggle } from "@angular/material/slide-toggle";
+
+import { MatCard, MatCardTitle, MatCardContent } from "@angular/material/card";
 
 @Searchable({
    route: "/settings/general#mv",
@@ -46,9 +45,10 @@ import { MVSettingsModel, MVType } from "./mv-settings-model";
    link: "EMGeneralMaterializedViewOptions"
 })
 @Component({
-   selector: "em-mv-settings-view",
-   templateUrl: "./mv-settings-view.component.html",
-   styleUrls: ["./mv-settings-view.component.scss"]
+    selector: "em-mv-settings-view",
+    templateUrl: "./mv-settings-view.component.html",
+    styleUrls: ["./mv-settings-view.component.scss"],
+    imports: [MatCard, MatCardTitle, MatCardContent, FormsModule, ReactiveFormsModule, MatSlideToggle, MatFormField, MatLabel, MatSelect, MatOption, MatCheckbox]
 })
 export class MVSettingsViewComponent {
    @Output() modelChanged = new EventEmitter<GeneralSettingsChanges>();

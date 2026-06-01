@@ -16,8 +16,8 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import {Component, Inject, OnInit} from "@angular/core";
-import {UntypedFormControl, UntypedFormGroup, Validators} from "@angular/forms";
-import {MAT_DIALOG_DATA, MatDialog, MatDialogConfig, MatDialogRef} from "@angular/material/dialog";
+import { UntypedFormControl, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
+import { MAT_DIALOG_DATA, MatDialog, MatDialogConfig, MatDialogRef, MatDialogActions, MatDialogClose } from "@angular/material/dialog";
 import {XSchema} from "../../../../../../portal/src/app/common/data/xschema";
 import {AddParameterDialogModel} from "../../../../../../shared/schedule/model/add-parameter-dialog-model";
 import {FormValidators} from "../../../../../../shared/util/form-validators";
@@ -30,14 +30,47 @@ import {DynamicDate} from "../../../../../../portal/src/app/portal/schedule/sche
 import {
   FormulaEditorDialogModel
 } from "../../../../../../portal/src/app/widget/formula-editor/formula-editor-dialog-model";
-import {HttpClient} from "@angular/common/http";
+import { HttpClient } from "@angular/common/http";
 import {MessageDialog, MessageDialogType} from "../../../common/util/message-dialog";
 import {TestTaskParameterExpressionRequest} from "../model/test-task-parameter-expression-request";
+import { MatButton } from "@angular/material/button";
+import { DateTimeEditorComponent } from "../date-time-editor/date-time-editor.component";
+import { DynamicValueEditorComponent } from "../../../widget/dynamic-value-editor.component";
+import { MatCheckbox } from "@angular/material/checkbox";
+import { MatSelect } from "@angular/material/select";
+import { MatOption } from "@angular/material/core";
+import { MatAutocompleteTrigger, MatAutocomplete } from "@angular/material/autocomplete";
+import { MatInput } from "@angular/material/input";
+import { MatFormField, MatLabel, MatError } from "@angular/material/form-field";
+import { MatRadioGroup, MatRadioButton } from "@angular/material/radio";
+
+import { ModalHeaderComponent } from "../../../common/util/modal-header/modal-header.component";
 
 @Component({
-   selector: "em-add-parameter-dialog",
-   templateUrl: "./add-parameter-dialog.component.html",
-   styleUrls: ["./add-parameter-dialog.component.scss"],
+    selector: "em-add-parameter-dialog",
+    templateUrl: "./add-parameter-dialog.component.html",
+    styleUrls: ["./add-parameter-dialog.component.scss"],
+    imports: [
+    ModalHeaderComponent,
+    MatRadioGroup,
+    FormsModule,
+    MatRadioButton,
+    ReactiveFormsModule,
+    MatFormField,
+    MatLabel,
+    MatInput,
+    MatAutocompleteTrigger,
+    MatError,
+    MatAutocomplete,
+    MatOption,
+    MatSelect,
+    MatCheckbox,
+    DynamicValueEditorComponent,
+    DateTimeEditorComponent,
+    MatDialogActions,
+    MatButton,
+    MatDialogClose
+]
 })
 export class AddParameterDialogComponent implements OnInit {
    index: number;

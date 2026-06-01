@@ -24,6 +24,7 @@ import { ModelService } from "../../../widget/services/model.service";
 import { EmbeddedTableDialogModel } from "../../data/ws/embedded-table-dialog-model";
 import { Worksheet } from "../../data/ws/worksheet";
 import { EmbeddedTableDialog } from "./embedded-table-dialog.component";
+import { HttpClientTestingModule } from "@angular/common/http/testing";
 
 describe("Embedded Table Dialog Tests", () => {
    let fixture: ComponentFixture<EmbeddedTableDialog>;
@@ -38,11 +39,13 @@ describe("Embedded Table Dialog Tests", () => {
 
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule
+            
+            HttpClientTestingModule,FormsModule,
+            ReactiveFormsModule,
+            EmbeddedTableDialog,
+            EnterSubmitDirective,
          ],
-         declarations: [
-            EmbeddedTableDialog, EnterSubmitDirective
-         ],
+         
          providers: [
             {
                provide: ModelService,

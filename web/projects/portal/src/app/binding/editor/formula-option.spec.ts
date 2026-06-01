@@ -42,11 +42,16 @@ describe("Formula Option Unit Test", () => {
    beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule, HttpClientTestingModule, DropDownTestModule
+            FormsModule,
+            ReactiveFormsModule,
+            NgbModule,
+            HttpClientTestingModule,
+            DropDownTestModule,
+            FormulaOption,
+            DynamicComboBox,
+            FixedDropdownDirective,
          ],
-         declarations: [
-            FormulaOption, DynamicComboBox, FixedDropdownDirective
-         ],
+         
          providers: [
             BindingService, UIContextService
          ],

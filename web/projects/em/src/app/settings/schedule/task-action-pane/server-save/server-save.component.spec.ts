@@ -44,11 +44,8 @@ describe("ServerSaveComponent", () => {
             MatSelectModule,
             MatTableModule,
             ReactiveFormsModule,
-            HttpClientTestingModule
-         ],
-         declarations: [
-            ServerSaveComponent
-         ],
+            HttpClientTestingModule,
+            ServerSaveComponent],
          schemas: [
             NO_ERRORS_SCHEMA
          ]

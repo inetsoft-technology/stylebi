@@ -28,11 +28,14 @@ import { TreeNodeModel } from "../tree/tree-node-model";
 import { TabularFile } from "../../common/data/tabular/tabular-file";
 import { Observable } from "rxjs";
 import { TreeComponent } from "../tree/tree.component";
+import { FormsModule } from "@angular/forms";
+
 
 @Component({
-   selector: "tabular-file-browser",
-   templateUrl: "tabular-file-browser.component.html",
-   styleUrls: ["tabular-file-browser.component.scss"]
+    selector: "tabular-file-browser",
+    templateUrl: "tabular-file-browser.component.html",
+    styleUrls: ["tabular-file-browser.component.scss"],
+    imports: [TreeComponent, FormsModule]
 })
 export class TabularFileBrowser implements AfterViewInit {
    @Input() path: string;

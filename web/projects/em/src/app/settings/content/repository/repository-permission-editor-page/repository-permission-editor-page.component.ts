@@ -15,12 +15,16 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import {HttpClient, HttpParams} from "@angular/common/http";
+import { HttpClient, HttpParams } from "@angular/common/http";
 import {Component, EventEmitter, Input, OnChanges, Output, SimpleChanges} from "@angular/core";
 import {ResourcePermissionModel} from "../../../security/resource-permission/resource-permission-model";
 import {RepositoryEditorModel} from "../../../../../../../shared/util/model/repository-editor-model";
 import {Tool} from "../../../../../../../shared/util/tool";
 import { COPY_PASTE_CONTEXT_REPOSITORY } from "../../../security/resource-permission/copy-paste-context";
+import { ResourcePermissionComponent } from "../../../security/resource-permission/resource-permission.component";
+import { MatTabGroup, MatTab } from "@angular/material/tabs";
+import { EditorPanelComponent } from "../../../../common/util/editor-panel/editor-panel.component";
+
 
 export interface RepositoryPermissionEditorModel extends RepositoryEditorModel {
    label: string;
@@ -28,9 +32,10 @@ export interface RepositoryPermissionEditorModel extends RepositoryEditorModel {
 }
 
 @Component({
-   selector: "em-repository-permission-editor-page",
-   templateUrl: "./repository-permission-editor-page.component.html",
-   styleUrls: ["./repository-permission-editor-page.component.scss"]
+    selector: "em-repository-permission-editor-page",
+    templateUrl: "./repository-permission-editor-page.component.html",
+    styleUrls: ["./repository-permission-editor-page.component.scss"],
+    imports: [EditorPanelComponent, MatTabGroup, MatTab, ResourcePermissionComponent]
 })
 export class RepositoryPermissionEditorPageComponent implements OnChanges {
    @Input() model: RepositoryPermissionEditorModel;

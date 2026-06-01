@@ -18,9 +18,10 @@
 import { Component, Input } from "@angular/core";
 
 @Component({
-   selector: "vs-saving-display",
-   templateUrl: "vs-saving-display.component.html",
-   styleUrls: ["vs-saving-display.component.scss"]
+    selector: "vs-saving-display",
+    templateUrl: "vs-saving-display.component.html",
+    styleUrls: ["vs-saving-display.component.scss"],
+    standalone: true
 })
 export class VSSavingDisplay {
    @Input() fixed: boolean = false;

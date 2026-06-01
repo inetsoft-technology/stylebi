@@ -20,10 +20,14 @@ import {
    Component, EventEmitter, Input, OnChanges, OnDestroy, OnInit, Output,
    SimpleChanges
 } from "@angular/core";
-import { UntypedFormBuilder, UntypedFormGroup, Validators } from "@angular/forms";
+import { UntypedFormBuilder, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { FormValidators } from "../../../../../../../shared/util/form-validators";
 import { Subscription } from "rxjs";
 import { Tool } from "../../../../../../../shared/util/tool";
+import { MatInput } from "@angular/material/input";
+import { MatError, MatFormField, MatLabel } from "@angular/material/form-field";
+import { MatCard, MatCardHeader, MatCardContent } from "@angular/material/card";
+
 
 export interface RepositorySheetSettingsChange {
    model: RepositorySheetSettingsModel;
@@ -31,9 +35,10 @@ export interface RepositorySheetSettingsChange {
 }
 
 @Component({
-   selector: "em-repository-sheet-settings-view",
-   templateUrl: "./repository-sheet-settings-view.component.html",
-   styleUrls: ["./repository-sheet-settings-view.component.scss"]
+    selector: "em-repository-sheet-settings-view",
+    templateUrl: "./repository-sheet-settings-view.component.html",
+    styleUrls: ["./repository-sheet-settings-view.component.scss"],
+    imports: [MatCard, MatCardHeader, MatError, MatCardContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatInput]
 })
 export class RepositorySheetSettingsViewComponent implements OnChanges, OnDestroy, OnInit {
    @Input() model: RepositorySheetSettingsModel;

@@ -1,20 +1,20 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <w-standard-dialog [title]="nodeProtection ? '_#(Server Shutdown)' : '_#(Session Timeout)'" (onClose)="closeDialog()" (onSubmit)="stayLoggedInClicked()">
   <ng-template wDialogContent>
     <div class="container">
@@ -26,8 +26,12 @@
         </div>
         <div class="col">
           <div class="row">
-            <div *ngIf="!nodeProtection" class="col">_#(login.session.expiring.warning)</div>
-            <div *ngIf="nodeProtection" class="col">_#(login.nodeProtection.expiring.warning)</div>
+            @if (!nodeProtection) {
+              <div class="col">_#(login.session.expiring.warning)</div>
+            }
+            @if (nodeProtection) {
+              <div class="col">_#(login.nodeProtection.expiring.warning)</div>
+            }
           </div>
           <div class="row">
             <div class="col countdown-timer">
@@ -42,6 +46,8 @@
     <button type="button" class="btn btn-primary text-nowrap" (click)="stayLoggedInClicked()">
       {{ nodeProtection ? "_#(OK)" : "_#(Stay Logged In)" }}
     </button>
-    <button *ngIf="!nodeProtection" type="button" class="btn btn-default" (click)="logoutClicked()">_#(Logout)</button>
+    @if (!nodeProtection) {
+      <button type="button" class="btn btn-default" (click)="logoutClicked()">_#(Logout)</button>
+    }
   </ng-template>
 </w-standard-dialog>

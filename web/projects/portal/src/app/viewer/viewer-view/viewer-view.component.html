@@ -1,54 +1,57 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
-<ng-container *ngIf="tabs.length > 0">
-   <div class="viewer-view-container">
-      <div class="page-tab-content">
-         <!-- use a for loop to ensure that the viewer-app gets re-created when the asset ID changes -->
-         <viewer-app *ngFor="let tab of tabs" #viewerApp
-                     [class.viewer-app--active]="isActiveTab(tab)"
-                     [active]="isActiveTab(tab)"
-                     [assetId]="tab.id"
-                     [runtimeId]="tab.runtimeId"
-                     [queryParameters]="tab.queryParameters"
-                     [principal]="principal"
-                     [securityEnabled]="securityEnabled"
-                     [toolbarPermissions]="toolbarPermissions"
-                     [(fullScreen)]="fullScreen"
-                     [dashboardName]="dashboardName"
-                     [inPortal]="inPortal"
-                     [inDashboard]="inDashboard"
-                     [tabsHeight]="tabBarHeight"
-                     [isIframe]="isIframe()"
-                     (onEditTable)="onEditTable($event)"
-                     (onEditChart)="onEditChart($event)"
-                     (closeCurrentTab)="closeCurrentTab()"
-                     (closeClicked)="onViewsheetClosed()"
-                     (onAnnotationChanged)="modified = $event"
-                     (onOpenViewsheet)="openViewsheet($event)"
-                     (toolbarVisibleChange)="onToolbarVisibleChange($event)">
-         </viewer-app>
-      </div>
-
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
+@if (tabs.length > 0) {
+  <div class="viewer-view-container">
+    <div class="page-tab-content">
+      <!-- use a for loop to ensure that the viewer-app gets re-created when the asset ID changes -->
+      @for (tab of tabs; track tab) {
+        <viewer-app #viewerApp
+          [class.viewer-app--active]="isActiveTab(tab)"
+          [active]="isActiveTab(tab)"
+          [assetId]="tab.id"
+          [runtimeId]="tab.runtimeId"
+          [queryParameters]="tab.queryParameters"
+          [principal]="principal"
+          [securityEnabled]="securityEnabled"
+          [toolbarPermissions]="toolbarPermissions"
+          [(fullScreen)]="fullScreen"
+          [dashboardName]="dashboardName"
+          [inPortal]="inPortal"
+          [inDashboard]="inDashboard"
+          [tabsHeight]="tabBarHeight"
+          [isIframe]="isIframe()"
+          (onEditTable)="onEditTable($event)"
+          (onEditChart)="onEditChart($event)"
+          (closeCurrentTab)="closeCurrentTab()"
+          (closeClicked)="onViewsheetClosed()"
+          (onAnnotationChanged)="modified = $event"
+          (onOpenViewsheet)="openViewsheet($event)"
+          (toolbarVisibleChange)="onToolbarVisibleChange($event)">
+        </viewer-app>
+      }
+    </div>
+    @if (tabs.length > 1) {
       <div class="page-tab-bar" #pageTabBar
-           [class.page-tab-fullscreen]="fullScreen" *ngIf="tabs.length > 1"
-           [style.top.px]="drillTabsTopPx"
-           [style.bottom]="drillTabsTop ? 'unset' : null">
-         <page-tab></page-tab>
+        [class.page-tab-fullscreen]="fullScreen"
+        [style.top.px]="drillTabsTopPx"
+        [style.bottom]="drillTabsTop ? 'unset' : null">
+        <page-tab></page-tab>
       </div>
-   </div>
-</ng-container>
+    }
+  </div>
+}

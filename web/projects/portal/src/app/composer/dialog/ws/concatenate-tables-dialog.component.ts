@@ -22,9 +22,13 @@ import { ViewsheetClientService } from "../../../common/viewsheet-client/viewshe
 import { WSConcatenateEvent } from "../../gui/ws/socket/ws-concatenate-event";
 import { WorksheetTableOperator } from "../../data/ws/ws-table.operators";
 
+import { FormsModule } from "@angular/forms";
+import { EnterSubmitDirective } from "../../../widget/directive/enter-submit.directive";
+
 @Component({
-   selector: "concatenate-tables-dialog",
-   templateUrl: "concatenate-tables-dialog.component.html"
+    selector: "concatenate-tables-dialog",
+    templateUrl: "concatenate-tables-dialog.component.html",
+    imports: [EnterSubmitDirective, FormsModule]
 })
 export class ConcatenateTablesDialog {
    @Input() tables: AbstractTableAssembly[];

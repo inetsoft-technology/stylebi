@@ -15,24 +15,34 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Component, ElementRef, Inject, OnInit, ViewChild, ViewEncapsulation } from "@angular/core";
-import { MAT_DIALOG_DATA, MatDialog, MatDialogRef } from "@angular/material/dialog";
+import { Component, ElementRef, HostBinding, Inject, OnInit, ViewChild, ViewEncapsulation } from "@angular/core";
+import { MAT_DIALOG_DATA, MatDialog, MatDialogRef, MatDialogContent, MatDialogActions, MatDialogClose } from "@angular/material/dialog";
 import { MatSnackBar, MatSnackBarConfig } from "@angular/material/snack-bar";
 import { Tool } from "../../../../../../../shared/util/tool";
 import { EditClasspathTextDialogComponent } from "./edit-classpath-text-dialog/edit-classpath-text-dialog.component";
+import { MatDivider } from "@angular/material/divider";
+
+import { MatList, MatListItem } from "@angular/material/list";
+import { MatIcon } from "@angular/material/icon";
+import { MatIconButton, MatButton } from "@angular/material/button";
+import { FormsModule } from "@angular/forms";
+import { MatInput } from "@angular/material/input";
+import { MatFormField, MatLabel, MatSuffix } from "@angular/material/form-field";
+import { MatCard, MatCardContent } from "@angular/material/card";
+import { MatGridList, MatGridTile } from "@angular/material/grid-list";
+import { ModalHeaderComponent } from "../../../../common/util/modal-header/modal-header.component";
 
 const PATH_ITEM_HEIGHT: number = 41;
 
 @Component({
-  selector: "em-schedule-classpath-dialog",
-  templateUrl: "./schedule-classpath-dialog.component.html",
-  styleUrls: ["./schedule-classpath-dialog.component.scss"],
-  encapsulation: ViewEncapsulation.None,
-  host: {// eslint-disable-line @angular-eslint/no-host-metadata-property
-    "class": "schedule-classpath-dialog"
-  }
+    selector: "em-schedule-classpath-dialog",
+    templateUrl: "./schedule-classpath-dialog.component.html",
+    styleUrls: ["./schedule-classpath-dialog.component.scss"],
+    encapsulation: ViewEncapsulation.None,
+    imports: [ModalHeaderComponent, MatDialogContent, MatGridList, MatGridTile, MatCard, MatCardContent, MatFormField, MatLabel, MatInput, FormsModule, MatIconButton, MatSuffix, MatIcon, MatList, MatListItem, MatDivider, MatButton, MatDialogActions, MatDialogClose]
 })
 export class ScheduleClasspathDialogComponent implements OnInit {
+  @HostBinding("class") hostClass = "schedule-classpath-dialog";
   @ViewChild("scrollViewport", { static: true }) scrollViewport: ElementRef<any>;
   @ViewChild("pathEditInput") pathInput: ElementRef;
   title: string;

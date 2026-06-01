@@ -1,20 +1,20 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <div class="repository-tree-panel">
   <mat-toolbar class="toolbar-raised-button repository-toolbar" [class.search-hidden]="!searchOpen">
     <button mat-icon-button title="_#(Search)" aria-label="_#(Search)" (click)="toggleSearch()">
@@ -24,15 +24,19 @@
       <mat-label>_#(Search)</mat-label>
       <input matInput [(ngModel)]="searchQuery" placeholder="_#(Search)"/>
       <button mat-icon-button matSuffix title="_#(Clear)" aria-label="_#(Clear)"
-              (click)="searchQuery = ''" [disabled]="!searchQuery">
+        (click)="searchQuery = ''" [disabled]="!searchQuery">
         <mat-icon fontSet="ineticons" fontIcon="close-circle-icon"></mat-icon>
       </button>
     </mat-form-field>
-    <span *ngIf="!searchOpen && collapseToolbar" class="toolbar-spacer"></span>
-    <button *ngIf="searchOpen || collapseToolbar" mat-icon-button title="_#(Menu)" [matMenuTriggerFor]="toolbarMenu">
-      <mat-icon fontSet="ineticons" fontIcon="menu-sandwich-icon"></mat-icon>
-    </button>
-    <ng-container *ngIf="!searchOpen && !collapseToolbar">
+    @if (!searchOpen && collapseToolbar) {
+      <span class="toolbar-spacer"></span>
+    }
+    @if (searchOpen || collapseToolbar) {
+      <button mat-icon-button title="_#(Menu)" [matMenuTriggerFor]="toolbarMenu">
+        <mat-icon fontSet="ineticons" fontIcon="menu-sandwich-icon"></mat-icon>
+      </button>
+    }
+    @if (!searchOpen && !collapseToolbar) {
       <button mat-icon-button title="_#(Filter)" [matMenuTriggerFor]="filterMenu">
         <mat-icon fontSet="ineticons" fontIcon="condition-icon"></mat-icon>
       </button>
@@ -45,9 +49,11 @@
       <button mat-icon-button title="_#(Move)" (click)="onMoveAsset()" [disabled]="moveDisabled">
         <mat-icon fontSet="ineticons" fontIcon="folder-move-icon"></mat-icon>
       </button>
-      <button mat-icon-button *ngIf="smallDevice" title="_#(Edit)" (click)="editNodeAction()" [disabled]="selectedNodes.length != 1">
-        <mat-icon fontSet="ineticons" fontIcon="edit-icon"></mat-icon>
-      </button>
+      @if (smallDevice) {
+        <button mat-icon-button title="_#(Edit)" (click)="editNodeAction()" [disabled]="selectedNodes.length != 1">
+          <mat-icon fontSet="ineticons" fontIcon="edit-icon"></mat-icon>
+        </button>
+      }
       <button mat-icon-button title="_#(Materialize)" (click)="openMaterialize()" [disabled]="!enableMaterialize">
         <mat-icon fontSet="ineticons" fontIcon="materialized-viewsheet-icon"></mat-icon>
       </button>
@@ -57,31 +63,35 @@
       <button mat-icon-button title="_#(Export Asset)" (click)="onExportAsset()" [disabled]="exportDisabled">
         <mat-icon fontSet="ineticons" fontIcon="export-icon"></mat-icon>
       </button>
-    </ng-container>
+    }
   </mat-toolbar>
   <div class="repository-tree" emTopScroll>
-    <div class="tree-loading-indicator" *ngIf="dataSource?.loading | async">
-      <span>_#(Loading)...</span>
-      <mat-progress-bar mode="indeterminate"></mat-progress-bar>
-    </div>
+    @if (dataSource?.loading | async) {
+      <div class="tree-loading-indicator">
+        <span>_#(Loading)...</span>
+        <mat-progress-bar mode="indeterminate"></mat-progress-bar>
+      </div>
+    }
     <div class="repository-tree__container">
       <em-flat-tree-view [dataSource]="dataSource"
-                         [treeControl]="dataSource.treeControl"
-                         [selectedNodes]="selectedNodes"
-                         (nodeSelected)="nodeSelected.emit($event)"
-                         (onDrop)="onDrop.emit($event)"
-                         (dblClicked)="dblClicked.emit($event)"
-                         (onContextMenu)="onContextMenu($event.node, $event.menu)">
+        [treeControl]="dataSource.treeControl"
+        [selectedNodes]="selectedNodes"
+        (nodeSelected)="nodeSelected.emit($event)"
+        (onDrop)="onDrop.emit($event)"
+        (dblClicked)="dblClicked.emit($event)"
+        (onContextMenu)="onContextMenu($event.node, $event.menu)">
       </em-flat-tree-view>
     </div>
   </div>
   <div class="treeStatus">
-    <ng-container *ngIf="this.selectedNodes?.length == 1">
-      <span *ngFor="let metaTypeEntry of selectedNodes[0].getNodeMetaMap().entries()" class="treeStatusItem">
-        <span class="badge">{{metaTypeEntry[0]}}: {{metaTypeEntry[1]}}
+    @if (this.selectedNodes?.length == 1) {
+      @for (metaTypeEntry of selectedNodes[0].getNodeMetaMap().entries(); track metaTypeEntry) {
+        <span class="treeStatusItem">
+          <span class="badge">{{metaTypeEntry[0]}}: {{metaTypeEntry[1]}}
+          </span>
         </span>
-      </span>
-    </ng-container>
+      }
+    }
   </div>
   <!-- Duplicate buttons, maybe this can be factored out in an ng-template or subcomponent-->
   <mat-menu #toolbarMenu="matMenu">
@@ -106,7 +116,7 @@
       _#(Edit)
     </button>
     <button mat-menu-item class="dropdown-import-button" (click)="openMaterialize()"
-            [disabled]="!enableMaterialize">
+      [disabled]="!enableMaterialize">
       <mat-icon fontSet="ineticons" fontIcon="materialized-viewsheet-icon"></mat-icon>
       _#(Materialize)
     </button>
@@ -120,15 +130,17 @@
     </button>
   </mat-menu>
   <mat-menu #appMenu="matMenu">
+    @if (licensedComponents?.dashboards) {
+      <button mat-menu-item class="filter-button"
+        (click)="createDashboard()"
+        [disabled]="newDashboardDisabled"
+        >
+        _#(New Dashboard)
+      </button>
+    }
     <button mat-menu-item class="filter-button"
-            (click)="createDashboard()"
-            [disabled]="newDashboardDisabled"
-            *ngIf="licensedComponents?.dashboards">
-      _#(New Dashboard)
-    </button>
-    <button mat-menu-item class="filter-button"
-            (click)="createFolder()"
-            [disabled]="newFolderDisabled">
+      (click)="createFolder()"
+      [disabled]="newFolderDisabled">
       _#(New Folder)
     </button>
   </mat-menu>

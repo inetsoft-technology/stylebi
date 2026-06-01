@@ -47,11 +47,8 @@ describe("TextFileContentViewComponent", () => {
             MatIconModule,
             MatInputModule,
             MatFormFieldModule,
-            MatTooltipModule
-         ],
-         declarations: [
-            TextFileContentViewComponent
-         ],
+            MatTooltipModule,
+            TextFileContentViewComponent],
          providers: [
             { provide: DataSpaceTreeDataSource, useValue: dataSpaceTreeDataSource }
          ],

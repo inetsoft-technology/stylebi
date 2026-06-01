@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, EventEmitter, Input, OnInit, Output } from "@angular/core";
-import { UntypedFormControl, ValidationErrors, Validators } from "@angular/forms";
+import { UntypedFormControl, ValidationErrors, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { RepositoryEntry } from "../../../../../shared/data/repository-entry";
 import { FormValidators } from "../../../../../shared/util/form-validators";
@@ -24,12 +24,17 @@ import { ComponentTool } from "../../common/util/component-tool";
 import { MessageCommand } from "../../common/viewsheet-client/message-command";
 import { ModelService } from "../services/model.service";
 import { AddRepositoryFolderEvent } from "./add-repository-folder-event";
+import { DialogButtonsDirective } from "../standard-dialog/dialog-buttons.directive";
+
+import { DialogContentDirective } from "../standard-dialog/dialog-content.directive";
+import { StandardDialogComponent } from "../standard-dialog/standard-dialog.component";
 
 const ADD_FOLDER_URI = "../api/portal/tree/add-folder";
 
 @Component({
-   selector: "add-repository-folder-dialog",
-   templateUrl: "add-repository-folder-dialog.component.html"
+    selector: "add-repository-folder-dialog",
+    templateUrl: "add-repository-folder-dialog.component.html",
+    imports: [StandardDialogComponent, DialogContentDirective, FormsModule, ReactiveFormsModule, DialogButtonsDirective]
 })
 export class AddRepositoryFolderDialog implements OnInit {
    @Output() onCommit: EventEmitter<string> = new EventEmitter<string>();

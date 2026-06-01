@@ -39,14 +39,16 @@ describe("Input Name Dialog Unit Test", () => {
    beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule, HttpClientTestingModule,
-         ],
-         declarations: [
+            FormsModule,
+            ReactiveFormsModule,
+            NgbModule,
+            HttpClientTestingModule,
             InputNameDialog,
             EnterSubmitDirective,
             ModalHeaderComponent,
-            HelpLinkDirective
+            HelpLinkDirective,
          ],
+         
          providers: [
             { provide: NgbModal, useValue: ngbService },
             { provide: HelpUrlService, useValue: helpUrlService }

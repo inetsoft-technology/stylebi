@@ -52,6 +52,8 @@ import { LoadAssetTreeNodesValidator } from "./load-asset-tree-nodes-validator";
 import { VirtualScrollTreeComponent } from "../tree/virtual-scroll-tree/virtual-scroll-tree.component";
 import { TreeTool } from "../../common/util/tree-tool";
 import { CurrentUserService } from "../../../../../shared/util/current-user.service";
+import { VariableInputDialog } from "../dialog/variable-input-dialog/variable-input-dialog.component";
+
 
 const isDataSource = (node: TreeNodeModel) => {
    const entry = node.data as AssetEntry;
@@ -59,11 +61,12 @@ const isDataSource = (node: TreeNodeModel) => {
 };
 
 @Component({
-   selector: "asset-tree",
-   templateUrl: "asset-tree.component.html",
-   styleUrls: ["asset-tree.component.scss"],
-   changeDetection: ChangeDetectionStrategy.OnPush,
-   providers: [AssetClientService, DebounceService]
+    selector: "asset-tree",
+    templateUrl: "asset-tree.component.html",
+    styleUrls: ["asset-tree.component.scss"],
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    providers: [AssetClientService, DebounceService],
+    imports: [VirtualScrollTreeComponent, VariableInputDialog]
 })
 export class AssetTreeComponent implements OnInit, OnDestroy, OnChanges {
    @Input() reportRepositoryEnabled: boolean = false;

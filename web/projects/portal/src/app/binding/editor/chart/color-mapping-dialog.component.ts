@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, EventEmitter, Input, OnInit, Output } from "@angular/core";
-import { UntypedFormGroup } from "@angular/forms";
+import { UntypedFormGroup, FormsModule } from "@angular/forms";
 import { ColorMap } from "../../../common/data/color-map";
 import { CategoricalColorModel } from "../../../common/data/visual-frame-model";
 import { AestheticInfo } from "../../data/chart/aesthetic-info";
@@ -24,11 +24,16 @@ import { ColorMappingDialogModel } from "../../data/chart/color-mapping-dialog-m
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { ComponentTool } from "../../../common/util/component-tool";
 import { ValueLabelModel } from "../../data/value-label-model";
+import { ColorEditor } from "../../../widget/color-picker/color-editor.component";
+import { NgStyle } from "@angular/common";
+import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
+import { BlockMouseDirective } from "../../../widget/mouse-event/block-mouse.directive";
 
 @Component({
-   selector: "color-mapping-dialog",
-   templateUrl: "color-mapping-dialog.component.html",
-   styleUrls: ["color-mapping-dialog.component.scss"]
+    selector: "color-mapping-dialog",
+    templateUrl: "color-mapping-dialog.component.html",
+    styleUrls: ["color-mapping-dialog.component.scss"],
+    imports: [BlockMouseDirective, ModalHeaderComponent, FormsModule, NgStyle, ColorEditor]
 })
 export class ColorMappingDialog implements OnInit {
    @Input() model: ColorMappingDialogModel;

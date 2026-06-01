@@ -25,9 +25,9 @@ describe("ThemeEditorViewComponent", () => {
 
    beforeEach(async () => {
       await TestBed.configureTestingModule({
-         imports: [HttpClientTestingModule],
-         declarations: [ThemeEditorViewComponent]
-      })
+         imports: [HttpClientTestingModule,
+            ThemeEditorViewComponent]
+         })
          .compileComponents();
    });
 

@@ -47,10 +47,9 @@ describe("CacheSettingsViewComponent", () => {
             MatSelectModule,
             MatInputModule,
             MatCheckboxModule,
-            MatSlideToggleModule
-         ],
-         declarations: [CacheSettingsViewComponent]
-      })
+            MatSlideToggleModule,
+            CacheSettingsViewComponent]
+         })
          .compileComponents();
    }));
 

@@ -20,8 +20,8 @@
 }
 
 :host ::ng-deep .mat-mdc-radio-button, :host ::ng-deep .mdc-label {
-  --mdc-form-field-label-text-size: 12px !important;
-  --mdc-form-field-label-text-line-height: 16px !important;
+  --mat-checkbox-label-text-size: 12px !important;
+  --mat-checkbox-label-text-line-height: 16px !important;
 }
 :host ::ng-deep .mdc-label {
   font-size: 12px !important;

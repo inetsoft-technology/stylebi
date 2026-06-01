@@ -35,7 +35,8 @@ import { ContextProvider } from "../../../../vsobjects/context-provider.service"
 const SUBMIT_PROPERTY_URI: string = "composer/vs/submit-property-dialog-model/";
 
 @Directive({
-   selector: "[cSubmitActionHandler]"
+    selector: "[cSubmitActionHandler]",
+    standalone: true
 })
 export class SubmitActionHandlerDirective extends AbstractActionHandler implements OnDestroy {
    @Input() model: VSSubmitModel;

@@ -16,8 +16,16 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { NO_ERRORS_SCHEMA } from "@angular/core";
+import { HttpClientTestingModule } from "@angular/common/http/testing";
 import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
+import { Subject } from "rxjs";
 import { ViewsheetClientService } from "../../../common/viewsheet-client";
+import { ContextProvider } from "../../../vsobjects/context-provider.service";
+import { DataTipService } from "../../../vsobjects/objects/data-tip/data-tip.service";
+import { PopComponentService } from "../../../vsobjects/objects/data-tip/pop-component.service";
+import { MiniToolbarService } from "../../../vsobjects/objects/mini-toolbar/mini-toolbar.service";
+import { DefaultScaleService } from "../../../widget/services/scale/default-scale-service";
+import { ScaleService } from "../../../widget/services/scale/scale-service";
 import { VSWizardPreviewPane } from "./wizard-preview-pane.component";
 
 describe("VSWizardPreviewPane", () => {
@@ -28,11 +36,17 @@ describe("VSWizardPreviewPane", () => {
     const viewsheetClientService = { sendEvent: jest.fn() };
 
     TestBed.configureTestingModule({
-      declarations: [
-         VSWizardPreviewPane
+      imports: [
+         VSWizardPreviewPane,
+         HttpClientTestingModule
       ],
       providers: [
-        { provide: ViewsheetClientService, useValue: viewsheetClientService }
+        { provide: ViewsheetClientService, useValue: viewsheetClientService },
+        { provide: ContextProvider, useValue: { viewer: false, preview: false, composer: true, binding: false } },
+        { provide: DataTipService, useValue: { isDataTip: jest.fn(), showDataTip: jest.fn() } },
+        { provide: PopComponentService, useValue: { isPopComponent: jest.fn(), getPopComponent: jest.fn(), componentRegistered: new Subject<any>() } },
+        { provide: MiniToolbarService, useValue: { handleBodyMouseoverEvent: jest.fn(), setCurrentToolbar: jest.fn(), isMiniToolbarVisible: jest.fn() } },
+        { provide: ScaleService, useClass: DefaultScaleService }
       ],
       schemas: [
          NO_ERRORS_SCHEMA

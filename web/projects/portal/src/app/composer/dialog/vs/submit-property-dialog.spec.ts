@@ -41,6 +41,7 @@ import { LabelPropPane } from "./label-prop-pane.component";
 import { SubmitGeneralPane } from "./submit-general-pane.component";
 import { SubmitPropertyDialog } from "./submit-property-dialog.component";
 import { PropertyDialogService } from "../../../vsobjects/util/property-dialog.service";
+import { HttpClientTestingModule } from "@angular/common/http/testing";
 
 let createModel = () => {
    return <SubmitPropertyDialogModel> {
@@ -111,15 +112,30 @@ describe("SubmitPropertyDialog Integration Test", () => {
 
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule, DropDownTestModule
+            
+            HttpClientTestingModule,FormsModule,
+            ReactiveFormsModule,
+            NgbModule,
+            DropDownTestModule,
+            SubmitPropertyDialog,
+            SubmitGeneralPane,
+            ClickableScriptPane,
+            GeneralPropPane,
+            LabelPropPane,
+            ScriptPane,
+            BasicGeneralPane,
+            TreeComponent,
+            FormulaEditorDialog,
+            TreeNodeComponent,
+            NewAggrDialog,
+            MessageDialog,
+            TreeSearchPipe,
+            EnterSubmitDirective,
+            DefaultFocusDirective,
+            FixedDropdownDirective,
+            SizePositionPane,
          ],
-         declarations: [
-            SubmitPropertyDialog, SubmitGeneralPane, ClickableScriptPane, GeneralPropPane,
-            LabelPropPane, ScriptPane, BasicGeneralPane, TreeComponent,
-            FormulaEditorDialog, TreeNodeComponent, NewAggrDialog, MessageDialog,
-            TreeSearchPipe, EnterSubmitDirective, DefaultFocusDirective,
-            FixedDropdownDirective, SizePositionPane
-         ],
+         
          providers: [
             { provide: UIContextService, useValue: contextService },
             { provide: PropertyDialogService, useValue: dialogService }

@@ -62,15 +62,14 @@ describe("CurrentSelection Unit Tests", () => {
             NgbModule,
             FormsModule,
             ReactiveFormsModule,
-            HttpClientTestingModule
-         ],
-         declarations: [
+            HttpClientTestingModule,
             CurrentSelection,
             MiniToolbar,
             TitleCell,
             ActionsContextmenuAnchorDirective,
-            InteractableDirective
+            InteractableDirective,
          ],
+         
          providers: [
             ViewsheetClientService,
             StompClientService,

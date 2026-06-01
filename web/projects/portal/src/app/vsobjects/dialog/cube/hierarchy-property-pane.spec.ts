@@ -82,11 +82,12 @@ describe("Hierarchy Property Pane Unit Test", () => {
 
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule
+            FormsModule,
+            ReactiveFormsModule,
+            HierarchyPropertyPane,
+            HierarchyEditor,
          ],
-         declarations: [
-            HierarchyPropertyPane, HierarchyEditor
-         ],
+         
          providers: [
             {provide: DateLevelExamplesService, useValue: examplesService}
          ]

@@ -24,22 +24,30 @@ import {
    Output,
    ViewChild
 } from "@angular/core";
-import { UntypedFormControl, UntypedFormGroup, Validators } from "@angular/forms";
+import { UntypedFormControl, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { ComboMode, ValueMode } from "../../../../portal/src/app/widget/dynamic-combo-box/dynamic-combo-box-model";
 import { MatDialog } from "@angular/material/dialog";
 import { FormulaEditorDialogComponent } from "./formula-editor-dialog.component";
 import { ScriptTreeDataSource } from "./script-tree-data-source";
 import { FormulaEditorDialogModel } from "../../../../portal/src/app/widget/formula-editor/formula-editor-dialog-model";
-import { MatAutocompleteTrigger } from "@angular/material/autocomplete";
-import { MatMenuTrigger } from "@angular/material/menu";
+import { MatAutocompleteTrigger, MatAutocomplete } from "@angular/material/autocomplete";
+import { MatMenuTrigger, MatMenu, MatMenuItem, MatMenuContent } from "@angular/material/menu";
 import { XSchema } from "../../../../portal/src/app/common/data/xschema";
 import { Tool } from "../../../../shared/util/tool";
 import { FormValidators } from "../../../../shared/util/form-validators";
+import { DateTimePickerComponent } from "../common/util/datepicker/date-time-picker.component";
+import { MatOption } from "@angular/material/core";
+import { MatIcon } from "@angular/material/icon";
+import { MatIconButton } from "@angular/material/button";
+import { MatInput } from "@angular/material/input";
+import { MatFormField, MatLabel, MatSuffix, MatError } from "@angular/material/form-field";
+
 
 @Component({
-   selector: "em-dynamic-combo-box",
-   templateUrl: "./dynamic-combo-box.component.html",
-   styleUrls: ["./dynamic-combo-box.component.scss"]
+    selector: "em-dynamic-combo-box",
+    templateUrl: "./dynamic-combo-box.component.html",
+    styleUrls: ["./dynamic-combo-box.component.scss"],
+    imports: [FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatInput, MatAutocompleteTrigger, MatIconButton, MatSuffix, MatMenuTrigger, MatIcon, MatError, MatAutocomplete, MatOption, MatMenu, MatMenuItem, MatMenuContent, DateTimePickerComponent]
 })
 export class DynamicComboBoxComponent implements OnInit {
    public ComboMode = ComboMode;

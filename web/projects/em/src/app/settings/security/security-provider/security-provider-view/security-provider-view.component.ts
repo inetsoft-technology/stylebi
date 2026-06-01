@@ -16,11 +16,15 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, OnInit } from "@angular/core";
+import { AuthorizationProviderListPageComponent } from "../authorization-provider-list-page/authorization-provider-list-page.component";
+import { AuthenticationProviderViewComponent } from "../authentication-provider-list-page/authentication-provider-list-page.component";
 
 @Component({
-  selector: "em-security-provider-view",
-  templateUrl: "./security-provider-view.component.html",
-  styleUrls: ["./security-provider-view.component.scss"]
+    selector: "em-security-provider-view",
+    templateUrl: "./security-provider-view.component.html",
+    styleUrls: ["./security-provider-view.component.scss"],
+    standalone: true,
+    imports: [AuthenticationProviderViewComponent, AuthorizationProviderListPageComponent]
 })
 export class SecurityProviderViewComponent implements OnInit {
 

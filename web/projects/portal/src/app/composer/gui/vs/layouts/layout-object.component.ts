@@ -52,15 +52,87 @@ import { MoveResizeLayoutObjectsEvent } from "../event/move-resize-layout-object
 import { Dimension } from "../../../../common/data/dimension";
 import { TableLayoutPropertyDialogModel } from "../../../data/vs/table-layout-property-dialog-model";
 import { ComposerVsSearchService } from "../composer-vs-search.service";
+import { TableLayoutPropertyDialog } from "../../../dialog/vs/table-layout-property-dialog.component";
+import { TextPropertyDialog } from "../../../dialog/vs/text-property-dialog.component";
+import { ImagePropertyDialog } from "../../../dialog/vs/image-property-dialog.component";
+import { VSSelectionContainerChildren } from "../../../../vsobjects/objects/selection/vs-selection-container-children.component";
+import { VSViewsheet } from "../../../../vsobjects/objects/viewsheet/vs-viewsheet.component";
+import { VSPageBreak } from "../../../../vsobjects/objects/page-break/vs-page-break.component";
+import { VSTextInput } from "../../../../vsobjects/objects/text-input/vs-text-input.component";
+import { VSText } from "../../../../vsobjects/objects/output/text/vs-text.component";
+import { VSTable } from "../../../../vsobjects/objects/table/vs-table.component";
+import { VSTab } from "../../../../vsobjects/objects/tab/vs-tab.component";
+import { VSSubmit } from "../../../../vsobjects/objects/submit/vs-submit.component";
+import { VSSpinner } from "../../../../vsobjects/objects/spinner/vs-spinner.component";
+import { VSSlider } from "../../../../vsobjects/objects/slider/vs-slider.component";
+import { VSSelectionContainer } from "../../../../vsobjects/objects/selection/vs-selection-container.component";
+import { VSSelection } from "../../../../vsobjects/objects/selection/vs-selection.component";
+import { VSRangeSlider } from "../../../../vsobjects/objects/range-slider/vs-range-slider.component";
+import { VSRectangle } from "../../../../vsobjects/objects/shape/vs-rectangle.component";
+import { VSRadioButton } from "../../../../vsobjects/objects/radio-button/vs-radio-button.component";
+import { VSOval } from "../../../../vsobjects/objects/shape/vs-oval.component";
+import { VSLine } from "../../../../vsobjects/objects/shape/vs-line.component";
+import { VSImage } from "../../../../vsobjects/objects/output/image/vs-image.component";
+import { VSGroupContainer } from "../../../../vsobjects/objects/group/vs-group-container.component";
+import { VSThermometer } from "../../../../vsobjects/objects/thermometer/vs-thermometer.component";
+import { VSSlidingScale } from "../../../../vsobjects/objects/sliding-scale/vs-sliding-scale.component";
+import { VSCylinder } from "../../../../vsobjects/objects/cylinder/vs-cylinder.component";
+import { VSGauge } from "../../../../vsobjects/objects/output/gauge/vs-gauge.component";
+import { VSCrosstab } from "../../../../vsobjects/objects/table/vs-crosstab.component";
+import { VSComboBox } from "../../../../vsobjects/objects/combo-box/vs-combo-box.component";
+import { VSCheckBox } from "../../../../vsobjects/objects/check-box/vs-check-box.component";
+import { VSChart } from "../../../../vsobjects/objects/chart/vs-chart.component";
+import { VSCalcTable } from "../../../../vsobjects/objects/table/vs-calctable.component";
+import { VSCalendar } from "../../../../vsobjects/objects/calendar/vs-calendar.component";
+import { NgClass } from "@angular/common";
+import { ActionsContextmenuAnchorDirective } from "../../../../widget/fixed-dropdown/actions-contextmenu-anchor.directive";
+import { InteractableDirective } from "../../../../widget/interact/interactable.directive";
 
 const TEXT_PROPERTY_URI: string = "composer/vs/layouts/text-property-dialog/";
 const IMAGE_PROPERTY_URI: string = "composer/vs/layouts/image-property-dialog/";
 const TABLE_LAYOUT_PROPERTY_URI: string = "composer/vs/layouts/table-layout-property-dialog/";
 
 @Component({
-   selector: "layout-object",
-   templateUrl: "layout-object.component.html",
-   styleUrls: ["layout-object.component.scss"],
+    selector: "layout-object",
+    templateUrl: "layout-object.component.html",
+    styleUrls: ["layout-object.component.scss"],
+    imports: [
+    InteractableDirective,
+    ActionsContextmenuAnchorDirective,
+    NgClass,
+    VSCalendar,
+    VSCalcTable,
+    VSChart,
+    VSCheckBox,
+    VSComboBox,
+    VSCrosstab,
+    VSGauge,
+    VSCylinder,
+    VSSlidingScale,
+    VSThermometer,
+    VSGroupContainer,
+    VSImage,
+    VSLine,
+    VSOval,
+    VSRadioButton,
+    VSRectangle,
+    VSRangeSlider,
+    VSSelection,
+    VSSelectionContainer,
+    VSSlider,
+    VSSpinner,
+    VSSubmit,
+    VSTab,
+    VSTable,
+    VSText,
+    VSTextInput,
+    VSPageBreak,
+    VSViewsheet,
+    VSSelectionContainerChildren,
+    ImagePropertyDialog,
+    TextPropertyDialog,
+    TableLayoutPropertyDialog
+]
 })
 export class LayoutObject implements OnInit, OnDestroy {
    @Input() model: VSLayoutObjectModel;

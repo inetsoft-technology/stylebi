@@ -18,9 +18,12 @@
 import { Component, Input } from "@angular/core";
 import { LegendScalePaneModel } from "../model/dialog/legend-scale-pane-model";
 
+import { FormsModule } from "@angular/forms";
+
 @Component({
-   selector: "legend-scale-pane",
-   templateUrl: "legend-scale-pane.component.html",
+    selector: "legend-scale-pane",
+    templateUrl: "legend-scale-pane.component.html",
+    imports: [FormsModule]
 })
 export class LegendScalePane {
    @Input() model: LegendScalePaneModel;

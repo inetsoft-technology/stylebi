@@ -26,12 +26,15 @@ import { StyleConstants } from "../../../common/util/style-constants";
 import { SummaryAttrUtil } from "../../util/summary-attr-util";
 import { XSchema } from "../../../common/data/xschema";
 
+import { FormsModule } from "@angular/forms";
+
 const DEFAULT_N_P_NVALUE: number = 1;
 
 @Component({
-   selector: "calc-aggregate-option",
-   templateUrl: "calc-aggregate-option.component.html",
-   styleUrls: ["calc-aggregate-option.component.scss"]
+    selector: "calc-aggregate-option",
+    templateUrl: "calc-aggregate-option.component.html",
+    styleUrls: ["calc-aggregate-option.component.scss"],
+    imports: [FormsModule]
 })
 export class CalcAggregateOption implements OnInit, OnChanges {
    @Input() dataRef: DataRef;

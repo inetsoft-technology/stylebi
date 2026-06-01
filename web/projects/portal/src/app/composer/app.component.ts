@@ -19,18 +19,22 @@ import { Component, OnDestroy, OnInit } from "@angular/core";
 import { Title } from "@angular/platform-browser";
 import { ActivatedRoute, Router } from "@angular/router";
 import { NgbDatepickerConfig, NgbModal } from "@ng-bootstrap/ng-bootstrap";
+import { AiAssistantPanelComponent } from "../../../../shared/ai-assistant/ai-assistant-panel.component";
+import { DownloadTargetComponent } from "../../../../shared/download/download-target.component";
 import { FirstDayOfWeekService } from "../common/services/first-day-of-week.service";
 import { ComponentTool } from "../common/util/component-tool";
 import { GuiTool } from "../common/util/gui-tool";
 import { SetPrincipalCommand } from "../vsobjects/command/set-principal-command";
 import { DragService } from "../widget/services/drag.service";
+import { ComposerMainComponent } from "./gui/composer-main.component";
 import { ResizeHandlerService } from "./gui/resize-handler.service";
 import { ComposerRecentService } from "./gui/composer-recent.service";
 import { WizService } from "./gui/wiz/services/wiz.service";
 
 @Component({
-   selector: "composer-app",
-   templateUrl: "app.component.html",
+    imports: [AiAssistantPanelComponent, ComposerMainComponent, DownloadTargetComponent],
+    selector: "composer-app",
+    templateUrl: "app.component.html"
 })
 export class ComposerAppComponent implements OnInit, OnDestroy {
    initialSheet: string;

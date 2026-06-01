@@ -19,11 +19,15 @@ import { Component, Input, OnChanges, OnInit, Output, EventEmitter } from "@angu
 import { SizeFrameModel } from "../../../../common/data/visual-frame-model";
 import { RangeSliderOptions } from "../../../widget/range-slider-options";
 import { SliderOptions } from "../../../widget/slider-options";
+import { Slider } from "../../../widget/slider.component";
+import { RangeSlider } from "../../../widget/range-slider.component";
+
 
 @Component({
-   selector: "binding-size-pane",
-   templateUrl: "binding-size-pane.component.html",
-   styleUrls: ["binding-size-pane.component.scss"]
+    selector: "binding-size-pane",
+    templateUrl: "binding-size-pane.component.html",
+    styleUrls: ["binding-size-pane.component.scss"],
+    imports: [RangeSlider, Slider]
 })
 export class BindingSizePane implements OnChanges, OnInit {
    @Input() frameModel: SizeFrameModel;

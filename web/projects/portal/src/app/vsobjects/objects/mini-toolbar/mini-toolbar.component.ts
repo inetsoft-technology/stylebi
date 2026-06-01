@@ -29,6 +29,7 @@ import { MiniToolbarService } from "./mini-toolbar.service";
 import { FocusObjectEventModel } from "../../model/focus-object-event-model";
 import { ToolbarActionsHandler } from "../../toolbar-actions-handler";
 
+
 /**
  * Mini-toolbar usage: (see vs-calendar.copmonent.html)
  * 1. Include mini-toolbar in the vsobject html.
@@ -38,9 +39,10 @@ import { ToolbarActionsHandler } from "../../toolbar-actions-handler";
  */
 
 @Component({
-   selector: "mini-toolbar",
-   templateUrl: "mini-toolbar.component.html",
-   styleUrls: ["mini-toolbar.component.scss"]
+    selector: "mini-toolbar",
+    templateUrl: "mini-toolbar.component.html",
+    styleUrls: ["mini-toolbar.component.scss"],
+    imports: []
 })
 export class MiniToolbar implements OnDestroy {
    @Input() actions: AbstractVSActions<any>;

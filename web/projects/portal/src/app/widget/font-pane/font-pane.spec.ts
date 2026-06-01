@@ -45,10 +45,8 @@ describe("Font Pane Unit Test", () => {
       });
 
       TestBed.configureTestingModule({
-         imports: [],
-         declarations: [
-            FontPane
-         ],
+         imports: [FontPane],
+         
          providers: [
             { provide: DebounceService, useValue: debounceService },
             { provide: FontService, useValue: fontService }

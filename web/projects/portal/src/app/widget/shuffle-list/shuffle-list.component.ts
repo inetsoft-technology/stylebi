@@ -17,10 +17,12 @@
  */
 import { Component, Input } from "@angular/core";
 
+
 @Component({
-   selector: "w-shuffle-list",
-   templateUrl: "./shuffle-list.component.html",
-   styleUrls: ["./shuffle-list.component.scss"]
+    selector: "w-shuffle-list",
+    templateUrl: "./shuffle-list.component.html",
+    styleUrls: ["./shuffle-list.component.scss"],
+    imports: []
 })
 export class ShuffleListComponent {
    @Input() leftTitle: string = null;

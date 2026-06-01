@@ -28,9 +28,10 @@ describe("PageTabComponent", () => {
 
       TestBed.configureTestingModule({
          imports: [
-            HttpClientTestingModule
+            HttpClientTestingModule,
+            PageTabComponent,
          ],
-         declarations: [PageTabComponent],
+         
          providers: [
             PageTabService,
          ],

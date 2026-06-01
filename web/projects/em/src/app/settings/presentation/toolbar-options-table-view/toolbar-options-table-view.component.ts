@@ -16,6 +16,12 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, EventEmitter, Input, OnChanges, Output, SimpleChanges } from "@angular/core";
+import { MatIcon } from "@angular/material/icon";
+import { MatIconButton } from "@angular/material/button";
+import { FormsModule } from "@angular/forms";
+import { MatCheckbox } from "@angular/material/checkbox";
+import { MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow } from "@angular/material/table";
+import { MatCard, MatCardTitle, MatCardContent } from "@angular/material/card";
 
 export interface ToolbarOption {
    id: string;
@@ -26,9 +32,10 @@ export interface ToolbarOption {
 }
 
 @Component({
-   selector: "em-toolbar-options-table-view",
-   templateUrl: "./toolbar-options-table-view.component.html",
-   styleUrls: ["./toolbar-options-table-view.component.scss"]
+    selector: "em-toolbar-options-table-view",
+    templateUrl: "./toolbar-options-table-view.component.html",
+    styleUrls: ["./toolbar-options-table-view.component.scss"],
+    imports: [MatCard, MatCardTitle, MatCardContent, MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatCheckbox, FormsModule, MatIconButton, MatIcon, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow]
 })
 export class ToolbarOptionsTableViewComponent implements OnChanges {
    @Input() dataSource: ToolbarOption[];

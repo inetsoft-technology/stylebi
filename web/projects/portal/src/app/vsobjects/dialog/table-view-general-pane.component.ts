@@ -16,14 +16,27 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, Input, OnInit } from "@angular/core";
-import { UntypedFormControl, UntypedFormGroup } from "@angular/forms";
+import { UntypedFormControl, UntypedFormGroup, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { FormValidators } from "../../../../../shared/util/form-validators";
 import { TreeNodeModel } from "../../widget/tree/tree-node-model";
 import { TableViewGeneralPaneModel } from "../model/table-view-general-pane-model";
+import { SizePositionPane } from "./size-position-pane.component";
+import { TableStylePane } from "../../widget/table-style/table-style-pane.component";
+import { TitlePropPane } from "./title-prop-pane.component";
+import { GeneralPropPane } from "./general-prop-pane.component";
+
 
 @Component({
-   selector: "table-view-general-pane",
-   templateUrl: "table-view-general-pane.component.html",
+    selector: "table-view-general-pane",
+    templateUrl: "table-view-general-pane.component.html",
+    imports: [
+    GeneralPropPane,
+    TitlePropPane,
+    FormsModule,
+    ReactiveFormsModule,
+    TableStylePane,
+    SizePositionPane
+]
 })
 export class TableViewGeneralPane implements OnInit {
    @Input() model: TableViewGeneralPaneModel;

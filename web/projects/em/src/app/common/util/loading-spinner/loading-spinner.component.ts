@@ -16,11 +16,14 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, Input } from "@angular/core";
+import { MatProgressSpinner } from "@angular/material/progress-spinner";
+
 
 @Component({
-   selector: "em-loading-spinner",
-   templateUrl: "./loading-spinner.component.html",
-   styleUrls: ["./loading-spinner.component.scss"]
+    selector: "em-loading-spinner",
+    templateUrl: "./loading-spinner.component.html",
+    styleUrls: ["./loading-spinner.component.scss"],
+    imports: [MatProgressSpinner]
 })
 export class LoadingSpinnerComponent {
    @Input() loading = false;

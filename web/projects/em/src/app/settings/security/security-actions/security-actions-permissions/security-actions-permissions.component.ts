@@ -25,11 +25,14 @@ import { Tool } from "../../../../../../../shared/util/tool";
 import { ActionTreeNode } from "../action-tree-node";
 import { SecurityActionService } from "../security-action.service";
 import { COPY_PASTE_CONTEXT_SECURITY_ACTIONS } from "../../resource-permission/copy-paste-context";
+import { ResourcePermissionComponent } from "../../resource-permission/resource-permission.component";
+import { EditorPanelComponent } from "../../../../common/util/editor-panel/editor-panel.component";
 
 @Component({
-   selector: "em-security-actions-permissions",
-   templateUrl: "./security-actions-permissions.component.html",
-   styleUrls: ["./security-actions-permissions.component.scss"]
+    selector: "em-security-actions-permissions",
+    templateUrl: "./security-actions-permissions.component.html",
+    styleUrls: ["./security-actions-permissions.component.scss"],
+    imports: [EditorPanelComponent, ResourcePermissionComponent]
 })
 export class SecurityActionsPermissionsComponent {
    @Output() unsavedChanges = new EventEmitter<boolean>();

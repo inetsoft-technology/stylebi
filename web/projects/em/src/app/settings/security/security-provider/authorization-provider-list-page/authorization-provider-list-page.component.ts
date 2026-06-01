@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import {HttpClient, HttpErrorResponse} from "@angular/common/http";
+import { HttpClient, HttpErrorResponse } from "@angular/common/http";
 import {Component, OnDestroy, OnInit} from "@angular/core";
 import {MatDialog} from "@angular/material/dialog";
 import {MatSnackBar} from "@angular/material/snack-bar";
@@ -32,6 +32,9 @@ import {
   SecurityProviderStatusList
 } from "../security-provider-model/security-provider-status-list";
 import {Tool} from "../../../../../../../shared/util/tool";
+import { MatButton } from "@angular/material/button";
+import { SecurityListViewComponent } from "../../security-list-view/security-list-view.component";
+import { MatCard, MatCardTitle, MatCardContent, MatCardActions } from "@angular/material/card";
 
 @Searchable({
    title: "Authorization Providers",
@@ -43,9 +46,10 @@ import {Tool} from "../../../../../../../shared/util/tool";
    link: "EMSettingsSecurityProvider"
 })
 @Component({
-   selector: "em-authorization-provider-list-page",
-   templateUrl: "./authorization-provider-list-page.component.html",
-   styleUrls: ["./authorization-provider-list-page.component.scss"]
+    selector: "em-authorization-provider-list-page",
+    templateUrl: "./authorization-provider-list-page.component.html",
+    styleUrls: ["./authorization-provider-list-page.component.scss"],
+    imports: [MatCard, MatCardTitle, MatCardContent, SecurityListViewComponent, MatCardActions, MatButton]
 })
 export class AuthorizationProviderListPageComponent implements OnInit, OnDestroy {
    title: string = "_#(js:Authorization Providers)";

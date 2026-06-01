@@ -1,20 +1,20 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <mat-card appearance="outlined">
   <mat-card-header>
     <mat-card-title>
@@ -22,64 +22,73 @@
       <label>_#(Backup)</label>
     </mat-card-title>
   </mat-card-header>
-  <mat-card-content *ngIf="enabled">
-    <mat-card-content [formGroup]="backupForm" class="mat-card-content-padding">
-      <mat-form-field floatLabel="never" appearance="outline" color="accent">
-        <input type="text" matInput formControlName="path" placeholder="_#(Path)" />
-        <mat-error *ngIf="backupForm.controls['path']?.errors?.required">_#(em.schedule.action.pathRequired)</mat-error>
-      </mat-form-field>
-      <mat-checkbox formControlName="ftp" (change)="toggleFTP()">_#(FTP/SFTP)</mat-checkbox>
-      <mat-checkbox *ngIf="cloudSecrets" formControlName="useCredential">_#(Use Secret ID)</mat-checkbox>
-      <ng-container *ngIf="cloudSecrets && backupForm.controls['useCredential'].value">
-        <mat-form-field floatLabel="always" appearance="outline" color="accent">
-          <mat-label>_#(Secret ID)</mat-label>
-          <input type="text" matInput formControlName="secretId" placeholder="_#(Secret ID)" />
+  @if (enabled) {
+    <mat-card-content>
+      <mat-card-content [formGroup]="backupForm" class="mat-card-content-padding">
+        <mat-form-field floatLabel="never" appearance="outline" color="accent">
+          <input type="text" matInput formControlName="path" placeholder="_#(Path)" />
+          @if (backupForm.controls['path']?.errors?.required) {
+            <mat-error>_#(em.schedule.action.pathRequired)</mat-error>
+          }
         </mat-form-field>
-      </ng-container>
-      <ng-container *ngIf="!cloudSecrets || !backupForm.controls['useCredential'].value">
-        <mat-form-field floatLabel="always" appearance="outline" color="accent">
-          <mat-label>_#(Username)</mat-label>
-          <input type="text" matInput formControlName="username" placeholder="_#(Username)" />
-        </mat-form-field>
-        <mat-form-field floatLabel="always" appearance="outline" color="accent">
-          <mat-label>_#(Password)</mat-label>
-          <input type="password" matInput formControlName="password" placeholder="_#(Password)" />
-        </mat-form-field>
-      </ng-container>
-    </mat-card-content>
-
-    <div class="flex-row">
-      <mat-card appearance="outlined" class="flex-col flex-grow-1 list-container">
-        <div class="tree-loading-indicator" *ngIf="dataSource?.loading | async">
-          <span>_#(Loading)...</span>
-          <mat-progress-bar mode="indeterminate"></mat-progress-bar>
+        <mat-checkbox formControlName="ftp" (change)="toggleFTP()">_#(FTP/SFTP)</mat-checkbox>
+        @if (cloudSecrets) {
+          <mat-checkbox formControlName="useCredential">_#(Use Secret ID)</mat-checkbox>
+        }
+        @if (cloudSecrets && backupForm.controls['useCredential'].value) {
+          <mat-form-field floatLabel="always" appearance="outline" color="accent">
+            <mat-label>_#(Secret ID)</mat-label>
+            <input type="text" matInput formControlName="secretId" placeholder="_#(Secret ID)" />
+          </mat-form-field>
+        }
+        @if (!cloudSecrets || !backupForm.controls['useCredential'].value) {
+          <mat-form-field floatLabel="always" appearance="outline" color="accent">
+            <mat-label>_#(Username)</mat-label>
+            <input type="text" matInput formControlName="username" placeholder="_#(Username)" />
+          </mat-form-field>
+          <mat-form-field floatLabel="always" appearance="outline" color="accent">
+            <mat-label>_#(Password)</mat-label>
+            <input type="password" matInput formControlName="password" placeholder="_#(Password)" />
+          </mat-form-field>
+        }
+      </mat-card-content>
+      <div class="flex-row">
+        <mat-card appearance="outlined" class="flex-col flex-grow-1 list-container">
+          @if (dataSource?.loading | async) {
+            <div class="tree-loading-indicator">
+              <span>_#(Loading)...</span>
+              <mat-progress-bar mode="indeterminate"></mat-progress-bar>
+            </div>
+          }
+          <em-flat-tree-view [dataSource]="dataSource"
+            [treeControl]="dataSource.treeControl"
+            [selectedNodes]="selectedNodesObs | async"
+          (nodeSelected)="selectNode($event)"></em-flat-tree-view>
+        </mat-card>
+        <div class="flex-col button-col flex-grow-0">
+          <button mat-mini-fab color="primary" aria-label="_#(Add)" title="_#(Add)"
+          (click)="add()" [disabled]="!entrySelected"> > </button>
+          <button mat-mini-fab color="primary" aria-label="_#(Add All)" title="_#(Add All)"
+          (click)="addChildren()" [disabled]="!folderSelected"> >* </button>
+          <button mat-mini-fab color="primary" aria-label="_#(Remove)" title="_#(Remove)"
+          (click)="remove()" [disabled]="!entitySelection.length"> < </button>
+          <button mat-mini-fab color="primary" aria-label="_#(Remove All)" title="_#(Remove All)"
+          (click)="removeAll()" [disabled]="!selectedEntities.length"> << </button>
         </div>
-        <em-flat-tree-view [dataSource]="dataSource"
-                           [treeControl]="dataSource.treeControl"
-                           [selectedNodes]="selectedNodesObs | async"
-                           (nodeSelected)="selectNode($event)"></em-flat-tree-view>
-      </mat-card>
-      <div class="flex-col button-col flex-grow-0">
-        <button mat-mini-fab color="primary" aria-label="_#(Add)" title="_#(Add)"
-                (click)="add()" [disabled]="!entrySelected"> > </button>
-        <button mat-mini-fab color="primary" aria-label="_#(Add All)" title="_#(Add All)"
-                (click)="addChildren()" [disabled]="!folderSelected"> >* </button>
-        <button mat-mini-fab color="primary" aria-label="_#(Remove)" title="_#(Remove)"
-                (click)="remove()" [disabled]="!entitySelection.length"> < </button>
-        <button mat-mini-fab color="primary" aria-label="_#(Remove All)" title="_#(Remove All)"
-                (click)="removeAll()" [disabled]="!selectedEntities.length"> << </button>
+        <mat-card appearance="outlined" class="flex-col flex-grow-1 list-container">
+          <mat-list>
+            @for (asset of selectedEntities; track asset) {
+              <mat-list-item
+                [class.selected]="entitySelection.includes(asset)"
+                (click)="selectEntity(asset, $event)">
+                <mat-icon matListIcon fontSet="ineticons" [fontIcon]="getIcon(asset)"></mat-icon>
+                {{ asset.label }}
+              </mat-list-item>
+            }
+          </mat-list>
+          <div>{{prompt}}</div>
+        </mat-card>
       </div>
-      <mat-card appearance="outlined" class="flex-col flex-grow-1 list-container">
-        <mat-list>
-          <mat-list-item *ngFor="let asset of selectedEntities"
-                         [class.selected]="entitySelection.includes(asset)"
-                         (click)="selectEntity(asset, $event)">
-            <mat-icon matListIcon fontSet="ineticons" [fontIcon]="getIcon(asset)"></mat-icon>
-            {{ asset.label }}
-          </mat-list-item>
-        </mat-list>
-        <div>{{prompt}}</div>
-      </mat-card>
-    </div>
-  </mat-card-content>
+    </mat-card-content>
+  }
 </mat-card>

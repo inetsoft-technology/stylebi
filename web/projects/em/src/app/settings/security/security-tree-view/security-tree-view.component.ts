@@ -35,12 +35,21 @@ import { SecurityTreeFlattener } from "./security-tree-flattener";
 import { FlatSecurityTreeNode, SecurityTreeNode } from "./security-tree-node";
 import { IdentityType } from "../../../../../../shared/data/identity-type";
 import { equalsIdentity } from "../users/identity-id";
+import { MatIconButton } from "@angular/material/button";
+import { CdkVirtualScrollViewport, CdkFixedSizeVirtualScroll, CdkVirtualForOf } from "@angular/cdk/scrolling";
+import { MatProgressBar } from "@angular/material/progress-bar";
+import { DecimalPipe } from "@angular/common";
+import { MatIcon } from "@angular/material/icon";
+import { FormsModule } from "@angular/forms";
+import { MatInput } from "@angular/material/input";
+import { MatFormField, MatLabel, MatSuffix } from "@angular/material/form-field";
 
 @Component({
-   selector: "em-security-tree-view",
-   templateUrl: "./security-tree-view.component.html",
-   styleUrls: ["./security-tree-view.component.scss"],
-   providers: [SecurityTreeDataService]
+    selector: "em-security-tree-view",
+    templateUrl: "./security-tree-view.component.html",
+    styleUrls: ["./security-tree-view.component.scss"],
+    providers: [SecurityTreeDataService],
+    imports: [MatFormField, MatLabel, MatInput, FormsModule, MatIcon, MatSuffix, MatProgressBar, CdkVirtualScrollViewport, CdkFixedSizeVirtualScroll, CdkVirtualForOf, MatIconButton, DecimalPipe]
 })
 export class SecurityTreeViewComponent implements OnInit, OnChanges, OnDestroy,
    SelectionTransfer<SecurityTreeNode>

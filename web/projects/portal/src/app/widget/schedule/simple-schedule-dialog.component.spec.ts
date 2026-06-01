@@ -107,16 +107,31 @@ describe("simple schedule dialog component unit case test", function() {
 
       TestBed.configureTestingModule({
          imports: [
-            ReactiveFormsModule, FormsModule, NgbModule, HttpClientTestingModule
+            ReactiveFormsModule,
+            FormsModule,
+            NgbModule,
+            HttpClientTestingModule,
+            SimpleScheduleDialog,
+            IdentityTreeComponent,
+            ShuffleListComponent,
+            TreeComponent,
+            TreeSearchPipe,
+            TreeNodeComponent,
+            EmailAddrDialog,
+            EmbeddedEmailPane,
+            QueryEmailPane,
+            AssetTreeComponent,
+            VariableInputDialog,
+            VariableValueEditor,
+            VariableCollectionSelector,
+            TimeInstantValueEditorComponent,
+            TimeValueEditorComponent,
+            DateValueEditorComponent,
+            TimepickerComponent,
+            EnterSubmitDirective,
+            StartTimeEditor,
          ],
-         declarations: [
-            SimpleScheduleDialog, IdentityTreeComponent, ShuffleListComponent,
-            TreeComponent, TreeSearchPipe, TreeNodeComponent, EmailAddrDialog,
-            EmbeddedEmailPane, QueryEmailPane, AssetTreeComponent, VariableInputDialog,
-            VariableValueEditor, VariableCollectionSelector,
-            TimeInstantValueEditorComponent, TimeValueEditorComponent, DateValueEditorComponent,
-            TimepickerComponent, EnterSubmitDirective, StartTimeEditor
-         ],
+         
          providers: [
             {provide: NgbModal, useValue: modalService}
          ],

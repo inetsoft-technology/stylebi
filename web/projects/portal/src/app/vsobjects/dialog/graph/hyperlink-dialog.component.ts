@@ -25,7 +25,7 @@ import {
    TemplateRef,
    ViewChild
 } from "@angular/core";
-import { NgbDropdown, NgbModal } from "@ng-bootstrap/ng-bootstrap";
+import { NgbDropdown, NgbModal, NgbDropdownToggle, NgbDropdownMenu } from "@ng-bootstrap/ng-bootstrap";
 import { RepositoryEntry } from "../../../../../../shared/data/repository-entry";
 import { RepositoryEntryType } from "../../../../../../shared/data/repository-entry-type.enum";
 import { Tool } from "../../../../../../shared/util/tool";
@@ -40,6 +40,17 @@ import { InputParameterDialogModel } from "../../model/input-parameter-dialog-mo
 import { VSTrapService } from "../../util/vs-trap.service";
 import { ExpressionValue } from "../../../common/data/condition/expression-value";
 import { ExpressionType } from "../../../common/data/condition/expression-type";
+import { InputParameterDialog } from "../input-parameter-dialog.component";
+import { ApplyButtonComponent } from "../../../widget/slide-out/apply-button.component";
+import { GenericSelectableList } from "../../../widget/generic-selectable-list/generic-selectable-list.component";
+import { LargeFormFieldComponent } from "../../../widget/large-form-field/large-form-field.component";
+import { RepositoryTreeComponent } from "../../../widget/repository-tree/repository-tree.component";
+import { FixedDropdownDirective } from "../../../widget/fixed-dropdown/fixed-dropdown.directive";
+import { ExpressionEditor } from "../../../widget/condition/expression-editor.component";
+import { FormsModule } from "@angular/forms";
+import { EnterSubmitDirective } from "../../../widget/directive/enter-submit.directive";
+
+import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
 enum LinkType {
    WEB_LINK = 1,
    VIEWSHEET_LINK = 8,
@@ -57,9 +68,10 @@ const CHECK_TRAP_REST_URI: string = "../api/composer/viewsheet/check-hyperlink-d
 const GET_REPOSITORY_TREE_URI: string = "../api/composer/vs/hyperlink-dialog-model/tree";
 
 @Component({
-   selector: "hyperlink-dialog",
-   templateUrl: "hyperlink-dialog.component.html",
-   styleUrls: ["hyperlink-dialog.component.scss"]
+    selector: "hyperlink-dialog",
+    templateUrl: "hyperlink-dialog.component.html",
+    styleUrls: ["hyperlink-dialog.component.scss"],
+    imports: [ModalHeaderComponent, EnterSubmitDirective, FormsModule, ExpressionEditor, FixedDropdownDirective, NgbDropdown, NgbDropdownToggle, NgbDropdownMenu, RepositoryTreeComponent, LargeFormFieldComponent, GenericSelectableList, ApplyButtonComponent, InputParameterDialog]
 })
 export class HyperlinkDialog implements OnInit {
    @Input() objectName: string;

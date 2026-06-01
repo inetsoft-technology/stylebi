@@ -19,10 +19,12 @@ import { Component, Input, Output, EventEmitter } from "@angular/core";
 import { ShapeComboBox } from "./shape-combo-box.component";
 import { StaticShapeModel } from "../../../../common/data/visual-frame-model";
 
+
 @Component({
-   selector: "static-shape-editor",
-   templateUrl: "static-shape-editor.component.html",
-   styleUrls: ["combined-visual-pane.scss"]
+    selector: "static-shape-editor",
+    templateUrl: "static-shape-editor.component.html",
+    styleUrls: ["combined-visual-pane.scss"],
+    imports: [ShapeComboBox]
 })
 
 export class StaticShapeEditor {

@@ -25,6 +25,7 @@ import { DynamicComboBox } from "../../widget/dynamic-combo-box/dynamic-combo-bo
 import { TitleFormatDialogModel } from "../model/dialog/title-format-dialog-model";
 import { TitleFormatDialog } from "./title-format-dialog.component";
 import { TitleFormatPane } from "./title-format-pane.component";
+import { HttpClientTestingModule } from "@angular/common/http/testing";
 
 describe("Title Format Dialog Unit Test", () => {
    let createMockTitleFormatDialogModel: (title?: string) => TitleFormatDialogModel = (title?: string) => {
@@ -53,11 +54,16 @@ describe("Title Format Dialog Unit Test", () => {
 
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule, DropDownTestModule
+            
+            HttpClientTestingModule,FormsModule,
+            ReactiveFormsModule,
+            NgbModule,
+            DropDownTestModule,
+            TitleFormatDialog,
+            TitleFormatPane,
+            DynamicComboBox,
          ],
-         declarations: [
-            TitleFormatDialog, TitleFormatPane, DynamicComboBox
-         ],
+         
          providers: [{
             provide: UIContextService, useValue: uiContextService
          }, NgbModal],

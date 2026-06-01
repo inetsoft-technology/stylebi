@@ -21,6 +21,7 @@ import {
 } from "@angular/core";
 import { DownloadService } from "../../../../../../shared/download/download.service";
 import { Secured } from "../../../secured";
+import { MatButton } from "@angular/material/button";
 
 
 @Secured({
@@ -28,9 +29,10 @@ import { Secured } from "../../../secured";
    label: "Debug"
 })
 @Component({
-   selector: "em-debug-monitoring-page",
-   templateUrl: "./debug-monitoring-page.component.html",
-   styleUrls: ["./debug-monitoring-page.component.scss"]
+    selector: "em-debug-monitoring-page",
+    templateUrl: "./debug-monitoring-page.component.html",
+    styleUrls: ["./debug-monitoring-page.component.scss"],
+    imports: [MatButton]
 })
 export class DebugMonitoringPageComponent {
 

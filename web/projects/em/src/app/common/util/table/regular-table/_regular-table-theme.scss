@@ -28,17 +28,17 @@
   .em-regular-table {
     .table-header-row {
       @if $is-dark {
-        background-color: mat.get-color-from-palette($primary);
-        color: mat.get-contrast-color-from-palette($primary, default);
+        background-color: mat.m2-get-color-from-palette($primary);
+        color: mat.m2-get-contrast-color-from-palette($primary, default);
       }
       @else {
-        background-color: mat.get-color-from-palette($primary, 100);
-        color: mat.get-contrast-color-from-palette($primary, 100);
+        background-color: mat.m2-get-color-from-palette($primary, 100);
+        color: mat.m2-get-contrast-color-from-palette($primary, 100);
       }
     }
 
     .table-body {
-      border-bottom-color: mat.get-color-from-palette($primary, 100);
+      border-bottom-color: mat.m2-get-color-from-palette($primary, 100);
       border-bottom-width: 1px;
       border-bottom-style: solid;
     }
@@ -49,7 +49,7 @@
   .em-regular-table {
     .mat-sort-header-button {
       font: {
-        size: mat.font-size($config, body-2);
+        size: mat.m2-font-size($config, body-2);
       }
     }
   }

@@ -50,11 +50,20 @@ import { VSChart } from "../../vsobjects/objects/chart/vs-chart.component";
 import { AbstractVSObject } from "../../vsobjects/objects/abstract-vsobject.component";
 import { CalcTableLayoutPane } from "./vs-calc-table-layout.component";
 import { MiniToolbarService } from "../../vsobjects/objects/mini-toolbar/mini-toolbar.service";
+import { MiniToolbar } from "../../vsobjects/objects/mini-toolbar/mini-toolbar.component";
+import { BCalcTableActionHandlerDirective } from "../action/b-calctable-action-handler.directive";
+import { BCrosstabActionHandlerDirective } from "../action/b-crosstab-action-handler.directive";
+import { VSCrosstab } from "../../vsobjects/objects/table/vs-crosstab.component";
+import { BTableActionHandlerDirective } from "../action/b-table-action-handler.directive";
+import { VSTable } from "../../vsobjects/objects/table/vs-table.component";
+import { ActionsContextmenuAnchorDirective } from "../../widget/fixed-dropdown/actions-contextmenu-anchor.directive";
+
 
 @Component({
-   selector: "vs-object-view",
-   templateUrl: "vs-object-view.component.html",
-   styleUrls: ["vs-object-view.component.scss"]
+    selector: "vs-object-view",
+    templateUrl: "vs-object-view.component.html",
+    styleUrls: ["vs-object-view.component.scss"],
+    imports: [ActionsContextmenuAnchorDirective, VSChart, VSTable, BTableActionHandlerDirective, VSCrosstab, BCrosstabActionHandlerDirective, CalcTableLayoutPane, BCalcTableActionHandlerDirective, MiniToolbar]
 })
 export class VSObjectView extends CommandProcessor implements OnDestroy, OnInit, AfterViewInit {
    @Input() linkUri: string;

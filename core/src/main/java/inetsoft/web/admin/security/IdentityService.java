@@ -2028,7 +2028,9 @@ public class IdentityService {
       newOrg.setLocale(localeString);
       updateCustomThemeOrganization(fromOrg.getTheme(), model.theme(), fromOrgID, newOrg.getId());
       newOrg.setTheme(model.theme());
-      syncIdentity(eprovider, newOrg, new IdentityID(model.oldName(), eprovider.getOrgIdFromName(model.oldName())));
+      String syncOldName = model.oldName();
+      String syncOldOrgID = eprovider.getOrgIdFromName(syncOldName);
+      syncIdentity(eprovider, newOrg, new IdentityID(syncOldName, syncOldOrgID));
 
       return newOrg;
    }

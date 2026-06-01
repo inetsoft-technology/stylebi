@@ -16,11 +16,13 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, Input, Output, EventEmitter } from "@angular/core";
+import { FormsModule } from "@angular/forms";
 
 @Component({
-   selector: "char-value-editor",
-   templateUrl: "char-value-editor.component.html",
-   styleUrls: ["./char-value-editor.component.scss"]
+    selector: "char-value-editor",
+    templateUrl: "char-value-editor.component.html",
+    styleUrls: ["./char-value-editor.component.scss"],
+    imports: [FormsModule]
 })
 export class CharValueEditor {
    @Input() value: string;

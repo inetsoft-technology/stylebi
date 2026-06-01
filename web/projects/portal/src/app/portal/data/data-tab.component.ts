@@ -24,12 +24,15 @@ import {
 import { RepositoryClientService } from "../../common/repository-client/repository-client.service";
 import { SplitPane } from "../../widget/split-pane/split-pane.component";
 import { DataPhysicalModelService } from "./services/data-physical-model.service";
+import { RouterOutlet } from "@angular/router";
+import { DataSourcesTreeViewComponent } from "./data-navigation-tree/data-sources-tree-view.component";
 
 @Component({
-   selector: "p-data-tab",
-   templateUrl: "./data-tab.component.html",
-   styleUrls: ["./data-tab.component.scss"],
-   providers: [RepositoryClientService]
+    selector: "p-data-tab",
+    templateUrl: "./data-tab.component.html",
+    styleUrls: ["./data-tab.component.scss"],
+    providers: [RepositoryClientService],
+    imports: [SplitPane, DataSourcesTreeViewComponent, RouterOutlet]
 })
 export class DataTabComponent implements AfterViewInit, OnDestroy {
    @ViewChild(SplitPane) splitPane: SplitPane;
