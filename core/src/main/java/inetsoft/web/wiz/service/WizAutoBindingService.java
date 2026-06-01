@@ -315,8 +315,12 @@ public class WizAutoBindingService {
 
             if(dimFc.getDateGroupLevel() != null) {
                try {
-                  dim.setDateLevelValue(String.valueOf(
-                     WizVsService.getDateGroupLevel(dimFc.getDateGroupLevel())));
+                  int level =
+                     WizVsService.getDateGroupLevel(dimFc.getDateGroupLevel());
+
+                  if(level != XConstants.NONE_DATE_GROUP) {
+                     dim.setDateLevelValue(String.valueOf(level));
+                  }
                }
                catch(IllegalArgumentException e) {
                   LOG.warn("Ignoring unsupported dateGroupLevel '{}' for field '{}'",
