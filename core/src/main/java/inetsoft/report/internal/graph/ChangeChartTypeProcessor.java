@@ -285,15 +285,9 @@ public class ChangeChartTypeProcessor extends ChangeChartProcessor {
             info.setChartType(newType);
 
             if(info instanceof  VSChartInfo) {
-               if(newType != GraphTypes.CHART_LINE &&
-                  newType != GraphTypes.CHART_LINE_STACK &&
-                  newType != GraphTypes.CHART_STEP &&
-                  newType != GraphTypes.CHART_STEP_STACK &&
-                  newType != GraphTypes.CHART_JUMP &&
-                  newType != GraphTypes.CHART_STEP_AREA &&
-                  newType != GraphTypes.CHART_STEP_AREA_STACK &&
-                  newType != GraphTypes.CHART_AREA &&
-                  newType != GraphTypes.CHART_AREA_STACK)
+               // preserve combined tooltip for types that support it (line/area/bar)
+               if(!GraphTypes.isLine(newType) && !GraphTypes.isArea(newType) &&
+                  !GraphTypes.isBar(newType))
                {
                   ((VSChartInfo) info).setCombinedToolTipValue(false);
                }
