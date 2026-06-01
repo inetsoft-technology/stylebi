@@ -148,6 +148,7 @@ import { CloseSheetEvent } from "./vs/event/close-sheet-event";
 import { LayoutUndoRedoEvent } from "./vs/event/layout-undo-redo-event";
 import { SaveSheetEvent } from "./ws/socket/save-sheet-event";
 import { WizService } from "./wiz/services/wiz.service";
+import { WizComponentsPane } from "./wiz/wiz-components-pane/wiz-components-pane.component";
 import {
    NewVisualizationDialog,
    NewVisualizationDialogModel
@@ -1814,7 +1815,7 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
                   };
                }
                break;
-            case "viewsheet":
+            case "viewsheet": {
                const vs = new Viewsheet(this.fontService);
                vs.localId = sheetCounter++;
                vs.label = "";
@@ -1831,11 +1832,13 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
                this.regionsDisabled = true;
                this.openedTabs.push(new ComposerTabModel(vs.type, vs));
                break;
-            case "wiz":
-               const vs = type == "wiz" ? new WizDashboard(this.fontService) : new Viewsheet(this.fontService);
+            }
+            case "wiz": {
+               const vs = new WizDashboard(this.fontService);
                index = this.sheets.push(vs) - 1;
                this.openedTabs.push(new ComposerTabModel(vs.type, vs));
                break;
+            }
             default:
                // should not happen
                console.error(`invalid type: ${type}`);
