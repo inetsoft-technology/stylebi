@@ -1484,6 +1484,7 @@ public class PlotArea extends GridContainerArea implements GraphComponentArea, R
             }
 
             int sizeBefore = tooltip.getTooltipList().size();
+            int stackTotalPairs = 0;
 
             for(int i = 0; i < cols[k].length; i++) {
                String name = cols[k][i];
@@ -1568,12 +1569,15 @@ public class PlotArea extends GridContainerArea implements GraphComponentArea, R
                   name = getStackTotalName(showFullTotalName ? name : null);
                   tooltip.setStackTotalName(name);
 
+                  int beforeStackTotal = tooltip.getTooltipList().size();
                   addTooltip(label, name, value, null, null, list, vtext, tooltip, false);
+                  // Stack-total footer is not a rankable measure; keep it out of the count.
+                  stackTotalPairs += (tooltip.getTooltipList().size() - beforeStackTotal) / 2;
                }
             }
 
             if(cols[k] == measures) {
-               measurePairs = (tooltip.getTooltipList().size() - sizeBefore) / 2;
+               measurePairs = (tooltip.getTooltipList().size() - sizeBefore) / 2 - stackTotalPairs;
             }
          }
 

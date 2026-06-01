@@ -281,6 +281,10 @@ class PlotAreaCardMeasureFirstTest {
       // No derived measure (plain multi-measure card) → keep the X-dim subtitle lift.
       assertFalse(PlotArea.groupMeasuresAtTier2(
          new String[]{ "Sum(A)", "Avg(B)" }, new HashSet<>(), 2));
+
+      // Single plain measure: guard fires on measurePairs <= 1 → no grouping.
+      assertFalse(PlotArea.groupMeasuresAtTier2(
+         new String[]{ "Sum(A)" }, new HashSet<>(), 1));
    }
 
    private static ChartInfo chartInfo(ChartInfo.TooltipStyle style, int chartType) {
