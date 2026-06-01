@@ -150,41 +150,22 @@ public class DateComparisonFormat extends Format {
             }
          }
 
-         // Remove orphaned cells: cells that have no data from the most recent (current)
-         // year. These arise when comparison-year data exists at a position that has no
-         // corresponding current-year entry. Without this filter, the format would compute
-         // wrong label dates from the comparison-year value.
-         // This only applies when dateCol stores period-bucket dates where the same year date
-         // is shared by many cells. If each cell has a unique date, maxYearDate would appear
-         // in only one cell and removing all others would blank the entire axis
+         // Remove orphaned cells (no current-year data) using the same heuristic as
+         // DateComparisonUtil.computeValidParts(). An empty validParts set means either
+         // no data, MergePartCell period without a date value, or per-part real-date
+         // layout — in all those cases no filtering is applied.
          Set<Object> orphanedCells = new HashSet<>();
+         Set<Object> validParts = DateComparisonUtil.computeValidParts(data, dateCol, partCol, null);
 
-         if(!partDates.isEmpty()) {
-            Date maxYearDate = partDates.values().stream()
-               .flatMap(Set::stream)
-               .max(Date::compareTo)
-               .orElse(null);
+         if(!validParts.isEmpty()) {
+            Iterator<Map.Entry<Object, Set<Date>>> it = partDates.entrySet().iterator();
 
-            if(maxYearDate != null) {
-               final Date maxDate = maxYearDate;
-               long cellsWithMaxDate = partDates.values().stream()
-                  .filter(s -> s.stream().anyMatch(d -> d.compareTo(maxDate) == 0))
-                  .count();
+            while(it.hasNext()) {
+               Map.Entry<Object, Set<Date>> entry = it.next();
 
-               // Only remove orphans if the max date is shared across multiple cells
-               // (period-bucket case). A unique max date means per-part real dates —
-               // skip the filter to avoid blanking valid labels.
-               if(cellsWithMaxDate > 1) {
-                  Iterator<Map.Entry<Object, Set<Date>>> it = partDates.entrySet().iterator();
-
-                  while(it.hasNext()) {
-                     Map.Entry<Object, Set<Date>> entry = it.next();
-
-                     if(entry.getValue().stream().noneMatch(d -> d.compareTo(maxDate) == 0)) {
-                        orphanedCells.add(entry.getKey());
-                        it.remove();
-                     }
-                  }
+               if(!validParts.contains(entry.getKey())) {
+                  orphanedCells.add(entry.getKey());
+                  it.remove();
                }
             }
          }

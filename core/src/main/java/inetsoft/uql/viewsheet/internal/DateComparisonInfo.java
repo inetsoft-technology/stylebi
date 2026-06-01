@@ -1526,6 +1526,7 @@ public class DateComparisonInfo implements Cloneable, XMLSerializable {
    {
       int contextCalendarLevel = getCalendarLevel(contextLevel);
       boolean contextLevelIsQuarter = contextLevel ==  XConstants.QUARTER_DATE_GROUP;
+      Calendar rangeStartYearCal = getCalendar();
 
       while(rangeStartCal.before(rangeEndCal) || rangeStartCal.equals(rangeEndCal)) {
          int contextYear = rangeEndCal.get(Calendar.YEAR);
@@ -1539,13 +1540,11 @@ public class DateComparisonInfo implements Cloneable, XMLSerializable {
             continue;
          }
 
-         Calendar rangeStartYear = getCalendar();
-         rangeStartYear.setTime(range[0]);
+         rangeStartYearCal.setTime(range[0]);
 
-         if(rangeStartYear.get(Calendar.YEAR) > contextYear) {
+         if(rangeStartYearCal.get(Calendar.YEAR) > contextYear) {
             continue;
          }
-
 
          ConditionItem item = (range[1] == null || !alignWeek() && range[0].after(range[1]))
             ? null : createDateRangeCondition(ref, range[0], range[1]);

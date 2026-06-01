@@ -1110,10 +1110,11 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       if(dateComparisonInfo == null) {
          boolean dcEnabled = !(info instanceof DataVSAssemblyInfo) ||
             ((DataVSAssemblyInfo) info).isDateComparisonEnabled();
+         VSAssembly shareAssembly = (vs != null && !Tool.isEmptyString(info.getComparisonShareFrom()))
+            ? vs.getAssembly(info.getComparisonShareFrom()) : null;
          boolean validShare = Tool.isEmptyString(info.getComparisonShareFrom()) ||
-            (vs != null && vs.getAssembly(info.getComparisonShareFrom()) != null &&
-               vs.getAssembly(info.getComparisonShareFrom()).getVSAssemblyInfo()
-                  instanceof DateCompareAbleAssemblyInfo);
+            (shareAssembly != null &&
+               shareAssembly.getVSAssemblyInfo() instanceof DateCompareAbleAssemblyInfo);
 
          if(dcEnabled && validShare) {
             dateComparisonInfo = info.getDateComparisonInfo();
@@ -1133,19 +1134,8 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          VSChartInfo cinfo = ((ChartVSAssemblyInfo) vsAssemblyInfo).getVSChartInfo();
 
          if(cinfo != null) {
-            DataRef found = null;
-            ChartRef[] xFields = cinfo.getXFields();
-            ChartRef[] yFields = cinfo.getYFields();
-
-            // Mirror ChartDcProcessor.getComparisonDateRef(): X date only if Y has an
-            // aggregate; Y date only if X has an aggregate.
-            if(DateComparisonUtil.containsAggregate(yFields)) {
-               found = DateComparisonUtil.findDateDimension(xFields);
-            }
-
-            if(found == null && DateComparisonUtil.containsAggregate(xFields)) {
-               found = DateComparisonUtil.findDateDimension(yFields);
-            }
+            // Use the shared utility to match ChartDcProcessor.getComparisonDateRef() logic.
+            DataRef found = DateComparisonUtil.findDcDateRef(cinfo.getXFields(), cinfo.getYFields());
 
             if(found instanceof VSDataRef) {
                dcRef = (VSDataRef) found;

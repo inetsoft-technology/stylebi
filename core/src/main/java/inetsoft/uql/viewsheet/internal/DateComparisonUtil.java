@@ -387,6 +387,29 @@ public class DateComparisonUtil {
       return Arrays.stream(fields).anyMatch(VSAggregateRef.class::isInstance);
    }
 
+   /**
+    * Derive the date dimension ref used for DC from a chart's X/Y fields using the same
+    * axis-aggregate logic as ChartDcProcessor.getComparisonDateRef(): X date only when Y
+    * has an aggregate, Y date only when X has an aggregate.
+    *
+    * @param xFields X-axis fields (design or runtime).
+    * @param yFields Y-axis fields (design or runtime).
+    * @return the date DataRef, or null if none found.
+    */
+   public static DataRef findDcDateRef(DataRef[] xFields, DataRef[] yFields) {
+      DataRef found = null;
+
+      if(containsAggregate(yFields)) {
+         found = findDateDimension(xFields);
+      }
+
+      if(found == null && containsAggregate(xFields)) {
+         found = findDateDimension(yFields);
+      }
+
+      return found;
+   }
+
    public static void checkGraphValidity(ChartVSAssemblyInfo info, VGraph vgraph) {
       DataSet data = vgraph.getCoordinate().getDataSet();
       List<VisualObject> vos = GTool.getVOs(vgraph);
@@ -629,8 +652,7 @@ public class DateComparisonUtil {
                Format fmt = scale.getAxisSpec().getTextSpec().getFormat();
                DateSelector basePartSel = new DateSelector(periodCol, startDate, fmt);
                GraphtDataSelector partSelector = validParts.isEmpty() ? basePartSel
-                  : (dataset, row, f) -> validParts.contains(dataset.getData(partCol, row))
-                     && basePartSel.accept(dataset, row, f);
+                  : new ValidPartsSelector(validParts, partCol, basePartSel);
                applyGraphDataSelector(data, scale, partSelector);
             }
             else if(scale instanceof LinearScale ||
@@ -655,8 +677,7 @@ public class DateComparisonUtil {
             if(spec.getTextSpec().getFormat() instanceof DateComparisonFormat) {
                DateComparisonFormat fmt = (DateComparisonFormat) spec.getTextSpec().getFormat();
                GraphtDataSelector fmtSelector = validParts.isEmpty() ? selector
-                  : (dataset, row, f) -> validParts.contains(dataset.getData(partCol, row))
-                     && selector.accept(dataset, row, f);
+                  : new ValidPartsSelector(validParts, partCol, selector);
                fmt.setGraphDataSelector(fmtSelector);
             }
          }
@@ -675,15 +696,26 @@ public class DateComparisonUtil {
    /**
     * Find which part cells (x-axis positions) have data from the most recent year.
     * Cells without current-year data are orphaned and should be excluded from the axis.
+    * Returns the set of valid part cells (those with current-year data), or an empty set
+    * when the data is not in year-bucket layout (per-part real dates, or no repeated period
+    * value). An empty return means "no orphan filtering should be applied."
+    *
+    * This method is also used by DateComparisonFormat.initPartDate() to drive the same
+    * heuristic at the pre-aggregated partDates level — both callers rely on this single
+    * implementation so the logic stays in sync.
     */
-   private static Set<Object> computeValidParts(DataSet data, String periodCol,
-                                                 String partCol, Date startDate)
+   static Set<Object> computeValidParts(DataSet data, String periodCol,
+                                        String partCol, Date startDate)
    {
       if(periodCol == null || partCol == null) {
          return Collections.emptySet();
       }
 
+      // Single pass: find max year date AND detect year-bucket layout (any date repeating
+      // across more than one row indicates period-bucket data rather than per-part real dates).
       Date maxYearDate = null;
+      Set<Date> seenDates = new HashSet<>();
+      boolean isYearBucketCase = false;
 
       for(int i = 0; i < data.getRowCount(); i++) {
          Date date = toPeriodDate(data.getData(periodCol, i));
@@ -692,10 +724,16 @@ public class DateComparisonUtil {
             if(maxYearDate == null || date.after(maxYearDate)) {
                maxYearDate = date;
             }
+
+            if(!seenDates.add(date)) {
+               isYearBucketCase = true;
+            }
          }
       }
 
-      if(maxYearDate == null) {
+      // Return empty when there is no data or when all period dates are unique per row
+      // (per-part real-date charts) — orphan filtering must not apply in that case.
+      if(maxYearDate == null || !isYearBucketCase) {
          return Collections.emptySet();
       }
 
@@ -2058,5 +2096,23 @@ public class DateComparisonUtil {
       calendar.setMinimalDaysInFirstWeek(7);
 
       return calendar;
+   }
+
+   /** Selector that filters out orphaned part cells not present in the current-year set. */
+   private static final class ValidPartsSelector implements GraphtDataSelector {
+      private final Set<Object> validParts;
+      private final String partCol;
+      private final GraphtDataSelector base;
+
+      ValidPartsSelector(Set<Object> validParts, String partCol, GraphtDataSelector base) {
+         this.validParts = validParts;
+         this.partCol = partCol;
+         this.base = base;
+      }
+
+      @Override
+      public boolean accept(DataSet dataset, int row, String[] fields) {
+         return validParts.contains(dataset.getData(partCol, row)) && base.accept(dataset, row, fields);
+      }
    }
 }
