@@ -27,13 +27,18 @@ import { SummaryAttrUtil } from "../../util/summary-attr-util";
 import { StyleConstants } from "../../../common/util/style-constants";
 import { DateLevelExamplesService } from "../../../common/services/date-level-examples.service";
 import { SourceInfo } from "../../data/source-info";
-import {Tool} from "../../../../../../shared/util/tool";
-import {DataRefType} from "../../../common/data/data-ref-type";
+import { Tool } from "../../../../../../shared/util/tool";
+import { DataRefType } from "../../../common/data/data-ref-type";
+import { FormsModule } from "@angular/forms";
+import { DynamicComboBox } from "../../../widget/dynamic-combo-box/dynamic-combo-box.component";
+
+import { SortOption } from "../sort-option.component";
 
 @Component({
-   selector: "group-option",
-   templateUrl: "group-option.component.html",
-   styleUrls: ["group-option.component.scss"]
+    selector: "group-option",
+    templateUrl: "group-option.component.html",
+    styleUrls: ["group-option.component.scss"],
+    imports: [SortOption, DynamicComboBox, FormsModule]
 })
 export class GroupOption implements OnInit {
    @Input() field: BDimensionRef;

@@ -45,7 +45,9 @@
          (blur)="onInputBlur()"
          (keydown)="onInputKeydown($event)"
          (wheel)="onWheel($event)"/>
-  <span *ngIf="unit" class="ns-unit" aria-hidden="true">{{unit}}</span>
+  @if (unit) {
+  <span class="ns-unit" aria-hidden="true">{{unit}}</span>
+}
 </div>
 
 <button type="button" class="ns-btn"

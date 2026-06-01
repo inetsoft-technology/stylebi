@@ -15,15 +15,17 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import {Component, HostBinding, Input, OnChanges, SimpleChanges} from "@angular/core";
-import {ScriptTreePaneModel} from "../../../data/script/script-tree-pane-model";
-import {TreeNodeModel} from "../../../../widget/tree/tree-node-model";
-import {ScriptService} from "../script.service";
-import {Tool} from "../../../../../../../shared/util/tool";
+import { Component, HostBinding, Input, OnChanges, SimpleChanges } from "@angular/core";
+import { ScriptTreePaneModel } from "../../../data/script/script-tree-pane-model";
+import { TreeNodeModel } from "../../../../widget/tree/tree-node-model";
+import { ScriptService } from "../script.service";
+import { Tool } from "../../../../../../../shared/util/tool";
+import { TreeComponent } from "../../../../widget/tree/tree.component";
 
 @Component({
-   selector: "script-tree-pane",
-   templateUrl: "script-tree-pane.component.html",
+    selector: "script-tree-pane",
+    templateUrl: "script-tree-pane.component.html",
+    imports: [TreeComponent]
 })
 export class ScriptTreePane implements OnChanges {
    @HostBinding("hidden")

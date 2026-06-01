@@ -1,6 +1,6 @@
-// Jest Snapshot v1, https://goo.gl/fbAQLP
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
-exports[`CalcTableActions check status of menu actions and toolbar actions in binding 1`] = `
+exports[`CalcTableActions > check status of menu actions and toolbar actions in binding 1`] = `
 [
   AssemblyActionGroup {
     "actions": [
@@ -360,7 +360,7 @@ exports[`CalcTableActions check status of menu actions and toolbar actions in bi
 ]
 `;
 
-exports[`CalcTableActions check status of menu actions and toolbar actions in binding 2`] = `
+exports[`CalcTableActions > check status of menu actions and toolbar actions in binding 2`] = `
 [
   AssemblyActionGroup {
     "actions": [
@@ -448,7 +448,7 @@ exports[`CalcTableActions check status of menu actions and toolbar actions in bi
 ]
 `;
 
-exports[`CalcTableActions check status of menu actions and toolbar actions in binding 3`] = `
+exports[`CalcTableActions > check status of menu actions and toolbar actions in binding 3`] = `
 [
   AssemblyActionGroup {
     "actions": [
@@ -808,7 +808,7 @@ exports[`CalcTableActions check status of menu actions and toolbar actions in bi
 ]
 `;
 
-exports[`CalcTableActions check status of menu actions and toolbar actions in binding 4`] = `
+exports[`CalcTableActions > check status of menu actions and toolbar actions in binding 4`] = `
 [
   AssemblyActionGroup {
     "actions": [
@@ -896,7 +896,7 @@ exports[`CalcTableActions check status of menu actions and toolbar actions in bi
 ]
 `;
 
-exports[`CalcTableActions check status of menu actions and toolbar actions in composer 1`] = `
+exports[`CalcTableActions > check status of menu actions and toolbar actions in composer 1`] = `
 [
   AssemblyActionGroup {
     "actions": [
@@ -1256,7 +1256,7 @@ exports[`CalcTableActions check status of menu actions and toolbar actions in co
 ]
 `;
 
-exports[`CalcTableActions check status of menu actions and toolbar actions in composer 2`] = `
+exports[`CalcTableActions > check status of menu actions and toolbar actions in composer 2`] = `
 [
   AssemblyActionGroup {
     "actions": [
@@ -1344,7 +1344,7 @@ exports[`CalcTableActions check status of menu actions and toolbar actions in co
 ]
 `;
 
-exports[`CalcTableActions check status of menu actions and toolbar actions in composer when select group cell 1`] = `
+exports[`CalcTableActions > check status of menu actions and toolbar actions in composer when select group cell 1`] = `
 [
   AssemblyActionGroup {
     "actions": [
@@ -1704,7 +1704,7 @@ exports[`CalcTableActions check status of menu actions and toolbar actions in co
 ]
 `;
 
-exports[`CalcTableActions check status of menu actions and toolbar actions in composer when select group cell 2`] = `
+exports[`CalcTableActions > check status of menu actions and toolbar actions in composer when select group cell 2`] = `
 [
   AssemblyActionGroup {
     "actions": [
@@ -1792,7 +1792,7 @@ exports[`CalcTableActions check status of menu actions and toolbar actions in co
 ]
 `;
 
-exports[`CalcTableActions check status of menu actions and toolbar actions in viewer and preview 1`] = `
+exports[`CalcTableActions > check status of menu actions and toolbar actions in viewer and preview 1`] = `
 [
   AssemblyActionGroup {
     "actions": [
@@ -2152,7 +2152,7 @@ exports[`CalcTableActions check status of menu actions and toolbar actions in vi
 ]
 `;
 
-exports[`CalcTableActions check status of menu actions and toolbar actions in viewer and preview 2`] = `
+exports[`CalcTableActions > check status of menu actions and toolbar actions in viewer and preview 2`] = `
 [
   AssemblyActionGroup {
     "actions": [
@@ -2240,7 +2240,7 @@ exports[`CalcTableActions check status of menu actions and toolbar actions in vi
 ]
 `;
 
-exports[`CalcTableActions check status of menu actions and toolbar actions in viewer and preview 3`] = `
+exports[`CalcTableActions > check status of menu actions and toolbar actions in viewer and preview 3`] = `
 [
   AssemblyActionGroup {
     "actions": [
@@ -2600,7 +2600,7 @@ exports[`CalcTableActions check status of menu actions and toolbar actions in vi
 ]
 `;
 
-exports[`CalcTableActions check status of menu actions and toolbar actions in viewer and preview 4`] = `
+exports[`CalcTableActions > check status of menu actions and toolbar actions in viewer and preview 4`] = `
 [
   AssemblyActionGroup {
     "actions": [
@@ -2688,7 +2688,7 @@ exports[`CalcTableActions check status of menu actions and toolbar actions in vi
 ]
 `;
 
-exports[`CalcTableActions check status of menu actions and toolbar actions in viewer when select summary cell 1`] = `
+exports[`CalcTableActions > check status of menu actions and toolbar actions in viewer when select summary cell 1`] = `
 [
   AssemblyActionGroup {
     "actions": [
@@ -3048,7 +3048,7 @@ exports[`CalcTableActions check status of menu actions and toolbar actions in vi
 ]
 `;
 
-exports[`CalcTableActions check status of menu actions and toolbar actions in viewer when select summary cell 2`] = `
+exports[`CalcTableActions > check status of menu actions and toolbar actions in viewer when select summary cell 2`] = `
 [
   AssemblyActionGroup {
     "actions": [

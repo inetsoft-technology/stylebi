@@ -18,13 +18,27 @@
 import { Component, EventEmitter, OnInit, Output } from "@angular/core";
 import { ModelService } from "../../widget/services/model.service";
 import { ArrangeDashboardDialogModel } from "./arrange-dashboard-dialog-model";
+import { DialogButtonsDirective } from "../../widget/standard-dialog/dialog-buttons.directive";
+import { FormsModule } from "@angular/forms";
+import { ResizableTableDirective } from "../../widget/directive/resizable-table.directive";
+
+import { DialogContentDirective } from "../../widget/standard-dialog/dialog-content.directive";
+import { StandardDialogComponent } from "../../widget/standard-dialog/standard-dialog.component";
 
 const ARRANGE_DASHBOARD_DIALOG_MODEL_URI: string = "../api/portal/arrange-dashboard-dialog-model";
 
 @Component({
-   selector: "arrange-dashboard-dialog",
-   templateUrl: "arrange-dashboard-dialog.component.html",
-   styleUrls: ["arrange-dashboard-dialog.component.scss"],
+    selector: "arrange-dashboard-dialog",
+    templateUrl: "arrange-dashboard-dialog.component.html",
+    styleUrls: ["arrange-dashboard-dialog.component.scss"],
+
+    imports: [
+    StandardDialogComponent,
+    DialogContentDirective,
+    ResizableTableDirective,
+    FormsModule,
+    DialogButtonsDirective
+]
 })
 export class ArrangeDashboardDialog implements OnInit {
    @Output() onCommit: EventEmitter<string> = new EventEmitter<string>();

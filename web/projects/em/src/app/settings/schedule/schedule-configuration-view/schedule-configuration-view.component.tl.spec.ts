@@ -44,9 +44,8 @@ import { MatDialog } from "@angular/material/dialog";
 import { MatCheckboxModule } from "@angular/material/checkbox";
 import { NoopAnimationsModule } from "@angular/platform-browser/animations";
 import { render } from "@testing-library/angular";
-import { of } from "rxjs";
 
-import { it } from "@jest/globals";
+import { of } from "rxjs";
 import { ScheduleConfigurationViewComponent, ScheduleConfiguration } from "./schedule-configuration-view.component";
 import { ScheduleUsersService } from "../../../../../../shared/schedule/schedule-users.service";
 import { ScheduleConfigurationModel } from "../model/schedule-configuration-model";
@@ -105,12 +104,12 @@ function makeModel(overrides: Partial<ScheduleConfigurationModel> = {}): Schedul
 
 async function renderComponent(modelOverrides: Partial<ScheduleConfigurationModel> = {}) {
    const dialogMock = {
-      open: jest.fn(),
+      open: vi.fn(),
    };
 
    const usersServiceMock = {
-      getEmailUsers: jest.fn(() => of([])),
-      getGroups: jest.fn(() => of([])),
+      getEmailUsers: vi.fn(() => of([])),
+      getGroups: vi.fn(() => of([])),
    };
 
    const result = await render(ScheduleConfigurationViewComponent, {

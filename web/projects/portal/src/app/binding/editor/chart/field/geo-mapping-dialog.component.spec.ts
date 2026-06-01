@@ -29,8 +29,8 @@ import { ChartGeoRef } from "../../../data/chart/chart-geo-ref";
 import { GeoMappingDialogModel } from "../../../data/chart/geo-mapping-dialog-model";
 import { VSGeoProvider } from "../../vs-geo-provider";
 import { GeoMappingDialog } from "./geo-mapping-dialog.component";
-import { CustomSelectModule } from "../../../../widget/custom-select/custom-select.module";
-
+import { HttpClientTestingModule } from "@angular/common/http/testing";
+import { CustomSelectComponent } from "../../../../widget/custom-select/custom-select.component";
 let createModel: () => GeoMappingDialogModel = () => {
    return{
       id: "1",
@@ -88,20 +88,21 @@ describe("geo mapping dialog component unit case", () => {
    let uiContextService: any;
 
    beforeEach(() => {
-      modelService = {};
+      modelService = { getModel: vi.fn().mockReturnValue(observableOf(null)) };
       geoProvider = {
-         getMappingData: jest.fn(() => observableOf(new HttpResponse({body: dataMapping}))),
-         getChartGeoModel: jest.fn(() => createGeoModel())
+         getMappingData: vi.fn(() => observableOf(new HttpResponse({body: dataMapping}))),
+         getChartGeoModel: vi.fn(() => createGeoModel())
       };
       uiContextService = {
-         isAdhoc: jest.fn(),
-         getDefaultTab: jest.fn(),
-         setDefaultTab: jest.fn()
+         isAdhoc: vi.fn(),
+         getDefaultTab: vi.fn(),
+         setDefaultTab: vi.fn()
       };
 
       TestBed.configureTestingModule({
-         imports: [ReactiveFormsModule, FormsModule, NgbModule, CustomSelectModule],
-         declarations: [GeoMappingDialog, LargeFormFieldComponent],
+         imports: [
+            HttpClientTestingModule,ReactiveFormsModule, FormsModule, NgbModule, GeoMappingDialog, LargeFormFieldComponent],
+         
          providers: [
             {provide: ModelService, useValue: modelService},
             {provide: VSGeoProvider, useValue: geoProvider},
@@ -138,7 +139,7 @@ describe("geo mapping dialog component unit case", () => {
 
    //Bug #19048 should refresh mapping data
    it("should refresh mapping data when switch algorithm", () => {
-      const unmatchedListChange = jest.spyOn(geoMappingDialog, "unmatchedListChange");
+      const unmatchedListChange = vi.spyOn(geoMappingDialog, "unmatchedListChange");
       geoMappingDialog.changeAlgorithm();
       expect(unmatchedListChange).toHaveBeenCalled();
    });

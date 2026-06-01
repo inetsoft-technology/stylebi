@@ -1,166 +1,180 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <div [style.cursor]="pending ? 'wait' : null">
   <modal-header [title]="'_#(Import Data File)'"
-                (onCancel)="cancel()"
-                [cshid]="'EmbeddedDataUpload'">
+    (onCancel)="cancel()"
+    [cshid]="'EmbeddedDataUpload'">
   </modal-header>
-  <div class="modal-body" [enterSubmit]="formValid" (onEnter)="ok()" *ngIf="model">
-    <form [formGroup]="form" class="container-fluid">
-      <div class="shell-form-row--field row">
-        <div class="col">
-          <div class="d-flex gap-2 align-items-center">
-            <button type="button" class="btn btn-secondary" (click)="fileInput.click()">_#(Browse)</button>
-            <span class="text-truncate">{{model?.fileName}}</span>
-            <input #fileInput type="file" hidden accept=".csv,.txt,.xls,.xlsx"
-                   (change)="updateFile($event)">
+  @if (model) {
+    <div class="modal-body" [enterSubmit]="formValid" (onEnter)="ok()">
+      <form [formGroup]="form" class="container-fluid">
+        <div class="shell-form-row--field row">
+          <div class="col">
+            <input type="file" class="form-control-file" id="file"
+              accept=".csv,.txt,.xls,.xlsx"
+              (change)="updateFile($event)">
+            @if (fileUploadProgress) {
+              <ngb-progressbar type="success" [animated]="true"
+              [value]="fileUploadProgress" [striped]="true"></ngb-progressbar>
+            }
           </div>
-          <ngb-progressbar *ngIf="fileUploadProgress" type="success" [animated]="true"
-                           [value]="fileUploadProgress" [striped]="true"></ngb-progressbar>
         </div>
-      </div>
-      <div class="shell-form-row--field row">
-        <div class="col">
-        <div class="form-floating">
-          <custom-select id="sheet"
+        <div class="shell-form-row--field row">
+          <div class="col">
+            <div class="stepper-float-label">
+              <custom-select id="sheet"
                          formControlName="sheetSelected"
                          [options]="sheetSelectOptions"
                          placeholder="_#(Sheet)">
           </custom-select>
-          <label><span>_#(Sheet)</span></label>
+              <label><span>_#(Sheet)</span></label>
+            </div>
+          </div>
         </div>
-        </div>
-      </div>
-      <div class="shell-form-row--field row">
-        <div class="col">
-        <div class="form-floating">
-          <custom-select id="encoding"
+        <div class="shell-form-row--field row">
+          <div class="col">
+            <div class="stepper-float-label">
+              <custom-select id="encoding"
                          formControlName="encodingSelected"
                          [options]="encodingSelectOptions"
                          placeholder="_#(Encoding)">
           </custom-select>
-          <label><span>_#(Encoding)</span></label>
-        </div>
-        </div>
-        <div class="col-auto">
-        <div class="form-floating">
-          <input type="text" maxlength="1" class="form-control" id="delimiter"
-                 formControlName="delimiter" placeholder="_#(Delimiter)">
-          <label><span>_#(Delimiter)</span></label>
-        </div>
+              <label><span>_#(Encoding)</span></label>
+            </div>
           </div>
-        <div class="col-auto">
-          <div class="form-check">
-            <input type="checkbox" class="form-check-input" id="tab"
-                   formControlName="delimiterTab">
-            <label class="form-check-label" for="tab">
-              _#(Tab)
-            </label>
+          <div class="col-auto">
+            <div class="stepper-float-label">
+              <input type="text" maxlength="1" class="form-control" id="delimiter"
+                formControlName="delimiter" placeholder="_#(Delimiter)">
+              <label><span>_#(Delimiter)</span></label>
+            </div>
           </div>
-        </div>
-        <div class="col-auto">
-          <div class="form-check">
-            <input type="checkbox" class="form-check-input" id="detectType"
-                   formControlName="detectType">
-            <label class="form-check-label" for="detectType">
-              _#(Detect Data Type)
-            </label>
+          <div class="col-auto">
+            <div class="form-check">
+              <input type="checkbox" class="form-check-input" id="tab"
+                formControlName="delimiterTab">
+              <label class="form-check-label" for="tab">
+                _#(Tab)
+              </label>
+            </div>
           </div>
-        </div>
-      </div>
-      <div *ngIf="form.controls['delimiter'].errors && form.controls['delimiter'].errors['required']"
-           class="shell-alert shell-alert--danger">
-        _#(viewer.worksheet.import.delimiter)
-      </div>
-      <div class="shell-form-row--field row">
-        <div class="col-auto">
-          <div class="form-check">
-            <input type="checkbox" class="form-check-input" id="first-row-tab"
-                   formControlName="firstRowCB">
-            <label class="form-check-label" for="first-row-tab">
-              _#(viewer.worksheet.import.firstRow)
-            </label>
+          <div class="col-auto">
+            <div class="form-check">
+              <input type="checkbox" class="form-check-input" id="detectType"
+                formControlName="detectType">
+              <label class="form-check-label" for="detectType">
+                _#(Detect Data Type)
+              </label>
+            </div>
           </div>
         </div>
-        <div class="col-auto">
-          <div class="form-check">
-            <input type="checkbox" class="form-check-input" id="remove-quotes"
-                   formControlName="removeQuotesCB">
-            <label class="form-check-label" for="remove-quotes">
-              _#(Remove Quotation Marks)
-            </label>
+        @if (form.controls['delimiter'].errors && form.controls['delimiter'].errors['required']) {
+          <div
+            class="shell-alert shell-alert--danger">
+            _#(viewer.worksheet.import.delimiter)
+          </div>
+        }
+        <div class="shell-form-row--field row">
+          <div class="col-auto">
+            <div class="form-check">
+              <input type="checkbox" class="form-check-input" id="first-row-tab"
+                formControlName="firstRowCB">
+              <label class="form-check-label" for="first-row-tab">
+                _#(viewer.worksheet.import.firstRow)
+              </label>
+            </div>
+          </div>
+          <div class="col-auto">
+            <div class="form-check">
+              <input type="checkbox" class="form-check-input" id="remove-quotes"
+                formControlName="removeQuotesCB">
+              <label class="form-check-label" for="remove-quotes">
+                _#(Remove Quotation Marks)
+              </label>
+            </div>
           </div>
         </div>
-      </div>
-      <div class="shell-form-row--field row">
-        <div class="col-auto">
-          <div class="form-check">
-            <input type="checkbox" class="form-check-input" id="crosstab"
-                   formControlName="unpivotCB">
-            <label class="form-check-label" for="crosstab">
-              _#(viewer.worksheet.import.unpivotData)
-            </label>
+        <div class="shell-form-row--field row">
+          <div class="col-auto">
+            <div class="form-check">
+              <input type="checkbox" class="form-check-input" id="crosstab"
+                formControlName="unpivotCB">
+              <label class="form-check-label" for="crosstab">
+                _#(viewer.worksheet.import.unpivotData)
+              </label>
+            </div>
           </div>
-        </div>
-        <div class="col-auto">
-          <div class="stepper-float-label">
-            <span class="stepper-float-label__text">_#(Header Columns)</span>
-            <number-stepper formControlName="headerCols" [min]="0"
+          <div class="col-auto">
+            <div class="stepper-float-label">
+              <number-stepper formControlName="headerCols" [min]="0"
                             [invalid]="form.controls['headerCols'].invalid">
             </number-stepper>
+              <label><span>_#(Header Columns)</span></label>
+            </div>
           </div>
         </div>
-      </div>
-      <div *ngIf="form.controls['headerCols'].errors && form.controls['headerCols'].errors['min']"
-           class="shell-alert shell-alert--danger">
-        _#(viewer.worksheet.import.header.negative)
-      </div>
-      <div *ngIf="form.controls['headerCols'].errors && form.controls['headerCols'].errors['integerInRange']"
-           class="shell-alert shell-alert--danger">
-        _#(viewer.worksheet.import.header.range.error)
-      </div>
-      <div *ngIf="duplicateHeaders"
-           class="shell-alert shell-alert--danger">
-        _#(viewer.worksheet.import.duplicateHeaders)
-      </div>
-      <div *ngIf="invalidCharacters"
-           class="shell-alert shell-alert--danger">
-        _#(formula.editor.charValid)
-      </div>
-    </form>
-
-    <div class="preview-container" *ngIf="previewTable && this.form.valid">
-      <preview-table [tableData]="previewTable" [runtimeId]="worksheet.runtimeId" [checkHeaderValid]="true"
-                     [formattingEnabled]="false" [draggable]="false" [hideEnabled]="false"
-                     (onRename)="onHeaderRename($event)">
-      </preview-table>
+        @if (form.controls['headerCols'].errors && form.controls['headerCols'].errors['min']) {
+          <div
+            class="shell-alert shell-alert--danger">
+            _#(viewer.worksheet.import.header.negative)
+          </div>
+        }
+        @if (form.controls['headerCols'].errors && form.controls['headerCols'].errors['integerInRange']) {
+          <div
+            class="shell-alert shell-alert--danger">
+            _#(viewer.worksheet.import.header.range.error)
+          </div>
+        }
+        @if (duplicateHeaders) {
+          <div
+            class="shell-alert shell-alert--danger">
+            _#(viewer.worksheet.import.duplicateHeaders)
+          </div>
+        }
+        @if (invalidCharacters) {
+          <div
+            class="shell-alert shell-alert--danger">
+            _#(formula.editor.charValid)
+          </div>
+        }
+      </form>
+      @if (previewTable && this.form.valid) {
+        <div class="preview-container">
+          <preview-table [tableData]="previewTable" [runtimeId]="worksheet.runtimeId" [checkHeaderValid]="true"
+            [formattingEnabled]="false" [draggable]="false" [hideEnabled]="false"
+            (onRename)="onHeaderRename($event)">
+          </preview-table>
+        </div>
+      }
     </div>
-  </div>
+  }
   <div class="modal-footer">
-    <div *ngIf="mashUpData" class="d-flex justify-content-start flex-grow-1">
-      <button type="button" class="btn btn-default" (click)="ok(true)"
+    @if (mashUpData) {
+      <div class="d-flex justify-content-start flex-grow-1">
+        <button type="button" class="btn btn-default" (click)="ok(true)"
               [disabled]="!form || !model || !form.valid || !model.fileName || !fileUploaded || errorOnServer
               || previewPending || duplicateHeaders || invalidCharacters">_#(Mashup Data)</button>
-    </div>
+      </div>
+    }
     <button type="button" class="btn btn-primary"
             [disabled]="!form || !model || !form.valid || !model.fileName || !fileUploaded || errorOnServer
             || previewPending || duplicateHeaders || invalidCharacters"
-            (click)="ok()" #okButton>_#(OK)
+      (click)="ok()" #okButton>_#(OK)
     </button>
     <button type="button" class="btn btn-default" data-dismiss="modal" (click)="cancel()">_#(Cancel)
     </button>

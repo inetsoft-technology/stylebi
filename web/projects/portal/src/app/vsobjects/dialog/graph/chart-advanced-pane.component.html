@@ -1,98 +1,120 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <div class="child-dialog">
   <form [formGroup]="form" (submit)="$event.preventDefault()" class="container-fluid">
     <fieldset>
       <legend>_#(Chart Options)</legend>
-      <div class="shell-form-row shell-form-row--checkbox gap-3">
+      <div class="form-row-float-label row">
         <div class="form-check">
-          <input type="checkbox" class="form-check-input" id="glossy"
-                 [disabled]="!model.glossyEffectSupported || (model.sparklineSupported && model.sparkline)"
-                 [(ngModel)]="model.glossyEffect" [ngModelOptions]="{standalone: true}">
-          <label class="form-check-label" for="glossy">
-            _#(Glossy Effect)
-          </label>
-        </div>
-        <div class="form-check" *ngIf="model.adhocVisible && !viewer">
-          <input type="checkbox" class="form-check-input" id="sparkline"
-                 [disabled]="!model.sparklineSupported" [(ngModel)]="model.sparkline"
-                 [ngModelOptions]="{standalone: true}">
-          <label class="form-check-label" for="sparkline">
-            _#(Sparkline)
-          </label>
-        </div>
-        <div class="form-check" *ngIf="model.adhocVisible && !viewer">
-          <input type="checkbox" class="form-check-input" id="adhoc"
-                 [(ngModel)]="model.enableAdhocEditing" [ngModelOptions]="{standalone: true}">
-          <label class="form-check-label" for="adhoc">
-            _#(Enable Ad Hoc Editing)
-          </label>
-        </div>
-        <div class="form-check" *ngIf="model.adhocVisible && !viewer">
-          <input type="checkbox" class="form-check-input" id="drilling"
-                 [(ngModel)]="model.enableDrilling" [disabled]="isMekko()"
-                 [ngModelOptions]="{standalone: true}">
-          <label class="form-check-label" for="drilling">
-            _#(Enable Drilling)
-          </label>
-        </div>
-      </div>
-      <div class="row shell-form-row--field" *ngIf="model.sortOthersLastEnabled || model.rankPerGroupLabel">
-        <div class="checkbox col-3" *ngIf="model.sortOthersLastEnabled">
           <div class="form-check">
-            <input type="checkbox" class="form-check-input" id="sortOthers"
-                   [(ngModel)]="model.sortOthersLast"
-                   [ngModelOptions]="{standalone: true}">
-            <label class="form-check-label" for="sortOthers">
-              _#(Sort Others Last)
+            <input type="checkbox" class="form-check-input" id="glossy"
+              [disabled]="!model.glossyEffectSupported || (model.sparklineSupported && model.sparkline)"
+              [(ngModel)]="model.glossyEffect" [ngModelOptions]="{standalone: true}">
+            <label class="form-check-label" for="glossy">
+              _#(Glossy Effect)
             </label>
           </div>
         </div>
-        <div class="checkbox col-auto" *ngIf="model.rankPerGroupLabel">
+        @if (model.adhocVisible && !viewer) {
           <div class="form-check">
-            <input type="checkbox" class="form-check-input" id="rankPerGroup"
-                   [(ngModel)]="model.rankPerGroup"
-                   [ngModelOptions]="{standalone: true}">
-            <label class="form-check-label" for="rankPerGroup">{{model.rankPerGroupLabel}}</label>
+            <div class="form-check">
+              <input type="checkbox" class="form-check-input" id="sparkline"
+                [disabled]="!model.sparklineSupported" [(ngModel)]="model.sparkline"
+                [ngModelOptions]="{standalone: true}">
+              <label class="form-check-label" for="sparkline">
+                _#(Sparkline)
+              </label>
+            </div>
+          </div>
+        }
+        @if (model.adhocVisible && !viewer) {
+          <div class="form-check">
+            <div class="form-check">
+              <input type="checkbox" class="form-check-input" id="adhoc"
+                [(ngModel)]="model.enableAdhocEditing" [ngModelOptions]="{standalone: true}">
+              <label class="form-check-label" for="adhoc">
+                _#(Enable Ad Hoc Editing)
+              </label>
+            </div>
+          </div>
+        }
+        @if (model.adhocVisible && !viewer) {
+          <div class="form-check">
+            <div class="form-check">
+              <input type="checkbox" class="form-check-input" id="drilling"
+                [(ngModel)]="model.enableDrilling" [disabled]="isMekko()"
+                [ngModelOptions]="{standalone: true}">
+              <label class="form-check-label" for="drilling">
+                _#(Enable Drilling)
+              </label>
+            </div>
+          </div>
+        }
+      </div>
+      @if (model.sortOthersLastEnabled || model.rankPerGroupLabel) {
+        <div class="form-row-float-label row">
+          @if (model.sortOthersLastEnabled) {
+            <div class="form-check">
+              <div class="form-check">
+                <input type="checkbox" class="form-check-input" id="sortOthers"
+                  [(ngModel)]="model.sortOthersLast"
+                  [ngModelOptions]="{standalone: true}">
+                <label class="form-check-label" for="sortOthers">
+                  _#(Sort Others Last)
+                </label>
+              </div>
+            </div>
+          }
+          @if (model.rankPerGroupLabel) {
+            <div class="checkbox col-auto">
+              <div class="form-check">
+                <input type="checkbox" class="form-check-input" id="rankPerGroup"
+                  [(ngModel)]="model.rankPerGroup"
+                  [ngModelOptions]="{standalone: true}">
+                <label class="form-check-label" for="rankPerGroup">{{model.rankPerGroupLabel}}</label>
+              </div>
+            </div>
+          }
+        </div>
+      }
+      @if (!viewer && model.dateComparisonSupport) {
+        <div class="form-row-float-label row">
+          <div class="checkbox col-auto">
+            <div class="form-check">
+              <input type="checkbox" class="form-check-input" id="dateComparison"
+                [(ngModel)]="model.dateComparisonEnabled"
+                [ngModelOptions]="{standalone: true}">
+              <label class="form-check-label" for="dateComparison">
+                _#(Enable Date Comparison)
+              </label>
+            </div>
           </div>
         </div>
-      </div>
-      <div class="row shell-form-row--field" *ngIf="!viewer && model.dateComparisonSupport">
-        <div class="checkbox col-auto">
-          <div class="form-check">
-            <input type="checkbox" class="form-check-input" id="dateComparison"
-                   [(ngModel)]="model.dateComparisonEnabled"
-                   [ngModelOptions]="{standalone: true}">
-            <label class="form-check-label" for="dateComparison">
-              _#(Enable Date Comparison)
-            </label>
-          </div>
-        </div>
-      </div>
+      }
     </fieldset>
     <chart-plot-options-pane [model]="model.chartPlotOptionsPaneModel"
-                             [form]="form.controls['chartPlotOptionsPaneForm']">
+      [form]="form.controls['chartPlotOptionsPaneForm']">
     </chart-plot-options-pane>
     <chart-target-lines-pane [variables]="variables"
-                             [model]="model.chartTargetLinesPaneModel"
-                             [vsId]="vsId"
-                             [assetId]="assetId"
-                             [chartType]="chartType">
+      [model]="model.chartTargetLinesPaneModel"
+      [vsId]="vsId"
+      [assetId]="assetId"
+      [chartType]="chartType">
     </chart-target-lines-pane>
   </form>
 </div>

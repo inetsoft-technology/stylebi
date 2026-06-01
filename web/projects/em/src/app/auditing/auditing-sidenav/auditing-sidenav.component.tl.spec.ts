@@ -26,6 +26,7 @@
  *   Group 1 — permission binding: all 12 boolean visibility flags set from AuthorizationService
  *   Group 2 — isScreenSmall: breakpoint at 720px determines sidenav behavior
  */
+
 import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { render } from "@testing-library/angular";
 import { of } from "rxjs";
@@ -79,19 +80,19 @@ const ALL_PERMISSIONS_DENIED = {
 
 /** Creates a minimal MatSidenav stub that satisfies @ViewChild(MatSidenav). */
 function makeSidenavStub() {
-   return { close: jest.fn().mockReturnValue(Promise.resolve()) };
+   return { close: vi.fn().mockReturnValue(Promise.resolve()) };
 }
 
 /** Creates an AuthorizationService mock returning the given permissions. */
 function makeAuthzServiceMock(permissions = ALL_PERMISSIONS_GRANTED) {
    return {
-      getPermissions: jest.fn().mockReturnValue(of(permissions)),
+      getPermissions: vi.fn().mockReturnValue(of(permissions)),
    };
 }
 
 /** Creates a BreakpointObserver stub. */
 function makeBreakpointObserverStub(matched: boolean) {
-   return { isMatched: jest.fn().mockReturnValue(matched) };
+   return { isMatched: vi.fn().mockReturnValue(matched) };
 }
 
 /** Renders the component, injecting mocks for Router, AuthorizationService, BreakpointObserver. */

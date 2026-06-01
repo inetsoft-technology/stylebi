@@ -1,6 +1,6 @@
-// Jest Snapshot v1, https://goo.gl/fbAQLP
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
-exports[`AnnotationActions check menu actions is created 1`] = `
+exports[`AnnotationActions > check menu actions is created 1`] = `
 [
   AssemblyActionGroup {
     "actions": [
@@ -35,7 +35,7 @@ exports[`AnnotationActions check menu actions is created 1`] = `
 ]
 `;
 
-exports[`AnnotationActions check menu actions is created 2`] = `
+exports[`AnnotationActions > check menu actions is created 2`] = `
 [
   AssemblyActionGroup {
     "actions": [

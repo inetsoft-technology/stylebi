@@ -23,11 +23,12 @@ import { ContextProvider } from "../../context-provider.service";
 import { PopComponentService } from "../data-tip/pop-component.service";
 import { NavigationKeys } from "../navigation-keys";
 import { AssemblyAction } from "../../../common/action/assembly-action";
-import { Observable ,  Subscription } from "rxjs";
+import { Observable, Subscription } from "rxjs";
 import { VSObjectModel } from "../../model/vs-object-model";
 import { MiniToolbarService } from "./mini-toolbar.service";
 import { FocusObjectEventModel } from "../../model/focus-object-event-model";
 import { ToolbarActionsHandler } from "../../toolbar-actions-handler";
+
 
 /**
  * Mini-toolbar usage: (see vs-calendar.copmonent.html)
@@ -38,9 +39,10 @@ import { ToolbarActionsHandler } from "../../toolbar-actions-handler";
  */
 
 @Component({
-   selector: "mini-toolbar",
-   templateUrl: "mini-toolbar.component.html",
-   styleUrls: ["mini-toolbar.component.scss"]
+    selector: "mini-toolbar",
+    templateUrl: "mini-toolbar.component.html",
+    styleUrls: ["mini-toolbar.component.scss"],
+    imports: []
 })
 export class MiniToolbar implements OnDestroy {
    @Input() actions: AbstractVSActions<any>;

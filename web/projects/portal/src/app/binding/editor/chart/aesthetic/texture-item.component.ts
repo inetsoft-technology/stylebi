@@ -17,10 +17,12 @@
  */
 import { Component, Input, Output } from "@angular/core";
 import { ChartConfig } from "../../../../common/util/chart-config";
+import { NgClass } from "@angular/common";
 
 @Component({
-   selector: "texture-item",
-   template: "<i [ngClass] = \"iconSource + ' align-middle'\"></i>"
+    selector: "texture-item",
+    template: "<i [ngClass] = \"iconSource + ' align-middle'\"></i>",
+    imports: [NgClass]
 })
 export class TextureItem {
    @Input() texture: number;

@@ -16,7 +16,8 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { HttpClientTestingModule } from "@angular/common/http/testing";
-import { Component, ViewChild } from "@angular/core";
+import { Component, NO_ERRORS_SCHEMA, ViewChild } from "@angular/core";
+import { NgClass, NgFor, NgIf } from "@angular/common";
 import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { By } from "@angular/platform-browser";
@@ -30,8 +31,9 @@ import { TimeValueEditorComponent } from "../../../../widget/date-type-editor/ti
 import { TimepickerComponent } from "../../../../widget/date-type-editor/timepicker.component";
 import { EnterSubmitDirective } from "../../../../widget/directive/enter-submit.directive";
 import { AddParameterDialog } from "./add-parameter-dialog.component";
-import { CustomSelectModule } from "../../../../widget/custom-select/custom-select.module";
 import { ValueTypes } from "../../../../vsobjects/model/dynamic-value-model";
+import { CustomSelectComponent } from "../../../../widget/custom-select/custom-select.component";
+import { NumberStepperComponent } from "../../../../widget/number-stepper/number-stepper.component";
 
 const createModel: () => AddParameterDialogModel = () => {
    return {
@@ -43,7 +45,9 @@ const createModel: () => AddParameterDialogModel = () => {
 };
 
 @Component({
+   standalone: true,
    selector: "test-app",
+   imports: [AddParameterDialog],
    template: `<add-parameter-dialog [parameterNames]="parameterNames" [index]="index"
       [parameters]="parameters"></add-parameter-dialog>`
 })
@@ -56,23 +60,32 @@ class TestApp {
 }
 
 describe("Add Parameter Dialog Unit Test", () => {
-   let ngbService = { open: jest.fn() };
+   let ngbService = { open: vi.fn() };
    let fixture: ComponentFixture<TestApp>;
    let addParaDialog: AddParameterDialog;
 
    beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule, HttpClientTestingModule, CustomSelectModule
+            FormsModule,
+            ReactiveFormsModule,
+            NgbModule,
+            HttpClientTestingModule,
+            TestApp,
+            AddParameterDialog,
+            EnterSubmitDirective,
+            TimepickerComponent,
+            DateValueEditorComponent,
+            TimeValueEditorComponent,
+            TimeInstantValueEditorComponent,
          ],
-         declarations: [
-            TestApp, AddParameterDialog, EnterSubmitDirective, TimepickerComponent,
-            DateValueEditorComponent, TimeValueEditorComponent, TimeInstantValueEditorComponent
-         ],
+         
          providers: [
             { provide: NgbModal, useValue: ngbService },
-         ]
+         ],
+         schemas: [NO_ERRORS_SCHEMA]
       });
+      TestBed.overrideComponent(AddParameterDialog, { set: { imports: [NgIf, NgFor, NgClass, FormsModule, ReactiveFormsModule, EnterSubmitDirective, CustomSelectComponent, NumberStepperComponent] } });
       TestBed.compileComponents();
 
       fixture = TestBed.createComponent(TestApp);
@@ -98,7 +111,7 @@ describe("Add Parameter Dialog Unit Test", () => {
       fixture.detectChanges();
 
       let okBtn = fixture.debugElement.query(By.css("button.btn.btn-primary")).nativeElement;
-      let showConfirmDialog = jest.spyOn(ComponentTool, "showConfirmDialog");
+      let showConfirmDialog = vi.spyOn(ComponentTool, "showConfirmDialog");
       showConfirmDialog.mockImplementation(() => Promise.resolve("ok"));
       okBtn.click();
       expect(showConfirmDialog).toHaveBeenCalled();
@@ -178,7 +191,7 @@ describe("Add Parameter Dialog Unit Test", () => {
    });
 
    //Bug #21445 can create time parameter
-   xit("create time parameters", () => {
+   it.skip("create time parameters", () => {
       fixture.componentInstance.index = -1;
       fixture.componentInstance.parameters = [];
       fixture.detectChanges();

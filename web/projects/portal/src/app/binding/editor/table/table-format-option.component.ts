@@ -17,10 +17,13 @@
  */
 import { Component, Input, Output, EventEmitter } from "@angular/core";
 import { TableFormatInfo } from "../../../common/data/tablelayout/table-format-info";
+import { FormsModule } from "@angular/forms";
+
 
 @Component({
-   selector: "table-format-option",
-   templateUrl: "table-format-option.component.html",
+    selector: "table-format-option",
+    templateUrl: "table-format-option.component.html",
+    imports: [FormsModule]
 })
 export class TableFormatOption {
    @Input() format: TableFormatInfo;

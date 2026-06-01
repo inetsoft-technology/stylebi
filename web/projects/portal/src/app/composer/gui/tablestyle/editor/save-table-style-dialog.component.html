@@ -1,67 +1,74 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <modal-header [title]="'_#(Save Table Style)'" (onCancel)="cancel()" [cshid]="'SaveTableStyle'">
 </modal-header>
-<div class="modal-body" [enterSubmit]="formValid" (onEnter)="enter()" *ngIf="model && form">
-   <form [formGroup]="form" class="form-horizontal">
+@if (model && form) {
+  <div class="modal-body" [enterSubmit]="formValid" (onEnter)="enter()">
+    <form [formGroup]="form" class="form-horizontal">
       <fieldset>
-         <div class="shell-form-row--field">
-            <div class="col">
-               <div class="form-floating">
-                  <input class="form-control" type="text" id="name" trim formControlName="name"
-                         [class.is-invalid]="!form.controls['name'].valid"
-                         defaultFocus [autoSelect]="false">
-                  <label><span>_#(Name)</span></label>
-                  <span *ngIf="form.controls['name'].errors && form.controls['name'].errors['required']"
-                        class="invalid-feedback">
-                              _#(viewer.nameValid)
-                           </span>
-                  <span *ngIf="form.controls['name'].errors && ! form.controls['name']
-                              .errors['assetNameStartWithCharDigit'] &&
-                              form.controls['name'].errors['containsSpecialCharsForName']" class="invalid-feedback">
-                              _#(common.sree.internal.invalidCharInName)
-                           </span>
-                  <span
-                     *ngIf="form.controls['name'].errors && form.controls['name']
-                              .errors['assetNameStartWithCharDigit']"
-                     class="invalid-feedback">
-                              _#(asset.tree.checkStart)
-                           </span>
-               </div>
+        <div class="shell-form-row--field">
+          <div class="col">
+            <div class="form-floating">
+              <input class="form-control" type="text" id="name" trim formControlName="name"
+                [class.is-invalid]="!form.controls['name'].valid"
+                defaultFocus [autoSelect]="false">
+              <label><span>_#(Name)</span></label>
+              @if (form.controls['name'].errors && form.controls['name'].errors['required']) {
+                <span
+                  class="invalid-feedback">
+                  _#(viewer.nameValid)
+                </span>
+              }
+              @if (form.controls['name'].errors && ! form.controls['name']
+                .errors['assetNameStartWithCharDigit'] &&
+                form.controls['name'].errors['containsSpecialCharsForName']) {
+                <span class="invalid-feedback">
+                  _#(common.sree.internal.invalidCharInName)
+                </span>
+              }
+              @if (form.controls['name'].errors && form.controls['name']
+                .errors['assetNameStartWithCharDigit']) {
+                <span
+                  class="invalid-feedback">
+                  _#(asset.tree.checkStart)
+                </span>
+              }
             </div>
-         </div>
+          </div>
+        </div>
       </fieldset>
-   </form>
-   <fieldset>
+    </form>
+    <fieldset>
       <legend>_#(Scope)</legend>
       <div class="bordered-box bd-gray bordered-box-md">
-         <asset-tree [datasources]="false" [worksheets]="false" [viewsheets]="false"
-                     [columns]="false" [tableStyles]="true" [scripts]="false" class="rep-tree"
-                     [defaultFolder]="defaultFolder" (nodeSelected)="selectFolder($event)">
-         </asset-tree>
+        <asset-tree [datasources]="false" [worksheets]="false" [viewsheets]="false"
+          [columns]="false" [tableStyles]="true" [scripts]="false" class="rep-tree"
+          [defaultFolder]="defaultFolder" (nodeSelected)="selectFolder($event)">
+        </asset-tree>
       </div>
-   </fieldset>
-</div>
+    </fieldset>
+  </div>
+}
 <div class="modal-footer">
-   <button type="button" class="btn btn-primary" [disabled]="!model || !form?.valid" (click)="ok()">
-      _#(OK)
-   </button>
-   <button type="button" class="btn btn-default" data-dismiss="modal" (click)="cancel()">
-      _#(Cancel)
-   </button>
+  <button type="button" class="btn btn-primary" [disabled]="!model || !form?.valid" (click)="ok()">
+    _#(OK)
+  </button>
+  <button type="button" class="btn btn-default" data-dismiss="modal" (click)="cancel()">
+    _#(Cancel)
+  </button>
 </div>

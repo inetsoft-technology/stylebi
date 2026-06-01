@@ -76,16 +76,21 @@ describe("Localization Pane Unit Test", () => {
    let dragService: any;
 
    beforeEach(waitForAsync(() => {
-      dragService = { reset: jest.fn(), put: jest.fn() };
+      dragService = { reset: vi.fn(), put: vi.fn() };
 
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule
+            FormsModule,
+            ReactiveFormsModule,
+            NgbModule,
+            LocalizationPane,
+            ShuffleListComponent,
+            TreeComponent,
+            ElidedCellComponent,
+            TreeNodeComponent,
+            TreeSearchPipe,
          ],
-         declarations: [
-            LocalizationPane, ShuffleListComponent, TreeComponent, ElidedCellComponent,
-            TreeNodeComponent, TreeSearchPipe
-         ],
+         
          providers: [
             {provide: DragService, useValue: dragService}
          ],

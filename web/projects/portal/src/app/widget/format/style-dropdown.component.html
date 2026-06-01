@@ -1,37 +1,34 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <button #dropdownBody id="simple-btn-keyboard-nav"
-        class="custom-select-trigger form-control no-caret"
-        type="button" [fixedDropdown]="dropdownMenu" dropdownPlacement="bottom"
-        (openChange)="handleOpenChange($event)">
-  <div class="line-display style-dropdown__line line-style-{{style}}"
-       [style.--inet-line-style-color]="color"></div>
-  <i class="custom-select-trigger__icon dropdown-caret icon-color-default" aria-hidden="true"
-     [class.chevron-down-icon]="!open"
-     [class.chevron-up-icon]="open"></i>
+  class="custom-select-trigger form-control no-caret"
+  type="button" [fixedDropdown]="dropdownMenu" dropdownPlacement="bottom">
+  <div class="line-display line-style-{{style}}" [style.--inet-line-style-color]="color"></div>
+  <span class="caret"></span>
 </button>
 <ng-template #dropdownMenu>
   <div class="custom-select-menu dropdown-pane" [style.min-width.px]="dropdownMinWidth">
-    <div class="dropdown-item custom-select-option" *ngFor="let lineStyle of lineStyles"
-      [class.selected]="lineStyle === style"
-      (click)="choose(lineStyle);">
-      <div class="line-display style-dropdown__line line-style-{{lineStyle}}"
-           [style.--inet-line-style-color]="color"></div>
-    </div>
+    @for (lineStyle of lineStyles; track lineStyle) {
+      <div class="dropdown-item custom-select-option"
+        [class.selected]="lineStyle === style"
+        (click)="choose(lineStyle);">
+        <div class="line-display line-style-{{lineStyle}}" [style.--inet-line-style-color]="color"></div>
+      </div>
+    }
   </div>
 </ng-template>

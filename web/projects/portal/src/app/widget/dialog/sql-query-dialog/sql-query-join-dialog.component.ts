@@ -16,16 +16,20 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, EventEmitter, Input, OnDestroy, OnInit, Output } from "@angular/core";
-import { Observable ,  Subscription } from "rxjs";
+import { Observable, Subscription } from "rxjs";
 import { AssetUtil } from "../../../binding/util/asset-util";
 import { AssetEntry } from "../../../../../../shared/data/asset-entry";
 import { Tool } from "../../../../../../shared/util/tool";
 import { JoinItem } from "../../../composer/data/ws/join-item";
-import { CustomSelectOption } from "../../custom-select/custom-select.component";
+import { FormsModule } from "@angular/forms";
+import { EnterSubmitDirective } from "../../directive/enter-submit.directive";
+import { ModalHeaderComponent } from "../../modal-header/modal-header.component";
+import { CustomSelectOption, CustomSelectComponent } from "../../custom-select/custom-select.component";
 
 @Component({
-   selector: "sql-query-join-dialog",
-   templateUrl: "sql-query-join-dialog.component.html"
+    selector: "sql-query-join-dialog",
+    templateUrl: "sql-query-join-dialog.component.html",
+    imports: [ModalHeaderComponent, EnterSubmitDirective, FormsModule, CustomSelectComponent]
 })
 export class SQLQueryJoinDialog implements OnInit, OnDestroy {
    @Input() joins: JoinItem[];

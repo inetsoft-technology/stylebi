@@ -15,22 +15,24 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { DOCUMENT } from "@angular/common";
+
 import {
-   ChangeDetectorRef,
-   Component,
-   ElementRef,
-   Inject,
-   OnDestroy,
-   OnInit,
-   Renderer2
+  ChangeDetectorRef,
+  Component,
+  ElementRef,
+  Inject,
+  OnDestroy,
+  OnInit,
+  Renderer2,
+  DOCUMENT
 } from "@angular/core";
 import { FixedDropdownComponent } from "./fixed-dropdown.component";
 import { DropdownStackService } from "./dropdown-stack.service";
 
 @Component({
-   selector: "fixed-dropdown-contextmenu",
-   templateUrl: "fixed-dropdown-contextmenu.component.html"
+    selector: "fixed-dropdown-contextmenu",
+    templateUrl: "fixed-dropdown-contextmenu.component.html",
+    standalone: true
 })
 export class FixedDropdownContextmenuComponent
    extends FixedDropdownComponent implements OnInit, OnDestroy

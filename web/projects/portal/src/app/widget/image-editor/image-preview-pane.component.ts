@@ -25,7 +25,7 @@ import {
    OnInit,
    ViewChild
 } from "@angular/core";
-import { UntypedFormGroup } from "@angular/forms";
+import { UntypedFormGroup, FormsModule } from "@angular/forms";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { Tool } from "../../../../../shared/util/tool";
 import { getImageName, getImageType } from "../../composer/util/image-util";
@@ -34,13 +34,22 @@ import { TreeComponent } from "../tree/tree.component";
 import { ImagePreviewPaneModel } from "./image-preview-pane-model";
 import { ComponentTool } from "../../common/util/component-tool";
 import { NotificationsComponent } from "../notifications/notifications.component";
+import { AlphaDropdown } from "../format/alpha-dropdown.component";
+
 
 declare const window: any;
 
 @Component({
-   selector: "image-preview-pane",
-   templateUrl: "image-preview-pane.component.html",
-   styleUrls: ["./image-preview-pane.component.scss"]
+    selector: "image-preview-pane",
+    templateUrl: "image-preview-pane.component.html",
+    styleUrls: ["./image-preview-pane.component.scss"],
+
+    imports: [
+    TreeComponent,
+    NotificationsComponent,
+    AlphaDropdown,
+    FormsModule
+]
 })
 export class ImagePreviewPane implements OnInit, AfterViewInit {
    @Input() model: ImagePreviewPaneModel;

@@ -16,16 +16,23 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, EventEmitter, Input, OnInit, Output } from "@angular/core";
-import { UntypedFormBuilder, UntypedFormGroup, Validators } from "@angular/forms";
+import { UntypedFormBuilder, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { CompletionConditionModel } from "../../../../../../../shared/schedule/model/completion-condition-model";
 import { ScheduleTaskNamesService } from "../../../../../../../shared/schedule/schedule-task-names.service";
 import { NameLabelTuple } from "../../../../../../../shared/util/name-label-tuple";
 import { TaskConditionChanges } from "../task-condition-pane.component";
+import { MatProgressSpinner } from "@angular/material/progress-spinner";
+import { MatOption } from "@angular/material/core";
+
+import { MatSelect } from "@angular/material/select";
+import { MatFormField, MatLabel, MatError, MatSuffix } from "@angular/material/form-field";
+import { MatCard, MatCardContent } from "@angular/material/card";
 
 @Component({
-   selector: "em-completion-condition-editor",
-   templateUrl: "./completion-condition-editor.component.html",
-   styleUrls: ["./completion-condition-editor.component.scss"]
+    selector: "em-completion-condition-editor",
+    templateUrl: "./completion-condition-editor.component.html",
+    styleUrls: ["./completion-condition-editor.component.scss"],
+    imports: [MatCard, MatCardContent, MatFormField, FormsModule, ReactiveFormsModule, MatLabel, MatSelect, MatOption, MatError, MatProgressSpinner, MatSuffix]
 })
 export class CompletionConditionEditorComponent implements OnInit {
    @Input() originalTaskName: string = null;

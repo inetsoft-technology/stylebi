@@ -1,35 +1,45 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <div>
-    <button class="form-control dropdown-toggle style-select-height"
-       [fixedDropdown]="dropdownMenu" [style.white-space]="'nowrap'" data-test="border-style-dropdown">
-        <span *ngIf="!cssClass" class="line-label">{{getStyleLabel()}}</span>
-        <div *ngIf="cssClass" [class]="'line-display ' + cssClass"></div>
-    </button>
+  <button class="form-control dropdown-toggle style-select-height"
+    [fixedDropdown]="dropdownMenu" [style.white-space]="'nowrap'" data-test="border-style-dropdown">
+    @if (!cssClass) {
+      <span class="line-label">{{getStyleLabel()}}</span>
+    }
+    @if (cssClass) {
+      <div [class]="'line-display ' + cssClass"></div>
+    }
+  </button>
 </div>
 <ng-template #dropdownMenu>
-    <ul role="menu" class="dropdown-pane">
-        <li *ngFor="let style of styles" class="line-style-menu hover-bg-primary-selectable"
-            [class.selected]="style.value == borderStyle"
-            [class.fade]="style.value == '1'"
-            (click)="setBorderStyle(style.value, style.cssClass)">
-            <label *ngIf="style.label" class="line-label">{{style.label}}</label>
-            <div *ngIf="style.cssClass" [class]="'line-display ' + style.cssClass"></div>
-        </li>
-    </ul>
+  <ul role="menu" class="dropdown-pane">
+    @for (style of styles; track style) {
+      <li class="line-style-menu hover-bg-primary-selectable"
+        [class.selected]="style.value == borderStyle"
+        [class.fade]="style.value == '1'"
+        (click)="setBorderStyle(style.value, style.cssClass)">
+        @if (style.label) {
+          <label class="line-label">{{style.label}}</label>
+        }
+        @if (style.cssClass) {
+          <div [class]="'line-display ' + style.cssClass"></div>
+        }
+      </li>
+    }
+  </ul>
 </ng-template>

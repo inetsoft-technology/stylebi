@@ -16,7 +16,8 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, Input, EventEmitter, Output, OnInit } from "@angular/core";
-import { CustomSelectOption } from "../../custom-select/custom-select.component";
+import { FormsModule } from "@angular/forms";
+import { CustomSelectOption, CustomSelectComponent } from "../../custom-select/custom-select.component";
 
 enum StyleType {
    /**
@@ -38,8 +39,10 @@ enum StyleType {
 }
 
 @Component({
-   selector: "variable-collection-selector",
-   templateUrl: "variable-collection-selector.component.html",
+    selector: "variable-collection-selector",
+    templateUrl: "variable-collection-selector.component.html",
+    imports: [
+    FormsModule, CustomSelectComponent]
 })
 export class VariableCollectionSelector implements OnInit {
    @Input() style: number;

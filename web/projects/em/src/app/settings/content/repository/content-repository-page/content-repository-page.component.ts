@@ -40,6 +40,12 @@ import { MoveAssetDialogComponent } from "../move-assets-dialog/move-asset-dialo
 import { RepositoryTreeDataSource } from "../repository-tree-data-source";
 import { RepositoryFlatNode, RepositoryTreeNode } from "../repository-tree-node";
 import { ContentRepositoryService } from "./content-repository.service";
+import { AsyncPipe } from "@angular/common";
+import { LoadingSpinnerComponent } from "../../../../common/util/loading-spinner/loading-spinner.component";
+import { RepositoryEditorPageComponent } from "../repository-editor-page/repository-editor-page.component";
+import { MultiSelectTreeNodeDirective } from "../../../../common/util/tree/multi-select-tree-node.directive";
+import { RepositoryTreeViewComponent } from "../repository-tree-view/repository-tree-view.component";
+import { MatDrawerContainer, MatDrawer, MatDrawerContent } from "@angular/material/sidenav";
 
 export class TreeSelectionEvent {
    constructor(public selected: boolean, // true if node was selected before tree was refreshed
@@ -64,12 +70,13 @@ const SMALL_WIDTH_BREAKPOINT = 720;
    link: "EMSettingsContentRepository"
 })
 @Component({
-   selector: "em-content-repository-page",
-   templateUrl: "./content-repository-page.component.html",
-   styleUrls: ["./content-repository-page.component.scss"],
-   providers: [
-      RepositoryTreeDataSource
-   ]
+    selector: "em-content-repository-page",
+    templateUrl: "./content-repository-page.component.html",
+    styleUrls: ["./content-repository-page.component.scss"],
+    providers: [
+        RepositoryTreeDataSource
+    ],
+    imports: [MatDrawerContainer, MatDrawer, RepositoryTreeViewComponent, MultiSelectTreeNodeDirective, MatDrawerContent, RepositoryEditorPageComponent, LoadingSpinnerComponent, AsyncPipe]
 })
 export class ContentRepositoryPageComponent implements OnInit, OnDestroy {
    editorModel = new BehaviorSubject<RepositoryEditorModel>(null);

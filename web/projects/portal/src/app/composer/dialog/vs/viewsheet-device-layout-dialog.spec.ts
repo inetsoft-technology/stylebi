@@ -46,21 +46,27 @@ describe("Viewsheet Device Layout Dialog Unit Test", () => {
 
    beforeEach(waitForAsync(() => {
       ngbModalRef = {
-         close: jest.fn(),
-         dismiss: jest.fn(),
+         close: vi.fn(),
+         dismiss: vi.fn(),
          result: {
-            then: jest.fn()
+            then: vi.fn()
          }
       };
-      modalService = { open: jest.fn(() => ngbModalRef) };
+      modalService = { open: vi.fn(() => ngbModalRef) };
 
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule, HttpClientTestingModule
+            FormsModule,
+            ReactiveFormsModule,
+            NgbModule,
+            HttpClientTestingModule,
+            ViewsheetDeviceLayoutDialog,
+            GenericSelectableList,
+            ScreenSizeDialog,
+            EnterSubmitDirective,
+            ModalHeaderComponent,
          ],
-         declarations: [
-            ViewsheetDeviceLayoutDialog, GenericSelectableList, ScreenSizeDialog, EnterSubmitDirective, ModalHeaderComponent
-         ],
+         
          providers: [
             { provide: NgbModal, useValue: modalService }
          ],
@@ -140,7 +146,7 @@ describe("Viewsheet Device Layout Dialog Unit Test", () => {
       fixture.componentInstance.layouts = deviceLayouts;
 
       let okBtn = fixture.nativeElement.querySelector("button.btn.btn-primary");
-      let showConfirmDialog = jest.spyOn(ComponentTool, "showConfirmDialog");
+      let showConfirmDialog = vi.spyOn(ComponentTool, "showConfirmDialog");
       showConfirmDialog.mockImplementation(() => Promise.resolve("yes"));
       okBtn.click();
 
@@ -174,7 +180,7 @@ describe("Viewsheet Device Layout Dialog Unit Test", () => {
       fixture.detectChanges();
 
       let delBtn = fixture.nativeElement.querySelectorAll("button.close-icon")[0];
-      let showConfirmDialog = jest.spyOn(ComponentTool, "showConfirmDialog");
+      let showConfirmDialog = vi.spyOn(ComponentTool, "showConfirmDialog");
       showConfirmDialog.mockImplementation(() => Promise.resolve("yes"));
       delBtn.click();
 

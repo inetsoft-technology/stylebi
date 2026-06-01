@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { AfterViewInit, Component, NO_ERRORS_SCHEMA, TemplateRef, ViewChild } from "@angular/core";
 import { TestBed } from "@angular/core/testing";
 import { FormsModule } from "@angular/forms";
@@ -24,6 +25,7 @@ import { SubqueryValue } from "../../common/data/condition/subquery-value";
 import { SubqueryDialog } from "./subquery-dialog.component";
 
 @Component({
+   standalone: true,
    selector: "test-app",
    template: `
      <ng-template #subqueryDialog let-close="close" let-dismiss="dismiss">
@@ -52,15 +54,14 @@ describe("Subquery Dialog Tests", () => {
       TestBed.configureTestingModule({
          imports: [
             NgbModule,
-            FormsModule
+            FormsModule,
+            TestApp,
+            SubqueryDialog,
          ],
          providers: [
             NgbModal
          ],
-         declarations: [
-            TestApp,
-            SubqueryDialog
-         ],
+         
          schemas: [
             NO_ERRORS_SCHEMA
          ]

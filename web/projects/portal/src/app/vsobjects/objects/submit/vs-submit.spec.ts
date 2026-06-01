@@ -44,19 +44,19 @@ describe("VS Submit component unit case", () => {
    let timerService: any;
 
    beforeEach(() => {
-      socket = { sendEvent: jest.fn() };
-      dataTipService = { isDataTip: jest.fn() };
+      socket = { sendEvent: vi.fn() };
+      dataTipService = { isDataTip: vi.fn() };
       const contextProvider = {};
-      debounceService = { debounce: jest.fn((key, fn, delay, args) => fn(...args)) };
-      ssoHeartbeatService = { heartbeat: jest.fn() };
+      debounceService = { debounce: vi.fn((key, fn, delay, args) => fn(...args)) };
+      ssoHeartbeatService = { heartbeat: vi.fn() };
       timerService = {
-         defer: jest.fn((fn) => {
+         defer: vi.fn((fn) => {
             fn();
          })
       };
       TestBed.configureTestingModule({
-         imports: [ReactiveFormsModule, FormsModule, NgbModule, HttpClientTestingModule],
-         declarations: [VSSubmit, VSPopComponentDirective, SafeFontDirective],
+         imports: [ReactiveFormsModule, FormsModule, NgbModule, HttpClientTestingModule, VSSubmit, VSPopComponentDirective, SafeFontDirective],
+         
          schemas: [NO_ERRORS_SCHEMA],
          providers: [
             FormInputService,

@@ -20,7 +20,8 @@ import { AfterContentInit, AfterContentChecked, Directive, ElementRef, Input } f
 declare const window;
 
 @Directive({
-   selector: "table[wScrollableFlexTable]"
+    selector: "table[wScrollableFlexTable]",
+    standalone: true
 })
 export class ScrollableFlexTableDirective implements AfterContentChecked {
    @Input()

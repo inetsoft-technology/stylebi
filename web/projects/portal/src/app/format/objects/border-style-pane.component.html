@@ -1,45 +1,45 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <div [class.disabled]="isNullSelectedBorder()">
-  <button #dropdown
-          class="form-control custom-select-trigger border-style-trigger no-caret"
-          [class.border-style-trigger--open]="open"
-          [disabled]="isNullSelectedBorder()"
-          [fixedDropdown]="dropdownMenu"
-          [style.white-space]="'nowrap'"
-          (openChange)="handleOpenChange($event)"
-          data-test="border-style-dropdown">
-    <span *ngIf="!cssClass" class="line-label border-style-trigger__content">{{label}}</span>
-    <div *ngIf="cssClass" [class]="'line-display border-style-trigger__content ' + cssClass"></div>
-    <i class="border-style-trigger__icon dropdown-caret icon-color-default"
-       [class.chevron-up-icon]="open"
-       [class.chevron-down-icon]="!open"
-       aria-hidden="true"></i>
+  <button #dropdown class="form-control dropdown-toggle" [disabled]="isNullSelectedBorder()"
+    [fixedDropdown]="dropdownMenu" [style.white-space]="'nowrap'" data-test="border-style-dropdown">
+    @if (!cssClass) {
+      <span class="line-label border-style-trigger__content">{{label}}</span>
+    }
+    @if (cssClass) {
+      <div [class]="'line-display ' + cssClass"></div>
+    }
   </button>
 </div>
 <ng-template #dropdownMenu>
   <ul role="menu" class="dropdown-pane">
-    <li *ngFor="let style of styles" class="line-style hover-bg-primary-selectable"
+    @for (style of styles; track style) {
+      <li class="line-style hover-bg-primary-selectable"
         [class.selected]="style.value == currentBorderStyle"
         [class.fade]="style.value == '1'"
         (click)="setBorderStyle($event, style.value)">
-      <label *ngIf="style.label" class="line-label">{{style.label}}</label>
-      <div *ngIf="style.cssClass" [class]="'line-display ' + style.cssClass"></div>
-    </li>
+        @if (style.label) {
+          <label class="line-label border-style-trigger__content">{{style.label}}</label>
+        }
+        @if (style.cssClass) {
+          <div [class]="'line-display ' + style.cssClass"></div>
+        }
+      </li>
+    }
   </ul>
 </ng-template>

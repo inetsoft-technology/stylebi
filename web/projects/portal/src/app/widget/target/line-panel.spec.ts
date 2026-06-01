@@ -52,8 +52,9 @@ import { TargetComboBox } from "./target-combo-box.component";
 import { TargetInfo } from "./target-info";
 import { TargetLabelPane } from "./target-label-pane.component";
 import { ValueInputField } from "./value-input-field.component";
-import { NumberStepperModule } from "../number-stepper/number-stepper.module";
+import { NumberStepperComponent } from "../number-stepper/number-stepper.component";
 import { DebounceService } from "../services/debounce.service";
+import { FixedDropdownDirective } from "../fixed-dropdown/fixed-dropdown.directive";
 
 let createModel: () => TargetInfo = () => {
    return {
@@ -129,9 +130,6 @@ describe("LinePanel Unit Tests", () => {
             FormsModule,
             ReactiveFormsModule,
             DropDownTestModule,
-            NumberStepperModule,
-         ],
-         declarations: [
             LinePanel,
             ValueInputField,
             DateInputField,
@@ -154,8 +152,10 @@ describe("LinePanel Unit Tests", () => {
             ColorComponentEditor,
             ColorPane,
             ScriptPane,
-            DynamicComboBox
+            FixedDropdownDirective,
+            DynamicComboBox,
          ],
+         
          providers: [
             NgbModal,
             FormulaEditorService,

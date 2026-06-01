@@ -27,16 +27,21 @@ import {
    ViewChild
 } from "@angular/core";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
-import { Observable ,  Subscription } from "rxjs";
+import { Observable, Subscription } from "rxjs";
 import { ExpressionType } from "../../common/data/condition/expression-type";
 import { ExpressionValue } from "../../common/data/condition/expression-value";
 import { TreeNodeModel } from "../tree/tree-node-model";
 import { DataRef } from "../../common/data/data-ref";
+import { FormulaEditorDialog } from "../formula-editor/formula-editor-dialog.component";
+import { FormsModule } from "@angular/forms";
+
 
 @Component({
-   selector: "expression-editor",
-   templateUrl: "expression-editor.component.html",
-   styleUrls: ["expression-editor.component.scss"]
+    selector: "expression-editor",
+    templateUrl: "expression-editor.component.html",
+    styleUrls: ["expression-editor.component.scss"],
+
+    imports: [FormsModule, FormulaEditorDialog]
 })
 export class ExpressionEditor implements OnChanges, OnDestroy {
    public ExpressionType = ExpressionType;

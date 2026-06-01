@@ -25,7 +25,7 @@ import {
    TemplateRef,
    ViewChild
 } from "@angular/core";
-import { NgbModal, NgbModalOptions, NgbTimeStruct } from "@ng-bootstrap/ng-bootstrap";
+import { NgbModal, NgbModalOptions, NgbTimeStruct, NgbTypeahead } from "@ng-bootstrap/ng-bootstrap";
 import { Observable, Subscription } from "rxjs";
 import { debounceTime, map } from "rxjs/operators";
 import { ScheduleConditionModel } from "../../../../../shared/schedule/model/schedule-condition-model";
@@ -43,19 +43,33 @@ import { FileFormatType } from "../../vsobjects/model/file-format-type";
 import { SimpleScheduleDialogModel } from "../../vsobjects/model/schedule/simple-schedule-dialog-model";
 import { EmailAddrDialogModel } from "../email-dialog/email-addr-dialog-model";
 import { StartTimeData } from "./start-time-data";
-import { UntypedFormControl, UntypedFormGroup, Validators } from "@angular/forms";
+import { UntypedFormControl, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { FormValidators } from "../../../../../shared/util/form-validators";
-import { EmailDialogData } from "../email-dialog/email-addr-dialog.component";
+import { EmailDialogData, EmailAddrDialog } from "../email-dialog/email-addr-dialog.component";
 import { ViewsheetActionModel } from "../../vsobjects/model/schedule/viewsheet-action-model";
-import { CustomSelectOption } from "../custom-select/custom-select.component";
+import { StartTimeEditor } from "./start-time-editor.component";
+import { CSVConfigPane } from "./csv-config-pane.component";
+import { EnterSubmitDirective } from "../directive/enter-submit.directive";
+import { ModalHeaderComponent } from "../modal-header/modal-header.component";
+import { CustomSelectOption, CustomSelectComponent } from "../custom-select/custom-select.component";
 
 const HISTORY_LIMIT: number = 100;
 const CHECK_EMAIL_VALID_URI: string = "../api/vs/check-email-valid";
 
 @Component({
-   selector: "simple-schedule-dialog",
-   templateUrl: "simple-schedule-dialog.component.html",
-   styleUrls: ["simple-schedule-dialog.component.scss"],
+    selector: "simple-schedule-dialog",
+    templateUrl: "simple-schedule-dialog.component.html",
+    styleUrls: ["simple-schedule-dialog.component.scss"],
+
+    imports: [
+    ModalHeaderComponent,
+    EnterSubmitDirective,
+    FormsModule,
+    ReactiveFormsModule,
+    CSVConfigPane,
+    NgbTypeahead,
+    StartTimeEditor,
+    EmailAddrDialog, CustomSelectComponent]
 })
 export class SimpleScheduleDialog implements OnInit, OnDestroy {
    @Input() model: SimpleScheduleDialogModel;

@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, EventEmitter, Input, OnInit, Output } from "@angular/core";
-import { UntypedFormControl, UntypedFormGroup, Validators } from "@angular/forms";
+import { UntypedFormControl, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { FormValidators } from "../../../../../../../shared/util/form-validators";
 import { AddParameterDialogModel } from "../../../../../../../shared/schedule/model/add-parameter-dialog-model";
 import { XSchema } from "../../../../common/data/xschema";
@@ -29,16 +29,25 @@ import { ComboMode } from "../../../../widget/dynamic-combo-box/dynamic-combo-bo
 import { FormulaEditorDialogModel } from "../../../../widget/formula-editor/formula-editor-dialog-model";
 import { HttpClient } from "@angular/common/http";
 import { StringWrapper } from "../../../data/model/datasources/database/string-wrapper";
-import { CustomSelectOption } from "../../../../widget/custom-select/custom-select.component";
+import { TimeInstantValueEditorComponent } from "../../../../widget/date-type-editor/time-instant-value-editor.component";
+import { TimeValueEditorComponent } from "../../../../widget/date-type-editor/time-value-editor.component";
+import { DateValueEditorComponent } from "../../../../widget/date-type-editor/date-value-editor.component";
+import { DynamicValueEditorComponent } from "../../../../widget/date-type-editor/dynamic-value-editor.component";
+import { EnterSubmitDirective } from "../../../../widget/directive/enter-submit.directive";
+import { NgClass } from "@angular/common";
+import { ModalHeaderComponent } from "../../../../widget/modal-header/modal-header.component";
+import { CustomSelectOption, CustomSelectComponent } from "../../../../widget/custom-select/custom-select.component";
 
+import { NumberStepperComponent } from "../../../../widget/number-stepper/number-stepper.component";
 const DATE_PATTERN = /^(?:(?!0000)[0-9]{4}(-?)(?:(?:0?[1-9]|1[0-2])\1(?:0?[1-9]|1[0-9]|2[0-8])|(?:0?[13-9]|1[0-2])\1(?:29|30)|(?:0?[13578]|1[02])\1(?:31))|(?:[0-9]{2}(?:0[48]|[2468][048]|[13579][26])|(?:0[48]|[2468][048]|[13579][26])00)(-?)0?2\2(?:29))$/;
 const TIME_PATTERN = /^([01]?[0-9]|2[0-3]):[0-5]?[0-9]:[0-5]?[0-9]$/;
 const DATE_TIME_PATTERN = /^(?:(?!0000)[0-9]{4}(-?)(?:(?:0?[1-9]|1[0-2])\1(?:0?[1-9]|1[0-9]|2[0-8])|(?:0?[13-9]|1[0-2])\1(?:29|30)|(?:0?[13578]|1[02])\1(?:31))|(?:[0-9]{2}(?:0[48]|[2468][048]|[13579][26])|(?:0[48]|[2468][048]|[13579][26])00)(-?)0?2\2(?:29))([T|\s+])([01]?[0-9]|2[0-3]):[0-5]?[0-9]:[0-5]?[0-9]$/;
 
 @Component({
-   selector: "add-parameter-dialog",
-   templateUrl: "add-parameter-dialog.component.html",
-   styleUrls: ["add-parameter-dialog.component.scss"]
+    selector: "add-parameter-dialog",
+    templateUrl: "add-parameter-dialog.component.html",
+    styleUrls: ["add-parameter-dialog.component.scss"],
+    imports: [ModalHeaderComponent, EnterSubmitDirective, FormsModule, ReactiveFormsModule, NgClass, DynamicValueEditorComponent, DateValueEditorComponent, TimeValueEditorComponent, TimeInstantValueEditorComponent, CustomSelectComponent, NumberStepperComponent]
 })
 export class AddParameterDialog implements OnInit {
    @Input() index: number;

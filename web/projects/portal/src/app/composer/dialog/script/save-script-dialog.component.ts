@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, EventEmitter, Input, NgZone, OnInit, Output } from "@angular/core";
-import { UntypedFormControl, UntypedFormGroup, Validators } from "@angular/forms";
+import { UntypedFormControl, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { FormValidators } from "../../../../../../shared/util/form-validators";
 import { ComponentTool } from "../../../common/util/component-tool";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
@@ -26,6 +26,12 @@ import { TreeNodeModel } from "../../../widget/tree/tree-node-model";
 import { AssetEntry } from "../../../../../../shared/data/asset-entry";
 import { SaveScriptDialogModel } from "../../data/script/save-script-dialog-model";
 import { SaveLibraryDialogModelValidator } from "../../data/tablestyle/save-library-dialog-model-validator";
+import { AssetTreeComponent } from "../../../widget/asset-tree/asset-tree.component";
+import { DefaultFocusDirective } from "../../../widget/directive/default-focus.directive";
+import { InputTrimDirective } from "../../../widget/directive/input-trim.directive";
+import { EnterSubmitDirective } from "../../../widget/directive/enter-submit.directive";
+
+import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
 
 const SAVE_SCRIPT_DIALOG_VALIDATION_URI = "../api/composer/script/save-script-dialog/";
 const CONFIRM_MESSAGE = {
@@ -35,8 +41,17 @@ const CONFIRM_MESSAGE = {
    optionsWithCancel: {"yes": "_#(js:Yes)", "no": "_#(js:No)", "cancel": "_#(js:Cancel)"}
 };
 @Component({
-   selector: "save-script-dialog",
-   templateUrl: "save-script-dialog.component.html",
+    selector: "save-script-dialog",
+    templateUrl: "save-script-dialog.component.html",
+    imports: [
+    ModalHeaderComponent,
+    EnterSubmitDirective,
+    FormsModule,
+    ReactiveFormsModule,
+    InputTrimDirective,
+    DefaultFocusDirective,
+    AssetTreeComponent
+]
 })
 export class SaveScriptDialog implements OnInit {
    @Input() defaultFolder: AssetEntry;

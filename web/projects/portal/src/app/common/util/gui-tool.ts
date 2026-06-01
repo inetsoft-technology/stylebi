@@ -95,6 +95,9 @@ export class GuiTool {
     */
    static measureScrollbars(): number {
       if(GuiTool.scrollbarWidth === undefined) {
+         if(typeof window === "undefined") {
+            return 0;
+         }
          let outer = window.document.createElement("div");
          outer.style.visibility = "hidden";
          outer.style.width = "100px";

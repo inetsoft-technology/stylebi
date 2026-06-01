@@ -1,99 +1,125 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
-<div class="wizard-preview-container object-editor" *ngIf="!!vsObject" #wizardPreviewContainer>
-  <div *ngIf="showLegendCheckbox" class="option-pane">
-    <div class="form-check">
-      <input [ngModel]="showLegend"
-             (ngModelChange)="showLegendChange.emit($event)"
-             class="form-check-input" type="checkbox" id="show-legend">
-      <label class="form-check-label" for="show-legend">_#(Show Legend)</label>
-    </div>
-  </div>
-  <div wInteractContainer
-       class="assembly-container"
-       [style.width.px]="previewPaneWidth"
-       [style.display]="showLeftDescription ? 'flex' : 'block'" (mouseenter)="resetToolbarVisible($event)">
-    <div *ngIf="showTopDescription || showLeftDescription" class="preview-title">
-      <input class="form-control"
-             placeholder="_#(Description)"
-             [(ngModel)]="description"
-             (focusout)="changeDescription()">
-    </div>
-    <div class="assembly-object" #assemblyObject>
-      <vs-calendar *ngIf="vsObject.objectType == 'VSCalendar'" cCalendarActionHandler
-                [vsInfo]="vsInfo" [model]="vsObject" [actions]="actions" [selected]="true">
-      </vs-calendar>
-      <vs-chart *ngIf="vsObject.objectType == 'VSChart'" cChartActionHandler
-                [vsInfo]="vsInfo" [model]="vsObject" [actions]="actions" [selected]="true">
-      </vs-chart>
-      <vs-crosstab *ngIf="vsObject.objectType == 'VSCrosstab'" cCrosstabActionHandler
-                [vsInfo]="vsInfo" [model]="vsObject" [actions]="actions" [selected]="true">
-      </vs-crosstab>
-      <vs-gauge *ngIf="vsObject.objectType == 'VSGauge'" cGaugeActionHandler
-                [vsInfo]="vsInfo" [model]="vsObject" [actions]="actions">
-      </vs-gauge>
-      <vs-range-slider *ngIf="vsObject.objectType == 'VSRangeSlider'" cRangeSliderActionHandler
-                [vsInfo]="vsInfo" [model]="vsObject" [actions]="actions" [selected]="true">
-      </vs-range-slider>
-      <vs-selection *ngIf="vsObject.objectType == 'VSSelectionList'" cSelectionListActionHandler
-                [vsInfo]="vsInfo" [model]="vsObject" [actions]="actions" [selected]="true"
-                [isWizard]="true">
-      </vs-selection>
-      <vs-selection *ngIf="vsObject.objectType == 'VSSelectionTree'" cSelectionTreeActionHandler
-                [vsInfo]="vsInfo" [model]="vsObject" [actions]="actions" [selected]="true">
-      </vs-selection>
-      <vs-table *ngIf="vsObject.objectType == 'VSTable'" cTableActionHandler
-                [vsInfo]="vsInfo" [model]="vsObject" [actions]="actions" [selected]="true">
-      </vs-table>
-      <vs-text *ngIf="vsObject.objectType == 'VSText'" cTextActionHandler
-                [vsInfo]="vsInfo" [model]="vsObject" [actions]="actions">
-      </vs-text>
-    </div>
-  </div>
-  <div class="status-bar">
-    <status-bar>
-      <div class="d-flex align-items-end status-bar-component" status-bar-component>
-        <button type="button" class="btn btn-sm btn-primary me-1 text-nowrap"
-                (click)="openConsoleDialog()">
-          _#(Console) <span class="badge console-count-badge">{{consoleMessages ? consoleMessages.length : 0}}</span>
-        </button>
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
+@if (!!vsObject) {
+  <div class="wizard-preview-container object-editor" #wizardPreviewContainer>
+    @if (showLegendCheckbox) {
+      <div class="option-pane">
+        <div class="form-check">
+          <input [ngModel]="showLegend"
+            (ngModelChange)="showLegendChange.emit($event)"
+            class="form-check-input" type="checkbox" id="show-legend">
+          <label class="form-check-label" for="show-legend">_#(Show Legend)</label>
+        </div>
       </div>
-    </status-bar>
+    }
+    <div wInteractContainer
+      class="assembly-container"
+      [style.width.px]="previewPaneWidth"
+      [style.display]="showLeftDescription ? 'flex' : 'block'" (mouseenter)="resetToolbarVisible($event)">
+      @if (showTopDescription || showLeftDescription) {
+        <div class="preview-title">
+          <input class="form-control"
+            placeholder="_#(Description)"
+            [(ngModel)]="description"
+            (focusout)="changeDescription()">
+        </div>
+      }
+      <div class="assembly-object" #assemblyObject>
+        @if (vsObject.objectType == 'VSCalendar') {
+          <vs-calendar cCalendarActionHandler
+            [vsInfo]="vsInfo" [model]="vsObject" [actions]="actions" [selected]="true">
+          </vs-calendar>
+        }
+        @if (vsObject.objectType == 'VSChart') {
+          <vs-chart cChartActionHandler
+            [vsInfo]="vsInfo" [model]="vsObject" [actions]="actions" [selected]="true">
+          </vs-chart>
+        }
+        @if (vsObject.objectType == 'VSCrosstab') {
+          <vs-crosstab cCrosstabActionHandler
+            [vsInfo]="vsInfo" [model]="vsObject" [actions]="actions" [selected]="true">
+          </vs-crosstab>
+        }
+        @if (vsObject.objectType == 'VSGauge') {
+          <vs-gauge cGaugeActionHandler
+            [vsInfo]="vsInfo" [model]="vsObject" [actions]="actions">
+          </vs-gauge>
+        }
+        @if (vsObject.objectType == 'VSRangeSlider') {
+          <vs-range-slider cRangeSliderActionHandler
+            [vsInfo]="vsInfo" [model]="vsObject" [actions]="actions" [selected]="true">
+          </vs-range-slider>
+        }
+        @if (vsObject.objectType == 'VSSelectionList') {
+          <vs-selection cSelectionListActionHandler
+            [vsInfo]="vsInfo" [model]="vsObject" [actions]="actions" [selected]="true"
+            [isWizard]="true">
+          </vs-selection>
+        }
+        @if (vsObject.objectType == 'VSSelectionTree') {
+          <vs-selection cSelectionTreeActionHandler
+            [vsInfo]="vsInfo" [model]="vsObject" [actions]="actions" [selected]="true">
+          </vs-selection>
+        }
+        @if (vsObject.objectType == 'VSTable') {
+          <vs-table cTableActionHandler
+            [vsInfo]="vsInfo" [model]="vsObject" [actions]="actions" [selected]="true">
+          </vs-table>
+        }
+        @if (vsObject.objectType == 'VSText') {
+          <vs-text cTextActionHandler
+            [vsInfo]="vsInfo" [model]="vsObject" [actions]="actions">
+          </vs-text>
+        }
+      </div>
+    </div>
+    <div class="status-bar">
+      <status-bar>
+        <div class="d-flex align-items-end status-bar-component" status-bar-component>
+          <button type="button" class="btn btn-sm btn-primary me-1 text-nowrap"
+            (click)="openConsoleDialog()">
+            _#(Console) <span class="badge console-count-badge">{{consoleMessages ? consoleMessages.length : 0}}</span>
+          </button>
+        </div>
+      </status-bar>
+    </div>
   </div>
-</div>
+}
 
-<ng-container *ngIf="isMiniToolbarVisible()">
-  <mini-toolbar *ngIf="hasMiniToolbar()"
-                [actions]="actions"
-                [forceAbove]="searchDisplayed"
-                [top]="miniToolbarTop"
-                [left]="miniToolbarLeft"
-                [width]="miniToolbarWidth"
-                [assembly]="vsObject?.absoluteName" [forceHide]="toolbarForceHidden()">
-  </mini-toolbar>
-</ng-container>
+@if (isMiniToolbarVisible()) {
+  @if (hasMiniToolbar()) {
+    <mini-toolbar
+      [actions]="actions"
+      [forceAbove]="searchDisplayed"
+      [top]="miniToolbarTop"
+      [left]="miniToolbarLeft"
+      [width]="miniToolbarWidth"
+      [assembly]="vsObject?.absoluteName" [forceHide]="toolbarForceHidden()">
+    </mini-toolbar>
+  }
+}
 <ng-template #consoleDialog let-close="close" let-dismiss="dismiss">
   <console-dialog [messages]="consoleMessages"
-                  [messageLevels]="messageLevels"
-                  [runtimeId]="runtimeId"
-                  (messagesChange)="changeMessage($event)"
-                  (onClose)="dismiss($event)" (onCommit)="close($event)"
-  >
+    [messageLevels]="messageLevels"
+    [runtimeId]="runtimeId"
+    (messagesChange)="changeMessage($event)"
+    (onClose)="dismiss($event)" (onCommit)="close($event)"
+    >
   </console-dialog>
 </ng-template>
 

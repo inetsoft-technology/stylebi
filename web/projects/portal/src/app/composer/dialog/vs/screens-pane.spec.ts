@@ -36,7 +36,7 @@ import { DialogButtonsDirective } from "../../../widget/standard-dialog/dialog-b
 import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
 import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { Tool } from "../../../../../../shared/util/tool";
-import { NumberStepperModule } from "../../../widget/number-stepper/number-stepper.module";
+import { NumberStepperComponent } from "../../../widget/number-stepper/number-stepper.component";
 import { ComponentTool } from "../../../common/util/component-tool";
 
 describe("Screens Pane Test", () => {
@@ -91,13 +91,22 @@ describe("Screens Pane Test", () => {
    beforeEach(() => {
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule, NumberStepperModule
+            FormsModule,
+            ReactiveFormsModule,
+            NgbModule,
+            ScreensPane,
+            ViewsheetPrintLayoutDialog,
+            ViewsheetDeviceLayoutDialog,
+            GenericSelectableList,
+            ScreenSizeDialog,
+            EnterSubmitDirective,
+            LargeFormFieldComponent,
+            ModalHeaderComponent,
+            StandardDialogComponent,
+            DialogContentDirective,
+            DialogButtonsDirective,
          ],
-         declarations: [
-            ScreensPane, ViewsheetPrintLayoutDialog, ViewsheetDeviceLayoutDialog,
-            GenericSelectableList, ScreenSizeDialog, EnterSubmitDirective, LargeFormFieldComponent, ModalHeaderComponent,
-            StandardDialogComponent, DialogContentDirective, DialogButtonsDirective
-         ],
+         
          providers: [
             NgbModal
          ],
@@ -116,7 +125,7 @@ describe("Screens Pane Test", () => {
       fixture.detectChanges();
       let button = fixture.nativeElement.querySelector("button.delete");
 
-      let showConfirmDialog = jest.spyOn(ComponentTool, "showConfirmDialog");
+      let showConfirmDialog = vi.spyOn(ComponentTool, "showConfirmDialog");
       showConfirmDialog.mockImplementation(() => Promise.resolve("yes"));
       button.click();
       expect(showConfirmDialog).toHaveBeenCalled();

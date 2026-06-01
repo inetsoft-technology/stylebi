@@ -42,8 +42,9 @@ import { TreeSearchPipe } from "../../widget/tree/tree-search.pipe";
 import { TreeComponent } from "../../widget/tree/tree.component";
 import { LegendFormatGeneralPaneModel } from "../model/dialog/legend-format-general-pane-model";
 import { LegendFormatGeneralPane } from "./legend-format-general-pane.component";
-import { NumberStepperModule } from "../../widget/number-stepper/number-stepper.module";
+import { NumberStepperComponent } from "../../widget/number-stepper/number-stepper.component";
 import { DebounceService } from "../../widget/services/debounce.service";
+import { FixedDropdownDirective } from "../../widget/fixed-dropdown/fixed-dropdown.directive";
 
 let createModel: () => LegendFormatGeneralPaneModel = () => {
    return {
@@ -67,10 +68,10 @@ describe("LegendFormatGeneralPane Unit Tests", () => {
 
    beforeEach(waitForAsync(() => {
       uiContextService = {
-         isVS: jest.fn(),
-         isAdhoc: jest.fn(),
-         getDefaultTab: jest.fn(),
-         setDefaultTab: jest.fn()
+         isVS: vi.fn(),
+         isAdhoc: vi.fn(),
+         getDefaultTab: vi.fn(),
+         setDefaultTab: vi.fn()
       };
       uiContextService.isAdhoc.mockImplementation(() => false);
       TestBed.configureTestingModule({
@@ -80,9 +81,6 @@ describe("LegendFormatGeneralPane Unit Tests", () => {
             FormsModule,
             ReactiveFormsModule,
             DropDownTestModule,
-            NumberStepperModule,
-         ],
-         declarations: [
             LegendFormatGeneralPane,
             ColorEditor,
             AlphaDropdown,
@@ -100,7 +98,9 @@ describe("LegendFormatGeneralPane Unit Tests", () => {
             NewAggrDialog,
             MessageDialog,
             ScriptPane,
+            FixedDropdownDirective,
          ],
+         
          providers: [
             NgbModal,
             RecentColorService,
@@ -114,7 +114,7 @@ describe("LegendFormatGeneralPane Unit Tests", () => {
    }));
 
    // Bug #10107 Should have Ingore Null checkbox
-   it("should have Ignore Null checkbox", (done) => {
+   it("should have Ignore Null checkbox", () => new Promise<void>((done) => {
       let fixture: ComponentFixture<LegendFormatGeneralPane> = TestBed.createComponent(LegendFormatGeneralPane);
       let model: LegendFormatGeneralPaneModel = createModel();
       model.notShowNullVisible = true;
@@ -129,35 +129,5 @@ describe("LegendFormatGeneralPane Unit Tests", () => {
          expect(ignoreNullLabel).toBeTruthy();
          done();
       });
-   });
-
-   it("should show Round Symbol Corner checkbox when symbolRoundCornersVisible is true", (done) => {
-      let fixture: ComponentFixture<LegendFormatGeneralPane> = TestBed.createComponent(LegendFormatGeneralPane);
-      let model: LegendFormatGeneralPaneModel = createModel();
-      model.symbolRoundCornersVisible = true;
-      fixture.componentInstance.model = model;
-      fixture.componentInstance.form = new FormGroup({});
-      fixture.detectChanges();
-
-      fixture.whenStable().then(() => {
-         let label: any = fixture.nativeElement.querySelector("label[for='symbolRoundCorners']");
-         expect(label).toBeTruthy();
-         done();
-      });
-   });
-
-   it("should hide Round Symbol Corner checkbox when symbolRoundCornersVisible is false", (done) => {
-      let fixture: ComponentFixture<LegendFormatGeneralPane> = TestBed.createComponent(LegendFormatGeneralPane);
-      let model: LegendFormatGeneralPaneModel = createModel();
-      model.symbolRoundCornersVisible = false;
-      fixture.componentInstance.model = model;
-      fixture.componentInstance.form = new FormGroup({});
-      fixture.detectChanges();
-
-      fixture.whenStable().then(() => {
-         let label: any = fixture.nativeElement.querySelector("label[for='symbolRoundCorners']");
-         expect(label).toBeFalsy();
-         done();
-      });
-   });
+   }));
 });

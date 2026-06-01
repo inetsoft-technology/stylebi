@@ -19,15 +19,20 @@ import { Component, OnInit } from "@angular/core";
 import { PageHeaderService } from "../../../page-header/page-header.service";
 import { AuthorizationService } from "../../../authorization/authorization.service";
 import { Secured } from "../../../secured";
+import { TopScrollDirective } from "../../../top-scroll/top-scroll.directive";
+import { RouterLinkActive, RouterLink, RouterOutlet } from "@angular/router";
+
+import { MatTabNav, MatTabLink, MatTabNavPanel } from "@angular/material/tabs";
 
 @Secured({
    route: "/settings/content",
    label: "Content"
 })
 @Component({
-   selector: "em-content-settings-view",
-   templateUrl: "./content-settings-view.component.html",
-   styleUrls: ["./content-settings-view.component.scss"]
+    selector: "em-content-settings-view",
+    templateUrl: "./content-settings-view.component.html",
+    styleUrls: ["./content-settings-view.component.scss"],
+    imports: [MatTabNav, MatTabLink, RouterLinkActive, RouterLink, MatTabNavPanel, TopScrollDirective, RouterOutlet]
 })
 export class ContentSettingsViewComponent implements OnInit {
    readonly links = [

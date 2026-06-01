@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { HttpClientTestingModule } from "@angular/common/http/testing";
 import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { ComponentFixture, TestBed } from "@angular/core/testing";
@@ -40,23 +41,14 @@ describe("RepositoryEditorPageComponent", () => {
 
    beforeEach(() => {
       const service = {
-         hasMVPermission: jest.fn(() => observableOf(false))
+         hasMVPermission: vi.fn(() => observableOf(false))
       };
 
       TestBed.configureTestingModule({
          imports: [
             RouterModule.forRoot([]), FormsModule, ReactiveFormsModule, MatCheckboxModule,
-            MatSelectModule, MatOptionModule, MatInputModule, HttpClientTestingModule
-         ],
-         declarations: [
-            RepositoryEditorPageComponent,
-            RepositoryViewsheetSettingsPageComponent,
-            RepositoryWorksheetSettingsPageComponent,
-            RepositoryDataSourceSettingsPageComponent,
-            RepositoryFolderTrashcanSettingsPageComponent,
-            RepositoryFolderSettingsPageComponent,
-            RepositoryPermissionEditorPageComponent
-         ],
+            MatSelectModule, MatOptionModule, MatInputModule, HttpClientTestingModule,
+            RepositoryEditorPageComponent, RepositoryViewsheetSettingsPageComponent, RepositoryWorksheetSettingsPageComponent, RepositoryDataSourceSettingsPageComponent, RepositoryFolderTrashcanSettingsPageComponent, RepositoryFolderSettingsPageComponent, RepositoryPermissionEditorPageComponent],
          providers: [{provide: ContentRepositoryService, useValue: service}],
          schemas: [
             NO_ERRORS_SCHEMA

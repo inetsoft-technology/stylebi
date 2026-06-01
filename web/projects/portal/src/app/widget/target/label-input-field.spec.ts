@@ -24,6 +24,7 @@ import { NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { DropDownTestModule } from "../../common/test/test-module";
 import { TestUtils } from "../../common/test/test-utils";
 import { EnterClickDirective } from "../directive/enter-click.directive";
+import { FixedDropdownDirective } from "../fixed-dropdown/fixed-dropdown.directive";
 import { TooltipIfDirective } from "../tooltip/tooltip-if.directive";
 import { DomService } from "../dom-service/dom.service";
 import { ComboMode } from "../dynamic-combo-box/dynamic-combo-box-model";
@@ -43,19 +44,15 @@ describe("Label Input Field Test", () => {
    let fixture: ComponentFixture<LabelInputField>;
 
    beforeEach(() => {
-      changeDetectorRef = { detectChanges: jest.fn() };
+      changeDetectorRef = { detectChanges: vi.fn() };
       domService = {
-         requestRead: jest.fn(),
-         cancelAnimationFrame: jest.fn()
+         requestRead: vi.fn(),
+         cancelAnimationFrame: vi.fn()
       };
 
       TestBed.configureTestingModule({
-         imports: [DropDownTestModule, ReactiveFormsModule, FormsModule, NgbModule],
-         declarations: [
-            LabelInputField, DynamicComboBox, TargetComboBox, TreeComponent,
-            TreeNodeComponent, TreeDropdownComponent,
-            TreeSearchPipe, TooltipDirective, EnterClickDirective, TooltipIfDirective
-         ],
+         imports: [DropDownTestModule, ReactiveFormsModule, FormsModule, NgbModule, LabelInputField, DynamicComboBox, TargetComboBox, TreeComponent, TreeNodeComponent, TreeDropdownComponent, FixedDropdownDirective, TreeSearchPipe, TooltipDirective, EnterClickDirective, TooltipIfDirective],
+         
          providers: [
             {provide: ChangeDetectorRef, useValue: changeDetectorRef},
             {provide: DomService, useValue: domService}
@@ -85,7 +82,7 @@ describe("Label Input Field Test", () => {
       labelInputField.onTypeChange(ComboMode.VALUE);
       fixture.detectChanges();
 
-      let labelInput = fixture.debugElement.query(By.css("div.dynamic-combo-box-body .custom-select-trigger__text")).nativeElement;
+      let labelInput = fixture.debugElement.query(By.css("div.dynamic-combo-box-body .custom-select")).nativeElement;
       expect(TestUtils.toString((labelInput.textContent).trim())).toEqual("_#(js:Target Value)");
    });
 });

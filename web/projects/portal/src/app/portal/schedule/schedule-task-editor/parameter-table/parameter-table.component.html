@@ -1,32 +1,32 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
-<div class="parameter-table-shell">
-  <table class="table table-hover table-sm w-100 parameter-table-grid" wScrollableFlexTable>
-    <thead class="parameter-table-grid__head">
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
+<table class="table table-hover table-sm w-100 parameter-table-grid" wScrollableFlexTable>
+  <thead class="parameter-table-grid__head">
+    <tr>
+      <th>_#(Name)</th>
+      <th>_#(Value)</th>
+      <th>_#(Data Type)</th>
+      <th>_#(Action)</th>
+    </tr>
+  </thead>
+  <tbody>
+    @for (param of parameters; track param; let i = $index) {
       <tr>
-        <th>_#(Name)</th>
-        <th>_#(Value)</th>
-        <th>_#(Data Type)</th>
-        <th>_#(Action)</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr *ngFor="let param of parameters; let i = index">
         <td>{{ param.name }}</td>
         <td [title]="getParamValue(param)">{{ getParamValue(param) }}</td>
         <td>{{ param.array ? "Array" : param.type | titlecase }}</td>
@@ -35,24 +35,24 @@
           <span class="icon-hover-bg trash-icon icon-size-medium icon-color-default" aria-label="_#(Delete)" title="_#(Delete)" (click)="removeParameter(i)"></span>
         </td>
       </tr>
-      <tr *ngIf="!parameters || parameters.length == 0">
+    }
+    @if (!parameters || parameters.length == 0) {
+      <tr>
         <td class="text-center align-middle" colspan="4">_#(Empty)</td>
       </tr>
-    </tbody>
-  </table>
-</div>
-<div class="parameter-table-actions">
-  <button type="button" class="btn btn-secondary" (click)="openParameterDialog()">_#(Add)</button>
-  <button type="button" class="btn btn-secondary clear_all_id" (click)="clearAllParameters()"
-          [disabled]="!parameters || parameters.length == 0">_#(Clear All)</button>
-</div>
+    }
+  </tbody>
+</table>
+<button type="button" class="btn btn-secondary" (click)="openParameterDialog()">_#(Add)</button>
+<button type="button" class="btn btn-secondary clear_all_id" (click)="clearAllParameters()"
+[disabled]="!parameters || parameters.length == 0">_#(Clear All)</button>
 
 <ng-template #addParameterDialog let-close="close" let-dismiss="dismiss">
   <add-parameter-dialog [parameterNames]="parameterNames"
-                        [index]="editIndex"
-                        [parameters]="parameters"
-                        [supportDynamic]="true"
-                        (onCommit)="close($event)"
-                        (onCancel)="dismiss($event)"
+    [index]="editIndex"
+    [parameters]="parameters"
+    [supportDynamic]="true"
+    (onCommit)="close($event)"
+    (onCancel)="dismiss($event)"
   ></add-parameter-dialog>
 </ng-template>

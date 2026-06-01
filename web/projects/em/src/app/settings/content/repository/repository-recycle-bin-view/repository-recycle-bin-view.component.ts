@@ -17,10 +17,16 @@
  */
 import { Component, Input } from "@angular/core";
 import { RepositoryRecycleBinModel } from "../repository-recycle-bin-page/repository-recycle-bin-page.component";
+import { MatCheckbox } from "@angular/material/checkbox";
+import { FormsModule } from "@angular/forms";
+import { MatInput } from "@angular/material/input";
+import { MatFormField, MatLabel } from "@angular/material/form-field";
+import { MatCard, MatCardContent } from "@angular/material/card";
 
 @Component({
-   selector: "em-repository-recycle-bin-view",
-   templateUrl: "./repository-recycle-bin-view.component.html"
+    selector: "em-repository-recycle-bin-view",
+    templateUrl: "./repository-recycle-bin-view.component.html",
+    imports: [MatCard, MatCardContent, MatFormField, MatLabel, MatInput, FormsModule, MatCheckbox]
 })
 export class RepositoryRecycleBinViewComponent {
    @Input() model: RepositoryRecycleBinModel;

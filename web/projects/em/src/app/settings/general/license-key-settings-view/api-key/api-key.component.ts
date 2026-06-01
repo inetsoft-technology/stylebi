@@ -20,11 +20,18 @@ import { Component, OnInit } from "@angular/core";
 import { MatDialog } from "@angular/material/dialog";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { MessageDialog, MessageDialogType } from "../../../../common/util/message-dialog";
+import { MatButton, MatAnchor } from "@angular/material/button";
+import { FormsModule } from "@angular/forms";
+import { MatInput } from "@angular/material/input";
+import { MatFormField } from "@angular/material/form-field";
+
+import { MatCard, MatCardTitle, MatCardContent } from "@angular/material/card";
 
 @Component({
-   selector: "em-api-key",
-   templateUrl: "./api-key.component.html",
-   styleUrls: ["./api-key.component.scss"]
+    selector: "em-api-key",
+    templateUrl: "./api-key.component.html",
+    styleUrls: ["./api-key.component.scss"],
+    imports: [MatCard, MatCardTitle, MatCardContent, MatFormField, MatInput, FormsModule, MatButton, MatAnchor]
 })
 export class ApiKeyComponent implements OnInit {
    title: string;

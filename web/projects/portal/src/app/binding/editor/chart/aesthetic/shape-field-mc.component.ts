@@ -32,11 +32,40 @@ import { ChartEditorService } from "../../../services/chart/chart-editor.service
 import { GraphUtil } from "../../../util/graph-util";
 import { AestheticFieldMc } from "./aesthetic-field-mc";
 import { UIContextService } from "../../../../common/services/ui-context.service";
+import { LinearTexturePane } from "./linear-texture-pane.component";
+import { LinearLinePane } from "./linear-line-pane.component";
+import { StaticLinePane } from "./static-line-pane.component";
+import { StaticTexturePane } from "./static-texture-pane.component";
+import { LinearShapePane } from "./linear-shape-pane.component";
+import { CategoricalShapePane } from "./categorical-shape-pane.component";
+import { CombinedShapePane } from "./combined-shape-pane.component";
+import { StaticShapePane } from "./static-shape-pane.component";
+import { ChartAestheticMc } from "./chart-aesthetic-mc.component";
+import { ShapeCell } from "./shape-cell.component";
+
+import { FixedDropdownDirective } from "../../../../widget/fixed-dropdown/fixed-dropdown.directive";
+import { OutOfZoneDirective } from "../../../../widget/directive/out-of-zone.directive";
+import { DropHighlightDirective } from "../../../widget/drophighlight.directive";
 
 @Component({
-   selector: "shape-field-mc",
-   templateUrl: "shape-field-mc.component.html",
-   styleUrls: ["aesthetic-field-mc.scss"],
+    selector: "shape-field-mc",
+    templateUrl: "shape-field-mc.component.html",
+    styleUrls: ["aesthetic-field-mc.scss"],
+    imports: [
+    DropHighlightDirective,
+    OutOfZoneDirective,
+    FixedDropdownDirective,
+    ShapeCell,
+    ChartAestheticMc,
+    StaticShapePane,
+    CombinedShapePane,
+    CategoricalShapePane,
+    LinearShapePane,
+    StaticTexturePane,
+    StaticLinePane,
+    LinearLinePane,
+    LinearTexturePane
+]
 })
 export class ShapeFieldMc extends AestheticFieldMc {
    constructor(editorService: ChartEditorService, dservice: DndService,

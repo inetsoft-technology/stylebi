@@ -17,7 +17,7 @@
  */
 import { By } from "@angular/platform-browser";
 import { SizePositionPaneModel } from "../model/size-position-pane-model";
-import { NumberStepperModule } from "../../widget/number-stepper/number-stepper.module";
+import { NumberStepperComponent } from "../../widget/number-stepper/number-stepper.component";
 import { SizePositionPane } from "./size-position-pane.component";
 import { ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
@@ -43,8 +43,7 @@ describe("size position pane unit case", () => {
 
    beforeEach(() => {
       TestBed.configureTestingModule({
-         imports: [ ReactiveFormsModule, FormsModule, NgbModule, NumberStepperModule ],
-         declarations: [SizePositionPane]
+         imports: [ReactiveFormsModule, FormsModule, NgbModule, SizePositionPane]
       }).compileComponents();
 
       fixture = TestBed.createComponent(SizePositionPane);

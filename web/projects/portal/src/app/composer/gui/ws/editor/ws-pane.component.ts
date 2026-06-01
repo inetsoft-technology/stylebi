@@ -15,22 +15,23 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { DOCUMENT } from "@angular/common";
+
 import {
-   ChangeDetectorRef,
-   Component,
-   EventEmitter,
-   Inject,
-   Injector,
-   Input,
-   NgZone,
-   OnChanges,
-   OnDestroy,
-   OnInit,
-   Output,
-   SimpleChanges,
-   TemplateRef,
-   ViewChild
+  ChangeDetectorRef,
+  Component,
+  EventEmitter,
+  Inject,
+  Injector,
+  Input,
+  NgZone,
+  OnChanges,
+  OnDestroy,
+  OnInit,
+  Output,
+  SimpleChanges,
+  TemplateRef,
+  ViewChild,
+  DOCUMENT
 } from "@angular/core";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { fromEvent, merge, Subscription } from "rxjs";
@@ -128,6 +129,13 @@ import {
 } from "../../../../widget/dialog/getting-started-dialog/service/getting-started.service";
 import { WSEditAssemblyCommand } from "../socket/ws-edit-assembly/ws-edit-assembly-command";
 import { SaveWorksheetCommand } from "../socket/save-worksheet-command";
+import { VariableInputDialog } from "../../../../widget/dialog/variable-input-dialog/variable-input-dialog.component";
+import { ConcatenateTablesDialog } from "../../../dialog/ws/concatenate-tables-dialog.component";
+import { VSLoadingDisplay } from "../../../../vsobjects/objects/vs-loading-display/vs-loading-display.component";
+import { WSDetailsPaneComponent } from "./ws-details-pane.component";
+import { WSCompositeTableFocusPaneComponent } from "./ws-composite-table-focus-pane.component";
+import { WSAssemblyGraphPaneComponent } from "./ws-assembly-graph-pane.component";
+import { SplitPane } from "../../../../widget/split-pane/split-pane.component";
 
 const URI_OPEN_WORKSHEET = "/events/ws/open";
 const URI_OPEN_WORKSHEET_VALIDATOR = "../api/ws/open";
@@ -149,19 +157,20 @@ const TABLE_DATA_COUNT_MILLISECOND_DELAY = 500;
  * <p>Its purpose is to contain the worksheet environment.
  */
 @Component({
-   selector: "ws-pane",
-   templateUrl: "ws-pane.component.html",
-   styleUrls: ["ws-pane.component.scss"],
-   providers: [
-      ViewsheetClientService,
-      DebounceService,
-      {
-         provide: DialogService,
-         useFactory: ComposerDialogServiceFactory,
-         deps: [NgbModal, SlideOutService, Injector, UIContextService]
-      },
-      WsChangeService
-   ]
+    selector: "ws-pane",
+    templateUrl: "ws-pane.component.html",
+    styleUrls: ["ws-pane.component.scss"],
+    providers: [
+        ViewsheetClientService,
+        DebounceService,
+        {
+            provide: DialogService,
+            useFactory: ComposerDialogServiceFactory,
+            deps: [NgbModal, SlideOutService, Injector, UIContextService]
+        },
+        WsChangeService
+    ],
+    imports: [SplitPane, WSAssemblyGraphPaneComponent, WSCompositeTableFocusPaneComponent, WSDetailsPaneComponent, VSLoadingDisplay, NotificationsComponent, ConcatenateTablesDialog, VariableInputDialog]
 })
 export class WSPaneComponent extends CommandProcessor implements OnDestroy, OnInit, OnChanges {
    _worksheet: Worksheet;

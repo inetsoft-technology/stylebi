@@ -19,13 +19,18 @@ import { Component, Input, Output, EventEmitter } from "@angular/core";
 
 import { ConcatenationTypeDialogModel } from "../../data/ws/concatenation-type-dialog-model";
 import { XConstants } from "../../../common/util/xconstants";
-import { CustomSelectOption } from "../../../widget/custom-select/custom-select.component";
+import { FormsModule } from "@angular/forms";
+import { EnterSubmitDirective } from "../../../widget/directive/enter-submit.directive";
+import { NgClass } from "@angular/common";
+import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
+import { CustomSelectOption, CustomSelectComponent } from "../../../widget/custom-select/custom-select.component";
 
 const SOCKET_URI: string = "/events/composer/worksheet/concatenation-type-dialog";
 
 @Component({
-   selector: "concatenation-type-dialog",
-   templateUrl: "concatenation-type-dialog.component.html"
+    selector: "concatenation-type-dialog",
+    templateUrl: "concatenation-type-dialog.component.html",
+    imports: [ModalHeaderComponent, EnterSubmitDirective, FormsModule, NgClass, CustomSelectComponent]
 })
 export class ConcatenationTypeDialog {
    @Input() model: ConcatenationTypeDialogModel;

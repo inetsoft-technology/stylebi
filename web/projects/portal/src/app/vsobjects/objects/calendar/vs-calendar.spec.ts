@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { CommonModule } from "@angular/common";
 import { HttpClientTestingModule } from "@angular/common/http/testing";
 import { NO_ERRORS_SCHEMA, Renderer2 } from "@angular/core";
@@ -56,25 +57,25 @@ describe("VSCalendar Unit Tests", () => {
    let timerService: any;
 
    beforeEach(waitForAsync(() => {
-      viewsheetClientService = { sendEvent: jest.fn() };
+      viewsheetClientService = { sendEvent: vi.fn() };
       interactService = {
-         addInteractable: jest.fn(),
-         notify: jest.fn(),
-         removeInteractable: jest.fn()
+         addInteractable: vi.fn(),
+         notify: vi.fn(),
+         removeInteractable: vi.fn()
       };
-      dataTipService = { isDataTip: jest.fn() };
+      dataTipService = { isDataTip: vi.fn() };
       dropdownService = { };
       const contextProvider = {};
       const formDataService: any = {
-         checkFormData: jest.fn(),
-         removeObject: jest.fn(),
-         addObject: jest.fn(),
-         replaceObject: jest.fn()
+         checkFormData: vi.fn(),
+         removeObject: vi.fn(),
+         addObject: vi.fn(),
+         replaceObject: vi.fn()
       };
-      firstDayOfWeekService = { getFirstDay: jest.fn() };
+      firstDayOfWeekService = { getFirstDay: vi.fn() };
       firstDayOfWeekService.getFirstDay.mockImplementation(() => observableOf({}));
       timerService = {
-         defer: jest.fn((fn) => {
+         defer: vi.fn((fn) => {
             fn();
          })
       };
@@ -85,12 +86,17 @@ describe("VSCalendar Unit Tests", () => {
             FormsModule,
             ReactiveFormsModule,
             HttpClientTestingModule,
-            NgbModule
+            NgbModule,
+            VSCalendar,
+            MonthCalendar,
+            YearCalendar,
+            MiniToolbar,
+            SafeFontDirective,
+            VSPopComponentDirective,
+            InteractableDirective,
+            DefaultFocusDirective,
          ],
-         declarations: [
-            VSCalendar, MonthCalendar, YearCalendar, MiniToolbar, SafeFontDirective,
-            VSPopComponentDirective, InteractableDirective, DefaultFocusDirective
-         ],
+         
          providers: [
             Renderer2,
             PopComponentService,

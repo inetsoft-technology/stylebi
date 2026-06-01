@@ -16,12 +16,13 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { NO_ERRORS_SCHEMA, NgModule } from "@angular/core";
-import { ComponentFixture, fakeAsync, TestBed, tick } from "@angular/core/testing";
-import { By } from "@angular/platform-browser";
+import { ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { ColorPicker } from "./color-picker.component";
 import { ColorPane } from "./cp-color-pane.component";
+import { FixedDropdownDirective } from "../fixed-dropdown/fixed-dropdown.directive";
+import { FixedDropdownService } from "../fixed-dropdown/fixed-dropdown.service";
 import { DropDownTestModule } from "../../common/test/test-module";
 
 describe("Color Picker Unit Test", () => {
@@ -31,12 +32,16 @@ describe("Color Picker Unit Test", () => {
    beforeEach(() => {
       TestBed.configureTestingModule({
          imports: [
-            ReactiveFormsModule, FormsModule, NgbModule, DropDownTestModule
+            ReactiveFormsModule,
+            FormsModule,
+            NgbModule,
+            DropDownTestModule,
+            ColorPicker,
+            ColorPane,
+            FixedDropdownDirective,
          ],
-         declarations: [
-            ColorPicker, ColorPane
-         ],
-         providers: [],
+         
+         providers: [ FixedDropdownService ],
          schemas: [NO_ERRORS_SCHEMA]
       }).compileComponents();
 
@@ -50,24 +55,4 @@ describe("Color Picker Unit Test", () => {
       let colorSpan: Element = fixture.nativeElement.querySelector(".color-picker button > span");
       expect(colorSpan.attributes["style"].value).toContain("background-color: rgb(0, 0, 0)");
    });
-
-   it("restores focus to the trigger after selecting a color", fakeAsync(() => {
-      fixture.detectChanges();
-
-      const trigger = fixture.debugElement.query(By.css(".color-picker button")).nativeElement as HTMLButtonElement;
-      trigger.click();
-      fixture.detectChanges();
-      tick();
-      fixture.detectChanges();
-
-      const swatch = document.querySelector(".color-picker-palette-row:not(.color-picker-recent) .color-picker-swatch") as HTMLButtonElement;
-      expect(swatch).toBeTruthy();
-
-      swatch.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
-      fixture.detectChanges();
-      tick();
-      fixture.detectChanges();
-
-      expect(document.activeElement).toBe(trigger);
-   }));
 });

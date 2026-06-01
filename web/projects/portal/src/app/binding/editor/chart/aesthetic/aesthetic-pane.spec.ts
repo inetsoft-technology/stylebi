@@ -30,10 +30,14 @@ import { TestUtils } from "../../../../common/test/test-utils";
 import { StyleConstants } from "../../../../common/util/style-constants";
 import { ColorPane } from "../../../../widget/color-picker/cp-color-pane.component";
 import { RecentColorService } from "../../../../widget/color-picker/recent-color.service";
+import { FixedDropdownComponent } from "../../../../widget/fixed-dropdown/fixed-dropdown.component";
+import { FixedDropdownDirective } from "../../../../widget/fixed-dropdown/fixed-dropdown.directive";
 import { AestheticInfo } from "../../../data/chart/aesthetic-info";
 import { AllChartAggregateRef } from "../../../data/chart/all-chart-aggregate-ref";
 import { ChartAggregateRef } from "../../../data/chart/chart-aggregate-ref";
 import { ChartBindingModel } from "../../../data/chart/chart-binding-model";
+import { BindingService } from "../../../services/binding.service";
+import { BindingTreeService } from "../../../widget/binding-tree/binding-tree.service";
 import { ChartEditorService } from "../../../services/chart/chart-editor.service";
 import { ColorFieldPane } from "../../../widget/color-field-pane.component";
 import { AestheticPane } from "./aesthetic-pane.component";
@@ -57,12 +61,29 @@ import { TextureItem } from "./texture-item.component";
 
 describe("Aesthetic Pane Unit Test", () => {
    beforeAll(() => {
-      jest.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({
+      vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({
          font: "",
-         clearRect: jest.fn(),
-         fillRect: jest.fn(),
+         clearRect: vi.fn(),
+         fillRect: vi.fn(),
          measureText: (_text: string) => ({ width: 0 })
       } as any);
+
+      // The FixedDropdownComponent's `style.opacity` HostBinding returns 0
+      // during ngOnInit, then 1 after `dropdownBounds` is set (synchronously
+      // when the service opens it). With dev-mode change detection this trips
+      // NG0100 (ExpressionChangedAfterItHasBeenCheckedError) as an unhandled
+      // error after tests in this suite that open the dropdown. Replace the
+      // getter on the prototype with a constant so the binding is stable.
+      Object.defineProperty(FixedDropdownComponent.prototype, "_opacity", {
+         get() { return 1; },
+         configurable: true
+      });
+   });
+
+   afterEach(() => {
+      // Clean up any overlay elements appended to document.body so DOM queries
+      // in later tests don't pick up stale dropdowns.
+      document.querySelectorAll("fixed-dropdown").forEach(el => el.remove());
    });
    let createMockChartAggregateRef: (name?: string) => ChartAggregateRef = (name?: string) => {
       let aggRef = TestUtils.createMockChartAggregateRef(name);
@@ -126,18 +147,18 @@ describe("Aesthetic Pane Unit Test", () => {
    };
 
    const editorService = {
-      changeChartAesthetic: jest.fn(),
-      getDNDType: jest.fn(),
-      convert: jest.fn(),
-      isDropPaneAccept: jest.fn()
+      changeChartAesthetic: vi.fn(),
+      getDNDType: vi.fn(),
+      convert: vi.fn(),
+      isDropPaneAccept: vi.fn()
    };
-   const uiContextService = { isVS: jest.fn() };
+   const uiContextService = { isVS: vi.fn() };
    const dservice = {
-      processOnDrop: jest.fn(),
-      setDragOverStyle: jest.fn()
+      processOnDrop: vi.fn(),
+      setDragOverStyle: vi.fn()
    };
-   let modalService = { open: jest.fn() };
-   let recentColorService = { colorSelected: jest.fn() };
+   let modalService = { open: vi.fn() };
+   let recentColorService = { colorSelected: vi.fn() };
 
    let fixture: ComponentFixture<AestheticPane>;
    let aestheticPane: AestheticPane;
@@ -146,17 +167,48 @@ describe("Aesthetic Pane Unit Test", () => {
    beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule, HttpClientTestingModule, DropDownTestModule
+            FormsModule,
+            ReactiveFormsModule,
+            NgbModule,
+            HttpClientTestingModule,
+            DropDownTestModule,
+            AestheticPane,
+            ColorFieldMc,
+            ColorCell,
+            ShapeFieldMc,
+            ShapeCell,
+            SizeFieldMc,
+            SizeCell,
+            CombinedShapePane,
+            TextureItem,
+            LineItem,
+            ShapeItem,
+            ChartAestheticMc,
+            StaticTextureEditor,
+            StaticTexturePane,
+            StaticColorPane,
+            StaticColorEditor,
+            LinearShapePane,
+            ColorFieldPane,
+            ColorPane,
+            TextFieldMc,
+            FixedDropdownDirective,
          ],
-         declarations: [
-            AestheticPane, ColorFieldMc, ColorCell, ShapeFieldMc, ShapeCell, SizeFieldMc, SizeCell, CombinedShapePane, TextureItem, LineItem, ShapeItem, ChartAestheticMc, StaticTextureEditor, StaticTexturePane, StaticColorPane, StaticColorEditor, LinearShapePane, ColorFieldPane, ColorPane, TextFieldMc
-         ],
+         
          providers: [
             { provide: ChartEditorService, useValue: editorService },
             { provide: UIContextService, useValue: uiContextService},
             { provide: DndService, useValue: dservice },
             { provide: NgbModal, useValue: modalService },
-            { provide: RecentColorService, useValue: recentColorService }
+            { provide: RecentColorService, useValue: recentColorService },
+            {
+               provide: BindingService,
+               useValue: { bindingModel: { availableFields: [] }, getURLParams: vi.fn(() => null) }
+            },
+            {
+               provide: BindingTreeService,
+               useValue: { root: null, treeChanged: { subscribe: vi.fn() }, getSelection: vi.fn(), setSelection: vi.fn() }
+            }
          ],
          schemas: [NO_ERRORS_SCHEMA]
       });
@@ -331,7 +383,7 @@ describe("Aesthetic Pane Unit Test", () => {
    });
 
    //Bug #19085, shape cell icon load error on waterfall chart
-   it("shape cell icon load error on waterfall chart", (done) => {
+   it("shape cell icon load error on waterfall chart", () => new Promise<void>((done) => {
       let agg = createMockChartAggregateRef("id");
       agg.chartType = GraphTypes.CHART_WATERFALL;
       agg.rtchartType = GraphTypes.CHART_WATERFALL;
@@ -377,7 +429,7 @@ describe("Aesthetic Pane Unit Test", () => {
 
          done();
       });
-   });
+   }));
 
    //for Bug #19170
    it("should not display size cell on empty chart", () => {
@@ -557,7 +609,7 @@ describe("Aesthetic Pane Unit Test", () => {
    });
 
    //Bug #20921
-   it("test color frame and shape frame on waterfall chart", (done) => {
+   it("test color frame and shape frame on waterfall chart", () => new Promise<void>((done) => {
       let agg1 = createMockChartAggregateRef("id1");
       let agg2 = TestUtils.createMockChartAggregateRef("id2");
       let agg3 = createMockChartAggregateRef("id3");
@@ -599,10 +651,10 @@ describe("Aesthetic Pane Unit Test", () => {
 
          done();
       });
-   });
+   }));
 
    //Bug #20801
-   it("color pane should be auto closed", (done) => {
+   it("color pane should be auto closed", () => new Promise<void>((resolve, reject) => {
       let aggr = createMockChartAggregateRef("id");
       aggr.colorFrame = mockStaticColorModel();
       bindingModel.yfields = [aggr];
@@ -617,26 +669,33 @@ describe("Aesthetic Pane Unit Test", () => {
       fixture.detectChanges();
 
       let colorFieldMc: ColorFieldMc = fixture.debugElement.query(By.directive(ColorFieldMc)).componentInstance;
-      let openChanged = jest.spyOn(colorFieldMc, "openChanged");
+      let openChanged = vi.spyOn(colorFieldMc, "openChanged");
       fixture.detectChanges();
 
       let colorEditIcon: HTMLElement = fixture.debugElement.query(By.css(".color_field_id .visual-edit-icon")).nativeElement;
       colorEditIcon.click();
       fixture.detectChanges();
 
-      fixture.whenStable().then(() => {
-         let fixedDropdown = document.getElementsByTagName("fixed-dropdown")[0];
-         let colorBtn: any = fixedDropdown.querySelector(".color-picker-palette button[style='background-color: rgb(98, 166, 64);']");
-         colorBtn.dispatchEvent(new Event("mousedown"));
-         fixture.detectChanges();
+      // Fixed-dropdown renders asynchronously after the click triggers a setTimeout in the
+      // component. Use real setTimeout to wait for the DOM to update, but route assertion
+      // failures through reject() so they surface as test failures rather than unhandled
+      // promise rejections.
+      setTimeout(() => {
+         try {
+            let fixedDropdown = document.getElementsByTagName("fixed-dropdown")[0];
+            let colorBtn: any = fixedDropdown.querySelector(".color-picker-palette button[style='background-color: rgb(98, 166, 64);']");
+            colorBtn.dispatchEvent(new Event("mousedown"));
+            fixture.detectChanges();
 
-         fixture.whenStable().then(() => {
-            expect(openChanged).toHaveBeenCalledWith(false);
-
-            done();
-         });
-      });
-   });
+            setTimeout(() => {
+               try {
+                  expect(openChanged).toHaveBeenCalledWith(false);
+                  resolve();
+               } catch(e) { reject(e); }
+            }, 50);
+         } catch(e) { reject(e); }
+      }, 50);
+   }));
 
    //Bug #21290
    it("color and size frame is error when there is multi aggregate on map chart", () => {
@@ -672,7 +731,7 @@ describe("Aesthetic Pane Unit Test", () => {
    });
 
    //Bug #21320
-   it("shape pane should be auto closed", (done) => {
+   it("shape pane should be auto closed", () => new Promise<void>((done) => {
       let shapefield = TestUtils.createMockAestheticInfo();
       shapefield.frame = Object.assign({
          clazz: "inetsoft.web.binding.model.graph.aesthetic.FillShapeModel",
@@ -693,7 +752,7 @@ describe("Aesthetic Pane Unit Test", () => {
       fixture.detectChanges();
 
       let shapeFieldMc: ShapeFieldMc = fixture.debugElement.query(By.directive(ShapeFieldMc)).componentInstance;
-      let openChanged = jest.spyOn(shapeFieldMc, "openChanged");
+      let openChanged = vi.spyOn(shapeFieldMc, "openChanged");
       fixture.detectChanges();
 
       let shapeEditIcon: HTMLElement = fixture.debugElement.query(By.css(".shape_field_id .visual-cell-container .visual-cell")).nativeElement;
@@ -713,7 +772,7 @@ describe("Aesthetic Pane Unit Test", () => {
             done();
          });
       });
-   });
+   }));
 
    //Bug #21510
    it("shape edit icon should be enabled", () => {

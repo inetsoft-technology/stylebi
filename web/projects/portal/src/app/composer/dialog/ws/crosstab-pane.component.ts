@@ -30,11 +30,14 @@ import { XSchema } from "../../../common/data/xschema";
 import { XConstants } from "../../../common/util/xconstants";
 import { Tool } from "../../../../../../shared/util/tool";
 import { DateLevelExamplesService } from "../../../common/services/date-level-examples.service";
-import { CustomSelectOption } from "../../../widget/custom-select/custom-select.component";
+import { DynamicComboBox } from "../../../widget/dynamic-combo-box/dynamic-combo-box.component";
+import { FormsModule } from "@angular/forms";
+import { CustomSelectOption, CustomSelectComponent } from "../../../widget/custom-select/custom-select.component";
 
 @Component({
-   selector: "crosstab-pane",
-   templateUrl: "crosstab-pane.component.html"
+    selector: "crosstab-pane",
+    templateUrl: "crosstab-pane.component.html",
+    imports: [FormsModule, DynamicComboBox, CustomSelectComponent]
 })
 export class CrosstabPane {
    @Input() trapFields: ColumnRef[] = [];

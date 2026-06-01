@@ -15,8 +15,9 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { ChangeDetectorRef, NO_ERRORS_SCHEMA } from "@angular/core";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { ComponentFixture, TestBed, waitForAsync } from "@angular/core/testing";
 import { TestUtils } from "../../../common/test/test-utils";
 import { ViewsheetClientService } from "../../../common/viewsheet-client";
 import { FixedDropdownService } from "../../../widget/fixed-dropdown/fixed-dropdown.service";
@@ -34,25 +35,25 @@ describe("VSViewsheet Unit Tests", () => {
    let fixture: ComponentFixture<VSViewsheet>;
    let component: VSViewsheet;
 
-   beforeEach(async(() => {
-      const viewsheetClientService = { sendEvent: jest.fn() };
+   beforeEach(waitForAsync(() => {
+      const viewsheetClientService = { sendEvent: vi.fn() };
       const dataTipService = {
-         isDataTip: jest.fn(),
-         hasDataTipShowing: jest.fn(() => false)
+         isDataTip: vi.fn(),
+         hasDataTipShowing: vi.fn(() => false)
       };
       const contextProvider = { viewer: true, preview: false, composer: false, binding: false };
 
       TestBed.configureTestingModule({
-         declarations: [VSViewsheet],
+         imports: [VSViewsheet],
          providers: [
             { provide: ViewsheetClientService, useValue: viewsheetClientService },
             { provide: AssemblyActionFactory, useValue: {} },
             { provide: FixedDropdownService, useValue: {} },
             { provide: ContextProvider, useValue: contextProvider },
             { provide: DataTipService, useValue: dataTipService },
-            { provide: PopComponentService, useValue: { isCurrentPopComponent: jest.fn(() => false), hasPopUpComponentShowing: jest.fn(() => false) } },
+            { provide: PopComponentService, useValue: { isCurrentPopComponent: vi.fn(() => false), hasPopUpComponentShowing: vi.fn(() => false) } },
             { provide: SelectionMobileService, useValue: {} },
-            { provide: ChangeDetectorRef, useValue: { detectChanges: jest.fn() } }
+            { provide: ChangeDetectorRef, useValue: { detectChanges: vi.fn() } }
          ],
          schemas: [NO_ERRORS_SCHEMA]
       });

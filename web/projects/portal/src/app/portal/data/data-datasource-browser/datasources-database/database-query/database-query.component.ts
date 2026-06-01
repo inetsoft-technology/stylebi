@@ -25,8 +25,7 @@ import {
    ViewChild,
    ViewEncapsulation
 } from "@angular/core";
-import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
-import { NgbNavChangeEvent } from "@ng-bootstrap/ng-bootstrap/nav/nav";
+import { NgbModal, NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, NgbNavOutlet, NgbNavChangeEvent } from "@ng-bootstrap/ng-bootstrap";
 import { Subscription } from "rxjs";
 import { TreeNodeModel } from "../../../../../widget/tree/tree-node-model";
 import {
@@ -46,18 +45,24 @@ import {
 import { QueryLinkPaneComponent } from "./query-main/query-link-pane/query-link-pane.component";
 import { ParseResult } from "./query-sql/parse-result";
 import { ComponentTool } from "../../../../../common/util/component-tool";
+import { SqlQueryPreviewPaneComponent } from "./query-preview/sql-query-preview-pane.component";
+import { FreeFormSqlPaneComponent } from "./query-sql/free-form-sql-pane.component";
+
+import { QuerySortPaneComponent } from "./query-main/query-sort-pane/query-sort-pane.component";
+import { QueryFieldsPaneComponent } from "./query-main/query-field-pane/query-fields-pane.component";
 
 const GET_QUERY_MODEL_URI = "../api/data/datasource/query/query-model";
 const QUERY_UPDATE_URI = "../api/data/datasource/query/update";
 
 @Component({
-   selector: "database-query",
-   templateUrl: "./database-query.component.html",
-   styleUrls: [
-      "../database-physical-model/database-model-pane.scss",
-      "./database-query.component.scss"
-   ],
-   encapsulation: ViewEncapsulation.None
+    selector: "database-query",
+    templateUrl: "./database-query.component.html",
+    styleUrls: [
+        "../database-physical-model/database-model-pane.scss",
+        "./database-query.component.scss"
+    ],
+    encapsulation: ViewEncapsulation.None,
+    imports: [NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, QueryLinkPaneComponent, QueryFieldsPaneComponent, QueryConditionsPaneComponent, QuerySortPaneComponent, QueryGroupingPaneComponent, FreeFormSqlPaneComponent, SqlQueryPreviewPaneComponent, NgbNavOutlet]
 })
 export class DatabaseQueryComponent implements OnDestroy {
    @Input() runtimeId: string;

@@ -15,12 +15,15 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { Component, DebugElement } from "@angular/core";
 import { TestBed } from "@angular/core/testing";
 import { By } from "@angular/platform-browser";
 import { MouseEventDirective } from "./mouse-event.directive";
 
 @Component({
+   standalone: true,
+   imports: [MouseEventDirective],
    template: `
      <div mouseEvent>Has Directive</div>
      <div>No Directive</div>`
@@ -34,7 +37,7 @@ describe("Mouse Event Directive Tests", () => {
 
    beforeEach(() => {
       const fixture = TestBed.configureTestingModule({
-         declarations: [
+         imports: [
             TestApp,
             MouseEventDirective
          ]
@@ -57,8 +60,8 @@ describe("Mouse Event Directive Tests", () => {
    it("should emit left mouse events from the first div", () => {
       const firstDiv = testElements[0];
       const mouseEventDirective: MouseEventDirective = firstDiv.injector.get(MouseEventDirective);
-      const leftMouseDownSpy = jest.spyOn(mouseEventDirective.leftMouseDown, "emit");
-      const leftMouseUpSpy = jest.spyOn(mouseEventDirective.leftMouseUp, "emit");
+      const leftMouseDownSpy = vi.spyOn(mouseEventDirective.leftMouseDown, "emit");
+      const leftMouseUpSpy = vi.spyOn(mouseEventDirective.leftMouseUp, "emit");
       const mouseEvent: MouseEventInit = {
          button: 0
       };
@@ -74,8 +77,8 @@ describe("Mouse Event Directive Tests", () => {
    it("should emit right mouse events from the first div", () => {
       const firstDiv = testElements[0];
       const mouseEventDirective: MouseEventDirective = firstDiv.injector.get(MouseEventDirective);
-      const rightMouseDownSpy = jest.spyOn(mouseEventDirective.rightMouseDown, "emit");
-      const rightMouseUpSpy = jest.spyOn(mouseEventDirective.rightMouseUp, "emit");
+      const rightMouseDownSpy = vi.spyOn(mouseEventDirective.rightMouseDown, "emit");
+      const rightMouseUpSpy = vi.spyOn(mouseEventDirective.rightMouseUp, "emit");
       const mouseEvent = {
          button: 2
       };

@@ -38,6 +38,7 @@ import { TreeSearchPipe } from "../../../widget/tree/tree-search.pipe";
 import { TreeComponent } from "../../../widget/tree/tree.component";
 import { DataOutputPaneModel } from "../../data/vs/data-output-pane-model";
 import { DataOutputPane } from "./data-output-pane.component";
+import { FixedDropdownDirective } from "../../../widget/fixed-dropdown/fixed-dropdown.directive";
 
 const createModel: () => DataOutputPaneModel = () => {
    return {
@@ -72,7 +73,6 @@ function setTargetTreeValues(dataOutputPaneModel, treeNodeModel): DataOutputPane
    return dataOutputPaneModel;
 }
 
-
 function setMockTreeValues(dataOutputPaneModel): DataOutputPaneModel {
    dataOutputPaneModel.table = "mockData";
    dataOutputPaneModel.targetTree = {
@@ -90,7 +90,9 @@ function setMockTreeValues(dataOutputPaneModel): DataOutputPaneModel {
 }
 
 @Component({
+   standalone: true,
    selector: "test-app",
+   imports: [DataOutputPane],
    template: `<data-output-pane [model]="mockModel">
                  </data-output-pane>`
 })
@@ -112,9 +114,9 @@ describe("Data Output Pane Test", () => {
    let el: HTMLElement;
 
    beforeEach(waitForAsync(() => {
-      httpService = { get: jest.fn() };
-      dragService = { reset: jest.fn(), put: jest.fn() };
-      treeService = { validateTreeNode: jest.fn() };
+      httpService = { get: vi.fn() };
+      dragService = { reset: vi.fn(), put: vi.fn() };
+      treeService = { validateTreeNode: vi.fn() };
 
       dataOutputPane = new DataOutputPane(httpService);
       dataOutputPane.model = dataOutputPaneModel;
@@ -123,15 +125,24 @@ describe("Data Output Pane Test", () => {
 
       TestBed.configureTestingModule({
          imports: [
-            ReactiveFormsModule, FormsModule, NgbModule, DropDownTestModule,
-            HttpClientTestingModule
+            ReactiveFormsModule,
+            FormsModule,
+            NgbModule,
+            DropDownTestModule,
+            HttpClientTestingModule,
+            TestApp,
+            DataOutputPane,
+            TreeDropdownComponent,
+            TreeComponent,
+            TreeNodeComponent,
+            FormulaEditorDialog,
+            ScriptPane,
+            NewAggrDialog,
+            MessageDialog,
+            TreeSearchPipe,
+            FixedDropdownDirective,
          ],
-         declarations: [
-            TestApp, DataOutputPane, TreeDropdownComponent,
-            TreeComponent, TreeNodeComponent,
-            FormulaEditorDialog, ScriptPane, NewAggrDialog, MessageDialog,
-            TreeSearchPipe
-         ],
+         
          providers: [
             {provide: DragService, useValue: dragService},
             {provide: DataTreeValidatorService, useValue: treeService}
@@ -248,7 +259,7 @@ describe("Data Output Pane Test", () => {
    });
 
    //Bug #20032, Bug #20035, Bug #20102, Bug #20101
-   xit("should return rightly status when change value type", () => {
+   it.skip("should return rightly status when change value type", () => {
       let dataOutputModel = createModel();
       dataOutputModel.aggregate = "Count";
       dataOutputModel.column = "${var1}";

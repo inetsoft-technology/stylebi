@@ -23,11 +23,13 @@ import { ScriptTreeDataSource } from "./script-tree-data-source";
 import { UntypedFormGroup } from "@angular/forms";
 import { FormulaEditorDialogModel } from "../../../../portal/src/app/widget/formula-editor/formula-editor-dialog-model";
 import { DateTypeFormatter } from "../../../../shared/util/date-type-formatter";
+import { DynamicComboBoxComponent } from "./dynamic-combo-box.component";
 
 @Component({
-   selector: "em-dynamic-value-editor",
-   templateUrl: "./dynamic-value-editor.component.html",
-   styleUrls: ["./dynamic-value-editor.component.scss"]
+    selector: "em-dynamic-value-editor",
+    templateUrl: "./dynamic-value-editor.component.html",
+    styleUrls: ["./dynamic-value-editor.component.scss"],
+    imports: [DynamicComboBoxComponent]
 })
 export class DynamicValueEditorComponent {
    public XSchema = XSchema;

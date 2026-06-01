@@ -15,6 +15,7 @@
   ~ You should have received a copy of the GNU Affero General Public License
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
+<ng-container *ngIf="model">
 <form ngNoForm (submit)="$event.preventDefault()" class="container-fluid">
   <fieldset>
     <legend>_#(Tip)</legend>
@@ -132,6 +133,7 @@
 </form>
 <notifications *ngIf="objectAddRemoved" class="warning-message" [timeout]="0"
                message="_#(viewer.dialog.viewsheetModified)"></notifications>
+</ng-container>
 <ng-template #tipCustomizeDialog let-close="close" let-dismiss="dismiss">
   <tip-customize-dialog (confirm)="close($event)" (cancel)="dismiss($event)"
                         [model]="dialogModel" [tooltipOnly]="tooltipOnly"></tip-customize-dialog>

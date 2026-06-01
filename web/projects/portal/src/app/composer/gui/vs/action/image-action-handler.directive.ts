@@ -46,7 +46,8 @@ const HIGHLIGHT_URI: string = "composer/vs/highlight-dialog-model";
 const HYPERLINK_URI: string = "composer/vs/hyperlink-dialog-model";
 
 @Directive({
-   selector: "[cImageActionHandler]"
+    selector: "[cImageActionHandler]",
+    standalone: true
 })
 export class ImageActionHandlerDirective extends AbstractActionHandler implements OnDestroy {
    @Input() model: VSImageModel;

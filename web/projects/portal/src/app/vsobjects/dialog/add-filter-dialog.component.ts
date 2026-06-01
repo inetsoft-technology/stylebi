@@ -20,11 +20,22 @@ import { DataRef } from "../../common/data/data-ref";
 import { TreeNodeModel } from "../../widget/tree/tree-node-model";
 import { GuiTool } from "../../common/util/gui-tool";
 import { TreeComponent } from "../../widget/tree/tree.component";
+import { DefaultFocusDirective } from "../../widget/directive/default-focus.directive";
+import { EnterSubmitDirective } from "../../widget/directive/enter-submit.directive";
+
+import { ModalHeaderComponent } from "../../widget/modal-header/modal-header.component";
 
 @Component({
-   selector: "add-filter-dialog",
-   templateUrl: "add-filter-dialog.component.html",
-   styleUrls: ["add-filter-dialog.component.scss"]
+    selector: "add-filter-dialog",
+    templateUrl: "add-filter-dialog.component.html",
+    styleUrls: ["add-filter-dialog.component.scss"],
+
+    imports: [
+    ModalHeaderComponent,
+    EnterSubmitDirective,
+    TreeComponent,
+    DefaultFocusDirective
+]
 })
 export class AddFilterDialog {
    @Input() model: TreeNodeModel;

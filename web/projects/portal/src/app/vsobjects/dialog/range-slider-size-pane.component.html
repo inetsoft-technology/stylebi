@@ -1,91 +1,101 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <form class="container-fluid" [formGroup]="form">
   <fieldset>
     <legend>_#(Options)</legend>
     <div class="row shell-form-row--field">
       <div class="col-auto pe-0 d-flex flex-column" [ngClass]="{ 'has-error' : !form.controls['length'].valid}">
-          <label class="form-label">_#(Slider Size)</label>
-          <number-stepper formControlName="length" [min]="1"
+        <number-stepper formControlName="length" [min]="1"
                           (valueChange)="model.length = $event"
                           [invalid]="!form.controls['length'].valid">
           </number-stepper>
+        <label>_#(Slider Size)</label>
       </div>
-      <div class="col-auto ps-1 align-self-end" *ngIf="!dataModel.composite && rangeOptions.length > 1">
-        <custom-select [options]="rangeSelectOptions"
+      @if (!dataModel.composite && rangeOptions.length > 1) {
+        <div class="col-auto ps-1 align-self-end">
+          <custom-select [options]="rangeSelectOptions"
                        [ngModelOptions]="{standalone: true}"
                        [(ngModel)]="model.rangeType"
                        ariaLabel="_#(Range Type)">
         </custom-select>
+        </div>
+      }
+      @if (dataModel.composite) {
+        <div class="col-auto align-self-end">_#(periods)</div>
+      }
+    </div>
+    @if (form.controls['length'].errors) {
+      <div class="shell-alert shell-alert--danger">
+        _#(viewer.viewsheet.timeSlider.sliderSizeWarning)
       </div>
-      <div class="col-auto align-self-end" *ngIf="dataModel.composite">_#(periods)</div>
-    </div>
-    <div *ngIf="form.controls['length'].errors" class="shell-alert shell-alert--danger">
-      _#(viewer.viewsheet.timeSlider.sliderSizeWarning)
-    </div>
+    }
     <div class="row shell-form-row--field">
       <div class="col d-flex flex-column" [ngClass]="{ 'has-error' : !form.controls['rangeSize'].valid}">
-          <label class="form-label">_#(Minimum Increment)</label>
-          <number-stepper formControlName="rangeSize" [min]="0"
+        <number-stepper formControlName="rangeSize" [min]="0"
                           (valueChange)="model.rangeSize = $event"
                           [invalid]="!form.controls['rangeSize'].valid">
           </number-stepper>
+        <label>_#(Minimum Increment)</label>
       </div>
       <div class="col d-flex flex-column" [ngClass]="{ 'has-error' : !form.controls['maxRangeSize'].valid}">
-          <label class="form-label">_#(Maximum Increment)</label>
-          <number-stepper formControlName="maxRangeSize" [min]="0"
+        <number-stepper formControlName="maxRangeSize" [min]="0"
                           (valueChange)="model.maxRangeSize = $event"
                           [invalid]="!form.controls['maxRangeSize'].valid">
           </number-stepper>
+        <label>_#(Maximum Increment)</label>
       </div>
     </div>
-    <div *ngIf="form.controls['rangeSize'].errors" class="shell-alert shell-alert--danger">
-      _#(viewer.worksheet.Grouping.positiveNumber)
-    </div>
-    <div *ngIf="form.controls['maxRangeSize'].errors" class="shell-alert shell-alert--danger">
-      _#(viewer.worksheet.Grouping.positiveNumber)
-    </div>
+    @if (form.controls['rangeSize'].errors) {
+      <div class="shell-alert shell-alert--danger">
+        _#(viewer.worksheet.Grouping.positiveNumber)
+      </div>
+    }
+    @if (form.controls['maxRangeSize'].errors) {
+      <div class="shell-alert shell-alert--danger">
+        _#(viewer.worksheet.Grouping.positiveNumber)
+      </div>
+    }
     <div class="row shell-form-row--field">
-      <div class="col-auto">
+      <div class="col-auto align-self-end">
         <div class="form-check">
           <input type="checkbox" class="form-check-input logScale-cb_id" id="log"
-               [disabled]="logScaleDisabled || dataModel.composite"
-               [ngModelOptions]="{standalone: true}" [(ngModel)]="model.logScale"
-               (change)="updateRangeSizeDisabled(); updateMaxRangeSizeDisabled()">
+            [disabled]="logScaleDisabled || dataModel.composite"
+            [ngModelOptions]="{standalone: true}" [(ngModel)]="model.logScale"
+            (change)="updateRangeSizeDisabled(); updateMaxRangeSizeDisabled()">
           <label class="form-check-label" for="log">
             _#(Logarithmic Scale)
           </label>
         </div>
       </div>
-      <div class="col-auto">
+      <div class="col-auto align-self-end">
         <div class="form-check">
           <input type="checkbox" class="form-check-input" id="upper"
-               [ngModelOptions]="{standalone: true}"
-               [(ngModel)]="model.upperInclusive"/>
+            [ngModelOptions]="{standalone: true}"
+            [(ngModel)]="model.upperInclusive"/>
           <label class="form-check-label" for="upper">
             _#(Upper Bound Inclusive)
           </label>
         </div>
       </div>
-      <div class="col-auto">
+      <div class="col-auto align-self-end">
         <div class="form-check">
           <input id="submitBox" type="checkbox" class="form-check-input"
-                 [ngModelOptions]="{standalone: true}" [(ngModel)]="model.submitOnChange"/>
+            [ngModelOptions]="{standalone: true}" [(ngModel)]="model.submitOnChange"/>
           <label class="form-check-label" for="submitBox">
             _#(Submit on Change)
           </label>

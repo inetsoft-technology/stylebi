@@ -15,6 +15,8 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
+import { HttpClientTestingModule } from "@angular/common/http/testing";
 import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { ComponentFixture, TestBed, waitForAsync } from "@angular/core/testing";
 import { MatIconModule } from "@angular/material/icon";
@@ -29,15 +31,14 @@ describe("SettingsSidenavComponent", () => {
 
    beforeEach(waitForAsync(() => {
       const authzService = {
-         getPermissions: jest.fn(() => observableOf({permissions: {}}))
+         getPermissions: vi.fn(() => observableOf({permissions: {}}))
       };
 
       TestBed.configureTestingModule({
          imports: [
             RouterModule.forRoot([]),
-            MatIconModule
-         ],
-         declarations: [
+            MatIconModule,
+            HttpClientTestingModule,
             SettingsSidenavComponent
          ],
          providers: [
@@ -46,7 +47,9 @@ describe("SettingsSidenavComponent", () => {
          schemas: [
             NO_ERRORS_SCHEMA
          ]
-      }).compileComponents();
+      })
+      .overrideTemplate(SettingsSidenavComponent, "")
+      .compileComponents();
    }));
 
    beforeEach(() => {

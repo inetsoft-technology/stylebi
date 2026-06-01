@@ -19,9 +19,10 @@ import { Component, ViewChild } from "@angular/core";
 import { NotificationsComponent } from "../../widget/notifications/notifications.component";
 
 @Component({
-   selector: "data-notifications",
-   templateUrl: "./data-notifications.component.html",
-   styleUrls: ["./data-notifications.component.scss"]
+    selector: "data-notifications",
+    templateUrl: "./data-notifications.component.html",
+    styleUrls: ["./data-notifications.component.scss"],
+    imports: [NotificationsComponent]
 })
 export class DataNotificationsComponent {
    @ViewChild("notifications") notifications: NotificationsComponent;

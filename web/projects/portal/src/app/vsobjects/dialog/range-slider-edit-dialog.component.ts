@@ -16,13 +16,20 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, EventEmitter, Input, OnDestroy, Output } from "@angular/core";
-import { UntypedFormControl, UntypedFormGroup, Validators, AbstractControl, ValidationErrors, ValidatorFn } from "@angular/forms";
+import { UntypedFormControl, UntypedFormGroup, Validators, AbstractControl, ValidationErrors, ValidatorFn, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { Subject } from "rxjs";
 import { takeUntil } from "rxjs/operators";
 
+import { ModalHeaderComponent } from "../../widget/modal-header/modal-header.component";
+
+import { NumberStepperComponent } from "../../widget/number-stepper/number-stepper.component";
 @Component({
-   selector: "range-slider-edit-dialog",
-   templateUrl: "range-slider-edit-dialog.component.html",
+    selector: "range-slider-edit-dialog",
+    templateUrl: "range-slider-edit-dialog.component.html",
+    imports: [
+    ModalHeaderComponent,
+    FormsModule,
+    ReactiveFormsModule, NumberStepperComponent]
 })
 export class RangeSliderEditDialog implements OnDestroy {
    @Input() currentMin: number | Date;

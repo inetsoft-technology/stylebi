@@ -1,20 +1,20 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <form ngNoForm (submit)="$event.preventDefault()" class="container-fluid">
   <fieldset>
     <legend>_#(Color Ranges)</legend>
@@ -24,7 +24,7 @@
         <div class="checkbox">
           <div class="form-check">
             <input type="checkbox" class="form-check-input" id="gradient"
-                   [(ngModel)]="model.gradient" [disabled]="!gradientSupported">
+              [(ngModel)]="model.gradient" [disabled]="!gradientSupported">
             <label class="form-check-label" for="gradient">
               _#(Gradient)
             </label>
@@ -33,36 +33,40 @@
       </div>
       <div class="col-auto">
         <color-editor [enabled]="model.gradient && gradientSupported" [(color)]="model.rangeColorValues[5]"
-                      [palette]="palette">
-        </color-editor>
-      </div>
+          [palette]="palette">
+      </color-editor>
     </div>
-    <div *ngFor="let rangeValue of values">
+  </div>
+  @for (rangeValue of values; track rangeValue) {
+    <div>
       <div class="shell-form-row--field row">
         <label class="col-2" [wExpandString]="[getIndex(rangeValue.index)]">_#(Range.to):</label>
         <div class="col">
           <dynamic-combo-box [attr.data-test]="'range' + getIndex(rangeValue.index) + 'ToValue'"
-                             [(value)]="rangeValue.value" [variables]="variables"
-                             [editable]="true" [vsId]="vsId" [mode]="mode">
+            [(value)]="rangeValue.value" [variables]="variables"
+            [editable]="true" [vsId]="vsId" [mode]="mode">
           </dynamic-combo-box>
         </div>
         <div class="col-auto">
           <color-editor [attr.data-test]="'range' + getIndex(rangeValue.index) + 'ToValueColorPicker'"
-                        [(color)]="rangeValue.color" [palette]="palette">
-          </color-editor>
-        </div>
+            [(color)]="rangeValue.color" [palette]="palette">
+        </color-editor>
       </div>
     </div>
-  </fieldset>
-  <fieldset *ngIf="targetSupported">
+  </div>
+}
+</fieldset>
+@if (targetSupported) {
+  <fieldset>
     <legend>_#(Target)</legend>
     <div class="shell-form-row--field row">
       <div class="col-2"></div>
       <div class="col">
         <dynamic-combo-box [(value)]="model.targetValue" [variables]="variables"
-                           [editable]="true" [vsId]="vsId" [mode]="mode">
+          [editable]="true" [vsId]="vsId" [mode]="mode">
         </dynamic-combo-box>
       </div>
     </div>
   </fieldset>
+}
 </form>

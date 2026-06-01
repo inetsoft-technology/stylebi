@@ -31,7 +31,10 @@ import {
 import { ComponentTool } from "../../../../../../../../common/util/component-tool";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { GetTableColumnEvent } from "../../../../../../model/datasources/database/events/get-table-column-event";
-import { CustomSelectOption } from "../../../../../../../../widget/custom-select/custom-select.component";
+import { CustomSelectOption, CustomSelectComponent } from "../../../../../../../../widget/custom-select/custom-select.component";
+
+import { FormsModule } from "@angular/forms";
+import { ModalHeaderComponent } from "../../../../../../../../widget/modal-header/modal-header.component";
 
 
 const TABLE_COLUMNS_URI: string = "../api/data/physicalmodel/columns";
@@ -39,9 +42,11 @@ const SQL_TABLE_COLUMNS_URI: string = "../api/data/physicalmodel/views/columns";
 const CHECK_JOIN_EXIST_URI: string = "../api/data/physicalmodel/join/exist";
 
 @Component({
-   selector: "add-join-dialog",
-   templateUrl: "add-join-dialog.component.html",
-   styleUrls: ["add-join-dialog.component.scss"]
+    selector: "add-join-dialog",
+    templateUrl: "add-join-dialog.component.html",
+    styleUrls: ["add-join-dialog.component.scss"],
+
+    imports: [ModalHeaderComponent, FormsModule, CustomSelectComponent]
 })
 export class AddJoinDialog implements OnInit, AfterViewInit {
    @Input() database: string;

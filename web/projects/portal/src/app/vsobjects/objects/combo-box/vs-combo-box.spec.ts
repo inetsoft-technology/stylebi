@@ -44,28 +44,28 @@ describe("VS Combo Box Test", () => {
 
    beforeEach(waitForAsync(() => {
       const formDataService: any = {
-         checkFormData: jest.fn(),
-         removeObject: jest.fn(),
-         addObject: jest.fn(),
-         replaceObject: jest.fn()
+         checkFormData: vi.fn(),
+         removeObject: vi.fn(),
+         addObject: vi.fn(),
+         replaceObject: vi.fn()
       };
-      debounceService = { debounce: jest.fn((key, fn, delay, args) => fn(...args)) };
-      dataTipService = { isDataTip: jest.fn() };
+      debounceService = { debounce: vi.fn((key, fn, delay, args) => fn(...args)) };
+      dataTipService = { isDataTip: vi.fn() };
       const contextProvider = {};
-      firstDayOfWeekService = { getFirstDay: jest.fn(() => observableOf({})) };
+      firstDayOfWeekService = { getFirstDay: vi.fn(() => observableOf({})) };
       timerService = {
-         defer: jest.fn((fn) => {
+         defer: vi.fn((fn) => {
             fn();
          })
       };
 
       TestBed.configureTestingModule({
          imports: [
-            FormsModule
+            FormsModule,
+            VSComboBox,
+            VSPopComponentDirective,
          ],
-         declarations: [
-            VSComboBox, VSPopComponentDirective
-         ],
+         
          providers: [
             PopComponentService,
             FormInputService,
@@ -82,7 +82,7 @@ describe("VS Combo Box Test", () => {
       TestBed.compileComponents();
 
       viewsheetClientService = {
-         sendEvent: jest.fn(),
+         sendEvent: vi.fn(),
          commands: observableOf([])
       };
       fixture = TestBed.createComponent(VSComboBox);

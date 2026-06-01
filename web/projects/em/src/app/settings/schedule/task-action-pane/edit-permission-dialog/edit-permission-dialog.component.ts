@@ -17,18 +17,23 @@
  */
 import {Component, Inject, OnInit} from "@angular/core";
 import {ResourcePermissionModel} from "../../../security/resource-permission/resource-permission-model";
-import {MAT_DIALOG_DATA, MatDialogRef} from "@angular/material/dialog";
+import { MAT_DIALOG_DATA, MatDialogRef, MatDialogContent, MatDialogActions } from "@angular/material/dialog";
 import {ResourceAction} from "../../../../../../../shared/util/security/resource-permission/resource-action.enum";
 import {Tool} from "../../../../../../../shared/util/tool";
+import { MatButton } from "@angular/material/button";
+import { ResourcePermissionComponent } from "../../../security/resource-permission/resource-permission.component";
+import { ModalHeaderComponent } from "../../../../common/util/modal-header/modal-header.component";
 
 export interface EditPermissionDialogResult {
    permission: ResourcePermissionModel;
 }
 
 @Component({
-   selector: "em-edit-permission-dialog",
-   templateUrl: "./edit-permission-dialog.component.html",
-   styleUrls: ["./edit-permission-dialog.component.scss"]
+    selector: "em-edit-permission-dialog",
+    templateUrl: "./edit-permission-dialog.component.html",
+    styleUrls: ["./edit-permission-dialog.component.scss"],
+    standalone: true,
+    imports: [ModalHeaderComponent, MatDialogContent, ResourcePermissionComponent, MatDialogActions, MatButton]
 })
 export class EditPermissionDialogComponent implements OnInit {
    originalModel: ResourcePermissionModel;

@@ -1,20 +1,20 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <div class="container-fluid row">
   <div class="col-6"></div>
   <div class="col-6">
@@ -30,21 +30,21 @@
       </div>
       <div class="col-7">
         <dynamic-combo-box id="headerColumnGroup"
-                           [valueOnly]="true"
-                           [disable]="!columnHeader.availableGroups"
-                           [value]="getGroupVal(columnHeader)"
-                           [values]="getGroupValues(columnHeader)"
-                           [examples]="columnHeader.dateLevelExamples"
-                           (valueChange)="headerGroupChange(columnHeader, $event)">
+          [valueOnly]="true"
+          [disable]="!columnHeader.availableGroups"
+          [value]="getGroupVal(columnHeader)"
+          [values]="getGroupValues(columnHeader)"
+          [examples]="columnHeader.dateLevelExamples"
+          (valueChange)="headerGroupChange(columnHeader, $event)">
         </dynamic-combo-box>
       </div>
       <div class="col-5"></div>
       <div class="col-7">
         <div class="form-check">
           <input type="checkbox" class="form-check-input" id="timeSeries"
-                 [disabled]="isTimeSeriesDisabled(columnHeader)"
-                 [ngModel]="columnHeader.timeSeries"
-                 (ngModelChange)="columnHeader.timeSeries = $event; updateState()">
+            [disabled]="isTimeSeriesDisabled(columnHeader)"
+            [ngModel]="columnHeader.timeSeries"
+            (ngModelChange)="columnHeader.timeSeries = $event; updateState()">
           <label class="form-check-label" for="timeSeries">
             _#(As time series)
           </label>
@@ -57,38 +57,40 @@
 <div class="container-fluid row">
   <div class="col-6">
     <div class="title-bar">_#(Row Header)</div>
-    <div *ngFor="let _header of rowHeaders; let _i = index" class="row pb-1">
-      <div class="col-5">
-        <custom-select id="headerRowRef"
+    @for (_header of rowHeaders; track _header; let _i = $index) {
+      <div class="row pb-1">
+        <div class="col-5">
+          <custom-select id="headerRowRef"
                        [ngModel]="getIndexOfRef(refList, _header)"
                        [ngModelOptions]="{standalone: true}"
                        [options]="getRefOptions(refList)"
                        (selectionChange)="resetGroupHeader(_header, $event, _i)">
         </custom-select>
-      </div>
-      <div class="col-7">
-        <dynamic-combo-box id="headerRowGroup"
-                           [valueOnly]="true"
-                           [disable]="!_header.availableGroups"
-                           [value]="getGroupVal(_header)"
-                           [values]="getGroupValues(_header)"
-                           [examples]="_header.dateLevelExamples"
-                           (valueChange)="headerGroupChange(_header, $event)">
-        </dynamic-combo-box>
-      </div>
-      <div class="col-5"></div>
-      <div class="col-7">
-        <div class="form-check">
-          <input type="checkbox" class="form-check-input" [id]="'timeSerise' + _i"
-                 [disabled]="isTimeSeriesDisabled(_header) || _i != rowHeaders.length - 2"
-                 [ngModel]="_header.timeSeries"
-                 (ngModelChange)="_header.timeSeries = $event; updateState()">
-          <label class="form-check-label" [for]="'timeSerise' + _i">
-            _#(As time series)
-          </label>
+        </div>
+        <div class="col-7">
+          <dynamic-combo-box id="headerRowGroup"
+            [valueOnly]="true"
+            [disable]="!_header.availableGroups"
+            [value]="getGroupVal(_header)"
+            [values]="getGroupValues(_header)"
+            [examples]="_header.dateLevelExamples"
+            (valueChange)="headerGroupChange(_header, $event)">
+          </dynamic-combo-box>
+        </div>
+        <div class="col-5"></div>
+        <div class="col-7">
+          <div class="form-check">
+            <input type="checkbox" class="form-check-input" [id]="'timeSerise' + _i"
+              [disabled]="isTimeSeriesDisabled(_header) || _i != rowHeaders.length - 2"
+              [ngModel]="_header.timeSeries"
+              (ngModelChange)="_header.timeSeries = $event; updateState()">
+            <label class="form-check-label" [for]="'timeSerise' + _i">
+              _#(As time series)
+            </label>
+          </div>
         </div>
       </div>
-    </div>
+    }
   </div>
 
   <div class="col-6">
@@ -113,34 +115,41 @@
       </div>
     </div>
     <div class="row">
-      <div class="form-floating" *ngIf="measure.aggregate?.twoColumns">
-        <custom-select id="measureAggregateRef"
+      @if (measure.aggregate?.twoColumns) {
+        <div class="form-floating">
+          <custom-select id="measureAggregateRef"
                        [ngModel]="getIndexOfRef(aggregateRefList, measure, true)"
                        [ngModelOptions]="{standalone: true}"
                        [options]="getRefOptions(aggregateRefList)"
                        (selectionChange)="measure.aggregateRef = aggregateRefList[$event]; updateState()">
         </custom-select>
-        <label *ngIf="!isByFormula(measure.aggregate); else elseBlock">
-          _#(With)
-        </label>
-        <ng-template #elseBlock>
-          <label>_#(By)</label>
-        </ng-template>
-      </div>
-      <div *ngIf="measure.aggregate?.hasN" class="col-6">
-        <div class="form-check form-floating">
-          <input type="text" id="num" class="form-control"
-                 [ngModel]="measure.n"
-                 (ngModelChange)="measure.n = $event; updateState()"/>
-          <label><span>{{getNPLabel(measure.aggregate)}}</span></label>
+          @if (!isByFormula(measure.aggregate)) {
+            <label>
+              _#(With)
+            </label>
+          } @else {
+            <label>_#(By)</label>
+          }
         </div>
-      </div>
-      <div class="col-5 pt-1" *ngIf="measure.aggregate?.hasN"></div>
+      }
+      @if (measure.aggregate?.hasN) {
+        <div class="col-6">
+          <div class="form-check form-floating">
+            <input type="text" id="num" class="form-control"
+              [ngModel]="measure.n"
+              (ngModelChange)="measure.n = $event; updateState()"/>
+            <label><span>{{getNPLabel(measure.aggregate)}}</span></label>
+          </div>
+        </div>
+      }
+      @if (measure.aggregate?.hasN) {
+        <div class="col-5 pt-1"></div>
+      }
       <div class="col-7 pt-1">
         <div class="form-check">
           <input type="checkbox" class="form-check-input" id="percentage"
-                 [disabled]="!measure.aggregate || measure.aggregate.twoColumns"
-               [ngModel]="measure.percentage" (ngModelChange)="measure.percentage = $event; updateState()">
+            [disabled]="!measure.aggregate || measure.aggregate.twoColumns"
+            [ngModel]="measure.percentage" (ngModelChange)="measure.percentage = $event; updateState()">
           <label class="form-check-label" for="percentage">
             _#(Percentage)
           </label>
@@ -149,9 +158,11 @@
     </div>
   </div>
   <div class="col-12 mt-1">
-    <div *ngIf="!valid"
-         class="shell-alert shell-alert--danger">
-      <strong>_#(Error):&nbsp;</strong>_#(composer.dialog.crosstabPane.selectColumn)
-    </div>
+    @if (!valid) {
+      <div
+        class="shell-alert shell-alert--danger">
+        <strong>_#(Error):&nbsp;</strong>_#(composer.dialog.crosstabPane.selectColumn)
+      </div>
+    }
   </div>
 </div>

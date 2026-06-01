@@ -20,7 +20,7 @@ import { HttpClient, HttpErrorResponse } from "@angular/common/http";
 import { Component, EventEmitter, Input, OnDestroy, OnInit, Output } from "@angular/core";
 import { MatDialog } from "@angular/material/dialog";
 import { MatSnackBar } from "@angular/material/snack-bar";
-import { NavigationEnd, Router } from "@angular/router";
+import { NavigationEnd, Router, RouterLink, RouterLinkActive } from "@angular/router";
 import { Observable, Subject, Subscription, throwError } from "rxjs";
 import { catchError, concatMap, filter, map, takeUntil, tap } from "rxjs/operators";
 import { AiAssistantService } from "../../../../shared/ai-assistant/ai-assistant.service";
@@ -37,27 +37,32 @@ import { PageHeaderService } from "../page-header/page-header.service";
 import { EmNavbarModel } from "./em-navbar-model";
 import { OrganizationDropdownService } from "./organization-dropdown.service";
 import { SendNotificationDialogComponent } from "./send-notification-dialog.component";
+import { MatMenuTrigger, MatMenu, MatMenuItem } from "@angular/material/menu";
+import { MatIconAnchor, MatIconButton } from "@angular/material/button";
+import { MatIcon } from "@angular/material/icon";
+import { AsyncPipe } from "@angular/common";
 
 @Component({
-   selector: "em-navbar",
-   templateUrl: "./navbar.component.html",
-   styleUrls: ["./navbar.component.scss"],
-   animations: [
-      trigger("scrollUpDown", [
-         state("scrollDown", style({
-            marginTop: "-110px"
-         })),
-         state("scrollUp", style({
-            marginTop: "0px"
-         })),
-         transition("scrollUp => scrollDown", [
-            animate("0.5s")
-         ]),
-         transition("scrollDown => scrollUp", [
-            animate("0.5s")
-         ])
-      ])
-   ]
+    selector: "em-navbar",
+    templateUrl: "./navbar.component.html",
+    styleUrls: ["./navbar.component.scss"],
+    animations: [
+        trigger("scrollUpDown", [
+            state("scrollDown", style({
+                marginTop: "-110px"
+            })),
+            state("scrollUp", style({
+                marginTop: "0px"
+            })),
+            transition("scrollUp => scrollDown", [
+                animate("0.5s")
+            ]),
+            transition("scrollDown => scrollUp", [
+                animate("0.5s")
+            ])
+        ])
+    ],
+    imports: [MatIcon, MatIconAnchor, RouterLink, RouterLinkActive, MatIconButton, MatMenuTrigger, MatMenu, MatMenuItem, AsyncPipe]
 })
 export class NavbarComponent implements OnInit, OnDestroy {
    @Input()

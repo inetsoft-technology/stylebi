@@ -25,7 +25,7 @@ import {
    TemplateRef,
    ViewChild
 } from "@angular/core";
-import { UntypedFormControl, UntypedFormGroup, Validators } from "@angular/forms";
+import { UntypedFormControl, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { XSchema } from "../../../common/data/xschema";
 import { Tool } from "../../../../../../shared/util/tool";
@@ -43,7 +43,16 @@ import { ExpressionType } from "../../../common/data/condition/expression-type";
 import { ExpressionValue } from "../../../common/data/condition/expression-value";
 import { Observable, of } from "rxjs";
 import { TreeNodeModel } from "../../../widget/tree/tree-node-model";
-import { CustomSelectOption } from "../../../widget/custom-select/custom-select.component";
+import { ConditionValueTypePipe } from "../../../widget/condition/condition-value-type.pipe";
+import { VariableTableListDialog } from "./variable-table-list-dialog.component";
+import { VariableListDialog } from "../../../widget/dialog/variable-list-dialog/variable-list-dialog.component";
+import { FixedDropdownDirective } from "../../../widget/fixed-dropdown/fixed-dropdown.directive";
+import { ExpressionEditor } from "../../../widget/condition/expression-editor.component";
+import { InputTrimDirective } from "../../../widget/directive/input-trim.directive";
+import { EnterSubmitDirective } from "../../../widget/directive/enter-submit.directive";
+import { NgClass } from "@angular/common";
+import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
+import { CustomSelectOption, CustomSelectComponent } from "../../../widget/custom-select/custom-select.component";
 
 enum UserVariable {
    NONE = 0,
@@ -66,9 +75,22 @@ enum UserVariable {
 }
 
 @Component({
-   selector: "variable-assembly-dialog",
-   templateUrl: "variable-assembly-dialog.component.html",
-   styleUrls: ["variable-assembly-dialog.component.scss"],
+    selector: "variable-assembly-dialog",
+    templateUrl: "variable-assembly-dialog.component.html",
+    styleUrls: ["variable-assembly-dialog.component.scss"],
+    imports: [
+    ModalHeaderComponent,
+    EnterSubmitDirective,
+    FormsModule,
+    ReactiveFormsModule,
+    InputTrimDirective,
+    VariableValueEditor,
+    ExpressionEditor,
+    NgClass,
+    FixedDropdownDirective,
+    VariableListDialog,
+    VariableTableListDialog,
+    ConditionValueTypePipe, CustomSelectComponent]
 })
 export class VariableAssemblyDialog implements OnInit {
    @Input() worksheet: Worksheet;

@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { HttpParams } from "@angular/common/http";
-import { Directive, HostListener, Injector, Input, OnDestroy, } from "@angular/core";
+import { Directive, HostListener, Injector, Input, OnDestroy } from "@angular/core";
 import { forkJoin as observableForkJoin, Subscription } from "rxjs";
 import { Tool } from "../../../../../../../shared/util/tool";
 import { AssemblyActionEvent } from "../../../../common/action/assembly-action-event";
@@ -29,7 +29,7 @@ import { HyperlinkDialogModel } from "../../../../vsobjects/model/hyperlink-dial
 import { VSCalcTableModel } from "../../../../vsobjects/model/vs-calctable-model";
 import { CalcTableActionHandler } from "../../../../vsobjects/objects/table/calc-table-action-handler";
 import { VSUtil } from "../../../../vsobjects/util/vs-util";
-import {loadingScriptTreeModel, ScriptPaneTreeModel} from "../../../../widget/dialog/script-pane/script-pane-tree-model";
+import { loadingScriptTreeModel, ScriptPaneTreeModel } from "../../../../widget/dialog/script-pane/script-pane-tree-model";
 import { ModelService } from "../../../../widget/services/model.service";
 import { DialogService } from "../../../../widget/slide-out/dialog-service.service";
 import { Viewsheet } from "../../../data/vs/viewsheet";
@@ -44,7 +44,8 @@ const SORTING_URI: string = "composer/vs/vs-sorting-dialog-model";
 const HYPERLINK_URI: string = "composer/vs/hyperlink-dialog-model";
 
 @Directive({
-   selector: "[cCalcTableActionHandler]"
+    selector: "[cCalcTableActionHandler]",
+    standalone: true
 })
 export class CalcTableActionHandlerDirective extends AbstractActionHandler implements OnDestroy {
    @Input() model: VSCalcTableModel;

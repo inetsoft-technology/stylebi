@@ -16,10 +16,13 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, EventEmitter, Input, Output } from "@angular/core";
+import { ModalHeaderComponent } from "../../../../../widget/modal-header/modal-header.component";
 
 export type NewDataModelChoice = "physical" | "logical" | "vpm";
 
 @Component({
+   standalone: true,
+   imports: [ModalHeaderComponent],
    selector: "new-data-model-dialog",
    templateUrl: "./new-data-model-dialog.component.html",
    styleUrls: ["./new-data-model-dialog.component.scss"]

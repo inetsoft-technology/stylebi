@@ -15,12 +15,14 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import {Component, EventEmitter, Input, Output} from "@angular/core";
+import { Component, EventEmitter, Input, Output } from "@angular/core";
+import { NgClass } from "@angular/common";
 
 @Component({
-   selector: "table-style-border-region",
-   templateUrl: "table-style-border-region.component.html",
-   styleUrls: ["table-style-preview-pane.component.scss"]
+    selector: "table-style-border-region",
+    templateUrl: "table-style-border-region.component.html",
+    styleUrls: ["table-style-preview-pane.component.scss"],
+    imports: [NgClass]
 })
 export class TableStyleBorderRegionComponent {
    @Input() regionName: string;

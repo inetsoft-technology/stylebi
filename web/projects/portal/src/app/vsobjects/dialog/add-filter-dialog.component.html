@@ -1,31 +1,33 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <modal-header [title]="'_#(Add Filter)'"
-              (onCancel)="close()"
-              [cshid]="'AddFilter'">
+  (onCancel)="close()"
+  [cshid]="'AddFilter'">
 </modal-header>
-<div class="modal-body" enterSubmit (onEnter)="ok()" *ngIf="model">
-   <div class="bordered-box bordered-box-md add-filter-dialog__tree-surface">
+@if (model) {
+  <div class="modal-body" enterSubmit (onEnter)="ok()">
+    <div class="bordered-box bordered-box-md add-filter-dialog__tree-surface">
       <tree [root]="model" [showRoot]="false" [showTooltip]="true" [multiSelect]="true"
-         [searchEnabled]="true" [fillHeight]="true"
-         (nodesSelected)="selectNodes($event)" [iconFunction]="getCSSIcon" [grayedOutFields]="grayedOutFields"></tree>
-   </div>
-</div>
+        [searchEnabled]="true" [fillHeight]="true"
+      (nodesSelected)="selectNodes($event)" [iconFunction]="getCSSIcon" [grayedOutFields]="grayedOutFields"></tree>
+    </div>
+  </div>
+}
 <div class="modal-footer">
   <button type="button" class="btn btn-default" data-dismiss="modal" (click)="close()">_#(Cancel)</button>
   <button defaultFocus type="button" class="btn btn-primary" (click)="ok()" #okButton>_#(OK)</button>

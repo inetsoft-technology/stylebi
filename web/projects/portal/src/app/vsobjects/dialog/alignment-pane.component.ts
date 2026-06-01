@@ -17,11 +17,15 @@
  */
 import { Component, Input } from "@angular/core";
 import { AlignmentPaneModel } from "../model/alignment-pane-model";
-import { CustomSelectOption } from "../../widget/custom-select/custom-select.component";
+import { NgFor } from "@angular/common";
+import { FormsModule } from "@angular/forms";
+import { CustomSelectOption, CustomSelectComponent } from "../../widget/custom-select/custom-select.component";
 
 @Component({
-   selector: "alignment-pane",
-   templateUrl: "alignment-pane.component.html"
+    selector: "alignment-pane",
+    templateUrl: "alignment-pane.component.html",
+    standalone: true,
+    imports: [FormsModule, NgFor, CustomSelectComponent]
 })
 export class AlignmentPane {
    @Input() model: AlignmentPaneModel;

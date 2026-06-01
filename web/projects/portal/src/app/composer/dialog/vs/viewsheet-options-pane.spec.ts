@@ -27,8 +27,7 @@ import { EnterSubmitDirective } from "../../../widget/directive/enter-submit.dir
 import { ViewsheetOptionsPaneModel } from "../../data/vs/viewsheet-options-pane-model";
 import { ViewsheetOptionsPane } from "./viewsheet-options-pane.component";
 import { ViewsheetParametersDialog } from "./viewsheet-parameters-dialog.component";
-import { NumberStepperModule } from "../../../widget/number-stepper/number-stepper.module";
-
+import { NumberStepperComponent } from "../../../widget/number-stepper/number-stepper.component";
 let createModel: () => ViewsheetOptionsPaneModel = () => {
    return {
       useMetaData: false,
@@ -65,8 +64,8 @@ describe("Viewsheet Options Pane Unit Test", () => {
 
    beforeEach(() => {
       TestBed.configureTestingModule({
-         imports: [ ReactiveFormsModule, FormsModule, NgbModule, HttpClientTestingModule, NumberStepperModule ],
-         declarations: [ ViewsheetOptionsPane, ViewsheetParametersDialog, EnterSubmitDirective ],
+         imports: [ReactiveFormsModule, FormsModule, NgbModule, HttpClientTestingModule, ViewsheetOptionsPane, ViewsheetParametersDialog, EnterSubmitDirective],
+         
          schemas: [NO_ERRORS_SCHEMA]
       });
       TestBed.compileComponents();
@@ -126,7 +125,7 @@ describe("Viewsheet Options Pane Unit Test", () => {
    });
 
    //#17037, Bug #18366 the design mode data size input check
-   xit("Design mode data size input value check", () => {
+   it.skip("Design mode data size input value check", () => {
       dataSize  = fixture.nativeElement.querySelector("input[ng-reflect-name=maxRows]");
       vsOptionPane.model.selectDataSourceDialogModel.dataSource = {
          type: AssetType.QUERY

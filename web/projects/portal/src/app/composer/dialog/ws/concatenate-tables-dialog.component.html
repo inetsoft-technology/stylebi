@@ -1,20 +1,20 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <div class="modal-header">
   <h3 class="modal-title">_#(Concatenate Table)</h3>
   <button type="button" class="btn-close" (click)="close()" aria-label="Close"></button>
@@ -26,7 +26,7 @@
       <div class="col-auto">
         <div class="form-check">
           <input class="form-check-input" type="radio" name="concat" [(ngModel)]="concatType"
-               value="intersect" id="intersect">
+            value="intersect" id="intersect">
           <label class="form-check-label" for="intersect">
             _#(Intersect)
           </label>
@@ -35,16 +35,16 @@
       <div class="col-auto">
         <div class="form-check">
           <input class="form-check-input" type="radio" name="concat" [(ngModel)]="concatType"
-               value="union" id="union">
+            value="union" id="union">
           <label class="form-check-label" for="union">
-           _#(Union)
+            _#(Union)
           </label>
         </div>
       </div>
       <div class="col-auto">
         <div class="form-check">
           <input class="form-check-input" type="radio" name="concat" [(ngModel)]="concatType"
-               value="minus" id="minus">
+            value="minus" id="minus">
           <label class="form-check-label" for="minus">
             _#(Minus)
           </label>
@@ -54,8 +54,10 @@
     <legend>_#(Concatenating the following tables)</legend>
     <div class="shell-form-row--field row">
       <div class="col ms-2">
-        <div class="text-overflow ms-3" *ngFor="let _table of tables"
-             [attr.title]="_table.name">{{_table.name}}</div>
+        @for (_table of tables; track _table) {
+          <div class="text-overflow ms-3"
+          [attr.title]="_table.name">{{_table.name}}</div>
+        }
       </div>
     </div>
   </fieldset>

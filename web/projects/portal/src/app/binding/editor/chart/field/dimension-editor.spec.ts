@@ -37,6 +37,7 @@ import { BindingService } from "../../../services/binding.service";
 import { SortOption } from "../../sort-option.component";
 import { DimensionEditor } from "./dimension-editor.component";
 import { DateLevelExamplesService } from "../../../../common/services/date-level-examples.service";
+import { FixedDropdownDirective } from "../../../../widget/fixed-dropdown/fixed-dropdown.directive";
 
 describe("Dimension Editor Unit Test", () => {
    let chartBindingModel: ChartBindingModel;
@@ -46,13 +47,13 @@ describe("Dimension Editor Unit Test", () => {
       return dimRef;
    };
 
-   let bindingService = { getURLParams: jest.fn(() => new HttpParams()) };
+   let bindingService = { getURLParams: vi.fn(() => new HttpParams()) };
    let modelService = {
-      getModel: jest.fn(() => observableOf([])),
-      putModel: jest.fn(() => observableOf(new HttpResponse({body: null})))
+      getModel: vi.fn(() => observableOf([])),
+      putModel: vi.fn(() => observableOf(new HttpResponse({body: null})))
    };
-   let uiContextService = { isAdhoc: jest.fn() };
-   let examplesService = { loadDateLevelExamples: jest.fn(() => observableOf())};
+   let uiContextService = { isAdhoc: vi.fn() };
+   let examplesService = { loadDateLevelExamples: vi.fn(() => observableOf())};
 
    let fixture: ComponentFixture<DimensionEditor>;
    let dimensionEditor: DimensionEditor;
@@ -60,11 +61,16 @@ describe("Dimension Editor Unit Test", () => {
    beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule, DropDownTestModule
+            FormsModule,
+            ReactiveFormsModule,
+            NgbModule,
+            DropDownTestModule,
+            DimensionEditor,
+            SortOption,
+            DynamicComboBox,
+            FixedDropdownDirective,
          ],
-         declarations: [
-            DimensionEditor, SortOption, DynamicComboBox
-         ],
+         
          providers: [
             { provide: ModelService, useValue: modelService },
             { provide: BindingService, useValue: bindingService },

@@ -15,14 +15,15 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { DOCUMENT } from "@angular/common";
+
 import { HttpClient } from "@angular/common/http";
-import { Component, Inject, OnDestroy, OnInit } from "@angular/core";
+import { Component, Inject, OnDestroy, OnInit, DOCUMENT } from "@angular/core";
 import { Title } from "@angular/platform-browser";
-import { ActivatedRoute, Router } from "@angular/router";
+import { ActivatedRoute, Router, RouterLink, RouterLinkActive, RouterOutlet } from "@angular/router";
 import { NgbDatepickerConfig, NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { Subject, Subscription } from "rxjs";
 import { takeUntil } from "rxjs/operators";
+import { AiAssistantPanelComponent } from "../../../../shared/ai-assistant/ai-assistant-panel.component";
 import { AiAssistantService } from "../../../../shared/ai-assistant/ai-assistant.service";
 import { AiAssistantDialogService } from "../common/services/ai-assistant-dialog.service";
 import { LogoutService } from "../../../../shared/util/logout.service";
@@ -33,6 +34,9 @@ import { LicenseInfoService } from "../common/services/license-info.service";
 import { OpenComposerService } from "../common/services/open-composer.service";
 import { ComponentTool } from "../common/util/component-tool";
 import { GuiTool } from "../common/util/gui-tool";
+import { DefaultFocusDirective } from "../widget/directive/default-focus.directive";
+import { EnterClickDirective } from "../widget/directive/enter-click.directive";
+import { FixedDropdownDirective } from "../widget/fixed-dropdown/fixed-dropdown.directive";
 import { SecurityEnabledEvent } from "../../../../em/src/app/settings/security/security-settings-page/security-enabled-event";
 import { PortalCreationPermissions } from "./custom/portal-creation-permissions";
 import { PreferencesDialog } from "./dialog/preferences-dialog.component";
@@ -54,9 +58,18 @@ const SECURITY_ENABLED_URI = "../api/em/security/get-enable-security";
 declare const window: any;
 
 @Component({
-   selector: "portal-app",
-   templateUrl: "app.component.html",
-   styleUrls: ["app.component.scss"]
+    imports: [
+    RouterOutlet,
+    RouterLink,
+    RouterLinkActive,
+    AiAssistantPanelComponent,
+    FixedDropdownDirective,
+    EnterClickDirective,
+    DefaultFocusDirective
+],
+    selector: "portal-app",
+    templateUrl: "app.component.html",
+    styleUrls: ["app.component.scss"]
 })
 export class PortalAppComponent implements OnInit, OnDestroy {
    PortalTabs = PortalTabs;

@@ -17,8 +17,8 @@
  */
 import { HttpClient, HttpErrorResponse, HttpParams } from "@angular/common/http";
 import { Component, Inject, OnInit, ViewEncapsulation } from "@angular/core";
-import { UntypedFormBuilder, UntypedFormGroup, Validators } from "@angular/forms";
-import { MAT_DIALOG_DATA, MatDialogRef } from "@angular/material/dialog";
+import { UntypedFormBuilder, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
+import { MAT_DIALOG_DATA, MatDialogRef, MatDialogContent } from "@angular/material/dialog";
 import { Observable, of, throwError } from "rxjs";
 import { catchError, map } from "rxjs/operators";
 import { FormValidators } from "../../../../../../../shared/util/form-validators";
@@ -32,6 +32,16 @@ import { FlatTreeControl } from "@angular/cdk/tree";
 import { ViewsheetActionService } from "../../../schedule/task-action-pane/viewsheet-action.service";
 import { MatSnackBar } from "@angular/material/snack-bar";
 import { Tool } from "../../../../../../../shared/util/tool";
+import { MatProgressBar } from "@angular/material/progress-bar";
+import { MatIcon } from "@angular/material/icon";
+import { MatIconButton, MatButton } from "@angular/material/button";
+import { MatTree, MatTreeNodeDef, MatTreeNode, MatTreeNodePadding, MatTreeNodeToggle } from "@angular/material/tree";
+import { MatCheckbox } from "@angular/material/checkbox";
+
+import { MatInput } from "@angular/material/input";
+import { MatFormField, MatLabel, MatError } from "@angular/material/form-field";
+import { MatCard, MatCardContent } from "@angular/material/card";
+import { ModalHeaderComponent } from "../../../../common/util/modal-header/modal-header.component";
 
 export class RestoreAssetFlatNode extends FlatTreeNode<RestoreAssetTreeModel> {
    constructor(public expandable: boolean, public id: string, public name: string,
@@ -95,9 +105,31 @@ const RESTORE_AUTO_SAVE_TREE: string = "../api/em/content/repository/autosave/tr
 const RECOVER_AUTO_SAVE_ENTRY: string = "../api/em/content/repository/autosave/restore";
 
 @Component({
-   selector: "em-restore-asset-dialog",
-   templateUrl: "./restore-asset-dialog.component.html",
-   styleUrls: ["./restore-asset-dialog.component.scss"],
+    selector: "em-restore-asset-dialog",
+    templateUrl: "./restore-asset-dialog.component.html",
+    styleUrls: ["./restore-asset-dialog.component.scss"],
+    imports: [
+    ModalHeaderComponent,
+    MatDialogContent,
+    FormsModule,
+    ReactiveFormsModule,
+    MatCard,
+    MatCardContent,
+    MatFormField,
+    MatLabel,
+    MatInput,
+    MatError,
+    MatCheckbox,
+    MatTree,
+    MatTreeNodeDef,
+    MatTreeNode,
+    MatTreeNodePadding,
+    MatIconButton,
+    MatTreeNodeToggle,
+    MatIcon,
+    MatProgressBar,
+    MatButton
+]
 })
 
 export class RestoreAssetDialogComponent implements OnInit {

@@ -15,9 +15,9 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { ChangeDetectorRef, Component, EventEmitter, Input, OnInit, Output, } from "@angular/core";
+import { ChangeDetectorRef, Component, EventEmitter, Input, OnInit, Output } from "@angular/core";
 import { UntypedFormGroup } from "@angular/forms";
-import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
+import { NgbModal, NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, NgbNavOutlet } from "@ng-bootstrap/ng-bootstrap";
 import { LocalStorage } from "../../../common/util/local-storage.util";
 import { EmailDialogModel } from "../../model/email-dialog-model";
 import { EmailValidationResponse } from "./email-validation-response";
@@ -25,13 +25,30 @@ import { ComponentTool } from "../../../common/util/component-tool";
 import { ModelService } from "../../../widget/services/model.service";
 import { HttpParams } from "@angular/common/http";
 import { Tool } from "../../../../../../shared/util/tool";
+import { FileFormatPane } from "../file-format-pane.component";
+import { EmailPane } from "../../../widget/email-dialog/email-pane.component";
+import { EnterSubmitDirective } from "../../../widget/directive/enter-submit.directive";
+
+import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
 
 const CHECK_EMAIL_VALID_URI: string = "../api/vs/check-email-valid";
 const MAIL_HISTORY_KEY = LocalStorage.MAIL_HISTORY_KEY;
 
 @Component({
-   selector: "email-dialog",
-   templateUrl: "email-dialog.component.html",
+    selector: "email-dialog",
+    templateUrl: "email-dialog.component.html",
+    imports: [
+    ModalHeaderComponent,
+    EnterSubmitDirective,
+    NgbNav,
+    NgbNavItem,
+    NgbNavLink,
+    NgbNavLinkBase,
+    NgbNavContent,
+    EmailPane,
+    FileFormatPane,
+    NgbNavOutlet
+]
 })
 export class EmailDialog implements OnInit {
    @Input() model: EmailDialogModel;

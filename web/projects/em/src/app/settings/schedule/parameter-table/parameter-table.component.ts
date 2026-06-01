@@ -22,6 +22,12 @@ import { AddParameterDialogModel } from "../../../../../../shared/schedule/model
 import { AddParameterDialogComponent } from "../add-parameter-dialog/add-parameter-dialog.component";
 import { MessageDialog, MessageDialogType } from "../../../common/util/message-dialog";
 import { ValueTypes } from "../../../../../../portal/src/app/vsobjects/model/dynamic-value-model";
+import { MatError } from "@angular/material/form-field";
+import { MatIcon } from "@angular/material/icon";
+import { MatIconButton, MatButton } from "@angular/material/button";
+import { MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow } from "@angular/material/table";
+import { TitleCasePipe } from "@angular/common";
+import { MatCard, MatCardHeader, MatCardTitle, MatCardContent, MatCardActions } from "@angular/material/card";
 
 export interface Parameters {
    valid: boolean;
@@ -29,9 +35,10 @@ export interface Parameters {
 }
 
 @Component({
-   selector: "em-parameter-table",
-   templateUrl: "./parameter-table.component.html",
-   styleUrls: ["./parameter-table.component.scss"]
+    selector: "em-parameter-table",
+    templateUrl: "./parameter-table.component.html",
+    styleUrls: ["./parameter-table.component.scss"],
+    imports: [MatCard, MatCardHeader, MatCardTitle, MatCardContent, MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatIconButton, MatIcon, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, MatError, MatCardActions, MatButton, TitleCasePipe]
 })
 export class ParameterTableComponent implements OnInit, OnChanges {
    @Input() title: string = "_#(js:Creation Parameters)";

@@ -54,8 +54,7 @@ import { EditableTableComponent } from "../editable-table/editable-table.compone
 import { ParameterTable } from "../parameter-table/parameter-table.component";
 import { ActionAccordion } from "./action-accordian/action-accordion.component";
 import { TaskActionPane } from "./task-action-pane.component";
-import { CustomSelectModule } from "../../../../widget/custom-select/custom-select.module";
-
+import { CustomSelectComponent } from "../../../../widget/custom-select/custom-select.component";
 const createVSActionModel: () => GeneralActionModel = () => {
    return {
       label: "test action",
@@ -107,7 +106,9 @@ const createModel: () => TaskActionPaneModel = () => {
 
 @Component({
    selector: "test-app",
-   template: `<task-action-pane [model]="model" [taskName]="taskName" [parentForm]="form"></task-action-pane>`
+   template: `<task-action-pane [model]="model" [taskName]="taskName" [parentForm]="form"></task-action-pane>`,
+   standalone: true,
+   imports: [TaskActionPane]
 })
 class TestApp {
    @ViewChild(TaskActionPane, {static: true}) taskActionPane: TaskActionPane;
@@ -115,10 +116,10 @@ class TestApp {
    taskName = "Task1";
    form = new FormGroup({});
 }
-
 @Component({
    selector: "ckeditor",
-   template: "<div></div>"
+   template: "<div></div>",
+   standalone: true
 })
 class MockCkeditorComponent implements ControlValueAccessor {
    @Input()
@@ -140,17 +141,17 @@ class MockCkeditorComponent implements ControlValueAccessor {
 
 describe("Task Action Pane Unit Test", () => {
    let portalModelService = {
-      isDashboardEnabled: jest.fn(() => true),
-      isReportEnabled: jest.fn(() => true)
+      isDashboardEnabled: vi.fn(() => true),
+      isReportEnabled: vi.fn(() => true)
    };
    let scheduleUsersService = {
-      init: jest.fn(),
-      getOwners: jest.fn(() => new BehaviorSubject([]) ),
-      getGroups: jest.fn(() => new BehaviorSubject([]) ),
-      getRoles: jest.fn(() => new BehaviorSubject([]) ),
-      getEmailUsers: jest.fn(() => new BehaviorSubject([]) ),
-      getEmailGroups: jest.fn(() => new BehaviorSubject([]) ),
-      getAdminName: jest.fn(() => new BehaviorSubject("admin") ),
+      init: vi.fn(),
+      getOwners: vi.fn(() => new BehaviorSubject([]) ),
+      getGroups: vi.fn(() => new BehaviorSubject([]) ),
+      getRoles: vi.fn(() => new BehaviorSubject([]) ),
+      getEmailUsers: vi.fn(() => new BehaviorSubject([]) ),
+      getEmailGroups: vi.fn(() => new BehaviorSubject([]) ),
+      getAdminName: vi.fn(() => new BehaviorSubject("admin") ),
    };
 
    let fixture: ComponentFixture<TestApp>;
@@ -159,18 +160,42 @@ describe("Task Action Pane Unit Test", () => {
    beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule, HttpClientTestingModule, CustomSelectModule
+            FormsModule,
+            ReactiveFormsModule,
+            NgbModule,
+            HttpClientTestingModule,
+            TestApp,
+            ReplaceAllPipe,
+            TaskActionPane,
+            ActionAccordion,
+            GenericSelectableList,
+            ParameterTable,
+            AddParameterDialog,
+            EnterSubmitDirective,
+            EditableTableComponent,
+            EmailAddrDialog,
+            EmbeddedEmailPane,
+            QueryEmailPane,
+            IdentityTreeComponent,
+            ShuffleListComponent,
+            AssetTreeComponent,
+            TreeComponent,
+            TreeNodeComponent,
+            TooltipDirective,
+            TreeSearchPipe,
+            VariableInputDialog,
+            VariableValueEditor,
+            VariableCollectionSelector,
+            TimeInstantValueEditorComponent,
+            TimeValueEditorComponent,
+            DateValueEditorComponent,
+            TimepickerComponent,
+            CSVConfigPane,
+            EnterClickDirective,
+            NotificationsComponent,
+            MockCkeditorComponent,
          ],
-         declarations: [
-            TestApp, ReplaceAllPipe, TaskActionPane, ActionAccordion, GenericSelectableList,
-            ParameterTable, AddParameterDialog, EnterSubmitDirective,
-            EditableTableComponent, EmailAddrDialog, EmbeddedEmailPane, QueryEmailPane,
-            IdentityTreeComponent, ShuffleListComponent, AssetTreeComponent, TreeComponent,
-            TreeNodeComponent, TooltipDirective, TreeSearchPipe, VariableInputDialog,
-            VariableValueEditor, VariableCollectionSelector, TimeInstantValueEditorComponent,
-            TimeValueEditorComponent, DateValueEditorComponent, TimepickerComponent, CSVConfigPane,
-            EnterClickDirective, NotificationsComponent, MockCkeditorComponent
-         ],
+         
          providers: [
             NgbModal,
             { provide: PortalModelService, useValue: portalModelService},
@@ -180,6 +205,7 @@ describe("Task Action Pane Unit Test", () => {
             NO_ERRORS_SCHEMA
          ]
       });
+      TestBed.overrideComponent(TaskActionPane, { set: { imports: [] } });
       TestBed.compileComponents();
 
       fixture = TestBed.createComponent(TestApp);
@@ -189,7 +215,7 @@ describe("Task Action Pane Unit Test", () => {
 
    //Bug #19890 should pop up warning when to delete action
    it("should pop up warning when to delete action", () => {
-      let showConfirmDialog = jest.spyOn(ComponentTool, "showConfirmDialog");
+      let showConfirmDialog = vi.spyOn(ComponentTool, "showConfirmDialog");
       showConfirmDialog.mockImplementation(() => Promise.resolve("ok"));
       taskActionPane.deleteAction();
 

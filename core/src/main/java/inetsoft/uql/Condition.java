@@ -893,6 +893,9 @@ public class Condition extends AbstractCondition {
       if(str.equalsIgnoreCase("last year")) {
          result = getYear(now) - LAST_YEAR == getYear(date);
       }
+      else if(str.equalsIgnoreCase("next year")) {
+         result = getYear(now) - NEXT_YEAR == getYear(date);
+      }
       else if(str.equalsIgnoreCase("this year")) {
          result = getYear(now) - THIS_YEAR == getYear(date);
       }
@@ -1009,6 +1012,11 @@ public class Condition extends AbstractCondition {
          nmonths = getYear(now) * 12 + getMonth(now);
          dmonths = getYear(date) * 12 + getMonth(date);
          result = nmonths - LAST_MONTH == dmonths + THIS_YEAR * 12;
+      }
+      else if(str.equalsIgnoreCase("next month")) {
+         nmonths = getYear(now) * 12 + getMonth(now);
+         dmonths = getYear(date) * 12 + getMonth(date);
+         result = nmonths - NEXT_MONTH == dmonths;
       }
       else if(str.equalsIgnoreCase("this month last year")) {
          nmonths = getYear(now) * 12 + getMonth(now);
@@ -1239,6 +1247,11 @@ public class Condition extends AbstractCondition {
          w1 = getWeeks(date);
          w2 = getWeeks(now);
          result = w1 + LAST_WEEK == w2;
+      }
+      else if(str.equalsIgnoreCase("next week")) {
+         w1 = getWeeks(date);
+         w2 = getWeeks(now);
+         result = w1 + NEXT_WEEK == w2;
       }
       else if(str.equalsIgnoreCase("week before last week")) {
          w1 = getWeeks(date);
@@ -2215,6 +2228,10 @@ public class Condition extends AbstractCondition {
     */
    private static final int LAST_MONTH = 1;
    /**
+    * User defined next month.
+    */
+   private static final int NEXT_MONTH = -1;
+   /**
     * User defined this week.
     */
    private static final int THIS_WEEK = 0;
@@ -2222,6 +2239,14 @@ public class Condition extends AbstractCondition {
     * User defined last week.
     */
    private static final int LAST_WEEK = 1;
+   /**
+    * User defined next week.
+    */
+   private static final int NEXT_WEEK = -1;
+   /**
+    * User defined next year.
+    */
+   private static final int NEXT_YEAR = -1;
    /**
     * User defined the month.
     */

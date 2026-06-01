@@ -26,8 +26,8 @@ import { ColorMap } from "../../../common/data/color-map";
 import { ColorMappingDialogModel } from "../../data/chart/color-mapping-dialog-model";
 import * as V from "../../../common/data/visual-frame-model";
 import { TestUtils } from "../../../common/test/test-utils";
-import { CustomSelectModule } from "../../../widget/custom-select/custom-select.module";
-
+import { HttpClientTestingModule } from "@angular/common/http/testing";
+import { CustomSelectComponent } from "../../../widget/custom-select/custom-select.component";
 describe("Color Mapping Dialog Unit Test", () => {
    let createModel: () => ColorMappingDialogModel = () => {
       return {
@@ -100,11 +100,15 @@ describe("Color Mapping Dialog Unit Test", () => {
    beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule, CustomSelectModule
+            
+            HttpClientTestingModule,FormsModule,
+            ReactiveFormsModule,
+            NgbModule,
+            ColorMappingDialog,
+            ColorEditor,
+            ColorPicker,
          ],
-         declarations: [
-            ColorMappingDialog, ColorEditor, ColorPicker
-         ],
+         
          schemas: [NO_ERRORS_SCHEMA]
       }).compileComponents();
    }));
@@ -169,7 +173,7 @@ describe("Color Mapping Dialog Unit Test", () => {
    });
 
    //Bug #21331
-   it("should not commit duplicate option in color mapping dialog", (done) => {
+   it("should not commit duplicate option in color mapping dialog", () => new Promise<void>((done) => {
       fixture = TestBed.createComponent(ColorMappingDialog);
       colorMappingDialog = <ColorMappingDialog>fixture.componentInstance;
       colorMappingDialog.model = createModel();
@@ -189,5 +193,5 @@ describe("Color Mapping Dialog Unit Test", () => {
          done();
       });
       colorMappingDialog.ok();
-   });
+   }));
 });

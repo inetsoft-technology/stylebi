@@ -50,14 +50,12 @@ describe("Reorder Columns Dialog Test", () => {
    let elDown: HTMLElement;
 
    beforeEach(waitForAsync(() => {
-      modelService = { getModel: jest.fn(() => createModel()) };
-      tooltipService = { createToolTip: jest.fn() };
+      modelService = { getModel: vi.fn(() => createModel()) };
+      tooltipService = { createToolTip: vi.fn() };
 
       TestBed.configureTestingModule({
-         imports: [ NgbModule, HttpClientTestingModule ],
-         declarations: [
-            ReorderColumnsDialog, EnterSubmitDirective, LargeFormFieldComponent, TooltipDirective, ModalHeaderComponent
-         ],
+         imports: [NgbModule, HttpClientTestingModule, ReorderColumnsDialog, EnterSubmitDirective, LargeFormFieldComponent, TooltipDirective, ModalHeaderComponent],
+         
          providers: [
             { provide: ModelService, useValue: modelService },
             { provide: TooltipService, useValue: tooltipService },

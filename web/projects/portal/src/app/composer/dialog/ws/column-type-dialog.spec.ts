@@ -22,8 +22,9 @@ import { NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { ComboBox } from "../../../format/objects/combo-box.component";
 import { EnterSubmitDirective } from "../../../widget/directive/enter-submit.directive";
 import { ColumnTypeDialog } from "./column-type-dialog.component";
-import { CustomSelectModule } from "../../../widget/custom-select/custom-select.module";
+import { CustomSelectComponent } from "../../../widget/custom-select/custom-select.component";
 import { ColumnInfo } from "../../data/ws/column-info";
+import { HttpClientTestingModule } from "@angular/common/http/testing";
 
 describe("Column Type Dialog Unit Test", () => {
    let columnInfo: ColumnInfo = {
@@ -61,11 +62,15 @@ describe("Column Type Dialog Unit Test", () => {
    beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule, CustomSelectModule
+            
+            HttpClientTestingModule,FormsModule,
+            ReactiveFormsModule,
+            NgbModule,
+            ColumnTypeDialog,
+            EnterSubmitDirective,
+            ComboBox,
          ],
-         declarations: [
-            ColumnTypeDialog, EnterSubmitDirective, ComboBox
-         ],
+         
          schemas: [ NO_ERRORS_SCHEMA ]
       });
       TestBed.compileComponents();

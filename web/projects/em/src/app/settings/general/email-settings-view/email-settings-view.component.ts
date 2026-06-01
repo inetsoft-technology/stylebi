@@ -17,15 +17,8 @@
  */
 import { HttpClient } from "@angular/common/http";
 import { Component, EventEmitter, Input, OnDestroy, Output } from "@angular/core";
-import {
-   UntypedFormBuilder,
-   UntypedFormControl,
-   UntypedFormGroup,
-   FormGroupDirective,
-   NgForm,
-   Validators
-} from "@angular/forms";
-import { ErrorStateMatcher } from "@angular/material/core";
+import { UntypedFormBuilder, UntypedFormControl, UntypedFormGroup, FormGroupDirective, NgForm, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
+import { ErrorStateMatcher, MatOption } from "@angular/material/core";
 import { Subscription } from "rxjs";
 import {
    OAuthAuthorizationService,
@@ -42,6 +35,14 @@ import {
    SMTPAuthType,
 } from "./email-settings-model";
 import { ContextHelp } from "../../../context-help";
+import { MatButton } from "@angular/material/button";
+import { MatIcon } from "@angular/material/icon";
+import { MatSelect } from "@angular/material/select";
+import { MatCheckbox } from "@angular/material/checkbox";
+import { MatInput } from "@angular/material/input";
+import { MatFormField, MatLabel, MatError, MatSuffix } from "@angular/material/form-field";
+
+import { MatCard, MatCardTitle, MatCardContent, MatCardActions } from "@angular/material/card";
 
 @Searchable({
    route: "/settings/general#email",
@@ -53,9 +54,10 @@ import { ContextHelp } from "../../../context-help";
    link: "EMGeneralEmail"
 })
 @Component({
-   selector: "em-email-settings-view",
-   templateUrl: "./email-settings-view.component.html",
-   styleUrls: ["./email-settings-view.component.scss"]
+    selector: "em-email-settings-view",
+    templateUrl: "./email-settings-view.component.html",
+    styleUrls: ["./email-settings-view.component.scss"],
+    imports: [MatCard, MatCardTitle, MatCardContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatInput, MatError, MatCheckbox, MatSelect, MatOption, MatIcon, MatSuffix, MatCardActions, MatButton]
 })
 export class EmailSettingsViewComponent implements OnDestroy {
    @Output() modelChanged = new EventEmitter<GeneralSettingsChanges>();

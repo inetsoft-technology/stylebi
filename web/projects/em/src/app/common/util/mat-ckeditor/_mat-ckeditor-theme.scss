@@ -27,15 +27,15 @@
   $foreground: map-get($theme, foreground);
 
   :root {
-    --ck-color-base-foreground: #{mat.get-color-from-palette($background, background)} !important;
-    --ck-color-base-background: #{mat.get-color-from-palette($background, card)} !important;
-    --ck-color-button-default-hover-background: #{mat.get-color-from-palette($background, hover, 0.12)} !important;
-    --ck-color-button-on-background: #{mat.get-color-from-palette($background, hover, 0.12)} !important;
-    --ck-color-base-text: #{mat.get-color-from-palette($foreground, base)} !important;
-    --ck-color-base-active: #{mat.get-color-from-palette($background, hover, 0.12)} !important;
-    --ck-color-base-active-focus: #{mat.get-color-from-palette($accent)} !important;
-    --ck-color-focus-border: #{mat.get-color-from-palette($accent)} !important;
-    --ck-color-list-button-on-text: #{mat.get-color-from-palette($foreground, base)} !important;
-    --ck-color-focus-outer-shadow: #{mat.get-color-from-palette($accent, 300)} !important;
+    --ck-color-base-foreground: #{mat.m2-get-color-from-palette($background, background)} !important;
+    --ck-color-base-background: #{mat.m2-get-color-from-palette($background, card)} !important;
+    --ck-color-button-default-hover-background: #{mat.m2-get-color-from-palette($background, hover, 0.12)} !important;
+    --ck-color-button-on-background: #{mat.m2-get-color-from-palette($background, hover, 0.12)} !important;
+    --ck-color-base-text: #{mat.m2-get-color-from-palette($foreground, base)} !important;
+    --ck-color-base-active: #{mat.m2-get-color-from-palette($background, hover, 0.12)} !important;
+    --ck-color-base-active-focus: #{mat.m2-get-color-from-palette($accent)} !important;
+    --ck-color-focus-border: #{mat.m2-get-color-from-palette($accent)} !important;
+    --ck-color-list-button-on-text: #{mat.m2-get-color-from-palette($foreground, base)} !important;
+    --ck-color-focus-outer-shadow: #{mat.m2-get-color-from-palette($accent, 300)} !important;
   }
 }

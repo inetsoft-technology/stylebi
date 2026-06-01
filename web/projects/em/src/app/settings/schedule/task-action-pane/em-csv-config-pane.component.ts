@@ -18,12 +18,21 @@
 import { Component, EventEmitter, Input, OnInit, Output } from "@angular/core";
 import { CSVConfigModel } from "../../../../../../shared/schedule/model/csv-config-model";
 import { MatDialog } from "@angular/material/dialog";
-import { FormBuilder, FormGroup, Validators } from "@angular/forms";
+import { FormBuilder, FormGroup, Validators, FormsModule } from "@angular/forms";
+import { MatDivider } from "@angular/material/divider";
+import { MatList, MatListItem } from "@angular/material/list";
+import { MatLine } from "@angular/material/core";
+import { MatCard, MatCardContent } from "@angular/material/card";
+
+import { MatCheckbox } from "@angular/material/checkbox";
+import { MatInput } from "@angular/material/input";
+import { MatFormField, MatLabel, MatError } from "@angular/material/form-field";
 
 @Component({
-   selector: "em-csv-config-pane",
-   templateUrl: "./em-csv-config-pane.component.html",
-   styleUrls: ["./em-csv-config-pane.component.scss"]
+    selector: "em-csv-config-pane",
+    templateUrl: "./em-csv-config-pane.component.html",
+    styleUrls: ["./em-csv-config-pane.component.scss"],
+    imports: [MatFormField, MatLabel, MatInput, FormsModule, MatCheckbox, MatCard, MatCardContent, MatLine, MatList, MatListItem, MatDivider, MatError]
 })
 export class EmCSVConfigPaneComponent implements OnInit{
    @Input() csvConfigModel: CSVConfigModel = new CSVConfigModel();

@@ -17,16 +17,17 @@
  */
 import { SelectionModel } from "@angular/cdk/collections";
 import { Component, EventEmitter, Input, OnInit, Output, ViewChild } from "@angular/core";
-import { MatSort } from "@angular/material/sort";
-import { MatTableDataSource } from "@angular/material/table";
+import { MatSort, MatSortHeader } from "@angular/material/sort";
+import { MatTableDataSource, MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow } from "@angular/material/table";
 import { DateTypeFormatter } from "../../../../../../../../shared/util/date-type-formatter";
 import { Tool } from "../../../../../../../../shared/util/tool";
 import { SelectedAssetModel } from "../selected-asset-model";
 
 @Component({
-   selector: "em-selected-asset-list",
-   templateUrl: "./selected-asset-list.component.html",
-   styleUrls: ["./selected-asset-list.component.scss"]
+    selector: "em-selected-asset-list",
+    templateUrl: "./selected-asset-list.component.html",
+    styleUrls: ["./selected-asset-list.component.scss"],
+    imports: [MatTable, MatSort, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatSortHeader, MatCellDef, MatCell, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow]
 })
 export class SelectedAssetListComponent implements OnInit {
    @Input()

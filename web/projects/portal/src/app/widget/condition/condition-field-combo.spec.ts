@@ -32,6 +32,7 @@ import { ConditionFieldComboModel } from "./condition-field-combo-model";
 import { ConditionFieldComboComponent } from "./condition-field-combo.component";
 import { ConditionFieldComboListComponent } from "./condition-field-combo-list.component";
 import { SearchDataRefPipe } from "../pipe/search-data-ref.pipe";
+import { FixedDropdownDirective } from "../fixed-dropdown/fixed-dropdown.directive";
 
 let createModel: () => ConditionFieldComboModel = () => {
    return {
@@ -41,7 +42,9 @@ let createModel: () => ConditionFieldComboModel = () => {
 };
 
 @Component({
+   standalone: true,
    selector: "test-component",
+   imports: [ConditionFieldComboComponent],
    template: `<condition-field-combo [field]="field"
                                      [fieldsModel]="fieldsModel"></condition-field-combo>`
 })
@@ -64,17 +67,17 @@ describe ("condition field combo tree test", () => {
             ReactiveFormsModule,
             HttpClientTestingModule,
             NgbModule,
-            DropDownTestModule
-         ],
-         declarations: [
+            DropDownTestModule,
             ConditionFieldComboComponent,
             ConditionFieldComboListComponent,
             TreeComponent,
             TreeNodeComponent,
             TreeSearchPipe,
             SearchDataRefPipe,
-            TestComponent
+            FixedDropdownDirective,
+            TestComponent,
          ],
+         
          providers: [
             DragService
             //{provide: WizardService, useValue: wizard}

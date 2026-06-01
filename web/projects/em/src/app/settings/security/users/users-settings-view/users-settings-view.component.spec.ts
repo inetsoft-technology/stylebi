@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { HttpClientTestingModule } from "@angular/common/http/testing";
 import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { ComponentFixture, TestBed } from "@angular/core/testing";
@@ -29,8 +30,8 @@ import { MatSelectModule } from "@angular/material/select";
 import { NoopAnimationsModule } from "@angular/platform-browser/animations";
 import { RouterModule } from "@angular/router";
 import { AppInfoService } from "../../../../../../../shared/util/app-info.service";
-import { SecurityTableViewModule } from "../../security-table-view/security-table-view.module";
-import { SecurityTreeViewModule } from "../../security-tree-view/security-tree-view.module";
+import { SecurityTableViewComponent } from "../../security-table-view/security-table-view.component";
+import { SecurityTreeViewComponent } from "../../security-tree-view/security-tree-view.component";
 import { UsersSettingsViewComponent } from "./users-settings-view.component";
 
 describe("UsersSettingsViewComponent", () => {
@@ -42,7 +43,7 @@ describe("UsersSettingsViewComponent", () => {
          imports: [
             NoopAnimationsModule,
             RouterModule.forRoot([]),
-            SecurityTreeViewModule,
+            SecurityTreeViewComponent,
             MatSelectModule,
             MatDialogModule,
             HttpClientTestingModule,
@@ -53,11 +54,8 @@ describe("UsersSettingsViewComponent", () => {
             MatFormFieldModule,
             FormsModule,
             ReactiveFormsModule,
-            SecurityTableViewModule
-         ],
-         declarations: [
-            UsersSettingsViewComponent
-         ],
+            SecurityTableViewComponent,
+            UsersSettingsViewComponent],
          providers: [
             AppInfoService
          ],

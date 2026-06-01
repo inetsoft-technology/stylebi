@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { VSAssemblyScriptPaneModel } from "./vsassembly-script-pane-model";
 import { VSAssemblyScriptPane } from "./vsassembly-script-pane.component";
 

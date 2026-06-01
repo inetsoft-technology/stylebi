@@ -51,8 +51,10 @@ import { ParameterTable } from "../parameter-table/parameter-table.component";
 import { TaskConditionPane } from "./task-condition-pane.component";
 
 @Component({
+   standalone: true,
    selector: "test-app",
-   template: `<task-condition-pane [model]="model" [taskName]="taskName" [parentForm]="form" [taskDefaultTime]="true"></task-condition-pane>`
+   imports: [TaskConditionPane],
+   template: `<task-condition-pane [model]="model" [taskName]="taskName" [parentForm]="form" [taskDefaultTimeProperty]="true"></task-condition-pane>`
 })
 class TestApp {
    @ViewChild(TaskConditionPane, {static: true}) taskConditionPane: TaskConditionPane;
@@ -68,8 +70,8 @@ class TestApp {
 }
 
 describe("Task Condition Pane Unit Test", () => {
-   let ngbService = { open: jest.fn() };
-   let httpService = { get: jest.fn(), post: jest.fn() };
+   let ngbService = { open: vi.fn() };
+   let httpService = { get: vi.fn(), post: vi.fn() };
    let responseObservable = new BehaviorSubject(new Subject());
    httpService.get.mockImplementation(() => responseObservable);
    httpService.post.mockImplementation(() => responseObservable);
@@ -80,14 +82,25 @@ describe("Task Condition Pane Unit Test", () => {
    beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule, HttpClientModule
+            FormsModule,
+            ReactiveFormsModule,
+            NgbModule,
+            HttpClientModule,
+            TestApp,
+            ReplaceAllPipe,
+            TaskConditionPane,
+            ParameterTable,
+            EditableTableComponent,
+            AddParameterDialog,
+            EnterSubmitDirective,
+            DateValueEditorComponent,
+            TimeValueEditorComponent,
+            TimeInstantValueEditorComponent,
+            TimepickerComponent,
+            NotificationsComponent,
+            StartTimeEditor,
          ],
-         declarations: [
-            TestApp, ReplaceAllPipe, TaskConditionPane, ParameterTable, EditableTableComponent,
-            AddParameterDialog, EnterSubmitDirective, DateValueEditorComponent,
-            TimeValueEditorComponent, TimeInstantValueEditorComponent, TimepickerComponent,
-            NotificationsComponent, StartTimeEditor
-         ],
+         
          providers: [
             {
                provide: NgbModal, useValue: ngbService
@@ -98,6 +111,7 @@ describe("Task Condition Pane Unit Test", () => {
             ScheduleTaskNamesService
          ]
       });
+      TestBed.overrideComponent(TaskConditionPane, { set: { imports: [] } });
       TestBed.compileComponents();
    }));
 
@@ -105,7 +119,7 @@ describe("Task Condition Pane Unit Test", () => {
       fixture = TestBed.createComponent(TestApp);
       taskConditionPane = <TaskConditionPane>fixture.componentInstance.taskConditionPane;
       taskConditionPane.form = new FormGroup({});
-      taskConditionPane.convertTime = jest.fn().mockImplementation((a, b, c) => {
+      taskConditionPane.convertTime = vi.fn().mockImplementation((a, b, c) => {
          return a;
       });
       fixture.detectChanges();
@@ -113,7 +127,7 @@ describe("Task Condition Pane Unit Test", () => {
 
    //Bug #19519 should show current date when not set
    //Bug #19687 should show set date
-   xit("should show correct date in run once", () => {
+   it.skip("should show correct date in run once", () => {
       taskConditionPane.changeConditionType(0);
       fixture.detectChanges();
 
@@ -134,7 +148,7 @@ describe("Task Condition Pane Unit Test", () => {
    });
 
    //Bug #19517 select and deselect all function for weekly
-   xit("select and deselect all should work in weekly condition", () => {
+   it.skip("select and deselect all should work in weekly condition", () => {
       taskConditionPane.changeConditionType(TimeConditionType.EVERY_WEEK);
       taskConditionPane.timeCondition.type = TimeConditionType.EVERY_WEEK;
       fixture.detectChanges();
@@ -179,7 +193,7 @@ describe("Task Condition Pane Unit Test", () => {
 
    //Bug #19517 select and deselect all function for monthly
    //Bug #19518 should has default value for monthly
-   xit("select and deselect all should work in monthly condition", () => {
+   it.skip("select and deselect all should work in monthly condition", () => {
       taskConditionPane.changeConditionType(2);
       fixture.detectChanges();
 
@@ -223,7 +237,7 @@ describe("Task Condition Pane Unit Test", () => {
    });
 
    //Bug #19517 select and deselect all function for hourly
-   xit("select and deselect all should work in hourly condition", () => {
+   it.skip("select and deselect all should work in hourly condition", () => {
       taskConditionPane.changeConditionType(3);
       fixture.detectChanges();
 
@@ -278,7 +292,7 @@ describe("Task Condition Pane Unit Test", () => {
    });
 
    //Bug #19522 should not load self in chaind condition
-   xit("should not load self in chaind condition", () => { // broken test
+   it.skip("should not load self in chaind condition", () => { // broken test
       taskConditionPane.form.addControl("task", new FormControl({}));
       taskConditionPane.taskName = "Task1";
       taskConditionPane.model.conditions[0].conditionType = "CompletionCondition";
@@ -305,8 +319,8 @@ describe("Task Condition Pane Unit Test", () => {
    });
 
    //Bug #19890 should pop up warning when to delete condition
-   xit("should pop up warning when to delete condition", () => {
-      let showConfirmDialog = jest.spyOn(ComponentTool, "showConfirmDialog");
+   it.skip("should pop up warning when to delete condition", () => {
+      let showConfirmDialog = vi.spyOn(ComponentTool, "showConfirmDialog");
       showConfirmDialog.mockImplementation(() => Promise.resolve("ok"));
       taskConditionPane.deleteCondition();
 
@@ -314,7 +328,7 @@ describe("Task Condition Pane Unit Test", () => {
    });
 
    //Bug #19891 should not pop up warning when select all
-   xit("should not pop up warning when select all", () => {
+   it.skip("should not pop up warning when select all", () => {
       //weekly
       taskConditionPane.startTime = {hour: 10, minute: 30, second: 55};
       taskConditionPane.endTime = {hour: 11, minute: 30, second: 55};
@@ -378,7 +392,7 @@ describe("Task Condition Pane Unit Test", () => {
 
    //Bug #19849 should load default value for user defined condition
    //Bug #21421
-   xit("should load default value for user defined condition", () => {
+   it.skip("should load default value for user defined condition", () => {
       taskConditionPane.model.userDefinedClassLabels = ["Test1", "Test2"];
       taskConditionPane.changeConditionType(4);
       fixture.detectChanges();
@@ -390,7 +404,7 @@ describe("Task Condition Pane Unit Test", () => {
    });
 
    //Bug #19899 should disable delete when no condition selected for multiple schedule
-   xit("should disable delete when no condition selected for multiple schedule", () => {
+   it.skip("should disable delete when no condition selected for multiple schedule", () => {
       fixture.componentInstance.model.conditions =
          [{conditionType: "TimeCondition", label: "TimeCondition: 05:30:00, every 1 day(s)"},
             {conditionType: "TimeCondition", label: "TimeCondition: Sunday of Week, every 1 week(s)"}];
@@ -450,7 +464,7 @@ describe("Task Condition Pane Unit Test", () => {
    });
 
    //Bug #19860 should keep last condition
-   xit("should keep last condition", () => {
+   it.skip("should keep last condition", () => {
       taskConditionPane.changeConditionType(0);
       fixture.detectChanges();
 

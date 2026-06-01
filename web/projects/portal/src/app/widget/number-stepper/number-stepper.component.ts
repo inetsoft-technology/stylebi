@@ -31,6 +31,8 @@ import { ControlValueAccessor, NG_VALUE_ACCESSOR } from "@angular/forms";
 export type NumberStepperSize = "sm" | "md" | "lg";
 
 @Component({
+   standalone: true,
+   imports: [],
    selector: "number-stepper",
    templateUrl: "./number-stepper.component.html",
    styleUrls: ["./number-stepper.component.scss"],

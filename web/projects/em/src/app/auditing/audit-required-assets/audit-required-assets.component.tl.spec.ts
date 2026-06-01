@@ -38,9 +38,8 @@ import { render } from "@testing-library/angular";
 import { http, HttpResponse as MswHttpResponse } from "msw";
 import { firstValueFrom } from "rxjs";
 import { ActivatedRoute } from "@angular/router";
-import { MatSelectStub, makeErrorServiceMock } from "../testing/audit-test-utils";
 
-import { it } from "@jest/globals";
+import { MatSelectStub, makeErrorServiceMock } from "../testing/audit-test-utils";
 import { server } from "../../../../../../mocks/server";
 import { AuditRequiredAssetsComponent } from "./audit-required-assets.component";
 import { PageHeaderService } from "../../page-header/page-header.service";
@@ -66,7 +65,6 @@ const EMPTY_ADDITIONAL = {
    selectedTargetTypes: [] as string[],
    selectedTargetUsers: [] as string[],
 };
-
 
 function setupParamsEndpoint(response = MOCK_PARAMS) {
    server.use(
@@ -194,7 +192,6 @@ describe("AuditRequiredAssetsComponent — fetchData", () => {
       const errorService = makeErrorServiceMock();
       const { fixture } = await renderComponent(errorService);
 
-
       server.use(
          http.post("*/api/em/monitoring/audit/requiredAssets", () =>
             new MswHttpResponse(null, { status: 503 })
@@ -249,7 +246,7 @@ describe("AuditRequiredAssetsComponent — onTargetTypesChange", () => {
    // reference: targetUsers still points to the old [] and stays empty until
    // onTargetTypesChange is triggered manually by the user.
    // Fix: reassign targetUsers inside the tap() alongside allUsers.
-   it.failing("should populate targetUsers after fetchParameters resolves without any type-change interaction", async () => {
+   it.fails("should populate targetUsers after fetchParameters resolves without any type-change interaction", async () => {
       const { fixture } = await renderComponent();
       const comp = fixture.componentInstance;
 

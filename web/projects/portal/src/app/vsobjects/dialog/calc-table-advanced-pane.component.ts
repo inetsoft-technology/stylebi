@@ -18,13 +18,21 @@
 import { Component, Input, OnInit, ViewChild } from "@angular/core";
 import { TipPane } from "./graph/tip-pane.component";
 import { CalcTableAdvancedPaneModel } from "../model/calc-table-advanced-pane-model";
-import { UntypedFormControl, UntypedFormGroup, Validators } from "@angular/forms";
+import { UntypedFormControl, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { FormValidators } from "../../../../../shared/util/form-validators";
 import { NotificationsComponent } from "../../widget/notifications/notifications.component";
+import { NgClass } from "@angular/common";
 
+import { NumberStepperComponent } from "../../widget/number-stepper/number-stepper.component";
 @Component({
-   selector: "calc-table-advanced-pane",
-   templateUrl: "calc-table-advanced-pane.component.html",
+    selector: "calc-table-advanced-pane",
+    templateUrl: "calc-table-advanced-pane.component.html",
+    imports: [
+    FormsModule,
+    ReactiveFormsModule,
+    NgClass,
+    TipPane,
+    NotificationsComponent, NumberStepperComponent]
 })
 export class CalcTableAdvancedPane implements OnInit {
    @Input() model: CalcTableAdvancedPaneModel;

@@ -1,77 +1,89 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <modal-header [title]="'_#(Embedded Table)'" (onCancel)="cancelChanges()"
-              [cshid]="'EmbeddedTable'">
+  [cshid]="'EmbeddedTable'">
 </modal-header>
 <div class="modal-body" [enterSubmit]="formValid" (onEnter)="saveChanges()">
-  <form *ngIf="model" [formGroup]="form" class="container-fluid">
-    <div class="shell-form-row--field row">
-      <div class="col form-floating">
-        <input type="text" id="tableName" trim class="form-control" formControlName="name"
-               placeholder="_#(Name)">
-        <label><span>_#(Name)</span></label>
+  @if (model) {
+    <form [formGroup]="form" class="container-fluid">
+      <div class="form-row-float-label row">
+        <div class="col form-floating">
+          <input type="text" id="tableName" trim class="form-control" formControlName="name"
+            placeholder="_#(Name)">
+          <label><span>_#(Name)</span></label>
+        </div>
+        <div class="col-12">
+          @if (form.controls['name'].errors && form.controls['name'].errors['required']) {
+            <div
+              class="shell-alert shell-alert--danger">
+              _#(viewer.nameValid)
+            </div>
+          }
+          @if (form.controls['name'].errors &&
+            (form.controls['name'].errors['calcSpecialCharacters']
+            || form.controls['name'].errors['nameSpecialCharacters'] )) {
+            <div
+              class="shell-alert shell-alert--danger">
+              _#(viewer.worksheet.Grouping.SpecialChar)
+            </div>
+          }
+          @if (form.controls['name'].errors && form.controls['name'].errors['exists']) {
+            <div
+              class="shell-alert shell-alert--danger">
+              _#(viewer.worksheet.Grouping.nameAlready)
+            </div>
+          }
+        </div>
       </div>
-      <div class="col-12">
-        <div *ngIf="form.controls['name'].errors && form.controls['name'].errors['required']"
-             class="shell-alert shell-alert--danger">
-          _#(viewer.nameValid)
-        </div>
-        <div *ngIf="form.controls['name'].errors &&
-         (form.controls['name'].errors['calcSpecialCharacters']
-         || form.controls['name'].errors['nameSpecialCharacters'] )"
-          class="shell-alert shell-alert--danger">
-          _#(viewer.worksheet.Grouping.SpecialChar)
-        </div>
-        <div *ngIf="form.controls['name'].errors && form.controls['name'].errors['exists']"
-             class="shell-alert shell-alert--danger">
-          _#(viewer.worksheet.Grouping.nameAlready)
-        </div>
-      </div>
-    </div>
-    <div class="shell-form-row--field row">
-      <div class="col d-flex flex-column">
-        <label class="form-label">_#(Rows)</label>
-        <number-stepper formControlName="rows" [min]="0" [max]="10000"
+      <div class="form-row-float-label row">
+        <div class="col form-floating">
+          <number-stepper formControlName="rows" [min]="0" [max]="10000"
                         [invalid]="!!(form.controls['rows'].errors && !form.controls['rows'].pristine)">
         </number-stepper>
-      </div>
-      <div class="col-12">
-        <div *ngIf="form.controls['rows'].errors && !form.controls['rows'].pristine"
-             class="shell-alert shell-alert--danger">
-          _#(common.worksheet.embedded.rowLimit)
+          <label><span>_#(Rows)</span></label>
+        </div>
+        <div class="col-12">
+          @if (form.controls['rows'].errors && !form.controls['rows'].pristine) {
+            <div
+              class="shell-alert shell-alert--danger">
+              _#(common.worksheet.embedded.rowLimit)
+            </div>
+          }
         </div>
       </div>
-    </div>
-    <div class="shell-form-row--field row">
-      <div class="col d-flex flex-column">
-        <label class="form-label">_#(Columns)</label>
-        <number-stepper formControlName="cols" [min]="0" [max]="1000"
+      <div class="form-row-float-label row">
+        <div class="col form-floating">
+          <number-stepper formControlName="cols" [min]="0" [max]="1000"
                         [invalid]="!form.controls['cols'].valid && !form.controls['cols'].pristine">
         </number-stepper>
-      </div>
-      <div class="col-12">
-        <div *ngIf="form.controls['cols'].errors && !form.controls['cols'].pristine"
-             class="shell-alert shell-alert--danger">
-          _#(common.worksheet.embedded.colLimit)
+          <label><span>_#(Columns)</span></label>
+        </div>
+        <div class="col-12">
+          @if (form.controls['cols'].errors && !form.controls['cols'].pristine) {
+            <div
+              class="shell-alert shell-alert--danger">
+              _#(common.worksheet.embedded.colLimit)
+            </div>
+          }
         </div>
       </div>
-    </div>
-  </form>
+    </form>
+  }
 </div>
 
 <div class="modal-footer">

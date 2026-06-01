@@ -85,19 +85,19 @@ const makeModel = (
 
 function makeServiceMock() {
    return {
-      triggerUserListQuery: jest.fn(),
-      triggerGroupListQuery: jest.fn(),
-      triggerRoleListQuery: jest.fn(),
-      triggerOrganizationListQuery: jest.fn(),
-      triggerUsersQuery: jest.fn(),
-      triggerUserRolesQuery: jest.fn(),
-      triggerUserRoleListQuery: jest.fn(),
-      triggerUserEmailsQuery: jest.fn(),
-      triggerGroupUsersQuery: jest.fn(),
-      triggerOrganizationMembersQuery: jest.fn(),
-      triggerOrganizationNameQuery: jest.fn(),
-      testDatabaseConnection: jest.fn().mockReturnValue(of({ status: "Connected" })),
-      getAdminRoles: jest.fn().mockImplementation((_current: string, _form: UntypedFormGroup, sysAdmin: boolean) =>
+      triggerUserListQuery: vi.fn(),
+      triggerGroupListQuery: vi.fn(),
+      triggerRoleListQuery: vi.fn(),
+      triggerOrganizationListQuery: vi.fn(),
+      triggerUsersQuery: vi.fn(),
+      triggerUserRolesQuery: vi.fn(),
+      triggerUserRoleListQuery: vi.fn(),
+      triggerUserEmailsQuery: vi.fn(),
+      triggerGroupUsersQuery: vi.fn(),
+      triggerOrganizationMembersQuery: vi.fn(),
+      triggerOrganizationNameQuery: vi.fn(),
+      testDatabaseConnection: vi.fn().mockReturnValue(of({ status: "Connected" })),
+      getAdminRoles: vi.fn().mockImplementation((_current: string, _form: UntypedFormGroup, sysAdmin: boolean) =>
          of(sysAdmin ? "sys-a, sys-b" : "org-a, org-b"),
       ),
    };

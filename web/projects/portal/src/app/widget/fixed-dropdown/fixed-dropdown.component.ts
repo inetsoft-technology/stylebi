@@ -15,19 +15,20 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { DOCUMENT } from "@angular/common";
+
 import {
-   AfterViewInit,
-   Component,
-   ElementRef,
-   EventEmitter,
-   HostBinding,
-   Inject,
-   Input,
-   OnDestroy,
-   OnInit,
-   Output,
-   Renderer2
+  AfterViewInit,
+  Component,
+  ElementRef,
+  EventEmitter,
+  HostBinding,
+  Inject,
+  Input,
+  OnDestroy,
+  OnInit,
+  Output,
+  Renderer2,
+  DOCUMENT
 } from "@angular/core";
 import { Point } from "../../common/data/point";
 import { Rectangle } from "../../common/data/rectangle";
@@ -35,8 +36,9 @@ import { GuiTool } from "../../common/util/gui-tool";
 import { DropdownStackService } from "./dropdown-stack.service";
 
 @Component({
-   selector: "fixed-dropdown",
-   templateUrl: "fixed-dropdown.component.html"
+    selector: "fixed-dropdown",
+    templateUrl: "fixed-dropdown.component.html",
+    standalone: true
 })
 export class FixedDropdownComponent implements OnInit, AfterViewInit, OnDestroy {
    @Input() container: Element;

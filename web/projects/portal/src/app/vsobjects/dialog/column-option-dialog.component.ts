@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, EventEmitter, Output } from "@angular/core";
-import { UntypedFormGroup } from "@angular/forms";
+import { UntypedFormGroup, FormsModule } from "@angular/forms";
 import { ColumnOptionDialogModel } from "../model/column-option-dialog-model";
 import { IntegerEditorModel } from "../model/integer-editor-model";
 import { DateEditorModel } from "../model/date-editor-model";
@@ -25,11 +25,29 @@ import { FloatEditorModel } from "../model/float-editor-model";
 import { ColumnOptionType } from "../model/column-option-type";
 import { EditorModel } from "../model/editor-model";
 import { Tool } from "../../../../../shared/util/tool";
-import { CustomSelectOption } from "../../widget/custom-select/custom-select.component";
+import { ApplyButtonComponent } from "../../widget/slide-out/apply-button.component";
+import { FloatEditor } from "./float-editor.component";
+import { IntegerEditor } from "./integer-editor.component";
+import { DateEditor } from "./date-editor.component";
+import { ComboBoxEditor } from "./combo-box-editor.component";
+import { TextEditor } from "./text-editor.component";
+import { EnterSubmitDirective } from "../../widget/directive/enter-submit.directive";
+import { ModalHeaderComponent } from "../../widget/modal-header/modal-header.component";
+import { CustomSelectOption, CustomSelectComponent } from "../../widget/custom-select/custom-select.component";
 
 @Component({
-   selector: "column-option-dialog",
-   templateUrl: "column-option-dialog.component.html",
+    selector: "column-option-dialog",
+    templateUrl: "column-option-dialog.component.html",
+    imports: [
+    ModalHeaderComponent,
+    EnterSubmitDirective,
+    FormsModule,
+    TextEditor,
+    ComboBoxEditor,
+    DateEditor,
+    IntegerEditor,
+    FloatEditor,
+    ApplyButtonComponent, CustomSelectComponent]
 })
 export class ColumnOptionDialog {
    _model: ColumnOptionDialogModel;

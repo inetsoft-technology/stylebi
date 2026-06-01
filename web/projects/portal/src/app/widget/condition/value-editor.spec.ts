@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { NgModule } from "@angular/core";
 import { ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
@@ -30,8 +31,9 @@ import { StringValueEditor } from "./string-value-editor.component";
 import { ValueEditor } from "./value-editor.component";
 import { TimepickerComponent } from "../date-type-editor/timepicker.component";
 import { CharValueEditor } from "./char-value-editor.component";
-import { NumberStepperModule } from "../number-stepper/number-stepper.module";
+import { NumberStepperComponent } from "../number-stepper/number-stepper.component";
 import { DropDownTestModule } from "../../common/test/test-module";
+import { FixedDropdownDirective } from "../fixed-dropdown/fixed-dropdown.directive";
 
 describe("Value Editor Component Unit Case", () => {
    let fixture: ComponentFixture<ValueEditor>;
@@ -40,12 +42,21 @@ describe("Value Editor Component Unit Case", () => {
    beforeEach(() => {
       TestBed.configureTestingModule({
          imports: [
-            ReactiveFormsModule, FormsModule, NgbModule, DropDownTestModule, NumberStepperModule
-         ],
-         declarations: [
-            ValueEditor, StringValueEditor, NumberValueEditor, BooleanValueEditor,
-            DateValueEditorComponent, TimeValueEditorComponent, DateInValueEditor,
-            TimeInstantValueEditorComponent, CharValueEditor, TimepickerComponent
+            ReactiveFormsModule,
+            FormsModule,
+            NgbModule,
+            DropDownTestModule,
+            ValueEditor,
+            StringValueEditor,
+            NumberValueEditor,
+            BooleanValueEditor,
+            DateValueEditorComponent,
+            TimeValueEditorComponent,
+            DateInValueEditor,
+            TimeInstantValueEditorComponent,
+            CharValueEditor,
+            TimepickerComponent,
+            FixedDropdownDirective,
          ]
       });
 

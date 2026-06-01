@@ -1,6 +1,6 @@
-// Jest Snapshot v1, https://goo.gl/fbAQLP
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
-exports[`ViewsheetActions check status of menu actions of viewsheet in composer 1`] = `
+exports[`ViewsheetActions > check status of menu actions of viewsheet in composer 1`] = `
 [
   AssemblyActionGroup {
     "actions": [
@@ -103,7 +103,7 @@ exports[`ViewsheetActions check status of menu actions of viewsheet in composer 
 ]
 `;
 
-exports[`ViewsheetActions check status of menu actions of viewsheet in viewer and preview 1`] = `
+exports[`ViewsheetActions > check status of menu actions of viewsheet in viewer and preview 1`] = `
 [
   AssemblyActionGroup {
     "actions": [
@@ -206,7 +206,7 @@ exports[`ViewsheetActions check status of menu actions of viewsheet in viewer an
 ]
 `;
 
-exports[`ViewsheetActions check status of menu actions of viewsheet in viewer and preview 2`] = `
+exports[`ViewsheetActions > check status of menu actions of viewsheet in viewer and preview 2`] = `
 [
   AssemblyActionGroup {
     "actions": [

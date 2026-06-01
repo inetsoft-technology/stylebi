@@ -1,6 +1,6 @@
-// Jest Snapshot v1, https://goo.gl/fbAQLP
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
-exports[`SelectionTreeActions check status of menu actions and toolbar actions of selection tree in composer 1`] = `
+exports[`SelectionTreeActions > check status of menu actions and toolbar actions of selection tree in composer 1`] = `
 [
   AssemblyActionGroup {
     "actions": [
@@ -141,260 +141,7 @@ exports[`SelectionTreeActions check status of menu actions and toolbar actions o
 ]
 `;
 
-exports[`SelectionTreeActions check status of menu actions and toolbar actions of selection tree in composer 2`] = `
-[
-  AssemblyActionGroup {
-    "actions": [
-      {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-    ],
-    "icon": [Function],
-    "label": [Function],
-  },
-  AssemblyActionGroup {
-    "actions": [
-      {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-    ],
-    "icon": [Function],
-    "label": [Function],
-  },
-  AssemblyActionGroup {
-    "actions": [
-      {
-        "action": [Function],
-        "childAction": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-    ],
-    "icon": [Function],
-    "label": [Function],
-  },
-]
-`;
-
-exports[`SelectionTreeActions check status of menu actions and toolbar actions of selection tree in viewer and preview 1`] = `
-[
-  AssemblyActionGroup {
-    "actions": [
-      {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-    ],
-    "icon": [Function],
-    "label": [Function],
-  },
-  AssemblyActionGroup {
-    "actions": [
-      {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-    ],
-    "icon": [Function],
-    "label": [Function],
-  },
-  AssemblyActionGroup {
-    "actions": [
-      {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-    ],
-    "icon": [Function],
-    "label": [Function],
-  },
-  AssemblyActionGroup {
-    "actions": [
-      {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-    ],
-    "icon": [Function],
-    "label": [Function],
-  },
-]
-`;
-
-exports[`SelectionTreeActions check status of menu actions and toolbar actions of selection tree in viewer and preview 2`] = `
+exports[`SelectionTreeActions > check status of menu actions and toolbar actions of selection tree in composer 2`] = `
 [
   AssemblyActionGroup {
     "actions": [
@@ -506,7 +253,7 @@ exports[`SelectionTreeActions check status of menu actions and toolbar actions o
 ]
 `;
 
-exports[`SelectionTreeActions check status of menu actions and toolbar actions of selection tree in viewer and preview 3`] = `
+exports[`SelectionTreeActions > check status of menu actions and toolbar actions of selection tree in viewer and preview 1`] = `
 [
   AssemblyActionGroup {
     "actions": [
@@ -647,119 +394,7 @@ exports[`SelectionTreeActions check status of menu actions and toolbar actions o
 ]
 `;
 
-exports[`SelectionTreeActions check status of menu actions and toolbar actions of selection tree in viewer and preview 4`] = `
-[
-  AssemblyActionGroup {
-    "actions": [
-      {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-    ],
-    "icon": [Function],
-    "label": [Function],
-  },
-  AssemblyActionGroup {
-    "actions": [
-      {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-    ],
-    "icon": [Function],
-    "label": [Function],
-  },
-  AssemblyActionGroup {
-    "actions": [
-      {
-        "action": [Function],
-        "childAction": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-    ],
-    "icon": [Function],
-    "label": [Function],
-  },
-]
-`;
-
-exports[`SelectionTreeActions check status of menu actions and toolbar actions of selection tree in viewer when single selection 1`] = `
+exports[`SelectionTreeActions > check status of menu actions and toolbar actions of selection tree in viewer and preview 2`] = `
 [
   AssemblyActionGroup {
     "actions": [
@@ -871,7 +506,372 @@ exports[`SelectionTreeActions check status of menu actions and toolbar actions o
 ]
 `;
 
-exports[`SelectionTreeActions check status of toolbar actions of selection tree in composer when is dropdown 1`] = `
+exports[`SelectionTreeActions > check status of menu actions and toolbar actions of selection tree in viewer and preview 3`] = `
+[
+  AssemblyActionGroup {
+    "actions": [
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+    ],
+    "icon": [Function],
+    "label": [Function],
+  },
+  AssemblyActionGroup {
+    "actions": [
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+    ],
+    "icon": [Function],
+    "label": [Function],
+  },
+  AssemblyActionGroup {
+    "actions": [
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+    ],
+    "icon": [Function],
+    "label": [Function],
+  },
+  AssemblyActionGroup {
+    "actions": [
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+    ],
+    "icon": [Function],
+    "label": [Function],
+  },
+]
+`;
+
+exports[`SelectionTreeActions > check status of menu actions and toolbar actions of selection tree in viewer and preview 4`] = `
+[
+  AssemblyActionGroup {
+    "actions": [
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+    ],
+    "icon": [Function],
+    "label": [Function],
+  },
+  AssemblyActionGroup {
+    "actions": [
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+    ],
+    "icon": [Function],
+    "label": [Function],
+  },
+  AssemblyActionGroup {
+    "actions": [
+      {
+        "action": [Function],
+        "childAction": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+    ],
+    "icon": [Function],
+    "label": [Function],
+  },
+]
+`;
+
+exports[`SelectionTreeActions > check status of menu actions and toolbar actions of selection tree in viewer when single selection 1`] = `
+[
+  AssemblyActionGroup {
+    "actions": [
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+    ],
+    "icon": [Function],
+    "label": [Function],
+  },
+  AssemblyActionGroup {
+    "actions": [
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+    ],
+    "icon": [Function],
+    "label": [Function],
+  },
+  AssemblyActionGroup {
+    "actions": [
+      {
+        "action": [Function],
+        "childAction": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+    ],
+    "icon": [Function],
+    "label": [Function],
+  },
+]
+`;
+
+exports[`SelectionTreeActions > check status of toolbar actions of selection tree in composer when is dropdown 1`] = `
 [
   AssemblyActionGroup {
     "actions": [

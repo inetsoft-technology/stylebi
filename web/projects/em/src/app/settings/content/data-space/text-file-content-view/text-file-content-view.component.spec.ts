@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { CommonModule } from "@angular/common";
 import { HttpClientTestingModule } from "@angular/common/http/testing";
 import { NO_ERRORS_SCHEMA } from "@angular/core";
@@ -35,7 +36,7 @@ describe("TextFileContentViewComponent", () => {
 
    beforeEach(waitForAsync(() => {
       const dataSpaceTreeDataSource = {
-         nodeSelected: jest.fn(() => observableOf())
+         nodeSelected: vi.fn(() => observableOf())
       };
 
       TestBed.configureTestingModule({
@@ -47,11 +48,8 @@ describe("TextFileContentViewComponent", () => {
             MatIconModule,
             MatInputModule,
             MatFormFieldModule,
-            MatTooltipModule
-         ],
-         declarations: [
-            TextFileContentViewComponent
-         ],
+            MatTooltipModule,
+            TextFileContentViewComponent],
          providers: [
             { provide: DataSpaceTreeDataSource, useValue: dataSpaceTreeDataSource }
          ],

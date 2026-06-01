@@ -24,11 +24,15 @@ import { RankingValue } from "../../common/data/condition/ranking-value";
 import { DataRef } from "../../common/data/data-ref";
 import { XSchema } from "../../common/data/xschema";
 import { Tool } from "../../../../../shared/util/tool";
-import { CustomSelectOption } from "../custom-select/custom-select.component";
+import { FormsModule } from "@angular/forms";
+import { VariableEditor } from "./variable-editor.component";
+import { NumberValueEditor } from "./number-value-editor.component";
+import { CustomSelectOption, CustomSelectComponent } from "../custom-select/custom-select.component";
 
 @Component({
-   selector: "top-n-editor",
-   templateUrl: "top-n-editor.component.html"
+    selector: "top-n-editor",
+    templateUrl: "top-n-editor.component.html",
+    imports: [NumberValueEditor, VariableEditor, FormsModule, CustomSelectComponent]
 })
 export class TopNEditor implements OnChanges {
    @Input() field: DataRef;

@@ -17,10 +17,12 @@
  */
 import { Component, Input, Output, EventEmitter } from "@angular/core";
 import { ChartConfig } from "../../../../common/util/chart-config";
+import { NgClass } from "@angular/common";
 
 @Component({
-   selector: "line-item",
-   template: "<i [ngClass]='iconSource'></i>"
+    selector: "line-item",
+    template: "<i [ngClass]='iconSource'></i>",
+    imports: [NgClass]
 })
 export class LineItem {
    @Input() line: number;

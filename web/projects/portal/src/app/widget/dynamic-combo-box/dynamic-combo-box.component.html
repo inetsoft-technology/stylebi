@@ -1,97 +1,105 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <div #dropdownBody class="dynamic-combo-box-body w-100">
-  <ng-container *ngIf="type == ComboMode.VALUE">
+  @if (type == ComboMode.VALUE) {
     <ng-container [class.disable-actions]="disable">
-      <div *ngIf="!editable && mode == ValueMode.TEXT" draggable="true"
-           #valueTrigger
-           tooltipIf [disableTooltipIf]="!!tooltip"
-           class="display-style custom-select-trigger dynamic-combo-box__trigger form-control"
-           [ngClass]="getInputClass(value)"
-           [class.is-open]="valueDropdownOpen"
-           [class.disabled]="disable"
-           [attr.tabindex]="disable ? -1 : 0"
-           [fixedDropdown]="selectOnClick ? null : valueDropdownMenu"
-           (openChange)="handleValueDropdownOpenChange($event)"
-           dropdownPlacement="bottom" [attr.title]="tooltip"
-           [autoClose]="!asTree" [disabled]="disable">
-        <span class="dynamic-combo-box__display-text custom-select-trigger__text">{{getCurrentValue()}}&nbsp;</span>
-        <i *ngIf="isValuesDefinedAndNotEmpty()"
-           class="dynamic-combo-box__display-icon custom-select-trigger__icon dropdown-caret icon-color-default"
-           aria-hidden="true"
-           [class.chevron-down-icon]="!valueDropdownOpen"
-           [class.chevron-up-icon]="valueDropdownOpen"></i>
-      </div>
-      <input *ngIf="editable && mode == ValueMode.TEXT" class="form-control"
-             [class.is-invalid]="invalid"
-             [class.no-select-input-text]="!editable || disable"
-             #textInput [ngClass]="getInputClass(value)"
-             [placeholder]="promptString ? promptString : ''" type="text"
-             [ngModel]="getCurrentValue()"
-             (change)="onChanged($event)"
-             (focus)="selectOnClick ? $event.target.select() : null"
-             [fixedDropdown]="valueDropdownMenu"
-             dropdownPlacement="bottom"
-             [autoClose]="!asTree"
-             (ngModelChange)="onValueTyping.emit($event)"
-             [class.custom-select]="!editable && values && values.length > 0"
-             [class.disabled]="disable"
-             [readonly]="!editable" [disabled]="disable" [attr.title]="tooltip">
-      <input *ngIf="mode == ValueMode.NUMBER" class="form-control"
-             [class.disabled]="disable"
-             [placeholder]="promptString" #numberInput
-             type='number' [ngModel]="value" (change)="onChanged($event)"
-             [fixedDropdown]="valueDropdownMenu"
-             dropdownPlacement="bottom"
-             (ngModelChange)="onValueTyping.emit($event)"
-             [readonly]="!editable" [disabled]="disable" [attr.title]="value">
+      @if (!editable && mode == ValueMode.TEXT) {
+        <div draggable="true"
+          tooltipIf [disableTooltipIf]="!!tooltip"
+          class="display-style bd-gray form-control" [ngClass]="getInputClass(value)"
+          [class.span-as-dropdown]="isValuesDefinedAndNotEmpty()"
+          [class.custom-select]="isValuesDefinedAndNotEmpty()"
+          [class.disabled]="disable"
+          [fixedDropdown]="selectOnClick ? null : valueDropdownMenu"
+          dropdownPlacement="bottom" [attr.title]="tooltip"
+          [autoClose]="!asTree" [disabled]="disable">
+          {{getCurrentValue()}}&nbsp;
+        </div>
+      }
+      @if (editable && mode == ValueMode.TEXT) {
+        <input class="form-control"
+          [class.is-invalid]="invalid"
+          [class.no-select-input-text]="!editable || disable"
+          #textInput [ngClass]="getInputClass(value)"
+          [placeholder]="promptString ? promptString : ''" type="text"
+          [ngModel]="getCurrentValue()"
+          (change)="onChanged($event)"
+          (focus)="selectOnClick ? $event.target.select() : null"
+          [fixedDropdown]="valueDropdownMenu"
+          dropdownPlacement="bottom"
+          [autoClose]="!asTree"
+          (ngModelChange)="onValueTyping.emit($event)"
+          [class.custom-select]="!editable && values && values.length > 0"
+          [class.disabled]="disable"
+          [readonly]="!editable" [disabled]="disable" [attr.title]="tooltip">
+      }
+      @if (mode == ValueMode.NUMBER) {
+        <input class="form-control"
+          [class.disabled]="disable"
+          [placeholder]="promptString" #numberInput
+          type='number' [ngModel]="value" (change)="onChanged($event)"
+          [fixedDropdown]="valueDropdownMenu"
+          dropdownPlacement="bottom"
+          (ngModelChange)="onValueTyping.emit($event)"
+          [readonly]="!editable" [disabled]="disable" [attr.title]="value">
+      }
       <ng-template #valueDropdownMenu>
-        <div class="dropdown-container custom-select-menu dropdown-pane" role="menu" blockMouse
-             [style.min-width.px]="dropdownMinWidth"
-          *ngIf="values && values.length">
-          <ng-container *ngIf="!asTree">
-            <div *ngFor="let choice of values; let i = index" placement="bottom">
-              <a>
-                <div class="dropdown-item dropdown-item-label custom-select-option"
-                     [ngClass]="getDisplayClass(choice)"
-                     [attr.title]="getTreeColTooltip(choice.label)"
-                     (mousedown)="selectValue(choice)"
-                     (mouseup)="closeDropdowns(true)">
-                  <label *ngIf="isValueEnabled(choice)">
-                    {{choice.label ? choice.label : choice}}
-                  </label>
-                  <label *ngIf="isExampleEnable(i)" class="dropdown-item-example ms-2">
-                    {{examples[i]}}
-                  </label>
+        @if (values && values.length) {
+          <div class="dropdown-container custom-select-menu dropdown-pane" role="menu" blockMouse
+            [style.min-width.px]="dropdownMinWidth"
+            >
+            @if (!asTree) {
+              @for (choice of values; track choice; let i = $index) {
+                <div placement="bottom">
+                  <a>
+                    <div class="dropdown-item dropdown-item-label custom-select-option"
+                      [ngClass]="getDisplayClass(choice)"
+                      [attr.title]="getTreeColTooltip(choice.label)"
+                      (mousedown)="selectValue(choice)"
+                      (mouseup)="closeDropdowns()">
+                      @if (isValueEnabled(choice)) {
+                        <label>
+                          {{choice.label ? choice.label : choice}}
+                        </label>
+                      }
+                      @if (isExampleEnable(i)) {
+                        <label class="dropdown-item-example ms-2">
+                          {{examples[i]}}
+                        </label>
+                      }
+                    </div>
+                  </a>
                 </div>
-              </a>
-            </div>
-          </ng-container>
-          <tree *ngIf="asTree" [root]="valueTree" [showRoot]="false"
+              }
+            }
+            @if (asTree) {
+              <tree [root]="valueTree" [showRoot]="false"
                 [selectedNodes]="selectedNodes" [showIcon]="true" [grayedOutValues]="grayedOutValues"
                 (nodesSelected)="nodesSelected($event)" [showTooltip]="showTooltip"
                 [initSelectedNodesExpanded]="initSelectedNodesExpanded">
-          </tree>
-        </div>
+              </tree>
+            }
+          </div>
+        }
       </ng-template>
     </ng-container>
-  </ng-container>
-  <ng-container *ngIf="type == ComboMode.VARIABLE">
+  }
+  @if (type == ComboMode.VARIABLE) {
     <custom-select class="w-100"
                    [options]="variableSelectOptions"
                    [ngModel]="value"
@@ -100,45 +108,49 @@
                    (selectionChange)="valueChange.emit($event)"
                    data-test="variable-value-dropdown">
     </custom-select>
-  </ng-container>
-  <ng-container *ngIf="type == ComboMode.EXPRESSION">
+  }
+  @if (type == ComboMode.EXPRESSION) {
     <input type="text" class="form-control" [class.disabled]="disable" [ngModel]="value" [attr.title]="value"
-           (change)="onChanged($event)" [disabled]="disable">
+      (change)="onChanged($event)" [disabled]="disable">
     <button aria-hidden="true" class="btn input-group-btn-addon"
-            [class.disable-actions]="disable" [class.disabled]="disable"
-            (click)="showFormulaEditor()">
+      [class.disable-actions]="disable" [class.disabled]="disable"
+      (click)="showFormulaEditor()">
       <i class="formula-edit-icon icon-size-medium"></i>
     </button>
-  </ng-container>
+  }
 
   <ng-template #typeDropdown>
     <ul class="list-group" blockMouse>
       <li class="list-group-item">
         <a class="dropdown-item" [class.selected]="type == ComboMode.VALUE"
-           (click)="selectType($event, ComboMode.VALUE)">
+          (click)="selectType($event, ComboMode.VALUE)">
           _#(Value)
         </a>
       </li>
-      <li *ngIf="supportVariable" class="list-group-item">
-        <a class="dropdown-item" [class.selected]="type == ComboMode.VARIABLE"
-           [class.fade]="!isVariableEnabled()"
-           (click)="selectType($event, ComboMode.VARIABLE)">
-          _#(Variable)
-        </a>
-      </li>
+      @if (supportVariable) {
+        <li class="list-group-item">
+          <a class="dropdown-item" [class.selected]="type == ComboMode.VARIABLE"
+            [class.fade]="!isVariableEnabled()"
+            (click)="selectType($event, ComboMode.VARIABLE)">
+            _#(Variable)
+          </a>
+        </li>
+      }
       <li class="list-group-item">
         <a class="dropdown-item" [class.selected]="type == ComboMode.EXPRESSION"
-           (click)="selectType($event, ComboMode.EXPRESSION)">
+          (click)="selectType($event, ComboMode.EXPRESSION)">
           _#(Expression)
         </a>
       </li>
     </ul>
   </ng-template>
-  <button *ngIf="!valueOnly" class="type-toggle btn input-group-btn-addon"
-          keyboardNav="true" [class.disable-actions]="disable" [class.disabled]="disable"
-          [fixedDropdown]="typeDropdown" [autoClose]="true"
-          title="_#(Value Type)"
-          dropdownPlacement="bottom">
-    <i class="function-and-variable-icon icon-size-medium"></i>
-  </button>
+  @if (!valueOnly) {
+    <button class="type-toggle btn input-group-btn-addon"
+      keyboardNav="true" [class.disable-actions]="disable" [class.disabled]="disable"
+      [fixedDropdown]="typeDropdown" [autoClose]="true"
+      title="_#(Value Type)"
+      dropdownPlacement="bottom">
+      <i class="function-and-variable-icon icon-size-medium"></i>
+    </button>
+  }
 </div>

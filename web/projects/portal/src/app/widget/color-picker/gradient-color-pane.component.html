@@ -1,49 +1,53 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <div class="color-picker-palette" (window:mouseup)="endDrag()">
-   <div class="option-pane row">
-      <custom-select class="gradient-direction col-3"
+  <div class="option-pane row">
+    <custom-select class="gradient-direction col-3"
                      [options]="directionOptions"
                      [(ngModel)]="gradientColor.direction">
       </custom-select>
-      <span class="form-floating col-5" *ngIf="gradientColor.direction == 'linear'">
-         <custom-select [options]="angleOptions"
+    @if (gradientColor.direction == 'linear') {
+      <span class="form-floating col-5">
+        <custom-select [options]="angleOptions"
                         [(ngModel)]="gradientColor.angle">
          </custom-select>
-         <label>_#(Angle) (_#(degrees))</label>
+        <label>_#(Angle) (_#(degrees))</label>
       </span>
-      <button class="btn icon-hover-bg btn ms-auto" title="_#(Add)" (click)="addColor()">
-         <i class="add-icon icon-size-small"></i>
-         <span class="visually-hidden">_#(Add)</span>
-      </button>
-   </div>
+    }
+    <button class="btn icon-hover-bg btn ms-auto" title="_#(Add)" (click)="addColor()">
+      <i class="add-icon icon-size-small"></i>
+      <span class="visually-hidden">_#(Add)</span>
+    </button>
+  </div>
 
-   <div class="gradient-container" (mousemove)="move($event)">
-       <div class="display-color-pane" [style.background]="background">
-       </div>
-       <div class="gradient-slider">
-          <gradient-color-item *ngFor="let color of colors; let i = index" class="slider-item"
-               actionsContextmenuAnchor [actions]="actions"
-               [style.left.px]="300*color.offset/100 - 5"
-               [background]="color.color"
-               [disabled]="drage"
-               (gradientColorChanged)="selectColor($event, color)"
-               (mousedown)="startDrage($event, color, i)"></gradient-color-item>
-       </div>
-   </div>
+  <div class="gradient-container" (mousemove)="move($event)">
+    <div class="display-color-pane" [style.background]="background">
+    </div>
+    <div class="gradient-slider">
+      @for (color of colors; track color; let i = $index) {
+        <gradient-color-item class="slider-item"
+          actionsContextmenuAnchor [actions]="actions"
+          [style.left.px]="300*color.offset/100 - 5"
+          [background]="color.color"
+          [disabled]="drage"
+          (gradientColorChanged)="selectColor($event, color)"
+        (mousedown)="startDrage($event, color, i)"></gradient-color-item>
+      }
+    </div>
+  </div>
 </div>

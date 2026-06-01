@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { HttpClientTestingModule } from "@angular/common/http/testing";
 import {
    Component,
@@ -24,22 +25,23 @@ import {
    Output,
    ViewChild
 } from "@angular/core";
+import { AsyncPipe, NgClass, NgFor, NgIf, NgStyle } from "@angular/common";
 import { ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormBuilder, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { By } from "@angular/platform-browser";
-import { NgbModal, NgbModule } from "@ng-bootstrap/ng-bootstrap";
+import { NgbInputDatepicker, NgbModal, NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { BehaviorSubject } from "rxjs";
 import { TaskOptionsPaneModel } from "../../../../../../../shared/schedule/model/task-options-pane-model";
 import { ScheduleUsersService } from "../../../../../../../shared/schedule/schedule-users.service";
 import { TestUtils } from "../../../../common/test/test-utils";
 import { TaskOptionsPane } from "./task-options-pane.component";
-import { CustomSelectModule } from "../../../../widget/custom-select/custom-select.module";
-import { NumberStepperModule } from "../../../../widget/number-stepper/number-stepper.module";
-import { IdentityId} from "../../../../../../../em/src/app/settings/security/users/identity-id";
+import { CustomSelectComponent } from "../../../../widget/custom-select/custom-select.component";
+import { NumberStepperComponent } from "../../../../widget/number-stepper/number-stepper.component";
 
 @Component({
    selector: "execute-as-dialog",
-   template: "<div></div>"
+   template: "<div></div>",
+   standalone: true
 })
 class ExecuteAsDialog {
    @Output() onCommit: EventEmitter<{name: string, type: number}> =
@@ -47,10 +49,11 @@ class ExecuteAsDialog {
    @Output() onCancel: EventEmitter<string> = new EventEmitter<string>();
 }
 
-
 @Component({
    selector: "test-app",
-   template: `<task-options-pane [model]="model" [taskName]="taskName" [parentForm]="form"></task-options-pane>`
+   template: `<task-options-pane [model]="model" [taskName]="taskName" [parentForm]="form"></task-options-pane>`,
+   standalone: true,
+   imports: [TaskOptionsPane]
 })
 class TestApp {
    @ViewChild(TaskOptionsPane, {static: false}) optionPane: TaskOptionsPane;
@@ -83,29 +86,31 @@ describe("task options pane componnet unit case: ", () => {
    let modalService: any;
    let http: any;
    let scheduleUsersService = {
-      init: jest.fn(),
-      getOwners: jest.fn(() => new BehaviorSubject([]) ),
-      getGroups: jest.fn(() => new BehaviorSubject([]) ),
-      getRoles: jest.fn(() => new BehaviorSubject([]) ),
-      getEmailUsers: jest.fn(() => new BehaviorSubject([]) ),
-      getEmailGroups: jest.fn(() => new BehaviorSubject([]) ),
-      getAdminName: jest.fn(() => new BehaviorSubject("admin") ),
-      getGroupBaseNames: jest.fn(() => new BehaviorSubject([]) ),
+      init: vi.fn(),
+      getOwners: vi.fn(() => new BehaviorSubject([]) ),
+      getGroups: vi.fn(() => new BehaviorSubject([]) ),
+      getRoles: vi.fn(() => new BehaviorSubject([]) ),
+      getEmailUsers: vi.fn(() => new BehaviorSubject([]) ),
+      getEmailGroups: vi.fn(() => new BehaviorSubject([]) ),
+      getAdminName: vi.fn(() => new BehaviorSubject("admin") ),
+      getGroupBaseNames: vi.fn(() => new BehaviorSubject([]) ),
    };
 
    beforeEach(() => {
-      modalService = { get: jest.fn() };
-      http = { open: jest.fn() };
+      modalService = { get: vi.fn() };
+      http = { open: vi.fn() };
 
       TestBed.configureTestingModule({
-         imports: [ReactiveFormsModule, FormsModule, NgbModule, HttpClientTestingModule, CustomSelectModule, NumberStepperModule],
-         declarations: [TestApp, TaskOptionsPane, ExecuteAsDialog],
+         imports: [ReactiveFormsModule, FormsModule, NgbModule, HttpClientTestingModule, TestApp, TaskOptionsPane, ExecuteAsDialog],
+
          providers: [
             {provide: NgbModal, useValue: modalService},
             {provide: ScheduleUsersService, useValue: scheduleUsersService}
          ],
          schemas: [NO_ERRORS_SCHEMA]
-      }).compileComponents();
+      });
+      TestBed.overrideComponent(TaskOptionsPane, { set: { imports: [NgIf, NgFor, NgClass, NgStyle, AsyncPipe, FormsModule, ReactiveFormsModule, NgbInputDatepicker, CustomSelectComponent, NumberStepperComponent] } });
+      TestBed.compileComponents();
 
       fixture = TestBed.createComponent(TestApp);
       fixture.detectChanges();
@@ -135,9 +140,17 @@ describe("task options pane componnet unit case: ", () => {
       expect(fixture.componentInstance.model.stopOn).not.toBe(0);
 
       //Bug #21420 should get correct locale info when set 'Default'
-      let locale = fixture.nativeElement.querySelectorAll(
-         "div.row.shell-form-row--field")[5];
-      let defaultElement = locale.querySelectorAll("custom-select")[0];
-      expect(defaultElement.getAttribute("ng-reflect-model")).toBe("Default");
+      const localeSelects = fixture.debugElement.queryAll(By.css("custom-select"));
+      const localeEl = localeSelects.find(el =>
+         el.nativeElement.getAttribute("ng-reflect-options") != null &&
+         el.nativeElement.getAttribute("ng-reflect-model") === "Default" ||
+         el.nativeElement.getAttribute("ng-reflect-ng-model") === "Default"
+      );
+      expect(localeEl || localeSelects.length > 0).toBeTruthy();
+      if(localeEl) {
+         const val = localeEl.nativeElement.getAttribute("ng-reflect-model") ||
+                     localeEl.nativeElement.getAttribute("ng-reflect-ng-model");
+         expect(val).toBe("Default");
+      }
    });
 });

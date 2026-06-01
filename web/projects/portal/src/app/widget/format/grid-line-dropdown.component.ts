@@ -21,10 +21,12 @@ import { StyleConstants } from "../../common/util/style-constants";
 import { ChartConfig } from "../../common/util/chart-config";
 import { FixedDropdownDirective } from "../fixed-dropdown/fixed-dropdown.directive";
 
+
 @Component({
-   selector: "grid-line-dropdown",
-   templateUrl: "grid-line-dropdown.component.html",
-   styleUrls: ["grid-line-dropdown.component.scss"]
+    selector: "grid-line-dropdown",
+    templateUrl: "grid-line-dropdown.component.html",
+    styleUrls: ["grid-line-dropdown.component.scss"],
+    imports: [FixedDropdownDirective]
 })
 export class GridLineDropdown implements OnInit {
    @Input() lineStyle: number;

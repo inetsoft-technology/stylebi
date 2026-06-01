@@ -15,12 +15,13 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { of } from "rxjs";
 import { AiAssistantService, ContextType } from "./ai-assistant.service";
 
 function makeHttp(chatUrl = "", styleBIUrl = "") {
    return {
-      get: jest.fn().mockImplementation((url: string) => {
+      get: vi.fn().mockImplementation((url: string) => {
          if(url.includes("get-chat-app-server-url")) return of(chatUrl);
          if(url.includes("get-stylebi-url")) return of(styleBIUrl);
          return of(null);
@@ -48,7 +49,7 @@ describe("AiAssistantService", () => {
    });
 
    it("should default chatAppServerUrl to empty string when response is falsy", async () => {
-      const http = { get: jest.fn().mockReturnValue(of(null)) };
+      const http = { get: vi.fn().mockReturnValue(of(null)) };
       const s = new AiAssistantService(http as any, makeCurrentUserService());
       await (s as any)._serverUrlLoaded;
       expect(s.chatAppServerUrl).toBe("");
@@ -133,15 +134,20 @@ describe("AiAssistantService", () => {
 
    // ── setContextType ────────────────────────────────────────────────────────────
 
-   it.each([
+   // it.each() does not currently work with the zone.js vitest-patch; expand
+   // into individual it() calls instead.
+   const setContextTypeCases: ReadonlyArray<readonly [string, string]> = [
       ["VSChart",      ContextType.CHART],
       ["VSCrosstab",   ContextType.CROSSTAB],
       ["VSCalcTable",  ContextType.FREEHAND],
       ["VSTable",      ContextType.TABLE],
-   ])("setContextType(%s) sets contextType to %s", (objectType, expected) => {
-      service.setContextType(objectType);
-      expect(service.getContextField("contextType")).toBe(expected);
-   });
+   ];
+   for(const [objectType, expected] of setContextTypeCases) {
+      it(`setContextType(${objectType}) sets contextType to ${expected}`, () => {
+         service.setContextType(objectType);
+         expect(service.getContextField("contextType")).toBe(expected);
+      });
+   }
 
    it("setContextType with unknown type does not set contextType", () => {
       service.setContextType("VSGauge");

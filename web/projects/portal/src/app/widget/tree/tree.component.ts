@@ -41,6 +41,9 @@ import { VSUtil } from "../../vsobjects/util/vs-util";
 import { TreeNodeModel } from "./tree-node-model";
 import { TreeNodeComponent } from "./tree-node.component";
 import { VirtualScrollTreeDatasource } from "./virtual-scroll-tree-datasource";
+import { OutOfZoneDirective } from "../directive/out-of-zone.directive";
+import { FormsModule } from "@angular/forms";
+
 
 export enum TreeView {
    FULL_VIEW,
@@ -48,9 +51,10 @@ export enum TreeView {
 }
 
 @Component({
-   selector: "tree", // eslint-disable-line @angular-eslint/component-selector
-   templateUrl: "tree.component.html",
-   styleUrls: ["./tree.component.scss"]
+    selector: "tree",
+    templateUrl: "tree.component.html",
+    styleUrls: ["./tree.component.scss"],
+    imports: [FormsModule, OutOfZoneDirective, TreeNodeComponent]
 })
 export class TreeComponent implements OnInit, OnChanges, AfterViewChecked, AfterViewInit, OnDestroy {
    treeRef: TreeComponent = this;

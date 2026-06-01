@@ -32,11 +32,15 @@ import { VariableCollectionSelector } from "../variable-collection-selector/vari
 import {
    VariableValueEditor
 } from "../variable-list-dialog/variable-value-editor/variable-value-editor.component";
+import { EnterSubmitDirective } from "../../directive/enter-submit.directive";
+import { BlockMouseDirective } from "../../mouse-event/block-mouse.directive";
+
 
 @Component({
-   selector: "variable-input-dialog",
-   templateUrl: "variable-input-dialog.component.html",
-   styleUrls: ["variable-input-dialog.component.scss"]
+    selector: "variable-input-dialog",
+    templateUrl: "variable-input-dialog.component.html",
+    styleUrls: ["variable-input-dialog.component.scss"],
+    imports: [BlockMouseDirective, EnterSubmitDirective, VariableValueEditor, VariableCollectionSelector]
 })
 export class VariableInputDialog implements OnInit {
    @ViewChildren(VariableValueEditor) valueEditors: QueryList<VariableValueEditor>;

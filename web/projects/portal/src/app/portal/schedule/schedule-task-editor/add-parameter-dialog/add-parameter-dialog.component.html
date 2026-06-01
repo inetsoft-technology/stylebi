@@ -1,145 +1,175 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <modal-header [title]="title"
-              (onCancel)="cancelChanges()"
-              [cshid]="'ScheduleDashboardCreationParameters'">
+  (onCancel)="cancelChanges()"
+  [cshid]="'ScheduleDashboardCreationParameters'">
 </modal-header>
-<div class="modal-body" [enterSubmit]="enterSubmit" (onEnter)="ok()" *ngIf="model && form">
-  <form [formGroup]="form">
-    <div class="add-parameter-dialog__row row">
-      <div class="col">
-        <div class="form-floating">
-          <div class="input-group">
-            <input class="form-control" type="text"
-                   [(ngModel)]="model.name" formControlName="name"
-                   [class.is-invalid]="!form.controls['name'].valid"/>
-            <custom-select *ngIf="parameterNameSelectOptions.length > 0"
-                           class="parameter-name-picker"
-                           [options]="parameterNameSelectOptions"
-                           [ngModel]="selectedParameterName"
-                           [ngModelOptions]="{standalone: true}"
-                           (selectionChange)="selectParameterName($event)"
-                           ariaLabel="_#(Parameter Name)"
-                           placeholder="_#(Select)">
-            </custom-select>
+@if (model && form) {
+  <div class="modal-body" [enterSubmit]="enterSubmit" (onEnter)="ok()">
+    <form [formGroup]="form">
+      <div class="form-row-float-label row">
+        <div class="col">
+          <div class="form-floating">
+            <input class="form-control" type="text" placeholder="_#(Parameter Name)"
+                 [ngClass]="{'input-transparent': parameterNames && parameterNames.length > 0,
+                             'hideText' : parameterNames && parameterNames.includes(model.name)}"
+              [(ngModel)]="model.name" formControlName="name"
+              [class.is-invalid]="!form.controls['name'].valid"/>
+            <label>_#(Parameter Name)</label>
+            @if (parameterNames && parameterNames.length > 0) {
+              <select class="form-control"
+                [(ngModel)]="model.name" formControlName="name">
+                <option></option>
+                @for (name of parameterNames; track name) {
+                  <option [value]="name">{{name}}</option>
+                }
+              </select>
+            }
+            @if (form && form.controls['name'].errors
+              && form.controls['name'].errors['required']) {
+              <span class="invalid-feedback">_#(parameter.name.emptyValid)</span>
+            }
+            @if (form && form.controls['name'].errors
+              && form.controls['name'].errors['variableSpecialCharacters']) {
+              <span class="invalid-feedback">_#(parameter.name.characterValid)
+              </span>
+            }
           </div>
-          <label>_#(Parameter Name)</label>
-          <span class="invalid-feedback" *ngIf="form && form.controls['name'].errors
-            && form.controls['name'].errors['required']">_#(parameter.name.emptyValid)</span>
-          <span class="invalid-feedback" *ngIf="form && form.controls['name'].errors
-            && form.controls['name'].errors['variableSpecialCharacters']">_#(parameter.name.characterValid)
-          </span>
         </div>
       </div>
-    </div>
-    <div class="add-parameter-dialog__row row">
-      <div class="col">
-        <div class="form-floating">
-          <custom-select [options]="typeSelectOptions" formControlName="type"></custom-select>
-          <label>_#(Type)</label>
+      <div class="form-row-float-label row">
+        <div class="col">
+          <div class="form-floating">
+            <custom-select [options]="typeSelectOptions" formControlName="type"></custom-select>
+            <label>_#(Type)</label>
+          </div>
         </div>
-      </div>
-      <div class="col-auto">
-        <div class="form-check">
-          <input class="form-check-input" type="checkbox" formControlName="array" id="array">
-          <label class="form-check-label" for="array">
-            _#(Array)
-          </label>
-        </div>
-      </div>
-    </div>
-    <div *ngIf="isSupportDynamic() && !model.array" class="add-parameter-dialog__row row">
-      <div class="col" *ngIf="!model.array">
-        <div class="form-floating">
-          <dynamic-value-editor *ngIf="!model.array"
-                                [type]="model.type"
-                                [valueModel]="model.value"
-                                [columnTreeRoot]="getDynamicDates()"
-                                [supportVariable]="false" [expressionSubmitCallback]="getScriptTester()"
-                                [task]="true"
-                                (onValueModelChange)="updateDynamicValue()">
-          </dynamic-value-editor>
-          <label>_#(Value)</label>
-        </div>
-        <div *ngIf="!verifyDynamicValue()" class="shell-alert shell-alert--danger mb-0">
-          {{getErrorMessage()}}
-        </div>
-      </div>
-    </div>
-    <div *ngIf="!isSupportDynamic() && !model.array" class="add-parameter-dialog__option-row row">
-      <ng-container *ngIf="model.type == XSchema.BOOLEAN && !model.array">
         <div class="col-auto">
-          <label class="form-check-label">_#(Value):</label>
-        </div>
-        <div class="col">
           <div class="form-check">
-            <input type="radio" class="form-check-input" formControlName="value" id="true"
-                   [value]="true" [(ngModel)]="model.value.value">
-            <label class="form-check-label" for="true">
-              _#(True)
+            <input class="form-check-input" type="checkbox" formControlName="array" id="array">
+            <label class="form-check-label" for="array">
+              _#(Array)
             </label>
           </div>
-        </div>
-        <div class="col">
-          <div class="form-check">
-            <input type="radio" class="form-check-input" formControlName="value" id="false"
-                   [value]="false" [(ngModel)]="model.value.value">
-            <label class="form-check-label" for="false">
-              _#(False)
-            </label>
-          </div>
-        </div>
-      </ng-container>
-      <div class="col" *ngIf="model.type != XSchema.BOOLEAN && !model.array">
-        <div class="form-floating">
-          <date-value-editor *ngIf="model.type === XSchema.DATE && !model.array" [(ngModel)]="model.value.value"
-                             formControlName="value" class="w-100"></date-value-editor>
-          <time-value-editor *ngIf="model.type == XSchema.TIME && !model.array" [model]="model.value.value"
-                             (timeChange)="changeValue($event)" class="w-100"></time-value-editor>
-          <time-instant-value-editor *ngIf="model.type == XSchema.TIME_INSTANT && !model.array"
-                                     [(ngModel)]="model.value.value" [ngModelOptions]="{standalone: true}"
-                                     class="w-100" (timeChange)="changeValue($event)"></time-instant-value-editor>
-          <number-stepper formControlName="value"
-                          (valueChange)="model.value.value = $event"
-                          [inputmode]="'decimal'"
-                          *ngIf="XSchema.isNumericType(model.type) && !model.array">
-          </number-stepper>
-          <input type="text" class="form-control" formControlName="value"
-                 [(ngModel)]="model.value.value" *ngIf="model.type == XSchema.STRING || model.type == XSchema.CHARACTER && !model.array">
-          <label>_#(Value)</label>
         </div>
       </div>
-
-    </div>
-   <div class="add-parameter-dialog__row row">
-     <div class="col" *ngIf="model.array">
-       <div class="form-floating">
-         <input type="text" class="form-control" formControlName="value" [(ngModel)]="model.value.value">
-         <label>_#(Value)</label>
-         <div *ngIf="!verifyDynamicValue()" class="shell-alert shell-alert--danger mb-0">
-           {{getErrorMessage()}}
-         </div>
-       </div>
-     </div>
-   </div>
-  </form>
-</div>
+      @if (isSupportDynamic() && !model.array) {
+        <div class="form-row-float-label row">
+          @if (!model.array) {
+            <div class="col">
+              <div class="form-floating">
+                @if (!model.array) {
+                  <dynamic-value-editor
+                    [type]="model.type"
+                    [valueModel]="model.value"
+                    [columnTreeRoot]="getDynamicDates()"
+                    [supportVariable]="false" [expressionSubmitCallback]="getScriptTester()"
+                    [task]="true"
+                    (onValueModelChange)="updateDynamicValue()">
+                  </dynamic-value-editor>
+                }
+                <label>_#(Value)</label>
+              </div>
+              @if (!verifyDynamicValue()) {
+                <div class="shell-alert shell-alert--danger mb-0">
+                  {{getErrorMessage()}}
+                </div>
+              }
+            </div>
+          }
+        </div>
+      }
+      @if (!isSupportDynamic() && !model.array) {
+        <div class="form-row-float-label row">
+          @if (model.type == XSchema.BOOLEAN && !model.array) {
+            <div class="col-auto">
+              <label class="form-check-label">_#(Value):</label>
+            </div>
+            <div class="col">
+              <div class="form-check">
+                <input type="radio" class="form-check-input" formControlName="value" id="true"
+                  [value]="true" [(ngModel)]="model.value.value">
+                <label class="form-check-label" for="true">
+                  _#(True)
+                </label>
+              </div>
+            </div>
+            <div class="col">
+              <div class="form-check">
+                <input type="radio" class="form-check-input" formControlName="value" id="false"
+                  [value]="false" [(ngModel)]="model.value.value">
+                <label class="form-check-label" for="false">
+                  _#(False)
+                </label>
+              </div>
+            </div>
+          }
+          @if (model.type != XSchema.BOOLEAN && !model.array) {
+            <div class="col">
+              <div class="form-floating">
+                @if (model.type === XSchema.DATE && !model.array) {
+                  <date-value-editor [(ngModel)]="model.value.value"
+                  formControlName="value" class="w-100"></date-value-editor>
+                }
+                @if (model.type == XSchema.TIME && !model.array) {
+                  <time-value-editor [model]="model.value.value"
+                  (timeChange)="changeValue($event)" class="w-100"></time-value-editor>
+                }
+                @if (model.type == XSchema.TIME_INSTANT && !model.array) {
+                  <time-instant-value-editor
+                    [(ngModel)]="model.value.value" [ngModelOptions]="{standalone: true}"
+                  class="w-100" (timeChange)="changeValue($event)"></time-instant-value-editor>
+                }
+                @if (XSchema.isNumericType(model.type) && !model.array) {
+                  <number-stepper formControlName="value"
+                          (valueChange)="model.value.value = $event"
+                          [inputmode]="'decimal'">
+          </number-stepper>
+                }
+                @if (model.type == XSchema.STRING || model.type == XSchema.CHARACTER && !model.array) {
+                  <input type="text" class="form-control" formControlName="value"
+                    [(ngModel)]="model.value.value">
+                }
+                <label>_#(Value)</label>
+              </div>
+            </div>
+          }
+        </div>
+      }
+      <div class="form-row-float-label row">
+        @if (model.array) {
+          <div class="col">
+            <div class="form-floating">
+              <input type="text" class="form-control" formControlName="value" [(ngModel)]="model.value.value">
+              <label>_#(Value)</label>
+              @if (!verifyDynamicValue()) {
+                <div class="shell-alert shell-alert--danger mb-0">
+                  {{getErrorMessage()}}
+                </div>
+              }
+            </div>
+          </div>
+        }
+      </div>
+    </form>
+  </div>
+}
 <div class="modal-footer">
   <button type="button" class="btn btn-primary" (click)="ok()" [disabled]="!form.valid || !verifyDynamicValue()" #okButton>_#(OK)</button>
-  <button type="button" class="btn btn-default" (click)="close()">_#(Cancel)</button>
+  <button type="button" class="btn btn-default" data-dismiss="modal" (click)="close()">_#(Cancel)</button>
 </div>

@@ -19,12 +19,16 @@ import { Component, EventEmitter, Input, OnInit, Output } from "@angular/core";
 import { FormatInfoModel } from "../../common/data/format-info-model";
 import { LabelValueTuple } from "../../../../../shared/util/label-value-tuple";
 import { Format } from "../../common/util/format";
-import { CustomSelectOption } from "../../widget/custom-select/custom-select.component";
+import { ComboBox } from "./combo-box.component";
+import { DynamicComboBox } from "../../widget/dynamic-combo-box/dynamic-combo-box.component";
+import { FormsModule } from "@angular/forms";
+import { CustomSelectOption, CustomSelectComponent } from "../../widget/custom-select/custom-select.component";
 
 @Component({
-   selector: "formatting-pane",
-   templateUrl: "formatting-pane.component.html",
-   styleUrls: ["formatting-pane.component.scss"]
+    selector: "formatting-pane",
+    templateUrl: "formatting-pane.component.html",
+    styleUrls: ["formatting-pane.component.scss"],
+    imports: [FormsModule, DynamicComboBox, ComboBox, CustomSelectComponent]
 })
 export class FormattingPane {
    @Input() formatModel: FormatInfoModel;

@@ -15,12 +15,15 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Component, ElementRef, EventEmitter, Input, Output, ViewChild } from "@angular/core";
+import { Component, Input, Output, EventEmitter, ElementRef, ViewChild } from "@angular/core";
+import { FormsModule } from "@angular/forms";
+import { FixedDropdownDirective } from "../fixed-dropdown/fixed-dropdown.directive";
 
 @Component({
-   selector: "multi-select",
-   templateUrl: "multi-select.component.html",
-   styleUrls: ["multi-select.component.scss"]
+    selector: "multi-select",
+    templateUrl: "multi-select.component.html",
+    styleUrls: ["multi-select.component.scss"],
+    imports: [FixedDropdownDirective, FormsModule]
 })
 export class MultiSelect {
    @Input() items: any[] = [];

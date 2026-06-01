@@ -25,11 +25,17 @@ import {
    HSV,
    RGB
 } from "./color-utils";
+import { ColorComponentEditor } from "./color-component-editor.component";
+import { ColorSlider } from "./color-slider.component";
+import { ColorMap } from "./color-map.component";
+import { ModalHeaderComponent } from "../modal-header/modal-header.component";
+import { BlockMouseDirective } from "../mouse-event/block-mouse.directive";
 
 @Component({
-   selector: "cp-color-editor-dialog",
-   templateUrl: "color-editor-dialog.component.html",
-   styleUrls: ["color-editor-dialog.component.scss"]
+    selector: "cp-color-editor-dialog",
+    templateUrl: "color-editor-dialog.component.html",
+    styleUrls: ["color-editor-dialog.component.scss"],
+    imports: [BlockMouseDirective, ModalHeaderComponent, ColorMap, ColorSlider, ColorComponentEditor]
 })
 export class ColorEditorDialog implements OnInit {
    @Input() color: string;

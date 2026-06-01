@@ -31,10 +31,7 @@ import { PhysicalModelBrowserInfo } from "../../../model/datasources/database/ph
 import { LogicalModelBrowserInfo } from "../../../model/datasources/database/physical-model/logical-model/logical-model-browser-info";
 import { DataModelNameChangeService } from "../../../services/data-model-name-change.service";
 import { DataModelBrowserService } from "./data-model-browser.service";
-import {
-   ListColumn,
-   RouteLinkEntry
-} from "../../../asset-item-list-view/asset-item-list-view.component";
+import { ListColumn, RouteLinkEntry, AssetItemListViewComponent } from "../../../asset-item-list-view/asset-item-list-view.component";
 import { DatabaseAsset } from "../../../model/datasources/database/database-asset";
 import { AssemblyActionGroup } from "../../../../../common/action/assembly-action-group";
 import { ActionsContextmenuComponent } from "../../../../../widget/fixed-dropdown/actions-contextmenu.component";
@@ -51,8 +48,11 @@ import { GuiTool } from "../../../../../common/util/gui-tool";
 import { AssetType } from "../../../../../../../../shared/data/asset-type";
 import { AssetEntry } from "../../../../../../../../shared/data/asset-entry";
 import { ComponentTool } from "../../../../../common/util/component-tool";
-import {DataModelBrowserModel} from "./data-model-browser-model";
+import { DataModelBrowserModel } from "./data-model-browser-model";
 import { AppInfoService } from "../../../../../../../../shared/util/app-info.service";
+import { AssetDescriptionComponent } from "../../asset-description/asset-description.component";
+import { DatabaseDataModelToolbarComponent } from "./database-data-model-toolbar.component";
+import { NgClass } from "@angular/common";
 
 const LOGICAL_MODEL_ASSET: string = "logical_model";
 const PHYSICAL_VIEW_ASSET: string = "physical_model";
@@ -67,8 +67,9 @@ export enum ActionType {
 }
 
 @Component({
-   templateUrl: "./database-data-model-browser.component.html",
-   styleUrls: ["./database-data-model-browser.component.scss"]
+    templateUrl: "./database-data-model-browser.component.html",
+    styleUrls: ["./database-data-model-browser.component.scss"],
+    imports: [NgClass, DatabaseDataModelToolbarComponent, AssetItemListViewComponent, AssetDescriptionComponent, NotificationsComponent]
 })
 export class DatabaseDataModelBrowserComponent implements OnDestroy, OnInit {
    @ViewChild("notifications") notifications: NotificationsComponent;

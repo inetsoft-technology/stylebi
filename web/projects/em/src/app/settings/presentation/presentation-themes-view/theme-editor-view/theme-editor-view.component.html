@@ -1,51 +1,55 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <div class="theme-editor-view">
-  <div class="flex theme-editor-container" *ngIf="theme">
-    <em-editor-panel
-      contentClass="tabbed-editor-panel-content"
-      [applyDisabled]="!themeValid"
-      (applyClicked)="themeSaved.emit(theme)"
-      (resetClicked)="reset()"
-      >
-      <mat-tab-group color="accent" [selectedIndex]="selectedTab" (selectedTabChange)="onSelectedTabChanged($event)">
-        <mat-tab label="_#(Theme)">
-          <em-theme-properties-view
-            [theme]="theme"
-            [themeNames]="themeNames"
-            [isSiteAdmin]="isSiteAdmin"
-            [orgId]="orgId"
-            [isMultiTenant]="isMultiTenant"
-            (themePropertiesChanged)="onThemePropertiesChanged($event)"
+  @if (theme) {
+    <div class="flex theme-editor-container">
+      <em-editor-panel
+        contentClass="tabbed-editor-panel-content"
+        [applyDisabled]="!themeValid"
+        (applyClicked)="themeSaved.emit(theme)"
+        (resetClicked)="reset()"
+        >
+        <mat-tab-group color="accent" [selectedIndex]="selectedTab" (selectedTabChange)="onSelectedTabChanged($event)">
+          <mat-tab label="_#(Theme)">
+            <em-theme-properties-view
+              [theme]="theme"
+              [themeNames]="themeNames"
+              [isSiteAdmin]="isSiteAdmin"
+              [orgId]="orgId"
+              [isMultiTenant]="isMultiTenant"
+              (themePropertiesChanged)="onThemePropertiesChanged($event)"
             ></em-theme-properties-view>
-        </mat-tab>
-        <mat-tab label="_#(CSS)">
-          <em-theme-css-view #cssView
-            [theme]="theme"
-            [isSiteAdmin]="isSiteAdmin"
-            [isMultiTenant]="isMultiTenant"
-            (themeCssChanged)="onThemeCssChanged($event)"
+          </mat-tab>
+          <mat-tab label="_#(CSS)">
+            <em-theme-css-view #cssView
+              [theme]="theme"
+              [isSiteAdmin]="isSiteAdmin"
+              [isMultiTenant]="isMultiTenant"
+              (themeCssChanged)="onThemeCssChanged($event)"
             ></em-theme-css-view>
-        </mat-tab>
-      </mat-tab-group>
-      <ng-container em-editor-panel-actions>
-        <button [disabled]="!isSiteAdmin && theme?.global && isMultiTenant" mat-button *ngIf="selectedTab === 1" (click)="clearCss()">_#(Clear)</button>
-      </ng-container>
-    </em-editor-panel>
-  </div>
+          </mat-tab>
+        </mat-tab-group>
+        <ng-container em-editor-panel-actions>
+          @if (selectedTab === 1) {
+            <button [disabled]="!isSiteAdmin && theme?.global && isMultiTenant" mat-button (click)="clearCss()">_#(Clear)</button>
+          }
+        </ng-container>
+      </em-editor-panel>
+    </div>
+  }
 </div>

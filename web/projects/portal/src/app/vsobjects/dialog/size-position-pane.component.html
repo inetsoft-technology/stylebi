@@ -1,116 +1,136 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <form [formGroup]="form" class="container-fluid">
   <fieldset>
     <legend>_#(Layout)</legend>
-    <div class="row shell-form-row--field">
+    <div class="row form-row-float-label">
       <div class="col">
         <div class="d-flex flex-column">
-          <label class="form-label">_#(Top)</label>
           <number-stepper formControlName="top"
                           (valueChange)="model.top = $event"
                           [disabled]="!layoutEnabled || model.locked"
                           [invalid]="layoutEnabled && !!form.controls['top'].errors">
           </number-stepper>
+          <label>_#(Top)</label>
         </div>
       </div>
-      <div class="col">
+      <div class="col layout-col-offset">
         <div class="d-flex flex-column">
-          <label class="form-label">_#(Left)</label>
           <number-stepper formControlName="left"
                           (valueChange)="model.left = $event"
                           [disabled]="!layoutEnabled || model.locked"
                           [invalid]="layoutEnabled && !!form.controls['left'].errors">
           </number-stepper>
+          <label>_#(Left)</label>
         </div>
       </div>
-      <div class="col" *ngIf="!isGroup && !isViewsheet">
-        <div class="d-flex flex-column">
-          <label class="form-label">_#(Width)</label>
-          <number-stepper formControlName="width"
+      <div class="col layout-col-offset">
+        @if (!isGroup && !isViewsheet) {
+          <div class="d-flex flex-column">
+            <number-stepper formControlName="width"
                           (valueChange)="model.width = $event"
                           [disabled]="!layoutEnabled || model.locked"
                           [invalid]="layoutEnabled && !!form.controls['width'].errors">
           </number-stepper>
-        </div>
+            <label>_#(Width)</label>
+          </div>
+        }
       </div>
-      <div class="col" *ngIf="!isGroup && !isViewsheet">
-        <div class="d-flex flex-column">
-          <label class="form-label">_#(Height)</label>
-          <number-stepper formControlName="height"
+      <div class="col layout-col-offset">
+        @if (!isGroup && !isViewsheet) {
+          <div class="d-flex flex-column">
+            <number-stepper formControlName="height"
                           (valueChange)="model.height = $event"
                           [disabled]="!layoutEnabled || model.locked"
                           [invalid]="layoutEnabled && !!form.controls['height'].errors">
           </number-stepper>
-        </div>
+            <label>_#(Height)</label>
+          </div>
+        }
       </div>
-    </div>
-    <div class="row shell-form-row--field" *ngIf="showTitleHeight || showCellHeight">
-      <div class="col" *ngIf="showTitleHeight">
-        <div class="d-flex flex-column">
-          <label class="form-label fw-bold mt-2">_#(Title Height)</label>
-          <number-stepper formControlName="titleHeight"
+      @if (showTitleHeight) {
+        <div class="col layout-col-offset">
+          <div class="d-flex flex-column">
+            <number-stepper formControlName="titleHeight"
                           (valueChange)="model.titleHeight = $event"
                           [invalid]="!!form.controls['titleHeight'].errors">
           </number-stepper>
+            <label>_#(Title Height)</label>
+          </div>
         </div>
-      </div>
-      <div class="col" *ngIf="showCellHeight">
-        <div class="d-flex flex-column">
-          <label class="form-label fw-bold mt-2">_#(Cell Height)</label>
-          <number-stepper formControlName="cellHeight"
+      }
+      @if (showCellHeight) {
+        <div class="col layout-col-offset">
+          <div class="d-flex flex-column">
+            <number-stepper formControlName="cellHeight"
                           (valueChange)="model.cellHeight = $event"
                           [invalid]="!!form.controls['cellHeight'].errors">
           </number-stepper>
+            <label>_#(Cell Height)</label>
+          </div>
         </div>
-      </div>
+      }
     </div>
-    <div class="row shell-form-row--field" *ngIf="showScaleVertical">
-      <div class="col-auto">
-        <div class="checkbox">
-          <div class="form-check">
-            <input id="scaleV" type="checkbox" class="form-check-input" id="scaleV"
-                   formControlName="scaleVertical"
-                   [(ngModel)]="model.scaleVertical" [disabled]="!layoutEnabled || model.locked"/>
-            <label class="form-check-label" for="scaleV">
-              _#(Scale vertically when scaling to screen)
-            </label>
+    @if (showScaleVertical) {
+      <div class="row form-row-float-label">
+        <div class="col-auto">
+          <div class="checkbox">
+            <div class="form-check">
+              <input id="scaleV" type="checkbox" class="form-check-input" id="scaleV"
+                formControlName="scaleVertical"
+                [(ngModel)]="model.scaleVertical" [disabled]="!layoutEnabled || model.locked"/>
+              <label class="form-check-label" for="scaleV">
+                _#(Scale vertically when scaling to screen)
+              </label>
+            </div>
           </div>
         </div>
       </div>
-    </div>
+    }
   </fieldset>
-  <div class="shell-alert shell-alert--danger" *ngIf="layoutEnabled && form.controls['top'].errors">
-    _#(viewer.viewsheet.layout.topValid)
-  </div>
-  <div class="shell-alert shell-alert--danger" *ngIf="layoutEnabled && form.controls['left'].errors">
-    _#(viewer.viewsheet.layout.leftValid)
-  </div>
-  <div class="shell-alert shell-alert--danger" *ngIf="layoutEnabled && form.controls['width'].errors">
-    _#(viewer.viewsheet.layout.widthValid)
-  </div>
-  <div class="shell-alert shell-alert--danger" *ngIf="layoutEnabled && form.controls['height'].errors">
-    _#(viewer.viewsheet.layout.heightValid)
-  </div>
-  <div class="shell-alert shell-alert--danger" *ngIf="showTitleHeight && form.controls['titleHeight'].errors">
-    _#(viewer.viewsheet.layout.titleHeightValid)
-  </div>
-  <div class="shell-alert shell-alert--danger" *ngIf="showCellHeight && form.controls['cellHeight'].errors">
-    _#(viewer.viewsheet.layout.cellHeightValid0)
-  </div>
+  @if (layoutEnabled && form.controls['top'].errors) {
+    <div class="shell-alert shell-alert--danger">
+      _#(viewer.viewsheet.layout.topValid)
+    </div>
+  }
+  @if (layoutEnabled && form.controls['left'].errors) {
+    <div class="shell-alert shell-alert--danger">
+      _#(viewer.viewsheet.layout.leftValid)
+    </div>
+  }
+  @if (layoutEnabled && form.controls['width'].errors) {
+    <div class="shell-alert shell-alert--danger">
+      _#(viewer.viewsheet.layout.widthValid)
+    </div>
+  }
+  @if (layoutEnabled && form.controls['height'].errors) {
+    <div class="shell-alert shell-alert--danger">
+      _#(viewer.viewsheet.layout.heightValid)
+    </div>
+  }
+  @if (showTitleHeight && form.controls['titleHeight'].errors) {
+    <div class="shell-alert shell-alert--danger">
+      _#(viewer.viewsheet.layout.titleHeightValid)
+    </div>
+  }
+  @if (showCellHeight && form.controls['cellHeight'].errors) {
+    <div class="shell-alert shell-alert--danger">
+      _#(viewer.viewsheet.layout.cellHeightValid0)
+    </div>
+  }
 </form>

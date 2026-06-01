@@ -17,10 +17,13 @@
  */
 import { Component, Input } from "@angular/core";
 import { CSSPaneModel } from "../model/css-pane-model";
+import { FormsModule } from "@angular/forms";
 
 @Component({
-   selector: "css-pane",
-   templateUrl: "css-pane.component.html"
+    selector: "css-pane",
+    templateUrl: "css-pane.component.html",
+    standalone: true,
+    imports: [FormsModule]
 })
 export class CSSPane {
    @Input() model: CSSPaneModel;

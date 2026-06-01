@@ -18,9 +18,10 @@
 import { Component } from "@angular/core";
 
 @Component({
-   selector: "linear-line-pane",
-   templateUrl: "linear-line-pane.component.html",
-   styleUrls: ["linear-line-pane.component.scss"]
+    selector: "linear-line-pane",
+    templateUrl: "linear-line-pane.component.html",
+    styleUrls: ["linear-line-pane.component.scss"],
+    standalone: true
 })
 
 export class LinearLinePane {

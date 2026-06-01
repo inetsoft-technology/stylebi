@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { Component, NO_ERRORS_SCHEMA, Optional } from "@angular/core";
 import { TestBed } from "@angular/core/testing";
 import { By } from "@angular/platform-browser";
@@ -23,11 +24,14 @@ import {
    ComposerToken, ContextProvider, EmbedToken,
    ViewerContextProviderFactory
 } from "../../context-provider.service";
+import { InteractService } from "../../../widget/interact/interact.service";
 import { VSTitle } from "./vs-title.component";
 
 @Component({
    selector: "test-app",
-   template: "<vs-title [titleFormat]='titleFormat' [titleVisible]='titleVisible'></vs-title>"
+   template: "<vs-title [titleFormat]='titleFormat' [titleVisible]='titleVisible'></vs-title>",
+   standalone: true,
+   imports: [VSTitle]
 })
 class TestApp {
    public titleFormat = TestUtils.createMockVSFormatModel();
@@ -37,7 +41,7 @@ class TestApp {
 describe("VSTitle", () => {
    beforeEach(() => {
       TestBed.configureTestingModule({
-         declarations: [
+         imports: [
             TestApp,
             VSTitle
          ],
@@ -46,7 +50,8 @@ describe("VSTitle", () => {
                provide: ContextProvider,
                useFactory: ViewerContextProviderFactory,
                deps: [[new Optional(), ComposerToken], [new Optional(), EmbedToken]]
-            }
+            },
+            { provide: InteractService, useValue: { addInteractable: vi.fn(), removeInteractable: vi.fn(), notify: vi.fn() } }
          ],
          schemas: [NO_ERRORS_SCHEMA]
       });

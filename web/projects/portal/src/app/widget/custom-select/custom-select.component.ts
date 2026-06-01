@@ -31,6 +31,8 @@ import {
 import { ControlValueAccessor, NG_VALUE_ACCESSOR } from "@angular/forms";
 import { Tool } from "../../../../../shared/util/tool";
 import { FixedDropdownDirective } from "../fixed-dropdown/fixed-dropdown.directive";
+import { FormsModule } from "@angular/forms";
+import { CommonModule } from "@angular/common";
 
 export interface CustomSelectOption<T = any> {
    label: string;
@@ -46,6 +48,8 @@ let nextListboxId = 0;
    selector: "custom-select",
    templateUrl: "./custom-select.component.html",
    styleUrls: ["./custom-select.component.scss"],
+   standalone: true,
+   imports: [FixedDropdownDirective, FormsModule, CommonModule],
    providers: [{
       provide: NG_VALUE_ACCESSOR,
       useExisting: forwardRef(() => CustomSelectComponent),

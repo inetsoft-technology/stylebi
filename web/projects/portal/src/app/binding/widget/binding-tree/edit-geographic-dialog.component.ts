@@ -18,10 +18,13 @@
 import { Component, EventEmitter, Input, OnInit, Output } from "@angular/core";
 import { GeoProvider } from "../../../common/data/geo-provider";
 import { ChartGeoRef } from "../../data/chart/chart-geo-ref";
+import { GeoOptionPane } from "../../editor/chart/field/geo-option-pane.component";
+import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
 
 @Component({
-   selector: "edit-geographic-dialog",
-   templateUrl: "edit-geographic-dialog.component.html",
+    selector: "edit-geographic-dialog",
+    templateUrl: "edit-geographic-dialog.component.html",
+    imports: [ModalHeaderComponent, GeoOptionPane]
 })
 export class EditGeographicDialog implements OnInit {
    @Input()

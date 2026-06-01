@@ -70,11 +70,34 @@ import { ChartPlotArea } from "./chart-plot-area.component";
 import { Plot } from "../model/plot";
 import { PagingControlModel } from "../../vsobjects/model/paging-control-model";
 import { PagingControlService } from "../../common/services/paging-control.service";
+import { ChartNavBar } from "./chart-nav-bar.component";
+import { ChartLegendArea } from "./chart-legend-area.component";
+import { ChartLegendContainer } from "./chart-legend-container.component";
+import { ChartTitleArea } from "./chart-title-area.component";
+import { TooltipDirective } from "../../widget/tooltip/tooltip.directive";
+import { ChartAxisArea } from "./chart-axis-area.component";
+import { ChartFacetArea } from "./chart-facet.component";
+import { MouseEventDirective } from "../../widget/mouse-event/mouse-event.directive";
+import { OutOfZoneDirective } from "../../widget/directive/out-of-zone.directive";
+import { NgStyle } from "@angular/common";
 
 @Component({
-   selector: "chart-area",
-   templateUrl: "chart-area.component.html",
-   styleUrls: ["chart-area.component.scss"],
+    selector: "chart-area",
+    templateUrl: "chart-area.component.html",
+    styleUrls: ["chart-area.component.scss"],
+    imports: [
+    NgStyle,
+    OutOfZoneDirective,
+    MouseEventDirective,
+    ChartFacetArea,
+    ChartAxisArea,
+    TooltipDirective,
+    ChartPlotArea,
+    ChartTitleArea,
+    ChartLegendContainer,
+    ChartLegendArea,
+    ChartNavBar
+]
 })
 export class ChartArea implements OnInit, OnChanges, OnDestroy {
    @Input() zIndex: number;

@@ -1,23 +1,23 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <modal-header [title]="'_#(Subquery)'"
-              (onCancel)="cancel()"
-              [cshid]="'DataBlockConditions'">
+  (onCancel)="cancel()"
+  [cshid]="'DataBlockConditions'">
 </modal-header>
 <div class="modal-body">
   <form ngNoForm (submit)="$event.preventDefault()">
@@ -41,9 +41,11 @@
           <label>_#(In column)</label>
         </div>
       </div>
-      <div *ngIf="!isValid()" class="shell-alert shell-alert--danger">
-        The identification columns should be both empty or non-empty.
-      </div>
+      @if (!isValid()) {
+        <div class="shell-alert shell-alert--danger">
+          _#(identification.columns.empty.or.nonempty)
+        </div>
+      }
     </fieldset>
     <fieldset>
       <legend>_#(Where)</legend>

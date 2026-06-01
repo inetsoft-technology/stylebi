@@ -61,7 +61,7 @@ const targetTree: TreeNodeModel = {
 };
 
 describe("Calendar Data Pane Unit Test", () => {
-   let changeRef = { detectChanges: jest.fn() };
+   let changeRef = { detectChanges: vi.fn() };
    let fixture: ComponentFixture<CalendarDataPane>;
    let calendarDataPane: CalendarDataPane;
    let dragService: any;
@@ -71,11 +71,15 @@ describe("Calendar Data Pane Unit Test", () => {
 
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule
+            FormsModule,
+            ReactiveFormsModule,
+            NgbModule,
+            CalendarDataPane,
+            TreeComponent,
+            TreeNodeComponent,
+            TreeSearchPipe,
          ],
-         declarations: [
-            CalendarDataPane, TreeComponent, TreeNodeComponent, TreeSearchPipe
-         ],
+         
          providers: [
             { provide: ChangeDetectorRef, useValue: changeRef },
             { provide: DragService, useValue: dragService }

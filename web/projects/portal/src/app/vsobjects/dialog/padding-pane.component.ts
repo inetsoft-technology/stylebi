@@ -17,12 +17,17 @@
  */
 import { Component, Input, OnInit } from "@angular/core";
 import { PaddingPaneModel } from "../model/padding-pane-model";
-import { UntypedFormControl, UntypedFormGroup, Validators } from "@angular/forms";
+import { UntypedFormControl, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { FormValidators } from "../../../../../shared/util/form-validators";
 
+
+import { NumberStepperComponent } from "../../widget/number-stepper/number-stepper.component";
 @Component({
-   selector: "padding-pane",
-   templateUrl: "padding-pane.component.html",
+    selector: "padding-pane",
+    templateUrl: "padding-pane.component.html",
+    imports: [
+    FormsModule,
+    ReactiveFormsModule, NumberStepperComponent]
 })
 export class PaddingPane implements OnInit {
    @Input() model: PaddingPaneModel;
@@ -52,6 +57,8 @@ export class PaddingPane implements OnInit {
    }
 
    ngOnInit(): void {
-      this.initForm();
+      if(this.model) {
+         this.initForm();
+      }
    }
 }

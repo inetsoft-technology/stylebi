@@ -20,6 +20,7 @@ import { Component, EventEmitter, Input, OnChanges, Output, SimpleChanges } from
 import { AssetItem } from "../../model/datasources/database/asset-item";
 import { LogicalModelBrowserInfo } from "../../model/datasources/database/physical-model/logical-model/logical-model-browser-info";
 
+
 interface WorksheetRootTableAssemblyInfo {
   name: string;
   kind: string;
@@ -52,10 +53,12 @@ interface WorksheetDependentAssetInfo {
   type: string;
 }
 
+
 @Component({
-  selector: "asset-description",
-  templateUrl: "./asset-description.component.html",
-  styleUrls: ["./asset-description.component.scss"]
+    selector: "asset-description",
+    templateUrl: "./asset-description.component.html",
+    styleUrls: ["./asset-description.component.scss"],
+    imports: []
 })
 export class AssetDescriptionComponent implements OnChanges {
   @Input() selectedFile: AssetItem;

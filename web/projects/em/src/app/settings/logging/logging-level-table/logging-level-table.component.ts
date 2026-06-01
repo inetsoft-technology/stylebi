@@ -18,15 +18,16 @@
 import { Component, EventEmitter, Input } from "@angular/core";
 import { Output } from "@angular/core";
 import { TableInfo } from "../../../common/util/table/table-info";
-import { TableAction } from "../../../common/util/table/table-view.component";
+import { TableAction, TableView } from "../../../common/util/table/table-view.component";
 import { MatDialog } from "@angular/material/dialog";
 import { LogLevelDTO } from "../LogLevelDTO";
 import { AddLoggingLevelDialogComponent } from "../add-logging-level-dialog/add-logging-level-dialog.component";
 
 @Component({
-   selector: "em-logging-level-table",
-   templateUrl: "./logging-level-table.component.html",
-   styleUrls: ["./logging-level-table.component.scss"]
+    selector: "em-logging-level-table",
+    templateUrl: "./logging-level-table.component.html",
+    styleUrls: ["./logging-level-table.component.scss"],
+    imports: [TableView]
 })
 export class LoggingLevelTableComponent {
    @Input() loggingLevels: LogLevelDTO[] = [];

@@ -17,7 +17,7 @@
  */
 import { HttpClient } from "@angular/common/http";
 import { NO_ERRORS_SCHEMA } from "@angular/core";
-import { ComponentFixture, TestBed, waitForAsync } from "@angular/core/testing";
+import { ComponentFixture, TestBed } from "@angular/core/testing";
 import { ActivatedRoute, Router } from "@angular/router";
 import { NgbModal, NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { EMPTY, of as observableOf, Subject } from "rxjs";
@@ -41,6 +41,9 @@ import { ComposerRecentService } from "./composer-recent.service";
 import { ResizeHandlerService } from "./resize-handler.service";
 import { ScriptService } from "./script/script.service";
 import { ComposerObjectService } from "./vs/composer-object.service";
+import { ComposerClientService } from "./composer-client.service";
+import { ScaleService } from "../../widget/services/scale/scale-service";
+import { VSScaleService } from "../../widget/services/scale/vs-scale.service";
 
 describe("ComposerMain Unit Tests", () => {
    const oldBroadcastChannel = window.BroadcastChannel;
@@ -60,53 +63,53 @@ describe("ComposerMain Unit Tests", () => {
    let appInfoService: any;
    let fontService: any;
 
-   beforeEach(waitForAsync(() => {
-      composerObjectService = { getNewIndex: jest.fn() };
-      resizeHandlerService = { onVerticalDragEnd: jest.fn() };
-      clipboardService = { clipboardEmpty: false, sheetClosed: jest.fn() };
-      modelService = { getModel: jest.fn(() => observableOf({})) };
-      scriptService = { setClickedNode: jest.fn(), getClickedNode: jest.fn()};
+   beforeEach(() => {
+      composerObjectService = { getNewIndex: vi.fn() };
+      resizeHandlerService = { onVerticalDragEnd: vi.fn() };
+      clipboardService = { clipboardEmpty: false, sheetClosed: vi.fn() };
+      modelService = { getModel: vi.fn(() => observableOf({})) };
+      scriptService = { setClickedNode: vi.fn(), getClickedNode: vi.fn()};
       uiContextService = {
-         isVS: jest.fn(),
-         isAdhoc: jest.fn(() => false),
-         getDefaultTab: jest.fn(),
-         setDefaultTab: jest.fn(),
-         sheetHide: jest.fn(),
-         sheetClose: jest.fn(),
-         sheetShow: jest.fn()
+         isVS: vi.fn(),
+         isAdhoc: vi.fn(() => false),
+         getDefaultTab: vi.fn(),
+         setDefaultTab: vi.fn(),
+         sheetHide: vi.fn(),
+         sheetClose: vi.fn(),
+         sheetShow: vi.fn()
       };
       router = {
-         navigate: jest.fn(),
+         navigate: vi.fn(),
          events: new Subject<any>()
       };
 
       route = {
          snapshot: {
             _routerState: {
-               url: jest.fn().mockRejectedValue("")
+               url: vi.fn().mockRejectedValue("")
             }
          }
       };
 
       const stompClientConnection = {
-         subscribe: jest.fn(),
-         send: jest.fn(),
-         disconnect: jest.fn()
+         subscribe: vi.fn(),
+         send: vi.fn(),
+         disconnect: vi.fn()
       };
 
       composerRecentService = {
-         recentlyViewedChange: jest.fn(),
-         removeRecentlyViewed: jest.fn(),
-         addRecentlyViewed: jest.fn(),
-         removeNonExistItems: jest.fn()
+         recentlyViewedChange: vi.fn(),
+         removeRecentlyViewed: vi.fn(),
+         addRecentlyViewed: vi.fn(),
+         removeNonExistItems: vi.fn()
       };
 
-      stompClientService = { connect: jest.fn(() => observableOf(stompClientConnection)) };
+      stompClientService = { connect: vi.fn(() => observableOf(stompClientConnection)) };
 
-      httpService = { get: jest.fn(() => EMPTY), post: jest.fn(() => observableOf({})) };
+      httpService = { get: vi.fn(() => EMPTY), post: vi.fn(() => observableOf({})) };
 
       appInfoService = {
-         getCurrentOrgInfo: jest.fn(() => observableOf({})),
+         getCurrentOrgInfo: vi.fn(() => observableOf({})),
       };
 
       fontService = {
@@ -117,16 +120,21 @@ describe("ComposerMain Unit Tests", () => {
       viewsheet.localId = 1;
       viewsheet.label = "vs1";
       viewsheet.id = "Viewsheet1";
-      viewsheet.socketConnection = <any> { sendEvent: jest.fn() };
+      viewsheet.socketConnection = <any> { sendEvent: vi.fn() };
 
       worksheet = new Worksheet();
       worksheet.label = "ws1";
       worksheet.id = "Worksheet1";
-      window.BroadcastChannel = jest.fn().mockImplementation(() => ({onmessage: () => {}}));
+      (window as any).BroadcastChannel = class BroadcastChannel {
+         onmessage: any = null;
+         postMessage() {}
+         close() {}
+      };
 
       TestBed.configureTestingModule({
          imports: [
-            NgbModule
+            NgbModule,
+            ComposerMainComponent,
          ],
          providers: [
             { provide: ComposerObjectService, useValue: composerObjectService },
@@ -150,17 +158,24 @@ describe("ComposerMain Unit Tests", () => {
             { provide: AppInfoService, useValue: appInfoService },
             { provide: FontService, useValue: fontService }
          ],
-         declarations: [
-            ComposerMainComponent
-         ],
+         
          schemas: [NO_ERRORS_SCHEMA]
       });
+      TestBed.overrideComponent(ComposerMainComponent, {
+         set: {
+            imports: [],
+            providers: [
+               ComposerClientService,
+               { provide: ScaleService, useClass: VSScaleService }
+            ]
+         }
+      });
       TestBed.compileComponents();
-   }));
+   });
 
-   afterEach(waitForAsync(() => {
+   afterEach(() => {
       window.BroadcastChannel = oldBroadcastChannel;
-   }));
+   });
 
    // Bug #16301 set embeddedId set if opening an embedded vs
    it("should have embeddedId when opening an embedded vs", () => {

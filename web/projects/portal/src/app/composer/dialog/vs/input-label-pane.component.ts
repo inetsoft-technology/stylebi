@@ -18,12 +18,18 @@
 import { Component, EventEmitter, Input, OnInit, Output } from "@angular/core";
 import { InputLabelPaneModel } from "../../data/vs/input-label-pane-model";
 import { ComboMode } from "../../../widget/dynamic-combo-box/dynamic-combo-box-model";
-import { CustomSelectOption } from "../../../widget/custom-select/custom-select.component";
+import { DynamicComboBox } from "../../../widget/dynamic-combo-box/dynamic-combo-box.component";
 
+import { FormsModule } from "@angular/forms";
+
+import { CustomSelectComponent, CustomSelectOption } from "../../../widget/custom-select/custom-select.component";
+import { NumberStepperComponent } from "../../../widget/number-stepper/number-stepper.component";
 @Component({
-   selector: "input-label-pane",
-   templateUrl: "input-label-pane.component.html",
-   styleUrls: ["./input-label-pane.component.scss"]
+    selector: "input-label-pane",
+    templateUrl: "input-label-pane.component.html",
+    styleUrls: ["./input-label-pane.component.scss"],
+
+    imports: [FormsModule, DynamicComboBox, CustomSelectComponent, NumberStepperComponent]
 })
 export class InputLabelPane implements OnInit {
    @Input() model: InputLabelPaneModel;

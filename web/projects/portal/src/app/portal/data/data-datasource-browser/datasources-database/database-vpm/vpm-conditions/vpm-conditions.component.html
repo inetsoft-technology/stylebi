@@ -1,79 +1,85 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <split-pane [sizes]="[30, 70]" [minSize]="200" [snapOffset]="0" [gutterSize]="5">
   <div class="split conditionspane">
-    <div class="group-container vpm-conditions-list">
-      <div class="data-model-header-pane truncate-parent justify-content-between align-items-center rounded-0 vpm-conditions-list__header">
+    <div class="list-group group-container list-group-flush">
+      <div class="data-model-header-pane truncate-parent justify-content-between align-items-center rounded-0">
         <span class="truncate-text font-weight-bold" >_#(Conditions)</span>
         <div class="condition-toolbar">
           <button class="truncate-addon btn btn-sm btn-light-no-bg"
-                  role="button"
-                  [attr.title]="'_#(Add Condition)'"
-                  (click)="addCondition()">
+            role="button"
+            [attr.title]="'_#(Add Condition)'"
+            (click)="addCondition()">
             <i class="add-icon"></i>
           </button>
           <button class="truncate-addon btn btn-sm btn-light-no-bg"
-                  role="button"
-                  [attr.title]="'_#(Delete)'"
-                  (click)="deleteSelectedCondition()"
-                  [disabled]="deleteDisabled()">
+            role="button"
+            [attr.title]="'_#(Delete)'"
+            (click)="deleteSelectedCondition()"
+            [disabled]="deleteDisabled()">
             <i class="trash-icon"></i>
           </button>
         </div>
       </div>
       <div class="group-container-body vpm-conditions-list__body">
-         <div *ngFor="let condition of conditions; let i = index"
-              class="truncate-parent justify-content-between
-                     align-items-center rounded-0 cursor-pointer vpm-conditions-list__item"
-              [class.active]="isSelected(condition)"
-              [class.bg-selected]="isSelected(condition)"
-              (click)="editCondition($event, condition)">
-           <span class="truncate-text" [attr.title]="condition.name">{{condition.name}}</span>
-           <span class="truncate-addon">
-             <button class="btn btn-sm btn-light-no-bg"
-                     role="button"
-                     [attr.title]="'_#(data.vpm.deleteConditionTooltip)'"
-                     (click)="deleteCondition(condition, i); $event.stopPropagation()">
-               <i class="trash-icon"></i>
-             </button>
-           </span>
-         </div>
+        @for (condition of conditions; track condition; let i = $index) {
+          <div
+              class="list-group-item list-group-item-action truncate-parent justify-content-between hover-bg-primary
+                     align-items-center rounded-0 cursor-pointer"
+            [class.active]="isSelected(condition)"
+            [class.bg-selected]="isSelected(condition)"
+            (click)="editCondition($event, condition)">
+            <span class="truncate-text" [attr.title]="condition.name">{{condition.name}}</span>
+            <span class="truncate-addon">
+              <button class="btn btn-sm btn-light-no-bg"
+                role="button"
+                [attr.title]="'_#(data.vpm.deleteConditionTooltip)'"
+                (click)="deleteCondition(condition, i); $event.stopPropagation()">
+                <i class="trash-icon"></i>
+              </button>
+            </span>
+          </div>
+        }
       </div>
     </div>
   </div>
   <div class="split">
-    <ng-container *ngIf="!!editingCondition">
+    @if (!!editingCondition) {
       <div class="container-fluid hidden-column-container">
         <div class="shell-form-group mt-2 form-floating">
-            <input type="text" #nameCtrl="ngModel"
-                   name="name"
-                   class="form-control"
-                   [class.is-invalid]="nameCtrl.invalid"
-                   [(ngModel)]="editingCondition.name"
-                   nameExists [names]="existsNames"
-                   required>
-            <label>_#(Name)</label>
-            <span class="invalid-feedback" *ngIf="nameCtrl.hasError('required')">
+          <input type="text" #nameCtrl="ngModel"
+            name="name"
+            class="form-control"
+            [class.is-invalid]="nameCtrl.invalid"
+            [(ngModel)]="editingCondition.name"
+            nameExists [names]="existsNames"
+            required>
+          <label>_#(Name)</label>
+          @if (nameCtrl.hasError('required')) {
+            <span class="invalid-feedback">
               _#(data.vpm.conditionNameRequired)
             </span>
-            <span class="invalid-feedback" *ngIf="!nameCtrl.hasError('required') && nameCtrl.hasError('exists')">
+          }
+          @if (!nameCtrl.hasError('required') && nameCtrl.hasError('exists')) {
+            <span class="invalid-feedback">
               _#(data.vpm.duplicateConditionName)
             </span>
+          }
         </div>
         <div class="col-12 flex-container">
           <ul ngbNav #nav="ngbNav" class="nav-tabs">
@@ -82,26 +88,26 @@
               <ng-template ngbNavContent>
                 <div class="row">
                   <div class="col">
-                <div class="form-check form-check-inline mt-2">
-                  <label class="form-check-label">
-                    <input class="form-check-input" type="radio" #tableRadio
-                           name="typeRadio"
-                           [(ngModel)]="editingCondition.type"
-                           (ngModelChange)="tableRadio.blur(); chooseTable(true)"
-                           [value]="ConditionTypes.TABLE">
-                     {{'_#(Table)'}}
-                  </label>
-                </div>
-                <div class="form-check form-check-inline">
-                  <label class="form-check-label">
-                    <input class="form-check-input" type="radio" #physicalRadio
-                           name="typeRadio"
-                           [(ngModel)]="editingCondition.type"
-                           (ngModelChange)="physicalRadio.blur(); chooseTable(true)"
-                           [value]="ConditionTypes.PHYSICAL_MODEL">
-                    {{'_#(Physical View)'}}
-                  </label>
-                </div>
+                    <div class="form-check form-check-inline mt-2">
+                      <label class="form-check-label">
+                        <input class="form-check-input" type="radio" #tableRadio
+                          name="typeRadio"
+                          [(ngModel)]="editingCondition.type"
+                          (ngModelChange)="tableRadio.blur(); chooseTable(true)"
+                          [value]="ConditionTypes.TABLE">
+                        {{'_#(Table)'}}
+                      </label>
+                    </div>
+                    <div class="form-check form-check-inline">
+                      <label class="form-check-label">
+                        <input class="form-check-input" type="radio" #physicalRadio
+                          name="typeRadio"
+                          [(ngModel)]="editingCondition.type"
+                          (ngModelChange)="physicalRadio.blur(); chooseTable(true)"
+                          [value]="ConditionTypes.PHYSICAL_MODEL">
+                        {{'_#(Physical View)'}}
+                      </label>
+                    </div>
                   </div>
                 </div>
                 <div class="row">
@@ -109,15 +115,15 @@
                     <div class="input-group">
                       <div class="form-floating">
                         <input readonly type="text"
-                               class="form-control"
-                               [value]="editingCondition.tableName"/>
+                          class="form-control"
+                          [value]="editingCondition.tableName"/>
                         <label>_#(data.vpm.conditionFor)</label>
                       </div>
                       <button class="btn btn-secondary" type="button"
-                              (click)="chooseTable()">
+                        (click)="chooseTable()">
                         {{
-                          editingCondition.type == ConditionTypes.PHYSICAL_MODEL ?
-                          '_#(data.vpm.choosePhysicalModel)' : '_#(data.vpm.chooseTable)'
+                        editingCondition.type == ConditionTypes.PHYSICAL_MODEL ?
+                        '_#(data.vpm.choosePhysicalModel)' : '_#(data.vpm.chooseTable)'
                         }}
                       </button>
                     </div>
@@ -125,30 +131,38 @@
                 </div>
                 <div class="row">
                   <div class="col">
-                <div class="shell-form-group">
-                  <div class="bordered-box bordered-box-md vpm-conditions__clauses-surface">
-                    <div *ngIf="editingCondition.clauses.length == 0"
-                         class="unhighlightable">
-                      _#(data.vpm.noClauses)
-                    </div>
-                    <div *ngFor="let item of editingCondition.clauses; let even = even"
-                         class="unhighlightable">
-                      <div *ngIf="even">
-                        {{ item | clauseToString }}
+                    <div class="form-group">
+                      <div class="bordered-box bordered-box-md bd-gray">
+                        @if (editingCondition.clauses.length == 0) {
+                          <div
+                            class="unhighlightable">
+                            _#(data.vpm.noClauses)
+                          </div>
+                        }
+                        @for (item of editingCondition.clauses; track item; let even = $even) {
+                          <div
+                            class="unhighlightable">
+                            @if (even) {
+                              <div>
+                                {{ item | clauseToString }}
+                              </div>
+                            }
+                            @if (!even) {
+                              <div>
+                                {{ item | conjunctionToString }}
+                              </div>
+                            }
+                          </div>
+                        }
                       </div>
-                      <div *ngIf="!even">
-                        {{ item | conjunctionToString }}
+                      <div class="mt-2 text-end">
+                        <button type="button" class="btn btn-primary"
+                          (click)="editClauses()"
+                          [disabled]="tableNameNull || refreshingColumns">
+                          _#(data.vpm.editClause)
+                        </button>
                       </div>
                     </div>
-                  </div>
-                  <div class="mt-2 text-end">
-                    <button type="button" class="btn btn-primary"
-                            (click)="editClauses()"
-                            [disabled]="tableNameNull || refreshingColumns">
-                      _#(data.vpm.editClause)
-                    </button>
-                  </div>
-                </div>
                   </div>
                 </div>
               </ng-template>
@@ -174,7 +188,7 @@
                   </div>
                   <div class="w-100 auto-size-flex-item">
                     <data-model-script-pane [expression]="editingCondition.script" [fullContainer]="true"
-                                            (expressionChange)="expressionChanged($event)">
+                      (expressionChange)="expressionChanged($event)">
                     </data-model-script-pane>
                   </div>
                   <div>
@@ -187,18 +201,18 @@
           <div class="h-100" [ngbNavOutlet]="nav"></div>
         </div>
       </div>
-    </ng-container>
+    }
   </div>
 </split-pane>
 <ng-template #chooseTableDialog let-close="close" let-dismiss="dismiss">
   <choose-table-dialog (onCommit)="close($event)" (onCancel)="dismiss($event)"
-                       [databaseName]="databaseName"
-                       [conditionType]="editingCondition.type"
-                       [tableName]="editingCondition.tableName">
+    [databaseName]="databaseName"
+    [conditionType]="editingCondition.type"
+    [tableName]="editingCondition.tableName">
   </choose-table-dialog>
 </ng-template>
 <ng-template #vpmConditionDialog let-close="close" let-dismiss="dismiss">
   <vpm-condition-dialog (onCommit)="close($event)" (onCancel)="dismiss($event)"
-                        [model]="vpmConditionDialogModel">
+    [model]="vpmConditionDialogModel">
   </vpm-condition-dialog>
 </ng-template>

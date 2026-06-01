@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { ComponentFixture, TestBed } from "@angular/core/testing";
 
 import { PresentationTimeSettingsViewComponent } from "./presentation-time-settings-view.component";
@@ -36,9 +37,8 @@ describe("PresentationTimeSettingsViewComponent", () => {
         MatFormFieldModule,
         MatInputModule,
         MatCardModule,
-      ],
-      declarations: [ PresentationTimeSettingsViewComponent ]
-    })
+            PresentationTimeSettingsViewComponent]
+         })
     .compileComponents();
   });
 

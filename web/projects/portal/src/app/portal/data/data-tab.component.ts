@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { AfterViewInit, Component, OnDestroy, OnInit, ViewChild } from "@angular/core";
-import { NavigationEnd, Router } from "@angular/router";
+import { NavigationEnd, Router, RouterOutlet } from "@angular/router";
 import { Subscription } from "rxjs";
 import {
    AiAssistantService,
@@ -26,12 +26,14 @@ import { RepositoryClientService } from "../../common/repository-client/reposito
 import { SplitPane } from "../../widget/split-pane/split-pane.component";
 import { DataDetailsPaneService } from "./services/data-details-pane.service";
 import { DataPhysicalModelService } from "./services/data-physical-model.service";
+import { DataSourcesTreeViewComponent } from "./data-navigation-tree/data-sources-tree-view.component";
 
 @Component({
-   selector: "p-data-tab",
-   templateUrl: "./data-tab.component.html",
-   styleUrls: ["./data-tab.component.scss"],
-   providers: [RepositoryClientService, DataDetailsPaneService]
+    selector: "p-data-tab",
+    templateUrl: "./data-tab.component.html",
+    styleUrls: ["./data-tab.component.scss"],
+    providers: [RepositoryClientService],
+    imports: [SplitPane, DataSourcesTreeViewComponent, RouterOutlet]
 })
 export class DataTabComponent implements AfterViewInit, OnInit, OnDestroy {
    @ViewChild(SplitPane) splitPane: SplitPane;

@@ -15,12 +15,16 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import {Component, EventEmitter, Input, Output} from "@angular/core";
+import { Component, EventEmitter, Input, Output } from "@angular/core";
 import { TableLayoutPropertyDialogModel, ReportTableLayout } from "../../data/vs/table-layout-property-dialog-model";
+import { FormsModule } from "@angular/forms";
+
+import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
 
 @Component({
-   selector: "table-layout-property-dialog",
-   templateUrl: "table-layout-property-dialog.component.html"
+    selector: "table-layout-property-dialog",
+    templateUrl: "table-layout-property-dialog.component.html",
+    imports: [ModalHeaderComponent, FormsModule]
 })
 export class TableLayoutPropertyDialog {
    @Input() model: TableLayoutPropertyDialogModel;

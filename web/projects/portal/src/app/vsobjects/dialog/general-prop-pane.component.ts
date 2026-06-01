@@ -16,14 +16,23 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, Input, OnInit } from "@angular/core";
-import { UntypedFormGroup } from "@angular/forms";
+import { UntypedFormGroup, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { ValueMode } from "../../widget/dynamic-combo-box/dynamic-combo-box-model";
 import { TreeNodeModel } from "../../widget/tree/tree-node-model";
 import { GeneralPropPaneModel } from "../model/general-prop-pane-model";
+import { DynamicComboBox } from "../../widget/dynamic-combo-box/dynamic-combo-box.component";
+
+import { BasicGeneralPane } from "./basic-general-pane.component";
 
 @Component({
-   selector: "general-prop-pane",
-   templateUrl: "general-prop-pane.component.html",
+    selector: "general-prop-pane",
+    templateUrl: "general-prop-pane.component.html",
+    imports: [
+    BasicGeneralPane,
+    FormsModule,
+    ReactiveFormsModule,
+    DynamicComboBox
+]
 })
 export class GeneralPropPane implements OnInit {
    @Input() vsId: string;

@@ -1,35 +1,45 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <split-pane class="unhighlightable" direction="vertical" [sizes]="[75, 25]"
-            [minSize]="100" [snapOffset]="0">
+  [minSize]="100" [snapOffset]="0">
   <div class="composite-table-sidebar-container pt-2 ps-2">
     <div class="d-flex flex-column">
       <div class="unrelated-table-list-container">
-        <div *ngIf="compatibleTables?.length > 0">
-          <div *ngFor="let _table of compatibleTables" class="text-overflow" draggable="true"
-               (dragstart)="dragCompatibleTable($event, _table.name)">
-            <ws-assembly-thumbnail-title [assembly]="_table"></ws-assembly-thumbnail-title>
+        @if (compatibleTables?.length > 0) {
+          <div>
+            @for (_table of compatibleTables; track _table) {
+              <div class="text-overflow" draggable="true"
+                (dragstart)="dragCompatibleTable($event, _table.name)">
+                <ws-assembly-thumbnail-title [assembly]="_table"></ws-assembly-thumbnail-title>
+              </div>
+            }
           </div>
-        </div>
-        <div *ngIf="compatibleTables && compatibleTables.length === 0">_#(viewer.worksheet.sidebar.compatible)</div>
-        <span *ngIf="!compatibleTables">Determining compatible tables...&nbsp;&nbsp;<span class="compatible-tables-loading-icon"></span></span>
+        }
+        @if (compatibleTables && compatibleTables.length === 0) {
+          <div>_#(viewer.worksheet.sidebar.compatible)</div>
+        }
+        @if (!compatibleTables) {
+          <span>Determining compatible tables...&nbsp;&nbsp;<span class="compatible-tables-loading-icon"></span></span>
+        }
       </div>
     </div>
   </div>
-  <subtable-list *ngIf="!isMergeJoinTable()" [compositeTable]="compositeTable" [worksheet]="worksheet"></subtable-list>
+  @if (!isMergeJoinTable()) {
+    <subtable-list [compositeTable]="compositeTable" [worksheet]="worksheet"></subtable-list>
+  }
 </split-pane>

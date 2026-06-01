@@ -26,7 +26,7 @@ import { CalcTableBindingModel } from "../../data/table/calc-table-binding-model
 import { CellBindingInfo } from "../../data/table/cell-binding-info";
 import { BindingService } from "../../services/binding.service";
 import { VSCalcTableEditorService } from "../../services/table/vs-calc-table-editor.service";
-import { CustomSelectModule } from "../../../widget/custom-select/custom-select.module";
+import { CustomSelectComponent } from "../../../widget/custom-select/custom-select.component";
 import { AggregateFormula } from "../../util/aggregate-formula";
 import { AssetUtil } from "../../util/asset-util";
 import { CalcAggregateOption } from "./calc-aggregate-option.component";
@@ -48,13 +48,13 @@ describe("Calc Aggregate Option Unit Test", () => {
    };
 
    let cellBinding = new CellBindingInfo();
-   let bindingService = { getBindingModel: jest.fn(() => createMockCalcTableBindingModel()),
-      isGrayedOutField: jest.fn()};
+   let bindingService = { getBindingModel: vi.fn(() => createMockCalcTableBindingModel()),
+      isGrayedOutField: vi.fn()};
    let editorService = {
-      getCellBinding: jest.fn(() => cellBinding),
-      hasRowGroup: jest.fn(),
-      hasColGroup: jest.fn(),
-      getGroupNum: jest.fn()
+      getCellBinding: vi.fn(() => cellBinding),
+      hasRowGroup: vi.fn(),
+      hasColGroup: vi.fn(),
+      getGroupNum: vi.fn()
    };
 
    let fixture: ComponentFixture<CalcAggregateOption>;
@@ -63,8 +63,8 @@ describe("Calc Aggregate Option Unit Test", () => {
 
    beforeEach(() => {
       TestBed.configureTestingModule({
-         imports: [FormsModule, ReactiveFormsModule, NgbModule, CustomSelectModule],
-         declarations: [CalcAggregateOption],
+         imports: [FormsModule, ReactiveFormsModule, NgbModule, CalcAggregateOption],
+         
          providers: [{
             provide: BindingService, useValue: bindingService
          },

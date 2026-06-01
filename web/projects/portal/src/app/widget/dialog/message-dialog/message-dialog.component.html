@@ -1,47 +1,53 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <div blockMouse>
   <div class="modal-header">
-     <h3 class="modal-title">{{title}}</h3>
+    <h3 class="modal-title">{{title}}</h3>
   </div>
   <div class="modal-body">
     <div class="container-fluid">
       <div class="shell-form-row">
-        <div class="col-auto" *ngIf="title == 'Trap'">
-          <img [src]='errorSource()'>
-        </div>
+        @if (title == 'Trap') {
+          <div class="col-auto">
+            <img [src]='errorSource()'>
+          </div>
+        }
         <div class="col">
           <p class="message-dialog__text" [wExpandString]="expandValues" [innerHTML]="message"></p>
         </div>
       </div>
-      <div class="shell-form-row" *ngIf="showProgress">
-        <div class="col">
-          <ngb-progressbar type="info" [value]="100" [striped]="true" [animated]="true"
-                           height="1rem">
-          </ngb-progressbar>
+      @if (showProgress) {
+        <div class="shell-form-row">
+          <div class="col">
+            <ngb-progressbar type="info" [value]="100" [striped]="true" [animated]="true"
+              height="1rem">
+            </ngb-progressbar>
+          </div>
         </div>
-      </div>
+      }
     </div>
   </div>
   <div class="modal-footer">
-    <button *ngFor="let option of options; let first = first" type="button" class="btn"
-            [class.btn-primary]="first"  [class.btn-default]="!first" #btn
-            [attr.autofocus]="first ? '' : null"
-            (click)="clickButton(option.symbol)">{{option.label}}</button>
+    @for (option of options; track option; let first = $first) {
+      <button type="button" class="btn"
+        [class.btn-primary]="first"  [class.btn-default]="!first" #btn
+        [attr.autofocus]="first ? '' : null"
+      (click)="clickButton(option.symbol)">{{option.label}}</button>
+    }
   </div>
 </div>

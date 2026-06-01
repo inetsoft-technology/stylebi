@@ -37,9 +37,10 @@ export enum SidebarTab {
 }
 
 @Component({
-   selector: "data-editor-tab-pane",
-   templateUrl: "data-editor-tab-pane.component.html",
-   styleUrls: ["data-editor-tab-pane.component.scss", "../../../composer/gui/tab-selector/tab-selector-shared.scss"]
+    selector: "data-editor-tab-pane",
+    templateUrl: "data-editor-tab-pane.component.html",
+    styleUrls: ["data-editor-tab-pane.component.scss", "../../../composer/gui/tab-selector/tab-selector-shared.scss"],
+    standalone: true
 })
 export class DataEditorTabPane  {
    SidebarTab = SidebarTab;

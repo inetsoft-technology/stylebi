@@ -97,7 +97,7 @@ function makeCondition(overrides: Partial<TimeConditionModel> = {}): TimeConditi
 async function renderComponent(props: Partial<RunOnceConditionEditorComponent> = {}) {
    // calculateTimezoneOffset("UTC") = 0ms; any real TZ value is mocked for determinism.
    const timeZoneServiceMock = {
-      calculateTimezoneOffset: jest.fn().mockReturnValue(0),
+      calculateTimezoneOffset: vi.fn().mockReturnValue(0),
    };
 
    const result = await render(RunOnceConditionEditorComponent, {

@@ -25,6 +25,7 @@ import { MatCheckboxModule } from "@angular/material/checkbox";
 import { MatDialog, MatDialogModule } from "@angular/material/dialog";
 import { MatIconModule } from "@angular/material/icon";
 import { MatMenuModule } from "@angular/material/menu";
+import { NoopAnimationsModule } from "@angular/platform-browser/animations";
 import { NEVER, of as observableOf } from "rxjs";
 import { RepositoryEntryType } from "../../../../../../../shared/data/repository-entry-type.enum";
 import { StompClientService } from "../../../../../../../shared/stomp/stomp-client.service";
@@ -33,7 +34,9 @@ import { RepositoryFlatNode, RepositoryTreeNode } from "../repository-tree-node"
 import { RepositoryTreeViewComponent } from "./repository-tree-view.component";
 
 @Component({
+   standalone: true,
    selector: "em-test-app",
+   imports: [RepositoryTreeViewComponent],
    template: `<em-repository-tree-view [dataSource]="dataSource" [selectedNodes]="selectedNodes"></em-repository-tree-view>`
 })
 
@@ -56,11 +59,11 @@ describe("RepositoryTreeViewComponent", () => {
 
    beforeEach(waitForAsync(() => {
       const stompConnection = {
-         subscribe: jest.fn(() => NEVER),
-         disconnect: jest.fn()
+         subscribe: vi.fn(() => NEVER),
+         disconnect: vi.fn()
       };
       stompClientService = {
-         connect: jest.fn(() => observableOf(stompConnection))
+         connect: vi.fn(() => observableOf(stompConnection))
       };
       TestBed.configureTestingModule({
          imports: [
@@ -71,12 +74,9 @@ describe("RepositoryTreeViewComponent", () => {
             MatMenuModule,
             MatButtonModule,
             MatIconModule,
-            MatDialogModule
-         ],
-         declarations: [
-            TestApp,
-            RepositoryTreeViewComponent
-         ],
+            MatDialogModule,
+            NoopAnimationsModule,
+            TestApp, RepositoryTreeViewComponent],
          providers: [
             { provide: StompClientService, useValue: stompClientService }
          ],

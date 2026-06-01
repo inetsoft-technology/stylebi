@@ -1,26 +1,26 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <fieldset class="row">
   <legend>_#(List Values)</legend>
   <combo-box-editor [model]="model.comboBoxEditorModel" [runtimeId]="runtimeId" [general]="general"
-                    [sortType]="model.sortType" [embeddedDataDown]="model.embeddedDataDown"
-                    (isInputValid)="onValidChange($event)" [variableValues]="variableValues"
-                    [showCalendar]="isComboBox">
+    [sortType]="model.sortType" [embeddedDataDown]="model.embeddedDataDown"
+    (isInputValid)="onValidChange($event)" [variableValues]="variableValues"
+    [showCalendar]="isComboBox">
   </combo-box-editor>
 </fieldset>
 
@@ -38,22 +38,24 @@
       <div class="col">
         <div class="form-check">
           <input class="form-check-input list-embedded_id" type="checkbox" id="embedLast"
-               [disabled]="model.sortType != 0 || !model.comboBoxEditorModel.embedded || !model.comboBoxEditorModel.query"
-               [(ngModel)]="model.embeddedDataDown">
+            [disabled]="model.sortType != 0 || !model.comboBoxEditorModel.embedded || !model.comboBoxEditorModel.query"
+            [(ngModel)]="model.embeddedDataDown">
           <label class="form-check-label" for="embedLast">
-           _#(List Embedded Items Last)
+            _#(List Embedded Items Last)
           </label>
         </div>
       </div>
-      <div *ngIf="isCheckBox" class="col">
-        <div class="form-check" [title]="'_#(vs.select.first.tooltip)'">
-          <input class="form-check-input list-embedded_id" type="checkbox" id="selectFirstItem"
-                 [(ngModel)]="model.selectFirstItem">
-          <label class="form-check-label" for="selectFirstItem">
-            _#(Select First Item on Dashboard Load)
-          </label>
+      @if (isCheckBox) {
+        <div class="col">
+          <div class="form-check" [title]="'_#(vs.select.first.tooltip)'">
+            <input class="form-check-input list-embedded_id" type="checkbox" id="selectFirstItem"
+              [(ngModel)]="model.selectFirstItem">
+            <label class="form-check-label" for="selectFirstItem">
+              _#(Select First Item on Dashboard Load)
+            </label>
+          </div>
         </div>
-      </div>
+      }
     </div>
   </fieldset>
 </form>

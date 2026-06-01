@@ -30,7 +30,8 @@ import { DialogService } from "../../widget/slide-out/dialog-service.service";
 import { ContextProvider } from "../../vsobjects/context-provider.service";
 
 @Directive({
-   selector: "[bCrosstabActionHandler]"
+    selector: "[bCrosstabActionHandler]",
+    standalone: true
 })
 export class BCrosstabActionHandlerDirective implements OnDestroy {
    @Input() model: VSCrosstabModel;

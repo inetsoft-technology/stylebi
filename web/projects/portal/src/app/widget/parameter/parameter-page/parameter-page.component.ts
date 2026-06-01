@@ -15,26 +15,29 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import {Component, EventEmitter, Input, Output} from "@angular/core";
-import {NgbModal, NgbModalOptions} from "@ng-bootstrap/ng-bootstrap";
-import {isString} from "lodash";
-import {DateTypeFormatter} from "../../../../../../shared/util/date-type-formatter";
-import {ComponentTool} from "../../../common/util/component-tool";
-import {ParameterPageModel} from "../parameter-page-model";
+import { Component, EventEmitter, Input, Output } from "@angular/core";
+import { NgbModal, NgbModalOptions } from "@ng-bootstrap/ng-bootstrap";
+import { isString } from "lodash";
+import { DateTypeFormatter } from "../../../../../../shared/util/date-type-formatter";
+import { ComponentTool } from "../../../common/util/component-tool";
+import { ParameterPageModel } from "../parameter-page-model";
 import {
    ChoiceParameterModel,
    ListParameterModel,
    OptionParameterModel,
    RepletParameterModel
 } from "../replet-parameter-model";
-import {Tool} from "../../../../../../shared/util/tool";
-import {DateTimeValueDialog} from "../date-time-value-dialog.component";
-import { CustomSelectOption } from "../../custom-select/custom-select.component";
+import { Tool } from "../../../../../../shared/util/tool";
+import { DateTimeValueDialog } from "../date-time-value-dialog.component";
+import { FormsModule } from "@angular/forms";
+import { NgClass } from "@angular/common";
+import { CustomSelectOption, CustomSelectComponent } from "../../custom-select/custom-select.component";
 
 @Component({
-   selector: "parameter-page",
-   templateUrl: "parameter-page.component.html",
-   styleUrls: ["./parameter-page.component.scss"]
+    selector: "parameter-page",
+    templateUrl: "parameter-page.component.html",
+    styleUrls: ["./parameter-page.component.scss"],
+    imports: [NgClass, FormsModule, CustomSelectComponent]
 })
 export class ParameterPage {
    @Input() isDialog = false;

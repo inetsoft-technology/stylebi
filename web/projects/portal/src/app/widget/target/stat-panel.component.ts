@@ -21,12 +21,22 @@ import { TargetInfo, MeasureInfo } from "./target-info";
 import { ComboMode, ValueMode } from "../dynamic-combo-box/dynamic-combo-box-model";
 import { GraphTypes } from "../../common/graph-types";
 import { DefaultPalette } from "../color-picker/default-palette";
-import { CustomSelectOption } from "../custom-select/custom-select.component";
+import { AlphaDropdown } from "../format/alpha-dropdown.component";
+import { BCategoricalColorPane } from "./b-categorical-color-pane.component";
+import { ColorEditor } from "../color-picker/color-editor.component";
+import { GridLineDropdown } from "../format/grid-line-dropdown.component";
+import { TargetLabelPane } from "./target-label-pane.component";
+import { LabelInputField } from "./label-input-field.component";
+import { ComputationComboBox } from "../dialog/computation-combo-box/computation-combo-box.component";
+import { NgFor, NgIf } from "@angular/common";
+import { FormsModule } from "@angular/forms";
+import { CustomSelectOption, CustomSelectComponent } from "../custom-select/custom-select.component";
 
 @Component({
-   selector: "stat-panel",
-   templateUrl: "stat-panel.component.html",
-   styleUrls: ["stat-panel.component.scss"]
+    selector: "stat-panel",
+    templateUrl: "stat-panel.component.html",
+    styleUrls: ["stat-panel.component.scss"],
+    imports: [FormsModule, NgFor, NgIf, ComputationComboBox, LabelInputField, TargetLabelPane, GridLineDropdown, ColorEditor, BCategoricalColorPane, AlphaDropdown, CustomSelectComponent]
 })
 export class StatPanel implements OnInit {
    @Input() model: TargetInfo;

@@ -45,16 +45,20 @@ import { TooltipInfo } from "../model/tooltip-info";
 import { VSChartModel } from "../../vsobjects/model/vs-chart-model";
 import { FlyoverInfo } from "../model/flyover-info";
 import { ChartTile } from "../model/chart-tile";
+import { ChartImageDirective } from "./chart-image.directive";
+import { OutOfZoneDirective } from "../../widget/directive/out-of-zone.directive";
+
 
 @Component({
-   selector: "chart-axis-area",
-   templateUrl: "chart-axis-area.component.html",
-   styleUrls: ["chart-axis-area.component.scss"],
-   providers: [{
-      provide: ChartObjectAreaBase,
-      useExisting: ChartAxisArea
-   }],
-   changeDetection: ChangeDetectionStrategy.OnPush
+    selector: "chart-axis-area",
+    templateUrl: "chart-axis-area.component.html",
+    styleUrls: ["chart-axis-area.component.scss"],
+    providers: [{
+            provide: ChartObjectAreaBase,
+            useExisting: ChartAxisArea
+        }],
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    imports: [OutOfZoneDirective, ChartImageDirective]
 })
 export class ChartAxisArea extends ChartObjectAreaBase<Axis> implements OnChanges {
    @Input() scrollbarWidth: number;

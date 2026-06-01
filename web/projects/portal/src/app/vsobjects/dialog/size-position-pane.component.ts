@@ -17,13 +17,16 @@
  */
 import { Component, Input, OnInit } from "@angular/core";
 import { SizePositionPaneModel } from "../model/size-position-pane-model";
-import { UntypedFormControl, UntypedFormGroup, Validators } from "@angular/forms";
+import { UntypedFormControl, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { FormValidators } from "../../../../../shared/util/form-validators";
 
+
+import { NumberStepperComponent } from "../../widget/number-stepper/number-stepper.component";
 @Component({
-   selector: "size-position-pane",
-   templateUrl: "size-position-pane.component.html",
-   styleUrls: ["size-position-pane.component.scss"]
+    selector: "size-position-pane",
+    templateUrl: "size-position-pane.component.html",
+    styleUrls: ["size-position-pane.component.scss"],
+    imports: [FormsModule, ReactiveFormsModule, NumberStepperComponent]
 })
 export class SizePositionPane implements OnInit {
    @Input() model: SizePositionPaneModel;

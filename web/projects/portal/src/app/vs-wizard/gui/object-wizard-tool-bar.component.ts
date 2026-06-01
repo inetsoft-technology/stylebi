@@ -23,12 +23,16 @@ import { ContextProvider } from "../../vsobjects/context-provider.service";
 import { VSObjectModel } from "../../vsobjects/model/vs-object-model";
 import { ToolbarAction } from "../../widget/toolbar/toolbar-action";
 import { ToolbarActionGroup } from "../../widget/toolbar/toolbar-action-group";
+import { HelpLinkDirective } from "../../widget/help-link/help-link.directive";
+import { ToolbarGroup } from "../../widget/toolbar/toolbar-group/toolbar-group.component";
+
 
 @Component({
-   selector: "object-wizard-tool-bar",
-   templateUrl: "../../binding/editor/editor-title-bar.component.html",
-   styleUrls: ["../../binding/editor/editor-title-bar.component.scss",
-      "../../composer/gui/toolbar/composer-toolbar.component.scss"]
+    selector: "object-wizard-tool-bar",
+    templateUrl: "../../binding/editor/editor-title-bar.component.html",
+    styleUrls: ["../../binding/editor/editor-title-bar.component.scss",
+        "../../composer/gui/toolbar/composer-toolbar.component.scss"],
+    imports: [ToolbarGroup, HelpLinkDirective]
 })
 export class ObjectWizardToolBarComponent {
    @Input() runtimeId: string;

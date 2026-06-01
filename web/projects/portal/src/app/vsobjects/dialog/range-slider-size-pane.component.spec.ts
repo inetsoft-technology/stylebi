@@ -24,9 +24,8 @@ import { RangeSliderSizePane } from "./range-slider-size-pane.component";
 import { RangeSliderSizePaneModel } from "../model/range-slider-size-pane-model";
 import { RangeSliderDataPaneModel } from "../model/range-slider-data-pane-model";
 import { TestUtils } from "../../common/test/test-utils";
-import { NumberStepperModule } from "../../widget/number-stepper/number-stepper.module";
-import { CustomSelectModule } from "../../widget/custom-select/custom-select.module";
-
+import { NumberStepperComponent } from "../../widget/number-stepper/number-stepper.component";
+import { CustomSelectComponent } from "../../widget/custom-select/custom-select.component";
 let createModel = () => <RangeSliderSizePaneModel> {
    length: 3,
    logScale: false,
@@ -49,8 +48,7 @@ describe("Range Slider Size Pane Component Unit Test:", () => {
 
    beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
-         imports: [ReactiveFormsModule, FormsModule, NgbModule, CustomSelectModule, NumberStepperModule],
-         declarations: [RangeSliderSizePane]
+         imports: [ReactiveFormsModule, FormsModule, NgbModule, RangeSliderSizePane]
       });
       TestBed.compileComponents();
 
@@ -84,7 +82,7 @@ describe("Range Slider Size Pane Component Unit Test:", () => {
       fixture.detectChanges();
       let warning1 = fixture.debugElement.query(By.css("div.shell-alert--danger")).nativeElement;
       expect(warning1.textContent).toContain(
-         "_#(viewer.viewsheet.timeSlider.sliderSizeWarning) ");
+         "_#(viewer.viewsheet.timeSlider.sliderSizeWarning)");
 
       fixture.componentInstance.form.get("length").setValue(5);
       fixture.detectChanges();
@@ -95,11 +93,11 @@ describe("Range Slider Size Pane Component Unit Test:", () => {
       fixture.detectChanges();
       let warning3 = fixture.debugElement.query(By.css("div.shell-alert--danger")).nativeElement;
       expect(warning3.textContent).toContain(
-         "_#(viewer.viewsheet.timeSlider.sliderSizeWarning) ");
+         "_#(viewer.viewsheet.timeSlider.sliderSizeWarning)");
    }));
 
    //Bug #19076 Bug #19079
-   it("check max/min range size status", (done) => {
+   it("check max/min range size status", () => new Promise<void>((done) => {
       //Bug #19079
       fixture.componentInstance.model.rangeType = 3;
       let minRangeSize = fixture.debugElement.query(By.css("number-stepper[ng-reflect-name=rangeSize] input")).nativeElement;
@@ -119,5 +117,5 @@ describe("Range Slider Size Pane Component Unit Test:", () => {
          expect(maxRangeSize.disabled).toBeTruthy();
          done();
       });
-   });
+   }));
 });

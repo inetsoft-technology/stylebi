@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import {Component, EventEmitter, Input, OnInit, Output} from "@angular/core";
+import { Component, EventEmitter, Input, OnInit, Output } from "@angular/core";
 import {
   AggregateCalcInfo,
   CalcConstant,
@@ -28,18 +28,24 @@ import {
   RunningTotalCalcRestLevel,
   ValueOfCalcInfo
 } from "../../../data/chart/calculate-info";
-import {DimensionInfo} from "../../../data/dimension-info";
-import {AggregateFormula} from "../../../util/aggregate-formula";
-import {DateRangeRef} from "../../../../common/util/date-range-ref";
-import {SummaryAttrUtil} from "../../../util/summary-attr-util";
-import {StyleConstants} from "../../../../common/util/style-constants";
-import {Tool} from "../../../../../../../shared/util/tool";
-import { CustomSelectOption } from "../../../../widget/custom-select/custom-select.component";
+import { DimensionInfo } from "../../../data/dimension-info";
+import { AggregateFormula } from "../../../util/aggregate-formula";
+import { DateRangeRef } from "../../../../common/util/date-range-ref";
+import { SummaryAttrUtil } from "../../../util/summary-attr-util";
+import { StyleConstants } from "../../../../common/util/style-constants";
+import { Tool } from "../../../../../../../shared/util/tool";
+import { DynamicComboBox } from "../../../../widget/dynamic-combo-box/dynamic-combo-box.component";
+import { FormsModule } from "@angular/forms";
+import { BlockMouseDirective } from "../../../../widget/mouse-event/block-mouse.directive";
+import { ModalHeaderComponent } from "../../../../widget/modal-header/modal-header.component";
+import { CustomSelectOption, CustomSelectComponent } from "../../../../widget/custom-select/custom-select.component";
 
+import { NumberStepperComponent } from "../../../../widget/number-stepper/number-stepper.component";
 @Component({
-   selector: "calculate-pane-dialog",
-   templateUrl: "calculate-pane-dialog.component.html",
-   styleUrls: ["calculate-pane-dialog.component.scss"]
+    selector: "calculate-pane-dialog",
+    templateUrl: "calculate-pane-dialog.component.html",
+    styleUrls: ["calculate-pane-dialog.component.scss"],
+    imports: [ModalHeaderComponent, BlockMouseDirective, FormsModule, DynamicComboBox, CustomSelectComponent, NumberStepperComponent]
 })
 export class CalculatePaneDialog implements OnInit {
    @Input() aggreName: string;

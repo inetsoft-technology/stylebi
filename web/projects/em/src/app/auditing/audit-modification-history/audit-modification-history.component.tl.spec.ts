@@ -32,6 +32,7 @@
  *   Form control "selectedStatuses" → HTTP query param "modifyStatuses" (not "statuses").
  *   Getting this wrong silently drops the status filter from the request.
  */
+
 import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { ReactiveFormsModule } from "@angular/forms";
 import { HttpClientModule, HttpParams } from "@angular/common/http";
@@ -71,7 +72,6 @@ const EMPTY_ADDITIONAL = {
    selectedOrganizations: [] as string[],
    selectedStatuses:      [] as string[],
 };
-
 
 /** Renders the component with NO_ERRORS_SCHEMA so em-audit-table-view is stubbed. */
 async function renderComponent(errorService = makeErrorServiceMock()) {
@@ -153,7 +153,6 @@ describe("AuditModificationHistoryComponent — fetchData", () => {
    it("should call errorService.showSnackBar and return empty rows on data API error", async () => {
       const errorService = makeErrorServiceMock();
       const { fixture } = await renderComponent(errorService);
-
 
       server.use(
          http.get("*/api/em/monitoring/audit/modificationHistory", () =>

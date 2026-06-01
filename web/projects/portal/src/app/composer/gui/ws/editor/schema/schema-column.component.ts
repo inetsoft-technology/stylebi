@@ -42,10 +42,11 @@ import { NumericRangeRef } from "../../../../../common/data/numeric-range-ref";
 import { DateRangeRef } from "../../../../../common/data/date-range-ref";
 
 @Component({
-   selector: "schema-column",
-   templateUrl: "schema-column.component.html",
-   styleUrls: ["schema-column.component.scss"],
-   changeDetection: ChangeDetectionStrategy.OnPush
+    selector: "schema-column",
+    templateUrl: "schema-column.component.html",
+    styleUrls: ["schema-column.component.scss"],
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    standalone: true
 })
 export class SchemaColumnComponent implements OnInit, AfterViewInit, OnDestroy {
    @Input() schemaTable: AbstractTableAssembly;

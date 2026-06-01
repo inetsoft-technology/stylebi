@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { ChangeDetectorRef, NgModule, NO_ERRORS_SCHEMA } from "@angular/core";
+import { ChangeDetectorRef, NO_ERRORS_SCHEMA } from "@angular/core";
 import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormGroup, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { NgbModal, NgbModule } from "@ng-bootstrap/ng-bootstrap";
@@ -49,7 +49,7 @@ import { TableViewGeneralPaneModel } from "../model/table-view-general-pane-mode
 import { TitlePropPaneModel } from "../model/title-prop-pane-model";
 import { BasicGeneralPane } from "./basic-general-pane.component";
 import { GeneralPropPane } from "./general-prop-pane.component";
-import { NumberStepperModule } from "../../widget/number-stepper/number-stepper.module";
+import { NumberStepperComponent } from "../../widget/number-stepper/number-stepper.component";
 import { SizePositionPane } from "./size-position-pane.component";
 import { TableViewGeneralPane } from "./table-view-general-pane.component";
 import { TitlePropPane } from "./title-prop-pane.component";
@@ -95,28 +95,41 @@ let createModel: () => TableViewGeneralPaneModel = () => {
    };
 };
 
-@NgModule({
-   declarations: [
-      FixedDropdownComponent,
-      FixedDropdownContextmenuComponent
-   ],
-})
-class TestModule {}
-
 describe("TableViewGeneralPane Unit Test", () => {
    beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule, TestModule, NumberStepperModule
+            FormsModule,
+            ReactiveFormsModule,
+            NgbModule,
+            TableViewGeneralPane,
+            FixedDropdownComponent,
+            FixedDropdownContextmenuComponent,
+            TitlePropPane,
+            TreeDropdownComponent,
+            GeneralPropPane,
+            TreeComponent,
+            FormulaEditorDialog,
+            ColorEditor,
+            TableStylePane,
+            BasicGeneralPane,
+            TreeNodeComponent,
+            NewAggrDialog,
+            ColorPicker,
+            ScriptPane,
+            ColorEditorDialog,
+            ColorMap,
+            ColorSlider,
+            ColorComponentEditor,
+            ColorPane,
+            MessageDialog,
+            TreeSearchPipe,
+            FixedDropdownDirective,
+            DefaultFocusDirective,
+            FixedDropdownDirective,
+            SizePositionPane,
          ],
-         declarations: [
-            TableViewGeneralPane, TitlePropPane, TreeDropdownComponent,
-            GeneralPropPane, TreeComponent, FormulaEditorDialog, ColorEditor, TableStylePane,
-            BasicGeneralPane, TreeNodeComponent, NewAggrDialog, ColorPicker, ScriptPane,
-            ColorEditorDialog, ColorMap, ColorSlider, ColorComponentEditor, ColorPane,
-            MessageDialog, TreeSearchPipe, FixedDropdownDirective, DefaultFocusDirective,
-            FixedDropdownDirective, SizePositionPane
-         ],
+         
          providers: [
             ChangeDetectorRef, NgbModal, DragService, FixedDropdownService,
             DropdownStackService
@@ -127,7 +140,7 @@ describe("TableViewGeneralPane Unit Test", () => {
    }));
 
    // Bug #10802 should have submit on change checkbox if set to show
-   it("should show submit on change checkbox", (done) => {
+   it("should show submit on change checkbox", () => new Promise<void>((done) => {
       let fixture: ComponentFixture<TableViewGeneralPane> = TestBed.createComponent(TableViewGeneralPane);
       let model: TableViewGeneralPaneModel = createModel();
       model.showSubmitOnChange = true;
@@ -142,5 +155,5 @@ describe("TableViewGeneralPane Unit Test", () => {
          expect(submitOnChangeLabel).toBeTruthy();
          done();
       });
-   });
+   }));
 });

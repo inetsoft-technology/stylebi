@@ -17,11 +17,22 @@
  */
 import { Component, EventEmitter, Input, OnInit, Output } from "@angular/core";
 import { QueryParameter } from "../../common/data/tabular/query-parameter";
-import { CustomSelectOption } from "../custom-select/custom-select.component";
+import { TabularDateEditor } from "./tabular-date-editor.component";
+import { TabularNumberEditor } from "./tabular-number-editor.component";
+import { TabularBooleanEditor } from "./tabular-boolean-editor.component";
+import { FormsModule } from "@angular/forms";
+import { TabularTextEditor } from "./tabular-text-editor.component";
+import { CustomSelectOption, CustomSelectComponent } from "../custom-select/custom-select.component";
 
 @Component({
-   selector: "tabular-query-parameter-editor",
-   templateUrl: "tabular-query-parameter-editor.component.html",
+    selector: "tabular-query-parameter-editor",
+    templateUrl: "tabular-query-parameter-editor.component.html",
+    imports: [
+    TabularTextEditor,
+    FormsModule,
+    TabularBooleanEditor,
+    TabularNumberEditor,
+    TabularDateEditor, CustomSelectComponent]
 })
 export class TabularQueryParameterEditor implements OnInit {
    @Input() value: QueryParameter;

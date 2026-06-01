@@ -1,37 +1,28 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <modal-header [title]="'_#(Add Join)'"
-              [cshid]="'CreatePhysicalView'"
-              (onCancel)="cancel()">
+  [cshid]="'CreatePhysicalView'"
+  (onCancel)="cancel()">
 </modal-header>
 <div class="modal-body">
-  <div class="join-dialog__intro">
-    _#(Choose the source and target columns to define a relationship between these tables.)
-  </div>
-  <div class="join-properties">
-    <div class="join-properties__header">
-      <div class="join-properties__title">
-        _#(Join) _#(Properties)
-      </div>
-    </div>
-    <form #joinForm="ngForm" class="join-dialog__form">
-      <div class="shell-form-group form-floating">
-          <custom-select #selectFocus #columnCtrl="ngModel"
+  <form #joinForm="ngForm">
+    <div class="form-group form-floating">
+      <custom-select #selectFocus #columnCtrl="ngModel"
                          name="column"
                          [invalid]="columnCtrl.invalid"
                          [options]="columnSelectOptions"
@@ -39,12 +30,14 @@
                          (selectionChange)="joinSelectionChanged()"
                          required>
           </custom-select>
-          <label>_#(Column)</label>
-          <span class="invalid-feedback" *ngIf="columnCtrl.invalid">_#(data.physicalmodel.columnRequired)
-          </span>
-      </div>
-      <div class="shell-form-group form-floating">
-          <custom-select #foreignTableCtrl="ngModel"
+      <label>_#(Column)</label>
+      @if (columnCtrl.invalid) {
+        <span class="invalid-feedback">_#(data.physicalmodel.columnRequired)
+        </span>
+      }
+    </div>
+    <div class="form-group form-floating">
+      <custom-select #foreignTableCtrl="ngModel"
                          name="foreignTable"
                          [invalid]="foreignTableCtrl.invalid"
                          [options]="foreignTableSelectOptions"
@@ -52,26 +45,29 @@
                          (selectionChange)="joinSelectionChanged(true)"
                          required>
           </custom-select>
-          <label>_#(data.physicalmodel.foreignTable)</label>
-          <span class="invalid-feedback" *ngIf="foreignTableCtrl.invalid">
-            _#(data.physicalmodel.foreignTableRequired)
-          </span>
-      </div>
-      <div class="shell-form-group form-floating">
-          <custom-select #foreignColumnCtrl="ngModel"
+      <label>_#(data.physicalmodel.foreignTable)</label>
+      @if (foreignTableCtrl.invalid) {
+        <span class="invalid-feedback">
+          _#(data.physicalmodel.foreignTableRequired)
+        </span>
+      }
+    </div>
+    <div class="form-group form-floating">
+      <custom-select #foreignColumnCtrl="ngModel"
                          name="foreignColumn"
                          [invalid]="foreignColumnCtrl.invalid"
                          [options]="foreignColumnSelectOptions"
                          [(ngModel)]="join.foreignColumn"
                          required>
           </custom-select>
-          <label>_#(data.physicalmodel.foreignColumn)</label>
-          <span class="invalid-feedback" *ngIf="foreignColumnCtrl.invalid">
-            _#(data.physicalmodel.foreignColumnRequired)
-          </span>
-      </div>
-    </form>
-  </div>
+      <label>_#(data.physicalmodel.foreignColumn)</label>
+      @if (foreignColumnCtrl.invalid) {
+        <span class="invalid-feedback">
+          _#(data.physicalmodel.foreignColumnRequired)
+        </span>
+      }
+    </div>
+  </form>
 </div>
 <div class="modal-footer">
   <button type="button" class="btn btn-primary" (click)="ok()" [disabled]="joinForm.invalid">_#(OK)

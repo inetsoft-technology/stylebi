@@ -18,7 +18,8 @@
 import { Directive, TemplateRef } from "@angular/core";
 
 @Directive({
-   selector: "ng-template[wDialogContent]"
+    selector: "ng-template[wDialogContent]",
+    standalone: true
 })
 export class DialogContentDirective {
    constructor(public template: TemplateRef<any>) {

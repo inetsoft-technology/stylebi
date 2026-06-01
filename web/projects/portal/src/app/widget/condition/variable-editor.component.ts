@@ -20,14 +20,16 @@ import {
    SimpleChanges, AfterViewInit
 } from "@angular/core";
 import { Observable } from "rxjs";
-import { UntypedFormControl, UntypedFormGroup } from "@angular/forms";
+import { UntypedFormControl, UntypedFormGroup, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { Tool } from "../../../../../shared/util/tool";
-import { CustomSelectOption } from "../custom-select/custom-select.component";
+import { NgClass } from "@angular/common";
+import { CustomSelectOption, CustomSelectComponent } from "../custom-select/custom-select.component";
 
 @Component({
-   selector: "variable-editor",
-   templateUrl: "variable-editor.component.html",
-   styleUrls: ["variable-editor.component.scss"]
+    selector: "variable-editor",
+    templateUrl: "variable-editor.component.html",
+    styleUrls: ["variable-editor.component.scss"],
+    imports: [FormsModule, ReactiveFormsModule, NgClass, CustomSelectComponent]
 })
 export class VariableEditor implements OnChanges, AfterViewInit {
    @Input() value: string;

@@ -48,9 +48,8 @@ import { ControlValueAccessor, FormsModule, NG_VALUE_ACCESSOR, ReactiveFormsModu
 import { ErrorStateMatcher } from "@angular/material/core";
 import { MatCheckboxModule } from "@angular/material/checkbox";
 import { NoopAnimationsModule } from "@angular/platform-browser/animations";
-import { render } from "@testing-library/angular";
 
-import { it } from "@jest/globals";
+import { render } from "@testing-library/angular";
 import { DeliveryEmailsComponent, DeliveryEmails } from "./delivery-emails.component";
 import { ExportFormatModel } from "../../../../../../../shared/schedule/model/export-format-model";
 import { CSVConfigModel } from "../../../../../../../shared/schedule/model/csv-config-model";

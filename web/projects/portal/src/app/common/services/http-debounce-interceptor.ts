@@ -15,15 +15,9 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import {
-   HttpEvent,
-   HttpHandler,
-   HttpInterceptor,
-   HttpRequest,
-   HttpResponse
-} from "@angular/common/http";
+import { HttpEvent, HttpHandler, HttpInterceptor, HttpRequest, HttpResponse } from "@angular/common/http";
 import { Injectable } from "@angular/core";
-import { Observable} from "rxjs";
+import { Observable } from "rxjs";
 import { publishReplay, refCount, tap } from "rxjs/operators";
 
 @Injectable()

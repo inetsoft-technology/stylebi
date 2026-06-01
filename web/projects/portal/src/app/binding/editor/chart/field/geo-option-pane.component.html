@@ -1,63 +1,75 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <div class="container-fluid dropdown-pane gop-div">
-  <div class="row shell-form-row--field" *ngIf="mapVisible">
-    <div class="col form-floating">
-      <custom-select [options]="mapTypeOptions"
+  @if (mapVisible) {
+    <div class="row shell-form-row--field">
+      <div class="col form-floating">
+        <custom-select [options]="mapTypeOptions"
                      [(ngModel)]="mapType"
                      (selectionChange)="mapChange($event)"
                      placeholder="_#(Map)">
       </custom-select>
-      <label><span>_#(Map)</span></label>
+        <label><span>_#(Map)</span></label>
+      </div>
     </div>
-  </div>
-  <div class="row shell-form-row--field" *ngIf="layerVisible">
-    <div class="col form-floating">
-      <custom-select *ngIf="chartGeoModel"
+  }
+  @if (layerVisible) {
+    <div class="row shell-form-row--field">
+      <div class="col form-floating">
+        @if (chartGeoModel) {
+          <custom-select
                      [options]="layerOptions"
                      [(ngModel)]="chartGeoModel.option.layerValue"
                      (selectionChange)="layerChange($event)"
                      placeholder="_#(Layer)">
       </custom-select>
-      <label><span>_#(Layer)</span></label>
+        }
+        <label><span>_#(Layer)</span></label>
+      </div>
     </div>
-  </div>
-  <div class="row shell-form-row--field" *ngIf="mappingVisible">
-    <div class="col pe-0 form-floating">
-      <custom-select *ngIf="chartGeoModel"
+  }
+  @if (mappingVisible) {
+    <div class="row shell-form-row--field">
+      <div class="col pe-0 form-floating">
+        @if (chartGeoModel) {
+          <custom-select
                      [options]="mappingOptions"
                      [ngModel]="chartGeoModel.option.mapping"
                      (selectionChange)="mappingChange($event)"
                      placeholder="_#(Mapping)">
       </custom-select>
-      <label><span>_#(Mapping)</span></label>
+        }
+        <label><span>_#(Mapping)</span></label>
+      </div>
+      <div class="col-auto ms-2">
+        <i class="icon-size-medium icon-color-default geo-mapping-icon"
+          [class.geo-not-mapped-icon]="!allMapping"
+          [class.geo-mapped-icon]="allMapping"
+        aria-hidden="true" (click)="showGeoMappingDialog()" title="_#(Edit Mapping)"></i>
+      </div>
     </div>
-    <div class="col-auto ms-2">
-      <i class="icon-size-medium icon-color-default geo-mapping-icon"
-         [class.geo-not-mapped-icon]="!allMapping"
-         [class.geo-mapped-icon]="allMapping"
-         aria-hidden="true" (click)="showGeoMappingDialog()" title="_#(Edit Mapping)"></i>
+  }
+  @if (loading) {
+    <div class="loading-container">
+      <div class="loading-content">
+        <i class="loading-icon--spin loading-icon fa-spin icon-4x fa-fw" aria-hidden="true"></i>
+        <span class="visually-hidden" data-th-text="_#(Loading)">Loading</span>
+      </div>
     </div>
-  </div>
-  <div *ngIf="loading" class="loading-container">
-    <div class="loading-content">
-      <i class="loading-icon--spin loading-icon fa-spin icon-4x fa-fw" aria-hidden="true"></i>
-      <span class="visually-hidden" data-th-text="_#(Loading)">Loading</span>
-    </div>
-  </div>
+  }
 </div>

@@ -18,11 +18,14 @@
 import { Component, Input, Output, EventEmitter, OnInit } from "@angular/core";
 import { Observable } from "rxjs";
 import { BrowseDataModel } from "../../common/data/browse-data-model";
-import { CustomSelectOption } from "../custom-select/custom-select.component";
+import { CustomSelectOption, CustomSelectComponent } from "../custom-select/custom-select.component";
+
+import { FormsModule } from "@angular/forms";
 
 @Component({
-   selector: "date-in-value-editor",
-   templateUrl: "date-in-value-editor.component.html"
+    selector: "date-in-value-editor",
+    templateUrl: "date-in-value-editor.component.html",
+    imports: [FormsModule, CustomSelectComponent]
 })
 export class DateInValueEditor implements OnInit {
    @Input() dataFunction: () => Observable<BrowseDataModel>;

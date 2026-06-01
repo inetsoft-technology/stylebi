@@ -18,7 +18,8 @@
 import { Input, Directive, NgZone, ElementRef, OnInit } from "@angular/core";
 
 @Directive({
-   selector: "[blockMouse]"
+    selector: "[blockMouse]",
+    standalone: true
 })
 export class BlockMouseDirective implements OnInit {
    @Input() isBlockMouse: boolean = true;

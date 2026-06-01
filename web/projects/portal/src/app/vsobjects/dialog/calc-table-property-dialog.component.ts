@@ -22,11 +22,20 @@ import { ScriptPaneTreeModel } from "../../widget/dialog/script-pane/script-pane
 import { UIContextService } from "../../common/services/ui-context.service";
 import { PropertyDialogService } from "../util/property-dialog.service";
 import { PropertyDialog } from "../../composer/dialog/vs/property-dialog.component";
+import { ApplyButtonComponent } from "../../widget/slide-out/apply-button.component";
+import { VSAssemblyScriptPane } from "../../widget/dialog/vsassembly-script-pane/vsassembly-script-pane.component";
+import { CalcTableAdvancedPane } from "./calc-table-advanced-pane.component";
+import { TableViewGeneralPane } from "./table-view-general-pane.component";
+import { NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, NgbNavOutlet } from "@ng-bootstrap/ng-bootstrap";
+import { EnterSubmitDirective } from "../../widget/directive/enter-submit.directive";
+
+import { ModalHeaderComponent } from "../../widget/modal-header/modal-header.component";
 
 @Component({
-   selector: "calc-table-property-dialog",
-   templateUrl: "calc-table-property-dialog.component.html",
-   styleUrls: ["calc-table-property-dialog.component.scss"]
+    selector: "calc-table-property-dialog",
+    templateUrl: "calc-table-property-dialog.component.html",
+    styleUrls: ["calc-table-property-dialog.component.scss"],
+    imports: [ModalHeaderComponent, EnterSubmitDirective, NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, TableViewGeneralPane, CalcTableAdvancedPane, VSAssemblyScriptPane, NgbNavOutlet, ApplyButtonComponent]
 })
 export class CalcTablePropertyDialog extends PropertyDialog implements OnInit {
    @Input() model: CalcTablePropertyDialogModel;

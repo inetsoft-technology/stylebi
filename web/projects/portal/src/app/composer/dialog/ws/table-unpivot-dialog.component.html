@@ -1,38 +1,44 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <modal-header [title]="'_#(Unpivot Data)'"
-   [cshid]="'UnpivotingTable'"
-   (onCancel)="close()">
+  [cshid]="'UnpivotingTable'"
+  (onCancel)="close()">
 </modal-header>
-<div *ngIf="form" [enterSubmit]="formValid" (onEnter)="ok()" class="modal-body">
-  <form [formGroup]="form" class="form-horizontal">
-    <div class="shell-form-row--field row">
-      <div class="col d-flex flex-column" [ngClass]="{ 'has-error' : !form.controls['level'].valid}">
-        <label class="form-label">_#(common.worksheet.unpivot)</label>
-        <number-stepper formControlName="level" [min]="1"
+@if (form) {
+  <div [enterSubmit]="formValid" (onEnter)="ok()" class="modal-body">
+    <form [formGroup]="form" class="form-horizontal">
+      <div class="shell-form-row--field row">
+        <div class="col d-flex flex-column" [ngClass]="{ 'has-error' : !form.controls['level'].valid}">
+          <number-stepper formControlName="level" [min]="1"
                         [invalid]="!form.controls['level'].valid">
         </number-stepper>
+          <label><span>_#(common.worksheet.unpivot)</span></label>
+        </div>
       </div>
-    </div>
-    <div *ngIf="form.controls['level'].errors && form.controls['level'].errors['positiveIntegerInRange']" class="shell-alert shell-alert--danger">_#(common.worksheet.unpivot.valueCheck)</div>
-    <div *ngIf="form.controls['level'].errors && form.controls['level'].errors['required']" class="shell-alert shell-alert--danger">_#(Level is required)</div>
-  </form>
-</div>
+      @if (form.controls['level'].errors && form.controls['level'].errors['positiveIntegerInRange']) {
+        <div class="shell-alert shell-alert--danger">_#(common.worksheet.unpivot.valueCheck)</div>
+      }
+      @if (form.controls['level'].errors && form.controls['level'].errors['required']) {
+        <div class="shell-alert shell-alert--danger">_#(Level is required)</div>
+      }
+    </form>
+  </div>
+}
 
 <div class="modal-footer">
   <button type="button" class="btn btn-primary" (click)="ok()" [disabled]="!form?.valid" #okButton>_#(OK)</button>

@@ -1,44 +1,46 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <w-standard-dialog [title]="'_#(MV Analysis Exceptions)'" (onClose)="closeDialog()"
-                   [submitOnEnter]="submitOnEnter"
-                   [cshid]="'PortalMaterialization'"
-                   (onSubmit)="okClicked()">
+  [submitOnEnter]="submitOnEnter"
+  [cshid]="'PortalMaterialization'"
+  (onSubmit)="okClicked()">
   <ng-template wDialogContent>
-    <div class="mv-exceptions-table-shell">
-      <table class="table table-bordered table-hover table-sm w-100" wScrollableFlexTable>
-        <thead class="thead-default">
+    <table class="table table-bordered table-hover table-sm w-100" wScrollableFlexTable>
+      <thead class="thead-default">
         <tr>
           <th>_#(Asset)</th>
           <th>_#(Reasons)</th>
         </tr>
-        </thead>
-        <tbody>
-        <tr *ngFor="let exception of exceptions; let i = index">
-          <td>{{ exception.viewsheet }}</td>
-          <td>{{ exception.reasons }}</td>
-        </tr>
-        <tr *ngIf="!exceptions || exceptions.length == 0">
-          <td class="text-center align-middle" colspan="4">_#(Empty)</td>
-        </tr>
-        </tbody>
-      </table>
-    </div>
+      </thead>
+      <tbody>
+        @for (exception of exceptions; track exception; let i = $index) {
+          <tr>
+            <td>{{ exception.viewsheet }}</td>
+            <td>{{ exception.reasons }}</td>
+          </tr>
+        }
+        @if (!exceptions || exceptions.length == 0) {
+          <tr>
+            <td class="text-center align-middle" colspan="4">_#(Empty)</td>
+          </tr>
+        }
+      </tbody>
+    </table>
   </ng-template>
   <ng-template wDialogButtons>
     <button type="button" class="btn btn-primary" (click)="okClicked()">_#(Proceed)</button>

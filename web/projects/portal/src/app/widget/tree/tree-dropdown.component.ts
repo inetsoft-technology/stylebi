@@ -38,11 +38,14 @@ import { FixedDropdownDirective } from "../fixed-dropdown/fixed-dropdown.directi
 import { TreeNodeModel } from "./tree-node-model";
 import { TreeDataPane } from "../../composer/dialog/vs/tree-data-pane";
 import { DataTreeValidatorService } from "../../vsobjects/dialog/data-tree-validator.service";
+import { TreeComponent } from "./tree.component";
+import { NgClass } from "@angular/common";
 
 @Component({
-   selector: "tree-dropdown",
-   templateUrl: "tree-dropdown.component.html",
-   styleUrls: ["tree-dropdown.component.scss"]
+    selector: "tree-dropdown",
+    templateUrl: "tree-dropdown.component.html",
+    styleUrls: ["tree-dropdown.component.scss"],
+    imports: [NgClass, FixedDropdownDirective, TreeComponent]
 })
 export class TreeDropdownComponent extends TreeDataPane {
    @Input() root: TreeNodeModel;

@@ -1,29 +1,29 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <modal-header [title]="'_#(Add Join)'"
-   [cshid]="'DatabaseQuery'"
-   (onCancel)="close()">
+  [cshid]="'DatabaseQuery'"
+  (onCancel)="close()">
 </modal-header>
 <div class="modal-body" [enterSubmit]="formValid" (onEnter)="ok()">
   <div class="container-fluid">
     <div class="shell-form-row shell-form-row--checkbox" [style.visibility]="">
-      <ng-template #emptyBlock><div>&nbsp;</div></ng-template>
-      <ng-container *ngIf="join.operator === '='; else emptyBlock">
+      @if (join.operator === '=') {
+
         <div class="col-4">
           <div class="form-check">
             <input type="checkbox" class="form-check-input" [ngModel]="join.all1" id="all"
@@ -43,7 +43,10 @@
             </label>
           </div>
         </div>
-      </ng-container>
+      
+} @else {
+<div>&nbsp;</div>
+}
     </div>
     <div class="row shell-form-row--field">
       <div class="col-4">
@@ -62,11 +65,11 @@
     </div>
     <div class="row shell-form-row--field">
       <div class="col-4">
-        <custom-select [options]="column1SelectOptions"
-                       [ngModel]="tempColumn1"
-                       (selectionChange)="tempColumn1 = $event; validate()"
-                       [disabled]="columns1 == null">
-        </custom-select>
+        <select class="form-control" [ngModel]="columns1?.indexOf(tempColumn1)" (ngModelChange)="tempColumn1 = columns1[$event]; validate()" [disabled]="columns1 == null">
+          @for (_col of columns1; track _col; let _i = $index) {
+<option [ngValue]="_i">{{_col.properties.attribute}}</option>
+}
+        </select>
       </div>
       <div class="col-4">
         <custom-select [options]="operatorSelectOptions"
@@ -75,14 +78,16 @@
         </custom-select>
       </div>
       <div class="col-4">
-        <custom-select [options]="column2SelectOptions"
-                       [ngModel]="tempColumn2"
-                       (selectionChange)="tempColumn2 = $event; validate()"
-                       [disabled]="columns2 == null">
-        </custom-select>
+        <select class="form-control" [ngModel]="columns2?.indexOf(tempColumn2)" (ngModelChange)="tempColumn2 = columns2[$event]; validate()" [disabled]="columns2 == null">
+          @for (_col of columns2; track _col; let _i = $index) {
+<option [ngValue]="_i">{{_col.properties.attribute}}</option>
+}
+        </select>
       </div>
     </div>
-    <div *ngIf="error" class="shell-alert shell-alert--danger">{{error}}</div>
+    @if (error) {
+<div class="shell-alert shell-alert--danger">{{error}}</div>
+}
   </div>
 </div>
 <div class="modal-footer">

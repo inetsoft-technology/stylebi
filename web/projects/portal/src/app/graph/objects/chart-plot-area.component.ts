@@ -38,7 +38,7 @@ import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { ComponentTool } from "../../common/util/component-tool";
 import { GuiTool } from "../../common/util/gui-tool";
 import { ContextProvider } from "../../vsobjects/context-provider.service";
-import { SelectionBoxEvent } from "../../widget/directive/selection-box.directive";
+import { SelectionBoxEvent, SelectionBoxDirective } from "../../widget/directive/selection-box.directive";
 import { DebounceService } from "../../widget/services/debounce.service";
 import { ModelService } from "../../widget/services/model.service";
 import { ScaleService } from "../../widget/services/scale/scale-service";
@@ -55,16 +55,20 @@ import { ChartInlineSvgDirective } from "./chart-inline-svg.directive";
 import { ChartService } from "../services/chart.service";
 import { ChartObjectAreaBase } from "./chart-object-area-base";
 import { Point } from "../../common/data/point";
+import { ChartImageDirective } from "./chart-image.directive";
+import { OutOfZoneDirective } from "../../widget/directive/out-of-zone.directive";
+
 
 @Component({
-   selector: "chart-plot-area",
-   templateUrl: "chart-plot-area.component.html",
-   styleUrls: ["chart-plot-area.component.scss"],
-   providers: [{
-      provide: ChartObjectAreaBase,
-      useExisting: ChartPlotArea
-   }],
-   changeDetection: ChangeDetectionStrategy.OnPush
+    selector: "chart-plot-area",
+    templateUrl: "chart-plot-area.component.html",
+    styleUrls: ["chart-plot-area.component.scss"],
+    providers: [{
+            provide: ChartObjectAreaBase,
+            useExisting: ChartPlotArea
+        }],
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    imports: [SelectionBoxDirective, OutOfZoneDirective, ChartImageDirective]
 })
 export class ChartPlotArea extends ChartObjectAreaBase<Plot> implements OnChanges {
    @Input() dataTip: string;

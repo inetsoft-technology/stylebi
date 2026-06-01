@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { HttpClientTestingModule } from "@angular/common/http/testing";
 import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
@@ -28,7 +29,7 @@ import { MatInputModule } from "@angular/material/input";
 import { MatSnackBarModule } from "@angular/material/snack-bar";
 import { NoopAnimationsModule } from "@angular/platform-browser/animations";
 import { ScheduleUsersService } from "../../../../../../shared/schedule/schedule-users.service";
-import { EmailPickerModule } from "../../email-picker/email-picker.module";
+import { EmailPickerComponent } from "../../email-picker/email-picker.component";
 import { ScheduleCycleOptionsPaneComponent } from "./schedule-cycle-options-pane.component";
 import { BehaviorSubject } from "rxjs";
 
@@ -38,9 +39,9 @@ describe("ScheduleCycleOptionsPaneComponent", () => {
 
    beforeEach(waitForAsync(() => {
       const scheduleUsersService = {
-         getGroups: jest.fn(() => new BehaviorSubject([]) ),
-         getEmailUsers: jest.fn(() => new BehaviorSubject([]) ),
-         getEmailGroups: jest.fn(() => new BehaviorSubject([]) ),
+         getGroups: vi.fn(() => new BehaviorSubject([]) ),
+         getEmailUsers: vi.fn(() => new BehaviorSubject([]) ),
+         getEmailGroups: vi.fn(() => new BehaviorSubject([]) ),
       };
 
       TestBed.configureTestingModule({
@@ -56,11 +57,8 @@ describe("ScheduleCycleOptionsPaneComponent", () => {
             MatFormFieldModule,
             MatInputModule,
             MatSnackBarModule,
-            EmailPickerModule
-         ],
-         declarations: [
-            ScheduleCycleOptionsPaneComponent
-         ],
+            EmailPickerComponent,
+            ScheduleCycleOptionsPaneComponent],
          providers: [
             { provide: ScheduleUsersService, useValue: scheduleUsersService}
          ],

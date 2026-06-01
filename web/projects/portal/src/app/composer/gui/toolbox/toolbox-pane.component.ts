@@ -39,10 +39,13 @@ import { map } from "rxjs/operators";
 import { Subscription } from "rxjs";
 import { TreeTool } from "../../../common/util/tree-tool";
 import { VirtualScrollTreeDatasource } from "../../../widget/tree/virtual-scroll-tree-datasource";
+import { TreeComponent } from "../../../widget/tree/tree.component";
+import { ComposerBindingTree } from "./composer-binding-tree.component";
 
 @Component({
-   selector: "composer-toolbox-pane",
-   templateUrl: "toolbox-pane.component.html"
+    selector: "composer-toolbox-pane",
+    templateUrl: "toolbox-pane.component.html",
+    imports: [ComposerBindingTree, TreeComponent]
 })
 export class ToolboxPane implements OnChanges, OnInit, OnDestroy {
    @HostBinding("hidden")

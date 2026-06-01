@@ -1,59 +1,82 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <div class="list-group tabular-list-editor__list">
-  <div class="d-flex align-items-center tabular-list-editor__row"
-       *ngFor="let val of value; let i = index; trackBy: trackByIdx">
-    <input type="checkbox" class="form-check-input checkbox me-1"
-           [class.query-parameter-checkbox]="type == 'PARAMETER'"
-           [(ngModel)]="selected[i]" (ngModelChange)="valueChanged()"/>
-    <div class="flex-grow-1">
-      <tabular-text-editor *ngIf="type == 'TEXT'" [(value)]="value[i]" (valueChange)="valueChanged()" [password]="password" [rows]="rows" [columns]="columns" [enabled]="enabled"></tabular-text-editor>
-      <tabular-boolean-editor *ngIf="type == 'BOOLEAN'" [(value)]="value[i]" (valueChange)="valueChanged()" [label]="label" [enabled]="enabled"></tabular-boolean-editor>
-      <tabular-number-editor *ngIf="type == 'BYTE' || type == 'SHORT' || type == 'INT' || type == 'LONG' || type == 'FLOAT' || type == 'DOUBLE'" [(value)]="value[i]" (valueChange)="valueChanged()" [enabled]="enabled"></tabular-number-editor>
-      <tabular-column-definition-editor *ngIf="type == 'COLUMN'" [(value)]="value[i]" (valueChange)="valueChanged()" [enabled]="enabled"></tabular-column-definition-editor>
-      <tabular-date-editor *ngIf="type == 'DATE'" [(value)]="value[i]" (valueChange)="valueChanged()" [enabled]="enabled"></tabular-date-editor>
-      <tabular-http-parameter-editor *ngIf="type == 'HTTP_PARAMETER'" [(value)]="value[i]" (valueChange)="valueChanged()" [enabled]="enabled" [editorPropertyNames]="editorPropertyNames"
-                                     [editorPropertyValues]="editorPropertyValues"></tabular-http-parameter-editor>
-      <tabular-query-parameter-editor *ngIf="type == 'PARAMETER'" [(value)]="value[i]" (valueChange)="valueChanged()" [enabled]="enabled"></tabular-query-parameter-editor>
-      <tabular-file-editor *ngIf="type == 'FILE'" [(value)]="value[i]"
-                           (valueChange)="valueChanged()" [property]="property"
-                           [editorPropertyNames]="editorPropertyNames"
-                           [editorPropertyValues]="editorPropertyValues"
-                           [pattern]="pattern" [enabled]="enabled"></tabular-file-editor>
-      <tabular-tags-editor *ngIf="type == 'TAGS'"
-                           [(value)]="value[i]"
-                           (valueChange)="valueChanged()"
-                           [tags]="tags" [labels]="labels"
-                           [enabled]="enabled"
-                           [editorPropertyNames]="editorPropertyNames"
-                           [editorPropertyValues]="editorPropertyValues"></tabular-tags-editor>
-      <tabular-autocomplete-editor *ngIf="type == 'AUTOCOMPLETE'"
-                                   [(value)]="value[i]"
-                                   (valueChange)="valueChanged()"
-                                   [tags]="tags"
-                                   [enabled]="enabled"></tabular-autocomplete-editor>
+  @for (val of value; track $index; let i = $index) {
+    <div class="d-flex align-items-center mt-1">
+      <input type="checkbox" class="form-check-input checkbox me-1"
+        [class.query-parameter-checkbox]="type == 'PARAMETER'"
+        [(ngModel)]="selected[i]" (ngModelChange)="valueChanged()"/>
+      <div class="flex-grow-1">
+        @if (type == 'TEXT') {
+          <tabular-text-editor [(value)]="value[i]" (valueChange)="valueChanged()" [password]="password" [rows]="rows" [columns]="columns" [enabled]="enabled"></tabular-text-editor>
+        }
+        @if (type == 'BOOLEAN') {
+          <tabular-boolean-editor [(value)]="value[i]" (valueChange)="valueChanged()" [label]="label" [enabled]="enabled"></tabular-boolean-editor>
+        }
+        @if (type == 'BYTE' || type == 'SHORT' || type == 'INT' || type == 'LONG' || type == 'FLOAT' || type == 'DOUBLE') {
+          <tabular-number-editor [(value)]="value[i]" (valueChange)="valueChanged()" [enabled]="enabled"></tabular-number-editor>
+        }
+        @if (type == 'COLUMN') {
+          <tabular-column-definition-editor [(value)]="value[i]" (valueChange)="valueChanged()" [enabled]="enabled"></tabular-column-definition-editor>
+        }
+        @if (type == 'DATE') {
+          <tabular-date-editor [(value)]="value[i]" (valueChange)="valueChanged()" [enabled]="enabled"></tabular-date-editor>
+        }
+        @if (type == 'HTTP_PARAMETER') {
+          <tabular-http-parameter-editor [(value)]="value[i]" (valueChange)="valueChanged()" [enabled]="enabled" [editorPropertyNames]="editorPropertyNames"
+          [editorPropertyValues]="editorPropertyValues"></tabular-http-parameter-editor>
+        }
+        @if (type == 'PARAMETER') {
+          <tabular-query-parameter-editor [(value)]="value[i]" (valueChange)="valueChanged()" [enabled]="enabled"></tabular-query-parameter-editor>
+        }
+        @if (type == 'FILE') {
+          <tabular-file-editor [(value)]="value[i]"
+            (valueChange)="valueChanged()" [property]="property"
+            [editorPropertyNames]="editorPropertyNames"
+            [editorPropertyValues]="editorPropertyValues"
+          [pattern]="pattern" [enabled]="enabled"></tabular-file-editor>
+        }
+        @if (type == 'TAGS') {
+          <tabular-tags-editor
+            [(value)]="value[i]"
+            (valueChange)="valueChanged()"
+            [tags]="tags" [labels]="labels"
+            [enabled]="enabled"
+            [editorPropertyNames]="editorPropertyNames"
+          [editorPropertyValues]="editorPropertyValues"></tabular-tags-editor>
+        }
+        @if (type == 'AUTOCOMPLETE') {
+          <tabular-autocomplete-editor
+            [(value)]="value[i]"
+            (valueChange)="valueChanged()"
+            [tags]="tags"
+          [enabled]="enabled"></tabular-autocomplete-editor>
+        }
+      </div>
     </div>
-  </div>
+  }
 </div>
 <div class="shell-form-group pt-1">
   <button type="button" class="btn btn-default me-1" (click)="addClicked()">_#(Add)</button>
   <button type="button" class="btn btn-default" [disabled]="!isSelected()" (click)="removeClicked()">_#(Remove)</button>
 </div>
-<div *ngIf="required && value == null">
-  <div class="shell-alert shell-alert--danger">_#(value.required)</div>
-</div>
+@if (required && value == null) {
+  <div>
+    <div class="shell-alert shell-alert--danger">_#(value.required)</div>
+  </div>
+}

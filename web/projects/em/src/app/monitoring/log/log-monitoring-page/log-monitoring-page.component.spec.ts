@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { ScrollingModule } from "@angular/cdk/scrolling";
 import { HttpClientTestingModule, } from "@angular/common/http/testing";
 import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
@@ -27,7 +28,7 @@ import { MatListModule } from "@angular/material/list";
 import { MatSelectModule } from "@angular/material/select";
 import { NoopAnimationsModule } from "@angular/platform-browser/animations";
 import { of as observableOf } from "rxjs";
-import { DownloadModule } from "../../../../../../shared/download/download.module";
+import { DownloadTargetComponent } from "../../../../../../shared/download/download-target.component";
 import { MonitoringDataService } from "../../monitoring-data.service";
 import { LogMonitoringViewComponent } from "../log-monitoring-view/log-monitoring-view.component";
 import { LogMonitoringPageComponent } from "./log-monitoring-page.component";
@@ -38,9 +39,9 @@ describe("LogMonitoringPageComponent", () => {
 
    beforeEach(waitForAsync(() => {
       const monitoringDataService = {
-         connect: jest.fn(() => observableOf()),
-         subscribe: jest.fn(),
-         getClusterAddress: jest.fn(() => observableOf())
+         connect: vi.fn(() => observableOf()),
+         subscribe: vi.fn(),
+         getClusterAddress: vi.fn(() => observableOf())
       };
 
       TestBed.configureTestingModule({
@@ -53,11 +54,10 @@ describe("LogMonitoringPageComponent", () => {
             MatListModule,
             MatOptionModule,
             MatSelectModule,
-            DownloadModule,
+            DownloadTargetComponent,
             NoopAnimationsModule,
-            ScrollingModule
-         ],
-         declarations: [LogMonitoringPageComponent, LogMonitoringViewComponent],
+            ScrollingModule,
+            LogMonitoringPageComponent, LogMonitoringViewComponent],
          providers: [
             {provide: MonitoringDataService, useValue: monitoringDataService}
          ]

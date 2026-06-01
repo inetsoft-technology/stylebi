@@ -22,18 +22,18 @@ import {
 import { Subject } from "rxjs";
 import { takeUntil } from "rxjs/operators";
 import { DropdownStackService } from "../../../widget/fixed-dropdown/dropdown-stack.service";
-import { PopComponentService } from "./pop-component.service";
+import { PopComponentService, PopLocation } from "./pop-component.service";
 import { OpenDataTipEvent } from "../../event/open-datatip-event";
 import { ViewsheetClientService } from "../../../common/viewsheet-client/viewsheet-client.service";
 import { GuiTool } from "../../../common/util/gui-tool";
 import { DataTipService } from "./data-tip.service";
 import { ContextProvider } from "../../context-provider.service";
 
-import { PopLocation } from "./pop-component.service";
 import { DateTipHelper } from "./date-tip-helper";
 
 @Directive({
-   selector: "[VSPopComponent]"
+    selector: "[VSPopComponent]",
+    standalone: true
 })
 export class VSPopComponentDirective implements DoCheck, OnInit, OnDestroy {
    @Input() public popComponentName: string;

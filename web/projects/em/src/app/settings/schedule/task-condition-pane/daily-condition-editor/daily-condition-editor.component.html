@@ -1,20 +1,20 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <mat-card appearance="outlined">
   <mat-card-content [formGroup]="form">
     <em-start-time-editor
@@ -27,17 +27,19 @@
       [showMeridian]="showMeridian"
       (startTimeChanged)="onStartTimeChanged($event)">
       <em-time-zone-select formControlName="timeZone"
-                           [startTimeEnabled]="startTimeEnabled"
-                           [timeZoneOptions]="timeZoneOptions" [enabled]="timeZoneEnabled"
-                           (changed)="fireModelChanged()">
+        [startTimeEnabled]="startTimeEnabled"
+        [timeZoneOptions]="timeZoneOptions" [enabled]="timeZoneEnabled"
+        (changed)="fireModelChanged()">
       </em-time-zone-select>
     </em-start-time-editor>
     <mat-checkbox formControlName="weekdayOnly" (change)="fireModelChanged()">_#(Weekdays)</mat-checkbox>
-    <mat-form-field *ngIf="!weekdayOnly" appearance="outline" color="accent">
-      <mat-label>_#(schedule.interval)</mat-label>
-      <input type="number" matInput formControlName="interval" placeholder="_#(schedule.interval)" (input)="fireModelChanged()"/>
-      <mat-error>_#(schedule.task.condition.dayCheck)</mat-error>
-      <mat-hint>_#(Every) <i>n</i> _#(Day_s)</mat-hint>
-    </mat-form-field>
+    @if (!weekdayOnly) {
+      <mat-form-field appearance="outline" color="accent">
+        <mat-label>_#(schedule.interval)</mat-label>
+        <input type="number" matInput formControlName="interval" placeholder="_#(schedule.interval)" (input)="fireModelChanged()"/>
+        <mat-error>_#(schedule.task.condition.dayCheck)</mat-error>
+        <mat-hint>_#(Every) <i>n</i> _#(Day_s)</mat-hint>
+      </mat-form-field>
+    }
   </mat-card-content>
 </mat-card>

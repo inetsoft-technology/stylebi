@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { HttpResponse } from "@angular/common/http";
 import { fakeAsync, tick } from "@angular/core/testing";
 import { of as observableOf } from "rxjs";
@@ -33,29 +34,29 @@ describe("Worksheet Assembly Graph Pane Test", () => {
    let dragService: DragService;
 
    beforeEach(() => {
-      viewsheetClientService = { sendEvent: jest.fn() };
+      viewsheetClientService = { sendEvent: vi.fn() };
       viewsheetClientService.commands = observableOf([]);
       dragService = new DragService();
-      const zone: any = { run: jest.fn(), runOutsideAngular: jest.fn() };
-      const dropdownService: any = { open: jest.fn() };
-      const modalService: any = { open: jest.fn() };
-      const modelService: any = { sendModel: jest.fn() };
+      const zone: any = { run: vi.fn(), runOutsideAngular: vi.fn() };
+      const dropdownService: any = { open: vi.fn() };
+      const modalService: any = { open: vi.fn() };
+      const modelService: any = { sendModel: vi.fn() };
       modelService.sendModel.mockImplementation(() => observableOf(new HttpResponse({body: null})));
       const renderer: any = {
-         removeAttribute: jest.fn(),
-         appendChild: jest.fn(),
-         list: jest.fn(),
-         setStyle: jest.fn(),
-         removeChild: jest.fn()
+         removeAttribute: vi.fn(),
+         appendChild: vi.fn(),
+         list: vi.fn(),
+         setStyle: vi.fn(),
+         removeChild: vi.fn()
       };
       const document: any = {
-         getElementById: jest.fn()
+         getElementById: vi.fn()
       };
       graphPane = new WSAssemblyGraphPaneComponent(zone, viewsheetClientService,
          dragService, dropdownService, modalService, modelService, renderer, document);
       graphPane.worksheet = new Worksheet();
 
-      const jspAssemblyGraph: any = { getContainer: jest.fn() };
+      const jspAssemblyGraph: any = { getContainer: vi.fn() };
       jspAssemblyGraph.getContainer.mockImplementation(() => ({scrollTop: 0, scrollLeft: 0}));
       graphPane.worksheet.jspAssemblyGraph = jspAssemblyGraph;
    });
@@ -73,7 +74,7 @@ describe("Worksheet Assembly Graph Pane Test", () => {
          classType: undefined
       };
       graphPane.worksheet.currentFocusedAssemblies = [primaryAssembly];
-      const showConfirmDialog = jest.spyOn(ComponentTool, "showConfirmDialog");
+      const showConfirmDialog = vi.spyOn(ComponentTool, "showConfirmDialog");
 
       showConfirmDialog.mockImplementation(() => Promise.resolve("delete"));
 
@@ -96,7 +97,7 @@ describe("Worksheet Assembly Graph Pane Test", () => {
          classType: undefined
       };
       graphPane.worksheet.currentFocusedAssemblies = [nonPrimaryAssembly];
-      const showConfirmDialog = jest.spyOn(ComponentTool, "showConfirmDialog");
+      const showConfirmDialog = vi.spyOn(ComponentTool, "showConfirmDialog");
       showConfirmDialog.mockClear();
       showConfirmDialog.mockImplementation(() => Promise.resolve("delete"));
 
@@ -119,7 +120,7 @@ describe("Worksheet Assembly Graph Pane Test", () => {
          classType: undefined
       };
       graphPane.worksheet.currentFocusedAssemblies = [primaryAssembly];
-      const showConfirmDialog = jest.spyOn(ComponentTool, "showConfirmDialog");
+      const showConfirmDialog = vi.spyOn(ComponentTool, "showConfirmDialog");
 
       showConfirmDialog.mockImplementation(() => Promise.resolve("cancel"));
 
@@ -129,8 +130,8 @@ describe("Worksheet Assembly Graph Pane Test", () => {
       expect(viewsheetClientService.sendEvent).not.toHaveBeenCalled();
    }));
 
-   xit("should be able to open certain asset entries", () => {
-      const dragEvent: any = { preventDefault: jest.fn(), stopPropagation: jest.fn() };
+   it.skip("should be able to open certain asset entries", () => {
+      const dragEvent: any = { preventDefault: vi.fn(), stopPropagation: vi.fn() };
 
       const worksheetAsset: AssetEntry = {
          identifier: "id",

@@ -18,27 +18,27 @@
 @use '@angular/material' as mat;
 @import 'variables';
 
-$em-primary-palette: mat.define-palette($em-primary);
-$em-accent-palette: mat.define-palette($em-accent);
-$em-warn-palette: mat.define-palette(mat.$red-palette);
+$em-primary-palette: mat.m2-define-palette($em-primary);
+$em-accent-palette: mat.m2-define-palette($em-accent);
+$em-warn-palette: mat.m2-define-palette(mat.$m2-red-palette);
 
-$em-typography-config: mat.define-typography-config(
+$em-typography-config: mat.m2-define-typography-config(
   $font-family: var(--inet-em-font-family),
-  $headline-1: mat.define-typography-level(20px, 32px, 400, var(--inet-em-font-family)),
-  $subtitle-1: mat.define-typography-level(14px, 14px, 700, var(--inet-em-font-family)),
-  $subtitle-2: mat.define-typography-level(12px, 12px, 700, var(--inet-em-font-family)),
-  $body-1: mat.define-typography-level(12px, 20px, 400, var(--inet-em-font-family)),
-  $button: mat.define-typography-level(12px, 12px, 500, var(--inet-em-font-family))
+  $headline-1: mat.m2-define-typography-level(20px, 32px, 400, var(--inet-em-font-family)),
+  $subtitle-1: mat.m2-define-typography-level(14px, 14px, 700, var(--inet-em-font-family)),
+  $subtitle-2: mat.m2-define-typography-level(12px, 12px, 700, var(--inet-em-font-family)),
+  $body-1: mat.m2-define-typography-level(12px, 20px, 400, var(--inet-em-font-family)),
+  $button: mat.m2-define-typography-level(12px, 12px, 500, var(--inet-em-font-family))
 );
 
-$em-form-field-typography-config: mat.define-typography-config(
+$em-form-field-typography-config: mat.m2-define-typography-config(
   $font-family: var(--inet-em-font-family),
-  $body-1: mat.define-typography-level(12px, 20px, 400, var(--inet-em-font-family)),
-  $body-2: mat.define-typography-level(12px, 20px, 400, var(--inet-em-font-family)), //checkbox
-  $caption: mat.define-typography-level(9px, 9px, 500, var(--inet-em-font-family))
+  $body-1: mat.m2-define-typography-level(12px, 20px, 400, var(--inet-em-font-family)),
+  $body-2: mat.m2-define-typography-level(12px, 20px, 400, var(--inet-em-font-family)), //checkbox
+  $caption: mat.m2-define-typography-level(9px, 9px, 500, var(--inet-em-font-family))
 );
 
-$em-theme: mat.define-dark-theme((
+$em-theme: mat.m2-define-dark-theme((
   color: (
     primary: $em-primary-palette,
     accent: $em-accent-palette,

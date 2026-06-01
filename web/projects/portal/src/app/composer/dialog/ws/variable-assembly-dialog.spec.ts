@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
@@ -35,8 +36,8 @@ import { Worksheet } from "../../data/ws/worksheet";
 import { VariableAssemblyDialog } from "./variable-assembly-dialog.component";
 import { VariableTableListDialog } from "./variable-table-list-dialog.component";
 import { ConditionValueTypePipe } from "../../../widget/condition/condition-value-type.pipe";
-import { CustomSelectModule } from "../../../widget/custom-select/custom-select.module";
-
+import { HttpClientTestingModule } from "@angular/common/http/testing";
+import { CustomSelectComponent } from "../../../widget/custom-select/custom-select.component";
 const createMockModel: () => Observable<any> = () => {
    return observableOf({
       oldName: "MockVariableName",
@@ -72,20 +73,31 @@ describe("VariableAssemblyDialog Integration Test", () => {
 
    beforeEach(waitForAsync(() => {
       modelService = {
-         getModel: jest.fn(() => createMockModel()),
-         sendModel: jest.fn()
+         getModel: vi.fn(() => createMockModel()),
+         sendModel: vi.fn()
       };
 
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule, CustomSelectModule
+            
+            HttpClientTestingModule,FormsModule,
+            ReactiveFormsModule,
+            NgbModule,
+            VariableAssemblyDialog,
+            VariableValueEditor,
+            VariableListDialog,
+            VariableTableListDialog,
+            VariableListEditor,
+            MessageDialog,
+            DateValueEditorComponent,
+            TimeValueEditorComponent,
+            TimeInstantValueEditorComponent,
+            EnterSubmitDirective,
+            LargeFormFieldComponent,
+            TimepickerComponent,
+            ConditionValueTypePipe,
          ],
-         declarations: [
-            VariableAssemblyDialog, VariableValueEditor, VariableListDialog,
-            VariableTableListDialog, VariableListEditor, MessageDialog, DateValueEditorComponent,
-            TimeValueEditorComponent, TimeInstantValueEditorComponent, EnterSubmitDirective,
-            LargeFormFieldComponent, TimepickerComponent, ConditionValueTypePipe
-         ],
+         
          providers: [
             {
                provide: ModelService,

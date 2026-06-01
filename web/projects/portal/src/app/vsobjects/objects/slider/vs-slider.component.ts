@@ -28,7 +28,7 @@ import {
    Output,
    SimpleChanges, ViewChild
 } from "@angular/core";
-import { Observable ,  Subscription } from "rxjs";
+import { Observable, Subscription } from "rxjs";
 import { GuiTool } from "../../../common/util/gui-tool";
 import { ViewsheetClientService } from "../../../common/viewsheet-client";
 import { GetVSObjectModelEvent } from "../../../vsview/event/get-vs-object-model-event";
@@ -41,6 +41,12 @@ import { NavigationComponent } from "../abstract-nav-component";
 import { NavigationKeys } from "../navigation-keys";
 import { DebounceService } from "../../../widget/services/debounce.service";
 import { DataTipService } from "../data-tip/data-tip.service";
+import { SafeFontDirective } from "../../directives/safe-font.directive";
+import { OutOfZoneDirective } from "../../../widget/directive/out-of-zone.directive";
+import { VSPopComponentDirective } from "../data-tip/vs-pop-component.directive";
+import { VSDataTipDirective } from "../data-tip/vs-data-tip.directive";
+import { VSInputLabelWrapper } from "../input-label-wrapper/vs-input-label-wrapper.component";
+
 
 interface SliderTick {
    left: number;
@@ -54,9 +60,10 @@ const CHANGE_VALUE_URL: string = "/events/composer/viewsheet/vsSlider/changeValu
 const GET_OBJECT_MODEL_URL: string = "/events/vsview/object/model";
 
 @Component({
-   selector: "vs-slider",
-   templateUrl: "vs-slider.component.html",
-   styleUrls: ["vs-slider.component.scss"]
+    selector: "vs-slider",
+    templateUrl: "vs-slider.component.html",
+    styleUrls: ["vs-slider.component.scss"],
+    imports: [VSInputLabelWrapper, VSDataTipDirective, VSPopComponentDirective, OutOfZoneDirective, SafeFontDirective]
 })
 export class VSSlider extends NavigationComponent<VSSliderModel> implements OnChanges, OnDestroy, AfterViewInit {
    private _selected: boolean = false;

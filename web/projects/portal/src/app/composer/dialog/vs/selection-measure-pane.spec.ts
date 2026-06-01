@@ -15,12 +15,13 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { HttpClient } from "@angular/common/http";
 import { HttpClientTestingModule, HttpTestingController } from "@angular/common/http/testing";
 import { ChangeDetectorRef, NO_ERRORS_SCHEMA } from "@angular/core";
 import { ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
-import { NgbModule } from "@ng-bootstrap/ng-bootstrap";
+import { NgbModal, NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { AggregateFormula } from "../../../binding/util/aggregate-formula";
 import { DropDownTestModule } from "../../../common/test/test-module";
 import { NewAggrDialog } from "../../../widget/dialog/new-aggr-dialog/new-aggr-dialog.component";
@@ -33,6 +34,7 @@ import { TreeSearchPipe } from "../../../widget/tree/tree-search.pipe";
 import { TreeComponent } from "../../../widget/tree/tree.component";
 import { SelectionMeasurePaneModel } from "../../data/vs/selection-measure-pane-model";
 import { SelectionMeasurePane } from "./selection-measure-pane.component";
+import { FixedDropdownDirective } from "../../../widget/fixed-dropdown/fixed-dropdown.directive";
 
 describe("Selection Measure Pane Test", () => {
    const createModel: () => SelectionMeasurePaneModel = () => {
@@ -57,17 +59,39 @@ describe("Selection Measure Pane Test", () => {
 
       TestBed.configureTestingModule({
          imports: [
-            NgbModule, ReactiveFormsModule, FormsModule, DropDownTestModule,
-            HttpClientTestingModule
+            NgbModule,
+            ReactiveFormsModule,
+            FormsModule,
+            DropDownTestModule,
+            HttpClientTestingModule,
+            SelectionMeasurePane,
+            FormulaEditorDialog,
+            ScriptPane,
+            NewAggrDialog,
+            TreeComponent,
+            TreeNodeComponent,
+            TreeSearchPipe,
+            FixedDropdownDirective,
+            DynamicComboBox,
          ],
-         declarations: [
-            SelectionMeasurePane, FormulaEditorDialog,
-            ScriptPane, NewAggrDialog, TreeComponent, TreeNodeComponent, TreeSearchPipe,
-            DynamicComboBox
-         ],
+         
          providers: [
             {provide: ChangeDetectorRef, useValue: changeDetectorRef},
-            {provide: DragService, useValue: dragService}
+            {provide: DragService, useValue: dragService},
+            {
+               // Stub NgbModal so the dynamic-combo-box's setTimeout-based formula
+               // editor dialog (fired when EXPRESSION mode is selected) doesn't try
+               // to open against a destroyed injector after the fixture is torn down.
+               provide: NgbModal,
+               useValue: {
+                  open: () => ({
+                     componentInstance: {},
+                     result: new Promise<any>(() => {}),
+                     close: () => {},
+                     dismiss: () => {}
+                  })
+               }
+            }
          ],
          schemas: [ NO_ERRORS_SCHEMA ]
       }).compileComponents();
@@ -94,7 +118,9 @@ describe("Selection Measure Pane Test", () => {
          return request.url === "../vs/dataOutput/selection/columns" && request.params.has("runtimeId");
       });
       expect(requests.length).toBe(1);
-      requests.forEach(request => request.flush({}));
+      // Flush with [] (not {}) so the component's `for(measure of measures)`
+      // iteration doesn't throw "this.measures is not iterable" after the test.
+      requests.forEach(request => request.flush([]));
       expect(measurePane.isAggregateDisabled()).toBeTruthy();
    });
 
@@ -122,6 +148,7 @@ describe("Selection Measure Pane Test", () => {
 
       let typeToggles = fixture.nativeElement.querySelectorAll("button.type-toggle");
       typeToggles[0].click();
+      fixture.detectChanges();
       let fixs = document.getElementsByTagName("fixed-dropdown");
       let temp = fixs[0].querySelectorAll("a");
       temp[2].click();

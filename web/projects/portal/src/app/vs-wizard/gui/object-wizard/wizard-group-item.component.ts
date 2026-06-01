@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, EventEmitter, Input, OnInit, Output } from "@angular/core";
-import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
+import { NgbModal, NgbTooltip } from "@ng-bootstrap/ng-bootstrap";
 import { Tool } from "../../../../../../shared/util/tool";
 import { BDimensionRef } from "../../../binding/data/b-dimension-ref";
 import { SummaryAttrUtil } from "../../../binding/util/summary-attr-util";
@@ -26,11 +26,16 @@ import { ModelService } from "../../../widget/services/model.service";
 import { VSWizardBindingTreeService } from "../../services/vs-wizard-binding-tree.service";
 import { VSWizardItem } from "./wizard-item.component";
 import { DateLevelExamplesService } from "../../../common/services/date-level-examples.service";
+import { FormattingPane } from "../../../format/objects/formatting-pane.component";
+import { FixedDropdownDirective } from "../../../widget/fixed-dropdown/fixed-dropdown.directive";
+import { DynamicComboBox } from "../../../widget/dynamic-combo-box/dynamic-combo-box.component";
+
 
 @Component({
-   selector: "wizard-group-item",
-   templateUrl: "./wizard-group-item.component.html",
-   styleUrls: ["./wizard-group-item.component.scss"]
+    selector: "wizard-group-item",
+    templateUrl: "./wizard-group-item.component.html",
+    styleUrls: ["./wizard-group-item.component.scss"],
+    imports: [NgbTooltip, DynamicComboBox, FixedDropdownDirective, FormattingPane]
 })
 export class VSWizardGroupItem extends VSWizardItem<BDimensionRef> implements OnInit {
    @Input() showName: boolean;

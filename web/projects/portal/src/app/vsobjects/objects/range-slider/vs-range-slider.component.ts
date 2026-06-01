@@ -64,6 +64,16 @@ import { FocusRegions } from "../selection/vs-selection.component";
 import { SlideOutOptions } from "../../../widget/slide-out/slide-out-options";
 import { GlobalSubmitService } from "../../util/global-submit.service";
 import { XSchema } from "../../../common/data/xschema";
+import { TooltipDirective } from "../../../widget/tooltip/tooltip.directive";
+import { InteractableDirective } from "../../../widget/interact/interactable.directive";
+import { DefaultFocusDirective } from "../../../widget/directive/default-focus.directive";
+import { FormsModule } from "@angular/forms";
+import { TooltipIfDirective } from "../../../widget/tooltip/tooltip-if.directive";
+import { CollapseToggleButton } from "../selection/collapse-toggle-button.component";
+
+import { SafeFontDirective } from "../../directives/safe-font.directive";
+import { VSPopComponentDirective } from "../data-tip/vs-pop-component.directive";
+import { VSDataTipDirective } from "../data-tip/vs-data-tip.directive";
 
 const RANGESLIDER_PROPERTY_URI: string = "composer/vs/range-slider-property-dialog-model/";
 const URI_UPDATE_TITLE_RATIO: string = "/events/composer/viewsheet/currentSelection/titleRatio/";
@@ -71,9 +81,10 @@ const RANGE_SLIDER_MAX_MODE_URL: string = "/events/vs/assembly/max-mode/toggle";
 enum Handle { Left, Middle, Right, None }
 
 @Component({
-   selector: "vs-range-slider",
-   templateUrl: "vs-range-slider.component.html",
-   styleUrls: ["vs-range-slider.component.scss"]
+    selector: "vs-range-slider",
+    templateUrl: "vs-range-slider.component.html",
+    styleUrls: ["vs-range-slider.component.scss"],
+    imports: [VSDataTipDirective, VSPopComponentDirective, SafeFontDirective, CollapseToggleButton, MiniMenu, TooltipIfDirective, FormsModule, DefaultFocusDirective, InteractableDirective, TooltipDirective]
 })
 export class VSRangeSlider extends NavigationComponent<VSRangeSliderModel>
    implements OnInit, OnDestroy, OnChanges

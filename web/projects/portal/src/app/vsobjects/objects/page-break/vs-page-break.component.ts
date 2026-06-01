@@ -15,17 +15,18 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import {Component, NgZone, OnInit} from "@angular/core";
+import { Component, NgZone, OnInit } from "@angular/core";
 import { AbstractVSObject } from "../abstract-vsobject.component";
 import { VSPageBreakModel } from "../../model/vs-page-break-model";
-import {ViewsheetClientService} from "../../../common/viewsheet-client";
-import {DataTipService} from "../data-tip/data-tip.service";
-import {ContextProvider} from "../../context-provider.service";
+import { ViewsheetClientService } from "../../../common/viewsheet-client";
+import { DataTipService } from "../data-tip/data-tip.service";
+import { ContextProvider } from "../../context-provider.service";
 
 @Component({
-  selector: "vs-page-break",
-  templateUrl: "vs-page-break.component.html",
-  styleUrls: ["vs-page-break.component.scss"]
+    selector: "vs-page-break",
+    templateUrl: "vs-page-break.component.html",
+    styleUrls: ["vs-page-break.component.scss"],
+    standalone: true
 })
 export class VSPageBreak extends AbstractVSObject<VSPageBreakModel> implements OnInit {
 

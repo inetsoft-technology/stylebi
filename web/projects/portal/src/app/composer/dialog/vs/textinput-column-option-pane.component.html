@@ -1,20 +1,20 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <form ngNoForm (submit)="$event.preventDefault()" class="container-fluid">
   <fieldset>
     <div class="row shell-form-row--field">
@@ -27,20 +27,32 @@
     </div>
   </fieldset>
 </form>
-<div [ngSwitch]="model.type">
-  <div *ngSwitchCase="inputControlList[0]">
-    <text-editor [model]="model.textEditorModel"></text-editor>
-  </div>
-  <div *ngSwitchCase="inputControlList[1]">
-    <date-editor [model]="model.dateEditorModel" [parentForm]="form"></date-editor>
-  </div>
-  <div *ngSwitchCase="inputControlList[2]">
-    <integer-editor [model]="model.integerEditorModel" [parentForm]="form"></integer-editor>
-  </div>
-  <div *ngSwitchCase="inputControlList[3]">
-    <float-editor [model]="model.floatEditorModel" [parentForm]="form"></float-editor>
-  </div>
-  <div *ngSwitchCase="inputControlList[4]">
-    <text-editor [model]="model.passwordEditorModel"></text-editor>
-  </div>
+<div>
+  @switch (model.type) {
+    @case (inputControlList[0]) {
+      <div>
+        <text-editor [model]="model.textEditorModel"></text-editor>
+      </div>
+    }
+    @case (inputControlList[1]) {
+      <div>
+        <date-editor [model]="model.dateEditorModel" [parentForm]="form"></date-editor>
+      </div>
+    }
+    @case (inputControlList[2]) {
+      <div>
+        <integer-editor [model]="model.integerEditorModel" [parentForm]="form"></integer-editor>
+      </div>
+    }
+    @case (inputControlList[3]) {
+      <div>
+        <float-editor [model]="model.floatEditorModel" [parentForm]="form"></float-editor>
+      </div>
+    }
+    @case (inputControlList[4]) {
+      <div>
+        <text-editor [model]="model.passwordEditorModel"></text-editor>
+      </div>
+    }
+  }
 </div>

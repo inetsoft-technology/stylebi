@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { HttpClientTestingModule } from "@angular/common/http/testing";
 import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { ComponentFixture, TestBed } from "@angular/core/testing";
@@ -34,9 +35,9 @@ import { MatTableModule } from "@angular/material/table";
 import { MatTabsModule } from "@angular/material/tabs";
 import { NoopAnimationsModule } from "@angular/platform-browser/animations";
 import { RouterModule } from "@angular/router";
-import { LoadingSpinnerModule } from "../../../../common/util/loading-spinner/loading-spinner.module";
+import { LoadingSpinnerComponent } from "../../../../common/util/loading-spinner/loading-spinner.component";
 import { TableView } from "../../../../common/util/table/table-view.component";
-import { ResourcePermissionModule } from "../../../security/resource-permission/resource-permission.module";
+import { ResourcePermissionComponent } from "../../../security/resource-permission/resource-permission.component";
 import { AnalyzeMvPageComponent } from "../analyze-mv-page/analyze-mv-page.component";
 import { RepositorySheetSettingsViewComponent } from "../repository-sheet-settings-view/repository-sheet-settings-view.component";
 import { RepositoryViewsheetSettingsViewComponent } from "./repository-viewsheet-settings-view.component";
@@ -66,15 +67,9 @@ describe("RepositoryViewsheetSettingsViewComponent", () => {
             MatSelectModule,
             MatTableModule,
             MatTabsModule,
-            LoadingSpinnerModule,
-            ResourcePermissionModule
-         ],
-         declarations: [
-            AnalyzeMvPageComponent,
-            RepositorySheetSettingsViewComponent,
-            RepositoryViewsheetSettingsViewComponent,
-            TableView
-         ],
+            LoadingSpinnerComponent,
+            ResourcePermissionComponent,
+            AnalyzeMvPageComponent, RepositorySheetSettingsViewComponent, RepositoryViewsheetSettingsViewComponent, TableView],
          schemas: [
             NO_ERRORS_SCHEMA
          ]

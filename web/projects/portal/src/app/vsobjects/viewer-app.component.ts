@@ -15,30 +15,31 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { DOCUMENT } from "@angular/common";
+import { NgIf, NgFor } from "@angular/common";
 import { HttpClient, HttpParams } from "@angular/common/http";
 import {
-   AfterContentInit,
-   AfterViewChecked,
-   AfterViewInit,
-   ChangeDetectorRef,
-   Component,
-   ElementRef,
-   EventEmitter,
-   HostListener,
-   Inject,
-   Injector,
-   Input,
-   NgZone,
-   OnDestroy,
-   OnInit,
-   Optional,
-   Output,
-   QueryList,
-   Renderer2,
-   TemplateRef,
-   ViewChild,
-   ViewChildren, ViewContainerRef
+  AfterContentInit,
+  AfterViewChecked,
+  AfterViewInit,
+  ChangeDetectorRef,
+  Component,
+  ElementRef,
+  EventEmitter,
+  HostListener,
+  Inject,
+  Injector,
+  Input,
+  NgZone,
+  OnDestroy,
+  OnInit,
+  Optional,
+  Output,
+  QueryList,
+  Renderer2,
+  TemplateRef,
+  ViewChild,
+  ViewChildren, ViewContainerRef,
+  DOCUMENT
 } from "@angular/core";
 import { DomSanitizer, SafeStyle, Title } from "@angular/platform-browser";
 import { Router } from "@angular/router";
@@ -147,6 +148,7 @@ import { ViewsheetInfo } from "./data/viewsheet-info";
 import { AnnotationFormatDialogModel } from "./dialog/annotation/annotation-format-dialog-model";
 import { AnnotationFormatDialog } from "./dialog/annotation/annotation-format-dialog.component";
 import { ProfilingDialog } from "./dialog/profiling-dialog.component";
+import { CKEditorRichTextService } from "./dialog/rich-text-dialog/ckeditor-rich-text.service";
 import { RichTextService } from "./dialog/rich-text-dialog/rich-text.service";
 import { AddAnnotationEvent } from "./event/annotation/add-annotation-event";
 import { RemoveAnnotationEvent } from "./event/annotation/remove-annotation-event";
@@ -194,6 +196,8 @@ import { CalcTableActionHandler } from "./objects/table/calc-table-action-handle
 import { CrosstabActionHandler } from "./objects/table/crosstab-action-handler";
 import { TableActionHandler } from "./objects/table/table-action-handler";
 import { ShowHyperlinkService } from "./show-hyperlink.service";
+import { VSTabService } from "./util/vs-tab.service";
+import { FontService } from "../widget/services/font.service";
 import { ToolbarActionsHandler } from "./toolbar-actions-handler";
 import { CheckFormDataService } from "./util/check-form-data.service";
 import { FormInputService } from "./util/form-input.service";
@@ -203,6 +207,27 @@ import { VSUtil } from "./util/vs-util";
 import { VsToolbarButtonDirective } from "./vs-toolbar-button.directive";
 import { BaseHrefService } from "../common/services/base-href.service";
 import { CurrentUserService } from "../../../../shared/util/current-user.service";
+import { RemoveBookmarksDialog } from "./dialog/remove-bookmarks-dialog.component";
+import { ShareLinkDialog } from "../widget/share/share-link-dialog.component";
+import { ShareSlackDialog } from "../widget/share/share-slack-dialog.component";
+import { ShareGoogleChatDialog } from "../widget/share/share-google-chat-dialog.component";
+import { ShareEmailDialogComponent } from "../widget/share/share-email-dialog.component";
+import { BookmarkPropertyDialog } from "./dialog/bookmark-property-dialog.component";
+import { ScheduleDialog } from "./dialog/schedule-dialog.component";
+import { EmailDialog } from "./dialog/email/email-dialog.component";
+import { ExportDialog } from "./dialog/export-dialog.component";
+import { VSLoadingDisplay } from "./objects/vs-loading-display/vs-loading-display.component";
+import { StatusBar } from "../status-bar/status-bar.component";
+import { VSObjectContainer } from "./objects/vs-object-container.component";
+import { ViewerFormatPane } from "./objects/viewer-format-pane.component";
+import { InteractContainerDirective } from "../widget/interact/interact-container.directive";
+import { VsBookmarkPaneComponent } from "./bookmark/vs-bookmark-pane.component";
+import { ViewerMobileToolbarComponent } from "./objects/viewer-mobile-toolbar/viewer-mobile-toolbar.component";
+import { BlockMouseDirective } from "../widget/mouse-event/block-mouse.directive";
+import { EnterClickDirective } from "../widget/directive/enter-click.directive";
+import { DefaultFocusDirective } from "../widget/directive/default-focus.directive";
+import { OutOfZoneDirective } from "../widget/directive/out-of-zone.directive";
+import { PagingControlComponent } from "../widget/scroll/paging-control.component";
 
 declare const window: any;
 declare var globalPostParams: { [name: string]: string[] } | null;
@@ -252,51 +277,63 @@ export interface ScrollViewportRect {
 }
 
 @Component({
-   selector: "viewer-app",
-   templateUrl: "viewer-app.component.html",
-   styleUrls: ["viewer-app.component.scss"],
-   providers: [
-      ViewsheetClientService,
-      DataTipService,
-      AdhocFilterService,
-      PopComponentService,
-      VSChartService,
-      AssemblyActionFactory,
-      SelectionContainerChildrenService,
-      CheckFormDataService,
-      VSChartService,
-      DebounceService,
-      FullScreenService,
-      ViewerResizeService,
-      FormInputService,
-      GlobalSubmitService,
-      ViewerToolbarMessageService,
-      {
-         provide: DndService,
-         useClass: VSDndService,
-         deps: [ModelService, NgbModal, ViewsheetClientService]
-      },
-      {
-         provide: ScaleService,
-         useClass: VSScaleService
-      },
-      {
-         provide: ContextProvider,
-         useFactory: ViewerContextProviderFactory,
-         deps: [[new Optional(), ComposerToken], [new Optional(), EmbedToken]]
-      },
-      {
-         provide: DialogService,
-         useFactory: ViewerDialogServiceFactory,
-         deps: [NgbModal, SlideOutService, Injector, UIContextService]
-      },
-      {
-         provide: ChartService,
-         useExisting: VSChartService
-      },
-      ComposerRecentService,
-      SelectionMobileService
-   ]
+    selector: "viewer-app",
+    templateUrl: "viewer-app.component.html",
+    styleUrls: ["viewer-app.component.scss"],
+    providers: [
+        ViewsheetClientService,
+        DataTipService,
+        AdhocFilterService,
+        PopComponentService,
+        VSChartService,
+        AssemblyActionFactory,
+        SelectionContainerChildrenService,
+        CheckFormDataService,
+        VSChartService,
+        DebounceService,
+        FullScreenService,
+        ViewerResizeService,
+        FormInputService,
+        GlobalSubmitService,
+        ViewerToolbarMessageService,
+        {
+            provide: DndService,
+            useClass: VSDndService,
+            deps: [ModelService, NgbModal, ViewsheetClientService]
+        },
+        {
+            provide: ScaleService,
+            useClass: VSScaleService
+        },
+        {
+            provide: ContextProvider,
+            useFactory: ViewerContextProviderFactory,
+            deps: [[new Optional(), ComposerToken], [new Optional(), EmbedToken]]
+        },
+        {
+            provide: DialogService,
+            useFactory: ViewerDialogServiceFactory,
+            deps: [NgbModal, SlideOutService, Injector, UIContextService]
+        },
+        {
+            provide: ChartService,
+            useExisting: VSChartService
+        },
+        ComposerRecentService,
+        SelectionMobileService,
+        MiniToolbarService,
+        ShowHyperlinkService,
+        {
+            provide: RichTextService,
+            useClass: CKEditorRichTextService,
+            deps: [FontService, NgbModal, HttpClient]
+        },
+        VSTabService,
+        ViewDataService,
+        FirstDayOfWeekService,
+        PageTabService
+    ],
+    imports: [NgIf, PagingControlComponent, OutOfZoneDirective, VsToolbarButtonDirective, FixedDropdownDirective, DefaultFocusDirective, EnterClickDirective, NgFor, BlockMouseDirective, ViewerMobileToolbarComponent, VsBookmarkPaneComponent, InteractContainerDirective, ViewerFormatPane, VSObjectContainer, StatusBar, VSLoadingDisplay, ExportDialog, EmailDialog, ScheduleDialog, BookmarkPropertyDialog, VariableInputDialog, ShareEmailDialogComponent, ShareGoogleChatDialog, ShareSlackDialog, ShareLinkDialog, RemoveBookmarksDialog, NotificationsComponent]
 })
 export class ViewerAppComponent extends CommandProcessor implements OnInit, AfterViewInit,
    AfterViewChecked, AfterContentInit, OnDestroy
@@ -3192,8 +3229,10 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
    }
 
    setAppSize(): void {
-      this.appSize = new Dimension(this.viewerRoot.nativeElement.offsetWidth,
-         this.viewerRoot.nativeElement.offsetHeight);
+      if(this.viewerRoot?.nativeElement) {
+         this.appSize = new Dimension(this.viewerRoot.nativeElement.offsetWidth,
+            this.viewerRoot.nativeElement.offsetHeight);
+      }
    }
 
    getScaleSize(): Dimension {

@@ -17,8 +17,8 @@
  */
 import { HttpClient } from "@angular/common/http";
 import { Component, EventEmitter, Input, OnInit, Output } from "@angular/core";
-import { UntypedFormControl, UntypedFormGroup } from "@angular/forms";
-import { NgbDatepicker, NgbDateStruct, NgbModal } from "@ng-bootstrap/ng-bootstrap";
+import { UntypedFormControl, UntypedFormGroup, FormsModule, ReactiveFormsModule } from "@angular/forms";
+import { NgbDateStruct, NgbModal, NgbInputDatepicker, NgbDatepicker } from "@ng-bootstrap/ng-bootstrap";
 import { IdentityIdWithLabel } from "../../../../../../../em/src/app/settings/security/users/idenity-id-with-label";
 import { IdentityId } from "../../../../../../../em/src/app/settings/security/users/identity-id";
 import { IdentityType } from "../../../../../../../shared/data/identity-type";
@@ -27,15 +27,17 @@ import { TimeZoneModel } from "../../../../../../../shared/schedule/model/time-z
 import { ScheduleUsersService } from "../../../../../../../shared/schedule/schedule-users.service";
 import { FormValidators } from "../../../../../../../shared/util/form-validators";
 import { ComponentTool } from "../../../../common/util/component-tool";
-import { CustomSelectOption } from "../../../../widget/custom-select/custom-select.component";
+import { CustomSelectOption, CustomSelectComponent } from "../../../../widget/custom-select/custom-select.component";
 import { ExecuteAsDialog } from "../execute-as-dialog/execute-as-dialog.component";
 import { Observable } from "rxjs";
 import { ScheduleTaskDialogModel } from "../../../../../../../shared/schedule/model/schedule-task-dialog-model";
 
+
 @Component({
-   selector: "task-options-pane",
-   templateUrl: "./task-options-pane.component.html",
-   styleUrls: ["./task-options-pane.component.scss"]
+    selector: "task-options-pane",
+    templateUrl: "./task-options-pane.component.html",
+    styleUrls: ["./task-options-pane.component.scss"],
+    imports: [FormsModule, ReactiveFormsModule, NgbInputDatepicker, CustomSelectComponent]
 })
 export class TaskOptionsPane implements OnInit {
    private readonly defaultYearWindow: number = 10;

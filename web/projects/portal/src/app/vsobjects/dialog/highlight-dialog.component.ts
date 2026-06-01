@@ -32,13 +32,19 @@ import { Tool } from "../../../../../shared/util/tool";
 import { TrapInfo } from "../../common/data/trap-info";
 import { VSTrapService } from "../util/vs-trap.service";
 import { AbstractHighlight } from "../../common/abstract-highlight.component";
-import {DataRef} from "../../common/data/data-ref";
+import { DataRef } from "../../common/data/data-ref";
+import { VSConditionDialog } from "./vs-condition-dialog.component";
+import { ApplyButtonComponent } from "../../widget/slide-out/apply-button.component";
+import { HighlightPane } from "../../widget/highlight/highlight-pane.component";
+
+import { ModalHeaderComponent } from "../../widget/modal-header/modal-header.component";
 
 const CHECK_TRAP_REST_URI: string = "../api/composer/viewsheet/check-highlight-dialog-trap/";
 
 @Component({
-   selector: "highlight-dialog",
-   templateUrl: "highlight-dialog.component.html"
+    selector: "highlight-dialog",
+    templateUrl: "highlight-dialog.component.html",
+    imports: [ModalHeaderComponent, HighlightPane, ApplyButtonComponent, VSConditionDialog]
 })
 export class HighlightDialog extends AbstractHighlight implements OnInit {
    @Input() runtimeId: string;

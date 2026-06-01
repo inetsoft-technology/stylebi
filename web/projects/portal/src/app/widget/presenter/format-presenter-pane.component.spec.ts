@@ -28,6 +28,7 @@ import { TreeNodeComponent } from "../tree/tree-node.component";
 import { TreeSearchPipe } from "../tree/tree-search.pipe";
 import { TreeComponent } from "../tree/tree.component";
 import { FormatPresenterPane } from "./format-presenter-pane.component";
+import { FixedDropdownDirective } from "../fixed-dropdown/fixed-dropdown.directive";
 
 describe("format presenter pane componnet unit case", () => {
    let modelService: any;
@@ -37,17 +38,14 @@ describe("format presenter pane componnet unit case", () => {
    let fixture: ComponentFixture<FormatPresenterPane>;
 
    beforeEach(() => {
-      modelService = { getModel: jest.fn() };
-      modalService = { open: jest.fn() };
+      modelService = { getModel: vi.fn() };
+      modalService = { open: vi.fn() };
       modelService.getModel.mockImplementation(() => observableOf([{}]));
-      treeService = { validateTreeNode: jest.fn() };
+      treeService = { validateTreeNode: vi.fn() };
 
       TestBed.configureTestingModule({
-         imports: [DropDownTestModule, ReactiveFormsModule, FormsModule, NgbModule],
-         declarations: [
-            FormatPresenterPane, TreeComponent, TreeSearchPipe,
-            TreeNodeComponent, TreeDropdownComponent
-         ],
+         imports: [DropDownTestModule, ReactiveFormsModule, FormsModule, NgbModule, FormatPresenterPane, FixedDropdownDirective, TreeComponent, TreeSearchPipe, TreeNodeComponent, TreeDropdownComponent],
+         
          providers: [
             {provide: ModelService, useValue: modelService},
             {provide: NgbModal, useValue: modalService},

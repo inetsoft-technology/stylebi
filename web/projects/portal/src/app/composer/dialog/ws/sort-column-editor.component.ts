@@ -26,7 +26,8 @@ import {
 } from "@angular/core";
 import { SortColumnEditorModel } from "../../data/ws/sort-column-editor-model";
 import { Tool } from "../../../../../../shared/util/tool";
-import { CustomSelectOption } from "../../../widget/custom-select/custom-select.component";
+import { FormsModule } from "@angular/forms";
+import { CustomSelectOption, CustomSelectComponent } from "../../../widget/custom-select/custom-select.component";
 
 enum SortEnum {
    NONE = 0,
@@ -46,10 +47,12 @@ interface SortRef {
 }
 
 @Component({
-   selector: "sort-column-editor",
-   templateUrl: "sort-column-editor.component.html",
-   styleUrls: ["sort-column-editor.component.scss"],
-   changeDetection: ChangeDetectionStrategy.OnPush
+    selector: "sort-column-editor",
+    templateUrl: "sort-column-editor.component.html",
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    styleUrls: ["sort-column-editor.component.scss"],
+
+    imports: [FormsModule, CustomSelectComponent]
 })
 export class SortColumnEditor implements OnChanges {
    public SortEnum = SortEnum;

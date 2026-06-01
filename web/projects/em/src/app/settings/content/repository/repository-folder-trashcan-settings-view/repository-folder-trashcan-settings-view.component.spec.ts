@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { HttpClientTestingModule } from "@angular/common/http/testing";
 import { ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
@@ -31,8 +32,8 @@ import { MatTabsModule } from "@angular/material/tabs";
 import { NoopAnimationsModule } from "@angular/platform-browser/animations";
 import { RouterModule } from "@angular/router";
 import { EditorPanelComponent } from "../../../../common/util/editor-panel/editor-panel.component";
-import { TableViewModule } from "../../../../common/util/table/table-view.module";
-import { ResourcePermissionModule } from "../../../security/resource-permission/resource-permission.module";
+import { TableView } from "../../../../common/util/table/table-view.component";
+import { ResourcePermissionComponent } from "../../../security/resource-permission/resource-permission.component";
 import { RepositoryFolderTrashcanSettingsViewComponent } from "./repository-folder-trashcan-settings-view.component";
 
 describe("RepositoryFolderTrashcanSettingsViewComponent", () => {
@@ -44,9 +45,9 @@ describe("RepositoryFolderTrashcanSettingsViewComponent", () => {
          imports: [HttpClientTestingModule, RouterModule.forRoot([]), MatCardModule, MatDialogModule,
             MatButtonModule, MatInputModule, MatSelectModule, NoopAnimationsModule,
             MatOptionModule, MatTabsModule, MatFormFieldModule, FormsModule, ReactiveFormsModule,
-            MatRadioModule, MatCheckboxModule, ResourcePermissionModule, TableViewModule],
-         declarations: [RepositoryFolderTrashcanSettingsViewComponent, EditorPanelComponent]
-      })
+            MatRadioModule, MatCheckboxModule, ResourcePermissionComponent, TableView,
+            RepositoryFolderTrashcanSettingsViewComponent, EditorPanelComponent]
+         })
          .compileComponents();
 
       fixture = TestBed.createComponent(RepositoryFolderTrashcanSettingsViewComponent);

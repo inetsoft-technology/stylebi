@@ -33,6 +33,7 @@
  *   - HTTP error handler is empty (()=>{}); loading never resets — service is permanently stuck after a network error
  *   - @Optional PORTAL=null (token not provided) is semantically distinct from false but exercises the same code path
  */
+
 import { HttpClientTestingModule, HttpTestingController } from "@angular/common/http/testing";
 import { TestBed } from "@angular/core/testing";
 import { NameLabelTuple } from "../util/name-label-tuple";

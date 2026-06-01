@@ -26,12 +26,15 @@ import { FixedDropdownDirective } from "../../widget/fixed-dropdown/fixed-dropdo
 import { GraphUtil } from "../util/graph-util";
 import { ComponentTool } from "../../common/util/component-tool";
 import { ChartBindingModel } from "../data/chart/chart-binding-model";
-import { ChartStylesModel } from "./chart-style-pane.component";
+import { ChartStylesModel, ChartStylePane } from "./chart-style-pane.component";
+import { BlockMouseDirective } from "../../widget/mouse-event/block-mouse.directive";
+import { NgClass } from "@angular/common";
 
 @Component({
-   selector: "chart-type-button",
-   templateUrl: "chart-type-button.component.html",
-   styleUrls: ["chart-type-button.component.scss"]
+    selector: "chart-type-button",
+    templateUrl: "chart-type-button.component.html",
+    styleUrls: ["chart-type-button.component.scss"],
+    imports: [FixedDropdownDirective, NgClass, BlockMouseDirective, ChartStylePane]
 })
 export class ChartTypeButton {
    @Input() chartType: number;

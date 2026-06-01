@@ -1,20 +1,20 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <form ngNoForm (submit)="$event.preventDefault()" class="container-fluid">
   <fieldset>
     <legend>_#(Scale)</legend>
@@ -22,7 +22,7 @@
       <div class="checkbox col-auto">
         <div class="form-check">
           <input type="checkbox" class="form-check-input" [(ngModel)]="model.scaleImageChecked"
-               [disabled]="model.tile" id="scaleImage">
+            [disabled]="model.tile" id="scaleImage">
           <label class="form-check-label" for="scaleImage">
             _#(Scale Image)
           </label>
@@ -35,7 +35,7 @@
           <div class="shell-form-row shell-form-row--checkbox">
             <div class="form-check">
               <input type="radio" class="form-check-input" name="scale-choice" [value]="true"
-                   [(ngModel)]="model.maintainAspectRatio" id="maintain">
+                [(ngModel)]="model.maintainAspectRatio" id="maintain">
               <label class="form-check-label" for="maintain">
                 _#(Maintain Aspect Ratio)
               </label>
@@ -44,45 +44,57 @@
           <div>
             <div class="form-check">
               <input type="radio" class="form-check-input" name="scale-choice" [value]="false"
-                   [(ngModel)]="model.maintainAspectRatio" [disabled]="isSvg" id="cell9">
+                [(ngModel)]="model.maintainAspectRatio" [disabled]="isSvg" id="cell9">
               <label class="form-check-label" for="cell9">
                 _#(Scale Cell Grid)
               </label>
             </div>
           </div>
           <fieldset class="m-3" [disabled]="model.maintainAspectRatio">
-            <div class="shell-form-row--field form-row">
+            <div class="form-row-float-label form-row">
               <div class="col d-flex flex-column">
-                <label class="form-label">_#(Top)</label>
-                <number-stepper [(ngModel)]="model.top"
+                <div class="input-group">
+                  <number-stepper [(ngModel)]="model.top"
                                 [disabled]="animateGif"
                                 [unit]="'px'"
                                 (valueChange)="reloadImg()">
                 </number-stepper>
+                  <div class="input-group-text">_#(px)</div>
+                </div>
+                <label><span>_#(Top)</span></label>
               </div>
               <div class="col d-flex flex-column">
-                <label class="form-label">_#(Left)</label>
-                <number-stepper [(ngModel)]="model.left"
+                <div class="input-group px-input-group">
+                  <number-stepper [(ngModel)]="model.left"
                                 [disabled]="animateGif"
                                 [unit]="'px'"
                                 (valueChange)="reloadImg()">
                 </number-stepper>
+                  <div class="input-group-text">_#(px)</div>
+                </div>
+                <label><span>_#(Left)</span></label>
               </div>
               <div class="col d-flex flex-column">
-                <label class="form-label">_#(Bottom)</label>
-                <number-stepper [(ngModel)]="model.bottom"
+                <div class="input-group px-input-group">
+                  <number-stepper [(ngModel)]="model.bottom"
                                 [disabled]="animateGif"
                                 [unit]="'px'"
                                 (valueChange)="reloadImg()">
                 </number-stepper>
+                  <div class="input-group-text">_#(px)</div>
+                </div>
+                <label><span>_#(Bottom)</span></label>
               </div>
               <div class="col d-flex flex-column">
-                <label class="form-label">_#(Right)</label>
-                <number-stepper [(ngModel)]="model.right"
+                <div class="input-group px-input-group">
+                  <number-stepper [(ngModel)]="model.right"
                                 [disabled]="animateGif"
                                 [unit]="'px'"
                                 (valueChange)="reloadImg()">
                 </number-stepper>
+                  <div class="input-group-text">_#(px)</div>
+                </div>
+                <label><span>_#(Right)</span></label>
               </div>
             </div>
           </fieldset>
@@ -93,7 +105,7 @@
       <div class="col-auto">
         <div class="form-check">
           <input type="checkbox" class="form-check-input" [(ngModel)]="model.tile"
-               [disabled]="model.scaleImageChecked" id="tile">
+            [disabled]="model.scaleImageChecked" id="tile">
           <label class="form-check-label" for="tile">
             _#(Tile)
           </label>
@@ -104,28 +116,36 @@
       <div class="col-auto">
         <div class="form-check">
           <input type="checkbox" class="form-check-input" [(ngModel)]="preview"
-                 [disabled]="!previewEnabled" id="preview">
+            [disabled]="!previewEnabled" id="preview">
           <label class="form-check-label" for="preview">
             _#(Preview)
           </label>
         </div>
       </div>
     </div>
-    <div *ngIf="model && preview">
-      <div class="bordered-box bd-gray">
-        <img *ngIf="!model.scaleImageChecked" [src]="imageSrc"/>
-        <div *ngIf="model.scaleImageChecked && model.maintainAspectRatio"
-             [style.height.px]="model.objectHeight" [style.width.px]="model.objectWidth">
-          <img [src]="imageSrc" [style.height.px]="getMaintainedRatioSize(true)"
-               [style.width.px]="getMaintainedRatioSize(false)">
-        </div>
-        <div *ngIf="model.scaleImageChecked && !model.maintainAspectRatio" class="scale-image-view"
-             [ngStyle]="scaleImgStyle">
-          <div class="w-100 h-100" [style.padding]="scaleImgPadding">
-            <div class="w-100 h-100"></div>
-          </div>
+    @if (model && preview) {
+      <div>
+        <div class="bordered-box bd-gray">
+          @if (!model.scaleImageChecked) {
+            <img [src]="imageSrc"/>
+          }
+          @if (model.scaleImageChecked && model.maintainAspectRatio) {
+            <div
+              [style.height.px]="model.objectHeight" [style.width.px]="model.objectWidth">
+              <img [src]="imageSrc" [style.height.px]="getMaintainedRatioSize(true)"
+                [style.width.px]="getMaintainedRatioSize(false)">
+            </div>
+          }
+          @if (model.scaleImageChecked && !model.maintainAspectRatio) {
+            <div class="scale-image-view"
+              [ngStyle]="scaleImgStyle">
+              <div class="w-100 h-100" [style.padding]="scaleImgPadding">
+                <div class="w-100 h-100"></div>
+              </div>
+            </div>
+          }
         </div>
       </div>
-    </div>
+    }
   </fieldset>
 </form>

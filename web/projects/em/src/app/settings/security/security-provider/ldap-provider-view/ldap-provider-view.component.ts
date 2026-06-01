@@ -16,17 +16,9 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import {Component, EventEmitter, Inject, Input, OnDestroy, OnInit, Output} from "@angular/core";
-import {
-   AbstractControl,
-   FormGroupDirective,
-   NgForm,
-   UntypedFormControl,
-   UntypedFormGroup,
-   ValidatorFn,
-   Validators
-} from "@angular/forms";
+import { AbstractControl, FormGroupDirective, NgForm, UntypedFormControl, UntypedFormGroup, ValidatorFn, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import {MAT_BOTTOM_SHEET_DATA, MatBottomSheet, MatBottomSheetRef} from "@angular/material/bottom-sheet";
-import {ErrorStateMatcher} from "@angular/material/core";
+import { ErrorStateMatcher, MatOption } from "@angular/material/core";
 import {merge, Subscription} from "rxjs";
 import { AppInfoService } from "../../../../../../../shared/util/app-info.service";
 import {FormValidators} from "../../../../../../../shared/util/form-validators";
@@ -38,11 +30,22 @@ import {take} from "rxjs/operators";
 import {SortTypes} from "../../../../../../../shared/util/sort/sort-types";
 import {SortOptions} from "../../../../../../../shared/util/sort/sort-options";
 import {Tool} from "../../../../../../../shared/util/tool";
+import { MatList, MatListItem } from "@angular/material/list";
+import { MatIcon } from "@angular/material/icon";
+import { MatProgressSpinner } from "@angular/material/progress-spinner";
+import { MatButton, MatIconButton } from "@angular/material/button";
+import { MatCheckbox } from "@angular/material/checkbox";
+import { MatInput } from "@angular/material/input";
+import { MatSelect } from "@angular/material/select";
+import { MatFormField, MatLabel, MatHint, MatError, MatSuffix } from "@angular/material/form-field";
+import { MatCard, MatCardContent, MatCardActions } from "@angular/material/card";
+
 
 @Component({
-   selector: "em-ldap-provider-view",
-   templateUrl: "./ldap-provider-view.component.html",
-   styleUrls: ["./ldap-provider-view.component.scss"]
+    selector: "em-ldap-provider-view",
+    templateUrl: "./ldap-provider-view.component.html",
+    styleUrls: ["./ldap-provider-view.component.scss"],
+    imports: [FormsModule, ReactiveFormsModule, MatCard, MatCardContent, MatFormField, MatLabel, MatSelect, MatOption, MatHint, MatInput, MatError, MatCheckbox, MatCardActions, MatButton, MatProgressSpinner, MatIconButton, MatSuffix, MatIcon]
 })
 export class LdapProviderViewComponent implements OnInit, OnDestroy {
    @Input() form: UntypedFormGroup;
@@ -290,8 +293,12 @@ export class LdapProviderViewComponent implements OnInit, OnDestroy {
 }
 
 @Component({
-  selector: "em-ldap-query-result",
-  templateUrl: "ldap-query-result.html",
+    selector: "em-ldap-query-result",
+    templateUrl: "ldap-query-result.html",
+    imports: [
+    MatList,
+    MatListItem
+]
 })
 export class LDAPQueryResult {
    queryResult: string[];

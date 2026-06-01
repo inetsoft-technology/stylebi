@@ -43,17 +43,18 @@ import { AlphaDropdown } from "../../widget/format/alpha-dropdown.component";
 import { FormatCSSPane } from "../../widget/format/format-css-pane.component";
 import { DebounceService } from "../../widget/services/debounce.service";
 import { FontService } from "../../widget/services/font.service";
-import { NumberStepperModule } from "../../widget/number-stepper/number-stepper.module";
+import { NumberStepperComponent } from "../../widget/number-stepper/number-stepper.component";
 import { ModelService } from "../../widget/services/model.service";
 import { VSImageModel } from "../model/output/vs-image-model";
 import { VSChartModel } from "../model/vs-chart-model";
 import { VSFormatsPane } from "./vs-formats-pane.component";
+import { FixedDropdownDirective } from "../../widget/fixed-dropdown/fixed-dropdown.directive";
 
 describe("VS Formats Pane Unit case", () => {
    beforeAll(() => {
-      jest.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({
+      vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({
          font: "",
-         clearRect: jest.fn(),
+         clearRect: vi.fn(),
          measureText: (_text: string) => ({ width: 0 })
       } as any);
    });
@@ -66,22 +67,42 @@ describe("VS Formats Pane Unit case", () => {
    let debounceService: any;
 
    beforeEach(() => {
-      changeDetectorRef = { detach: jest.fn(), reattach: jest.fn() };
-      fontService = { getAllFonts: jest.fn() };
-      modalService = { open: jest.fn() };
-      modelService = { getModel: jest.fn() };
+      changeDetectorRef = { detach: vi.fn(), reattach: vi.fn() };
+      fontService = { getAllFonts: vi.fn() };
+      modalService = { open: vi.fn() };
+      modelService = { getModel: vi.fn().mockReturnValue(observableOf(null)) };
       debounceService = {
-         debounce: jest.fn((key, fn, delay, args) => fn(...args)),
-         cancel: jest.fn()
+         debounce: vi.fn((key, fn, delay, args) => fn(...args)),
+         cancel: vi.fn()
       };
 
       TestBed.configureTestingModule({
-         imports: [ReactiveFormsModule, FormsModule, NgbModule, DropDownTestModule,
-            HttpClientTestingModule, NumberStepperModule],
-         declarations: [VSFormatsPane, DropdownView, DynamicComboBox, AlphaDropdown, ColorEditor, ColorPicker, ColorPane,
-                        FontPane, FormattingPane, ColorDropdown,
-                        ColorFieldPane, ColorPane, BindingAlignmentPane, BindingBorderPane,
-                        FormatCSSPane, ComboBox, BorderStylePane],
+         imports: [
+            ReactiveFormsModule,
+            FormsModule,
+            NgbModule,
+            DropDownTestModule,
+            HttpClientTestingModule,
+            VSFormatsPane,
+            DropdownView,
+            DynamicComboBox,
+            AlphaDropdown,
+            ColorEditor,
+            ColorPicker,
+            ColorPane,
+            FontPane,
+            FormattingPane,
+            ColorDropdown,
+            ColorFieldPane,
+            ColorPane,
+            BindingAlignmentPane,
+            BindingBorderPane,
+            FormatCSSPane,
+            ComboBox,
+            BorderStylePane,
+            FixedDropdownDirective,
+          ],
+         
          providers: [
             {provide: FontService, useValue: fontService},
             RecentColorService,
@@ -250,7 +271,6 @@ describe("VS Formats Pane Unit case", () => {
       expect(vsFormatsPane.colorDisabled).toBeFalsy();
       expect(vsFormatsPane.alignDisabled).toBeTruthy();
    });
-
 
    //Bug #6061
    //BUg #18706 unselect assembly, format pane is disable

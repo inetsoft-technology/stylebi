@@ -15,11 +15,14 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { Component } from "@angular/core";
 import { ComponentFixture, TestBed } from "@angular/core/testing";
 import { EnterClickDirective } from "./enter-click.directive";
 
 @Component({
+   standalone: true,
+   imports: [EnterClickDirective],
    template: `<button enterClick (click)="onClick($event)">Click Me</button>`
 })
 class TestHostComponent {
@@ -28,6 +31,8 @@ class TestHostComponent {
 }
 
 @Component({
+   standalone: true,
+   imports: [EnterClickDirective],
    template: `<button [hasKeys]="true" enterClick (click)="onClick($event)">Click Me</button>`
 })
 class TestHostWithKeysComponent {
@@ -38,12 +43,12 @@ class TestHostWithKeysComponent {
 describe("EnterClickDirective", () => {
    it("should trigger click on Enter keydown (keyCode 13)", () => {
       TestBed.configureTestingModule({
-         declarations: [EnterClickDirective, TestHostComponent]
+         imports: [EnterClickDirective, TestHostComponent]
       });
       const fixture: ComponentFixture<TestHostComponent> = TestBed.createComponent(TestHostComponent);
       fixture.detectChanges();
       const button: HTMLButtonElement = fixture.nativeElement.querySelector("button");
-      const clickSpy = jest.spyOn(button, "click");
+      const clickSpy = vi.spyOn(button, "click");
       const event = new KeyboardEvent("keydown", { keyCode: 13, bubbles: true } as any);
       button.dispatchEvent(event);
       expect(clickSpy).toHaveBeenCalled();
@@ -51,12 +56,12 @@ describe("EnterClickDirective", () => {
 
    it("should not trigger click on non-Enter keydown", () => {
       TestBed.configureTestingModule({
-         declarations: [EnterClickDirective, TestHostComponent]
+         imports: [EnterClickDirective, TestHostComponent]
       });
       const fixture: ComponentFixture<TestHostComponent> = TestBed.createComponent(TestHostComponent);
       fixture.detectChanges();
       const button: HTMLButtonElement = fixture.nativeElement.querySelector("button");
-      const clickSpy = jest.spyOn(button, "click");
+      const clickSpy = vi.spyOn(button, "click");
       const event = new KeyboardEvent("keydown", { keyCode: 32, bubbles: true } as any);
       button.dispatchEvent(event);
       expect(clickSpy).not.toHaveBeenCalled();
@@ -64,12 +69,12 @@ describe("EnterClickDirective", () => {
 
    it("should dispatch MouseEvent with modifier keys when hasKeys is true", () => {
       TestBed.configureTestingModule({
-         declarations: [EnterClickDirective, TestHostWithKeysComponent]
+         imports: [EnterClickDirective, TestHostWithKeysComponent]
       });
       const fixture: ComponentFixture<TestHostWithKeysComponent> = TestBed.createComponent(TestHostWithKeysComponent);
       fixture.detectChanges();
       const button: HTMLButtonElement = fixture.nativeElement.querySelector("button");
-      const dispatchSpy = jest.spyOn(button, "dispatchEvent");
+      const dispatchSpy = vi.spyOn(button, "dispatchEvent");
       const event = new KeyboardEvent("keydown", { keyCode: 13, shiftKey: true, bubbles: true } as any);
       button.dispatchEvent(event);
       const dispatched = dispatchSpy.mock.calls.find(

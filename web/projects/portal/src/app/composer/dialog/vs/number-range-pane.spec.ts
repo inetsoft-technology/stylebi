@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { DebugElement, NO_ERRORS_SCHEMA } from "@angular/core";
 import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormGroup, FormsModule, ReactiveFormsModule } from "@angular/forms";
@@ -32,6 +33,7 @@ import { TreeSearchPipe } from "../../../widget/tree/tree-search.pipe";
 import { TreeComponent } from "../../../widget/tree/tree.component";
 import { NumberRangePaneModel } from "../../data/vs/number-range-pane-model";
 import { NumberRangePane } from "./number-range-pane.component";
+import { FixedDropdownDirective } from "../../../widget/fixed-dropdown/fixed-dropdown.directive";
 
 // Default values taken from NumberRangePane when property dialog is opened on a new gauge with no data
 const createModel: () => NumberRangePaneModel = () => {
@@ -52,12 +54,22 @@ describe("Number Range Pane Tests", () => {
    beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
-            NgbModule, ReactiveFormsModule, FormsModule, DropDownTestModule
+            NgbModule,
+            ReactiveFormsModule,
+            FormsModule,
+            DropDownTestModule,
+            NumberRangePane,
+            FormulaEditorDialog,
+            NewAggrDialog,
+            MessageDialog,
+            ScriptPane,
+            TreeComponent,
+            TreeNodeComponent,
+            TreeSearchPipe,
+            FixedDropdownDirective,
+            DynamicComboBox,
          ],
-         declarations: [NumberRangePane, FormulaEditorDialog,
-            NewAggrDialog, MessageDialog, ScriptPane, TreeComponent,
-            TreeNodeComponent, TreeSearchPipe, DynamicComboBox
-         ],
+         
          schemas: [ NO_ERRORS_SCHEMA ]
       });
 

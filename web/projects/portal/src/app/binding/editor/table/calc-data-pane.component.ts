@@ -36,12 +36,17 @@ import { DataRefType } from "../../../common/data/data-ref-type";
 import { XSchema } from "../../../common/data/xschema";
 import { XConstants } from "../../../common/util/xconstants";
 import { ComponentTool } from "../../../common/util/component-tool";
-import { CustomSelectOption } from "../../../widget/custom-select/custom-select.component";
+import { CalcAggregateOption } from "./calc-aggregate-option.component";
+import { CalcGroupOption } from "./calc-group-option.component";
+import { FormsModule } from "@angular/forms";
+import { OutOfZoneDirective } from "../../../widget/directive/out-of-zone.directive";
+import { CustomSelectOption, CustomSelectComponent } from "../../../widget/custom-select/custom-select.component";
 
 @Component({
-   selector: "calc-data-pane",
-   templateUrl: "calc-data-pane.component.html",
-   styleUrls: ["calc-data-pane.component.scss"]
+    selector: "calc-data-pane",
+    templateUrl: "calc-data-pane.component.html",
+    styleUrls: ["calc-data-pane.component.scss"],
+    imports: [OutOfZoneDirective, FormsModule, FixedDropdownDirective, CalcGroupOption, CalcAggregateOption, CustomSelectComponent]
 })
 export class CalcDataPane {
    @Input() vsId: string;

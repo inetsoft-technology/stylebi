@@ -32,7 +32,8 @@ import { DropdownRef } from "./fixed-dropdown-ref";
 import { FixedDropdownService } from "./fixed-dropdown.service";
 
 @Directive({
-   selector: "[fixedDropdown]"
+    selector: "[fixedDropdown]",
+    standalone: true
 })
 export class FixedDropdownDirective implements OnDestroy {
    @Input() fixedDropdown: TemplateRef<any>;
@@ -140,7 +141,7 @@ export class FixedDropdownDirective implements OnDestroy {
    }
 
    @HostListener("click", ["$event"])
-   private clicked(event: MouseEvent) {
+   public clicked(event: MouseEvent) {
       if(this.disabledSelfAction) {
          return;
       }

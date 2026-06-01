@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { HttpClientTestingModule } from "@angular/common/http/testing";
 import { DebugElement, NO_ERRORS_SCHEMA } from "@angular/core";
 import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
@@ -68,22 +69,22 @@ describe("VS Text Component Unit Test", () => {
    beforeEach(waitForAsync(() => {
       viewsheetClientService = {};
       dropdownService = {};
-      modelService = { sendModel: jest.fn() };
-      dataTipService = { isDataTip: jest.fn() };
+      modelService = { sendModel: vi.fn() };
+      dataTipService = { isDataTip: vi.fn() };
       viewDataService = {};
       contextProvider = {};
       timerService = {
-         defer: jest.fn((fn) => {
+         defer: vi.fn((fn) => {
             fn();
          })
       };
 
       router = {
-         navigate: jest.fn(),
+         navigate: vi.fn(),
          events: new Subject<any>()
       };
       richTextService = {
-         showAnnotationDialog: jest.fn()
+         showAnnotationDialog: vi.fn()
       };
 
       TestBed.configureTestingModule({
@@ -91,9 +92,10 @@ describe("VS Text Component Unit Test", () => {
             ReactiveFormsModule,
             FormsModule,
             NgbModule,
-            HttpClientTestingModule
+            HttpClientTestingModule,
+            VSText,
          ],
-         declarations: [ VSText ],
+         
          schemas: [NO_ERRORS_SCHEMA],
          providers: [
             { provide: ViewsheetClientService, useValue: viewsheetClientService },
@@ -133,7 +135,7 @@ describe("VS Text Component Unit Test", () => {
    });
 
    //Bug #21090 should handle newline
-   xit("should handle newline in text", () => { // broken test
+   it.skip("should handle newline in text", () => { // broken test
       let text = fixture.debugElement.query(By.css("div.text-view")).nativeElement;
       expect(text.textContent).toBe("text<br>123");
    });

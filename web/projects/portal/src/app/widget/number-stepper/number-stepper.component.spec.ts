@@ -22,6 +22,7 @@ import { By } from "@angular/platform-browser";
 import { NumberStepperComponent } from "./number-stepper.component";
 
 @Component({
+   imports: [NumberStepperComponent, FormsModule],
    template: `
       <number-stepper [(ngModel)]="value" [min]="min" [max]="max" [step]="step">
       </number-stepper>
@@ -48,8 +49,7 @@ describe("NumberStepperComponent", () => {
 
    beforeEach(async () => {
       await TestBed.configureTestingModule({
-         imports: [FormsModule],
-         declarations: [TestHostComponent, NumberStepperComponent],
+         imports: [FormsModule, NumberStepperComponent, TestHostComponent],
       }).compileComponents();
 
       fixture = TestBed.createComponent(TestHostComponent);

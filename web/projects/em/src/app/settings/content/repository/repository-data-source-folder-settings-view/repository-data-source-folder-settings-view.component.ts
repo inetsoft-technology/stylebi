@@ -25,18 +25,26 @@ import {
    Output,
    SimpleChanges
 } from "@angular/core";
-import { UntypedFormBuilder, UntypedFormGroup, Validators } from "@angular/forms";
+import { UntypedFormBuilder, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { Subject } from "rxjs";
 import { takeUntil } from "rxjs/operators";
 import { FormValidators } from "../../../../../../../shared/util/form-validators";
 import { Tool } from "../../../../../../../shared/util/tool";
 import { DataSourceFolderSettingsModel } from "../repository-data-source-folder-settings-page/data-source-folder-settings-model";
 import { COPY_PASTE_CONTEXT_REPOSITORY } from "../../../security/resource-permission/copy-paste-context";
+import { ResourcePermissionComponent } from "../../../security/resource-permission/resource-permission.component";
+import { MatInput } from "@angular/material/input";
+import { MatFormField, MatLabel, MatError } from "@angular/material/form-field";
+import { MatCard, MatCardContent } from "@angular/material/card";
+import { MatTabGroup, MatTab, MatTabContent } from "@angular/material/tabs";
+import { EditorPanelComponent } from "../../../../common/util/editor-panel/editor-panel.component";
+
 
 @Component({
-   selector: "em-repository-data-source-folder-settings-view",
-   templateUrl: "./repository-data-source-folder-settings-view.component.html",
-   styleUrls: ["./repository-data-source-folder-settings-view.component.scss"]
+    selector: "em-repository-data-source-folder-settings-view",
+    templateUrl: "./repository-data-source-folder-settings-view.component.html",
+    styleUrls: ["./repository-data-source-folder-settings-view.component.scss"],
+    imports: [EditorPanelComponent, MatTabGroup, MatTab, MatTabContent, MatCard, MatCardContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatInput, MatError, ResourcePermissionComponent]
 })
 export class RepositoryDataSourceFolderSettingsViewComponent implements OnInit, OnChanges, OnDestroy {
    @Input() model: DataSourceFolderSettingsModel;

@@ -1,40 +1,40 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <div class="color-picker input-group">
-  <span class="input-group-text" [ngClass]="{'style-text-width': isTableStyle}" *ngIf="label">{{label}}</span>
+  @if (label) {
+    <span class="input-group-text" [ngClass]="{'style-text-width': isTableStyle}">{{label}}</span>
+  }
   <span class="input-group-btn">
-    <button #trigger type="button" class="btn form-control dropdown-toggle no-caret input-group-addon-action color-picker__trigger"
-            [class.color-picker__trigger--open]="open"
-            data-toggle="dropdown" aria-haspopup="true" aria-expanded="false"
-            [disabled]="!enabled" [class.disabled]="!enabled" *ngIf="display" [fixedDropdown]="dropdownMenu"
-            [autoClose]="false" [closeOnOutsideClick]="true" (openChange)="handleOpenChange($event)">
-      <span class="color-picker-swatch color-picker__swatch" [class.transparent-swatch]="!colorString"
-            [style.background-color]="colorString">
-        <span class="visually-hidden">{{color}}</span>
-      </span>
-      <i class="color-picker-trigger__icon icon-color-default" aria-hidden="true"
-         [class.chevron-down-icon]="!open"
-         [class.chevron-up-icon]="open"></i>
-    </button>
+    @if (display) {
+      <button type="button" class="btn form-control dropdown-toggle input-group-addon-action bd-gray"
+        data-toggle="dropdown" aria-haspopup="true" aria-expanded="false"
+        [disabled]="!enabled" [class.disabled]="!enabled" [fixedDropdown]="dropdownMenu"
+        [autoClose]="false" [closeOnOutsideClick]="true">
+        <span class="color-picker-swatch color-picker__swatch" [class.transparent-swatch]="!colorString"
+          [style.background-color]="colorString">
+          <span class="visually-hidden">{{color}}</span>
+        </span>
+      </button>
+    }
   </span>
 </div>
 <ng-template #dropdownMenu>
   <cp-color-pane [color]="color" [palette]="palette" [recent]="recent"
-                 (dialogOpened)="dialogOpened($event)"
-                 (colorChanged)="selectColor($event)"></cp-color-pane>
+    (dialogOpened)="dialogOpened($event)"
+  (colorChanged)="selectColor($event)"></cp-color-pane>
 </ng-template>

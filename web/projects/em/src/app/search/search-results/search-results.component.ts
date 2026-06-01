@@ -18,11 +18,15 @@
 import { Component, Input, OnInit } from "@angular/core";
 import { Observable } from "rxjs";
 import { SearchResult } from "../search-result";
+import { MatPaginator } from "@angular/material/paginator";
+import { RouterLink } from "@angular/router";
+import { MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow } from "@angular/material/table";
 
 @Component({
-   selector: "em-search-results",
-   templateUrl: "./search-results.component.html",
-   styleUrls: ["./search-results.component.scss"]
+    selector: "em-search-results",
+    templateUrl: "./search-results.component.html",
+    styleUrls: ["./search-results.component.scss"],
+    imports: [MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, RouterLink, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, MatPaginator]
 })
 export class SearchResultsComponent implements OnInit {
    @Input() searchResults: Observable<SearchResult[]>;

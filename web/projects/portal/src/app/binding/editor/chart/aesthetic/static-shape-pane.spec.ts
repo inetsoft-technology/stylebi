@@ -27,8 +27,8 @@ import { ModelService } from "../../../../widget/services/model.service";
 describe("Static Shape Pane Unit Test", () => {
    let fixture: ComponentFixture<StaticShapePane>;
    let shapePane: StaticShapePane;
-   let httpService = { get: jest.fn(), post: jest.fn() };
-   let modelService = { getModel: jest.fn() };
+   let httpService = { get: vi.fn(), post: vi.fn() };
+   let modelService = { getModel: vi.fn() };
 
    beforeEach(waitForAsync(() => {
       modelService.getModel.mockImplementation((controller, params) => {
@@ -41,11 +41,13 @@ describe("Static Shape Pane Unit Test", () => {
       });
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule
+            FormsModule,
+            ReactiveFormsModule,
+            NgbModule,
+            StaticShapePane,
+            ShapeItem,
          ],
-         declarations: [
-            StaticShapePane, ShapeItem
-         ],
+         
          providers: [
             { provide: HttpClient, useValue: httpService },
             { provide: ModelService, useValue: modelService },

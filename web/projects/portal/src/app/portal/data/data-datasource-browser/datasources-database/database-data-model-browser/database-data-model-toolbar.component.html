@@ -1,52 +1,81 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <div class="btn-toolbar toolbar-ghost-actions model-toolbar flex-grow-0 flex-shrink-0" role="toolbar">
-   <div class="btn-group model-btn-group" role="group">
-      <i *ngIf="!selectionOn && !isvpm" class="btn py-1 new-partition-icon" placement="left"
-         [class.disabled]="!editable" title="_#(data.datasources.newPhysicalView)"
-         (click)="addPhysicalView()">
+  <div class="btn-group model-btn-group" role="group">
+    @if (searchVisible) {
+      <div class="search-input">
+        <input type="text" #searchInput
+          [(ngModel)]="searchQuery"
+          [ngbTypeahead]="searchFunc"
+          [focusFirst]="false"
+          (keyup.enter)="search()"
+          (selectItem)="search($event.item)"
+          [placeholder]="'_#(data.datasets.searchWithinFolder)'"/>
+      </div>
+    }
+    <i role="button" class="btn py-1 search-icon"
+      title="_#(data.datasets.searchWithinFolder)"
+      (click)="toggleSearch($event)">
+    </i>
+    @if (!selectionOn && !isvpm) {
+      <i class="btn py-1 new-partition-icon" placement="left"
+        [class.disabled]="!editable" title="_#(data.datasources.newPhysicalView)"
+        (click)="addPhysicalView()">
       </i>
-      <i *ngIf="!selectionOn && !isvpm" class="btn py-1 new-logical-model-icon" placement="left"
-         [class.disabled]="!editable || !canCreateLogicalModel" title="_#(data.physicalmodel.newLogicalModel)"
-         (click)="addLogicalModel()">
+    }
+    @if (!selectionOn && !isvpm) {
+      <i class="btn py-1 new-logical-model-icon" placement="left"
+        [class.disabled]="!editable || !canCreateLogicalModel" title="_#(data.physicalmodel.newLogicalModel)"
+        (click)="addLogicalModel()">
       </i>
-      <i *ngIf="isRoot && !selectionOn && !isvpm" role="button" class="btn py-1 folder-plus-icon"
-         [class.disabled]="!editable" title="_#(New Folder)"
-         (click)="addDataModelFolder()">
+    }
+    @if (isRoot && !selectionOn && !isvpm) {
+      <i role="button" class="btn py-1 folder-plus-icon"
+        [class.disabled]="!editable" title="_#(New Folder)"
+        (click)="addDataModelFolder()">
       </i>
-      <i *ngIf="!selectionOn && isvpm" class="btn icon-size-large py-1 new-vpm-icon"
-         [class.disabled]="!editable"
-         [attr.title]="addButtonTooltip" placement="left"
-         (click)="addVPMModel()">
+    }
+    @if (!selectionOn && isvpm) {
+      <i class="btn icon-size-large py-1 new-vpm-icon"
+        [class.disabled]="!editable"
+        [attr.title]="addButtonTooltip" placement="left"
+        (click)="addVPMModel()">
       </i>
-   </div>
-   <div class="btn-group model-btn-group" role="group">
+    }
+    @if (selectionOn && !isvpm) {
       <i role="button" class="btn py-1 folder-move-icon"
-         *ngIf="selectionOn && !isvpm"
-         [class.disabled]="moveDisable"
-         (click)="moveSelected()"
-         title="_#(data.datasets.moveSelected)">
+        [class.disabled]="moveDisable"
+        (click)="moveSelected()"
+        title="_#(data.datasets.moveSelected)">
       </i>
+    }
+    @if (selectionOn) {
       <i role="button" class="btn py-1 trash-icon"
-         *ngIf="selectionOn"
-         [class.disabled]="selectedItems.length === 0 || !selectionDeletable"
-         (click)="deleteSelected()"
-         title="_#(data.datasets.deleteSelected)">
+        [class.disabled]="selectedItems.length === 0 || !selectionDeletable"
+        (click)="deleteSelected()"
+        title="_#(data.datasets.deleteSelected)">
       </i>
-   </div>
+    }
+    <i role="button" class="btn py-1"
+      [class.selected-icon]="selectionOn"
+      [class.select-empty-icon]="!selectionOn"
+      [title]="toggleSelectTooltip"
+      (click)="toggleSelectionState()">
+    </i>
+  </div>
 </div>

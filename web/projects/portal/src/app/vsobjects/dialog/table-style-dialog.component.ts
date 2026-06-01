@@ -22,10 +22,20 @@ import {
    Output,
 } from "@angular/core";
 import { TableStylePaneModel } from "../../widget/table-style/table-style-pane-model";
+import { TableStylePane } from "../../widget/table-style/table-style-pane.component";
+import { BlockMouseDirective } from "../../widget/mouse-event/block-mouse.directive";
+import { EnterSubmitDirective } from "../../widget/directive/enter-submit.directive";
+import { ModalHeaderComponent } from "../../widget/modal-header/modal-header.component";
 
 @Component({
-   selector: "table-style-dialog",
-   templateUrl: "table-style-dialog.component.html",
+    selector: "table-style-dialog",
+    templateUrl: "table-style-dialog.component.html",
+    imports: [
+        ModalHeaderComponent,
+        EnterSubmitDirective,
+        BlockMouseDirective,
+        TableStylePane,
+    ]
 })
 export class TableStyleDialog {
    @Input() styleModel: TableStylePaneModel;

@@ -1,37 +1,39 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <div class="popup-editor__container">
   <div class="popup-editor__button-group">
     <button class="popup-editor__button btn" title="_#(Reset to Default)"
-            (click)="reset()">
+      (click)="reset()">
       <i class="reset-icon icon-size-small" aria-hidden="true"></i>
     </button>
     <button class="popup-editor__button btn" title="_#(Apply)"
-            (click)="apply.emit(false)">
+      (click)="apply.emit(false)">
       <i class="submit-icon icon-size-small" aria-hidden="true"></i>
     </button>
   </div>
   <div class="container">
-    <static-color-editor *ngFor="let idx of aggrsNum"
-                         [aggrName]="frameInfos[idx].name"
-                         class="row shell-form-row--field"
-                         [(color)]="frameInfos[idx].frame.color"
-                         (colorChanged)="changeColor($event, idx)">
-    </static-color-editor>
+    @for (idx of aggrsNum; track idx) {
+      <static-color-editor
+        [aggrName]="frameInfos[idx].name"
+        class="row shell-form-row--field"
+        [(color)]="frameInfos[idx].frame.color"
+        (colorChanged)="changeColor($event, idx)">
+      </static-color-editor>
+    }
   </div>
 </div>

@@ -1,28 +1,30 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <form ngNoForm (submit)="$event.preventDefault()">
   <div class="shell-form-row">
     <div class="col">
       <div class="bordered-box selection-list-editor__surface">
-        <div class="selection-list-editor__item" [class.selected]="localTable == model.tables[i]" (click)="selectTable(i)"
-             *ngFor="let localizedTables of model.localizedTables; let i = index">
-          <div [title]="getToolTip(i)">{{localizedTables}}</div>
-        </div>
+        @for (localizedTables of model.localizedTables; track localizedTables; let i = $index) {
+          <div [class.selected]="localTable == model.tables[i]" (click)="selectTable(i)"
+            >
+            <div [title]="getToolTip(i)">{{localizedTables}}</div>
+          </div>
+        }
       </div>
     </div>
     <div class="col">
@@ -45,12 +47,14 @@
         </div>
       </div>
       <div>
-        <div class="form-check" *ngIf="showApplySelection">
-          <input type="checkbox" class="form-check-input" [(ngModel)]="localForm" id="apply">
-          <label class="form-check-label" for="apply">
-            _#(Apply Selection)
-          </label>
-        </div>
+        @if (showApplySelection) {
+          <div class="form-check">
+            <input type="checkbox" class="form-check-input" [(ngModel)]="localForm" id="apply">
+            <label class="form-check-label" for="apply">
+              _#(Apply Selection)
+            </label>
+          </div>
+        }
       </div>
     </div>
   </div>

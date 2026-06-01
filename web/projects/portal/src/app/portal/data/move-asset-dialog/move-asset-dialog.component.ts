@@ -30,13 +30,18 @@ import { MoveAssetDialogDataConfig } from "../data-folder-browser/move-asset-dia
 import { PortalDataBrowserModel } from "../data-folder-browser/portal-data-browser-model";
 import { AssetEntryHelper } from "../../../common/data/asset-entry-helper";
 
+import { FilesBrowserComponent } from "../data-folder-browser/files-browser/files-browser.component";
+import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
+
 export const FAKE_ROOT_PATH: string = "_fake_root_";
 const DATA_WORKSHEET_ROOT_PATH: string = "_data_worksheet_root_";
 
 @Component({
-   selector: "move-asset-dialog",
-   templateUrl: "move-asset-dialog.component.html",
-   styleUrls: ["move-asset-dialog.component.scss"]
+    selector: "move-asset-dialog",
+    templateUrl: "move-asset-dialog.component.html",
+    styleUrls: ["move-asset-dialog.component.scss"],
+
+    imports: [ModalHeaderComponent, FilesBrowserComponent]
 })
 export class MoveAssetDialogComponent implements OnInit {
    @Input() originalPaths: string[] = [];

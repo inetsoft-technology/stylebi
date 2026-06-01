@@ -48,12 +48,12 @@ describe("CurrentSelection Unit Tests", () => {
    beforeEach(waitForAsync(() => {
       dropdownService = {};
       interactService = {
-         addInteractable: jest.fn(),
-         notify: jest.fn(),
-         removeInteractable: jest.fn()
+         addInteractable: vi.fn(),
+         notify: vi.fn(),
+         removeInteractable: vi.fn()
       };
       ssoHeartbeatService = {
-         heartbeat: jest.fn()
+         heartbeat: vi.fn()
       };
 
       TestBed.configureTestingModule({
@@ -62,15 +62,14 @@ describe("CurrentSelection Unit Tests", () => {
             NgbModule,
             FormsModule,
             ReactiveFormsModule,
-            HttpClientTestingModule
-         ],
-         declarations: [
+            HttpClientTestingModule,
             CurrentSelection,
             MiniToolbar,
             TitleCell,
             ActionsContextmenuAnchorDirective,
-            InteractableDirective
+            InteractableDirective,
          ],
+         
          providers: [
             ViewsheetClientService,
             StompClientService,
@@ -90,7 +89,7 @@ describe("CurrentSelection Unit Tests", () => {
 
    // Bug #10087 Truncate variable does not update
    // Bug #19688
-   it("should toggle truncate variable", (done) => {
+   it("should toggle truncate variable", () => new Promise<void>((done) => {
       let fixture: ComponentFixture<CurrentSelection> = TestBed.createComponent(CurrentSelection);
       let formatModel: VSFormatModel = TestUtils.createMockVSFormatModel();
       formatModel.decoration = "underline line-through";
@@ -109,5 +108,5 @@ describe("CurrentSelection Unit Tests", () => {
          expect(currentSelectionText.style["text-decoration"]).toEqual("underline line-through");
          done();
       });
-   });
+   }));
 });

@@ -30,6 +30,7 @@ import { TreeSearchPipe } from "../tree/tree-search.pipe";
 import { TreeComponent } from "../tree/tree.component";
 import { TargetComboBox } from "./target-combo-box.component";
 import { ValueInputField } from "./value-input-field.component";
+import { FixedDropdownDirective } from "../fixed-dropdown/fixed-dropdown.directive";
 
 describe("ValueInputField Unit Test", () => {
    let valueInputField: ValueInputField;
@@ -38,12 +39,19 @@ describe("ValueInputField Unit Test", () => {
    beforeEach(() => {
       TestBed.configureTestingModule({
          imports: [
-            DropDownTestModule, ReactiveFormsModule, FormsModule, NgbModule
+            DropDownTestModule,
+            ReactiveFormsModule,
+            FormsModule,
+            NgbModule,
+            ValueInputField,
+            TargetComboBox,
+            FixedDropdownDirective,
+            TreeComponent,
+            TreeSearchPipe,
+            TreeNodeComponent,
+            DynamicComboBox,
          ],
-         declarations: [
-            ValueInputField, TargetComboBox,
-            TreeComponent, TreeSearchPipe, TreeNodeComponent, DynamicComboBox
-         ],
+         
          providers: [ NgbModal ],
          schemas: [NO_ERRORS_SCHEMA]
       }).compileComponents();
@@ -70,7 +78,7 @@ describe("ValueInputField Unit Test", () => {
 
    // Bug #10200 target value should be 'Max' for Maximum
    it("should have correct Maximum formula value", () => {
-      let valueChange: any = { emit: jest.fn() };
+      let valueChange: any = { emit: vi.fn() };
       valueInputField.valueChange = valueChange;
       valueInputField.onValueChange(valueInputField.formulas[2].value);
 
@@ -80,7 +88,7 @@ describe("ValueInputField Unit Test", () => {
 
    // Bug #10200 target value should be 'Min' for Minimum
    it("should have correct Minimum formula value", () => {
-      let valueChange: any = { emit: jest.fn() };
+      let valueChange: any = { emit: vi.fn() };
 
       valueInputField.valueChange = valueChange;
       valueInputField.onValueChange(valueInputField.formulas[1].value);
@@ -90,7 +98,7 @@ describe("ValueInputField Unit Test", () => {
    });
 
    //Bug #18985
-   it("value input check", (done) => {
+   it("value input check", () => new Promise<void>((done) => {
       let valueInput: HTMLInputElement = fixture.debugElement.query(By.css("dynamic-combo-box input")).nativeElement;
       valueInput.value = "==[";
       valueInput.dispatchEvent(new Event("change"));
@@ -107,10 +115,10 @@ describe("ValueInputField Unit Test", () => {
 
          done();
       });
-   });
+   }));
 
    //Bug #19114
-   it("the value should be clear when from expression to variable", (done) => {
+   it("the value should be clear when from expression to variable", () => new Promise<void>((done) => {
       valueInputField.valueType = ComboMode.EXPRESSION;
       valueInputField.value = "=40";
       fixture.detectChanges();
@@ -138,5 +146,5 @@ describe("ValueInputField Unit Test", () => {
 
          done();
       });
-   });
+   }));
 });

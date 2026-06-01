@@ -18,11 +18,14 @@
 import { Component, Input } from "@angular/core";
 import { ChartBindingModel } from "../../data/chart/chart-binding-model";
 import { GraphTypes } from "../../../common/graph-types";
+import { ChartDataEditor } from "./chart-data-editor.component";
+
 
 @Component({
-   selector: "chart-data-pane",
-   templateUrl: "chart-data-pane.component.html",
-   styleUrls: ["../data-pane.component.scss", "chart-data-pane.component.scss"]
+    selector: "chart-data-pane",
+    templateUrl: "chart-data-pane.component.html",
+    styleUrls: ["../data-pane.component.scss", "chart-data-pane.component.scss"],
+    imports: [ChartDataEditor]
 })
 
 export class ChartDataPane {

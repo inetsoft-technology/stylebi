@@ -1,151 +1,169 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
-<div *ngIf="model && form" outOfZone (onDocKeydown)="onKeyDown($event)">
-  <form [formGroup]="form" class="container-fluid">
-    <fieldset *ngIf="!viewsheet.preview">
-      <legend>_#(Target Screen)</legend>
-      <div class="row shell-form-row--field align-items-start gap-3">
-        <div class="col-auto d-flex flex-column">
-          <span class="form-label invisible" aria-hidden="true">&nbsp;</span>
-          <div class="form-check form-switch mb-0">
-            <input class="form-check-input" type="checkbox" role="switch" id="target"
-                   [(ngModel)]="model.targetScreen"
-                 [ngModelOptions]="{standalone: true}" (change)="updateEnabledState()"/>
-            <label class="form-check-label" for="target">
-              _#(Target Screen)
-            </label>
-          </div>
-        </div>
-        <div class="col-auto d-flex flex-column">
-          <label class="form-label">_#(Width)</label>
-          <number-stepper formControlName="templateWidth"
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
+@if (model && form) {
+  <div outOfZone (onDocKeydown)="onKeyDown($event)">
+    <form [formGroup]="form" class="container-fluid">
+      @if (!viewsheet.preview) {
+        <fieldset>
+          <legend>_#(Target Screen)</legend>
+          <div class="row form-row-float-label">
+            <div class="col-auto">
+              <div class="form-check">
+                <input type="checkbox" class="form-check-input" id="target"
+                  [(ngModel)]="model.targetScreen"
+                  [ngModelOptions]="{standalone: true}" (change)="updateEnabledState()"/>
+                <label class="form-check-label" for="target">
+                  _#(Target Screen)
+                </label>
+              </div>
+            </div>
+            <div class="col-auto d-flex flex-column">
+              <div class="form-floating">
+                <div class="input-group">
+                  <number-stepper formControlName="templateWidth"
                           [unit]="'px'"
                           [invalid]="!!form.controls['templateWidth'].errors">
           </number-stepper>
-          <span class="invalid-feedback d-block" *ngIf="form.controls['templateWidth'].errors">
-            _#(viewer.viewsheet.layout.screenValid)
-          </span>
-        </div>
-        <div class="col-auto d-flex flex-column">
-          <label class="form-label">_#(Height)</label>
-          <number-stepper formControlName="templateHeight"
+                  <span class="invalid-feedback">_#(viewer.viewsheet.layout.screenValid)</span>
+                  <div class="input-group-text">_#(px)</div>
+                </div>
+                <label>_#(Width)</label>
+              </div>
+            </div>
+            <div class="col-auto d-flex flex-column">
+              <div class="form-floating">
+                <div class="input-group">
+                  <number-stepper formControlName="templateHeight"
                           [unit]="'px'"
                           [invalid]="!!form.controls['templateHeight'].errors">
           </number-stepper>
-          <span class="invalid-feedback d-block" *ngIf="form.controls['templateHeight'].errors">
-            _#(viewer.viewsheet.layout.screenValid)
-          </span>
-        </div>
-      </div>
-    </fieldset>
-    <fieldset>
-      <legend>_#(Scale)</legend>
-      <div class="shell-form-row shell-form-row--checkbox d-flex flex-wrap gap-3">
-        <div class="form-check">
-          <input class="form-check-input" type="checkbox" id="scaleToScreen"
-                 [(ngModel)]="model.scaleToScreen"
-               [ngModelOptions]="{standalone:true}"/>
-          <label class="form-check-label" for="scaleToScreen">
-            _#(Scale to Screen)
-          </label>
-        </div>
-        <div class="form-check">
-          <input class="form-check-input" type="checkbox" id="fitToWidth"
-                 [(ngModel)]="model.fitToWidth"
-               [ngModelOptions]="{standalone:true}" [disabled]="!model.scaleToScreen"/>
-          <label class="form-check-label" for="fitToWidth">
-            _#(Fit to Width)
-          </label>
-        </div>
-        <div class="form-check">
-          <input class="form-check-input" type="checkbox" id="balancePadding"
-                 [(ngModel)]="model.balancePadding"
-                 [ngModelOptions]="{standalone:true}"/>
-          <label class="form-check-label" for="balancePadding">
-            _#(Balance Padding)
-          </label>
-        </div>
-      </div>
-    </fieldset>
-    <div *ngIf="!viewsheet.preview" class="row shell-form-row--field">
-      <div class="col">
-        <div class="form-floating">
-          <div class="input-group input-with-actions">
-            <input class="form-control" type="text" [value]="getPrintLayoutLabel()"
-                   formControlName="printLayout" placeholder="_#(Print Layout)" readonly
-                   [class.is-invalid]="form.controls['printLayout'].errors"/>
-
-            <span class="invalid-feedback">_#(print.layout.required)</span>
-            <div class="input-group-btn">
-              <button type="button" class="btn btn-light btn-sm mx-1" title="_#(Create / Edit)"
-                      (click)="showViewsheetPrintLayoutDialog(false)">
-                <i class="edit-icon icon-size-medium"></i>
-                <span class="visually-hidden">_#(Create / Edit)</span>
-              </button>
-              <button type="button" class="btn btn-light btn-sm clearBtn_id" title="_#(Clear)"
-                      [disabled]="!isClearPrintLayoutEnabled()" (click)="removePrintLayout()">
-                <i class="eraser-icon icon-size-medium"></i>
-                <span class="visually-hidden">_#(Clear)</span>
-              </button>
+                  <span class="invalid-feedback">_#(viewer.viewsheet.layout.screenValid)</span>
+                  <div class="input-group-text">_#(px)</div>
+                </div>
+                <label>_#(Height)</label>
+              </div>
             </div>
           </div>
-          <label>_#(Print Layout)</label>
+        </fieldset>
+      }
+      <fieldset>
+        <legend>_#(Scale)</legend>
+        <div class="row form-row-checkbox multiple-checkboxes">
+          <div class="col-auto">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="scaleToScreen"
+                [(ngModel)]="model.scaleToScreen"
+                [ngModelOptions]="{standalone:true}"/>
+              <label class="form-check-label" for="scaleToScreen">
+                _#(Scale to Screen)
+              </label>
+            </div>
+          </div>
+          <div class="col-auto">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="fitToWidth"
+                [(ngModel)]="model.fitToWidth"
+                [ngModelOptions]="{standalone:true}" [disabled]="!model.scaleToScreen"/>
+              <label class="form-check-label" for="fitToWidth">
+                _#(Fit to Width)
+              </label>
+            </div>
+          </div>
+          <div class="col-auto">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="balancePadding"
+                [(ngModel)]="model.balancePadding"
+                [ngModelOptions]="{standalone:true}"/>
+              <label class="form-check-label" for="balancePadding">
+                _#(Balance Padding)
+              </label>
+            </div>
+          </div>
         </div>
-      </div>
-    </div>
-    <fieldset *ngIf="!viewsheet.preview">
-      <legend>_#(Device Layouts)</legend>
-      <w-large-form-field>
-        <div class="device-list" largeFieldElement>
-          <generic-selectable-list [itemList]="model.deviceLayouts"
-                                   [(selectedIndex)]="selectedLayout"
-                                   [elementToString]="elementToString">
-          </generic-selectable-list>
+      </fieldset>
+      @if (!viewsheet.preview) {
+        <div class="row form-row-float-label">
+          <div class="col-auto d-flex flex-column">
+            <div class="form-floating">
+              <div class="input-group input-with-actions">
+                <input class="form-control" type="text" [value]="getPrintLayoutLabel()"
+                  formControlName="printLayout" placeholder="_#(Print Layout)" readonly
+                  [class.is-invalid]="form.controls['printLayout'].errors"/>
+                <span class="invalid-feedback">_#(print.layout.required)</span>
+                <div class="input-group-btn">
+                  <button type="button" class="btn btn-light btn-sm mx-1" title="_#(Create / Edit)"
+                    (click)="showViewsheetPrintLayoutDialog(false)">
+                    <i class="edit-icon icon-size-medium"></i>
+                    <span class="visually-hidden">_#(Create / Edit)</span>
+                  </button>
+                  <button type="button" class="btn btn-light btn-sm clearBtn_id" title="_#(Clear)"
+                    [disabled]="!isClearPrintLayoutEnabled()" (click)="removePrintLayout()">
+                    <i class="eraser-icon icon-size-medium"></i>
+                    <span class="visually-hidden">_#(Clear)</span>
+                  </button>
+                </div>
+              </div>
+              <label>_#(Print Layout)</label>
+            </div>
+          </div>
         </div>
-        <ng-container largeFieldButtons>
-          <button type="button" class="btn btn-default mb-1 add"
-                  (click)="showViewsheetDeviceLayoutDialogAdd()">
-            _#(New)
-          </button>
-          <button type="button" class="btn btn-default mb-1 edit"
-                  (click)="showViewsheetDeviceLayoutDialogEdit()"
-                  [disabled]="selectedLayout == -1">
-            _#(Edit)
-          </button>
-          <button type="button" class="btn btn-default delete" (click)="deleteDeviceLayout()"
-                  [disabled]="!isDeleteLayoutEnabled()">
-            _#(Delete)
-          </button>
-        </ng-container>
-      </w-large-form-field>
-    </fieldset>
-  </form>
-</div>
+      }
+      @if (!viewsheet.preview) {
+        <fieldset>
+          <legend>_#(Device Layouts)</legend>
+          <w-large-form-field>
+            <div class="device-list" largeFieldElement>
+              <generic-selectable-list [itemList]="model.deviceLayouts"
+                [(selectedIndex)]="selectedLayout"
+                [elementToString]="elementToString">
+              </generic-selectable-list>
+            </div>
+            <ng-container largeFieldButtons>
+              <button type="button" class="btn btn-default mb-1 add"
+                (click)="showViewsheetDeviceLayoutDialogAdd()">
+                _#(New)
+              </button>
+              <button type="button" class="btn btn-default mb-1 edit"
+                (click)="showViewsheetDeviceLayoutDialogEdit()"
+                [disabled]="selectedLayout == -1">
+                _#(Edit)
+              </button>
+              <button type="button" class="btn btn-default delete" (click)="deleteDeviceLayout()"
+                [disabled]="!isDeleteLayoutEnabled()">
+                _#(Delete)
+              </button>
+            </ng-container>
+          </w-large-form-field>
+        </fieldset>
+      }
+    </form>
+  </div>
+}
 
 <ng-template #viewsheetDeviceLayoutDialog let-close="close" let-dismiss="dismiss">
   <viewsheet-device-layout-dialog (onCommit)="close($event)" (onCancel)="dismiss($event)"
-                                  [index]="selectedLayout" [add]="!editing"
-                                  [devices]="model.devices" [layouts]="model.deviceLayouts"
-                                  [isEditAllowed]="model.editDevicesAllowed">
+    [index]="selectedLayout" [add]="!editing"
+    [devices]="model.devices" [layouts]="model.deviceLayouts"
+    [isEditAllowed]="model.editDevicesAllowed">
   </viewsheet-device-layout-dialog>
 </ng-template>
 <ng-template #viewsheetPrintLayoutDialog let-close="close" let-dismiss="dismiss">
   <viewsheet-print-layout-dialog (onCommit)="close($event)" (onCancel)="dismiss($event)"
-                                 [model]="printLayoutModel">
+    [model]="printLayoutModel">
   </viewsheet-print-layout-dialog>
 </ng-template>

@@ -17,18 +17,30 @@
  */
 import { Component, Input, OnInit, OnDestroy, ViewChild, TemplateRef } from "@angular/core";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
-import { UntypedFormControl, UntypedFormGroup, Validators } from "@angular/forms";
+import { UntypedFormControl, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { Subscription } from "rxjs";
 import { ValueMode } from "../../widget/dynamic-combo-box/dynamic-combo-box-model";
 import { LegendFormatGeneralPaneModel } from "../model/dialog/legend-format-general-pane-model";
 import { StyleConstants } from "../../common/util/style-constants";
 import { LineStyle } from "../../common/data/line-style";
 import { UIContextService } from "../../common/services/ui-context.service";
-import { CustomSelectOption } from "../../widget/custom-select/custom-select.component";
+import { ColorEditor } from "../../widget/color-picker/color-editor.component";
+import { StyleDropdown } from "../../widget/format/style-dropdown.component";
+import { NgClass } from "@angular/common";
+import { DynamicComboBox } from "../../widget/dynamic-combo-box/dynamic-combo-box.component";
+import { CustomSelectOption, CustomSelectComponent } from "../../widget/custom-select/custom-select.component";
 
+import { NumberStepperComponent } from "../../widget/number-stepper/number-stepper.component";
 @Component({
-   selector: "legend-format-general-pane",
-   templateUrl: "legend-format-general-pane.component.html",
+    selector: "legend-format-general-pane",
+    templateUrl: "legend-format-general-pane.component.html",
+    imports: [
+    FormsModule,
+    ReactiveFormsModule,
+    DynamicComboBox,
+    StyleDropdown,
+    ColorEditor,
+    NgClass, CustomSelectComponent, NumberStepperComponent]
 })
 export class LegendFormatGeneralPane implements OnInit, OnDestroy {
    public mode: ValueMode = ValueMode.TEXT;

@@ -16,17 +16,19 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { NgModule } from "@angular/core";
-import { CustomSelectModule } from "../../widget/custom-select/custom-select.module";
-import { FixedDropdownModule } from "../../widget/fixed-dropdown/fixed-dropdown.module";
+import { FixedDropdownContextmenuComponent } from "../../widget/fixed-dropdown/fixed-dropdown-contextmenu.component";
+import { FixedDropdownComponent } from "../../widget/fixed-dropdown/fixed-dropdown.component";
+import { FixedDropdownService } from "../../widget/fixed-dropdown/fixed-dropdown.service";
+import { DropdownStackService } from "../../widget/fixed-dropdown/dropdown-stack.service";
 
 @NgModule({
    imports: [
-      FixedDropdownModule,
-      CustomSelectModule,
+      FixedDropdownComponent,
+      FixedDropdownContextmenuComponent,
    ],
-   exports: [
-      FixedDropdownModule,
-      CustomSelectModule,
-   ],
+   providers: [
+      FixedDropdownService,
+      DropdownStackService
+   ]
 })
 export class DropDownTestModule {}

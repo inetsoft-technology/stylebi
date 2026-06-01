@@ -1,24 +1,24 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <div class="popup-editor__container">
   <div class="popup-editor__button-group">
     <button class="popup-editor__button btn" title="_#(Apply)"
-            (click)="submit()">
+      (click)="submit()">
       <i class="submit-icon icon-size-small" aria-hidden="true"></i>
     </button>
   </div>
@@ -31,22 +31,26 @@
       <label><span>_#(Aggregate)</span></label>
     </div>
   </div>
-  <div class="row shell-form-row--field" *ngIf="!hasN">
-    <div class="col form-floating">
-      <custom-select [options]="availableFieldOptions"
+  @if (!hasN) {
+    <div class="row shell-form-row--field">
+      <div class="col form-floating">
+        <custom-select [options]="availableFieldOptions"
                      [(ngModel)]="secondCol"
                      [disabled]="!isTwoColumns()"
                      placeholder="_#(With)">
       </custom-select>
-      <label><span>_#(With)</span></label>
+        <label><span>_#(With)</span></label>
+      </div>
     </div>
-  </div>
-  <div class="row shell-form-row--field" *ngIf="hasN">
-    <div class="col-auto form-floating">
-      <input type="text" id="num" class="form-control" [(ngModel)]="nStr">
-      <label><span>{{getNPLabel()}}</span></label>
+  }
+  @if (hasN) {
+    <div class="row shell-form-row--field">
+      <div class="col-auto form-floating">
+        <input type="text" id="num" class="form-control" [(ngModel)]="nStr">
+        <label><span>{{getNPLabel()}}</span></label>
+      </div>
     </div>
-  </div>
+  }
   <div class="row shell-form-row--field">
     <div class="col form-floating">
       <custom-select [options]="percentOptions"
@@ -57,8 +61,10 @@
       <label><span>_#(Percentage)</span></label>
     </div>
   </div>
-  <div *ngIf="(isNthFormula() || isPthFormula()) && !isNValid()"
-       class="shell-alert shell-alert--danger">
-    _#(table.formula.parameterError)
-  </div>
+  @if ((isNthFormula() || isPthFormula()) && !isNValid()) {
+    <div
+      class="shell-alert shell-alert--danger">
+      _#(table.formula.parameterError)
+    </div>
+  }
 </div>

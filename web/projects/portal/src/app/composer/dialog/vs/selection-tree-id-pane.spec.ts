@@ -33,9 +33,12 @@ import { TreeSearchPipe } from "../../../widget/tree/tree-search.pipe";
 import { TreeComponent } from "../../../widget/tree/tree.component";
 import { SelectionTreePaneModel } from "../../data/vs/selection-tree-pane-model";
 import { SelectionTreeIdPane } from "./selection-tree-id-pane.component";
+import { FixedDropdownDirective } from "../../../widget/fixed-dropdown/fixed-dropdown.directive";
 
 @Component({
+   standalone: true,
    selector: "test-app",
+   imports: [SelectionTreeIdPane],
    template: `<selection-tree-id-pane [model]="model" [targetIdTree]="targetIdTree"
               [localRefs]="localRefs" [variableValues]="variableValues">
                  </selection-tree-id-pane>`
@@ -104,18 +107,28 @@ describe("Selection Tree Id Pane Test", () => {
    let idPane: SelectionTreeIdPane;
 
    beforeEach(waitForAsync(() => {
-      changeDetectorRef = { detectChanges: jest.fn() };
-      dragService = { reset: jest.fn(), put: jest.fn() };
+      changeDetectorRef = { detectChanges: vi.fn() };
+      dragService = { reset: vi.fn(), put: vi.fn() };
 
       TestBed.configureTestingModule({
          imports: [
-            NgbModule, ReactiveFormsModule, FormsModule, DropDownTestModule
+            NgbModule,
+            ReactiveFormsModule,
+            FormsModule,
+            DropDownTestModule,
+            TestApp,
+            SelectionTreeIdPane,
+            TreeComponent,
+            TreeNodeComponent,
+            TreeSearchPipe,
+            FormulaEditorDialog,
+            ScriptPane,
+            NewAggrDialog,
+            MessageDialog,
+            FixedDropdownDirective,
+            DynamicComboBox,
          ],
-         declarations: [
-            TestApp, SelectionTreeIdPane, TreeComponent, TreeNodeComponent,
-            TreeSearchPipe, FormulaEditorDialog, ScriptPane,
-            NewAggrDialog, MessageDialog, DynamicComboBox
-         ],
+         
          providers: [
             {provide: ChangeDetectorRef, useValue: changeDetectorRef},
             {provide: DragService, useValue: dragService}
@@ -144,7 +157,7 @@ describe("Selection Tree Id Pane Test", () => {
 
    //Bug #19081 should keep the selected variable
    //Bug #19702 and Bug #19932
-   xit("should keep selected variable on parent/child id", () => {
+   it.skip("should keep selected variable on parent/child id", () => {
       fixture.componentInstance.model.parentId = "${var1}";
       fixture.componentInstance.model.id = "${var2}";
       fixture.componentInstance.model.label = "${var3}";

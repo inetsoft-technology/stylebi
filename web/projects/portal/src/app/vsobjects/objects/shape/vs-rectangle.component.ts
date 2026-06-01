@@ -22,11 +22,22 @@ import { ContextProvider } from "../../context-provider.service";
 import { VSRectangleModel } from "../../model/vs-rectangle-model";
 import { VSShape } from "./vs-shape";
 import { DataTipService } from "../data-tip/data-tip.service";
+import { VSAnnotation } from "../annotation/vs-annotation.component";
+import { VSHiddenAnnotation } from "../annotation/vs-hidden-annotation.component";
+import { VSPopComponentDirective } from "../data-tip/vs-pop-component.directive";
+import { VSDataTipDirective } from "../data-tip/vs-data-tip.directive";
+
 
 @Component({
-   selector: "vs-rectangle",
-   templateUrl: "vs-rectangle.component.html",
-   styleUrls: ["vs-rectangle.component.scss"],
+    selector: "vs-rectangle",
+    templateUrl: "vs-rectangle.component.html",
+    styleUrls: ["vs-rectangle.component.scss"],
+    imports: [
+    VSDataTipDirective,
+    VSPopComponentDirective,
+    VSHiddenAnnotation,
+    VSAnnotation
+]
 })
 export class VSRectangle extends VSShape<VSRectangleModel> implements OnChanges {
    @Input() selected: boolean = false;

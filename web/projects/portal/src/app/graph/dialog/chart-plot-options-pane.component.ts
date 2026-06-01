@@ -17,14 +17,18 @@
  */
 import { Component, Input, OnInit } from "@angular/core";
 import { ChartPlotOptionsPaneModel } from "../model/dialog/chart-plot-options-pane-model";
-import { UntypedFormControl, UntypedFormGroup, Validators } from "@angular/forms";
+import { UntypedFormControl, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { FormValidators } from "../../../../../shared/util/form-validators";
-import { CustomSelectOption } from "../../widget/custom-select/custom-select.component";
+import { AlphaDropdown } from "../../widget/format/alpha-dropdown.component";
+import { ColorDropdown } from "../../widget/color-picker/color-dropdown.component";
+import { CustomSelectOption, CustomSelectComponent } from "../../widget/custom-select/custom-select.component";
 
+import { NumberStepperComponent } from "../../widget/number-stepper/number-stepper.component";
 @Component({
-   selector: "chart-plot-options-pane",
-   templateUrl: "chart-plot-options-pane.component.html",
-   styleUrls: ["chart-plot-options-pane.component.scss"]
+    selector: "chart-plot-options-pane",
+    templateUrl: "chart-plot-options-pane.component.html",
+    styleUrls: ["chart-plot-options-pane.component.scss"],
+    imports: [FormsModule, ReactiveFormsModule, ColorDropdown, AlphaDropdown, CustomSelectComponent, NumberStepperComponent]
 })
 
 export class ChartPlotOptionsPaneComponent implements OnInit {

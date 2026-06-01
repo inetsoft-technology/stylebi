@@ -16,9 +16,13 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, forwardRef, Input } from "@angular/core";
-import { ControlValueAccessor, NG_VALUE_ACCESSOR } from "@angular/forms";
+import { ControlValueAccessor, NG_VALUE_ACCESSOR, FormsModule } from "@angular/forms";
 import { XSchema } from "../../../../../../portal/src/app/common/data/xschema";
 import { DateTypeFormatter } from "../../../../../../shared/util/date-type-formatter";
+import { MatInput } from "@angular/material/input";
+import { MatFormField, MatLabel, MatError } from "@angular/material/form-field";
+import { DatepickerComponent } from "../../../common/util/datepicker/datepicker.component";
+
 
 export const DATE_TIME_ACCESSOR: any = {
    provide: NG_VALUE_ACCESSOR,
@@ -27,10 +31,11 @@ export const DATE_TIME_ACCESSOR: any = {
 };
 
 @Component({
-   selector: "em-date-time-editor",
-   templateUrl: "./date-time-editor.component.html",
-   styleUrls: ["./date-time-editor.component.scss"],
-   providers: [DATE_TIME_ACCESSOR]
+    selector: "em-date-time-editor",
+    templateUrl: "./date-time-editor.component.html",
+    styleUrls: ["./date-time-editor.component.scss"],
+    providers: [DATE_TIME_ACCESSOR],
+    imports: [DatepickerComponent, MatFormField, MatLabel, MatInput, FormsModule, MatError]
 })
 export class DateTimeEditorComponent implements ControlValueAccessor {
    @Input() type: string;

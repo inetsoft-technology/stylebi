@@ -1,6 +1,6 @@
-// Jest Snapshot v1, https://goo.gl/fbAQLP
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
-exports[`TabActions check status of menu actions of tab in composer 1`] = `
+exports[`TabActions > check status of menu actions of tab in composer 1`] = `
 [
   AssemblyActionGroup {
     "actions": [
@@ -111,7 +111,7 @@ exports[`TabActions check status of menu actions of tab in composer 1`] = `
 ]
 `;
 
-exports[`TabActions check status of menu actions of tab in viewer and preview 1`] = `
+exports[`TabActions > check status of menu actions of tab in viewer and preview 1`] = `
 [
   AssemblyActionGroup {
     "actions": [
@@ -222,7 +222,7 @@ exports[`TabActions check status of menu actions of tab in viewer and preview 1`
 ]
 `;
 
-exports[`TabActions check status of menu actions of tab in viewer and preview 2`] = `
+exports[`TabActions > check status of menu actions of tab in viewer and preview 2`] = `
 [
   AssemblyActionGroup {
     "actions": [

@@ -15,6 +15,8 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+import { vi } from "vitest";
+
 import { EventEmitter } from "@angular/core";
 import { of as observableOf, Subject } from "rxjs";
 import { AssetType } from "../../../../../shared/data/asset-type";
@@ -831,18 +833,18 @@ export namespace TestUtils {
       const whenDisconnected = new Subject<void>();
       const reconnectError = new Subject<void>();
       const stompConnection = {
-         subscribe: jest.fn(),
-         send: jest.fn(),
-         disconnect: jest.fn(),
+         subscribe: vi.fn(),
+         send: vi.fn(),
+         disconnect: vi.fn(),
          onHeartbeat: new EventEmitter<any>()
       };
       stompConnection.subscribe.mockImplementation((destination: string, next?: (value: StompMessage) => void, error?: (error: any) => void, complete?: () => void) => {
          return stompMessages.subscribe(next, error, complete);
       });
       return {
-         connect: jest.fn(() => observableOf(stompConnection)),
-         whenDisconnected: jest.fn(() => observableOf(whenDisconnected)),
-         reconnectError: jest.fn(() => observableOf(reconnectError))
+         connect: vi.fn(() => observableOf(stompConnection)),
+         whenDisconnected: vi.fn(() => observableOf(whenDisconnected)),
+         reconnectError: vi.fn(() => observableOf(reconnectError))
       };
    }
 

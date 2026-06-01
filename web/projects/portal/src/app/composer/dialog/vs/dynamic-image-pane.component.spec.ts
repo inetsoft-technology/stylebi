@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { ComboMode } from "../../../widget/dynamic-combo-box/dynamic-combo-box-model";
 import { DynamicImagePaneModel } from "../../data/vs/dynamic-image-pane-model";
 import { DynamicImagePane } from "./dynamic-image-pane.component";

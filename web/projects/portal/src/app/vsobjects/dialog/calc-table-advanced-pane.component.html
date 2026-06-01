@@ -1,77 +1,89 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <form [formGroup]="form" class="container-fluid">
   <fieldset>
     <legend>_#(Options)</legend>
     <div class="shell-form-row--field row">
       <div class="col form-floating" [ngClass]="{ 'has-error' : !form.controls['headerRowCount'].valid}">
-          <number-stepper formControlName="headerRowCount" [min]="0"
+        <number-stepper formControlName="headerRowCount" [min]="0"
                           (valueChange)="model.headerRowCount = $event"
                           [invalid]="!form.controls['headerRowCount'].valid">
           </number-stepper>
-          <label>_#(Header Rows)</label>
+        <label>_#(Header Rows)</label>
       </div>
       <div class="col form-floating" [ngClass]="{ 'has-error' : !form.controls['headerColCount'].valid}">
-          <number-stepper formControlName="headerColCount" [min]="0"
+        <number-stepper formControlName="headerColCount" [min]="0"
                           (valueChange)="model.headerColCount = $event"
                           [invalid]="!form.controls['headerColCount'].valid">
           </number-stepper>
-          <label>_#(Header Columns)</label>
+        <label>_#(Header Columns)</label>
       </div>
       <div class="col form-floating" [ngClass]="{ 'has-error' : !form.controls['trailerRowCount'].valid}">
-          <number-stepper formControlName="trailerRowCount" [min]="0"
+        <number-stepper formControlName="trailerRowCount" [min]="0"
                           (valueChange)="model.trailerRowCount = $event"
                           [invalid]="!form.controls['trailerRowCount'].valid">
           </number-stepper>
-          <label>_#(Trailer Rows)</label>
+        <label>_#(Trailer Rows)</label>
       </div>
       <div class="col form-floating" [ngClass]="{ 'has-error' : !form.controls['trailerColCount'].valid}">
-          <number-stepper formControlName="trailerColCount" [min]="0"
+        <number-stepper formControlName="trailerColCount" [min]="0"
                           (valueChange)="model.trailerColCount = $event"
                           [invalid]="!form.controls['trailerColCount'].valid">
           </number-stepper>
-          <label>_#(Trailer Columns)</label>
+        <label>_#(Trailer Columns)</label>
       </div>
     </div>
-    <div *ngIf="form.controls['headerRowCount'].errors" class="shell-alert shell-alert--danger">
-      _#(viewer.dialog.calcTableAdvance.headerRowPositiveNumber)
-    </div>
-    <div *ngIf="form.controls['headerColCount'].errors" class="shell-alert shell-alert--danger">
-      _#(viewer.dialog.calcTableAdvance.headerColPositiveNumber)
-    </div>
-    <div *ngIf="form.controls['trailerRowCount'].errors" class="shell-alert shell-alert--danger">
-      _#(viewer.dialog.calcTableAdvance.trailerColPositiveNumber)
-    </div>
-    <div *ngIf="form.controls['trailerColCount'].errors" class="shell-alert shell-alert--danger">
-      _#(viewer.dialog.calcTableAdvance.trailerColPositiveNumber)
-    </div>
-    <div class="header-row-warning-container" *ngIf="showHeaderColumnWarning">
-      <p class="shell-alert shell-alert--danger header-row-warning">_#(header.column.invalid)</p>
-    </div>
-    <div class="header-row-warning-container" *ngIf="showHeaderRowWarning">
-      <p class="shell-alert shell-alert--danger header-row-warning">_#(header.row.invalid)</p>
-    </div>
+    @if (form.controls['headerRowCount'].errors) {
+      <div class="shell-alert shell-alert--danger">
+        _#(viewer.dialog.calcTableAdvance.headerRowPositiveNumber)
+      </div>
+    }
+    @if (form.controls['headerColCount'].errors) {
+      <div class="shell-alert shell-alert--danger">
+        _#(viewer.dialog.calcTableAdvance.headerColPositiveNumber)
+      </div>
+    }
+    @if (form.controls['trailerRowCount'].errors) {
+      <div class="shell-alert shell-alert--danger">
+        _#(viewer.dialog.calcTableAdvance.trailerColPositiveNumber)
+      </div>
+    }
+    @if (form.controls['trailerColCount'].errors) {
+      <div class="shell-alert shell-alert--danger">
+        _#(viewer.dialog.calcTableAdvance.trailerColPositiveNumber)
+      </div>
+    }
+    @if (showHeaderColumnWarning) {
+      <div class="header-row-warning-container">
+        <p class="shell-alert shell-alert--danger header-row-warning">_#(header.column.invalid)</p>
+      </div>
+    }
+    @if (showHeaderRowWarning) {
+      <div class="header-row-warning-container">
+        <p class="shell-alert shell-alert--danger header-row-warning">_#(header.row.invalid)</p>
+      </div>
+    }
     <div class="shell-form-row--field row">
       <div class="col-auto checkbox">
         <div class="form-check">
           <input type="checkbox" class="form-check-input" id="shrink"
-                 [ngModelOptions]="{standalone: true}"
-               [(ngModel)]="model.shrink" (ngModelChange)="shrinkChanged($event)">
+            [ngModelOptions]="{standalone: true}"
+            [(ngModel)]="model.shrink" (ngModelChange)="shrinkChanged($event)">
           <label class="form-check-label" for="shrink">
             _#(Shrink To Fit)
           </label>
@@ -80,23 +92,25 @@
       <div class="col-auto checkbox">
         <div class="form-check">
           <input class="form-check-input" id="isBlankBox" type="checkbox"
-                 [ngModelOptions]="{standalone: true}"
-               [(ngModel)]="model.fillBlankWithZero">
+            [ngModelOptions]="{standalone: true}"
+            [(ngModel)]="model.fillBlankWithZero">
           <label class="form-check-label" for="isBlankBox">
             _#(Fill Blank Cell With Zero)
           </label>
         </div>
       </div>
-      <div class="col-auto checkbox" *ngIf="model.sortOthersLastEnabled">
-        <div class="form-check">
-          <input class="form-check-input" id="sortOthers" type="checkbox"
-                 [ngModelOptions]="{standalone: true}"
-                 [(ngModel)]="model.sortOthersLast">
-          <label class="form-check-label" for="sortOthers">
-            _#(Sort Others Last)
-          </label>
+      @if (model.sortOthersLastEnabled) {
+        <div class="col-auto checkbox">
+          <div class="form-check">
+            <input class="form-check-input" id="sortOthers" type="checkbox"
+              [ngModelOptions]="{standalone: true}"
+              [(ngModel)]="model.sortOthersLast">
+            <label class="form-check-label" for="sortOthers">
+              _#(Sort Others Last)
+            </label>
+          </div>
         </div>
-      </div>
+      }
     </div>
   </fieldset>
 </form>

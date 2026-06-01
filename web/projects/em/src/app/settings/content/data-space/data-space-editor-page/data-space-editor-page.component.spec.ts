@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { MatButtonModule } from "@angular/material/button";
 import { MatIconModule } from "@angular/material/icon";
@@ -43,10 +44,8 @@ describe("DataSpaceEditorPageComponent", () => {
             MatButtonModule,
             FormsModule,
             ReactiveFormsModule,
-            NoopAnimationsModule
-         ],
-         declarations: [DataSpaceEditorPageComponent, DataSpaceFileSettingsViewComponent,
-            TextFileContentViewComponent, DataSpaceFolderSettingsViewComponent],
+            NoopAnimationsModule,
+            DataSpaceEditorPageComponent, DataSpaceFileSettingsViewComponent, TextFileContentViewComponent, DataSpaceFolderSettingsViewComponent],
          schemas: [NO_ERRORS_SCHEMA]
       })
          .compileComponents();

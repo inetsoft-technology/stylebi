@@ -25,7 +25,8 @@ import { ConditionOperation } from "../../common/data/condition/condition-operat
  *
  */
 @Pipe({
-   name: "conditionOperationToString"
+    name: "conditionOperationToString",
+    standalone: true
 })
 export class ConditionOperationPipe implements PipeTransform {
    transform(operation: ConditionOperation): string {

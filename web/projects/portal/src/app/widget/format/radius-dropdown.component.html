@@ -1,24 +1,31 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <form [formGroup]="form">
-  <number-stepper formControlName="radius" [unit]="'px'" data-test="radius-input"
+  <div class="input-group">
+    <number-stepper formControlName="radius" [unit]="'px'" data-test="radius-input"
                   [invalid]="!disabled && form.get('radius').invalid">
   </number-stepper>
-  <div class="shell-alert shell-alert--danger" *ngIf="!disabled && !!form.get('radius').getError('requiredNumber')">_#(common.sree.needValidNum)</div>
-  <div class="shell-alert shell-alert--danger" *ngIf="!disabled && !!!form.get('radius').getError('requiredNumber') && form.get('radius').errors">_#(common.forbiddenDiameterInterval)</div>
+    <div class="input-group-text">_#(px)</div>
+  </div>
+  @if (!disabled && !!form.get('radius').getError('requiredNumber')) {
+    <div class="shell-alert shell-alert--danger">_#(common.sree.needValidNum)</div>
+  }
+  @if (!disabled && !!!form.get('radius').getError('requiredNumber') && form.get('radius').errors) {
+    <div class="shell-alert shell-alert--danger">_#(common.forbiddenDiameterInterval)</div>
+  }
 </form>

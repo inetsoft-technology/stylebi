@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, EventEmitter, Input, NgZone, OnInit, Output } from "@angular/core";
-import { UntypedFormControl, UntypedFormGroup, Validators } from "@angular/forms";
+import { UntypedFormControl, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { FormValidators } from "../../../../../../../shared/util/form-validators";
 import { SaveTableStyleDialogModel } from "../../../data/tablestyle/save-table-style-dialog-model";
 import { TreeNodeModel } from "../../../../widget/tree/tree-node-model";
@@ -25,6 +25,12 @@ import { HttpClient, HttpParams } from "@angular/common/http";
 import { SaveLibraryDialogModelValidator } from "../../../data/tablestyle/save-library-dialog-model-validator";
 import { ComponentTool } from "../../../../common/util/component-tool";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
+import { AssetTreeComponent } from "../../../../widget/asset-tree/asset-tree.component";
+import { DefaultFocusDirective } from "../../../../widget/directive/default-focus.directive";
+import { InputTrimDirective } from "../../../../widget/directive/input-trim.directive";
+import { EnterSubmitDirective } from "../../../../widget/directive/enter-submit.directive";
+
+import { ModalHeaderComponent } from "../../../../widget/modal-header/modal-header.component";
 
 const CONFIRM_MESSAGE = {
    title: "_#(js:Confirm)",
@@ -34,8 +40,9 @@ const CONFIRM_MESSAGE = {
 };
 
 @Component({
-   selector: "save-table-style-dialog",
-   templateUrl: "save-table-style-dialog.component.html"
+    selector: "save-table-style-dialog",
+    templateUrl: "save-table-style-dialog.component.html",
+    imports: [ModalHeaderComponent, EnterSubmitDirective, FormsModule, ReactiveFormsModule, InputTrimDirective, DefaultFocusDirective, AssetTreeComponent]
 })
 export class SaveTableStyleDialog implements OnInit {
    @Input() defaultFolder: AssetEntry;

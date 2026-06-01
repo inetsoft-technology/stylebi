@@ -23,7 +23,7 @@ import { By } from "@angular/platform-browser";
 import { NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { TestUtils } from "../../common/test/test-utils";
 import { BandPanel } from "./band-panel.component";
-import { CustomSelectModule } from "../custom-select/custom-select.module";
+import { CustomSelectComponent } from "../custom-select/custom-select.component";
 import { GraphTypes } from "../../common/graph-types";
 
 describe("band panel component unit case", () => {
@@ -32,8 +32,8 @@ describe("band panel component unit case", () => {
 
    beforeEach(() => {
       TestBed.configureTestingModule({
-         imports: [ReactiveFormsModule, FormsModule, NgbModule, CustomSelectModule],
-         declarations: [BandPanel],
+         imports: [ReactiveFormsModule, FormsModule, NgbModule, BandPanel],
+         
          providers: [],
          schemas: [NO_ERRORS_SCHEMA]
       }).compileComponents();

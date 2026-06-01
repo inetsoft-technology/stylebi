@@ -22,7 +22,7 @@
   .export-asset-dialog {
     .asset-card {
       > .mat-mdc-card-title {
-        font-size: mat.font-size($config, body-2);
+        font-size: mat.m2-font-size($config, body-2);
       }
     }
   }

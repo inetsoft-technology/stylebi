@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormGroup, FormsModule, ReactiveFormsModule } from "@angular/forms";
@@ -25,7 +26,7 @@ import { SizePositionPane } from "../../../vsobjects/dialog/size-position-pane.c
 import { TitlePropPane } from "../../../vsobjects/dialog/title-prop-pane.component";
 import { SelectionGeneralPaneModel } from "../../data/vs/selection-general-pane-model";
 import { SelectionGeneralPane } from "./selection-general-pane.component";
-import { NumberStepperModule } from "../../../widget/number-stepper/number-stepper.module";
+import { NumberStepperComponent } from "../../../widget/number-stepper/number-stepper.component";
 import { TestUtils } from "../../../common/test/test-utils";
 
 let createModel: () => SelectionGeneralPaneModel = () => {
@@ -69,11 +70,15 @@ describe("Selection General Pane Unit Tests", () => {
    beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
-            NgbModule, FormsModule, ReactiveFormsModule, NumberStepperModule
+            NgbModule,
+            FormsModule,
+            ReactiveFormsModule,
+            SelectionGeneralPane,
+            GeneralPropPane,
+            TitlePropPane,
+            SizePositionPane,
          ],
-         declarations: [
-            SelectionGeneralPane, GeneralPropPane, TitlePropPane, SizePositionPane
-         ],
+         
          providers: [],
          schemas: [ NO_ERRORS_SCHEMA ]
       });

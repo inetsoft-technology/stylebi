@@ -24,7 +24,7 @@ import {
    ViewChild,
    ViewEncapsulation,
 } from "@angular/core";
-import { UntypedFormControl, UntypedFormGroup, Validators } from "@angular/forms";
+import { UntypedFormControl, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { Tool } from "../../../../../../shared/util/tool";
 import { FormValidators } from "../../../../../../shared/util/form-validators";
@@ -33,12 +33,20 @@ import { Viewsheet } from "../../data/vs/viewsheet";
 import { ViewsheetDeviceLayoutDialogModel } from "../../data/vs/viewsheet-device-layout-dialog-model";
 import { ViewsheetPrintLayoutDialogModel } from "../../data/vs/viewsheet-print-layout-dialog-model";
 import { ComponentTool } from "../../../common/util/component-tool";
+import { ViewsheetPrintLayoutDialog } from "./viewsheet-print-layout-dialog.component";
+import { ViewsheetDeviceLayoutDialog } from "./viewsheet-device-layout-dialog.component";
+import { GenericSelectableList } from "../../../widget/generic-selectable-list/generic-selectable-list.component";
+import { LargeFormFieldComponent } from "../../../widget/large-form-field/large-form-field.component";
+import { OutOfZoneDirective } from "../../../widget/directive/out-of-zone.directive";
 
+
+import { NumberStepperComponent } from "../../../widget/number-stepper/number-stepper.component";
 @Component({
-   encapsulation: ViewEncapsulation.None,
-   selector: "screens-pane",
-   templateUrl: "screens-pane.component.html",
-   styleUrls: ["screens-pane.component.scss"]
+    encapsulation: ViewEncapsulation.None,
+    selector: "screens-pane",
+    templateUrl: "screens-pane.component.html",
+    styleUrls: ["screens-pane.component.scss"],
+    imports: [OutOfZoneDirective, FormsModule, ReactiveFormsModule, LargeFormFieldComponent, GenericSelectableList, ViewsheetDeviceLayoutDialog, ViewsheetPrintLayoutDialog, NumberStepperComponent]
 })
 export class ScreensPane implements OnInit, OnChanges {
    @Input() model: ScreensPaneModel;

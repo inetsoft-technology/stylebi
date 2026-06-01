@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { ImageScalePaneModel } from "../../data/vs/image-scale-pane-model";
-import { NumberStepperModule } from "../../../widget/number-stepper/number-stepper.module";
+import { NumberStepperComponent } from "../../../widget/number-stepper/number-stepper.component";
 import { ImageScalePane } from "./image-scale-pane.component";
 import { waitForAsync, TestBed, ComponentFixture } from "@angular/core/testing";
 import { FormsModule } from "@angular/forms";
@@ -43,10 +43,8 @@ describe("Image Scale Pane Test", () => {
    beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, NumberStepperModule
-         ],
-         declarations: [
-            ImageScalePane
+            FormsModule,
+            ImageScalePane,
          ]
       });
       TestBed.compileComponents();

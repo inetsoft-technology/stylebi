@@ -21,9 +21,12 @@ import { ActivatedRoute } from "@angular/router";
 import { PortalTabsService } from "../services/portal-tabs.service";
 import { PortalTab } from "../portal-tab";
 
+import { ResponsiveTabsComponent } from "../../widget/responsive-tabs/responsive-tabs.component";
+
 @Component({
-   templateUrl: "custom-tab.component.html",
-   styleUrls: ["../portal-tab.component.scss", "custom-tab.component.scss"]
+    templateUrl: "custom-tab.component.html",
+    styleUrls: ["../portal-tab.component.scss", "custom-tab.component.scss"],
+    imports: [ResponsiveTabsComponent]
 })
 export class CustomTabComponent implements OnInit {
    tabs: PortalTab[];

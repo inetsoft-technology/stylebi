@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { ScrollingModule } from "@angular/cdk/scrolling";
 import { Component, NO_ERRORS_SCHEMA } from "@angular/core";
 import { ComponentFixture, TestBed, waitForAsync } from "@angular/core/testing";
@@ -48,7 +49,9 @@ class TestTreeDataSource extends FlatTreeDataSource<any, any> {
 }
 
 @Component({
+   standalone: true,
    selector: "em-test-content-tree-view",
+   imports: [FlatTreeViewComponent],
    template: `
      <em-flat-tree-view [dataSource]="dataSource"
                         [treeControl]="treeControl"
@@ -74,11 +77,8 @@ describe("FlatTreeViewComponent", () => {
             MatMenuModule,
             MatButtonModule,
             MatIconModule,
-            ScrollingModule
-         ],
-         declarations: [
-            TestContentTreeView,
-            FlatTreeViewComponent
+            ScrollingModule,
+            TestContentTreeView
          ],
          schemas: [
             NO_ERRORS_SCHEMA

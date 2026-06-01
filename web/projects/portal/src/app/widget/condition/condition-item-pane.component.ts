@@ -51,13 +51,20 @@ import { ConditionFieldComboModel } from "./condition-field-combo-model";
 import { SourceInfo } from "../../binding/data/source-info";
 import { BaseField } from "../../binding/data/base-field";
 import { ConditionValue } from "../../common/data/condition/condition-value";
-import { CustomSelectOption } from "../custom-select/custom-select.component";
 import { ConditionOperationPipe } from "./condition-operation.pipe";
+import { FormulaEditorDialog } from "../formula-editor/formula-editor-dialog.component";
+import { ConditionEditor } from "./condition-editor.component";
+import { BinaryConditionEditor } from "./binary-condition-editor.component";
+import { OneOfConditionEditor } from "./one-of-condition-editor.component";
+import { FormsModule } from "@angular/forms";
+import { ConditionFieldComboComponent } from "./condition-field-combo.component";
+import { CustomSelectOption, CustomSelectComponent } from "../custom-select/custom-select.component";
 
 @Component({
-   selector: "condition-item-pane",
-   templateUrl: "condition-item-pane.component.html",
-   styleUrls: ["condition-item-pane.component.scss"]
+    selector: "condition-item-pane",
+    templateUrl: "condition-item-pane.component.html",
+    styleUrls: ["condition-item-pane.component.scss"],
+    imports: [ConditionFieldComboComponent, FormsModule, OneOfConditionEditor, BinaryConditionEditor, ConditionEditor, FormulaEditorDialog, ConditionOperationPipe, CustomSelectComponent]
 })
 export class ConditionItemPane implements OnInit, OnChanges {
    public XSchema = XSchema;
@@ -246,6 +253,15 @@ export class ConditionItemPane implements OnInit, OnChanges {
    conditionChanged(): void {
       this.updateCondition();
       this.conditionChange.emit(this.condition);
+   }
+
+   onConditionValueChange(value: ConditionValue): void {
+      if(this.condition.values == null) {
+         this.condition.values = [];
+      }
+
+      this.condition.values[0] = value;
+      this.conditionChanged();
    }
 
    operationChanged(): void {

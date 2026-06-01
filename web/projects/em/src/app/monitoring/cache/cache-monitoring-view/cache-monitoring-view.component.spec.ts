@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { HttpClientTestingModule } from "@angular/common/http/testing";
 import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { MatCardModule } from "@angular/material/card";
@@ -22,8 +23,8 @@ import { MatFormFieldModule } from "@angular/material/form-field";
 import { MatSelectModule } from "@angular/material/select";
 import { NoopAnimationsModule } from "@angular/platform-browser/animations";
 import { of as observableOf } from "rxjs";
-import { TableViewModule } from "../../../common/util/table/table-view.module";
-import { CollapsibleContainerModule } from "../../collapsible-container/collapsible-container.module";
+import { TableView } from "../../../common/util/table/table-view.component";
+import { CollapsibleContainerComponent } from "../../collapsible-container/collapsible-container.component";
 import { MonitoringDataService } from "../../monitoring-data.service";
 import { CacheMonitoringViewComponent } from "./cache-monitoring-view.component";
 
@@ -33,9 +34,9 @@ describe("CacheMonitoringViewComponent", () => {
 
    beforeEach(waitForAsync(() => {
       const monitoringDataService = {
-         connect: jest.fn(() => observableOf()),
-         subscribe: jest.fn(),
-         getClusterAddress: jest.fn(() => observableOf())
+         connect: vi.fn(() => observableOf()),
+         subscribe: vi.fn(),
+         getClusterAddress: vi.fn(() => observableOf())
       };
 
       TestBed.configureTestingModule({
@@ -45,10 +46,9 @@ describe("CacheMonitoringViewComponent", () => {
             MatFormFieldModule,
             MatSelectModule,
             MatCardModule,
-            CollapsibleContainerModule,
-            TableViewModule
-         ],
-         declarations: [CacheMonitoringViewComponent],
+            CollapsibleContainerComponent,
+            TableView,
+            CacheMonitoringViewComponent],
          providers: [
             {provide: MonitoringDataService, useValue: monitoringDataService}
          ],

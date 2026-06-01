@@ -26,8 +26,7 @@ import { AggregateDialogModel } from "../../data/ws/aggregate-dialog-model";
 import { AggregatePane } from "./aggregate-pane.component";
 import { DateLevelExamplesService } from "../../../common/services/date-level-examples.service";
 import { of as observableOf } from "rxjs";
-import { CustomSelectModule } from "../../../widget/custom-select/custom-select.module";
-
+import { CustomSelectComponent } from "../../../widget/custom-select/custom-select.component";
 describe("Aggregate Pane Unit Test", () => {
    let createColumnRef: (name: string) => ColumnRef = (name: string) => {
       return {
@@ -64,16 +63,17 @@ describe("Aggregate Pane Unit Test", () => {
          aliasMap: {}
       };
    };
-   let dateLevelExamplesService = { loadDateLevelExamples: jest.fn(() => observableOf()) };
+   let dateLevelExamplesService = { loadDateLevelExamples: vi.fn(() => observableOf()) };
 
    beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
-            NgbModule, ReactiveFormsModule, FormsModule, CustomSelectModule
+            NgbModule,
+            ReactiveFormsModule,
+            FormsModule,
+            AggregatePane,
          ],
-         declarations: [
-            AggregatePane
-         ],
+         
          providers: [
             { provide: DateLevelExamplesService, useValue: dateLevelExamplesService }
          ]

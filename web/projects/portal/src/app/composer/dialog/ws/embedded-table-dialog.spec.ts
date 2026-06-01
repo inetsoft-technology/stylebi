@@ -23,14 +23,15 @@ import { EnterSubmitDirective } from "../../../widget/directive/enter-submit.dir
 import { ModelService } from "../../../widget/services/model.service";
 import { EmbeddedTableDialogModel } from "../../data/ws/embedded-table-dialog-model";
 import { Worksheet } from "../../data/ws/worksheet";
-import { NumberStepperModule } from "../../../widget/number-stepper/number-stepper.module";
+import { NumberStepperComponent } from "../../../widget/number-stepper/number-stepper.component";
 import { EmbeddedTableDialog } from "./embedded-table-dialog.component";
+import { HttpClientTestingModule } from "@angular/common/http/testing";
 
 describe("Embedded Table Dialog Tests", () => {
    let fixture: ComponentFixture<EmbeddedTableDialog>;
 
    beforeEach(() => {
-      let modelService = { getModel: jest.fn() };
+      let modelService = { getModel: vi.fn() };
       modelService.getModel.mockImplementation(() => observableOf(<EmbeddedTableDialogModel> {
          name: "Query2",
          rows: 1,
@@ -39,11 +40,13 @@ describe("Embedded Table Dialog Tests", () => {
 
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NumberStepperModule
+            
+            HttpClientTestingModule,FormsModule,
+            ReactiveFormsModule,
+            EmbeddedTableDialog,
+            EnterSubmitDirective,
          ],
-         declarations: [
-            EmbeddedTableDialog, EnterSubmitDirective
-         ],
+         
          providers: [
             {
                provide: ModelService,

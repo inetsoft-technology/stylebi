@@ -1,234 +1,289 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <modal-header [title]="'_#(Calculation)'"
-   (onCancel)="cancel($event)" [cshid]="'ChartCalculation'">
+  (onCancel)="cancel($event)" [cshid]="'ChartCalculation'">
 </modal-header>
-<div class="modal-body" *ngIf="calculator" blockMouse>
-   <div class="container form-container">
-      <div class="row shell-form-row--field">
-         <div class="col">
-           <div class="form-floating">
-             <custom-select [options]="calcTypeOptions"
-                            id="calculateClassType"
-                            [ngModel]="calculator.classType"
-                            (selectionChange)="calcTypeChange($event)"
-                            placeholder="_#(Calculate)">
-             </custom-select>
-             <label for="calculateClassType"><span>_#(Calculate)</span></label>
-           </div>
-         </div>
-         <div class="col-auto" *ngIf="calculator.classType === 'CHANGE'">
+@if (calculator) {
+  <div class="modal-body" blockMouse>
+    <div class="container form-container">
+      <div class="row form-row-float-label">
+        <div class="col d-flex flex-column">
+          <div class="form-floating">
+            <custom-select [options]="calcTypeOptions"
+                           id="calculateClassType"
+                           [ngModel]="calculator.classType"
+                           (selectionChange)="calcTypeChange($event)"
+                           placeholder="_#(Calculate)">
+            </custom-select>
+            <label for="calculateClassType"><span>_#(Calculate)</span></label>
+          </div>
+        </div>
+        @if (calculator.classType === 'CHANGE') {
+          <div class="col-auto">
             <div class="form-check">
-               <input type="checkbox" class="form-check-input" id="percent"
-                   [(ngModel)]="changeCalculator.asPercent"/>
-               <label class="form-check-label" for="percent">
-                 _#(As percent)
-               </label>
+              <input type="checkbox" class="form-check-input" id="percent"
+                [(ngModel)]="changeCalculator.asPercent"/>
+              <label class="form-check-label" for="percent">
+                _#(As percent)
+              </label>
             </div>
-         </div>
+          </div>
+        }
       </div>
-
       <!--Percent-->
-      <div *ngIf="calculator.classType === 'PERCENT'">
-         <div class="row shell-form-row--field">
-           <div class="col">
-             <div class="form-floating">
-               <custom-select [options]="percentageOfOptions"
-                              [(ngModel)]="percOfValue"
-                              placeholder="_#(calculationOf)"
-                              id="percOfValue">
-               </custom-select>
-               <label for="percOfValue"><span>_#(calculationOf)</span></label>
-             </div>
-           </div>
-         </div>
-         <div *ngIf="supportPercentageDirection" class="row shell-form-row--field">
-           <div class="col">
-             <div class="form-floating">
-               <dynamic-combo-box [valueOnly]="!isVs"
-                                  [values]="percents" [(value)]="percentageDirection"
-                                  [vsId]="runtimeId" [variables]="variables"
-                                  [assemblyName]="assemblyName"
-                                  [label]="getPercentOfLabel()">
-               </dynamic-combo-box>
-               <label>_#(By)</label>
-             </div>
-           </div>
-         </div>
-      </div>
-
-      <!--Change Calculation-->
-      <div *ngIf="calculator.classType === 'CHANGE'">
-         <div class="row shell-form-row--field">
-            <div class="col">
+      @if (calculator.classType === 'PERCENT') {
+        <div>
+          <div class="row form-row-float-label">
+            <div class="col d-flex flex-column">
               <div class="form-floating">
-                <custom-select [options]="valueOfOptions"
-                               [(ngModel)]="changeColumn"
-                               id="changeColumn"
-                               placeholder="_#(Value of)">
-                </custom-select>
+                <select class="form-control" [(ngModel)]="percOfValue" placeholder="_#(calculationOf)" id="percOfValue">
+                  @for (perc of percDims; track perc) {
+                    <option [value]="perc.data" [attr.title]="perc.description"
+                      >
+                      {{perc.label}}
+                    </option>
+                  }
+                </select>
+                <label for="percOfValue"><span>_#(calculationOf)</span></label>
+              </div>
+            </div>
+          </div>
+          @if (supportPercentageDirection) {
+            <div class="row form-row-float-label">
+              <div class="col d-flex flex-column">
+                <div class="form-floating">
+                  <dynamic-combo-box [valueOnly]="!isVs"
+                    [values]="percents" [(value)]="percentageDirection"
+                    [vsId]="runtimeId" [variables]="variables"
+                    [assemblyName]="assemblyName"
+                    [label]="getPercentOfLabel()">
+                  </dynamic-combo-box>
+                  <label>_#(By)</label>
+                </div>
+              </div>
+            </div>
+          }
+        </div>
+      }
+      <!--Change Calculation-->
+      @if (calculator.classType === 'CHANGE') {
+        <div>
+          <div class="row form-row-float-label">
+            <div class="col d-flex flex-column">
+              <div class="form-floating">
+                <select class="form-control" [(ngModel)]="changeColumn" id="changeColumn"
+                  placeholder="_#(Value of)">
+                  @for (value of valueOfDatas; track value) {
+                    <option [value]="value.data" [attr.title]="value.description"
+                      >
+                      {{value.label}}
+                    </option>
+                  }
+                </select>
                 <label for="changeColumn"><span>_#(Value of)</span></label>
               </div>
             </div>
-         </div>
-         <div class="row shell-form-row--field">
-           <div class="col">
-             <div class="form-floating">
-               <custom-select [options]="fromOptions"
-                              [(ngModel)]="changeCalculator.from"
-                              placeholder="_#(From)"
-                              id="calculatorFrom">
-               </custom-select>
-               <label for="calculatorFrom"><span>_#(From)</span></label>
-             </div>
-           </div>
-         </div>
-      </div>
-
-      <!--Running total-->
-      <div *ngIf="hasAggregate">
-         <div  class="row shell-form-row--field">
-           <div class="col">
-             <div class="form-floating">
-               <custom-select [options]="aggregateOptions"
-                              [(ngModel)]="aggregateCalculator.aggregate"
-                              placeholder="_#(Aggregate)">
-               </custom-select>
-               <label><span>_#(Aggregate)</span></label>
-             </div>
-           </div>
-         </div>
-
-         <div  class="row shell-form-row--field" *ngIf="npVisible">
-           <div class="col d-flex flex-column">
-             <label class="form-label">{{npLabel}}</label>
-             <number-stepper [(ngModel)]="n" [min]="1" [invalid]="!isNValid()">
-             </number-stepper>
-           </div>
-         </div>
-      </div>
-
-      <!--Value of Calculation-->
-      <div *ngIf="calculator.classType === 'VALUE'">
-         <div class="row shell-form-row--field">
-           <div class="col">
-             <div class="form-floating">
-               <custom-select [options]="valueOfOptions"
-                              [(ngModel)]="valueOfColumn"
-                              placeholder="_#(Value of)">
-               </custom-select>
-               <label><span>_#(Value of)</span></label>
-             </div>
-           </div>
-         </div>
-         <div class="row shell-form-row--field">
-           <div class="col">
-             <div class="form-floating">
-               <custom-select [options]="fromOptions"
-                              [(ngModel)]="valueOfCalculator.from"
-                              placeholder="_#(From)">
-               </custom-select>
-               <label><span>_#(From)</span></label>
-             </div>
-           </div>
-         </div>
-      </div>
-
-      <div *ngIf="npVisible && !isNValid()" class="col shell-alert shell-alert--danger">
-         _#(table.formula.parameterError)
-      </div>
-
-      <div *ngIf="calculator.classType === 'RUNNINGTOTAL' || calculator.classType === 'COMPOUNDGROWTH'"
-           class="row shell-form-row--field">
-         <div class="col">
-           <div class="form-floating">
-             <custom-select [options]="breakByOptions"
-                            [(ngModel)]="breakBy"
-                            placeholder="_#(Break By)">
-             </custom-select>
-             <label><span>_#(Break By)</span></label>
-           </div>
-         </div>
-      </div>
-
-      <div *ngIf="(calculator.classType === 'RUNNINGTOTAL' || calculator.classType === 'COMPOUNDGROWTH') && !!resetOptsData"
-         class="row shell-form-row--field">
-        <div class="col">
-          <div class="form-floating">
-            <custom-select [options]="resetOptions"
-                           [(ngModel)]="runningTotalCalculator.resetLevel"
-                           placeholder="_#(Reset at)">
-            </custom-select>
-            <label><span>_#(Reset at)</span></label>
+          </div>
+          <div class="row form-row-float-label">
+            <div class="col d-flex flex-column">
+              <div class="form-floating">
+                <select class="form-control" [(ngModel)]="changeCalculator.from"
+                  placeholder="_#(From)" id="calculatorFrom">
+                  @for (from of fromDatas; track from) {
+                    <option [value]="from.data">
+                      {{from.label}}
+                    </option>
+                  }
+                </select>
+                <label for="calculatorFrom"><span>_#(From)</span></label>
+              </div>
+            </div>
           </div>
         </div>
-      </div>
-
+      }
+      <!--Running total-->
+      @if (hasAggregate) {
+        <div>
+          <div  class="row form-row-float-label">
+            <div class="col d-flex flex-column">
+              <div class="form-floating">
+                <select class="form-control" [(ngModel)]="aggregateCalculator.aggregate"
+                  placeholder="_#(Aggregate)">
+                  @for (aggr of aggregateDatas; track aggr) {
+                    <option [value]="aggr.formulaName">
+                      {{aggr.label}}
+                    </option>
+                  }
+                </select>
+                <label><span>_#(Aggregate)</span></label>
+              </div>
+            </div>
+          </div>
+          @if (npVisible) {
+            <div  class="row form-row-float-label">
+              <div class="col d-flex flex-column">
+                <div class="form-floating">
+                  <number-stepper [(ngModel)]="n" [min]="1" [invalid]="!isNValid()">
+             </number-stepper>
+                  <label><span>{{npLabel}}</span></label>
+                </div>
+              </div>
+            </div>
+          }
+        </div>
+      }
+      <!--Value of Calculation-->
+      @if (calculator.classType === 'VALUE') {
+        <div>
+          <div class="row form-row-float-label">
+            <div class="col d-flex flex-column">
+              <div class="form-floating">
+                <select class="form-control" [(ngModel)]="valueOfColumn"
+                  placeholder="_#(Value of)">
+                  @for (value of valueOfDatas; track value) {
+                    <option [value]="value.data" [attr.title]="value.description"
+                      >
+                      {{value.label}}
+                    </option>
+                  }
+                </select>
+                <label><span>_#(Value of)</span></label>
+              </div>
+            </div>
+          </div>
+          <div class="row form-row-float-label">
+            <div class="col d-flex flex-column">
+              <div class="form-floating">
+                <select class="form-control" [(ngModel)]="valueOfCalculator.from"
+                  placeholder="_#(From)">
+                  @for (from of fromDatas; track from) {
+                    <option [value]="from.data">
+                      {{from.label}}
+                    </option>
+                  }
+                </select>
+                <label><span>_#(From)</span></label>
+              </div>
+            </div>
+          </div>
+        </div>
+      }
+      @if (npVisible && !isNValid()) {
+        <div class="col shell-alert shell-alert--danger">
+          _#(table.formula.parameterError)
+        </div>
+      }
+      @if (calculator.classType === 'RUNNINGTOTAL' || calculator.classType === 'COMPOUNDGROWTH') {
+        <div
+          class="row form-row-float-label">
+          <div class="col d-flex flex-column">
+            <div class="form-floating">
+              <select class="form-control" [(ngModel)]="breakBy" placeholder="_#(Break By)">
+                @for (dim of breakByDims; track dim) {
+                  <option [value]="dim.data">
+                    {{dim.label}}
+                  </option>
+                }
+              </select>
+              <label><span>_#(Break By)</span></label>
+            </div>
+          </div>
+        </div>
+      }
+      @if ((calculator.classType === 'RUNNINGTOTAL' || calculator.classType === 'COMPOUNDGROWTH') && !!resetOptsData) {
+        <div
+          class="row form-row-float-label">
+          <div class="col d-flex flex-column">
+            <div class="form-floating">
+              <select class="form-control" [(ngModel)]="runningTotalCalculator.resetLevel"
+                placeholder="_#(Reset at)">
+                @for (reset of resetOptsData; track reset) {
+                  <option [value]="reset.data">
+                    {{reset.label}}
+                  </option>
+                }
+              </select>
+              <label><span>_#(Reset at)</span></label>
+            </div>
+          </div>
+        </div>
+      }
       <!--Moving-->
-      <ng-container *ngIf="calculator.classType === 'MOVING'">
-         <div *ngIf="crosstab" class="row shell-form-row--field">
-           <div class="col">
-             <div class="form-floating">
-               <custom-select [options]="movingDimensionOptions"
-                              [(ngModel)]="movingCalculator.innerDim"
-                              placeholder="_#(Moving Of)">
-               </custom-select>
-               <label><span>_#(calculationOf)</span></label>
-             </div>
-           </div>
-         </div>
-         <div class="row shell-form-row--field">
-           <div class="col d-flex flex-column">
-             <label class="form-label">_#(Previous)</label>
-             <number-stepper [(ngModel)]="movingCalculator.previous" [min]="0">
-             </number-stepper>
-           </div>
-           <div class="col d-flex flex-column">
-             <label class="form-label">_#(Next)</label>
-             <number-stepper [(ngModel)]="movingCalculator.next" [min]="0">
-             </number-stepper>
-           </div>
-         </div>
-         <div class="row shell-form-row--field">
-            <div class="col">
-               <div class="form-check">
-                  <input type="checkbox" class="form-check-input" id="currentValue"
-                      [(ngModel)]="movingCalculator.includeCurrentValue"/>
-                  <label class="form-check-label" for="currentValue">
-                     _#(Include current value)
-                  </label>
-               </div>
+      @if (calculator.classType === 'MOVING') {
+        @if (crosstab) {
+          <div class="row form-row-float-label">
+            <div class="col d-flex flex-column">
+              <div class="form-floating">
+                <select class="form-control" [(ngModel)]="movingCalculator.innerDim"
+                  placeholder="_#(Moving Of)">
+                  @for (dim of movingDims; track dim) {
+                    <option [value]="dim.data">
+                      {{dim.label}}
+                    </option>
+                  }
+                </select>
+                <label><span>_#(calculationOf)</span></label>
+              </div>
             </div>
-            <div class="col">
-               <div class="form-check">
-                  <input type="checkbox" class="form-check-input" id="null"
-                      [(ngModel)]="movingCalculator.nullIfNoEnoughValue"/>
-                  <label class="form-check-label" for="null">
-                    _#(Null if not enough value)
-                  </label>
-               </div>
+          </div>
+        }
+        <div class="row form-row-float-label">
+          <div class="col d-flex flex-column">
+            <div class="form-floating">
+              <number-stepper [(ngModel)]="movingCalculator.previous" [min]="0">
+             </number-stepper>
+              <label><span>_#(Previous)</span></label>
             </div>
-         </div>
-      </ng-container>
-   </div>
-</div>
+          </div>
+          <div class="col d-flex flex-column">
+            <div class="form-floating">
+              <number-stepper [(ngModel)]="movingCalculator.next" [min]="0">
+             </number-stepper>
+              <label><span>_#(Next)</span></label>
+            </div>
+          </div>
+        </div>
+        <div class="row form-row-float-label">
+          <div class="col d-flex flex-column">
+            <div class="form-check">
+              <input type="checkbox" class="form-check-input" id="currentValue"
+                [(ngModel)]="movingCalculator.includeCurrentValue"/>
+              <label class="form-check-label" for="currentValue">
+                _#(Include current value)
+              </label>
+            </div>
+          </div>
+          <div class="col d-flex flex-column">
+            <div class="form-check">
+              <input type="checkbox" class="form-check-input" id="null"
+                [(ngModel)]="movingCalculator.nullIfNoEnoughValue"/>
+              <label class="form-check-label" for="null">
+                _#(Null if not enough value)
+              </label>
+            </div>
+          </div>
+        </div>
+      }
+    </div>
+  </div>
+}
 <div class="modal-footer" blockMouse>
-   <button class="btn btn-primary" (click)="ok($event)"
-      [disabled]="okDisabled()">_#(OK)</button>
-   <button class="btn btn-default" (click)="cancel($event)">_#(Cancel)</button>
+  <button class="btn btn-primary" (click)="ok($event)"
+  [disabled]="okDisabled()">_#(OK)</button>
+  <button class="btn btn-default" (click)="cancel($event)">_#(Cancel)</button>
 </div>

@@ -64,7 +64,6 @@ import { NoopAnimationsModule } from "@angular/platform-browser/animations";
 import { MatDialog } from "@angular/material/dialog";
 import { MatSnackBar } from "@angular/material/snack-bar";
 import { Router } from "@angular/router";
-import { it } from "@jest/globals";
 import { render, waitFor } from "@testing-library/angular";
 import { Subject, of } from "rxjs";
 import { http, HttpResponse } from "msw";
@@ -94,9 +93,9 @@ interface RenderOpts {
 
 async function renderComponent(opts: RenderOpts = {}) {
    const dialogSpy = {
-      open: jest.fn().mockReturnValue({ afterClosed: () => of(false) }),
+      open: vi.fn().mockReturnValue({ afterClosed: () => of(false) }),
    };
-   const snackBarSpy = { open: jest.fn() };
+   const snackBarSpy = { open: vi.fn() };
 
    server.use(
       http.get("*/api/em/security/configured-authorization-providers", () =>
@@ -110,7 +109,7 @@ async function renderComponent(opts: RenderOpts = {}) {
       providers: [
          { provide: MatDialog, useValue: dialogSpy },
          { provide: MatSnackBar, useValue: snackBarSpy },
-         { provide: Router, useValue: { navigate: jest.fn() } },
+         { provide: Router, useValue: { navigate: vi.fn() } },
       ],
    });
 
@@ -168,7 +167,7 @@ describe("AuthorizationProviderListPageComponent — removeProvider(): stale-ind
    // E2E: renderComponent + MSW DELETE 500 + removeProvider(0). While throwError remains, Jest aborts with
    // unhandled "Http failure response" before snackBar/array assertions. Remove it.skip after the fix.
    it.skip("should show snackBar and preserve the local array when the delete API returns an error", async () => {
-      const consoleErrorSpy = jest.spyOn(console, "error").mockImplementation(() => {});
+      const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
       server.use(
          http.delete("*/api/em/security/remove-authorization-provider/0", () =>
             HttpResponse.json({}, { status: 500, statusText: "Server Error" }),
@@ -191,7 +190,7 @@ describe("AuthorizationProviderListPageComponent — removeProvider(): stale-ind
    // 🔁 Regression-sensitive: poll replacing authorizationProviders mid-dialog causes a silent wrong deletion
    // Risk Point/Contract: DELETE encodes the captured index; splice also uses it on the updated (post-poll) array
    // Why High Value: deletes the wrong provider server-side; the intended target survives with no error shown
-   it.failing("should remove the targeted provider even when poll shifts the array before the user confirms", async () => {
+   it.fails("should remove the targeted provider even when poll shifts the array before the user confirms", async () => {
       const confirmSubject = new Subject<boolean>();
 
       server.use(
@@ -245,7 +244,7 @@ describe("AuthorizationProviderListPageComponent — clearProviderCache(): missi
    // 🔁 Regression-sensitive: poll map() calls formatCacheAgeLabel but clearProviderCache bypasses it
    // Risk Point/Contract: raw SecurityProviderStatus stored directly; cacheAgeLabel is undefined until next poll
    // Why High Value: cache-age column goes blank for up to 5 s after every user-initiated cache clear
-   it.failing("should set cacheAgeLabel on the provider entry returned by clearProviderCache", async () => {
+   it.fails("should set cacheAgeLabel on the provider entry returned by clearProviderCache", async () => {
       // Server returns a raw status without cacheAgeLabel, as the real API does
       server.use(
          http.get("*/api/em/security/clear-authorization-provider/0", () =>
@@ -270,7 +269,7 @@ describe("AuthorizationProviderListPageComponent — clearProviderCache(): missi
    // SKIP until Bug D fix (handleClearCacheError must return EMPTY, not throwError).
    // E2E: renderComponent + MSW GET 503 + clearProviderCache(0). Same unhandled Http failure as delete-error test.
    it.skip("should show snackBar when the clearProviderCache API fails", async () => {
-      const consoleErrorSpy = jest.spyOn(console, "error").mockImplementation(() => {});
+      const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
       server.use(
          http.get("*/api/em/security/clear-authorization-provider/0", () =>
             HttpResponse.json({}, { status: 503, statusText: "Service Unavailable" }),
@@ -363,7 +362,7 @@ describe("AuthorizationProviderListPageComponent — copyProvider(): duplicate-n
    // 🔁 Regression-sensitive: two rows with the same name break reorder and removeProvider index arithmetic
    // Risk Point/Contract: push() is unconditional; no name-equality check before appending
    // Why High Value: duplicate entries silently corrupt positional assumptions relied on by every other operation
-   it.failing("should not push the copy when a provider with the same name already exists in the list", async () => {
+   it.fails("should not push the copy when a provider with the same name already exists in the list", async () => {
       server.use(
          http.get("*/api/em/security/copy-authorization-provider/A", () =>
             HttpResponse.json(makeProvider("A_copy")),

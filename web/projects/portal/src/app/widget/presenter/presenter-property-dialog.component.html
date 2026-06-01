@@ -1,101 +1,102 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <modal-header [title]="'_#(Presenter)'" (onCancel)="cancel()" [cshid]="'Presenter'">
 </modal-header>
-<div class="modal-body container-fluid" *ngIf="model">
-  <div class="presenter-fields">
-    <ng-container *ngFor="let descriptor of model.descriptors; let i = index">
-      <label class="text-nowrap mb-0">{{descriptor.displayName}}:</label>
-      <div class="descriptor-div">
-        <ng-container [ngSwitch]="descriptor.editor">
-          <ng-container *ngSwitchCase="'LinePropertyEditor'">
-            <style-dropdown [(style)]="descriptor.value" [isPresenter]="true"></style-dropdown>
-          </ng-container>
-          <ng-container *ngSwitchCase="'AsCheckboxPropertyEditor'">
-            <input class="form-check-input" [disabled]="isImageOptionDisable(descriptor.name)"
-                   type="checkbox" [(ngModel)]="descriptor.value">
-          </ng-container>
-          <ng-container *ngSwitchCase="'IntPropertyEditor'">
-            <number-stepper [(ngModel)]="descriptor.value">
+@if (model) {
+  <div class="modal-body container-fluid">
+    @for (descriptor of model.descriptors; track descriptor; let i = $index) {
+      <div class="form-group row">
+        <label class="text-nowrap mb-0">{{descriptor.displayName}}:</label>
+        <div class="col-9 descriptor-div">
+          @switch (descriptor.editor) {
+            @case ('LinePropertyEditor') {
+              <style-dropdown [(style)]="descriptor.value" [isPresenter]="true"></style-dropdown>
+            }
+            @case ('AsCheckboxPropertyEditor') {
+              <input [disabled]="isImageOptionDisable(descriptor.name)" type="checkbox" [(ngModel)]="descriptor.value">
+            }
+            @case ('IntPropertyEditor') {
+              <number-stepper [(ngModel)]="descriptor.value">
             </number-stepper>
-          </ng-container>
-          <ng-container *ngSwitchCase="'DoublePropertyEditor'">
-            <number-stepper [(ngModel)]="descriptor.value" [inputmode]="'decimal'">
+            }
+            @case ('DoublePropertyEditor') {
+              <number-stepper [(ngModel)]="descriptor.value">
             </number-stepper>
-          </ng-container>
-          <ng-container *ngSwitchCase="'FontPropertyEditor'">
-            <font-pane [fontModel]="descriptor.value"></font-pane>
-          </ng-container>
-          <ng-container *ngSwitchCase="'ColorPropertyEditor'">
-            <color-editor [(color)]="descriptor.value"
-               [enabled]="isColorEnable()">
+            }
+            @case ('FontPropertyEditor') {
+              <font-pane [fontModel]="descriptor.value"></font-pane>
+            }
+            @case ('ColorPropertyEditor') {
+              <color-editor [(color)]="descriptor.value"
+                [enabled]="isColorEnable()">
             </color-editor>
-          </ng-container>
-          <ng-container *ngSwitchCase="'SizePropertyEditor'">
-            <div class="d-flex gap-2">
+          }
+          @case ('SizePropertyEditor') {
+            <div class="input-group">
               <div class="d-flex flex-column">
-                <label class="form-label">_#(Width)</label>
                 <number-stepper [(ngModel)]="descriptor.width">
                 </number-stepper>
+                <label>_#(Width)</label>
               </div>
               <div class="d-flex flex-column">
-                <label class="form-label">_#(Height)</label>
                 <number-stepper [(ngModel)]="descriptor.height">
                 </number-stepper>
+                <label>_#(Height)</label>
               </div>
             </div>
-          </ng-container>
-          <ng-container *ngSwitchCase="'InsetsPropertyEditor'">
+          }
+          @case ('InsetsPropertyEditor') {
             <div class="input-group">
-              <div class="form-floating">
+              <div class="d-flex flex-column">
                 <input type="text" class="form-control" [(ngModel)]="descriptor.top">
                 <label>_#(Top)</label>
-               </div>
-              <div class="form-floating">
+              </div>
+              <div class="d-flex flex-column">
                 <input type="text" class="form-control" [(ngModel)]="descriptor.left">
                 <label>_#(Left)</label>
               </div>
-              <div class="form-floating">
+              <div class="d-flex flex-column">
                 <input type="text" class="form-control" [(ngModel)]="descriptor.bottom">
                 <label>_#(Bottom)</label>
               </div>
-              <div class="form-floating">
+              <div class="d-flex flex-column">
                 <input type="text" class="form-control" [(ngModel)]="descriptor.right">
                 <label>_#(Right)</label>
               </div>
             </div>
-          </ng-container>
-          <ng-container *ngSwitchCase="'ImagePropertyEditor'">
+          }
+          @case ('ImagePropertyEditor') {
             <div class="input-group">
               <input type="text" class="form-control" [disabled]="true" [ngModel]="descriptor.value.selectedImage">
               <span class="input-group-btn">
                 <button class="btn btn-default" type="button" (click)="openEditImageDialog(i)">...</button>
               </span>
             </div>
-          </ng-container>
-          <ng-container *ngSwitchCase="'AsTextPropertyEditor'">
+          }
+          @case ('AsTextPropertyEditor') {
             <input class="form-control" type="text" [(ngModel)]="descriptor.value">
-          </ng-container>
-        </ng-container>
+          }
+        }
       </div>
-    </ng-container>
-  </div>
+    </div>
+  }
 </div>
+}
 <div class="modal-footer">
   <button type="button" class="btn btn-primary" (click)="ok()">_#(OK)</button>
   <button type="button" class="btn btn-default" data-dismiss="modal" (click)="cancel()">_#(Cancel)</button>
@@ -103,6 +104,6 @@
 
 <ng-template #editImageDialog let-close="close" let-dismiss="dismiss">
   <edit-image-dialog (onCommit)="close($event)" (onCancel)="dismiss($event)"
-                     [model]="imagePreviewPaneModel" [runtimeId]="runtimeId"
-                     [animateGif]="animateGif"></edit-image-dialog>
+    [model]="imagePreviewPaneModel" [runtimeId]="runtimeId"
+  [animateGif]="animateGif"></edit-image-dialog>
 </ng-template>

@@ -85,20 +85,21 @@ describe("Edit Dashboard Dialog Unit Test", () => {
       });
    };
 
-   let changeRef = { detectChanges: jest.fn() };
-   let ngbService = { open: jest.fn() };
+   let changeRef = { detectChanges: vi.fn() };
+   let ngbService = { open: vi.fn() };
    let modelService = {
-      getModel: jest.fn(),
-      putModel: jest.fn(),
-      sendModel: jest.fn()
+      getModel: vi.fn().mockReturnValue(observableOf(null)),
+      putModel: vi.fn(),
+      sendModel: vi.fn()
    };
    let repoTreeService = {
-      getRootFolder: jest.fn(),
-      getFolder: jest.fn(),
-      getContentSource: jest.fn()
+      getRootFolder: vi.fn(),
+      getFolder: vi.fn(),
+      getContentSource: vi.fn(),
+      getCSSIcon: vi.fn()
    };
    let dragService: any;
-   let debounceService: any = { debounce: jest.fn() };
+   let debounceService: any = { debounce: vi.fn() };
 
    let fixture: ComponentFixture<EditDashboardDialog>;
    let editDashboardDialog: EditDashboardDialog;
@@ -117,13 +118,19 @@ describe("Edit Dashboard Dialog Unit Test", () => {
 
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule, DropDownTestModule,
-            HttpClientTestingModule
+            FormsModule,
+            ReactiveFormsModule,
+            NgbModule,
+            DropDownTestModule,
+            HttpClientTestingModule,
+            EditDashboardDialog,
+            StandardDialogComponent,
+            RepositoryTreeComponent,
+            EnterSubmitDirective,
+            DialogContentDirective,
+            DialogButtonsDirective,
          ],
-         declarations: [
-            EditDashboardDialog, StandardDialogComponent, RepositoryTreeComponent,
-            EnterSubmitDirective, DialogContentDirective, DialogButtonsDirective
-         ],
+         
          providers: [
             { provide: StompClientService, useValue: stompClient },
             { provide: ChangeDetectorRef, useValue: changeRef },

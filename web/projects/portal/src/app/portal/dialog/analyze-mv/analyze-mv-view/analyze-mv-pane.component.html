@@ -1,65 +1,79 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <fieldset>
   <legend>_#(Existing MVs):</legend>
   <div class="shell-form-row--field table-style">
     <table class="table table-bordered table-hover table-sm w-100 mv-table">
-      <thead>
+      <thead class="thead-light">
         <tr>
           <th class="table-header text-center align-middle">
-            <input type="checkbox" class="form-check-input"
-                   [ngModel]="isModelAllSelected()" (ngModelChange)="selectionAll($event)">
+            <input type="checkbox"
+              [ngModel]="isModelAllSelected()" (ngModelChange)="selectionAll($event)">
           </th>
-          <th class="table-header" *ngFor="let header of tableHeaders" sortColumn
+          @for (header of tableHeaders; track header) {
+            <th class="table-header text-center align-middle" sortColumn
               [sortKey]="header.name" [data]="models" [sortType]="sortType"
               (sortTypeChanged)="changeSortType($event)">{{header.label}}
-          </th>
+            </th>
+          }
         </tr>
       </thead>
       <tbody>
-        <tr *ngFor="let model of models; let i = index">
-          <td class="text-center align-middle"><input type="checkbox" class="form-check-input" [ngModel]="isModelSelected(model)" (ngModelChange)="selectionChanged($event, model)"></td>
-          <td *ngFor="let header of tableHeaders">{{model[header.name]}}</td>
-        </tr>
-        <tr *ngIf="!models || models.length == 0">
-          <td class="text-center align-middle mv-empty-warning" colspan="12">
-            <span class="invalid-feedback">_#(viewer.viewsheet.materialization.noMVs)</span>
-          </td>
-        </tr>
+        @for (model of models; track model; let i = $index) {
+          <tr>
+            <td><input type="checkbox" [ngModel]="isModelSelected(model)" (ngModelChange)="selectionChanged($event, model)"></td>
+            @for (header of tableHeaders; track header) {
+              <td>{{model[header.name]}}</td>
+            }
+          </tr>
+        }
+        @if (!models || models.length == 0) {
+          <tr>
+            <td class="text-center align-middle mv-empty-warning" colspan="12">
+              <span class="invalid-feedback">_#(viewer.viewsheet.materialization.noMVs)</span>
+            </td>
+          </tr>
+        }
       </tbody>
     </table>
   </div>
 </fieldset>
-<fieldset *ngIf="isFullDataVisible() || securityEnabled">
-  <legend>_#(MV Analysis Options):</legend>
-  <div class="shell-form-row--field" *ngIf="isFullDataVisible()">
-    <custom-select [options]="fullDataSelectOptions"
+@if (isFullDataVisible() || securityEnabled) {
+  <fieldset>
+    <legend>_#(MV Analysis Options):</legend>
+    @if (isFullDataVisible()) {
+      <div class="shell-form-row--field">
+        <custom-select [options]="fullDataSelectOptions"
                    [(ngModel)]="analyzeMVModel.fullData">
     </custom-select>
-  </div>
-  <div *ngIf="!testDrive" class="shell-form-row--field">
-    <div class="form-check">
-      <label class="form-check-label" title="_#(em.mv.applyParentVsParametersTooltip)">
-        <input class="form-check-input" type="checkbox"
-               [(ngModel)]="analyzeMVModel.applyParentVsParameters"
-               [ngModelOptions]="{standalone: true}" title="_#(em.mv.applyParentVsParametersTooltip)">
-        _#(em.mv.applyParentVsParameters)
-      </label>
-    </div>
-  </div>
-</fieldset>
+      </div>
+    }
+    @if (!testDrive) {
+      <div class="shell-form-row--field">
+        <div class="form-check">
+          <label class="form-check-label" title="_#(em.mv.applyParentVsParametersTooltip)">
+            <input class="form-check-input" type="checkbox"
+              [(ngModel)]="analyzeMVModel.applyParentVsParameters"
+              [ngModelOptions]="{standalone: true}" title="_#(em.mv.applyParentVsParametersTooltip)">
+            _#(em.mv.applyParentVsParameters)
+          </label>
+        </div>
+      </div>
+    }
+  </fieldset>
+}

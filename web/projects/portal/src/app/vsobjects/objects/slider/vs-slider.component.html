@@ -1,87 +1,95 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
-<vs-input-label-wrapper *ngIf="model"
-                        [contentOverflow]="viewer || embeddedVS ? 'visible' : 'hidden'"
-                        [labelModel]="model.labelModel"
-                        [labelSelected]="model.labelSelected"
-                        [disabled]="!model.enabled"
-                        [style.display]="getVisible() ? null : 'none'"
-                        [class.fade-assembly]="!viewer && !model.visible"
-                        [style.top.px]="viewer || embeddedVS ? model.objectFormat.top : null"
-                        [style.left.px]="viewer || embeddedVS ? model.objectFormat.left : null"
-                        [style.position]="viewer || embeddedVS ? 'absolute' : 'relative'"
-                        [style.width.px]="model.objectFormat.width"
-                        [objectHeight]="model.objectFormat.height"
-                        [style.z-index]="viewer ? model.objectFormat.zIndex : null"
-                        [style.border-bottom]="model.objectFormat.border.bottom"
-                        [style.border-top]="model.objectFormat.border.top"
-                        [style.border-left]="model.objectFormat.border.left"
-                        [style.border-right]="model.objectFormat.border.right"
-                        [style.border-radius.px]="model.objectFormat.roundCorner"
-                        [style.background-color]="model.objectFormat.background"
-                        VSDataTip [dataTipName]="getAssemblyName()"
-                        VSPopComponent [popComponentName]="getAssemblyName()" [popContainerName]="model.container"
-                        [popZIndex]="model.objectFormat.zIndex"
-                        (selectLabel)="selectLabel($event)">
-  <div [style.color]="model.objectFormat.foreground"
-       [style.background-color]="model.objectFormat.background"
-       [style.border-radius.px]="model.objectFormat.roundCorner"
-       [safeFont]="model.objectFormat.font"
-       class="slider unselectable-canvas"
-       role="slider" tabindex="-1"
-       [attr.aria-label]="model.objectType + ' ' + model.absoluteName"
-       [attr.aria-valuemin]="model.min"
-       [attr.aria-valuemax]="model.max"
-       [attr.aria-valuenow]="getLabel()"
-       [class.disable-actions-fade]="!model.enabled"
-       [class.move-handle]="(selected || inSelectedGroupContainer) && !viewer"
-       outOfZone (onMousemove)="mouseMove($event)" #sliderContainer
-       (click)="clearLabelSelection()">
-   <div class="wrapper" [style.top.px]="verticalCenter" [style.--slider-wrapper-top.px]="verticalCenter">
-     <div class="slider-value" [style.left.px]="getLabelLeft()"
-          [style.text-decoration]="model.objectFormat.decoration"
-          *ngIf="model.currentVisible || isMouseDown">{{getLabel()}}</div>
-      <div class="slider-track prevent-drag" #trackLine (click)="moveHandleHere($event)"></div>
-      <div class="slider-tracked" [style.width.px]="handlePosition"></div>
-     <div *ngIf="handleSelected" #sliderHandle
-          class="slider-handle selector bd-selected-cell"
-          tabindex="-1" [attr.aria-label]="getLabel()"
-          [style.left.px]="handlePosition">
-     </div>
-      <div class="slider-handle prevent-drag" [style.left.px]="handlePosition"
-           [class.is-dragging]="isMouseDown"
-           (touchstart)="mouseDown($event)"
-           (touchmove)="mouseMove($event)"
-           (mousedown)="mouseDown($event)">
-      </div>
-      <ng-template [ngIf]="model.ticksVisible">
-        <div class="slider-tick"
-             *ngFor="let tick of ticks; trackBy: trackByIdx"
-             [style.left.px]="tick.left">|</div>
-        <div class="slider-label"
-             *ngFor="let tick of ticks; let first = first; let last = last; trackBy: trackByIdx"
-             [style.white-space]="last ? 'nowrap' : ''"
-             [style.left.px]="tick.labelLeft"
-             [style.text-decoration]="model.objectFormat.decoration"
-             [hidden]="!model.labelVisible && (!first || !model.minVisible) && (!last || !model.maxVisible)">
-          {{tick.label}}
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
+@if (model) {
+  <vs-input-label-wrapper
+    [contentOverflow]="viewer || embeddedVS ? 'visible' : 'hidden'"
+    [labelModel]="model.labelModel"
+    [labelSelected]="model.labelSelected"
+    [disabled]="!model.enabled"
+    [style.display]="getVisible() ? null : 'none'"
+    [class.fade-assembly]="!viewer && !model.visible"
+    [style.top.px]="viewer || embeddedVS ? model.objectFormat.top : null"
+    [style.left.px]="viewer || embeddedVS ? model.objectFormat.left : null"
+    [style.position]="viewer || embeddedVS ? 'absolute' : 'relative'"
+    [style.width.px]="model.objectFormat.width"
+    [objectHeight]="model.objectFormat.height"
+    [style.z-index]="viewer ? model.objectFormat.zIndex : null"
+    [style.border-bottom]="model.objectFormat.border.bottom"
+    [style.border-top]="model.objectFormat.border.top"
+    [style.border-left]="model.objectFormat.border.left"
+    [style.border-right]="model.objectFormat.border.right"
+    [style.border-radius.px]="model.objectFormat.roundCorner"
+    [style.background-color]="model.objectFormat.background"
+    VSDataTip [dataTipName]="getAssemblyName()"
+    VSPopComponent [popComponentName]="getAssemblyName()" [popContainerName]="model.container"
+    [popZIndex]="model.objectFormat.zIndex"
+    (selectLabel)="selectLabel($event)">
+    <div [style.color]="model.objectFormat.foreground"
+      [style.background-color]="model.objectFormat.background"
+      [style.border-radius.px]="model.objectFormat.roundCorner"
+      [safeFont]="model.objectFormat.font"
+      class="slider unselectable-canvas"
+      role="slider" tabindex="-1"
+      [attr.aria-label]="model.objectType + ' ' + model.absoluteName"
+      [attr.aria-valuemin]="model.min"
+      [attr.aria-valuemax]="model.max"
+      [attr.aria-valuenow]="getLabel()"
+      [class.disable-actions-fade]="!model.enabled"
+      [class.move-handle]="(selected || inSelectedGroupContainer) && !viewer"
+      outOfZone (onMousemove)="mouseMove($event)" #sliderContainer
+      (click)="clearLabelSelection()">
+      <div class="wrapper" [style.top.px]="verticalCenter" [style.--slider-wrapper-top.px]="verticalCenter">
+        @if (model.currentVisible || isMouseDown) {
+          <div class="slider-value" [style.left.px]="getLabelLeft()"
+            [style.text-decoration]="model.objectFormat.decoration"
+          >{{getLabel()}}</div>
+        }
+        <div class="slider-track prevent-drag" #trackLine (click)="moveHandleHere($event)"></div>
+        <div class="slider-tracked" [style.width.px]="handlePosition"></div>
+        @if (handleSelected) {
+          <div #sliderHandle
+            class="slider-handle selector bd-selected-cell"
+            tabindex="-1" [attr.aria-label]="getLabel()"
+            [style.left.px]="handlePosition">
+          </div>
+        }
+        <div class="slider-handle prevent-drag" [style.left.px]="handlePosition"
+          [class.is-dragging]="isMouseDown"
+          (touchstart)="mouseDown($event)"
+          (touchmove)="mouseMove($event)"
+          (mousedown)="mouseDown($event)">
         </div>
-      </ng-template>
-   </div>
-  </div>
-</vs-input-label-wrapper>
+        @if (model.ticksVisible) {
+          @for (tick of ticks; track trackByIdx($index, tick)) {
+            <div class="slider-tick"
+            [style.left.px]="tick.left">|</div>
+          }
+          @for (tick of ticks; track trackByIdx($index, tick); let first = $first; let last = $last) {
+            <div class="slider-label"
+              [style.white-space]="last ? 'nowrap' : ''"
+              [style.left.px]="tick.labelLeft"
+              [style.text-decoration]="model.objectFormat.decoration"
+              [hidden]="!model.labelVisible && (!first || !model.minVisible) && (!last || !model.maxVisible)">
+              {{tick.label}}
+            </div>
+          }
+        }
+      </div>
+    </div>
+  </vs-input-label-wrapper>
+}

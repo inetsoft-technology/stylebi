@@ -18,10 +18,13 @@
 import { Component, NO_ERRORS_SCHEMA, ViewChild } from "@angular/core";
 import { ComponentFixture, fakeAsync, TestBed, tick } from "@angular/core/testing";
 import { By } from "@angular/platform-browser";
-import { FixedDropdownModule } from "../fixed-dropdown/fixed-dropdown.module";
 import { DropdownView } from "./dropdown-view.component";
+import { FixedDropdownComponent } from "../fixed-dropdown/fixed-dropdown.component";
+import { FixedDropdownService } from "../fixed-dropdown/fixed-dropdown.service";
+import { DropdownStackService } from "../fixed-dropdown/dropdown-stack.service";
 
 @Component({
+   imports: [DropdownView],
    template: `
       <dropdown-view #dropdown label="Alignment">
          <button class="apply-button" type="button" (click)="dropdown.close()">Apply</button>
@@ -37,8 +40,8 @@ describe("DropdownView", () => {
 
    beforeEach(async () => {
       await TestBed.configureTestingModule({
-         imports: [FixedDropdownModule],
-         declarations: [TestHostComponent, DropdownView],
+         imports: [DropdownView, FixedDropdownComponent, TestHostComponent],
+         providers: [FixedDropdownService, DropdownStackService],
          schemas: [NO_ERRORS_SCHEMA]
       }).compileComponents();
 
@@ -48,7 +51,7 @@ describe("DropdownView", () => {
 
    it("restores focus to the trigger after an explicit close", fakeAsync(() => {
       const dropdownView = fixture.componentInstance.dropdown;
-      const focusSpy = jest.spyOn(dropdownView, "focusTrigger");
+      const focusSpy = vi.spyOn(dropdownView, "focusTrigger");
 
       const trigger = fixture.debugElement.query(By.css(".dropdown-button")).nativeElement as HTMLButtonElement;
       trigger.click();

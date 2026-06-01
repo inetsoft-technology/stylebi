@@ -23,7 +23,7 @@ import { Slider } from "../../../widget/slider.component";
 
 // JSDOM does not implement canvas — stub getContext so measureText calls don't throw
 beforeAll(() => {
-   jest.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({
+   vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({
       font: "",
       measureText: (_text: string) => ({ width: 0 })
    } as any);
@@ -36,10 +36,11 @@ describe("Static Size Pane Unit Test", () => {
    beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule
-         ],
-         declarations: [
-            StaticSizePane, Slider
+            FormsModule,
+            ReactiveFormsModule,
+            NgbModule,
+            StaticSizePane,
+            Slider,
          ]
       }).compileComponents();
    }));

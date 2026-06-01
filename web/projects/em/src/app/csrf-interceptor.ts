@@ -15,9 +15,9 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { DOCUMENT, ɵparseCookieValue as parseCookieValue } from "@angular/common";
+import { ɵparseCookieValue as parseCookieValue } from "@angular/common";
 import { HttpEvent, HttpHandler, HttpInterceptor, HttpRequest } from "@angular/common/http";
-import { Inject, Injectable } from "@angular/core";
+import { Inject, Injectable, DOCUMENT } from "@angular/core";
 import { Observable } from "rxjs";
 
 const COOKIE_NAME = "XSRF-TOKEN";

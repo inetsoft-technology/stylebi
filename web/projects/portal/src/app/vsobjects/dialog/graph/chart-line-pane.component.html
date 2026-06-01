@@ -1,86 +1,85 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <form [formGroup]="form" (submit)="$event.preventDefault()" class="container-fluid">
-   <fieldset>
-      <legend>_#(Lines)</legend>
-      <div class="row shell-form-row--field" *ngIf="model.gridLineVisible">
-         <div class="col line-combo-container">
-                <div class="form-floating">
-                  <grid-line-dropdown [(lineStyle)]="model.xGridLineStyle"
-                                      [color]="model.xGridLineColor"
-                                      data-test="x-grid-line">
-                  </grid-line-dropdown>
-                  <label>_#(X Grid)</label>
-                </div>
-            <color-editor class="color-item" [(color)]="model.xGridLineColor" data-test="x-grid-line-color"></color-editor>
-         </div>
-         <div class="col line-combo-container">
-                <div class="form-floating">
-                  <grid-line-dropdown [(lineStyle)]="model.yGridLineStyle"
-                                      [color]="model.yGridLineColor"
-                                      data-test="y-grid-line">
-                  </grid-line-dropdown>
-                  <label>_#(Y Grid)</label>
-                </div>
-            <color-editor class="color-item" [(color)]="model.yGridLineColor" data-test="y-grid-line-color"></color-editor>
-         </div>
+  <fieldset>
+    <legend>_#(Lines)</legend>
+    @if (model.gridLineVisible) {
+      <div class="form-row-float-label row">
+        <div class="col line-combo-container">
+          <div class="form-floating">
+            <grid-line-dropdown [(lineStyle)]="model.xGridLineStyle" data-test="x-grid-line">
+            </grid-line-dropdown>
+            <label>_#(X Grid)</label>
+          </div>
+          <color-editor class="color-item" [(color)]="model.xGridLineColor" data-test="x-grid-line-color"></color-editor>
+        </div>
+        <div class="col line-combo-container">
+          <div class="form-floating">
+            <grid-line-dropdown [(lineStyle)]="model.yGridLineStyle" data-test="y-grid-line">
+            </grid-line-dropdown>
+            <label>_#(Y Grid)</label>
+          </div>
+          <color-editor class="color-item" [(color)]="model.yGridLineColor" data-test="y-grid-line-color"></color-editor>
+        </div>
       </div>
-      <div class="row shell-form-row--field" *ngIf="model.innerLineVisible">
-         <div class="col line-combo-container">
-                <div class="form-floating">
-                  <grid-line-dropdown [(lineStyle)]="model.quadrantGridLineStyle"
-                                      [color]="model.quadrantGridLineColor"
-                                      data-test="quadrant-grid-line">
-                  </grid-line-dropdown>
-                  <label>_#(Quadrant Grid)</label>
-                </div>
-            <color-editor class="color-item" [(color)]="model.quadrantGridLineColor" data-test="quadrant-grid-line-color">
-            </color-editor>
-         </div>
-         <div class="col line-combo-container">
-                <div class="form-floating">
-                  <grid-line-dropdown [(lineStyle)]="model.diagonalLineStyle"
-                                      [color]="model.diagonalLineColor"
-                                      data-test="diagonal-line">
-                  </grid-line-dropdown>
-                  <label>_#(Diagonal Line)</label>
-                </div>
-            <color-editor class="color-item" [(color)]="model.diagonalLineColor" data-test="diagonal-line-color"></color-editor>
-         </div>
+    }
+    @if (model.innerLineVisible) {
+      <div class="form-row-float-label row">
+        <div class="col line-combo-container">
+          <div class="form-floating">
+            <grid-line-dropdown [(lineStyle)]="model.quadrantGridLineStyle" data-test="quadrant-grid-line">
+            </grid-line-dropdown>
+            <label>_#(Quadrant Grid)</label>
+          </div>
+          <color-editor class="color-item" [(color)]="model.quadrantGridLineColor" data-test="quadrant-grid-line-color">
+        </color-editor>
       </div>
-      <div class="row shell-form-row--field" *ngIf="model.facetGridVisible">
-         <div class="col-auto line-combo-container">
-            <div class="form-check">
-               <input type="checkbox" class="form-check-input" [(ngModel)]="model.facetGrid"
-                      [ngModelOptions]="{standalone: true}" id="showGrid"
-                      [disabled]="!model.facetGridEnabled">
-               <label class="form-check-label" for="showGrid">
-                  _#(Show Table Grid)
-               </label>
-            </div>
-         </div>
-         <color-editor class="col-auto color-item" [(color)]="model.facetGridColor"
-                       [enabled]="model.facetGrid && model.facetGridEnabled"></color-editor>
+      <div class="col line-combo-container">
+        <div class="form-floating">
+          <grid-line-dropdown [(lineStyle)]="model.diagonalLineStyle" data-test="diagonal-line">
+          </grid-line-dropdown>
+          <label>_#(Diagonal Line)</label>
+        </div>
+        <color-editor class="color-item" [(color)]="model.diagonalLineColor" data-test="diagonal-line-color"></color-editor>
       </div>
-   </fieldset>
-  <fieldset *ngIf="model.trendLineVisible">
+    </div>
+  }
+  @if (model.facetGridVisible) {
+    <div class="form-row-float-label row">
+      <div class="col-auto line-combo-container">
+        <div class="form-check">
+          <input type="checkbox" class="form-check-input" [(ngModel)]="model.facetGrid"
+            [ngModelOptions]="{standalone: true}" id="showGrid"
+            [disabled]="!model.facetGridEnabled">
+          <label class="form-check-label" for="showGrid">
+            _#(Show Table Grid)
+          </label>
+        </div>
+      </div>
+      <color-editor class="col-auto color-item" [(color)]="model.facetGridColor"
+      [enabled]="model.facetGrid && model.facetGridEnabled"></color-editor>
+    </div>
+  }
+</fieldset>
+@if (model.trendLineVisible) {
+  <fieldset>
     <legend>_#(Trend Line)</legend>
-    <div class="row shell-form-row--field">
+    <div class="form-row-float-label row">
       <div class="col">
         <div class="form-floating">
           <custom-select [options]="trendLineOptions"
@@ -89,58 +88,58 @@
                          (selectionChange)="setEnabled()"
                          placeholder="_#(Trend Line)">
           </custom-select>
-          <label>_#(Trend Line)</label>
-        </div>
-      </div>
-      <div class="col line-combo-container">
-        <div class="form-floating">
-          <grid-line-dropdown class="trend-line" [(lineStyle)]="model.trendLineStyle"
-                              [color]="model.trendLineColor"
-                              [supportDefault]="true"
-                              [disabled]="noTrendlineSelected" data-test="trend-line-style">
-          </grid-line-dropdown>
-          <label>_#(Trend Line Style)</label>
-        </div>
-        <color-editor class="color-item" [(color)]="model.trendLineColor"
-                      [enabled]="!noTrendlineSelected && !model.trendPerColor"
-                      data-test="trend-line-style-color">
-        </color-editor>
+        <label>_#(Trend Line)</label>
       </div>
     </div>
-    <div class="row shell-form-row--field">
-      <div class="col-6 chart-line-pane__for-measures">
-        <div class="form-floating">
-          <multi-select [items]="model.measures"
-                        [disabled]="noTrendlineSelected"
-                        [(selectedItems)]="model.trendLineMeasures">
-          </multi-select>
-          <label>_#(For Measures)</label>
-        </div>
+    <div class="col line-combo-container">
+      <div class="form-floating">
+        <grid-line-dropdown class="trend-line" [(lineStyle)]="model.trendLineStyle"
+          [supportDefault]="true"
+          [disabled]="noTrendlineSelected" data-test="trend-line-style">
+        </grid-line-dropdown>
+        <label>_#(Trend Line Style)</label>
       </div>
-      <div class="col-6 d-flex justify-content-center project_forward_id">
-        <div class="stepper-float-label">
-          <span class="stepper-float-label__text">_#(Project Forward)</span>
-          <number-stepper formControlName="projectForward" [min]="0"
+      <color-editor class="color-item" [(color)]="model.trendLineColor"
+        [enabled]="!noTrendlineSelected && !model.trendPerColor"
+        data-test="trend-line-style-color">
+    </color-editor>
+  </div>
+</div>
+<div class="form-row-float-label row">
+  <div class="col-6">
+    <div class="form-floating">
+      <multi-select [items]="model.measures"
+        [disabled]="noTrendlineSelected"
+        [(selectedItems)]="model.trendLineMeasures">
+      </multi-select>
+      <label>_#(For Measures)</label>
+    </div>
+  </div>
+  <div class="col-6">
+    <div class="form-floating">
+      <number-stepper formControlName="projectForward" [min]="0"
                           (valueChange)="model.projectForward = $event"
                           [invalid]="!!form.controls['projectForward']?.errors">
           </number-stepper>
-          <span class="invalid-feedback d-block" *ngIf="form.controls['projectForward']?.errors">
-             _#(project.forward.required)
-          </span>
-        </div>
-      </div>
+      <label>_#(Project Forward)</label>
+      <span class="invalid-feedback d-block">
+        _#(project.forward.required)
+      </span>
     </div>
-    <div class="row shell-form-row--field">
-      <div class="checkbox col">
-        <div class="form-check">
-          <input type="checkbox" class="form-check-input" [disabled]="noTrendlineSelected"
-                 [ngModelOptions]="{standalone: true}" id="perColor"
-                 [(ngModel)]="model.trendPerColor">
-          <label class="form-check-label" for="perColor">
-            _#(One Per Color)
-          </label>
-        </div>
-      </div>
+  </div>
+</div>
+<div class="form-row-float-label row">
+  <div class="checkbox col">
+    <div class="form-check">
+      <input type="checkbox" class="form-check-input" [disabled]="noTrendlineSelected"
+        [ngModelOptions]="{standalone: true}" id="perColor"
+        [(ngModel)]="model.trendPerColor">
+      <label class="form-check-label" for="perColor">
+        _#(One Per Color)
+      </label>
     </div>
-  </fieldset>
+  </div>
+</div>
+</fieldset>
+}
 </form>

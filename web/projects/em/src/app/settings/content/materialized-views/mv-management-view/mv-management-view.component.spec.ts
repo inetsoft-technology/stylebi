@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { HttpClientTestingModule } from "@angular/common/http/testing";
 import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { ComponentFixture, TestBed, waitForAsync } from "@angular/core/testing";
@@ -34,10 +35,10 @@ import { NoopAnimationsModule } from "@angular/platform-browser/animations";
 import { RouterModule } from "@angular/router";
 import { Subject } from "rxjs";
 import { SsoHeartbeatService } from "../../../../../../../shared/sso/sso-heartbeat.service";
-import { EditorPanelModule } from "../../../../common/util/editor-panel/editor-panel.module";
-import { LoadingSpinnerModule } from "../../../../common/util/loading-spinner/loading-spinner.module";
-import { MessageDialogModule } from "../../../../common/util/message-dialog.module";
-import { TableViewModule } from "../../../../common/util/table/table-view.module";
+import { EditorPanelComponent } from "../../../../common/util/editor-panel/editor-panel.component";
+import { LoadingSpinnerComponent } from "../../../../common/util/loading-spinner/loading-spinner.component";
+import { MessageDialog } from "../../../../common/util/message-dialog";
+import { TableView } from "../../../../common/util/table/table-view.component";
 import { MVChangeService } from "./mv-change.service";
 import { MvManagementViewComponent } from "./mv-management-view.component";
 
@@ -48,7 +49,7 @@ describe("MvManagementViewComponent", () => {
    let changes = new Subject<void>();
 
    beforeEach(waitForAsync(() => {
-      ssoHeartbeatService = { heartbeat: jest.fn() };
+      ssoHeartbeatService = { heartbeat: vi.fn() };
       const changeService = {
         mvChanged: changes.asObservable()
       };
@@ -59,7 +60,7 @@ describe("MvManagementViewComponent", () => {
             FormsModule,
             HttpClientTestingModule,
             RouterModule.forRoot([]),
-            LoadingSpinnerModule,
+            LoadingSpinnerComponent,
             MatButtonModule,
             MatCardModule,
             MatCheckboxModule,
@@ -71,12 +72,11 @@ describe("MvManagementViewComponent", () => {
             MatSelectModule,
             MatSortModule,
             MatTableModule,
-            MessageDialogModule,
+            MessageDialog,
             ReactiveFormsModule,
-            TableViewModule,
-            EditorPanelModule
-         ],
-         declarations: [MvManagementViewComponent],
+            TableView,
+            EditorPanelComponent,
+            MvManagementViewComponent],
          providers: [
             { provide: SsoHeartbeatService, useValue: ssoHeartbeatService }
          ],

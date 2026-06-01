@@ -1,6 +1,6 @@
-// Jest Snapshot v1, https://goo.gl/fbAQLP
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
-exports[`RangeSliderActions check status of menu actions and toolbar actions of range slider in composer 1`] = `
+exports[`RangeSliderActions > check status of menu actions and toolbar actions of range slider in composer 1`] = `
 [
   AssemblyActionGroup {
     "actions": [
@@ -157,404 +157,7 @@ exports[`RangeSliderActions check status of menu actions and toolbar actions of 
 ]
 `;
 
-exports[`RangeSliderActions check status of menu actions and toolbar actions of range slider in composer 2`] = `
-[
-  AssemblyActionGroup {
-    "actions": [
-      {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-    ],
-    "icon": [Function],
-    "label": [Function],
-  },
-  AssemblyActionGroup {
-    "actions": [
-      {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-    ],
-    "icon": [Function],
-    "label": [Function],
-  },
-  AssemblyActionGroup {
-    "actions": [
-      {
-        "action": [Function],
-        "childAction": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-    ],
-    "icon": [Function],
-    "label": [Function],
-  },
-]
-`;
-
-exports[`RangeSliderActions check status of menu actions and toolbar actions of range slider in composer when in selection container 1`] = `
-[
-  AssemblyActionGroup {
-    "actions": [
-      {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-    ],
-    "icon": [Function],
-    "label": [Function],
-  },
-  AssemblyActionGroup {
-    "actions": [
-      {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-    ],
-    "icon": [Function],
-    "label": [Function],
-  },
-]
-`;
-
-exports[`RangeSliderActions check status of menu actions and toolbar actions of range slider in composer when in selection container 2`] = `
-[
-  AssemblyActionGroup {
-    "actions": [
-      {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-    ],
-    "icon": [Function],
-    "label": [Function],
-  },
-  AssemblyActionGroup {
-    "actions": [
-      {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-    ],
-    "icon": [Function],
-    "label": [Function],
-  },
-  AssemblyActionGroup {
-    "actions": [
-      {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-    ],
-    "icon": [Function],
-    "label": [Function],
-  },
-]
-`;
-
-exports[`RangeSliderActions check status of menu actions and toolbar actions of range slider in viewer and preview 1`] = `
-[
-  AssemblyActionGroup {
-    "actions": [
-      {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-    ],
-    "icon": [Function],
-    "label": [Function],
-  },
-  AssemblyActionGroup {
-    "actions": [
-      {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-    ],
-    "icon": [Function],
-    "label": [Function],
-  },
-  AssemblyActionGroup {
-    "actions": [
-      {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-    ],
-    "icon": [Function],
-    "label": [Function],
-  },
-  AssemblyActionGroup {
-    "actions": [
-      {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-      {
-        "action": [Function],
-        "enabled": [Function],
-        "icon": [Function],
-        "id": [Function],
-        "label": [Function],
-        "visible": [Function],
-      },
-    ],
-    "icon": [Function],
-    "label": [Function],
-  },
-]
-`;
-
-exports[`RangeSliderActions check status of menu actions and toolbar actions of range slider in viewer and preview 2`] = `
+exports[`RangeSliderActions > check status of menu actions and toolbar actions of range slider in composer 2`] = `
 [
   AssemblyActionGroup {
     "actions": [
@@ -618,7 +221,183 @@ exports[`RangeSliderActions check status of menu actions and toolbar actions of 
 ]
 `;
 
-exports[`RangeSliderActions check status of menu actions and toolbar actions of range slider in viewer and preview 3`] = `
+exports[`RangeSliderActions > check status of menu actions and toolbar actions of range slider in composer when in selection container 1`] = `
+[
+  AssemblyActionGroup {
+    "actions": [
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+    ],
+    "icon": [Function],
+    "label": [Function],
+  },
+  AssemblyActionGroup {
+    "actions": [
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+    ],
+    "icon": [Function],
+    "label": [Function],
+  },
+]
+`;
+
+exports[`RangeSliderActions > check status of menu actions and toolbar actions of range slider in composer when in selection container 2`] = `
+[
+  AssemblyActionGroup {
+    "actions": [
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+    ],
+    "icon": [Function],
+    "label": [Function],
+  },
+  AssemblyActionGroup {
+    "actions": [
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+    ],
+    "icon": [Function],
+    "label": [Function],
+  },
+  AssemblyActionGroup {
+    "actions": [
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+    ],
+    "icon": [Function],
+    "label": [Function],
+  },
+]
+`;
+
+exports[`RangeSliderActions > check status of menu actions and toolbar actions of range slider in viewer and preview 1`] = `
 [
   AssemblyActionGroup {
     "actions": [
@@ -775,7 +554,7 @@ exports[`RangeSliderActions check status of menu actions and toolbar actions of 
 ]
 `;
 
-exports[`RangeSliderActions check status of menu actions and toolbar actions of range slider in viewer and preview 4`] = `
+exports[`RangeSliderActions > check status of menu actions and toolbar actions of range slider in viewer and preview 2`] = `
 [
   AssemblyActionGroup {
     "actions": [
@@ -839,7 +618,228 @@ exports[`RangeSliderActions check status of menu actions and toolbar actions of 
 ]
 `;
 
-exports[`RangeSliderActions check status of menu actions and toolbar actions of range slider in viewer and preview 5`] = `
+exports[`RangeSliderActions > check status of menu actions and toolbar actions of range slider in viewer and preview 3`] = `
+[
+  AssemblyActionGroup {
+    "actions": [
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+    ],
+    "icon": [Function],
+    "label": [Function],
+  },
+  AssemblyActionGroup {
+    "actions": [
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+    ],
+    "icon": [Function],
+    "label": [Function],
+  },
+  AssemblyActionGroup {
+    "actions": [
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+    ],
+    "icon": [Function],
+    "label": [Function],
+  },
+  AssemblyActionGroup {
+    "actions": [
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+    ],
+    "icon": [Function],
+    "label": [Function],
+  },
+]
+`;
+
+exports[`RangeSliderActions > check status of menu actions and toolbar actions of range slider in viewer and preview 4`] = `
+[
+  AssemblyActionGroup {
+    "actions": [
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+    ],
+    "icon": [Function],
+    "label": [Function],
+  },
+  AssemblyActionGroup {
+    "actions": [
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+    ],
+    "icon": [Function],
+    "label": [Function],
+  },
+  AssemblyActionGroup {
+    "actions": [
+      {
+        "action": [Function],
+        "childAction": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
+    ],
+    "icon": [Function],
+    "label": [Function],
+  },
+]
+`;
+
+exports[`RangeSliderActions > check status of menu actions and toolbar actions of range slider in viewer and preview 5`] = `
 [
   AssemblyActionGroup {
     "actions": [

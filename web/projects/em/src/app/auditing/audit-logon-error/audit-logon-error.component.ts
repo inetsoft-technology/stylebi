@@ -17,7 +17,7 @@
  */
 import { HttpClient, HttpParams } from "@angular/common/http";
 import { Component, OnDestroy, OnInit } from "@angular/core";
-import { FormBuilder, FormGroup } from "@angular/forms";
+import { FormBuilder, FormGroup, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { catchError, tap } from "rxjs/operators";
 import { ErrorHandlerService } from "../../common/util/error/error-handler.service";
 import { ContextHelp } from "../../context-help";
@@ -28,6 +28,10 @@ import { AuditTableViewComponent } from "../audit-table-view/audit-table-view.co
 import { LogonError, LogonErrorList, LogonErrorParameters } from "./logon-error";
 import { of, Subscription } from "rxjs";
 import { ActivatedRoute } from "@angular/router";
+import { MatOption } from "@angular/material/core";
+
+import { MatSelect } from "@angular/material/select";
+import { MatFormField, MatLabel } from "@angular/material/form-field";
 
 @Secured({
    route: "/auditing/logon-error",
@@ -43,9 +47,10 @@ import { ActivatedRoute } from "@angular/router";
    link: "EMViewAudit"
 })
 @Component({
-   selector: "em-audit-logon-error",
-   templateUrl: "./audit-logon-error.component.html",
-   styleUrls: ["./audit-logon-error.component.scss"]
+    selector: "em-audit-logon-error",
+    templateUrl: "./audit-logon-error.component.html",
+    styleUrls: ["./audit-logon-error.component.scss"],
+    imports: [AuditTableViewComponent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatSelect, MatOption]
 })
 export class AuditLogonErrorComponent implements OnInit, OnDestroy {
    users: string[] = [];

@@ -26,6 +26,8 @@ import { StringWrapper } from "../../data/model/datasources/database/string-wrap
 import { DatabaseTreeNodeModel } from "../../data/model/datasources/database/physical-model/database-tree-node-model";
 import { Observable } from "rxjs";
 import { DatabaseTreeNodeType } from "../../data/model/datasources/database/database-tree-node-type";
+import { LoadingIndicatorPaneComponent } from "../../data/data-datasource-browser/datasources-database/common-components/loading-indicator-pane/loading-indicator-pane.component";
+import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
 
 const VPM_URI: string = "../api/data/vpm/";
 const PHYSICAL_TREE_NODES_URI: string = "../api/data/physicalmodel/tree/nodes";
@@ -33,9 +35,10 @@ const PHYSICAL_TREE_ALL_NODES_URI: string = "../api/data/physicalmodel/tree/allN
 const PHYSICAL_TABLE_PATH_URI: string = VPM_URI + "physicalModel/tablePath/";
 
 @Component({
-   selector: "choose-table-dialog",
-   templateUrl: "choose-table-dialog.component.html",
-   styleUrls: ["choose-table-dialog.component.scss"]
+    selector: "choose-table-dialog",
+    templateUrl: "choose-table-dialog.component.html",
+    styleUrls: ["choose-table-dialog.component.scss"],
+    imports: [ModalHeaderComponent, TreeComponent, LoadingIndicatorPaneComponent]
 })
 export class ChooseTableDialog implements OnInit {
    @Input() databaseName: string;

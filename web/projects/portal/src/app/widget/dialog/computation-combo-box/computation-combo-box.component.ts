@@ -28,11 +28,16 @@ import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { ValueMode } from "../../dynamic-combo-box/dynamic-combo-box-model";
 import { Tool } from "../../../../../../shared/util/tool";
 import { StrategyInfo } from "../../target/target-info";
-import { CustomSelectOption } from "../../custom-select/custom-select.component";
+import { ComputationDialog } from "./computation-dialog.component";
+import { FormsModule } from "@angular/forms";
+import { CustomSelectOption, CustomSelectComponent } from "../../custom-select/custom-select.component";
 
 @Component({
-   selector: "computation-combo-box",
-   templateUrl: "computation-combo-box.component.html",
+    selector: "computation-combo-box",
+    templateUrl: "computation-combo-box.component.html",
+    imports: [
+    FormsModule,
+    ComputationDialog, CustomSelectComponent]
 })
 export class ComputationComboBox implements OnInit {
    public ValueMode = ValueMode;

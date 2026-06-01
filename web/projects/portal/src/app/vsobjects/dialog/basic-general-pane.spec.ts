@@ -22,6 +22,7 @@ import { NgbModal, NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { DropDownTestModule } from "../../common/test/test-module";
 import { BasicGeneralPaneModel } from "../model/basic-general-pane-model";
 import { BasicGeneralPane } from "./basic-general-pane.component";
+import { FixedDropdownDirective } from "../../widget/fixed-dropdown/fixed-dropdown.directive";
 
 describe("Basic general pane Test", () => {
    const createModel: () => BasicGeneralPaneModel = () => {
@@ -50,11 +51,14 @@ describe("Basic general pane Test", () => {
    beforeEach(() => {
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule, DropDownTestModule
+            FormsModule,
+            ReactiveFormsModule,
+            NgbModule,
+            DropDownTestModule,
+            BasicGeneralPane,
+            FixedDropdownDirective,
          ],
-         declarations: [
-            BasicGeneralPane
-         ],
+         
          providers: [
             NgbModal
          ],

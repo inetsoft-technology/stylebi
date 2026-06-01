@@ -43,7 +43,9 @@ import { ManualOrderingDialog } from "./manual-ordering-dialog.component";
 import { ComponentTool } from "../../common/util/component-tool";
 import { XConstants } from "../../common/util/xconstants";
 import { SourceInfo } from "../data/source-info";
-import { CustomSelectOption } from "../../widget/custom-select/custom-select.component";
+import { DynamicComboBox } from "../../widget/dynamic-combo-box/dynamic-combo-box.component";
+import { FormsModule } from "@angular/forms";
+import { CustomSelectOption, CustomSelectComponent } from "../../widget/custom-select/custom-select.component";
 
 const GENERAL_SORT_OPTIONS: any[] = [
    {label: "_#(js:None)", value: StyleConstants.SORT_NONE},
@@ -64,9 +66,10 @@ const RANKING_OPTIONS: any[] = [
    {label: "_#(js:Bottom)", value: StyleConstants.BOTTOM_N + ""}];
 
 @Component({
-   selector: "sort-option",
-   templateUrl: "sort-option.component.html",
-   styleUrls: ["sort-option.component.scss"]
+    selector: "sort-option",
+    templateUrl: "sort-option.component.html",
+    styleUrls: ["sort-option.component.scss"],
+    imports: [FormsModule, DynamicComboBox, CustomSelectComponent]
 })
 export class SortOption implements OnInit {
    @Input() set dimension(dim: BDimensionRef) {

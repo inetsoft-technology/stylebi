@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Injectable, NgZone } from "@angular/core";
-import { Observable ,  Subject } from "rxjs";
+import { Observable, Subject } from "rxjs";
 import { StompClientService } from "../viewsheet-client";
 import { StompClientConnection } from "../../../../../shared/stomp/stomp-client-connection";
 import {
@@ -66,6 +66,9 @@ export class RepositoryClientService {
     * Subscribes the to the repository-changed topic.
     */
    private subscribe(): void {
+      if(!this.connection) {
+         return;
+      }
       this.connection.subscribe("/user/repository-changed", (message) => {
          const event: any = !!message.frame.body ? JSON.parse(message.frame.body) : null;
          this.zone.run(() => this.repositoryChanged$.next(event));

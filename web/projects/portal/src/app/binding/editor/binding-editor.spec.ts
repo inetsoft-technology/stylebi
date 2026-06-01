@@ -26,16 +26,20 @@ import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { of as observableOf } from "rxjs";
 import { UIContextService } from "../../common/services/ui-context.service";
+import { DndService } from "../../common/dnd/dnd.service";
+import { SsoHeartbeatService } from "../../../../../shared/sso/sso-heartbeat.service";
 import { DropDownTestModule } from "../../common/test/test-module";
 import { TestUtils } from "../../common/test/test-utils";
 import { DynamicComboBox } from "../../widget/dynamic-combo-box/dynamic-combo-box.component";
 import { ModelService } from "../../widget/services/model.service";
 import { CrosstabBindingModel } from "../data/table/crosstab-binding-model";
 import { BindingService } from "../services/binding.service";
+import { BindingTreeService } from "../widget/binding-tree/binding-tree.service";
 import { TableEditorService } from "../services/table/table-editor.service";
 import { SidebarTab } from "../widget/binding-tree/data-editor-tab-pane.component";
 import { BindingEditor } from "./binding-editor.component";
 import { CrosstabOption } from "./table/crosstab-option.component";
+import { FixedDropdownDirective } from "../../widget/fixed-dropdown/fixed-dropdown.directive";
 
 describe("Binding Editor Component Unit Test", () => {
    let createMockCrosstabBindingModel: () => CrosstabBindingModel = () => {
@@ -50,10 +54,10 @@ describe("Binding Editor Component Unit Test", () => {
       return bindingModel;
    };
    let uiContextService = {
-      isVS: jest.fn(),
-      isAdhoc: jest.fn()
+      isVS: vi.fn(),
+      isAdhoc: vi.fn()
    };
-   let modelService = { getModel: jest.fn(() => observableOf({})) };
+   let modelService = { getModel: vi.fn(() => observableOf([])) };
 
    let fixture: ComponentFixture<BindingEditor>;
    let bindingEditor: BindingEditor;
@@ -63,12 +67,17 @@ describe("Binding Editor Component Unit Test", () => {
    beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule, HttpClientTestingModule,
-            DropDownTestModule
+            FormsModule,
+            ReactiveFormsModule,
+            NgbModule,
+            HttpClientTestingModule,
+            DropDownTestModule,
+            BindingEditor,
+            CrosstabOption,
+            DynamicComboBox,
+            FixedDropdownDirective,
          ],
-         declarations: [
-            BindingEditor, CrosstabOption, DynamicComboBox
-         ],
+         
          providers: [
             BindingService, TableEditorService,
             {
@@ -76,6 +85,39 @@ describe("Binding Editor Component Unit Test", () => {
             },
             {
                provide: ModelService, useValue: modelService
+            },
+            {
+               provide: BindingTreeService,
+               useValue: {
+                  root: null,
+                  treeChanged: { subscribe: vi.fn() },
+                  treeLoading: vi.fn(() => false),
+                  bindingTreeChanged: vi.fn(() => ({ subscribe: vi.fn() })),
+                  bindingTreeModel: null,
+                  needUseVirtualScroll: false,
+                  virtualScrollDataSource: null,
+                  isSearching: false,
+                  getSelection: vi.fn(),
+                  setSelection: vi.fn(),
+                  getNode: vi.fn(),
+                  getSourceInfo: vi.fn(),
+                  loadFullTree: vi.fn(() => Promise.resolve(true)),
+                  changeSearchState: vi.fn(),
+                  expandNode: vi.fn(),
+                  collapseNode: vi.fn(),
+                  expandNodesCollapseOthersByRecord: vi.fn(),
+                  getBindingTreeActions: vi.fn(() => []),
+                  changeLoadingState: vi.fn(),
+                  isCalculatedFieldEnabled: vi.fn(() => false)
+               }
+            },
+            {
+               provide: DndService,
+               useValue: { processOnDrop: vi.fn(), setDragOverStyle: vi.fn() }
+            },
+            {
+               provide: SsoHeartbeatService,
+               useValue: {}
             }
          ],
          schemas: [NO_ERRORS_SCHEMA]
@@ -121,7 +163,7 @@ describe("Binding Editor Component Unit Test", () => {
    });
 
    //for Bug #20163
-   it("current format status should be right", (done) => {
+   it("current format status should be right", () => new Promise<void>((done) => {
       uiContextService.isVS.mockImplementation(() => true);
       fixture = TestBed.createComponent(BindingEditor);
       bindingEditor = <BindingEditor>fixture.componentInstance;
@@ -137,5 +179,5 @@ describe("Binding Editor Component Unit Test", () => {
       });
       bindingEditor.updateData("getCurrentFormat");
       expect(bindingEditor.hideFormatPane).toBeFalsy();
-   });
+   }));
 });

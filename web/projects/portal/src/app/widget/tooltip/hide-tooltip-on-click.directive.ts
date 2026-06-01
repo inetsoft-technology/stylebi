@@ -19,7 +19,8 @@ import { Directive, HostListener, Input } from "@angular/core";
 import { TooltipDirective } from "./tooltip.directive";
 
 @Directive({
-   selector: "[wHideTooltipOnClick]"
+    selector: "[wHideTooltipOnClick]",
+    standalone: true
 })
 export class HideTooltipOnClickDirective {
    @Input("wHideTooltipOnClick") tooltip: TooltipDirective; // eslint-disable-line @angular-eslint/no-input-rename

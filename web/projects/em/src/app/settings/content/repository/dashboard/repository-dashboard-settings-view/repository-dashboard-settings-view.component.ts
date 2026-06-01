@@ -20,7 +20,7 @@ import {
    Component, EventEmitter, Input, OnChanges, OnDestroy, OnInit, Output,
    SimpleChanges, ViewEncapsulation
 } from "@angular/core";
-import { UntypedFormBuilder, UntypedFormGroup, Validators } from "@angular/forms";
+import { UntypedFormBuilder, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { Subject } from "rxjs";
 import { takeUntil } from "rxjs/operators";
 import { FormValidators } from "../../../../../../../../shared/util/form-validators";
@@ -35,12 +35,27 @@ import { AssetEntry, createAssetEntry } from "../../../../../../../../shared/dat
 import { AssetConstants } from "../../../../../../../../portal/src/app/common/data/asset-constants";
 import { AssetType } from "../../../../../../../../shared/data/asset-type";
 import { COPY_PASTE_CONTEXT_REPOSITORY } from "../../../../security/resource-permission/copy-paste-context";
+import { ResourcePermissionComponent } from "../../../../security/resource-permission/resource-permission.component";
+import { MatSlideToggle } from "@angular/material/slide-toggle";
+import { MatProgressBar } from "@angular/material/progress-bar";
+import { MatIcon } from "@angular/material/icon";
+import { MatIconButton } from "@angular/material/button";
+import { MatTree, MatTreeNodeDef, MatTreeNode, MatTreeNodeToggle, MatTreeNodePadding } from "@angular/material/tree";
+import { MatOption } from "@angular/material/core";
+import { MatSelect } from "@angular/material/select";
+import { MatInput } from "@angular/material/input";
+import { MatFormField, MatLabel, MatError } from "@angular/material/form-field";
+import { MatCard, MatCardContent } from "@angular/material/card";
+import { MatTabGroup, MatTab } from "@angular/material/tabs";
+import { EditorPanelComponent } from "../../../../../common/util/editor-panel/editor-panel.component";
+
 
 @Component({
-   selector: "em-repository-dashboard-settings-view",
-   templateUrl: "./repository-dashboard-settings-view.component.html",
-   styleUrls: ["./repository-dashboard-settings-view.component.scss"],
-   encapsulation: ViewEncapsulation.None
+    selector: "em-repository-dashboard-settings-view",
+    templateUrl: "./repository-dashboard-settings-view.component.html",
+    styleUrls: ["./repository-dashboard-settings-view.component.scss"],
+    encapsulation: ViewEncapsulation.None,
+    imports: [EditorPanelComponent, MatTabGroup, MatTab, MatCard, MatCardContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatInput, MatError, MatSelect, MatOption, MatTree, MatTreeNodeDef, MatTreeNode, MatTreeNodeToggle, MatTreeNodePadding, MatIconButton, MatIcon, MatProgressBar, MatSlideToggle, ResourcePermissionComponent]
 })
 export class RepositoryDashboardSettingsViewComponent implements OnChanges, OnInit, OnDestroy, AfterContentChecked {
    @Input() model: RepositoryDashboardSettingsModel;

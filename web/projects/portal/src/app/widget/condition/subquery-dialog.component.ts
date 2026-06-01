@@ -20,11 +20,15 @@ import { SubqueryTable } from "../../common/data/condition/subquery-table";
 import { SubqueryValue } from "../../common/data/condition/subquery-value";
 import { DataRef } from "../../common/data/data-ref";
 import { ColumnRef } from "../../binding/data/column-ref";
-import { CustomSelectOption } from "../custom-select/custom-select.component";
+import { CustomSelectOption, CustomSelectComponent } from "../custom-select/custom-select.component";
+
+import { FormsModule } from "@angular/forms";
+import { ModalHeaderComponent } from "../modal-header/modal-header.component";
 
 @Component({
-   selector: "subquery-dialog",
-   templateUrl: "subquery-dialog.component.html"
+    selector: "subquery-dialog",
+    templateUrl: "subquery-dialog.component.html",
+    imports: [ModalHeaderComponent, FormsModule, CustomSelectComponent]
 })
 export class SubqueryDialog implements OnInit {
    @Input() subqueryTables: SubqueryTable[];

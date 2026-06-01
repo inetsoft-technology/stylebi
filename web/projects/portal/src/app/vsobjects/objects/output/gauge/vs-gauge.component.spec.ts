@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { HttpClientTestingModule } from "@angular/common/http/testing";
 import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { TestBed } from "@angular/core/testing";
@@ -66,30 +67,29 @@ describe("VSGauge", () => {
       model = createModel();
       actions = new GaugeActions(model, ViewerContextProviderFactory(false));
 
-      viewsheetClient = { sendEvent: jest.fn() };
+      viewsheetClient = { sendEvent: vi.fn() };
       viewsheetClient.runtimeId = "Viewsheet1";
-      modalService = { open: jest.fn() };
-      dropdownService = { open: jest.fn() };
+      modalService = { open: vi.fn() };
+      dropdownService = { open: vi.fn() };
       contextProvider = {};
       viewDataService = {};
-      dataTipService = { isDataTip: jest.fn() };
-      popComponentService = { isPopComponent: jest.fn() };
-      modelService = { sendModel: jest.fn() };
+      dataTipService = { isDataTip: vi.fn(), isCurrentDataTip: vi.fn(), isDataTipVisible: vi.fn(), getVSObjectId: vi.fn(), isFrozen: vi.fn(), hideDataTip: vi.fn(), dataTipName: null, dataTipY: 0, dataTipX: 0, dataTipAlpha: 1, viewerOffset: {width: 0, height: 0} };
+      popComponentService = { isPopComponent: vi.fn(), getPopComponent: vi.fn(), isCurrentPopComponent: vi.fn(), registerPopComponentChild: vi.fn(), clearPopViewerOffset: vi.fn(), getTriggerPopInfo: vi.fn(), getPopInfo: vi.fn(), getPopLocation: vi.fn(), popY: 0, popX: 0, popAlpha: 1, viewerOffset: {width: 0, height: 0}, componentRegistered: new Subject<{name: string, parent: string}>() };
+      modelService = { sendModel: vi.fn() };
       router = {
-         navigate: jest.fn(),
+         navigate: vi.fn(),
          events: new Subject<any>()
       };
       richTextService = {
-         showAnnotationDialog: jest.fn()
+         showAnnotationDialog: vi.fn()
       };
 
       TestBed.configureTestingModule({
          imports: [
-            HttpClientTestingModule
+            HttpClientTestingModule,
+            VSGauge,
          ],
-         declarations: [
-            VSGauge
-         ],
+         
          schemas: [NO_ERRORS_SCHEMA],
          providers: [
             {provide: ViewsheetClientService, useValue: viewsheetClient},
@@ -137,7 +137,7 @@ describe("VSGauge", () => {
          fixture.componentInstance.vsInfo = new ViewsheetInfo([], "/link/");
          fixture.detectChanges();
 
-         window.open = jest.fn();
+         window.open = vi.fn();
 
          const action = actions.clickAction;
          expect(action).toBeTruthy();
@@ -179,7 +179,7 @@ describe("VSGauge", () => {
          fixture.componentInstance.vsInfo = new ViewsheetInfo([], "/link/");
          fixture.detectChanges();
 
-         window.open = jest.fn();
+         window.open = vi.fn();
 
          const action = actions.clickAction;
          expect(action).toBeTruthy();

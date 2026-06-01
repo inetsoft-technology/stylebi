@@ -32,11 +32,22 @@ import { AddHighlightDialog } from "./add-highlight-dialog.component";
 import { FontInfo } from "../../common/data/format-info-model";
 import { Tool } from "../../../../../shared/util/tool";
 import { ComponentTool } from "../../common/util/component-tool";
+import { JunctionOperatorPipe } from "../condition/junction-operator.pipe";
+import { ConditionPipe } from "../condition/condition.pipe";
+import { FormsModule } from "@angular/forms";
+import { FontPane } from "../font-pane/font-pane.component";
+import { DropdownView } from "../dropdown-view/dropdown-view.component";
+import { ColorEditor } from "../color-picker/color-editor.component";
+import { LargeFormFieldComponent } from "../large-form-field/large-form-field.component";
+import { EnterSubmitDirective } from "../directive/enter-submit.directive";
+
 
 @Component({
-   selector: "highlight-pane",
-   templateUrl: "highlight-pane.component.html",
-   styleUrls: ["./highlight-pane.component.scss"]
+    selector: "highlight-pane",
+    templateUrl: "highlight-pane.component.html",
+    styleUrls: ["./highlight-pane.component.scss"],
+
+    imports: [EnterSubmitDirective, LargeFormFieldComponent, ColorEditor, DropdownView, FontPane, FormsModule, ConditionPipe, JunctionOperatorPipe]
 })
 export class HighlightPane implements OnInit {
    @Input() model: HighlightDialogModel;

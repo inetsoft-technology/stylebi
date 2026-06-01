@@ -24,15 +24,21 @@ import { FAKE_ROOT_PATH } from "../move-datasource-dialog/move-datasource-dialog
 import { AssetItem } from "../model/datasources/database/asset-item";
 import { DataModelBrowserModel } from "../data-datasource-browser/datasources-database/database-data-model-browser/data-model-browser-model";
 import { DataModelBrowserViewModel } from "../model/data-model-browser-view-model";
+import { DefaultFocusDirective } from "../../../widget/directive/default-focus.directive";
+
+import { DataModelFolderBrowserComponent } from "../data-datasource-browser/datasources-database/database-data-model-browser/data-models-browser/data-model-folder-browser.component";
+import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
 
 const DATA_MODEL_ROOT_PATH: string = "_data_model_root_";
 const ROOT_LABEL: string = "_#(js:Data Model)";
 const GET_DATA_MODEL_URI: string = "../api/data/database/dataModel/folder/browser";
 
 @Component({
-  selector: "move-data-model-dialog",
-  templateUrl: "./move-data-model-dialog.component.html",
-  styleUrls: ["../move-datasource-dialog/move-datasource-dialog.component.scss"]
+    selector: "move-data-model-dialog",
+    templateUrl: "./move-data-model-dialog.component.html",
+    styleUrls: ["../move-datasource-dialog/move-datasource-dialog.component.scss"],
+
+    imports: [ModalHeaderComponent, DataModelFolderBrowserComponent, DefaultFocusDirective]
 })
 export class MoveDataModelDialog implements OnInit {
   @Input() database: string;

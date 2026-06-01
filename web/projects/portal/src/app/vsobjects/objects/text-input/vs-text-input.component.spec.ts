@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { DebugElement, NO_ERRORS_SCHEMA } from "@angular/core";
 import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
@@ -38,6 +39,7 @@ import { PopComponentService } from "../data-tip/pop-component.service";
 import { TimerService } from "../data-tip/timer.service";
 import { VSPopComponentDirective } from "../data-tip/vs-pop-component.directive";
 import { VSTextInput } from "./vs-text-input.component";
+import { FixedDropdownDirective } from "../../../widget/fixed-dropdown/fixed-dropdown.directive";
 
 const createModel: () => VSTextInputModel = () => {
    return Object.assign({
@@ -69,23 +71,20 @@ describe("VS Text Input Component Unit Test", () => {
 
    beforeEach(waitForAsync(() => {
       const viewsheetClientService = {};
-      debounceService = { debounce: jest.fn((key, fn, delay, args) => fn(...args)) };
-      dataTipService = { isDataTip: jest.fn() };
+      debounceService = { debounce: vi.fn((key, fn, delay, args) => fn(...args)) };
+      dataTipService = { isDataTip: vi.fn() };
       const contextProvider = {};
-      firstDayOfWeekService = { getFirstDay: jest.fn() };
+      firstDayOfWeekService = { getFirstDay: vi.fn() };
       firstDayOfWeekService.getFirstDay.mockImplementation(() => observableOf({}));
       timerService = {
-         defer: jest.fn((fn) => {
+         defer: vi.fn((fn) => {
             fn();
          })
       };
 
       TestBed.configureTestingModule({
-         imports: [ ReactiveFormsModule, FormsModule, NgbModule, DropDownTestModule ],
-         declarations: [
-            VSTextInput, AppErrorMessage, VSPopComponentDirective,
-            SafeFontDirective, DefaultFocusDirective
-         ],
+         imports: [ReactiveFormsModule, FormsModule, NgbModule, DropDownTestModule, VSTextInput, AppErrorMessage, VSPopComponentDirective, FixedDropdownDirective, SafeFontDirective, DefaultFocusDirective],
+         
          schemas: [NO_ERRORS_SCHEMA],
          providers: [
             PopComponentService,
@@ -122,7 +121,7 @@ describe("VS Text Input Component Unit Test", () => {
       dateInput.dispatchEvent(new Event("input"));
       fixture.detectChanges();
 
-      let showMessageDialog = jest.spyOn(ComponentTool, "showMessageDialog");
+      let showMessageDialog = vi.spyOn(ComponentTool, "showMessageDialog");
       showMessageDialog.mockImplementation(() => Promise.resolve("ok"));
 
       expect(showMessageDialog).not.toHaveBeenCalled();
@@ -130,7 +129,7 @@ describe("VS Text Input Component Unit Test", () => {
    });
 
    //Bug #20297 text input border
-   xit("check text input border", () => { // broken test
+   it.skip("check text input border", () => { // broken test
       textInput.model.objectFormat.border = {
          bottom: "3px solid #339966", top: "0px none #dadada",
          left: "0px none #ff0000", right: "2px solid #ff0000"};

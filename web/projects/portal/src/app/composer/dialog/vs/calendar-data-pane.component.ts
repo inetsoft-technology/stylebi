@@ -22,10 +22,12 @@ import { OutputColumnRefModel } from "../../../vsobjects/model/output-column-ref
 import { TreeNodeModel } from "../../../widget/tree/tree-node-model";
 import { TreeComponent } from "../../../widget/tree/tree.component";
 import { CalendarDataPaneModel } from "../../data/vs/calendar-data-pane-model";
+import { AdditionalTableSelectionPaneComponent } from "../../../widget/dialog/additional-table-selection-pane/additional-table-selection-pane.component";
 
 @Component({
-   selector: "calendar-data-pane",
-   templateUrl: "calendar-data-pane.component.html"
+    selector: "calendar-data-pane",
+    templateUrl: "calendar-data-pane.component.html",
+    imports: [TreeComponent, AdditionalTableSelectionPaneComponent]
 })
 export class CalendarDataPane implements AfterViewInit {
    @Input() model: CalendarDataPaneModel;

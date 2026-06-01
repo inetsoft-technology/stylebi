@@ -1,30 +1,30 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <form [formGroup]="form" class="container-fluid">
   <fieldset>
     <div class="shell-form-row--field row">
       <div class="col">
         <div class="form-floating">
           <dynamic-combo-box [(value)]="model.titleValue"
-                             [origValue]="model.title" [vsId]="vsId"
-                             [editable]="true" [variables]="variableValues"
-                             (valueChange)="onValueChange($event)"
-                             data-test="legend-title">
+            [origValue]="model.title" [vsId]="vsId"
+            [editable]="true" [variables]="variableValues"
+            (valueChange)="onValueChange($event)"
+            data-test="legend-title">
           </dynamic-combo-box>
           <label>_#(Title)</label>
         </div>
@@ -32,8 +32,8 @@
       <div class="checkbox col-auto">
         <div class="form-check">
           <input type="checkbox" class="form-check-input" id="visible"
-                 [ngModelOptions]="{standalone: true}"
-               [(ngModel)]="model.visible">
+            [ngModelOptions]="{standalone: true}"
+            [(ngModel)]="model.visible">
           <label class="form-check-label" for="visible">
             _#(Visible)
           </label>
@@ -58,16 +58,6 @@
       <div class="col-auto">
         <color-editor [(color)]="model.fillColor" data-test="legend-border-color"></color-editor>
       </div>
-      <div class="checkbox col-auto">
-        <div class="form-check">
-          <input type="checkbox" class="form-check-input" id="roundCorners"
-                 [ngModelOptions]="{standalone: true}"
-                 [(ngModel)]="model.roundCorners">
-          <label class="form-check-label" for="roundCorners">
-            _#(Round Corner)
-          </label>
-        </div>
-      </div>
     </div>
   </fieldset>
   <fieldset>
@@ -77,36 +67,30 @@
         <number-stepper formControlName="symbolSize" [min]="6" [max]="50"
                         [invalid]="!form.controls['symbolSize'].valid">
         </number-stepper>
-        <label>_#(Symbol Size)</label>
-        <div *ngIf="form.controls['symbolSize']?.errors" class="shell-alert shell-alert--danger">
-          _#(viewer.viewsheet.chart.legend.symbolSize.rangeWarning)
-        </div>
-      </div>
-      <div class="checkbox col-auto" *ngIf="model.symbolRoundCornersVisible">
-        <div class="form-check">
-          <input type="checkbox" class="form-check-input" id="symbolRoundCorners"
-                 [ngModelOptions]="{standalone: true}"
-                 [(ngModel)]="model.symbolRoundCorners">
-          <label class="form-check-label" for="symbolRoundCorners">
-            _#(Round Symbol Corner)
-          </label>
-        </div>
+        <label for="symbolSize">_#(Symbol Size)</label>
+        @if (form.controls['symbolSize']?.errors) {
+          <div class="shell-alert shell-alert--danger">
+            _#(viewer.viewsheet.chart.legend.symbolSize.rangeWarning)
+          </div>
+        }
       </div>
     </div>
   </fieldset>
-  <fieldset *ngIf="model.notShowNullVisible">
-    <legend>_#(Options)</legend>
-    <div class="shell-form-row--field row">
-      <div class="checkbox col-auto">
-        <div class="form-check">
-          <input type="checkbox" class="form-check-input" id="ignoreNull"
-                 [ngModelOptions]="{standalone: true}"
-               [(ngModel)]="model.notShowNull">
-          <label class="form-check-label" for="ignoreNull">
-            _#(Ignore Null)
-          </label>
+  @if (model.notShowNullVisible) {
+    <fieldset>
+      <legend>_#(Options)</legend>
+      <div class="shell-form-row--field row">
+        <div class="checkbox col-auto">
+          <div class="form-check">
+            <input type="checkbox" class="form-check-input" id="ignoreNull"
+              [ngModelOptions]="{standalone: true}"
+              [(ngModel)]="model.notShowNull">
+            <label class="form-check-label" for="ignoreNull">
+              _#(Ignore Null)
+            </label>
+          </div>
         </div>
       </div>
-    </div>
-  </fieldset>
+    </fieldset>
+  }
 </form>

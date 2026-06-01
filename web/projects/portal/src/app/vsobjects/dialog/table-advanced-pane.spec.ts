@@ -23,6 +23,7 @@ import { of as observableOf, Subject } from "rxjs";
 import { UIContextService } from "../../common/services/ui-context.service";
 import { DropDownTestModule } from "../../common/test/test-module";
 import { TipCustomizeDialog } from "../../widget/dialog/tip-customize-dialog/tip-customize-dialog.component";
+import { FixedDropdownDirective } from "../../widget/fixed-dropdown/fixed-dropdown.directive";
 import { AlphaDropdown } from "../../widget/format/alpha-dropdown.component";
 import { LargeFormFieldComponent } from "../../widget/large-form-field/large-form-field.component";
 import { ModelService } from "../../widget/services/model.service";
@@ -30,7 +31,6 @@ import { TableAdvancedPaneModel } from "../model/table-advanced-pane-model";
 import { TipPaneModel } from "../model/tip-pane-model";
 import { TipPane } from "./graph/tip-pane.component";
 import { TableAdvancedPane } from "./table-advanced-pane.component";
-import { NumberStepperModule } from "../../widget/number-stepper/number-stepper.module";
 import { DebounceService } from "../../widget/services/debounce.service";
 
 let createModel: () => TableAdvancedPaneModel = () => {
@@ -55,7 +55,7 @@ let createModel: () => TableAdvancedPaneModel = () => {
          tipCustomizeDialogModel: {
             customRB: "DEFAULT",
             combinedTip: false,
-            combinedSupported: false,
+            lineChart: false,
             customTip: "",
             dataRefList: [],
             availableTipValues: []
@@ -69,24 +69,31 @@ describe("Table Advanced Pane Unit Test", () => {
    let advancedPane: TableAdvancedPane;
 
    beforeEach(waitForAsync(() => {
-      let modelService = { getModel: jest.fn() };
+      let modelService = { getModel: vi.fn() };
       modelService.getModel.mockImplementation(() => observableOf([]));
       let uiContextService = {
-         isVS: jest.fn(),
-         isAdhoc: jest.fn(),
-         getDefaultTab: jest.fn(),
-         setDefaultTab: jest.fn(),
-         getObjectChange: jest.fn()
+         isVS: vi.fn(),
+         isAdhoc: vi.fn(),
+         getDefaultTab: vi.fn(),
+         setDefaultTab: vi.fn(),
+         getObjectChange: vi.fn()
       };
       uiContextService.getObjectChange.mockImplementation(() => new Subject<any>().asObservable());
 
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule, DropDownTestModule, NumberStepperModule
+            FormsModule,
+            ReactiveFormsModule,
+            NgbModule,
+            DropDownTestModule,
+            TableAdvancedPane,
+            TipPane,
+            TipCustomizeDialog,
+            AlphaDropdown,
+            FixedDropdownDirective,
+            LargeFormFieldComponent,
          ],
-         declarations: [
-            TableAdvancedPane, TipPane, TipCustomizeDialog, AlphaDropdown, LargeFormFieldComponent
-         ],
+         
          providers: [
             NgbModal, DebounceService,
             {provide: ModelService, useValue: modelService},
@@ -101,7 +108,7 @@ describe("Table Advanced Pane Unit Test", () => {
       fixture.detectChanges();
    }));
 
-   it("test disable and enable status on advanced pane", (done) => {
+   it("test disable and enable status on advanced pane", () => new Promise<void>((done) => {
       let shrinkToFit: HTMLInputElement = fixture.nativeElement.querySelector(".shrinkToFit_id input[type=checkbox]");
       let enableAdhocEdit: HTMLInputElement = fixture.nativeElement.querySelector(".enableAdhoc_id input[type=checkbox]");
       let addRow: HTMLInputElement = fixture.nativeElement.querySelector(".addRow_id input[type=checkbox]");
@@ -135,6 +142,6 @@ describe("Table Advanced Pane Unit Test", () => {
 
          done();
       });
-   });
+   }));
 
 });

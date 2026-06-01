@@ -22,11 +22,26 @@ import { Observable } from "rxjs";
 import { TreeNodeModel } from "../tree/tree-node-model";
 import { TabularGrid } from "./tabular-grid";
 import { TabularGridCell } from "./tabular-grid-cell";
+import { TabularGooglePickerEditor } from "./google-picker/tabular-google-picker-editor.component";
+import { TabularAutocompleteEditor } from "./tabular-autocomplete-editor.component";
+import { TabularFileEditor } from "./tabular-file-editor.component";
+import { TabularListEditor } from "./tabular-list-editor.component";
+import { TabularRestParametersEditorComponent } from "./tabular-rest-parameters-editor.component";
+import { TabularQueryParameterEditor } from "./tabular-query-parameter-editor.component";
+import { TabularHttpParameterEditorComponent } from "./tabular-http-parameter-editor.component";
+import { TabularDateEditor } from "./tabular-date-editor.component";
+import { TabularColumnDefinitionEditor } from "./tabular-column-definition-editor.component";
+import { TabularTagsEditor } from "./tabular-tags-editor.component";
+import { TabularNumberEditor } from "./tabular-number-editor.component";
+import { TabularBooleanEditor } from "./tabular-boolean-editor.component";
+import { TabularTextEditor } from "./tabular-text-editor.component";
+import { NgTemplateOutlet } from "@angular/common";
 
 @Component({
-   selector: "tabular-view",
-   templateUrl: "tabular-view.component.html",
-   styleUrls: ["tabular-view.component.scss"]
+    selector: "tabular-view",
+    templateUrl: "tabular-view.component.html",
+    styleUrls: ["tabular-view.component.scss"],
+    imports: [NgTemplateOutlet, TabularTextEditor, TabularBooleanEditor, TabularNumberEditor, TabularTagsEditor, TabularColumnDefinitionEditor, TabularDateEditor, TabularHttpParameterEditorComponent, TabularQueryParameterEditor, TabularRestParametersEditorComponent, TabularListEditor, TabularFileEditor, TabularAutocompleteEditor, TabularGooglePickerEditor]
 })
 export class TabularViewComponent {
    @Input() browseFunction: (path: string, property: string) => Observable<TreeNodeModel>;

@@ -15,6 +15,8 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+import { AsyncPipe, NgClass, NgFor, NgIf, NgStyle } from "@angular/common";
+import { NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, NgbNavOutlet } from "@ng-bootstrap/ng-bootstrap";
 import { HttpClient } from "@angular/common/http";
 import { Component, NO_ERRORS_SCHEMA, ViewChild } from "@angular/core";
 import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
@@ -34,12 +36,13 @@ import { EditableTableComponent } from "./editable-table/editable-table.componen
 import { TaskOptionsPane } from "./options/task-options-pane.component";
 import { ParameterTable } from "./parameter-table/parameter-table.component";
 import { ScheduleTaskDialog } from "./schedule-task-dialog.component";
-import { NumberStepperModule } from "../../../widget/number-stepper/number-stepper.module";
-import { CustomSelectModule } from "../../../widget/custom-select/custom-select.module";
-
+import { NumberStepperComponent } from "../../../widget/number-stepper/number-stepper.component";
+import { CustomSelectComponent } from "../../../widget/custom-select/custom-select.component";
 @Component({
    selector: "test-app",
-   template: `<schedule-task-dialog [model]="model"></schedule-task-dialog>`
+   template: `<schedule-task-dialog [model]="model"></schedule-task-dialog>`,
+   standalone: true,
+   imports: [ScheduleTaskDialog]
 })
 class TestApp {
    @ViewChild(ScheduleTaskDialog, {static: false}) scheduleTaskDialog: ScheduleTaskDialog;
@@ -71,31 +74,40 @@ describe("Schedule Task Dialog Unit Test", () => {
    let fixture: ComponentFixture<TestApp>;
    let scheduleTaskDialog: ScheduleTaskDialog;
 
-   let httpService = { get: jest.fn(), post: jest.fn() };
+   let httpService = { get: vi.fn(), post: vi.fn() };
    let responseObservable = new BehaviorSubject(new Subject());
    httpService.get.mockImplementation(() => responseObservable);
    httpService.post.mockImplementation(() => responseObservable);
 
-   let scheduleTaskNamesService: any = { getAllTasks: jest.fn() };
+   let scheduleTaskNamesService: any = { getAllTasks: vi.fn() };
    let allTasksObservable = new BehaviorSubject([]);
    scheduleTaskNamesService.getAllTasks.mockImplementation(() => allTasksObservable);
 
    beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule, CustomSelectModule, NumberStepperModule
+            FormsModule,
+            ReactiveFormsModule,
+            NgbModule,
+            TestApp,
+            ReplaceAllPipe,
+            ScheduleTaskDialog,
+            TaskActionPane,
+            TaskConditionPane,
+            TaskOptionsPane,
+            EnterSubmitDirective,
+            ParameterTable,
+            EditableTableComponent,
+            AddParameterDialog,
          ],
-         declarations: [
-            TestApp, ReplaceAllPipe, ScheduleTaskDialog, TaskActionPane, TaskConditionPane,
-            TaskOptionsPane, EnterSubmitDirective, ParameterTable, EditableTableComponent,
-            AddParameterDialog
-         ],
+         
          providers: [
             { provide: HttpClient, useValue: httpService },
             ScheduleTaskNamesService
          ],
          schemas: [ NO_ERRORS_SCHEMA ]
       });
+      TestBed.overrideComponent(ScheduleTaskDialog, { set: { imports: [NgIf, NgFor, NgClass, NgStyle, AsyncPipe, FormsModule, ReactiveFormsModule, NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, NgbNavOutlet] } });
       TestBed.compileComponents();
 
       fixture = TestBed.createComponent(TestApp);

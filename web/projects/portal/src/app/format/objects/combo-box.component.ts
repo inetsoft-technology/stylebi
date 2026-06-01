@@ -16,12 +16,15 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, Input, Output, EventEmitter } from "@angular/core";
-import { CustomSelectOption } from "../../widget/custom-select/custom-select.component";
+import { CustomSelectOption, CustomSelectComponent } from "../../widget/custom-select/custom-select.component";
+
+import { FormsModule } from "@angular/forms";
 
 @Component({
-   selector: "combo-box",
-   templateUrl: "combo-box.component.html",
-   styleUrls: ["combo-box.component.scss"]
+    selector: "combo-box",
+    templateUrl: "combo-box.component.html",
+    styleUrls: ["combo-box.component.scss"],
+    imports: [FormsModule, CustomSelectComponent]
 })
 export class ComboBox {
    @Input() dataModel: string | null;

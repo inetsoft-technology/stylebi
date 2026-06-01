@@ -27,12 +27,17 @@ import { GeoMappingDialogModel } from "../../../data/chart/geo-mapping-dialog-mo
 import { MapFeature } from "../../../data/chart/map-feature";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { ComponentTool } from "../../../../common/util/component-tool";
-import { CustomSelectOption } from "../../../../widget/custom-select/custom-select.component";
+import { LargeFormFieldComponent } from "../../../../widget/large-form-field/large-form-field.component";
+import { FormsModule } from "@angular/forms";
+import { ModalHeaderComponent } from "../../../../widget/modal-header/modal-header.component";
+import { BlockMouseDirective } from "../../../../widget/mouse-event/block-mouse.directive";
+import { CustomSelectOption, CustomSelectComponent } from "../../../../widget/custom-select/custom-select.component";
 
 @Component({
-   selector: "geo-mapping-dialog",
-   templateUrl: "geo-mapping-dialog.component.html",
-   styleUrls: ["geo-mapping-dialog.component.scss"]
+    selector: "geo-mapping-dialog",
+    templateUrl: "geo-mapping-dialog.component.html",
+    styleUrls: ["geo-mapping-dialog.component.scss"],
+    imports: [BlockMouseDirective, ModalHeaderComponent, FormsModule, LargeFormFieldComponent, ScrollableTableDirective, CustomSelectComponent]
 })
 export class GeoMappingDialog implements OnInit {
    @Input() provider: GeoProvider;

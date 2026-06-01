@@ -33,6 +33,7 @@ import { EmailAddrDialogModel } from "./email-addr-dialog-model";
 import { EmailAddrDialog } from "./email-addr-dialog.component";
 import { EmbeddedEmailPane } from "./embedded-email-pane.component";
 import { QueryEmailPane } from "./query-email-pane.component";
+import { HttpClientTestingModule } from "@angular/common/http/testing";
 
 let createModel: () => EmailAddrDialogModel = () => {
    return {
@@ -63,20 +64,29 @@ describe("Email Addr Dialog Unit Test", () => {
    let fixture: ComponentFixture<EmailAddrDialog>;
    let emailAddrDialog: EmailAddrDialog;
 
-   let changeDetectorRef = { detectChanges: jest.fn() };
-   let modelService = { getModel: jest.fn() };
-   let currentUserService = { getPortalCurrentUser: jest.fn() };
-   let dragService = { reset: jest.fn(), put: jest.fn() };
+   let changeDetectorRef = { detectChanges: vi.fn() };
+   let modelService = { getModel: vi.fn() };
+   let currentUserService = { getPortalCurrentUser: vi.fn() };
+   let dragService = { reset: vi.fn(), put: vi.fn() };
    beforeEach(() => {
       modelService.getModel.mockImplementation(() => observableOf([]));
       currentUserService.getPortalCurrentUser.mockImplementation(() => observableOf(null));
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule
+            
+            HttpClientTestingModule,FormsModule,
+            ReactiveFormsModule,
+            NgbModule,
+            EmailAddrDialog,
+            EmbeddedEmailPane,
+            QueryEmailPane,
+            ShuffleListComponent,
+            IdentityTreeComponent,
+            TreeComponent,
+            TreeNodeComponent,
+            TreeSearchPipe,
          ],
-         declarations: [
-            EmailAddrDialog, EmbeddedEmailPane, QueryEmailPane, ShuffleListComponent, IdentityTreeComponent, TreeComponent, TreeNodeComponent, TreeSearchPipe
-         ],
+         
          providers: [{
             provide: ChangeDetectorRef, useValue: changeDetectorRef
          },

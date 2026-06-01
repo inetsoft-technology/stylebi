@@ -16,12 +16,16 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, Input } from "@angular/core";
-import { CustomSelectOption } from "../../../widget/custom-select/custom-select.component";
+import { CustomSelectOption, CustomSelectComponent } from "../../../widget/custom-select/custom-select.component";
 import { PresenterPaneModel } from "../../data/vs/presenter-pane-model";
+import { NgFor } from "@angular/common";
+import { FormsModule } from "@angular/forms";
 
 @Component({
-   selector: "presenter-pane",
-   templateUrl: "presenter-pane.component.html"
+    selector: "presenter-pane",
+    templateUrl: "presenter-pane.component.html",
+    standalone: true,
+    imports: [FormsModule, NgFor, CustomSelectComponent]
 })
 export class PresenterPane {
    @Input() model: PresenterPaneModel;

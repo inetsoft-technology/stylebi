@@ -15,18 +15,19 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { DOCUMENT } from "@angular/common";
+
 import { HttpClient, HttpHeaders, HttpParams } from "@angular/common/http";
 import {
-   Component,
-   ElementRef,
-   EventEmitter,
-   Inject,
-   Input,
-   OnInit,
-   Output,
-   TemplateRef,
-   ViewChild
+  Component,
+  ElementRef,
+  EventEmitter,
+  Inject,
+  Input,
+  OnInit,
+  Output,
+  TemplateRef,
+  ViewChild,
+  DOCUMENT
 } from "@angular/core";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { ConditionOperation } from "../../../common/data/condition/condition-operation";
@@ -51,11 +52,16 @@ import { TreeNodeModel } from "../../tree/tree-node-model";
 import { TreeComponent } from "../../tree/tree.component";
 import { AbstractTableAssembly } from "../../../composer/data/ws/abstract-table-assembly";
 import { ComponentTool } from "../../../common/util/component-tool";
-import { UntypedFormControl, UntypedFormGroup, Validators } from "@angular/forms";
+import { UntypedFormControl, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { FormValidators } from "../../../../../../shared/util/form-validators";
 import { SqlQueryDialogController } from "./sql-query-dialog-controller";
 import { WsSqlQueryController } from "../../../composer/gui/ws/editor/ws-sql-query-controller";
-import { CustomSelectOption } from "../../custom-select/custom-select.component";
+import { ApplyButtonComponent } from "../../slide-out/apply-button.component";
+import { SimpleQueryPaneComponent } from "./simple-query-pane.component";
+import { InputTrimDirective } from "../../directive/input-trim.directive";
+import { EnterSubmitDirective } from "../../directive/enter-submit.directive";
+import { ModalHeaderComponent } from "../../modal-header/modal-header.component";
+import { CustomSelectOption, CustomSelectComponent } from "../../custom-select/custom-select.component";
 
 const CHANGE_EDIT_MODE_URI: string = "../api/composer/ws/sql-query-dialog/change-edit-mode";
 const QUERY_OPERATIONS_URI = "../api/data/datasource/query/operations";
@@ -63,9 +69,10 @@ const DESTROY_RUNTIME_QUERY_URI = "../api/data/datasource/query/runtime-query/de
 const CLEAR_MODEL_URI = "../api/composer/ws/sql-query-dialog/clear";
 
 @Component({
-   selector: "sql-query-dialog",
-   templateUrl: "sql-query-dialog.component.html",
-   styleUrls: ["sql-query-dialog.component.scss"]
+    selector: "sql-query-dialog",
+    templateUrl: "sql-query-dialog.component.html",
+    styleUrls: ["sql-query-dialog.component.scss"],
+    imports: [ModalHeaderComponent, EnterSubmitDirective, FormsModule, ReactiveFormsModule, InputTrimDirective, SimpleQueryPaneComponent, DatabaseQueryComponent, ApplyButtonComponent, CustomSelectComponent]
 })
 export class SQLQueryDialog implements OnInit {
    @Input() model: SqlQueryDialogModel;

@@ -16,13 +16,16 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, Input, OnInit, OnDestroy } from "@angular/core";
-import { UntypedFormGroup, UntypedFormControl } from "@angular/forms";
+import { UntypedFormGroup, UntypedFormControl, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { IntegerEditorModel } from "../model/integer-editor-model";
 import { FormValidators } from "../../../../../shared/util/form-validators";
 
+
+import { NumberStepperComponent } from "../../widget/number-stepper/number-stepper.component";
 @Component({
-   selector: "integer-editor",
-   templateUrl: "integer-editor.component.html"
+    selector: "integer-editor",
+    templateUrl: "integer-editor.component.html",
+    imports: [FormsModule, ReactiveFormsModule, NumberStepperComponent]
 })
 export class IntegerEditor implements OnInit, OnDestroy {
    @Input() model: IntegerEditorModel;

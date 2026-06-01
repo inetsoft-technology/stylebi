@@ -17,9 +17,13 @@
  */
 import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { ComponentFixture, TestBed } from "@angular/core/testing";
+import { HttpClientTestingModule } from "@angular/common/http/testing";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { By } from "@angular/platform-browser";
 import { NgbModule } from "@ng-bootstrap/ng-bootstrap";
+import { NEVER, of as observableOf } from "rxjs";
+import { SsoHeartbeatService } from "../../../../../../shared/sso/sso-heartbeat.service";
+import { StompClientService } from "../../../common/viewsheet-client";
 import { EnterSubmitDirective } from "../../../widget/directive/enter-submit.directive";
 import { ModelService } from "../../../widget/services/model.service";
 import { SaveViewsheetDialogModel } from "../../data/vs/save-viewsheet-dialog-model";
@@ -40,22 +44,24 @@ describe("Save Viewsheet Dialog Unit Test", () => {
 
    beforeEach(() => {
       const modelService = {
-         getModel: jest.fn(),
-         sendModel: jest.fn(),
-         putModel: jest.fn()
+         getModel: vi.fn().mockReturnValue(observableOf(null)),
+         sendModel: vi.fn(),
+         putModel: vi.fn()
       };
       TestBed.configureTestingModule({
          imports: [
-            ReactiveFormsModule,
+            
+            HttpClientTestingModule,ReactiveFormsModule,
             FormsModule,
-            NgbModule
-         ],
-         declarations: [
+            NgbModule,
             SaveViewsheetDialog,
-            EnterSubmitDirective
+            EnterSubmitDirective,
          ],
+         
          providers: [
-            { provide: ModelService, useValue: modelService }
+            { provide: ModelService, useValue: modelService },
+            { provide: SsoHeartbeatService, useValue: {} },
+            { provide: StompClientService, useValue: { connect: () => NEVER } }
          ],
          schemas: [
             NO_ERRORS_SCHEMA

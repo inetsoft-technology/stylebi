@@ -29,16 +29,20 @@ import {
    QueryLinkGraphPaneComponent
 } from "./query-link-graph-pane/query-link-graph-pane.component";
 import { DataQueryModelService } from "../../data-query-model.service";
+import { TreeComponent } from "../../../../../../../widget/tree/tree.component";
+
+import { SplitPane } from "../../../../../../../widget/split-pane/split-pane.component";
 
 const DATA_SOURCE_TREE_URI = "../api/data/datasource/query/data-source-tree";
 
 @Component({
-   selector: "query-link-pane",
-   templateUrl: "./query-link-pane.component.html",
-   styleUrls: [
-      "./query-link-pane.component.scss",
-      "../../../database-physical-model/database-model-pane.scss"
-   ]
+    selector: "query-link-pane",
+    templateUrl: "./query-link-pane.component.html",
+    styleUrls: [
+        "./query-link-pane.component.scss",
+        "../../../database-physical-model/database-model-pane.scss"
+    ],
+    imports: [SplitPane, TreeComponent, QueryLinkGraphPaneComponent]
 })
 export class QueryLinkPaneComponent implements OnInit {
    @Input() queryName: string;

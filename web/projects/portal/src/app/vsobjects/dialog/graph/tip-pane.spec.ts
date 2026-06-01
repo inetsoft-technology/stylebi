@@ -31,8 +31,9 @@ import { LargeFormFieldComponent } from "../../../widget/large-form-field/large-
 import { ModelService } from "../../../widget/services/model.service";
 import { TipPaneModel } from "../../model/tip-pane-model";
 import { TipPane } from "./tip-pane.component";
-import { NumberStepperModule } from "../../../widget/number-stepper/number-stepper.module";
+import { NumberStepperComponent } from "../../../widget/number-stepper/number-stepper.component";
 import { DebounceService } from "../../../widget/services/debounce.service";
+import { FixedDropdownDirective } from "../../../widget/fixed-dropdown/fixed-dropdown.directive";
 
 let createModel: () => TipPaneModel = () => {
    return {
@@ -50,6 +51,7 @@ let createModel: () => TipPaneModel = () => {
          customRB: "DEFAULT",
          combinedTip: false,
          lineChat: false,
+         lineChart: false,
          customTip: "",
          dataRefList: [],
          combinedSupported: false,
@@ -66,25 +68,30 @@ describe("Tip Pane Unit Test", () => {
    let modelService: any;
 
    beforeEach(() => {
-      modelService = { getModel: jest.fn() };
+      modelService = { getModel: vi.fn() };
       modelService.getModel.mockImplementation(() => observableOf({}));
       let uiContextService = {
-         isVS: jest.fn(),
-         isAdhoc: jest.fn(),
-         getDefaultTab: jest.fn(),
-         setDefaultTab: jest.fn(),
-         getObjectChange: jest.fn()
+         isVS: vi.fn(),
+         isAdhoc: vi.fn(),
+         getDefaultTab: vi.fn(),
+         setDefaultTab: vi.fn(),
+         getObjectChange: vi.fn()
       };
       uiContextService.getObjectChange.mockImplementation(() => new Subject<any>().asObservable());
 
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule, DropDownTestModule, NumberStepperModule
+            FormsModule,
+            ReactiveFormsModule,
+            NgbModule,
+            DropDownTestModule,
+            TipPane,
+            TipCustomizeDialog,
+            AlphaDropdown,
+            FixedDropdownDirective,
+            LargeFormFieldComponent,
          ],
-         declarations: [
-            TipPane, TipCustomizeDialog, AlphaDropdown,
-            LargeFormFieldComponent
-         ],
+         
          providers: [
             NgbModal, DebounceService,
             {provide: ModelService, useValue: modelService},

@@ -25,6 +25,7 @@ import { DynamicComboBox } from "../../../widget/dynamic-combo-box/dynamic-combo
 import { RangePaneModel } from "../../data/vs/range-pane-model";
 import { RangePaneValueModel } from "../../data/vs/range-pane-value-model";
 import { RangePane } from "./range-pane.component";
+import { FixedDropdownDirective } from "../../../widget/fixed-dropdown/fixed-dropdown.directive";
 
 describe("Range pane Test", () => {
    const createModel: () => RangePaneModel = () => {
@@ -41,11 +42,16 @@ describe("Range pane Test", () => {
    beforeEach(() => {
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule, DropDownTestModule
+            FormsModule,
+            ReactiveFormsModule,
+            NgbModule,
+            DropDownTestModule,
+            RangePane,
+            FixedDropdownDirective,
+            ColorEditor,
+            DynamicComboBox,
          ],
-         declarations: [
-            RangePane, ColorEditor, DynamicComboBox
-         ],
+         
          providers: [
             NgbModal
          ],

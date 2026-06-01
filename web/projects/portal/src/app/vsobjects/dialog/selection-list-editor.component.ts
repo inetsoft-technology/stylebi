@@ -20,14 +20,18 @@ import { Component, Input, OnInit } from "@angular/core";
 import { XSchema } from "../../common/data/xschema";
 import { SelectionListEditorModel } from "../model/selection-list-editor-model";
 import { Tool } from "../../../../../shared/util/tool";
-import { CustomSelectOption } from "../../widget/custom-select/custom-select.component";
+import { FormsModule } from "@angular/forms";
+import { NgClass } from "@angular/common";
+import { CustomSelectOption, CustomSelectComponent } from "../../widget/custom-select/custom-select.component";
 
 const COLUMNS_URI: string = "../api/vs/selectionList/columns/";
 
 @Component({
-   selector: "selection-list-editor",
-   templateUrl: "selection-list-editor.component.html",
-   styleUrls: ["selection-list-editor.component.scss"]
+    selector: "selection-list-editor",
+    templateUrl: "selection-list-editor.component.html",
+    styleUrls: ["selection-list-editor.component.scss"],
+
+    imports: [FormsModule, NgClass, CustomSelectComponent]
 })
 export class SelectionListEditor implements OnInit {
    @Input() model: SelectionListEditorModel;

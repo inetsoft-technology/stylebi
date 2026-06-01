@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { NgbModalRef } from "@ng-bootstrap/ng-bootstrap";
 import { MessageDialog } from "../../../widget/dialog/message-dialog/message-dialog.component";
 import { ImportCSVDialogModel } from "../../data/ws/import-csv-dialog-model";
@@ -26,11 +27,11 @@ describe("Import CSV Dialog Tests", () => {
    let changeDetectorRef: any;
 
    beforeEach(() => {
-      changeDetectorRef = { detectChanges: jest.fn() };
-      let modelService: any = { getModel: jest.fn() };
-      let fileUploadService: any = { upload: jest.fn(), getObserver: jest.fn() };
-      let http: any = { put: jest.fn() };
-      modalService = { open: jest.fn() };
+      changeDetectorRef = { detectChanges: vi.fn() };
+      let modelService: any = { getModel: vi.fn() };
+      let fileUploadService: any = { upload: vi.fn(), getObserver: vi.fn() };
+      let http: any = { put: vi.fn() };
+      modalService = { open: vi.fn() };
 
       dialog = new ImportCSVDialog(modelService, fileUploadService, http, changeDetectorRef, modalService);
       let model: ImportCSVDialogModel = {

@@ -20,8 +20,9 @@ import { NgModel, FormGroup, FormsModule, ReactiveFormsModule } from "@angular/f
 import { NgbModal, NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { AlphaDropdown } from "./alpha-dropdown.component";
 import { DropDownTestModule } from "../../common/test/test-module";
-import { NumberStepperModule } from "../number-stepper/number-stepper.module";
+import { NumberStepperComponent } from "../number-stepper/number-stepper.component";
 import { DebounceService } from "../services/debounce.service";
+import { FixedDropdownDirective } from "../fixed-dropdown/fixed-dropdown.directive";
 
 describe("alpha dropdown component unit case", () => {
    let fixture: ComponentFixture<AlphaDropdown>;
@@ -29,10 +30,10 @@ describe("alpha dropdown component unit case", () => {
    let debounceService: any;
 
    beforeEach(() => {
-      debounceService = { debounce: jest.fn() };
+      debounceService = { debounce: vi.fn() };
       TestBed.configureTestingModule({
-         imports: [DropDownTestModule, ReactiveFormsModule, FormsModule, NgbModule, NumberStepperModule],
-         declarations: [AlphaDropdown],
+         imports: [DropDownTestModule, ReactiveFormsModule, FormsModule, NgbModule, AlphaDropdown, FixedDropdownDirective],
+         
          providers: [
             NgbModal,
             {

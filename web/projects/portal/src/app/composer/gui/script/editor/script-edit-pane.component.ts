@@ -35,15 +35,22 @@ import { ScriptService } from "../script.service";
 import { NotificationsComponent } from "../../../../widget/notifications/notifications.component";
 import { ScriptTreePaneModel } from "../../../data/script/script-tree-pane-model";
 import { FontService } from "../../../../widget/services/font.service";
+import { CodemirrorComponent } from "../../../../widget/codemirror/codemirror.component";
+import { NgStyle } from "@angular/common";
 
 /**
  * The worksheet pane of the worksheet composer.
  * <p>Its purpose is to contain the worksheet environment.
  */
 @Component({
-   selector: "script-edit-pane",
-   templateUrl: "script-edit-pane.component.html",
-   styleUrls: ["script-edit-pane.component.scss"],
+    selector: "script-edit-pane",
+    templateUrl: "script-edit-pane.component.html",
+    styleUrls: ["script-edit-pane.component.scss"],
+    imports: [
+        NgStyle,
+        CodemirrorComponent,
+        NotificationsComponent,
+    ]
 })
 export class ScriptEditPaneComponent implements OnInit, OnChanges {
    @Input() model: ScriptModel;

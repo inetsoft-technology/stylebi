@@ -1,46 +1,50 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <div class="popup-editor__container">
   <div class="popup-editor__button-group">
     <button class="popup-editor__button btn" title="_#(Apply)"
-            (click)="apply.emit(false)">
+      (click)="apply.emit(false)">
       <i class="submit-icon icon-size-small" aria-hidden="true"></i>
     </button>
   </div>
   <div class="container">
-    <ng-container *ngFor="let i of aggrsNum">
-      <static-line-editor *ngIf="isLineType && frameInfos[i].frame"
-                          class="row shell-form-row--field"
-                          [aggrName]="frameInfos[i].name" [(line)]="frameInfos[i].frame.line"
-                          (lineChanged)="changeLine($event, i)">
-      </static-line-editor>
-
-      <static-texture-editor *ngIf="isTextureType && frameInfos[i].frame"
-                             class="row shell-form-row--field"
-                             [aggrName]="frameInfos[i].name" [(texture)]="frameInfos[i].frame.texture"
-                             (textureChanged)="changeTexture($event, i)">
-      </static-texture-editor>
-
-      <static-shape-editor *ngIf="!isLineType && !isTextureType && frameInfos[i].frame"
-                           class="row shell-form-row--field"
-                           [aggrName]="frameInfos[i].name" [(shapeStr)]="frameInfos[i].frame.shape"
-                           (shapeChanged)="changeShape($event, i)">
-      </static-shape-editor>
-    </ng-container>
+    @for (i of aggrsNum; track i) {
+      @if (isLineType && frameInfos[i].frame) {
+        <static-line-editor
+          class="row shell-form-row--field"
+          [aggrName]="frameInfos[i].name" [(line)]="frameInfos[i].frame.line"
+          (lineChanged)="changeLine($event, i)">
+        </static-line-editor>
+      }
+      @if (isTextureType && frameInfos[i].frame) {
+        <static-texture-editor
+          class="row shell-form-row--field"
+          [aggrName]="frameInfos[i].name" [(texture)]="frameInfos[i].frame.texture"
+          (textureChanged)="changeTexture($event, i)">
+        </static-texture-editor>
+      }
+      @if (!isLineType && !isTextureType && frameInfos[i].frame) {
+        <static-shape-editor
+          class="row shell-form-row--field"
+          [aggrName]="frameInfos[i].name" [(shapeStr)]="frameInfos[i].frame.shape"
+          (shapeChanged)="changeShape($event, i)">
+        </static-shape-editor>
+      }
+    }
   </div>
 </div>

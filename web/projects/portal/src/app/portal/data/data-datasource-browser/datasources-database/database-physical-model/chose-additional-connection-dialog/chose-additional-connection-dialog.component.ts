@@ -20,7 +20,11 @@ import { HttpClient, HttpParams } from "@angular/common/http";
 import { Observable } from "rxjs";
 import { ComponentTool } from "../../../../../../common/util/component-tool";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
-import { CustomSelectOption } from "../../../../../../widget/custom-select/custom-select.component";
+import { CustomSelectOption, CustomSelectComponent } from "../../../../../../widget/custom-select/custom-select.component";
+
+import { DefaultFocusDirective } from "../../../../../../widget/directive/default-focus.directive";
+import { FormsModule } from "@angular/forms";
+import { ModalHeaderComponent } from "../../../../../../widget/modal-header/modal-header.component";
 
 const DEFAULT_CONNECTION: string = "(Default Connection)";
 const GET_DATABASE_ADDITIONAL_CONNECTIONS_URI: string = "../api/portal/data/database/additionConnections";
@@ -28,9 +32,10 @@ const EXTENDED_LOGICAL_DUPLICATE_NAME_CHECK_URI: string = "../api/data/logicalMo
 const EXTENDED_PHYSICAL_DUPLICATE_NAME_CHECK_URI: string = "../api/data/physicalModel/extended/checkDuplicate";
 
 @Component({
-  selector: "chose-additional-connection-dialog",
-  templateUrl: "./chose-additional-connection-dialog.component.html",
-  styleUrls: ["./chose-additional-connection-dialog.component.scss"]
+    selector: "chose-additional-connection-dialog",
+    templateUrl: "./chose-additional-connection-dialog.component.html",
+    styleUrls: ["./chose-additional-connection-dialog.component.scss"],
+    imports: [ModalHeaderComponent, FormsModule, DefaultFocusDirective, CustomSelectComponent]
 })
 export class ChoseAdditionalConnectionDialog implements OnInit {
   @Input() database: string;

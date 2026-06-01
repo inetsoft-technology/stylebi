@@ -38,10 +38,14 @@ import { WSAssembly } from "../../../data/ws/ws-assembly";
 import { WSVariableAssembly } from "../../../data/ws/ws-variable-assembly";
 import { WSAssemblyThumbnail } from "./ws-assembly-thumbnail";
 
+import { WSAssemblyThumbnailTitleComponent } from "./ws-assembly-thumbnail-title.component";
+import { ActionsContextmenuAnchorDirective } from "../../../../widget/fixed-dropdown/actions-contextmenu-anchor.directive";
+
 @Component({
-   selector: "variable-thumbnail",
-   templateUrl: "variable-thumbnail.component.html",
-   styleUrls: ["thumbnail-base.scss", "../jsplumb/jsplumb-shared.scss"]
+    selector: "variable-thumbnail",
+    templateUrl: "variable-thumbnail.component.html",
+    styleUrls: ["thumbnail-base.scss", "../jsplumb/jsplumb-shared.scss"],
+    imports: [ActionsContextmenuAnchorDirective, WSAssemblyThumbnailTitleComponent]
 })
 export class VariableThumbnail extends WSAssemblyThumbnail
    implements OnChanges, AfterViewInit, OnDestroy

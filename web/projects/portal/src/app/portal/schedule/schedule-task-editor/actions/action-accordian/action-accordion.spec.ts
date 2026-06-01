@@ -48,8 +48,7 @@ import { AddParameterDialog } from "../../add-parameter-dialog/add-parameter-dia
 import { ParameterTable } from "../../parameter-table/parameter-table.component";
 import { ActionAccordion } from "./action-accordion.component";
 import { ValueTypes } from "../../../../../vsobjects/model/dynamic-value-model";
-import { CustomSelectModule } from "../../../../../widget/custom-select/custom-select.module";
-
+import { CustomSelectComponent } from "../../../../../widget/custom-select/custom-select.component";
 describe("Action Accordion Unit Test", () => {
    const createVSActionModel: () => GeneralActionModel = () => {
       return {
@@ -117,16 +116,16 @@ describe("Action Accordion Unit Test", () => {
       };
    };
 
-   let ngbService = { open: jest.fn() };
-   let deObservable = { debounceTime: jest.fn() };
+   let ngbService = { open: vi.fn() };
+   let deObservable = { debounceTime: vi.fn() };
    let scheduleUsersService = {
-      init: jest.fn(),
-      getOwners: jest.fn(() => new BehaviorSubject([]) ),
-      getGroups: jest.fn(() => new BehaviorSubject([]) ),
-      getRoles: jest.fn(() => new BehaviorSubject([]) ),
-      getEmailUsers: jest.fn(() => new BehaviorSubject([]) ),
-      getEmailGroups: jest.fn(() => new BehaviorSubject([]) ),
-      getAdminName: jest.fn(() => new BehaviorSubject("admin") ),
+      init: vi.fn(),
+      getOwners: vi.fn(() => new BehaviorSubject([]) ),
+      getGroups: vi.fn(() => new BehaviorSubject([]) ),
+      getRoles: vi.fn(() => new BehaviorSubject([]) ),
+      getEmailUsers: vi.fn(() => new BehaviorSubject([]) ),
+      getEmailGroups: vi.fn(() => new BehaviorSubject([]) ),
+      getAdminName: vi.fn(() => new BehaviorSubject("admin") ),
    };
    deObservable.debounceTime.mockImplementation(() => new Subject());
 
@@ -136,17 +135,34 @@ describe("Action Accordion Unit Test", () => {
    beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule, HttpClientTestingModule, CustomSelectModule
+            FormsModule,
+            ReactiveFormsModule,
+            NgbModule,
+            HttpClientTestingModule,
+            ActionAccordion,
+            GenericSelectableList,
+            ParameterTable,
+            AddParameterDialog,
+            EnterSubmitDirective,
+            EmailAddrDialog,
+            EmbeddedEmailPane,
+            QueryEmailPane,
+            IdentityTreeComponent,
+            ShuffleListComponent,
+            AssetTreeComponent,
+            TreeComponent,
+            TreeNodeComponent,
+            TooltipDirective,
+            TreeSearchPipe,
+            VariableInputDialog,
+            VariableValueEditor,
+            VariableCollectionSelector,
+            TimeInstantValueEditorComponent,
+            TimeValueEditorComponent,
+            DateValueEditorComponent,
+            TimepickerComponent,
          ],
-         declarations: [
-            ActionAccordion, GenericSelectableList, ParameterTable,
-            AddParameterDialog, EnterSubmitDirective, EmailAddrDialog, EmbeddedEmailPane,
-            QueryEmailPane, IdentityTreeComponent, ShuffleListComponent,
-            AssetTreeComponent, TreeComponent, TreeNodeComponent, TooltipDirective,
-            TreeSearchPipe, VariableInputDialog, VariableValueEditor, VariableCollectionSelector,
-            TimeInstantValueEditorComponent, TimeValueEditorComponent, DateValueEditorComponent,
-            TimepickerComponent
-         ],
+         
          providers: [
             { provide: NgbModal, useValue: ngbService },
             { provide: Observable, useValue: deObservable },
@@ -166,7 +182,7 @@ describe("Action Accordion Unit Test", () => {
    //Bug #19603 clear all parameters
    //Bug #21202 should display correct info when asset has parameter
    it("check clear all parameters", () => {
-      jest.spyOn(ComponentTool, "showConfirmDialog").mockImplementation(() => Promise.resolve("ok"));
+      vi.spyOn(ComponentTool, "showConfirmDialog").mockImplementation(() => Promise.resolve("ok"));
       actionAccordion.parameters = [
          {name: "a", type: "string", value: {value: "a", type: ValueTypes.VALUE}, array: false},
          {name: "b", type: "string", value: {value: "b", type: ValueTypes.VALUE}, array: false}];
@@ -192,7 +208,7 @@ describe("Action Accordion Unit Test", () => {
    //Bug #19792 options for dashboard 'deliver to emails'
    //Bug #21304 should not display email browser button when set in em
    //Bug #21313 should deal with burst action
-   xit("check Deliver to Emails status", () => {
+   it.skip("check Deliver to Emails status", () => {
       let match = fixture.debugElement.query(By.css("label.match-layout-id"));
       let expand = fixture.debugElement.query(By.css("label.expand-tables-and-charts-id"));
       let from = fixture.debugElement.query(By.css("input#from")).nativeElement;
@@ -236,6 +252,8 @@ describe("Action Accordion Unit Test", () => {
       let underHighlight = fixture.nativeElement.querySelector(
          "input[name=underHighlightCondition]");
       underHighlight.click();
+      underHighlight.dispatchEvent(new Event("change"));
+      actionAccordion.action.highlightsSelected = true;
       fixture.detectChanges();
 
       let highlightCheck = fixture.nativeElement.querySelector(

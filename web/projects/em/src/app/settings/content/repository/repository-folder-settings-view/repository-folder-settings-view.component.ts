@@ -24,20 +24,27 @@ import {
    Output,
    SimpleChanges
 } from "@angular/core";
-import { UntypedFormBuilder, UntypedFormGroup, Validators } from "@angular/forms";
+import { UntypedFormBuilder, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { MatDialog } from "@angular/material/dialog";
-import { MatTabChangeEvent } from "@angular/material/tabs";
+import { MatTabChangeEvent, MatTabGroup, MatTab, MatTabContent } from "@angular/material/tabs";
 import { Subject } from "rxjs";
 import { takeUntil } from "rxjs/operators";
 import { FormValidators } from "../../../../../../../shared/util/form-validators";
 import { Tool } from "../../../../../../../shared/util/tool";
 import { RepositoryFolderSettingsModel } from "../repository-folder-settings-page/repository-folder-settings.model";
 import { COPY_PASTE_CONTEXT_REPOSITORY } from "../../../security/resource-permission/copy-paste-context";
+import { ResourcePermissionComponent } from "../../../security/resource-permission/resource-permission.component";
+import { MatInput } from "@angular/material/input";
+import { MatFormField, MatLabel, MatError } from "@angular/material/form-field";
+import { MatCard, MatCardContent } from "@angular/material/card";
+import { EditorPanelComponent } from "../../../../common/util/editor-panel/editor-panel.component";
+
 
 @Component({
-   selector: "em-repository-folder-settings-view",
-   templateUrl: "./repository-folder-settings-view.component.html",
-   styleUrls: ["./repository-folder-settings-view.component.scss"]
+    selector: "em-repository-folder-settings-view",
+    templateUrl: "./repository-folder-settings-view.component.html",
+    styleUrls: ["./repository-folder-settings-view.component.scss"],
+    imports: [EditorPanelComponent, MatTabGroup, MatTab, MatTabContent, MatCard, MatCardContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatInput, MatError, ResourcePermissionComponent]
 })
 export class RepositoryFolderSettingsViewComponent implements OnChanges, OnDestroy {
    @Input() model: RepositoryFolderSettingsModel;

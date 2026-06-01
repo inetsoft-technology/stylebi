@@ -15,10 +15,10 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import {HttpClient, HttpParams} from "@angular/common/http";
+import { HttpClient, HttpParams } from "@angular/common/http";
 import {AfterViewInit, Component, ElementRef, NgZone, OnDestroy, OnInit, Renderer2, ViewChild} from "@angular/core";
-import {ActivatedRoute, ParamMap, ResolveStart, Router} from "@angular/router";
-import {NgbModal, NgbPopover} from "@ng-bootstrap/ng-bootstrap";
+import { ActivatedRoute, ParamMap, ResolveStart, Router, RouterLink } from "@angular/router";
+import { NgbModal, NgbPopover, NgbTypeahead, NgbDropdown, NgbDropdownToggle, NgbDropdownMenu } from "@ng-bootstrap/ng-bootstrap";
 import {Observable, of, Subscription} from "rxjs";
 import {catchError, debounceTime, distinctUntilChanged, map, switchMap} from "rxjs/operators";
 import {AssetType} from "../../../../../../shared/data/asset-type";
@@ -58,6 +58,8 @@ import {AssetEntry} from "../../../../../../shared/data/asset-entry";
 import {SelectedDataSourcesRequest} from "../commands/selected-datasources-request";
 import {AssetUtil} from "../../../binding/util/asset-util";
 import {MultiObjectSelectList} from "../../../common/util/multi-object-select-list";
+import { FormsModule } from "@angular/forms";
+import { NgClass } from "@angular/common";
 
 const CREATE_QUERY_URI = "/events/composer/ws/query/create";
 const DATASOURCES_URI: string = "../api/data/datasources";
@@ -73,10 +75,11 @@ const DATASOURCES_LIST_URI: string = "../api/data/dataSources/list";
 const DATASOURCE_STATUSES_URI  = DATASOURCES_URI + "/statuses";
 
 @Component({
-   selector: "p-datasource-browser",
-   templateUrl: "data-datasource-browser.component.html",
-   styleUrls: ["data-datasource-browser.component.scss"],
-   providers: [ViewsheetClientService]
+    selector: "p-datasource-browser",
+    templateUrl: "data-datasource-browser.component.html",
+    styleUrls: ["data-datasource-browser.component.scss"],
+    providers: [ViewsheetClientService],
+    imports: [FormsModule, NgbTypeahead, NgClass, NgbDropdown, NgbDropdownToggle, NgbDropdownMenu, RouterLink, DataNotificationsComponent]
 })
 export class DataDatasourceBrowserComponent extends CommandProcessor implements AfterViewInit, OnInit, OnDestroy {
    @ViewChild("dataNotifications") dataNotifications: DataNotificationsComponent;
@@ -89,9 +92,6 @@ export class DataDatasourceBrowserComponent extends CommandProcessor implements 
    newVpmEnabled = false;
    currentFolderPathString: string = "";
    currentFolderScope: string = "";
-   currentFolderChain: DataSourceInfo[] = [];
-   currentFolderDetails: DataSourceInfo = null;
-   currentFolderIsRoot: boolean = true;
    currentSearchQuery: string = "";
    folders: DataSourceInfo[] = [];
    physicalTablePermission: boolean;
@@ -99,11 +99,11 @@ export class DataDatasourceBrowserComponent extends CommandProcessor implements 
    searchQuery: string = "";
    searchAssets: DataSourceInfo[] = [];
    searchView: boolean = false;
+   selectedItems: DataSourceInfo[] = [];
    selectedFile: DataSourceInfo = null;
+   selectionOn: boolean = false;
    isdisableAction: boolean = true;
    updatingStatus = false;
-   private pendingStatusRefreshPath: string = null;
-   private autoRefreshedStatusPaths = new Set<string>();
    private composedDashboard = false;
    private requests = new Subscription();
    private attemptingConnectionStatus: string = "_#(js:data.datasources.attemptingToConnectToDataSource)";
@@ -152,6 +152,20 @@ export class DataDatasourceBrowserComponent extends CommandProcessor implements 
       };
    }
    /**
+    * Get tooltip string for the toggle selection button.
+    * @returns {string} the tooltip string
+    */
+   get toggleSelectTooltip(): string {
+
+      if(this.selectionOn) {
+         return "_#(js:data.datasets.selectOff)";
+      }
+      else {
+         return "_#(js:data.datasets.selectOn)";
+      }
+   }
+
+   /**
     * Get the assets to display in the folder browser view.
     * @returns {WorksheetBrowserInfo[]}  the assets to display
     */
@@ -161,37 +175,8 @@ export class DataDatasourceBrowserComponent extends CommandProcessor implements 
    }
 
    get moveDisable(): boolean {
-      return this.selectedAssets.length === 0 || this.isdisableAction
+      return !this.selectedItems || this.selectedItems.length === 0 || this.isdisableAction
          || !this.isSelectionDeletable() || !this.isSelectionEditable();
-   }
-
-   get deleteDisable(): boolean {
-      return this.selectedAssets.length === 0 || !this.isSelectionDeletable();
-   }
-
-   get selectedAssets(): DataSourceInfo[] {
-      return this.multiObjectSelectList.getSelectedObjects();
-   }
-
-   get currentFolderInfo(): DataSourceInfo {
-      return this.currentFolderDetails || (this.currentFolderChain?.length ?
-         this.currentFolderChain[this.currentFolderChain.length - 1] : null);
-   }
-
-   get currentFolderActionsVisible(): boolean {
-      return !this.currentFolderIsRoot && (!!this.currentFolderPathString || !!this.currentFolderChain?.length);
-   }
-
-   get currentFolderRenameDisabled(): boolean {
-      return !this.currentFolderInfo || !(this.currentFolderInfo.editable && this.currentFolderInfo.deletable);
-   }
-
-   get currentFolderMoveDisabled(): boolean {
-      return this.currentFolderRenameDisabled;
-   }
-
-   get currentFolderDeleteDisabled(): boolean {
-      return !this.currentFolderInfo?.deletable;
    }
 
    ngOnInit(): void {
@@ -209,7 +194,7 @@ export class DataDatasourceBrowserComponent extends CommandProcessor implements 
              this.refreshAllData(path);
 
              if(this.currentFolderPathString != path) {
-                this.multiObjectSelectList.clear();
+                this.selectedItems = [];
              }
           });
 
@@ -219,19 +204,6 @@ export class DataDatasourceBrowserComponent extends CommandProcessor implements 
          .subscribe(() => this.refreshAllData(this.currentFolderPathString)));
       this.subscriptions.add(this.datasourceService.getPhysicalTablePermission()
          .subscribe(hasPermison => this.physicalTablePermission = hasPermison));
-
-      this.subscriptions.add(this.datasourceService.refreshFolderStatusesRequested
-         .subscribe((path) => {
-            const normalizedPath = this.normalizeFolderPath(path);
-
-            if(this.currentFolderPathString === normalizedPath) {
-               this.loadDataSourceStatus();
-            }
-            else {
-               this.pendingStatusRefreshPath = normalizedPath;
-               this.refreshAllData(normalizedPath);
-            }
-         }));
 
       this.subscriptions.add(this.router.events.subscribe(e => {
          if(e instanceof ResolveStart) {
@@ -256,7 +228,7 @@ export class DataDatasourceBrowserComponent extends CommandProcessor implements 
       if(this.isDataSourceFolder(datasource)) {
 
          if(datasource.type.name === AssetType.DATA_SOURCE_FOLDER) {
-         this.multiObjectSelectList.clear();
+            this.selectedItems = [];
          }
 
          this.datasourceService.changeFolder(datasource.path);
@@ -297,36 +269,20 @@ export class DataDatasourceBrowserComponent extends CommandProcessor implements 
          params: !!path ? new HttpParams().set("path", path) : null
       })
          .subscribe(model => {
-            const normalizedPath = this.normalizeFolderPath(path);
             this.newDatasourceEnabled = model.newDatasourceEnabled;
             this.newVpmEnabled = model.newVpmEnabled;
-            this.currentFolderChain = model.currentFolder || [];
-            this.currentFolderIsRoot = !!model.root;
             this.datasources = this.sortDataSources(model.dataSourceList, this.sortOptions);
             this.multiObjectSelectList.setObjectsKeepSelection(this.datasources);
             this.updateSelectedItems(this.datasources);
-            const missingStatuses = this.datasources.some((ds) =>
-               !this.isDataSourceFolder(ds) && !ds.statusMessage);
-            const shouldAutoRefreshStatuses = missingStatuses &&
-               !this.autoRefreshedStatusPaths.has(normalizedPath);
-
-            if(shouldAutoRefreshStatuses) {
-               this.autoRefreshedStatusPaths.add(normalizedPath);
-            }
-
-            this.fetchDataSourceStatuses(this.datasources, shouldAutoRefreshStatuses);
-            this.currentFolderPathString = normalizedPath;
-            this.loadCurrentFolderDetails();
-
-            if(this.pendingStatusRefreshPath === this.currentFolderPathString) {
-               this.pendingStatusRefreshPath = null;
-               this.loadDataSourceStatus();
-            }
+            this.fetchDataSourceStatuses(this.datasources, false);
+            this.currentFolderPathString = path;
          });
    }
 
    public loadDataSourceStatus() {
-      this.fetchDataSourceStatuses(this.datasources, true);
+      // in selection mode, load only the selected data sources
+      this.fetchDataSourceStatuses(
+         this.selectionOn ? this.selectedItems : this.datasources, true);
    }
 
    private fetchDataSourceStatuses(datasources: DataSourceInfo[], updateStatus: boolean): void {
@@ -428,47 +384,6 @@ export class DataDatasourceBrowserComponent extends CommandProcessor implements 
       return {path: parentPath, scope: 0};
    }
 
-   private normalizeFolderPath(path: string): string {
-      return !path || path === "/" ? "" : path;
-   }
-
-   private loadCurrentFolderDetails(): void {
-      if(this.currentFolderIsRoot || !this.currentFolderPathString) {
-         this.currentFolderDetails = null;
-         return;
-      }
-
-      this.httpClient.get<DataSourceInfo>(
-         DATASOURCE_FOLDER_URI + "/" + Tool.encodeURIComponentExceptSlash(this.currentFolderPathString)
-      ).subscribe(
-         (folder) => this.currentFolderDetails = folder,
-         () => this.currentFolderDetails = null
-      );
-   }
-
-   private withCurrentFolderDetails(action: (folder: DataSourceInfo) => void): void {
-      const fallbackFolder = this.currentFolderInfo;
-
-      if(this.currentFolderPathString) {
-         this.httpClient.get<DataSourceInfo>(
-            DATASOURCE_FOLDER_URI + "/" + Tool.encodeURIComponentExceptSlash(this.currentFolderPathString)
-         ).subscribe(
-            (folder) => {
-               this.currentFolderDetails = folder;
-               action(folder);
-            },
-            () => {
-               if(!!fallbackFolder) {
-                  action(fallbackFolder);
-               }
-            }
-         );
-      }
-      else if(!!fallbackFolder) {
-         action(fallbackFolder);
-      }
-   }
-
    /**
     * Update current sort options and sort view.
     * @param key  the key to sort on
@@ -527,16 +442,16 @@ export class DataDatasourceBrowserComponent extends CommandProcessor implements 
     */
    getDatasourceStatusIcon(datasource: DataSourceInfo): string {
       if(datasource.statusMessage === this.attemptingConnectionStatus) {
-         return "help-question-mark-icon datasource-status-icon datasource-status-icon--warning";
+         return "help-question-mark-icon text-warning";
       }
       else if(this.isDataSourceFolder(datasource) || !datasource.statusMessage) {
          return "";
       }
       else if(!datasource.connected) {
-         return "alert-circle-icon datasource-status-icon datasource-status-icon--danger";
+         return "alert-circle-icon text-danger";
       }
       else {
-         return "submit-icon datasource-status-icon datasource-status-icon--success";
+         return "submit-icon text-success";
       }
    }
 
@@ -678,14 +593,6 @@ export class DataDatasourceBrowserComponent extends CommandProcessor implements 
          });
    }
 
-   renameCurrentFolder(): void {
-      if(this.currentFolderRenameDisabled) {
-         return;
-      }
-
-      this.withCurrentFolderDetails((folder) => this.renameFolder(folder));
-   }
-
    moveDataSource(datasource: DataSourceInfo): void {
       if(!(datasource.editable && datasource.deletable)) {
          return;
@@ -701,12 +608,23 @@ export class DataDatasourceBrowserComponent extends CommandProcessor implements 
          });
    }
 
-   moveCurrentFolder(): void {
-      if(this.currentFolderMoveDisabled) {
-         return;
+   moveSelected(): void {
+      for(let i = 0; i < this.selectedItems.length; i++) {
+         let ds = this.selectedItems[i];
+
+         if(!(ds.editable && ds.deletable)) {
+            return;
+         }
       }
 
-      this.withCurrentFolderDetails((folder) => this.moveDataSource(folder));
+      this.datasourceService.moveSelected(this.selectedItems, this.currentFolderPathString, () => {
+            this.refreshAllData(this.currentFolderPathString);
+            this.datasourceService.refreshTree();
+            this.selectedItems = [];
+         },
+         (error) => {
+            this.dataNotifications.notifications.danger(error.error.message);
+         });
    }
 
    /**
@@ -780,16 +698,6 @@ export class DataDatasourceBrowserComponent extends CommandProcessor implements 
          this.datasourceService.deleteDataSourceByInfo(datasource,
              (type: string, message: string) => this.handleResponseDatasource(type, message, index));
       }
-   }
-
-   deleteCurrentFolder(): void {
-      if(this.currentFolderDeleteDisabled) {
-         return;
-      }
-
-      this.withCurrentFolderDetails((folder) =>
-         this.datasourceService.deleteDataSourceFolder(folder,
-            (type: string, message: string) => this.handleResponse(type, message)));
    }
 
    handleResponse(type: string, message: string): void {
@@ -900,7 +808,7 @@ export class DataDatasourceBrowserComponent extends CommandProcessor implements 
    }
 
    dragAsset(event: DragEvent, asset: DataSourceInfo) {
-      let selectedObjects = this.selectedAssets;
+      let selectedObjects = this.multiObjectSelectList.getSelectedObjects();
       let dragAssets = selectedObjects.includes(asset) ? selectedObjects : [ asset ];
       this.dragService.put("dragDataSources", JSON.stringify(dragAssets));
 
@@ -1006,7 +914,15 @@ export class DataDatasourceBrowserComponent extends CommandProcessor implements 
    }
 
    updateAssetSelection(datasource: DataSourceInfo, event: MouseEvent) {
-      this.multiObjectSelectList.select(datasource);
+      this.multiObjectSelectList.selectWithEvent(datasource, event);
+   }
+
+   /**
+    * Turn selection state on or off.
+    */
+   toggleSelectionState(): void {
+      this.selectionOn = !this.selectionOn;
+      this.selectedItems=[];
    }
 
    /**
@@ -1014,7 +930,7 @@ export class DataDatasourceBrowserComponent extends CommandProcessor implements 
     * @returns {boolean} true if the deletion toolbar icon should be enabled
     */
    isSelectionDeletable(): boolean {
-      return !this.selectedAssets.some(item => (!item.deletable));
+      return !this.selectedItems.some(item => (!item.deletable));
    }
 
    /**
@@ -1022,11 +938,27 @@ export class DataDatasourceBrowserComponent extends CommandProcessor implements 
     * @returns {boolean} true has edit permission on all items in the current selection
     */
    isSelectionEditable(): boolean {
-      return !this.selectedAssets.some(item => (!item.editable));
+      return !this.selectedItems.some(item => (!item.editable));
+   }
+
+   /**
+    * Update the selected state of an asset item.
+    * @param item    the asset item being updated
+    */
+   updateSelection(item: DataSourceInfo): void {
+      const index: number = this.selectedItems.indexOf(item);
+      this.disableAction();
+
+      if(index !== -1) {
+         this.selectedItems.splice(index, 1);
+      }
+      else {
+         this.selectedItems.push(item);
+      }
    }
 
    deleteSelected(): void {
-      const request = this.selectedAssets.reduce<SelectedDataSourcesRequest>((previous, current) => {
+      const request = this.selectedItems.reduce<SelectedDataSourcesRequest>((previous, current) => {
            const item = { name: current.name, path: current.path };
 
            if(current.type.name === AssetType.DATA_SOURCE_FOLDER) {
@@ -1064,7 +996,29 @@ export class DataDatasourceBrowserComponent extends CommandProcessor implements 
 
    deleteSelected0(request: SelectedDataSourcesRequest): void {
       this.httpClient.post(DATASOURCES_URI+"/deleteDataSources", request).subscribe();
-      this.multiObjectSelectList.clear();
+      this.selectedItems=[];
+   }
+
+   /**
+    * Check if select all should be checked.
+    * @returns {boolean}   true if there is at least one item and all items are selected.
+    */
+   get selectAllChecked(): boolean {
+      return this.selectedItems.length > 0 &&
+         this.viewAssets.every(item => this.selectedItems.indexOf(item) !== -1);
+   }
+
+   /**
+    * Change state of select all.
+    * @param checked the new state of select all
+    */
+   selectAllChanged(checked: boolean): void {
+      this.disableAction();
+      this.selectedItems = [];
+
+      if(checked) {
+         this.selectedItems.push(...this.viewAssets);
+      }
    }
 
    public getDateLabel(dateNumber: number, dateFormat): string {
@@ -1072,24 +1026,12 @@ export class DataDatasourceBrowserComponent extends CommandProcessor implements 
    }
 
    private updateSelectedItems(newDataSources: DataSourceInfo[]) {
-      const selectedAssets = this.selectedAssets;
-
-      if(selectedAssets.length == 0) {
+      if(!this.selectedItems || this.selectedItems.length == 0) {
          return;
       }
 
-      const nextSelection = selectedAssets
+      this.selectedItems = this.selectedItems
          .map(ds => newDataSources.find(newDs => newDs.path === ds.path))
          .filter(ds => !!ds);
-      this.multiObjectSelectList.setObjects(newDataSources);
-
-      nextSelection.forEach((datasource, index) => {
-         if(index === 0) {
-            this.multiObjectSelectList.select(datasource);
-         }
-         else {
-            this.multiObjectSelectList.ctrlSelect(datasource);
-         }
-      });
    }
 }

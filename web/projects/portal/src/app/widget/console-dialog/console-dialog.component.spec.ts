@@ -15,9 +15,11 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { HttpClientModule } from "@angular/common/http";
+
+import { HttpClientTestingModule } from "@angular/common/http/testing";
 import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
+import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { ModelService } from "../services/model.service";
 import { DialogButtonsDirective } from "../standard-dialog/dialog-buttons.directive";
 import { DialogContentDirective } from "../standard-dialog/dialog-content.directive";
@@ -32,13 +34,29 @@ describe("ConsoleDialogComponent", () => {
    beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
-            HttpClientModule
+            // Use HttpClientTestingModule (instead of HttpClientModule) so unmocked
+            // HTTP requests don't try to hit the network; otherwise their failure
+            // callbacks queue dialog opens that NG0205 after the fixture is destroyed.
+            HttpClientTestingModule,
+            ConsoleDialogComponent,
+            StandardDialogComponent,
+            DialogContentDirective,
+            DialogButtonsDirective,
          ],
-         declarations: [ConsoleDialogComponent, StandardDialogComponent,
-            DialogContentDirective, DialogButtonsDirective],
          providers: [
+            { provide: ModelService },
             {
-               provide: ModelService
+               // Stub NgbModal so any error dialog opened from a late HTTP error
+               // (after the fixture is destroyed) is a no-op instead of NG0205.
+               provide: NgbModal,
+               useValue: {
+                  open: () => ({
+                     componentInstance: {},
+                     result: new Promise<any>(() => {}),
+                     close: () => {},
+                     dismiss: () => {}
+                  })
+               }
             }
          ],
          schemas: [NO_ERRORS_SCHEMA]

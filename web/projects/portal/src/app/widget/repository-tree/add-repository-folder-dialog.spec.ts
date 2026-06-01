@@ -32,11 +32,11 @@ import { AddRepositoryFolderDialog } from "./add-repository-folder-dialog.compon
 
 describe("Add Repository Folder  Dialog Unit Test", () => {
 
-   let ngbService = { open: jest.fn() };
+   let ngbService = { open: vi.fn() };
    let modelService = {
-      getModel: jest.fn(() => observableOf({})),
-      putModel: jest.fn(() => observableOf(new HttpResponse({body: null}))),
-      sendModel: jest.fn(() => observableOf(new HttpResponse({body: null})))
+      getModel: vi.fn(() => observableOf({})),
+      putModel: vi.fn(() => observableOf(new HttpResponse({body: null}))),
+      sendModel: vi.fn(() => observableOf(new HttpResponse({body: null})))
    };
 
    let fixture: ComponentFixture<AddRepositoryFolderDialog>;
@@ -45,12 +45,18 @@ describe("Add Repository Folder  Dialog Unit Test", () => {
    beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule, HttpClientTestingModule
+            FormsModule,
+            ReactiveFormsModule,
+            NgbModule,
+            HttpClientTestingModule,
+            AddRepositoryFolderDialog,
+            StandardDialogComponent,
+            EnterSubmitDirective,
+            DialogContentDirective,
+            DialogButtonsDirective,
+            ModalHeaderComponent,
          ],
-         declarations: [
-            AddRepositoryFolderDialog, StandardDialogComponent,
-            EnterSubmitDirective, DialogContentDirective, DialogButtonsDirective, ModalHeaderComponent
-         ],
+         
          providers: [
             {
                provide: NgbModal, useValue: ngbService

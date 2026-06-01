@@ -20,20 +20,24 @@ import { Tool } from "../../../../../shared/util/tool";
 import { ScaleService } from "../../widget/services/scale/scale-service";
 import { ChartRegion } from "../model/chart-region";
 import { ChartTool } from "../model/chart-tool";
-import { Legend, } from "../model/legend";
+import { Legend } from "../model/legend";
 import { ChartService } from "../services/chart.service";
 import { ChartObjectAreaBase } from "./chart-object-area-base";
 import { TooltipInfo } from "../model/tooltip-info";
+import { ChartImageDirective } from "./chart-image.directive";
+import { OutOfZoneDirective } from "../../widget/directive/out-of-zone.directive";
+
 
 @Component({
-   selector: "chart-legend-area",
-   templateUrl: "chart-legend-area.component.html",
-   styleUrls: ["chart-legend-area.component.scss"],
-   providers: [{
-      provide: ChartObjectAreaBase,
-      useExisting: ChartLegendArea
-   }],
-   changeDetection: ChangeDetectionStrategy.OnPush
+    selector: "chart-legend-area",
+    templateUrl: "chart-legend-area.component.html",
+    styleUrls: ["chart-legend-area.component.scss"],
+    providers: [{
+            provide: ChartObjectAreaBase,
+            useExisting: ChartLegendArea
+        }],
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    imports: [OutOfZoneDirective, ChartImageDirective]
 })
 export class ChartLegendArea extends ChartObjectAreaBase<Legend> {
    @Input() maxHeight: number;

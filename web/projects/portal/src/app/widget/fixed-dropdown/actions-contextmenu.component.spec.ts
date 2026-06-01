@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { Component } from "@angular/core";
 import { TestBed } from "@angular/core/testing";
 import { By } from "@angular/platform-browser";
@@ -86,7 +87,9 @@ const invisibleActions = [
    ])];
 
 @Component({
+   standalone: true,
    selector: "test-app",
+   imports: [ActionsContextmenuComponent],
    template: `<actions-contextmenu [actions]="actions"></actions-contextmenu>`
 })
 class TestApp {
@@ -96,7 +99,7 @@ class TestApp {
 describe("Actions Contextmenu Component Tests", () => {
    beforeEach(() => {
       TestBed.configureTestingModule({
-         declarations: [TestApp, ActionsContextmenuComponent],
+         imports: [TestApp, ActionsContextmenuComponent],
       }).compileComponents();
    });
 

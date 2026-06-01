@@ -22,6 +22,14 @@ import { ScheduleActionModel } from "../../../../../../shared/schedule/model/sch
 import { TaskActionPaneModel } from "../../../../../../shared/schedule/model/task-action-pane-model";
 import { BackupActionModel } from "../../../../../../shared/schedule/model/backup-action-model";
 import { VSBookmarkInfoModel } from "../../../../../../portal/src/app/vsobjects/model/vs-bookmark-info-model";
+import { BatchActionEditorComponent } from "./batch-action-editor/batch-action-editor.component";
+import { BackupActionEditorComponent } from "./backup-action-editor/backup-action-editor.component";
+import { ViewsheetActionEditorComponent } from "./viewsheet-action-editor/viewsheet-action-editor.component";
+import { MatOption } from "@angular/material/core";
+
+import { MatSelect } from "@angular/material/select";
+import { MatFormField, MatLabel } from "@angular/material/form-field";
+import { MatCard, MatCardContent } from "@angular/material/card";
 
 export interface TaskActionChanges {
    valid: boolean;
@@ -29,9 +37,10 @@ export interface TaskActionChanges {
 }
 
 @Component({
-   selector: "em-schedule-task-action-pane",
-   templateUrl: "./task-action-pane.component.html",
-   styleUrls: ["./task-action-pane.component.scss"]
+    selector: "em-schedule-task-action-pane",
+    templateUrl: "./task-action-pane.component.html",
+    styleUrls: ["./task-action-pane.component.scss"],
+    imports: [MatCard, MatCardContent, MatFormField, MatLabel, MatSelect, MatOption, ViewsheetActionEditorComponent, BackupActionEditorComponent, BatchActionEditorComponent]
 })
 export class TaskActionPaneComponent {
    @Output() modelChanged = new EventEmitter<TaskActionChanges>();

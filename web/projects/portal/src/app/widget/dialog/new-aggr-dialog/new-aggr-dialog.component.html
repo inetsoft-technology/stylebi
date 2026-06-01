@@ -1,77 +1,84 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <!-- Modal Header -->
 <modal-header [title]="'_#(Aggregate)'"
-              (onCancel)="cancelChanges()"
-              [cshid]="'ViewsheetCalcAggregate'">
+  (onCancel)="cancelChanges()"
+  [cshid]="'ViewsheetCalcAggregate'">
 </modal-header>
 <!-- Modal Body -->
-<div class="modal-body" *ngIf="model && form">
-  <form [formGroup]="form" class="form-horizontal col-offset-1">
-    <div class="row shell-form-row shell-form-group new-aggr-dialog__row">
-      <label for="field" class="col-2">_#(Field):</label>
-      <div class="col-sm-6 new-aggr-dialog__control-col"
-           [ngClass]="{ 'has-error' : !form.controls['field'].valid}">
-        <custom-select id="field"
+@if (model && form) {
+  <div class="modal-body">
+    <form [formGroup]="form" class="form-horizontal col-offset-1">
+      <div class="row shell-form-row shell-form-group new-aggr-dialog__row">
+        <label for="field" class="col-2">_#(Field):</label>
+        <div class="col-sm-6 new-aggr-dialog__control-col"  [ngClass]="{ 'has-error' : !form.controls['field'].valid}">
+          <custom-select id="field"
                        formControlName="field"
                        [options]="fieldSelectOptions"
                        [(ngModel)]="model.field"
                        (selectionChange)="fieldChanged($event)">
         </custom-select>
-        <div *ngIf="form.controls['field'].errors && form.controls['field'].errors['required']" class="shell-alert shell-alert--danger">_#(field.required)</div>
+          @if (form.controls['field'].errors && form.controls['field'].errors['required']) {
+            <div class="shell-alert shell-alert--danger">_#(field.required)</div>
+          }
+        </div>
       </div>
-    </div>
-    <div class="row shell-form-row shell-form-group new-aggr-dialog__row">
-      <label for="aggregate" class="col-2">_#(Aggregate):</label>
-      <div class="col-sm-6 new-aggr-dialog__control-col">
-        <custom-select id="aggregate"
+      <div class="row shell-form-row shell-form-group new-aggr-dialog__row">
+        <label for="aggregate" class="col-2">_#(Aggregate):</label>
+        <div class="col-sm-6 new-aggr-dialog__control-col">
+          <custom-select id="aggregate"
                        [ngModelOptions]="{standalone:true}"
                        [options]="aggregateSelectOptions"
                        [(ngModel)]="model.aggregate"
                        (selectionChange)="changeWithCol($event)">
         </custom-select>
+        </div>
       </div>
-    </div>
-    <div class="row shell-form-row shell-form-group new-aggr-dialog__row">
-      <label for="with" class="col-2">_#(With)</label>
-      <div class="col-sm-6 new-aggr-dialog__control-col">
-        <custom-select id="with"
+      <div class="row shell-form-row shell-form-group new-aggr-dialog__row">
+        <label for="with" class="col-2">_#(With)</label>
+        <div class="col-sm-6 new-aggr-dialog__control-col">
+          <custom-select id="with"
                        [ngModelOptions]="{standalone:true}"
                        [options]="fieldSelectOptions"
                        [disabled]="!isWithFormula()"
                        [(ngModel)]="model.with">
         </custom-select>
+        </div>
       </div>
-    </div>
-    <div class="row shell-form-row shell-form-group new-aggr-dialog__row">
-      <label for="np" class="col-2">{{getNPLabel()}}</label>
-      <div class="col-sm-6 new-aggr-dialog__control-col">
-        <input id="np" type="text" class="form-control" [ngModelOptions]="{standalone:true}" [disabled]="!hasN()" [(ngModel)]="nStr">
+      <div class="row shell-form-row shell-form-group new-aggr-dialog__row">
+        <label for="np" class="col-2">{{getNPLabel()}}</label>
+        <div class="col-sm-6 new-aggr-dialog__control-col">
+          <input id="np" type="text" class="form-control" [ngModelOptions]="{standalone:true}" [disabled]="!hasN()" [(ngModel)]="nStr">
+        </div>
       </div>
-    </div>
-    <div *ngIf="hasN() && !isNValid()" class="shell-alert shell-alert--danger">
-      _#(table.formula.parameterError)
-    </div>
-  </form>
-</div>
+      @if (hasN() && !isNValid()) {
+        <div class="shell-alert shell-alert--danger">
+          _#(table.formula.parameterError)
+        </div>
+      }
+    </form>
+  </div>
+}
 
 <!-- Modal Footer -->
-<div class="modal-footer" *ngIf="model && form">
-  <button type="button" class="btn btn-primary" (click)="saveChanges()" [disabled]="!form.valid">_#(OK)</button>
-  <button type="button" class="btn btn-default" data-dismiss="modal" (click)="cancelChanges()">_#(Cancel)</button>
-</div>
+@if (model && form) {
+  <div class="modal-footer">
+    <button type="button" class="btn btn-primary" (click)="saveChanges()" [disabled]="!form.valid">_#(OK)</button>
+    <button type="button" class="btn btn-default" data-dismiss="modal" (click)="cancelChanges()">_#(Cancel)</button>
+  </div>
+}

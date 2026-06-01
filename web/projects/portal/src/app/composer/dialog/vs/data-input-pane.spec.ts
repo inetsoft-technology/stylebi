@@ -24,7 +24,7 @@ import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { By } from "@angular/platform-browser";
-import { NgbModule } from "@ng-bootstrap/ng-bootstrap";
+import { NgbModal, NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { DropDownTestModule } from "../../../common/test/test-module";
 import { TestUtils } from "../../../common/test/test-utils";
 import { DataTreeValidatorService } from "../../../vsobjects/dialog/data-tree-validator.service";
@@ -38,6 +38,7 @@ import { TreeComponent } from "../../../widget/tree/tree.component";
 import { DataInputPaneModel } from "../../data/vs/data-input-pane-model";
 import { DataInputPane } from "./data-input-pane.component";
 import { EnterClickDirective } from "../../../widget/directive/enter-click.directive";
+import { FixedDropdownDirective } from "../../../widget/fixed-dropdown/fixed-dropdown.directive";
 
 let createTargetTree: () => TreeNodeModel = () => {
    return {
@@ -97,16 +98,26 @@ describe("Data Input Pane Test", () => {
    let treeService: any;
 
    beforeEach(() => {
-      treeService = { validateTreeNode: jest.fn() };
+      treeService = { validateTreeNode: vi.fn() };
       TestBed.configureTestingModule({
-         imports: [DropDownTestModule, ReactiveFormsModule, FormsModule, NgbModule, HttpClientTestingModule],
-         declarations: [
-            DataInputPane, DynamicComboBox, TreeComponent, TreeNodeComponent,
-            TreeDropdownComponent, TreeSearchPipe,
-            TooltipDirective, EnterClickDirective
-         ],
+         imports: [DropDownTestModule, ReactiveFormsModule, FormsModule, NgbModule, HttpClientTestingModule, DataInputPane, DynamicComboBox, TreeComponent, TreeNodeComponent, TreeDropdownComponent, FixedDropdownDirective, TreeSearchPipe, TooltipDirective, EnterClickDirective],
+         
          providers: [
-            {provide: DataTreeValidatorService, useValue: treeService}
+            {provide: DataTreeValidatorService, useValue: treeService},
+            {
+               // Stub NgbModal so the dynamic-combo-box's setTimeout-based formula
+               // editor dialog (fired when EXPRESSION mode is selected) doesn't try
+               // to open against a destroyed injector after the fixture is torn down.
+               provide: NgbModal,
+               useValue: {
+                  open: () => ({
+                     componentInstance: {},
+                     result: new Promise<any>(() => {}),
+                     close: () => {},
+                     dismiss: () => {}
+                  })
+               }
+            }
          ],
          schemas: [NO_ERRORS_SCHEMA]
       }).compileComponents();
@@ -155,7 +166,7 @@ describe("Data Input Pane Test", () => {
    });
 
    //Bug #19833
-   it("should input page number on popup table page", (done) => {
+   it("should input page number on popup table page", () => new Promise<void>((done) => {
       dataInputPane = <DataInputPane>fixture.componentInstance;
       dataInputPane.model = createModel();
       dataInputPane.model.rowValue = "1";
@@ -197,7 +208,7 @@ describe("Data Input Pane Test", () => {
          expect(id.trim()).toBe("11");
          done();
       });
-   });
+   }));
 
    it("row should update when change to expression", () => {
       let model = createModel();
@@ -212,6 +223,7 @@ describe("Data Input Pane Test", () => {
 
       let typeToggles = fixture.nativeElement.querySelectorAll("button.type-toggle");
       typeToggles[1].click();
+      fixture.detectChanges();
       TestUtils.changeDynamicComboValueType(2);
       fixture.detectChanges();
       let rowInput = fixture.debugElement.query(By.css(".row_id .dynamic-combo-box-body input")).nativeElement;

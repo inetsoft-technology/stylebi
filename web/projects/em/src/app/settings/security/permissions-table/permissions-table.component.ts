@@ -27,18 +27,40 @@ import {
    ViewChild
 } from "@angular/core";
 import { MatPaginator } from "@angular/material/paginator";
-import { MatSort, Sort } from "@angular/material/sort";
-import { MatTableDataSource } from "@angular/material/table";
+import { MatSort, Sort, MatSortHeader } from "@angular/material/sort";
+import { MatTableDataSource, MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow } from "@angular/material/table";
 import { IdentityType } from "../../../../../../shared/data/identity-type";
 import { ResourceAction } from "../../../../../../shared/util/security/resource-permission/resource-action.enum";
 import { ResourcePermissionTableModel } from "../resource-permission/resource-permission-table-model";
 import { SelectionTransfer } from "../resource-permission/selection-transfer";
 import {convertToKey, IdentityId} from "../users/identity-id";
+import { MatDivider } from "@angular/material/divider";
+
+import { MatIcon } from "@angular/material/icon";
+import { MatCheckbox } from "@angular/material/checkbox";
 
 @Component({
-   selector: "em-permissions-table",
-   templateUrl: "./permissions-table.component.html",
-   styleUrls: ["./permissions-table.component.scss"],
+    selector: "em-permissions-table",
+    templateUrl: "./permissions-table.component.html",
+    styleUrls: ["./permissions-table.component.scss"],
+    imports: [
+    MatTable,
+    MatSort,
+    MatColumnDef,
+    MatHeaderCellDef,
+    MatHeaderCell,
+    MatCheckbox,
+    MatCellDef,
+    MatCell,
+    MatIcon,
+    MatSortHeader,
+    MatHeaderRowDef,
+    MatHeaderRow,
+    MatRowDef,
+    MatRow,
+    MatDivider,
+    MatPaginator
+]
 })
 export class PermissionsTableComponent implements OnChanges, AfterViewInit, SelectionTransfer<ResourcePermissionTableModel> {
    @ViewChild(MatSort, { static: true }) sort: MatSort;

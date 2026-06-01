@@ -1,40 +1,41 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <modal-header
   [title]="'_#(Column Option)'"
   (onCancel)="close()"
   [cshid]="'ColumnEditingOption'">
 </modal-header>
-<div class="modal-body" [enterSubmit]="formValid" (onEnter)="ok()" *ngIf="model">
-  <form ngNoForm (submit)="$event.preventDefault()" class="container-fluid">
-    <div class="shell-form-row shell-form-row--checkbox">
-      <div class="col">
-        <div class="form-check">
-          <input type="checkbox" class="form-check-input" id="columnEdit"
-                 [(ngModel)]="model.enableColumnEditing"/>
-          <label class="form-check-label" for="columnEdit">
-            _#(Enable Column Editing)
-          </label>
+@if (model) {
+  <div class="modal-body" [enterSubmit]="formValid" (onEnter)="ok()">
+    <form ngNoForm (submit)="$event.preventDefault()" class="container-fluid">
+      <div class="shell-form-row shell-form-row--checkbox">
+        <div class="col">
+          <div class="form-check">
+            <input type="checkbox" class="form-check-input" id="columnEdit"
+              [(ngModel)]="model.enableColumnEditing"/>
+            <label class="form-check-label" for="columnEdit">
+              _#(Enable Column Editing)
+            </label>
+          </div>
         </div>
       </div>
-    </div>
-    <div class="shell-form-row--field row">
-      <div class="col form-floating">
+      <div class="shell-form-row--field row">
+        <div class="col form-floating">
           <custom-select [disabled]="!model.enableColumnEditing"
                          (selectionChange)="choose($event)"
                          [(ngModel)]="model.inputControl"
@@ -42,37 +43,50 @@
                          placeholder="_#(Input Control)">
           </custom-select>
           <label>_#(Input Control)</label>
+        </div>
       </div>
-    </div>
-  </form>
-  <fieldset [disabled]="!model.enableColumnEditing">
-    <ng-container [ngSwitch]="model.inputControl">
-      <div *ngSwitchCase="ColumnOptionType.TEXT">
-        <text-editor [model]="model.editor"></text-editor>
-      </div>
-      <div *ngSwitchCase="ColumnOptionType.COMBOBOX">
-        <combo-box-editor [model]="model.editor" [runtimeId]="runtimeId"
-                          [showApplySelection]="false"
-                          [enableDataType]="false"></combo-box-editor>
-      </div>
-      <div *ngSwitchCase="ColumnOptionType.DATE">
-        <date-editor [model]="model.editor" [parentForm]="form"></date-editor>
-      </div>
-      <div *ngSwitchCase="ColumnOptionType.INTEGER">
-        <integer-editor [model]="model.editor" [parentForm]="form"></integer-editor>
-      </div>
-      <div *ngSwitchCase="ColumnOptionType.FLOAT">
-        <float-editor [model]="model.editor" [parentForm]="form"></float-editor>
-      </div>
-      <div *ngSwitchDefault></div>
-    </ng-container>
-  </fieldset>
-</div>
+    </form>
+    <fieldset [disabled]="!model.enableColumnEditing">
+      @switch (model.inputControl) {
+        @case (ColumnOptionType.TEXT) {
+          <div>
+            <text-editor [model]="model.editor"></text-editor>
+          </div>
+        }
+        @case (ColumnOptionType.COMBOBOX) {
+          <div>
+            <combo-box-editor [model]="model.editor" [runtimeId]="runtimeId"
+              [showApplySelection]="false"
+            [enableDataType]="false"></combo-box-editor>
+          </div>
+        }
+        @case (ColumnOptionType.DATE) {
+          <div>
+            <date-editor [model]="model.editor" [parentForm]="form"></date-editor>
+          </div>
+        }
+        @case (ColumnOptionType.INTEGER) {
+          <div>
+            <integer-editor [model]="model.editor" [parentForm]="form"></integer-editor>
+          </div>
+        }
+        @case (ColumnOptionType.FLOAT) {
+          <div>
+            <float-editor [model]="model.editor" [parentForm]="form"></float-editor>
+          </div>
+        }
+        @default {
+          <div></div>
+        }
+      }
+    </fieldset>
+  </div>
+}
 <div class="modal-footer">
   <apply-button (onApply)="apply($event)"></apply-button>
   <button type="button" class="btn btn-default" data-dismiss="modal" (click)="close()">
     _#(Cancel)
   </button>
   <button type="button" class="btn btn-primary" [disabled]="!form.valid"
-          (click)="ok()" #okButton>_#(OK)</button>
+  (click)="ok()" #okButton>_#(OK)</button>
 </div>

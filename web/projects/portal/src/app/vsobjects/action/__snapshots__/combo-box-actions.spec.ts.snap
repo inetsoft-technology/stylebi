@@ -1,6 +1,6 @@
-// Jest Snapshot v1, https://goo.gl/fbAQLP
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
-exports[`ComboBoxActions check status of menu actions of combo box in composer 1`] = `
+exports[`ComboBoxActions > check status of menu actions of combo box in composer 1`] = `
 [
   AssemblyActionGroup {
     "actions": [
@@ -111,7 +111,7 @@ exports[`ComboBoxActions check status of menu actions of combo box in composer 1
 ]
 `;
 
-exports[`ComboBoxActions check status of menu actions of combo box in viewer and preview 1`] = `
+exports[`ComboBoxActions > check status of menu actions of combo box in viewer and preview 1`] = `
 [
   AssemblyActionGroup {
     "actions": [
@@ -222,7 +222,7 @@ exports[`ComboBoxActions check status of menu actions of combo box in viewer and
 ]
 `;
 
-exports[`ComboBoxActions check status of menu actions of combo box in viewer and preview 2`] = `
+exports[`ComboBoxActions > check status of menu actions of combo box in viewer and preview 2`] = `
 [
   AssemblyActionGroup {
     "actions": [

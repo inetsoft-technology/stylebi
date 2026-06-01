@@ -1,33 +1,35 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <modal-header [title]="'_#(Table)'"
-   (onCancel)="close()"
-   [cshid]="'DefiningaVariable'">
+  (onCancel)="close()"
+  [cshid]="'DefiningaVariable'">
 </modal-header>
 <div class="modal-body" [enterSubmit]="formValid" (onEnter)="ok()">
   <form [formGroup]="form">
     <div class="row">
       <div class="col-6">
         <select class="form-control" size="7" [ngModel]="modelIndex"
-                (ngModelChange)="updateTableName($event)" [ngModelOptions]="{standalone: true}">
-          <option *ngFor="let _table of tables; let _i = index" [value]="_i"
-            [attr.title]="_table.description">
+          (ngModelChange)="updateTableName($event)" [ngModelOptions]="{standalone: true}">
+          @for (_table of tables; track _table; let _i = $index) {
+            <option [value]="_i"
+              [attr.title]="_table.description">
             {{_table.name}}</option>
+          }
         </select>
       </div>
       <div class="col-6">

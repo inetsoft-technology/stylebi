@@ -18,7 +18,8 @@
 import { Directive, ElementRef, HostListener, Input } from "@angular/core";
 
 @Directive({
-   selector : "[enterClick]",
+    selector: "[enterClick]",
+    standalone: true,
 })
 export class EnterClickDirective {
    @Input() hasKeys: boolean = false;

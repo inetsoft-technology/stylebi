@@ -30,11 +30,16 @@ import { GraphTypes } from "../../../../common/graph-types";
 import { ChartAggregateRef } from "../../../data/chart/chart-aggregate-ref";
 import { DateLevelExamplesService } from "../../../../common/services/date-level-examples.service";
 import { StyleConstants } from "../../../../common/util/style-constants";
+import { FormsModule } from "@angular/forms";
+import { DynamicComboBox } from "../../../../widget/dynamic-combo-box/dynamic-combo-box.component";
+
+import { SortOption } from "../../sort-option.component";
 
 @Component({
-   selector: "dimension-editor",
-   templateUrl: "dimension-editor.component.html",
-   styleUrls: ["dimension-editor.component.scss"]
+    selector: "dimension-editor",
+    templateUrl: "dimension-editor.component.html",
+    styleUrls: ["dimension-editor.component.scss"],
+    imports: [SortOption, DynamicComboBox, FormsModule]
 })
 export class DimensionEditor implements OnInit {
    @Input() dimension: ChartDimensionRef;

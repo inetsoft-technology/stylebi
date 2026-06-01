@@ -1,55 +1,57 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <div class="shell-form-row--field row">
   <div class="col-11">
     <div class="row">
       <div class="col-auto previous-label">
-          <label>_#(Previous)</label>
+        <label>_#(Previous)</label>
       </div>
       <div class="col">
         <div class="row">
           <div class="col">
             <dynamic-combo-box [mode]="mode" [value]="standardPeriodPaneModel.preCount.value"
-                               [editable]="true" [variables]="variableValues" [disable]="disable"
-                               [isCondition]="true" [columnTreeRoot]="columnTreeRoot"
-                               [functionTreeRoot]="functionTreeRoot" [operatorTreeRoot]="operatorTreeRoot"
-                               [scriptDefinitions]="scriptDefinitions"
-                               (valueChange)="updatePreviousCountValue($event)"
-                               (typeChange)="updatePreviousCountType($event)">
+              [editable]="true" [variables]="variableValues" [disable]="disable"
+              [isCondition]="true" [columnTreeRoot]="columnTreeRoot"
+              [functionTreeRoot]="functionTreeRoot" [operatorTreeRoot]="operatorTreeRoot"
+              [scriptDefinitions]="scriptDefinitions"
+              (valueChange)="updatePreviousCountValue($event)"
+              (typeChange)="updatePreviousCountType($event)">
             </dynamic-combo-box>
           </div>
           <div class="col">
             <dynamic-combo-box [values]="standardPeriodLevels" [value]="visibleStandardPeriodLevel"
-                               [variables]="variableValues" [disable]="disable" [isCondition]="true"
-                               [columnTreeRoot]="columnTreeRoot" [functionTreeRoot]="functionTreeRoot"
-                               [operatorTreeRoot]="operatorTreeRoot" [scriptDefinitions]="scriptDefinitions"
-                               (valueChange)="updateVisibleLevel($event)"
-                               (typeChange)="updateLevelType($event)">
+              [variables]="variableValues" [disable]="disable" [isCondition]="true"
+              [columnTreeRoot]="columnTreeRoot" [functionTreeRoot]="functionTreeRoot"
+              [operatorTreeRoot]="operatorTreeRoot" [scriptDefinitions]="scriptDefinitions"
+              (valueChange)="updateVisibleLevel($event)"
+              (typeChange)="updateLevelType($event)">
             </dynamic-combo-box>
           </div>
         </div>
-        <div class="row mt-3" *ngIf="isInvalidStandardPeriodPreCount() && !disable">
-          <div class="col">
-            <div class="shell-alert shell-alert--danger mb-0">
-              _#(date.comparison.previousCounterValid)
+        @if (isInvalidStandardPeriodPreCount() && !disable) {
+          <div class="row mt-3">
+            <div class="col">
+              <div class="shell-alert shell-alert--danger mb-0">
+                _#(date.comparison.previousCounterValid)
+              </div>
             </div>
           </div>
-        </div>
+        }
         <div class="row mt-3">
           <div class="col">
             <div class="row align-items-center m-0">
@@ -58,61 +60,65 @@
               </div>
               <div class="form-check me-3 ms-3 col-auto">
                 <input type="checkbox" class="form-check-input" id="today"
-                       [(ngModel)]="standardPeriodPaneModel.toDayAsEndDay"
-                       [disabled]="disable"
-                       (ngModelChange)="updateValid()">
+                  [(ngModel)]="standardPeriodPaneModel.toDayAsEndDay"
+                  [disabled]="disable"
+                  (ngModelChange)="updateValid()">
                 <label class="form-check-label" for="today">
                   _#(Today)
                 </label>
               </div>
               <div class="col-auto">
                 <dynamic-value-editor [valueModel]="standardPeriodPaneModel.endDay"
-                                      [disable]="standardPeriodPaneModel.toDayAsEndDay || disable"
-                                      [today]="standardPeriodPaneModel.toDayAsEndDay"
-                                      [isInterval]="true"
-                                      [variableValues]="variableValues"
-                                      [columnTreeRoot]="columnTreeRoot"
-                                      [functionTreeRoot]="functionTreeRoot"
-                                      [operatorTreeRoot]="operatorTreeRoot"
-                                      [scriptDefinitions]="scriptDefinitions"
-                                      (onValueModelChange)="updateValid()"
-                >
+                  [disable]="standardPeriodPaneModel.toDayAsEndDay || disable"
+                  [today]="standardPeriodPaneModel.toDayAsEndDay"
+                  [isInterval]="true"
+                  [variableValues]="variableValues"
+                  [columnTreeRoot]="columnTreeRoot"
+                  [functionTreeRoot]="functionTreeRoot"
+                  [operatorTreeRoot]="operatorTreeRoot"
+                  [scriptDefinitions]="scriptDefinitions"
+                  (onValueModelChange)="updateValid()"
+                  >
                 </dynamic-value-editor>
               </div>
             </div>
-            <div class="row mt-3" *ngIf="!isValidStandardPeriodEndDay() && !disable">
-              <div class="col">
-                <div class="shell-alert shell-alert--danger mb-0">
-                  _#(date.common.dateValid)
+            @if (!isValidStandardPeriodEndDay() && !disable) {
+              <div class="row mt-3">
+                <div class="col">
+                  <div class="shell-alert shell-alert--danger mb-0">
+                    _#(date.common.dateValid)
+                  </div>
                 </div>
               </div>
-            </div>
+            }
           </div>
         </div>
         <div class="row mt-3" >
           <div class="col">
             <div class="form-check">
               <input type="checkbox" class="form-check-input" id="inclusive"
-                     [ngModelOptions]="{standalone: true}"
-                     [ngModel]="standardPeriodPaneModel.inclusive"
-                     (ngModelChange)="standardPeriodPaneModel.inclusive = $event"
-                     [disabled]="disable">
+                [ngModelOptions]="{standalone: true}"
+                [ngModel]="standardPeriodPaneModel.inclusive"
+                (ngModelChange)="standardPeriodPaneModel.inclusive = $event"
+                [disabled]="disable">
               <label class="form-check-label" for="inclusive">{{inclusiveLabel }}</label>
             </div>
           </div>
         </div>
-        <div *ngIf="toDateVisible" class="row mt-3">
-          <div class="col">
-            <div class="form-check">
-              <input type="checkbox" class="form-check-input" id="toDate"
-                     [ngModelOptions]="{standalone: true}"
-                     [ngModel]="standardPeriodPaneModel.toDate"
-                     (ngModelChange)="standardPeriodPaneModel.toDate = $event"
-                     [disabled]="disable || toDateDisabled">
-              <label class="form-check-label" for="toDate" [innerHTML]="toDateLabel"></label>
+        @if (toDateVisible) {
+          <div class="row mt-3">
+            <div class="col">
+              <div class="form-check">
+                <input type="checkbox" class="form-check-input" id="toDate"
+                  [ngModelOptions]="{standalone: true}"
+                  [ngModel]="standardPeriodPaneModel.toDate"
+                  (ngModelChange)="standardPeriodPaneModel.toDate = $event"
+                  [disabled]="disable || toDateDisabled">
+                <label class="form-check-label" for="toDate" [innerHTML]="toDateLabel"></label>
+              </div>
             </div>
           </div>
-        </div>
+        }
       </div>
     </div>
   </div>

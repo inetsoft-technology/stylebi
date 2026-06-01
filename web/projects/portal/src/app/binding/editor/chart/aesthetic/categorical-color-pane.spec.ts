@@ -58,24 +58,26 @@ describe("Categorical Color Pane Unit Test", () => {
    let categColorPane: CategoricalColorPane;
 
    beforeEach(() => {
-      uiContextService = { isVS: jest.fn() };
+      uiContextService = { isVS: vi.fn() };
       modelService = {
-         sendModel: jest.fn(),
-         getModel: jest.fn()
+         sendModel: vi.fn(),
+         getModel: vi.fn()
       };
-      modalService = { open: jest.fn() };
-      chartEditorService = { getCustomChartFrames: jest.fn() };
+      modalService = { open: vi.fn() };
+      chartEditorService = { getCustomChartFrames: vi.fn() };
       chartEditorService.getCustomChartFrames.mockImplementation(() => observableOf([]));
    });
 
    function configureTestEnv(): void {
       TestBed.configureTestingModule({
          imports: [
-            ReactiveFormsModule, FormsModule, NgbModule
+            ReactiveFormsModule,
+            FormsModule,
+            NgbModule,
+            CategoricalColorPane,
+            StaticColorEditor,
          ],
-         declarations: [
-            CategoricalColorPane, StaticColorEditor
-         ],
+         
          providers: [{
             provide: UIContextService, useValue: uiContextService
          },
@@ -94,7 +96,7 @@ describe("Categorical Color Pane Unit Test", () => {
 
    //for Bug #17613, Can't open 'Select Palette' dialog
    it("Can't open 'Select Palette' dialog", () => {
-      let showDialog = jest.spyOn(ComponentTool, "showDialog");
+      let showDialog = vi.spyOn(ComponentTool, "showDialog");
       showDialog.mockImplementation(() => {
          return new PaletteDialog();
       });
@@ -147,13 +149,13 @@ describe("Categorical Color Pane Unit Test", () => {
    //Bug #20751
    it("the dropdown color pane should be auto closed", () => {
       let staticColor: StaticColorEditor = new StaticColorEditor();
-      let fixedDropdownService: any = { open: jest.fn() };
+      let fixedDropdownService: any = { open: vi.fn() };
       let elemRef = { nativeElement: {} };
-      let changeDetectorRef: any = { detectChanges: jest.fn() };
-      let zone: any = { run: jest.fn() };
+      let changeDetectorRef: any = { detectChanges: vi.fn() };
+      let zone: any = { run: vi.fn() };
       let dropDownDirective = new FixedDropdownDirective(fixedDropdownService,
          elemRef, changeDetectorRef, zone);
-      let close = jest.spyOn(dropDownDirective, "close");
+      let close = vi.spyOn(dropDownDirective, "close");
 
       staticColor.dropdown = dropDownDirective;
       staticColor.changeColor("#00ffff");

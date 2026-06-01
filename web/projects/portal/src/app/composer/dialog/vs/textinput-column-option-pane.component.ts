@@ -16,14 +16,25 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, Input, OnInit } from "@angular/core";
-import { UntypedFormGroup } from "@angular/forms";
-import { CustomSelectOption } from "../../../widget/custom-select/custom-select.component";
+import { UntypedFormGroup, FormsModule } from "@angular/forms";
+import { CustomSelectOption, CustomSelectComponent } from "../../../widget/custom-select/custom-select.component";
 import { ColumnOptionType } from "../../../vsobjects/model/column-option-type";
 import { TextInputColumnOptionPaneModel } from "../../data/vs/textinput-column-option-pane-model";
+import { FloatEditor } from "../../../vsobjects/dialog/float-editor.component";
+import { IntegerEditor } from "../../../vsobjects/dialog/integer-editor.component";
+import { DateEditor } from "../../../vsobjects/dialog/date-editor.component";
+import { TextEditor } from "../../../vsobjects/dialog/text-editor.component";
+
 
 @Component({
-   selector: "textinput-column-option-pane",
-   templateUrl: "textinput-column-option-pane.component.html",
+    selector: "textinput-column-option-pane",
+    templateUrl: "textinput-column-option-pane.component.html",
+    imports: [
+    FormsModule,
+    TextEditor,
+    DateEditor,
+    IntegerEditor,
+    FloatEditor, CustomSelectComponent]
 })
 export class TextInputColumnOptionPane implements OnInit {
    @Input() model: TextInputColumnOptionPaneModel;

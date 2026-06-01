@@ -18,10 +18,12 @@
 import { Component, Input, Output, EventEmitter } from "@angular/core";
 import { TextureComboBox } from "./texture-combo-box.component";
 
+
 @Component({
-   selector: "static-texture-editor",
-   templateUrl: "static-texture-editor.component.html",
-   styleUrls: ["combined-visual-pane.scss"]
+    selector: "static-texture-editor",
+    templateUrl: "static-texture-editor.component.html",
+    styleUrls: ["combined-visual-pane.scss"],
+    imports: [TextureComboBox]
 })
 
 export class StaticTextureEditor {

@@ -44,11 +44,15 @@ import { BindingService } from "../../services/binding.service";
 import { DataEditor } from "../data-editor";
 import { AssetEntryHelper } from "../../../common/data/asset-entry-helper";
 import { Tool } from "../../../../../../shared/util/tool";
+import { TableFieldmc } from "./table-fieldmc.component";
+
+import { OutOfZoneDirective } from "../../../widget/directive/out-of-zone.directive";
 
 @Component({
-   selector: "table-data-editor",
-   templateUrl: "table-data-editor.component.html",
-   styleUrls: ["../data-editor.component.scss", "table-data-editor.component.scss"]
+    selector: "table-data-editor",
+    templateUrl: "table-data-editor.component.html",
+    styleUrls: ["../data-editor.component.scss", "table-data-editor.component.scss"],
+    imports: [OutOfZoneDirective, TableFieldmc]
 })
 export class TableDataEditor extends DataEditor {
    @Input() fieldType: string;

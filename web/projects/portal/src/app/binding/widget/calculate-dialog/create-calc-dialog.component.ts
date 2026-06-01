@@ -16,18 +16,32 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, EventEmitter, Input, OnDestroy, OnInit, Output, TemplateRef, ViewChild } from "@angular/core";
-import { UntypedFormControl, UntypedFormGroup, Validators } from "@angular/forms";
+import { UntypedFormControl, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { NgbModal, NgbModalOptions } from "@ng-bootstrap/ng-bootstrap";
 import { FormValidators } from "../../../../../../shared/util/form-validators";
 import { DataRef } from "../../../common/data/data-ref";
 import { FormulaType } from "../../../common/data/formula-type";
 import { ComponentTool } from "../../../common/util/component-tool";
 import { Subscription } from "rxjs";
+import { FormulaEditorDialog } from "../../../widget/formula-editor/formula-editor-dialog.component";
+import { InputTrimDirective } from "../../../widget/directive/input-trim.directive";
+import { NgIf } from "@angular/common";
+import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
 
 @Component({
-   selector: "create-calc-dialog",
-   templateUrl: "create-calc-dialog.component.html",
-   styleUrls: ["create-calc-dialog.component.scss"]
+    selector: "create-calc-dialog",
+    templateUrl: "create-calc-dialog.component.html",
+    standalone: true,
+    styleUrls: ["create-calc-dialog.component.scss"],
+
+    imports: [
+        ModalHeaderComponent,
+        NgIf,
+        FormsModule,
+        ReactiveFormsModule,
+        InputTrimDirective,
+        FormulaEditorDialog,
+    ],
 })
 export class CreateCalcDialog implements OnInit, OnDestroy {
    @Input() name: string;

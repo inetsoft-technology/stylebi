@@ -84,16 +84,19 @@ describe("Image Preview Pane Test", () => {
    let httpTestingController: HttpTestingController;
 
    beforeEach(waitForAsync(() => {
-      changeDetectorRef = { detectChanges: jest.fn() };
-      modalService = { open: jest.fn() };
+      changeDetectorRef = { detectChanges: vi.fn() };
+      modalService = { open: vi.fn() };
 
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule, HttpClientTestingModule
+            FormsModule,
+            ReactiveFormsModule,
+            NgbModule,
+            HttpClientTestingModule,
+            ImagePreviewPane,
+            TreeComponent,
          ],
-         declarations: [
-            ImagePreviewPane, TreeComponent
-         ],
+         
          providers: [
             { provide: NgbModal, useValue: modalService },
             { provide: ChangeDetectorRef, useValue: changeDetectorRef }
@@ -146,7 +149,7 @@ describe("Image Preview Pane Test", () => {
    });
 
    //Bug #19250 should disable Animate GIF Image in print layout
-   it("should disable Animate GIF Image in print layout", (done) => {
+   it("should disable Animate GIF Image in print layout", () => new Promise<void>((done) => {
       fixture = TestBed.createComponent(ImagePreviewPane);
       imagePreviewPane = <ImagePreviewPane>fixture.componentInstance;
       imagePreviewPane.layoutObject = true;
@@ -159,11 +162,11 @@ describe("Image Preview Pane Test", () => {
 
          done();
       });
-   });
+   }));
 
    //Bug #19557 should clear Animate GIF Image after click clear
    //Bug #19558 clear should work
-   it("check clear button function", (done) => {
+   it("check clear button function", () => new Promise<void>((done) => {
       fixture = TestBed.createComponent(ImagePreviewPane);
       imagePreviewPane = <ImagePreviewPane>fixture.componentInstance;
       imagePreviewPane.model = createUploadImgModel();
@@ -195,5 +198,5 @@ describe("Image Preview Pane Test", () => {
 
          done();
       });
-   });
+   }));
 });

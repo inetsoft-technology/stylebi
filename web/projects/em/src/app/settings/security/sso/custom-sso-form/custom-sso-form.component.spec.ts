@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { ComponentFixture, TestBed, waitForAsync } from "@angular/core/testing";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
@@ -31,17 +32,17 @@ describe("CustomSsoFormComponent", () => {
    let fixture: ComponentFixture<CustomSsoFormComponent>;
 
    const codemirror = {
-      createTernServer: jest.fn(() => {}),
-      getEcmaScriptDefs: jest.fn(() => [{"Date": {"prototype": {}}}]),
-      createCodeMirrorInstance: jest.fn(() => ({
-         getCursor: jest.fn(),
-         setCursor: jest.fn(),
-         getValue: jest.fn(() => {}),
-         setValue: jest.fn(),
-         refresh: jest.fn(),
-         focus: jest.fn(),
-         on: jest.fn(),
-         toTextArea: jest.fn()
+      createTernServer: vi.fn(() => {}),
+      getEcmaScriptDefs: vi.fn(() => [{"Date": {"prototype": {}}}]),
+      createCodeMirrorInstance: vi.fn(() => ({
+         getCursor: vi.fn(),
+         setCursor: vi.fn(),
+         getValue: vi.fn(() => {}),
+         setValue: vi.fn(),
+         refresh: vi.fn(),
+         focus: vi.fn(),
+         on: vi.fn(),
+         toTextArea: vi.fn()
       }))
    };
 
@@ -54,9 +55,8 @@ describe("CustomSsoFormComponent", () => {
             MatInputModule,
             MatIconModule,
             MatFormFieldModule,
-            MatRadioModule
-         ],
-         declarations: [ CustomSsoFormComponent ],
+            MatRadioModule,
+            CustomSsoFormComponent],
          schemas: [NO_ERRORS_SCHEMA]
       })
          .overrideComponent(CustomSsoFormComponent, {set: {providers: [{provide: CodemirrorService, useValue: codemirror}]}})

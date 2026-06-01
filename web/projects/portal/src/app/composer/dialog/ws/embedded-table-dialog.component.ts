@@ -16,18 +16,24 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, EventEmitter, Input, OnInit, Output } from "@angular/core";
-import { UntypedFormControl, UntypedFormGroup, Validators } from "@angular/forms";
+import { UntypedFormControl, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { FormValidators } from "../../../../../../shared/util/form-validators";
 import { Tool } from "../../../../../../shared/util/tool";
 import { ModelService } from "../../../widget/services/model.service";
 import { EmbeddedTableDialogModel } from "../../data/ws/embedded-table-dialog-model";
 import { Worksheet } from "../../data/ws/worksheet";
+import { InputTrimDirective } from "../../../widget/directive/input-trim.directive";
 
+import { EnterSubmitDirective } from "../../../widget/directive/enter-submit.directive";
+import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
+
+import { NumberStepperComponent } from "../../../widget/number-stepper/number-stepper.component";
 const EMBEDDED_TABLE_DIALOG_URI = "../api/composer/ws/dialog/embedded-table-dialog-model/";
 
 @Component({
-   selector: "embedded-table-dialog",
-   templateUrl: "embedded-table-dialog.component.html"
+    selector: "embedded-table-dialog",
+    templateUrl: "embedded-table-dialog.component.html",
+    imports: [ModalHeaderComponent, EnterSubmitDirective, FormsModule, ReactiveFormsModule, InputTrimDirective, NumberStepperComponent]
 })
 export class EmbeddedTableDialog implements OnInit {
    @Input() worksheet: Worksheet;

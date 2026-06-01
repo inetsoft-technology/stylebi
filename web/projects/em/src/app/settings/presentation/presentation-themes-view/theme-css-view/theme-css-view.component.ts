@@ -27,9 +27,9 @@ import {
    SimpleChanges,
    ViewChild
 } from "@angular/core";
-import { UntypedFormBuilder, UntypedFormControl, UntypedFormGroup, ValidationErrors, Validators } from "@angular/forms";
+import { UntypedFormBuilder, UntypedFormControl, UntypedFormGroup, ValidationErrors, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { MatDialog, MatDialogConfig } from "@angular/material/dialog";
-import { MatTableDataSource } from "@angular/material/table";
+import { MatTableDataSource, MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow } from "@angular/material/table";
 import { Numberify, RGBA, TinyColor } from "@ctrl/tinycolor";
 import { interval, Subject } from "rxjs";
 import { debounce, takeUntil } from "rxjs/operators";
@@ -39,6 +39,16 @@ import { CustomThemeModel } from "../custom-theme-model";
 import { ThemeCssModel } from "../theme-css-model";
 import { ThemeCssVariableModel } from "../theme-css-variable-model";
 import { ThemeCssEditorModel } from "./theme-css-editor-model";
+import { MatRadioGroup, MatRadioButton } from "@angular/material/radio";
+import { ColorPickerDirective } from "ngx-color-picker";
+import { MatSlideToggle } from "@angular/material/slide-toggle";
+import { MatSort } from "@angular/material/sort";
+import { MatIcon } from "@angular/material/icon";
+import { MatIconButton } from "@angular/material/button";
+import { MatInput } from "@angular/material/input";
+import { MatFormField, MatLabel, MatSuffix, MatError } from "@angular/material/form-field";
+import { MatCard, MatCardTitle, MatCardContent } from "@angular/material/card";
+import { NgTemplateOutlet } from "@angular/common";
 
 const EM_DARK_VAR_NAME = "--inet-em-dark";
 const EM_PRIMARY_PREFIX = "--inet-em-primary-";
@@ -48,9 +58,10 @@ const EM_LIGHT_TEXT_VAR = "var(--inet-em-light-primary-text)";
 const EM_DARK_TEXT_VAR = "var(--inet-em-dark-primary-text)";
 
 @Component({
-   selector: "em-theme-css-view",
-   templateUrl: "./theme-css-view.component.html",
-   styleUrls: ["./theme-css-view.component.scss"]
+    selector: "em-theme-css-view",
+    templateUrl: "./theme-css-view.component.html",
+    styleUrls: ["./theme-css-view.component.scss"],
+    imports: [MatCard, FormsModule, ReactiveFormsModule, MatCardTitle, MatCardContent, MatFormField, MatLabel, MatInput, MatIconButton, MatSuffix, MatIcon, MatTable, MatSort, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, NgTemplateOutlet, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, MatSlideToggle, ColorPickerDirective, MatRadioGroup, MatRadioButton, MatError]
 })
 export class ThemeCssViewComponent implements OnInit, OnDestroy, OnChanges {
    @Input() get theme(): CustomThemeModel {

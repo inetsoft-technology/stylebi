@@ -22,9 +22,10 @@ import { ColorPalette } from "./color-classes";
 import { DefaultPalette } from "./default-palette";
 
 @Component({
-   selector: "color-dropdown",
-   templateUrl: "color-dropdown.component.html",
-   styleUrls: ["color-dropdown.component.scss"]
+    selector: "color-dropdown",
+    templateUrl: "color-dropdown.component.html",
+    styleUrls: ["color-dropdown.component.scss"],
+    imports: [ColorEditor]
 })
 export class ColorDropdown {
    @Input() color: string;

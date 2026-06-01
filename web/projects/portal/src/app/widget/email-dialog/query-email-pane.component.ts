@@ -17,17 +17,22 @@
  */
 import { HttpClient } from "@angular/common/http";
 import { Component, EventEmitter, Input, Output } from "@angular/core";
-import { CustomSelectOption } from "../custom-select/custom-select.component";
+import { CustomSelectOption, CustomSelectComponent } from "../custom-select/custom-select.component";
 import { TreeNodeModel } from "../tree/tree-node-model";
 import { QueryColumnsModel } from "./query-columns-model";
 import { EmailDialogData } from "./email-addr-dialog.component";
 
+import { FormsModule } from "@angular/forms";
+import { AssetTreeComponent } from "../asset-tree/asset-tree.component";
+
 const QUERY_COLUMN_URI = "../api/portal/schedule/emails/query/columns";
 
 @Component({
-   selector: "query-email-pane",
-   templateUrl: "query-email-pane.component.html",
-   styleUrls: ["./query-email-pane.component.scss"]
+    selector: "query-email-pane",
+    templateUrl: "query-email-pane.component.html",
+    styleUrls: ["./query-email-pane.component.scss"],
+
+    imports: [AssetTreeComponent, FormsModule, CustomSelectComponent]
 })
 export class QueryEmailPane {
    @Input() set addressString(value: string) {

@@ -16,17 +16,22 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, HostListener, Input } from "@angular/core";
-import { MatDialogRef } from "@angular/material/dialog";
+import { MatDialogRef, MatDialogContent, MatDialogActions } from "@angular/material/dialog";
 import { RepositoryEntryType } from "../../../../../../../shared/data/repository-entry-type.enum";
-import { FlatTreeSelectNodeEvent } from "../../../../common/util/tree/flat-tree-view.component";
+import { FlatTreeSelectNodeEvent, FlatTreeViewComponent } from "../../../../common/util/tree/flat-tree-view.component";
 import { RepositoryTreeDataSource } from "../repository-tree-data-source";
 import { RepositoryFlatNode, RepositoryTreeNode } from "../repository-tree-node";
+import { MatButton } from "@angular/material/button";
+import { MatProgressBar } from "@angular/material/progress-bar";
+
+import { ModalHeaderComponent } from "../../../../common/util/modal-header/modal-header.component";
 
 @Component({
-   selector: "em-move-asset-dialog",
-   templateUrl: "./move-asset-dialog.component.html",
-   styleUrls: ["./move-asset-dialog.component.scss"],
-   providers: [RepositoryTreeDataSource]
+    selector: "em-move-asset-dialog",
+    templateUrl: "./move-asset-dialog.component.html",
+    styleUrls: ["./move-asset-dialog.component.scss"],
+    providers: [RepositoryTreeDataSource],
+    imports: [ModalHeaderComponent, MatDialogContent, FlatTreeViewComponent, MatProgressBar, MatDialogActions, MatButton]
 })
 export class MoveAssetDialogComponent {
    @Input() onlyForDatabase: boolean = false;

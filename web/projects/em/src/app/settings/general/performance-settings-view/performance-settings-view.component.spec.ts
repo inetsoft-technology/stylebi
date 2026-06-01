@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { HttpClientTestingModule } from "@angular/common/http/testing";
 import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
@@ -39,10 +40,9 @@ describe("PerformanceSettingsViewComponent", () => {
             MatCardModule,
             MatDividerModule,
             MatInputModule,
-            MatCheckboxModule
-         ],
-         declarations: [PerformanceSettingsViewComponent]
-      })
+            MatCheckboxModule,
+            PerformanceSettingsViewComponent]
+         })
          .compileComponents();
    }));
 

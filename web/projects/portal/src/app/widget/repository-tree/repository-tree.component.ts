@@ -53,13 +53,15 @@ import { RepositoryBaseComponent } from "./repository-base-component";
 import { RepositoryTreeAction } from "./repository-tree-action.enum";
 import { RepositoryTreeService } from "./repository-tree.service";
 
+
 @Component({
-   selector: "repository-tree",
-   templateUrl: "repository-tree.component.html",
-   styleUrls: ["repository-tree.component.scss"],
-   providers: [
-      RepositoryClientService
-   ]
+    selector: "repository-tree",
+    templateUrl: "repository-tree.component.html",
+    styleUrls: ["repository-tree.component.scss"],
+    providers: [
+        RepositoryClientService
+    ],
+    imports: [TreeComponent]
 })
 export class RepositoryTreeComponent extends RepositoryBaseComponent implements OnInit, AfterViewChecked, OnDestroy {
    @Input() showRoot: boolean;

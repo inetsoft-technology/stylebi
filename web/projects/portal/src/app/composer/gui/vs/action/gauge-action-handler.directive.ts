@@ -42,7 +42,8 @@ const CONDITION_URI: string = "composer/vs/vs-condition-dialog-model";
 const HYPERLINK_URI: string = "composer/vs/hyperlink-dialog-model";
 
 @Directive({
-   selector: "[cGaugeActionHandler]"
+    selector: "[cGaugeActionHandler]",
+    standalone: true
 })
 export class GaugeActionHandlerDirective extends AbstractActionHandler implements OnDestroy {
    @Input() model: VSGaugeModel;

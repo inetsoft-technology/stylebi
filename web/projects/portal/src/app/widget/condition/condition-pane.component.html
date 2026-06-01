@@ -1,38 +1,38 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <div #conditionPane class="container-fluid" [style.height]="fillParent ? '100%' : ''">
   <div class="row">
     <div #itemPane class="col-10">
       <condition-item-pane [provider]="provider" [subqueryTables]="subqueryTables"
-                           [availableFields]="availableFields" [isVSContext]="isVSContext"
-                           [fields]="fields" [table]="table" [addNoneItem]="false"
-                           [(condition)]="condition" [showExpression]="showExpression"
-                           [showOriginalName]="showOriginalName" [vsId]="vsId"
-                           (expressionRenamed)="expressionRenamed($event)"
-                           [isHighlight]="isHighlight">
+        [availableFields]="availableFields" [isVSContext]="isVSContext"
+        [fields]="fields" [table]="table" [addNoneItem]="false"
+        [(condition)]="condition" [showExpression]="showExpression"
+        [showOriginalName]="showOriginalName" [vsId]="vsId"
+        (expressionRenamed)="expressionRenamed($event)"
+        [isHighlight]="isHighlight">
       </condition-item-pane>
     </div>
     <div class="col-2">
       <div class="radio">
         <div class="form-check">
           <input type="radio" name="andOrButtons" class="form-check-input" id="and"
-               [(ngModel)]="junctionType" [value]="JunctionOperatorType.AND" (change)="updateDirtyJunction()"
-               [disabled]="onlyOr || conditionList.length == 0">
+            [(ngModel)]="junctionType" [value]="JunctionOperatorType.AND" (change)="updateDirtyJunction()"
+            [disabled]="onlyOr || conditionList.length == 0">
           <label class="form-check-label" for="and">
             _#(and)
           </label>
@@ -41,8 +41,8 @@
       <div class="radio">
         <div class="form-check">
           <input type="radio" name="andOrButtons" class="form-check-input" id="or"
-               [(ngModel)]="junctionType" [value]="JunctionOperatorType.OR" (change)="updateDirtyJunction()"
-               [disabled]="conditionList.length == 0">
+            [(ngModel)]="junctionType" [value]="JunctionOperatorType.OR" (change)="updateDirtyJunction()"
+            [disabled]="conditionList.length == 0">
           <label class="form-check-label" for="or">
             _#(or)
           </label>
@@ -50,40 +50,46 @@
       </div>
       <div class="btn-container-vertical">
         <button type="button" class="btn btn-secondary" (click)="insert()"
-                [disabled]="!isConditionValid()">{{buttonText}}</button>
+        [disabled]="!isConditionValid()">{{buttonText}}</button>
         <button type="button" class="btn btn-default" (click)="modify()"
-                [disabled]="selectedIndex == null || (selectedIndex % 2 == 0 && !isConditionValid())">_#(Modify)</button>
+        [disabled]="selectedIndex == null || (selectedIndex % 2 == 0 && !isConditionValid())">_#(Modify)</button>
       </div>
     </div>
   </div>
   <div class="row">
     <div class="col-10">
       <div class="bordered-box h-100 condition-list condition-pane__list" [style.max-height.px]="listPaneHeight">
-        <div *ngFor="let item of conditionList; let even = even; let i = index;"
-             class="unhighlightable condition-pane__list-item"
-             [class.selected]="selectedIndex == i" (click)="conditionItemSelected(i)">
-          <div *ngIf="even" class="condition-pane__list-text">
-            {{item | conditionToString}}
+        @for (item of conditionList; track item; let even = $even; let i = $index) {
+          <div
+            class="unhighlightable condition-pane__list-item"
+            [class.selected]="selectedIndex == i" (click)="conditionItemSelected(i)">
+            @if (even) {
+              <div>
+                {{item | conditionToString}}
+              </div>
+            }
+            @if (!even) {
+              <div>
+                {{item | junctionOperatorToString}}
+              </div>
+            }
           </div>
-          <div *ngIf="!even" class="condition-pane__list-text">
-            {{item | junctionOperatorToString}}
-          </div>
-        </div>
+        }
       </div>
     </div>
     <div class="col-2 btn-container-vertical">
       <button type="button" class="btn btn-default" (click)="delete()"
-              [disabled]="selectedIndex == null || selectedIndex % 2 !== 0">_#(Delete)</button>
+      [disabled]="selectedIndex == null || selectedIndex % 2 !== 0">_#(Delete)</button>
       <button type="button" class="btn btn-default" (click)="clear()"
-              [disabled]="conditionList == null || conditionList.length === 0">_#(Clear)</button>
+      [disabled]="conditionList == null || conditionList.length === 0">_#(Clear)</button>
       <button type="button" class="btn btn-default" (click)="indent()"
-              [disabled]="!canIndent()">_#(Indent)</button>
+      [disabled]="!canIndent()">_#(Indent)</button>
       <button type="button" class="btn btn-default" (click)="unindent()"
-              [disabled]="!canUnindent()">_#(Unindent)</button>
+      [disabled]="!canUnindent()">_#(Unindent)</button>
       <button type="button" class="btn btn-default" (click)="up()"
-              [disabled]="!canMoveUp()">_#(Up)</button>
+      [disabled]="!canMoveUp()">_#(Up)</button>
       <button type="button" class="btn btn-default" (click)="down()"
-              [disabled]="!canMoveDown()">_#(Down)</button>
+      [disabled]="!canMoveDown()">_#(Down)</button>
     </div>
   </div>
 </div>

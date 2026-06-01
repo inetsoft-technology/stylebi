@@ -31,6 +31,7 @@ import { DynamicComboBox } from "../../widget/dynamic-combo-box/dynamic-combo-bo
 import { BindingService } from "../services/binding.service";
 import { AggregateFormula } from "../util/aggregate-formula";
 import { FormulaOption } from "./formula-option.component";
+import { FixedDropdownDirective } from "../../widget/fixed-dropdown/fixed-dropdown.directive";
 
 describe("Formula Option Unit Test", () => {
    let fixture: ComponentFixture<FormulaOption>;
@@ -41,11 +42,16 @@ describe("Formula Option Unit Test", () => {
    beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule, HttpClientTestingModule, DropDownTestModule
+            FormsModule,
+            ReactiveFormsModule,
+            NgbModule,
+            HttpClientTestingModule,
+            DropDownTestModule,
+            FormulaOption,
+            DynamicComboBox,
+            FixedDropdownDirective,
          ],
-         declarations: [
-            FormulaOption, DynamicComboBox
-         ],
+         
          providers: [
             BindingService, UIContextService
          ],

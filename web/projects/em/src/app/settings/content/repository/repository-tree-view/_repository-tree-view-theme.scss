@@ -20,7 +20,7 @@
 
 @mixin repository-tree-view-typography($config) {
   .repository-toolbar {
-    font-family: mat.font-family($config);
-    font-size: mat.font-size($config, body-1);
+    font-family: mat.m2-font-family($config);
+    font-size: mat.m2-font-size($config, body-1);
   }
 }

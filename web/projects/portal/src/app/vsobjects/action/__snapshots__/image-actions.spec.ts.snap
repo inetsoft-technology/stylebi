@@ -1,6 +1,6 @@
-// Jest Snapshot v1, https://goo.gl/fbAQLP
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
-exports[`Image actions check status of menu actions in viewer and preview when has security 1`] = `
+exports[`Image actions > check status of menu actions in viewer and preview when has security 1`] = `
 [
   AssemblyActionGroup {
     "actions": [
@@ -209,7 +209,7 @@ exports[`Image actions check status of menu actions in viewer and preview when h
 ]
 `;
 
-exports[`Image actions check status of menu actions in viewer and preview when has security 2`] = `
+exports[`Image actions > check status of menu actions in viewer and preview when has security 2`] = `
 [
   AssemblyActionGroup {
     "actions": [
@@ -418,7 +418,7 @@ exports[`Image actions check status of menu actions in viewer and preview when h
 ]
 `;
 
-exports[`Image actions should create composer menu actions 1`] = `
+exports[`Image actions > should create composer menu actions 1`] = `
 [
   AssemblyActionGroup {
     "actions": [

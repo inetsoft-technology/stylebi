@@ -18,14 +18,18 @@
 import { Component, ElementRef, EventEmitter, Output, ViewChild } from "@angular/core";
 import { TimeInstant } from "../../common/data/time-instant";
 import { DateTypeFormatter } from "../../../../../shared/util/date-type-formatter";
-import { AnnotationFilterOption, RemoveAnnotationsCondition} from "../model/remove-annotations-condition";
-import { FormGroup, UntypedFormControl, UntypedFormGroup, Validators } from "@angular/forms";
+import { AnnotationFilterOption, RemoveAnnotationsCondition } from "../model/remove-annotations-condition";
+import { FormGroup, UntypedFormControl, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { FormValidators } from "../../../../../shared/util/form-validators";
+import { DatePickerComponent } from "../../widget/date-type-editor/date-picker.component";
+import { FixedDropdownDirective } from "../../widget/fixed-dropdown/fixed-dropdown.directive";
+import { ModalHeaderComponent } from "../../widget/modal-header/modal-header.component";
 
 @Component({
-   selector: "remove-bookmarks-dialog",
-   templateUrl: "./remove-bookmarks-dialog.component.html",
-   styleUrls: ["./remove-bookmarks-dialog.component.scss"]
+    selector: "remove-bookmarks-dialog",
+    templateUrl: "./remove-bookmarks-dialog.component.html",
+    styleUrls: ["./remove-bookmarks-dialog.component.scss"],
+    imports: [ModalHeaderComponent, FormsModule, ReactiveFormsModule, FixedDropdownDirective, DatePickerComponent]
 })
 export class RemoveBookmarksDialog {
    @Output() onCommit = new EventEmitter<RemoveAnnotationsCondition>();

@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { Component } from "@angular/core";
 import { ComponentFixture, TestBed } from "@angular/core/testing";
 import { By } from "@angular/platform-browser";
@@ -24,7 +25,9 @@ import { ConditionValueType } from "../../common/data/condition/condition-value-
 import { ConditionPipe } from "./condition.pipe";
 
 @Component({
+   standalone: true,
    selector: "condition-pipe-test",
+   imports: [ConditionPipe],
    template: `<div>{{condition | conditionToString}}</div>`
 })
 class ConditionPipeTest {
@@ -34,7 +37,7 @@ class ConditionPipeTest {
 describe(("Condition Pipe Test"), () => {
    beforeEach(() => {
       TestBed.configureTestingModule({
-         declarations: [
+         imports: [
             ConditionPipeTest, ConditionPipe
          ]
       });

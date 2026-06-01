@@ -25,7 +25,7 @@
     .mat-mdc-list {
       .mat-mdc-list-item.selected,
       .mat-list-item:hover {
-        background: mat.get-color-from-palette($background, hover, .12);
+        background: mat.m2-get-color-from-palette($background, hover, .12);
       }
     }
   }

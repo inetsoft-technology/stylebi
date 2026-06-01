@@ -22,12 +22,14 @@ import { ComponentTool } from "../../../../common/util/component-tool";
 import { ChartGeoRef } from "../../../data/chart/chart-geo-ref";
 import { FeatureMappingInfo } from "../../../data/chart/feature-mapping-info";
 import { GeoMappingDialog } from "./geo-mapping-dialog.component";
-import { CustomSelectOption } from "../../../../widget/custom-select/custom-select.component";
+import { FormsModule } from "@angular/forms";
+import { CustomSelectOption, CustomSelectComponent } from "../../../../widget/custom-select/custom-select.component";
 
 @Component({
-   selector: "geo-option-pane",
-   templateUrl: "geo-option-pane.component.html",
-   styleUrls: ["geo-option-pane.component.scss"]
+    selector: "geo-option-pane",
+    templateUrl: "geo-option-pane.component.html",
+    styleUrls: ["geo-option-pane.component.scss"],
+    imports: [FormsModule, CustomSelectComponent]
 })
 export class GeoOptionPane implements OnInit {
    @Input() mapVisible: boolean;

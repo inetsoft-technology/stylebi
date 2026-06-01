@@ -71,12 +71,12 @@ interface RenderOpts {
 
 async function renderComponent(opts: RenderOpts = {}) {
    const dialogSpy = {
-      open: jest.fn().mockReturnValue({ afterClosed: () => of(false) }),
+      open: vi.fn().mockReturnValue({ afterClosed: () => of(false) }),
    };
-   const snackBarSpy = { open: jest.fn() };
-   const orgDropdownSpy = { setProvider: jest.fn(), refreshProviders: jest.fn() };
-   const appInfoSpy = { setLdapProviderUsed: jest.fn() };
-   const windowOpenSpy = jest.spyOn(window, "open").mockImplementation(() => null);
+   const snackBarSpy = { open: vi.fn() };
+   const orgDropdownSpy = { setProvider: vi.fn(), refreshProviders: vi.fn() };
+   const appInfoSpy = { setLdapProviderUsed: vi.fn() };
+   const windowOpenSpy = vi.spyOn(window, "open").mockImplementation(() => null);
 
    // Default MSW handlers satisfy the two GETs that ngOnInit fires immediately (timer at t=0).
    server.use(
@@ -94,7 +94,7 @@ async function renderComponent(opts: RenderOpts = {}) {
       providers: [
          { provide: MatDialog, useValue: dialogSpy },
          { provide: MatSnackBar, useValue: snackBarSpy },
-         { provide: Router, useValue: { navigate: jest.fn() } },
+         { provide: Router, useValue: { navigate: vi.fn() } },
          { provide: AppInfoService, useValue: appInfoSpy },
          { provide: OrganizationDropdownService, useValue: orgDropdownSpy },
       ],
@@ -176,7 +176,7 @@ describe("AuthenticationProviderViewComponent — removeProvider(): stale-index 
    });
 
    it("should show snackBar and preserve the local array when the delete API returns an error", async () => {
-      const consoleErrorSpy = jest.spyOn(console, "error").mockImplementation(() => {});
+      const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
       server.use(
          http.delete("*/api/em/security/remove-authentication-provider/0", () =>
             HttpResponse.json({}, { status: 500, statusText: "Server Error" }),
@@ -278,7 +278,7 @@ describe("AuthenticationProviderViewComponent — clearProviderCache(): missing 
    });
 
    it("should show snackBar when the clearProviderCache API fails", async () => {
-      const consoleErrorSpy = jest.spyOn(console, "error").mockImplementation(() => {});
+      const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
       server.use(
          http.get("*/api/em/security/clear-authentication-provider/0", () =>
             HttpResponse.json({}, { status: 503, statusText: "Service Unavailable" }),

@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, EventEmitter, Input, OnInit, Output, ViewChild } from "@angular/core";
-import { AbstractControl, UntypedFormControl, UntypedFormGroup, Validators } from "@angular/forms";
+import { AbstractControl, UntypedFormControl, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { HttpClient } from "@angular/common/http";
 import { HelpUrlService } from "../../../../../../../widget/help-link/help-url.service";
 import { EntityModel } from "../../../../../model/datasources/database/physical-model/logical-model/entity-model";
@@ -26,15 +26,18 @@ import { StringWrapper } from "../../../../../model/datasources/database/string-
 import { TreeNodeModel } from "../../../../../../../widget/tree/tree-node-model";
 import { GetModelEvent } from "../../../../../model/datasources/database/events/get-model-event";
 import { ScriptPane } from "../../../../../../../widget/dialog/script-pane/script-pane.component";
-import { CustomSelectOption } from "../../../../../../../widget/custom-select/custom-select.component";
+import { CustomSelectOption, CustomSelectComponent } from "../../../../../../../widget/custom-select/custom-select.component";
+
+import { ModalHeaderComponent } from "../../../../../../../widget/modal-header/modal-header.component";
 
 const CHECK_EXPRESSION_URI: string = "../api/data/logicalModel/attribute/expression";
 const FIELDS_URI: string = "../api/data/logicalModel/tables/nodes";
 
 @Component({
-   selector: "logical-model-expression-dialog",
-   templateUrl: "logical-model-expression-dialog.component.html",
-   styleUrls: ["logical-model-expression-dialog.component.scss"]
+    selector: "logical-model-expression-dialog",
+    templateUrl: "logical-model-expression-dialog.component.html",
+    styleUrls: ["logical-model-expression-dialog.component.scss"],
+    imports: [ModalHeaderComponent, FormsModule, ReactiveFormsModule, ScriptPane, NotificationsComponent, CustomSelectComponent]
 })
 export class LogicalModelExpressionDialog implements OnInit {
    @Input() entities: EntityModel[];

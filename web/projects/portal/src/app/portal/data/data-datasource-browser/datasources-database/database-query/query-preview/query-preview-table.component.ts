@@ -22,7 +22,9 @@ import {
    Component,
    ElementRef,
    Input,
+   OnChanges,
    Renderer2,
+   SimpleChanges,
    ViewChild
 } from "@angular/core";
 import { NgbTooltip } from "@ng-bootstrap/ng-bootstrap";
@@ -30,15 +32,20 @@ import { Rectangle } from "../../../../../../common/data/rectangle";
 import { GuiTool } from "../../../../../../common/util/gui-tool";
 import { BinarySearch } from "../../../../../../common/data/binary-search";
 import { Range } from "../../../../../../common/data/range";
+import { NotificationsComponent } from "../../../../../../widget/notifications/notifications.component";
+import { TouchScrollDirective } from "../../../../../../widget/scroll/touch-scroll.directive";
+import { OutOfZoneDirective } from "../../../../../../widget/directive/out-of-zone.directive";
+
 
 const INITIAL_COLUMN_WIDTH: number = 80;
 
 @Component({
-   selector: "query-preview-table",
-   templateUrl: "query-preview-table.component.html",
-   styleUrls: ["query-preview-table.component.scss"]
+    selector: "query-preview-table",
+    templateUrl: "query-preview-table.component.html",
+    styleUrls: ["query-preview-table.component.scss"],
+    imports: [OutOfZoneDirective, TouchScrollDirective, NotificationsComponent]
 })
-export class QueryPreviewTableComponent implements AfterViewChecked, AfterContentChecked {
+export class QueryPreviewTableComponent implements OnChanges, AfterViewChecked, AfterContentChecked {
    @Input() containerSize: Rectangle;
    @ViewChild("previewContainer", {static: true}) previewContainer: ElementRef;
    @ViewChild("table") table: ElementRef;
@@ -69,6 +76,8 @@ export class QueryPreviewTableComponent implements AfterViewChecked, AfterConten
    col: number;
    isFirefox = GuiTool.isFF();
    mobileDevice: boolean = GuiTool.isMobileDevice();
+   containerHeight: number = 0;
+   containerWidth: number = 0;
 
    private initialColWidth: number = INITIAL_COLUMN_WIDTH;
 
@@ -181,6 +190,13 @@ export class QueryPreviewTableComponent implements AfterViewChecked, AfterConten
    constructor(private renderer: Renderer2,
                private changeRef: ChangeDetectorRef)
    {
+   }
+
+   ngOnChanges(changes: SimpleChanges) {
+      if(changes.containerSize) {
+         this.containerHeight = changes.containerSize.currentValue.height - 2;
+         this.containerWidth = changes.containerSize.currentValue.width - 2;
+      }
    }
 
    ngAfterContentChecked(): void {

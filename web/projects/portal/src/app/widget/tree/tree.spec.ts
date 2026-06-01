@@ -16,6 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, EventEmitter, Input, NO_ERRORS_SCHEMA, Output } from "@angular/core";
+import { NgClass, NgFor, NgIf } from "@angular/common";
 import { ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { By } from "@angular/platform-browser";
@@ -30,10 +31,11 @@ describe("Tree Unit Case", () => {
 
    beforeEach(() => {
       TestBed.configureTestingModule({
-         imports: [ReactiveFormsModule, FormsModule, NgbModule],
-         declarations:  [TreeComponent],
+         imports: [ReactiveFormsModule, FormsModule, NgbModule, TreeComponent],
+
          schemas: [NO_ERRORS_SCHEMA]
       });
+      TestBed.overrideComponent(TreeComponent, { set: { imports: [NgIf, NgFor, NgClass, FormsModule] } });
       TestBed.compileComponents();
 
       fixture = TestBed.createComponent(TreeComponent);
@@ -44,6 +46,10 @@ describe("Tree Unit Case", () => {
    //Bug #17221 search field can not input string
    it("Search field can be input string", () => {
       treeComponent.searchEnabled = true;
+      // search() schedules a setTimeout that calls expandAll(this.root); without
+      // a root node, the timer throws "Cannot read properties of undefined
+      // (reading 'expanded')" after the fixture is destroyed.
+      treeComponent.root = { label: "root", children: [], expanded: true };
       fixture.detectChanges();
 
       input = fixture.debugElement.query(By.css("div.search-box input")).nativeElement;

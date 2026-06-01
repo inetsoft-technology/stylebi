@@ -1,20 +1,20 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <em-modal-header [cshid]="'EMSettingsLogging'" [title]="title">
 </em-modal-header>
 <mat-dialog-content>
@@ -31,21 +31,33 @@
         <mat-option value="ROLE">_#(Role)</mat-option>
         <mat-option value="SCHEDULE_TASK">_#(Schedule Task)</mat-option>
         <mat-option value="CATEGORY">_#(Log Category)</mat-option>
-        <mat-option *ngIf="enterprise && isMultiTenant" value="ORGANIZATION">_#(Organization)</mat-option>
+        @if (enterprise && isMultiTenant) {
+          <mat-option value="ORGANIZATION">_#(Organization)</mat-option>
+        }
       </mat-select>
     </mat-form-field>
-    <mat-form-field appearance="outline" color="accent" *ngIf="isNameFieldVisible()">
-      <mat-label>_#(Name):</mat-label>
-      <input matInput placeholder="_#(Name)" formControlName="name" (change)="onFormChanged()">
-      <mat-error *ngIf="form.controls.name?.errors?.required">_#(enter.name)</mat-error>
-    </mat-form-field>
-    <mat-form-field appearance="outline" color="accent" *ngIf="isOrganizationFieldVisible()">
-      <mat-label>_#(Organization):</mat-label>
-      <mat-select formControlName="orgName" (selectionChange)="onFormChanged()">
-        <mat-option *ngFor="let org of organizations" [value]="org">{{org}}</mat-option>
-      </mat-select>
-      <mat-error *ngIf="form.controls.orgName?.errors?.required">_#(add.log.selectOneOrg)</mat-error>
-    </mat-form-field>
+    @if (isNameFieldVisible()) {
+      <mat-form-field appearance="outline" color="accent">
+        <mat-label>_#(Name):</mat-label>
+        <input matInput placeholder="_#(Name)" formControlName="name" (change)="onFormChanged()">
+        @if (form.controls.name?.errors?.required) {
+          <mat-error>_#(enter.name)</mat-error>
+        }
+      </mat-form-field>
+    }
+    @if (isOrganizationFieldVisible()) {
+      <mat-form-field appearance="outline" color="accent">
+        <mat-label>_#(Organization):</mat-label>
+        <mat-select formControlName="orgName" (selectionChange)="onFormChanged()">
+          @for (org of organizations; track org) {
+            <mat-option [value]="org">{{org}}</mat-option>
+          }
+        </mat-select>
+        @if (form.controls.orgName?.errors?.required) {
+          <mat-error>_#(add.log.selectOneOrg)</mat-error>
+        }
+      </mat-form-field>
+    }
     <mat-form-field appearance="outline" color="accent">
       <mat-label>_#(Level):</mat-label>
       <mat-select formControlName="level" (selectionChange)="onFormChanged()">

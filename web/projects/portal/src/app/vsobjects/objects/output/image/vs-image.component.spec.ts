@@ -73,36 +73,35 @@ describe("VSImage", () => {
       model = createModel();
       actions = new ImageActions(model, ViewerContextProviderFactory(false));
 
-      viewsheetClient = { sendEvent: jest.fn() };
+      viewsheetClient = { sendEvent: vi.fn() };
       viewsheetClient.runtimeId = "Viewsheet1";
-      modalService = { open: jest.fn() };
-      dropdownService = { open: jest.fn() };
-      popComponentService = { isPopComponent: jest.fn() };
-      let assemblyActionFactory = { createActions: jest.fn() };
+      modalService = { open: vi.fn() };
+      dropdownService = { open: vi.fn() };
+      popComponentService = { isPopComponent: vi.fn() };
+      let assemblyActionFactory = { createActions: vi.fn() };
       contextProvider = { viewer: true, composer: false, preview: false, binding: false };
-      dataTipService = { isDataTip: jest.fn() };
-      modelService = { sendModel: jest.fn() };
+      dataTipService = { isDataTip: vi.fn() };
+      modelService = { sendModel: vi.fn() };
       router = {
-         navigate: jest.fn(),
+         navigate: vi.fn(),
          events: new Subject<any>()
       };
       richTextService = {
-         showAnnotationDialog: jest.fn()
+         showAnnotationDialog: vi.fn()
       };
       timerService = {
-         defer: jest.fn((fn) => {
+         defer: vi.fn((fn) => {
             fn();
          })
       };
 
       TestBed.configureTestingModule({
          imports: [
-            HttpClientTestingModule
-         ],
-         declarations: [
+            HttpClientTestingModule,
             VSImage,
-            VSAnnotation
+            VSAnnotation,
          ],
+         
          schemas: [NO_ERRORS_SCHEMA],
          providers: [
             { provide: ViewsheetClientService, useValue: viewsheetClient },
@@ -150,7 +149,7 @@ describe("VSImage", () => {
          fixture.componentInstance.vsInfo = new ViewsheetInfo([], "/link/");
          fixture.detectChanges();
 
-         window.open = jest.fn();
+         window.open = vi.fn();
 
          const action = actions.clickAction;
          expect(action).toBeTruthy();
@@ -192,7 +191,7 @@ describe("VSImage", () => {
          fixture.componentInstance.vsInfo = new ViewsheetInfo([], "/link/");
          fixture.detectChanges();
 
-         window.open = jest.fn();
+         window.open = vi.fn();
 
          const action = actions.clickAction;
          expect(action).toBeTruthy();
@@ -237,7 +236,7 @@ describe("VSImage", () => {
 
    // Bug #19028 should apply alpha on image
    // Bug #20250 should apply data tip alpha
-   xit("should apply correct alpha on image", () => {
+   it.skip("should apply correct alpha on image", () => {
       contextProvider.viewer = true;
       contextProvider.preview = false;
       model.alpha = "0.5";
@@ -260,7 +259,7 @@ describe("VSImage", () => {
    });
 
    // Bug #20479 should apply border
-   xit("should apply border on image", () => {
+   it.skip("should apply border on image", () => {
       contextProvider.viewer = true;
       contextProvider.preview = false;
       model.scaleInfo = {

@@ -19,27 +19,31 @@ import {
     Component, Input, Output, EventEmitter, OnInit, ViewChild, ElementRef, AfterViewInit,
     ChangeDetectorRef
 } from "@angular/core";
-import {
-    UntypedFormControl, UntypedFormGroup, Validators, ValidationErrors,
-    AbstractControl, ValidatorFn
-} from "@angular/forms";
+import { UntypedFormControl, UntypedFormGroup, Validators, ValidationErrors, AbstractControl, ValidatorFn, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { DrillParameterModel } from "../../../../../../../model/datasources/database/physical-model/logical-model/drill-parameter-model";
 import { ValidatorMessageInfo } from "../../../../../../../../../widget/dialog/input-name-dialog/input-name-dialog.component";
 import { XSchema } from "../../../../../../../../../common/data/xschema";
 import { FormulaEditorService } from "../../../../../../../../../widget/formula-editor/formula-editor.service";
 import { Tool } from "../../../../../../../../../../../../shared/util/tool";
 import { FormValidators } from "../../../../../../../../../../../../shared/util/form-validators";
-import { CustomSelectOption } from "../../../../../../../../../widget/custom-select/custom-select.component";
+import { TimeInstantValueEditorComponent } from "../../../../../../../../../widget/date-type-editor/time-instant-value-editor.component";
+import { TimeValueEditorComponent } from "../../../../../../../../../widget/date-type-editor/time-value-editor.component";
+import { DateValueEditorComponent } from "../../../../../../../../../widget/date-type-editor/date-value-editor.component";
+import { NgClass } from "@angular/common";
+import { ModalHeaderComponent } from "../../../../../../../../../widget/modal-header/modal-header.component";
+import { CustomSelectOption, CustomSelectComponent } from "../../../../../../../../../widget/custom-select/custom-select.component";
 
+import { NumberStepperComponent } from "../../../../../../../../../widget/number-stepper/number-stepper.component";
 enum SourceType {
    FIELD,
    CONSTANT
 }
 
 @Component({
-   selector: "parameter-dialog",
-   templateUrl: "parameter-dialog.component.html",
-   styleUrls: ["parameter-dialog.component.scss"]
+    selector: "parameter-dialog",
+    templateUrl: "parameter-dialog.component.html",
+    styleUrls: ["parameter-dialog.component.scss"],
+    imports: [ModalHeaderComponent, FormsModule, ReactiveFormsModule, NgClass, DateValueEditorComponent, TimeValueEditorComponent, TimeInstantValueEditorComponent, CustomSelectComponent, NumberStepperComponent]
 })
 export class ParameterDialog implements OnInit, AfterViewInit {
    @Input() index: number = -1;

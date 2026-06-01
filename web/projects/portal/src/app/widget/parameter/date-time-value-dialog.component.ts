@@ -19,10 +19,13 @@ import { Component, EventEmitter, Input, OnInit, Output } from "@angular/core";
 import { DateTypeFormatter } from "../../../../../shared/util/date-type-formatter";
 import { DateTimeChangeType } from "../../widget/date-type-editor/date-time-change-type";
 
+import { DateTimePickerComponent } from "../date-type-editor/date-time-picker.component";
+
 @Component({
-   selector: "date-time-value-dialog",
-   templateUrl: "date-time-value-dialog.component.html",
-   styleUrls: ["./date-time-value-dialog.component.scss"]
+    selector: "date-time-value-dialog",
+    templateUrl: "date-time-value-dialog.component.html",
+    styleUrls: ["./date-time-value-dialog.component.scss"],
+    imports: [DateTimePickerComponent]
 })
 export class DateTimeValueDialog implements OnInit {
    @Input() promptTime: boolean;

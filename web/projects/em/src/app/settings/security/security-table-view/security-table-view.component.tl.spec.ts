@@ -71,11 +71,11 @@ function makeIdentity(
 
 function makeDropEvent(models: IdentityModel[]) {
    const dataTransfer = {
-      getData: jest.fn().mockReturnValue(JSON.stringify(models)),
+      getData: vi.fn().mockReturnValue(JSON.stringify(models)),
    };
 
    return {
-      preventDefault: jest.fn(),
+      preventDefault: vi.fn(),
       dataTransfer,
    } as unknown as DragEvent & { dataTransfer: typeof dataTransfer };
 }
@@ -100,17 +100,17 @@ interface RenderOpts {
 async function renderComponent(opts: RenderOpts = {}) {
    const afterClosed$ = new Subject<unknown>();
    const dialogSpy = {
-      open: jest.fn().mockReturnValue({ afterClosed: () => afterClosed$.asObservable() }),
+      open: vi.fn().mockReturnValue({ afterClosed: () => afterClosed$.asObservable() }),
    };
    const clipboardSpy = {
-      canPaste: jest.fn().mockReturnValue(false),
-      hasContent: jest.fn().mockReturnValue(false),
-      copiedCount: jest.fn().mockReturnValue(0),
-      copiedTotal: jest.fn().mockReturnValue(0),
-      copy: jest.fn(),
-      paste: jest.fn().mockReturnValue(null),
+      canPaste: vi.fn().mockReturnValue(false),
+      hasContent: vi.fn().mockReturnValue(false),
+      copiedCount: vi.fn().mockReturnValue(0),
+      copiedTotal: vi.fn().mockReturnValue(0),
+      copy: vi.fn(),
+      paste: vi.fn().mockReturnValue(null),
    };
-   const snackBarSpy = { open: jest.fn() };
+   const snackBarSpy = { open: vi.fn() };
 
    const result = await render(SecurityTableViewComponent, {
       imports: [

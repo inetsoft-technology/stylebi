@@ -22,11 +22,15 @@ import { ComponentTool } from "../../../common/util/component-tool";
 import { TreeNodeModel } from "../../../widget/tree/tree-node-model";
 import { SelectDataSourceDialogModel } from "../../data/vs/select-data-source-dialog-model";
 import { AssetType } from "../../../../../../shared/data/asset-type";
+import { AssetTreeComponent } from "../../../widget/asset-tree/asset-tree.component";
+import { EnterSubmitDirective } from "../../../widget/directive/enter-submit.directive";
+import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
 
 @Component({
-   selector: "select-data-source-dialog",
-   templateUrl: "select-data-source-dialog.component.html",
-   styles: ["legend i { vertical-align: -15% }"]
+    selector: "select-data-source-dialog",
+    templateUrl: "select-data-source-dialog.component.html",
+    styles: ["legend i { vertical-align: -15% }"],
+    imports: [ModalHeaderComponent, EnterSubmitDirective, AssetTreeComponent]
 })
 export class SelectDataSourceDialog {
    @Input() model: SelectDataSourceDialogModel;

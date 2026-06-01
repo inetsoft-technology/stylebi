@@ -51,7 +51,6 @@ import { MatInputModule } from "@angular/material/input";
 import { MatOptionModule } from "@angular/material/core";
 import { MatSelectModule } from "@angular/material/select";
 import { NoopAnimationsModule } from "@angular/platform-browser/animations";
-import { it } from "@jest/globals";
 import { render, waitFor } from "@testing-library/angular";
 import { of } from "rxjs";
 
@@ -88,7 +87,7 @@ interface RenderOpts {
 
 async function renderComponent(opts: RenderOpts = {}) {
    const appInfoSpy = {
-      isEnterprise: jest.fn().mockReturnValue(of(opts.isEnterprise ?? true)),
+      isEnterprise: vi.fn().mockReturnValue(of(opts.isEnterprise ?? true)),
    };
 
    const result = await render(AuthenticationProviderDetailViewComponent, {
@@ -130,7 +129,7 @@ describe("AuthenticationProviderDetailViewComponent - model binding and new-prov
 
    // Regression-sensitive: editing an existing provider starts from the @Input model. If the
    // form stays blank, a reset/save can overwrite the provider name and type.
-   it.failing("should initialize providerName, oldName, and providerType from an input model", async () => {
+   it.fails("should initialize providerName, oldName, and providerType from an input model", async () => {
       const model = makeModel({
          providerName: "Existing",
          oldName: "Original",

@@ -26,8 +26,7 @@ import { ComboBoxEditorModel } from "../model/combo-box-editor-model";
 import { SelectionListDialogModel } from "../model/selection-list-dialog-model";
 import { SelectionListEditorModel } from "../model/selection-list-editor-model";
 import { ComboBoxEditor } from "./combo-box-editor.component";
-import { CustomSelectModule } from "../../widget/custom-select/custom-select.module";
-
+import { CustomSelectComponent } from "../../widget/custom-select/custom-select.component";
 describe("Combo Box Editor Test", () => {
    const createModel: () => ComboBoxEditorModel = () => {
       return {
@@ -51,11 +50,11 @@ describe("Combo Box Editor Test", () => {
    let modalService: any;
 
    beforeEach(() => {
-      modalService = { open: jest.fn() };
+      modalService = { open: vi.fn() };
 
       TestBed.configureTestingModule({
-         imports: [ReactiveFormsModule, FormsModule, NgbModule, HttpClientTestingModule, CustomSelectModule],
-         declarations: [ComboBoxEditor],
+         imports: [ReactiveFormsModule, FormsModule, NgbModule, HttpClientTestingModule, ComboBoxEditor],
+         
          providers: [{provide: DialogService, useValue: modalService}],
          schemas: [NO_ERRORS_SCHEMA]
       }).compileComponents();

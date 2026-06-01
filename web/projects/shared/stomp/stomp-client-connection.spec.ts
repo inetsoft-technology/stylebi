@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { EventEmitter } from "@angular/core";
 import { Subscription } from "rxjs";
 import { SsoHeartbeatService } from "../sso/sso-heartbeat.service";
@@ -22,17 +23,17 @@ import { StompClientConnection } from "./stomp-client-connection";
 
 function makeChannel() {
    return {
-      subscribe: jest.fn().mockReturnValue(new Subscription()),
-      send: jest.fn(),
+      subscribe: vi.fn().mockReturnValue(new Subscription()),
+      send: vi.fn(),
       transport: "websocket",
-      hasConnection: jest.fn().mockReturnValue(true)
+      hasConnection: vi.fn().mockReturnValue(true)
    };
 }
 
 function makeConnection(emClient = false) {
    const channel = makeChannel();
    const heartbeat = new EventEmitter<any>();
-   const onDisconnect = jest.fn();
+   const onDisconnect = vi.fn();
    const ssoService = new SsoHeartbeatService();
 
    const connection = new StompClientConnection(
@@ -78,7 +79,7 @@ describe("StompClientConnection", () => {
    describe("ssoHeartbeat behaviour via send", () => {
       it("dispatches heartbeat for normal destinations", () => {
          const { connection, ssoService } = makeConnection();
-         const heartbeatSpy = jest.spyOn(ssoService, "heartbeat");
+         const heartbeatSpy = vi.spyOn(ssoService, "heartbeat");
 
          connection.send("/topic/some-event", null, "{}");
 
@@ -87,7 +88,7 @@ describe("StompClientConnection", () => {
 
       it("dispatches heartbeat for touch-asset when design flag is true", () => {
          const { connection, ssoService } = makeConnection();
-         const heartbeatSpy = jest.spyOn(ssoService, "heartbeat");
+         const heartbeatSpy = vi.spyOn(ssoService, "heartbeat");
          const body = JSON.stringify({ wallboard: false, design: true, changed: false, update: false });
 
          connection.send("/events/composer/touch-asset", null, body);
@@ -97,7 +98,7 @@ describe("StompClientConnection", () => {
 
       it("dispatches heartbeat for touch-asset when changed flag is true", () => {
          const { connection, ssoService } = makeConnection();
-         const heartbeatSpy = jest.spyOn(ssoService, "heartbeat");
+         const heartbeatSpy = vi.spyOn(ssoService, "heartbeat");
          const body = JSON.stringify({ wallboard: false, design: false, changed: true, update: false });
 
          connection.send("/events/composer/touch-asset", null, body);
@@ -107,7 +108,7 @@ describe("StompClientConnection", () => {
 
       it("suppresses heartbeat for touch-asset when all flags are false", () => {
          const { connection, ssoService } = makeConnection();
-         const heartbeatSpy = jest.spyOn(ssoService, "heartbeat");
+         const heartbeatSpy = vi.spyOn(ssoService, "heartbeat");
          const body = JSON.stringify({ wallboard: false, design: false, changed: false, update: false });
 
          connection.send("/events/composer/touch-asset", null, body);
@@ -117,7 +118,7 @@ describe("StompClientConnection", () => {
 
       it("dispatches heartbeat for touch-asset when wallboard flag is true", () => {
          const { connection, ssoService } = makeConnection();
-         const heartbeatSpy = jest.spyOn(ssoService, "heartbeat");
+         const heartbeatSpy = vi.spyOn(ssoService, "heartbeat");
          const body = JSON.stringify({ wallboard: true, design: false, changed: false, update: false });
 
          connection.send("/events/composer/touch-asset", null, body);
@@ -127,7 +128,7 @@ describe("StompClientConnection", () => {
 
       it("dispatches heartbeat for touch-asset when update flag is true", () => {
          const { connection, ssoService } = makeConnection();
-         const heartbeatSpy = jest.spyOn(ssoService, "heartbeat");
+         const heartbeatSpy = vi.spyOn(ssoService, "heartbeat");
          const body = JSON.stringify({ wallboard: false, design: false, changed: false, update: true });
 
          connection.send("/events/composer/touch-asset", null, body);
@@ -147,8 +148,8 @@ describe("StompClientConnection", () => {
          const { connection, channel } = makeConnection();
          const sub1 = new Subscription();
          const sub2 = new Subscription();
-         jest.spyOn(sub1, "unsubscribe");
-         jest.spyOn(sub2, "unsubscribe");
+         vi.spyOn(sub1, "unsubscribe");
+         vi.spyOn(sub2, "unsubscribe");
          channel.subscribe.mockReturnValueOnce(sub1).mockReturnValueOnce(sub2);
 
          connection.subscribe("/topic/a");
@@ -164,7 +165,7 @@ describe("StompClientConnection", () => {
       it("exposes the heartbeat EventEmitter", () => {
          const { connection, channel } = makeConnection();
          const heartbeat = new EventEmitter();
-         const onDisconnect = jest.fn();
+         const onDisconnect = vi.fn();
          const ssoService = new SsoHeartbeatService();
          const conn = new StompClientConnection(channel as any, heartbeat, onDisconnect, ssoService, false);
 

@@ -16,24 +16,26 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, HostListener, Inject, OnInit } from "@angular/core";
-import {
-   UntypedFormControl,
-   UntypedFormGroup,
-   Validators,
-} from "@angular/forms";
-import { MAT_DIALOG_DATA, MatDialogRef } from "@angular/material/dialog";
+import { UntypedFormControl, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
+import { MAT_DIALOG_DATA, MatDialogRef, MatDialogContent, MatDialogActions } from "@angular/material/dialog";
 import { Tool } from "../../../../../../shared/util/tool";
 import { EditTaskFolderDialogModel } from "../model/edit-task-folder-dialog-model";
 import { HttpClient } from "@angular/common/http";
 import { CheckDuplicateResponse } from "../../../../../../portal/src/app/portal/data/commands/check-duplicate-response";
 import { FormValidators } from "../../../../../../shared/util/form-validators";
+import { MatButton } from "@angular/material/button";
+
+import { MatInput } from "@angular/material/input";
+import { MatFormField, MatLabel, MatError } from "@angular/material/form-field";
+import { ModalHeaderComponent } from "../../../common/util/modal-header/modal-header.component";
 
 const TASK_FOLDER_CHECK_DUPLICATE_URI: string = "../api/em/schedule/rename/checkDuplicate";
 
 @Component({
-   selector: "em-edit-task-folder-dialog",
-   templateUrl: "./edit-task-folder-dialog.component.html",
-   styleUrls: ["./edit-task-folder-dialog.component.scss"]
+    selector: "em-edit-task-folder-dialog",
+    templateUrl: "./edit-task-folder-dialog.component.html",
+    styleUrls: ["./edit-task-folder-dialog.component.scss"],
+    imports: [ModalHeaderComponent, MatDialogContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatInput, MatError, MatDialogActions, MatButton]
 })
 export class EditTaskFolderDialogComponent implements OnInit{
    model: EditTaskFolderDialogModel;

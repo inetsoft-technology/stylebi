@@ -28,10 +28,8 @@ import { DialogContentDirective } from "../../../widget/standard-dialog/dialog-c
 import { StandardDialogComponent } from "../../../widget/standard-dialog/standard-dialog.component";
 import { ViewsheetPrintLayoutDialogModel } from "../../data/vs/viewsheet-print-layout-dialog-model";
 import { ViewsheetPrintLayoutDialog } from "./viewsheet-print-layout-dialog.component";
-import { NumberStepperModule } from "../../../widget/number-stepper/number-stepper.module";
-import { CustomSelectModule } from "../../../widget/custom-select/custom-select.module";
-
-
+import { NumberStepperComponent } from "../../../widget/number-stepper/number-stepper.component";
+import { CustomSelectComponent } from "../../../widget/custom-select/custom-select.component";
 let createModel: () => ViewsheetPrintLayoutDialogModel = () => {
    return {
       paperSize: "Letter [8.5x11 in]",
@@ -67,13 +65,15 @@ describe("Viewsheet print layout dialog Test", () => {
             ReactiveFormsModule,
             FormsModule,
             NgbDropdownModule,
-            CustomSelectModule,
-            NumberStepperModule,
+            HttpClientTestingModule,
+            ViewsheetPrintLayoutDialog,
+            EnterSubmitDirective,
+            StandardDialogComponent,
+            DialogContentDirective,
+            DialogButtonsDirective,
+            ModalHeaderComponent,
          ],
-         declarations: [
-            ViewsheetPrintLayoutDialog, EnterSubmitDirective, StandardDialogComponent,
-            DialogContentDirective, DialogButtonsDirective, ModalHeaderComponent
-         ],
+         
          schemas: [NO_ERRORS_SCHEMA]
       });
       TestBed.compileComponents();

@@ -18,11 +18,14 @@
 import { Component, Output, EventEmitter } from "@angular/core";
 import { DefaultPalette } from "../../../../widget/color-picker/default-palette";
 import { AbstractCombinedPane } from "./abstract-combined-pane";
+import { StaticColorEditor } from "./static-color-editor.component";
+
 
 @Component({
-   selector: "combined-color-pane",
-   templateUrl: "combined-color-pane.component.html",
-   styleUrls: ["combined-visual-pane.scss"],
+    selector: "combined-color-pane",
+    templateUrl: "combined-color-pane.component.html",
+    styleUrls: ["combined-visual-pane.scss"],
+    imports: [StaticColorEditor]
 })
 export class CombinedColorPane extends AbstractCombinedPane {
    @Output() colorChanged: EventEmitter<string> = new EventEmitter<string>();

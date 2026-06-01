@@ -17,11 +17,14 @@
  */
 import { Component, EventEmitter, Input, OnInit, Output } from "@angular/core";
 import { HttpParameter } from "../../common/data/tabular/http-parameter";
-import { CustomSelectOption } from "../custom-select/custom-select.component";
+import { FormsModule } from "@angular/forms";
+import { TabularTextEditor } from "./tabular-text-editor.component";
+import { CustomSelectOption, CustomSelectComponent } from "../custom-select/custom-select.component";
 
 @Component({
-   selector: "tabular-http-parameter-editor",
-   templateUrl: "tabular-http-parameter-editor.component.html"
+    selector: "tabular-http-parameter-editor",
+    templateUrl: "tabular-http-parameter-editor.component.html",
+    imports: [TabularTextEditor, FormsModule, CustomSelectComponent]
 })
 export class TabularHttpParameterEditorComponent implements OnInit {
    @Input() value: HttpParameter;

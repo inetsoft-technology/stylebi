@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { HttpClientTestingModule } from "@angular/common/http/testing";
 import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
@@ -38,8 +39,7 @@ describe("ContentDriversAndPluginsViewComponent", () => {
             MatButtonModule,
             MatIconModule,
             MatListModule,
-         ],
-         declarations: [ContentDriversAndPluginsViewComponent],
+            ContentDriversAndPluginsViewComponent],
          schemas: [NO_ERRORS_SCHEMA]
       })
          .compileComponents();

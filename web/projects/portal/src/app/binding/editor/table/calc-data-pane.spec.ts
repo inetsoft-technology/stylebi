@@ -25,11 +25,10 @@ import { CellBindingInfo } from "../../data/table/cell-binding-info";
 import { BindingService } from "../../services/binding.service";
 import { VSCalcTableEditorService } from "../../services/table/vs-calc-table-editor.service";
 import { CalcDataPane } from "./calc-data-pane.component";
-import { CustomSelectModule } from "../../../widget/custom-select/custom-select.module";
-
+import { CustomSelectComponent } from "../../../widget/custom-select/custom-select.component";
 describe("Calc Data Pane Unit Test", () => {
    beforeAll(() => {
-      jest.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({
+      vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({
          font: "",
          measureText: (_text: string) => ({ width: 0 })
       } as any);
@@ -56,29 +55,32 @@ describe("Calc Data Pane Unit Test", () => {
 
    beforeEach(() => {
       editorService = {
-         getAggregates: jest.fn(),
-         getCellBinding: jest.fn(),
-         getCellNames: jest.fn(),
-         getCellScript: jest.fn(),
-         loadCellScript: jest.fn(),
-         setCellBinding: jest.fn(),
-         getSelectCells: jest.fn(),
-         getCellNamesWithDefaults: jest.fn(),
-         changeColumnValue: jest.fn(),
+         getAggregates: vi.fn(),
+         getCellBinding: vi.fn(),
+         getCellNames: vi.fn(),
+         getCellScript: vi.fn(),
+         loadCellScript: vi.fn(),
+         setCellBinding: vi.fn(),
+         getSelectCells: vi.fn(),
+         getCellNamesWithDefaults: vi.fn(),
+         changeColumnValue: vi.fn(),
       };
-      bindingService = { isGrayedOutField: jest.fn() };
-      dialogService = { open: jest.fn() };
+      bindingService = { isGrayedOutField: vi.fn() };
+      dialogService = { open: vi.fn() };
       elemRef = {};
       render = {};
-      changeDetectorRef = { detectChanges: jest.fn() };
+      changeDetectorRef = { detectChanges: vi.fn() };
    });
 
    function configureTestEnv(): void {
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule, CustomSelectModule
+            FormsModule,
+            ReactiveFormsModule,
+            NgbModule,
+            CalcDataPane,
          ],
-         declarations: [ CalcDataPane ],
+         
          providers: [
             { provide: VSCalcTableEditorService, useValue: editorService },
             { provide: BindingService, useValue: bindingService },
@@ -100,7 +102,7 @@ describe("Calc Data Pane Unit Test", () => {
 
    //for Bug #20138, Bug #20248
    it("should pop up warning for duplicate cell name", () => {
-      let showMessageDialog = jest.spyOn(ComponentTool, "showMessageDialog");
+      let showMessageDialog = vi.spyOn(ComponentTool, "showMessageDialog");
       showMessageDialog.mockImplementation(() => Promise.resolve("ok"));
       editorService.getCellNames.mockImplementation(() => ["state", "id"]);
       calcDataPane = new CalcDataPane(editorService, dialogService, bindingService, changeDetectorRef);

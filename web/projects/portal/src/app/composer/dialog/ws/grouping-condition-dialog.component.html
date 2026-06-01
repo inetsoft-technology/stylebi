@@ -1,45 +1,51 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <modal-header [title]="'_#(Add Condition List)'"
-   (onCancel)="cancel()"
-   [cshid]="'WorksheetUserDefinedGrouping'">
+  (onCancel)="cancel()"
+  [cshid]="'WorksheetUserDefinedGrouping'">
 </modal-header>
 <div class="modal-body" [enterSubmit]="formValid" (onEnter)="ok()">
   <form class="container-fluid" [formGroup]="form">
     <div class="shell-form-row--field row">
       <div class="col form-floating">
         <input type="text" class="form-control" formControlName="name" trim
-               placeholder="_#(Group Name)">
+          placeholder="_#(Group Name)">
         <label><span>_#(Group Name)</span></label>
-        <div *ngIf="form.get('name').errors && form.get('name').errors['required']" class="shell-alert shell-alert--danger">_#(viewer.nameValid)</div>
-        <div *ngIf="form.get('name').errors && form.get('name').errors['exists']" class="shell-alert shell-alert--danger">_#(common.duplicateName)</div>
+        @if (form.get('name').errors && form.get('name').errors['required']) {
+          <div class="shell-alert shell-alert--danger">_#(viewer.nameValid)</div>
+        }
+        @if (form.get('name').errors && form.get('name').errors['exists']) {
+          <div class="shell-alert shell-alert--danger">_#(common.duplicateName)</div>
+        }
       </div>
     </div>
   </form>
   <condition-pane [conditionList]="form.get('conditionList').value" [provider]="provider"
-                  [fields]="fields" [isVSContext]="false"
-                  (conditionChange)="conditionChange($event)"
-                  (conditionListChange)="conditionListChange($event)">
+    [fields]="fields" [isVSContext]="false"
+    (conditionChange)="conditionChange($event)"
+    (conditionListChange)="conditionListChange($event)">
   </condition-pane>
   <div class="container-fluid mt-1">
-    <div *ngIf="form.get('conditionList').errors && form.get('conditionList').errors['required']" class="shell-alert shell-alert--danger">
-      _#(common.userGrouping.nullConditionList2)
-    </div>
+    @if (form.get('conditionList').errors && form.get('conditionList').errors['required']) {
+      <div class="shell-alert shell-alert--danger">
+        _#(common.userGrouping.nullConditionList2)
+      </div>
+    }
   </div>
 </div>
 

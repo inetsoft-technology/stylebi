@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { ComponentFixture, TestBed, waitForAsync } from "@angular/core/testing";
 import { NgbModule } from "@ng-bootstrap/ng-bootstrap";
@@ -31,9 +32,10 @@ describe("WizardToolBarComponent", () => {
    beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
-            NgbModule
+            NgbModule,
+            WizardToolBarComponent,
          ],
-         declarations: [WizardToolBarComponent],
+         
          schemas: [NO_ERRORS_SCHEMA],
          providers: [
             {

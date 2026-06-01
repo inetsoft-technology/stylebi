@@ -55,7 +55,6 @@ import { MatCheckboxModule } from "@angular/material/checkbox";
 import { NoopAnimationsModule } from "@angular/platform-browser/animations";
 import { HttpErrorResponse } from "@angular/common/http";
 import { render, waitFor } from "@testing-library/angular";
-import { it } from "@jest/globals";
 import { http, HttpResponse } from "msw";
 import { of } from "rxjs";
 
@@ -103,9 +102,9 @@ const IMPORT_URL = "*/api/em/content/schedule/import/*";
 // ---------------------------------------------------------------------------
 
 async function renderComp(opts: { dialogClosesWith?: unknown } = {}) {
-   const dialogRefSpy = { close: jest.fn() };
+   const dialogRefSpy = { close: vi.fn() };
    const matDialogSpy = {
-      open: jest.fn().mockReturnValue({
+      open: vi.fn().mockReturnValue({
          afterClosed: () => of(opts.dialogClosesWith !== undefined ? opts.dialogClosesWith : undefined),
       }),
    };
@@ -353,7 +352,7 @@ describe("ImportTaskDialogComponent — handleImportError(): null error body", (
    // Bug A — handleImportError() reads error.error.message without optional chaining.
    // Null JSON body (network/500) makes error.error null → TypeError before dialog opens.
    // Fix: error.error?.message ?? error.message (or equivalent fallback).
-   it.failing("should open error dialog from handleImportError when error.error is null", async () => {
+   it.fails("should open error dialog from handleImportError when error.error is null", async () => {
       const { comp, matDialogSpy } = await renderComp();
       const error = new HttpErrorResponse({
          error: null,

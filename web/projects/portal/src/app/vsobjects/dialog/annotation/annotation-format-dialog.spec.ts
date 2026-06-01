@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { HttpClientTestingModule } from "@angular/common/http/testing";
 import { Component } from "@angular/core";
 import { TestBed } from "@angular/core/testing";
@@ -42,7 +43,7 @@ import { RadiusDropdown } from "../../../widget/format/radius-dropdown.component
 import { StyleDropdown } from "../../../widget/format/style-dropdown.component";
 import { AnnotationFormatDialogModel } from "./annotation-format-dialog-model";
 import { AnnotationFormatDialog } from "./annotation-format-dialog.component";
-import { NumberStepperModule } from "../../../widget/number-stepper/number-stepper.module";
+import { NumberStepperComponent } from "../../../widget/number-stepper/number-stepper.component";
 import { DebounceService } from "../../../widget/services/debounce.service";
 
 @Component({
@@ -50,7 +51,9 @@ import { DebounceService } from "../../../widget/services/debounce.service";
    template: `
      <annotation-format-dialog
        [model]="dialogModel"
-       (onCommit)="updateModel($event)"></annotation-format-dialog>`
+       (onCommit)="updateModel($event)"></annotation-format-dialog>`,
+   standalone: true,
+   imports: [AnnotationFormatDialog]
 })
 class TestApp {
    public dialogModel: AnnotationFormatDialogModel = {
@@ -80,9 +83,6 @@ describe("Annotation Format Dialog Tests", () => {
             NgbModalModule,
             DropDownTestModule,
             HttpClientTestingModule,
-            NumberStepperModule
-         ],
-         declarations: [
             AnnotationFormatDialog,
             AlphaDropdown,
             ColorComponentEditor,
@@ -100,8 +100,9 @@ describe("Annotation Format Dialog Tests", () => {
             StyleDropdown,
             TestApp,
             EnterSubmitDirective,
-            ActionsContextmenuAnchorDirective
+            ActionsContextmenuAnchorDirective,
          ],
+         
          providers: [
             RecentColorService,
             DebounceService

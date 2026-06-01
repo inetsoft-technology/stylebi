@@ -1,39 +1,46 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
-<form [formGroup]="form" class="logical-model-entity-pane">
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
+<form [formGroup]="form">
   <div class="shell-form-group form-floating logical-model-entity-pane__first-field">
     <input #nameInput type="text" class="form-control" formControlName="name"
-           [class.is-invalid]="nameControl && nameControl.invalid">
+      [class.is-invalid]="nameControl && nameControl.invalid">
     <label>_#(Entity Name)</label>
-    <span class="invalid-feedback" *ngIf="nameControl?.getError('required')">
-      _#(data.logicalmodel.entityNameRequired)
-    </span>
-    <span class="invalid-feedback" *ngIf="!nameControl?.getError('required') && nameControl?.hasError('exists')">
-      _#(data.logicalmodel.entityNameDuplicate)
-    </span>
+    @if (nameControl?.getError('required')) {
+      <span class="invalid-feedback">
+        _#(data.logicalmodel.entityNameRequired)
+      </span>
+    }
+    @if (!nameControl?.getError('required') && nameControl?.hasError('exists')) {
+      <span class="invalid-feedback">
+        _#(data.logicalmodel.entityNameDuplicate)
+      </span>
+    }
   </div>
   <div class="shell-form-group form-floating">
     <textarea type="text" class="form-control" formControlName="description"></textarea>
     <label>_#(Description)</label>
   </div>
-  <div *ngIf="logicalModelParent" class="form-check">
-    <input type="checkbox" class="form-check-input" id="entityVisible"
-           [(ngModel)]="entity.visible" [ngModelOptions]="{standalone: true}"/>
-    <label class="form-check-label" for="entityVisible">_#(Visible)</label>
-  </div>
+  @if (logicalModelParent) {
+    <div class="form-check">
+      <label class="control-label">
+        <input type="checkbox" class="form-check-input" [(ngModel)]="entity.visible" [ngModelOptions]="{standalone: true}"/>
+        <span>_#(Visible)</span>
+      </label>
+    </div>
+  }
 </form>

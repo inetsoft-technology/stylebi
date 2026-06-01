@@ -82,6 +82,7 @@ import { SearchCommand } from "../commands/search-command";
 import { AssetItem } from "../model/datasources/database/asset-item";
 import { DatabaseDataModelBrowserModel } from "../model/datasources/database/database-data-model-browser-model";
 
+
 const DATA_FOLDERS_URI: string = "../api/data/folders/children/";
 const DATA_DATASOURCES_URI: string = "../api/data/datasources/nodes";
 const DATA_MODEL_BROWSER_URI: string = "../api/data/database/dataModel/browse";
@@ -119,10 +120,11 @@ interface TreeSectionState {
 }
 
 @Component({
-   selector: "p-data-sources-tree-view",
-   templateUrl: "data-sources-tree-view.component.html",
-   styleUrls: ["data-sources-tree-view.component.scss"],
-   providers: [ViewsheetClientService, AssetClientService]
+    selector: "p-data-sources-tree-view",
+    templateUrl: "data-sources-tree-view.component.html",
+    styleUrls: ["data-sources-tree-view.component.scss"],
+    providers: [ViewsheetClientService, AssetClientService],
+    imports: [TreeComponent, DataNotificationsComponent]
 })
 export class DataSourcesTreeViewComponent extends CommandProcessor implements OnInit, OnDestroy {
    @ViewChild(TreeComponent) tree: TreeComponent;

@@ -25,8 +25,9 @@ import {
 } from "@angular/forms";
 
 @Directive({
-   selector: "[minNumber]",
-   providers: [{provide: NG_VALIDATORS, useExisting: MinNumberDirective, multi: true}]
+    selector: "[minNumber]",
+    providers: [{ provide: NG_VALIDATORS, useExisting: MinNumberDirective, multi: true }],
+    standalone: true
 })
 export class MinNumberDirective implements Validator, AfterViewInit {
    @Input() minNumber: number;

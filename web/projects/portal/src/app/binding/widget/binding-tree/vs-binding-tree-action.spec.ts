@@ -15,13 +15,13 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { of as observableOf } from "rxjs";
+
+import { of as observableOf, Subject } from "rxjs";
 import { AssetType } from "../../../../../../shared/data/asset-type";
 import { TestUtils } from "../../../common/test/test-utils";
 import { ComponentTool } from "../../../common/util/component-tool";
 import { Viewsheet } from "../../../composer/data/vs/viewsheet";
 import { TreeNodeModel } from "../../../widget/tree/tree-node-model";
-import { CreateCalcDialog } from "../calculate-dialog/create-calc-dialog.component";
 import { VSBindingTreeActions } from "./vs-binding-tree-actions";
 
 describe("vs binding tree action unit case", () => {
@@ -35,13 +35,13 @@ describe("vs binding tree action unit case", () => {
       let wsDataTree = TestUtils.createMockWorksheetDataTree();
       viewsheet = new Viewsheet();
       selectedNode = wsDataTree.children[0].children[0].children[0];
-      dialogService = { open: jest.fn() };
+      dialogService = { open: vi.fn() };
       treeService = {
-         getTableName: jest.fn(),
-         getParent: jest.fn(),
-         isCalculatedFieldEnabled: jest.fn()
+         getTableName: vi.fn(),
+         getParent: vi.fn(),
+         isCalculatedFieldEnabled: vi.fn()
       };
-      modelService = { getModel: jest.fn() };
+      modelService = { getModel: vi.fn() };
 
       treeService.getTableName.mockImplementation(() => null);
       treeService.isCalculatedFieldEnabled.mockImplementation(() => true);
@@ -53,8 +53,15 @@ describe("vs binding tree action unit case", () => {
    it("should not pop up waring when new calc field", () => {
       let treeActions = new VSBindingTreeActions(viewsheet, selectedNode, [selectedNode],
          dialogService, treeService, modelService, "chart1", null, false);
-      let showDialog = jest.spyOn(ComponentTool, "showDialog");
-      showDialog.mockImplementation(() => new CreateCalcDialog(modelService));
+      let showDialog = vi.spyOn(ComponentTool, "showDialog");
+      // Return a plain stub object instead of `new CreateCalcDialog(...)` -
+      // CreateCalcDialog declares `dataType` as a getter, so the production
+      // code's `calcDialog.dataType = "string"` assignment throws
+      // "Cannot set property dataType ... which has only a getter".
+      showDialog.mockImplementation(() => ({
+         aggregateModify: new Subject<any>(),
+         aggregateDelete: new Subject<any>()
+      } as any));
       let col1 = TestUtils.createMockDataRef("state");
       let col2 = TestUtils.createMockDataRef("id");
       col2.dataType = "integer";
@@ -68,7 +75,7 @@ describe("vs binding tree action unit case", () => {
       treeActions.actions[0].actions[0].action(new MouseEvent("click"));
       expect(showDialog).toHaveBeenCalled();
 
-      let delConfirm = jest.spyOn(ComponentTool, "showConfirmDialog");
+      let delConfirm = vi.spyOn(ComponentTool, "showConfirmDialog");
       delConfirm.mockImplementation(() => Promise.resolve("no"));
       treeActions.actions[0].actions[2].action(new MouseEvent("click"));
       expect(delConfirm).toHaveBeenCalled();

@@ -30,21 +30,25 @@ import {
    OnInit,
    OnChanges
 } from "@angular/core";
-import { UntypedFormControl, ValidatorFn } from "@angular/forms";
+import { UntypedFormControl, ValidatorFn, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { FormValidators } from "../../../../../../shared/util/form-validators";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { HttpErrorResponse } from "@angular/common/http";
 import { Observable } from "rxjs";
 import { ComponentTool } from "../../../common/util/component-tool";
 
+import { EnterSubmitDirective } from "../../directive/enter-submit.directive";
+import { ModalHeaderComponent } from "../../modal-header/modal-header.component";
+
 export interface ValidatorMessageInfo {
    validatorName: string;
    message: string;
 }
 @Component({
-   selector: "input-name-dialog",
-   templateUrl: "input-name-dialog.component.html",
-   changeDetection: ChangeDetectionStrategy.OnPush
+    selector: "input-name-dialog",
+    templateUrl: "input-name-dialog.component.html",
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    imports: [ModalHeaderComponent, EnterSubmitDirective, FormsModule, ReactiveFormsModule]
 })
 export class InputNameDialog implements OnChanges, OnInit, AfterViewInit {
    @Input() validators: ValidatorFn[] = [

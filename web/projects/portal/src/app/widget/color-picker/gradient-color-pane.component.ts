@@ -27,14 +27,18 @@ import {
 import { AssemblyActionGroup } from "../../common/action/assembly-action-group";
 import { AssemblyAction } from "../../common/action/assembly-action";
 import { FixedDropdownDirective } from "../fixed-dropdown/fixed-dropdown.directive";
-import { GradientColor, ColorStop} from "../../common/data/base-format-model";
+import { GradientColor, ColorStop } from "../../common/data/base-format-model";
 import { VSShape } from "../../vsobjects/objects/shape/vs-shape";
-import { CustomSelectOption } from "../custom-select/custom-select.component";
+import { ActionsContextmenuAnchorDirective } from "../fixed-dropdown/actions-contextmenu-anchor.directive";
+import { GradientColorItem } from "./gradient-color-item.component";
+import { FormsModule } from "@angular/forms";
+import { CustomSelectOption, CustomSelectComponent } from "../custom-select/custom-select.component";
 
 @Component({
-   selector: "gradient-color-pane",
-   templateUrl: "gradient-color-pane.component.html",
-   styleUrls: ["gradient-color-pane.component.scss"]
+    selector: "gradient-color-pane",
+    templateUrl: "gradient-color-pane.component.html",
+    styleUrls: ["gradient-color-pane.component.scss"],
+    imports: [FormsModule, GradientColorItem, ActionsContextmenuAnchorDirective, CustomSelectComponent]
 })
 export class GradientColorPane implements OnInit {
    @Input() gradientColor: GradientColor;

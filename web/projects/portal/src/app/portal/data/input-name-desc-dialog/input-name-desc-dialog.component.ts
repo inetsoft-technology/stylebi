@@ -25,12 +25,16 @@ import {
    OnInit,
    OnChanges, ChangeDetectorRef, NgZone
 } from "@angular/core";
-import { UntypedFormControl, ValidatorFn } from "@angular/forms";
+import { UntypedFormControl, ValidatorFn, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { HttpErrorResponse } from "@angular/common/http";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { Observable } from "rxjs";
 import { FormValidators } from "../../../../../../shared/util/form-validators";
 import { ComponentTool } from "../../../common/util/component-tool";
+
+import { DefaultFocusDirective } from "../../../widget/directive/default-focus.directive";
+import { EnterSubmitDirective } from "../../../widget/directive/enter-submit.directive";
+import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
 
 export interface NameDescResult {
    name: string;
@@ -42,10 +46,11 @@ export interface ValidatorMessageInfo {
    message: string;
 }
 @Component({
-   selector: "input-name-desc-dialog",
-   templateUrl: "input-name-desc-dialog.component.html",
-   styleUrls: [ "input-name-desc-dialog.component.scss" ],
-   changeDetection: ChangeDetectionStrategy.OnPush
+    selector: "input-name-desc-dialog",
+    templateUrl: "input-name-desc-dialog.component.html",
+    styleUrls: ["input-name-desc-dialog.component.scss"],
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    imports: [ModalHeaderComponent, EnterSubmitDirective, FormsModule, DefaultFocusDirective, ReactiveFormsModule]
 })
 export class InputNameDescDialog implements OnChanges, OnInit {
    @Input() validators: ValidatorFn[] = [

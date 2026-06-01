@@ -16,20 +16,28 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, EventEmitter, Input, Output, QueryList, ViewChildren } from "@angular/core";
-import { NgControl } from "@angular/forms";
+import { NgControl, FormsModule } from "@angular/forms";
 import { JoinModel } from "../../../../../../model/datasources/database/physical-model/join-model";
 import { joinMap } from "../../../../../../model/datasources/database/physical-model/join-type.config";
 import { JoinType } from "../../../../../../model/datasources/database/physical-model/join-type.enum";
 import { ValueLabelPair } from "../../../../../../model/datasources/database/value-label-pair";
 import { MergingRule } from "../../../../../../model/datasources/database/physical-model/merging-rule.enum";
 import { Cardinality } from "../../../../../../model/datasources/database/physical-model/cardinality.enum";
-import {DataType} from "../../../../common-components/join-thumbnail.service";
-import { CustomSelectOption } from "../../../../../../../../widget/custom-select/custom-select.component";
+import { DataType } from "../../../../common-components/join-thumbnail.service";
+import { MaxNumberDirective } from "../../../../../../../../widget/directive/max-number-validator.directive";
+import { MinNumberDirective } from "../../../../../../../../widget/directive/min-number-validator.directive";
+import { DefaultFocusDirective } from "../../../../../../../../widget/directive/default-focus.directive";
 
+import { ModalHeaderComponent } from "../../../../../../../../widget/modal-header/modal-header.component";
+
+import { CustomSelectComponent, CustomSelectOption } from "../../../../../../../../widget/custom-select/custom-select.component";
+import { NumberStepperComponent } from "../../../../../../../../widget/number-stepper/number-stepper.component";
 @Component({
-   selector: "edit-join-dialog",
-   templateUrl: "edit-join-dialog.component.html",
-   styleUrls: ["edit-join-dialog.component.scss"]
+    selector: "edit-join-dialog",
+    templateUrl: "edit-join-dialog.component.html",
+    styleUrls: ["edit-join-dialog.component.scss"],
+
+    imports: [ModalHeaderComponent, FormsModule, DefaultFocusDirective, MinNumberDirective, MaxNumberDirective, CustomSelectComponent, NumberStepperComponent]
 })
 export class EditJoinDialog {
    @Input() removeEnabled: boolean = true;

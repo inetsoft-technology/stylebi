@@ -20,10 +20,13 @@ import { XConstants } from "../../../common/util/xconstants";
 import { VSAutoDrillDialogModel } from "../../../vsobjects/model/vs-auto-drill-dialog-model";
 import { SortInfo } from "../../../vsobjects/objects/table/sort-info";
 
+import { BlockMouseDirective } from "../../mouse-event/block-mouse.directive";
+
 @Component({
-   selector: "auto-drill-dialog",
-   templateUrl: "auto-drill-dialog.component.html",
-   styleUrls: ["auto-drill-dialog.component.scss"]
+    selector: "auto-drill-dialog",
+    templateUrl: "auto-drill-dialog.component.html",
+    styleUrls: ["auto-drill-dialog.component.scss"],
+    imports: [BlockMouseDirective]
 })
 export class AutoDrillDialog {
    @Input() model: VSAutoDrillDialogModel;

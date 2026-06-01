@@ -25,6 +25,7 @@ import { DynamicComboBox } from "../../widget/dynamic-combo-box/dynamic-combo-bo
 import { TitleFormatDialogModel } from "../model/dialog/title-format-dialog-model";
 import { TitleFormatDialog } from "./title-format-dialog.component";
 import { TitleFormatPane } from "./title-format-pane.component";
+import { HttpClientTestingModule } from "@angular/common/http/testing";
 
 describe("Title Format Dialog Unit Test", () => {
    let createMockTitleFormatDialogModel: (title?: string) => TitleFormatDialogModel = (title?: string) => {
@@ -45,19 +46,24 @@ describe("Title Format Dialog Unit Test", () => {
 
    beforeEach(waitForAsync(() => {
       uiContextService = {
-         isVS: jest.fn(),
-         isAdhoc: jest.fn(),
-         getDefaultTab: jest.fn(),
-         setDefaultTab: jest.fn()
+         isVS: vi.fn(),
+         isAdhoc: vi.fn(),
+         getDefaultTab: vi.fn(),
+         setDefaultTab: vi.fn()
       };
 
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule, DropDownTestModule
+            
+            HttpClientTestingModule,FormsModule,
+            ReactiveFormsModule,
+            NgbModule,
+            DropDownTestModule,
+            TitleFormatDialog,
+            TitleFormatPane,
+            DynamicComboBox,
          ],
-         declarations: [
-            TitleFormatDialog, TitleFormatPane, DynamicComboBox
-         ],
+         
          providers: [{
             provide: UIContextService, useValue: uiContextService
          }, NgbModal],
@@ -66,7 +72,7 @@ describe("Title Format Dialog Unit Test", () => {
    }));
 
    //Bug #20473
-   it("should revert to default title if clear title text", (done) => {
+   it("should revert to default title if clear title text", () => new Promise<void>((done) => {
       uiContextService.isAdhoc.mockImplementation(() => "false");
       let model = createMockTitleFormatDialogModel("state");
       fixture = TestBed.createComponent(TitleFormatDialog);
@@ -86,5 +92,5 @@ describe("Title Format Dialog Unit Test", () => {
          done();
       });
       okBtn.click();
-   });
+   }));
 });

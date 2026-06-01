@@ -15,17 +15,28 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Component, Input, ViewChild , OnInit } from "@angular/core";
+import { Component, Input, ViewChild, OnInit } from "@angular/core";
 import { FillPropPaneModel } from "../../data/vs/fill-prop-pane-model";
 import { ComboMode } from "../../../widget/dynamic-combo-box/dynamic-combo-box-model";
 import { DynamicComboBox } from "../../../widget/dynamic-combo-box/dynamic-combo-box.component";
 import { DefaultPalette } from "../../../widget/color-picker/default-palette";
 import { VSShape } from "../../../vsobjects/objects/shape/vs-shape";
 import { Tool } from "../../../../../../shared/util/tool";
+import { NgIf } from "@angular/common";
+import { AlphaDropdown } from "../../../widget/format/alpha-dropdown.component";
+import { ColorEditor } from "../../../widget/color-picker/color-editor.component";
+import { FormsModule } from "@angular/forms";
 
 @Component({
-   selector: "fill-prop-pane",
-   templateUrl: "fill-prop-pane.component.html",
+    selector: "fill-prop-pane",
+    templateUrl: "fill-prop-pane.component.html",
+    imports: [
+        DynamicComboBox,
+        FormsModule,
+        ColorEditor,
+        AlphaDropdown,
+        NgIf,
+    ]
 })
 export class FillPropPane implements OnInit {
    @Input() model: FillPropPaneModel;

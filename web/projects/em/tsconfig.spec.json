@@ -3,13 +3,18 @@
   "extends": "../../tsconfig.json",
   "compilerOptions": {
     "outDir": "../../out-tsc/spec",
+    "skipLibCheck": true,
     "types": [
-      "jest",
+      "vitest/globals",
       "node"
     ]
   },
   "include": [
     "src/**/*.spec.ts",
-    "src/**/*.d.ts"
+    "src/**/*.d.ts",
+    "../../vitest-bootstrap.ts"
+  ],
+  "exclude": [
+    "src/**/*.tl.spec.ts"
   ]
 }

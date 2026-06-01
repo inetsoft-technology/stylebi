@@ -22,11 +22,18 @@ import { BodyRegionFormat } from "../../../data/tablestyle/body-region-format";
 import { FontService } from "../../../../widget/services/font.service";
 import { BorderFormat } from "../../../data/tablestyle/border-format";
 import { FormatTool } from "../../../../common/util/format-tool";
+import { StyleBorderPaneComponent } from "./style-border-pane.component";
+import { ColorDropdown } from "../../../../widget/color-picker/color-dropdown.component";
+import { BindingAlignmentPane } from "../../../../format/objects/binding-alignment-pane.component";
+import { FontPane } from "../../../../widget/font-pane/font-pane.component";
+import { DropdownView } from "../../../../widget/dropdown-view/dropdown-view.component";
+
 
 @Component({
-   selector: "table-style-format-pane",
-   templateUrl: "table-style-format-pane.component.html",
-   styleUrls: ["table-style-format-pane.component.scss"]
+    selector: "table-style-format-pane",
+    templateUrl: "table-style-format-pane.component.html",
+    styleUrls: ["table-style-format-pane.component.scss"],
+    imports: [DropdownView, FontPane, BindingAlignmentPane, ColorDropdown, StyleBorderPaneComponent]
 })
 export class TableStyleFormatPaneComponent implements OnInit {
    @Input() selectedRegion: string;

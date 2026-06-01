@@ -16,15 +16,19 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, Input, OnInit } from "@angular/core";
-import { UntypedFormControl, UntypedFormGroup } from "@angular/forms";
+import { UntypedFormControl, UntypedFormGroup, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { FormValidators } from "../../../../../shared/util/form-validators";
 import { Tool } from "../../../../../shared/util/tool";
 import { AxisLinePaneModel } from "../model/dialog/axis-line-pane-model";
+import { ColorEditor } from "../../widget/color-picker/color-editor.component";
+import { NgClass } from "@angular/common";
 
+import { NumberStepperComponent } from "../../widget/number-stepper/number-stepper.component";
 @Component({
-   selector: "axis-line-pane",
-   templateUrl: "axis-line-pane.component.html",
-   styleUrls: ["axis-line-pane.component.scss"]
+    selector: "axis-line-pane",
+    templateUrl: "axis-line-pane.component.html",
+    styleUrls: ["axis-line-pane.component.scss"],
+    imports: [FormsModule, ReactiveFormsModule, ColorEditor, NgClass, NumberStepperComponent]
 })
 export class AxisLinePane implements OnInit {
    @Input() linear: boolean;

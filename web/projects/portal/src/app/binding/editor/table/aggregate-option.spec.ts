@@ -29,6 +29,7 @@ import { BindingService } from "../../services/binding.service";
 import { AggregateFormula } from "../../util/aggregate-formula";
 import { FormulaOption } from "../formula-option.component";
 import { AggregateOption } from "./aggregate-option.component";
+import { FixedDropdownDirective } from "../../../widget/fixed-dropdown/fixed-dropdown.directive";
 
 describe("Aggregate Option Unit Test", () => {
    let createMockAggregateRef: (name: string) => BAggregateRef = (name: string) => {
@@ -40,15 +41,20 @@ describe("Aggregate Option Unit Test", () => {
    let bindingService: any;
 
    beforeEach(waitForAsync(() => {
-      uiContextService = { isAdhoc: jest.fn() };
+      uiContextService = { isAdhoc: vi.fn() };
       bindingService = { assemblyName: null };
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule, DropDownTestModule
+            FormsModule,
+            ReactiveFormsModule,
+            NgbModule,
+            DropDownTestModule,
+            AggregateOption,
+            FormulaOption,
+            DynamicComboBox,
+            FixedDropdownDirective,
          ],
-         declarations: [
-            AggregateOption, FormulaOption, DynamicComboBox
-         ],
+         
          providers: [
             { provide: UIContextService, useValue: uiContextService },
             { provide: BindingService, useValue: bindingService }

@@ -15,19 +15,21 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import {Component, EventEmitter, Input, OnInit, Output} from "@angular/core";
-import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
-import {WorksheetBrowserInfo} from "../../../../data/model/worksheet-browser-info";
-import {Observable} from "rxjs";
-import {ScheduleTaskModel} from "../../../../../../../../shared/schedule/model/schedule-task-model";
-import {TaskFolderBrowserModel} from "../../../model/task-folder-browser-model";
-import {DataSourceInfo} from "../../../../data/model/data-source-info";
-import {TreeNodeModel} from "../../../../../widget/tree/tree-node-model";
+import { Component, EventEmitter, Input, OnInit, Output } from "@angular/core";
+import { NgbModal, NgbTooltip } from "@ng-bootstrap/ng-bootstrap";
+import { WorksheetBrowserInfo } from "../../../../data/model/worksheet-browser-info";
+import { Observable } from "rxjs";
+import { ScheduleTaskModel } from "../../../../../../../../shared/schedule/model/schedule-task-model";
+import { TaskFolderBrowserModel } from "../../../model/task-folder-browser-model";
+import { DataSourceInfo } from "../../../../data/model/data-source-info";
+import { TreeNodeModel } from "../../../../../widget/tree/tree-node-model";
+
 
 @Component({
-   selector: "task-folder-browser",
-   templateUrl: "task-folder-browser.component.html",
-   styleUrls: ["task-folder-browser.component.scss"]
+    selector: "task-folder-browser",
+    templateUrl: "task-folder-browser.component.html",
+    styleUrls: ["task-folder-browser.component.scss"],
+    imports: [NgbTooltip]
 })
 export class TaskFolderBrowserComponent implements OnInit{
    @Input() browserView: TaskFolderBrowserModel;

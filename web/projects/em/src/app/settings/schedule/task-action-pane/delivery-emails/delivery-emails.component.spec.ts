@@ -32,8 +32,8 @@ describe("DeliveryEmailsComponent", () => {
    let fixture: ComponentFixture<DeliveryEmailsComponent>;
 
    beforeEach(waitForAsync(() => {
-      const dialogRef = { afterClosed: jest.fn(() => observableOf(null)) };
-      const dialog = { open: jest.fn(() => dialogRef) };
+      const dialogRef = { afterClosed: vi.fn(() => observableOf(null)) };
+      const dialog = { open: vi.fn(() => dialogRef) };
 
       TestBed.configureTestingModule({
          imports: [
@@ -43,11 +43,8 @@ describe("DeliveryEmailsComponent", () => {
             MatCardModule,
             MatCheckboxModule,
             MatFormFieldModule,
-            MatInputModule
-         ],
-         declarations: [
-            DeliveryEmailsComponent
-         ],
+            MatInputModule,
+            DeliveryEmailsComponent],
          providers: [
             { provide: MatDialog, useValue: dialog }
          ],
@@ -55,6 +52,7 @@ describe("DeliveryEmailsComponent", () => {
             NO_ERRORS_SCHEMA
          ]
       })
+      .overrideTemplate(DeliveryEmailsComponent, "")
       .compileComponents();
    }));
 

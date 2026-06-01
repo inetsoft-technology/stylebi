@@ -42,13 +42,18 @@ import { VSSelectionTreeModel } from "../../model/vs-selection-tree-model";
 import { CellRegion } from "./cell-region";
 import { MODE } from "./selection-tree-controller";
 import { VSSelection } from "./vs-selection.component";
-import {ComponentTool} from "../../../common/util/component-tool";
+import { ComponentTool } from "../../../common/util/component-tool";
 import { ContextProvider } from "../../context-provider.service";
+import { SafeFontDirective } from "../../directives/safe-font.directive";
+import { TooltipIfDirective } from "../../../widget/tooltip/tooltip-if.directive";
+import { InteractableDirective } from "../../../widget/interact/interactable.directive";
+import { NgClass } from "@angular/common";
 
 @Component({
-   selector: "selection-list-cell",
-   templateUrl: "selection-list-cell.component.html",
-   styleUrls: ["selection-list-cell.component.scss"]
+    selector: "selection-list-cell",
+    templateUrl: "selection-list-cell.component.html",
+    styleUrls: ["selection-list-cell.component.scss"],
+    imports: [InteractableDirective, TooltipIfDirective, NgClass, SafeFontDirective]
 })
 export class SelectionListCell implements OnInit, OnChanges, OnDestroy {
    static INDENT_SIZE = 8;

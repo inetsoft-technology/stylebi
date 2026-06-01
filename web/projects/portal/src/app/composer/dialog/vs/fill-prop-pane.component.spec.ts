@@ -15,16 +15,20 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { NO_ERRORS_SCHEMA } from "@angular/core";
+import { NgModule, NO_ERRORS_SCHEMA } from "@angular/core";
 import { ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
-import { NgbModule } from "@ng-bootstrap/ng-bootstrap";
+import { NgbModal, NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { TestUtils } from "../../../common/test/test-utils";
 import { ColorEditor } from "../../../widget/color-picker/color-editor.component";
 import { ColorPicker } from "../../../widget/color-picker/color-picker.component";
 import { ColorPane } from "../../../widget/color-picker/cp-color-pane.component";
+import { FixedDropdownDirective } from "../../../widget/fixed-dropdown/fixed-dropdown.directive";
 import { DynamicComboBox } from "../../../widget/dynamic-combo-box/dynamic-combo-box.component";
-import { DropDownTestModule } from "../../../common/test/test-module";
+import { DropdownStackService } from "../../../widget/fixed-dropdown/dropdown-stack.service";
+import { FixedDropdownContextmenuComponent } from "../../../widget/fixed-dropdown/fixed-dropdown-contextmenu.component";
+import { FixedDropdownComponent } from "../../../widget/fixed-dropdown/fixed-dropdown.component";
+import { FixedDropdownService } from "../../../widget/fixed-dropdown/fixed-dropdown.service";
 import { AlphaDropdown } from "../../../widget/format/alpha-dropdown.component";
 import { TooltipDirective } from "../../../widget/tooltip/tooltip.directive";
 import { TreeDropdownComponent } from "../../../widget/tree/tree-dropdown.component";
@@ -32,10 +36,16 @@ import { TreeNodeComponent } from "../../../widget/tree/tree-node.component";
 import { TreeSearchPipe } from "../../../widget/tree/tree-search.pipe";
 import { TreeComponent } from "../../../widget/tree/tree.component";
 import { FillPropPaneModel } from "../../data/vs/fill-prop-pane-model";
-import { NumberStepperModule } from "../../../widget/number-stepper/number-stepper.module";
 import { FillPropPane } from "./fill-prop-pane.component";
 import { DebounceService } from "../../../widget/services/debounce.service";
 
+@NgModule({
+   imports: [
+      FixedDropdownComponent,
+      FixedDropdownContextmenuComponent
+   ],
+})
+class TestModule {}
 
 let createMode: () => FillPropPaneModel = () => {
    return {
@@ -51,9 +61,27 @@ describe("fill prop pane unit case: ", () => {
 
    beforeEach(() => {
       TestBed.configureTestingModule({
-         imports: [DropDownTestModule, ReactiveFormsModule, FormsModule, NgbModule, NumberStepperModule],
-         declarations: [AlphaDropdown, FillPropPane, DynamicComboBox, ColorEditor, ColorPicker, ColorPane, TreeComponent, TreeNodeComponent, TreeDropdownComponent, TreeSearchPipe, TooltipDirective],
-         providers: [DebounceService],
+         imports: [TestModule, ReactiveFormsModule, FormsModule, NgbModule, AlphaDropdown, FillPropPane, DynamicComboBox, ColorEditor, ColorPicker, ColorPane, TreeComponent, TreeNodeComponent, TreeDropdownComponent, TreeSearchPipe, FixedDropdownDirective, TooltipDirective],
+         
+         providers: [
+            FixedDropdownService,
+            DropdownStackService,
+            DebounceService,
+            {
+               // Stub NgbModal so the dynamic-combo-box's setTimeout-based formula
+               // editor dialog (fired when EXPRESSION mode is selected) doesn't try
+               // to open against a destroyed injector after the fixture is torn down.
+               provide: NgbModal,
+               useValue: {
+                  open: () => ({
+                     componentInstance: {},
+                     result: new Promise<any>(() => {}),
+                     close: () => {},
+                     dismiss: () => {}
+                  })
+               }
+            }
+         ],
          schemas: [NO_ERRORS_SCHEMA]
       }).compileComponents();
 
@@ -69,6 +97,7 @@ describe("fill prop pane unit case: ", () => {
 
       let typeToggle = fixture.nativeElement.querySelector("button.type-toggle");
       typeToggle.click();
+      fixture.detectChanges();
       TestUtils.changeDynamicComboValueType(1);
       fixture.detectChanges();
 
@@ -78,6 +107,7 @@ describe("fill prop pane unit case: ", () => {
       expect(colorEditor.getAttribute("class")).toContain("disable-actions-fade");
 
       typeToggle.click();
+      fixture.detectChanges();
       TestUtils.changeDynamicComboValueType(2);
       fixture.detectChanges();
       colorInput = fixture.nativeElement.querySelector("dynamic-combo-box input");
@@ -86,6 +116,7 @@ describe("fill prop pane unit case: ", () => {
 
       //Bug #20262
       typeToggle.click();
+      fixture.detectChanges();
       TestUtils.changeDynamicComboValueType(0);
       fixture.detectChanges();
       colorInput = fixture.nativeElement.querySelector("dynamic-combo-box");

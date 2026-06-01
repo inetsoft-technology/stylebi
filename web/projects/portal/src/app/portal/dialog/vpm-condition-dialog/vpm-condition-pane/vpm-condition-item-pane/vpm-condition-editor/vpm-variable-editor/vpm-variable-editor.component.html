@@ -1,31 +1,33 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <form [formGroup]="vform">
-   <div class="input-group variable-editor-group" [class.variable-input-group]="varShowDate">
-      <input class="form-control" type="text" [class.variable-input]="varShowDate"
-         [placeholder]="'_#(Variable Name)'"
-         [ngClass]="{'w-100': !varShowDate,
+  <div class="input-group variable-editor-group">
+    <input class="form-control" type="text" [class.variable-input]="varShowDate"
+      [placeholder]="'_#(Variable Name)'"
+         [ngClass]="{'input-transparent border-0': varShowDate, 'w-100': !varShowDate,
                      'text-low-Priority': !inputFocused && DATE_ITEMS.includes(variableName)}"
-         [ngModel]="variableName"
-         (ngModelChange)="variableNameChanged($event)"
-         (focus)="inputFocused = true"
-         formControlName="name"/>
-      <custom-select *ngIf="varShowDate"
+      [ngModel]="variableName"
+      (ngModelChange)="variableNameChanged($event)"
+      (focus)="inputFocused = true"
+      formControlName="name"/>
+    <label>_#(Variable Name)</label>
+    @if (varShowDate) {
+      <custom-select
                      class="variable-date-picker"
                      [options]="dateItemSelectOptions"
                      [ngClass]="{'text-low-Priority': inputFocused}"
@@ -35,5 +37,6 @@
                      ariaLabel="_#(Variable Name)"
                      placeholder="_#(Select)">
       </custom-select>
-   </div>
+    }
+  </div>
 </form>

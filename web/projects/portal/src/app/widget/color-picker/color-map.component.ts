@@ -19,9 +19,10 @@ import { Component, Input, Output, EventEmitter } from "@angular/core";
 import { HSV, convertHSVToHEX } from "./color-utils";
 
 @Component({
-   selector: "cp-color-map",
-   templateUrl: "color-map.component.html",
-   styleUrls: ["color-map.component.scss"]
+    selector: "cp-color-map",
+    templateUrl: "color-map.component.html",
+    styleUrls: ["color-map.component.scss"],
+    standalone: true
 })
 export class ColorMap {
    @Input() width: number;

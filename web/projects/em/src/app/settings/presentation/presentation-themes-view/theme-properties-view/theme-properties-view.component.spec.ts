@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { ComponentFixture, TestBed } from "@angular/core/testing";
 import { ReactiveFormsModule } from "@angular/forms";
@@ -29,11 +30,8 @@ describe("ThemePropertiesViewComponent", () => {
       await TestBed.configureTestingModule({
          imports: [
             NoopAnimationsModule,
-            ReactiveFormsModule
-         ],
-         declarations: [
-            ThemePropertiesViewComponent
-         ],
+            ReactiveFormsModule,
+            ThemePropertiesViewComponent],
          schemas: [
             NO_ERRORS_SCHEMA
          ]

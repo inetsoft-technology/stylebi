@@ -28,6 +28,7 @@ import { FormulaEditorDialog } from "../formula-editor/formula-editor-dialog.com
 import { TreeNodeComponent } from "../tree/tree-node.component";
 import { TreeSearchPipe } from "../tree/tree-search.pipe";
 import { TreeComponent } from "../tree/tree.component";
+import { FixedDropdownDirective } from "../fixed-dropdown/fixed-dropdown.directive";
 
 let createModel: () => DynamicComboBoxModel = () => {
    return {
@@ -48,12 +49,20 @@ describe("Dynamic combo box Unit Case: ", () => {
    beforeEach(() => {
       TestBed.configureTestingModule({
          imports: [
-            ReactiveFormsModule, FormsModule, NgbModule, DropDownTestModule
+            ReactiveFormsModule,
+            FormsModule,
+            NgbModule,
+            DropDownTestModule,
+            DynamicComboBox,
+            TreeComponent,
+            FormulaEditorDialog,
+            NewAggrDialog,
+            TreeNodeComponent,
+            ScriptPane,
+            TreeSearchPipe,
+            FixedDropdownDirective,
          ],
-         declarations: [
-            DynamicComboBox, TreeComponent, FormulaEditorDialog, NewAggrDialog,
-            TreeNodeComponent, ScriptPane, TreeSearchPipe
-         ],
+         
          schemas: [ NO_ERRORS_SCHEMA ]
       });
       TestBed.compileComponents();

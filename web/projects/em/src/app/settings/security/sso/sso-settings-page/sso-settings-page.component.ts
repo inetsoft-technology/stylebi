@@ -17,12 +17,7 @@
  */
 import { HttpClient } from "@angular/common/http";
 import { Component, OnDestroy, ViewChild } from "@angular/core";
-import {
-   UntypedFormBuilder,
-   UntypedFormControl,
-   UntypedFormGroup,
-   Validators
-} from "@angular/forms";
+import { UntypedFormBuilder, UntypedFormControl, UntypedFormGroup, Validators, FormsModule } from "@angular/forms";
 import { MatSelect } from "@angular/material/select";
 import { ActivatedRoute } from "@angular/router";
 import { Subscription } from "rxjs";
@@ -39,6 +34,18 @@ import {
    SSOFormModel,
    SSOSettingsModel
 } from "../sso-settings-model";
+import { CustomSsoFormComponent } from "../custom-sso-form/custom-sso-form.component";
+import { OpenidSettingsFormComponent } from "../openid-settings-form/openid-settings-form.component";
+import { SSOSettingsFormComponent } from "../sso-settings-form/sso-settings-form.component";
+import { MatCheckbox } from "@angular/material/checkbox";
+import { MatInput } from "@angular/material/input";
+import { MatIcon } from "@angular/material/icon";
+import { MatIconButton } from "@angular/material/button";
+
+import { MatOption } from "@angular/material/core";
+import { MatFormField, MatLabel } from "@angular/material/form-field";
+import { MatCard, MatCardTitle, MatCardContent } from "@angular/material/card";
+import { EditorPanelComponent } from "../../../../common/util/editor-panel/editor-panel.component";
 
 /**
  * Matches enum from backend
@@ -65,9 +72,10 @@ export enum SSOType {
    link: "EMSettingsSecuritySSO"
 })
 @Component({
-   selector: "em-sso-settings-page",
-   templateUrl: "./sso-settings-page.component.html",
-   styleUrls: ["./sso-settings-page.component.scss"]
+    selector: "em-sso-settings-page",
+    templateUrl: "./sso-settings-page.component.html",
+    styleUrls: ["./sso-settings-page.component.scss"],
+    imports: [EditorPanelComponent, MatCard, MatCardTitle, MatCardContent, MatFormField, MatLabel, MatSelect, MatOption, MatIconButton, MatIcon, MatInput, FormsModule, MatCheckbox, SSOSettingsFormComponent, OpenidSettingsFormComponent, CustomSsoFormComponent]
 })
 export class SsoSettingsPageComponent implements OnDestroy {
    @ViewChild("roleSelection") roleSelectionRef: MatSelect;

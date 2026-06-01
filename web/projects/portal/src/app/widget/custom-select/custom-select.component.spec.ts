@@ -19,12 +19,12 @@ import { Component } from "@angular/core";
 import { ComponentFixture, fakeAsync, TestBed, tick } from "@angular/core/testing";
 import { FormsModule } from "@angular/forms";
 import { By } from "@angular/platform-browser";
-import { CustomSelectModule } from "./custom-select.module";
 import { CustomSelectComponent, CustomSelectOption } from "./custom-select.component";
 
 // ---- Test host components ----
 
 @Component({
+   imports: [CustomSelectComponent, FormsModule],
    template: `<custom-select [options]="options" [(ngModel)]="value"></custom-select>`
 })
 class TestHostComponent {
@@ -36,6 +36,7 @@ class TestHostComponent {
 }
 
 @Component({
+   imports: [CustomSelectComponent, FormsModule],
    template: `<custom-select [options]="options" [(ngModel)]="value" placeholder="Choose one"></custom-select>`
 })
 class PlaceholderHostComponent {
@@ -47,6 +48,7 @@ class PlaceholderHostComponent {
 }
 
 @Component({
+   imports: [CustomSelectComponent, FormsModule],
    template: `<custom-select [options]="options" [(ngModel)]="value" [disabled]="true"></custom-select>`
 })
 class DisabledHostComponent {
@@ -58,6 +60,7 @@ class DisabledHostComponent {
 }
 
 @Component({
+   imports: [CustomSelectComponent, FormsModule],
    template: `<custom-select [options]="options" [(ngModel)]="value" [closeOnSelect]="false"></custom-select>`
 })
 class KeepOpenHostComponent {
@@ -87,13 +90,10 @@ function getOptions(): NodeListOf<HTMLButtonElement> {
 describe("CustomSelectComponent", () => {
    beforeEach(async () => {
       await TestBed.configureTestingModule({
-         imports: [FormsModule, CustomSelectModule],
-         declarations: [
-            TestHostComponent,
+         imports: [FormsModule, CustomSelectComponent, TestHostComponent,
             PlaceholderHostComponent,
             DisabledHostComponent,
-            KeepOpenHostComponent,
-         ],
+            KeepOpenHostComponent,],
       }).compileComponents();
    });
 

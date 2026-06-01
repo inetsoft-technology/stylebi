@@ -34,6 +34,7 @@ import { ModelService } from "../../widget/services/model.service";
 import { VSConditionDialog } from "./vs-condition-dialog.component";
 
 @Component({
+   standalone: true,
    selector: "condition-item-pane",
    template: "<div></div>"
 })
@@ -70,13 +71,13 @@ describe("vs condition dialog component", () => {
    let httpTestingController: HttpTestingController;
 
    beforeEach(() => {
-      modelService = { sendModel: jest.fn(), text: jest.fn() };
-      modalService = { open: jest.fn() };
+      modelService = { sendModel: vi.fn(), text: vi.fn(), getModel: vi.fn().mockReturnValue(observableOf(null)) };
+      modalService = { open: vi.fn() };
       modelService.sendModel.mockImplementation(() => observableOf(new HttpResponse({body: null})));
 
       TestBed.configureTestingModule({
-         imports: [ReactiveFormsModule, FormsModule, NgbModule, HttpClientTestingModule],
-         declarations: [VSConditionDialog, ConditionPane, ConditionItemPane, ConditionPipe, JunctionOperatorPipe],
+         imports: [ReactiveFormsModule, FormsModule, NgbModule, HttpClientTestingModule, VSConditionDialog, ConditionPane, ConditionItemPane, ConditionPipe, JunctionOperatorPipe],
+         
          providers: [
             {provide: ModelService, useValue: modelService},
             {provide: NgbModal, useValue: modalService}],
@@ -108,7 +109,7 @@ describe("vs condition dialog component", () => {
       vsConditionDialog.conditionPane.condition = con1;
       fixture.detectChanges();
 
-      let showConfirmDialog = jest.spyOn(ComponentTool, "showConfirmDialog");
+      let showConfirmDialog = vi.spyOn(ComponentTool, "showConfirmDialog");
       showConfirmDialog.mockImplementation(() => Promise.resolve("ok"));
       vsConditionDialog.ok();
 

@@ -16,13 +16,15 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { AfterViewInit, Component, ElementRef, Input } from "@angular/core";
+import { TooltipIfDirective } from "../tooltip/tooltip-if.directive";
 
 declare const window;
 
 @Component({
-   selector: "w-elided-cell",
-   templateUrl: "./elided-cell.component.html",
-   styleUrls: ["./elided-cell.component.scss"]
+    selector: "w-elided-cell",
+    templateUrl: "./elided-cell.component.html",
+    styleUrls: ["./elided-cell.component.scss"],
+    imports: [TooltipIfDirective]
 })
 export class ElidedCellComponent implements AfterViewInit {
    content = "";

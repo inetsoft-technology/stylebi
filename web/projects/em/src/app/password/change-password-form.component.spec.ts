@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { NO_ERRORS_SCHEMA, Renderer2 } from "@angular/core";
 import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { ReactiveFormsModule } from "@angular/forms";
@@ -29,19 +30,19 @@ describe("ChangePasswordFormComponent", () => {
 
    beforeEach(waitForAsync(() => {
       pwdService = {
-         verifyOldPassword: jest.fn(),
-         notify: jest.fn()
+         verifyOldPassword: vi.fn(),
+         notify: vi.fn()
       };
 
       TestBed.configureTestingModule({
          imports: [
             ReactiveFormsModule,
-            MaterialTestingModule
+            MaterialTestingModule,
+            ChangePasswordFormComponent
          ],
          providers: [
             { provide: ChangePasswordService, useValue: pwdService}
          ],
-         declarations: [ChangePasswordFormComponent],
          schemas: [NO_ERRORS_SCHEMA]
       }).compileComponents();
    }));

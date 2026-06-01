@@ -1,78 +1,91 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <div class="editor-container">
-  <div class="editor-container__value" [class.primary-condition-editor]="primaryValue">
-    <div *ngIf="value.type == ClauseValueTypes.VALUE" class="editor-container__field">
-      <vpm-value-editor [operation]="operation"
-                        [(value)]="value.expression"
-                        [values]="values"
-                        [dataFunction]="dataFunction"
-                        [type]="type"
-                        [enableBrowseData]="enableBrowseData"
-                        (valueChange)="conditionValueChanged($event)"
-                        (valueChanges)="valueChanges.emit($event)">
-      </vpm-value-editor>
-    </div>
-    <div *ngIf="value.type == ClauseValueTypes.VARIABLE" class="editor-container__field">
-      <vpm-variable-editor [(value)]="value.expression"
-                           (valueChange)="valueChanged()"
-                           [varShowDate]="varShowDate">
-      </vpm-variable-editor>
-    </div>
-    <div *ngIf="value.type == ClauseValueTypes.EXPRESSION"
-         class="editor-container__field editor-container__field--expression">
-      <vpm-value-editor [dataFunction]="dataFunction"
-                        [enableBrowseData]="enableBrowseData"
-                        [(value)]="value.expression"
-                        (valueChange)="conditionValueChanged($event)">
-      </vpm-value-editor>
-    </div>
-    <div *ngIf="value.type == ClauseValueTypes.FIELD" class="editor-container__field">
-      <vpm-field-editor [fields]="fields"
-                        [(value)]="value"
-                        (valueChange)="valueChanged()">
-      </vpm-field-editor>
-    </div>
-    <div *ngIf="value.type == ClauseValueTypes.SESSION_DATA" class="editor-container__field">
-      <session-data-editor [(value)]="value.expression" (valueChange)="valueChanged()">
-      </session-data-editor>
-    </div>
-    <div *ngIf="value.type == ClauseValueTypes.SUBQUERY" class="editor-container__field">
-      <vpm-subquery-editor [model]="value" [datasource]="datasource" [isWSQuery]="isWSQuery"
-                           (valueChange)="conditionSubQueryValueChanged($event)">
-      </vpm-subquery-editor>
-    </div>
+  <div [class.primary-condition-editor]="primaryValue">
+    @if (value.type == ClauseValueTypes.VALUE) {
+      <div class="editor-container__field">
+        <vpm-value-editor [operation]="operation"
+          [(value)]="value.expression"
+          [values]="values"
+          [dataFunction]="dataFunction"
+          [type]="type"
+          [enableBrowseData]="enableBrowseData"
+          (valueChange)="conditionValueChanged($event)"
+          (valueChanges)="valueChanges.emit($event)">
+        </vpm-value-editor>
+      </div>
+    }
+    @if (value.type == ClauseValueTypes.VARIABLE) {
+      <div class="editor-container__field">
+        <vpm-variable-editor [(value)]="value.expression"
+          (valueChange)="valueChanged()"
+          [varShowDate]="varShowDate">
+        </vpm-variable-editor>
+      </div>
+    }
+    @if (value.type == ClauseValueTypes.EXPRESSION) {
+      <div class="editor-container__field">
+        <vpm-value-editor [dataFunction]="dataFunction"
+          [enableBrowseData]="enableBrowseData"
+          [(value)]="value.expression"
+          (valueChange)="conditionValueChanged($event)">
+        </vpm-value-editor>
+      </div>
+    }
+    @if (value.type == ClauseValueTypes.FIELD) {
+      <div class="editor-container__field">
+        <vpm-field-editor [fields]="fields"
+          [(value)]="value"
+          (valueChange)="valueChanged()">
+        </vpm-field-editor>
+      </div>
+    }
+    @if (value.type == ClauseValueTypes.SESSION_DATA) {
+      <div class="editor-container__field">
+        <session-data-editor [(value)]="value.expression" (valueChange)="valueChanged()">
+        </session-data-editor>
+      </div>
+    }
+    @if (value.type == ClauseValueTypes.SUBQUERY) {
+      <div>
+        <vpm-subquery-editor [model]="value" [datasource]="datasource" [isWSQuery]="isWSQuery"
+          (valueChange)="conditionSubQueryValueChanged($event)">
+        </vpm-subquery-editor>
+      </div>
+    }
   </div>
   <div class="editor-container__type-picker" keyboardNav="true">
+    <span>
       <button id="simple-btn-keyboard-nav"
-         class="btn btn-light editor-container__type-button no-caret"
-         [fixedDropdown]="dropdownMenu" title="_#(Change Value Type)">
-      <i class="value-type-list-icon icon-size-small align-middle"></i>
-    </button>
+        class="btn btn-light editor-container__type-button no-caret"
+        [fixedDropdown]="dropdownMenu" title="_#(Change Value Type)">
+        <i class="value-type-list-icon icon-size-small align-middle"></i>
+      </button>
+    </span>
   </div>
 </div>
 <ng-template #dropdownMenu>
   <ul role="menu" class="dropdown-pane custom-select-menu editor-container__type-menu">
-    <li *ngFor="let type of valueTypes"
-       class="dropdown-item custom-select-option editor-container__type-option"
-       (click)="selectType(type)"
-       role="menuitem" [class.selected]="value.type == type">
-      {{type | clauseValueTypeToString}}
-    </li>
+    @for (type of valueTypes; track type) {
+      <li class="dropdown-item" (click)="selectType(type)"
+        role="menuitem" [class.selected]="value.type == type">
+        {{type | clauseValueTypeToString}}
+      </li>
+    }
   </ul>
 </ng-template>

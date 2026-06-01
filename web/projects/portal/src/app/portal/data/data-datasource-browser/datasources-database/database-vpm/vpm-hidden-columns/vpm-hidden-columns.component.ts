@@ -37,20 +37,25 @@ import { DatabaseTreeNodeType } from "../../../../model/datasources/database/dat
 import { Tool } from "../../../../../../../../../shared/util/tool";
 import { CurrentUserService } from "../../../../../../../../../shared/util/current-user.service";
 import { ComponentTool } from "../../../../../../common/util/component-tool";
-import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
+import { NgbModal, NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, NgbNavOutlet } from "@ng-bootstrap/ng-bootstrap";
 import { DataItem } from "../../../../model/datasources/database/vpm/test-data-model";
 import { FullDataBaseTreeModel } from "../../../../model/full-database-tree-model";
 import { SearchComparator } from "../../../../../../widget/tree/search-comparator";
+import { DataModelScriptPane } from "../../database-physical-model/data-model-script-pane/data-model-script-pane.component";
+import { LoadingIndicatorPaneComponent } from "../../common-components/loading-indicator-pane/loading-indicator-pane.component";
+
+import { FormsModule } from "@angular/forms";
 
 const DATABASE_TREE_URI: string = "../api/data/vpm/hiddenColumn/tree";
 const DATABASE_FULL_TREE_URI: string = "../api/data/vpm/hiddenColumn/fullTree/";
 const MAX_HIDDEN_COLUMN = 500;
 
 @Component({
-   selector: "vpm-hidden-columns",
-   templateUrl: "vpm-hidden-columns.component.html",
-   styleUrls: ["vpm-hidden-columns.component.scss"],
-   encapsulation: ViewEncapsulation.None
+    selector: "vpm-hidden-columns",
+    templateUrl: "vpm-hidden-columns.component.html",
+    styleUrls: ["vpm-hidden-columns.component.scss"],
+    encapsulation: ViewEncapsulation.None,
+    imports: [NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, FormsModule, TreeComponent, LoadingIndicatorPaneComponent, DataModelScriptPane, NgbNavOutlet]
 })
 export class VPMHiddenColumnsComponent implements OnInit, OnDestroy {
    @Input() hidden: HiddenColumnsModel;

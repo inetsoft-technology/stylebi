@@ -25,15 +25,9 @@ import {
    Output,
    SimpleChanges
 } from "@angular/core";
-import {
-   UntypedFormArray,
-   UntypedFormControl,
-   UntypedFormGroup,
-   ValidationErrors,
-   ValidatorFn,
-   Validators
-} from "@angular/forms";
-import { NgbDatepicker, NgbDateStruct, NgbModal, NgbTimeStruct } from "@ng-bootstrap/ng-bootstrap";
+import { UntypedFormArray, UntypedFormControl, UntypedFormGroup, ValidationErrors, ValidatorFn, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
+import { NgbDateStruct, NgbModal, NgbTimeStruct, NgbTimepicker, NgbInputDatepicker, NgbDatepicker } from "@ng-bootstrap/ng-bootstrap";
+
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
 import { CompletionConditionModel } from "../../../../../../../shared/schedule/model/completion-condition-model";
@@ -58,17 +52,22 @@ import {
    storeCondition
 } from "../../../../common/util/schedule-condition.util";
 import { StartTimeData } from "../../../../widget/schedule/start-time-data";
-import { CustomSelectOption } from "../../../../widget/custom-select/custom-select.component";
+import { EditableTableComponent } from "../editable-table/editable-table.component";
+import { StartTimeEditor } from "../../../../widget/schedule/start-time-editor.component";
+import { NgIf, NgFor, NgSwitch, NgSwitchCase } from "@angular/common";
+import { CustomSelectOption, CustomSelectComponent } from "../../../../widget/custom-select/custom-select.component";
 
+import { NumberStepperComponent } from "../../../../widget/number-stepper/number-stepper.component";
 const TASK_URI = "../api/portal/schedule/task/condition";
 const TZ_STORAGE_KEY: string = "inetsoft_conditionServerTimeZone";
 
 dayjs.extend(utc);
 
 @Component({
-   selector: "task-condition-pane",
-   templateUrl: "./task-condition-pane.component.html",
-   styleUrls: ["./task-condition-pane.component.scss"]
+    selector: "task-condition-pane",
+    templateUrl: "./task-condition-pane.component.html",
+    styleUrls: ["./task-condition-pane.component.scss"],
+    imports: [NgIf, NgFor, NgSwitch, NgSwitchCase, FormsModule, ReactiveFormsModule, StartTimeEditor, NgbTimepicker, NgbInputDatepicker, EditableTableComponent, CustomSelectComponent, NumberStepperComponent]
 })
 export class TaskConditionPane implements OnInit, OnChanges {
    private readonly defaultYearWindow: number = 10;

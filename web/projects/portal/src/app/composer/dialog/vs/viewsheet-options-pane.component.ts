@@ -17,7 +17,7 @@
  */
 import { HttpClient } from "@angular/common/http";
 import { Component, Input, OnInit, TemplateRef, ViewChild } from "@angular/core";
-import { UntypedFormControl, UntypedFormGroup, Validators } from "@angular/forms";
+import { UntypedFormControl, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { NgbModal, NgbModalOptions } from "@ng-bootstrap/ng-bootstrap";
 import { of } from "rxjs";
 import { mergeMap } from "rxjs/operators";
@@ -35,15 +35,21 @@ import { SelectDataSourceDialogModel } from "../../data/vs/select-data-source-di
 import { ViewsheetOptionsPaneModel } from "../../data/vs/viewsheet-options-pane-model";
 import { ViewsheetParametersDialogModel } from "../../data/vs/viewsheet-parameters-dialog-model";
 import { LocalStorage } from "../../../common/util/local-storage.util";
+import { SelectDataSourceDialog } from "./select-data-source-dialog.component";
+import { ViewsheetParametersDialog } from "./viewsheet-parameters-dialog.component";
 
+
+import { NumberStepperComponent } from "../../../widget/number-stepper/number-stepper.component";
 @Component({
-   selector: "viewsheet-options-pane",
-   templateUrl: "viewsheet-options-pane.component.html",
-   styleUrls: ["./viewsheet-options-pane.component.scss"],
-   providers: [{
-      provide: ContextProvider,
-      useFactory: ComposerContextProviderFactory
-   }]
+    selector: "viewsheet-options-pane",
+    templateUrl: "viewsheet-options-pane.component.html",
+    providers: [{
+            provide: ContextProvider,
+            useFactory: ComposerContextProviderFactory
+        }],
+    styleUrls: ["./viewsheet-options-pane.component.scss"],
+
+    imports: [FormsModule, ReactiveFormsModule, ViewsheetParametersDialog, SelectDataSourceDialog, NumberStepperComponent]
 })
 export class ViewsheetOptionsPane implements OnInit {
    @Input() model: ViewsheetOptionsPaneModel;

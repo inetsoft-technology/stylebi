@@ -31,7 +31,6 @@ import { SessionDataEditor } from "./session-data-editor.component";
 import { SubqueryEditor } from "./subquery-editor.component";
 import { TopNEditor } from "./top-n-editor.component";
 import { ValueEditor } from "./value-editor.component";
-import { NumberStepperModule } from "../number-stepper/number-stepper.module";
 import { VariableEditor } from "./variable-editor.component";
 
 describe("One Of Condition Editor Unit Test", () => {
@@ -41,14 +40,23 @@ describe("One Of Condition Editor Unit Test", () => {
    beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule, NumberStepperModule
+            FormsModule,
+            ReactiveFormsModule,
+            NgbModule,
+            OneOfConditionEditor,
+            ConditionEditor,
+            TopNEditor,
+            ValueEditor,
+            VariableEditor,
+            ExpressionEditor,
+            FieldEditor,
+            SubqueryEditor,
+            SessionDataEditor,
+            NumberValueEditor,
+            ConditionValueTypePipe,
+            ConditionValuePipe,
          ],
-         declarations: [
-            OneOfConditionEditor, ConditionEditor, TopNEditor, ValueEditor,
-            VariableEditor, ExpressionEditor, FieldEditor, SubqueryEditor,
-            SessionDataEditor, NumberValueEditor, ConditionValueTypePipe,
-            ConditionValuePipe
-         ],
+         
          schemas: [ NO_ERRORS_SCHEMA ]
       });
       TestBed.compileComponents();
@@ -72,7 +80,7 @@ describe("One Of Condition Editor Unit Test", () => {
       valueList[0].click();
       fixture.detectChanges();
 
-      let delBtn = fixture.nativeElement.querySelectorAll("button.delete_id")[1];
+      let delBtn = fixture.nativeElement.querySelector("button.delete_id");
       delBtn.click();
       fixture.detectChanges();
 
@@ -81,12 +89,12 @@ describe("One Of Condition Editor Unit Test", () => {
       valueList[0].click();
       fixture.detectChanges();
 
-      delBtn = fixture.nativeElement.querySelectorAll("button.delete_id")[1];
+      delBtn = fixture.nativeElement.querySelector("button.delete_id");
       delBtn.click();
       fixture.detectChanges();
 
-      valueList = fixture.nativeElement.querySelector("div.value-list__element");
-      delBtn = fixture.nativeElement.querySelectorAll("button.delete_id")[1];
+      valueList = fixture.nativeElement.querySelector("div.sm-selectable-list div");
+      delBtn = fixture.nativeElement.querySelector("button.delete_id");
       expect(valueList).toBeNull();
       expect(delBtn.hasAttribute("disabled")).toBeTruthy();
    });

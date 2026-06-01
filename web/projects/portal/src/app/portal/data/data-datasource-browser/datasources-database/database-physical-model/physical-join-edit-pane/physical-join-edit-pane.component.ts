@@ -28,15 +28,18 @@ import { JoinEditPaneModel } from "../../../../model/datasources/database/physic
 import { GraphColumnInfo } from "../../../../model/datasources/database/physical-model/graph/graph-column-info";
 import { JoinModel } from "../../../../model/datasources/database/physical-model/join-model";
 import { JoinThumbnailService } from "../../common-components/join-thumbnail.service";
+import { EditJoinTableComponent } from "../../common-components/edit-join-table.component";
+
 
 const HEARTBEAT_URI = "../api/data/physicalmodel/heartbeat";
 
 @Component({
-   selector: "physical-join-edit-pane",
-   templateUrl: "physical-join-edit-pane.component.html",
-   styleUrls: ["physical-join-edit-pane.component.scss",
-      "../../../../../../composer/gui/ws/jsplumb/jsplumb-shared.scss"],
-   providers: [ JoinThumbnailService ]
+    selector: "physical-join-edit-pane",
+    templateUrl: "physical-join-edit-pane.component.html",
+    styleUrls: ["physical-join-edit-pane.component.scss",
+        "../../../../../../composer/gui/ws/jsplumb/jsplumb-shared.scss"],
+    providers: [JoinThumbnailService],
+    imports: [EditJoinTableComponent]
 })
 export class PhysicalJoinEditPane implements
    OnChanges, OnInit, AfterViewInit, AfterViewChecked, OnDestroy

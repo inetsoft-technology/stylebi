@@ -33,7 +33,7 @@ import { NotificationsComponent } from "../../../../../../widget/notifications/n
 import { ExpandStringDirective } from "../../../../../../widget/expand-string/expand-string.directive";
 import { RenameModelEvent } from "../../../../model/datasources/database/events/rename-model-event";
 import { InputNameDescDialog, NameDescResult } from "../../../../input-name-desc-dialog/input-name-desc-dialog.component";
-import { ListColumn } from "../../../../asset-item-list-view/asset-item-list-view.component";
+import { ListColumn, AssetItemListViewComponent } from "../../../../asset-item-list-view/asset-item-list-view.component";
 import { DropdownOptions } from "../../../../../../widget/fixed-dropdown/dropdown-options";
 import { Point } from "../../../../../../common/data/point";
 import { ActionsContextmenuComponent } from "../../../../../../widget/fixed-dropdown/actions-contextmenu.component";
@@ -43,6 +43,9 @@ import { AssemblyActionGroup } from "../../../../../../common/action/assembly-ac
 import { RemoveDataModelEvent } from "../../../../model/datasources/database/events/remove-data-model-event";
 import { AssetListBrowseModel } from "../../../../model/datasources/database/asset-list-browse-model";
 import { SearchCommand } from "../../../../commands/search-command";
+import { AssetDescriptionComponent } from "../../../asset-description/asset-description.component";
+import { DatabaseDataModelToolbarComponent } from "../database-data-model-toolbar.component";
+import { NgClass } from "@angular/common";
 
 const VPM_URI: string = "../api/data/vpm/browse/";
 const RENAME_VPM_URI: string = "../api/data/vpm/rename";
@@ -51,8 +54,9 @@ const VPM_CHECK_DUPLICATE_URI: string = "../api/data/vpm/checkDuplicate";
 const SEARCH_VPM_URI: string = "../api/data/vpm/search";
 
 @Component({
-   templateUrl: "./database-vpm-browser.component.html",
-   styleUrls: ["database-vpm-browser.component.scss"]
+    templateUrl: "./database-vpm-browser.component.html",
+    styleUrls: ["database-vpm-browser.component.scss"],
+    imports: [NgClass, DatabaseDataModelToolbarComponent, AssetItemListViewComponent, AssetDescriptionComponent, NotificationsComponent]
 })
 export class DatabaseVPMBrowserComponent implements OnDestroy, OnInit {
    @ViewChild("notifications") notifications: NotificationsComponent;

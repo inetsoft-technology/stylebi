@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { HttpClientTestingModule } from "@angular/common/http/testing";
 import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
@@ -44,11 +45,8 @@ describe("ServerSaveComponent", () => {
             MatSelectModule,
             MatTableModule,
             ReactiveFormsModule,
-            HttpClientTestingModule
-         ],
-         declarations: [
-            ServerSaveComponent
-         ],
+            HttpClientTestingModule,
+            ServerSaveComponent],
          schemas: [
             NO_ERRORS_SCHEMA
          ]

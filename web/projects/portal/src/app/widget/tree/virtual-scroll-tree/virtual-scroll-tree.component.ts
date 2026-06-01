@@ -24,8 +24,9 @@ import { Observable } from "rxjs";
 import { TreeComponent } from "../tree.component";
 
 @Component({
-  selector: "virtual-scroll-tree",
-  templateUrl: "./virtual-scroll-tree.component.html",
+    selector: "virtual-scroll-tree",
+    templateUrl: "./virtual-scroll-tree.component.html",
+    imports: [TreeComponent]
 })
 export class VirtualScrollTreeComponent {
   @Input() root: TreeNodeModel;
