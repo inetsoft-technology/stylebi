@@ -395,6 +395,57 @@ class ChartToolTipTest {
    }
 
    @Test
+   void groupedSoloCardWithoutHeaderGroupsValuesAtTier2() {
+      // Gantt: the Y-dim (task) is the tier-1 headline with no subtitle; Start
+      // and End are equally-important values grouped at tier-2; aesthetic dims
+      // drop to tier-3. Mirrors candle OHL grouping but without a header.
+      IndexedSet<String> palette = new IndexedSet<>();
+      ChartToolTip tip = new ChartToolTip();
+      tip.setStyle(ChartInfo.TooltipStyle.CARD);
+      tip.addTooltip(palette.put("Task"), palette.put("Design Phase"));
+      tip.addTooltip(palette.put("Start"), palette.put("2025-01-01"));
+      tip.addTooltip(palette.put("End"), palette.put("2025-03-15"));
+      tip.addTooltip(palette.put("Owner"), palette.put("Alice"));
+      tip.setGroupedTiers(true);
+      tip.setTier2GroupSize(2);
+
+      String out = tip.getTooltip(palette);
+
+      assertTrue(out.contains("<div class=\"tt-tier-1\">Task:&nbsp;Design Phase"),
+                 "Task (Y-dim) is the tier-1 headline");
+      assertTrue(out.contains("<div class=\"tt-tier-2\">Start:&nbsp;2025-01-01"),
+                 "Start joins the tier-2 group");
+      assertTrue(out.contains("<div class=\"tt-tier-2\">End:&nbsp;2025-03-15"),
+                 "End joins the tier-2 group with equal importance to Start");
+      assertTrue(out.contains("<div class=\"tt-tier-3\">Owner:&nbsp;Alice"),
+                 "Aesthetic past the tier-2 group drops to tier-3");
+      assertFalse(out.contains("tt-subtitle"),
+                  "No header set → no subtitle row");
+   }
+
+   @Test
+   void uniformTierCardRendersAllRowsAtSameTier() {
+      // Scatter with no identity dim: the measures are coordinates of equal
+      // weight, so every row renders at the same tier with no headline.
+      IndexedSet<String> palette = new IndexedSet<>();
+      ChartToolTip tip = new ChartToolTip();
+      tip.setStyle(ChartInfo.TooltipStyle.CARD);
+      tip.addTooltip(palette.put("Quantity Purchased"), palette.put("5"));
+      tip.addTooltip(palette.put("Paid"), palette.put("20"));
+      tip.addTooltip(palette.put("Discount"), palette.put("0.1"));
+      tip.setUniformTier(true);
+
+      String out = tip.getTooltip(palette);
+
+      assertTrue(out.contains("<div class=\"tt-tier-2\">Quantity Purchased:&nbsp;5"));
+      assertTrue(out.contains("<div class=\"tt-tier-2\">Paid:&nbsp;20"));
+      assertTrue(out.contains("<div class=\"tt-tier-2\">Discount:&nbsp;0.1"));
+      assertFalse(out.contains("tt-tier-1"), "Uniform card must not promote any row to tier-1");
+      assertFalse(out.contains("tt-tier-3"), "Uniform card keeps every row at the same tier");
+      assertFalse(out.contains("tt-subtitle"));
+   }
+
+   @Test
    void combinedCardEmitsHeaderOnce() {
       IndexedSet<String> palette = new IndexedSet<>();
       int xKey = palette.put("Region");

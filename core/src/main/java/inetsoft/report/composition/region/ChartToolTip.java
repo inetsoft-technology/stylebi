@@ -91,8 +91,12 @@ public class ChartToolTip implements DataSerializable {
          return renderCombinedCard(palette);
       }
 
-      if(hasHeader() && (customToolTip == null || customToolTip.isEmpty())) {
-         return renderSoloCardWithHeader(palette);
+      if((hasHeader() || groupedTiers) && (customToolTip == null || customToolTip.isEmpty())) {
+         return renderGroupedSoloCard(palette);
+      }
+
+      if(uniformTier && (customToolTip == null || customToolTip.isEmpty())) {
+         return renderUniformCard(palette);
       }
 
       StringBuilder buffer = new StringBuilder();
@@ -146,7 +150,30 @@ public class ChartToolTip implements DataSerializable {
       return buffer.toString();
    }
 
-   private String renderSoloCardWithHeader(IndexedSet<String> palette) {
+   // Every row at the same tier, no headline. Used by scatter (coordinates of
+   // equal weight) when no identity dim leads — mirrors the flat default tooltip.
+   private String renderUniformCard(IndexedSet<String> palette) {
+      StringBuilder buffer = new StringBuilder();
+
+      for(int i = 0; i < tooltips.size(); i += 2) {
+         int keyIdx = tooltips.get(i);
+
+         if(keyIdx == -1) {
+            continue;
+         }
+
+         String label = palette.get(keyIdx);
+         String value = (i + 1) < tooltips.size() ? palette.get(tooltips.get(i + 1)) : "";
+         appendTier(buffer, 2, label + ChartToolTip.COLON + value);
+      }
+
+      return buffer.toString();
+   }
+
+   // Tier-1 headline, then tier2GroupSize pairs grouped at tier-2, rest at tier-3.
+   // The header (if any) renders as a tier-1 subtitle under the headline; Gantt
+   // uses this without a header so Start/End group at tier-2 like candle OHL.
+   private String renderGroupedSoloCard(IndexedSet<String> palette) {
       StringBuilder buffer = new StringBuilder();
       int pairsRendered = 0;
 
@@ -173,7 +200,7 @@ public class ChartToolTip implements DataSerializable {
 
          appendTier(buffer, tier, label + ChartToolTip.COLON + value);
 
-         if(pairsRendered == 0) {
+         if(pairsRendered == 0 && hasHeader()) {
             appendSubtitle(buffer, 1, palette.get(headerKey), palette.get(headerValue));
          }
 
@@ -542,6 +569,36 @@ public class ChartToolTip implements DataSerializable {
       return tier2GroupSize;
    }
 
+   // Use the grouped solo-card layout (tier-1 headline + tier-2 group + tier-3)
+   // even without a header. Gantt sets this so Start/End sit together at tier-2.
+   // Mutually exclusive with uniformTier; enabling one clears the other.
+   public void setGroupedTiers(boolean groupedTiers) {
+      this.groupedTiers = groupedTiers;
+
+      if(groupedTiers) {
+         this.uniformTier = false;
+      }
+   }
+
+   public boolean isGroupedTiers() {
+      return groupedTiers;
+   }
+
+   // Render every row at the same tier with no headline. Scatter sets this when
+   // no identity dim leads, so equal-weight coordinates aren't ranked.
+   // Mutually exclusive with groupedTiers; enabling one clears the other.
+   public void setUniformTier(boolean uniformTier) {
+      this.uniformTier = uniformTier;
+
+      if(uniformTier) {
+         this.groupedTiers = false;
+      }
+   }
+
+   public boolean isUniformTier() {
+      return uniformTier;
+   }
+
    /**
     * Clear chart tooltip.
     */
@@ -595,4 +652,6 @@ public class ChartToolTip implements DataSerializable {
    private int headerKey = -1;
    private int headerValue = -1;
    private int tier2GroupSize = 1;
+   private boolean groupedTiers = false;
+   private boolean uniformTier = false;
 }
