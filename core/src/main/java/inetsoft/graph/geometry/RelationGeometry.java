@@ -162,6 +162,11 @@ public class RelationGeometry extends ElementGeometry {
       return mxcell.getId();
    }
 
+   @Override
+   public String getOverlayId(ElementVO vo, DataSet data, boolean polar) {
+      return getOverlayId(vo, data);
+   }
+
    /**
     * Get the col index.
     */
