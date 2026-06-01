@@ -62,6 +62,11 @@ class MetadataApiServicePartitionTest {
    }
 
    @Test
+   void isPostgresDriver_returnsFalseForNullDatasource() {
+      assertFalse(MetadataApiService.isPostgresDriver(null));
+   }
+
+   @Test
    void findPostgresPartitionChildren_returnsLowercasedQualifiedNames() throws Exception {
       JDBCDataSource ds = mock(JDBCDataSource.class);
       when(ds.getDriver()).thenReturn("org.postgresql.Driver");
@@ -164,9 +169,13 @@ class MetadataApiServicePartitionTest {
    }
 
    @Test
-   void isPartitionChild_bySchemaAndTable_nullSchemaBuildsBareKey() {
-      Set<String> partitions = Set.of("payment_p2007_01");
-      assertTrue(
+   void isPartitionChild_bySchemaAndTable_nullSchemaDoesNotMatchQualifiedKeys() {
+      // findPostgresPartitionChildren always emits "schema.table" keys, so a null
+      // schema (bare "table" key) cannot match a real partition entry. In practice
+      // Postgres metadata always supplies a schema (public by default), so this
+      // path doesn't occur for the only datasources that produce a non-empty set.
+      Set<String> partitions = Set.of("public.payment_p2007_01");
+      assertFalse(
          MetadataApiService.isPartitionChild(null, "payment_p2007_01", partitions));
    }
 

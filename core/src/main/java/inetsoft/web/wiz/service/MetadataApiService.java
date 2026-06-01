@@ -724,9 +724,12 @@ public class MetadataApiService {
    private Set<String> probePartitionsForTree(String dsName) {
       try {
          JDBCDataSource ds = getJDBCDatasource(dsName);
-         if(ds == null || !isPostgresDriver(ds)) {
+         if(!isPostgresDriver(ds)) {
             return Set.of();
          }
+         // Unlike getDatabaseTables, there's no Principal parameter here: this runs
+         // inside a computeIfAbsent lambda during the tree walk, so we resolve the
+         // caller from the request-scoped ThreadContext instead.
          try(Connection conn = new JDBCHandler()
                .getConnection(ds, ThreadContext.getContextPrincipal())) {
             return findPostgresPartitionChildren(ds, conn);
@@ -1086,10 +1089,14 @@ public class MetadataApiService {
       // based partitioning AND PG10+ declarative partitioning, so this single
       // subquery covers both eras without referencing pg_class.relispartition
       // (PG10+ only — would break catalog queries on older Postgres).
+      // relkind IN ('r','p') restricts to ordinary and partitioned tables.
+      // pg_inherits also records partitioned-index inheritance (PG11+), so without
+      // this filter index oids would leak in as "schema.indexname" keys.
       String sql =
          "SELECT n.nspname || '.' || c.relname AS qualified " +
          "FROM pg_class c JOIN pg_namespace n ON c.relnamespace = n.oid " +
-         "WHERE c.oid IN (SELECT inhrelid FROM pg_inherits)";
+         "WHERE c.relkind IN ('r', 'p') " +
+         "AND c.oid IN (SELECT inhrelid FROM pg_inherits)";
 
       Set<String> out = new HashSet<>();
 
