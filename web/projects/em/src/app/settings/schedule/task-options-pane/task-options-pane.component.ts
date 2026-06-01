@@ -145,7 +145,7 @@ export class TaskOptionsPane {
    {
       this.optionsForm = fb.group(
          {
-            taskEnabled: [true],
+            taskEnabled: [false],
             deleteIfNotScheduledToRun: [false],
             startDate: [new Date()],
             endDate: [new Date()],
@@ -201,6 +201,10 @@ export class TaskOptionsPane {
                }
             })
          );
+   }
+
+   get showOptions(): boolean {
+      return !!this.optionsForm.get('taskEnabled').value;
    }
 
    fireModelChanged(): void {

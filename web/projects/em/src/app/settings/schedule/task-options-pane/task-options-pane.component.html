@@ -22,7 +22,7 @@
       _#(Enabled)
     </mat-slide-toggle>
   </div>
-  @if (model?.enabled) {
+  @if (showOptions) {
     @if (!internal) {
       <div class="flex-row margin-bottom">
         <mat-checkbox formControlName="deleteIfNotScheduledToRun"

@@ -16,11 +16,12 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Routes } from "@angular/router";
-import { DateAdapter, ErrorStateMatcher } from "@angular/material/core";
+import { DateAdapter, ErrorStateMatcher, MAT_DATE_FORMATS, MAT_NATIVE_DATE_FORMATS } from "@angular/material/core";
 import { MatPaginatorIntl } from "@angular/material/paginator";
 import { LocalizedMatPaginator } from "../../../../../shared/util/localized-mat-paginator";
 import { authorizationGuard } from "../../authorization/authorization-guard.service";
 import { CustomNativeDateAdapter } from "../../common/util/datepicker/custom-native-date-adapter.service";
+import { FirstDayOfWeekService } from "../../../../../portal/src/app/common/services/first-day-of-week.service";
 import { EmErrorStateMatcher } from "../../common/util/error/em-error-state-matcher";
 import { MonitoringDataService } from "../../monitoring/monitoring-data.service";
 import { scheduleConfigSaveGuard } from "./schedule-configuration-page/schedule-config-save.guard";
@@ -39,7 +40,9 @@ export const SCHEDULE_ROUTES: Routes = [
       component: ScheduleSettingsPageComponent,
       providers: [
          MonitoringDataService,
+         FirstDayOfWeekService,
          { provide: DateAdapter, useClass: CustomNativeDateAdapter },
+         { provide: MAT_DATE_FORMATS, useValue: MAT_NATIVE_DATE_FORMATS },
          { provide: MatPaginatorIntl, useClass: LocalizedMatPaginator },
          { provide: ErrorStateMatcher, useClass: EmErrorStateMatcher }
       ],
