@@ -21,6 +21,12 @@ import inetsoft.uql.jdbc.JDBCDataSource;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.Set;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -60,19 +66,19 @@ class MetadataApiServicePartitionTest {
       JDBCDataSource ds = mock(JDBCDataSource.class);
       when(ds.getDriver()).thenReturn("org.postgresql.Driver");
 
-      java.sql.Connection conn = mock(java.sql.Connection.class);
-      java.sql.PreparedStatement ps = mock(java.sql.PreparedStatement.class);
-      java.sql.ResultSet rs = mock(java.sql.ResultSet.class);
+      Connection conn = mock(Connection.class);
+      PreparedStatement ps = mock(PreparedStatement.class);
+      ResultSet rs = mock(ResultSet.class);
       when(conn.prepareStatement(anyString())).thenReturn(ps);
       when(ps.executeQuery()).thenReturn(rs);
       when(rs.next()).thenReturn(true, true, true, false);
       when(rs.getString(1))
          .thenReturn("public.payment_p2007_01", "public.payment_p2007_02", "ANALYTICS.AUDIT_2026_05");
 
-      java.util.Set<String> result = MetadataApiService.findPostgresPartitionChildren(ds, conn);
+      Set<String> result = MetadataApiService.findPostgresPartitionChildren(ds, conn);
 
       assertEquals(
-         java.util.Set.of("public.payment_p2007_01", "public.payment_p2007_02", "analytics.audit_2026_05"),
+         Set.of("public.payment_p2007_01", "public.payment_p2007_02", "analytics.audit_2026_05"),
          result
       );
    }
@@ -81,9 +87,9 @@ class MetadataApiServicePartitionTest {
    void findPostgresPartitionChildren_returnsEmptySetForNonPostgres() throws Exception {
       JDBCDataSource ds = mock(JDBCDataSource.class);
       when(ds.getDriver()).thenReturn("com.mysql.cj.jdbc.Driver");
-      java.sql.Connection conn = mock(java.sql.Connection.class);
+      Connection conn = mock(Connection.class);
 
-      java.util.Set<String> result = MetadataApiService.findPostgresPartitionChildren(ds, conn);
+      Set<String> result = MetadataApiService.findPostgresPartitionChildren(ds, conn);
 
       assertTrue(result.isEmpty());
       // The mock connection must never be touched on the non-Postgres path.
@@ -95,14 +101,14 @@ class MetadataApiServicePartitionTest {
       JDBCDataSource ds = mock(JDBCDataSource.class);
       when(ds.getDriver()).thenReturn("org.postgresql.Driver");
 
-      java.sql.Connection conn = mock(java.sql.Connection.class);
-      java.sql.PreparedStatement ps = mock(java.sql.PreparedStatement.class);
-      java.sql.ResultSet rs = mock(java.sql.ResultSet.class);
+      Connection conn = mock(Connection.class);
+      PreparedStatement ps = mock(PreparedStatement.class);
+      ResultSet rs = mock(ResultSet.class);
       when(conn.prepareStatement(anyString())).thenReturn(ps);
       when(ps.executeQuery()).thenReturn(rs);
       when(rs.next()).thenReturn(false);
 
-      java.util.Set<String> result = MetadataApiService.findPostgresPartitionChildren(ds, conn);
+      Set<String> result = MetadataApiService.findPostgresPartitionChildren(ds, conn);
 
       assertTrue(result.isEmpty());
    }
@@ -112,9 +118,9 @@ class MetadataApiServicePartitionTest {
       JDBCDataSource ds = mock(JDBCDataSource.class);
       when(ds.getDriver()).thenReturn("org.postgresql.Driver");
 
-      java.sql.Connection conn = mock(java.sql.Connection.class);
-      java.sql.PreparedStatement ps = mock(java.sql.PreparedStatement.class);
-      java.sql.ResultSet rs = mock(java.sql.ResultSet.class);
+      Connection conn = mock(Connection.class);
+      PreparedStatement ps = mock(PreparedStatement.class);
+      ResultSet rs = mock(ResultSet.class);
       when(conn.prepareStatement(anyString())).thenReturn(ps);
       when(ps.executeQuery()).thenReturn(rs);
       when(rs.next()).thenReturn(false);
@@ -131,14 +137,14 @@ class MetadataApiServicePartitionTest {
       JDBCDataSource ds = mock(JDBCDataSource.class);
       when(ds.getDriver()).thenReturn("org.postgresql.Driver");
 
-      java.sql.Connection conn = mock(java.sql.Connection.class);
-      java.sql.PreparedStatement ps = mock(java.sql.PreparedStatement.class);
+      Connection conn = mock(Connection.class);
+      PreparedStatement ps = mock(PreparedStatement.class);
       when(conn.prepareStatement(anyString())).thenReturn(ps);
-      when(ps.executeQuery()).thenThrow(new java.sql.SQLException("simulated catalog read failure"));
+      when(ps.executeQuery()).thenThrow(new SQLException("simulated catalog read failure"));
 
       // executeQuery throws, but try-with-resources must still close ps before
       // the exception propagates.
-      assertThrows(java.sql.SQLException.class,
+      assertThrows(SQLException.class,
          () -> MetadataApiService.findPostgresPartitionChildren(ds, conn));
 
       verify(ps).close();
@@ -146,7 +152,7 @@ class MetadataApiServicePartitionTest {
 
    @Test
    void isPartitionChild_bySchemaAndTable_matchesLowercased() {
-      java.util.Set<String> partitions = java.util.Set.of(
+      Set<String> partitions = Set.of(
          "public.payment_p2007_01", "public.payment_p2007_02"
       );
       assertTrue(
@@ -159,21 +165,21 @@ class MetadataApiServicePartitionTest {
 
    @Test
    void isPartitionChild_bySchemaAndTable_nullSchemaBuildsBareKey() {
-      java.util.Set<String> partitions = java.util.Set.of("payment_p2007_01");
+      Set<String> partitions = Set.of("payment_p2007_01");
       assertTrue(
          MetadataApiService.isPartitionChild(null, "payment_p2007_01", partitions));
    }
 
    @Test
    void isPartitionChild_bySchemaAndTable_emptyPartitionSetMatchesNothing() {
-      java.util.Set<String> partitions = java.util.Set.of();
+      Set<String> partitions = Set.of();
       assertFalse(
          MetadataApiService.isPartitionChild("public", "anything", partitions));
    }
 
    @Test
    void isPartitionChild_byAssetPath_parsesWizFormat() {
-      java.util.Set<String> partitions = java.util.Set.of("public.payment_p2007_01");
+      Set<String> partitions = Set.of("public.payment_p2007_01");
       // Wiz asset paths look like "dsName/TABLE/schema/tableName"
       assertTrue(
          MetadataApiService.isPartitionChild("postgres/TABLE/public/payment_p2007_01", partitions));
@@ -185,7 +191,7 @@ class MetadataApiServicePartitionTest {
 
    @Test
    void isPartitionChild_byAssetPath_handlesShortOrEmptyPaths() {
-      java.util.Set<String> partitions = java.util.Set.of("public.payment_p2007_01");
+      Set<String> partitions = Set.of("public.payment_p2007_01");
       assertFalse(
          MetadataApiService.isPartitionChild((String) null, partitions));
       assertFalse(

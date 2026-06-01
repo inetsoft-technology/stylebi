@@ -27,6 +27,7 @@ import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.*;
 import inetsoft.uql.jdbc.JDBCDataSource;
+import inetsoft.uql.jdbc.JDBCHandler;
 import inetsoft.uql.jdbc.util.JDBCUtil;
 import inetsoft.uql.jdbc.util.SQLTypes;
 import inetsoft.uql.schema.XSchema;
@@ -34,6 +35,7 @@ import inetsoft.uql.schema.XTypeNode;
 import inetsoft.uql.util.DefaultMetaDataProvider;
 import inetsoft.uql.util.XSourceInfo;
 import inetsoft.uql.util.XUtil;
+import inetsoft.util.ThreadContext;
 import inetsoft.util.Tool;
 import inetsoft.web.composer.AssetTreeService;
 import inetsoft.web.composer.model.LoadAssetTreeNodesEvent;
@@ -45,6 +47,10 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.*;
 
 @Service
@@ -550,11 +556,13 @@ public class MetadataApiService {
       // and proceed with an empty set, so a transient catalog issue doesn't block
       // the whole metadata fetch.
       Set<String> partitionChildren = Set.of();
-      try(java.sql.Connection probeConn = new inetsoft.uql.jdbc.JDBCHandler().getConnection(jdbcDataSource, principal)) {
-         partitionChildren = findPostgresPartitionChildren(jdbcDataSource, probeConn);
-      }
-      catch(Exception e) {
-         log.warn("Partition probe failed for '{}'; proceeding without partition filter", dsName, e);
+      if(isPostgresDriver(jdbcDataSource)) {
+         try(Connection probeConn = new JDBCHandler().getConnection(jdbcDataSource, principal)) {
+            partitionChildren = findPostgresPartitionChildren(jdbcDataSource, probeConn);
+         }
+         catch(Exception e) {
+            log.warn("Partition probe failed for '{}'; proceeding without partition filter", dsName, e);
+         }
       }
 
       XNode rootMetaData = metaDataProvider.getRootMetaData(XUtil.OUTER_MOSE_LAYER_DATABASE);
@@ -719,8 +727,8 @@ public class MetadataApiService {
          if(ds == null || !isPostgresDriver(ds)) {
             return Set.of();
          }
-         try(java.sql.Connection conn = new inetsoft.uql.jdbc.JDBCHandler()
-               .getConnection(ds, inetsoft.util.ThreadContext.getContextPrincipal())) {
+         try(Connection conn = new JDBCHandler()
+               .getConnection(ds, ThreadContext.getContextPrincipal())) {
             return findPostgresPartitionChildren(ds, conn);
          }
       }
@@ -1068,7 +1076,7 @@ public class MetadataApiService {
     * request).
     */
    static Set<String> findPostgresPartitionChildren(
-      JDBCDataSource ds, java.sql.Connection conn) throws java.sql.SQLException
+      JDBCDataSource ds, Connection conn) throws SQLException
    {
       if(!isPostgresDriver(ds)) {
          return Set.of();
@@ -1085,8 +1093,8 @@ public class MetadataApiService {
 
       Set<String> out = new HashSet<>();
 
-      try(java.sql.PreparedStatement ps = conn.prepareStatement(sql);
-          java.sql.ResultSet rs = ps.executeQuery())
+      try(PreparedStatement ps = conn.prepareStatement(sql);
+          ResultSet rs = ps.executeQuery())
       {
          while(rs.next()) {
             String qualified = rs.getString(1);
