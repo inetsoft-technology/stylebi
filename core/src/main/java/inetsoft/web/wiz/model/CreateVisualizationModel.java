@@ -19,6 +19,7 @@
 package inetsoft.web.wiz.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import inetsoft.uql.viewsheet.VSAssembly;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class CreateVisualizationModel {
@@ -62,12 +63,16 @@ public class CreateVisualizationModel {
       this.conditionModel = conditionModel;
    }
 
-   public PrimaryBinding getPrimaryBinding() {
-      return primaryBinding;
+   /**
+    * A fully-configured assembly produced by the wizard setup path.
+    * When set, {@code WizVsService} rebinds it to the target viewsheet directly.
+    */
+   public VSAssembly getPrimaryAssembly() {
+      return primaryAssembly;
    }
 
-   public void setPrimaryBinding(PrimaryBinding primaryBinding) {
-      this.primaryBinding = primaryBinding;
+   public void setPrimaryAssembly(VSAssembly primaryAssembly) {
+      this.primaryAssembly = primaryAssembly;
    }
 
    public boolean isKeepCondition() {
@@ -83,6 +88,6 @@ public class CreateVisualizationModel {
    private String runtimeId;
    private String viewsheetIdentifier;
    private VisualizationConditionModel conditionModel;
-   private transient PrimaryBinding primaryBinding;
+   private transient VSAssembly primaryAssembly;
    private transient boolean keepCondition;
 }

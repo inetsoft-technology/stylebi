@@ -25,7 +25,6 @@ import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
-import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.util.Tool;
 import inetsoft.web.vswizard.handler.VSWizardBindingHandler;
 import inetsoft.web.vswizard.model.VSWizardData;
@@ -140,23 +139,10 @@ public class WizAutoBindingService {
             .filter(f -> f != null && f.getField() != null)
             .collect(Collectors.toMap(SimpleFieldInfo::getField, f -> f, (a, b) -> a));
 
-         // Convert all columns to AssetEntry[]; fieldConfigs only adds config overrides
          final String tableNameFinal = tableName;
-         AssetEntry[] entries;
-
-         if(!worksheetColumns.isEmpty()) {
-            // Primary path: use all worksheet columns (fieldConfigs as overlay only)
-            entries = worksheetColumns.stream()
-               .map(col -> buildEntryFromColumn(
-                  col, worksheetId, tableNameFinal, configMap.get(col.getAttribute())))
-               .toArray(AssetEntry[]::new);
-         }
-         else {
-            // Fallback: worksheet not available, use fieldConfigs directly
-            entries = fieldConfigs.stream()
-               .map(field -> buildEntryFromFieldInfo(field, worksheetId, tableNameFinal))
-               .toArray(AssetEntry[]::new);
-         }
+         AssetEntry[] entries = worksheetColumns.stream()
+            .map(col -> buildEntryFromColumn(col, worksheetId, tableNameFinal))
+            .toArray(AssetEntry[]::new);
 
          bindingHandler.updateTemporaryFields(rvs, entries, tempInfo);
          tempInfo.getTempChart().setSourceInfo(bindingHandler.getCurrentSource(entries, tableName));
@@ -171,38 +157,30 @@ public class WizAutoBindingService {
          VSRecommendationModel model = defaultRecommendationFactory.recommend(wizardData, rvs, user);
          tempInfo.setRecommendationModel(model);
 
-         // Phase 2: compute recommendations and primary binding.
+         // Phase 2: select the primary recommendation and create the configured assembly.
          List<VSObjectRecommendation> recommendations = Collections.emptyList();
-         PrimaryBinding primaryBinding = null;
+         VSObjectRecommendation selectedRec = null;
+         VSAssembly primaryAssembly = null;
 
          if(model != null) {
             recommendations = model.getRecommendationList().stream()
                .filter(r -> !(r instanceof VSFilterRecommendation))
                .collect(Collectors.toList());
-            List<ChartCombinationUtil.ScoredInfo> prefInfos = null;
-            VSObjectRecommendation chartRec = model.findRecommendation(VSRecommendType.CHART, false);
-
-            if(chartRec instanceof VSChartRecommendation vcr) {
-               prefInfos = vcr.getPrefInfos();
-            }
 
             String intentCategory = request.getIntentCategory();
-            primaryBinding = buildPrimaryVisualization(model, entries, vizType, explicitBindings,
-                                                       prefInfos, intentCategory);
+            selectedRec = selectPrimaryRecommendation(model, vizType, explicitBindings, intentCategory);
 
             // Mirror the wizard path: call updatePrimaryAssembly on autoBindingRvs so it gets
             // the same full setup (calc field registration, format, legend, temp assembly cleanup).
-            if(primaryBinding instanceof PrimaryBinding.ChartPrimaryBinding chartBinding &&
-               chartRec instanceof VSChartRecommendation vcr)
-            {
-               primaryBinding = refreshChartBinding(chartBinding, vcr, rvs, user);
+            if(selectedRec != null) {
+               primaryAssembly = refreshVisualizationBinding(selectedRec, rvs, user);
             }
          }
 
          // Phase 3: place primary into the output viewsheet.
          CreateViewsheetResult visualizationResult = null;
 
-         if(primaryBinding != null && !Tool.isEmptyString(worksheetId)) {
+         if(selectedRec != null && !Tool.isEmptyString(worksheetId)) {
             VisualizationConfig sourceConfig = new VisualizationConfig();
             VisualizationConfig.DataSource ds = new VisualizationConfig.DataSource();
             ds.setSource(worksheetId);
@@ -210,7 +188,7 @@ public class WizAutoBindingService {
 
             CreateVisualizationModel vsModel = new CreateVisualizationModel();
             vsModel.setConfig(sourceConfig);
-            vsModel.setPrimaryBinding(primaryBinding);
+            vsModel.setPrimaryAssembly(primaryAssembly);
             vsModel.setRuntimeId(request.getWizRuntimeId());
             vsModel.setViewsheetIdentifier(request.getViewsheetIdentifier());
 
@@ -232,7 +210,7 @@ public class WizAutoBindingService {
          }
 
          // Phase 4: build response.
-         RecommendedVisualization primary = primaryBindingToRecommendedVisualization(primaryBinding, worksheetId);
+         RecommendedVisualization primary = recommendationToVisualization(selectedRec, entries, worksheetId);
          AutoBindingResponse resp = new AutoBindingResponse();
          resp.setRecommendations(recommendations);
          resp.setPrimary(primary);
@@ -265,10 +243,9 @@ public class WizAutoBindingService {
 
    // ── AssetEntry building ──────────────────────────────────────────────────────
 
-   private AssetEntry buildEntryFromColumn(ColumnRef col, String wsPath, String tableName,
-                                           SimpleFieldInfo fc)
-   {
-      String colName = col.getAttribute();
+   private AssetEntry buildEntryFromColumn(ColumnRef col, String wsPath, String tableName) {
+      String alias = col.getAlias();
+      String colName = (alias != null && !alias.isEmpty()) ? alias : col.getAttribute();
       String path = (wsPath != null && tableName != null)
          ? wsPath + "/" + tableName + "/" + colName : colName;
 
@@ -280,46 +257,8 @@ public class WizAutoBindingService {
       String dtype = col.getDataType() != null ? col.getDataType() : XSchema.STRING;
       entry.setProperty("dtype", dtype);
 
-      String alias = col.getAlias();
-      entry.setProperty("caption", alias != null ? alias : colName);
-
-      // fieldConfig fieldType takes precedence over dtype inference (design doc §4.3)
-      boolean isMeasure;
-
-      if(fc instanceof MeasureFieldInfo) {
-         isMeasure = true;
-      }
-      else if(fc instanceof DimensionFieldInfo) {
-         isMeasure = false;
-      }
-      else {
-         isMeasure = XSchema.isNumericType(dtype) && !XSchema.isDateType(dtype);
-      }
-
+      boolean isMeasure = XSchema.isNumericType(dtype) && !XSchema.isDateType(dtype);
       setRefType(entry, isMeasure);
-      applyFieldConfigToEntry(entry, fc, isMeasure);
-      return entry;
-   }
-
-   private AssetEntry buildEntryFromFieldInfo(SimpleFieldInfo field, String wsPath,
-                                              String tableName)
-   {
-      String fieldName = field.getField();
-      String path = (wsPath != null && tableName != null)
-         ? wsPath + "/" + tableName + "/" + fieldName : fieldName;
-
-      AssetEntry entry = new AssetEntry(
-         AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.COLUMN, path, null);
-      entry.setProperty("assembly", tableName != null ? tableName : "");
-      entry.setProperty("attribute", fieldName);
-
-      String dtype = field.getType() != null ? field.getType() : XSchema.STRING;
-      entry.setProperty("dtype", dtype);
-      entry.setProperty("caption", field.getTitle() != null ? field.getTitle() : fieldName);
-
-      boolean isMeasure = field instanceof MeasureFieldInfo;
-      setRefType(entry, isMeasure);
-      applyFieldConfigToEntry(entry, field, isMeasure);
       return entry;
    }
 
@@ -337,22 +276,6 @@ public class WizAutoBindingService {
       }
    }
 
-   private void applyFieldConfigToEntry(AssetEntry entry, SimpleFieldInfo fc, boolean isMeasure) {
-      if(fc == null) {
-         return;
-      }
-
-      // propagate date level as "interval" property consumed by setDefaultDateLevel
-      if(!isMeasure && fc instanceof DimensionFieldInfo dim && dim.getDateGroupLevel() != null) {
-         int level = WizVsService.getDateGroupLevel(dim.getDateGroupLevel());
-         entry.setProperty("interval", String.valueOf(level));
-      }
-
-      if(isMeasure && fc instanceof MeasureFieldInfo mea && mea.getAggregateFormula() != null) {
-         entry.setProperty("formula", mea.getAggregateFormula());
-      }
-   }
-
    // ── Apply fieldConfigs to generated ChartRefs ────────────────────────────────
 
    private void applyFieldConfigs(VSChartInfo chartInfo, Map<String, SimpleFieldInfo> configMap) {
@@ -363,15 +286,6 @@ public class WizAutoBindingService {
       for(ChartRef ref : chartInfo.getYFields()) {
          applyFieldConfig(ref, configMap);
       }
-
-      for(ChartRef ref : chartInfo.getGroupFields()) {
-         applyFieldConfig(ref, configMap);
-      }
-
-      applyAestheticFieldConfig(chartInfo.getColorField(), configMap);
-      applyAestheticFieldConfig(chartInfo.getSizeField(), configMap);
-      applyAestheticFieldConfig(chartInfo.getShapeField(), configMap);
-      applyAestheticFieldConfig(chartInfo.getTextField(), configMap);
    }
 
    private void applyAestheticFieldConfig(AestheticRef aestheticRef,
@@ -639,73 +553,73 @@ public class WizAutoBindingService {
       return info;
    }
 
-   // ── Primary visualization selection ───────────────────────────────────────────
+   // ── Primary recommendation selection ──────────────────────────────────────────
 
    /**
-    * Selects the primary visualization and returns native engine types so that
-    * {@code WizVsService} can create the assembly without an intermediate
-    * {@code VisualizationConfig} roundtrip.
-    * <ul>
-    *   <li>{@code vizType} non-null (chart) → pick best binding of that type from {@code prefInfos}.</li>
-    *   <li>{@code vizType} non-null (non-chart) → find it in the recommendation model.</li>
-    *   <li>No vizType, explicit bindings → infer viz type from binding role names
-    *       (non-chart type wins only when its role-match count strictly exceeds chart roles),
-    *       then find it in the recommendation model.</li>
-    *   <li>No vizType fallback → if top recommendation is a chart, apply {@code intentCategory}
-    *       filter on {@code prefInfos}; otherwise return the top recommendation.</li>
-    * </ul>
+    * Selects the primary recommendation and sets {@code selectedIndex} on any
+    * {@link VSChartRecommendation} so that {@code refreshVisualizationBinding} can
+    * call {@code updatePrimaryAssembly} with the correct sub-type.
     */
-   private PrimaryBinding buildPrimaryVisualization(
-      VSRecommendationModel model,
-      AssetEntry[] entries,
-      String vizType,
-      List<ExplicitBinding> explicitBindings,
-      List<ChartCombinationUtil.ScoredInfo> prefInfos,
-      String intentCategory)
+   private VSObjectRecommendation selectPrimaryRecommendation(VSRecommendationModel model,
+                                                               String vizType,
+                                                               List<ExplicitBinding> explicitBindings,
+                                                               String intentCategory)
    {
       List<VSObjectRecommendation> recs = model.getRecommendationList();
 
       if(vizType != null) {
-         if(isChartVizType(vizType)) {
-            PrimaryBinding.ChartPrimaryBinding byType = buildBestChartVizByType(prefInfos, vizType);
-            if(byType != null) {
-               return byType;
-            }
-         }
-
-         PrimaryBinding found = findPrimaryBindingByType(vizType, model, entries);
+         VSObjectRecommendation found = findRecByType(vizType, model);
 
          if(found == null && !recs.isEmpty()) {
             LOG.debug("Requested vizType '{}' not found in recommendations; returning top recommendation", vizType);
          }
 
-         return found != null ? found : (!recs.isEmpty() ? toPrimaryBinding(recs.get(0), entries) : null);
+         return found != null ? found : selectTopRecommendation(recs, intentCategory);
       }
 
-      // Infer viz type from explicit binding roles when present.
       if(explicitBindings != null && !explicitBindings.isEmpty()) {
          String inferredType = inferNonChartVizType(explicitBindings);
 
          if(inferredType != null) {
-            PrimaryBinding found = findPrimaryBindingByType(inferredType, model, entries);
+            VSObjectRecommendation found = findRecByType(inferredType, model);
+
             if(found != null) {
                return found;
             }
          }
       }
 
-      // Fallback: delegate viz-type decision to the recommendation engine.
-      // Iterate past VSFilterRecommendation (the only type toPrimaryBinding maps to null).
-      for(VSObjectRecommendation rec : recs) {
-         if(rec instanceof VSChartRecommendation) {
-            PrimaryBinding.ChartPrimaryBinding chartPrimary = buildBestChartViz(prefInfos, intentCategory);
-            return chartPrimary != null ? chartPrimary : toPrimaryBinding(rec, entries);
+      return selectTopRecommendation(recs, intentCategory);
+   }
+
+   /**
+    * Finds the recommendation matching {@code vizType} and sets {@code selectedIndex}
+    * on {@link VSChartRecommendation} when a specific chart sub-type is requested.
+    */
+   private VSObjectRecommendation findRecByType(String vizType, VSRecommendationModel model) {
+      for(VSObjectRecommendation rec : model.getRecommendationList()) {
+         if(isChartVizType(vizType) && rec instanceof VSChartRecommendation cr) {
+            if(setChartIndexForType(cr, vizType)) {
+               return cr;
+            }
          }
-
-         PrimaryBinding converted = toPrimaryBinding(rec, entries);
-
-         if(converted != null) {
-            return converted;
+         else if("crosstab".equals(vizType) && rec instanceof VSCrosstabRecommendation cr) {
+            if(cr.getCrosstabInfo() != null) {
+               return cr;
+            }
+         }
+         else if("table".equals(vizType) && rec instanceof VSTableRecommendation) {
+            return rec;
+         }
+         else if("gauge".equals(vizType) && rec instanceof VSGaugeRecommendation gr) {
+            if(gr.getDataRef() != null) {
+               return gr;
+            }
+         }
+         else if("text".equals(vizType) && rec instanceof VSTextRecommendation tr) {
+            if(tr.getDataRef() != null) {
+               return tr;
+            }
          }
       }
 
@@ -713,101 +627,187 @@ public class WizAutoBindingService {
    }
 
    /**
-    * Package-private so {@code changeType()} can select a binding from a cached model.
+    * Returns the first non-filter recommendation, applying {@code intentCategory} scoring
+    * when the top recommendation is a chart.
     */
-   PrimaryBinding findPrimaryBindingByType(String vizType, VSRecommendationModel model,
-                                           AssetEntry[] entries)
+   private VSObjectRecommendation selectTopRecommendation(List<VSObjectRecommendation> recs,
+                                                           String intentCategory)
    {
-      for(VSObjectRecommendation rec : model.getRecommendationList()) {
-         if(isChartVizType(vizType) && rec instanceof VSChartRecommendation cr) {
-            List<ChartInfo> infos = cr.getChartInfos();
+      for(VSObjectRecommendation rec : recs) {
+         if(rec instanceof VSChartRecommendation vcr) {
+            List<ChartCombinationUtil.ScoredInfo> prefInfos = vcr.getPrefInfos();
+            ChartInfo bestInfo = selectBestChartInfo(prefInfos, intentCategory);
 
-            if(infos != null) {
-               for(ChartInfo ci : infos) {
-                  if(chartTypeMatches(vizType, ci)) {
-                     return new PrimaryBinding.ChartPrimaryBinding(ci);
-                  }
-               }
+            if(bestInfo != null) {
+               setChartSelectedIndex(vcr, bestInfo);
+               return vcr;
             }
-         }
-         else if("crosstab".equals(vizType) && rec instanceof VSCrosstabRecommendation cr) {
-            if(cr.getCrosstabInfo() != null) {
-               return new PrimaryBinding.CrosstabPrimaryBinding(cr.getCrosstabInfo());
+
+            List<ChartInfo> chartInfos = vcr.getChartInfos();
+
+            if(chartInfos != null && !chartInfos.isEmpty()) {
+               vcr.setSelectedIndex(0);
+               return vcr;
             }
+
+            continue;
          }
-         else if("table".equals(vizType) && rec instanceof VSTableRecommendation tr) {
-            return new PrimaryBinding.TablePrimaryBinding(tr.getColumns(), entries);
-         }
-         else if("gauge".equals(vizType) && rec instanceof VSGaugeRecommendation gr) {
-            if(gr.getDataRef() != null) {
-               return new PrimaryBinding.GaugePrimaryBinding(gr.getDataRef());
-            }
-         }
-         else if("text".equals(vizType) && rec instanceof VSTextRecommendation tr) {
-            if(tr.getDataRef() != null) {
-               return new PrimaryBinding.TextPrimaryBinding(tr.getDataRef());
-            }
+
+         if(!(rec instanceof VSFilterRecommendation) && isValidNonChartRec(rec)) {
+            return rec;
          }
       }
 
       return null;
    }
 
-   private PrimaryBinding toPrimaryBinding(VSObjectRecommendation rec, AssetEntry[] entries) {
-      return switch(rec) {
-         case VSChartRecommendation cr -> {
-            List<ChartInfo> infos = cr.getChartInfos();
-            yield infos != null && !infos.isEmpty()
-               ? new PrimaryBinding.ChartPrimaryBinding(infos.get(0))
-               : null;
+   /** Sets {@code selectedIndex} on {@code vcr} for the best chart matching {@code explicitChartType}. */
+   private boolean setChartIndexForType(VSChartRecommendation vcr, String explicitChartType) {
+      List<ChartCombinationUtil.ScoredInfo> prefInfos = vcr.getPrefInfos();
+      List<ChartInfo> chartInfos = vcr.getChartInfos();
+      int chartInfosSize = chartInfos != null ? chartInfos.size() : 0;
+
+      if(prefInfos != null) {
+         for(int i = 0; i < prefInfos.size(); i++) {
+            if(chartTypeMatches(explicitChartType, prefInfos.get(i).getInfo())) {
+               vcr.setSelectedIndex(chartInfosSize + i);
+               return true;
+            }
          }
-         case VSCrosstabRecommendation cr when cr.getCrosstabInfo() != null ->
-            new PrimaryBinding.CrosstabPrimaryBinding(cr.getCrosstabInfo());
-         case VSTableRecommendation tr ->
-            new PrimaryBinding.TablePrimaryBinding(tr.getColumns(), entries);
-         case VSGaugeRecommendation gr when gr.getDataRef() != null ->
-            new PrimaryBinding.GaugePrimaryBinding(gr.getDataRef());
-         case VSTextRecommendation tr when tr.getDataRef() != null ->
-            new PrimaryBinding.TextPrimaryBinding(tr.getDataRef());
-         default -> null;
-      };
+      }
+
+      if(chartInfos != null) {
+         for(int i = 0; i < chartInfosSize; i++) {
+            if(chartTypeMatches(explicitChartType, chartInfos.get(i))) {
+               vcr.setSelectedIndex(i);
+               return true;
+            }
+         }
+      }
+
+      return false;
    }
 
-   private RecommendedVisualization primaryBindingToRecommendedVisualization(PrimaryBinding binding,
-                                                                             String worksheetId)
+   /** Sets {@code selectedIndex} on {@code vcr} by identity-matching {@code info} in chartInfos then prefInfos. */
+   private static void setChartSelectedIndex(VSChartRecommendation vcr, ChartInfo info) {
+      List<ChartInfo> chartInfos = vcr.getChartInfos();
+      int chartInfosSize = chartInfos != null ? chartInfos.size() : 0;
+
+      if(chartInfos != null) {
+         for(int i = 0; i < chartInfosSize; i++) {
+            if(chartInfos.get(i) == info) {
+               vcr.setSelectedIndex(i);
+               return;
+            }
+         }
+      }
+
+      List<ChartCombinationUtil.ScoredInfo> prefInfos = vcr.getPrefInfos();
+
+      if(prefInfos != null) {
+         for(int i = 0; i < prefInfos.size(); i++) {
+            if(prefInfos.get(i).getInfo() == info) {
+               vcr.setSelectedIndex(chartInfosSize + i);
+               return;
+            }
+         }
+      }
+   }
+
+   /** Returns the best {@link ChartInfo} from {@code prefInfos}, filtered by {@code intentCategory}. */
+   private static ChartInfo selectBestChartInfo(List<ChartCombinationUtil.ScoredInfo> prefInfos,
+                                                String intentCategory)
    {
-      if(binding == null) {
+      if(prefInfos == null || prefInfos.isEmpty()) {
          return null;
       }
 
-      return switch(binding) {
-         case PrimaryBinding.ChartPrimaryBinding cb ->
-            toRecommendedVisualization(cb.info(), worksheetId);
-         case PrimaryBinding.CrosstabPrimaryBinding cb -> {
-            RecommendedVisualization rec = new RecommendedVisualization();
-            rec.setVisualizationType("crosstab");
-            rec.setConfig(wrapInConfig(crosstabInfoToBinding(cb.info()), worksheetId));
-            yield rec;
+      ChartInfo highestScored = prefInfos.stream()
+         .max(Comparator.comparingInt(ChartCombinationUtil.ScoredInfo::getScore))
+         .map(ChartCombinationUtil.ScoredInfo::getInfo)
+         .orElse(null);
+
+      Set<Integer> categoryTypes = intentCategory != null
+         ? INTENT_CATEGORY_CHART_TYPES.get(intentCategory) : null;
+
+      if(categoryTypes != null && !categoryTypes.isEmpty()) {
+         return prefInfos.stream()
+            .filter(si -> categoryTypes.contains(si.getInfo().getChartType()))
+            .max(Comparator.comparingInt(ChartCombinationUtil.ScoredInfo::getScore))
+            .map(ChartCombinationUtil.ScoredInfo::getInfo)
+            .orElse(highestScored);
+      }
+
+      return highestScored;
+   }
+
+   private static boolean isValidNonChartRec(VSObjectRecommendation rec) {
+      if(rec instanceof VSCrosstabRecommendation cr) return cr.getCrosstabInfo() != null;
+      if(rec instanceof VSTableRecommendation) return true;
+      if(rec instanceof VSGaugeRecommendation gr) return gr.getDataRef() != null;
+      if(rec instanceof VSTextRecommendation tr) return tr.getDataRef() != null;
+      return false;
+   }
+
+   /** Converts a selected recommendation to a {@link RecommendedVisualization} for the client response. */
+   private RecommendedVisualization recommendationToVisualization(VSObjectRecommendation rec,
+                                                                   AssetEntry[] entries,
+                                                                   String worksheetId)
+   {
+      if(rec == null) {
+         return null;
+      }
+
+      if(rec instanceof VSChartRecommendation vcr) {
+         ChartInfo info = getSelectedChartInfo(vcr);
+         return info != null ? toRecommendedVisualization(info, worksheetId) : null;
+      }
+
+      if(rec instanceof VSCrosstabRecommendation cr && cr.getCrosstabInfo() != null) {
+         RecommendedVisualization rv = new RecommendedVisualization();
+         rv.setVisualizationType("crosstab");
+         rv.setConfig(wrapInConfig(crosstabInfoToBinding(cr.getCrosstabInfo()), worksheetId));
+         return rv;
+      }
+
+      if(rec instanceof VSTableRecommendation tr) {
+         return buildTableVisualization(tr.getColumns(), entries, worksheetId);
+      }
+
+      if(rec instanceof VSOutputRecommendation out) {
+         String vizType = rec instanceof VSGaugeRecommendation ? "gauge" : "text";
+         OutputBinding ob = new OutputBinding();
+         ob.setField(dataRefToMeasureFieldInfo(out.getDataRef()));
+         RecommendedVisualization rv = new RecommendedVisualization();
+         rv.setVisualizationType(vizType);
+         rv.setConfig(wrapInConfig(ob, worksheetId));
+         return rv;
+      }
+
+      return null;
+   }
+
+   /** Returns the {@link ChartInfo} at {@code vcr.selectedIndex}, handling the combined chartInfos+prefInfos index space. */
+   private static ChartInfo getSelectedChartInfo(VSChartRecommendation vcr) {
+      int idx = vcr.getSelectedIndex();
+      List<ChartInfo> chartInfos = vcr.getChartInfos();
+      int chartInfosSize = chartInfos != null ? chartInfos.size() : 0;
+
+      if(idx < chartInfosSize) {
+         return chartInfos.get(idx);
+      }
+
+      List<ChartCombinationUtil.ScoredInfo> prefInfos = vcr.getPrefInfos();
+
+      if(prefInfos != null) {
+         int prefIdx = idx - chartInfosSize;
+
+         if(prefIdx >= 0 && prefIdx < prefInfos.size()) {
+            return prefInfos.get(prefIdx).getInfo();
          }
-         case PrimaryBinding.TablePrimaryBinding tb ->
-            buildTableVisualization(tb.columns(), tb.entries(), worksheetId);
-         case PrimaryBinding.GaugePrimaryBinding gb -> {
-            OutputBinding outputBinding = new OutputBinding();
-            outputBinding.setField(dataRefToMeasureFieldInfo(gb.dataRef()));
-            RecommendedVisualization rec = new RecommendedVisualization();
-            rec.setVisualizationType("gauge");
-            rec.setConfig(wrapInConfig(outputBinding, worksheetId));
-            yield rec;
-         }
-         case PrimaryBinding.TextPrimaryBinding tb -> {
-            OutputBinding outputBinding = new OutputBinding();
-            outputBinding.setField(dataRefToMeasureFieldInfo(tb.dataRef()));
-            RecommendedVisualization rec = new RecommendedVisualization();
-            rec.setVisualizationType("text");
-            rec.setConfig(wrapInConfig(outputBinding, worksheetId));
-            yield rec;
-         }
-      };
+      }
+
+      return chartInfos != null && !chartInfos.isEmpty() ? chartInfos.get(0) : null;
    }
 
    private String inferNonChartVizType(List<ExplicitBinding> bindings) {
@@ -838,52 +838,6 @@ public class WizAutoBindingService {
    private static final Set<String> CHART_ROLES = Set.of("x", "y", "group", "color", "shape", "size", "text");
    private static final Set<String> CROSSTAB_ROLES = Set.of("rows", "cols", "aggregates");
    private static final Set<String> TABLE_ROLES = Set.of("details");
-
-   private PrimaryBinding.ChartPrimaryBinding buildBestChartVizByType(
-      List<ChartCombinationUtil.ScoredInfo> prefInfos, String explicitChartType)
-   {
-      if(prefInfos == null || prefInfos.isEmpty()) {
-         return null;
-      }
-
-      return prefInfos.stream()
-         .map(ChartCombinationUtil.ScoredInfo::getInfo)
-         .filter(ci -> chartTypeMatches(explicitChartType, ci))
-         .findFirst()
-         .map(PrimaryBinding.ChartPrimaryBinding::new)
-         .orElse(null);
-   }
-
-   private PrimaryBinding.ChartPrimaryBinding buildBestChartViz(
-      List<ChartCombinationUtil.ScoredInfo> prefInfos, String intentCategory)
-   {
-      if(prefInfos == null || prefInfos.isEmpty()) {
-         return null;
-      }
-
-      Set<Integer> categoryTypes = intentCategory != null
-         ? INTENT_CATEGORY_CHART_TYPES.get(intentCategory) : null;
-
-      ChartInfo highestScored = prefInfos.stream()
-         .max(Comparator.comparingInt(ChartCombinationUtil.ScoredInfo::getScore))
-         .map(ChartCombinationUtil.ScoredInfo::getInfo)
-         .orElse(null);
-
-      ChartInfo bestInfo;
-
-      if(categoryTypes != null && !categoryTypes.isEmpty()) {
-         bestInfo = prefInfos.stream()
-            .filter(si -> categoryTypes.contains(si.getInfo().getChartType()))
-            .max(Comparator.comparingInt(ChartCombinationUtil.ScoredInfo::getScore))
-            .map(ChartCombinationUtil.ScoredInfo::getInfo)
-            .orElse(highestScored);
-      }
-      else {
-         bestInfo = highestScored;
-      }
-
-      return bestInfo != null ? new PrimaryBinding.ChartPrimaryBinding(bestInfo) : null;
-   }
 
    private RecommendedVisualization toRecommendedVisualization(ChartInfo info, String worksheetId) {
       String vizType = getChartTypeString(info.getChartType());
@@ -1075,7 +1029,7 @@ public class WizAutoBindingService {
     * <p>The recommendation model previously computed by {@link #autoBinding} is read from the
     * {@code autoBindingRuntimeId} RVS.  If it is absent the service falls back to a full
     * {@link #autoBinding} call (which also handles placing the primary and returning the result).
-    * Otherwise the matching {@link PrimaryBinding} is selected and placed in the
+    * Otherwise the matching recommendation is selected and placed in the
     * {@code wizRuntimeId} RVS without executing the sandbox, so the response is fast and does
     * not carry row data.
     */
@@ -1134,35 +1088,32 @@ public class WizAutoBindingService {
          return result;
       }
 
-      // 3. Select the primary binding for the requested type.
-      PrimaryBinding primaryBinding = findPrimaryBindingByType(visualizationType, model, null);
+      // 3. Select the recommendation for the requested type.
+      VSObjectRecommendation selectedRec = findRecByType(visualizationType, model);
 
-      if(primaryBinding == null) {
-         List<VSObjectRecommendation> recs = model.getRecommendationList().stream()
+      if(selectedRec == null) {
+         selectedRec = model.getRecommendationList().stream()
             .filter(r -> !(r instanceof VSFilterRecommendation))
-            .collect(Collectors.toList());
+            .findFirst()
+            .orElse(null);
 
-         if(!recs.isEmpty()) {
-            primaryBinding = toPrimaryBinding(recs.get(0), null);
+         if(selectedRec instanceof VSChartRecommendation vcr) {
+            vcr.setSelectedIndex(0);
          }
       }
 
-      if(primaryBinding == null || Tool.isEmptyString(worksheetId) || Tool.isEmptyString(wizRuntimeId)) {
-         LOG.warn("changeType skipped: primaryBinding={}, worksheetId='{}', wizRuntimeId='{}'",
-                  primaryBinding, worksheetId, wizRuntimeId);
+      if(selectedRec == null || Tool.isEmptyString(worksheetId) || Tool.isEmptyString(wizRuntimeId)) {
+         LOG.warn("changeType skipped: selectedRec={}, worksheetId='{}', wizRuntimeId='{}'",
+                  selectedRec, worksheetId, wizRuntimeId);
          return new CreateViewsheetResult();
       }
 
       // Mirror the wizard path: update autoBindingRvs so its state stays consistent
       // (calc fields, format, legend, cleanup of previous temp assembly).
-      if(primaryBinding instanceof PrimaryBinding.ChartPrimaryBinding chartBinding &&
-         capturedAutoBindingRvs != null)
-      {
-         VSObjectRecommendation chartRec = model.findRecommendation(VSRecommendType.CHART, false);
+      VSAssembly primaryAssembly = null;
 
-         if(chartRec instanceof VSChartRecommendation vcr) {
-            primaryBinding = refreshChartBinding(chartBinding, vcr, capturedAutoBindingRvs, user);
-         }
+      if(capturedAutoBindingRvs != null) {
+         primaryAssembly = refreshVisualizationBinding(selectedRec, capturedAutoBindingRvs, user);
       }
 
       // 4. Place the new primary in wizRuntimeId without executing the sandbox.
@@ -1173,7 +1124,7 @@ public class WizAutoBindingService {
 
       CreateVisualizationModel vsModel = new CreateVisualizationModel();
       vsModel.setConfig(sourceConfig);
-      vsModel.setPrimaryBinding(primaryBinding);
+      vsModel.setPrimaryAssembly(primaryAssembly);
       vsModel.setRuntimeId(wizRuntimeId);
       vsModel.setViewsheetIdentifier(viewsheetIdentifier);
       vsModel.setKeepCondition(true);
@@ -1197,60 +1148,20 @@ public class WizAutoBindingService {
 
    /**
     * Calls updatePrimaryAssembly on {@code rvs} to mirror the full wizard setup path
-    * (calc field registration, format, legend, temp assembly cleanup), then extracts the
-    * updated ChartInfo from the resulting temp assembly. Returns the refreshed binding, or
-    * the original binding if the temp assembly is not a chart.
+    * (calc field registration, format, legend, temp assembly cleanup), then returns the
+    * resulting temp assembly. The caller must have already set {@code selectedIndex} on
+    * any {@link VSChartRecommendation} before calling this method.
     */
-   private PrimaryBinding refreshChartBinding(PrimaryBinding.ChartPrimaryBinding chartBinding,
-                                               VSChartRecommendation vcr,
-                                               RuntimeViewsheet rvs,
-                                               Principal user) throws Exception
+   private VSAssembly refreshVisualizationBinding(VSObjectRecommendation rec,
+                                                   RuntimeViewsheet rvs,
+                                                   Principal user) throws Exception
    {
-      syncChartSelectedIndex(vcr, chartBinding.info());
-
       CommandDispatcher.withDummyDispatcher(user, dispatcher -> {
-         bindingHandler.updatePrimaryAssembly(vcr, rvs, false, "", dispatcher, false);
+         bindingHandler.updatePrimaryAssembly(rec, rvs, false, "", dispatcher, false);
          return null;
       });
 
-      VSAssembly autoTempAsm = WizardRecommenderUtil.getTempAssembly(rvs.getViewsheet());
-
-      if(autoTempAsm instanceof ChartVSAssembly autoChart) {
-         return new PrimaryBinding.ChartPrimaryBinding(
-            ((ChartVSAssemblyInfo) autoChart.getInfo()).getVSChartInfo());
-      }
-
-      return chartBinding;
-   }
-
-   /**
-    * Sets selectedIndex on {@code vcr} so that {@code addChartVSAssembly} fetches
-    * {@code selectedInfo}. Checks chartInfos first (plain index), then prefInfos
-    * (chartInfos.size() + prefIdx) to cover both selection paths.
-    */
-   private static void syncChartSelectedIndex(VSChartRecommendation vcr, ChartInfo selectedInfo) {
-      List<ChartInfo> chartInfos = vcr.getChartInfos();
-      int chartInfosSize = chartInfos != null ? chartInfos.size() : 0;
-
-      if(chartInfos != null) {
-         for(int i = 0; i < chartInfosSize; i++) {
-            if(chartInfos.get(i) == selectedInfo) {
-               vcr.setSelectedIndex(i);
-               return;
-            }
-         }
-      }
-
-      List<ChartCombinationUtil.ScoredInfo> prefInfos = vcr.getPrefInfos();
-
-      if(prefInfos != null) {
-         for(int i = 0; i < prefInfos.size(); i++) {
-            if(prefInfos.get(i).getInfo() == selectedInfo) {
-               vcr.setSelectedIndex(chartInfosSize + i);
-               return;
-            }
-         }
-      }
+      return WizardRecommenderUtil.getTempAssembly(rvs.getViewsheet());
    }
 
    private static final Logger LOG = LoggerFactory.getLogger(WizAutoBindingService.class);

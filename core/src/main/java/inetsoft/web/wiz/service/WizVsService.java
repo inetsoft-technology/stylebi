@@ -36,6 +36,7 @@ import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.schema.*;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
+import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.Tool;
 import inetsoft.web.vswizard.recommender.WizardRecommenderUtil;
@@ -46,6 +47,7 @@ import org.springframework.stereotype.Service;
 
 import java.security.Principal;
 import java.util.*;
+import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
 @Service
@@ -110,7 +112,7 @@ public class WizVsService {
          VSAssembly previousPrimaryAssembly = null;
          // Only relevant for the incremental standard path (non-null when base entry may be mutated).
          AssetEntry previousBaseEntry = null;
-         boolean modificationOnly = model.getConfig() == null && model.getPrimaryBinding() == null
+         boolean modificationOnly = model.getConfig() == null && model.getPrimaryAssembly() == null
             && model.getConditionModel() != null;
          // Track the worksheet table name for aggregate condition handling
          String wsTableName = null;
@@ -158,9 +160,13 @@ public class WizVsService {
 
             String assemblyName = uniqueAssemblyName(targetVs, ctx.title());
 
-            if(model.getPrimaryBinding() != null) {
-               assembly = createAssemblyFromPrimaryBinding(
-                  targetVs, assemblyName, model.getPrimaryBinding(), ctx.primaryAssemblyName());
+            if(model.getPrimaryAssembly() != null) {
+               assembly = rebindAssembly(targetVs, assemblyName, model.getPrimaryAssembly());
+
+               if(assembly == null) {
+                  throw new IllegalArgumentException("Unsupported primary assembly type: "
+                                                        + model.getPrimaryAssembly().getClass().getName());
+               }
             }
             else {
                assembly = createAssembly(targetVs, model.getVisualizationType(), assemblyName,
@@ -1118,133 +1124,23 @@ public class WizVsService {
       return entry.toIdentifier();
    }
 
-   private VSAssembly createAssemblyFromPrimaryBinding(Viewsheet vs, String name,
-                                                       PrimaryBinding binding, String tname)
-   {
-      VSAssembly assembly = switch(binding) {
-         case PrimaryBinding.ChartPrimaryBinding cb ->
-            createChartAssemblyFromInfo(vs, name, cb.info());
-         case PrimaryBinding.CrosstabPrimaryBinding cb ->
-            createCrosstabAssemblyFromInfo(vs, name, cb.info());
-         case PrimaryBinding.TablePrimaryBinding tb ->
-            createTableAssemblyFromInfo(vs, name, tb.columns(), tb.entries());
-         case PrimaryBinding.GaugePrimaryBinding gb ->
-            createGaugeAssemblyFromInfo(vs, name, gb.dataRef());
-         case PrimaryBinding.TextPrimaryBinding tb ->
-            createTextAssemblyFromInfo(vs, name, tb.dataRef());
-      };
+   /**
+    * Creates a new assembly of the same type as {@code src}, bound to {@code vs} and renamed to
+    * {@code name}, then copies the binding info directly from {@code src}. Used when the caller
+    * already has a fully-configured temp assembly (from the wizard setup path) and only needs it
+    * rehosted in a different viewsheet.
+    */
+   private VSAssembly rebindAssembly(Viewsheet vs, String name, VSAssembly src) {
+      BiFunction<Viewsheet, String, VSAssembly> factory = ASSEMBLY_FACTORIES.get(src.getClass());
 
-      if(assembly instanceof DataVSAssembly dataAssembly) {
-         dataAssembly.setSourceInfo(new SourceInfo(SourceInfo.ASSET, null, tname));
-      }
-      else if(assembly instanceof OutputVSAssembly outputAssembly) {
-         ScalarBindingInfo sbinfo = outputAssembly.getScalarBindingInfo();
-         if(sbinfo != null) {
-            sbinfo.setTableName(tname);
-         }
+      if(factory == null) {
+         LOG.warn("rebindAssembly: unsupported assembly type {}; falling back to null", src.getClass().getName());
+         return null;
       }
 
-      return assembly;
-   }
-
-   private ChartVSAssembly createChartAssemblyFromInfo(Viewsheet vs, String name, ChartInfo info) {
-      ChartVSAssembly chart = new ChartVSAssembly(vs, name);
-      chart.initDefaultFormat();
-
-      if(info instanceof VSChartInfo vsChartInfo) {
-         chart.setVSChartInfo(vsChartInfo);
-         GraphUtil.fixVisualFrames(vsChartInfo);
-      }
-      else {
-         LOG.warn("createChartAssemblyFromInfo: expected VSChartInfo but got {}; chart '{}' will have no binding",
-                  info == null ? "null" : info.getClass().getName(), name);
-      }
-
-      return chart;
-   }
-
-   private CrosstabVSAssembly createCrosstabAssemblyFromInfo(Viewsheet vs, String name,
-                                                             VSCrosstabInfo info)
-   {
-      CrosstabVSAssembly crosstab = new CrosstabVSAssembly(vs, name);
-      crosstab.initDefaultFormat();
-      crosstab.setVSCrosstabInfo(info);
-      return crosstab;
-   }
-
-   private TableVSAssembly createTableAssemblyFromInfo(Viewsheet vs, String name,
-                                                       ColumnSelection columns, AssetEntry[] entries)
-   {
-      TableVSAssembly table = new TableVSAssembly(vs, name);
-      table.initDefaultFormat();
-
-      if(columns != null) {
-         if(entries != null) {
-            Map<String, AssetEntry> entryByName = Arrays.stream(entries)
-               .collect(Collectors.toMap(WizardRecommenderUtil::getFieldName, e -> e, (a, b) -> a));
-            ColumnSelection typedColumns = new ColumnSelection();
-
-            for(int i = 0; i < columns.getAttributeCount(); i++) {
-               DataRef attr = columns.getAttribute(i);
-               AttributeRef attributeRef = new AttributeRef(null, attr.getAttribute());
-               AssetEntry entry = entryByName.get(attr.getAttribute());
-
-               if(entry != null) {
-                  attributeRef.setDataType(entry.getProperty("dtype"));
-               }
-
-               typedColumns.addAttribute(new ColumnRef(attributeRef));
-            }
-
-            table.setColumnSelection(typedColumns);
-         }
-         else {
-            // No entries available; use ColumnRefs as-is (dtypes already set during recommendation).
-            table.setColumnSelection(columns);
-         }
-      }
-
-      return table;
-   }
-
-   private GaugeVSAssembly createGaugeAssemblyFromInfo(Viewsheet vs, String name, DataRef dataRef) {
-      GaugeVSAssembly gauge = new GaugeVSAssembly(vs, name);
-      gauge.initDefaultFormat();
-      ScalarBindingInfo sbinfo = new ScalarBindingInfo();
-
-      if(dataRef instanceof VSAggregateRef agg) {
-         sbinfo.setColumnValue(agg.getColumnValue());
-
-         if(agg.getFormulaValue() != null) {
-            sbinfo.setAggregateValue(agg.getFormulaValue());
-         }
-      }
-      else if(dataRef != null) {
-         sbinfo.setColumnValue(dataRef.getAttribute());
-      }
-
-      gauge.setScalarBindingInfo(sbinfo);
-      return gauge;
-   }
-
-   private TextVSAssembly createTextAssemblyFromInfo(Viewsheet vs, String name, DataRef dataRef) {
-      TextVSAssembly text = new TextVSAssembly(vs, name);
-      text.initDefaultFormat();
-      ScalarBindingInfo sbinfo = new ScalarBindingInfo();
-
-      if(dataRef instanceof VSAggregateRef agg) {
-         sbinfo.setColumnValue(agg.getColumnValue());
-
-         if(agg.getFormulaValue() != null) {
-            sbinfo.setAggregateValue(agg.getFormulaValue());
-         }
-      }
-      else if(dataRef != null) {
-         sbinfo.setColumnValue(dataRef.getAttribute());
-      }
-
-      text.setScalarBindingInfo(sbinfo);
-      return text;
+      VSAssembly dest = factory.apply(vs, name);
+      dest.setVSAssemblyInfo(src.getVSAssemblyInfo().clone());
+      return dest;
    }
 
    private VSAssembly createAssembly(Viewsheet vs, String type, String name,
@@ -2688,5 +2584,12 @@ public class WizVsService {
    private final AssetRepository engine;
 
    private static final Logger LOG = LoggerFactory.getLogger(WizVsService.class);
+   private static final Map<Class<?>, BiFunction<Viewsheet, String, VSAssembly>> ASSEMBLY_FACTORIES = Map.of(
+      ChartVSAssembly.class, ChartVSAssembly::new,
+      CrosstabVSAssembly.class, CrosstabVSAssembly::new,
+      TableVSAssembly.class, TableVSAssembly::new,
+      GaugeVSAssembly.class, GaugeVSAssembly::new,
+      TextVSAssembly.class, TextVSAssembly::new
+   );
    static final int MAX_ROWS = 10_000;
 }
