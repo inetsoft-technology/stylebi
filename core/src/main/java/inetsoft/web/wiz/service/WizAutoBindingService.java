@@ -305,20 +305,28 @@ public class WizAutoBindingService {
       }
 
       if(ref instanceof VSChartDimensionRef dim) {
-         if(fc instanceof DimensionFieldInfo dimFc && dimFc.getRanking() != null) {
-            Ranking r = dimFc.getRanking();
-            dim.setRankingOptionValue(String.valueOf(r.getOptionValue()));
-            dim.setRankingNValue(String.valueOf(r.getRankingN()));
-            dim.setRankingColValue(r.getRankingCol());
+         if(fc instanceof DimensionFieldInfo dimFc) {
+            if(dimFc.getRanking() != null) {
+               Ranking r = dimFc.getRanking();
+               dim.setRankingOptionValue(String.valueOf(r.getOptionValue()));
+               dim.setRankingNValue(String.valueOf(r.getRankingN()));
+               dim.setRankingColValue(r.getRankingCol());
+            }
+
+            if(dimFc.getDateGroupLevel() != null) {
+               try {
+                  dim.setDateLevelValue(String.valueOf(
+                     WizVsService.getDateGroupLevel(dimFc.getDateGroupLevel())));
+               }
+               catch(IllegalArgumentException e) {
+                  LOG.warn("Ignoring unsupported dateGroupLevel '{}' for field '{}'",
+                           dimFc.getDateGroupLevel(), dimFc.getField());
+               }
+            }
          }
 
          if(fc.getOrder() != null) {
             dim.setOrder(fc.getOrder());
-         }
-
-         if(fc instanceof DimensionFieldInfo dimFc && dimFc.getDateGroupLevel() != null) {
-            dim.setDateLevelValue(String.valueOf(
-               WizVsService.getDateGroupLevel(dimFc.getDateGroupLevel())));
          }
       }
       else if(ref instanceof VSChartAggregateRef agg) {
