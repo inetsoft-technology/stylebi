@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { HttpClientTestingModule } from "@angular/common/http/testing";
 import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
@@ -38,9 +39,9 @@ describe("ScheduleCycleOptionsPaneComponent", () => {
 
    beforeEach(waitForAsync(() => {
       const scheduleUsersService = {
-         getGroups: jest.fn(() => new BehaviorSubject([]) ),
-         getEmailUsers: jest.fn(() => new BehaviorSubject([]) ),
-         getEmailGroups: jest.fn(() => new BehaviorSubject([]) ),
+         getGroups: vi.fn(() => new BehaviorSubject([]) ),
+         getEmailUsers: vi.fn(() => new BehaviorSubject([]) ),
+         getEmailGroups: vi.fn(() => new BehaviorSubject([]) ),
       };
 
       TestBed.configureTestingModule({

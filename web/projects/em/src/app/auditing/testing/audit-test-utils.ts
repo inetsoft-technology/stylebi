@@ -16,6 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, forwardRef } from "@angular/core";
+import { vi } from "vitest";
 import { ControlValueAccessor, NG_VALUE_ACCESSOR } from "@angular/forms";
 import { Observable, throwError } from "rxjs";
 
@@ -40,7 +41,7 @@ export class MatSelectStub implements ControlValueAccessor {
  */
 export function makeErrorServiceMock() {
    return {
-      showSnackBar: jest.fn().mockImplementation(
+      showSnackBar: vi.fn().mockImplementation(
          (error: any, _msg: string, producer?: () => Observable<any>) =>
             producer ? producer() : throwError(() => error)
       ),

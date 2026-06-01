@@ -139,7 +139,7 @@ describe("TableViewGeneralPane Unit Test", () => {
    }));
 
    // Bug #10802 should have submit on change checkbox if set to show
-   it("should show submit on change checkbox", (done) => {
+   it("should show submit on change checkbox", () => new Promise<void>((done) => {
       let fixture: ComponentFixture<TableViewGeneralPane> = TestBed.createComponent(TableViewGeneralPane);
       let model: TableViewGeneralPaneModel = createModel();
       model.showSubmitOnChange = true;
@@ -154,5 +154,5 @@ describe("TableViewGeneralPane Unit Test", () => {
          expect(submitOnChangeLabel).toBeTruthy();
          done();
       });
-   });
+   }));
 });

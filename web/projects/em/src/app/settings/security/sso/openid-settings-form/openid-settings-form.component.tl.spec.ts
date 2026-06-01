@@ -76,7 +76,7 @@ function makeModel(overrides: Partial<OpenIdAttributesModel> = {}): OpenIdAttrib
 // ---------------------------------------------------------------------------
 
 async function renderComponent() {
-   const dialogSpy = { open: jest.fn() };
+   const dialogSpy = { open: vi.fn() };
    const result = await render(OpenidSettingsFormComponent, {
       imports: [CommonModule, ReactiveFormsModule],
       schemas: [NO_ERRORS_SCHEMA],
@@ -154,7 +154,7 @@ describe("OpenidSettingsFormComponent - loadDiscovery(): fetch and apply", () =>
    // Regression-sensitive: discovery is the bulk-fill path for critical OIDC endpoints. Missing
    // one endpoint silently posts an incomplete provider configuration.
    it("should fetch discovery data, populate endpoints, and update supported scopes/claims", async () => {
-      const fetchSpy = jest.spyOn(global, "fetch").mockResolvedValue({
+      const fetchSpy = vi.spyOn(global, "fetch").mockResolvedValue({
          json: () => Promise.resolve({
             issuer: "https://issuer.example",
             authorization_endpoint: "https://issuer.example/auth",
@@ -186,7 +186,7 @@ describe("OpenidSettingsFormComponent - loadDiscovery(): fetch and apply", () =>
    // Regression-sensitive: network/CORS failures must surface as the specific discovery error,
    // not as a silent no-op that leaves users debugging blank endpoint fields.
    it("should open the discovery error dialog when fetch fails", async () => {
-      const fetchSpy = jest.spyOn(global, "fetch").mockRejectedValue(new Error("cors"));
+      const fetchSpy = vi.spyOn(global, "fetch").mockRejectedValue(new Error("cors"));
       const { comp, dialogSpy } = await renderComponent();
       comp.form.get("discoveryUrl").setValue("https://issuer.example/.well-known/openid-configuration");
 
@@ -228,7 +228,7 @@ describe("OpenidSettingsFormComponent - scope editing paths", () => {
    it("should add a trimmed scope from chip input, clear the input, and emit modelChange", async () => {
       const { comp } = await renderComponent();
       comp.model = makeModel({ scopes: "openid" });
-      const chipInput = { clear: jest.fn() };
+      const chipInput = { clear: vi.fn() };
       const emitted: OpenIdAttributesModel[] = [];
       comp.modelChange.subscribe(model => emitted.push(model));
 

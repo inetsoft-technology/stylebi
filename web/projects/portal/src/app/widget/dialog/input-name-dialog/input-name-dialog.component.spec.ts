@@ -30,10 +30,10 @@ import { HelpLinkDirective } from "../../help-link/help-link.directive";
 describe("Input Name Dialog Unit Test", () => {
    let fixture: ComponentFixture<InputNameDialog>;
    let inputNameDialog: InputNameDialog;
-   let ngbService = { open: jest.fn() };
+   let ngbService = { open: vi.fn() };
    let helpUrlService = {
-      getHelpUrl: jest.fn(() => of("about:blank")),
-      getScriptHelpUrl: jest.fn(() => of("about:blank"))
+      getHelpUrl: vi.fn(() => of("about:blank")),
+      getScriptHelpUrl: vi.fn(() => of("about:blank"))
    };
 
    beforeEach(waitForAsync(() => {

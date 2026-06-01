@@ -15,10 +15,6 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-jest.mock("../../../../../../shared/ckeditor-wrapper/ckeditor-wrapper.component", () => ({
-   CkeditorWrapperComponent: class {}
-}));
-
 import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { TestBed, waitForAsync } from "@angular/core/testing";
 import { UntypedFormBuilder, ReactiveFormsModule } from "@angular/forms";
@@ -118,14 +114,14 @@ describe("ScheduleTaskEditorPageComponent", () => {
             ScheduleTaskEditorPageComponent],
          providers: [
             UntypedFormBuilder,
-            { provide: ScheduleTaskEditorDataService, useValue: { loadTask: jest.fn(), saveTask: jest.fn() } },
+            { provide: ScheduleTaskEditorDataService, useValue: { loadTask: vi.fn(), saveTask: vi.fn() } },
             { provide: ActivatedRoute, useValue: { params: EMPTY } },
-            { provide: Router, useValue: { navigate: jest.fn() } },
-            { provide: MatDialog, useValue: { open: jest.fn() } },
-            { provide: MatSnackBar, useValue: { open: jest.fn() } },
+            { provide: Router, useValue: { navigate: vi.fn() } },
+            { provide: MatDialog, useValue: { open: vi.fn() } },
+            { provide: MatSnackBar, useValue: { open: vi.fn() } },
             { provide: PageHeaderService, useValue: { title: "" } },
-            { provide: TimeZoneService, useValue: { updateTimeZoneOptions: jest.fn() } },
-            { provide: ScheduleTaskNamesService, useValue: { loadScheduleTaskNames: jest.fn() } }
+            { provide: TimeZoneService, useValue: { updateTimeZoneOptions: vi.fn() } },
+            { provide: ScheduleTaskNamesService, useValue: { loadScheduleTaskNames: vi.fn() } }
          ],
          schemas: [NO_ERRORS_SCHEMA]
       });

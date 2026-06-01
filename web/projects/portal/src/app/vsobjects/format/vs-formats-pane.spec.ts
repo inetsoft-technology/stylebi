@@ -51,9 +51,9 @@ import { VSFormatsPane } from "./vs-formats-pane.component";
 
 describe("VS Formats Pane Unit case", () => {
    beforeAll(() => {
-      jest.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({
+      vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({
          font: "",
-         clearRect: jest.fn(),
+         clearRect: vi.fn(),
          measureText: (_text: string) => ({ width: 0 })
       } as any);
    });
@@ -66,13 +66,13 @@ describe("VS Formats Pane Unit case", () => {
    let debounceService: any;
 
    beforeEach(() => {
-      changeDetectorRef = { detach: jest.fn(), reattach: jest.fn() };
-      fontService = { getAllFonts: jest.fn() };
-      modalService = { open: jest.fn() };
-      modelService = { getModel: jest.fn().mockReturnValue(observableOf(null)) };
+      changeDetectorRef = { detach: vi.fn(), reattach: vi.fn() };
+      fontService = { getAllFonts: vi.fn() };
+      modalService = { open: vi.fn() };
+      modelService = { getModel: vi.fn().mockReturnValue(observableOf(null)) };
       debounceService = {
-         debounce: jest.fn((key, fn, delay, args) => fn(...args)),
-         cancel: jest.fn()
+         debounce: vi.fn((key, fn, delay, args) => fn(...args)),
+         cancel: vi.fn()
       };
 
       TestBed.configureTestingModule({
@@ -270,7 +270,6 @@ describe("VS Formats Pane Unit case", () => {
       expect(vsFormatsPane.colorDisabled).toBeFalsy();
       expect(vsFormatsPane.alignDisabled).toBeTruthy();
    });
-
 
    //Bug #6061
    //BUg #18706 unselect assembly, format pane is disable

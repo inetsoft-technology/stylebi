@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { CommonModule } from "@angular/common";
 import { HttpClientTestingModule } from "@angular/common/http/testing";
 import { NO_ERRORS_SCHEMA } from "@angular/core";
@@ -47,17 +48,17 @@ describe("UserMonitoringViewComponent", () => {
 
    beforeEach(() => {
       const mockMonitorLevelService = {
-         monitorLevel: jest.fn(() => observableOf(0)),
-         filterColumns: jest.fn(() => [])
+         monitorLevel: vi.fn(() => observableOf(0)),
+         filterColumns: vi.fn(() => [])
       };
       const clusterService = {
-         getClusterNodes: jest.fn(() => observableOf())
+         getClusterNodes: vi.fn(() => observableOf())
       };
       const monitoringDataService = {
-         connect: jest.fn(() => observableOf()),
-         subscribe: jest.fn(),
-         getClusterAddress: jest.fn(() => observableOf()),
-         getMonitoringData: jest.fn(() => observableOf())
+         connect: vi.fn(() => observableOf()),
+         subscribe: vi.fn(),
+         getClusterAddress: vi.fn(() => observableOf()),
+         getMonitoringData: vi.fn(() => observableOf())
       };
 
       TestBed.configureTestingModule({

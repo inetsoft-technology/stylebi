@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { ComponentTool } from "../../common/util/component-tool";
 import { FormulaEditorDialog } from "./formula-editor-dialog.component";
 
@@ -38,8 +39,6 @@ let createMockItemObject: () => any = () => {
    };
 };
 
-
-
 describe("Formula Editor Test", () => {
    let formulaEditor: FormulaEditorDialog;
    let modalService: any;
@@ -49,16 +48,16 @@ describe("Formula Editor Test", () => {
 
    beforeEach(() => {
       const editorService: any = {
-         getColumnTreeNode: jest.fn(),
-         getAdhocColumnTreeNode: jest.fn(),
+         getColumnTreeNode: vi.fn(),
+         getAdhocColumnTreeNode: vi.fn(),
          sqlFunctions: [],
          sqlOperators: [],
-         getOperationTreeNode: jest.fn()
+         getOperationTreeNode: vi.fn()
       };
-      modalService = { open: jest.fn() };
+      modalService = { open: vi.fn() };
       renderer = { };
       element = { };
-      dropdownService = { open: jest.fn() };
+      dropdownService = { open: vi.fn() };
 
       formulaEditor = new FormulaEditorDialog(editorService, modalService, renderer, element,
          dropdownService);
@@ -68,7 +67,7 @@ describe("Formula Editor Test", () => {
 
    //Bug #20195
    it("should warn about a sql expression in a non-sql-mergeable table", () => {
-      let showMessageDialog = jest.spyOn(ComponentTool, "showMessageDialog");
+      let showMessageDialog = vi.spyOn(ComponentTool, "showMessageDialog");
       showMessageDialog.mockImplementation(() => Promise.resolve("ok"));
       formulaEditor.formulaType = "Script";
       formulaEditor.sqlMergeable = false;
@@ -83,7 +82,7 @@ describe("Formula Editor Test", () => {
 
    //bug #18750 and Bug #18931, Bug #20195 should show warning when SQL is selected for aggregate calculated field
    it("should show warning when SQL is selected for aggregate calculated field", () => {
-      let showMessageDialog = jest.spyOn(ComponentTool, "showMessageDialog");
+      let showMessageDialog = vi.spyOn(ComponentTool, "showMessageDialog");
       showMessageDialog.mockClear();
       showMessageDialog.mockImplementation(() => Promise.resolve("ok"));
       formulaEditor.formulaType = "Script";
@@ -146,7 +145,7 @@ describe("Formula Editor Test", () => {
       formulaEditor.form.get("formulaName").patchValue("State");
       formulaEditor.expression = "a";
 
-      const showMessageDialog = jest.spyOn(ComponentTool, "showMessageDialog");
+      const showMessageDialog = vi.spyOn(ComponentTool, "showMessageDialog");
       showMessageDialog.mockImplementation(() => Promise.resolve("ok"));
       formulaEditor.ok();
       expect(showMessageDialog).toHaveBeenCalled();

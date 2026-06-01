@@ -36,6 +36,7 @@
  *   MSW intercepts after Angular's HttpParams serialization. The value MSW sees
  *   is what the server receives as raw input to its first decode pass.
  */
+
 import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { ReactiveFormsModule } from "@angular/forms";
 import { HttpClientModule, HttpParams } from "@angular/common/http";
@@ -73,7 +74,6 @@ const EMPTY_ADDITIONAL = {
    selectedHosts:   [] as string[],
    selectedFolders: [] as string[],
 };
-
 
 /** Renders the component with NO_ERRORS_SCHEMA so em-audit-table-view is stubbed. */
 async function renderComponent(errorService = makeErrorServiceMock()) {
@@ -153,7 +153,6 @@ describe("AuditExportHistoryComponent — fetchData", () => {
    it("should call errorService.showSnackBar and return empty rows on data API error", async () => {
       const errorService = makeErrorServiceMock();
       const { fixture } = await renderComponent(errorService);
-
 
       server.use(
          http.get("*/api/em/monitoring/audit/exportHistory", () =>

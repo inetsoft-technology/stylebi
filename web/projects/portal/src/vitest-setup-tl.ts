@@ -16,11 +16,12 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-// Mock ResizeObserver for components that use the resize-event shared library.
-// Jest/jsdom does not provide ResizeObserver.
-(global as any).ResizeObserver = class ResizeObserver {
-   observe() {}
-   unobserve() {}
-   disconnect() {}
-};
+// TL (testing-library) test setup. Extends vitest-setup.ts and adds MSW
+// server lifecycle. Under the old Jest setup, setup-jest.ts (which had MSW)
+// was only wired to jest.tl.config.js, not to the main portal test suite.
+import { afterAll, afterEach, beforeAll } from "vitest";
+import { server } from "../../../mocks/server";
 
+beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
+afterEach(() => server.resetHandlers());
+afterAll(() => server.close());

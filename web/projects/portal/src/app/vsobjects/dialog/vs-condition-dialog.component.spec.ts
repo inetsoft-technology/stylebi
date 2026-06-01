@@ -71,8 +71,8 @@ describe("vs condition dialog component", () => {
    let httpTestingController: HttpTestingController;
 
    beforeEach(() => {
-      modelService = { sendModel: jest.fn(), text: jest.fn(), getModel: jest.fn().mockReturnValue(observableOf(null)) };
-      modalService = { open: jest.fn() };
+      modelService = { sendModel: vi.fn(), text: vi.fn(), getModel: vi.fn().mockReturnValue(observableOf(null)) };
+      modalService = { open: vi.fn() };
       modelService.sendModel.mockImplementation(() => observableOf(new HttpResponse({body: null})));
 
       TestBed.configureTestingModule({
@@ -109,7 +109,7 @@ describe("vs condition dialog component", () => {
       vsConditionDialog.conditionPane.condition = con1;
       fixture.detectChanges();
 
-      let showConfirmDialog = jest.spyOn(ComponentTool, "showConfirmDialog");
+      let showConfirmDialog = vi.spyOn(ComponentTool, "showConfirmDialog");
       showConfirmDialog.mockImplementation(() => Promise.resolve("ok"));
       vsConditionDialog.ok();
 

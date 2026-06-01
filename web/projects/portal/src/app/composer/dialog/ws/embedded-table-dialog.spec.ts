@@ -30,7 +30,7 @@ describe("Embedded Table Dialog Tests", () => {
    let fixture: ComponentFixture<EmbeddedTableDialog>;
 
    beforeEach(() => {
-      let modelService = { getModel: jest.fn() };
+      let modelService = { getModel: vi.fn() };
       modelService.getModel.mockImplementation(() => observableOf(<EmbeddedTableDialogModel> {
          name: "Query2",
          rows: 1,

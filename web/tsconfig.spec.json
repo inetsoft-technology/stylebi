@@ -2,16 +2,15 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "outDir": "./out-tsc/spec",
+    "skipLibCheck": true,
     "types": [
-      "jest",
-      "node",
-      "@testing-library/jest-dom"
+      "vitest/globals",
+      "node"
     ]
   },
   "include": [
     "projects/**/*.tl.spec.ts",
     "projects/**/*.d.ts",
-    "setup-jest.ts",
     "mocks/**/*.ts"
   ]
 }

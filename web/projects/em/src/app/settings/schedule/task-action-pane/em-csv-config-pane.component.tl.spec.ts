@@ -64,7 +64,7 @@ describe("EmCSVConfigPaneComponent — addAssembly(): initialization and dedupli
    it("should initialize selectedAssemblies to [] and push the assembly when it is null", async () => {
       const { comp } = await renderComp();
       comp.csvConfigModel = new CSVConfigModel(); // selectedAssemblies defaults to null
-      const emitSpy = jest.spyOn(comp.csvConfigChanged, "emit");
+      const emitSpy = vi.spyOn(comp.csvConfigChanged, "emit");
 
       comp.addAssembly("TableA");
 
@@ -77,7 +77,7 @@ describe("EmCSVConfigPaneComponent — addAssembly(): initialization and dedupli
    it("should not add a duplicate assembly and should not fire a change event for it", async () => {
       const { comp } = await renderComp();
       comp.csvConfigModel = Object.assign(new CSVConfigModel(), { selectedAssemblies: ["TableA"] });
-      const emitSpy = jest.spyOn(comp.csvConfigChanged, "emit");
+      const emitSpy = vi.spyOn(comp.csvConfigChanged, "emit");
 
       comp.addAssembly("TableA");
 
@@ -89,7 +89,7 @@ describe("EmCSVConfigPaneComponent — addAssembly(): initialization and dedupli
    it("should not add or emit when assembly name is empty", async () => {
       const { comp } = await renderComp();
       comp.csvConfigModel = Object.assign(new CSVConfigModel(), { selectedAssemblies: [] });
-      const emitSpy = jest.spyOn(comp.csvConfigChanged, "emit");
+      const emitSpy = vi.spyOn(comp.csvConfigChanged, "emit");
 
       comp.addAssembly("");
 
@@ -110,7 +110,7 @@ describe("EmCSVConfigPaneComponent — removeAssembly(): null guard and splice",
    it("should not throw and should not emit when selectedAssemblies is null", async () => {
       const { comp } = await renderComp();
       comp.csvConfigModel = new CSVConfigModel(); // selectedAssemblies = null
-      const emitSpy = jest.spyOn(comp.csvConfigChanged, "emit");
+      const emitSpy = vi.spyOn(comp.csvConfigChanged, "emit");
 
       expect(() => comp.removeAssembly("TableA")).not.toThrow();
       expect(emitSpy).not.toHaveBeenCalled();
@@ -123,7 +123,7 @@ describe("EmCSVConfigPaneComponent — removeAssembly(): null guard and splice",
       comp.csvConfigModel = Object.assign(new CSVConfigModel(), {
          selectedAssemblies: ["TableA", "TableB"]
       });
-      const emitSpy = jest.spyOn(comp.csvConfigChanged, "emit");
+      const emitSpy = vi.spyOn(comp.csvConfigChanged, "emit");
 
       comp.removeAssembly("TableA");
 
@@ -137,7 +137,7 @@ describe("EmCSVConfigPaneComponent — removeAssembly(): null guard and splice",
       comp.csvConfigModel = Object.assign(new CSVConfigModel(), {
          selectedAssemblies: ["TableA"]
       });
-      const emitSpy = jest.spyOn(comp.csvConfigChanged, "emit");
+      const emitSpy = vi.spyOn(comp.csvConfigChanged, "emit");
 
       comp.removeAssembly("TableX");
 
@@ -159,7 +159,7 @@ describe("EmCSVConfigPaneComponent — selectAllChanged() and isSelectedAllTable
    it("should set selectedAssemblies to null and emit when selectAllChanged(true)", async () => {
       const { comp } = await renderComp();
       comp.csvConfigModel = Object.assign(new CSVConfigModel(), { selectedAssemblies: ["TableA"] });
-      const emitSpy = jest.spyOn(comp.csvConfigChanged, "emit");
+      const emitSpy = vi.spyOn(comp.csvConfigChanged, "emit");
 
       comp.selectAllChanged(true);
 
@@ -172,7 +172,7 @@ describe("EmCSVConfigPaneComponent — selectAllChanged() and isSelectedAllTable
    it("should set selectedAssemblies to [] and emit when selectAllChanged(false)", async () => {
       const { comp } = await renderComp();
       comp.csvConfigModel = new CSVConfigModel(); // null
-      const emitSpy = jest.spyOn(comp.csvConfigChanged, "emit");
+      const emitSpy = vi.spyOn(comp.csvConfigChanged, "emit");
 
       comp.selectAllChanged(false);
 

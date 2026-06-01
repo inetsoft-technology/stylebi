@@ -56,10 +56,10 @@ describe("selection tree columns pane unit case", () => {
    let selectionTreeColPane: SelectionTreeColumnsPane;
 
    beforeEach(() => {
-      changeDetectorRef = { detectChanges: jest.fn() };
-      modalService = { open: jest.fn() };
-      dragService = { reset: jest.fn(), put: jest.fn() };
-      dataTreeValidatorService = { validateTreeNode: jest.fn() };
+      changeDetectorRef = { detectChanges: vi.fn() };
+      modalService = { open: vi.fn() };
+      dragService = { reset: vi.fn(), put: vi.fn() };
+      dataTreeValidatorService = { validateTreeNode: vi.fn() };
 
       TestBed.configureTestingModule({
          imports: [NgbModule, ReactiveFormsModule, FormsModule, TestApp, SelectionTreeColumnsPane, TreeComponent, TreeNodeComponent, TreeSearchPipe],
@@ -84,7 +84,7 @@ describe("selection tree columns pane unit case", () => {
       fixture.componentInstance.selectionTreeColumnsPane.addLevelNode();
       fixture.detectChanges();
 
-      const showMessageDialog = jest.spyOn(ComponentTool, "showMessageDialog");
+      const showMessageDialog = vi.spyOn(ComponentTool, "showMessageDialog");
       expect(showMessageDialog).not.toHaveBeenCalled();
    });
 

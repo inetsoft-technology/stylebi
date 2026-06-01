@@ -44,14 +44,14 @@ describe("VSSelectionContainer Unit Tests", () => {
 
    beforeEach(waitForAsync(() => {
       interactService = {
-         addInteractable: jest.fn(),
-         notify: jest.fn(),
-         removeInteractable: jest.fn()
+         addInteractable: vi.fn(),
+         notify: vi.fn(),
+         removeInteractable: vi.fn()
       };
-      dataTipService = { isDataTip: jest.fn() };
+      dataTipService = { isDataTip: vi.fn() };
       dropdownService = { };
       const contextProvider = {};
-      ssoHeartbeatService = { heartbeat: jest.fn() };
+      ssoHeartbeatService = { heartbeat: vi.fn() };
 
       TestBed.configureTestingModule({
          imports: [

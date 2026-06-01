@@ -15,24 +15,25 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+import { type Mocked } from "vitest";
 import { NgZone } from "@angular/core";
 import { Subject } from "rxjs";
 import { StompClientService } from ".";
 import { ViewsheetClientService } from "./viewsheet-client.service";
 
-function makeStompClientService(): jest.Mocked<StompClientService> {
+function makeStompClientService(): Mocked<StompClientService> {
    return {
-      connect: jest.fn().mockReturnValue(new Subject()),
-      whenDisconnected: jest.fn().mockReturnValue(new Subject()),
-      reconnectError: jest.fn().mockReturnValue(new Subject()),
+      connect: vi.fn().mockReturnValue(new Subject()),
+      whenDisconnected: vi.fn().mockReturnValue(new Subject()),
+      reconnectError: vi.fn().mockReturnValue(new Subject()),
       reloadOnFailure: false
    } as any;
 }
 
 function makeZone(): NgZone {
    return {
-      run: jest.fn((fn: () => any) => fn()),
-      runOutsideAngular: jest.fn((fn: () => any) => fn())
+      run: vi.fn((fn: () => any) => fn()),
+      runOutsideAngular: vi.fn((fn: () => any) => fn())
    } as any;
 }
 
@@ -126,14 +127,14 @@ describe("ViewsheetClientService", () => {
    });
 
    it("beforeDestroy cleanup is called during ngOnDestroy", () => {
-      const cleanup = jest.fn();
+      const cleanup = vi.fn();
       service.beforeDestroy = cleanup;
       service.ngOnDestroy();
       expect(cleanup).toHaveBeenCalledTimes(1);
    });
 
    it("beforeDestroy is only called once even if ngOnDestroy is called twice", () => {
-      const cleanup = jest.fn();
+      const cleanup = vi.fn();
       service.beforeDestroy = cleanup;
       service.ngOnDestroy();
       service.ngOnDestroy();

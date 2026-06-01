@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { Tool } from "../../../../../shared/util/tool";
 import { TargetInfo } from "../../widget/target/target-info";
 import { ChartTargetLinesPaneModel } from "../model/dialog/chart-target-lines-pane-model";
@@ -94,7 +95,7 @@ let ngbModal: any;
 
 describe("ChartTargetLinesPane Unit Tests", () => {
    beforeEach(() => {
-      ngbModal = { close: jest.fn(), dismiss: jest.fn() };
+      ngbModal = { close: vi.fn(), dismiss: vi.fn() };
       chartTargetLinesPane = new ChartTargetLinesPane(ngbModal);
       chartTargetLinesPane.model = createModel();
       chartTargetLinesPane.variables = [];

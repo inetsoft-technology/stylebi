@@ -52,9 +52,8 @@ import { ActivatedRoute, Router } from "@angular/router";
 import { NoopAnimationsModule } from "@angular/platform-browser/animations";
 import { render, waitFor } from "@testing-library/angular";
 import { http, HttpResponse } from "msw";
-import { of } from "rxjs";
 
-import { it } from "@jest/globals";
+import { of } from "rxjs";
 import { server } from "../../../../../../../mocks/server";
 import { ScheduleCycleEditorPageComponent } from "./schedule-cycle-editor-page.component";
 import { ScheduleCycleDialogModel } from "../model/schedule-cycle-dialog-model";
@@ -110,10 +109,10 @@ async function renderComponent(opts: {
    );
 
    const dialogMock = {
-      open: jest.fn().mockReturnValue({ afterClosed: () => of(opts.dialogConfirms ?? false) })
+      open: vi.fn().mockReturnValue({ afterClosed: () => of(opts.dialogConfirms ?? false) })
    };
-   const snackBarMock = { open: jest.fn() };
-   const routerMock = { navigate: jest.fn() };
+   const snackBarMock = { open: vi.fn() };
+   const routerMock = { navigate: vi.fn() };
 
    const result = await render(ScheduleCycleEditorPageComponent, {
       imports: [ReactiveFormsModule, NoopAnimationsModule],
@@ -124,7 +123,7 @@ async function renderComponent(opts: {
          { provide: MatSnackBar, useValue: snackBarMock },
          { provide: Router, useValue: routerMock },
          { provide: ActivatedRoute, useValue: { params: of({ cycle: "TestCycle" }) } },
-         { provide: TimeZoneService, useValue: { updateTimeZoneOptions: jest.fn((opts: any) => opts) } },
+         { provide: TimeZoneService, useValue: { updateTimeZoneOptions: vi.fn((opts: any) => opts) } },
          { provide: PageHeaderService, useValue: { title: "" } },
       ],
    });
@@ -272,7 +271,7 @@ describe("ScheduleCycleEditorPageComponent — save(): success and error paths",
    // Bug A — save() error handler reads error.error.message without optional chaining (loadModel is safe).
    // Null JSON body → TypeError in save() subscribe; no dialog. Fix: use error.error?.message like loadModel().
    // Spy http.post so the real save() subscribe error callback runs with a null body (same as MSW 500/null).
-   it.failing("should not throw when save error body is null", async () => {
+   it.fails("should not throw when save error body is null", async () => {
       const { comp, dialogMock } = await renderComponent();
       const httpError = new HttpErrorResponse({
          error: null,
@@ -281,7 +280,7 @@ describe("ScheduleCycleEditorPageComponent — save(): success and error paths",
       });
 
       let errorHandlerThrew = false;
-      jest.spyOn(comp["http"], "post").mockReturnValue({
+      vi.spyOn(comp["http"], "post").mockReturnValue({
          subscribe(_success: unknown, error: (err: HttpErrorResponse) => void) {
             try {
                error(httpError);

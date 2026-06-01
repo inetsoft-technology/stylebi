@@ -64,10 +64,10 @@ describe("LegendFormatGeneralPane Unit Tests", () => {
 
    beforeEach(waitForAsync(() => {
       uiContextService = {
-         isVS: jest.fn(),
-         isAdhoc: jest.fn(),
-         getDefaultTab: jest.fn(),
-         setDefaultTab: jest.fn()
+         isVS: vi.fn(),
+         isAdhoc: vi.fn(),
+         getDefaultTab: vi.fn(),
+         setDefaultTab: vi.fn()
       };
       uiContextService.isAdhoc.mockImplementation(() => false);
       TestBed.configureTestingModule({
@@ -110,7 +110,7 @@ describe("LegendFormatGeneralPane Unit Tests", () => {
    }));
 
    // Bug #10107 Should have Ingore Null checkbox
-   it("should have Ignore Null checkbox", (done) => {
+   it("should have Ignore Null checkbox", () => new Promise<void>((done) => {
       let fixture: ComponentFixture<LegendFormatGeneralPane> = TestBed.createComponent(LegendFormatGeneralPane);
       let model: LegendFormatGeneralPaneModel = createModel();
       model.notShowNullVisible = true;
@@ -125,5 +125,5 @@ describe("LegendFormatGeneralPane Unit Tests", () => {
          expect(ignoreNullLabel).toBeTruthy();
          done();
       });
-   });
+   }));
 });

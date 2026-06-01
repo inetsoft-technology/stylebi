@@ -26,6 +26,7 @@
  *   Group 4 — fetchData: HTTP param construction + error recovery
  *   Group 5 — Design gap: organizationId column renderer vs displayedColumns
  */
+
 import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { ReactiveFormsModule } from "@angular/forms";
 import { HttpClientModule, HttpParams } from "@angular/common/http";
@@ -63,7 +64,6 @@ const EMPTY_ADDITIONAL = {
    selectedHosts: [] as string[],
    selectedOrganizations: [] as string[],
 };
-
 
 /**
  * Renders the component with NO_ERRORS_SCHEMA so child components are stubbed.
@@ -238,7 +238,6 @@ describe("AuditIdentityInfoComponent — fetchData", () => {
    it("should call errorService.showSnackBar and return empty rows on data API error", async () => {
       const errorService = makeErrorServiceMock();
       const { fixture } = await renderComponent(errorService);
-
 
       server.use(
          http.get("*/api/em/monitoring/audit/identityInfo", () =>

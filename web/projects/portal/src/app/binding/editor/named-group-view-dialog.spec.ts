@@ -48,7 +48,7 @@ describe("Named Group Pane Unit Test", () => {
       value: []
    }];
 
-   let modalService = { open: jest.fn() };
+   let modalService = { open: vi.fn() };
    beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
@@ -101,7 +101,7 @@ describe("Named Group Pane Unit Test", () => {
    it("test ok button on named group view dialog", () => {
       fixture = TestBed.createComponent(NamedGroupView);
       namedGroupView = <NamedGroupView>fixture.componentInstance;
-      let onCommit: any = { emit: jest.fn() };
+      let onCommit: any = { emit: vi.fn() };
       namedGroupView.onCommit = onCommit;
       let condGroup: GroupCondition = {
          name: "A1",

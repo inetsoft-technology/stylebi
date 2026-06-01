@@ -15,9 +15,10 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
-import { of as observableOf } from "rxjs";
+import { NEVER } from "rxjs";
 import { BindingTreeService } from "../../../binding/widget/binding-tree/binding-tree.service";
 import { ViewsheetClientService } from "../../../common/viewsheet-client";
 import { FixedDropdownService } from "../../../widget/fixed-dropdown/fixed-dropdown.service";
@@ -32,19 +33,23 @@ describe("WizardBindingTre", () => {
 
    beforeEach(waitForAsync(() => {
       const bindingTreeService = {
-         refreshSubject: observableOf(null),
-         recommenderSubject: observableOf(null),
-         refresh: jest.fn()
+         // ngOnInit subscribes to refreshSubject + recommenderSubject. The
+         // recommender() handler accesses this.selectedNodes which is undefined
+         // until the parent BindingTreeComponent populates it; use NEVER so the
+         // handler isn't invoked synchronously during ngOnInit.
+         refreshSubject: NEVER,
+         recommenderSubject: NEVER,
+         refresh: vi.fn()
       };
       const viewsheetClientService = {
-         sendEvent: jest.fn()
+         sendEvent: vi.fn()
       };
       const dropdownService = {};
       const debounceService = {
-         debounce: jest.fn()
+         debounce: vi.fn()
       };
       const treeService = {
-         getTableName: jest.fn(() => "Table")
+         getTableName: vi.fn(() => "Table")
       };
       const modelService = {};
       TestBed.configureTestingModule({

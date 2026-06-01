@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { ComponentTool } from "../../common/util/component-tool";
 import { ExportDialogModel } from "../model/export-dialog-model";
 import { ExportDialog } from "./export-dialog.component";
@@ -43,8 +44,8 @@ describe("Export Dialog Unit Test", () => {
    let modal: any;
 
    beforeEach(() => {
-      httpService = { get: jest.fn() };
-      modal = { open: jest.fn() };
+      httpService = { get: vi.fn() };
+      modal = { open: vi.fn() };
       exportDialog = new ExportDialog(httpService, modal);
    });
 
@@ -52,7 +53,7 @@ describe("Export Dialog Unit Test", () => {
    it("should show error", () => {
       exportDialog.model = createModel();
       exportDialog.model.fileFormatPaneModel.includeCurrent = false;
-      let showMessageDialog: any = jest.spyOn(ComponentTool, "showMessageDialog");
+      let showMessageDialog: any = vi.spyOn(ComponentTool, "showMessageDialog");
       showMessageDialog.mockImplementation(() => {});
 
       exportDialog.ok();

@@ -98,7 +98,7 @@ describe("NotificationEmailsComponent — emails setter: guard condition `!!this
    it("should be a no-op when both current emails and incoming val are empty strings", async () => {
       const { comp } = await renderComp({ emails: "" });
 
-      const ctrlSpy = jest.spyOn(comp.emailControl, "setValue");
+      const ctrlSpy = vi.spyOn(comp.emailControl, "setValue");
       comp.emails = ""; // both _emails="" and val="" → both falsy → skip
 
       expect(ctrlSpy).not.toHaveBeenCalled();

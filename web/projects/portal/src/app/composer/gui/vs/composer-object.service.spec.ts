@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { TestUtils } from "../../../common/test/test-utils";
 import { VSTextModel } from "../../../vsobjects/model/output/vs-text-model";
 import { VSGroupContainerModel } from "../../../vsobjects/model/vs-group-container-model";
@@ -25,19 +26,19 @@ describe("AssemblyContextMenuItems tests", () => {
    let composerObjectService: ComposerObjectService;
 
    beforeEach(() => {
-      let modelService: any = { getModel: jest.fn() };
-      let modalService: any = { open: jest.fn() };
-      let trapService: any = { checkTrap: jest.fn() };
-      let eventQueueService: any = { addMoveEvent: jest.fn() };
+      let modelService: any = { getModel: vi.fn() };
+      let modalService: any = { open: vi.fn() };
+      let trapService: any = { checkTrap: vi.fn() };
+      let eventQueueService: any = { addMoveEvent: vi.fn() };
       let uiContextService: any = {
-         isVS: jest.fn(),
-         isAdhoc: jest.fn(),
-         getDefaultTab: jest.fn(),
-         setDefaultTab: jest.fn()
+         isVS: vi.fn(),
+         isAdhoc: vi.fn(),
+         getDefaultTab: vi.fn(),
+         setDefaultTab: vi.fn()
       };
       let lineAnchorService: any = {};
       let debounceService: any = {
-         debounce: jest.fn((key, fn, delay, args, reducer) => fn(...args))
+         debounce: vi.fn((key, fn, delay, args, reducer) => fn(...args))
       };
       let zone: any = {};
 

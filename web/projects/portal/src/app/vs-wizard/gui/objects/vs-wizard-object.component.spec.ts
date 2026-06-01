@@ -31,7 +31,7 @@ describe("VsWizardObjectComponent", () => {
          VsWizardObjectComponent
       ],
       providers: [
-        { provide: InteractService, useValue: { addInteractable: jest.fn(), removeInteractable: jest.fn(), notify: jest.fn() } }
+        { provide: InteractService, useValue: { addInteractable: vi.fn(), removeInteractable: vi.fn(), notify: vi.fn() } }
       ],
       schemas: [
          NO_ERRORS_SCHEMA
@@ -44,7 +44,7 @@ describe("VsWizardObjectComponent", () => {
     component = fixture.componentInstance;
     component.viewsheet = <any> {
       focusedAssemblies: observableOf([]),
-      isAssemblyFocused: jest.fn(() => false)
+      isAssemblyFocused: vi.fn(() => false)
     };
     component.vsObject = <any> {
       objectType: "",

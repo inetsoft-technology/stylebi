@@ -1,6 +1,6 @@
-// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
-exports[`TextInputActions check status of menu actions of text-input in composer 1`] = `
+exports[`TextInputActions > check status of menu actions of text-input in composer 1`] = `
 [
   AssemblyActionGroup {
     "actions": [
@@ -111,7 +111,7 @@ exports[`TextInputActions check status of menu actions of text-input in composer
 ]
 `;
 
-exports[`TextInputActions check status of menu actions of text-input in viewer and preview 1`] = `
+exports[`TextInputActions > check status of menu actions of text-input in viewer and preview 1`] = `
 [
   AssemblyActionGroup {
     "actions": [
@@ -222,7 +222,7 @@ exports[`TextInputActions check status of menu actions of text-input in viewer a
 ]
 `;
 
-exports[`TextInputActions check status of menu actions of text-input in viewer and preview 2`] = `
+exports[`TextInputActions > check status of menu actions of text-input in viewer and preview 2`] = `
 [
   AssemblyActionGroup {
     "actions": [

@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { ElementRef } from "@angular/core";
 import { FormControl } from "@angular/forms";
 import { MaxNumberDirective } from "./max-number-validator.directive";

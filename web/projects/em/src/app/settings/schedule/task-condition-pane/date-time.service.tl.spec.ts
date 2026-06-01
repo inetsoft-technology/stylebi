@@ -58,8 +58,6 @@
  *   which also does not exclude the empty-string case).
  */
 
-import { it } from "@jest/globals";
-
 import { DateTimeService } from "./date-time.service";
 import { TimeConditionModel, TimeConditionType } from "../../../../../../shared/schedule/model/time-condition-model";
 import { StartTimeData } from "./start-time-editor/start-time-editor.component";
@@ -277,7 +275,7 @@ describe("DateTimeService — Bug: applyTimeZoneOffsetDifference crashes when ol
    //
    // Fix: mirror getLocalTimezoneOffset's guard: `if(!!oldTZ)` before calling toLocaleString,
    // treating empty string as "system timezone" (or as "no conversion needed from empty side").
-   it.failing("should not throw when oldTZ is empty string and newTZ is a valid timezone (bug: RangeError)", () => {
+   it.fails("should not throw when oldTZ is empty string and newTZ is a valid timezone (bug: RangeError)", () => {
       // This currently throws: RangeError: Invalid time zone specified:
       expect(() => service.applyTimeZoneOffsetDifference("10:00:00", "", "America/New_York"))
          .not.toThrow();
@@ -285,7 +283,7 @@ describe("DateTimeService — Bug: applyTimeZoneOffsetDifference crashes when ol
 
    // Boundary / defensive only: analogous behavior in applyDateTimeZoneOffsetDifference — its guard
    // is `oldTZ==null && newTZ==null` (null-only), so oldTZ=="" also falls through and crashes.
-   it.failing("applyDateTimeZoneOffsetDifference: should not throw when oldTZ='' and newTZ is valid (bug: RangeError)", () => {
+   it.fails("applyDateTimeZoneOffsetDifference: should not throw when oldTZ='' and newTZ is valid (bug: RangeError)", () => {
       const dateValue = new Date(2026, 3, 8, 10, 0, 0);
       expect(() => service.applyDateTimeZoneOffsetDifference("10:00:00", "", "America/New_York", dateValue))
          .not.toThrow();

@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { HttpClientTestingModule } from "@angular/common/http/testing";
 import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { ComponentFixture, TestBed } from "@angular/core/testing";
@@ -31,7 +32,7 @@ describe("Table Unpivot Dialog Tests", () => {
 
    beforeEach(() => {
       timerService = {
-         defer: jest.fn((fn) => {
+         defer: vi.fn((fn) => {
             fn();
          })
       };

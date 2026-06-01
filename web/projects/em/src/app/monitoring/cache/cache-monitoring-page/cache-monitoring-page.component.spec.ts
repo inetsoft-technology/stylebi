@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { HttpClientTestingModule } from "@angular/common/http/testing";
 import { ComponentFixture, TestBed, waitForAsync } from "@angular/core/testing";
 import { MatCardModule } from "@angular/material/card";
@@ -38,17 +39,17 @@ describe("CacheMonitoringPageComponent", () => {
 
    beforeEach(waitForAsync(() => {
       const monitoringDataService = {
-         connect: jest.fn(() => observableOf()),
-         subscribe: jest.fn(),
-         getClusterAddress: jest.fn(() => observableOf()),
-         getMonitoringData: jest.fn(() => observableOf())
+         connect: vi.fn(() => observableOf()),
+         subscribe: vi.fn(),
+         getClusterAddress: vi.fn(() => observableOf()),
+         getMonitoringData: vi.fn(() => observableOf())
       };
       const monitorLevelService = {
-         monitorLevel: jest.fn(() => observableOf())
+         monitorLevel: vi.fn(() => observableOf())
       };
       const clusterService = {
-         getClusterNodesModel: jest.fn(() => observableOf()),
-         getClusterNodes: jest.fn(() => observableOf([]))
+         getClusterNodesModel: vi.fn(() => observableOf()),
+         getClusterNodes: vi.fn(() => observableOf([]))
       };
 
       TestBed.configureTestingModule({

@@ -25,7 +25,7 @@ function makeRequest(url: string): HttpRequest<any> {
 }
 
 function makeHandler() {
-   return { handle: jest.fn().mockReturnValue(of(null)) };
+   return { handle: vi.fn().mockReturnValue(of(null)) };
 }
 
 describe("SsoHeartbeatInterceptor", () => {
@@ -38,7 +38,7 @@ describe("SsoHeartbeatInterceptor", () => {
    });
 
    it("calls heartbeat for relative URLs", () => {
-      const heartbeatSpy = jest.spyOn(service, "heartbeat");
+      const heartbeatSpy = vi.spyOn(service, "heartbeat");
       const handler = makeHandler();
 
       interceptor.intercept(makeRequest("../api/some-endpoint"), handler as any).subscribe();
@@ -48,7 +48,7 @@ describe("SsoHeartbeatInterceptor", () => {
    });
 
    it("does not call heartbeat for absolute http URLs", () => {
-      const heartbeatSpy = jest.spyOn(service, "heartbeat");
+      const heartbeatSpy = vi.spyOn(service, "heartbeat");
       const handler = makeHandler();
 
       interceptor.intercept(makeRequest("http://example.com/api"), handler as any).subscribe();
@@ -58,7 +58,7 @@ describe("SsoHeartbeatInterceptor", () => {
    });
 
    it("does not call heartbeat for absolute https URLs", () => {
-      const heartbeatSpy = jest.spyOn(service, "heartbeat");
+      const heartbeatSpy = vi.spyOn(service, "heartbeat");
       const handler = makeHandler();
 
       interceptor.intercept(makeRequest("https://example.com/api"), handler as any).subscribe();
@@ -75,8 +75,8 @@ describe("SsoHeartbeatInterceptor", () => {
       expect(handler.handle).toHaveBeenCalledTimes(2);
    });
 
-   it("emits heartbeats observable when heartbeat is called on service", (done) => {
+   it("emits heartbeats observable when heartbeat is called on service", () => new Promise<void>((done) => {
       service.heartbeats.subscribe(() => done());
       interceptor.intercept(makeRequest("../api/endpoint"), makeHandler() as any).subscribe();
-   });
+   }));
 });

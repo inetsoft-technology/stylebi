@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { SearchDataRefPipe } from "./search-data-ref.pipe";
 import { DataRef } from "../../common/data/data-ref";
 

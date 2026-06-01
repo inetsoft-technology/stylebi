@@ -15,10 +15,6 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-jest.mock("../../../../../../../shared/ckeditor-wrapper/ckeditor-wrapper.component", () => ({
-   CkeditorWrapperComponent: class {}
-}));
-
 import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
@@ -36,8 +32,8 @@ describe("DeliveryEmailsComponent", () => {
    let fixture: ComponentFixture<DeliveryEmailsComponent>;
 
    beforeEach(waitForAsync(() => {
-      const dialogRef = { afterClosed: jest.fn(() => observableOf(null)) };
-      const dialog = { open: jest.fn(() => dialogRef) };
+      const dialogRef = { afterClosed: vi.fn(() => observableOf(null)) };
+      const dialog = { open: vi.fn(() => dialogRef) };
 
       TestBed.configureTestingModule({
          imports: [

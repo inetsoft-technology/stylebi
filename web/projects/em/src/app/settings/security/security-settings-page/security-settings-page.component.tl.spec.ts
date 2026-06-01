@@ -113,16 +113,16 @@ interface RenderOptions {
 
 async function renderComponent(opts: RenderOptions = {}) {
    const ldapProviderUsed$ = opts.ldapProviderUsed$ ?? new Subject<boolean>();
-   const dialogMock = { open: jest.fn() };
-   const scheduleUsersMock = { loadScheduleUsers: jest.fn() };
-   const orgDropdownMock = { refreshProviders: jest.fn() };
+   const dialogMock = { open: vi.fn() };
+   const scheduleUsersMock = { loadScheduleUsers: vi.fn() };
+   const orgDropdownMock = { refreshProviders: vi.fn() };
    const authzMock = {
-      getPermissions: jest.fn().mockReturnValue(of(DEFAULT_PERMISSIONS))
+      getPermissions: vi.fn().mockReturnValue(of(DEFAULT_PERMISSIONS))
    };
    const appInfoMock = {
-      isEnterprise: jest.fn().mockReturnValue(of(false)),
-      isLdapProviderUsed: jest.fn().mockReturnValue(ldapProviderUsed$),
-      setLdapProviderUsed: jest.fn()
+      isEnterprise: vi.fn().mockReturnValue(of(false)),
+      isLdapProviderUsed: vi.fn().mockReturnValue(ldapProviderUsed$),
+      setLdapProviderUsed: vi.fn()
    };
    const orgBusyMock = { orgLoading$: new Subject<boolean>() };
 

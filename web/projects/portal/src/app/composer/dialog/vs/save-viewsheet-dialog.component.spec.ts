@@ -44,9 +44,9 @@ describe("Save Viewsheet Dialog Unit Test", () => {
 
    beforeEach(() => {
       const modelService = {
-         getModel: jest.fn().mockReturnValue(observableOf(null)),
-         sendModel: jest.fn(),
-         putModel: jest.fn()
+         getModel: vi.fn().mockReturnValue(observableOf(null)),
+         sendModel: vi.fn(),
+         putModel: vi.fn()
       };
       TestBed.configureTestingModule({
          imports: [

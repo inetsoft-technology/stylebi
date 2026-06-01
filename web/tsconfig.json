@@ -28,7 +28,6 @@
       "ckeditor5/translations/*.js": ["./node_modules/ckeditor5/dist/translations/*"]
     },
     "types": [
-      "jest",
       "geojson",
       "node"
     ]
