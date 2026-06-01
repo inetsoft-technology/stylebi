@@ -128,7 +128,7 @@ export class ThemePropertiesViewComponent implements OnInit, OnDestroy {
 
    ngOnDestroy(): void {
       this.destroy$.next();
-      this.destroy$.unsubscribe();
+      this.destroy$.complete();
    }
 
    get defaultThemeGlobalLable(): string {
