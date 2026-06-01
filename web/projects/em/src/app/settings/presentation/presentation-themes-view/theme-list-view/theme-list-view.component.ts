@@ -87,7 +87,7 @@ export class ThemeListViewComponent implements OnInit, OnDestroy {
 
    ngOnDestroy(): void {
       this.destroy$.next();
-      this.destroy$.unsubscribe();
+      this.destroy$.complete();
    }
 
    createTheme(): void {

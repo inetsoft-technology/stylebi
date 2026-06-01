@@ -132,7 +132,7 @@ export class RepositoryDashboardSettingsViewComponent implements OnChanges, OnIn
 
    ngOnDestroy() {
       this.destroy$.next();
-      this.destroy$.unsubscribe();
+      this.destroy$.complete();
    }
 
    ngAfterContentChecked() {

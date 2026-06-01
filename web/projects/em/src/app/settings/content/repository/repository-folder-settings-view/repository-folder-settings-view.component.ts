@@ -79,7 +79,7 @@ export class RepositoryFolderSettingsViewComponent implements OnChanges, OnDestr
 
    ngOnDestroy() {
       this.destroy$.next();
-      this.destroy$.unsubscribe();
+      this.destroy$.complete();
    }
 
    init(): void {
