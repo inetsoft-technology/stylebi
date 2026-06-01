@@ -59,4 +59,9 @@
    .status-bar-component {
       justify-content: flex-end;
    }
+
+   .console-count-badge {
+      color: var(--inet-button-light-text-color);
+      background-color: var(--inet-button-light-bg-color);
+   }
 }

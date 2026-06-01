@@ -52,6 +52,7 @@ import {
 } from "../date-type-editor/date-type-editor.module";
 import {TreeModule} from "../tree/tree.module";
 import { CustomSelectModule } from "../custom-select/custom-select.module";
+import { NumberStepperModule } from "../number-stepper/number-stepper.module";
 
 @NgModule({
    imports: [
@@ -64,6 +65,7 @@ import { CustomSelectModule } from "../custom-select/custom-select.module";
       TreeModule,
       TextFieldModule,
       CustomSelectModule,
+      NumberStepperModule,
    ],
    declarations: [
       TabularAutocompleteEditor,

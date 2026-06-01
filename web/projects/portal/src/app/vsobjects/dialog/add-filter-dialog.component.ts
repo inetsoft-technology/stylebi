@@ -24,6 +24,7 @@ import { TreeComponent } from "../../widget/tree/tree.component";
 @Component({
    selector: "add-filter-dialog",
    templateUrl: "add-filter-dialog.component.html",
+   styleUrls: ["add-filter-dialog.component.scss"]
 })
 export class AddFilterDialog {
    @Input() model: TreeNodeModel;

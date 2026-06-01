@@ -64,7 +64,7 @@
           </div>
         </div>
         <form #databaseForm="ngForm">
-          <div class="form-group form-floating editor-form-group editor-form-group--first">
+          <div class="shell-form-group form-floating editor-form-group editor-form-group--first">
             <input #input type="text" #nameCtrl="ngModel"
                    name="name"
                    class="form-control"
@@ -82,13 +82,13 @@
             </span>
           </div>
 
-          <div class="form-group form-floating">
+          <div class="shell-form-group form-floating">
             <textarea class="form-control" [(ngModel)]="database.description"
                       [ngModelOptions]="{standalone: true}"></textarea>
             <label><span>_#(Description)</span></label>
           </div>
 
-          <div class="form-group form-floating">
+          <div class="shell-form-group form-floating">
             <custom-select name="serverType" #databaseTypeCtrl="ngModel"
                            [invalid]="databaseTypeCtrl.invalid"
                            [options]="databaseTypeSelectOptions"
@@ -103,7 +103,7 @@
           </div>
           <ng-container *ngIf="!!database.network && !databaseInfo.customEditMode">
             <fieldset [hidden]="!driverAvailable">
-              <div class="form-group form-floating">
+              <div class="shell-form-group form-floating">
                 <input type="text" #hostNameCtrl="ngModel"
                        name="hostName"
                        class="form-control"
@@ -115,22 +115,22 @@
                   _#(data.databases.enterHostname)
                 </span>
               </div>
-              <div class="form-group form-floating">
-                <input type="number" #portCtrl="ngModel"
-                       name="port"
-                       class="form-control"
-                       [class.is-invalid]="portCtrl.invalid"
-                       [(ngModel)]="database.network.portNumber"
-                       [required]="!isCustom(database.type)">
-                <label><span>_#(Port)</span></label>
-                <span class="invalid-feedback" *ngIf="portCtrl.invalid">
+              <div class="shell-form-group d-flex flex-column">
+                <label class="form-label">_#(Port)</label>
+                <number-stepper name="port"
+                                [(ngModel)]="database.network.portNumber"
+                                [min]="0" [max]="65535"
+                                [invalid]="!database.network.portNumber && !isCustom(database.type)">
+                </number-stepper>
+                <span class="invalid-feedback d-block"
+                      *ngIf="!database.network.portNumber && !isCustom(database.type)">
                   _#(data.databases.enterPort)
                 </span>
               </div>
             </fieldset>
           </ng-container>
           <ng-container *ngIf="isCustom(database.type)">
-              <div class="form-group form-floating">
+              <div class="shell-form-group form-floating">
                 <input type="text" #driverClassCtrl="ngModel"
                        name="driverClass"
                        class="form-control"
@@ -157,7 +157,7 @@
               </div>
             </ng-container>
           </ng-container>
-          <div class="form-group form-floating" *ngIf="databaseInfo.customEditMode">
+          <div class="shell-form-group form-floating" *ngIf="databaseInfo.customEditMode">
             <input type="text" name="customUrl" class="form-control" #customUrlCtrl="ngModel"
                    [class.is-invalid]="customUrlCtrl.invalid"
                    [(ngModel)]="databaseInfo.customUrl" (ngModelChange)="setCustomUrl($event)"
@@ -165,7 +165,7 @@
             <label><span>_#(URL)</span></label>
             <span class="invalid-feedback" *ngIf="customUrlCtrl.invalid">_#(common.datasource.urlRequired)</span>
           </div>
-          <div class="form-group form-floating" *ngIf="isFilePathEnabled(database.type) && !databaseInfo.customEditMode">
+          <div class="shell-form-group form-floating" *ngIf="isFilePathEnabled(database.type) && !databaseInfo.customEditMode">
             <input type="text" #filePathCtrl="ngModel"
                    name="filePath"
                    class="form-control"
@@ -176,20 +176,20 @@
             <span class="invalid-feedback" *ngIf="filePathCtrl.invalid">_#(designer.qb.common.fileEmpty)
             </span>
           </div>
-          <div class="form-group form-floating" *ngIf="testQueryEnabled(database.type)">
+          <div class="shell-form-group form-floating" *ngIf="testQueryEnabled(database.type)">
             <input type="text"
                    name="testQuery"
                    class="form-control"
                    (ngModelChange)="setTestQuery($event)"
                    [ngModel]="testQuery">
             <label><span>_#(data.databases.testQuery)</span></label>
-            <div class="alert alert-info editor-inline-info" *ngIf="!customInfo.testQuery">
+            <div class="shell-alert shell-alert--info editor-inline-info" *ngIf="!customInfo.testQuery">
               _#(data.databases.customTestQueryMessage)
             </div>
           </div>
           <ng-container *ngIf="database.type === DatasourceDatabaseType.SQLSERVER && !databaseInfo.customEditMode">
             <fieldset [hidden]="!driverAvailable">
-              <div class="form-group form-floating">
+              <div class="shell-form-group form-floating">
                 <input type="text"
                        name="instanceName"
                        class="form-control"
@@ -200,7 +200,7 @@
           </ng-container>
           <ng-container *ngIf="databaseNameRequired && !databaseInfo.customEditMode">
             <fieldset [hidden]="!driverAvailable">
-              <div class="form-group form-floating">
+              <div class="shell-form-group form-floating">
                 <input type="text" #databaseNameCtrl="ngModel"
                        name="databaseName"
                        class="form-control"
@@ -214,7 +214,7 @@
           </ng-container>
           <ng-container *ngIf="database.type === DatasourceDatabaseType.INFORMIX && !databaseInfo.customEditMode">
             <fieldset [hidden]="!driverAvailable">
-              <div class="form-group form-floating">
+              <div class="shell-form-group form-floating">
                 <input type="text" #serverNameCtrl="ngModel"
                        name="serverName"
                        class="form-control"
@@ -226,7 +226,7 @@
               </div>
             </fieldset>
             <fieldset [hidden]="!driverAvailable && !databaseInfo.customEditMode">
-              <div class="form-group form-floating">
+              <div class="shell-form-group form-floating">
                 <input type="text"
                        name="databaseLocale"
                        class="form-control"
@@ -237,7 +237,7 @@
           </ng-container>
           <ng-container *ngIf="database.type === DatasourceDatabaseType.ODBC">
             <fieldset [hidden]="!driverAvailable">
-              <div class="form-group form-floating">
+              <div class="shell-form-group form-floating">
                 <custom-select name="odbcDataSourceName" #odbcDataSourceNameCtrl="ngModel"
                                [invalid]="odbcDataSourceNameCtrl.invalid"
                                [options]="odbcDataSourceSelectOptions"
@@ -247,14 +247,14 @@
                 <label><span>_#(Data Source)</span></label>
                 <span class="invalid-feedback" *ngIf="odbcDataSourceNameCtrl.invalid">_#(data.databases.selectDataSource)</span>
               </div>
-              <div class="form-group form-floating">
+              <div class="shell-form-group form-floating">
                 <input type="text"
                        name="testQuery"
                        class="form-control"
                        (ngModelChange)="setTestQuery($event)"
                        [ngModel]="testQuery">
                 <label><span>_#(data.databases.testQuery)</span></label>
-                <div class="alert alert-info editor-inline-info" *ngIf="!odbcInfo.testQuery">
+                <div class="shell-alert shell-alert--info editor-inline-info" *ngIf="!odbcInfo.testQuery">
                   _#(data.databases.customTestQueryMessage)
                 </div>
               </div>
@@ -262,7 +262,7 @@
           </ng-container>
           <ng-container *ngIf="database.type === DatasourceDatabaseType.ORACLE && !databaseInfo.customEditMode">
             <fieldset [hidden]="!driverAvailable">
-              <div class="form-group form-floating">
+              <div class="shell-form-group form-floating">
                 <input type="text" #sidCtrl="ngModel"
                        name="sid"
                        class="form-control"
@@ -275,14 +275,14 @@
             </fieldset>
           </ng-container>
           <fieldset *ngIf="driverAvailable && !databaseInfo.customEditMode">
-            <div class="form-group form-floating">
+            <div class="shell-form-group form-floating">
               <input type="text" name="properties" class="form-control"
                      [(ngModel)]="databaseNameInfo.properties">
               <label><span>_#(Properties)</span></label>
             </div>
           </fieldset>
           <fieldset *ngIf="driverAvailable && database.type != DatasourceDatabaseType.CUSTOM">
-            <div class="form-check form-group">
+            <div class="form-check shell-form-group">
               <label class="form-check-label">
                 <input type="checkbox"
                        name="customEditMode"
@@ -294,7 +294,7 @@
             </div>
           </fieldset>
           <ng-container *ngIf="isCustom(database.type) || driverAvailable">
-            <div class="form-check form-group">
+            <div class="form-check shell-form-group">
               <label class="form-check-label">
                 <input type="checkbox"
                        name="required"
@@ -303,7 +303,7 @@
               </label>
             </div>
             <ng-container *ngIf="database.authentication.credentialVisible">
-              <div class="form-check form-group">
+              <div class="form-check shell-form-group">
                 <label class="form-check-label">
                   <input type="checkbox"
                          name="credential"
@@ -315,7 +315,7 @@
             </ng-container>
             <fieldset [disabled]="!database.authentication.required">
               <ng-container *ngIf="database.authentication.credentialVisible && database.authentication.useCredentialId">
-                <div class="form-group form-floating">
+                <div class="shell-form-group form-floating">
                   <input type="text" #credentialCtrl="ngModel"
                          name="userName"
                          class="form-control"
@@ -325,7 +325,7 @@
                 </div>
               </ng-container>
               <ng-container *ngIf="!database.authentication.credentialVisible || !database.authentication.useCredentialId">
-                <div class="form-group form-floating">
+                <div class="shell-form-group form-floating">
                   <input type="text" #userNameCtrl="ngModel"
                          name="userName"
                          class="form-control"
@@ -334,7 +334,7 @@
                   <label><span>_#(Username)</span></label>
                   <span class="invalid-feedback" *ngIf="userNameCtrl.invalid">_#(data.databases.enterUsername)</span>
                 </div>
-                <div class="form-group form-floating">
+                <div class="shell-form-group form-floating">
                   <input type="password" #passwordCtrl="ngModel"
                          name="password"
                          class="form-control"
@@ -358,7 +358,7 @@
           <div class="editor-section editor-section--compact">
             <label class="addition-label">_#(Option) :</label>
           </div>
-          <div class="editor-option-row form-check form-group">
+          <div class="editor-option-row form-check shell-form-group">
             <div class="editor-option-row__toggle">
               <label class="form-check-label">
                 <input type="checkbox"
@@ -376,7 +376,7 @@
               <label><span>_#(Edit Default DB)</span></label>
             </div>
           </div>
-          <div class="form-check form-group">
+          <div class="form-check shell-form-group">
             <label class="form-check-label">
               <input type="checkbox"
                      name="ansiJoin"
@@ -384,14 +384,14 @@
                      [(ngModel)]="database.ansiJoin"/>_#(ANSI Join Syntax)
             </label>
           </div>
-          <div class="form-group form-floating" *ngIf="additionalVisible">
+          <div class="shell-form-group form-floating" *ngIf="additionalVisible">
             <custom-select name="isolation"
                            [options]="isolationSelectOptions"
                            [(ngModel)]="database.transactionIsolation">
             </custom-select>
             <label><span>_#(Transaction Isolation)</span></label>
           </div>
-          <div class="form-group form-floating" *ngIf="additionalVisible">
+          <div class="shell-form-group form-floating" *ngIf="additionalVisible">
             <custom-select name="tableOption"
                            #tableOptionCtrl="ngModel"
                            [invalid]="tableOptionCtrl.invalid"
@@ -409,9 +409,10 @@
               <div class="additional-datasource">
                 <div class="bordered-box additional-datasource__list">
                   <div *ngFor="let additional of additionalList; let i = index;"
-                       class="unhighlightable" [class.selected]="additionalSelected(i)"
+                       class="unhighlightable additional-datasource__list-item"
+                       [class.selected]="additionalSelected(i)"
                        (click)="selectAdditional($event, i)">
-                    <div [title]="additional.tooltip || ''"
+                    <div class="additional-datasource__list-text" [title]="additional.tooltip || ''"
                       >{{additional.name}}:({{additional.url}})</div>
                   </div>
                 </div>
@@ -430,7 +431,7 @@
               </div>
             </div>
             <div class="editor-section">
-              <div class="form-check form-group">
+              <div class="form-check shell-form-group">
                 <label class="form-check-label pt-2">
                   <input type="checkbox"
                          name="unasgn"
@@ -447,7 +448,7 @@
             <div class="additional-datasource">
               <div class="pool-property-content">
                 <div class="pool-property-table">
-                  <table class="table table-bordered pool-property-table__grid"
+                  <table class="table table-bordered table-hover table-sm pool-property-table__grid"
                          wScrollableFlexTable [wScrollableSetBodyWidths]="true">
                     <thead class="pool-property-table__head">
                       <tr class="pool-property-row">

@@ -24,22 +24,22 @@
 <!-- Modal Body -->
 <div class="modal-body" *ngIf="form">
   <form [formGroup]="form" class="container-fluid">
-    <div class="row form-row-float-label">
+    <div class="row shell-form-row--field">
       <div class="col form-floating">
         <input class="form-control" type="text" id="name" trim formControlName="name"
                [value]="name" placeholder="_#(Name)">
         <label><span>_#(Name)</span></label>
         <div *ngIf="form.controls['name'].errors && form.controls['name'].errors['required']"
-             class="alert alert-danger">
+             class="shell-alert shell-alert--danger">
           <strong>_#(Error)</strong> _#(binding.nameInput.isEmpty)
         </div>
         <div *ngIf="form.controls['name'].errors && form.controls['name'].errors['calcSpecialCharacters']"
-             class="alert alert-danger">
+             class="shell-alert shell-alert--danger">
           <strong>_#(Error)</strong> _#(formula.editor.charValid)
         </div>
       </div>
     </div>
-    <fieldset class="float-title bd-gray">
+    <fieldset class="float-title create-calc-dialog__fieldset">
       <legend>_#(Calculate Field From)</legend>
       <div class="container">
         <div class="row">

@@ -55,22 +55,22 @@
 </span>
 <ng-template #dropdownMenu>
   <div class="dropdown-pane browse-data-dropdown" *ngIf="!isOneOf">
-    <a *ngFor="let choice of dataList" role="menuitem" class="dropdown-item"
+    <a *ngFor="let choice of dataList" role="menuitem" class="dropdown-item browse-data-dropdown__item"
        (click)="selectData(choice)">{{ choice.label || choice.value }}</a>
     <a *ngIf="(!dataList || dataList.length === 0) && !error && !loadingDataList"
-       role="menuitem" class="dropdown-item disable-link">_#(No Data)</a>
-    <a *ngIf="dataListTruncated" role="menuitem" class="dropdown-item disable-link">(_#(data.truncated))</a>
+       role="menuitem" class="dropdown-item disable-link browse-data-dropdown__status">_#(No Data)</a>
+    <a *ngIf="dataListTruncated" role="menuitem" class="dropdown-item disable-link browse-data-dropdown__status">(_#(data.truncated))</a>
     <div *ngIf="loadingDataList && (!dataList || dataList.length == 0)"
-       role="menuitem" class="dropdown-item disable-link">
+       role="menuitem" class="dropdown-item disable-link browse-data-dropdown__status">
       _#(Loading)
       <span class="loading-icon loading-icon--spin"></span>
     </div>
-    <div *ngIf="error" class="alert alert-danger mb-0">_#(common.asset.dataError)</div>
+    <div *ngIf="error" class="shell-alert shell-alert--danger mb-0">_#(common.asset.dataError)</div>
   </div>
   <!--select multiple values -->
   <div class="dropdown-pane browse-data-dropdown" *ngIf="isOneOf">
-    <div *ngFor="let item of dataList; let i = index">
-      <div class="form-check">
+    <div *ngFor="let item of dataList; let i = index" class="browse-data-dropdown__check-row">
+      <div class="form-check browse-data-dropdown__check">
         <input type="checkbox" class="form-check-input" id="{{'item' + i}}"
                [ngModel]="isSelected(item.value)" [value]="item.value" (change)="selectValues($event)">
         <label class="form-check-label" for="{{'item' + i}}">
@@ -79,15 +79,15 @@
       </div>
     </div>
     <div *ngIf="(!dataList || dataList.length === 0) && !error && !loadingDataList"
-         role="menuitem" class="dropdown-item disable-link">
+         role="menuitem" class="dropdown-item disable-link browse-data-dropdown__status">
       _#(No Data)
     </div>
     <div *ngIf="loadingDataList && (!dataList || dataList.length == 0)"
-         role="menuitem" class="dropdown-item disable-link">
+         role="menuitem" class="dropdown-item disable-link browse-data-dropdown__status">
       _#(Loading)
       <span class="loading-icon loading-icon--spin"></span>
     </div>
-    <a *ngIf="dataListTruncated" role="menuitem" class="dropdown-item disable-link">(_#(data.truncated))</a>
-    <div *ngIf="error" class="alert alert-danger mb-0">_#(common.asset.dataError)</div>
+    <a *ngIf="dataListTruncated" role="menuitem" class="dropdown-item disable-link browse-data-dropdown__status">(_#(data.truncated))</a>
+    <div *ngIf="error" class="shell-alert shell-alert--danger mb-0">_#(common.asset.dataError)</div>
   </div>
 </ng-template>

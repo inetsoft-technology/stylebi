@@ -48,7 +48,7 @@
       <tbody>
         <tr *ngFor="let cell of loadCalender(dateTime.months, dateTime.years)">
           <td *ngFor="let day of cell">
-            <div *ngIf="day > 0" (mousedown)="selectDay(day)" class="day-div hover-bg-secondary"
+            <div *ngIf="day > 0" (mousedown)="selectDay(day)" class="day-div hover-bg-neutral"
                  [class.select-date]="dateTime.date == day">{{day}}</div>
           </td>
         </tr>

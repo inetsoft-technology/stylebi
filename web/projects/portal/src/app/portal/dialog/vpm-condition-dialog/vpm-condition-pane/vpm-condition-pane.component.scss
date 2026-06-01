@@ -79,9 +79,9 @@
   width: 100%;
   max-width: 182px;
   padding: var(--inet-space-4, 8px);
-  border: 1px solid var(--inet-default-border-color);
-  border-radius: var(--inet-radius-lg, 4px);
-  background: var(--inet-shell-surface-default, #fff);
+  border: 1px solid var(--inet-list-border-color);
+  border-radius: var(--inet-radius-md);
+  background: var(--inet-card-bg-color);
 }
 
 .condition-builder__junction-label-text {
@@ -97,14 +97,15 @@
   flex-direction: column;
   gap: var(--inet-space-2, 4px);
   padding-top: var(--inet-space-2, 4px);
-  border-top: 1px solid var(--inet-default-border-color);
+  border-top: 1px solid var(--inet-list-border-color);
 }
 
 .condition-builder__list {
   overflow: auto;
-  padding: var(--inet-space-3, 6px);
-  background: var(--inet-shell-surface-default, #fff);
-  border-radius: var(--inet-radius-lg, 4px);
+  padding: var(--inet-space-2);
+  background: var(--inet-list-bg-color);
+  border: 1px solid var(--inet-list-border-color);
+  border-radius: var(--inet-radius-md);
 }
 
 .condition-builder__list-item {
@@ -119,8 +120,8 @@
 }
 
 .condition-builder__list-item--selected {
-  background: var(--inet-shell-selected-bg-color);
-  color: var(--inet-text-strong-color);
+  background: var(--inet-list-selected-bg-color);
+  color: var(--inet-text-color);
 }
 
 .condition-builder__junction-label {

@@ -18,7 +18,7 @@
 <form [formGroup]="form" class="container-fluid">
   <fieldset>
     <legend>_#(Number Range)</legend>
-    <div class="form-row-float-label row">
+    <div class="shell-form-row--field row">
       <div class="col">
         <div class="form-floating">
           <dynamic-combo-box data-test="minimumRangeValue"
@@ -52,19 +52,19 @@
       </div>
     </div>
   </fieldset>
-  <div *ngIf="isNullOrUndefined(model.minimum)" class="alert alert-danger">
+  <div *ngIf="isNullOrUndefined(model.minimum)" class="shell-alert shell-alert--danger">
     _#(viewer.viewsheet.numberRange.minRequired)
   </div>
-  <div *ngIf="isNullOrUndefined(model.maximum)" class="alert alert-danger">
+  <div *ngIf="isNullOrUndefined(model.maximum)" class="shell-alert shell-alert--danger">
     _#(viewer.viewsheet.numberRange.maxRequired)
   </div>
-  <div *ngIf="isInvalidMinimumValue()" class="alert alert-danger">
+  <div *ngIf="isInvalidMinimumValue()" class="shell-alert shell-alert--danger">
     _#(viewer.viewsheet.numberRange.maxMinWarning)
   </div>
-  <div *ngIf="isNullOrUndefined(model.increment)" class="alert alert-danger">
+  <div *ngIf="isNullOrUndefined(model.increment)" class="shell-alert shell-alert--danger">
     _#(viewer.viewsheet.numberRange.incrementRequired)
   </div>
-  <div *ngIf="!!model.increment && !isIncrementValid()" class="alert alert-danger">
+  <div *ngIf="!!model.increment && !isIncrementValid()" class="shell-alert shell-alert--danger">
     _#(viewer.viewsheet.numberRange.notzeroWarning)
   </div>
 </form>

@@ -24,7 +24,7 @@
   <div class="modal-body" *ngIf="model" blockMouse>
     <div class="bordered-box bordered-box-lg bd-gray">
       <form class="container-fluid">
-        <div class="row form-row-float-label"
+        <div class="row shell-form-row--field"
              *ngFor="let colorMap of currentColorMaps; let _j = index">
           <div class="col-auto">
             <button type="button" class="btn btn-default btn-sm"
@@ -64,9 +64,9 @@
         </div>
       </form>
     </div>
-  <div *ngIf="!isValid" class="alert alert-danger">_#(viewer.nameValid)</div>
+  <div *ngIf="!isValid" class="shell-alert shell-alert--danger">_#(viewer.nameValid)</div>
   </div>
-  <div class="alert alert-danger" *ngIf="dimensionData?.length > 5000">
+  <div class="shell-alert shell-alert--danger" *ngIf="dimensionData?.length > 5000">
     _#(viewer.colormapping.truncated)
   </div>
   <div class="modal-footer" *ngIf="model">

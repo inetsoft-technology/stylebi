@@ -21,13 +21,13 @@
 </modal-header>
 <div class="modal-body" [enterSubmit]="formValid" (onEnter)="ok()">
   <form class="container-fluid" [formGroup]="form">
-    <div class="form-row-float-label row">
+    <div class="shell-form-row--field row">
       <div class="col form-floating">
         <input type="text" class="form-control" formControlName="name" trim
                placeholder="_#(Group Name)">
         <label><span>_#(Group Name)</span></label>
-        <div *ngIf="form.get('name').errors && form.get('name').errors['required']" class="alert alert-danger">_#(viewer.nameValid)</div>
-        <div *ngIf="form.get('name').errors && form.get('name').errors['exists']" class="alert alert-danger">_#(common.duplicateName)</div>
+        <div *ngIf="form.get('name').errors && form.get('name').errors['required']" class="shell-alert shell-alert--danger">_#(viewer.nameValid)</div>
+        <div *ngIf="form.get('name').errors && form.get('name').errors['exists']" class="shell-alert shell-alert--danger">_#(common.duplicateName)</div>
       </div>
     </div>
   </form>
@@ -37,7 +37,7 @@
                   (conditionListChange)="conditionListChange($event)">
   </condition-pane>
   <div class="container-fluid mt-1">
-    <div *ngIf="form.get('conditionList').errors && form.get('conditionList').errors['required']" class="alert alert-danger">
+    <div *ngIf="form.get('conditionList').errors && form.get('conditionList').errors['required']" class="shell-alert shell-alert--danger">
       _#(common.userGrouping.nullConditionList2)
     </div>
   </div>

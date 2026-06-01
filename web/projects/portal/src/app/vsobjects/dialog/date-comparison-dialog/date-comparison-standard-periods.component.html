@@ -15,7 +15,7 @@
   ~ You should have received a copy of the GNU Affero General Public License
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
-<div class="form-row-float-label row">
+<div class="shell-form-row--field row">
   <div class="col-11">
     <div class="row">
       <div class="col-auto previous-label">
@@ -45,7 +45,7 @@
         </div>
         <div class="row mt-3" *ngIf="isInvalidStandardPeriodPreCount() && !disable">
           <div class="col">
-            <div class="alert alert-danger mb-0">
+            <div class="shell-alert shell-alert--danger mb-0">
               _#(date.comparison.previousCounterValid)
             </div>
           </div>
@@ -82,7 +82,7 @@
             </div>
             <div class="row mt-3" *ngIf="!isValidStandardPeriodEndDay() && !disable">
               <div class="col">
-                <div class="alert alert-danger mb-0">
+                <div class="shell-alert shell-alert--danger mb-0">
                   _#(date.common.dateValid)
                 </div>
               </div>

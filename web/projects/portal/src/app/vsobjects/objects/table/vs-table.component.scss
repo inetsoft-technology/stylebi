@@ -59,6 +59,10 @@ $stacking-order: (
   pointer-events: none;
 }
 
+.drop-line--success {
+  border-color: var(--inet-success-color);
+}
+
 .top-bottom {
   border-top: 3px solid;
 }

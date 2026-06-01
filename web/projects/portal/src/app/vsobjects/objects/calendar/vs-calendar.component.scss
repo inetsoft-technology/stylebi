@@ -108,6 +108,13 @@ year-calendar, month-calendar {
   overflow: hidden;
 }
 
+.calendar-title-label--surface,
+.month-cell--surface,
+.day-title-cell--surface {
+  border: 1px solid var(--inet-default-border-color);
+  background: var(--inet-shell-surface-subtle);
+}
+
 .day-row.not-selectable .day-cell,
 .not-selectable {
   pointer-events: none;

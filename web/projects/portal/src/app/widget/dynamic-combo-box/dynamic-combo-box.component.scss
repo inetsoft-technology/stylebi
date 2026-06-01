@@ -36,8 +36,33 @@ button.form-control {
   flex-grow: 0;
 }
 
+.list-group {
+  padding: var(--inet-space-1);
+  border: 1px solid var(--inet-list-border-color);
+  border-radius: var(--inet-radius-md);
+  background-color: var(--inet-list-bg-color);
+}
+
 .list-group .list-group-item {
-  padding: 0.2rem;
+  min-height: var(--inet-control-height-md);
+  display: flex;
+  align-items: center;
+  padding: 0;
+  border-color: transparent;
+  border-radius: var(--inet-radius-sm);
+  background-color: transparent;
+
+  + .list-group-item {
+    margin-top: 2px;
+  }
+
+  .dropdown-item {
+    width: 100%;
+    min-height: inherit;
+    display: flex;
+    align-items: center;
+    padding: 0 var(--inet-space-3);
+  }
 }
 
 .dynamic-combo-box-body {
@@ -91,6 +116,8 @@ button.form-control {
   align-items: center;
   padding-right: 2rem;
   background-image: none;
+  border-color: var(--inet-input-border-color);
+  background-color: var(--inet-input-bg-color);
   border-top-right-radius: 0.25rem;
   border-bottom-right-radius: 0.25rem;
 

@@ -27,9 +27,9 @@
 
 .datasource-editor-card {
   padding: var(--inet-space-5);
-  background: var(--inet-shell-surface-default);
-  border: 1px solid var(--inet-default-border-color);
-  border-radius: var(--inet-radius-lg);
+  background: var(--inet-card-bg-color);
+  border: 1px solid var(--inet-list-border-color);
+  border-radius: var(--inet-radius-md);
 }
 
 .datasource-editor-card--compact {

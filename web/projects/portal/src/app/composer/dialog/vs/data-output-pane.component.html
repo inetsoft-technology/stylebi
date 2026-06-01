@@ -18,7 +18,7 @@
 <form ngNoForm (submit)="$event.preventDefault()" class="container-fluid" #form>
   <fieldset>
     <legend>_#(Output)</legend>
-    <div class="form-row-float-label row">
+    <div class="shell-form-row--field row">
       <div class="col">
         <div class="form-floating">
           <tree-dropdown data-test="tableTreeDropdown"
@@ -32,7 +32,7 @@
       </div>
     </div>
     <fieldset [disabled]="columnDisabled()" class="column_aggregate_field_id">
-      <div class="form-row-float-label row">
+      <div class="shell-form-row--field row">
         <div class="col">
           <div class="form-floating">
             <dynamic-combo-box id="column"
@@ -49,7 +49,7 @@
         </div>
       </div>
       <fieldset [disabled]="aggregateDisabled()">
-        <div class="form-row-float-label row">
+        <div class="shell-form-row--field row">
           <div class="col">
             <div class="form-floating">
               <dynamic-combo-box id="aggregate"
@@ -62,7 +62,7 @@
           </div>
         </div>
         <fieldset [disabled]="withDisabled()">
-          <div class="form-row-float-label row">
+          <div class="shell-form-row--field row">
             <div class="col">
               <div class="form-floating">
                 <dynamic-combo-box id="with" [asTree]="model.logicalModel" [grayedOutValues]="grayedOutValues"
@@ -76,7 +76,7 @@
           </div>
         </fieldset>
         <fieldset *ngIf="!nDisabled()">
-          <div class="form-row-float-label row">
+          <div class="shell-form-row--field row">
             <div class="col">
               <div class="form-floating">
                 <dynamic-combo-box id="num"
@@ -89,12 +89,12 @@
               </div>
             </div>
           </div>
-          <div *ngIf="hasN && !isNValid()" class="alert alert-danger form-row-float-label row">
+          <div *ngIf="hasN && !isNValid()" class="shell-alert shell-alert--danger shell-form-row--field row">
             _#(table.formula.parameterError)
           </div>
         </fieldset>
       </fieldset>
-      <div class="form-row-checkbox row">
+      <div class="shell-form-row shell-form-row--checkbox">
         <div class="col-auto">
           <div class="form-check">
             <input id="asIsRadio" type="radio" class="form-check-input" name="value-options"

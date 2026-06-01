@@ -127,7 +127,7 @@
       </table>
     </div>
 
-    <div class="drop-line border-success" *ngIf="dropIndex != -1"
+    <div class="drop-line drop-line--success" *ngIf="dropIndex != -1"
          outOfZone (onDragover)="$event.preventDefault()"
          [style.width.px]="6"
          [style.height.px]="tableHeight + cellHeight"

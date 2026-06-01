@@ -22,7 +22,7 @@
 
 <div class="modal-body" [enterSubmit]="formValid" (onEnter)="ok()" *ngIf="form">
   <form class="container-fluid" [formGroup]="form">
-    <div class="form-row-float-label row">
+    <div class="shell-form-row--field row">
       <div class="col form-floating">
         <input type="text" class="form-control" formControlName="newName" trim placeholder="_#(Name)"
                [class.is-invalid]="!form.controls['newName'].valid">
@@ -41,7 +41,7 @@
         </span>
       </div>
     </div>
-    <div class="form-row-float-label row">
+    <div class="shell-form-row--field row">
       <div class="col-6 form-floating">
         <custom-select formControlName="type"
                        [options]="typeSelectOptions"
@@ -51,7 +51,7 @@
         <label><span>_#(Type)</span></label>
       </div>
     </div>
-    <div class="form-row-float-label row">
+    <div class="shell-form-row--field row">
       <div class="col">
         <div class="form-floating">
           <tree-dropdown *ngIf="root" [root]="root" [selected]="model.onlyFor?.properties.source"
@@ -76,7 +76,7 @@
         </span>
       </div>
     </div>
-    <div class="form-row-float-label row">
+    <div class="shell-form-row--field row">
       <div class="col">
         <fieldset class="float-title bd-gray">
           <legend>_#(Others)</legend>
@@ -137,7 +137,7 @@
       </w-large-form-field>
       <div
       *ngIf="form.get('conditionExpressions').errors && form.get('conditionExpressions').errors['required']"
-      class="alert alert-danger">
+      class="shell-alert shell-alert--danger">
         _#(common.userGrouping.nullConditionList)
       </div>
     </fieldset>

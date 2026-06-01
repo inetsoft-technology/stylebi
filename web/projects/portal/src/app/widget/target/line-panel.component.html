@@ -17,7 +17,7 @@
   -->
 
 <form ngNoForm (submit)="$event.preventDefault()" class="p-2" *ngIf="model">
-  <div class="row form-row-float-label">
+  <div class="row shell-form-row--field">
     <div class="col form-floating">
         <custom-select [ngModel]="model.measure"
                        [ngModelOptions]="{standalone: true}"
@@ -28,7 +28,7 @@
         <label>_#(Field)</label>
     </div>
   </div>
-  <div class="row form-row-float-label">
+  <div class="row shell-form-row--field">
     <div class="col form-floating" data-test="targetLineValue" [ngClass]="{'has-error' : !model.value}">
       <value-input-field *ngIf="!isDateField()" [value]="model.value" [hideDcombox]="hideDcombox"
                          [variables]="variables" [formulaSupported]="isFormulaSupported()"
@@ -41,9 +41,9 @@
                         [hideDcombox]="hideDcombox" (valueChange)="onValueChange($event)">
       </date-input-field>
       <label>_#(Value)</label>
-      <div *ngIf="!model.value && isDateField()" class="alert alert-danger mb-0">
+      <div *ngIf="!model.value && isDateField()" class="shell-alert shell-alert--danger mb-0">
         _#(designer.chartProp.specifyTargetVal)</div>
-      <div *ngIf="!model.value && !isDateField()" class="alert alert-danger mb-0">
+      <div *ngIf="!model.value && !isDateField()" class="shell-alert shell-alert--danger mb-0">
         _#(common.invalidNumber)</div>
     </div>
     <div class="col-auto ps-0">
@@ -57,7 +57,7 @@
       </div>
     </div>
   </div>
-  <div class="row form-row-float-label">
+  <div class="row shell-form-row--field">
     <div class="col">
       <div class="form-floating">
         <label-input-field [label]="model.label" [variables]="variables" [hideDcombox]="hideDcombox"
@@ -73,7 +73,7 @@
       </target-label-pane>
     </div>
   </div>
-  <div class="row form-row-float-label">
+  <div class="row shell-form-row--field">
     <div class="col">
       <div class="form-floating">
         <grid-line-dropdown [(lineStyle)]="model.lineStyle"
@@ -86,11 +86,11 @@
       <color-editor [(color)]="model.lineColor.color"></color-editor>
     </div>
   </div>
-  <div class="row form-row-float-label">
+  <div class="row shell-form-row--field">
     <div class="col">
       <fieldset>
         <legend>_#(Fill)</legend>
-        <div class="form-row">
+        <div class="shell-form-row">
           <color-editor class="col fill-above" [(color)]="model.fillAboveColor.color"
                         [palette]="fillPalette"
                         label="_#(Above)" [enabled]="model.supportFill"></color-editor>
@@ -107,7 +107,7 @@
       </fieldset>
     </div>
   </div>
-  <div *ngIf="alphaInvalid" class="col alert alert-danger">
+  <div *ngIf="alphaInvalid" class="col shell-alert shell-alert--danger">
     _#(viewer.flash.format.invalidTransparencyError)
   </div>
 </form>

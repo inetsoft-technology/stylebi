@@ -20,6 +20,7 @@ import { NgModel, FormGroup, FormsModule, ReactiveFormsModule } from "@angular/f
 import { NgbModal, NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { AlphaDropdown } from "./alpha-dropdown.component";
 import { DropDownTestModule } from "../../common/test/test-module";
+import { NumberStepperModule } from "../number-stepper/number-stepper.module";
 import { DebounceService } from "../services/debounce.service";
 
 describe("alpha dropdown component unit case", () => {
@@ -30,7 +31,7 @@ describe("alpha dropdown component unit case", () => {
    beforeEach(() => {
       debounceService = { debounce: jest.fn() };
       TestBed.configureTestingModule({
-         imports: [DropDownTestModule, ReactiveFormsModule, FormsModule, NgbModule],
+         imports: [DropDownTestModule, ReactiveFormsModule, FormsModule, NgbModule, NumberStepperModule],
          declarations: [AlphaDropdown],
          providers: [
             NgbModal,
@@ -50,6 +51,6 @@ describe("alpha dropdown component unit case", () => {
       fixture.detectChanges();
       alphaDropdown.changeAlpha0(50);
       fixture.detectChanges();
-      expect(fixture.nativeElement.querySelector("input").getAttribute("ng-reflect-model")).toBe("50");
+      expect(fixture.nativeElement.querySelector("number-stepper").getAttribute("ng-reflect-model")).toBe("50");
    });
 });

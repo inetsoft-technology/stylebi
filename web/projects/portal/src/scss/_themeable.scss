@@ -284,6 +284,7 @@ body {
   }
 }
 
+.hover-bg-neutral,
 .hover-bg-secondary {
   &:not([disabled]):hover {
     background: var(--inet-hover-secondary-bg-color);
@@ -317,6 +318,70 @@ body {
     @extend .bg-lighten2;
     cursor: pointer;
   }
+}
+
+.shell-inline-form {
+  display: flex;
+  flex-flow: row wrap;
+
+  .form-control {
+    display: inline-block;
+    width: auto;
+    vertical-align: middle;
+  }
+
+  @include media-breakpoint-up(sm) {
+    .form-check-label {
+      padding-left: 0;
+    }
+  }
+}
+
+.shell-form-row {
+  display: flex;
+  flex-wrap: wrap;
+  margin-right: calc(-1 * var(--inet-space-2));
+  margin-left: calc(-1 * var(--inet-space-2));
+
+  > .col {
+    padding-left: var(--inet-space-2);
+    padding-right: var(--inet-space-2);
+  }
+}
+
+.shell-form-row--field {
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.shell-form-row--checkbox {
+  align-items: center;
+  margin-top: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+legend + .shell-form-row--checkbox {
+  margin-top: 0;
+}
+
+.shell-form-group {
+  margin-bottom: var(--inet-space-5);
+}
+
+.shell-alert {
+  @extend .alert;
+}
+
+.shell-alert--danger {
+  @extend .alert-danger;
+}
+
+.shell-alert--warning {
+  @extend .alert-warning;
+}
+
+.shell-alert--info {
+  @extend .alert-info;
 }
 
 .hover-bd-selectable {
@@ -359,19 +424,13 @@ body {
   @extend %selected-item-colors
 }
 
-.dropdown-pane {
-  .dropdown-item.selected,
-  .dropdown-item.selected .dropdown-item {
-    &:focus, &:hover {
-      @extend %selected-item-colors
-    }
-  }
-}
-
-//override bootstrap
-.dropdown-item:active {
-    @extend %bg-hover-primary;
-}
+/***********************************************************************************************
+ * Legacy shell-adjacent compatibility helpers
+ *
+ * This file still contains a mix of older helpers and shell-facing utility classes that are
+ * broader than the focused Bootstrap adoption layer in _bootstrap-override.scss. Keep new
+ * shared Bootstrap restyling out of this section whenever possible.
+ ***********************************************************************************************/
 
 .viewsheet-tab-container {
   .nav.nav-tabs {
@@ -775,19 +834,44 @@ schema-column, edit-join-table-column {
   background-color: var(--inet-primary-color);
 }
 
+/***********************************************************************************************
+ * Shared shell-adjacent utilities and component helpers
+ *
+ * These selectors are intentionally global, but they are not meant to redefine Bootstrap
+ * primitives. Prefer _bootstrap-override.scss for shared buttons, inputs, tabs, dialogs, and
+ * other Bootstrap-shaped chrome.
+ ***********************************************************************************************/
+
 /********************************** Buttons and Icons *********************************************/
-.btn-default {
-  @include button-outline-variant($secondary, $secondary-light);
+.btn-icon {
+  padding: 2px;
 }
 
-.btn-icon {
-  @extend .hover-bg-secondary;
+/*made icon color the same as btn color*/
+.btn-icon-color {
+  color: inherit;
 }
 
 .icon-hover-bg {
+  display: inline-flex;
+  align-items: center;
+
   &:not([disabled]):hover {
-    background-color: var(--inet-primary-soft-color);
+    background-color: var(--inet-ui-neutral-hover-bg-color);
   }
+
+  &:focus {
+    outline: none !important;
+  }
+}
+
+.toolbar-btn {
+  font-size: 13px;
+  border-radius: var(--inet-radius-sm);
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: center;
+  border-width: 0 !important;
 }
 
 .toolbar-ghost-actions {
@@ -803,13 +887,13 @@ schema-column, edit-join-table-column {
     transition: background-color 120ms ease, color 120ms ease, box-shadow 120ms ease;
 
     &:not([disabled]):not(.disabled):hover {
-      background-color: var(--inet-hover-secondary-bg-color);
+      background-color: var(--inet-ui-neutral-hover-bg-color);
       color: var(--inet-hover-text-color);
     }
 
     &:not([disabled]):not(.disabled):focus-visible {
       outline: none;
-      box-shadow: 0 0 0 var(--inet-focus-ring-width) var(--inet-focus-ring-color);
+      box-shadow: var(--inet-focus-ring);
     }
 
     &.disabled,
@@ -858,24 +942,26 @@ schema-column, edit-join-table-column {
   button:focus,
   :focus {
     outline: none;
-    box-shadow: 0px 0px 5px var(--inet-primary-color);
+    box-shadow: var(--inet-focus-ring);
   }
 
   .repository-tree .force-focus-highlight:focus,
   .icon-hover-bg:focus,
   .inset-focus:focus {
     outline: none;
-    box-shadow: inset 0px 0px 5px var(--inet-primary-color) !important;
+    box-shadow: var(--inet-focus-ring) !important;
   }
 
   .force-focus-highlight:focus {
       outline: none !important;
-      box-shadow: 0px 0px 5px var(--inet-primary-color) !important;
+      box-shadow: var(--inet-focus-ring) !important;
   }
 }
 
 /********************************** Others *********************************************/
 .th-cell-border {
+  background-color: var(--inet-table-heading-bg-color);
+  color: var(--inet-table-heading-text-color);
   border-top: 1px solid var(--inet-default-border-color);
   border-bottom: 2px solid var(--inet-default-border-color);
 }
@@ -1004,11 +1090,6 @@ binding-editor {
   @extend .bd-gray;
 }
 
-.dropdown-pane {
-  box-shadow: var(--inet-shadow-medium);
-  border: 1px solid var(--inet-default-border-color);
-}
-
 .pagenote {
   text-align: left;
   padding-top:4pt;
@@ -1100,18 +1181,18 @@ binding-editor {
 
 .portal-navbar {
   padding: 0;
-  height: 44px;
+  height: var(--inet-navbar-height);
 
   .nav-icon-size {
-    font-size: 20px;
+    font-size: var(--inet-navbar-icon-size);
   }
 
   .nav-account-icon-size {
-    font-size: 24px;
+    font-size: var(--inet-navbar-account-icon-size);
   }
 
   .nav-item {
-    min-width: 36px;
+    min-width: var(--inet-navbar-item-min-width);
   }
 
   .title-bar-logo {
@@ -1124,8 +1205,8 @@ binding-editor {
     }
 
     i {
-      padding-right: 5px;
-      padding-left: 5px;
+      padding-right: var(--inet-navbar-logo-icon-padding-x);
+      padding-left: var(--inet-navbar-logo-icon-padding-x);
     }
   }
 }
@@ -1137,7 +1218,7 @@ binding-editor {
 
 .tree-node-hover {
   &:not([disabled]):hover {
-    background-color: var(--inet-hover-secondary-bg-color);
+    background-color: var(--inet-ui-neutral-hover-bg-color);
     cursor: pointer;
   }
 
@@ -1203,7 +1284,7 @@ binding-editor {
   }
 
   .popover-body {
-    padding: .25rem .5rem;
+    padding: var(--inet-space-2) var(--inet-space-4);
   }
 }
 
@@ -1350,6 +1431,14 @@ binding-editor {
   }
 }
 
+/***********************************************************************************************
+ * Product-area shell chrome
+ *
+ * These selectors style larger shell regions such as nav rails, sub-navs, bottom tabs, and
+ * related framing. They sit above the generic Bootstrap adoption layer and below feature-local
+ * component styling.
+ ***********************************************************************************************/
+
 .composer-body.viewsheet-in-view {
   .gutter-horizontal {
     background-color: var(--inet-nav-tabs-bg-color);
@@ -1414,7 +1503,7 @@ p-data-sources-tree-view .tree-container {
 }
 
 .repository-tree-toolbar {
-  height: 40px !important;
+  height: var(--inet-toolbar-height-md) !important;
   background-color: var(--inet-repository-tree-toolbar-bg-color);
 
   &::after {
@@ -1422,11 +1511,11 @@ p-data-sources-tree-view .tree-container {
   }
 
   .search-container .form-control {
-    height: 30px;
-    min-height: 30px;
+    height: var(--inet-control-height-md);
+    min-height: var(--inet-control-height-md);
     padding-block: 0;
-    padding-inline: 8px;
-    font-size: 13px;
+    padding-inline: var(--inet-space-4);
+    font-size: var(--inet-font-size-base);
   }
 }
 
@@ -1495,7 +1584,7 @@ p-data-sources-tree-view .tree-container {
   --inet-float-label-bg-color: var(--inet-portal-main-panel-bg-color);
 }
 
-.dashboard-container, .schedule-tab-content,  {
+.dashboard-container, .schedule-tab-content {
   background-color: var(--inet-portal-main-panel-bg-color);
   --inet-float-label-bg-color: var(--inet-portal-main-panel-bg-color);
 }
@@ -1579,6 +1668,11 @@ wizard-main {
     --inet-float-label-bg-color: var(--inet-composer-side-panel-bg-color);
   }
 
+  .modal .left-container, .modal .tree-container {
+    background-color: transparent;
+    --inet-float-label-bg-color: var(--inet-dialog-bg-color);
+  }
+
   .gutter.gutter-horizontal {
     background-color: var(--inet-composer-side-panel-bg-color);
   }
@@ -1616,7 +1710,7 @@ wizard-main {
 
 // -> panel borders
 .gutter-horizontal {
-  border-right: var(--inet-panel-border, 1px solid var(--inet-default-border-color));
+  border-right: var(--inet-panel-border, var(--inet-panel-border-default));
 }
 
 .composer-body, .object-wizard-pane {
@@ -1628,7 +1722,7 @@ wizard-main {
     border: var(--inet-panel-border, none);
 
     .left-container {
-      border-right: var(--inet-panel-border-zero, 1px solid var(--inet-default-border-color));
+      border-right: var(--inet-panel-border-zero, var(--inet-panel-border-default));
     }
   }
 }
@@ -1646,7 +1740,7 @@ wizard-main {
 }
 
 .schedule-tab-content {
-  border: var(--inet-panel-border, 0.5rem solid transparent);
+  border: var(--inet-panel-border, var(--inet-panel-border-reserved));
 }
 
 wizard-main {
@@ -1655,22 +1749,22 @@ wizard-main {
   }
 
   .left-container {
-    border: var(--inet-panel-border-zero, 1px solid var(--inet-default-border-color));
+    border: var(--inet-panel-border-zero, var(--inet-panel-border-default));
   }
 
   .gutter-horizontal {
-    width: var(--inet-panel-border-zero, 6px) !important;;
+    width: var(--inet-panel-border-zero, var(--inet-panel-gutter-width)) !important;
     border-right: var(--inet-panel-border, none);
   }
 
   .right-container {
-    border: var(--inet-panel-border-zero, 1px solid var(--inet-default-border-color));
+    border: var(--inet-panel-border-zero, var(--inet-panel-border-default));
   }
 }
 
 .object-wizard-pane {
   .left-container {
-    border-right: var(--inet-panel-border-zero, 1px solid var(--inet-default-border-color));
+    border-right: var(--inet-panel-border-zero, var(--inet-panel-border-default));
   }
 }
 
@@ -1694,7 +1788,7 @@ wizard-main {
 }
 
 .modal-content-width {
-  max-width: $modal-lg - 30px;
+  max-width: calc(#{$modal-lg} - var(--inet-modal-content-gutter));
 }
 
 .portal-dropdown {
@@ -1714,8 +1808,8 @@ wizard-main {
   }
 
   .account-user-name {
-    font-size: 13px;
-    padding: 8px 16px;
+    font-size: var(--inet-font-size-base);
+    padding: var(--inet-account-user-padding);
     border-bottom: 1px solid var(--inet-default-border-color);
     color: var(--inet-text-muted-color);
 
@@ -1729,8 +1823,8 @@ wizard-main {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 30px;
-  height: 30px;
+  width: var(--inet-control-height-md);
+  height: var(--inet-control-height-md);
   padding: 0;
   border-radius: 50%;
 }

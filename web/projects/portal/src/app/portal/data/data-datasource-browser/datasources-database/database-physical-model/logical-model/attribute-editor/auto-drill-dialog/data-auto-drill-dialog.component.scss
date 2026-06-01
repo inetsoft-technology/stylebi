@@ -33,15 +33,15 @@
   display: flex;
   flex-direction: column;
   min-height: 590px;
-  background: var(--inet-shell-surface-default);
-  border: 1px solid var(--inet-default-border-color);
-  border-radius: var(--inet-radius-lg);
+  background: var(--inet-card-bg-color);
+  border: 1px solid var(--inet-list-border-color);
+  border-radius: var(--inet-radius-md);
   overflow: hidden;
 }
 
 .auto-drill-panel__header {
-  border-bottom: 1px solid var(--inet-default-border-color);
-  background: var(--inet-shell-surface-subtle);
+  border-bottom: 1px solid var(--inet-list-border-color);
+  background: var(--inet-table-heading-bg-color);
 }
 
 .auto-drill-panel__header-content {
@@ -66,6 +66,10 @@
 
 .auto-drill-panel__list {
   flex: 1 1 auto;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  background-color: var(--inet-list-bg-color);
 }
 
 .auto-overflow {
@@ -79,6 +83,9 @@
 .auto-drill-panel__list-item,
 .auto-drill-parameter-panel__item {
   padding: 0;
+  background-color: transparent;
+  border-color: var(--inet-list-border-color);
+  list-style: none;
 }
 
 .auto-drill-panel__list-item-content,
@@ -91,21 +98,26 @@
   gap: var(--inet-space-3);
 }
 
+.auto-drill-panel__list-item:hover,
+.auto-drill-parameter-panel__item:hover {
+  background-color: var(--inet-list-hover-bg-color);
+}
+
+.auto-drill-panel__list-item--selected {
+  background-color: var(--inet-list-selected-bg-color);
+}
+
 .parameter-label {
   max-width: 80%;
   min-width: 50%;
 }
 
 .drill-tree-dropdown-menu {
-  border: 1px solid var(--inet-default-border-color);
   max-height: 300px;
   min-width: 200px;
   width: 100%;
   overflow-y: auto;
   padding: 0.25rem;
-  border-radius: var(--inet-radius-md);
-  background: var(--inet-shell-surface-default);
-  box-shadow: var(--inet-shadow-md);
 }
 
 .drill-link-picker {
@@ -159,9 +171,9 @@
 }
 
 .auto-drill-parameter-panel {
-  background: var(--inet-shell-surface-default);
-  border: 1px solid var(--inet-default-border-color);
-  border-radius: var(--inet-radius-lg);
+  background: var(--inet-card-bg-color);
+  border: 1px solid var(--inet-list-border-color);
+  border-radius: var(--inet-radius-md);
   overflow: hidden;
 }
 
@@ -172,12 +184,16 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--inet-space-3);
-  border-bottom: 1px solid var(--inet-default-border-color);
-  background: var(--inet-shell-surface-subtle);
+  border-bottom: 1px solid var(--inet-list-border-color);
+  background: var(--inet-table-heading-bg-color);
 }
 
 .auto-drill-parameter-panel__list {
   max-height: 140px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  background-color: var(--inet-list-bg-color);
 }
 
 @media (max-width: 992px) {

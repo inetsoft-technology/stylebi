@@ -18,7 +18,7 @@
 <form [formGroup]="form" (submit)="$event.preventDefault()" class="container-fluid">
    <fieldset>
       <legend>_#(Lines)</legend>
-      <div class="form-row-float-label row" *ngIf="model.gridLineVisible">
+      <div class="row shell-form-row--field" *ngIf="model.gridLineVisible">
          <div class="col line-combo-container">
                 <div class="form-floating">
                   <grid-line-dropdown [(lineStyle)]="model.xGridLineStyle"
@@ -40,7 +40,7 @@
             <color-editor class="color-item" [(color)]="model.yGridLineColor" data-test="y-grid-line-color"></color-editor>
          </div>
       </div>
-      <div class="form-row-float-label row" *ngIf="model.innerLineVisible">
+      <div class="row shell-form-row--field" *ngIf="model.innerLineVisible">
          <div class="col line-combo-container">
                 <div class="form-floating">
                   <grid-line-dropdown [(lineStyle)]="model.quadrantGridLineStyle"
@@ -63,7 +63,7 @@
             <color-editor class="color-item" [(color)]="model.diagonalLineColor" data-test="diagonal-line-color"></color-editor>
          </div>
       </div>
-      <div class="form-row-float-label row" *ngIf="model.facetGridVisible">
+      <div class="row shell-form-row--field" *ngIf="model.facetGridVisible">
          <div class="col-auto line-combo-container">
             <div class="form-check">
                <input type="checkbox" class="form-check-input" [(ngModel)]="model.facetGrid"
@@ -80,7 +80,7 @@
    </fieldset>
   <fieldset *ngIf="model.trendLineVisible">
     <legend>_#(Trend Line)</legend>
-    <div class="form-row-float-label row">
+    <div class="row shell-form-row--field">
       <div class="col">
         <div class="form-floating">
           <custom-select [options]="trendLineOptions"
@@ -107,8 +107,8 @@
         </color-editor>
       </div>
     </div>
-    <div class="form-row-float-label row">
-      <div class="col-6">
+    <div class="row shell-form-row--field">
+      <div class="col-6 chart-line-pane__for-measures">
         <div class="form-floating">
           <multi-select [items]="model.measures"
                         [disabled]="noTrendlineSelected"
@@ -117,22 +117,20 @@
           <label>_#(For Measures)</label>
         </div>
       </div>
-      <div class="col-6">
-        <div class="form-floating">
-          <input class="form-control project_forward_id" required type="number"
-                 (keypress)="onInputProjectForward($event)"
-                 placeholder="_#(Project Forward)"
-                 [(ngModel)]="model.projectForward" formControlName="projectForward"
-                 [disabled]="projectForwardDisabled"
-                 [class.is-invalid]="form.controls['projectForward']?.errors">
-          <label>_#(Project Forward)</label>
-          <span class="invalid-feedback project-forward-invalid">
+      <div class="col-6 d-flex justify-content-center project_forward_id">
+        <div class="stepper-float-label">
+          <span class="stepper-float-label__text">_#(Project Forward)</span>
+          <number-stepper formControlName="projectForward" [min]="0"
+                          (valueChange)="model.projectForward = $event"
+                          [invalid]="!!form.controls['projectForward']?.errors">
+          </number-stepper>
+          <span class="invalid-feedback d-block" *ngIf="form.controls['projectForward']?.errors">
              _#(project.forward.required)
           </span>
         </div>
       </div>
     </div>
-    <div class="form-row-float-label row">
+    <div class="row shell-form-row--field">
       <div class="checkbox col">
         <div class="form-check">
           <input type="checkbox" class="form-check-input" [disabled]="noTrendlineSelected"

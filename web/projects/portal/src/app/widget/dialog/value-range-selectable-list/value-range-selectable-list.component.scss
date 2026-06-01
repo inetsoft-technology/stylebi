@@ -19,15 +19,35 @@
   table-layout: fixed;
   width: 100%;
   border-bottom: none;
+  margin-bottom: 0;
+}
+
+.value-range-table-header thead th {
+  color: var(--inet-table-heading-text-color);
+  background-color: var(--inet-table-heading-bg-color);
+  border-bottom: 1px solid var(--inet-table-border-color);
+  font-weight: 600;
+  padding: var(--inet-space-3) var(--inet-space-4);
 }
 
 .value-range-table {
   table-layout: fixed;
   width: 100%;
+  margin-bottom: 0;
 }
 
 .value-range-table tbody td {
   width: 50%;
+  padding: var(--inet-space-3) var(--inet-space-4);
+  border-top-color: var(--inet-table-border-color);
+}
+
+.value-range-table tbody tr.selected td {
+  background-color: var(--inet-table-selected-bg-color);
+}
+
+.value-range-table tbody tr:hover:not(.selected) td {
+  background-color: var(--inet-table-hover-bg-color);
 }
 
 .value-range-table-data {
@@ -39,14 +59,19 @@
 .value-range-table-input {
   width: 100%;
   border: none;
-  height: 2em;
-  padding: 0 0.25em;
+  min-height: calc(var(--inet-control-height-sm) - var(--inet-space-1));
+  padding: 0 var(--inet-space-2);
 
   &, &:focus {
     background-color: var(--inet-dialog-bg-color);
   }
 }
 
-div.bordered-box {
+.value-range-table-shell {
   height: 18em;
+  border: 1px solid var(--inet-table-border-color);
+  border-color: var(--inet-table-border-color);
+  border-radius: var(--inet-radius-md);
+  background-color: var(--inet-card-bg-color);
+  overflow-y: auto;
 }

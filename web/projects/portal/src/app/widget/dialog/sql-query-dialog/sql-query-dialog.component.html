@@ -23,7 +23,7 @@
      (keydown.escape)="checkIfNotSaved($event)"
      (onEnter)="ok()">
   <div class="container-fluid d-flex flex-column h-100">
-    <div class="row form-group" *ngIf="!subQuery" >
+    <div class="row shell-form-row shell-form-group" *ngIf="!subQuery" >
       <div class="col">
         <div class="form-check form-switch">
           <input class="form-check-input" type="checkbox" role="switch" id="switchEditMode"
@@ -33,25 +33,25 @@
         </div>
       </div>
     </div>
-    <div [formGroup]="form" class="row form-row-float-label" *ngIf="!!tables">
+    <div [formGroup]="form" class="row shell-form-row--field" *ngIf="!!tables">
       <div class="col form-floating">
         <input type="text" class="form-control" formControlName="name" trim placeholder="_#(Name)">
         <label>_#(Name)</label>
         <div *ngIf="form.controls['name'].errors && form.controls['name'].errors['required']"
-             class="alert alert-danger">
+             class="shell-alert shell-alert--danger">
           _#(designer.chartProp.specifyTargetName)
         </div>
         <div *ngIf="form.controls['name'].errors &&
-                 form.controls['name'].errors['nameSpecialCharacters']" class="alert alert-danger">
+                 form.controls['name'].errors['nameSpecialCharacters']" class="shell-alert shell-alert--danger">
           _#(viewer.worksheet.Grouping.SpecialChar)
         </div>
         <div *ngIf="form.controls['name'].errors && form.controls['name'].errors['exists']"
-             class="alert alert-danger">
+             class="shell-alert shell-alert--danger">
           _#(viewer.worksheet.Grouping.nameAlready)
         </div>
       </div>
     </div>
-    <div class="row form-group">
+    <div class="row shell-form-row shell-form-group">
       <div class="col">
         <custom-select *ngIf="model.dataSources?.length > 1"
                        [options]="dataSourceSelectOptions"

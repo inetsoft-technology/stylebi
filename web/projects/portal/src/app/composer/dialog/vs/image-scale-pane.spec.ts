@@ -16,6 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { ImageScalePaneModel } from "../../data/vs/image-scale-pane-model";
+import { NumberStepperModule } from "../../../widget/number-stepper/number-stepper.module";
 import { ImageScalePane } from "./image-scale-pane.component";
 import { waitForAsync, TestBed, ComponentFixture } from "@angular/core/testing";
 import { FormsModule } from "@angular/forms";
@@ -42,7 +43,7 @@ describe("Image Scale Pane Test", () => {
    beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
-            FormsModule
+            FormsModule, NumberStepperModule
          ],
          declarations: [
             ImageScalePane
@@ -62,21 +63,22 @@ describe("Image Scale Pane Test", () => {
       scalePane.model.maintainAspectRatio = false;
       fixture.detectChanges();
 
-      let topField = fixture.nativeElement.querySelector("input#top");
-      let leftField = fixture.nativeElement.querySelector("input#left");
-      let bottomField = fixture.nativeElement.querySelector("input#bottom");
-      let rightField = fixture.nativeElement.querySelector("input#right");
+      let steppers = fixture.nativeElement.querySelectorAll("number-stepper");
+      let topField = steppers[0];
+      let leftField = steppers[1];
+      let bottomField = steppers[2];
+      let rightField = steppers[3];
 
-      expect(topField.getAttribute("ng-reflect-is-disabled")).toBe("true");
-      expect(leftField.getAttribute("ng-reflect-is-disabled")).toBe("true");
-      expect(bottomField.getAttribute("ng-reflect-is-disabled")).toBe("true");
-      expect(rightField.getAttribute("ng-reflect-is-disabled")).toBe("true");
+      expect(topField.getAttribute("ng-reflect-disabled")).toBe("true");
+      expect(leftField.getAttribute("ng-reflect-disabled")).toBe("true");
+      expect(bottomField.getAttribute("ng-reflect-disabled")).toBe("true");
+      expect(rightField.getAttribute("ng-reflect-disabled")).toBe("true");
 
       scalePane.animateGif = false;
       fixture.detectChanges();
-      expect(topField.getAttribute("ng-reflect-is-disabled")).toBe("false");
-      expect(leftField.getAttribute("ng-reflect-is-disabled")).toBe("false");
-      expect(bottomField.getAttribute("ng-reflect-is-disabled")).toBe("false");
-      expect(rightField.getAttribute("ng-reflect-is-disabled")).toBe("false");
+      expect(topField.getAttribute("ng-reflect-disabled")).toBe("false");
+      expect(leftField.getAttribute("ng-reflect-disabled")).toBe("false");
+      expect(bottomField.getAttribute("ng-reflect-disabled")).toBe("false");
+      expect(rightField.getAttribute("ng-reflect-disabled")).toBe("false");
    });
 });

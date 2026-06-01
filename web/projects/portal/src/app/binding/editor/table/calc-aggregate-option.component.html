@@ -22,7 +22,7 @@
       <i class="submit-icon icon-size-small" aria-hidden="true"></i>
     </button>
   </div>
-  <div class="row form-row-float-label">
+  <div class="row shell-form-row--field">
     <div class="col form-floating">
       <custom-select [options]="formulaOptions"
                      [(ngModel)]="baseFormula"
@@ -31,7 +31,7 @@
       <label><span>_#(Aggregate)</span></label>
     </div>
   </div>
-  <div class="row form-row-float-label" *ngIf="!hasN">
+  <div class="row shell-form-row--field" *ngIf="!hasN">
     <div class="col form-floating">
       <custom-select [options]="availableFieldOptions"
                      [(ngModel)]="secondCol"
@@ -41,13 +41,13 @@
       <label><span>_#(With)</span></label>
     </div>
   </div>
-  <div class="row form-row-float-label" *ngIf="hasN">
+  <div class="row shell-form-row--field" *ngIf="hasN">
     <div class="col-auto form-floating">
       <input type="text" id="num" class="form-control" [(ngModel)]="nStr">
       <label><span>{{getNPLabel()}}</span></label>
     </div>
   </div>
-  <div class="row form-row-float-label">
+  <div class="row shell-form-row--field">
     <div class="col form-floating">
       <custom-select [options]="percentOptions"
                      [(ngModel)]="percentage"
@@ -58,7 +58,7 @@
     </div>
   </div>
   <div *ngIf="(isNthFormula() || isPthFormula()) && !isNValid()"
-       class="alert alert-danger">
+       class="shell-alert shell-alert--danger">
     _#(table.formula.parameterError)
   </div>
 </div>

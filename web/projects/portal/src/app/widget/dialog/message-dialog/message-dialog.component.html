@@ -21,7 +21,7 @@
   </div>
   <div class="modal-body">
     <div class="container-fluid">
-      <div class="form-row">
+      <div class="shell-form-row">
         <div class="col-auto" *ngIf="title == 'Trap'">
           <img [src]='errorSource()'>
         </div>
@@ -29,7 +29,7 @@
           <p class="message-dialog__text" [wExpandString]="expandValues" [innerHTML]="message"></p>
         </div>
       </div>
-      <div class="form-row" *ngIf="showProgress">
+      <div class="shell-form-row" *ngIf="showProgress">
         <div class="col">
           <ngb-progressbar type="info" [value]="100" [striped]="true" [animated]="true"
                            height="1rem">

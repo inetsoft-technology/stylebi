@@ -16,21 +16,38 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 .table-container {
-  overflow-y: scroll;
+  overflow-y: auto;
   height: 300px;
+  border: 1px solid var(--inet-table-border-color);
+  border-radius: var(--inet-radius-md);
+  background-color: var(--inet-card-bg-color);
 
   table {
     border-collapse: separate;
+    border-spacing: 0;
 
     th.variable-list-table-header {
       position: sticky;
-      top: 2px;
+      top: 0;
       background-color: var(--inet-table-heading-bg-color, var(--inet-dialog-bg-color));
       color: var(--inet-table-heading-text-color);
+      z-index: 1;
     }
 
-    td, th {
-      border: none;
+    th {
+      border-bottom: 1px solid var(--inet-table-border-color);
+    }
+
+    tbody td {
+      border-top: 1px solid var(--inet-table-border-color);
+    }
+
+    tbody tr:hover:not(.selected) td {
+      background-color: var(--inet-table-hover-bg-color);
+    }
+
+    tbody tr:first-child td {
+      border-top: 0;
     }
   }
 }

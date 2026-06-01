@@ -58,6 +58,12 @@
   cursor: pointer;
 }
 
+.axis__sort-icon--surface {
+  background: var(--inet-shell-surface-default);
+  border: 1px solid var(--inet-default-border-color);
+  border-radius: var(--inet-radius-sm);
+}
+
 .chart-axis-area-scroll-container {
   position: absolute;
   overflow: visible;

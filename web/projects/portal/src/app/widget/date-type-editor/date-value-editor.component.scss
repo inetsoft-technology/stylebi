@@ -23,7 +23,7 @@
 
 .date-field {
   padding-left: 4px;
-  padding-right: 4px;
+  padding-right: calc(var(--date-value-editor-toggle-width, var(--condition-row-icon-size, 2rem)) + 0.5rem);
   //max-height: 33px; // regular field (non-date) has a height of 33, date has 36
 }
 
@@ -32,6 +32,12 @@
   top: 0px !important;
   bottom: 0px;
   right: 2px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--date-value-editor-toggle-width, var(--condition-row-icon-size, 2rem));
+  min-width: var(--date-value-editor-toggle-width, var(--condition-row-icon-size, 2rem));
+  padding: 0;
   border: 0;
 }
 

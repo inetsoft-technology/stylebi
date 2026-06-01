@@ -27,6 +27,8 @@ button.dropdown-toggle {
   width: 100%;
   padding-right: 2rem;
   text-align: left;
+  border-color: var(--inet-input-border-color);
+  background-color: var(--inet-input-bg-color);
 
   &:focus,
   &:focus-visible,

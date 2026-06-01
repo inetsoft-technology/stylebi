@@ -28,7 +28,7 @@
                  [openFolderPath]="fakeRootPath"
                  (selectionChange)="folderSelected($event)">
   </data-sources-browser>
-  <div class="alert alert-danger move-datasource-dialog__error" *ngIf="!folderPath">
+  <div class="shell-alert shell-alert--danger move-datasource-dialog__error" *ngIf="!folderPath">
     {{isFolder() ? config.templateConfig.targetFolderRequired : config.templateConfig.targetAssetTypeRequired}}
   </div>
 </div>

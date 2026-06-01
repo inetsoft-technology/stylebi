@@ -21,7 +21,7 @@
 </modal-header>
 <div class="modal-body parameter-dialog" *ngIf="model && form">
   <form [formGroup]="form" class="parameter-dialog__form">
-    <div class="form-group form-floating">
+    <div class="shell-form-group form-floating">
       <div class="input-group">
         <input #inputFocus class="form-control" type="text" formControlName="name"
                [class.is-invalid]="!nameControl.valid"
@@ -41,7 +41,7 @@
         {{getFirstErrorMessage(nameControl)}}
       </span>
     </div>
-    <div class="form-group parameter-dialog__source-row">
+    <div class="shell-form-group parameter-dialog__source-row">
       <div class="form-check form-check-inline">
         <input class="form-check-input" type="radio"
                [ngModel]="source"
@@ -59,14 +59,14 @@
         <label class="form-check-label">_#(Constant)</label>
       </div>
     </div>
-    <div class="form-group form-floating" *ngIf="source == SourceType.FIELD">
+    <div class="shell-form-group form-floating" *ngIf="source == SourceType.FIELD">
       <custom-select [options]="fieldSelectOptions"
                      [(ngModel)]="model.field"
                      formControlName="value">
       </custom-select>
       <label><span>_#(Field)</span></label>
     </div>
-    <div class="form-group form-floating" *ngIf="source == SourceType.CONSTANT">
+    <div class="shell-form-group form-floating" *ngIf="source == SourceType.CONSTANT">
       <custom-select [options]="typeSelectOptions"
                      [(ngModel)]="model.type"
                      (selectionChange)="changeType($event)"
@@ -74,7 +74,7 @@
       </custom-select>
       <label><span>_#(Type)</span></label>
     </div>
-    <div class="form-group" [class.g-0]="model.type == XSchema.BOOLEAN" *ngIf="source == SourceType.CONSTANT">
+    <div class="shell-form-group" [class.g-0]="model.type == XSchema.BOOLEAN" *ngIf="source == SourceType.CONSTANT">
       <ng-container *ngIf="model.type == XSchema.BOOLEAN">
         <div class="form-check form-check-inline">
           <label class="form-check-label value-for-parameter-label">
@@ -107,9 +107,11 @@
                                    [ngModel]="model.field" [fullContainer]="true">
         </time-instant-value-editor>
         <ng-container *ngIf="XSchema.isNumericType(model.type)">
-          <input type="number" class="form-control" formControlName="value"
-                 [class.is-invalid]="!valueControl.valid"
-                 [(ngModel)]="model.field">
+          <number-stepper formControlName="value"
+                          (valueChange)="model.field = $event"
+                          [inputmode]="'decimal'"
+                          [invalid]="!valueControl.valid">
+          </number-stepper>
         </ng-container>
         <ng-container *ngIf="XSchema.isStringType(model.type)">
           <input type="text" class="form-control" formControlName="value"
@@ -117,16 +119,16 @@
                  [(ngModel)]="model.field">
         </ng-container>
         <label><span>_#(Parameter Value)</span></label>
-        <div class="alert alert-danger" *ngIf="valueControl.getError('required')">
+        <div class="shell-alert shell-alert--danger" *ngIf="valueControl.getError('required')">
           _#(data.logicalmodel.drillParameterFieldRequired)</div>
-        <div class="alert alert-danger" *ngIf="valueControl.getError('maxLength')">
+        <div class="shell-alert shell-alert--danger" *ngIf="valueControl.getError('maxLength')">
           _#(data.logicalmodel.drillParameterFieldMaxLength)
         </div>
-        <div class="alert alert-danger" *ngIf="isInValidTypeRange()">
+        <div class="shell-alert shell-alert--danger" *ngIf="isInValidTypeRange()">
           _#(data.logicalmodel.drillParameterFieldMaxLength)
         </div>
       </div>
-      <div class="alert alert-danger parameter-dialog__inline-alert" *ngIf="!valueControl.getError('required')
+      <div class="shell-alert shell-alert--danger parameter-dialog__inline-alert" *ngIf="!valueControl.getError('required')
            && !isInValidTypeRange() && !valueControl.getError('maxLength')
            && !isValidDataTypeValue(model.field, model.type)">
         _#(data.logicalmodel.drillParameterNumberInvalid)</div>

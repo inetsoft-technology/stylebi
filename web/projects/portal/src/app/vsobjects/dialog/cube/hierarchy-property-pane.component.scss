@@ -19,6 +19,11 @@
    height: 100%;
 }
 
+.hierarchy-property-pane__surface {
+  border: 1px solid var(--inet-default-border-color);
+  border-radius: var(--inet-radius-md);
+}
+
 .hierarchy-content-list {
    padding: 5px;
 }

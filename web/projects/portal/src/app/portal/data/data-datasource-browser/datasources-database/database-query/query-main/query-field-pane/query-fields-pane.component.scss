@@ -29,7 +29,7 @@
   display: flex;
   flex: 1 1 auto;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--inet-space-2);
   min-height: 0;
   min-width: 0;
   width: 100%;
@@ -38,7 +38,7 @@
 .query-fields-pane__header {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 44px minmax(0, 1fr) auto;
-  gap: 12px;
+  gap: var(--inet-space-3);
   align-items: start;
 }
 
@@ -56,13 +56,13 @@
 .query-fields-pane__toolbar {
   display: flex;
   justify-content: flex-end;
-  gap: 8px;
+  gap: var(--inet-space-2);
 }
 
 .query-fields-pane__body {
   display: flex;
   flex: 1 1 auto;
-  gap: 12px;
+  gap: var(--inet-space-3);
   min-height: 0;
   min-width: 0;
 }
@@ -87,16 +87,30 @@
   gap: 10px;
 }
 
-.bordered-box {
+.query-fields-pane__surface {
   width: 100%;
   height: 40em;
 }
 
+.query-fields-pane__surface {
+  background-color: var(--inet-list-bg-color);
+  border-color: var(--inet-list-border-color);
+  border-width: 1px;
+  border-style: solid;
+  border-radius: var(--inet-radius-md);
+}
+
 .bordered-box-right-top {
   width: 100%;
-  padding: 0.25em;
+  padding: var(--inet-space-1);
   overflow: auto;
   height: 28em;
+}
+
+.query-fields-pane__surface--list {
+  background-color: var(--inet-list-bg-color);
+  border-color: var(--inet-list-border-color);
+  padding: var(--inet-space-1);
 }
 
 .bordered-box-right-bottom {
@@ -109,11 +123,11 @@
   min-height: 36px;
   padding: 0;
   line-height: 1rem;
-  border-color: var(--inet-default-border-color);
+  border-color: var(--inet-list-border-color);
 }
 
 .fields-button:not(:disabled) {
-  background: var(--inet-shell-surface-default, #fff);
+  background: var(--inet-card-bg-color);
 }
 
 .field-icon {
@@ -125,10 +139,6 @@
 
 .query-toolbar-btn i {
   cursor: pointer;
-}
-
-.form-row-float-label {
-  align-items: flex-start;
 }
 
 .description-area {
@@ -144,6 +154,18 @@
 
 .field-item {
   display: flex;
+  align-items: center;
+  min-height: var(--inet-control-height-md);
+  padding: 0 var(--inet-space-3);
+  border-radius: var(--inet-radius-sm);
+
+  &:not(.selected):hover {
+    background-color: var(--inet-list-hover-bg-color);
+  }
+
+  &.selected {
+    background-color: var(--inet-list-selected-bg-color);
+  }
 }
 
 .field-label {

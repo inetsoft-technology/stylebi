@@ -18,7 +18,7 @@
 <form ngNoForm (submit)="$event.preventDefault()" class="container-fluid">
   <fieldset>
     <legend>_#(Options)</legend>
-    <div class="form-row-float-label row">
+    <div class="row shell-form-row--field">
       <div class="checkbox col shrinkToFit_id">
         <div class="form-check">
           <input type="checkbox" class="form-check-input" [disabled]="!model.shrinkEnabled"
@@ -41,7 +41,7 @@
   </fieldset>
   <fieldset *ngIf="model.formVisible">
     <legend>_#(Form)</legend>
-    <div class="form-row-float-label row">
+    <div class="row shell-form-row--field">
       <div class="col checkbox enableTableEdit_id">
         <div class="form-check">
           <input type="checkbox" class="form-check-input" [(ngModel)]="model.form"
@@ -61,7 +61,7 @@
         </div>
       </div>
     </div>
-    <div class="form-row-float-label row">
+    <div class="row shell-form-row--field">
       <div class="col ms-3 addRow_id">
         <div class="form-check">
           <input type="checkbox" class="form-check-input" [disabled]="!model.form"

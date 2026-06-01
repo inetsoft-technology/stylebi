@@ -26,7 +26,8 @@ const COLUMNS_URI: string = "../api/vs/selectionList/columns/";
 
 @Component({
    selector: "selection-list-editor",
-   templateUrl: "selection-list-editor.component.html"
+   templateUrl: "selection-list-editor.component.html",
+   styleUrls: ["selection-list-editor.component.scss"]
 })
 export class SelectionListEditor implements OnInit {
    @Input() model: SelectionListEditorModel;

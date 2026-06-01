@@ -15,37 +15,49 @@
   ~ You should have received a copy of the GNU Affero General Public License
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
-<div class="form-inline">
-  <div class="form-group-column">
-    <condition-editor [dataFunction]="dataFunction" [variablesFunction]="variablesFunction"
-                      [columnTreeFunction]="columnTreeFunction" [vsId]="vsId"
-                      [scriptDefinitionsFunction]="scriptDefinitionsFunction"
-                      [expressionTypes]="expressionTypes" [source]="source"
-                      [valueTypes]="valueTypes" [subqueryTables]="subqueryTables"
-                      [fieldsModel]="fieldsModel" [grayedOutFields]="grayedOutFields"
-                      [field]="field" [table]="table" [showUseList]="showUseList"
-                      [isVSContext]="isVSContext" (addValue)="add()"
-                      [(values)]="values"
-                      [isOneOf]="true"
-                      [enableBrowseData]="enableBrowseData"
-                      [(value)]="value"
-                      [showOriginalName]="showOriginalName"
-                      (valueChange)="valueChanged()"
-                      (valueChanges)="valueChanges($event)"></condition-editor>
+<div class="shell-inline-form one-of-condition-editor">
+  <div class="form-group-column one-of-condition-editor__content">
+    <div class="one-of-condition-editor__entry-row">
+      <condition-editor class="one-of-condition-editor__entry-editor"
+                        [dataFunction]="dataFunction" [variablesFunction]="variablesFunction"
+                        [columnTreeFunction]="columnTreeFunction" [vsId]="vsId"
+                        [scriptDefinitionsFunction]="scriptDefinitionsFunction"
+                        [expressionTypes]="expressionTypes" [source]="source"
+                        [valueTypes]="valueTypes" [subqueryTables]="subqueryTables"
+                        [fieldsModel]="fieldsModel" [grayedOutFields]="grayedOutFields"
+                        [field]="field" [table]="table" [showUseList]="showUseList"
+                        [isVSContext]="isVSContext" (addValue)="add()"
+                        [(values)]="values"
+                        [isOneOf]="true"
+                        [enableBrowseData]="enableBrowseData"
+                        [(value)]="value"
+                        [showOriginalName]="showOriginalName"
+                        (valueChange)="valueChanged()"
+                        (valueChanges)="valueChanges($event)"></condition-editor>
+      <button *ngIf="isValueListVisible(value.type)"
+              type="button"
+              class="btn btn-default one-of-condition-editor__add-button"
+              (click)="add()"
+              [disabled]="isEmpty(value)">_#(Add)</button>
+    </div>
     <div *ngIf="isValueListVisible(value.type)" class="value-list-container">
-      <div class="sm-selectable-list value-list">
-        <div *ngFor="let val of values; let i = index;" class="unhighlightable value-list__element"
-             [class.selected]="isSelected(val)" (click)="selectValue(i, $event)">
-          {{val | conditionValueToString}}
+      <div class="value-list-panel">
+        <div class="value-list-panel__label">_#(Selected values)</div>
+        <div class="sm-selectable-list value-list" [class.value-list--empty]="values.length === 0">
+          <div *ngIf="values.length === 0" class="value-list__empty">
+            _#(Enter a value above, then click Add.)
+          </div>
+          <div *ngFor="let val of values; let i = index;" class="unhighlightable value-list__element"
+               [class.selected]="isSelected(val)" (click)="selectValue(i, $event)">
+            {{val | conditionValueToString}}
+          </div>
         </div>
       </div>
-      <div class="btn-container-vertical form-group-column">
-        <button type="button" class="btn btn-default" (click)="add()"
-                [disabled]="isEmpty(value)">_#(Add)</button>
-        <button type="button" class="btn btn-default delete_id" (click)="remove()"
-                [disabled]="!(selectedIndex >= 0)">_#(Delete)</button>
+      <div class="btn-container-vertical one-of-condition-editor__list-actions">
         <button type="button" class="btn btn-default delete_id" (click)="modify()"
                 [disabled]="!(selectedIndex >= 0)">_#(Modify)</button>
+        <button type="button" class="btn btn-default delete_id" (click)="remove()"
+                [disabled]="!(selectedIndex >= 0)">_#(Delete)</button>
       </div>
     </div>
   </div>

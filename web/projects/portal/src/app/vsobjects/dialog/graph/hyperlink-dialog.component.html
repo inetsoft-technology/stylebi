@@ -20,7 +20,7 @@
 </modal-header>
 <div class="modal-body" [enterSubmit]="formValid" (onEnter)="ok()" *ngIf="model">
   <form ngNoForm (submit)="$event.preventDefault()" class="container-fluid">
-    <div class="form-row-float-label row">
+    <div class="row shell-form-row--field">
       <div class="col">
         <div class="form-check">
           <input class="form-check-input" type="radio" name="link" id="asset"
@@ -55,10 +55,10 @@
 
   <fieldset [disabled]="model.linkType == LinkType.NONE">
     <form ngNoForm (submit)="$event.preventDefault()" class="container-fluid">
-      <div class="form-row-float-label row">
+      <div class="row shell-form-row--field">
         <div class="col">
           <div [ngSwitch]="model.linkType == LinkType.MESSAGE_LINK ? LinkType.WEB_LINK : model.linkType">
-            <div *ngSwitchCase="LinkType.WEB_LINK" class="form-row-float-label row">
+            <div *ngSwitchCase="LinkType.WEB_LINK" class="row shell-form-row--field">
               <div *ngIf="valueType == ValueType.VALUE" class="col">
                 <div class="form-floating">
                       <input type="text" class="form-control" [(ngModel)]="model.webLink"
@@ -123,7 +123,7 @@
           </div>
         </div>
       </div>
-      <div class="form-row-float-label row">
+      <div class="row shell-form-row--field">
         <div class="col">
             <div class="form-floating">
               <custom-select class="bookmark-menu"
@@ -137,7 +137,7 @@
             </div>
         </div>
       </div>
-      <div class="form-row-float-label row">
+      <div class="row shell-form-row--field">
         <div class="col">
           <div class="form-floating">
             <input type="text" class="form-control target-text_id" [(ngModel)]="model.targetFrame"
@@ -157,7 +157,7 @@
           </div>
         </div>
       </div>
-      <div class="form-row-float-label row">
+      <div class="row shell-form-row--field">
         <div class="col">
           <div class="form-floating">
             <input type="text" class="form-control" [(ngModel)]="model.tooltip"
@@ -166,7 +166,7 @@
           </div>
         </div>
       </div>
-      <div class="form-row-float-label row">
+      <div class="row shell-form-row--field">
         <div class="col-auto">
           <div class="form-check">
             <input type="checkbox" class="form-check-input" id="disablePrompt"
@@ -195,7 +195,7 @@
           </div>
         </div>
       </div>
-      <div *ngIf="model.showRow" class="form-row-float-label row">
+      <div *ngIf="model.showRow" class="row shell-form-row--field">
         <div class="col-auto">
           <div class="form-check">
             <input type="checkbox" class="form-check-input" id="applyToRow"

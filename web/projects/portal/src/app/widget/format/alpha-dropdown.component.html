@@ -15,10 +15,13 @@
   ~ You should have received a copy of the GNU Affero General Public License
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
-<div class="input-group" blockMouse>
-  <input type="number" class="form-control" [class.default-value]="alpha == null"
-         [ngModel]="alpha == null ? defaultAlpha : alpha"
-         data-test="alpha-input" [min]="0" [max]="100" [step]="10" placeholder="100"
-         (ngModelChange)="changeAlpha($event)" [disabled]="disabled" disableDrop>
-  <span class="input-group-text">%</span>
+<div blockMouse>
+  <number-stepper [class.default-value]="alpha == null"
+                  [ngModel]="alpha == null ? defaultAlpha : alpha"
+                  data-test="alpha-input"
+                  [min]="0" [max]="100" [step]="10"
+                  [unit]="'%'"
+                  [disabled]="disabled"
+                  (valueChange)="changeAlpha($event)">
+  </number-stepper>
 </div>

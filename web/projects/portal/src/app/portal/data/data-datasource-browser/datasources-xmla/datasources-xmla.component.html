@@ -35,7 +35,7 @@
       </div>
 
       <form [formGroup]="form" class="xmla-form-grid">
-        <div class="form-group form-floating">
+        <div class="shell-form-group form-floating">
           <input type="text"
                  name="name"
                  class="form-control"
@@ -51,12 +51,12 @@
           </span>
         </div>
 
-        <div class="form-group form-floating xmla-form-grid__span-2">
+        <div class="shell-form-group form-floating xmla-form-grid__span-2">
           <textarea class="form-control" formControlName="description"></textarea>
           <label><span>_#(Description)</span></label>
         </div>
 
-        <div class="form-group form-floating xmla-form-grid__span-2">
+        <div class="shell-form-group form-floating xmla-form-grid__span-2">
           <input type="text" name="url" class="form-control" formControlName="url"
                  [class.is-invalid]="form?.controls['url']?.invalid">
           <label><span>_#(XMLA URL)</span></label>
@@ -65,13 +65,13 @@
           </span>
         </div>
 
-        <div class="form-group form-floating xmla-form-grid__span-2">
+        <div class="shell-form-group form-floating xmla-form-grid__span-2">
           <input type="text" name="datasourceInfo" class="form-control"
                  formControlName="datasourceInfo">
           <label><span>_#(Datasource Info)</span></label>
         </div>
 
-        <div class="form-group xmla-form-grid__span-2">
+        <div class="shell-form-group xmla-form-grid__span-2">
           <div class="input-group">
             <div class="form-floating">
               <input type="text" name="catalog" class="form-control" formControlName="catalog"
@@ -100,20 +100,20 @@
                 _#(Loading)
                 <span class="loading-icon loading-icon--spin"></span>
               </div>
-              <div *ngIf="loadingCatalogsFailed" class="alert alert-danger mb-0">_#(common.asset.dataError)</div>
+              <div *ngIf="loadingCatalogsFailed" class="shell-alert shell-alert--danger mb-0">_#(common.asset.dataError)</div>
             </div>
           </ng-template>
         </div>
 
         <fieldset class="xmla-checkbox-group">
-          <div class="form-check form-group">
+          <div class="form-check shell-form-group">
             <input type="checkbox" id="required" class="form-check-input"
                    formControlName="requiresLogin">
             <label class="form-check-label" for="required">
               _#(Requires Login)
             </label>
           </div>
-          <div *ngIf="model.credentialVisible" class="form-check form-group">
+          <div *ngIf="model.credentialVisible" class="form-check shell-form-group">
             <input type="checkbox" id="useCredential" class="form-check-input"
                    formControlName="useCredential">
             <label class="form-check-label" for="useCredential">
@@ -124,19 +124,19 @@
 
         <fieldset class="xmla-auth-grid">
           <ng-container *ngIf="model.credentialVisible && form.get('useCredential').value">
-            <div class="form-group form-floating">
+            <div class="shell-form-group form-floating">
               <input type="text" name="credentialId" class="form-control" formControlName="credentialId">
               <label><span>_#(Secret ID)</span></label>
               <span class="invalid-feedback"></span>
             </div>
           </ng-container>
           <ng-container *ngIf="!model.credentialVisible || !form.get('useCredential').value">
-            <div class="form-group form-floating">
+            <div class="shell-form-group form-floating">
               <input type="text" name="userName" class="form-control" formControlName="user">
               <label><span>_#(User ID)</span></label>
               <span class="invalid-feedback"></span>
             </div>
-            <div class="form-group form-floating">
+            <div class="shell-form-group form-floating">
               <input type="password" name="password" class="form-control" formControlName="password">
               <label><span>_#(Password)</span></label>
             </div>
@@ -166,7 +166,7 @@
           </button>
         </div>
       </div>
-      <div class="cube-tree bordered-box bd-gray bordered-box-lg position-relative">
+      <div class="cube-tree bordered-box bordered-box-lg position-relative">
         <tree *ngIf="cubeTree" [showRoot]="false" [root]="cubeTree" [multiSelect]="false"
               [fillHeight]="true" [iconFunction]="getCSSIcon" (nodesSelected)="selectedNode($event)">
         </tree>
@@ -184,7 +184,7 @@
           </div>
         </div>
         <div class="xmla-format-section">
-          <div class="form-check form-group xmla-inline-check">
+          <div class="form-check shell-form-group xmla-inline-check">
             <input type="checkbox" id="asDate" class="form-check-input flex-shrink-0"
                    [ngModel]="selectedCubeNode?.member?.metaInfo?.asDate"
                    (ngModelChange)="changeAsDate()"
@@ -194,7 +194,7 @@
             </label>
           </div>
 
-          <div class="form-group form-floating" #patternInput>
+          <div class="shell-form-group form-floating" #patternInput>
             <input type="text" name="pattern" class="form-control" autocomplete="off"
                    [fixedDropdown]="localeList" dropdownPlacement="bottom"
                    [disabledSelfAction]="true" [id]="'localList'"
@@ -219,7 +219,7 @@
           </ng-template>
 
           <div class="xmla-inline-form-row">
-            <div class="form-group form-floating xmla-inline-form-row__field">
+            <div class="shell-form-group form-floating xmla-inline-form-row__field">
               <input type="text" name="pattern" class="form-control"
                      [disabled]="!selectedDimensionMember || !selectedCubeNode?.member?.metaInfo?.asDate"
                      [ngModel]="selectedCubeNode?.member?.metaInfo?.datePattern"
@@ -242,7 +242,7 @@
           </div>
         </div>
         <div class="xmla-format-section">
-          <div class="form-group form-floating">
+          <div class="shell-form-group form-floating">
             <dropdown-view #formatDropdown [disabled]="!!!selectedCubeNode?.member"
                            [label]="formatString" (closed)="updateFormatString()">
               <attribute-formatting-pane
@@ -253,7 +253,7 @@
             </dropdown-view>
             <label><span>_#(Format)</span></label>
           </div>
-          <div class="form-group">
+          <div class="shell-form-group">
             <div class="input-group">
               <div class="form-floating">
                 <input type="text" class="form-control" [readOnly]="true"

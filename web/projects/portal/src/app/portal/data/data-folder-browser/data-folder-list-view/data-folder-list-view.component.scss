@@ -26,6 +26,10 @@
     min-width: 300px;
   }
 
+  .th-cell-border.list-contents {
+    padding-block: 2px;
+  }
+
   .content-ellipse {
     white-space: nowrap;
     overflow: hidden;
@@ -90,8 +94,13 @@
 
   .hover-bg-primary.folder-list-item {
     cursor: default !important;
-    padding-top: 3px;
-    padding-bottom: 3px;
+    padding-top: 4px;
+    padding-bottom: 4px;
+    transition: background-color 120ms ease, color 120ms ease;
+  }
+
+  .folder-list-item.bg-selected {
+    background-color: var(--inet-list-selected-bg-color);
   }
 
   .list-label {
@@ -109,5 +118,13 @@
     display: flex;
     justify-content: flex-end;
     margin-left: auto;
+  }
+
+  .d-flex.flex-column.align-items-stretch.flex-grow-1.flex-shrink-1.overflow-auto.list-contents {
+    background-color: var(--inet-list-bg-color);
+    border: 1px solid var(--inet-list-border-color);
+    border-top: 0;
+    border-bottom-left-radius: var(--inet-radius-md);
+    border-bottom-right-radius: var(--inet-radius-md);
   }
 }

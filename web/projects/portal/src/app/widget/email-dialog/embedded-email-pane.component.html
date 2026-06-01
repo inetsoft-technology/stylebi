@@ -16,7 +16,7 @@
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
 <form [formGroup]="emailForm" class="container-fluid">
-  <div class="form-row-float-label row">
+  <div class="row shell-form-row--field">
     <div class="col">
       <w-shuffle-list>
         <div shuffleLeft>
@@ -29,7 +29,7 @@
               <i class="search-icon" aria-hidden="true"></i>
             </button>
           </div>
-          <div class="bordered-box bd-gray bordered-box-lg mt-1">
+          <div class="bordered-box bordered-box-lg mt-1 email-picker-surface">
             <identity-tree #identityTree [hidden]="searchMode" [root]="model.rootTree"
                            [showRoot]="showRoot" [searchMode]="searchMode"
                            [isBurst]="!embeddedOnly"
@@ -66,10 +66,10 @@
               <i class="search-icon" aria-hidden="true"></i>
             </button>
           </div>
-          <div class="bordered-box bd-gray bordered-box-lg mt-1"
+          <div class="bordered-box bordered-box-lg mt-1 email-picker-surface email-picker-surface--list"
                tabindex="0" role="list" aria-label="_#(Users)" (keyup)="focus($event)">
             <ng-container *ngFor="let _identity of searchAllIdentities()">
-              <div class="unhighlightable d-flex align-items-center force-focus-highlight"
+              <div class="unhighlightable d-flex align-items-center force-focus-highlight email-picker-list__item"
                    (click)="select(_identity, $event)"
                    [class.selected]="isSelectedIdentity(_identity)"
                    role="listitem" [attr.aria-label]="_identity.alias || _identity.identityID" tabindex="-1" enterClick [hasKeys]="true"
@@ -99,7 +99,7 @@
           </div>
         </div>
         <div shuffleRight *ngIf="!embeddedOnly">
-          <table class="table table-sm table-bordered user-email-table" wScrollableTable>
+          <table class="table table-hover table-sm table-bordered user-email-table" wScrollableTable>
             <thead class="thead-default">
               <tr>
                 <th>_#(User)</th>

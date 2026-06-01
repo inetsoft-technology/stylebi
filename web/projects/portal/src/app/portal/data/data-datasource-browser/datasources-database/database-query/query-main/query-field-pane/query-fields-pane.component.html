@@ -58,7 +58,7 @@
   </div>
   <div class="query-fields-pane__body">
     <div class="query-fields-pane__column">
-      <div class="bordered-box bd-gray"
+      <div class="bordered-box query-fields-pane__surface"
            (dragover)="$event.preventDefault()"
            (drop)="drop($event, true)">
         <tree *ngIf="databaseFieldsTree" [root]="databaseFieldsTree"
@@ -89,7 +89,7 @@
       </button>
     </div>
     <div class="query-fields-pane__column query-fields-pane__column--details">
-      <div class="bordered-box-right-top bd-gray field-list"
+      <div class="bordered-box-right-top field-list query-fields-pane__surface query-fields-pane__surface--list"
            (dragover)="$event.preventDefault()"
            (drop)="drop($event)">
         <ng-container *ngIf="model && model.fields">
@@ -97,7 +97,8 @@
                [title]="field.name" [draggable]="true"
                (mousedown)="selectField($event, i)"
                (dblclick)="removeField(i)"
-               [class.selected]="isSelectedField(i)">
+               [class.selected]="isSelectedField(i)"
+               [attr.title]="field.name">
             <div class="field-label">{{ field.name }}</div>
             <div class="field-icons">
               <span *ngIf="field.drillInfo?.paths?.length > 0" class="icon-size-small drill-up-icon"></span>
@@ -107,12 +108,12 @@
         </ng-container>
       </div>
       <div class="bordered-box-right-bottom" *ngIf="!!selectedField">
-        <div class="form-group form-floating">
+        <div class="shell-form-group form-floating">
           <input type="text" class="form-control"
                  [ngModel]="selectedField.alias" (change)="updateAlias($event)"/>
           <label><span>_#(Field Alias)</span></label>
         </div>
-         <div class="form-group form-floating">
+         <div class="shell-form-group form-floating">
            <dropdown-view #formatDropdown [label]="formatString" (closed)="updateFormat()">
               <attribute-formatting-pane *ngIf="!!selectedField.format"
                                          [formatModel]="selectedField.format"
@@ -121,7 +122,7 @@
            </dropdown-view>
            <label><span>_#(Format)</span></label>
         </div>
-        <div class="form-group input-group">
+        <div class="shell-form-group input-group">
           <div class="form-floating">
             <input type="text" class="form-control" [ngModel]="drillString()" [readOnly]="true"
                    [ngModelOptions]="{standalone: true}"/>

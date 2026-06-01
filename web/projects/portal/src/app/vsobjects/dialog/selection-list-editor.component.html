@@ -16,17 +16,17 @@
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
 <form ngNoForm (submit)="$event.preventDefault()">
-  <div class="form-row">
+  <div class="shell-form-row">
     <div class="col">
-      <div class="bordered-box bd-gray">
-        <div [class.selected]="localTable == model.tables[i]" (click)="selectTable(i)"
+      <div class="bordered-box selection-list-editor__surface">
+        <div class="selection-list-editor__item" [class.selected]="localTable == model.tables[i]" (click)="selectTable(i)"
              *ngFor="let localizedTables of model.localizedTables; let i = index">
           <div [title]="getToolTip(i)">{{localizedTables}}</div>
         </div>
       </div>
     </div>
     <div class="col">
-      <div class="form-row-float-label">
+      <div class="shell-form-row--field">
         <div class="form-floating">
           <custom-select [(ngModel)]="localColumn"
                          [options]="columnOptions"
@@ -35,7 +35,7 @@
           <label>_#(Label)</label>
         </div>
       </div>
-      <div class="form-row-float-label">
+      <div class="shell-form-row--field">
         <div class="form-floating">
           <custom-select [(ngModel)]="localValue"
                          [options]="columnOptions"

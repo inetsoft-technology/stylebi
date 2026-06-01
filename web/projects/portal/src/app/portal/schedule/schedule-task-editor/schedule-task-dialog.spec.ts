@@ -34,6 +34,7 @@ import { EditableTableComponent } from "./editable-table/editable-table.componen
 import { TaskOptionsPane } from "./options/task-options-pane.component";
 import { ParameterTable } from "./parameter-table/parameter-table.component";
 import { ScheduleTaskDialog } from "./schedule-task-dialog.component";
+import { NumberStepperModule } from "../../../widget/number-stepper/number-stepper.module";
 import { CustomSelectModule } from "../../../widget/custom-select/custom-select.module";
 
 @Component({
@@ -82,7 +83,7 @@ describe("Schedule Task Dialog Unit Test", () => {
    beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule, CustomSelectModule
+            FormsModule, ReactiveFormsModule, NgbModule, CustomSelectModule, NumberStepperModule
          ],
          declarations: [
             TestApp, ReplaceAllPipe, ScheduleTaskDialog, TaskActionPane, TaskConditionPane,
@@ -109,13 +110,13 @@ describe("Schedule Task Dialog Unit Test", () => {
       name.dispatchEvent(new Event("input"));
       fixture.detectChanges();
 
-      let warning = fixture.debugElement.query(By.css("div.alert.alert-danger"));
+      let warning = fixture.debugElement.query(By.css("div.shell-alert--danger"));
       expect(warning).toBeNull();
 
       name.value = "Task4.1%";
       name.dispatchEvent(new Event("input"));
       fixture.detectChanges();
-      let warning0 = fixture.debugElement.query(By.css("div.alert.alert-danger")).nativeElement;
+      let warning0 = fixture.debugElement.query(By.css("div.shell-alert--danger")).nativeElement;
       expect(TestUtils.toString(warning0.textContent.trim())).toBe("vs.basicGeneral.nameCheck");
    });
 });

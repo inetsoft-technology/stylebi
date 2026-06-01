@@ -49,6 +49,7 @@ import { SQLQueryDialogModule } from "../widget/dialog/sql-query-dialog/sql-quer
 import { WidgetDirectivesModule } from "../widget/directive/widget-directives.module";
 import { DropdownViewModule } from "../widget/dropdown-view/dropdown-view.module";
 import { CustomSelectModule } from "../widget/custom-select/custom-select.module";
+import { NumberStepperModule } from "../widget/number-stepper/number-stepper.module";
 import { DynamicComboBoxModule } from "../widget/dynamic-combo-box/dynamic-combo-box.module";
 import { EmailDialogModule } from "../widget/email-dialog/email-dialog.module";
 import { ExpandStringModule } from "../widget/expand-string/expand-string.module";
@@ -345,6 +346,7 @@ import { PortalTabsService } from "./services/portal-tabs.service";
       MouseEventModule,
       WidgetScheduleModule,
       CustomSelectModule,
+      NumberStepperModule,
       GenericSelectableListModule,
       DropdownViewModule,
       ExpandStringModule,

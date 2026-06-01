@@ -17,7 +17,8 @@
   -->
 <div class="texture-pane m-2">
    <div *ngFor="let t of textures; let i = index" (click)="selectTexture(t)"
-        [class.bd-gray]="isSelectTexture(t)">
+        class="static-texture-pane__item"
+        [class.static-texture-pane__item--selected]="isSelectTexture(t)">
      <texture-item [texture]="t"></texture-item>
    </div>
 </div>

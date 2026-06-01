@@ -82,6 +82,12 @@ export class TabularNumberEditor implements OnInit, OnChanges {
 
    ngOnChanges(changes: SimpleChanges): void {
       if(this.valueControl) {
+         if(changes["value"] && !changes["value"].firstChange) {
+            if(this.valueControl.pristine) {
+               this.valueControl.setValue(this.value, {emitEvent: false});
+            }
+         }
+
          if(changes["enabled"]) {
             if(this.enabled) {
                this.valueControl.enable();
@@ -93,13 +99,21 @@ export class TabularNumberEditor implements OnInit, OnChanges {
       }
    }
 
+   onStepperChange(value: number): void {
+      this.valueControl.markAsDirty();
+      this.valueChanged();
+   }
+
    valueChanged() {
-      if(this.valueControl.pristine || this.lastValue !== this.value) {
-         this.lastValue = this.value;
+      const currentValue = this.valueControl.value;
+
+      if(this.valueControl.pristine || this.lastValue !== currentValue) {
+         this.lastValue = currentValue;
          this.validChange.emit(this.valueControl.valid || !this.enabled);
 
          if(this.valueControl.dirty) {
-            this.valueChange.emit(this.value);
+            this.valueChange.emit(currentValue);
+            this.valueControl.markAsPristine();
          }
       }
    }

@@ -18,10 +18,10 @@
 <modal-header [title]="'_#(Presenter)'" (onCancel)="cancel()" [cshid]="'Presenter'">
 </modal-header>
 <div class="modal-body container-fluid" *ngIf="model">
-  <ng-container *ngFor="let descriptor of model.descriptors; let i = index">
-    <div class="form-group row">
-      <label class="col-3">{{descriptor.displayName}}:</label>
-      <div class="col-9 descriptor-div">
+  <div class="presenter-fields">
+    <ng-container *ngFor="let descriptor of model.descriptors; let i = index">
+      <label class="text-nowrap mb-0">{{descriptor.displayName}}:</label>
+      <div class="descriptor-div">
         <ng-container [ngSwitch]="descriptor.editor">
           <ng-container *ngSwitchCase="'LinePropertyEditor'">
             <style-dropdown [(style)]="descriptor.value" [isPresenter]="true"></style-dropdown>
@@ -31,10 +31,12 @@
                    type="checkbox" [(ngModel)]="descriptor.value">
           </ng-container>
           <ng-container *ngSwitchCase="'IntPropertyEditor'">
-            <input class="form-control" type="number" [(ngModel)]="descriptor.value">
+            <number-stepper [(ngModel)]="descriptor.value">
+            </number-stepper>
           </ng-container>
           <ng-container *ngSwitchCase="'DoublePropertyEditor'">
-            <input class="form-control" type="number" [(ngModel)]="descriptor.value">
+            <number-stepper [(ngModel)]="descriptor.value" [inputmode]="'decimal'">
+            </number-stepper>
           </ng-container>
           <ng-container *ngSwitchCase="'FontPropertyEditor'">
             <font-pane [fontModel]="descriptor.value"></font-pane>
@@ -45,14 +47,16 @@
             </color-editor>
           </ng-container>
           <ng-container *ngSwitchCase="'SizePropertyEditor'">
-            <div class="input-group">
-              <div class="form-floating">
-                <input type="number" class="form-control" [(ngModel)]="descriptor.width">
-                <label>_#(Width)</label>
+            <div class="d-flex gap-2">
+              <div class="d-flex flex-column">
+                <label class="form-label">_#(Width)</label>
+                <number-stepper [(ngModel)]="descriptor.width">
+                </number-stepper>
               </div>
-              <div class="form-floating">
-                <input type="number" class="form-control" [(ngModel)]="descriptor.height">
-                <label>_#(Height)</label>
+              <div class="d-flex flex-column">
+                <label class="form-label">_#(Height)</label>
+                <number-stepper [(ngModel)]="descriptor.height">
+                </number-stepper>
               </div>
             </div>
           </ng-container>
@@ -89,8 +93,8 @@
           </ng-container>
         </ng-container>
       </div>
-    </div>
-  </ng-container>
+    </ng-container>
+  </div>
 </div>
 <div class="modal-footer">
   <button type="button" class="btn btn-primary" (click)="ok()">_#(OK)</button>

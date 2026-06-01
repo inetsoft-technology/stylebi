@@ -31,8 +31,8 @@
 
 .editable-table-shell {
   margin-bottom: 0;
-  border: 1px solid var(--inet-border-color);
-  border-radius: 4px;
+  border: 1px solid var(--inet-table-border-color);
+  border-radius: var(--inet-radius-md);
   border-collapse: separate;
   border-spacing: 0;
   overflow: hidden;
@@ -40,11 +40,11 @@
 }
 
 .editable-table-shell thead th {
-  background-color: var(--inet-toolbar-bg-color);
-  border-bottom: 1px solid var(--inet-border-color);
-  font-size: 11px;
+  background-color: var(--inet-table-heading-bg-color);
+  border-bottom: 1px solid var(--inet-table-border-color);
+  color: var(--inet-table-heading-text-color);
   font-weight: 600;
-  padding: 8px 10px;
+  padding: var(--inet-space-3) var(--inet-space-4);
 }
 
 .editable-table-shell tbody tr {
@@ -52,12 +52,16 @@
 }
 
 .editable-table-shell tbody tr:hover td {
-  background-color: var(--inet-ui-neutral-hover-bg-color);
+  background-color: var(--inet-table-hover-bg-color);
+}
+
+.editable-table-shell tbody tr.selected td {
+  background-color: var(--inet-table-selected-bg-color);
 }
 
 .editable-table-shell tbody td {
-  padding: 8px 10px;
-  border-top: 1px solid var(--inet-border-color);
+  padding: var(--inet-space-3) var(--inet-space-4);
+  border-top: 1px solid var(--inet-table-border-color);
 }
 
 .editable-table-shell tbody tr:first-child td {

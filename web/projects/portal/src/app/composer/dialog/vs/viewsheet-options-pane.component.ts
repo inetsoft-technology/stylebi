@@ -39,6 +39,7 @@ import { LocalStorage } from "../../../common/util/local-storage.util";
 @Component({
    selector: "viewsheet-options-pane",
    templateUrl: "viewsheet-options-pane.component.html",
+   styleUrls: ["./viewsheet-options-pane.component.scss"],
    providers: [{
       provide: ContextProvider,
       useFactory: ComposerContextProviderFactory

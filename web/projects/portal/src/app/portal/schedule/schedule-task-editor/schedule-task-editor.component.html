@@ -17,7 +17,7 @@
   -->
 <div class="schedule-task-editor-shell" *ngIf="!!model">
   <form [formGroup]="form">
-    <div class="form-row-float-label row schedule-task-editor-shell__name-row">
+    <div class="row schedule-task-editor-shell__name-row">
       <div class="col form-floating">
           <input type="text" class="form-control" id="taskName"
                  [attr.disabled]="model.internalTask ? '' : null"

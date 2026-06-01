@@ -24,6 +24,16 @@
   align-items: center;
   gap: var(--inet-space-1);
   min-height: 28px;
+  border-radius: var(--inet-radius-sm);
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.physical-table-tree-node__row:hover:not(.light-gray-bg):not(.physical-table-tree-node__row--selected) {
+  background: var(--inet-list-hover-bg-color);
+}
+
+.physical-table-tree-node__row--selected {
+  background: var(--inet-list-selected-bg-color);
 }
 
 .physical-table-tree-node__toggle {

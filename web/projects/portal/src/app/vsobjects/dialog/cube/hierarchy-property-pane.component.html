@@ -19,7 +19,7 @@
   <div class="row">
     <div class="col container-fluid">
       <legend>_#(Columns)</legend>
-      <div class="bordered-box bd-gray bordered-box-md"
+      <div class="bordered-box bordered-box-md hierarchy-property-pane__surface"
            outOfZone (onDragover)="allowDrop($event)"
            (drop)="columnDrop($event)">
         <div draggable="true" (dragstart)="columnDragStart($event, columnRef, i)"
@@ -34,7 +34,7 @@
     </div>
     <div class="col container-fluid">
       <legend>_#(Hierarchy)</legend>
-      <div class="bordered-box bd-gray bordered-box-md hierarchy-content-list"
+      <div class="bordered-box bordered-box-md hierarchy-content-list hierarchy-property-pane__surface"
            (dragleave)="contentDragLeave($event)">
         <div class="col-12 px-0"
              outOfZone (onDragover)="allowDrop($event)"

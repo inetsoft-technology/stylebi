@@ -28,6 +28,7 @@ import { CustomSelectModule } from "../../widget/custom-select/custom-select.mod
 import { DateEditor } from "./date-editor.component";
 import { FloatEditor } from "./float-editor.component";
 import { IntegerEditor } from "./integer-editor.component";
+import { NumberStepperModule } from "../../widget/number-stepper/number-stepper.module";
 import { TextEditor } from "./text-editor.component";
 
 describe("Column option dialog Test", () => {
@@ -46,7 +47,7 @@ describe("Column option dialog Test", () => {
    beforeEach(() => {
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule, CustomSelectModule
+            FormsModule, ReactiveFormsModule, NgbModule, CustomSelectModule, NumberStepperModule
          ],
          declarations: [
             ColumnOptionDialog, TextEditor, DateEditor, ComboBoxEditor,
@@ -76,7 +77,7 @@ describe("Column option dialog Test", () => {
       fixture.detectChanges();
 
       let okBtn = fixture.debugElement.query(By.css("button.btn.btn-primary")).nativeElement;
-      let warning = fixture.debugElement.query(By.css("div.alert.alert-danger")).nativeElement;
+      let warning = fixture.debugElement.query(By.css("div.shell-alert--danger")).nativeElement;
 
       expect(okBtn.hasAttribute("disabled")).toBeTruthy();
       expect(warning.textContent).toContain(
@@ -87,7 +88,7 @@ describe("Column option dialog Test", () => {
       fixture.detectChanges();
 
       okBtn = fixture.debugElement.query(By.css("button.btn.btn-primary")).nativeElement;
-      warning = fixture.debugElement.query(By.css("div.alert.alert-danger"));
+      warning = fixture.debugElement.query(By.css("div.shell-alert--danger"));
       expect(okBtn.hasAttribute("disabled")).toBeFalsy();
       expect(warning).toBeNull();
    });

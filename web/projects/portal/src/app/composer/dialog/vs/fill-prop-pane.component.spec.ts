@@ -32,6 +32,7 @@ import { TreeNodeComponent } from "../../../widget/tree/tree-node.component";
 import { TreeSearchPipe } from "../../../widget/tree/tree-search.pipe";
 import { TreeComponent } from "../../../widget/tree/tree.component";
 import { FillPropPaneModel } from "../../data/vs/fill-prop-pane-model";
+import { NumberStepperModule } from "../../../widget/number-stepper/number-stepper.module";
 import { FillPropPane } from "./fill-prop-pane.component";
 import { DebounceService } from "../../../widget/services/debounce.service";
 
@@ -50,7 +51,7 @@ describe("fill prop pane unit case: ", () => {
 
    beforeEach(() => {
       TestBed.configureTestingModule({
-         imports: [DropDownTestModule, ReactiveFormsModule, FormsModule, NgbModule],
+         imports: [DropDownTestModule, ReactiveFormsModule, FormsModule, NgbModule, NumberStepperModule],
          declarations: [AlphaDropdown, FillPropPane, DynamicComboBox, ColorEditor, ColorPicker, ColorPane, TreeComponent, TreeNodeComponent, TreeDropdownComponent, TreeSearchPipe, TooltipDirective],
          providers: [DebounceService],
          schemas: [NO_ERRORS_SCHEMA]

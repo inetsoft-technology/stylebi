@@ -29,17 +29,17 @@
         <div *ngIf="nameControl.valid" [style.height.px]="15"> </div>
         <div *ngIf="nameControl.errors">
           <div *ngIf="nameControl.errors['required']"
-               class="alert alert-danger">_#(viewer.nameValid)</div>
+               class="shell-alert shell-alert--danger">_#(viewer.nameValid)</div>
           <div *ngIf="nameControl.errors['notWhiteSpace']"
-               class="alert alert-danger">_#(viewer.notWhiteSpace)</div>
+               class="shell-alert shell-alert--danger">_#(viewer.notWhiteSpace)</div>
           <div *ngIf="nameControl.errors['calcSpecialCharacters']"
-               class="alert alert-danger">_#(formula.editor.charValid)</div>
+               class="shell-alert shell-alert--danger">_#(formula.editor.charValid)</div>
         </div>
       </div>
     </div>
   </form>
   <form ngNoForm class="container-fluid" (submit)="$event.preventDefault()">
-    <div class="form-row-float-label row">
+    <div class="shell-form-row--field row">
       <div class="col-9 form-floating">
         <input #input type="number" class="form-control" [(ngModel)]="rangeValue"
                title="_#(Column): {{baseColumn}}"

@@ -17,7 +17,7 @@
   -->
 <div class="container top-pane" *ngIf="cellBinding" outOfZone (onKeydown)="checkDeleteKey($event)">
   <fieldset [disabled]="!cellSelected">
-    <div class="row form-row-float-label">
+    <div class="row shell-form-row--field">
       <div class="col form-floating">
         <custom-select [options]="valueOptions"
                        [(ngModel)]="columnValue"
@@ -31,7 +31,7 @@
         <label><span>_#(Cell Name)</span></label>
       </div>
     </div>
-    <div class="row form-row-float-label">
+    <div class="row shell-form-row--field">
       <div class="col-5 group_check_id">
         <div class="form-check">
           <input type="checkbox" class="form-check-input" [ngModel]="isGroup" id="group"
@@ -63,7 +63,7 @@
         <label><span>_#(Row Group)</span></label>
       </div>
     </div>
-    <div class="row form-row-float-label">
+    <div class="row shell-form-row--field">
       <div class="col-5 summary_check_id">
         <div class="form-check">
           <input type="checkbox" class="form-check-input" [ngModel]="isSum" id="summarize"
@@ -94,7 +94,7 @@
         <label><span>_#(Column Group)</span></label>
       </div>
     </div>
-    <div class="row form-row-checkbox">
+    <div class="shell-form-row shell-form-row--checkbox">
       <div class="col-3">
         <div class="form-check">
           <input type="checkbox" class="form-check-input" [ngModel]="expansionModel"
@@ -123,7 +123,7 @@
         </div>
       </div>
     </div>
-    <div class="row form-row-float-label fromula_id">
+    <div class="row shell-form-row--field fromula_id">
       <div class="col-2">
         <div class="form-check">
           <input type="radio" class="form-check-input" id="formula" value="3"
@@ -143,7 +143,7 @@
                 (click)="openFormulaEdit()">_#(Edit)</button>
       </div>
     </div>
-    <div class="row form-row-float-label text_id">
+    <div class="row shell-form-row--field text_id">
       <div class="col-2">
         <div class="form-check">
           <input type="radio" class="form-check-input" id="text" value="1"

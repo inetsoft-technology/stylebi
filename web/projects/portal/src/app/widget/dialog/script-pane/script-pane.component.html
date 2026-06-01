@@ -17,11 +17,11 @@
   -->
 <div class="script-pane" [class.flex-col-container]="fullContainer">
   <div class="script-pane__layout" [class.flex-col-container]="fullContainer">
-    <div class="script-pane__trees form-row-float-label">
+    <div class="script-pane__trees shell-form-row--field">
       <div class="script-pane__tree-pane script-pane__tree-pane--column"
            *ngIf="columnTreeRoot && columnTreeEnabled"
            [class.script-pane__tree-pane--split]="columnTreeRoot && columnTreeEnabled && functionOperatorTreeRoot">
-        <div class="bordered-box bd-gray column-tree"
+        <div class="bordered-box column-tree script-pane__tree-surface"
              [class.grayed-out-field]="!columnTreeEnabled"
              [class.disable-actions]="!columnTreeEnabled">
           <virtual-scroll-tree [disabled]="disabled"
@@ -40,7 +40,7 @@
       <div class="script-pane__tree-pane script-pane__tree-pane--function"
            *ngIf="functionOperatorTreeRoot"
            [class.script-pane__tree-pane--split]="columnTreeRoot && columnTreeEnabled && functionOperatorTreeRoot">
-        <div class="bordered-box bd-gray function-tree"
+        <div class="bordered-box function-tree script-pane__tree-surface"
              [class.grayed-out-field]="!functionTreeEnabled"
              [class.disable-actions]="!functionTreeEnabled">
           <tree [disabled]="disabled" [root]="functionOperatorTreeRoot"
@@ -74,7 +74,9 @@
     </div>
     <div class="script-pane__editor-shell" [class.stretch-empty]="fullContainer" outOfZone
          (onKeydown)="blockKeys($event)" (contextmenu)="rightClick($event)">
-      <div #scriptEditorContainer class="script-pane__editor bd-gray" [class.full-container]="fullContainer">
+      <div #scriptEditorContainer class="script-pane__editor script-pane__editor-surface"
+           [class.full-container]="fullContainer"
+           [class.grayed-out-field]="disabled">
         <textarea #scriptEditor></textarea>
       </div>
     </div>
@@ -82,11 +84,11 @@
       <div #scriptHelp2 [innerHTML]="'_#(composer.vs.scriptHelp2)'"></div>
     </div>
   </div>
-  <div *ngIf="expressionMissing" class="alert alert-danger"
+  <div *ngIf="expressionMissing" class="shell-alert shell-alert--danger"
        [class.stretch-empty]="fullContainer">
     <strong>_#(Error)</strong> _#(common.condition.expressionNull)
   </div>
-  <div *ngIf="returnError" class="alert alert-danger"
+  <div *ngIf="returnError" class="shell-alert shell-alert--danger"
        [class.stretch-empty]="fullContainer">
     _#(common.condition.scriptReturnWarning)
   </div>

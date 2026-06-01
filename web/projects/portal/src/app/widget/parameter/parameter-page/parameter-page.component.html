@@ -21,8 +21,8 @@
   </div>
   <div class="row g-0 flex-grow-1 flex-shrink-1 overflow-hidden" [class.border-bottom]="!isDialog">
     <div class="col-md-2 col-lg-3 report-description-container border-right d-flex flex-column align-items-stretch overflow-hidden h-100" *ngIf="sidePaneVisible">
-      <div class="report-description mb-3 pe-2 pt-3 flex-grow-1 flex-shrink-1 text-left align-top">{{pageModel.reportDesc}}</div>
-      <div class="parameter-footer border-top py-3 pe-2 flex-grow-0 flex-shrink-0 text-left align-top" *ngIf="pageModel.footerText">{{pageModel.footerText}}</div>
+      <div class="report-description mb-3 pe-2 pt-3 flex-grow-1 flex-shrink-1 text-start align-top">{{pageModel.reportDesc}}</div>
+      <div class="parameter-footer border-top py-3 pe-2 flex-grow-0 flex-shrink-0 text-start align-top" *ngIf="pageModel.footerText">{{pageModel.footerText}}</div>
     </div>
     <div class="ps-3 pe-2 report-parameters-row overflow-hidden overflow-hidden h-100" [ngClass]="formWidthClasses">
       <div class="report-parameters container-fluid pb-3 h-100">
@@ -31,7 +31,7 @@
             <ng-container *ngIf="pageModel.params">
               <ng-container *ngFor="let param of pageModel.params">
                 <ng-container [ngSwitch]="param.type">
-                  <div class="form-row-checkbox form-row" *ngSwitchCase="'BooleanParameter'">
+                  <div class="shell-form-row shell-form-row--checkbox" *ngSwitchCase="'BooleanParameter'">
                     <div class="col-auto">
                       <div class="form-check">
                         <input type="checkbox" class="form-check-input" [(ngModel)]="param.value" [attr.aria-label]="!!param.alias ? param.alias : param.name"/>
@@ -39,9 +39,9 @@
                       </div>
                     </div>
                   </div>
-                  <div class="form-row-float-label form-row" *ngSwitchCase="'RadioParameter'">
+                  <div class="shell-form-row--field form-row" *ngSwitchCase="'RadioParameter'">
                     <div class="col-12">
-                      <fieldset class="float-title bd-gray mt-0">
+                      <fieldset class="float-title mt-0 parameter-page__choice-group">
                         <legend>{{!!param.alias ? param.alias : param.name}}</legend>
                         <div class="container">
                           <div class="row justify-content-start">
@@ -56,9 +56,9 @@
                       </fieldset>
                     </div>
                   </div>
-                  <div class="form-row-float-label form-row" *ngSwitchCase="'OptionParameter'">
+                  <div class="shell-form-row--field form-row" *ngSwitchCase="'OptionParameter'">
                     <div class="col-12">
-                      <fieldset class="float-title bd-gray mt-0">
+                      <fieldset class="float-title mt-0 parameter-page__choice-group">
                         <legend>{{!!param.alias ? param.alias : param.name}}</legend>
                         <div class="container">
                           <div class="row justify-content-start">
@@ -73,14 +73,14 @@
                       </fieldset>
                     </div>
                   </div>
-                  <div class="form-row-float-label form-row" *ngSwitchCase="'SimpleParameter'">
+                  <div class="shell-form-row--field form-row" *ngSwitchCase="'SimpleParameter'">
                     <div class="form-floating col-12">
                       <input type="text" class="form-control" [(ngModel)]="param.value" [class.is-invalid]="!isValidDecimal(param)"/>
                       <label>{{!!param.alias ? param.alias : param.name}}</label>
                       <span class="invalid-feedback">_#(valid.decimal.date.format)</span>
                     </div>
                   </div>
-                  <div class="form-row-float-label form-row" *ngSwitchDefault>
+                  <div class="shell-form-row--field form-row" *ngSwitchDefault>
                     <div class="form-floating col-12">
                       <input type="password" class="form-control" [(ngModel)]="param.value" *ngIf="param.type === 'PasswordParameter'"/>
                       <div class="input-group input-with-actions" *ngIf="param.type === 'DateParameter' || param.type === 'TimeParameter' || param.type === 'DateTimeParameter'">

@@ -25,6 +25,7 @@ import { SizePositionPane } from "../../../vsobjects/dialog/size-position-pane.c
 import { TitlePropPane } from "../../../vsobjects/dialog/title-prop-pane.component";
 import { SelectionGeneralPaneModel } from "../../data/vs/selection-general-pane-model";
 import { SelectionGeneralPane } from "./selection-general-pane.component";
+import { NumberStepperModule } from "../../../widget/number-stepper/number-stepper.module";
 import { TestUtils } from "../../../common/test/test-utils";
 
 let createModel: () => SelectionGeneralPaneModel = () => {
@@ -68,7 +69,7 @@ describe("Selection General Pane Unit Tests", () => {
    beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
-            NgbModule, FormsModule, ReactiveFormsModule
+            NgbModule, FormsModule, ReactiveFormsModule, NumberStepperModule
          ],
          declarations: [
             SelectionGeneralPane, GeneralPropPane, TitlePropPane, SizePositionPane
@@ -91,12 +92,10 @@ describe("Selection General Pane Unit Tests", () => {
       dropdownBtn.click();
       fixture.detectChanges();
 
-      let height = fixture.debugElement.query(By.css("input#listHeight")).nativeElement;
-      height.value = "-2";
-      height.dispatchEvent(new Event("input"));
+      selectGeneralPane.form.get("listHeight").setValue(-2);
       fixture.detectChanges();
 
-      let warnings = fixture.debugElement.query(By.css("div.alert.alert-danger")).nativeElement;
+      let warnings = fixture.debugElement.query(By.css("div.shell-alert--danger")).nativeElement;
       expect(TestUtils.toString(warnings.textContent)).toBe("height.positive.nonZero");
    });
 });

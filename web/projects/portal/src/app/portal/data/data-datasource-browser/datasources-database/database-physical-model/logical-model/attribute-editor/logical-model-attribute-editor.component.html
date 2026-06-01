@@ -16,7 +16,7 @@
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
 <form [formGroup]="form" class="logical-model-attribute-editor">
-  <div class="form-group form-floating logical-model-attribute-editor__first-field">
+  <div class="shell-form-group form-floating logical-model-attribute-editor__first-field">
     <input type="text" class="form-control"
            formControlName="name"
            [class.is-invalid]="nameControl.invalid">
@@ -28,7 +28,7 @@
       _#(data.logicalmodel.attributeNameDuplicate)
     </span>
   </div>
-  <div class="form-group form-floating">
+  <div class="shell-form-group form-floating">
     <textarea type="text"
               class="form-control"
               [disabled]="!editable"
@@ -36,7 +36,7 @@
               [ngModelOptions]="{standalone: true}"></textarea>
     <label><span>_#(Description)</span></label>
   </div>
-  <div class="form-group form-floating">
+  <div class="shell-form-group form-floating">
     <custom-select [options]="dataTypeSelectOptions"
                    [ngModel]="attribute.dataType"
                    formControlName="dataType"
@@ -48,7 +48,7 @@
       _#(data.logicalmodel.attribute.dataTypeRequired)
     </span>
   </div>
-  <div class="form-group form-floating">
+  <div class="shell-form-group form-floating">
     <tree-dropdown class="logical-model-attribute-editor__physical-column-select"
                    [root]="columnsTree" [selected]="selectedNode?.data?.qualifiedName"
                    [isDisabled]="isExpression || !editable"
@@ -58,7 +58,7 @@
                    (nodeSelected)="selectPhysicalColumn($event)"></tree-dropdown>
     <label><span>_#(Physical Column)</span></label>
   </div>
-  <div class="form-group form-floating">
+  <div class="shell-form-group form-floating">
     <dropdown-view #formatDropdown [label]="formatString" [disabled]="!editable"
                    (closed)="getFormatString()">
       <attribute-formatting-pane [formatModel]="attribute.format"
@@ -67,7 +67,7 @@
     </dropdown-view>
     <label><span>_#(Format)</span></label>
   </div>
-  <div class="form-group">
+  <div class="shell-form-group">
     <div class="input-group">
       <div class="form-floating">
         <input type="text" class="form-control" [ngModel]="drillString" [readOnly]="true"
@@ -81,7 +81,7 @@
       </button>
     </div>
   </div>
-  <div class="form-group form-floating" #dropdown="ngbDropdown" ngbDropdown [autoClose]="'outside'">
+  <div class="shell-form-group form-floating" #dropdown="ngbDropdown" ngbDropdown [autoClose]="'outside'">
     <input #referenceTypeTrigger type="text" class="form-control input-dropdown"
            [class.input-dropdown--open]="dropdown.isOpen()"
            [value]="selectedFormulaLabel"
@@ -109,7 +109,7 @@
       </ng-container>
     </div>
   </div>
-  <div class="form-group">
+  <div class="shell-form-group">
     <div class="logical-model-attribute-editor__checkbox-row">
       <label class="logical-model-attribute-editor__checkbox-label">
         <input type="checkbox" class="form-check-input" [(ngModel)]="attribute.browseData" [ngModelOptions]="{standalone: true}"
@@ -118,7 +118,7 @@
       </label>
     </div>
   </div>
-  <div class="form-group" *ngIf="logicalModelParent">
+  <div class="shell-form-group" *ngIf="logicalModelParent">
     <div class="logical-model-attribute-editor__checkbox-row">
       <label class="logical-model-attribute-editor__checkbox-label">
         <input type="checkbox" class="form-check-input" [(ngModel)]="attribute.visible" [ngModelOptions]="{standalone: true}"/>

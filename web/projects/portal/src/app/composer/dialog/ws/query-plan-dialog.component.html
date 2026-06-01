@@ -21,7 +21,7 @@
 </modal-header>
 
 <div class="modal-body" *ngIf="root">
-  <div class="row form-row-float-label">
+  <div class="row shell-form-row--field">
     <div class="col">
       <div class="query-node-container bg-darken1">
         <tree [root]="root" [showRoot]="true" [showTooltip]="true"
@@ -29,7 +29,7 @@
       </div>
     </div>
   </div>
-  <div class="row form-row-float-label">
+  <div class="row shell-form-row--field">
     <div class="col">
       <div class="form-floating">
         <textarea id="queryDescription" class="form-control" placeholder="_#(Description)"

@@ -22,7 +22,7 @@
   </modal-header>
   <div class="modal-body" [enterSubmit]="formValid" (onEnter)="ok()" *ngIf="model">
     <form [formGroup]="form" class="container-fluid">
-      <div class="form-row-float-label row">
+      <div class="shell-form-row--field row">
         <div class="col">
           <div class="d-flex gap-2 align-items-center">
             <button type="button" class="btn btn-secondary" (click)="fileInput.click()">_#(Browse)</button>
@@ -34,7 +34,7 @@
                            [value]="fileUploadProgress" [striped]="true"></ngb-progressbar>
         </div>
       </div>
-      <div class="form-row-float-label row">
+      <div class="shell-form-row--field row">
         <div class="col">
         <div class="form-floating">
           <custom-select id="sheet"
@@ -46,7 +46,7 @@
         </div>
         </div>
       </div>
-      <div class="form-row-float-label row">
+      <div class="shell-form-row--field row">
         <div class="col">
         <div class="form-floating">
           <custom-select id="encoding"
@@ -84,10 +84,10 @@
         </div>
       </div>
       <div *ngIf="form.controls['delimiter'].errors && form.controls['delimiter'].errors['required']"
-           class="alert alert-danger">
+           class="shell-alert shell-alert--danger">
         _#(viewer.worksheet.import.delimiter)
       </div>
-      <div class="form-row-float-label row">
+      <div class="shell-form-row--field row">
         <div class="col-auto">
           <div class="form-check">
             <input type="checkbox" class="form-check-input" id="first-row-tab"
@@ -107,7 +107,7 @@
           </div>
         </div>
       </div>
-      <div class="form-row-float-label row">
+      <div class="shell-form-row--field row">
         <div class="col-auto">
           <div class="form-check">
             <input type="checkbox" class="form-check-input" id="crosstab"
@@ -118,27 +118,28 @@
           </div>
         </div>
         <div class="col-auto">
-          <div class="form-floating">
-          <input type="number" class="form-control" id="header" formControlName="headerCols"
-                 min="0" placeholder="_#(Header Columns)">
-          <label><span>_#(Header Columns)</span></label>
-        </div>
+          <div class="stepper-float-label">
+            <span class="stepper-float-label__text">_#(Header Columns)</span>
+            <number-stepper formControlName="headerCols" [min]="0"
+                            [invalid]="form.controls['headerCols'].invalid">
+            </number-stepper>
           </div>
+        </div>
       </div>
       <div *ngIf="form.controls['headerCols'].errors && form.controls['headerCols'].errors['min']"
-           class="alert alert-danger">
+           class="shell-alert shell-alert--danger">
         _#(viewer.worksheet.import.header.negative)
       </div>
       <div *ngIf="form.controls['headerCols'].errors && form.controls['headerCols'].errors['integerInRange']"
-           class="alert alert-danger">
+           class="shell-alert shell-alert--danger">
         _#(viewer.worksheet.import.header.range.error)
       </div>
       <div *ngIf="duplicateHeaders"
-           class="alert alert-danger">
+           class="shell-alert shell-alert--danger">
         _#(viewer.worksheet.import.duplicateHeaders)
       </div>
       <div *ngIf="invalidCharacters"
-           class="alert alert-danger">
+           class="shell-alert shell-alert--danger">
         _#(formula.editor.charValid)
       </div>
     </form>

@@ -15,3 +15,18 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+.file-format-pane__fieldset,
+.file-format-pane__bookmark-surface {
+  border: 1px solid var(--inet-default-border-color);
+  border-radius: var(--inet-radius-md);
+  background: var(--inet-shell-surface-subtle);
+}
+
+.file-format-pane__bookmark-surface {
+  overflow: auto;
+}
+
+.file-format-pane__bookmark-item {
+  padding: 4px 8px;
+  border-radius: var(--inet-radius-sm);
+}

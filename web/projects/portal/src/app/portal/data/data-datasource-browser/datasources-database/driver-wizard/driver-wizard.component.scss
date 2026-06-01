@@ -58,13 +58,56 @@
     overflow-y: visible;
   }
 
-  .upload-files .list-group {
+  .upload-files .driver-wizard__list {
     min-height: var(--inet-control-height-md);
     max-height: 120px;
     overflow-y: auto;
-    border: 1px solid var(--inet-default-border-color);
+    border: 1px solid var(--inet-list-border-color);
     border-radius: var(--inet-radius-md);
-    background: var(--inet-shell-surface-default);
+    background: var(--inet-list-bg-color);
+  }
+
+  .driver-wizard__list {
+    margin: 0;
+    padding: 0;
+    background: var(--inet-list-bg-color);
+
+    > .driver-wizard__list-item + .driver-wizard__list-item {
+      border-top: 1px solid var(--inet-list-border-color);
+    }
+
+    > .driver-wizard__list-item {
+      align-items: center;
+      background: transparent;
+      color: var(--inet-text-color);
+      display: flex;
+      gap: var(--inet-space-3);
+      min-height: var(--inet-control-height-md);
+      overflow: hidden;
+      padding: 0 var(--inet-space-3);
+      text-overflow: ellipsis;
+      white-space: nowrap;
+
+      &:hover {
+        background-color: var(--inet-list-hover-bg-color);
+      }
+
+      &.selected {
+        background-color: var(--inet-list-selected-bg-color);
+      }
+    }
+  }
+
+  .driver-wizard__list-item {
+    text-decoration: none;
+  }
+
+  .driver-wizard__list--checkbox {
+    background: var(--inet-list-bg-color);
+  }
+
+  .driver-wizard__list--checkbox > .driver-wizard__list-item {
+    padding-block: 0.35rem;
   }
 
   .driver-wizard__side-actions {

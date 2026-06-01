@@ -15,10 +15,10 @@
   ~ You should have received a copy of the GNU Affero General Public License
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
-<div class="form-group form-row">
+<div class="shell-form-group shell-form-row">
   <fieldset class="col">
     <legend>_#(Query)</legend>
-    <div class="bordered-box bd-gray bordered-box-md">
+    <div class="bordered-box bordered-box-md query-email-pane__query-surface">
       <asset-tree [datasources]="true" [physical]="false" [columns]="false"
                   [viewsheets]="false" [worksheets]="false"
                   [initSelectedNodesExpanded]="true"
@@ -29,7 +29,7 @@
     </div>
   </fieldset>
 </div>
-<div class="form-group form-row one-col-form-flex">
+<div class="shell-form-group shell-form-row one-col-form-flex">
   <div class="form-floating col">
     <custom-select [options]="columnSelectOptions"
                    [ngModel]="user"
@@ -38,7 +38,7 @@
     <label>_#(User)</label>
   </div>
 </div>
-<div class="form-group form-row one-col-form-flex">
+<div class="shell-form-group shell-form-row one-col-form-flex">
   <div class="form-floating col">
     <custom-select [options]="columnSelectOptions"
                    [ngModel]="email"

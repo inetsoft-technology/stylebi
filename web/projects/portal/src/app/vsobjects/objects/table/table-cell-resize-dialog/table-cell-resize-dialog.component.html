@@ -22,22 +22,24 @@
      [enterSubmit]="true"
      (onEnter)="ok()">
   <form *ngIf="form" [formGroup]="form" class="container-fluid">
-    <div class="form-row-float-label row">
-      <div class="form-floating col">
-        <input class="form-control" formControlName="cellWidth" type="number" min="0" required>
-        <label>_#(Cell Width)</label>
-        <div *ngIf="cellWidth.errors"
-             class="alert alert-danger">
+    <div class="shell-form-row--field row">
+      <div class="col d-flex flex-column">
+        <label class="form-label">_#(Cell Width)</label>
+        <number-stepper formControlName="cellWidth" [min]="0"
+                        [invalid]="!!cellWidth.errors">
+        </number-stepper>
+        <div *ngIf="cellWidth.errors" class="shell-alert shell-alert--danger">
           _#(composer.vs.table.cellSize.error)
         </div>
       </div>
     </div>
-    <div class="form-row-float-label row">
-      <div class="form-floating col">
-        <input class="form-control" formControlName="cellHeight" type="number" min="0" required>
-        <label>_#(Cell Height)</label>
-        <div *ngIf="cellHeight.errors"
-             class="alert alert-danger">
+    <div class="shell-form-row--field row">
+      <div class="col d-flex flex-column">
+        <label class="form-label">_#(Cell Height)</label>
+        <number-stepper formControlName="cellHeight" [min]="0"
+                        [invalid]="!!cellHeight.errors">
+        </number-stepper>
+        <div *ngIf="cellHeight.errors" class="shell-alert shell-alert--danger">
           _#(composer.vs.table.cellSize.error)
         </div>
       </div>

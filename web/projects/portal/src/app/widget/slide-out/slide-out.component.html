@@ -48,7 +48,7 @@
     </div>
   </div>
   <div *ngIf="open" #contentContainer
-       class="slide-out-content-container bg-white1 {{windowClass}} {{sizeClass}}"
+       class="slide-out-content-container slide-out-content-container--surface {{windowClass}} {{sizeClass}}"
        [style.width.px]="actualWidth" [style.max-width.px]="actualWidth">
     <div class="content-div">
       <ng-content></ng-content>

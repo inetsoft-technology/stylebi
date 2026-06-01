@@ -22,7 +22,7 @@
                     [submitOnChange]="model.submitOnChange || !model.showSubmitCheckbox"
                     [scriptDefinitions]="scriptDefinitions">
   <form class="container-fluid" [formGroup]="form" generalProp *ngIf="showEnabledGroup">
-    <div class="form-row-float-label row">
+    <div class="shell-form-row--field row">
       <div class="col-8">
         <div class="form-floating">
           <dynamic-combo-box [mode]="mode" [values]="enabledValues" [variables]="variableValues"

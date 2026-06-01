@@ -17,14 +17,14 @@
   -->
 <div class="container">
   <div class="row">
-    <div class="bordered-box bd-gray col">
+    <div class="bordered-box col condition-list__surface">
       <div *ngFor="let item of conditionList; let even = even; let i = index;"
-           class="unhighlightable" [class.selected]="selectedIndex === i"
+           class="unhighlightable condition-list__item" [class.selected]="selectedIndex === i"
            (click)="selectedIndex = i">
-        <div *ngIf="even">
+        <div *ngIf="even" class="condition-list__text">
           {{item | conditionToString}}
         </div>
-        <div *ngIf="!even">
+        <div *ngIf="!even" class="condition-list__text">
           {{item | junctionOperatorToString}}
         </div>
       </div>

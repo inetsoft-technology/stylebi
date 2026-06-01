@@ -23,14 +23,14 @@
 <div class="modal-body" [enterSubmit]="formValid" (onEnter)="ok()" *ngIf="model && form">
   <form [ngSwitch]="model.valueSource" [formGroup]="form">
     <fieldset>
-      <div class="form-row-float-label row">
+      <div class="row shell-form-row--field">
         <div class="col" #nameDropdown="ngbDropdown" ngbDropdown>
            <div class="form-floating">
               <input autocomplete="off" type="text" name="name" formControlName="name" trim
                      [class.input-dropdown--open]="nameDropdown.isOpen()"
                      [class.is-invalid]="form.controls['name'].invalid"
                      class="form-control" placeholder="_#(Parameter Name)" ngbDropdownToggle>
-              <div ngbDropdownMenu class="form-control viewsheet-parameters-dropdown-menu"
+              <div ngbDropdownMenu class="dropdown-pane viewsheet-parameters-dropdown-menu"
                    [ngClass]="!hasViewsheetParameters() ? 'hidden-menu' : ''">
                 <ng-container *ngIf="hasViewsheetParameters()">
                   <li *ngFor="let parameter of viewsheetParameters">
@@ -51,7 +51,7 @@
     </fieldset>
     <fieldset>
       <legend>_#(Source of Value)</legend>
-      <div class="form-row-checkbox row">
+      <div class="shell-form-row shell-form-row--checkbox">
         <div class="col">
           <div class="form-check">
             <input type="radio" name="source" class="form-check-input field_id" id="field"
@@ -75,7 +75,7 @@
         </div>
       </div>
       <div *ngSwitchCase="'field'">
-        <div class="form-row-float-label row">
+        <div class="row shell-form-row--field">
           <div class="col">
               <div class="form-floating">
                   <custom-select [options]="fieldValueSelectOptions"
@@ -88,7 +88,7 @@
         </div>
       </div>
       <div *ngSwitchCase="'constant'">
-        <div class="form-row-float-label form-row">
+        <div class="shell-form-row--field row">
           <div class="col-auto form-floating">
               <custom-select [options]="dataTypeSelectOptions"
                              formControlName="type"
@@ -124,9 +124,10 @@
                                *ngIf="model.type == XSchema.BOOLEAN">
                 </custom-select>
 
-                <input type="number" class="form-control"
-                       placeholder="_#(Value for Parameter)" formControlName="alphaNumericValue"
-                       *ngIf="XSchema.isNumericType(model.type)">
+                <number-stepper formControlName="alphaNumericValue"
+                               [inputmode]="'decimal'"
+                               *ngIf="XSchema.isNumericType(model.type)">
+                </number-stepper>
                 <input type="text" class="form-control"
                        placeholder="_#(Value for Parameter)"
                        formControlName="alphaNumericValue"
@@ -136,7 +137,7 @@
           </div>
         </div>
       </div>
-      <div class="alert alert-danger" *ngIf="isInvalid()">
+      <div class="shell-alert shell-alert--danger" *ngIf="isInvalid()">
         _#(viewer.viewsheet.validValueRequired)</div>
     </fieldset>
   </form>

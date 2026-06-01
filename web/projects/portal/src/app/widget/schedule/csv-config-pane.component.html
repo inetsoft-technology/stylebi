@@ -66,7 +66,7 @@
   <div *ngIf="!isExportAllTable()" class="row">
     <h4 class="col-10 font-style">_#(Assemblies)</h4>
     <div class="col-10">
-      <div class="selectable-list">
+      <div class="selectable-list assemblies-selectable-list">
         <div class="unhighlightable d-table assemblies-list-item" *ngFor="let _item of tableDataAssemblies; let _i = index">
           <div class="form-check">
             <input type="checkbox" class="form-check-input"
@@ -81,7 +81,7 @@
   </div>
   <div class="row">
     <div class="col-10">
-      <div class="alert alert-danger"
+      <div class="shell-alert shell-alert--danger"
            *ngIf="!isExportAllTable() && (!model.selectedAssemblies ||
             model.selectedAssemblies.length == 0)">
         _#(vs.export.csv.AssemblyRequired)

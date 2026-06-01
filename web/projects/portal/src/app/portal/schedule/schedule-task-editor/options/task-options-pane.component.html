@@ -17,7 +17,7 @@
   -->
 <form [formGroup]="form">
   <div class="task-options-pane">
-    <div class="form-row-float-label row task-options-pane__row">
+    <div class="row shell-form-row--field">
       <div class="col">
         <div class="form-check">
           <input class="form-check-input" type="checkbox" [(ngModel)]="_model.enabled" id="enabled"
@@ -38,7 +38,7 @@
         </div>
       </div>
     </div>
-    <div class="form-row-float-label row form-group task-options-pane__row">
+    <div class="row shell-form-row--field">
       <div class="col">
         <div class="form-floating">
           <div class="input-group task-options-pane__date-group">
@@ -60,7 +60,7 @@
         </div>
       </div>
     </div>
-    <div class="form-row-float-label row form-group task-options-pane__row">
+    <div class="row shell-form-row--field">
       <div class="col">
         <div class="form-floating">
           <div class="input-group task-options-pane__date-group">
@@ -87,13 +87,13 @@
       </div>
     </div>
 
-    <div class="form-row-float-label row form-group task-options-pane__row">
+    <div class="row shell-form-row--field">
       <div class="col form-floating">
         <custom-select [options]="timeZoneSelectOptions" formControlName="timeZone"></custom-select>
         <label>_#(Time Zone)</label>
       </div>
     </div>
-    <div class="form-row-float-label row form-group task-options-pane__row">
+    <div class="row shell-form-row--field">
       <div class="col form-floating">
           <div class="input-group btn-group task-options-pane__execute-as-group">
             <custom-select class="w-auto"
@@ -117,7 +117,7 @@
           <label>_#(Execute As)</label>
       </div>
     </div>
-    <div class="form-row-float-label row form-group task-options-pane__row">
+    <div class="row shell-form-row--field">
       <div class="col form-floating">
           <custom-select [options]="localeSelectOptions"
                          [(ngModel)]="locale"
@@ -126,21 +126,21 @@
           <label>_#(Locale)</label>
       </div>
     </div>
-    <div class="form-row-float-label row form-group task-options-pane__row" [style.display]="_model.securityEnabled ? null : 'none'">
+    <div class="row shell-form-row--field" [style.display]="_model.securityEnabled ? null : 'none'">
       <div class="col form-floating">
           <input class="form-control" [ngModel]="_model.ownerAlias ? _model.ownerAlias : _model.owner"
                  [disabled]="true" [ngModelOptions]="{standalone: true}">
           <label>_#(Owner)</label>
       </div>
     </div>
-    <div class="form-row-float-label row form-group task-options-pane__row">
+    <div class="row shell-form-row--field">
       <div class="col form-floating">
           <input type="text" class="form-control" [(ngModel)]="_model.description"
                  [ngModelOptions]="{standalone: true}">
           <label>_#(Description)</label>
       </div>
     </div>
-    <div class="form-group task-options-pane__footer">
+    <div class="shell-form-group task-options-pane__footer">
       <button type="button" class="btn btn-primary" (click)="save()"
               [disabled]="!form.valid || !parentForm.valid">
         _#(Save)

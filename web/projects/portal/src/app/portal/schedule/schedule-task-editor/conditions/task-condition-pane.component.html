@@ -42,7 +42,7 @@
               formControlName="startTime"
             >
               <ng-container>
-                <div class="condition-edit-view__timezone-row form-row-float-label row" *ngIf="startTimeEnabled">
+                <div class="condition-edit-view__timezone-row schedule-form-row shell-form-row" *ngIf="startTimeEnabled">
                   <div class="col condition-edit-view__timezone-col">
                     <div class="form-floating">
                       <custom-select [options]="timeZoneSelectOptions"
@@ -55,7 +55,7 @@
                 </div>
               </ng-container>
             </w-start-time-editor>
-            <div class="form-row-float-label row">
+            <div class="schedule-option-row row">
               <div class="col-auto">
                 <div class="form-check">
                   <input class="form-check-input" type="radio" name="every" [value]="false"
@@ -68,21 +68,22 @@
                 </div>
               </div>
               <div class="col">
-                <div class="input-group scheduler-form">
-                  <input type="number" class="form-control" id="dailyInterval" formControlName="interval"
-                         [(ngModel)]="timeCondition.interval">
-                  <div class="input-group-text">_#(Day_s)</div>
+                <div class="d-inline-flex align-items-center gap-2">
+                  <number-stepper formControlName="interval" [min]="1"
+                                 (valueChange)="timeCondition.interval = $event">
+                  </number-stepper>
+                  <span>_#(Day_s)</span>
                 </div>
               </div>
             </div>
-            <div class="alert alert-danger"
+            <div class="shell-alert shell-alert--danger"
                  *ngIf="form && !!form.controls['interval'] && form.controls['interval'].errors
                               && (form.controls['interval'].errors['lessThanEqualToZero']
                               || form.controls['interval'].errors['isInteger']
                               || form.controls['interval'].errors['required'])">
               _#(schedule.task.condition.dayCheck)
             </div>
-            <div class="form-row-float-label row">
+            <div class="schedule-option-row row">
               <div class="col">
                 <div class="form-check">
                   <input class="form-check-input" type="radio" name="weekday" id="dailyWeekday"
@@ -112,7 +113,7 @@
               formControlName="startTime"
             >
               <ng-container>
-                <div class="condition-edit-view__timezone-row form-row-float-label row" *ngIf="startTimeEnabled">
+                <div class="condition-edit-view__timezone-row schedule-form-row shell-form-row" *ngIf="startTimeEnabled">
                   <div class="col condition-edit-view__timezone-col">
                     <div class="form-floating">
                       <custom-select [options]="timeZoneSelectOptions"
@@ -125,13 +126,14 @@
                 </div>
               </ng-container>
             </w-start-time-editor>
-            <div class="form-row-float-label row">
+            <div class="schedule-form-row shell-form-row">
               <div class="col form-floating">
                   <div class="input-group scheduler-form">
-                    <input type="number" class="form-control" id="weeklyInterval" [(ngModel)]="timeCondition.interval"
-                           formControlName="interval"
-                           [class.is-invalid]="!form.controls['interval'].valid">
-                    <div class="input-group-text">_#(Week_s)</div>
+                    <number-stepper formControlName="interval" [min]="1"
+                                   (valueChange)="timeCondition.interval = $event"
+                                   [invalid]="!form.controls['interval'].valid">
+                    </number-stepper>
+                    <span class="input-group-text">_#(Week_s)</span>
                   </div>
                   <label>_#(Every)</label>
                   <span class="invalid-feedback"
@@ -140,7 +142,7 @@
                   </span>
               </div>
             </div>
-            <div class="form-row-float-label row" formGroupName="weekdays">
+            <div class="schedule-option-row row" formGroupName="weekdays">
               <div class="col">
                 <div class="form-check form-check-inline"
                      *ngFor="let day of weekdays; let i = index">
@@ -157,7 +159,7 @@
                 </div>
               </div>
             </div>
-            <div class="alert alert-danger"
+            <div class="shell-alert shell-alert--danger"
                  *ngIf="form && !!form.controls['weekdays'] && form.controls['weekdays'].errors">
               _#(viewer.schedule.condition.weeklyValid)
             </div>
@@ -187,7 +189,7 @@
               formControlName="startTime"
             >
               <ng-container>
-                <div class="condition-edit-view__timezone-row form-row-float-label row" *ngIf="startTimeEnabled">
+                <div class="condition-edit-view__timezone-row schedule-form-row shell-form-row" *ngIf="startTimeEnabled">
                   <div class="col condition-edit-view__timezone-col">
                     <div class="form-floating">
                       <custom-select [options]="timeZoneSelectOptions"
@@ -200,7 +202,7 @@
                 </div>
               </ng-container>
             </w-start-time-editor>
-            <div class="form-row-float-label row">
+            <div class="schedule-option-row row">
               <div class="col-auto">
                 <input class="form-check-input" type="radio" name="options" [ngModelOptions]="{standalone: true}"
                        [ngModel]="timeCondition.monthlyDaySelected"
@@ -216,11 +218,11 @@
                 </div>
               </div>
             </div>
-            <div class="alert alert-danger"
+            <div class="shell-alert shell-alert--danger"
                  *ngIf="form && !!form.controls['dayOfMonth'] && form.controls['dayOfMonth'].errors">
               _#(viewer.schedule.condition.monthly.dayValid)
             </div>
-            <div class="form-row-float-label row">
+            <div class="schedule-option-row row">
               <div class="col-auto">
                 <input class="form-check-input" type="radio" name="options" [ngModelOptions]="{standalone: true}"
                        [ngModel]="timeCondition.monthlyDaySelected"
@@ -242,12 +244,12 @@
                 <div class="input-group-text">_#(of the month)</div>
               </div>
             </div>
-            <div class="alert alert-danger"
+            <div class="shell-alert shell-alert--danger"
                  *ngIf="form && !!form.controls['dayOfWeek'] && form.controls['dayOfWeek'].errors
                         || form && !!form.controls['weekOfMonth'] && form.controls['weekOfMonth'].errors">
               _#(viewer.schedule.condition.monthly.weekValid)
             </div>
-            <div class="form-row-float-label row" formArrayName="months">
+            <div class="schedule-option-row row" formArrayName="months">
               <div class="col">
                 <div class="form-check form-check-inline"
                      *ngFor="let month of months; let i = index;">
@@ -264,7 +266,7 @@
                 </div>
               </div>
             </div>
-            <div class="alert alert-danger"
+            <div class="shell-alert shell-alert--danger"
                  *ngIf="form && !!form.controls['months'] && form.controls['months'].errors">
               _#(viewer.schedule.condition.monthlyValid)
             </div>
@@ -278,7 +280,7 @@
         <!-- Hourly -->
         <div *ngSwitchCase="TimeConditionType.EVERY_HOUR" class="condition-edit-view__section">
           <form [formGroup]="form">
-            <div class="form-row-float-label row condition-edit-view__time-row">
+            <div class="schedule-meta-row row condition-edit-view__time-row">
               <div class="col-auto condition-edit-view__time-field-col">
                 <div class="form-floating condition-edit-view__time-field">
                   <ngb-timepicker [(ngModel)]="formStartTime"
@@ -298,11 +300,11 @@
                 </div>
               </div>
             </div>
-            <div class="alert alert-danger"
+            <div class="shell-alert shell-alert--danger"
                  *ngIf="form && !!form.controls['startTime'] && form.controls['startTime'].errors">
               _#(viewer.schedule.condition.startTimeValid)
             </div>
-            <div class="form-row-float-label row condition-edit-view__time-row">
+            <div class="schedule-meta-row row condition-edit-view__time-row">
               <div class="col-auto condition-edit-view__time-field-col">
                 <div class="form-floating condition-edit-view__time-field">
                   <ngb-timepicker [(ngModel)]="formEndTime"
@@ -315,18 +317,18 @@
                 <div class="condition-edit-view__timezone-text">{{ timeZoneName + (serverTimeZone ? " (_#(em.scheduler.servertimezone))" : "")}}</div>
               </div>
             </div>
-            <div class="alert alert-danger"
+            <div class="shell-alert shell-alert--danger"
                  *ngIf="form && !!form.controls['endTime'] && form.controls['endTime'].errors">
               _#(viewer.schedule.condition.endTimeValid)
             </div>
-            <div class="alert alert-danger"
+            <div class="shell-alert shell-alert--danger"
                  *ngIf="form && !!form.getError('timeNotChronological')">
               _#(viewer.schedule.condition.startEndValid)
             </div>
-            <div class="form-row-float-label row">
+            <div class="schedule-form-row shell-form-row">
               <div class="col-auto">
                 <ng-container>
-                  <div class="condition-edit-view__timezone-row form-row-float-label row">
+                  <div class="condition-edit-view__timezone-row schedule-form-row shell-form-row">
                     <div class="col condition-edit-view__timezone-col">
                       <div class="form-floating">
                         <custom-select [options]="timeZoneSelectOptions"
@@ -340,13 +342,14 @@
                 </ng-container>
               </div>
             </div>
-            <div class="form-row-float-label row">
+            <div class="schedule-form-row shell-form-row">
               <div class="col form-floating">
                   <div class="input-group scheduler-form">
-                    <input type="number" class="form-control" id="interval"
-                           formControlName="interval" [(ngModel)]="timeCondition.hourlyInterval"
-                           [class.is-invalid]="!form.controls['interval'].valid">
-                    <div class="input-group-text">_#(Hour_s)</div>
+                    <number-stepper formControlName="interval" [min]="1"
+                                   (valueChange)="timeCondition.hourlyInterval = $event"
+                                   [invalid]="!form.controls['interval'].valid">
+                    </number-stepper>
+                    <span class="input-group-text">_#(Hour_s)</span>
                   </div>
                   <label>_#(Every)</label>
                   <span class="invalid-feedback"
@@ -355,7 +358,7 @@
                   </span>
               </div>
             </div>
-            <div class="form-row-float-label row" formArrayName="weekdays">
+            <div class="schedule-option-row row" formArrayName="weekdays">
               <div class="col">
                 <div class="form-check form-check-inline"
                      *ngFor="let day of weekdays; let i = index">
@@ -372,7 +375,7 @@
                 </div>
               </div>
             </div>
-            <div class="alert alert-danger"
+            <div class="shell-alert shell-alert--danger"
                  *ngIf="form && !!form.controls['weekdays'] && form.controls['weekdays'].errors">
               _#(viewer.schedule.condition.weeklyValid)
             </div>
@@ -390,7 +393,7 @@
         <!-- Run Once -->
         <div *ngSwitchCase="TimeConditionType.AT" class="condition-edit-view__section">
           <form [formGroup]="form">
-            <div class="form-row-float-label row condition-edit-view__time-row">
+            <div class="schedule-meta-row row condition-edit-view__time-row">
               <div class="col-auto condition-edit-view__time-field-col">
                 <div class="form-floating condition-edit-view__time-field">
                   <ngb-timepicker [(ngModel)]="formStartTime"
@@ -410,14 +413,14 @@
                 </div>
               </div>
             </div>
-            <div class="alert alert-danger"
+            <div class="shell-alert shell-alert--danger"
                  *ngIf="form && !!form.controls['startTime'] && form.controls['startTime'].errors">
               _#(viewer.schedule.condition.startTimeValid)
             </div>
-            <div class="form-row-float-label row">
+            <div class="schedule-form-row shell-form-row">
               <div class="col-auto">
                 <ng-container>
-                  <div class="condition-edit-view__timezone-row form-row-float-label row">
+                  <div class="condition-edit-view__timezone-row schedule-form-row shell-form-row">
                     <div class="col condition-edit-view__timezone-col">
                       <div class="form-floating">
                         <custom-select [options]="timeZoneSelectOptions"
@@ -431,7 +434,7 @@
                 </ng-container>
               </div>
             </div>
-            <div class="form-row-float-label row">
+            <div class="schedule-form-row shell-form-row">
               <div class="col form-floating">
                   <div class="input-group scheduler-form">
                     <input class="form-control" placeholder="_#(yyyy-mm-dd)"
@@ -447,7 +450,7 @@
                   <label>_#(Date)</label>
               </div>
             </div>
-            <div class="alert alert-danger"
+            <div class="shell-alert shell-alert--danger"
                  *ngIf="form && !!form.controls['date'] && form.controls['date'].errors">
               _#(Need to set a date.)
             </div>
@@ -458,7 +461,7 @@
       <!-- Chained -->
       <div *ngIf="condition?.conditionType == 'CompletionCondition'" class="condition-edit-view__section">
         <form [formGroup]="form">
-          <div class="form-row-float-label row completion-condition-row">
+          <div class="schedule-form-row shell-form-row completion-condition-row">
             <div class="col form-floating">
                 <custom-select class="scheduler-form"
                                id="taskName"

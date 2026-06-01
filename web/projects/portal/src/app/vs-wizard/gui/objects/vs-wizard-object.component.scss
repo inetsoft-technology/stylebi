@@ -58,3 +58,8 @@
   background: #ddd;
   pointer-events: none;
 }
+
+.vs-wizard-object__move-handle {
+  border: 1px solid var(--inet-default-border-color);
+  background: var(--inet-shell-surface-default);
+}

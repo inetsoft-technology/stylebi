@@ -34,12 +34,13 @@
           </div>
         </div>
       </div>
-        <ul class="list-group list-group-flush auto-overflow auto-drill-panel__list">
+        <ul class="auto-overflow auto-drill-panel__list">
           <li *ngFor="let drill of autoDrillModel.paths; let i = index"
               (click)="selectDrill($event, i)"
-              class="list-group-item auto-drill-panel__list-item no-shrink">
+              class="auto-drill-panel__list-item no-shrink"
+              [class.auto-drill-panel__list-item--selected]="editIndex === i">
             <div class="auto-drill-panel__list-item-content">
-            <span>{{ drill.name }}</span>
+            <span class="truncate-text" [attr.title]="drill.name">{{ drill.name }}</span>
             <div class="toolbar-button-group">
               <button type="button" class="btn btn-sm btn-light-no-bg chevron-circle-arrow-up-icon"
                       [attr.title]="'_#(Move Up)'"
@@ -66,7 +67,7 @@
       </div>
         <div class="auto-drill-panel__body">
           <form [formGroup]="form" *ngIf="!!editDrill">
-            <div class="form-group form-floating">
+            <div class="shell-form-group form-floating">
               <input type="text" class="form-control" formControlName="name"
                      [class.is-invalid]="!nameControl.valid">
               <label><span>_#(Name)</span></label>
@@ -74,14 +75,14 @@
                 {{getFirstErrorMessage(nameControl)}}
               </span>
             </div>
-            <div class="form-group form-floating">
+            <div class="shell-form-group form-floating">
               <input type="text"
                      class="form-control"
                      [(ngModel)]="editDrill.tip"
                      [ngModelOptions]="{standalone: true}">
               <label><span>_#(Tooltip)</span></label>
             </div>
-            <div class="form-group">
+            <div class="shell-form-group">
               <div class="form-check form-check-inline">
                 <input class="form-check-input" type="radio" id="assetLink"
                        [ngModel]="editDrill.linkType"
@@ -99,7 +100,7 @@
                 <label class="form-check-label" for="webLink">_#(Web Link)</label>
               </div>
             </div>
-            <div *ngIf="editDrill.linkType == LinkType.WEB_LINK" class="form-group form-floating">
+            <div *ngIf="editDrill.linkType == LinkType.WEB_LINK" class="shell-form-group form-floating">
               <input type="text"
                      class="form-control"
                      formControlName="link"
@@ -109,7 +110,7 @@
                 _#(data.logicalmodel.drillLinkRequired)
               </span>
             </div>
-            <div *ngIf="editDrill.linkType !== LinkType.WEB_LINK" class="form-group">
+            <div *ngIf="editDrill.linkType !== LinkType.WEB_LINK" class="shell-form-group">
               <div #dropdown="ngbDropdown" ngbDropdown [autoClose]="'outside'" class="drill-link-picker">
                 <div class="form-floating drill-link-picker__field">
                   <input #drillLinkTrigger ngbDropdownToggle type="text" readonly
@@ -124,7 +125,7 @@
                 <div class="drill-dropdown-arrow icon-size-small"
                      [class.chevron-down-icon]="!dropdown.isOpen()"
                      [class.chevron-up-icon]="dropdown.isOpen()"></div>
-                <div ngbDropdownMenu class="drill-tree-dropdown-menu">
+                <div ngbDropdownMenu class="dropdown-pane drill-tree-dropdown-menu">
                   <repository-tree #repositoryTree
                                    [root]="assetTreeRoot"
                                    [autoExpandToSelectedNode]="true"
@@ -136,7 +137,7 @@
                 </div>
               </div>
             </div>
-            <div class="form-group form-floating">
+            <div class="shell-form-group form-floating">
               <div class="input-group">
                 <input type="text" class="form-control"
                        [disabled]="targetSelf"
@@ -151,7 +152,7 @@
               </div>
               <label><span>_#(Target Frame)</span></label>
             </div>
-            <div class="form-group">
+            <div class="shell-form-group">
               <div class="input-group">
                 <div class="form-floating">
                   <input type="text" class="form-control" [ngModel]="getDrillWorksheet()"
@@ -164,7 +165,7 @@
                 </button>
               </div>
             </div>
-            <div class="form-group">
+            <div class="shell-form-group">
               <div class="form-check">
                 <input type="checkbox" class="form-check-input"
                        [(ngModel)]="editDrill.passParams"
@@ -174,7 +175,7 @@
                 </label>
               </div>
             </div>
-            <div class="form-group">
+            <div class="shell-form-group">
               <div class="form-check">
                 <input type="checkbox" class="form-check-input"
                        [(ngModel)]="editDrill.disablePrompting"
@@ -184,7 +185,7 @@
                 </label>
               </div>
             </div>
-            <div class="form-group">
+            <div class="shell-form-group">
               <div class="auto-drill-parameter-panel parameter-list">
                 <div class="auto-drill-parameter-panel__header">
                   <span>_#(Parameters)</span>
@@ -202,11 +203,11 @@
                     </button>
                   </span>
                 </div>
-                <ul class="list-group list-group-flush param-card-body auto-overflow auto-drill-parameter-panel__list">
+                <ul class="param-card-body auto-overflow auto-drill-parameter-panel__list">
                   <li *ngFor="let param of editDrill.params; let i = index"
-                      class="list-group-item auto-drill-parameter-panel__item">
+                      class="auto-drill-parameter-panel__item">
                     <div class="auto-drill-parameter-panel__item-content">
-                    <span class="parameter-label">{{ getDisplayParam(param) }}</span>
+                    <span class="parameter-label truncate-text" [attr.title]="getDisplayParam(param)">{{ getDisplayParam(param) }}</span>
                     <span class="btn-group">
                       <button type="button" (click)="editParameter(i)"
                               [attr.title]="'_#(Edit Parameter)'"

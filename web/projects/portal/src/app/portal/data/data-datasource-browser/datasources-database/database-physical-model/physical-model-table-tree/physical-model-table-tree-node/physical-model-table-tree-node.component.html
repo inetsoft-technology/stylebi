@@ -18,8 +18,8 @@
 <div class="action-color physical-model-table-tree-node {{node.cssClass}}" *ngIf="showRoot"
      [style.padding-left.px]="indentLevel * INDENT_SIZE">
   <div class="physical-model-table-tree-node__shell truncate-parent justify-content-between w-100">
-    <div class="physical-model-table-tree-node__row truncate-text align-items-center w-100 cursor-pointer hover-bg-primary"
-         [class.bg-selected]="isSelected()"
+    <div class="physical-model-table-tree-node__row truncate-text align-items-center w-100 cursor-pointer"
+         [class.physical-model-table-tree-node__row--selected]="isSelected()"
          [class.disabled]="disabled"
          [class.physical-model-table-tree-node__row--leaf]="node.leaf"
          (click)="selectNode($event)"

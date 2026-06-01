@@ -18,11 +18,44 @@
 .user-email-table {
   height: 26.8em;
   max-height: 26.8em;
-  margin-bottom: -1rem;
+  margin-bottom: 0;
+  border: 1px solid var(--inet-table-border-color);
+  border-radius: var(--inet-radius-md);
+  background-color: var(--inet-card-bg-color);
 }
 
 .user-email-table-content {
   height: 24em;
+}
+
+.user-email-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background-color: var(--inet-table-heading-bg-color);
+  color: var(--inet-table-heading-text-color);
+}
+
+.email-picker-surface {
+  border-color: var(--inet-list-border-color);
+  background-color: var(--inet-list-bg-color);
+}
+
+.email-picker-surface--list {
+  overflow-y: auto;
+}
+
+.email-picker-list__item {
+  min-height: var(--inet-control-height-md);
+  padding: 0 var(--inet-space-3);
+
+  &:not(.selected):hover {
+    background-color: var(--inet-list-hover-bg-color);
+  }
+
+  &.selected {
+    background-color: var(--inet-list-selected-bg-color);
+  }
 }
 
 .button-inline-padding {

@@ -47,19 +47,21 @@
           <b>_#(data.datasets.searchResults):</b> {{currentSearchQuery}} <b>_#(data.datasets.searchIn)</b> {{currentFolderPathString || rootLabel}}
         </span>
     </div>
-    <asset-item-list-view [assets]="models" [columns]="getListColumns()" [selectedItems]="selectedItems"
-                          [sortOptions]="sortOptions" [selectionOn]="selectionOn"
-                          [searchView]="searchView"
-                          [getParentPath]="getParentPath"
-                          [iconFunction]="getIcon()" [fetchChildrenFunc]="fetchChildren"
-                          [dragSupportFunc]="dragSupportFun()"
-                          [dragSupport]="true"
-                          (onSelectedChanged)="changeSelectedItems($event)"
-                          (sortChanged)="sortModels()" (onClickItem)="clickItem($event)"
-                          (onContextmenu)="openContextmenu($event)"
-                          (dragAssets)="dragAssetsItems($event)"
-                          (assetsDroped)="dropAssetsItems($event)">
-    </asset-item-list-view>
+    <div class="flex-fixed-content">
+      <asset-item-list-view [assets]="models" [columns]="getListColumns()" [selectedItems]="selectedItems"
+                            [sortOptions]="sortOptions" [selectionOn]="selectionOn"
+                            [searchView]="searchView"
+                            [getParentPath]="getParentPath"
+                            [iconFunction]="getIcon()" [fetchChildrenFunc]="fetchChildren"
+                            [dragSupportFunc]="dragSupportFun()"
+                            [dragSupport]="true"
+                            (onSelectedChanged)="changeSelectedItems($event)"
+                            (sortChanged)="sortModels()" (onClickItem)="clickItem($event)"
+                            (onContextmenu)="openContextmenu($event)"
+                            (dragAssets)="dragAssetsItems($event)"
+                            (assetsDroped)="dropAssetsItems($event)">
+      </asset-item-list-view>
+    </div>
   </div>
   <div class="flex h-100 col-6 col-sm-4 col-md-3 p-0" *ngIf="!!showDetailsItem">
     <div class="data-model-detail-pane">

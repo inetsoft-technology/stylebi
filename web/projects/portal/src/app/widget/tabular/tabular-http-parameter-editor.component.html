@@ -16,7 +16,7 @@
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
 <div>
-  <form ngNoForm (submit)="$event.preventDefault()" class="form-inline small align-items-center">
+  <form ngNoForm (submit)="$event.preventDefault()" class="shell-inline-form small align-items-center">
     <div class="flex-grow-1">
       <tabular-text-editor [(value)]="value.name" (valueChange)="valueChanged()" [placeholder]="'_#(Name)'" [enabled]="enabled"></tabular-text-editor>
     </div>

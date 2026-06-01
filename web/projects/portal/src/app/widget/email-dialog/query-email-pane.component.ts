@@ -26,7 +26,8 @@ const QUERY_COLUMN_URI = "../api/portal/schedule/emails/query/columns";
 
 @Component({
    selector: "query-email-pane",
-   templateUrl: "query-email-pane.component.html"
+   templateUrl: "query-email-pane.component.html",
+   styleUrls: ["./query-email-pane.component.scss"]
 })
 export class QueryEmailPane {
    @Input() set addressString(value: string) {

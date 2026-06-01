@@ -55,7 +55,7 @@
        [style.height.px]="HEADER_CELL_HEIGHT"
        [style.display]="editHeaderIndex != null ? '' : 'none'">
     <input #inputEditHeader id="inputEditHeader" type="text"
-           class="edit-header-input bg-white1" [formControl]="editHeaderControl"
+           class="edit-header-input ws-details-table-data__header-input" [formControl]="editHeaderControl"
            [ngClass]="{'bg-danger': !editHeaderControl.valid}"
            (keyup)="headerInputKeyup($event)" (blur)="headerInputBlur()">
   </div>

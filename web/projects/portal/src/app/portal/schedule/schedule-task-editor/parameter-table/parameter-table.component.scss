@@ -28,9 +28,9 @@ thead, tbody tr {
 }
 
 .parameter-table-shell {
-    margin-bottom: 12px;
-    border: 1px solid var(--inet-border-color);
-    border-radius: 4px;
+    margin-bottom: var(--inet-space-3);
+    border: 1px solid var(--inet-table-border-color);
+    border-radius: var(--inet-radius-md);
     overflow: hidden;
     background-color: var(--inet-card-bg-color);
 }
@@ -46,7 +46,7 @@ thead, tbody tr {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 8px;
+    gap: var(--inet-space-2);
 }
 
 .parameter-table-actions > .btn + .btn {
@@ -54,12 +54,11 @@ thead, tbody tr {
 }
 
 .parameter-table-grid thead th {
-    background-color: var(--inet-toolbar-bg-color);
-    border-bottom: 1px solid var(--inet-border-color);
-    border-right: 1px solid var(--inet-border-color);
-    font-size: 11px;
+    background-color: var(--inet-table-heading-bg-color);
+    border-bottom: 1px solid var(--inet-table-border-color);
+    border-right: 1px solid var(--inet-table-border-color);
     font-weight: 600;
-    padding: 8px;
+    padding: var(--inet-space-3) var(--inet-space-4);
 }
 
 .parameter-table-grid thead th:last-child {
@@ -67,9 +66,13 @@ thead, tbody tr {
 }
 
 .parameter-table-grid tbody td {
-    border-top: 1px solid var(--inet-border-color);
-    border-right: 1px solid var(--inet-border-color);
-    padding: 8px;
+    border-top: 1px solid var(--inet-table-border-color);
+    border-right: 1px solid var(--inet-table-border-color);
+    padding: var(--inet-space-3) var(--inet-space-4);
+}
+
+.parameter-table-grid tbody tr:hover td {
+    background-color: var(--inet-table-hover-bg-color);
 }
 
 .parameter-table-grid tbody td:last-child {

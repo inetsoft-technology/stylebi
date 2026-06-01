@@ -27,7 +27,7 @@ import { EnterSubmitDirective } from "../../../widget/directive/enter-submit.dir
 import { ViewsheetOptionsPaneModel } from "../../data/vs/viewsheet-options-pane-model";
 import { ViewsheetOptionsPane } from "./viewsheet-options-pane.component";
 import { ViewsheetParametersDialog } from "./viewsheet-parameters-dialog.component";
-import { TestUtils } from "../../../common/test/test-utils";
+import { NumberStepperModule } from "../../../widget/number-stepper/number-stepper.module";
 
 let createModel: () => ViewsheetOptionsPaneModel = () => {
    return {
@@ -65,7 +65,7 @@ describe("Viewsheet Options Pane Unit Test", () => {
 
    beforeEach(() => {
       TestBed.configureTestingModule({
-         imports: [ ReactiveFormsModule, FormsModule, NgbModule, HttpClientTestingModule ],
+         imports: [ ReactiveFormsModule, FormsModule, NgbModule, HttpClientTestingModule, NumberStepperModule ],
          declarations: [ ViewsheetOptionsPane, ViewsheetParametersDialog, EnterSubmitDirective ],
          schemas: [NO_ERRORS_SCHEMA]
       });
@@ -83,7 +83,7 @@ describe("Viewsheet Options Pane Unit Test", () => {
    // Bug #10157 Clear button should clear the selected datasource
    // Bug #20438 should display compelete path for global ws
    it("Design mode data size clear and data source text status", () => {
-      dataSize  = fixture.nativeElement.querySelector("input[ng-reflect-name=maxRows]");
+      dataSize  = fixture.nativeElement.querySelector("number-stepper[ng-reflect-name=maxRows] input");
       clearBtn = fixture.nativeElement.querySelectorAll("button.btn-default")[1];
       datasourceText = fixture.nativeElement.querySelector("div.input-with-actions input");
       fixture.detectChanges();

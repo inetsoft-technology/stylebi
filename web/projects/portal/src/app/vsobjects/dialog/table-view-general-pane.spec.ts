@@ -49,6 +49,7 @@ import { TableViewGeneralPaneModel } from "../model/table-view-general-pane-mode
 import { TitlePropPaneModel } from "../model/title-prop-pane-model";
 import { BasicGeneralPane } from "./basic-general-pane.component";
 import { GeneralPropPane } from "./general-prop-pane.component";
+import { NumberStepperModule } from "../../widget/number-stepper/number-stepper.module";
 import { SizePositionPane } from "./size-position-pane.component";
 import { TableViewGeneralPane } from "./table-view-general-pane.component";
 import { TitlePropPane } from "./title-prop-pane.component";
@@ -106,7 +107,7 @@ describe("TableViewGeneralPane Unit Test", () => {
    beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule, TestModule
+            FormsModule, ReactiveFormsModule, NgbModule, TestModule, NumberStepperModule
          ],
          declarations: [
             TableViewGeneralPane, TitlePropPane, TreeDropdownComponent,

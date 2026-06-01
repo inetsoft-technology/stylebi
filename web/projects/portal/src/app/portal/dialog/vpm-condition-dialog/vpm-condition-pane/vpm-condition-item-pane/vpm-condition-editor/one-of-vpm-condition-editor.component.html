@@ -28,10 +28,16 @@
                       (valueChange)="updateValue($event)">
     </vpm-condition-editor>
     <div *ngIf="isValueListVisible()" class="value-list-container">
-      <div class="sm-selectable-list value-list">
-        <div *ngFor="let val of values; let i = index;" class="unhighlightable"
+      <div class="value-list-panel">
+        <div class="value-list-panel__label">_#(Selected values)</div>
+        <div class="sm-selectable-list value-list" [class.value-list--empty]="values.length === 0">
+          <div *ngIf="values.length === 0" class="value-list__empty">
+            _#(Enter a value above, then click Add.)
+          </div>
+          <div *ngFor="let val of values; let i = index;" class="unhighlightable value-list__element"
              [class.selected]="isSelected(val)" (click)="selectValue(i, val)">
-          {{val}}
+            {{val}}
+          </div>
         </div>
       </div>
       <div class="one-of-editor__actions">

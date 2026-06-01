@@ -23,7 +23,7 @@
   </div>
   <div class="ws-table-buttons me-3">
     <button type="button" class="btn btn-sm btn-primary me-1" (click)="openConsoleDialog()">
-      Console <span class="badge text-bg-light">{{consoleMessages ? consoleMessages.length : 0}}</span>
+      Console <span class="badge console-count-badge">{{consoleMessages ? consoleMessages.length : 0}}</span>
     </button>
     <ng-template ngFor let-_button [ngForOf]="tableButtons">
       <button *ngIf="isTableButtonVisible(_button)"
@@ -53,7 +53,7 @@
             data-button-id="ws-table-mode">
     </button>
     <ng-template #availableTableModes>
-      <div class="dropdown-menu show table-modes-dropdown">
+      <div class="dropdown-pane table-modes-dropdown">
         <ng-container *ngFor="let _mode of table.modes">
            <div class="dropdown-item"
                 (click)="getTableModeButton(_mode)?.clickFunction()">
@@ -66,7 +66,7 @@
       </div>
     </ng-template>
     <ng-template #availablePreviewModes>
-      <div class="dropdown-menu show table-modes-dropdown">
+      <div class="dropdown-pane table-modes-dropdown">
         <div class="dropdown-item">
           <input type="checkbox" class="form-check-input" id="rowLimit"
                  [attr.disabled]="dataModeEnabled() ? null : ''"

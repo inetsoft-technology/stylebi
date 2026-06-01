@@ -18,8 +18,9 @@
 <modal-header [title]="title" (onCancel)="onClose.emit()">
 </modal-header>
 <div class="modal-body">
-  <div class="bordered-box bd-gray" *ngIf="values.length > 0">
+  <div class="bordered-box browse-field-values-list" *ngIf="values.length > 0">
     <div *ngFor="let val of values" [title]="val"
+         class="browse-field-values-list__item"
          [class.selected]="isSelectedValue(val)"
          (click)="selectValue(val)">
       {{ val }}

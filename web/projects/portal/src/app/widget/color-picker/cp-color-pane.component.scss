@@ -36,6 +36,11 @@
   border-radius: 0;
 }
 
+.color-picker-palette__toolbar-swatch,
+.color-picker-palette__swatch {
+  border: 1px solid var(--inet-input-border-color);
+}
+
 .color-picker-toolbar {
   display: flex;
   align-items: center;
@@ -94,6 +99,10 @@
 .color-picker-palette-row > table tr {
   margin: 0;
   padding: 0;
+}
+
+.color-picker-palette__recent-row {
+  border-bottom: 1px solid var(--inet-default-border-color);
 }
 
 .color-picker-palette-row > table tr td {

@@ -22,7 +22,7 @@
       <ng-template ngbNavContent>
         <div class="flex-auto-item">
           <div class="flex-auto-item">
-            <div class="form-row">
+            <div class="shell-form-row">
               <div class="col shuffle-left">
                 <div class="search-pane">
                   <input type="text" [ngModel]="filterStr" class="form-control"
@@ -34,10 +34,10 @@
                 </div>
               </div>
             </div>
-            <div class="form-row shuffle-list flex-auto-item flex-row">
+            <div class="shell-form-row shuffle-list flex-auto-item flex-row">
               <div class="col shuffle-left">
                 <div class="shuffle-title">_#(Available Columns)</div>
-                <div shuffleLeft class="bd-gray shuffle-list-pane">
+                <div shuffleLeft class="shuffle-list-pane hidden-columns-pane hidden-columns-pane--tree">
                   <tree #columnTree [root]="databaseRoot" [showRoot]="false"
                         [searchStr]="filterStr"
                         [iconFunction]="getTreeNodeIcon" [multiSelect]="true"
@@ -79,11 +79,12 @@
               </div>
               <div class="col shuffle-right">
                 <div class="shuffle-title">_#(Hidden Columns)</div>
-                <div shuffleRight class="bd-gray shuffle-list-pane">
+                <div shuffleRight class="shuffle-list-pane hidden-columns-pane">
                   <div *ngIf="hidden" class="hidden-columns-table" (click)="clearHiddenSelected()">
                     <ng-container *ngFor="let column of hidden.hiddens">
                       <div class="hidden-columns-table-row"
                            [class.bg-node-selected]="isSelectedHiddenColumn(column)"
+                           [attr.title]="column.name"
                            (click)="selectHiddenColumn($event, column)">
                         {{column.name}}
                       </div>
@@ -94,14 +95,15 @@
             </div>
           </div>
           <div class="flex-auto-item">
-            <div class="form-row shuffle-list flex-auto-item flex-row">
+            <div class="shell-form-row shuffle-list flex-auto-item flex-row">
               <div class="col shuffle-left">
                 <div class="shuffle-title">_#(Grant access to):</div>
                 <div class="shuffle-title">_#(Available Roles)</div>
-                <div shuffleLeft class="bd-gray shuffle-list-pane">
+                <div shuffleLeft class="shuffle-list-pane hidden-columns-pane">
                   <div class="hidden-columns-table">
                     <div class="hidden-columns-table-row" *ngFor="let role of availableRoles"
                          [class.bg-node-selected]="selectedAvailableRoles.includes(role?.value)"
+                         [attr.title]="role?.label"
                          (click)="selectAvailableRole($event, role?.value)">
                       {{role?.label}}
                     </div>
@@ -128,11 +130,12 @@
               </div>
               <div class="col shuffle-right shuffle-bottom-right">
                 <div class="shuffle-title">_#(Grant to)</div>
-                <div shuffleRight class="bd-gray shuffle-list-pane">
+                <div shuffleRight class="shuffle-list-pane hidden-columns-pane">
                   <div *ngIf="hidden" class="hidden-columns-table">
                     <ng-container *ngFor="let role of hidden.roles">
                       <div class="hidden-columns-table-row"
                            [class.bg-node-selected]="selectedGrantRoles.includes(role)"
+                           [attr.title]="getBaseName(role)"
                            (click)="selectGrantRole($event, role)">
                         {{getBaseName(role)}}
                       </div>

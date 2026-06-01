@@ -20,7 +20,7 @@
               [cshid]="'AddFilter'">
 </modal-header>
 <div class="modal-body" enterSubmit (onEnter)="ok()" *ngIf="model">
-   <div class="bordered-box bd-gray bordered-box-md">
+   <div class="bordered-box bordered-box-md add-filter-dialog__tree-surface">
       <tree [root]="model" [showRoot]="false" [showTooltip]="true" [multiSelect]="true"
          [searchEnabled]="true" [fillHeight]="true"
          (nodesSelected)="selectNodes($event)" [iconFunction]="getCSSIcon" [grayedOutFields]="grayedOutFields"></tree>

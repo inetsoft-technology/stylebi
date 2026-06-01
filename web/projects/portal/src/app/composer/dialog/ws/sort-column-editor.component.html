@@ -16,7 +16,7 @@
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
 <form ngNoForm (submit)="$event.preventDefault()" class="container-fluid">
-  <div class="form-row-float-label row align-items-center sort-column-editor__row" *ngFor="let _sortRef of sortRefs; let _i = index">
+  <div class="shell-form-row--field row align-items-center sort-column-editor__row" *ngFor="let _sortRef of sortRefs; let _i = index">
     <div class="col-auto pe-0">
       <button [disabled]="_i >= model.selectedColumns.length - 1" class="btn btn-sm btn-light-no-bg"
               type="button" id="downArrow" title="_#(Move Down)"

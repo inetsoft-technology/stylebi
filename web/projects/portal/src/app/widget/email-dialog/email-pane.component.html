@@ -17,7 +17,7 @@
   -->
 <form class="container-fluid" [formGroup]="form" *ngIf="!!model">
   <fieldset>
-    <div class="row form-row-float-label">
+    <div class="row shell-form-row--field">
       <div class="col form-floating" [class.pr-0]="securityEnabled">
           <input type="text" class="form-control" formControlName="toAddress"
                  placeholder="_#(To)" [class.is-invalid]="!form.controls['toAddress'].valid"
@@ -48,7 +48,7 @@
                 [disabled]="!model.userDialogEnabled">...</button>
       </div>
     </div>
-    <div class="row form-row-float-label" *ngIf="!hideCC">
+    <div class="row shell-form-row--field" *ngIf="!hideCC">
       <div class="col form-floating" [class.pr-0]="securityEnabled">
           <input type="text" class="form-control" formControlName="ccAddress"
                  placeholder="_#(CC)" [class.is-invalid]="!form.controls['ccAddress'].valid"
@@ -72,7 +72,7 @@
            [disabled]="!model.userDialogEnabled">...</button>
       </div>
     </div>
-    <div class="row form-row-float-label" *ngIf="!hideBCC">
+    <div class="row shell-form-row--field" *ngIf="!hideBCC">
       <div class="col form-floating" [class.pr-0]="securityEnabled">
             <input type="text" class="form-control"
                    formControlName="bccAddress" [class.is-invalid]="!form.controls['bccAddress'].valid"
@@ -96,7 +96,7 @@
                 [disabled]="!model.userDialogEnabled">...</button>
       </div>
     </div>
-    <div class="row form-row-float-label">
+    <div class="row shell-form-row--field">
       <div class="col form-floating">
           <input type="text" class="form-control" formControlName="fromAddr"
                  [class.is-invalid]="!form.controls['fromAddr'].valid && model.fromAddressEnabled"
@@ -122,14 +122,14 @@
           </span>
       </div>
     </div>
-    <div class="row form-row-float-label">
+    <div class="row shell-form-row--field">
       <div class="col form-floating">
           <input type="text" class="form-control" [ngModelOptions]="{standalone: true}"
                  placeholder="_#(Subject)" [(ngModel)]="model.subject"/>
           <label>_#(Subject)</label>
       </div>
     </div>
-    <div class="row form-row-float-label">
+    <div class="row shell-form-row--field">
       <div class="col">
         <div class="form-floating">
           <!-- don't wrap editor in label, it messes up it's mouse and focus handling -->

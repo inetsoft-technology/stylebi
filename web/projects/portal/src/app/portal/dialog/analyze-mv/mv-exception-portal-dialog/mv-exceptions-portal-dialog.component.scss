@@ -15,3 +15,13 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+:host {
+  display: block;
+}
+
+.mv-exceptions-table-shell {
+  overflow: hidden;
+  border: 1px solid var(--inet-table-border-color);
+  border-radius: var(--inet-radius-md);
+  background-color: var(--inet-card-bg-color);
+}

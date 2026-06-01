@@ -34,7 +34,7 @@ import { ObjectType } from "../../../common/data/dnd-transfer";
 @Component({
    selector: "field-pane",
    templateUrl: "field-pane.component.html",
-   styleUrls: ["./aesthetic/aesthetic-field-mc.scss", "../data-editor.component.scss"]
+   styleUrls: ["./aesthetic/aesthetic-field-mc.scss", "../data-editor.component.scss", "field-pane.component.scss"]
 })
 export class FieldPane {
    @Input() field: ChartRef;

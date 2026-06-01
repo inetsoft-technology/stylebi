@@ -17,7 +17,7 @@
   -->
 <form ngNoForm (submit)="$event.preventDefault()">
   <div class="ms-2 mt-2">
-    <div class="form-row-float-label">
+    <div class="shell-form-row--field">
       <div *ngIf="types" class="form-floating">
         <custom-select [options]="formatTypeSelectOptions"
           [ngModel]="model.formatType"
@@ -28,9 +28,9 @@
     </div>
     <ng-container *ngIf="model.formatType != FileFormatType.EXPORT_TYPE_SNAPSHOT">
       <fieldset *ngIf="matchLayoutVisible"
-         class="float-title bd-gray container-fluid form-row-float-label pb-1">
+         class="float-title container-fluid shell-form-row--field pb-1 file-format-pane__fieldset">
         <legend>_#(Data Size)</legend>
-        <div class="row form-row-float-label">
+        <div class="row shell-form-row--field">
           <div class="col">
             <div class="form-check">
               <input type="radio" name="DataSizeRadioOptions" class="form-check-input"
@@ -54,7 +54,7 @@
             </div>
           </div>
         </div>
-        <div class="row form-row-float-label">
+        <div class="row shell-form-row--field">
           <div class="col">
             <div class="form-check">
               <input type="checkbox" name="DataSizeRadioOptions" class="form-check-input"
@@ -89,7 +89,7 @@
           </div>
         </div>
       </fieldset>
-      <fieldset class="float-title bd-gray container-fluid form-row-float-label pb-1">
+      <fieldset class="float-title container-fluid shell-form-row--field pb-1 file-format-pane__fieldset">
         <legend>_#(Content)</legend>
         <div class="row">
           <div class="col">
@@ -120,8 +120,9 @@
     *ngIf="model.formatType != FileFormatType.EXPORT_TYPE_SNAPSHOT">
     <legend>_#(Bookmark)</legend>
     <w-large-form-field>
-      <div class="bordered-box bd-gray" largeFieldElement>
+      <div class="bordered-box file-format-pane__bookmark-surface" largeFieldElement>
         <div [class.cursor-pointer]="model.formatType!=FileFormatType.EXPORT_TYPE_HTML"
+             class="file-format-pane__bookmark-item"
              role="listitem" tabindex="-1"
              *ngFor="let bookmark of model.allBookmarks; let i = index;"
              [attr.aria-selected]="model.selectedBookmarks.indexOf(bookmark) != -1"
@@ -139,7 +140,7 @@
     </w-large-form-field>
   </fieldset>
   <fieldset *ngIf="model.formatType == FileFormatType.EXPORT_TYPE_SNAPSHOT"
-            class="float-title bd-gray container pb-1">
+            class="float-title container pb-1 file-format-pane__fieldset">
     <legend>_#(Content)</legend>
     <div class="row">
       <div class="col" [hidden]="!model.linkVisible">

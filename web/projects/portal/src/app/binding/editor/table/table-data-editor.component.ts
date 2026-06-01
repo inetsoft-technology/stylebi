@@ -48,7 +48,7 @@ import { Tool } from "../../../../../../shared/util/tool";
 @Component({
    selector: "table-data-editor",
    templateUrl: "table-data-editor.component.html",
-   styleUrls: ["../data-editor.component.scss"]
+   styleUrls: ["../data-editor.component.scss", "table-data-editor.component.scss"]
 })
 export class TableDataEditor extends DataEditor {
    @Input() fieldType: string;

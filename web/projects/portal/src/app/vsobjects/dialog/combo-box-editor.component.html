@@ -17,7 +17,7 @@
   -->
 <form ngNoForm (submit)="$event.preventDefault()" class="container-fluid" xmlns="http://www.w3.org/1999/html">
   <fieldset *ngIf="model">
-    <div class="form-row-float-label row">
+    <div class="row shell-form-row--field">
       <div class="col-3 checkbox">
         <div class="form-check">
           <input type="checkbox" class="form-check-input" id="embedded"
@@ -55,7 +55,7 @@
       </div>
     </div>
     <fieldset [disabled]="!model.embedded || !calendarEnabled()">
-      <div class="form-row-float-label row" *ngIf="showDateRanges()">
+      <div class="row shell-form-row--field" *ngIf="showDateRanges()">
         <div class="col">
           <div class="form-floating">
             <dynamic-combo-box [promptString]="datePrompt"
@@ -78,7 +78,7 @@
     </fieldset>
 
     <fieldset [disabled]="model.embedded && model.calendar">
-      <div class="form-row-float-label row">
+      <div class="row shell-form-row--field">
         <div class="col-3 checkbox">
           <div class="form-check">
             <input type="checkbox" class="form-check-input" id="query"
@@ -94,12 +94,12 @@
         </div>
       </div>
     </fieldset>
-    <div *ngIf="!model.valid" class="alert alert-danger">
+    <div *ngIf="!model.valid" class="shell-alert shell-alert--danger">
       _#(embedded.value.invalid)
     </div>
   </fieldset>
   <fieldset *ngIf="showCalendar">
-    <div class="form-row-float-label row">
+    <div class="row shell-form-row--field">
       <ng-container *ngIf="!model.calendar || (model.calendar && !model.embedded)">
         <div #dropDownBody class="col form-floating dropDownBody">
             <custom-select *ngIf="valueList?.length < 500"
@@ -139,16 +139,16 @@
       </div>
     </div>
   </fieldset>
-  <div *ngIf="(!validateDateValue(model.minDate) || !validateDateValue(model.defaultValue)) && model.embedded && model.calendar " class="alert alert-danger">
+  <div *ngIf="(!validateDateValue(model.minDate) || !validateDateValue(model.defaultValue)) && model.embedded && model.calendar " class="shell-alert shell-alert--danger">
     _#(viewer.viewsheet.calendar.invalidDate)
   </div>
-  <div *ngIf="!validateDateValue(model.maxDate) && model.embedded && model.calendar" class="alert alert-danger">
+  <div *ngIf="!validateDateValue(model.maxDate) && model.embedded && model.calendar" class="shell-alert shell-alert--danger">
     _#(viewer.viewsheet.calendar.invalidDate)
   </div>
-  <div *ngIf="showDateRangeWarning() && model.embedded && model.calendar" class="alert alert-danger">
+  <div *ngIf="showDateRangeWarning() && model.embedded && model.calendar" class="shell-alert shell-alert--danger">
     _#(viewer.viewsheet.calendar.invalidDateRange)
   </div>
-  <div *ngIf="isDefaultValue(model.defaultValue) && model.embedded && model.calendar" class="alert alert-danger">
+  <div *ngIf="isDefaultValue(model.defaultValue) && model.embedded && model.calendar" class="shell-alert shell-alert--danger">
     _#(viewer.viewsheet.calendar.defaultDateRange)
   </div>
 </form>
@@ -162,7 +162,7 @@
                         [model]="model.variableListDialogModel"></variable-list-dialog>
 </ng-template>
 <ng-template #dropdownOptions>
-  <div class="dropdown-container dropdown-menu show" [style.min-width.px]="dropdownMinWidth">
+  <div class="dropdown-container dropdown-pane" [style.min-width.px]="dropdownMinWidth">
     <cdk-virtual-scroll-viewport [itemSize]="35" class="dropdown-viewport">
       <div class="dropdown-item dropdown-item-label"
            *cdkVirtualFor="let entry of valueList"

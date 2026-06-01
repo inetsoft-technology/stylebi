@@ -23,8 +23,8 @@
   <fieldset>
     <legend>_#(Concatenation Type)</legend>
     <div class="container-fluid">
-      <div class="form-row-float-label row">
-        <div class="col-4 text-right">{{model.leftTableName}}</div>
+      <div class="shell-form-row--field row">
+        <div class="col-4 text-end">{{model.leftTableName}}</div>
         <div class="col-4">
           <custom-select [ngModel]="model.operator.operation"
                          (selectionChange)="updateOperation($event)"
@@ -33,7 +33,7 @@
         </div>
         <span class="col-4 concatenation-type-subtable-span">{{model.rightTableName}}</span>
       </div>
-      <div class="form-row-float-label row">
+      <div class="shell-form-row--field row">
         <div class="col-4"></div>
         <div class="col" [ngClass]="{'disabled': keepDisabled()}">
           <div class="form-check">
@@ -46,7 +46,7 @@
           </div>
         </div>
       </div>
-      <div class="form-row-float-label row">
+      <div class="shell-form-row--field row">
         <div class="col-4"></div>
         <div class="col">
           <div class="form-check">

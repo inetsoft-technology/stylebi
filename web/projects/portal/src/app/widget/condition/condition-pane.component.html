@@ -58,14 +58,14 @@
   </div>
   <div class="row">
     <div class="col-10">
-      <div class="bordered-box bd-gray h-100 condition-list" [style.max-height.px]="listPaneHeight">
+      <div class="bordered-box h-100 condition-list condition-pane__list" [style.max-height.px]="listPaneHeight">
         <div *ngFor="let item of conditionList; let even = even; let i = index;"
-             class="unhighlightable"
+             class="unhighlightable condition-pane__list-item"
              [class.selected]="selectedIndex == i" (click)="conditionItemSelected(i)">
-          <div *ngIf="even">
+          <div *ngIf="even" class="condition-pane__list-text">
             {{item | conditionToString}}
           </div>
-          <div *ngIf="!even">
+          <div *ngIf="!even" class="condition-pane__list-text">
             {{item | junctionOperatorToString}}
           </div>
         </div>

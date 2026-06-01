@@ -39,10 +39,10 @@
       </div>
       <div class="mt-4">
         <p *ngIf="!visibleMessages || visibleMessages.length == 0" class="text-center">_#(vs.noMessage)</p>
-        <div *ngFor="let message of visibleMessages" class="alert message-content mb-2"
-             [class.alert-danger]="message.type == 'ERROR'"
-             [class.alert-warning]="message.type == 'WARNING'"
-             [class.alert-info]="message.type == 'INFO'"
+        <div *ngFor="let message of visibleMessages" class="message-content shell-alert mb-2"
+             [class.shell-alert--danger]="message.type == 'ERROR'"
+             [class.shell-alert--warning]="message.type == 'WARNING'"
+             [class.shell-alert--info]="message.type == 'INFO'"
              [innerHTML]="message.message">
         </div>
       </div>

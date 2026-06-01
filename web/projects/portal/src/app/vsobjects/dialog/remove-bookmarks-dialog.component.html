@@ -25,13 +25,13 @@
            <div class="col-4">
              <div #dropdownInput class="input-group span-as-dropdown">
                <div draggable="true"
-                    class="display-style bd-gray form-control"
+                    class="display-style form-control remove-bookmarks-dialog__trigger"
                     [fixedDropdown]="dropdownMenu" [zIndex]="999903"
                     dropdownPlacement="bottom">
                   {{selectedFilterOptionLabel}}
                </div>
                <ng-template #dropdownMenu>
-                  <div class="dropdown-container dropdown-menu show" role="menu" [style.width.px]="dropdownWidth">
+                  <div class="dropdown-container dropdown-pane" role="menu" [style.width.px]="dropdownWidth">
                      <div placement="bottom">
                         <a>
                            <div class="dropdown-item dropdown-item-label"
@@ -63,7 +63,7 @@
                   <div class="datemc input-group">
                      <div class="col-auto input-group">
                         <input formControlName="filterDate" draggable="true"
-                               class="display-style bd-gray form-control"
+                               class="display-style form-control remove-bookmarks-dialog__date-input"
                                dropdownPlacement="bottom">
                         <button class="calendar-button btn input-group-btn-addon"
                                 title="_#(Select a Date)"

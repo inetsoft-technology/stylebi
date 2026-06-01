@@ -40,6 +40,8 @@
     justify-content: space-between;
     min-width: 0;
     background-image: none;
+    border-color: var(--inet-input-border-color);
+    background-color: var(--inet-input-bg-color);
 
     span {
       flex-grow: 1;
@@ -70,9 +72,10 @@
   max-width: 50vw;
   max-height: 300px;
   overflow-y: auto;
+  background-color: var(--inet-dropdown-bg-color);
 
   .selected {
-    border-radius: 3px;
+    border-radius: var(--inet-radius-sm);
   }
 }
 

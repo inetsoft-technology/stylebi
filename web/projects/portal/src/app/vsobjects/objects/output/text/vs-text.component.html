@@ -33,7 +33,7 @@
      [style.height.px]="model.autoSize ? textHeight : model.objectFormat.height"
      outOfZone (onDocKeydown)="onEnterDown($event)">
   <div class="border-div"
-       [class.bd-gray]="vsWizardPreview"
+       [class.vs-text__wizard-border]="vsWizardPreview"
        [style.z-index]="viewer ? model.objectFormat.zIndex : null"
        [style.border-bottom]="model.objectFormat.border.bottom"
        [style.border-top]="model.objectFormat.border.top"

@@ -16,7 +16,7 @@
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
 <form [formGroup]="form" class="logical-model-entity-pane">
-  <div class="form-group form-floating logical-model-entity-pane__first-field">
+  <div class="shell-form-group form-floating logical-model-entity-pane__first-field">
     <input #nameInput type="text" class="form-control" formControlName="name"
            [class.is-invalid]="nameControl && nameControl.invalid">
     <label>_#(Entity Name)</label>
@@ -27,7 +27,7 @@
       _#(data.logicalmodel.entityNameDuplicate)
     </span>
   </div>
-  <div class="form-group form-floating">
+  <div class="shell-form-group form-floating">
     <textarea type="text" class="form-control" formControlName="description"></textarea>
     <label>_#(Description)</label>
   </div>

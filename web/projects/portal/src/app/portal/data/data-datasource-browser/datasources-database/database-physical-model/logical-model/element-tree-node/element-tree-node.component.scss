@@ -25,6 +25,15 @@
   min-height: 32px;
   padding-right: var(--inet-space-2);
   border-radius: var(--inet-border-radius-sm, 4px);
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.logical-model-tree-node:hover:not(.logical-model-tree-node--selected) {
+  background: var(--inet-list-hover-bg-color);
+}
+
+.logical-model-tree-node--selected {
+  background: var(--inet-list-selected-bg-color);
 }
 
 tree-node:first-of-type > .logical-model-tree-node {

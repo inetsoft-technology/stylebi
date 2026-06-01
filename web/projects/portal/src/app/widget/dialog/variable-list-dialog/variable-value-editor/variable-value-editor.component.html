@@ -23,7 +23,7 @@
         <input class="form-control" type="number" id="long"
                [ngModel]="value" (ngModelChange)="changeValue($event)" formControlName="long">
         <div *ngIf="form.controls['long'].errors && form.controls['long'].errors['pattern'] && value"
-             class="alert alert-danger">
+             class="shell-alert shell-alert--danger">
           <strong>_#(Error)</strong> _#(em.common.config.integer)
         </div>
       </form>
@@ -36,11 +36,11 @@
       <form [formGroup]="form">
         <input class="form-control" type="number" id="short" min="-32768" max="32767" [ngModel]="value" (ngModelChange)="changeValue($event)" formControlName="short">
         <div *ngIf="form.controls['short'].errors && form.controls['short'].errors['shortInRange'] && value"
-             class="alert alert-danger">
+             class="shell-alert shell-alert--danger">
           <strong>_#(Error)</strong> _#(number.between.short)
         </div>
         <div *ngIf="form.controls['short'].errors && form.controls['short'].errors['pattern'] && value"
-             class="alert alert-danger">
+             class="shell-alert shell-alert--danger">
           <strong>_#(Error)</strong> _#(em.common.config.integer)
         </div>
       </form>
@@ -53,11 +53,11 @@
       <form [formGroup]="form">
         <input class="form-control" type="number" id="byte" min="-128" max="127" [ngModel]="value" (ngModelChange)="changeValue($event)" formControlName="byte">
         <div *ngIf="form.controls['byte'].errors && form.controls['byte'].errors['byteInRange'] && value"
-             class="alert alert-danger">
+             class="shell-alert shell-alert--danger">
           <strong>_#(Error)</strong> _#(number.between.byte)
         </div>
         <div *ngIf="form.controls['byte'].errors && form.controls['byte'].errors['pattern'] && value"
-             class="alert alert-danger">
+             class="shell-alert shell-alert--danger">
           <strong>_#(Error)</strong> _#(em.common.config.integer)
         </div>
       </form>
@@ -83,7 +83,7 @@
         <input class="form-control" type="text" id="float"
                [ngModel]="value" (ngModelChange)="changeValue($event)" formControlName="float">
         <div *ngIf="form.controls['float'].errors && form.controls['float'].errors['pattern'] && value"
-             class="alert alert-danger">
+             class="shell-alert shell-alert--danger">
           <strong>_#(Error)</strong> Only numbers, decimal and negative dash.
         </div>
       </form>
@@ -139,11 +139,11 @@
         <input *ngIf="!oneOf" class="form-control" type="number" id="integer" min="-2147483648" max="2147483647" [ngModel]="value" (ngModelChange)="changeValue($event)" formControlName="integer">
         <input *ngIf="oneOf" class="form-control" id="integer" min="-2147483648" max="2147483647" [ngModel]="value" (ngModelChange)="changeValue($event)" formControlName="integer">
         <div *ngIf="form.controls['integer'].errors && form.controls['integer'].errors['integerInRange'] && value"
-             class="alert alert-danger">
+             class="shell-alert shell-alert--danger">
           <strong>_#(Error)</strong> _#(number.between.int)
         </div>
         <div *ngIf="form.controls['integer'].errors && form.controls['integer'].errors['pattern'] && value"
-             class="alert alert-danger">
+             class="shell-alert shell-alert--danger">
           <strong>_#(Error)</strong> _#(em.common.config.integer)
         </div>
       </form>
@@ -157,7 +157,7 @@
         <input class="form-control" type="text" id="double"
                [ngModel]="value" (ngModelChange)="changeValue($event)" formControlName="double">
         <div *ngIf="form.controls['double'].errors && form.controls['double'].errors['pattern'] && value"
-             class="alert alert-danger">
+             class="shell-alert shell-alert--danger">
           <strong>_#(Error)</strong> Only numbers, decimal and negative dash.
         </div>
       </form>

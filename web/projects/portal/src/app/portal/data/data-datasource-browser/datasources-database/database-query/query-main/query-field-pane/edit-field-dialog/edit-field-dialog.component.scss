@@ -15,8 +15,17 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-.bordered-box {
+.edit-field-dialog__surface {
   height: 20em;
+}
+
+.edit-field-dialog__surface {
+  background-color: var(--inet-list-bg-color);
+  border-color: var(--inet-list-border-color);
+  border-width: 1px;
+  border-style: solid;
+  border-radius: var(--inet-radius-md);
+  overflow: auto;
 }
 
 textarea {
@@ -26,5 +35,5 @@ textarea {
 }
 
 .downward-buttons-container {
-  margin: 5px 0;
+  margin: var(--inet-space-2) 0;
 }

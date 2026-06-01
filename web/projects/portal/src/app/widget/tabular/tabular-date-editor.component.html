@@ -20,5 +20,5 @@
 <time-value-editor *ngIf="type == 'TIME'" [model]="value" (timeChange)="valueChanged($event)" [format]="DATE_FORMAT" [disabled]="!enabled"></time-value-editor>
 
 <div *ngIf="required && value == null">
-  <div class="alert alert-danger">_#(enter.date)</div>
+  <div class="shell-alert shell-alert--danger">_#(enter.date)</div>
 </div>

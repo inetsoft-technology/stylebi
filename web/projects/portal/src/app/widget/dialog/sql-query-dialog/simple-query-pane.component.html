@@ -23,7 +23,7 @@
         <div class="tab-content">
           <div class="row">
             <div class="col-4 pe-0 tree-container">
-              <div class="bordered-box tree-body bd-gray">
+              <div class="bordered-box tree-body simple-query-pane__tree-surface">
                 <tree *ngIf="dataSourceTreeRoot" #tree class="unhighlightable h-100"
                       [root]="dataSourceTreeRoot" [showRoot]="false" [iconFunction]="iconFunction"
                       [selectOnClick]="true" [draggable]="true" [multiSelect]="true"
@@ -70,14 +70,14 @@
               <div class="row mb-2">
                 <div class="col-12 pe-0">
                   <div class="form-floating">
-                    <div class="bordered-box bd-gray col">
+                    <div class="bordered-box col simple-query-pane__condition-surface">
                       <div *ngFor="let item of model.conditionList; let even = even; let i = index;"
-                           class="unhighlightable"  [class.selected]="selectedConditionIndex === i"
+                           class="unhighlightable simple-query-pane__condition-item"  [class.selected]="selectedConditionIndex === i"
                            (click)="selectedConditionIndex = i">
-                        <div *ngIf="even">
+                        <div *ngIf="even" class="simple-query-pane__condition-text">
                           {{item | clauseToString}}
                         </div>
-                        <div *ngIf="!even">
+                        <div *ngIf="!even" class="simple-query-pane__condition-text">
                           {{item | conjunctionToString}}
                         </div>
                       </div>

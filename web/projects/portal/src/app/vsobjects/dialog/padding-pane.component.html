@@ -18,38 +18,46 @@
 <form [formGroup]="form" class="container-fluid">
   <fieldset>
     <legend>_#(Padding)</legend>
-    <div class="row form-row-float-label">
+    <div class="row shell-form-row--field">
       <div class="col">
-        <div class="form-floating">
-          <input type="number" class="form-control" formControlName="top" [(ngModel)]="model.top"
-                 placeholder="_#(Top)">
-          <label>_#(Top)</label>
+        <div class="d-flex flex-column">
+          <label class="form-label">_#(Top)</label>
+          <number-stepper formControlName="top" [min]="0"
+                          (valueChange)="model.top = $event"
+                          [invalid]="form.controls['top'].invalid">
+          </number-stepper>
         </div>
       </div>
       <div class="col">
-        <div class="form-floating">
-          <input type="number" class="form-control" formControlName="left" [(ngModel)]="model.left"
-                 placeholder="_#(Left)">
-          <label>_#(Left)</label>
+        <div class="d-flex flex-column">
+          <label class="form-label">_#(Left)</label>
+          <number-stepper formControlName="left" [min]="0"
+                          (valueChange)="model.left = $event"
+                          [invalid]="form.controls['left'].invalid">
+          </number-stepper>
         </div>
       </div>
       <div class="col">
-        <div class="form-floating">
-          <input type="number" class="form-control" formControlName="bottom" [(ngModel)]="model.bottom"
-                 placeholder="_#(Bottom)">
-          <label>_#(Bottom)</label>
+        <div class="d-flex flex-column">
+          <label class="form-label">_#(Bottom)</label>
+          <number-stepper formControlName="bottom" [min]="0"
+                          (valueChange)="model.bottom = $event"
+                          [invalid]="form.controls['bottom'].invalid">
+          </number-stepper>
         </div>
       </div>
       <div class="col">
-        <div class="form-floating">
-          <input type="number" class="form-control" formControlName="right" [(ngModel)]="model.right"
-                 placeholder="_#(Right)">
-          <label>_#(Right)</label>
+        <div class="d-flex flex-column">
+          <label class="form-label">_#(Right)</label>
+          <number-stepper formControlName="right" [min]="0"
+                          (valueChange)="model.right = $event"
+                          [invalid]="form.controls['right'].invalid">
+          </number-stepper>
         </div>
       </div>
     </div>
   </fieldset>
-  <div class="alert alert-danger" *ngIf="form.controls['top'].errors || form.controls['left'].errors || form.controls['bottom'].errors || form.controls['right'].errors">
+  <div class="shell-alert shell-alert--danger" *ngIf="form.controls['top'].errors || form.controls['left'].errors || form.controls['bottom'].errors || form.controls['right'].errors">
     _#(viewer.viewsheet.layout.paddingValid)
   </div>
 </form>

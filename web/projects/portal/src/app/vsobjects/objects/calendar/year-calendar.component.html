@@ -30,7 +30,7 @@
       </div>
       <div class="calendar-title-label-container">
         <div #titleRef
-             class="calendar-title-label bd-gray selectable"
+             class="calendar-title-label calendar-title-label--surface selectable"
              [class.selected-cell]="isYearSelected()"
              [class.bd-selected-cell]="selectedRow == SelectionRegions.TITLE"
              [style.align-items]="model.calendarTitleFormat.alignItems"
@@ -58,7 +58,7 @@
    </div>
    <div #listRef class="month-table">
       <div class="month-row" *ngFor="let row of [0, 1, 2]">
-         <div class="month-cell bd-gray" *ngFor="let col of [0, 1, 2, 3]"
+         <div class="month-cell month-cell--surface" *ngFor="let col of [0, 1, 2, 3]"
               (click)="clickCell(row, col, $event)"
               [ngClass]="{
                 'calendar-selected-cell': selectedMonth[row * 4 + col],

@@ -227,6 +227,10 @@ export class ScriptPane implements AfterViewInit, AfterViewChecked, OnInit, OnDe
       if(this.columnTreeRoot && this.initialized) {
          this.needUseVirtualScroll = TreeTool.needUseVirtualScroll(this.columnTreeRoot);
       }
+
+      if(changes["disabled"] && this.codemirrorInstance) {
+         this.codemirrorInstance.setOption("readOnly", this.disabled);
+      }
    }
 
    ngAfterViewInit(): void {

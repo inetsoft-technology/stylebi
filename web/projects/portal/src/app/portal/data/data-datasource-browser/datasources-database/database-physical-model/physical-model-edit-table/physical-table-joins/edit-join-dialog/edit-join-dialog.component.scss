@@ -28,7 +28,7 @@
 .join-properties__header {
    padding: 0 0 12px;
    margin-bottom: 16px;
-   border-bottom: 1px solid var(--inet-default-border-color);
+   border-bottom: 1px solid var(--inet-list-border-color);
 }
 
 .join-properties__title {
@@ -47,7 +47,7 @@
    margin-top: 0;
 }
 
-.join-properties__content > .form-group {
+.join-properties__content > .shell-form-group {
    margin-bottom: 0;
 }
 
@@ -85,8 +85,8 @@
 
 .join-dialog__remove-btn {
    color: var(--inet-danger-color-dark);
-   border-color: var(--inet-default-border-color);
-   background: var(--inet-main-panel-bg-color);
+   border-color: var(--inet-list-border-color);
+   background: var(--inet-shell-surface-default);
 }
 
 .join-dialog__remove-btn:not([disabled]):not(.disabled):hover {

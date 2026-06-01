@@ -135,6 +135,12 @@
   outline: none;
 }
 
+.ws-details-table-data__header-input {
+  background: var(--inet-shell-surface-default);
+  border: 1px solid var(--inet-default-border-color);
+  border-radius: var(--inet-radius-sm);
+}
+
 .notifications-ws-details {
   position: fixed;
   right: 20px;

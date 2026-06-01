@@ -17,7 +17,7 @@
   -->
 <form ngNoForm (submit)="$event.preventDefault()" class="container-fluid">
   <fieldset>
-    <div class="form-row-float-label row">
+    <div class="shell-form-row--field row">
       <div class="col bordered-box  bd-gray bordered-box-md">
         <tree [root]="model.targetTree" [showRoot]="false" [showTooltip]="true" [grayedOutFields]="model.grayedOutFields"
               (nodesSelected)="selectColumn($event[0])" [iconFunction] = "getCSSIcon"

@@ -16,7 +16,7 @@
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
 <div #dropdownBody class="condition-field-combo">
-  <div #conditionFieldToggle class="condition-field-combo-toggle form-control no-caret bd-gray"
+  <div #conditionFieldToggle class="condition-field-combo-toggle form-control no-caret"
        [class.opacity-0]="showSearch"
        [ngClass]="{disabled: !enabled}" [fixedDropdown]="dropdownMenu"
        (openChange)="dropDownOpenChange($event)"
@@ -46,7 +46,7 @@
 </div>
 
 <ng-template #dropdownMenu>
-  <div #dropdownMenuContainer class="condition-field-combo-dropdown dropdown-pane bg-white1" role="menu"
+  <div #dropdownMenuContainer class="condition-field-combo-dropdown dropdown-pane" role="menu"
        [style.min-width.px]="dropdownMinWidth" (scroll)="noOp()"
        [style.max-height.px]="dropdownHeight"
        *ngIf="enabled">

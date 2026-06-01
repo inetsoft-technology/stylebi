@@ -17,13 +17,13 @@
   -->
 <div dropHighlight (drop)="drop($event)" [disabled]="!_isEnabled"
      outOfZone (onDragover)="dragOver($event)">
-   <div class="field-pane bd-gray" [class.disabled-grayout]="!_isEnabled">
+   <div class="field-pane field-pane--surface" [class.disabled-grayout]="!_isEnabled">
       <div class="field-container" data-test="color-field-container">
          <!--color cells-->
         <div [fixedDropdown]="dropdownMenu" [autoClose]="false" [zIndex]="10000"
              [closeOnEsc]="!dialogOpened"
              [class.field-icon--open]="dropdownOpen"
-             class="field-icon hover-bg-secondary" (openChange)="openChanged($event)">
+             class="field-icon hover-bg-neutral" (openChange)="openChanged($event)">
           <div *ngIf="_isEditEnabled && (field || frames.length > 1 || isContour())"
             title="_#(Edit Color)" class="visual-cell-container">
             <div class="visual-cell no-caret"

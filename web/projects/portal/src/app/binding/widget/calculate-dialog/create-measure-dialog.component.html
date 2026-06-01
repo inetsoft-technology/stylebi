@@ -27,13 +27,13 @@
 
           <!-- Client chose Detail radio button -->
           <ng-template [ngSwitchCase]="'detail'">
-            <form [formGroup]="form" class="form-inline">
-              <div class="form-row-float-label">
+            <form [formGroup]="form" class="shell-inline-form">
+              <div class="shell-form-row--field">
                 <label for="nameDetail">_#(Name):</label>
                 <input type="text" class="form-control" id="nameDetail" trim
                        formControlName="name" [(ngModel)]="model.name">
               </div>
-              <div class="form-row-float-label col-offset-1">
+              <div class="shell-form-row--field col-offset-1">
                 <label for="returnDetail">_#(Return Data Type):</label>
                 <custom-select id="returnDetail"
                                formControlName="dataType"
@@ -41,7 +41,7 @@
                                [(ngModel)]="model.dataType">
                 </custom-select>
               </div>
-              <div class="form-row-float-label col-offset-2">
+              <div class="shell-form-row--field col-offset-2">
                 <div class="form-check">
                   <input type="radio" class="form-check-input" name="view" id="sqlDetail"
                          value="sql" formControlName="view" [(ngModel)]="model.view">
@@ -59,12 +59,12 @@
               </div>
             </form>
             <form ngNoForm (submit)="$event.preventDefault()" class="form-horizontal">
-              <div class="form-row-float-label">
+              <div class="shell-form-row--field">
                 <div class="col-12">
-                  <div *ngIf="form.controls['name'].errors && form.controls['name'].errors['required']" class="alert alert-danger">
+                  <div *ngIf="form.controls['name'].errors && form.controls['name'].errors['required']" class="shell-alert shell-alert--danger">
                     <strong>_#(Error)</strong> _#(binding.nameInput.isEmpty)
                   </div>
-                  <div *ngIf="form.controls['name'].errors && form.controls['name'].errors['calcSpecialCharacters']" class="alert alert-danger">
+                  <div *ngIf="form.controls['name'].errors && form.controls['name'].errors['calcSpecialCharacters']" class="shell-alert shell-alert--danger">
                     <strong>_#(Error)</strong>_#(formula.editor.charValid)
                   </div>
                 </div>
@@ -74,8 +74,8 @@
 
           <!-- Client choose Aggregate radio button -->
           <ng-template [ngSwitchCase]="'aggregate'">
-            <form [formGroup]="form" class="form-inline">
-              <div class="row form-row-float-label">
+            <form [formGroup]="form" class="shell-inline-form">
+              <div class="row shell-form-row--field">
                 <div class="col form-floating">
                   <input type="text" class="form-control" id="nameAggregate" trim
                          formControlName="name" [(ngModel)]="model.name" placeholder="_#(Name)">
@@ -112,20 +112,20 @@
               </div>
             </form>
             <form ngNoForm (submit)="$event.preventDefault()" class="form-horizontal">
-              <div class="form-row-float-label">
+              <div class="shell-form-row--field">
                 <div class="col-12">
-                  <div *ngIf="form.controls['name'].errors && form.controls['name'].errors['required']" class="alert alert-danger">
+                  <div *ngIf="form.controls['name'].errors && form.controls['name'].errors['required']" class="shell-alert shell-alert--danger">
                     <strong>_#(Error)</strong> _#(binding.nameInput.isEmpty)
                   </div>
-                  <div *ngIf="form.controls['name'].errors && form.controls['name'].errors['calcSpecialCharacters']" class="alert alert-danger">
+                  <div *ngIf="form.controls['name'].errors && form.controls['name'].errors['calcSpecialCharacters']" class="shell-alert shell-alert--danger">
                     <strong>_#(Error)</strong>_#(formula.editor.charValid)
                   </div>
                 </div>
               </div>
             </form>
-            <div class="alert alert-danger" *ngIf="showWarning">
+            <div class="shell-alert shell-alert--danger" *ngIf="showWarning">
               <strong>_#(Error)</strong> _#(common.calcfieldAggrSqlUnsupport)
-              <button type="button" class="close" aria-label="Close" (click)="showWarning = false"><span aria-hidden="true">&times;</span></button>
+              <button type="button" class="btn-close" aria-label="Close" (click)="showWarning = false"></button>
             </div>
           </ng-template>
 

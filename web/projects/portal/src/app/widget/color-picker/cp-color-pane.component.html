@@ -18,7 +18,7 @@
 <div class="color-picker-palette" blockMouse *ngIf="!hidePane">
   <form class="form" novalidate>
     <div class="color-picker-toolbar">
-      <button type="button" class="color-picker-swatch current-color-swatch bd-gray"
+      <button type="button" class="color-picker-swatch current-color-swatch color-picker-palette__toolbar-swatch"
               [style.background-color]="color">
         <span class="visually-hidden">{{color}}</span>
       </button>
@@ -31,11 +31,11 @@
       <img src="assets/colorIcon.gif" class="color-cell" style="border: none"
            (click)="openColorEditor()">
     </div>
-    <div class="form-row-float-label color-picker-palette-row color-picker-recent" *ngIf="showRecentColors">
+    <div class="shell-form-row--field color-picker-palette-row color-picker-recent" *ngIf="showRecentColors">
       <table>
-        <tr class="bb-gray">
+        <tr class="color-picker-palette__recent-row">
           <td *ngFor="let swatch of recentColors">
-            <button type="button" class="color-picker-swatch bd-gray"
+            <button type="button" class="color-picker-swatch color-picker-palette__swatch"
                     [class.transparent-swatch]="swatch === ''"
                     [class.disable-actions]="(swatch === '' || !swatch) && !allowNullColors"
                     (mousedown)="selectColor(swatch)" blockMouse
@@ -46,11 +46,11 @@
         </tr>
       </table>
     </div>
-    <div class="form-row-float-label color-picker-palette-row" *ngFor="let row of palette">
+    <div class="shell-form-row--field color-picker-palette-row" *ngFor="let row of palette">
       <table>
         <tr>
           <td *ngFor="let swatch of row">
-            <button type="button" class="color-picker-swatch"
+            <button type="button" class="color-picker-swatch color-picker-palette__swatch"
                     [ngClass]="{'color-picker-selected bd-selected' : color == swatch || !color && !swatch,
                                 'border-0' : !(color == swatch || !color && !swatch)}"
                     [class.transparent-swatch]="swatch === ''"

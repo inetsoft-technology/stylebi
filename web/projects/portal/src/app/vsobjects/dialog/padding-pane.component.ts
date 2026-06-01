@@ -29,22 +29,22 @@ export class PaddingPane implements OnInit {
    @Input() form: UntypedFormGroup = new UntypedFormGroup({});
 
    initForm(): void {
-      this.form.addControl("top", new UntypedFormControl({value: this.model.top},
+      this.form.addControl("top", new UntypedFormControl(this.model.top,
          [Validators.required,
          FormValidators.isInteger(),
          FormValidators.positiveIntegerInRange
       ]));
-      this.form.addControl("left", new UntypedFormControl({value: this.model.left},
+      this.form.addControl("left", new UntypedFormControl(this.model.left,
          [Validators.required,
          FormValidators.isInteger(),
          FormValidators.positiveIntegerInRange
       ]));
-      this.form.addControl("bottom", new UntypedFormControl({value: this.model.bottom},
+      this.form.addControl("bottom", new UntypedFormControl(this.model.bottom,
          [Validators.required,
          FormValidators.isInteger(),
          FormValidators.positiveIntegerInRange
       ]));
-      this.form.addControl("right", new UntypedFormControl({value: this.model.right},
+      this.form.addControl("right", new UntypedFormControl(this.model.right,
          [Validators.required,
          FormValidators.isInteger(),
          FormValidators.positiveIntegerInRange

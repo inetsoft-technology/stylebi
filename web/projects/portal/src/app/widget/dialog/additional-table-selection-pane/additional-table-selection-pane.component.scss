@@ -16,7 +16,34 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 :host {
-  .bordered-box {
+  .additional-table-selection-pane__list {
     height: 10em !important;
+  }
+}
+
+.additional-table-selection-pane__list {
+  background-color: var(--inet-list-bg-color);
+  border-color: var(--inet-list-border-color);
+  overflow: auto;
+  padding: 0;
+  border-radius: var(--inet-radius-md);
+}
+
+.additional-table-selection-pane__list-item {
+  align-items: center;
+  display: flex;
+  min-height: var(--inet-control-height-md);
+  overflow: hidden;
+  padding: 0 var(--inet-space-3);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: background-color 120ms ease, color 120ms ease;
+
+  &:not(.selected):hover {
+    background-color: var(--inet-list-hover-bg-color);
+  }
+
+  &.selected {
+    background-color: var(--inet-list-selected-bg-color);
   }
 }

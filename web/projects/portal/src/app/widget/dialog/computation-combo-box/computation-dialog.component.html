@@ -21,7 +21,7 @@
 </modal-header>
 <div class="modal-body">
   <form class="container-fluid">
-    <div class="form-row-float-label row">
+    <div class="row shell-form-row--field">
       <div class="col">
         <div class="form-floating">
           <dynamic-combo-box [(value)]="model.value" [editable]="true" [variables]="variables"
@@ -29,23 +29,23 @@
           </dynamic-combo-box>
           <label>{{getLabel()}}</label>
         </div>
-        <div class="alert alert-danger" *ngIf="model.name == 'Confidence Interval' && !isValueValid(model.value)">
+        <div class="shell-alert shell-alert--danger" *ngIf="model.name == 'Confidence Interval' && !isValueValid(model.value)">
           <strong>_#(Error):</strong> _#(designer.chartProp.confidenceLevelError) {{model.value}}
         </div>
-        <div class="alert alert-danger" *ngIf="model.name == 'Percentiles' && !isValueValid(model.value)">
+        <div class="shell-alert shell-alert--danger" *ngIf="model.name == 'Percentiles' && !isValueValid(model.value)">
           <strong>_#(Error):</strong> _#(designer.chartProp.percentileError) {{model.value}}
         </div>
-        <div class="alert alert-danger" *ngIf="(model.name == 'Standard Deviation' || model.name == 'Percentage') && !isValueValid(model.value)">
+        <div class="shell-alert shell-alert--danger" *ngIf="(model.name == 'Standard Deviation' || model.name == 'Percentage') && !isValueValid(model.value)">
           <strong>_#(Error):</strong> {{model.name}} _#(designer.chartProp.invalidNumber) {{model.value}}
         </div>
-        <div class="alert alert-danger" *ngIf="model.name == 'Quantiles' && !isValueValid(model.value)">
+        <div class="shell-alert shell-alert--danger" *ngIf="model.name == 'Quantiles' && !isValueValid(model.value)">
           <strong>_#(Error):</strong> _#(designer.chartProp.quantileError) {{model.value}}
         </div>
       </div>
       <div class="col-auto ps-0" *ngIf="selectedIndex < 2">%</div>
     </div>
     <ng-container [ngSwitch]="selectedIndex">
-      <div class="form-row-float-label row" *ngSwitchCase="1">
+      <div class="row shell-form-row--field" *ngSwitchCase="1">
         <label class="col-auto">_#(calculationOf):</label>
         <div class="col-auto">
           <dynamic-combo-box [(type)]="valueType" [values]="percentagesValues"
@@ -55,7 +55,7 @@
                              [valueOnly]="hideDcombox"></dynamic-combo-box>
         </div>
       </div>
-      <div class="form-row-float-label row" *ngSwitchCase="4">
+      <div class="row shell-form-row--field" *ngSwitchCase="4">
         <div class="col-auto">
           <div class="form-check">
             <input class="form-check-input" name="group" type="radio" id="sample"

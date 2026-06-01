@@ -17,8 +17,8 @@
   -->
 <split-pane [sizes]="[30, 70]" [minSize]="200" [snapOffset]="0" [gutterSize]="5">
   <div class="split conditionspane">
-    <div class="list-group group-container list-group-flush">
-      <div class="data-model-header-pane truncate-parent justify-content-between align-items-center rounded-0">
+    <div class="group-container vpm-conditions-list">
+      <div class="data-model-header-pane truncate-parent justify-content-between align-items-center rounded-0 vpm-conditions-list__header">
         <span class="truncate-text font-weight-bold" >_#(Conditions)</span>
         <div class="condition-toolbar">
           <button class="truncate-addon btn btn-sm btn-light-no-bg"
@@ -36,10 +36,10 @@
           </button>
         </div>
       </div>
-      <div class="group-container-body">
+      <div class="group-container-body vpm-conditions-list__body">
          <div *ngFor="let condition of conditions; let i = index"
-              class="list-group-item list-group-item-action truncate-parent justify-content-between hover-bg-primary
-                     align-items-center rounded-0 cursor-pointer"
+              class="truncate-parent justify-content-between
+                     align-items-center rounded-0 cursor-pointer vpm-conditions-list__item"
               [class.active]="isSelected(condition)"
               [class.bg-selected]="isSelected(condition)"
               (click)="editCondition($event, condition)">
@@ -59,7 +59,7 @@
   <div class="split">
     <ng-container *ngIf="!!editingCondition">
       <div class="container-fluid hidden-column-container">
-        <div class="form-group mt-2 form-floating">
+        <div class="shell-form-group mt-2 form-floating">
             <input type="text" #nameCtrl="ngModel"
                    name="name"
                    class="form-control"
@@ -105,7 +105,7 @@
                   </div>
                 </div>
                 <div class="row">
-                  <div class="col form-group mt-2">
+                  <div class="col shell-form-group mt-2">
                     <div class="input-group">
                       <div class="form-floating">
                         <input readonly type="text"
@@ -125,8 +125,8 @@
                 </div>
                 <div class="row">
                   <div class="col">
-                <div class="form-group">
-                  <div class="bordered-box bordered-box-md bd-gray">
+                <div class="shell-form-group">
+                  <div class="bordered-box bordered-box-md vpm-conditions__clauses-surface">
                     <div *ngIf="editingCondition.clauses.length == 0"
                          class="unhighlightable">
                       _#(data.vpm.noClauses)
@@ -141,7 +141,7 @@
                       </div>
                     </div>
                   </div>
-                  <div class="mt-2 text-right">
+                  <div class="mt-2 text-end">
                     <button type="button" class="btn btn-primary"
                             (click)="editClauses()"
                             [disabled]="tableNameNull || refreshingColumns">

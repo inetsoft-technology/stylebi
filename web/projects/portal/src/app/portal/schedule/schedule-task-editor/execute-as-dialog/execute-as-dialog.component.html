@@ -17,7 +17,7 @@
   -->
 <modal-header [title]="'_#(Execute As)'" [cshid]="'PortalExecuteAs'" (onCancel)="close()"></modal-header>
 <div class="modal-body" enterSubmit (onEnter)="ok()">
-  <div class="form-group usersOverflow">
+  <div class="shell-form-group usersOverflow">
     <identity-tree #identityTree [hidden]="searchMode" [root]="getRoot()"
                    [showRoot]="true" [searchMode]="searchMode" [multiSelect]="false"
                    (nodesSelected)="nodeSelected($event)"></identity-tree>

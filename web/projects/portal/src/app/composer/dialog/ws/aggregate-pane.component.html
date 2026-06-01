@@ -17,7 +17,7 @@
   -->
 <form ngNoForm (submit)="$event.preventDefault()" class="form-horizontal">
   <ng-container *ngFor="let _row of rows; let _j = index">
-    <div class="form-row-float-label row">
+    <div class="shell-form-row--field row">
       <div class="col">
         <div class="row aggregate-pane__row">
           <div class="col aggregate-pane__field-col">
@@ -127,7 +127,7 @@
     </div>
   </ng-container>
   <div *ngIf="!valid"
-       class="alert alert-danger row mt-2 g-0 row-cols-auto">
+       class="shell-alert shell-alert--danger row mt-2 g-0 row-cols-auto">
     <strong>Error:&nbsp;</strong>_#(duplicate.items)
   </div>
 </form>

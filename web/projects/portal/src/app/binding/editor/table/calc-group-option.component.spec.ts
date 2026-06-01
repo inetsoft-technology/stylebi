@@ -37,6 +37,7 @@ import { CellBindingInfo } from "../../data/table/cell-binding-info";
 import { OrderModel } from "../../data/table/order-model";
 import { TopNModel } from "../../data/table/topn-model";
 import { VSCalcTableEditorService } from "../../services/table/vs-calc-table-editor.service";
+import { NumberStepperModule } from "../../../widget/number-stepper/number-stepper.module";
 import { CalcGroupOption } from "./calc-group-option.component";
 
 @Component({
@@ -149,7 +150,8 @@ describe("Calc Group Option Unit Test", () => {
             FormsModule,
             NgbModule,
             HttpClientTestingModule,
-            CustomSelectModule
+            CustomSelectModule,
+            NumberStepperModule
          ],
          declarations: [
             CalcGroupOption, TestApp
@@ -219,21 +221,21 @@ describe("Calc Group Option Unit Test", () => {
       fixture.detectChanges();
 
       const rankingSelectEl = fixture.debugElement.query(By.css("div.popup-editor__container .ranking_label_id custom-select"));
-      let topN: HTMLElement = fixture.nativeElement.querySelector("div.popup-editor__container .topn_label_id > input");
+      let topN: HTMLElement = fixture.nativeElement.querySelector("div.popup-editor__container .topn_label_id number-stepper");
       const ofSelectEl = fixture.debugElement.query(By.css(".of_label_id > custom-select"));
       let groupOther: HTMLElement = fixture.nativeElement.querySelector("div.popup-editor__container .group_other_id input[type=checkbox]");
       expect(rankingSelectEl.nativeElement.classList.contains("is-disabled")).toBe(false);
-      expect(topN.getAttribute("ng-reflect-is-disabled")).toEqual("true");
+      expect(topN.getAttribute("ng-reflect-disabled")).toEqual("true");
       expect(ofSelectEl.nativeElement.classList.contains("is-disabled")).toBe(true);
       expect(groupOther).toBeNull();
 
       comp.topN.type = StyleConstants.TOP_N;
       fixture.detectChanges();
       fixture.whenStable().then(() => {
-         topN = fixture.nativeElement.querySelector("div.popup-editor__container .topn_label_id > input");
+         topN = fixture.nativeElement.querySelector("div.popup-editor__container .topn_label_id number-stepper");
          const ofSelectEl2 = fixture.debugElement.query(By.css(".of_label_id > custom-select"));
          groupOther = fixture.nativeElement.querySelector("div.popup-editor__container .group_other_id input[type=checkbox]");
-         expect(topN.getAttribute("ng-reflect-is-disabled")).toEqual("false");
+         expect(topN.getAttribute("ng-reflect-disabled")).toEqual("false");
          expect(ofSelectEl2.nativeElement.classList.contains("is-disabled")).toBe(false);
          expect(groupOther).not.toBeNull();
       });
@@ -259,7 +261,7 @@ describe("Calc Group Option Unit Test", () => {
       fixture.whenStable().then(() => {
          const ofSelectEl = fixture.debugElement.query(By.css(".of_label_id > custom-select"));
          const ofOptions = (ofSelectEl?.componentInstance as any)?.options ?? [];
-         let rankingInput: HTMLInputElement = fixture.nativeElement.querySelector("div.popup-editor__container .topn_label_id > input");
+         let rankingInput: HTMLInputElement = fixture.nativeElement.querySelector("div.popup-editor__container .topn_label_id number-stepper input");
          expect((ofSelectEl?.componentInstance as any)?.selectedLabel?.trim()).toEqual("Sum(customer_id)");
          expect(ofOptions.length).toEqual(1);
          expect(rankingInput.value).toEqual("3");
@@ -369,11 +371,9 @@ describe("Calc Group Option Unit Test", () => {
       comp.aggregates = () => [];
       fixture.detectChanges();
 
-      let dateInput: HTMLInputElement = fixture.nativeElement.querySelector("div.popup-editor__container .periods_label_id > input");
-      dateInput.value = "0";
-      dateInput.dispatchEvent(new Event("input"));
+      comp.order.interval = 0;
       fixture.detectChanges();
-      let errorMsg: Element = fixture.nativeElement.querySelector("div.popup-editor__container .alert-danger");
+      let errorMsg: Element = fixture.nativeElement.querySelector("div.popup-editor__container .shell-alert--danger");
       expect(TestUtils.toString(errorMsg.textContent.trim())).toEqual("viewer.dialog.calcTableAdvance.periodsPositiveNumber");
    });
 
@@ -459,8 +459,8 @@ describe("Calc Group Option Unit Test", () => {
       comp.order.option = XConstants.QUARTER_OF_YEAR_DATE_GROUP;
       comp.aggregates = () => [];
       fixture.detectChanges();
-      let periodInput: HTMLInputElement = fixture.nativeElement.querySelector(".periods_label_id input");
-      expect(periodInput.getAttribute("ng-reflect-is-disabled")).toEqual("true");
+      let periodInput: HTMLInputElement = fixture.nativeElement.querySelector(".periods_label_id number-stepper");
+      expect(periodInput.getAttribute("ng-reflect-disabled")).toEqual("true");
    });
 
    //for Bug #20239, Bug #20130

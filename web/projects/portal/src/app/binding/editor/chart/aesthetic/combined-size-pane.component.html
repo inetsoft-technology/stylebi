@@ -23,7 +23,7 @@
     </button>
   </div>
   <div class="container">
-    <div class="row form-row-float-label" *ngFor="let aggr of chartRefs">
+    <div class="row shell-form-row--field" *ngFor="let aggr of chartRefs">
       <div class="col text-style">{{aggr.view + ":"}}</div>
       <div class="col-auto g-0">
         <static-size-editor [sframe]="aggr.sizeFrame" (sizeChanged)="sizeChanged.emit($event)">

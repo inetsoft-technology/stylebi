@@ -26,7 +26,7 @@
   <form [formGroup]="form">
     <fieldset class="container-fluid">
       <legend class="mb-3">{{colInfo.header}}</legend>
-      <div class="form-row-float-label row">
+      <div class="shell-form-row--field row">
         <div class="col form-floating">
           <custom-select id="dataType" formControlName="dataType"
                          placeholder="_#(Type)"
@@ -37,7 +37,7 @@
         </div>
       </div>
       <div *ngIf="form.contains('formatSpec') && currentFmtList != null"
-           class="form-row-float-label row">
+           class="shell-form-row--field row">
         <div class="col">
           <div class="form-floating">
             <combo-box id="formatSpec" [dataModel]="form.get('formatSpec').value"
@@ -48,7 +48,7 @@
         </div>
       </div>
       <div *ngIf="form.contains('formatSpec') && currentFmtList != null"
-           class="form-row-float-label row">
+           class="shell-form-row--field row">
         <div class="col">
           <div class="form-check">
             <input type="checkbox" class="form-check-input" id="removeNonconvertible"

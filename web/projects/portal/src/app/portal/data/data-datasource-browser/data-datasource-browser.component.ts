@@ -527,16 +527,16 @@ export class DataDatasourceBrowserComponent extends CommandProcessor implements 
     */
    getDatasourceStatusIcon(datasource: DataSourceInfo): string {
       if(datasource.statusMessage === this.attemptingConnectionStatus) {
-         return "help-question-mark-icon text-warning";
+         return "help-question-mark-icon datasource-status-icon datasource-status-icon--warning";
       }
       else if(this.isDataSourceFolder(datasource) || !datasource.statusMessage) {
          return "";
       }
       else if(!datasource.connected) {
-         return "alert-circle-icon text-danger";
+         return "alert-circle-icon datasource-status-icon datasource-status-icon--danger";
       }
       else {
-         return "submit-icon text-success";
+         return "submit-icon datasource-status-icon datasource-status-icon--success";
       }
    }
 

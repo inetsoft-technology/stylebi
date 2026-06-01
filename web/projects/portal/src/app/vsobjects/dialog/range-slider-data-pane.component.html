@@ -17,7 +17,7 @@
   -->
 <form ngNoForm (submit)="$event.preventDefault()" class="container-fluid">
   <fieldset>
-    <div class="form-row-float-label row">
+    <div class="row shell-form-row--field">
       <div class="col-auto">
         <div class="form-check">
           <input id="singleValueRadio" type="radio" name="Options"
@@ -39,18 +39,18 @@
         </div>
       </div>
     </div>
-    <div class="form-row-float-label row" *ngIf="!model.composite">
+    <div class="row shell-form-row--field" *ngIf="!model.composite">
       <div class="col-10">
-        <div class="bordered-box bd-gray bordered-box-md">
+        <div class="bordered-box bordered-box-md range-slider-data-pane__surface">
           <tree [root]="model.targetTree" [showRoot]="false" [showTooltip]="true" [grayedOutFields]="model.grayedOutFields"
                 (nodesSelected)="selectColumn($event[0])" (nodeExpanded)="expandNode($event)"
                 [iconFunction]="getCSSIcon"></tree>
         </div>
       </div>
     </div>
-    <div class="form-row-float-label row" *ngIf="model.composite">
+    <div class="row shell-form-row--field" *ngIf="model.composite">
       <div class="col-10">
-        <div class="bordered-box bd-gray bordered-box-md">
+        <div class="bordered-box bordered-box-md range-slider-data-pane__surface">
           <tree [root]="model.compositeTargetTree" [showRoot]="false" [multiSelect]="true" [grayedOutFields]="model.grayedOutFields"
                 (nodesSelected)="selectTreeCompositeNodes($event)"
                 [iconFunction]="getCSSIcon" [showTooltip]="true">
@@ -63,8 +63,9 @@
     </div>
     <div class="row" *ngIf="model.composite">
       <div class="col-10">
-        <div class="bordered-box bd-gray">
+        <div class="bordered-box range-slider-data-pane__surface range-slider-data-pane__level-surface">
           <div [class.selected]="_i === selectedCompositeNodeIndex"
+               class="range-slider-data-pane__level-item"
                *ngFor="let _node of compositeNodes; let _i = index"
                (click)="selectCompositeNode(_i)"
                [title]="levelTooltips[_i]">{{_node.label}}</div>

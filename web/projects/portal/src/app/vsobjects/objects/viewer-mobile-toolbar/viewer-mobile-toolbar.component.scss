@@ -60,10 +60,10 @@
 .mobile-dropdown {
   display: flex;
   flex-direction: column;
-  background: white;
 }
 
-.dropdown-menu, .dropdown-item {
+.mobile-dropdown,
+.dropdown-item {
   i {
     font-size: 24px;
   }

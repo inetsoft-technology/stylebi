@@ -20,17 +20,21 @@
     <legend>_#(Target Lines)</legend>
     <div class="row">
       <div class="col-9 p-0 target-container">
-        <div class="list-group">
-          <a class="list-group-item" *ngFor="let _chartTarget of model.chartTargets; let _idx = index;"
+        <div class="list-group chart-target-lines-pane__list">
+          <a class="list-group-item chart-target-lines-pane__list-item" *ngFor="let _chartTarget of model.chartTargets; let _idx = index;"
              (click)="select(_idx, $event)" [class.selected]="selectedIndexes.indexOf(_idx) >= 0">
-            {{_chartTarget.targetString}}
+            <span class="chart-target-lines-pane__list-text" [attr.title]="_chartTarget.targetString">
+              {{_chartTarget.targetString}}
+            </span>
           </a>
         </div>
       </div>
-      <div class="col-3">
-        <button type="button" class="btn btn-sm btn-secondary btn-block mb-1 w-100" [disabled]="!model.supportsTarget" (click)="addTarget()">_#(Add)</button>
-        <button type="button" class="btn btn-sm btn-default btn-block mb-1 w-100" [disabled]="!selectedIndexes || selectedIndexes.length == 0" (click)="deleteTarget()">_#(Delete)</button>
-        <button type="button" class="btn btn-sm btn-default btn-block w-100" [disabled]="!selectedIndexes || selectedIndexes.length == 0" (click)="editTarget()">_#(Edit)</button>
+      <div class="col-auto">
+        <div class="btn-container-vertical">
+          <button type="button" class="btn btn-default mb-1" [disabled]="!model.supportsTarget" (click)="addTarget()">_#(Add)</button>
+          <button type="button" class="btn btn-default mb-1" [disabled]="!selectedIndexes || selectedIndexes.length == 0" (click)="deleteTarget()">_#(Delete)</button>
+          <button type="button" class="btn btn-default" [disabled]="!selectedIndexes || selectedIndexes.length == 0" (click)="editTarget()">_#(Edit)</button>
+        </div>
       </div>
     </div>
   </fieldset>

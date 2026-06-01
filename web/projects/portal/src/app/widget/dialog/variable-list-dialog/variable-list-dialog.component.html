@@ -23,7 +23,7 @@
 <div class="modal-body">
   <variable-list-editor [(variableList)]="variableList" [dataType]="model.dataType">
   </variable-list-editor>
-  <div class="alert alert-danger" *ngIf="!isValid()">_#(Data Format Error):
+  <div class="shell-alert shell-alert--danger" *ngIf="!isValid()">_#(Data Format Error):
     "<span *ngFor="let _tuple of invalidVariables(); let _last = last">
     {{_tuple.value}}{{_last ? "" : ", "}}</span>"</div>
 </div>

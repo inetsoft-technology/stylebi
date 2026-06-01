@@ -30,7 +30,7 @@
           style="display: inline-block;vertical-align: middle;"></i>
     </span>
   </button>
-  <div ngbDropdownMenu aria-labelledby="dropdownId" class="drop-down-pane">
+  <div ngbDropdownMenu aria-labelledby="dropdownId" class="dropdown-pane toolbar-group__menu">
      <div *ngIf="!!mergeActionGroup">
         <div *ngFor="let group of mergeActionGroup.actions">
            <toolbar-group [actionGroup]="group" [childGroupToolbar]="true"

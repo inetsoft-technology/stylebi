@@ -28,6 +28,7 @@ import { DialogContentDirective } from "../../../widget/standard-dialog/dialog-c
 import { StandardDialogComponent } from "../../../widget/standard-dialog/standard-dialog.component";
 import { ViewsheetPrintLayoutDialogModel } from "../../data/vs/viewsheet-print-layout-dialog-model";
 import { ViewsheetPrintLayoutDialog } from "./viewsheet-print-layout-dialog.component";
+import { NumberStepperModule } from "../../../widget/number-stepper/number-stepper.module";
 import { CustomSelectModule } from "../../../widget/custom-select/custom-select.module";
 
 
@@ -67,6 +68,7 @@ describe("Viewsheet print layout dialog Test", () => {
             FormsModule,
             NgbDropdownModule,
             CustomSelectModule,
+            NumberStepperModule,
          ],
          declarations: [
             ViewsheetPrintLayoutDialog, EnterSubmitDirective, StandardDialogComponent,
@@ -85,10 +87,6 @@ describe("Viewsheet print layout dialog Test", () => {
    // Bug #16525 Margin and From edge input check
    // Bug #16520 Margin should not be larger than paper size
    it("Margin and From edge input check", () => {
-      topInput = fixture.debugElement.query(By.css("input[formcontrolname=marginTop]")).nativeElement;
-      leftInput = fixture.debugElement.query(By.css("input[formcontrolname=marginLeft]")).nativeElement;
-      bottomInput = fixture.debugElement.query(By.css("input[formcontrolname=marginBottom]")).nativeElement;
-      rightInput = fixture.debugElement.query(By.css("input[formcontrolname=marginRight]")).nativeElement;
       headerInput = fixture.debugElement.query(By.css("input[formcontrolname=headerFromEdge]")).nativeElement;
       footerInput = fixture.debugElement.query(By.css("input[formcontrolname=footerFromEdge]")).nativeElement;
 
@@ -117,21 +115,29 @@ describe("Viewsheet print layout dialog Test", () => {
 
       printDialog.formPrint.get("marginRight").setValue(0);
       printDialog.formPrint.get("marginTop").setValue(6);
+      printDialog.model.marginTop = 6;
       printDialog.formPrint.get("marginBottom").setValue(7);
+      printDialog.model.marginBottom = 7;
       fixture.detectChanges();
       let marginSizeWarning = fixture.debugElement.query(By.css(".is-invalid ~ span.invalid-feedback")).nativeElement;
       expect(marginSizeWarning.textContent).toContain("_#(viewer.viewsheet.layout.pageProp.marginTooLarge)");
 
       printDialog.formPrint.get("marginTop").setValue(0);
+      printDialog.model.marginTop = 0;
       printDialog.formPrint.get("marginBottom").setValue(0);
+      printDialog.model.marginBottom = 0;
       printDialog.formPrint.get("marginLeft").setValue(6);
+      printDialog.model.marginLeft = 6;
       printDialog.formPrint.get("marginRight").setValue(7);
+      printDialog.model.marginRight = 7;
       fixture.detectChanges();
       marginSizeWarning = fixture.debugElement.query(By.css(".is-invalid ~ span.invalid-feedback")).nativeElement;
       expect(marginSizeWarning.textContent).toContain("_#(viewer.viewsheet.layout.pageProp.marginTooLarge)");
 
       printDialog.formPrint.get("marginLeft").setValue(0);
+      printDialog.model.marginLeft = 0;
       printDialog.formPrint.get("marginRight").setValue(0);
+      printDialog.model.marginRight = 0;
       printDialog.formPrint.get("headerFromEdge").setValue(-12);
       fixture.detectChanges();
       let edgeWarning = fixture.debugElement.query(By.css(".is-invalid ~ span.invalid-feedback")).nativeElement;
@@ -145,10 +151,10 @@ describe("Viewsheet print layout dialog Test", () => {
       printDialog.formPrint.get("footerFromEdge").setValue(0);
 
       //bug #18433, Header/Footer exceed top/bottom value
-      topInput.value = "1";
-      topInput.dispatchEvent(new Event("input"));
-      bottomInput.value = "1";
-      bottomInput.dispatchEvent(new Event("input"));
+      printDialog.formPrint.get("marginTop").setValue(1);
+      printDialog.model.marginTop = 1;
+      printDialog.formPrint.get("marginBottom").setValue(1);
+      printDialog.model.marginBottom = 1;
       headerInput.value = "1.1";
       headerInput.dispatchEvent(new Event("input"));
       fixture.detectChanges();
@@ -170,44 +176,47 @@ describe("Viewsheet print layout dialog Test", () => {
       printDialog.model.paperSize = "(Custom Size)";
       fixture.detectChanges();
 
-      let customeWidth = fixture.debugElement.query(By.css("input[ng-reflect-name=customWidth]")).nativeElement;
-      let customHeight = fixture.debugElement.query(By.css("input[ng-reflect-name=customHeight]")).nativeElement;
+      let customeWidth = fixture.debugElement.query(By.css("number-stepper[ng-reflect-name=customWidth] input")).nativeElement;
+      let customHeight = fixture.debugElement.query(By.css("number-stepper[ng-reflect-name=customHeight] input")).nativeElement;
       customeWidth.value = "5";
       customeWidth.dispatchEvent(new Event("input"));
+      customeWidth.dispatchEvent(new Event("blur"));
       customHeight.value = "11";
       customHeight.dispatchEvent(new Event("input"));
+      customHeight.dispatchEvent(new Event("blur"));
       fixture.detectChanges();
 
-      let warning = fixture.debugElement.query(By.css("div.alert.alert-danger"));
+      let warning = fixture.debugElement.query(By.css(".is-invalid ~ span.invalid-feedback"));
       expect(warning).toBeNull();
 
       let unit = fixture.debugElement.query(By.css(".unit_select_id"));
       customeWidth.value = "1";
       customeWidth.dispatchEvent(new Event("input"));
+      customeWidth.dispatchEvent(new Event("blur"));
+      printDialog.model.customWidth = 1;
       customHeight.value = "1";
       customHeight.dispatchEvent(new Event("input"));
+      customHeight.dispatchEvent(new Event("blur"));
+      printDialog.model.customHeight = 1;
       unit.triggerEventHandler("selectionChange", "mm");
       fixture.detectChanges();
 
-      customeWidth = fixture.debugElement.query(By.css("input[ng-reflect-name=customWidth]")).nativeElement;
-      customHeight = fixture.debugElement.query(By.css("input[ng-reflect-name=customHeight]")).nativeElement;
-      expect(customHeight.value).toBe("25");
-      expect(customeWidth.value).toBe("25");
+      expect(printDialog.model.customHeight).toBe(25);
+      expect(printDialog.model.customWidth).toBe(25);
 
       unit.triggerEventHandler("selectionChange", "points");
       fixture.detectChanges();
 
-      customeWidth = fixture.debugElement.query(By.css("input[ng-reflect-name=customWidth]")).nativeElement;
-      customHeight = fixture.debugElement.query(By.css("input[ng-reflect-name=customHeight]")).nativeElement;
-      expect(customHeight.value).toBe("71");
-      expect(customeWidth.value).toBe("71");
+      expect(printDialog.model.customHeight).toBe(71);
+      expect(printDialog.model.customWidth).toBe(71);
    });
 
    //Bug #19315 start page check
    it("check start page", () => {
-      let startPage = fixture.debugElement.query(By.css("input[ng-reflect-name=numberingStart]")).nativeElement;
+      let startPage = fixture.debugElement.query(By.css("number-stepper[ng-reflect-name=numberingStart] input")).nativeElement;
       startPage.value = "1.2";
       startPage.dispatchEvent(new Event("input"));
+      startPage.dispatchEvent(new Event("blur"));
       fixture.detectChanges();
 
       let warning = fixture.debugElement.query(By.css("span.invalid-feedback")).nativeElement;
@@ -218,15 +227,17 @@ describe("Viewsheet print layout dialog Test", () => {
    it("from edge and margin check for A2", () => { // broken test
       printDialog.model.paperSize = "A2 [420x594 mm]";
       fixture.detectChanges();
-      topInput = fixture.debugElement.query(By.css("input[formcontrolname=marginTop]")).nativeElement;
-      bottomInput = fixture.debugElement.query(By.css("input[formcontrolname=marginBottom]")).nativeElement;
+      topInput = fixture.debugElement.query(By.css("number-stepper[ng-reflect-name=marginTop] input")).nativeElement;
+      bottomInput = fixture.debugElement.query(By.css("number-stepper[ng-reflect-name=marginBottom] input")).nativeElement;
       headerInput = fixture.debugElement.query(By.css("input[formcontrolname=headerFromEdge]")).nativeElement;
       footerInput = fixture.debugElement.query(By.css("input[formcontrolname=footerFromEdge]")).nativeElement;
 
       topInput.value = "5";
       topInput.dispatchEvent(new Event("input"));
+      topInput.dispatchEvent(new Event("blur"));
       bottomInput.value = "5";
       bottomInput.dispatchEvent(new Event("input"));
+      bottomInput.dispatchEvent(new Event("blur"));
       headerInput.value = "2";
       headerInput.dispatchEvent(new Event("input"));
       footerInput.value = "2";
@@ -238,10 +249,12 @@ describe("Viewsheet print layout dialog Test", () => {
 
    //Bug #19460 check warning times
    it("check warning times", () => {
-      topInput = fixture.debugElement.query(By.css("input[formcontrolname=marginTop]")).nativeElement;
+      topInput = fixture.debugElement.query(By.css("number-stepper[ng-reflect-name=marginTop] input")).nativeElement;
 
       topInput.value = "11";
       topInput.dispatchEvent(new Event("input"));
+      topInput.dispatchEvent(new Event("blur"));
+      printDialog.model.marginTop = 11;
       fixture.detectChanges();
       let warnings = fixture.debugElement.queryAll(By.css(".is-invalid ~ span.invalid-feedback"));
       expect(warnings.length).toBe(2);

@@ -19,11 +19,13 @@ import {CommonModule} from "@angular/common";
 import {NgModule} from "@angular/core";
 import {FontPane} from "./font-pane.component";
 import {FormsModule} from "@angular/forms";
+import { NumberStepperModule } from "../number-stepper/number-stepper.module";
 
 @NgModule({
    imports: [
       CommonModule,
       FormsModule,
+      NumberStepperModule,
    ],
    declarations: [
       FontPane

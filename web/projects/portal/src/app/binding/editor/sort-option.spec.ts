@@ -31,6 +31,7 @@ import { DragService } from "../../widget/services/drag.service";
 import { ModelService } from "../../widget/services/model.service";
 import { NamedGroupInfo } from "../data/named-group-info";
 import { BindingService } from "../services/binding.service";
+import { NumberStepperModule } from "../../widget/number-stepper/number-stepper.module";
 import { SortOption } from "./sort-option.component";
 
 const BESIC_SORTOPTION: any[] = ["None", "Ascending", "Descending"];
@@ -56,7 +57,7 @@ describe("Sort Option Unit Test", () => {
    beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule, DropDownTestModule
+            FormsModule, ReactiveFormsModule, NgbModule, DropDownTestModule, NumberStepperModule
          ],
          declarations: [
             SortOption, DynamicComboBox
@@ -215,7 +216,7 @@ describe("Sort Option Unit Test", () => {
       sortOption.changeRankingN("-1");
       fixture.detectChanges();
 
-      let errorMesg: Element = fixture.nativeElement.querySelector(".alert-danger");
+      let errorMesg: Element = fixture.nativeElement.querySelector(".shell-alert--danger");
       expect(TestUtils.toString(errorMesg.textContent.trim()))
          .toEqual("common.widget.SortOption.enterPositiveTop");
 
@@ -225,7 +226,7 @@ describe("Sort Option Unit Test", () => {
       sortOption.changeRankingN("0");
       fixture.detectChanges();
 
-      errorMesg = fixture.nativeElement.querySelector(".alert-danger");
+      errorMesg = fixture.nativeElement.querySelector(".shell-alert--danger");
       expect(TestUtils.toString(errorMesg.textContent.trim()))
          .toEqual("common.widget.SortOption.enterPositiveTop");
    });

@@ -17,9 +17,9 @@
   -->
 <fieldset>
   <legend>_#(Existing MVs):</legend>
-  <div class="form-row-float-label table-style">
-    <table class="table table-bordered table-sm w-100 mv-table">
-      <thead class="thead-light">
+  <div class="shell-form-row--field table-style">
+    <table class="table table-bordered table-hover table-sm w-100 mv-table">
+      <thead>
         <tr>
           <th class="table-header text-center align-middle">
             <input type="checkbox" class="form-check-input"
@@ -47,12 +47,12 @@
 </fieldset>
 <fieldset *ngIf="isFullDataVisible() || securityEnabled">
   <legend>_#(MV Analysis Options):</legend>
-  <div class="form-row-float-label" *ngIf="isFullDataVisible()">
+  <div class="shell-form-row--field" *ngIf="isFullDataVisible()">
     <custom-select [options]="fullDataSelectOptions"
                    [(ngModel)]="analyzeMVModel.fullData">
     </custom-select>
   </div>
-  <div *ngIf="!testDrive" class="form-row-float-label">
+  <div *ngIf="!testDrive" class="shell-form-row--field">
     <div class="form-check">
       <label class="form-check-label" title="_#(em.mv.applyParentVsParametersTooltip)">
         <input class="form-check-input" type="checkbox"

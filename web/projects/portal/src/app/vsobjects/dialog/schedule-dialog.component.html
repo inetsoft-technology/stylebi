@@ -23,7 +23,7 @@
   <form ngNoForm (submit)="$event.preventDefault()" class="container-fluid" *ngIf="!!model">
     <fieldset>
       <legend>_#(Choose Bookmark)</legend>
-      <div class="form-row-float-label row">
+      <div class="shell-form-row--field row">
         <div class="col-6">
           <div class="form-check">
             <input type="radio" name="bookmarkOption" class="form-check-input" id="new"
@@ -39,7 +39,7 @@
                  [disabled]="model.currentBookmark" title="_#(Bookmark Name)">
         </div>
       </div>
-      <div class="form-row-float-label row">
+      <div class="shell-form-row--field row">
         <div class="col">
           <div class="form-check">
             <input type="radio" name="bookmarkOption" class="form-check-input" id="current"

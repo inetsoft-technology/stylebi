@@ -151,8 +151,8 @@
           _#(data.datasets.noSearchResults)
         </div>
         <div *ngFor="let datasource of datasources; last as isLast; index as i"
-             class="hover-bg-primary datasource-list-item d-flex align-items-center"
-             [class.td-cell-border]="!isLast"
+             class="datasource-list-item d-flex align-items-center"
+             [class.datasource-list-item--with-divider]="!isLast"
              [class.bg-selected]="isSelectedItem(datasource)"
              [draggable]="true"
              (dragstart)="dragAsset($event, datasource)"

@@ -16,7 +16,7 @@
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
 <div>
-  <div class="form-row form-row-float-label" *ngFor="let parameter of value.parameters">
+  <div class="shell-form-row shell-form-row--field" *ngFor="let parameter of value.parameters">
     <div class="form-floating col-12">
       <input type="text" class="form-control" [(ngModel)]="parameter.value"
              (ngModelChange)="parameterValueChanged()"

@@ -18,7 +18,7 @@
 <modal-header [title]="'_#(em.settings.share.slack)'" (onCancel)="cancel()"></modal-header>
 <div class="modal-body" [enterSubmit]="formValid" (onEnter)="okButton.click()">
   <form [formGroup]="form" class="container-fluid">
-    <div class="form-row-float-label row">
+    <div class="row shell-form-row--field">
       <div class="col form-floating">
           <textarea class="form-control" formControlName="message" placeholder="_#(Message)"></textarea>
           <label>_#(Message)</label>

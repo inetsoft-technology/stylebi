@@ -39,6 +39,7 @@ import { ClickableScriptPane } from "./clickable-script-pane.component";
 import { LabelPropPane } from "./label-prop-pane.component";
 import { SubmitGeneralPane } from "./submit-general-pane.component";
 import { SubmitPropertyDialog } from "./submit-property-dialog.component";
+import { NumberStepperModule } from "../../../widget/number-stepper/number-stepper.module";
 import { PropertyDialogService } from "../../../vsobjects/util/property-dialog.service";
 
 let createModel = () => {
@@ -110,7 +111,7 @@ describe("SubmitPropertyDialog Integration Test", () => {
 
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule, DropDownTestModule
+            FormsModule, ReactiveFormsModule, NgbModule, DropDownTestModule, NumberStepperModule
          ],
          declarations: [
             SubmitPropertyDialog, SubmitGeneralPane, ClickableScriptPane, GeneralPropPane,

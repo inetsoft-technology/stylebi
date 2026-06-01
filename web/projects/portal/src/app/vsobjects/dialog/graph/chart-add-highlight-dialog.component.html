@@ -24,12 +24,12 @@
       <!-- Modal Body -->
       <div class="modal-body" [enterSubmit]="form?.valid && !duplicateName()" (onEnter)="ok()" *ngIf="form">
         <form [formGroup]="form" class="form-horizontal">
-          <div class="form-row-float-label">
+          <div class="shell-form-row--field">
             <label class="label-control col-12" for="name">_#(Name):
               <input type="text" formControlName="name" id="name" trim [(ngModel)]="name"></label>
-            <div class="alert alert-danger col-9" *ngIf="form.controls['name'].errors">_#(viewer.nameSpecialChar)</div>
+            <div class="shell-alert shell-alert--danger col-9" *ngIf="form.controls['name'].errors">_#(viewer.nameSpecialChar)</div>
             <div *ngIf="duplicateName()">
-              <div class="alert alert-danger">
+              <div class="shell-alert shell-alert--danger">
                 <strong>_#(Error)</strong> _#(common.duplicateName)
               </div>
             </div>

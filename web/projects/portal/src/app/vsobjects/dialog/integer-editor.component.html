@@ -16,31 +16,35 @@
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
 <form [formGroup]="form" class="container-fluid">
-  <div class="row form-row-float-label">
-    <div class="col form-floating">
-        <input id="minimum" type="number" class="form-control" formControlName="min"
-               [(ngModel)]="model.minimum" placeholder="_#(Minimum)">
-        <label>_#(Minimum)</label>
+  <div class="row shell-form-row--field">
+    <div class="col d-flex flex-column">
+      <label class="form-label">_#(Minimum)</label>
+      <number-stepper formControlName="min"
+                      (valueChange)="model.minimum = $event"
+                      [invalid]="!!form.get('min').errors">
+      </number-stepper>
     </div>
   </div>
-  <div class="row form-row-float-label">
-    <div class="col form-floating">
-        <input id="maximum" type="number" class="form-control" formControlName="max"
-               [(ngModel)]="model.maximum" placeholder="_#(Maximum)">
-        <label>_#(Maximum)</label>
+  <div class="row shell-form-row--field">
+    <div class="col d-flex flex-column">
+      <label class="form-label">_#(Maximum)</label>
+      <number-stepper formControlName="max"
+                      (valueChange)="model.maximum = $event"
+                      [invalid]="!!form.get('max').errors">
+      </number-stepper>
     </div>
   </div>
-  <div class="row form-row-float-label">
+  <div class="row shell-form-row--field">
     <div class="col form-floating">
         <textarea class="form-control" [(ngModel)]="model.errorMessage"
                   [ngModelOptions]="{standalone: true}" placeholder="_#(Error Message)"></textarea>
         <label>_#(Error Message)</label>
     </div>
   </div>
-  <div *ngIf="form.hasError('greaterThan')" class="alert alert-danger">
+  <div *ngIf="form.hasError('greaterThan')" class="shell-alert shell-alert--danger">
     _#(viewer.formEditor.minMaxValid)
   </div>
-  <div *ngIf="form.get('min').hasError('isInteger') || form.get('max').hasError('isInteger')" class="alert alert-danger">
+  <div *ngIf="form.get('min').hasError('isInteger') || form.get('max').hasError('isInteger')" class="shell-alert shell-alert--danger">
     _#(em.common.config.integer)
   </div>
 </form>

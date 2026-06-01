@@ -186,6 +186,22 @@
     margin-left: auto;
   }
 
+  .datasource-status-icon {
+    color: var(--inet-text-muted-color);
+  }
+
+  .datasource-status-icon--warning {
+    color: var(--inet-warning-color);
+  }
+
+  .datasource-status-icon--danger {
+    color: var(--inet-danger-color);
+  }
+
+  .datasource-status-icon--success {
+    color: var(--inet-success-color);
+  }
+
   .datasource-rows {
     overflow-y: auto;
     overflow-x: hidden;
@@ -199,10 +215,23 @@
     position: relative;
   }
 
-  .hover-bg-primary.folder-list-item {
-    cursor: default !important;
+  .datasource-list-item {
+    cursor: default;
     padding-top: 3px;
     padding-bottom: 3px;
+    transition: background-color 120ms ease, color 120ms ease;
+
+    &:hover {
+      background-color: var(--inet-list-hover-bg-color);
+    }
+
+    &.bg-selected {
+      background-color: var(--inet-list-selected-bg-color);
+    }
+  }
+
+  .datasource-list-item--with-divider {
+    border-bottom: 1px solid var(--inet-list-border-color);
   }
 
   .content-ellipse {

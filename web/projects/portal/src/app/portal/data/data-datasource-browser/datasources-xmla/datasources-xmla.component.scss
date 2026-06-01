@@ -66,9 +66,9 @@
 .xmla-card {
   margin-bottom: var(--inet-space-5);
   padding: var(--inet-space-5);
-  background: var(--inet-shell-surface-default);
-  border: 1px solid var(--inet-default-border-color);
-  border-radius: var(--inet-radius-lg);
+  background: var(--inet-card-bg-color);
+  border: 1px solid var(--inet-list-border-color);
+  border-radius: var(--inet-radius-md);
 }
 
 .xmla-card__header {
@@ -167,9 +167,9 @@
 
 .cube-tree {
   min-height: 400px;
-  border: 1px solid var(--inet-default-border-color);
+  border: 1px solid var(--inet-list-border-color);
   border-radius: var(--inet-radius-md);
-  background: var(--inet-shell-surface-subtle);
+  background: var(--inet-table-heading-bg-color);
   overflow: hidden;
 }
 

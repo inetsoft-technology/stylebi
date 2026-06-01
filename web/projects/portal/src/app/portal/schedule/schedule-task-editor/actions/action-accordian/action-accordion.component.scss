@@ -43,15 +43,39 @@
 }
 
 .action-accordion-card + .action-accordion-card {
-  border-top: 1px solid var(--inet-border-color);
-  padding-top: 12px;
+  border-top: 1px solid var(--inet-default-border-color);
+  padding-top: var(--inet-space-3);
 }
 
 .action-accordion-card__body {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--inet-space-3);
   padding: 0;
+}
+
+.action-accordion__row,
+.action-accordion__row-start,
+.action-accordion__inline-check,
+.action-accordion__conditional-field {
+  margin-bottom: 0.75rem;
+}
+
+.action-accordion__row {
+  align-items: center;
+}
+
+.action-accordion__row-start {
+  align-items: flex-start;
+}
+
+.action-accordion__inline-check {
+  display: inline-flex;
+  align-items: center;
+}
+
+.action-accordion__section-toggle {
+  margin-bottom: 0;
 }
 
 .action-accordion-highlights {
@@ -65,7 +89,7 @@
 }
 
 .action-accordion-bookmark-row {
-  --bs-gutter-x: 12px;
+  --bs-gutter-x: var(--inet-space-3);
 }
 
 .action-accordion-bookmark-select-col {
@@ -85,8 +109,8 @@
 
 .action-accordion-alert-table {
   margin-bottom: 0;
-  border: 1px solid var(--inet-border-color);
-  border-radius: 4px;
+  border: 1px solid var(--inet-table-border-color);
+  border-radius: var(--inet-radius-md);
   border-collapse: separate;
   border-spacing: 0;
   overflow: hidden;
@@ -94,29 +118,34 @@
 }
 
 .action-accordion-alert-table thead th {
-  background-color: var(--inet-toolbar-bg-color);
-  border-bottom: 1px solid var(--inet-border-color);
-  font-size: 11px;
+  background-color: var(--inet-table-heading-bg-color);
+  border-bottom: 1px solid var(--inet-table-border-color);
+  color: var(--inet-table-heading-text-color);
   font-weight: 600;
-  padding: 8px 10px;
+  padding: var(--inet-space-3) var(--inet-space-4);
 }
 
 .action-accordion-alert-table tbody td {
-  padding: 8px 10px;
-  border-top: 1px solid var(--inet-border-color);
+  padding: var(--inet-space-3) var(--inet-space-4);
+  border-top: 1px solid var(--inet-table-border-color);
+}
+
+.action-accordion-alert-table tbody tr:hover td {
+  background-color: var(--inet-table-hover-bg-color);
 }
 
 .action-accordion-alert-table tbody tr:first-child td {
   border-top: 0;
 }
 
-tbody {
+.action-accordion-alert-table tbody {
   display: block;
   max-height: 20em;
   overflow-y: auto;
 }
 
-thead, tbody tr {
+.action-accordion-alert-table thead,
+.action-accordion-alert-table tbody tr {
   display: table;
   width: 100%;
   table-layout: fixed;
@@ -127,7 +156,7 @@ thead, tbody tr {
 }
 
 .html-match-message {
-  margin-top: 1em;
+  margin-top: var(--inet-space-4);
 }
 
 .input-group {
@@ -147,10 +176,10 @@ thead, tbody tr {
 .scheduler-form {
   width: 600px;
   max-width: 100%;
-  margin-right: 12px;
+  margin-right: var(--inet-space-3);
 }
 
 .emailSpacing {
-  padding-left: 15px;
-  padding-right: 15px;
+  padding-left: var(--inet-space-4);
+  padding-right: var(--inet-space-4);
 }

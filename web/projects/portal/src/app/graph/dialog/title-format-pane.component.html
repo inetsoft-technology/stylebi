@@ -18,7 +18,7 @@
 <form ngNoForm (submit)="$event.preventDefault()" class="container-fluid">
   <fieldset>
     <legend>_#(Title)</legend>
-    <div class="form-row-float-label row">
+    <div class="shell-form-row--field row">
       <div class="col axis_title_id">
         <div class="form-floating">
           <dynamic-combo-box [valueOnly]="viewer" [value]="model.title"
@@ -34,7 +34,7 @@
   </fieldset>
   <fieldset>
     <legend>_#(Rotation)</legend>
-    <div class="form-row-float-label row">
+    <div class="shell-form-row--field row">
       <div class="col">
         <rotation-radio-group [model]="model.rotationRadioGroupModel"></rotation-radio-group>
       </div>

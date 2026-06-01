@@ -18,13 +18,13 @@
 <modal-header [title]="'_#(Schedule Task)'" (onCancel)="close()"></modal-header>
 <div class="modal-body" [enterSubmit]="enterSubmit" (onEnter)="close()" *ngIf="model">
   <form [formGroup]="form">
-    <div class="form-row-float-label row">
+    <div class="row shell-form-row--field">
       <div class="col form-floating">
           <input type="text" class="form-control" id="taskName" formControlName="name">
           <label>_#(Name)</label>
       </div>
     </div>
-    <div class="alert alert-danger"
+    <div class="shell-alert shell-alert--danger"
          *ngIf="form && !!form.controls['name'] && form.controls['name'].errors">
       _#(vs.basicGeneral.nameCheck)
     </div>

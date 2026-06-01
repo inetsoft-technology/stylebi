@@ -34,7 +34,7 @@ import { DataEditor } from "../data-editor";
 @Component({
    selector: "chart-data-editor",
    templateUrl: "chart-data-editor.component.html",
-   styleUrls: ["../data-editor.component.scss"]
+   styleUrls: ["../data-editor.component.scss", "chart-data-editor.component.scss"]
 })
 export class ChartDataEditor extends DataEditor {
    @Input() fieldType: string;

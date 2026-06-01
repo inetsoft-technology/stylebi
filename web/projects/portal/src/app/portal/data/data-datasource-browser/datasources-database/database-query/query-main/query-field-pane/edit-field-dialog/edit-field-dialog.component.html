@@ -19,13 +19,13 @@
 </modal-header>
 <div class="modal-body">
   <div class="container-fluid">
-    <div class="row form-row-float-label">
+    <div class="row shell-form-row--field">
       <div class="col-6">_#(Fields)</div>
       <div class="col-6">_#(Functions)</div>
     </div>
     <div class="row">
       <div class="col-6">
-        <div class="bordered-box bd-gray">
+        <div class="bordered-box edit-field-dialog__surface">
           <tree *ngIf="fieldsTree" [root]="fieldsTree"
                 [showTooltip]="true" [selectOnClick]="true"
                 [showRoot]="false" [iconFunction]="iconFunction" (dblclickNode)="fieldDown($event)"
@@ -34,7 +34,7 @@
         </div>
       </div>
       <div class="col-6">
-        <div class="bordered-box bd-gray">
+        <div class="bordered-box edit-field-dialog__surface">
           <tree *ngIf="functionsTree" [root]="functionsTree"
                 [showTooltip]="true" [selectOnClick]="true"
                 [showRoot]="false" [iconFunction]="expressionIconFunction" (dblclickNode)="functionDown($event)"
@@ -62,7 +62,7 @@
     </div>
     <div class="row">
       <div class="col-12">
-        <div *ngIf="!expression" class="alert alert-danger">
+        <div *ngIf="!expression" class="shell-alert shell-alert--danger">
           _#(data.query.expressionNull)
         </div>
       </div>

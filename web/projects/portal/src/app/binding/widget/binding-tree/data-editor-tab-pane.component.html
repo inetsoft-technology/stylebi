@@ -20,12 +20,12 @@
       <ng-content></ng-content>
    </div>
     <ul class="nav nav-inline nav-tabs tabs-bottom composer-bottom-tabs tabs-bottom-split">
-      <li class="nav-item hover-bg-secondary" [class.active]="selectedTab === SidebarTab.BINDING_TREE"
+      <li class="nav-item hover-bg-neutral" [class.active]="selectedTab === SidebarTab.BINDING_TREE"
           [class.bt-highlight-filler]="selectedTab !== SidebarTab.BINDING_TREE"
           [class.bt-highlight-primary]="selectedTab === SidebarTab.BINDING_TREE">
         <a class="unhighlightable nav-link" (click)="onTabClick(SidebarTab.BINDING_TREE)">_#(Data Source)</a>
       </li>
-      <li class="nav-item hover-bg-secondary nav-always-show"
+      <li class="nav-item hover-bg-neutral nav-always-show"
           [class.active]="selectedTab == SidebarTab.FORMAT_PANE"
           [class.bt-highlight-filler]="selectedTab !== SidebarTab.FORMAT_PANE"
           [class.bt-highlight-primary]="selectedTab === SidebarTab.FORMAT_PANE"

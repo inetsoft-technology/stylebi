@@ -36,3 +36,8 @@ shape-item {
   min-width: 22px;
   min-height: 26px;
 }
+
+.static-shape-pane__item--selected {
+  border: 1px solid var(--inet-default-border-color);
+  border-radius: var(--inet-radius-sm);
+}

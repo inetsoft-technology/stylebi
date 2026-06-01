@@ -138,6 +138,15 @@ div.vs-pane .bl-selected {
         font-size: 1.5rem;
       }
     }
+
+    .intro-content--muted {
+      color: var(--inet-text-muted-color);
+    }
+}
+
+.console-count-badge {
+  color: var(--inet-button-light-text-color);
+  background-color: var(--inet-button-light-bg-color);
 }
 
 .viewsheet-target-layout {

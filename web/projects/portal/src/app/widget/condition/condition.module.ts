@@ -38,6 +38,7 @@ import {ExpressionEditor} from "./expression-editor.component";
 import {FieldEditor} from "./field-editor.component";
 import {JunctionOperatorPipe} from "./junction-operator.pipe";
 import {NumberValueEditor} from "./number-value-editor.component";
+import { NumberStepperModule } from "../number-stepper/number-stepper.module";
 import {OneOfConditionEditor} from "./one-of-condition-editor.component";
 import {SessionDataEditor} from "./session-data-editor.component";
 import {SimpleConditionPane} from "./simple-condition-pane.component";
@@ -71,6 +72,7 @@ import {
       FormulaEditorModule,
       DateTypeEditorModule,
       ReactiveFormsModule,
+      NumberStepperModule,
    ],
    declarations: [
       BinaryConditionEditor,

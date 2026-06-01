@@ -15,9 +15,9 @@
   ~ You should have received a copy of the GNU Affero General Public License
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
-<div class="logical-model-tree-node tree-node hover-bg-primary truncate-parent"
+<div class="logical-model-tree-node tree-node truncate-parent"
      [class.txt-danger]="node.errorMessage"
-     [class.bg-selected]="isNodeSelected()"
+     [class.logical-model-tree-node--selected]="isNodeSelected()"
      (click)="select($event)"
      [draggable]="draggable"
      (dragstart)="dragStarted($event)"

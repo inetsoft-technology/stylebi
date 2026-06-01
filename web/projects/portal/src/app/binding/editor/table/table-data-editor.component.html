@@ -15,7 +15,7 @@
   ~ You should have received a copy of the GNU Affero General Public License
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
-<div class="field-list-pane bd-gray" (drop)="onDrop($event)"
+<div class="field-list-pane field-list-pane--surface" (drop)="onDrop($event)"
   outOfZone (onDragover)="$event.preventDefault()">
    <div class="fieldmc-container">
      <div class="fieldmc-outer" *ngFor="let ref of refs; let i = index">

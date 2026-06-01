@@ -24,7 +24,7 @@
         _#(Select a Worksheet)
       </div>
     </legend>
-    <div class="select-worksheet-dialog__tree-shell bordered-box bd-gray tree-container">
+    <div class="select-worksheet-dialog__tree-shell tree-container">
       <asset-tree [datasources]="false" [columns]="false" [viewsheets]="false"
                   [readOnly]="true"
                   [dataSourcePath]="selectedEntry?.path"
@@ -41,7 +41,7 @@
     </legend>
     <div class="parameter-content select-worksheet-dialog__parameter-content">
       <ng-container *ngFor="let param of queryParams; let i = index;">
-        <div #dropdownBody class="field-combo" [class.form-group]="i != queryParams.length - 1">
+        <div #dropdownBody class="field-combo" [class.shell-form-group]="i != queryParams.length - 1">
           <div #dropDownToggle class="field-combo-toggle custom-select-trigger form-floating form-control no-caret"
                [class.field-combo-toggle--open]="dropdownOpenState[param]"
                [fixedDropdown]="dropdownMenu" [autoClose]="closeMenu"

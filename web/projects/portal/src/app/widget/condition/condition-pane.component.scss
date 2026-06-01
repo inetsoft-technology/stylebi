@@ -18,3 +18,33 @@
 .condition-list {
   max-height: 18rem;
 }
+
+.condition-pane__list {
+  background-color: var(--inet-list-bg-color);
+  border-color: var(--inet-list-border-color);
+  border-radius: var(--inet-radius-md);
+  overflow: auto;
+}
+
+.condition-pane__list-item {
+  align-items: center;
+  display: flex;
+  min-height: var(--inet-control-height-md);
+  padding: 0 var(--inet-space-3);
+  transition: background-color 120ms ease, color 120ms ease;
+
+  &:not(.selected):hover {
+    background-color: var(--inet-list-hover-bg-color);
+  }
+
+  &.selected {
+    background-color: var(--inet-list-selected-bg-color);
+  }
+}
+
+.condition-pane__list-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

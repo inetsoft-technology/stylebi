@@ -34,6 +34,7 @@ import { ScheduleUsersService } from "../../../../../../../shared/schedule/sched
 import { TestUtils } from "../../../../common/test/test-utils";
 import { TaskOptionsPane } from "./task-options-pane.component";
 import { CustomSelectModule } from "../../../../widget/custom-select/custom-select.module";
+import { NumberStepperModule } from "../../../../widget/number-stepper/number-stepper.module";
 import { IdentityId} from "../../../../../../../em/src/app/settings/security/users/identity-id";
 
 @Component({
@@ -97,7 +98,7 @@ describe("task options pane componnet unit case: ", () => {
       http = { open: jest.fn() };
 
       TestBed.configureTestingModule({
-         imports: [ReactiveFormsModule, FormsModule, NgbModule, HttpClientTestingModule, CustomSelectModule],
+         imports: [ReactiveFormsModule, FormsModule, NgbModule, HttpClientTestingModule, CustomSelectModule, NumberStepperModule],
          declarations: [TestApp, TaskOptionsPane, ExecuteAsDialog],
          providers: [
             {provide: NgbModal, useValue: modalService},
@@ -135,7 +136,7 @@ describe("task options pane componnet unit case: ", () => {
 
       //Bug #21420 should get correct locale info when set 'Default'
       let locale = fixture.nativeElement.querySelectorAll(
-         "div.form-row-float-label.row.form-group")[4];
+         "div.row.shell-form-row--field")[5];
       let defaultElement = locale.querySelectorAll("custom-select")[0];
       expect(defaultElement.getAttribute("ng-reflect-model")).toBe("Default");
    });

@@ -25,3 +25,8 @@
   margin: 0.25rem;
 }
 
+.static-texture-pane__item--selected {
+  border: 1px solid var(--inet-default-border-color);
+  border-radius: var(--inet-radius-sm);
+}
+

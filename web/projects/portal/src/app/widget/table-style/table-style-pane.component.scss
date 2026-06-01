@@ -15,6 +15,12 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+.table-style-pane__tree-surface,
+.table-style-pane__preview-surface {
+  border-color: var(--inet-list-border-color);
+  background-color: var(--inet-list-bg-color);
+}
+
 .table-style-folder-preview {
   display: flex;
   justify-content: center;
@@ -25,6 +31,23 @@
   width: 86px;
   margin: 0 0.25rem 0.25rem 0;
   cursor: pointer;
+  border-radius: var(--inet-radius-md);
+  background-color: var(--inet-list-bg-color);
+  transition: background-color 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
+}
+
+.table-style-folder-preview__tile {
+  width: 100%;
+  height: 100%;
+  padding: var(--inet-space-3);
+
+  &:not(.selected):hover {
+    background-color: var(--inet-list-hover-bg-color);
+  }
+}
+
+.table-style-folder-preview__label {
+  margin-top: var(--inet-space-2);
 }
 
 .title-new-bar {

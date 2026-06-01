@@ -47,7 +47,7 @@
   </div>
   <div class="fields-pane__body">
     <div class="fields-pane__column">
-      <div class="bordered-box bd-gray" [class.bordered-box-group]="grouping"
+      <div class="bordered-box fields-pane__surface" [class.bordered-box-group]="grouping"
            (dragover)="$event.preventDefault()"
            (drop)="drop($event, true)">
         <tree *ngIf="fieldsTree" [root]="fieldsTree"
@@ -70,7 +70,7 @@
       </button>
     </div>
     <div class="fields-pane__column">
-      <div class="bordered-box bd-gray"
+      <div class="bordered-box fields-pane__surface fields-pane__surface--list"
            [class.bordered-box-group]="grouping"
            (dragover)="$event.preventDefault()"
            (drop)="drop($event)">
@@ -79,7 +79,8 @@
                [title]="getFieldTitle(field)" [draggable]="true"
                (mousedown)="selectField($event, i)"
                (dblclick)="removeField(i)"
-               [class.selected]="isSelectedField(i)">
+               [class.selected]="isSelectedField(i)"
+               [attr.title]="getFieldTitle(field)">
             <i *ngIf="!grouping" class="icon-size-medium action-color" [ngClass]="getOrderIcon(i)"></i>
             {{ field }}
           </div>

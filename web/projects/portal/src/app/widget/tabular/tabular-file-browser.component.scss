@@ -22,3 +22,11 @@
   margin-right: .1rem;
   --bs-btn-close-opacity: 0.85
 }
+
+.tabular-file-browser__surface {
+  border-color: var(--inet-list-border-color);
+  background-color: var(--inet-list-bg-color);
+  border-radius: var(--inet-radius-md);
+  min-height: 18em;
+  overflow: auto;
+}

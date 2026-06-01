@@ -18,46 +18,49 @@
 <form class="container-fluid" [formGroup]="form">
   <fieldset>
     <legend>_#(Options)</legend>
-    <div class="form-row-float-label row">
-      <div class="col pe-0 form-floating" [ngClass]="{ 'has-error' : !form.controls['length'].valid}">
-          <input id="length" type="number" value="3" class="form-control"
-                 placeholder="_#(Slider Size)"
-                 [(ngModel)]="model.length" formControlName="length"/>
-          <label>_#(Slider Size)</label>
+    <div class="row shell-form-row--field">
+      <div class="col-auto pe-0 d-flex flex-column" [ngClass]="{ 'has-error' : !form.controls['length'].valid}">
+          <label class="form-label">_#(Slider Size)</label>
+          <number-stepper formControlName="length" [min]="1"
+                          (valueChange)="model.length = $event"
+                          [invalid]="!form.controls['length'].valid">
+          </number-stepper>
       </div>
-      <div class="col-auto ps-1" *ngIf="!dataModel.composite && rangeOptions.length > 1">
+      <div class="col-auto ps-1 align-self-end" *ngIf="!dataModel.composite && rangeOptions.length > 1">
         <custom-select [options]="rangeSelectOptions"
                        [ngModelOptions]="{standalone: true}"
                        [(ngModel)]="model.rangeType"
                        ariaLabel="_#(Range Type)">
         </custom-select>
       </div>
-      <div class="col-auto" *ngIf="dataModel.composite">_#(periods)</div>
+      <div class="col-auto align-self-end" *ngIf="dataModel.composite">_#(periods)</div>
     </div>
-    <div *ngIf="form.controls['length'].errors" class="alert alert-danger">
+    <div *ngIf="form.controls['length'].errors" class="shell-alert shell-alert--danger">
       _#(viewer.viewsheet.timeSlider.sliderSizeWarning)
     </div>
-    <div class="form-row-float-label row">
-      <div class="col form-floating" [ngClass]="{ 'has-error' : !form.controls['rangeSize'].valid}">
-          <input id="rangeSize" type="number" class="form-control"
-                 placeholder="_#(Minimum Increment)"
-                 formControlName="rangeSize" [(ngModel)]="model.rangeSize"/>
-          <label>_#(Minimum Increment)</label>
+    <div class="row shell-form-row--field">
+      <div class="col d-flex flex-column" [ngClass]="{ 'has-error' : !form.controls['rangeSize'].valid}">
+          <label class="form-label">_#(Minimum Increment)</label>
+          <number-stepper formControlName="rangeSize" [min]="0"
+                          (valueChange)="model.rangeSize = $event"
+                          [invalid]="!form.controls['rangeSize'].valid">
+          </number-stepper>
       </div>
-      <div class="col form-floating" [ngClass]="{ 'has-error' : !form.controls['maxRangeSize'].valid}">
-          <input id="maxRangeSize" type="number" placeholder="_#(Maximum Increment)"
-                 class="form-control"
-                 formControlName="maxRangeSize" [(ngModel)]="model.maxRangeSize"/>
-          <label>_#(Maximum Increment)</label>
+      <div class="col d-flex flex-column" [ngClass]="{ 'has-error' : !form.controls['maxRangeSize'].valid}">
+          <label class="form-label">_#(Maximum Increment)</label>
+          <number-stepper formControlName="maxRangeSize" [min]="0"
+                          (valueChange)="model.maxRangeSize = $event"
+                          [invalid]="!form.controls['maxRangeSize'].valid">
+          </number-stepper>
       </div>
     </div>
-    <div *ngIf="form.controls['rangeSize'].errors" class="alert alert-danger">
+    <div *ngIf="form.controls['rangeSize'].errors" class="shell-alert shell-alert--danger">
       _#(viewer.worksheet.Grouping.positiveNumber)
     </div>
-    <div *ngIf="form.controls['maxRangeSize'].errors" class="alert alert-danger">
+    <div *ngIf="form.controls['maxRangeSize'].errors" class="shell-alert shell-alert--danger">
       _#(viewer.worksheet.Grouping.positiveNumber)
     </div>
-    <div class="form-row-float-label row">
+    <div class="row shell-form-row--field">
       <div class="col-auto">
         <div class="form-check">
           <input type="checkbox" class="form-check-input logScale-cb_id" id="log"

@@ -31,12 +31,13 @@
   </div>
   <div class="row">
     <div class="col-sm-5">
-      <div class="selectable-list">
-        <div class="unhighlightable" *ngFor="let column of model.availableColumns; let _i = index"
+      <div class="selectable-list hide-columns-dialog__list">
+        <div class="unhighlightable hide-columns-dialog__list-item" *ngFor="let column of model.availableColumns; let _i = index"
              [style.display]="model.hiddenColumns.indexOf(column) != -1 ? 'none' : 'block'"
              [class.selected]="isAvailableSelected(_i)"
+             [attr.title]="column"
              (click)="selectAvailable($event, _i)" >
-          {{column}}
+          <span class="hide-columns-dialog__list-text">{{column}}</span>
         </div>
       </div>
     </div>
@@ -47,11 +48,12 @@
               [disabled]="selectedHiddenColumnIndexes.length == 0">&lt;</button>
     </div>
     <div class="col-sm-6">
-      <div class="selectable-list">
-        <div class="unhighlightable" *ngFor="let column of model.hiddenColumns; let _i = index"
+      <div class="selectable-list hide-columns-dialog__list">
+        <div class="unhighlightable hide-columns-dialog__list-item" *ngFor="let column of model.hiddenColumns; let _i = index"
              [class.selected]="isHiddenSelected(_i)"
+             [attr.title]="column"
              (click)="selectHidden($event, _i)">
-          {{column}}
+          <span class="hide-columns-dialog__list-text">{{column}}</span>
         </div>
       </div>
     </div>

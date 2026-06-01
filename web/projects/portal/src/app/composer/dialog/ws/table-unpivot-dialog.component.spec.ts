@@ -23,6 +23,7 @@ import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { TimerService } from "../../../vsobjects/objects/data-tip/timer.service";
 import { TableUnpivotDialog } from "./table-unpivot-dialog.component";
 import { EnterSubmitDirective } from "../../../widget/directive/enter-submit.directive";
+import { NumberStepperModule } from "../../../widget/number-stepper/number-stepper.module";
 import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
 
 describe("Table Unpivot Dialog Tests", () => {
@@ -38,7 +39,7 @@ describe("Table Unpivot Dialog Tests", () => {
 
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule, HttpClientTestingModule,
+            FormsModule, ReactiveFormsModule, NgbModule, HttpClientTestingModule, NumberStepperModule,
          ],
          declarations: [
             TableUnpivotDialog, EnterSubmitDirective, ModalHeaderComponent
@@ -54,7 +55,7 @@ describe("Table Unpivot Dialog Tests", () => {
 
    it("check that dialog was properly populated", () => {
       fixture.detectChanges();
-      let input = fixture.nativeElement.querySelector("input[formcontrolname='level']");
+      let input = fixture.nativeElement.querySelector("number-stepper input");
       expect(input).toBeTruthy();
    });
 });

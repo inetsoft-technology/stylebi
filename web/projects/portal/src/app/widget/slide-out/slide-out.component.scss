@@ -64,6 +64,11 @@
   }
 }
 
+.slide-out-content-container--surface {
+  background: var(--inet-shell-surface-default);
+  border-inline-start: 1px solid var(--inet-default-border-color);
+}
+
 .slide-out-toggle-container {
   position: relative;
   width: 30px;

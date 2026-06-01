@@ -19,7 +19,7 @@
 <form ngNoForm (submit)="$event.preventDefault()" class="container-fluid">
   <fieldset>
     <legend>_#(Label)</legend>
-    <div class="form-row-float-label row">
+    <div class="shell-form-row--field row">
       <div class="checkbox col-auto">
         <div class="form-check">
           <input type="checkbox" class="form-check-input"
@@ -31,7 +31,7 @@
         </div>
       </div>
     </div>
-    <div class="form-row-float-label row" *ngIf="model.showLabel">
+    <div class="shell-form-row--field row" *ngIf="model.showLabel">
       <div class="col form-floating">
         <dynamic-combo-box [editable]="true"
                            [variables]="variableValues"
@@ -42,7 +42,7 @@
         <label><span>_#(Label Text)</span></label>
       </div>
     </div>
-    <div class="form-row-float-label row" *ngIf="model.showLabel">
+    <div class="shell-form-row--field row input-label-pane__control-row" *ngIf="model.showLabel">
       <div class="col-6 form-floating mb-2">
         <custom-select [options]="positionOptions"
                        [(ngModel)]="model.labelPosition"
@@ -50,14 +50,17 @@
         </custom-select>
         <label for="labelPosition"><span>_#(Label Position)</span></label>
       </div>
-      <div class="col-6 form-floating mb-2">
-        <input class="form-control" type="number" [(ngModel)]="model.labelGap"
-               placeholder="_#(Gap)" id="labelGap" min="0" max="1000" #gap="ngModel"
-               (ngModelChange)="onGapChange()">
-        <label for="labelGap"><span>_#(Gap px)</span></label>
+      <div class="col-6 mb-2 d-flex justify-content-center">
+        <div class="stepper-float-label">
+          <span class="stepper-float-label__text">_#(Gap px)</span>
+          <number-stepper [(ngModel)]="model.labelGap" #gap="ngModel"
+                          [min]="0" [max]="1000" (valueChange)="onGapChange()"
+                          [invalid]="gap.invalid && gap.touched">
+          </number-stepper>
+        </div>
       </div>
-        <div class="col form-floating">
-          <div class="alert alert-danger" *ngIf="gap.invalid && gap.touched">
+        <div class="col">
+          <div class="shell-alert shell-alert--danger" *ngIf="gap.invalid && gap.touched">
             _#(Gap must be a number between 0 and 1000)
           </div>
         </div>

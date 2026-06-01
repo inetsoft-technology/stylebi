@@ -18,7 +18,7 @@
 <form ngNoForm (submit)="$event.preventDefault()" class="container-fluid">
   <fieldset>
     <legend>_#(Options)</legend>
-    <div class="form-row-float-label row">
+    <div class="shell-form-row--field row">
       <div class="col">
         <fieldset class="float-title bd-gray mt-0">
           <legend>_#(Show as)</legend>
@@ -47,7 +47,7 @@
         </fieldset>
       </div>
     </div>
-    <div class="form-row-float-label row">
+    <div class="shell-form-row--field row">
       <div class="col">
         <fieldset class="float-title bd-gray mt-0">
           <legend>_#(View Mode)</legend>
@@ -76,7 +76,7 @@
         </fieldset>
       </div>
     </div>
-    <div class="form-row-float-label row">
+    <div class="shell-form-row--field row">
       <div class="col">
         <fieldset class="float-title bd-gray mt-0">
           <legend>_#(Calendar Type)</legend>
@@ -105,7 +105,7 @@
         </fieldset>
       </div>
     </div>
-    <div class="form-row-float-label row">
+    <div class="shell-form-row--field row">
       <div class="col">
         <div class="form-floating">
           <dynamic-value-editor [valueModel]="model.min"
@@ -136,14 +136,14 @@
       </div>
     </div>
     <div *ngIf="form.controls['min'].errors || form.controls['max'].errors"
-         class="alert alert-danger">
+         class="shell-alert shell-alert--danger">
       _#(date.common.dateValid)
     </div>
     <div *ngIf="form.controls['minGreaterThankMax'].errors"
-         class="alert alert-danger">
+         class="shell-alert shell-alert--danger">
       _#(viewer.viewsheet.dateRange.maxMinWarning)
     </div>
-    <div class="form-row-float-label row">
+    <div class="shell-form-row--field row">
       <div class="col-auto">
         <div class="form-check">
           <input type="checkbox" class="form-check-input" id="single" [(ngModel)]="model.singleSelection"/>

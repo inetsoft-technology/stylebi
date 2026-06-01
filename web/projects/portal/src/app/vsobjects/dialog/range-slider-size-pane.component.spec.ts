@@ -24,6 +24,7 @@ import { RangeSliderSizePane } from "./range-slider-size-pane.component";
 import { RangeSliderSizePaneModel } from "../model/range-slider-size-pane-model";
 import { RangeSliderDataPaneModel } from "../model/range-slider-data-pane-model";
 import { TestUtils } from "../../common/test/test-utils";
+import { NumberStepperModule } from "../../widget/number-stepper/number-stepper.module";
 import { CustomSelectModule } from "../../widget/custom-select/custom-select.module";
 
 let createModel = () => <RangeSliderSizePaneModel> {
@@ -48,7 +49,7 @@ describe("Range Slider Size Pane Component Unit Test:", () => {
 
    beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
-         imports: [ReactiveFormsModule, FormsModule, NgbModule, CustomSelectModule],
+         imports: [ReactiveFormsModule, FormsModule, NgbModule, CustomSelectModule, NumberStepperModule],
          declarations: [RangeSliderSizePane]
       });
       TestBed.compileComponents();
@@ -79,24 +80,20 @@ describe("Range Slider Size Pane Component Unit Test:", () => {
 
    //bug #18465, #18469, slider size input check
    it("slider size input check", waitForAsync(() => { // broken test
-      let sliderSize = fixture.debugElement.query(By.css("input#length")).nativeElement;
-      sliderSize.value = "0.75";
-      sliderSize.dispatchEvent(new Event("input"));
+      fixture.componentInstance.form.get("length").setValue(0.75);
       fixture.detectChanges();
-      let warning1 = fixture.debugElement.query(By.css("div.alert.alert-danger")).nativeElement;
+      let warning1 = fixture.debugElement.query(By.css("div.shell-alert--danger")).nativeElement;
       expect(warning1.textContent).toContain(
          "_#(viewer.viewsheet.timeSlider.sliderSizeWarning) ");
 
-      sliderSize.value = "5";
-      sliderSize.dispatchEvent(new Event("input"));
+      fixture.componentInstance.form.get("length").setValue(5);
       fixture.detectChanges();
-      let warning2 = fixture.debugElement.query(By.css("div.alert.alert-danger"));
+      let warning2 = fixture.debugElement.query(By.css("div.shell-alert--danger"));
       expect(warning2).toBeNull();
 
-      sliderSize.value = "";
-      sliderSize.dispatchEvent(new Event("input"));
+      fixture.componentInstance.form.get("length").setValue(null);
       fixture.detectChanges();
-      let warning3 = fixture.debugElement.query(By.css("div.alert.alert-danger")).nativeElement;
+      let warning3 = fixture.debugElement.query(By.css("div.shell-alert--danger")).nativeElement;
       expect(warning3.textContent).toContain(
          "_#(viewer.viewsheet.timeSlider.sliderSizeWarning) ");
    }));
@@ -105,8 +102,8 @@ describe("Range Slider Size Pane Component Unit Test:", () => {
    it("check max/min range size status", (done) => {
       //Bug #19079
       fixture.componentInstance.model.rangeType = 3;
-      let minRangeSize = fixture.debugElement.query(By.css("#rangeSize")).nativeElement;
-      let maxRangeSize = fixture.debugElement.query(By.css("#maxRangeSize")).nativeElement;
+      let minRangeSize = fixture.debugElement.query(By.css("number-stepper[ng-reflect-name=rangeSize] input")).nativeElement;
+      let maxRangeSize = fixture.debugElement.query(By.css("number-stepper[ng-reflect-name=maxRangeSize] input")).nativeElement;
       fixture.detectChanges();
       expect(minRangeSize.disabled).toBeTruthy();
       expect(maxRangeSize.disabled).toBeFalsy();

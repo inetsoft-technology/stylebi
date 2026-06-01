@@ -23,13 +23,13 @@
   left: 1em;
   margin-right: 2em;
   margin-top: $marginTop;
-  padding-top: 2px;
-  padding-bottom: 2px;
+  padding-top: var(--inet-feedback-padding-y);
+  padding-bottom: var(--inet-feedback-padding-y);
   color: var(--inet-danger-color);
   background-size: 55% 55%;
   z-index: 6;
   font-weight: 400;
-  font-size: 11px;
+  font-size: var(--inet-feedback-font-size);
 }
 
 @mixin invalid-feedback-bg {
@@ -45,26 +45,17 @@
   z-index: -1;
 }
 
-/* patch in classes removed in bootstrap 5 */
+/***********************************************************************************************
+ * Bootstrap compatibility shims
+ *
+ * These selectors preserve older Bootstrap 4-era class semantics that still exist in Portal
+ * templates. They are not the preferred shell API, but they remain here so legacy markup can
+ * continue to resolve into the modern shell without forcing broad template rewrites.
+ ***********************************************************************************************/
 
 /* this is ubiquitous to add space between the vertical height of some form fields */
 .form-group {
   margin-bottom: var(--inet-space-5);
-}
-
-/*
-form-inline is no longer a thing in bootstrap 5
-*/
-
-.form-inline {
-  display: flex;
-  flex-flow: row wrap;
-}
-
-.form-inline .form-control {
-  display: inline-block;
-  width: auto;
-  vertical-align: middle;
 }
 
 .form-row {
@@ -99,6 +90,7 @@ label {
 
   .form-control:not(textarea) {
     height: var(--inet-control-height-md);
+    min-height: var(--inet-control-height-md);
   }
 
   textarea.form-control {
@@ -176,11 +168,13 @@ label {
   > .form-control-plaintext ~ label, > .form-control:focus ~ label,
   > .form-control:not(:placeholder-shown) ~ label, > .form-select ~ label
   {
+    // Intentional literal transform: this is fine-tuned floating-label positioning rather than a reusable size token.
     color: var(--inet-text-color);
     transform: scale(.85) translateY(-.5rem) translateX(.75rem);
     z-index: 6;
 
     &:after {
+      // Intentional literal inset/height: tied to the floating-label background chip geometry.
       position: absolute;
       inset: $form-floating-label-y .375rem;
       z-index: -1;
@@ -217,13 +211,14 @@ label {
   display: block;
   color: var(--inet-danger-color);
   font-weight: 400;
-  font-size: 11px;
+  font-size: var(--inet-feedback-font-size);
 }
 
 /* override boostrap input-group */
 .input-group {
   > span.invalid-feedback {
     @include invalid-feedback-text(absolute, 0);
+    // Intentional literal offset: keeps feedback visually attached to the input-group border.
     top: calc(100% - 0.8em);
 
     &::after {
@@ -233,10 +228,6 @@ label {
 }
 
 /* fieldset related */
-.container-fluid > fieldset > legend {
-  margin-left: -($grid-gutter-width * 0.5);
-}
-
 :not(.modal-body) > fieldset:first-child {
   margin-top: .5rem;
 }
@@ -259,6 +250,31 @@ fieldset.float-title {
     width: unset;
     float: none;
   }
+
+  &.float-title--centered legend {
+    margin-left: auto;
+    margin-right: auto;
+  }
+}
+
+.stepper-float-label {
+  position: relative;
+  display: inline-block;
+  margin-top: 0.7rem;
+
+  .stepper-float-label__text {
+    position: absolute;
+    top: -0.6rem;
+    left: 50%;
+    transform: translateX(-50%);
+    white-space: nowrap;
+    z-index: 1;
+    padding: 0 0.2rem;
+    background: var(--inet-dialog-bg-color, #fff);
+    font-size: 85%;
+    font-weight: bold;
+    line-height: 1.1;
+  }
 }
 
 // override bootstrap form-check layout for better alignment
@@ -272,7 +288,7 @@ fieldset.float-title {
   position: static;
   margin-top: 0;
   margin-left: 0;
-  margin-right: 0.5rem;
+  margin-right: var(--inet-form-check-gap);
   --bs-form-check-bg: var(--inet-shell-surface-default); // needs to match shell input/default surface
   --bs-border-color: var(--inet-input-text-color);
 
@@ -283,7 +299,7 @@ fieldset.float-title {
 
   &:focus {
     border-color: var(--inet-primary-color);
-    box-shadow: 0 0 0 var(--inet-focus-ring-width) var(--inet-focus-ring-color);
+    box-shadow: var(--inet-focus-ring);
   }
 }
 
@@ -293,10 +309,10 @@ input[type="radio"]:not(.form-check-input) {
 }
 
 .form-switch .form-check-input {
-  width: 2.25rem;
-  min-width: 2.25rem;
-  height: 1.25rem;
-  margin-right: 0.5rem;
+  width: var(--inet-switch-width);
+  min-width: var(--inet-switch-width);
+  height: var(--inet-switch-height);
+  margin-right: var(--inet-form-check-gap);
   border-radius: 999px;
   background-color: var(--inet-shell-surface-default);
   border-color: var(--inet-default-border-color);
@@ -323,63 +339,42 @@ input[type="radio"]:not(.form-check-input) {
   display: inline-flex;
 }
 
-.form-inline {
-  @include media-breakpoint-up(sm) {
-    .form-check-label {
-      padding-left: 0;
-    }
-  }
-}
-
-.form-inline > [class*="col-"] > * {
-  margin: 3px 5px 0 0;
-}
-
-/* Enhance bootstrap dropdown */
-.dropdown-item {
-  &.disabled, &:disabled {
-    pointer-events: none;
-    background-color: unset;
-    opacity: 0.5;
-  }
-}
-
 .table-cell-padding-sm {
   padding: $table-cell-padding-y-sm;
-}
-
-/**
-@TODO review to make sure all are bootstrap override/enhancement
-*/
-
-.dropdown-item {
-  cursor: default;
 }
 
 .full-view-container:not(.format-painter-mode) .non-editable-text:not(.cursor-pointer) {
   cursor: default;
 }
 
+/***********************************************************************************************
+ * Shared Bootstrap-shell adoption layer
+ *
+ * Everything below this header is the primary "Bootstrap as infrastructure" zone for Portal.
+ * These selectors intentionally restyle Bootstrap-shaped controls and shared chrome so shell
+ * tokens, not Bootstrap defaults, define the visual language.
+ ***********************************************************************************************/
+
 .btn-xs {
   /* ~half size of bootstraps btn-sm*/
-  padding: 0 0.25rem !important;
-  font-size: 0.875rem;
+  padding: 0 var(--inet-btn-xs-padding-x) !important;
+  font-size: var(--inet-btn-xs-font-size);
   border-radius: var(--inet-radius-sm);
 }
 
 .btn-close {
-  padding: 0.05rem;
+  padding: var(--inet-btn-close-padding);
 }
 
 .alert-dismissible {
   .btn-close {
-    padding: 0.05rem;
+    padding: var(--inet-btn-close-padding);
     margin: 1.1rem;
   }
 }
 .modal-header {
   .btn-close {
-    padding: 0.05rem;
+    padding: var(--inet-btn-close-padding);
     margin: 0;
     color: var(--inet-text-muted-color);
     opacity: 1;
@@ -436,10 +431,11 @@ ngb-datepicker-navigation-select.ngb-dp-navigation-select .form-select,
 ngb-datepicker-navigation-select .form-select,
 ngb-datepicker-navigation-select.d-block .form-select {
   min-width: 0;
-  min-height: calc(1.5em + 0.75rem + 2px);
-  height: calc(1.5em + 0.75rem + 2px);
+  min-height: var(--inet-datepicker-nav-select-height);
+  height: var(--inet-datepicker-nav-select-height);
   font-size: inherit;
   line-height: 1.5;
+  // Remaining literals here control caret clearance and optical balance inside the compact datepicker nav select.
   padding: 0.375rem 2rem 0.375rem 0.75rem;
   border: 1px solid var(--inet-border-color, #c7c6c1);
   border-radius: var(--inet-radius-sm);
@@ -498,7 +494,7 @@ ngb-datepicker {
   }
 
   .input-group-btn-addon {
-    padding: 5px 12px;
+    padding: var(--inet-input-group-addon-padding-y) var(--inet-input-group-addon-padding-x);
     border: 1px solid $input-group-addon-border-color;
     &:enabled:hover {
       background-color: var(--inet-hover-primary-bg-color);
@@ -515,11 +511,13 @@ ngb-datepicker {
   height: var(--inet-control-height-md);
 }
 
-//bootstrap related
-.col-xs-12 > textarea, .col-xs-12 > * > textarea {
-  height: 100%;
-  width: 100%;
-}
+/***********************************************************************************************
+ * Legacy Bootstrap compatibility hooks still in use
+ *
+ * These are narrower compatibility paths for older markup or behavior that has not yet been
+ * rewritten. Keep them grouped separately from the shared shell adoption rules above so new
+ * shell work does not accrete here by default.
+ ***********************************************************************************************/
 
 //enhance/override .modal from bootstrap. seems to only be used in app-error-message.component
 div.modal.fade.first-child.in {
@@ -560,7 +558,7 @@ a:not([href]) {
 }
 
 .modal-header {
-  padding: 14px 16px 12px;
+  padding: var(--inet-modal-header-padding);
 
   .modal-title {
     font-size: var(--inet-dialog-title-font-size);
@@ -569,16 +567,19 @@ a:not([href]) {
 }
 
 .modal-body {
-  padding: 14px 16px;
+  padding: var(--inet-modal-body-padding);
 }
 
 .modal-footer {
-  padding: 10px 16px;
+  padding: var(--inet-modal-footer-padding);
 }
 
 .form-control, .form-control[readonly], .form-control.input-group-btn-addon,
 .input-group > .input-group-btn-addon
 {
+  // Shared single-line control sizing source of truth. Keep plain inputs,
+  // input-group add-on buttons, and adjacent input-group-text aligned here
+  // rather than reasserting local 30px height/padding fixes in component SCSS.
   color: var(--inet-input-text-color);
   background-color: var(--inet-input-bg-color);
   border-color: var(--inet-input-border-color);
@@ -588,6 +589,10 @@ a:not([href]) {
   --bs-btn-disabled-border-color: var(--inet-input-border-color);
   --bs-btn-disabled-bg: var(--inet-input-disabled-bg-color);
   --bs-btn-disabled-opacity: var(--inet-input-disabled-opacity);
+
+  &:not(textarea) {
+    height: var(--inet-control-height-md);
+  }
 
   &.selected {
     background-color: var(--inet-selected-item-bg-color);
@@ -602,15 +607,21 @@ a:not([href]) {
     color: var(--inet-input-focus-text-color);
     background-color: var(--inet-input-focus-bg-color, var(--inet-input-bg-color));
     border-color: var(--inet-primary-color);
-    box-shadow: 0 0 0 var(--inet-focus-ring-width) var(--inet-focus-ring-color);
+    box-shadow: var(--inet-focus-ring);
   }
 }
 
 .input-group-text {
-  height: var(--inet-control-height-md);
+  // Match single-line input chrome by default so suffix/prefix add-ons stay
+  // aligned with normalized form controls across dialogs and inline editors.
+  display: flex;
+  align-items: center;
   color: var(--inet-input-text-color);
   background-color: var(--inet-toolbar-bg-color);
   border-color: var(--inet-input-border-color);
+  min-height: var(--inet-control-height-md);
+  padding-block: 0;
+  padding-inline: var(--inet-space-4);
 }
 
 .condition-field-combo-toggle.disabled:disabled,
@@ -628,6 +639,13 @@ a:not([href]) {
     --inet-float-label-bg-color: var(--inet-dropdown-bg-color);
   }
 
+  &.dropdown-pane,
+  &.dropdown-menu {
+    box-shadow: var(--inet-shadow-medium);
+    border: 1px solid var(--inet-default-border-color);
+    border-radius: var(--inet-radius-lg);
+  }
+
   .dropdown-item {
     color: var(--inet-text-color);
 
@@ -643,9 +661,24 @@ a:not([href]) {
 }
 
 .dropdown-item {
+  cursor: default;
   color: var(--inet-text-color);
 
-  &:hover, &:focus {
+  &.disabled, &:disabled {
+    pointer-events: none;
+    background-color: unset;
+    opacity: 0.5;
+  }
+
+  &.selected,
+  &.selected:hover,
+  &.selected:focus,
+  &.selected:active {
+    background-color: var(--inet-selected-item-bg-color);
+    color: var(--inet-selected-item-text-color);
+  }
+
+  &:hover, &:focus, &:active {
     color: var(--inet-text-color);
     background-color: var(--inet-hover-primary-bg-color);
   }
@@ -654,7 +687,7 @@ a:not([href]) {
 .card {
   background-color: var(--inet-card-bg-color);
   --inet-float-label-bg-color: var(--inet-card-bg-color);
-  --bs-card-cap-padding-y: 0.75rem;
+  --bs-card-cap-padding-y: var(--inet-space-5);
 }
 
 .btn {
@@ -674,11 +707,21 @@ a:not([href]) {
 .table {
   --bs-table-bg: transparent;
   --bs-table-color: var(--inet-table-text-color);
+  --bs-table-border-color: var(--inet-table-border-color);
+  --bs-table-hover-bg: var(--inet-table-hover-bg-color);
+  --bs-table-hover-color: var(--inet-text-color);
+  --bs-table-active-bg: var(--inet-table-selected-bg-color);
+  --bs-table-active-color: var(--inet-text-color);
   color: var(--inet-table-text-color);
+  background-color: transparent;
+  margin-bottom: 0;
+  line-height: 1.4;
 
   th {
     color: var(--inet-table-heading-text-color);
     background-color: var(--inet-table-heading-bg-color, transparent);
+    border-bottom: $table-border-width solid var(--inet-table-border-color);
+    font-weight: 600;
   }
 
   .thead-light th {
@@ -689,6 +732,21 @@ a:not([href]) {
 
   td, th {
     border-color: var(--inet-table-border-color);
+    vertical-align: middle;
+  }
+
+  > :not(caption) > * > * {
+    padding-inline: var(--inet-space-4);
+  }
+
+  tbody tr.selected > *,
+  tbody tr.table-active > * {
+    color: var(--inet-text-color);
+    background-color: var(--inet-table-selected-bg-color);
+  }
+
+  tbody tr {
+    transition: background-color 120ms ease, color 120ms ease;
   }
 }
 
@@ -709,7 +767,7 @@ a:not([href]) {
 }
 
 .table-sm>:not(caption)>*>* {
-  padding: 0.375rem;
+  padding: var(--inet-space-3);
 }
 
 .btn.btn-primary, .btn.btn-secondary, .btn.btn-default {
@@ -757,7 +815,7 @@ a:not([href]) {
 .btn.btn-default {
   color: var(--inet-button-default-text-color);
   background-color: var(--inet-button-default-bg-color);
-  border: 1px solid var(--inet-button-default-border-color);
+  border: 1px solid var(--inet-default-border-color);
 
   &:hover:not(:disabled), &:active:not(:disabled),
   &:not(:disabled):not(.disabled):not(.condition-field-combo-toggle.disabled):active,
@@ -766,6 +824,12 @@ a:not([href]) {
     color: var(--inet-button-default-hover-text-color);
     background-color: var(--inet-button-default-hover-bg-color);
     border: 1px solid var(--inet-button-default-hover-border-color);
+  }
+
+  &:disabled, &.disabled {
+    opacity: var(--inet-input-disabled-opacity);
+    cursor: not-allowed;
+    pointer-events: none;
   }
 }
 
@@ -839,20 +903,27 @@ a:not([href]) {
 {
   // on click
   &:not(:disabled):not(.disabled):not(.condition-field-combo-toggle.disabled):active:focus {
-    box-shadow: 0 0 0 var(--inet-focus-ring-width) var(--inet-focus-ring-color);
+    box-shadow: var(--inet-focus-ring);
     filter: brightness(0.9);
   }
 }
 
-.btn.btn-block {
-  display: block;
+.btn-secondary, .btn-default, .btn-primary {
+  &:focus {
+    box-shadow: var(--inet-focus-ring);
+    outline: var(--inet-focus-ring-outline);
+  }
 }
 
 .list-group-item {
+  background-color: var(--inet-list-bg-color);
+  border-color: var(--inet-list-border-color);
+  transition: background-color 120ms ease, color 120ms ease, border-color 120ms ease;
+
   &.active {
     color: var(--inet-text-color);
-    background-color: var(--inet-shell-selected-bg-color);
-    border-color: var(--inet-default-border-color);
+    background-color: var(--inet-list-selected-bg-color);
+    border-color: var(--inet-list-border-color);
 
     i {
       color: var(--inet-text-color);
@@ -861,7 +932,7 @@ a:not([href]) {
 
   &:hover:not(.not-selectable) {
     color: var(--inet-text-color);
-    background-color: var(--inet-ui-neutral-hover-bg-color);
+    background-color: var(--inet-list-hover-bg-color);
 
     i {
       color: var(--inet-text-color);
@@ -869,19 +940,19 @@ a:not([href]) {
   }
 }
 
-.close, .close:hover {
+.table-hover tbody tr:hover:not(.selected):not(.table-active) {
   color: var(--inet-text-color);
+  background-color: var(--inet-table-hover-bg-color);
 }
 
-.table-hover tbody tr:hover {
-  color: var(--inet-text-color);
-  background-color: var(--inet-ui-neutral-hover-bg-color);
+.table-hover tbody tr:hover:not(.selected):not(.table-active) > * {
+  background-color: var(--inet-table-hover-bg-color);
 }
 
 .breadcrumb {
   background-color: var(--inet-toolbar-bg-color);
-  --bs-breadcrumb-padding-x: 1rem;
-  --bs-breadcrumb-padding-y: .75rem;
+  --bs-breadcrumb-padding-x: var(--inet-space-6);
+  --bs-breadcrumb-padding-y: var(--inet-space-5);
 
   .breadcrumb-item {
     color: var(--inet-text-color);
@@ -1033,26 +1104,6 @@ a, .btn-link {
   border-right-color: var(--inet-default-border-color) !important;
 }
 
-.border-primary {
-  border-color: var(--inet-primary-color) !important;
-}
-
-.border-success {
-  border-color: var(--inet-success-color) !important;
-}
-
-.border-danger {
-  border-color: var(--inet-danger-color) !important;
-}
-
-.border-warning {
-  border-color: var(--inet-warning-color) !important;
-}
-
-.border-info {
-  border-color: var(--inet-info-color) !important;
-}
-
 // calendar ng bootstrap
 .ngb-dp-weekday {
   color: var(--inet-text-color) !important;
@@ -1113,20 +1164,23 @@ ngb-datepicker.dropdown-menu,
 }
 
 .schedule-datepicker__calendar-nav custom-select.schedule-datepicker__nav-select--month {
+  // Intentional content-fit width for month abbreviations; not a general control-size token.
   width: 4.2rem;
   min-width: 4.2rem;
   max-width: 4.2rem;
 }
 
 .schedule-datepicker__calendar-nav custom-select.schedule-datepicker__nav-select--year {
+  // Intentional content-fit width for 4-digit years; keep local to calendar nav sizing.
   width: 4.85rem;
   min-width: 4.85rem;
   max-width: 4.85rem;
 }
 
 .schedule-datepicker__calendar-nav custom-select.schedule-datepicker__nav-select ::ng-deep .custom-select-trigger {
-  min-height: calc(1.5em + 0.25rem + 2px);
-  height: calc(1.5em + 0.25rem + 2px);
+  min-height: var(--inet-calendar-nav-control-height);
+  height: var(--inet-calendar-nav-control-height);
+  // Remaining literals tune dense calendar-nav chrome and caret spacing; convert only if we add calendar-specific spacing tokens.
   padding-left: 0.5rem;
   padding-right: 1.4rem;
   border-radius: 4px;
@@ -1194,7 +1248,7 @@ custom-select.date-value-editor__nav-select {
   min-width: 0;
   width: auto;
   max-width: none;
-  --custom-select-height: 2.25rem;
+  --custom-select-height: var(--inet-date-value-nav-select-height);
 }
 
 .date-value-editor__nav-icon {
@@ -1202,6 +1256,7 @@ custom-select.date-value-editor__nav-select {
 }
 
 custom-select.date-value-editor__nav-select--month {
+  // Intentional content-fit width for month abbreviations in the date value editor.
   flex-basis: 4.2rem;
   width: 4.2rem;
   min-width: 4.2rem;
@@ -1209,6 +1264,7 @@ custom-select.date-value-editor__nav-select--month {
 }
 
 custom-select.date-value-editor__nav-select--year {
+  // Intentional content-fit width for 4-digit years in the date value editor.
   flex-basis: 4.85rem;
   width: 4.85rem;
   min-width: 4.85rem;
@@ -1245,7 +1301,7 @@ custom-select.date-value-editor__nav-select--year {
     color: var(--inet-input-focus-text-color);
     background-color: var(--inet-input-focus-bg-color, var(--inet-input-bg-color));
     border-color: var(--inet-primary-color);
-    box-shadow: 0 0 0 var(--inet-focus-ring-width) var(--inet-focus-ring-color);
+    box-shadow: var(--inet-focus-ring);
   }
 }
 
@@ -1273,18 +1329,9 @@ custom-select.date-value-editor__nav-select--year {
   color: var(--inet-warning-color) !important;
 }
 
-.text-muted {
-  color: var(--inet-text-muted-color) !important;
-}
-
-.text-bg-light {
-  color: var(--inet-button-light-text-color) !important;
-  background-color: var(--inet-button-light-bg-color) !important;
-}
-
 .badge {
   padding: var(--inet-space-1) var(--inet-space-3);
-  font-size: 10px;
+  font-size: var(--inet-badge-font-size);
   font-weight: 600;
   line-height: 1.2;
   border-radius: var(--inet-radius-pill);
@@ -1294,10 +1341,18 @@ custom-select.date-value-editor__nav-select--year {
   border-color: var(--inet-default-border-color);
 }
 
+/***********************************************************************************************
+ * Bootstrap CSS-variable bridge
+ *
+ * These root-level --bs-* mappings let Bootstrap primitives inherit the shell token contract.
+ * Treat this as the runtime bridge between Bootstrap internals and the Portal shell theme.
+ ***********************************************************************************************/
+
 :root {
   // bootstrap
   // from bootstrap 4 for backwards compatibility, navbar nav-link items had horizontal padding
-  --bs-navbar-nav-link-padding-x: 0.5rem;
+  // Keep the navbar-link literal until bootstrap-compat variables are consolidated under nav tokens.
+  --bs-navbar-nav-link-padding-x: var(--inet-space-4);
   --bs-secondary-color: var(--inet-text-muted-color);
   --bs-dropdown-item-padding-y: var(--inet-space-2);
   --bs-dropdown-item-padding-x: var(--inet-space-5);
@@ -1314,7 +1369,7 @@ custom-select.date-value-editor__nav-select--year {
   --bs-card-border-color: var(--inet-default-border-color);
   --bs-modal-bg: var(--inet-dialog-bg-color);
   --bs-modal-border-color: var(--inet-default-border-color);
-  --bs-badge-font-size: 10px;
+  --bs-badge-font-size: var(--inet-badge-font-size);
   --bs-badge-font-weight: 600;
   --bs-badge-padding-y: var(--inet-space-1);
   --bs-badge-padding-x: var(--inet-space-3);
@@ -1336,5 +1391,18 @@ custom-select.date-value-editor__nav-select--year {
 .portal-dropdown .dropdown-item:focus:not(:focus-visible):not(:hover) {
   background-color: transparent;
   color: inherit;
+}
+
+// Suppress browser-native number-input spinners globally. number-stepper replaces
+// them for increment/decrement controls; plain number inputs don't need the arrows.
+input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+
+  &::-webkit-inner-spin-button,
+  &::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
 }
 

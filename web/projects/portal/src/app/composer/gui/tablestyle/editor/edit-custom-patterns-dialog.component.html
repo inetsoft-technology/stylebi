@@ -24,7 +24,7 @@
          <a ngbNavLink>_#(Row/Column)</a>
          <ng-template ngbNavContent>
             <fieldset>
-               <div class="row form-row-float-label">
+               <div class="row shell-form-row--field">
                   <div class="col">
                      <div class="form-check">
                         <input type="radio" name="rowColumn" class="form-check-input"
@@ -44,7 +44,7 @@
                      </div>
                   </div>
                </div>
-               <div class="row form-row-float-label">
+               <div class="row shell-form-row--field">
                   <div class="col form-floating">
                      <input class="form-control" type="text" [ngModel]="startValue"
                             (change)="setStartValue($event.target.value)"
@@ -60,7 +60,7 @@
                      </div>
                   </div>
                </div>
-               <div class="form-row-float-label row">
+               <div class="shell-form-row--field row">
                   <legend>{{rangeLabel()}}:</legend>
                   <div class="col form-floating">
                      <input class="form-control defaultvalue" type="text"
@@ -86,11 +86,11 @@
                      </div>
                   </div>
                </div>
-               <div *ngIf="isInvalid(specModel.start)" class="alert alert-danger">
+               <div *ngIf="isInvalid(specModel.start)" class="shell-alert shell-alert--danger">
                   _#(custom.pattern.start.integer)
                </div>
                <div *ngIf="isInvalid(specModel.to) || isInvalid(specModel.from)"
-                  class="alert alert-danger">
+                  class="shell-alert shell-alert--danger">
                   _#(custom.pattern.range.integer)
                </div>
             </fieldset>
@@ -100,7 +100,7 @@
          <a ngbNavLink>_#(Grouping)</a>
          <ng-template ngbNavContent>
             <fieldset>
-               <div class="row form-row-float-label">
+               <div class="row shell-form-row--field">
                   <div class="col">
                      <div class="form-check">
                         <input type="radio" name="grouping" class="form-check-input"
@@ -122,7 +122,7 @@
                      </div>
                   </div>
                </div>
-               <div class="row form-row-float-label">
+               <div class="row shell-form-row--field">
                   <div class="col">
                      <div class="col form-floating">
                         <select class="form-control defaultvalue" id="defaultvalue"

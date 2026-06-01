@@ -16,8 +16,8 @@
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
 <div class="container-fluid">
-  <div class="form-row-float-label row">
-    <div class="bordered-box bd-gray bordered-box-md">
+  <div class="shell-form-row--field row">
+    <div class="bordered-box bordered-box-md hierarchy-content-pane__surface">
       <div *ngFor="let dimension of model.dimensions">
         <div *ngFor="let member of dimension.members">
           {{member.dataRef.name}}

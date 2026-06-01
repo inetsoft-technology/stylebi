@@ -21,8 +21,30 @@
   min-width: 60px;
   max-width: 40vw;
   padding-right: 15px;
+  background-color: var(--inet-dropdown-bg-color);
 
   .loading-icon {
     vertical-align: middle;
   }
+}
+
+.browse-data-dropdown__item {
+  min-height: var(--inet-control-height-md);
+  display: flex;
+  align-items: center;
+}
+
+.browse-data-dropdown__status {
+  color: var(--inet-text-muted-color);
+}
+
+.browse-data-dropdown__check-row {
+  padding: 0 var(--inet-space-4);
+}
+
+.browse-data-dropdown__check {
+  min-height: var(--inet-control-height-md);
+  display: flex;
+  align-items: center;
+  margin-bottom: 0;
 }

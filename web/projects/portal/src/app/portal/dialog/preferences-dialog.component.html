@@ -22,7 +22,7 @@
   <ng-template wDialogContent>
     <div *ngIf="model" class="prefernces-pane">
       <form ngNoForm class="container-fluid">
-        <div class="form-group row one-col-form-flex">
+        <div class="shell-form-group row one-col-form-flex">
           <div class="form-floating">
             <input class="form-control email-input-id" type="text" [(ngModel)]="model.email"
                    defaultFocus [autoSelect]="false"
@@ -36,7 +36,7 @@
                 </span>
           </div>
         </div>
-        <div *ngIf="model.changePasswordAvailable" class="form-group row one-col-form-flex">
+        <div *ngIf="model.changePasswordAvailable" class="shell-form-group row one-col-form-flex">
           <div class="col">
             <span class="href-style" (click)="changePasswordClicked()"
                   enterClick tabindex="0" role="link">
@@ -44,7 +44,7 @@
           </span>
           </div>
         </div>
-        <div class="form-group form-row one-col-form-flex">
+        <div class="shell-form-group shell-form-row one-col-form-flex">
           <div class="col">
             <label class="form-check-label">
               <input type="checkbox" class="form-check-input"

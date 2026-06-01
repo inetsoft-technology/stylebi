@@ -128,7 +128,7 @@ describe("Calc Data Pane Unit Test", () => {
       editorService.getSelectCells.mockImplementation(() => [TestUtils.createMockCalcTableCell()]);
       fixture.detectChanges();
 
-      let expandCell: HTMLInputElement = fixture.nativeElement.querySelector(".form-row-checkbox input[type=checkbox]");
+      let expandCell: HTMLInputElement = fixture.nativeElement.querySelector(".shell-form-row--checkbox input[type=checkbox]");
       let formulaRadio: HTMLInputElement = fixture.nativeElement.querySelector(".fromula_id input[type=radio]");
       let textRadio: HTMLInputElement = fixture.nativeElement.querySelector(".text_id input[type=radio]");
       let textInput: HTMLInputElement = fixture.nativeElement.querySelector(".text_id input[type=text]");
@@ -196,12 +196,12 @@ describe("Calc Data Pane Unit Test", () => {
       calcDataPane.bindingModel = bindingModel;
       fixture.detectChanges();
 
-      let HRadio: HTMLInputElement = fixture.nativeElement.querySelectorAll(".form-row-checkbox input[type=radio]")[0];
+      let HRadio: HTMLInputElement = fixture.nativeElement.querySelectorAll(".shell-form-row--checkbox input[type=radio]")[0];
       expect(HRadio.checked).toBeTruthy();
 
       calcDataPane.columnValue = "city";
       fixture.detectChanges();
-      HRadio = fixture.nativeElement.querySelectorAll(".form-row-checkbox input[type=radio]")[0];
+      HRadio = fixture.nativeElement.querySelectorAll(".shell-form-row--checkbox input[type=radio]")[0];
       expect(HRadio.checked).toBeTruthy();
 
       //Bug #20845

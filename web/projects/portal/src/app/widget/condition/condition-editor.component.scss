@@ -15,9 +15,24 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-:host ::ng-deep .dropdown-menu {
+:host ::ng-deep .dropdown-pane {
   overflow-y: auto;
   max-height: 300px;
+}
+
+:host ::ng-deep .condition-editor__type-menu {
+  min-width: 10rem;
+  background-color: var(--inet-dropdown-bg-color);
+}
+
+:host ::ng-deep .condition-editor__type-menu-item {
+  min-height: var(--inet-control-height-md);
+  display: flex;
+  align-items: center;
+
+  &.selected {
+    background-color: var(--inet-list-selected-bg-color);
+  }
 }
 
 :host ::ng-deep ngb-datepicker.dropdown-menu,
@@ -63,7 +78,7 @@ variable-editor {
   min-width: 0;
 }
 
-.editor-container__main > .form-group {
+.editor-container__main > .shell-form-group {
   display: flex;
   align-items: stretch;
   flex: 1 1 auto;

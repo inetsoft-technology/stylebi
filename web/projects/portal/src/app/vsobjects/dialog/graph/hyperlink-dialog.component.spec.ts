@@ -37,6 +37,7 @@ import { TooltipService } from "../../../widget/tooltip/tooltip.service";
 import { TreeNodeModel } from "../../../widget/tree/tree-node-model";
 import { HyperlinkDialogModel } from "../../model/hyperlink-dialog-model";
 import { VSTrapService } from "../../util/vs-trap.service";
+import { NumberStepperModule } from "../../../widget/number-stepper/number-stepper.module";
 import { HyperlinkDialog } from "./hyperlink-dialog.component";
 
 @Component({
@@ -168,7 +169,7 @@ describe("hyperlink dialog componnet unit case", () => {
       }));
 
       TestBed.configureTestingModule({
-         imports: [ReactiveFormsModule, FormsModule, NgbModule, DropDownTestModule, HttpClientTestingModule],
+         imports: [ReactiveFormsModule, FormsModule, NgbModule, DropDownTestModule, HttpClientTestingModule, NumberStepperModule],
          declarations: [HyperlinkDialog, InputParameterDialog, LargeFormFieldComponent, RepositoryTreeComponent, GenericSelectableList, EnterSubmitDirective, TooltipDirective],
          providers: [TooltipService,
             {provide: VSTrapService, useValue: trapService},
@@ -276,7 +277,7 @@ describe("hyperlink dialog componnet unit case", () => {
       hyperlinkDialog.model = model;
       fixture.detectChanges();
 
-      let paras = fixture.nativeElement.querySelectorAll("div.d-table");
+      let paras = fixture.nativeElement.querySelectorAll("div.generic-selectable-list__item");
       expect(paras[0].textContent.trim()).toBe("para1:{d '2012-12-25'}");
       expect(paras[1].textContent.trim()).toBe("para2:1");
       expect(paras[2].textContent.trim()).toBe("para3:[State]");
