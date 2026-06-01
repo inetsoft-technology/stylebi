@@ -1031,7 +1031,20 @@ public class TableHighlightAttr extends TableAttr {
        * Setter of asset query sandbox.
        */
       public void setQuerySandbox(Object box) {
-         this.querySandbox = box;
+         if(this.querySandbox != box) {
+            this.querySandbox = box;
+
+            // Clear highlight caches since condition evaluation (e.g. parameter expressions)
+            // may produce different results with the new sandbox. Without clearing, stale
+            // null values cached before the sandbox was available would suppress re-evaluation.
+            if(rowcache != null) {
+               rowcache.clear();
+            }
+
+            if(cellcache != null) {
+               cellcache.clear();
+            }
+         }
       }
 
       @Override
