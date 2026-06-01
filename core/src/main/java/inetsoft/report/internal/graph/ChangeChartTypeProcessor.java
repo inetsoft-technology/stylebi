@@ -285,7 +285,7 @@ public class ChangeChartTypeProcessor extends ChangeChartProcessor {
             info.setChartType(newType);
 
             if(info instanceof  VSChartInfo) {
-               // preserve combined tooltip for types that support it (line/area/bar)
+               // clear combined tooltip for types that don't support it; mirrors supportsCombinedTooltip()
                if(!GraphTypes.isLine(newType) && !GraphTypes.isArea(newType) &&
                   !GraphTypes.isBar(newType))
                {

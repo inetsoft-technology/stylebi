@@ -42,7 +42,10 @@ class ChangeChartTypeCombinedTooltipTest {
    void switchBetweenSupportingTypesKeepsCombinedTooltip() {
       assertPreserved(GraphTypes.CHART_LINE_STACK, GraphTypes.CHART_BAR_STACK);
       assertPreserved(GraphTypes.CHART_LINE, GraphTypes.CHART_BAR);
+      assertPreserved(GraphTypes.CHART_LINE_STACK, GraphTypes.CHART_3D_BAR);
+      assertPreserved(GraphTypes.CHART_LINE_STACK, GraphTypes.CHART_3D_BAR_STACK);
       assertPreserved(GraphTypes.CHART_LINE_STACK, GraphTypes.CHART_AREA_STACK);
+      assertPreserved(GraphTypes.CHART_AREA_STACK, GraphTypes.CHART_BAR_STACK);
    }
 
    @Test
