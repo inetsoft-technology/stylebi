@@ -194,7 +194,12 @@ export class ChartPlotArea extends ChartObjectAreaBase<Plot> implements OnChange
       this.sendFlyover.emit(flyoverPayload);
    }
 
-   private emitTooltip(regions: ChartRegion[]): void {
+   private emitTooltip(regions: ChartRegion[], primary?: ChartRegion): void {
+      if(primary && primary.tipIdx >= 0) {
+         this.showTooltip.emit({ tipIndex: primary.tipIdx, region: primary });
+         return;
+      }
+
       const tipInfo = regions
          .filter(region => !!region)
          .sort((a, b) => a.index - b.index)
@@ -334,6 +339,52 @@ export class ChartPlotArea extends ChartObjectAreaBase<Plot> implements OnChange
       return nearest;
    }
 
+   // Within a snapped x-bucket, pick the region nearest the cursor so the header,
+   // guideline and highlight track the hovered bar/series rather than the first.
+   private findPrimarySnapRegion(regionIndices: number[], eventX: number,
+                                 eventY: number): { region: ChartRegion, centerX: number }
+   {
+      const candidates: { region: ChartRegion, centerX: number, width: number }[] = [];
+      let minWidth = Infinity;
+
+      for(const i of regionIndices) {
+         const region = this.chartObject.regions[i];
+
+         if(!region || region.tipIdx < 0) {
+            continue;
+         }
+
+         const bounds = this.regionBoundsX(region);
+         const width = bounds ? bounds.width : 0;
+         candidates.push({ region, centerX: bounds ? bounds.centerX : eventX, width });
+         minWidth = Math.min(minWidth, width);
+      }
+
+      let best: { region: ChartRegion, centerX: number } = null;
+      let bestDx = Infinity;
+      let bestDy = Infinity;
+
+      for(const c of candidates) {
+         // Skip wide area polygons whose center is the series midpoint, not a
+         // data point; only the narrowest tier (bars/markers) locates the cursor.
+         if(c.width > minWidth + 1) {
+            continue;
+         }
+
+         const dx = Math.abs(c.centerX - eventX);
+         // Tie-break near-equal X (overlapping line/area points) by vertical distance.
+         const dy = c.region.centroid ? Math.abs(c.region.centroid.y - eventY) : 0;
+
+         if(dx < bestDx - 1 || (Math.abs(dx - bestDx) <= 1 && dy < bestDy)) {
+            best = { region: c.region, centerX: c.centerX };
+            bestDx = dx;
+            bestDy = dy;
+         }
+      }
+
+      return best;
+   }
+
    private drawSnapGuideline(pixelX: number): void {
       if(!this.referenceLineCanvas) {
          return;
@@ -408,9 +459,11 @@ export class ChartPlotArea extends ChartObjectAreaBase<Plot> implements OnChange
          let eventX = mevent.offsetX + this.scrollLeft;
          let eventY = mevent.offsetY + this.scrollTop;
          let regions: ChartRegion[] = this.getTreeRegions(eventX, eventY);
+         let snapPrimary: ChartRegion = null;
 
-         // Snap: replace hit-tested regions with the nearest X tick's set
-         // and draw a dashed vertical line there.
+         // Snap: replace hit-tested regions with the nearest X tick's set, then
+         // pick the region nearest the cursor as the header and draw a dashed
+         // vertical line at it.
          if(this.model && this.model.snapTooltip) {
             if(this.snapXTicksFor !== this.chartObject) {
                this.rebuildSnapIndex();
@@ -420,7 +473,9 @@ export class ChartPlotArea extends ChartObjectAreaBase<Plot> implements OnChange
 
             if(snap) {
                regions = snap.regionIndices.map(i => this.chartObject.regions[i]);
-               this.drawSnapGuideline(snap.pixelX);
+               const primary = this.findPrimarySnapRegion(snap.regionIndices, eventX, eventY);
+               snapPrimary = primary ? primary.region : null;
+               this.drawSnapGuideline(primary ? Math.round(primary.centerX) : snap.pixelX);
             }
             else {
                this.clearSnapGuideline();
@@ -442,7 +497,7 @@ export class ChartPlotArea extends ChartObjectAreaBase<Plot> implements OnChange
             }, 100, []);
          }
          else {
-            this.emitTooltip(regions);
+            this.emitTooltip(regions, snapPrimary);
          }
 
          if(this.viewerMode || this.previewMode) {
@@ -491,8 +546,12 @@ export class ChartPlotArea extends ChartObjectAreaBase<Plot> implements OnChange
 
          if(this.inlineSvg) {
             // Find the hovered VO region (bar, point, etc.) by row/col presence.
-            const voRegion = regions?.find(r => r && r.rowIdx >= 0 &&
-               ChartTool.colIdx(this.model, r) >= 0);
+            // Snap supplies the nearest bar/series so the highlight tracks it.
+            const voRegion = (snapPrimary && snapPrimary.rowIdx >= 0 &&
+               ChartTool.colIdx(this.model, snapPrimary) >= 0)
+               ? snapPrimary
+               : regions?.find(r => r && r.rowIdx >= 0 &&
+                  ChartTool.colIdx(this.model, r) >= 0);
             const rowIdx = voRegion != null ? voRegion.rowIdx : null;
             const colIdx = voRegion != null ? ChartTool.colIdx(this.model, voRegion) : null;
             this.inlineSvgTiles?.forEach(d => d.highlightElement(rowIdx, colIdx));

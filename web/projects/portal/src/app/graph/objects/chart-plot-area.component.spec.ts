@@ -435,6 +435,43 @@ describe("ChartPlotArea Integration Tests", () => {
       expect((component as any).snapXTicksFor).toBe(component.chartObject);
    });
 
+   it("snaps to the region nearest the cursor within an x-bucket", () => {
+      const fixture = TestBed.createComponent(TestApp);
+      const debugEl = fixture.debugElement.query(By.css("chart-plot-area"));
+      const component: ChartPlotArea = debugEl.componentInstance;
+      jest.spyOn(component, "getSrc").mockImplementation(() => "");
+      fixture.detectChanges();
+
+      // region 9 centerX ~53.5 (x 44-63), region 0 centerX ~348.5 (x 339-358).
+      const left = (component as any).findPrimarySnapRegion([0, 9], 55, 200);
+      expect(left.region.index).toBe(9);
+
+      const right = (component as any).findPrimarySnapRegion([0, 9], 345, 200);
+      expect(right.region.index).toBe(0);
+   });
+
+   it("skips wide area polygons when snapping to the nearest point", () => {
+      const fixture = TestBed.createComponent(TestApp);
+      const debugEl = fixture.debugElement.query(By.css("chart-plot-area"));
+      const component: ChartPlotArea = debugEl.componentInstance;
+      jest.spyOn(component, "getSrc").mockImplementation(() => "");
+      fixture.detectChanges();
+
+      const regions: any[] = component.chartObject.regions;
+      const narrowIdx = regions.length;
+      regions.push({ segTypes: [[8]], pts: [[[[100, 0], [10, 50]]]], centroid: null,
+         index: narrowIdx, tipIdx: 20, rowIdx: 50, valIdx: -1, hyperlinks: [],
+         noselect: false, grouped: false, boundaryIdx: -1 });
+      const wideIdx = regions.length;
+      regions.push({ segTypes: [[0, 1]], pts: [[[[0, 0], [400, 0]]]], centroid: null,
+         index: wideIdx, tipIdx: 21, rowIdx: 50, valIdx: -1, hyperlinks: [],
+         noselect: false, grouped: false, boundaryIdx: -1 });
+
+      // Cursor at 200 is the wide polygon's center but should snap to the point.
+      const primary = (component as any).findPrimarySnapRegion([narrowIdx, wideIdx], 200, 25);
+      expect(primary.region.index).toBe(narrowIdx);
+   });
+
    it.skip("should be able to select regions", () => {
       let fixture = TestBed.createComponent(TestApp);
       let testComponent = fixture.componentInstance;
