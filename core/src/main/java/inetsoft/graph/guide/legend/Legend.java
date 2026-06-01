@@ -1215,7 +1215,7 @@ public abstract class Legend extends BoundedContainer {
    private static final int TITLE_RIGHT_PADDING = 4;
    private static final int ITEM_LEFT_PADDING = TITLE_LEFT_PADDING;
    private static final int ITEM_RIGHT_PADDING = 4;
-   private static final int TITLE_LINE_GAP = 1;
+   public static final int TITLE_LINE_GAP = 1;
    private static final int MIN_CHAR_COUNT = 4;
    private static final int PREFERRED_CHAR_COUNT = 30;
 

@@ -682,6 +682,7 @@ public class GraphBuilder {
             .containsCustomDcRangeRef(containsCustomDcRangeRef(new String[] { field }))
             .containsCustomDcMergeRef(containsCustomDcMergeRef(new String[] { field }))
             .nodeAesthetic(nodeFrame)
+            .scalar(area instanceof ScalarLegendContentArea)
             .build();
       }
       else {

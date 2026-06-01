@@ -1394,7 +1394,7 @@ export class ChartArea implements OnInit, OnChanges, OnDestroy {
       return paddingLeft;
    }
 
-   private getBorderWidth(border: string): number {
+   protected getBorderWidth(border: string): number {
       if(!border) {
          return 0;
       }
