@@ -67,7 +67,8 @@ export interface BackupPathsSave {
     templateUrl: "./backup-file.component.html",
     styleUrls: ["./backup-file.component.scss"],
     providers: [
-        RepositoryTreeDataSource
+        RepositoryTreeDataSource,
+        ExportAssetsService
     ],
     imports: [MatCard, MatCardHeader, MatCardTitle, MatCheckbox, FormsModule, MatCardContent, ReactiveFormsModule, MatFormField, MatInput, MatError, MatLabel, MatProgressBar, FlatTreeViewComponent, MatMiniFabButton, MatList, MatListItem, MatIcon, AsyncPipe]
 })
