@@ -113,6 +113,7 @@ export class TabularNumberEditor implements OnInit, OnChanges {
 
          if(this.valueControl.dirty) {
             this.valueChange.emit(currentValue);
+            this.valueControl.markAsPristine();
          }
       }
    }
