@@ -27,6 +27,7 @@ import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.*;
 import inetsoft.uql.jdbc.JDBCDataSource;
+import inetsoft.uql.jdbc.JDBCHandler;
 import inetsoft.uql.jdbc.util.JDBCUtil;
 import inetsoft.uql.jdbc.util.SQLTypes;
 import inetsoft.uql.schema.XSchema;
@@ -34,6 +35,7 @@ import inetsoft.uql.schema.XTypeNode;
 import inetsoft.uql.util.DefaultMetaDataProvider;
 import inetsoft.uql.util.XSourceInfo;
 import inetsoft.uql.util.XUtil;
+import inetsoft.util.ThreadContext;
 import inetsoft.util.Tool;
 import inetsoft.web.composer.AssetTreeService;
 import inetsoft.web.composer.model.LoadAssetTreeNodesEvent;
@@ -45,6 +47,10 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.*;
 
 @Service
@@ -544,6 +550,21 @@ public class MetadataApiService {
          throw new Exception("No meta data provider found for data source " + dsName);
       }
 
+      // Partition probe: identify Postgres partition/inheritance children up-front
+      // so we can drop them from the response (they're implementation detail,
+      // not user-facing tables). On any probe error we fall open — log a warning
+      // and proceed with an empty set, so a transient catalog issue doesn't block
+      // the whole metadata fetch.
+      Set<String> partitionChildren = Set.of();
+      if(isPostgresDriver(jdbcDataSource)) {
+         try(Connection probeConn = new JDBCHandler().getConnection(jdbcDataSource, principal)) {
+            partitionChildren = findPostgresPartitionChildren(jdbcDataSource, probeConn);
+         }
+         catch(Exception e) {
+            log.warn("Partition probe failed for '{}'; proceeding without partition filter", dsName, e);
+         }
+      }
+
       XNode rootMetaData = metaDataProvider.getRootMetaData(XUtil.OUTER_MOSE_LAYER_DATABASE);
 
       XNode typeQuery = new XNode();
@@ -587,6 +608,10 @@ public class MetadataApiService {
                String catalog = (String) tableNode.getAttribute("catalog");
                String schema = (String) tableNode.getAttribute("schema");
 
+               if(isPartitionChild(schema, tableName, partitionChildren)) {
+                  continue;
+               }
+
                DatabaseTableInfo info = new DatabaseTableInfo();
                info.setType(tableType);
                info.setDatabase(dsName);
@@ -609,17 +634,21 @@ public class MetadataApiService {
    }
 
    private TreeNodeModel filterWizTree(TreeNodeModel node) {
-      return filterWizTree(node, new HashMap<>());
+      return filterWizTree(node, new HashMap<>(), new HashMap<>());
    }
 
-   private TreeNodeModel filterWizTree(TreeNodeModel node, Map<String, SystemFilter> filterCache) {
+   private TreeNodeModel filterWizTree(
+      TreeNodeModel node,
+      Map<String, SystemFilter> filterCache,
+      Map<String, Set<String>> partitionCache)
+   {
       if(node == null) {
          return null;
       }
 
       AssetEntry entry = node.data() instanceof AssetEntry assetEntry ? assetEntry : null;
 
-      if(shouldHideWizTreeNode(entry, filterCache)) {
+      if(shouldHideWizTreeNode(entry, filterCache, partitionCache)) {
          return null;
       }
 
@@ -627,7 +656,7 @@ public class MetadataApiService {
       builder.children(new ArrayList<>());
 
       for(TreeNodeModel child : node.children()) {
-         TreeNodeModel filteredChild = filterWizTree(child, filterCache);
+         TreeNodeModel filteredChild = filterWizTree(child, filterCache, partitionCache);
 
          if(filteredChild != null) {
             builder.addChildren(filteredChild);
@@ -637,7 +666,11 @@ public class MetadataApiService {
       return builder.build();
    }
 
-   private boolean shouldHideWizTreeNode(AssetEntry entry, Map<String, SystemFilter> filterCache) {
+   private boolean shouldHideWizTreeNode(
+      AssetEntry entry,
+      Map<String, SystemFilter> filterCache,
+      Map<String, Set<String>> partitionCache)
+   {
       if(entry == null || Tool.isEmptyString(entry.getPath())) {
          return false;
       }
@@ -654,7 +687,20 @@ public class MetadataApiService {
          return false;
       }
 
-      SystemFilter filter = getSystemFilter(parts[0], filterCache);
+      String dsName = parts[0];
+
+      // Partition-child check (Postgres only): TABLE leaves whose qualified name
+      // appears in the per-datasource partition set are dropped. Cached lazily
+      // because the asset tree can include many tables per datasource.
+      if("TABLE".equalsIgnoreCase(tableType)) {
+         Set<String> partitions = partitionCache.computeIfAbsent(
+            dsName, this::probePartitionsForTree);
+         if(isPartitionChild(entry.getPath(), partitions)) {
+            return true;
+         }
+      }
+
+      SystemFilter filter = getSystemFilter(dsName, filterCache);
 
       if(filter.isEmpty()) {
          return false;
@@ -669,6 +715,30 @@ public class MetadataApiService {
       }
 
       return parts.length > 3 && matchesSystemName(parts[3], filter.schemas);
+   }
+
+   /**
+    * Lazy partition probe for the asset-tree filter. Fail-open: returns empty
+    * set on any error so the tree still renders, mirroring getDatabaseTables.
+    */
+   private Set<String> probePartitionsForTree(String dsName) {
+      try {
+         JDBCDataSource ds = getJDBCDatasource(dsName);
+         if(!isPostgresDriver(ds)) {
+            return Set.of();
+         }
+         // Unlike getDatabaseTables, there's no Principal parameter here: this runs
+         // inside a computeIfAbsent lambda during the tree walk, so we resolve the
+         // caller from the request-scoped ThreadContext instead.
+         try(Connection conn = new JDBCHandler()
+               .getConnection(ds, ThreadContext.getContextPrincipal())) {
+            return findPostgresPartitionChildren(ds, conn);
+         }
+      }
+      catch(Exception e) {
+         log.warn("Partition probe failed for asset tree '{}'; tree will include partitions", dsName, e);
+         return Set.of();
+      }
    }
 
    private XNode filterSystemSchemaTree(XNode schemas, JDBCDataSource jdbcDataSource) {
@@ -980,6 +1050,104 @@ public class MetadataApiService {
          log.warn("Failed to get meta data provider for data source '{}'", jdbcDatasource.getFullName(), e);
          return null;
       }
+   }
+
+   /**
+    * Returns true when the datasource uses the Postgres JDBC driver. Package-private
+    * (not private) so the partition filter unit tests can call it without standing
+    * up the full service graph.
+    */
+   static boolean isPostgresDriver(JDBCDataSource ds) {
+      if(ds == null) {
+         return false;
+      }
+      String driver = ds.getDriver();
+      return "org.postgresql.Driver".equals(driver);
+   }
+
+   /**
+    * Authoritative partition-children probe for Postgres. Queries pg_inherits
+    * (inheritance children, including pre-PG10 inheritance-based partitioning AND
+    * PG10+ declarative partitioning). Returns lowercased "schema.table" keys.
+    *
+    * Package-private static for direct unit testing — the only side effect besides
+    * returning is consuming the supplied Connection.
+    *
+    * On error: this method does NOT swallow exceptions. Callers must catch
+    * SQLException and decide whether to log and continue with an empty filter
+    * (current policy: leak partitions through rather than block the whole metadata
+    * request).
+    */
+   static Set<String> findPostgresPartitionChildren(
+      JDBCDataSource ds, Connection conn) throws SQLException
+   {
+      if(!isPostgresDriver(ds)) {
+         return Set.of();
+      }
+
+      // pg_inherits is the implementation mechanism for both pre-PG10 inheritance-
+      // based partitioning AND PG10+ declarative partitioning, so this single
+      // subquery covers both eras without referencing pg_class.relispartition
+      // (PG10+ only — would break catalog queries on older Postgres).
+      // relkind IN ('r','p') restricts to ordinary and partitioned tables.
+      // pg_inherits also records partitioned-index inheritance (PG11+), so without
+      // this filter index oids would leak in as "schema.indexname" keys.
+      String sql =
+         "SELECT n.nspname || '.' || c.relname AS qualified " +
+         "FROM pg_class c JOIN pg_namespace n ON c.relnamespace = n.oid " +
+         "WHERE c.relkind IN ('r', 'p') " +
+         "AND c.oid IN (SELECT inhrelid FROM pg_inherits)";
+
+      Set<String> out = new HashSet<>();
+
+      try(PreparedStatement ps = conn.prepareStatement(sql);
+          ResultSet rs = ps.executeQuery())
+      {
+         while(rs.next()) {
+            String qualified = rs.getString(1);
+            if(qualified != null) {
+               // Locale.ROOT avoids Turkish-locale "I" → dotless-ı conversion, which
+               // would produce keys that don't match the comparison side downstream.
+               out.add(qualified.toLowerCase(Locale.ROOT));
+            }
+         }
+      }
+
+      return Set.copyOf(out);
+   }
+
+   /**
+    * True when (schema, tableName) refers to a row in the partition-children set.
+    * Used by getDatabaseTables, which already has schema and table broken out.
+    */
+   static boolean isPartitionChild(String schema, String tableName, Set<String> partitions) {
+      if(partitions == null || partitions.isEmpty() || tableName == null) {
+         return false;
+      }
+      // Locale.ROOT matches the lowercasing convention used in findPostgresPartitionChildren.
+      String qualified = ((schema == null ? "" : schema + ".") + tableName).toLowerCase(Locale.ROOT);
+      return partitions.contains(qualified);
+   }
+
+   /**
+    * True when a wiz asset path ("dsName/TABLE/schema/tableName") refers to a
+    * partition child. Used by filterWizTree, which only has the path string.
+    * Returns false for paths that aren't TABLE leaves (VIEW, folder paths, etc.)
+    * so the predicate is safe to call on any node.
+    */
+   static boolean isPartitionChild(String assetPath, Set<String> partitions) {
+      if(assetPath == null || assetPath.isEmpty() || partitions == null || partitions.isEmpty()) {
+         return false;
+      }
+      String[] parts = assetPath.split("/");
+      // Need at minimum: dsName/TABLE/schema/tableName
+      if(parts.length < 4) {
+         return false;
+      }
+      if(!"TABLE".equalsIgnoreCase(parts[1])) {
+         return false;
+      }
+      return isPartitionChild(parts[2], parts[3], partitions);
    }
 
    private final XRepository xrepository;
