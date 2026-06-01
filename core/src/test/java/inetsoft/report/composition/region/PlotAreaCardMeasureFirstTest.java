@@ -174,6 +174,119 @@ class PlotAreaCardMeasureFirstTest {
       assertTrue(tip.containsTooltip(xKey));
    }
 
+   @Test
+   void cardEmitsOriginalMeasureBeforeCalcDerived() {
+      // Original measure leads at tier-1, derived Change follows at tier-2.
+      IndexedSet<String> palette = new IndexedSet<>();
+      ChartToolTip tip = new ChartToolTip();
+      tip.setStyle(ChartInfo.TooltipStyle.CARD);
+
+      int calcKey = palette.put("Change from previous year of Year(Date): Sum(Quantity Purchased)");
+      int calcVal = palette.put("24");
+      int origKey = palette.put("Sum(Quantity Purchased)");
+      int origVal = palette.put("2,865.00");
+
+      PlotArea.appendMeasurePair(tip, calcKey, calcVal, origKey, origVal, true);
+
+      String out = tip.getTooltip(palette);
+
+      assertTrue(out.contains("<div class=\"tt-tier-1\">Sum(Quantity Purchased)" +
+         ChartToolTip.COLON + "2,865.00"), "original measure leads at tier-1");
+      assertTrue(out.contains("<div class=\"tt-tier-2\">Change from previous year"),
+         "derived Change value follows at tier-2");
+   }
+
+   @Test
+   void defaultOrderKeepsCalcFirst() {
+      // originalFirst=false keeps the legacy calc-then-original order.
+      IndexedSet<String> palette = new IndexedSet<>();
+      ChartToolTip tip = new ChartToolTip();
+      tip.setStyle(ChartInfo.TooltipStyle.CARD);
+
+      int calcKey = palette.put("Change");
+      int calcVal = palette.put("24");
+      int origKey = palette.put("Sum");
+      int origVal = palette.put("2865");
+
+      PlotArea.appendMeasurePair(tip, calcKey, calcVal, origKey, origVal, false);
+
+      String out = tip.getTooltip(palette);
+
+      assertTrue(out.contains("<div class=\"tt-tier-1\">Change"),
+         "calc value stays first when originalFirst is false");
+      assertTrue(out.contains("<div class=\"tt-tier-2\">Sum"));
+   }
+
+   @Test
+   void appendMeasurePairWithoutOriginalIsNoop() {
+      // No calc (no ovalue) emits only the single pair, regardless of the flag.
+      IndexedSet<String> palette = new IndexedSet<>();
+      ChartToolTip tip = new ChartToolTip();
+      tip.setStyle(ChartInfo.TooltipStyle.CARD);
+
+      int key = palette.put("Sum");
+      int val = palette.put("100");
+
+      PlotArea.appendMeasurePair(tip, key, val, null, null, true);
+
+      assertEquals(2, tip.getTooltipList().size(), "exactly one pair added");
+      assertTrue(tip.getTooltip(palette).contains("<div class=\"tt-tier-1\">Sum"));
+   }
+
+   @Test
+   void derivedMeasureGroupsAtTierTwoAboveDimensions() {
+      // Derived measure present: original tier-1, Change tier-2, dims tier-3.
+      IndexedSet<String> palette = new IndexedSet<>();
+      ChartToolTip tip = new ChartToolTip();
+      tip.setStyle(ChartInfo.TooltipStyle.CARD);
+
+      // measure pairs: original (headline) then derived
+      tip.addTooltip(palette.put("Sum(Quantity Purchased)"), palette.put("2,934.00"));
+      tip.addTooltip(palette.put("Change from previous year of Year(Date): Sum(Quantity Purchased)"),
+         palette.put("268"));
+      // dimension pairs
+      tip.addTooltip(palette.put("QuarterOfYear(Date)"), palette.put("2nd"));
+      tip.addTooltip(palette.put("Year(Date)"), palette.put("2019"));
+
+      // 2 measure pairs → group the 1 non-headline measure at tier-2.
+      tip.setGroupedTiers(true);
+      tip.setTier2GroupSize(1);
+
+      String out = tip.getTooltip(palette);
+
+      assertTrue(out.contains("<div class=\"tt-tier-1\">Sum(Quantity Purchased)" +
+         ChartToolTip.COLON + "2,934.00"), "original measure leads at tier-1");
+      assertTrue(out.contains("<div class=\"tt-tier-2\">Change from previous year"),
+         "derived Change value at tier-2");
+      assertTrue(out.contains("<div class=\"tt-tier-3\">QuarterOfYear(Date)" +
+         ChartToolTip.COLON + "2nd"), "dimension drops to tier-3");
+      assertTrue(out.contains("<div class=\"tt-tier-3\">Year(Date)" +
+         ChartToolTip.COLON + "2019"), "dimension drops to tier-3");
+      assertFalse(out.contains("tt-subtitle"), "no X-dim subtitle lift when a derived measure leads");
+   }
+
+   @Test
+   void groupMeasuresAtTier2OnlyWhenDerivedMeasureAndMultiplePairs() {
+      String[] measures = { "Sum(Quantity Purchased)",
+         "Change from previous year of Year(Date): Sum(Quantity Purchased)" };
+      Set<String> derived = new HashSet<>(Collections.singletonList(
+         "Change from previous year of Year(Date): Sum(Quantity Purchased)"));
+
+      // Derived measure present + 2 pairs → group the derived measure at tier-2.
+      assertTrue(PlotArea.groupMeasuresAtTier2(measures, derived, 2));
+
+      // A single measure pair has no non-headline measure to rank → no grouping.
+      assertFalse(PlotArea.groupMeasuresAtTier2(measures, derived, 1));
+
+      // No derived measure (plain multi-measure card) → keep the X-dim subtitle lift.
+      assertFalse(PlotArea.groupMeasuresAtTier2(
+         new String[]{ "Sum(A)", "Avg(B)" }, new HashSet<>(), 2));
+
+      // Single plain measure: guard fires on measurePairs <= 1 → no grouping.
+      assertFalse(PlotArea.groupMeasuresAtTier2(
+         new String[]{ "Sum(A)" }, new HashSet<>(), 1));
+   }
+
    private static ChartInfo chartInfo(ChartInfo.TooltipStyle style, int chartType) {
       ChartInfo info = mock(ChartInfo.class);
       when(info.getTooltipStyle()).thenReturn(style);

@@ -1472,6 +1472,8 @@ public class PlotArea extends GridContainerArea implements GraphComponentArea, R
             }
          }
 
+         int measurePairs = 0;
+
          for(int k = 0; k < cols.length; k++) {
             if(cols[k] == null) {
                continue;
@@ -1480,6 +1482,9 @@ public class PlotArea extends GridContainerArea implements GraphComponentArea, R
             if(isText && isStackValue(evo, vtext) && cols[k] == others) {
                continue;
             }
+
+            int sizeBefore = tooltip.getTooltipList().size();
+            int stackTotalPairs = 0;
 
             for(int i = 0; i < cols[k].length; i++) {
                String name = cols[k][i];
@@ -1549,7 +1554,10 @@ public class PlotArea extends GridContainerArea implements GraphComponentArea, R
                   }
                }
 
-               addTooltip(label, name, value, nameNoCalc, ovalue, list, vtext, tooltip);
+               boolean originalFirst = cardMeasureFirst && cols[k] == measures &&
+                  !(isText && isStackValue(evo, vtext));
+               addTooltip(label, name, value, nameNoCalc, ovalue, list, vtext, tooltip,
+                          originalFirst);
 
                if(cols[k] == measures && isStackChart(name) &&
                   (!isText || !isStackValue(evo, vtext)))
@@ -1561,8 +1569,15 @@ public class PlotArea extends GridContainerArea implements GraphComponentArea, R
                   name = getStackTotalName(showFullTotalName ? name : null);
                   tooltip.setStackTotalName(name);
 
-                  addTooltip(label, name, value, null, null, list, vtext, tooltip);
+                  int beforeStackTotal = tooltip.getTooltipList().size();
+                  addTooltip(label, name, value, null, null, list, vtext, tooltip, false);
+                  // Stack-total footer is not a rankable measure; keep it out of the count.
+                  stackTotalPairs += (tooltip.getTooltipList().size() - beforeStackTotal) / 2;
                }
+            }
+
+            if(cols[k] == measures) {
+               measurePairs = (tooltip.getTooltipList().size() - sizeBefore) / 2 - stackTotalPairs;
             }
          }
 
@@ -1616,11 +1631,16 @@ public class PlotArea extends GridContainerArea implements GraphComponentArea, R
          if(candleCardLayout && dims.length > 0) {
             applyCandleCardHeader(tooltip, dims[0], tipMeasures);
          }
-         // Solo measure-first card: lift the X-dim to the tier-1 subtitle header so a
-         // single-series hover matches the combined-tooltip layout. Only dims[0] lifts.
          else if(cardMeasureFirst && dims.length > 0) {
-            captureCombinedCardHeader(
-               tooltip, new int[]{ palette.put(dims[0]) }, chartInfo.getTooltipStyle());
+            if(groupMeasuresAtTier2(measures, full2NoCalcNames.keySet(), measurePairs)) {
+               tooltip.setGroupedTiers(true);
+               tooltip.setTier2GroupSize(measurePairs - 1);
+            }
+            // Single measure: lift the X-dim to the tier-1 subtitle (matches combined card).
+            else {
+               captureCombinedCardHeader(
+                  tooltip, new int[]{ palette.put(dims[0]) }, chartInfo.getTooltipStyle());
+            }
          }
       }
 
@@ -1693,7 +1713,8 @@ public class PlotArea extends GridContainerArea implements GraphComponentArea, R
    }
 
    private void addTooltip(String label, String name, String value, String oname, String ovalue,
-                           List<VSDataRef> list, VOText vtext, ChartToolTip tooltip)
+                           List<VSDataRef> list, VOText vtext, ChartToolTip tooltip,
+                           boolean originalFirst)
    {
       final List<Legend> legends = getLegends(name);
       AxisDescriptor desc = getAxisDescriptor(name);
@@ -1734,13 +1755,47 @@ public class PlotArea extends GridContainerArea implements GraphComponentArea, R
       name = tips.get(name) == null ? name : tips.get(name);
       int key = palette.put(name);
       int val = palette.put(label);
-      tooltip.addTooltip(key, val);
+      Integer okey = null;
+      Integer oval = null;
 
       if(ovalue != null) {
-         key = palette.put(Tool.localize(oname));
-         val = palette.put(ovalue);
+         okey = palette.put(Tool.localize(oname));
+         oval = palette.put(ovalue);
+      }
+
+      appendMeasurePair(tooltip, key, val, okey, oval, originalFirst);
+   }
+
+   // Card headlines the core value: emit the original measure pair before its
+   // calc-derived (Change/Change%/…) pair so the original takes tier-1.
+   static void appendMeasurePair(ChartToolTip tooltip, int key, int val,
+                                 Integer okey, Integer oval, boolean originalFirst)
+   {
+      if(originalFirst && okey != null) {
+         tooltip.addTooltip(okey, oval);
          tooltip.addTooltip(key, val);
       }
+      else {
+         tooltip.addTooltip(key, val);
+
+         if(okey != null) {
+            tooltip.addTooltip(okey, oval);
+         }
+      }
+   }
+
+   // A derived (calc) measure outranks the X-dim: group non-headline measures at
+   // tier-2 and drop dimensions to tier-3 instead of lifting the X-dim subtitle.
+   // Needs >1 measure pair so there is a non-headline measure to rank.
+   static boolean groupMeasuresAtTier2(String[] measures, Set<String> derivedMeasureNames,
+                                       int measurePairs)
+   {
+      if(measurePairs <= 1) {
+         return false;
+      }
+
+      return Arrays.stream(measures)
+         .anyMatch(m -> m != null && derivedMeasureNames.contains(m));
    }
 
    private String getStackTotalName(String measureName) {
