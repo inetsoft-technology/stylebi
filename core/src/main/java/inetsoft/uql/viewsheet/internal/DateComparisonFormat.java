@@ -150,6 +150,46 @@ public class DateComparisonFormat extends Format {
             }
          }
 
+         // Remove orphaned cells: cells that have no data from the most recent (current)
+         // year. These arise when comparison-year data exists at a position that has no
+         // corresponding current-year entry. Without this filter, the format would compute
+         // wrong label dates from the comparison-year value.
+         // This only applies when dateCol stores period-bucket dates where the same year date
+         // is shared by many cells. If each cell has a unique date, maxYearDate would appear
+         // in only one cell and removing all others would blank the entire axis
+         Set<Object> orphanedCells = new HashSet<>();
+
+         if(!partDates.isEmpty()) {
+            Date maxYearDate = partDates.values().stream()
+               .flatMap(Set::stream)
+               .max(Date::compareTo)
+               .orElse(null);
+
+            if(maxYearDate != null) {
+               final Date maxDate = maxYearDate;
+               long cellsWithMaxDate = partDates.values().stream()
+                  .filter(s -> s.stream().anyMatch(d -> d.compareTo(maxDate) == 0))
+                  .count();
+
+               // Only remove orphans if the max date is shared across multiple cells
+               // (period-bucket case). A unique max date means per-part real dates —
+               // skip the filter to avoid blanking valid labels.
+               if(cellsWithMaxDate > 1) {
+                  Iterator<Map.Entry<Object, Set<Date>>> it = partDates.entrySet().iterator();
+
+                  while(it.hasNext()) {
+                     Map.Entry<Object, Set<Date>> entry = it.next();
+
+                     if(entry.getValue().stream().noneMatch(d -> d.compareTo(maxDate) == 0)) {
+                        orphanedCells.add(entry.getKey());
+                        it.remove();
+                     }
+                  }
+               }
+            }
+         }
+
+         this.orphanedCells = orphanedCells;
          this.partDates = partDates;
          this.partDates2 = partDates2;
          fixDisplayShortDate();
@@ -198,6 +238,7 @@ public class DateComparisonFormat extends Format {
    public void setGraphDataSelector(GraphtDataSelector selector) {
       this.selector = selector;
       partDates = null;
+      orphanedCells = new HashSet<>();
    }
 
    /**
@@ -262,6 +303,12 @@ public class DateComparisonFormat extends Format {
                                boolean onlyShowMostRecentDate)
    {
       initPartDate();
+
+      // Orphaned cells have no current-year data — suppress their labels entirely.
+      if(orphanedCells != null && orphanedCells.contains(obj)) {
+         return toAppendTo;
+      }
+
       Set<Date> dates = partDates.get(obj);
       dates = dates == null ? partDates2.get(obj) : dates;
       Format dateFmt = format != null ?
@@ -419,6 +466,7 @@ public class DateComparisonFormat extends Format {
 
    private Map<Object, Set<Date>> partDates;
    private Map<Object, Set<Date>> partDates2;
+   private Set<Object> orphanedCells = new HashSet<>();
    private Map<Object, Format> preferFormat;
    private int datePart;
    private DataSet data;

@@ -1103,11 +1103,57 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       DateCompareAbleAssemblyInfo info = (DateCompareAbleAssemblyInfo) vsAssemblyInfo;
       DateComparisonInfo dateComparisonInfo = DateComparisonUtil.getDateComparison(info, vs);
 
+      // getDateComparison() may return null if DC hasn't been applied to the runtime chart
+      // state yet (the initial worksheet-table setup call happens before ChartDcProcessor
+      // runs). Fall back to the assembly's raw DC info only when DC is genuinely enabled
+      // and the share-from assembly reference is valid — preserving all other null semantics.
+      if(dateComparisonInfo == null) {
+         boolean dcEnabled = !(info instanceof DataVSAssemblyInfo) ||
+            ((DataVSAssemblyInfo) info).isDateComparisonEnabled();
+         boolean validShare = Tool.isEmptyString(info.getComparisonShareFrom()) ||
+            (vs != null && vs.getAssembly(info.getComparisonShareFrom()) != null &&
+               vs.getAssembly(info.getComparisonShareFrom()).getVSAssemblyInfo()
+                  instanceof DateCompareAbleAssemblyInfo);
+
+         if(dcEnabled && validShare) {
+            dateComparisonInfo = info.getDateComparisonInfo();
+         }
+      }
+
       if(dateComparisonInfo == null) {
          return null;
       }
 
-      return dateComparisonInfo.getDateComparisonConditions(info.getDateComparisonRef());
+      VSDataRef dcRef = info.getDateComparisonRef();
+
+      // dateComparisonRef is only set by ChartDcProcessor.process() during chart execution.
+      // For the early worksheet-table setup call, derive the date ref from the chart's
+      // design fields, using the same axis-aggregate logic as ChartDcProcessor.
+      if(dcRef == null && vsAssemblyInfo instanceof ChartVSAssemblyInfo) {
+         VSChartInfo cinfo = ((ChartVSAssemblyInfo) vsAssemblyInfo).getVSChartInfo();
+
+         if(cinfo != null) {
+            DataRef found = null;
+            ChartRef[] xFields = cinfo.getXFields();
+            ChartRef[] yFields = cinfo.getYFields();
+
+            // Mirror ChartDcProcessor.getComparisonDateRef(): X date only if Y has an
+            // aggregate; Y date only if X has an aggregate.
+            if(DateComparisonUtil.containsAggregate(yFields)) {
+               found = DateComparisonUtil.findDateDimension(xFields);
+            }
+
+            if(found == null && DateComparisonUtil.containsAggregate(xFields)) {
+               found = DateComparisonUtil.findDateDimension(yFields);
+            }
+
+            if(found instanceof VSDataRef) {
+               dcRef = (VSDataRef) found;
+            }
+         }
+      }
+
+      return dateComparisonInfo.getDateComparisonConditions(dcRef);
    }
 
    /**
