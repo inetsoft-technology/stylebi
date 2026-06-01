@@ -204,7 +204,7 @@ export class TaskOptionsPane {
    }
 
    get showOptions(): boolean {
-      return !!this.optionsForm.get('taskEnabled').value;
+      return !!this.optionsForm.get("taskEnabled").value;
    }
 
    fireModelChanged(): void {
