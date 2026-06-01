@@ -385,6 +385,34 @@ public abstract class AbstractDataSetFilter extends AbstractDataSet
    }
 
    /**
+    * Return the column count, re-validating the cache whenever the base dataset's
+    * column count has changed.
+    *
+    * AbstractDataSet.getColCount() caches getColCount0() + calcCols.  For a filter
+    * getColCount0() == data.getColCount(), which can shrink independently (e.g. when
+    * an outer caller removes calc-values from the base dataset directly without
+    * going through this filter's removeCalcValues()).  If that happens the cached
+    * count stays too large; sortData() then iterates beyond the valid range and
+    * getHeader() computes a wrong calc-column offset → IndexOutOfBoundsException.
+    * Checking the base count on every call is cheap because it is itself cached.
+    * (75154)
+    */
+   @Override
+   public int getColCount() {
+      int baseCount = data.getColCount();
+
+      if(baseCount != cachedBaseColCount) {
+         // Base dataset's column count changed (e.g. its calcvals were removed directly,
+         // without going through this filter's removeCalcValues()).  Invalidate our own
+         // cached count so super.getColCount() recomputes it with the new base count. (75154)
+         invalidateCachedColCount();
+         cachedBaseColCount = baseCount;
+      }
+
+      return super.getColCount();
+   }
+
+   /**
     * Return the number of columns in the data set without the calculated
     * column.
     */
@@ -495,4 +523,6 @@ public abstract class AbstractDataSetFilter extends AbstractDataSet
    private DataSet data;
    private AttributeDataSet attr;
    private SparseMatrix links;
+   // last known data.getColCount() used to detect stale cachedColCount (75154)
+   private transient int cachedBaseColCount = -1;
 }
