@@ -43,9 +43,9 @@
   </mat-card-header>
   <mat-card-content class="list-card-content">
     <mat-drawer-container class="users-container" autosize>
-      @if (!showTasksAsList) {
-        <mat-drawer class="users-mat-drawer" mode="side" disableClose [opened]="true"
-          [class.repository-tree]="true">
+      <mat-drawer class="users-mat-drawer" mode="side" disableClose [opened]="!showTasksAsList"
+        [class.repository-tree]="true">
+        @if (!showTasksAsList) {
           <div class="mat-drawer-inner-container">
             <em-schedule-folder-tree #folderTree
               [treeSource]="fTreeSource"
@@ -56,8 +56,8 @@
               (errorResponse)="handleError($event)" (tasksMoved)="loadTasks()">
             </em-schedule-folder-tree>
           </div>
-        </mat-drawer>
-      }
+        }
+      </mat-drawer>
       <mat-drawer-content [class.repository-editor]="!showTasksAsList">
         <table mat-table multiTemplateDataRows matSort class="task-list-table" [dataSource]="dataSource">
 
