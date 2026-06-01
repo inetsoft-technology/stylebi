@@ -43,4 +43,17 @@ public class CSSTableStyleTest {
       XTable deserializedTable = TestSerializeUtils.serializeAndDeserialize(originalTable);
       Assertions.assertEquals(CSSTableStyle.class, deserializedTable.getClass());
    }
+
+   // Bug #XTableStyle-NPE: getRowHeight() NPE'd when sheetParam was non-null but its
+   // CSS type was null (CSSParameter's no-arg constructor leaves type null).
+   @Test
+   public void getRowHeightDoesNotThrowWhenSheetParamCSSTypeIsNull() {
+      CSSParameter sheetParam = new CSSParameter();
+      Assertions.assertNull(sheetParam.getCSSType());
+
+      CSSTableStyle style = new CSSTableStyle(null, CSSConstants.TABLE, null,
+                                              XTableUtil.getDefaultTableLens(), null, sheetParam);
+
+      Assertions.assertDoesNotThrow(() -> style.getRowHeight(0));
+   }
 }
