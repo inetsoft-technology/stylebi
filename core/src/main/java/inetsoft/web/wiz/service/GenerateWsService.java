@@ -183,7 +183,8 @@ public class GenerateWsService {
       else {
          boolean containsMergeJoin = false; // Todo To be implemented later
          List<WorksheetConstructionModel.JoinPath> joinPaths = model.getJoinPaths();
-         fixJoinPathKey(joinPaths, model.getFields());
+         fixJoinPathKey(joinPaths, fields);
+         fields = deduplicateByJoinKeys(fields, joinPaths);
 
          for(WorksheetConstructionModel.JoinPath joinPath : joinPaths) {
             addJoinKeyField(fields, joinPath.getLeftTable(), joinPath.getLeftKey());
@@ -217,7 +218,7 @@ public class GenerateWsService {
 
             innerJoinService.editExistingJoinTable(worksheet, joinTable, noperator, true);
             initCompositeTableAssemblyColumnSelection(joinTable);
-            applyFieldVisibility(joinTable, model.getFields());
+            applyFieldVisibility(joinTable, fields);
             table = joinTable;
          }
       }
@@ -298,6 +299,73 @@ public class GenerateWsService {
          joinPath.setLeftKey(qualifyKey(joinPath.getLeftTable(), joinPath.getLeftKey(), keyToAliasMap));
          joinPath.setRightKey(qualifyKey(joinPath.getRightTable(), joinPath.getRightKey(), keyToAliasMap));
       });
+   }
+
+   /**
+    * Remove duplicate fields that map to the same underlying DB column in the same table.
+    *
+    * When the same DB column appears with multiple aliases (e.g. "customer_id" and
+    * "c.customer_id" both for CUSTOMERS.CUSTOMER_ID), ColumnSelection.addAttribute
+    * deduplicates by the base attribute name and silently drops every field after the first.
+    * fixJoinPathKey resolves the join key to a specific alias; this method ensures only that
+    * alias survives so that applyColumnSelection registers the correct column name and
+    * getAttribute(joinKey) can subsequently find it.
+    *
+    * Strategy per (tableName, unqualifiedFieldName) group:
+    *  - One field  → keep as-is.
+    *  - Multiple fields → keep the one whose alias is a resolved join key.
+    *    If none match, keep the last entry ("last writer wins", consistent with
+    *    buildKeyToAliasMap's map.put behaviour).
+    */
+   private List<WorksheetConstructionModel.QueryField> deduplicateByJoinKeys(
+      List<WorksheetConstructionModel.QueryField> fields,
+      List<WorksheetConstructionModel.JoinPath> joinPaths)
+   {
+      // Collect all resolved join-key aliases (e.g. "c.customer_id", "CONTACTS.CUSTOMER_ID")
+      Set<String> joinKeyAliases = new HashSet<>();
+
+      for(WorksheetConstructionModel.JoinPath joinPath : joinPaths) {
+         if(!Tool.isEmptyString(joinPath.getLeftKey())) {
+            joinKeyAliases.add(joinPath.getLeftKey());
+         }
+
+         if(!Tool.isEmptyString(joinPath.getRightKey())) {
+            joinKeyAliases.add(joinPath.getRightKey());
+         }
+      }
+
+      // Canonical key: "tableName::unqualifiedFieldName"
+      // LinkedHashMap preserves original field order for non-duplicate entries.
+      Map<String, WorksheetConstructionModel.QueryField> canonicalMap = new LinkedHashMap<>();
+
+      for(WorksheetConstructionModel.QueryField field : fields) {
+         if(field.getTable() == null || field.getFieldName() == null) {
+            continue;
+         }
+
+         String colKey = field.getTable().getName() + "::" + field.getUnqualifiedFieldName();
+         WorksheetConstructionModel.QueryField existing = canonicalMap.get(colKey);
+
+         if(existing == null) {
+            canonicalMap.put(colKey, field);
+         }
+         else {
+            boolean existingIsJoinKey = joinKeyAliases.contains(existing.getAlias());
+            boolean newIsJoinKey = joinKeyAliases.contains(field.getAlias());
+
+            if(newIsJoinKey && !existingIsJoinKey) {
+               // Replace: the incoming field carries the join-key alias; the current one does not.
+               canonicalMap.put(colKey, field);
+            }
+            else if(!existingIsJoinKey) {
+               // Neither is a join key — "last writer wins" to stay consistent with buildKeyToAliasMap.
+               canonicalMap.put(colKey, field);
+            }
+            // else: existing already carries the join-key alias — keep it.
+         }
+      }
+
+      return new ArrayList<>(canonicalMap.values());
    }
 
    /**
