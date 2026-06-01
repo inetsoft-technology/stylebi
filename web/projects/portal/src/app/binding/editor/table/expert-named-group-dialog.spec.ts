@@ -76,11 +76,18 @@ describe("Expert Named Group Dialog Unit Test", () => {
 
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule, HttpClientTestingModule
+            FormsModule,
+            ReactiveFormsModule,
+            NgbModule,
+            HttpClientTestingModule,
+            ExpertNamedGroupDialog,
+            ConditionPane,
+            LargeFormFieldComponent,
+            NameInputDialog,
+            ConditionPipe,
+            JunctionOperatorPipe,
          ],
-         declarations: [
-            ExpertNamedGroupDialog, ConditionPane, LargeFormFieldComponent, NameInputDialog, ConditionPipe, JunctionOperatorPipe
-         ],
+         
          providers: [
             { provide: NgbModal, useValue: modalService },
             { provide: ConditionDialogService, useValue: mockConditionDialogService }

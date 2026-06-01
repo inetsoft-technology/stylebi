@@ -58,7 +58,8 @@ import { VSChart } from "./vs-chart.component";
    template: `<vs-chart [model]="mockObject"
                         [viewer]="true">
               </vs-chart>
-   `
+   `,
+   standalone: true
 })
 class TestApp {
    mockObject: VSChartModel = TestUtils.createMockVSChartModel("Chart1");
@@ -114,11 +115,12 @@ describe("VSChart Tests", () => {
          imports: [
             FormsModule,
             NgbModule,
-            HttpClientTestingModule
+            HttpClientTestingModule,
+            TestApp,
+            VSChart,
+            MiniToolbar,
          ],
-         declarations: [
-            TestApp, VSChart, MiniToolbar,
-         ],
+         
          schemas: [NO_ERRORS_SCHEMA],
          providers: [
             VSChartService,

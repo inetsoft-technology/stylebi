@@ -36,12 +36,12 @@ describe("ChangePasswordFormComponent", () => {
       TestBed.configureTestingModule({
          imports: [
             ReactiveFormsModule,
-            MaterialTestingModule
+            MaterialTestingModule,
+            ChangePasswordFormComponent
          ],
          providers: [
             { provide: ChangePasswordService, useValue: pwdService}
          ],
-         declarations: [ChangePasswordFormComponent],
          schemas: [NO_ERRORS_SCHEMA]
       }).compileComponents();
    }));

@@ -19,9 +19,23 @@ import { Component, EventEmitter, Input, NgZone, OnInit, Output } from "@angular
 import { SpecificationModel } from "../../../data/tablestyle/specification-model";
 import { TableStyleUtil } from "../../../../common/util/table-style-util";
 
+import { FormsModule } from "@angular/forms";
+import { NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, NgbNavOutlet } from "@ng-bootstrap/ng-bootstrap";
+import { ModalHeaderComponent } from "../../../../widget/modal-header/modal-header.component";
+
 @Component({
-   selector: "edit-custom-patterns-dialog",
-   templateUrl: "edit-custom-patterns-dialog.component.html",
+    selector: "edit-custom-patterns-dialog",
+    templateUrl: "edit-custom-patterns-dialog.component.html",
+    imports: [
+    ModalHeaderComponent,
+    NgbNav,
+    NgbNavItem,
+    NgbNavLink,
+    NgbNavLinkBase,
+    NgbNavContent,
+    FormsModule,
+    NgbNavOutlet
+]
 })
 export class EditCustomPatternsDialog {
    @Input() specModel: SpecificationModel;

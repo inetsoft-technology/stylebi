@@ -24,9 +24,15 @@ import {
    Output,
    SimpleChanges
 } from "@angular/core";
-import { UntypedFormBuilder, UntypedFormGroup, ValidationErrors, Validators } from "@angular/forms";
+import { UntypedFormBuilder, UntypedFormGroup, ValidationErrors, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { TimeRange } from "../../../../../../../shared/schedule/model/time-condition-model";
 import { FormValidators } from "../../../../../../../shared/util/form-validators";
+import { MatOption } from "@angular/material/core";
+import { MatSelect } from "@angular/material/select";
+import { MatHint, MatError, MatFormField } from "@angular/material/form-field";
+import { TimePickerComponent } from "../time-picker/time-picker.component";
+
+import { MatRadioGroup, MatRadioButton } from "@angular/material/radio";
 
 export interface StartTimeData {
    startTime: string;
@@ -39,9 +45,10 @@ export interface StartTimeChange extends StartTimeData {
 }
 
 @Component({
-   selector: "em-start-time-editor",
-   templateUrl: "./start-time-editor.component.html",
-   styleUrls: ["./start-time-editor.component.scss"]
+    selector: "em-start-time-editor",
+    templateUrl: "./start-time-editor.component.html",
+    styleUrls: ["./start-time-editor.component.scss"],
+    imports: [FormsModule, ReactiveFormsModule, MatRadioGroup, MatRadioButton, TimePickerComponent, MatHint, MatError, MatFormField, MatSelect, MatOption]
 })
 export class StartTimeEditorComponent implements OnInit, OnChanges {
    @Input() timeRanges: TimeRange[] = [];

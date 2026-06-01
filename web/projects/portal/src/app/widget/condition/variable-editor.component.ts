@@ -20,13 +20,15 @@ import {
    SimpleChanges, AfterViewInit, OnInit, Renderer2, ViewChild, ElementRef, OnDestroy
 } from "@angular/core";
 import { Observable } from "rxjs";
-import { UntypedFormControl, UntypedFormGroup } from "@angular/forms";
+import { UntypedFormControl, UntypedFormGroup, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { Tool } from "../../../../../shared/util/tool";
+import { NgClass } from "@angular/common";
 
 @Component({
-   selector: "variable-editor",
-   templateUrl: "variable-editor.component.html",
-   styleUrls: ["variable-editor.component.scss"]
+    selector: "variable-editor",
+    templateUrl: "variable-editor.component.html",
+    styleUrls: ["variable-editor.component.scss"],
+    imports: [FormsModule, ReactiveFormsModule, NgClass]
 })
 export class VariableEditor implements OnInit, OnChanges, AfterViewInit, OnDestroy {
    @Input() value: string;

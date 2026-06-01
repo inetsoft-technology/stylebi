@@ -25,6 +25,7 @@ import {
    HostListener,
    Input,
    NgZone,
+   CUSTOM_ELEMENTS_SCHEMA,
    OnDestroy,
    OnInit,
    Output,
@@ -75,6 +76,15 @@ import { GuideBounds } from "../../vsobjects/model/layout/guide-bounds";
 import { VSObjectModel } from "../../vsobjects/model/vs-object-model";
 import { VSTabModel } from "../../vsobjects/model/vs-tab-model";
 import { ShowHyperlinkService } from "../../vsobjects/show-hyperlink.service";
+import { VSTabService } from "../../vsobjects/util/vs-tab.service";
+import { FormInputService } from "../../vsobjects/util/form-input.service";
+import { GlobalSubmitService } from "../../vsobjects/util/global-submit.service";
+import { CheckFormDataService } from "../../vsobjects/util/check-form-data.service";
+import { MiniToolbarService } from "../../vsobjects/objects/mini-toolbar/mini-toolbar.service";
+import { SelectionMobileService } from "../../vsobjects/objects/selection/services/selection-mobile.service";
+import { CKEditorRichTextService } from "../../vsobjects/dialog/rich-text-dialog/ckeditor-rich-text.service";
+import { RichTextService } from "../../vsobjects/dialog/rich-text-dialog/rich-text.service";
+import { FullScreenService } from "../../common/services/full-screen.service";
 import { VSUtil } from "../../vsobjects/util/vs-util";
 import { AssetTreeService } from "../../widget/asset-tree/asset-tree.service";
 import {
@@ -132,9 +142,13 @@ import { ScriptService } from "./script/script.service";
 import { StylePaneComponent } from "./tablestyle/editor/style-pane.component";
 import { ComposerToolbarComponent } from "./toolbar/composer-toolbar.component";
 import { ComposerObjectService } from "./vs/composer-object.service";
+import { EventQueueService } from "./vs/event-queue.service";
+import { LineAnchorService } from "../services/line-anchor.service";
 import { CloseSheetEvent } from "./vs/event/close-sheet-event";
 import { LayoutUndoRedoEvent } from "./vs/event/layout-undo-redo-event";
+import { SaveSheetEvent } from "./ws/socket/save-sheet-event";
 import { WizService } from "./wiz/services/wiz.service";
+import { WizComponentsPane } from "./wiz/wiz-components-pane/wiz-components-pane.component";
 import {
    NewVisualizationDialog,
    NewVisualizationDialogModel
@@ -143,10 +157,28 @@ import {
    SaveWizVisualizationDialog,
    SaveWizVisualizationDialogModel
 } from "./wiz/save-wiz-visualization-dialog/save-wiz-visualization-dialog.component";
-import { SaveSheetEvent } from "./ws/socket/save-sheet-event";
 import { DashboardTabModel } from "../../portal/dashboard/dashboard-tab-model";
 import { DashboardTabService } from "../../portal/services/dashboard-tab.service";
 import { WizDashboard } from "../data/vs/wizDashboard";
+import { ViewsheetPropertyDialog } from "../dialog/vs/viewsheet-property-dialog.component";
+import { EditCustomPatternsDialog } from "./tablestyle/editor/edit-custom-patterns-dialog.component";
+import { SaveScriptDialog } from "../dialog/script/save-script-dialog.component";
+import { SaveWorksheetDialog } from "../dialog/ws/save-worksheet-dialog.component";
+import { SaveTableStyleDialog } from "./tablestyle/editor/save-table-style-dialog.component";
+import { SaveViewsheetDialog } from "../dialog/vs/save-viewsheet-dialog.component";
+import { VsWizardComponent } from "../../vs-wizard/gui/vs-wizard.component";
+import { VSBindingPane } from "../../vsview/edit/vs-binding-pane.component";
+import { SheetTabSelectorComponent } from "./tab-selector/sheet-tab-selector.component";
+import { ComposerEmptyEditor } from "./empty-editor/composer-empty-editor.component";
+import { ViewerAppComponent } from "../../vsobjects/viewer-app.component";
+import { VSPane } from "./vs/editor/viewsheet-pane.component";
+import { WSPaneComponent } from "./ws/editor/ws-pane.component";
+import { WSCompositeTableSidebarPane } from "./ws/editor/ws-composite-table-sidebar-pane.component";
+import { StyleTreePane } from "./tablestyle/style-tree/style-tree-pane.component";
+import { ScriptTreePane } from "./script/tree/script-tree-pane.component";
+import { ToolboxPane } from "./toolbox/toolbox-pane.component";
+import { AssetTreePane } from "./asset-pane/asset-tree-pane.component";
+import { NgStyle, NgIf, NgFor, AsyncPipe } from "@angular/common";
 
 export enum SidebarTab {
    ASSET_TREE,
@@ -214,16 +246,38 @@ const CONFIRM_MESSAGE = {
  * Its purpose is to control the layout of its children panes.
  */
 @Component({
-   selector: "composer-main",
-   templateUrl: "composer-main.component.html",
-   styleUrls: ["composer-main.component.scss", "tab-selector/tab-selector-shared.scss"],
-   providers: [
-      ComposerClientService,
-      {
-         provide: ScaleService,
-         useClass: VSScaleService
-      }
-   ]
+    selector: "composer-main",
+    templateUrl: "composer-main.component.html",
+    styleUrls: ["composer-main.component.scss", "tab-selector/tab-selector-shared.scss"],
+    providers: [
+        ComposerClientService,
+        {
+            provide: ScaleService,
+            useClass: VSScaleService
+        },
+        ComposerObjectService,
+        EventQueueService,
+        LineAnchorService,
+        ResizeHandlerService,
+        ClipboardService,
+        ComposerRecentService,
+        ScriptService,
+        ShowHyperlinkService,
+        MiniToolbarService,
+        VSTabService,
+        SelectionMobileService,
+        FormInputService,
+        GlobalSubmitService,
+        CheckFormDataService,
+        FullScreenService,
+        {
+            provide: RichTextService,
+            useClass: CKEditorRichTextService,
+            deps: [FontService, NgbModal, HttpClient]
+        }
+    ],
+    imports: [NgStyle, ComposerToolbarComponent, SplitPane, AssetTreePane, ToolboxPane, NgIf, ScriptTreePane, ComponentsPane, StyleTreePane, VSFormatsPane, WSCompositeTableSidebarPane, NgFor, WSPaneComponent, VSPane, ViewerAppComponent, ScriptEditPaneComponent, StylePaneComponent, ComposerEmptyEditor, SheetTabSelectorComponent, VSBindingPane, VsWizardComponent, NotificationsComponent, SaveViewsheetDialog, SaveTableStyleDialog, SaveWorksheetDialog, SaveScriptDialog, ScriptPropertyDialogComponent, EditCustomPatternsDialog, ViewsheetPropertyDialog, AsyncPipe, WizComponentsPane, NewVisualizationDialog, SaveWizVisualizationDialog],
+    schemas: [CUSTOM_ELEMENTS_SCHEMA]
 })
 export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
    @Input() initialSheet: string;
@@ -313,9 +367,9 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
    private subscriptions = new Subscription();
    private lastWS: string = null; // last saved ws
    wizardEditMode = false;
-   wizardModel: VsWizardModel;
    wizVisualizationMode = false;
    currentWizVisualization: WizDashboard = null;
+   wizardModel: VsWizardModel;
    importDialogOpen = false;
    tabContentEleToChild: ElementRef;
    openedTabs: ComposerTabModel[] = [];
@@ -406,10 +460,6 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
 
       this.setKeydownListener();
 
-      if(this.wizComposer) {
-         this.openNewViewsheet(null);
-      }
-
       const bc = new BroadcastChannel("composer");
       bc.onmessage = (evt) => this.handleMessageEvent(evt);
 
@@ -447,6 +497,10 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
             this.newViewsheet();
          }
       }
+      else if(this.wizComposer) {
+         this.openNewViewsheet(null);
+      }
+
       else if(this.scriptWizard && this.scriptPermission) {
          this.openNewScriptAsset();
       }
@@ -485,6 +539,7 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
       this.subscriptions.add(this.wizService.saveVisualization.subscribe((vs: WizDashboard) => {
          this.saveWizVisualization(vs);
       }));
+
    }
 
    // open wizard if requested from portal
@@ -503,14 +558,6 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
       setTimeout(() => {
          this.tabContentEleToChild = this.tabContentEle;
       });
-   }
-
-   get showingWiz(): boolean {
-      return this.wizService.showingWiz;
-   }
-
-   get wizComposer(): boolean {
-      return this.wizService.wizComposer;
    }
 
    get focusedSheet(): Sheet {
@@ -608,6 +655,14 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
       }
 
       return null;
+   }
+
+   get showingWiz(): boolean {
+      return this.wizService.showingWiz;
+   }
+
+   get wizComposer(): boolean {
+      return this.wizService.wizComposer;
    }
 
    get focusedSheetPreview(): boolean {
@@ -1760,9 +1815,8 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
                   };
                }
                break;
-            case "wiz":
-            case "viewsheet":
-               const vs = type == "wiz" ? new WizDashboard(this.fontService) : new Viewsheet(this.fontService);
+            case "viewsheet": {
+               const vs = new Viewsheet(this.fontService);
                vs.localId = sheetCounter++;
                vs.label = "";
                vs.id = id;
@@ -1778,6 +1832,13 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
                this.regionsDisabled = true;
                this.openedTabs.push(new ComposerTabModel(vs.type, vs));
                break;
+            }
+            case "wiz": {
+               const vs = new WizDashboard(this.fontService);
+               index = this.sheets.push(vs) - 1;
+               this.openedTabs.push(new ComposerTabModel(vs.type, vs));
+               break;
+            }
             default:
                // should not happen
                console.error(`invalid type: ${type}`);
@@ -2072,6 +2133,25 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
 
    }
 
+   saveViewsheet(sheet: Viewsheet, close: boolean = false) {
+      sheet.saving = true;
+      this.saveViewsheet0(sheet, close, false);
+   }
+
+   saveViewsheet0(sheet: Viewsheet, close: boolean = false, updateDep: boolean = false): void {
+      let event: SaveSheetEvent = new SaveSheetEvent(false, close);
+      event.updateDepend = updateDep;
+
+      if(close) {
+         sheet.socketConnection.sendEvent(SAVE_AND_CLOSE_VIEWSHEET_SOCKET_URI, event);
+      }
+      else {
+         sheet.socketConnection.sendEvent(SAVE_VIEWSHEET_SOCKET_URI, event);
+      }
+
+      sheet.onSave();
+   }
+
    saveWizVisualization(vs: WizDashboard): void {
       if(!vs.newSheet) {
          vs.saving = true;
@@ -2108,25 +2188,6 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
             console.error("Failed to load save viewsheet model: ", error);
          }
       });
-   }
-
-   saveViewsheet(sheet: Viewsheet, close: boolean = false) {
-      sheet.saving = true;
-      this.saveViewsheet0(sheet, close, false);
-   }
-
-   saveViewsheet0(sheet: Viewsheet, close: boolean = false, updateDep: boolean = false): void {
-      let event: SaveSheetEvent = new SaveSheetEvent(false, close);
-      event.updateDepend = updateDep;
-
-      if(close) {
-         sheet.socketConnection.sendEvent(SAVE_AND_CLOSE_VIEWSHEET_SOCKET_URI, event);
-      }
-      else {
-         sheet.socketConnection.sendEvent(SAVE_VIEWSHEET_SOCKET_URI, event);
-      }
-
-      sheet.onSave();
    }
 
    saveWorksheetAs(sheet: Worksheet, close: boolean = false): void {
@@ -3230,6 +3291,7 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
          this.aiAssistantDialogService.setViewsheetScriptContext(this.focusedSheet as Viewsheet);
       }
    }
+
 
    switchWiz(): void {
       //Todo

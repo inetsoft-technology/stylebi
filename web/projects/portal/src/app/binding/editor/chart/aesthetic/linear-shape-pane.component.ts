@@ -18,11 +18,13 @@
 import { Component, Input, Output, EventEmitter } from "@angular/core";
 import { ShapeFrameModel, FillShapeModel, TriangleShapeModel, PolygonShapeModel,
          OrientationShapeModel } from "../../../../common/data/visual-frame-model";
+import { FormsModule } from "@angular/forms";
 
 @Component({
-   selector: "linear-shape-pane",
-   templateUrl: "linear-shape-pane.component.html",
-   styleUrls: ["linear-shape-pane.component.scss"]
+    selector: "linear-shape-pane",
+    templateUrl: "linear-shape-pane.component.html",
+    styleUrls: ["linear-shape-pane.component.scss"],
+    imports: [FormsModule]
 })
 export class LinearShapePane {
    @Input() frameModel: ShapeFrameModel;

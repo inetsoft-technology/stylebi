@@ -25,7 +25,7 @@ import {
    Output,
    ViewChild
 } from "@angular/core";
-import { UntypedFormControl, Validators } from "@angular/forms";
+import { UntypedFormControl, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { DashboardModel } from "../../common/data/dashboard-model";
 import { GuiTool } from "../../common/util/gui-tool";
@@ -37,15 +37,22 @@ import { RepositoryTreeService } from "../../widget/repository-tree/repository-t
 import { FormValidators } from "../../../../../shared/util/form-validators";
 import { TreeNodeModel } from "../../widget/tree/tree-node-model";
 import { ComponentTool } from "../../common/util/component-tool";
+import { DialogButtonsDirective } from "../../widget/standard-dialog/dialog-buttons.directive";
+import { DefaultFocusDirective } from "../../widget/directive/default-focus.directive";
+import { InputTrimDirective } from "../../widget/directive/input-trim.directive";
+
+import { DialogContentDirective } from "../../widget/standard-dialog/dialog-content.directive";
+import { StandardDialogComponent } from "../../widget/standard-dialog/standard-dialog.component";
 
 const NEW_DASHBOARD_URI: string = "../api/portal/dashboard/new";
 const EDIT_DASHBOARD_URI: string = "../api/portal/dashboard/edit/";
 const DASHBOARD_DUPLICATE_URI: string = "../api/portal/dashboard/duplicate/";
 
 @Component({
-   selector: "edit-dashboard-dialog",
-   templateUrl: "edit-dashboard-dialog.component.html",
-   styleUrls: ["edit-dashboard-dialog.component.scss"]
+    selector: "edit-dashboard-dialog",
+    templateUrl: "edit-dashboard-dialog.component.html",
+    styleUrls: ["edit-dashboard-dialog.component.scss"],
+    imports: [StandardDialogComponent, DialogContentDirective, InputTrimDirective, FormsModule, DefaultFocusDirective, ReactiveFormsModule, RepositoryTreeComponent, DialogButtonsDirective]
 })
 export class EditDashboardDialog implements OnInit {
    @Input() dashboard: DashboardModel;

@@ -56,11 +56,46 @@ import { PopComponentService } from "./data-tip/pop-component.service";
 import { MiniToolbarService } from "./mini-toolbar/mini-toolbar.service";
 import { NavigationKeys } from "./navigation-keys";
 import { SelectionBaseController } from "./selection/selection-base-controller";
+import { PlaceholderDragElement } from "../../widget/placeholder-drag-element/placeholder-drag-element.component";
+import { MiniToolbar } from "./mini-toolbar/mini-toolbar.component";
+import { VSViewsheet } from "./viewsheet/vs-viewsheet.component";
+import { VSThermometer } from "./thermometer/vs-thermometer.component";
+import { VSTextInput } from "./text-input/vs-text-input.component";
+import { VSText } from "./output/text/vs-text.component";
+import { VSTable } from "./table/vs-table.component";
+import { VSTab } from "./tab/vs-tab.component";
+import { VSSubmit } from "./submit/vs-submit.component";
+import { VSSpinner } from "./spinner/vs-spinner.component";
+import { VSSlidingScale } from "./sliding-scale/vs-sliding-scale.component";
+import { VSSlider } from "./slider/vs-slider.component";
+import { VSSelectionContainerChildren } from "./selection/vs-selection-container-children.component";
+import { VSSelectionContainer } from "./selection/vs-selection-container.component";
+import { VSSelection } from "./selection/vs-selection.component";
+import { VSRangeSlider } from "./range-slider/vs-range-slider.component";
+import { VSRectangle } from "./shape/vs-rectangle.component";
+import { VSRadioButton } from "./radio-button/vs-radio-button.component";
+import { VSOval } from "./shape/vs-oval.component";
+import { VSLine } from "./shape/vs-line.component";
+import { VSImage } from "./output/image/vs-image.component";
+import { VSGroupContainer } from "./group/vs-group-container.component";
+import { VSGauge } from "./output/gauge/vs-gauge.component";
+import { VSCylinder } from "./cylinder/vs-cylinder.component";
+import { VSCrosstab } from "./table/vs-crosstab.component";
+import { VSComboBox } from "./combo-box/vs-combo-box.component";
+import { VSCheckBox } from "./check-box/vs-check-box.component";
+import { VSChart } from "./chart/vs-chart.component";
+import { VSCalendar } from "./calendar/vs-calendar.component";
+import { VSCalcTable } from "./table/vs-calctable.component";
+import { VSAnnotation } from "./annotation/vs-annotation.component";
+import { VSPopComponentDirective } from "./data-tip/vs-pop-component.directive";
+import { VSDataTipDirective } from "./data-tip/vs-data-tip.directive";
+
 
 @Component({
-   selector: "vs-object-container",
-   templateUrl: "vs-object-container.component.html",
-   styleUrls: ["vs-object-container.component.scss"]
+    selector: "vs-object-container",
+    templateUrl: "vs-object-container.component.html",
+    styleUrls: ["vs-object-container.component.scss"],
+    imports: [VSDataTipDirective, VSPopComponentDirective, VSAnnotation, VSCalcTable, VSCalendar, VSChart, VSCheckBox, VSComboBox, VSCrosstab, VSCylinder, VSGauge, VSGroupContainer, VSImage, VSLine, VSOval, VSRadioButton, VSRectangle, VSRangeSlider, VSSelection, VSSelectionContainer, VSSelectionContainerChildren, VSSlider, VSSlidingScale, VSSpinner, VSSubmit, VSTab, VSTable, VSText, VSTextInput, VSThermometer, VSViewsheet, MiniToolbar, PlaceholderDragElement]
 })
 export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
    @Input() public vsInfo: ViewsheetInfo;

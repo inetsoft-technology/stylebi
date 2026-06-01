@@ -1,29 +1,33 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <div class="object-sub-type-pane"
-     [style.justify-content]="!hasSubTypes() ? 'center' : 'flex-start'">
-  <div class="sub-type" *ngFor="let subType of displayedSubTypes; let i = index">
-    <td class="object-sub-type" [class.bd-primary]="isSelected(i)">
-      <object-type-icon [type]="subType" (onSelected)="selectObjectSubType(i)">
-      </object-type-icon>
-    </td>
-  </div>
-  <div *ngIf="limited">
-    <i class="menu-horizontal-icon more-button" (click)="showAll()"></i>
-  </div>
+  [style.justify-content]="!hasSubTypes() ? 'center' : 'flex-start'">
+  @for (subType of displayedSubTypes; track subType; let i = $index) {
+    <div class="sub-type">
+      <td class="object-sub-type" [class.bd-primary]="isSelected(i)">
+        <object-type-icon [type]="subType" (onSelected)="selectObjectSubType(i)">
+        </object-type-icon>
+      </td>
+    </div>
+  }
+  @if (limited) {
+    <div>
+      <i class="menu-horizontal-icon more-button" (click)="showAll()"></i>
+    </div>
+  }
 </div>

@@ -17,12 +17,18 @@
  */
 import { HttpClient } from "@angular/common/http";
 import { Component, EventEmitter, Input, Output } from "@angular/core";
-import { UntypedFormBuilder, UntypedFormGroup } from "@angular/forms";
+import { UntypedFormBuilder, UntypedFormGroup, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { ContextHelp } from "../../../context-help";
 import { Searchable } from "../../../searchable";
 import { GeneralSettingsChanges } from "../general-settings-page/general-settings-page.component";
 import { GeneralSettingsType } from "../general-settings-page/general-settings-type.enum";
 import { CacheSettingsModel } from "./cache-settings-model";
+import { MatButton } from "@angular/material/button";
+import { MatSlideToggle } from "@angular/material/slide-toggle";
+import { MatInput } from "@angular/material/input";
+import { MatFormField, MatLabel } from "@angular/material/form-field";
+
+import { MatCard, MatCardTitle, MatCardContent, MatCardActions } from "@angular/material/card";
 
 const CLEAN_UP_CACHE_URI = "../api/em/general/settings/cache/cleanup";
 
@@ -36,9 +42,10 @@ const CLEAN_UP_CACHE_URI = "../api/em/general/settings/cache/cleanup";
    link: "EMGeneralCaching"
 })
 @Component({
-   selector: "em-cache-settings-view",
-   templateUrl: "./cache-settings-view.component.html",
-   styleUrls: ["./cache-settings-view.component.scss"]
+    selector: "em-cache-settings-view",
+    templateUrl: "./cache-settings-view.component.html",
+    styleUrls: ["./cache-settings-view.component.scss"],
+    imports: [MatCard, MatCardTitle, MatCardContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatInput, MatSlideToggle, MatCardActions, MatButton]
 })
 export class CacheSettingsViewComponent {
    @Output() modelChanged = new EventEmitter<GeneralSettingsChanges>();

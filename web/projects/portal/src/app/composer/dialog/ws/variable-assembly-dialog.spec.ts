@@ -35,6 +35,7 @@ import { Worksheet } from "../../data/ws/worksheet";
 import { VariableAssemblyDialog } from "./variable-assembly-dialog.component";
 import { VariableTableListDialog } from "./variable-table-list-dialog.component";
 import { ConditionValueTypePipe } from "../../../widget/condition/condition-value-type.pipe";
+import { HttpClientTestingModule } from "@angular/common/http/testing";
 
 const createMockModel: () => Observable<any> = () => {
    return observableOf({
@@ -77,14 +78,25 @@ describe("VariableAssemblyDialog Integration Test", () => {
 
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule
+            
+            HttpClientTestingModule,FormsModule,
+            ReactiveFormsModule,
+            NgbModule,
+            VariableAssemblyDialog,
+            VariableValueEditor,
+            VariableListDialog,
+            VariableTableListDialog,
+            VariableListEditor,
+            MessageDialog,
+            DateValueEditorComponent,
+            TimeValueEditorComponent,
+            TimeInstantValueEditorComponent,
+            EnterSubmitDirective,
+            LargeFormFieldComponent,
+            TimepickerComponent,
+            ConditionValueTypePipe,
          ],
-         declarations: [
-            VariableAssemblyDialog, VariableValueEditor, VariableListDialog,
-            VariableTableListDialog, VariableListEditor, MessageDialog, DateValueEditorComponent,
-            TimeValueEditorComponent, TimeInstantValueEditorComponent, EnterSubmitDirective,
-            LargeFormFieldComponent, TimepickerComponent, ConditionValueTypePipe
-         ],
+         
          providers: [
             {
                provide: ModelService,

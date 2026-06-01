@@ -1,20 +1,20 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <em-editor-panel #editorPanel
   [applyDisabled]="!nameControl?.valid"
   [resetVisible]="smallDevice || newFile"
@@ -29,26 +29,34 @@
     </mat-card-title>
     <mat-card-content>
       <div class="flex-col">
-        <mat-form-field *ngIf="!newFile" appearance="outline" color="accent">
-          <mat-label>_#(Path)</mat-label>
-          <input matInput readonly placeholder="_#(Path)" [ngModel]="getFilePath()">
-        </mat-form-field>
-        <mat-form-field *ngIf="newFile" appearance="outline" color="accent">
-          <mat-label>_#(Parent Folder)</mat-label>
-          <input matInput readonly placeholder="_#(Parent Folder)" [ngModel]="parentPath">
-        </mat-form-field>
+        @if (!newFile) {
+          <mat-form-field appearance="outline" color="accent">
+            <mat-label>_#(Path)</mat-label>
+            <input matInput readonly placeholder="_#(Path)" [ngModel]="getFilePath()">
+          </mat-form-field>
+        }
+        @if (newFile) {
+          <mat-form-field appearance="outline" color="accent">
+            <mat-label>_#(Parent Folder)</mat-label>
+            <input matInput readonly placeholder="_#(Parent Folder)" [ngModel]="parentPath">
+          </mat-form-field>
+        }
         <mat-form-field appearance="outline" color="accent">
           <mat-label>_#(File Name)</mat-label>
           <input matInput placeholder="_#(File Name)" [formControl]="nameControl">
-          <mat-error *ngIf="nameControl?.errors?.required">_#(enter.name)</mat-error>
-          <mat-error *ngIf="nameControl?.errors?.containsSpecialCharsForName">_#(common.sree.internal.invalidCharInName)</mat-error>
+          @if (nameControl?.errors?.required) {
+            <mat-error>_#(enter.name)</mat-error>
+          }
+          @if (nameControl?.errors?.containsSpecialCharsForName) {
+            <mat-error>_#(common.sree.internal.invalidCharInName)</mat-error>
+          }
         </mat-form-field>
         <mat-form-field appearance="outline" color="accent">
           <mat-label>_#(select.file)</mat-label>
           <em-file-chooser [(ngModel)]="files" (valueChange)="enableApplyButton()"></em-file-chooser>
           <mat-icon matSuffix fontSet="ineticons" fontIcon="folder-open-icon"></mat-icon>
         </mat-form-field>
-        <ng-container *ngIf="!newFile">
+        @if (!newFile) {
           <mat-form-field appearance="outline" color="accent">
             <mat-label>_#(Last Modified Time)</mat-label>
             <input matInput readonly placeholder="_#(Last Modified Time)" [ngModel]="model?.lastModified">
@@ -57,17 +65,25 @@
             <mat-label>_#(File Size)</mat-label>
             <input matInput readonly placeholder="_#(File Size)" [ngModel]="model?.size">
           </mat-form-field>
-        </ng-container>
+        }
       </div>
-      <em-text-file-content-view  #textContent id="content" *ngIf="contentEditorVisible"
-                                 [path]="data.path" [editMode]="contentEditMode"
-                                 (contentChanged)="content = $event; enableApplyButton()">
-      </em-text-file-content-view>
+      @if (contentEditorVisible) {
+        <em-text-file-content-view  #textContent id="content"
+          [path]="data.path" [editMode]="contentEditMode"
+          (contentChanged)="content = $event; enableApplyButton()">
+        </em-text-file-content-view>
+      }
     </mat-card-content>
   </mat-card>
   <ng-container em-editor-panel-actions>
-    <button *ngIf="!newFile" mat-raised-button (click)="download()">_#(Download)</button>
-    <button *ngIf="contentEditorVisible" mat-raised-button (click)="editContent()">_#(Edit Content)</button>
-    <button *ngIf="!newFile && canDelete" mat-raised-button (click)="delete()">_#(Delete)</button>
+    @if (!newFile) {
+      <button mat-raised-button (click)="download()">_#(Download)</button>
+    }
+    @if (contentEditorVisible) {
+      <button mat-raised-button (click)="editContent()">_#(Edit Content)</button>
+    }
+    @if (!newFile && canDelete) {
+      <button mat-raised-button (click)="delete()">_#(Delete)</button>
+    }
   </ng-container>
 </em-editor-panel>

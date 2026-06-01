@@ -31,11 +31,15 @@ import {
 import { StagedFileChooserComponent } from "../../../../common/util/file-chooser/staged-file-chooser/staged-file-chooser.component";
 import { ResourcePermissionModel } from "../../../security/resource-permission/resource-permission-model";
 import { COPY_PASTE_CONTEXT_REPOSITORY } from "../../../security/resource-permission/copy-paste-context";
+import { ResourcePermissionComponent } from "../../../security/resource-permission/resource-permission.component";
+import { MatTabGroup, MatTab, MatTabContent } from "@angular/material/tabs";
+import { EditorPanelComponent } from "../../../../common/util/editor-panel/editor-panel.component";
 
 @Component({
-   selector: "em-repository-data-source-settings-view",
-   templateUrl: "./repository-data-source-settings-view.component.html",
-   styleUrls: ["./repository-data-source-settings-view.component.scss"]
+    selector: "em-repository-data-source-settings-view",
+    templateUrl: "./repository-data-source-settings-view.component.html",
+    styleUrls: ["./repository-data-source-settings-view.component.scss"],
+    imports: [EditorPanelComponent, MatTabGroup, MatTab, MatTabContent, ResourcePermissionComponent]
 })
 export class RepositoryDataSourceSettingsViewComponent {
    @Input() selectedTab = 0;

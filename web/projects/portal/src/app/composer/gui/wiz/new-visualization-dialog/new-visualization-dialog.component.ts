@@ -21,6 +21,9 @@ import { AssetEntry } from "../../../../../../../shared/data/asset-entry";
 import { AssetType } from "../../../../../../../shared/data/asset-type";
 import { ComponentTool } from "../../../../common/util/component-tool";
 import { TreeNodeModel } from "../../../../widget/tree/tree-node-model";
+import { ModalHeaderComponent } from "../../../../widget/modal-header/modal-header.component";
+import { EnterSubmitDirective } from "../../../../widget/directive/enter-submit.directive";
+import { AssetTreeComponent } from "../../../../widget/asset-tree/asset-tree.component";
 
 export interface NewVisualizationDialogModel {
    baseEntries: AssetEntry[];
@@ -29,7 +32,9 @@ export interface NewVisualizationDialogModel {
 @Component({
    selector: "new-visualization-dialog",
    templateUrl: "new-visualization-dialog.component.html",
-   styleUrls: ["new-visualization-dialog.component.scss"]
+   styleUrls: ["new-visualization-dialog.component.scss"],
+   standalone: true,
+   imports: [ModalHeaderComponent, EnterSubmitDirective, AssetTreeComponent]
 })
 export class NewVisualizationDialog implements OnInit {
    @Output() onCommit = new EventEmitter<NewVisualizationDialogModel>();

@@ -51,12 +51,8 @@ describe("Label Input Field Test", () => {
       };
 
       TestBed.configureTestingModule({
-         imports: [DropDownTestModule, ReactiveFormsModule, FormsModule, NgbModule],
-         declarations: [
-            LabelInputField, DynamicComboBox, TargetComboBox, TreeComponent,
-            TreeNodeComponent, TreeDropdownComponent, FixedDropdownDirective,
-            TreeSearchPipe, TooltipDirective, EnterClickDirective, TooltipIfDirective
-         ],
+         imports: [DropDownTestModule, ReactiveFormsModule, FormsModule, NgbModule, LabelInputField, DynamicComboBox, TargetComboBox, TreeComponent, TreeNodeComponent, TreeDropdownComponent, FixedDropdownDirective, TreeSearchPipe, TooltipDirective, EnterClickDirective, TooltipIfDirective],
+         
          providers: [
             {provide: ChangeDetectorRef, useValue: changeDetectorRef},
             {provide: DomService, useValue: domService}

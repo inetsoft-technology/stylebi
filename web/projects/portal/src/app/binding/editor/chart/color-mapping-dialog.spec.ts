@@ -26,6 +26,7 @@ import { ColorMap } from "../../../common/data/color-map";
 import { ColorMappingDialogModel } from "../../data/chart/color-mapping-dialog-model";
 import * as V from "../../../common/data/visual-frame-model";
 import { TestUtils } from "../../../common/test/test-utils";
+import { HttpClientTestingModule } from "@angular/common/http/testing";
 
 describe("Color Mapping Dialog Unit Test", () => {
    let createModel: () => ColorMappingDialogModel = () => {
@@ -99,11 +100,15 @@ describe("Color Mapping Dialog Unit Test", () => {
    beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule
+            
+            HttpClientTestingModule,FormsModule,
+            ReactiveFormsModule,
+            NgbModule,
+            ColorMappingDialog,
+            ColorEditor,
+            ColorPicker,
          ],
-         declarations: [
-            ColorMappingDialog, ColorEditor, ColorPicker
-         ],
+         
          schemas: [NO_ERRORS_SCHEMA]
       }).compileComponents();
    }));

@@ -20,7 +20,8 @@ $roboto-font-path: '../app/assets';
 @import 'node_modules/roboto-fontface/css/roboto/sass/roboto-fontface.scss';
 
 @import './app-theme';
-@include mat.core();
+@include mat.elevation-classes();
+@include mat.app-background();
 @import './styles/theme-dark';
 
 @include mat.all-component-themes($em-theme);
@@ -32,7 +33,7 @@ $roboto-font-path: '../app/assets';
 
 // Fix radio button label font size to match checkbox (12px)
 .mat-mdc-radio-button {
-  --mdc-form-field-label-text-size: 12px;
+  --mat-checkbox-label-text-size: 12px;
 }
 
 body {

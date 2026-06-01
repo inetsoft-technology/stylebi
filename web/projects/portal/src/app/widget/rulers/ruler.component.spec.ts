@@ -22,7 +22,7 @@ import { Ruler } from "./ruler.component";
 describe("Ruler", () => {
    beforeEach(() => {
       TestBed.configureTestingModule({
-         declarations: [Ruler],
+         imports: [Ruler],
          schemas: [NO_ERRORS_SCHEMA]
       });
       TestBed.compileComponents();

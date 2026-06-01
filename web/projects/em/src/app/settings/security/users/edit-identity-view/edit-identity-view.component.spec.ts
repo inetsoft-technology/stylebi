@@ -35,9 +35,9 @@ describe("EditIdentityViewComponent", () => {
             FormsModule,
             MatDialogModule,
             ReactiveFormsModule,
-            HttpClientTestingModule
+            HttpClientTestingModule,
+            EditIdentityViewComponent
          ],
-         declarations: [EditIdentityViewComponent],
          schemas: [NO_ERRORS_SCHEMA]
       })
              .compileComponents();

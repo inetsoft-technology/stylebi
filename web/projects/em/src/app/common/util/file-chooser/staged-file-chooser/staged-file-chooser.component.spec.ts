@@ -29,11 +29,8 @@ describe("StagedFileChooserComponent", () => {
       TestBed.configureTestingModule({
          imports: [
             HttpClientTestingModule,
-            MatSnackBarModule
-         ],
-         declarations: [
-            StagedFileChooserComponent
-         ],
+            MatSnackBarModule,
+            StagedFileChooserComponent],
          schemas: [
             NO_ERRORS_SCHEMA
          ]

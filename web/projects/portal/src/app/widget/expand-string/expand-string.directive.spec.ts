@@ -21,6 +21,8 @@ import { By } from "@angular/platform-browser";
 import { ExpandStringDirective } from "./expand-string.directive";
 
 @Component({
+   standalone: true,
+   imports: [ExpandStringDirective],
    selector: "w-content-test",
    template: `<span [wExpandString]="values" class="content-test-span">{{content}}</span>`
 })
@@ -30,6 +32,8 @@ class ContentTestComponent {
 }
 
 @Component({
+   standalone: true,
+   imports: [ExpandStringDirective],
    selector: "w-attribute-test",
    template: `<span [wExpandString]="values" [wExpandStringAttr]="attribute" title="{{content}}" [attr.data-test]="content" class="attribute-test-span">Static test</span>`
 })
@@ -45,7 +49,7 @@ describe("expand-string.directive", () => {
 
    beforeEach(() => {
       TestBed.configureTestingModule({
-         declarations: [ExpandStringDirective, ContentTestComponent, AttributeTestComponent]
+         imports: [ExpandStringDirective, ContentTestComponent, AttributeTestComponent]
       }).compileComponents();
 
       contentTest = TestBed.createComponent(ContentTestComponent);

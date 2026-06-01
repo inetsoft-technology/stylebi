@@ -24,7 +24,7 @@ import {
    Output,
    Renderer2, ViewChild
 } from "@angular/core";
-import { UntypedFormControl, UntypedFormGroup, Validators } from "@angular/forms";
+import { UntypedFormControl, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { ConditionExpression } from "../../../common/data/condition/condition-expression";
 import { DataRef } from "../../../common/data/data-ref";
 import { ConditionList } from "../../../common/util/condition-list";
@@ -37,9 +37,21 @@ import { ConditionPane } from "../../../widget/condition/condition-pane.componen
 import { ConditionDialogService } from "../../../widget/condition/condition-dialog.service";
 import { Condition } from "../../../common/data/condition/condition";
 
+import { InputTrimDirective } from "../../../widget/directive/input-trim.directive";
+import { EnterSubmitDirective } from "../../../widget/directive/enter-submit.directive";
+import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
+
 @Component({
-   selector: "grouping-condition-dialog",
-   templateUrl: "grouping-condition-dialog.component.html",
+    selector: "grouping-condition-dialog",
+    templateUrl: "grouping-condition-dialog.component.html",
+    imports: [
+    ModalHeaderComponent,
+    EnterSubmitDirective,
+    FormsModule,
+    ReactiveFormsModule,
+    InputTrimDirective,
+    ConditionPane
+]
 })
 export class GroupingConditionDialog extends BaseResizeableDialogComponent implements OnInit {
    @Input() model: GroupingDialogModel;

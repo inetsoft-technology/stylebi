@@ -22,11 +22,15 @@ import { ContextProvider } from "../../context-provider.service";
 import { VSThermometerModel } from "../../model/output/vs-thermometer-model";
 import { AbstractVSObject } from "../abstract-vsobject.component";
 import { DataTipService } from "../data-tip/data-tip.service";
+import { VSPopComponentDirective } from "../data-tip/vs-pop-component.directive";
+import { VSDataTipDirective } from "../data-tip/vs-data-tip.directive";
+
 
 @Component({
-   selector: "vs-thermometer",
-   templateUrl: "vs-thermometer.component.html",
-   styleUrls: ["vs-thermometer.component.scss"]
+    selector: "vs-thermometer",
+    templateUrl: "vs-thermometer.component.html",
+    styleUrls: ["vs-thermometer.component.scss"],
+    imports: [VSDataTipDirective, VSPopComponentDirective]
 })
 /**
  * @deprecated since version 12.1

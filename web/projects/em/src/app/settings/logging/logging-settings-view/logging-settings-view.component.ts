@@ -17,10 +17,18 @@
  */
 import { HttpClient } from "@angular/common/http";
 import { Component, EventEmitter, Input, Output } from "@angular/core";
-import { UntypedFormBuilder, UntypedFormGroup, Validators } from "@angular/forms";
+import { UntypedFormBuilder, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { LogSettingsModel } from "../log-settings-model";
 import { LogLevelDTO } from "../LogLevelDTO";
 import { AppInfoService } from "../../../../../../shared/util/app-info.service";
+import { LoggingLevelTableComponent } from "../logging-level-table/logging-level-table.component";
+import { MatInput } from "@angular/material/input";
+import { MatCheckbox } from "@angular/material/checkbox";
+import { MatOption } from "@angular/material/core";
+import { MatSelect } from "@angular/material/select";
+import { MatFormField, MatLabel, MatError } from "@angular/material/form-field";
+import { MatCardContent, MatCardTitle } from "@angular/material/card";
+
 
 export interface LogSettingsChanges {
    changes: LogSettingsModel;
@@ -28,9 +36,10 @@ export interface LogSettingsChanges {
 }
 
 @Component({
-   selector: "em-logging-settings-view",
-   templateUrl: "./logging-settings-view.component.html",
-   styleUrls: ["./logging-settings-view.component.scss"]
+    selector: "em-logging-settings-view",
+    templateUrl: "./logging-settings-view.component.html",
+    styleUrls: ["./logging-settings-view.component.scss"],
+    imports: [MatCardContent, FormsModule, ReactiveFormsModule, MatCardTitle, MatFormField, MatLabel, MatSelect, MatOption, MatCheckbox, MatInput, MatError, LoggingLevelTableComponent]
 })
 export class LoggingSettingsViewComponent {
    @Output() logSettingsChanged = new EventEmitter<LogSettingsChanges>();

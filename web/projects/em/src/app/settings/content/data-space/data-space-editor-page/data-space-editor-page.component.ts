@@ -17,6 +17,9 @@
  */
 import { Component, EventEmitter, Input, OnInit, Output } from "@angular/core";
 import { DataSpaceTreeNode } from "../data-space-tree-node";
+import { DataSpaceFolderSettingsViewComponent } from "../data-space-folder-settings-view/data-space-folder-settings-view.component";
+import { DataSpaceFileSettingsViewComponent } from "../data-space-file-settings-view/data-space-file-settings-view.component";
+
 
 export interface DataSpaceFileChange {
    newPath: string;
@@ -25,9 +28,10 @@ export interface DataSpaceFileChange {
 }
 
 @Component({
-   selector: "em-data-space-editor-page",
-   templateUrl: "./data-space-editor-page.component.html",
-   styleUrls: ["./data-space-editor-page.component.scss"]
+    selector: "em-data-space-editor-page",
+    templateUrl: "./data-space-editor-page.component.html",
+    styleUrls: ["./data-space-editor-page.component.scss"],
+    imports: [DataSpaceFileSettingsViewComponent, DataSpaceFolderSettingsViewComponent]
 })
 export class DataSpaceEditorPageComponent implements OnInit {
    @Input() data: DataSpaceTreeNode;

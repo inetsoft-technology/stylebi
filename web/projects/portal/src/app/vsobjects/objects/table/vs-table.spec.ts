@@ -239,11 +239,11 @@ describe("VSTable Unit Tests", () => {
             ReactiveFormsModule,
             NgbModule,
             DropDownTestModule,
-            HttpClientTestingModule
+            HttpClientTestingModule,
+            VSTable,
+            VSTableCell,
          ],
-         declarations: [
-            VSTable, VSTableCell
-         ],
+         
          schemas: [NO_ERRORS_SCHEMA],
          providers: [
             Renderer2,

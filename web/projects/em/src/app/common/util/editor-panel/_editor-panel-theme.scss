@@ -21,7 +21,7 @@
 @mixin editor-panel-typography($config) {
   .editor-panel-content {
     font: {
-      size: mat.font-size($config, body-1);
+      size: mat.m2-font-size($config, body-1);
     }
   }
 }

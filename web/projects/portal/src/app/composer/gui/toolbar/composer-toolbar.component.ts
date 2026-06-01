@@ -33,7 +33,7 @@ import {
    ViewChild,
    ViewChildren,
 } from "@angular/core";
-import { NgbDropdown, NgbModal, NgbTooltipConfig } from "@ng-bootstrap/ng-bootstrap";
+import { NgbDropdown, NgbModal, NgbTooltipConfig, NgbDropdownToggle, NgbTooltip, NgbDropdownMenu } from "@ng-bootstrap/ng-bootstrap";
 import { Observable, of as observableOf, Subject, Subscription } from "rxjs";
 import { takeUntil } from "rxjs/operators";
 import { AiAssistantDialogService } from "../../../common/services/ai-assistant-dialog.service";
@@ -72,7 +72,7 @@ import { AbstractTableAssembly } from "../../data/ws/abstract-table-assembly";
 import { Worksheet } from "../../data/ws/worksheet";
 import { WSAssembly } from "../../data/ws/ws-assembly";
 import { WorksheetTableOperator } from "../../data/ws/ws-table.operators";
-import { WSObjectType } from "../../dialog/ws/new-worksheet-dialog.component";
+import { WSObjectType, NewWorksheetDialog } from "../../dialog/ws/new-worksheet-dialog.component";
 import { ComposerToolbarService } from "../composer-toolbar.service";
 import { EventQueueService } from "../vs/event-queue.service";
 import { LayoutUndoRedoEvent } from "../vs/event/layout-undo-redo-event";
@@ -94,6 +94,19 @@ import { ComposerTabModel } from "../composer-tab-model";
 import { LibraryAsset } from "../../data/library-asset";
 import { TableStyleModel } from "../../data/tablestyle/table-style-model";
 import { TableStyleFormatModel } from "../../data/tablestyle/table-style-format-model";
+import { VPMPrincipalDialogComponent } from "../../dialog/ws/vpm-principal-dialog.component";
+import { VariableInputDialog } from "../../../widget/dialog/variable-input-dialog/variable-input-dialog.component";
+import { VariableAssemblyDialog } from "../../dialog/ws/variable-assembly-dialog.component";
+import { WorksheetPropertyDialog } from "../../dialog/ws/worksheet-property-dialog.component";
+import { EmbeddedTableDialog } from "../../dialog/ws/embedded-table-dialog.component";
+import { SelectDataSourceDialog } from "../../dialog/vs/select-data-source-dialog.component";
+import { GroupingDialog } from "../../dialog/ws/grouping-dialog.component";
+import { TabularQueryDialog } from "../../dialog/ws/tabular-query-dialog.component";
+import { SQLQueryDialog } from "../../../widget/dialog/sql-query-dialog/sql-query-dialog.component";
+import { ImportCSVDialog } from "../../dialog/ws/import-csv-dialog.component";
+import { FormsModule } from "@angular/forms";
+import { ToolbarGroup } from "../../../widget/toolbar/toolbar-group/toolbar-group.component";
+
 
 declare const window;
 
@@ -125,10 +138,11 @@ const WORKSHEET_NEW_INNER_JOIN_URI = "/events/composer/worksheet/dialog/inner-jo
 const COMPOSER_WIZARD_STATUS_URI: string = "../api/composer/wizard/status";
 
 @Component({
-   selector: "composer-toolbar",
-   templateUrl: "composer-toolbar.component.html",
-   styleUrls: ["composer-toolbar.component.scss"],
-   providers: [FullScreenService, NgbTooltipConfig]
+    selector: "composer-toolbar",
+    templateUrl: "composer-toolbar.component.html",
+    styleUrls: ["composer-toolbar.component.scss"],
+    providers: [FullScreenService, NgbTooltipConfig],
+    imports: [ToolbarGroup, NgbDropdown, NgbDropdownToggle, NgbTooltip, NgbDropdownMenu, FormsModule, ImportCSVDialog, SQLQueryDialog, TabularQueryDialog, GroupingDialog, SelectDataSourceDialog, EmbeddedTableDialog, WorksheetPropertyDialog, VariableAssemblyDialog, VariableInputDialog, VPMPrincipalDialogComponent, NewWorksheetDialog]
 })
 export class ComposerToolbarComponent implements OnInit, AfterViewInit, OnDestroy {
    _sheet: Sheet;

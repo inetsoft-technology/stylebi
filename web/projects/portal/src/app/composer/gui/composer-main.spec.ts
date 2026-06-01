@@ -17,7 +17,7 @@
  */
 import { HttpClient } from "@angular/common/http";
 import { NO_ERRORS_SCHEMA } from "@angular/core";
-import { ComponentFixture, TestBed, waitForAsync } from "@angular/core/testing";
+import { ComponentFixture, TestBed } from "@angular/core/testing";
 import { ActivatedRoute, Router } from "@angular/router";
 import { NgbModal, NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { EMPTY, of as observableOf, Subject } from "rxjs";
@@ -41,6 +41,9 @@ import { ComposerRecentService } from "./composer-recent.service";
 import { ResizeHandlerService } from "./resize-handler.service";
 import { ScriptService } from "./script/script.service";
 import { ComposerObjectService } from "./vs/composer-object.service";
+import { ComposerClientService } from "./composer-client.service";
+import { ScaleService } from "../../widget/services/scale/scale-service";
+import { VSScaleService } from "../../widget/services/scale/vs-scale.service";
 
 describe("ComposerMain Unit Tests", () => {
    const oldBroadcastChannel = window.BroadcastChannel;
@@ -60,7 +63,7 @@ describe("ComposerMain Unit Tests", () => {
    let appInfoService: any;
    let fontService: any;
 
-   beforeEach(waitForAsync(() => {
+   beforeEach(() => {
       composerObjectService = { getNewIndex: jest.fn() };
       resizeHandlerService = { onVerticalDragEnd: jest.fn() };
       clipboardService = { clipboardEmpty: false, sheetClosed: jest.fn() };
@@ -126,7 +129,8 @@ describe("ComposerMain Unit Tests", () => {
 
       TestBed.configureTestingModule({
          imports: [
-            NgbModule
+            NgbModule,
+            ComposerMainComponent,
          ],
          providers: [
             { provide: ComposerObjectService, useValue: composerObjectService },
@@ -150,17 +154,24 @@ describe("ComposerMain Unit Tests", () => {
             { provide: AppInfoService, useValue: appInfoService },
             { provide: FontService, useValue: fontService }
          ],
-         declarations: [
-            ComposerMainComponent
-         ],
+         
          schemas: [NO_ERRORS_SCHEMA]
       });
+      TestBed.overrideComponent(ComposerMainComponent, {
+         set: {
+            imports: [],
+            providers: [
+               ComposerClientService,
+               { provide: ScaleService, useClass: VSScaleService }
+            ]
+         }
+      });
       TestBed.compileComponents();
-   }));
+   });
 
-   afterEach(waitForAsync(() => {
+   afterEach(() => {
       window.BroadcastChannel = oldBroadcastChannel;
-   }));
+   });
 
    // Bug #16301 set embeddedId set if opening an embedded vs
    it("should have embeddedId when opening an embedded vs", () => {

@@ -17,7 +17,7 @@
  */
 import { HttpClient } from "@angular/common/http";
 import { Component, EventEmitter, Input, OnDestroy, OnInit, Output } from "@angular/core";
-import { AbstractControl, UntypedFormControl, UntypedFormGroup, Validators } from "@angular/forms";
+import { AbstractControl, UntypedFormControl, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { Subscription } from "rxjs";
 import { mergeMap } from "rxjs/operators";
 import { AppInfoService } from "../../../../../../../shared/util/app-info.service";
@@ -26,11 +26,22 @@ import { Tool } from "../../../../../../../shared/util/tool";
 import { SecurityEnabledEvent } from "../../security-settings-page/security-enabled-event";
 import { AuthenticationProviderModel } from "../security-provider-model/authentication-provider-model";
 import { SecurityProviderType } from "../security-provider-model/security-provider-type.enum";
+import { DatabaseProviderViewComponent } from "../database-provider-view/database-provider-view.component";
+import { LdapProviderViewComponent } from "../ldap-provider-view/ldap-provider-view.component";
+import { CustomProviderViewComponent } from "../custom-provider-view/custom-provider-view.component";
+import { MatOption } from "@angular/material/core";
+import { MatSelect } from "@angular/material/select";
+
+import { MatInput } from "@angular/material/input";
+import { MatFormField, MatLabel, MatError } from "@angular/material/form-field";
+import { MatCard, MatCardContent } from "@angular/material/card";
+import { EditorPanelComponent } from "../../../../common/util/editor-panel/editor-panel.component";
 
 @Component({
-   selector: "em-authentication-provider-detail-view",
-   templateUrl: "./authentication-provider-detail-view.component.html",
-   styleUrls: ["./authentication-provider-detail-view.component.scss"]
+    selector: "em-authentication-provider-detail-view",
+    templateUrl: "./authentication-provider-detail-view.component.html",
+    styleUrls: ["./authentication-provider-detail-view.component.scss"],
+    imports: [EditorPanelComponent, FormsModule, ReactiveFormsModule, MatCard, MatCardContent, MatFormField, MatLabel, MatInput, MatError, MatSelect, MatOption, CustomProviderViewComponent, LdapProviderViewComponent, DatabaseProviderViewComponent]
 })
 export class AuthenticationProviderDetailViewComponent implements OnInit, OnDestroy {
    SecurityProviderType = SecurityProviderType;

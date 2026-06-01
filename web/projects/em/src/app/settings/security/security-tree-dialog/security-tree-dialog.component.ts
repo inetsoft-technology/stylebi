@@ -26,11 +26,15 @@ import { SecurityTreeViewComponent } from "../security-tree-view/security-tree-v
 import { SecurityTreeService } from "../users/security-tree.service";
 import { SecurityTreeRootModel } from "../users/users-settings-view/security-tree-root-model";
 import { SecurityTreeDialogData } from "./security-tree-dialog-data";
+import { AsyncPipe } from "@angular/common";
+import { MatButton } from "@angular/material/button";
+import { ModalHeaderComponent } from "../../../common/util/modal-header/modal-header.component";
 
 @Component({
-  selector: "em-add-permission-dialog",
-  templateUrl: "./security-tree-dialog.component.html",
-  styleUrls: ["./security-tree-dialog.component.scss"]
+    selector: "em-add-permission-dialog",
+    templateUrl: "./security-tree-dialog.component.html",
+    styleUrls: ["./security-tree-dialog.component.scss"],
+    imports: [ModalHeaderComponent, SecurityTreeViewComponent, MatButton, AsyncPipe]
 })
 export class SecurityTreeDialogComponent implements OnInit {
    treeData: Observable<SecurityTreeNode[]>;

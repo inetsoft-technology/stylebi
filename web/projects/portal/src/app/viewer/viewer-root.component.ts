@@ -15,17 +15,21 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { Component, OnDestroy, OnInit } from "@angular/core";
-import { ActivatedRoute } from "@angular/router";
+import { ActivatedRoute, RouterOutlet } from "@angular/router";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
+import { AiAssistantPanelComponent } from "../../../../shared/ai-assistant/ai-assistant-panel.component";
+import { DownloadTargetComponent } from "../../../../shared/download/download-target.component";
 import { StompClientConnection } from "../../../../shared/stomp/stomp-client-connection";
 import { StompClientService } from "../common/viewsheet-client";
 import { ComponentTool } from "../common/util/component-tool";
 
 @Component({
-   selector: "v-viewer-root",
-   templateUrl: "viewer-root.component.html",
-   styleUrls: ["viewer-root.component.scss"]
+    imports: [RouterOutlet, DownloadTargetComponent, AiAssistantPanelComponent],
+    selector: "v-viewer-root",
+    templateUrl: "viewer-root.component.html",
+    styleUrls: ["viewer-root.component.scss"]
 })
 export class ViewerRootComponent implements OnInit, OnDestroy {
    inPortal: boolean = false;

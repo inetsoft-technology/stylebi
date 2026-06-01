@@ -16,13 +16,15 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, Input, OnInit, OnDestroy } from "@angular/core";
-import { UntypedFormGroup, UntypedFormControl } from "@angular/forms";
+import { UntypedFormGroup, UntypedFormControl, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { FloatEditorModel } from "../model/float-editor-model";
 import { FormValidators } from "../../../../../shared/util/form-validators";
 
+
 @Component({
-   selector: "float-editor",
-   templateUrl: "float-editor.component.html"
+    selector: "float-editor",
+    templateUrl: "float-editor.component.html",
+    imports: [FormsModule, ReactiveFormsModule]
 })
 export class FloatEditor implements OnInit, OnDestroy {
    @Input() model: FloatEditorModel;

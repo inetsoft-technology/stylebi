@@ -17,9 +17,11 @@
  */
 import { Component, ElementRef } from "@angular/core";
 
+
 @Component({
-   selector: "app-error-message",
-   templateUrl: "app-error-message.component.html"
+    selector: "app-error-message",
+    templateUrl: "app-error-message.component.html",
+    imports: []
 })
 
 export class AppErrorMessage {

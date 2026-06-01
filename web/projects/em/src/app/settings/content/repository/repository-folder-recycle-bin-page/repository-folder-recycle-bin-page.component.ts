@@ -30,6 +30,7 @@ import { RepositoryRecycleBinTableModel } from "./repository-folder-recycle-bin-
 import { MessageDialog, MessageDialogType } from "../../../../common/util/message-dialog";
 import { MatDialog, MatDialogConfig } from "@angular/material/dialog";
 import { RepositoryFolderRecycleBinSettingsModel } from "./repository-folder-recycle-bin-settings-model";
+import { RepositoryRecycleBinSettingsViewComponent } from "../repository-folder-recycle-bin-view/repository-recycle-bin-settings-view.component";
 
 export interface RepositoryFolderRecycleBinModel extends RepositoryEditorModel {
    recycleNodes: RepositoryRecycleBinTableModel[];
@@ -40,8 +41,9 @@ const RESTORE_RECYCLE_BIN_ENTRYS: string = "../api/em/content/repository/folder/
 const DELETE_RECYCLE_BIN_ENTRYS: string = "../api/em/content/repository/folder/recycleBin/delete";
 
 @Component({
-   selector: "em-repository-folder-recycle-bin-page",
-   templateUrl: "./repository-folder-recycle-bin-page.component.html"
+    selector: "em-repository-folder-recycle-bin-page",
+    templateUrl: "./repository-folder-recycle-bin-page.component.html",
+    imports: [RepositoryRecycleBinSettingsViewComponent]
 })
 export class RepositoryFolderRecycleBinPageComponent implements OnChanges {
    @Input() model: RepositoryFolderRecycleBinModel;

@@ -19,6 +19,8 @@
 import { Component, ElementRef, HostListener, NgZone, OnDestroy, OnInit, Renderer2 } from "@angular/core";
 import { Subscription } from "rxjs";
 import { AiAssistantService } from "./ai-assistant.service";
+import { AiAssistantDialogComponent } from "./ai-assistant-dialog.component";
+import { AsyncPipe } from "@angular/common";
 
 type PanelMode = "side" | "bottom";
 
@@ -32,9 +34,10 @@ const MIN_SIZE = 300;
 const TOP_OFFSET = 52;
 
 @Component({
-   selector: "ai-assistant-panel",
-   templateUrl: "./ai-assistant-panel.component.html",
-   styleUrls: ["./ai-assistant-panel.component.scss"]
+    selector: "ai-assistant-panel",
+    templateUrl: "./ai-assistant-panel.component.html",
+    styleUrls: ["./ai-assistant-panel.component.scss"],
+    imports: [AiAssistantDialogComponent, AsyncPipe]
 })
 export class AiAssistantPanelComponent implements OnInit, OnDestroy {
    mode: PanelMode = "side";

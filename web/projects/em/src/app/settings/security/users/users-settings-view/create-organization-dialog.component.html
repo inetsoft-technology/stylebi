@@ -1,20 +1,20 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <em-modal-header class="em-page-title" [cshid]="'EMSettingsSecurityUsers'" [title]="'_#(js:New Organization)'">
 </em-modal-header>
 <div class="clone-section">
@@ -22,40 +22,50 @@
     <mat-icon fontSet="ineticons" fontIcon="search-icon"></mat-icon>
   </button>
   <div class="clone-fields">
-    <ng-container *ngIf="searchOpen">
+    @if (searchOpen) {
       <mat-form-field class="em-org-dropdown">
         <mat-label>_#(Search)</mat-label>
         <input matInput [(ngModel)]="searchQuery" [matAutocomplete]="auto" placeholder="_#(Search)"/>
         <button mat-icon-button matSuffix title="_#(Clear)" aria-label="_#(Clear)"
-                (click)="searchQuery = ''" [disabled]="!searchQuery">
+          (click)="searchQuery = ''" [disabled]="!searchQuery">
           <mat-icon fontSet="ineticons" fontIcon="close-circle-icon"></mat-icon>
         </button>
       </mat-form-field>
       <mat-autocomplete #auto="matAutocomplete" (optionSelected)="onSelectOrg($event)">
-        <ng-container *ngFor="let org of searchResults; let i = index">
+        @for (org of searchResults; track org; let i = $index) {
           <mat-option class="dropdownItem" [value]="org.id" [class.mdc-list-item--selected]="isSelected(org.id)">
             {{org.name}}
           </mat-option>
-        </ng-container>
+        }
       </mat-autocomplete>
-    </ng-container>
-    <mat-form-field class="em-org-dropdown" *ngIf="!searchOpen">
-      <mat-label>_#(js:Clone From Existing Organization):</mat-label>
-      <mat-select [(value)]="copyFromOrgID">
-        <mat-option [value]="''">_#(None)</mat-option>
-        <mat-option *ngFor="let orgID of existingOrganizations; let i = index" [value]="orgID">{{existingOrganizationNames[i]}}</mat-option>
-      </mat-select>
-    </mat-form-field>
-    <mat-form-field class="em-org-dropdown" *ngIf="!searchOpen && copyFromOrgID">
-      <mat-label>_#(js:Default Password for Cloned Users)</mat-label>
-      <input matInput [type]="showPassword ? 'text' : 'password'" [class.identity-password]="!showPassword" [formControl]="passwordControl" autocomplete="new-password"/>
-      <button matSuffix mat-icon-button (click)="toggleShowPassword()" type="button" aria-label="_#(js:Show/Hide)">
-        <mat-icon fontSet="ineticons" class="icon-size-small"
-                  [fontIcon]="showPassword ? 'eye-off-icon' : 'eye-icon'"></mat-icon>
-      </button>
-      <mat-error *ngIf="passwordControl.errors?.required">_#(js:Password is required)</mat-error>
-      <mat-error *ngIf="passwordControl.errors?.passwordComplexity">_#(viewer.password.pwdRule)</mat-error>
-    </mat-form-field>
+    }
+    @if (!searchOpen) {
+      <mat-form-field class="em-org-dropdown">
+        <mat-label>_#(js:Clone From Existing Organization):</mat-label>
+        <mat-select [(value)]="copyFromOrgID">
+          <mat-option [value]="''">_#(None)</mat-option>
+          @for (orgID of existingOrganizations; track orgID; let i = $index) {
+            <mat-option [value]="orgID">{{existingOrganizationNames[i]}}</mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+    }
+    @if (!searchOpen && copyFromOrgID) {
+      <mat-form-field class="em-org-dropdown">
+        <mat-label>_#(js:Default Password for Cloned Users)</mat-label>
+        <input matInput [type]="showPassword ? 'text' : 'password'" [class.identity-password]="!showPassword" [formControl]="passwordControl" autocomplete="new-password"/>
+        <button matSuffix mat-icon-button (click)="toggleShowPassword()" type="button" aria-label="_#(js:Show/Hide)">
+          <mat-icon fontSet="ineticons" class="icon-size-small"
+          [fontIcon]="showPassword ? 'eye-off-icon' : 'eye-icon'"></mat-icon>
+        </button>
+        @if (passwordControl.errors?.required) {
+          <mat-error>_#(js:Password is required)</mat-error>
+        }
+        @if (passwordControl.errors?.passwordComplexity) {
+          <mat-error>_#(viewer.password.pwdRule)</mat-error>
+        }
+      </mat-form-field>
+    }
   </div>
 </div>
 <div mat-dialog-actions>

@@ -16,9 +16,9 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { HttpClient, HttpErrorResponse, HttpParams } from "@angular/common/http";
-import { Component, HostListener, Inject, OnDestroy, ViewEncapsulation } from "@angular/core";
-import { UntypedFormBuilder, UntypedFormGroup, Validators } from "@angular/forms";
-import { MAT_DIALOG_DATA, MatDialog, MatDialogRef } from "@angular/material/dialog";
+import { Component, HostBinding, HostListener, Inject, OnDestroy, ViewEncapsulation } from "@angular/core";
+import { UntypedFormBuilder, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
+import { MAT_DIALOG_DATA, MatDialog, MatDialogRef, MatDialogContent, MatDialogActions } from "@angular/material/dialog";
 import { Observable, throwError, timer } from "rxjs";
 import { catchError, filter, switchMap, take, timeout } from "rxjs/operators";
 import { DateTypeFormatter } from "../../../../../../../../shared/util/date-type-formatter";
@@ -32,17 +32,27 @@ import { RepositoryFlatNode, RepositoryTreeNode } from "../../repository-tree-no
 import { ExportedAssetsModel } from "../exported-assets-model";
 import { RequiredAssetModel } from "../required-asset-model";
 import { SelectAssetFolderDialogComponent } from "../select-asset-folder-dialog/select-asset-folder-dialog.component";
+import { MatProgressBar } from "@angular/material/progress-bar";
+import { RequiredAssetListComponent } from "../required-asset-list/required-asset-list.component";
+import { SelectedAssetListComponent } from "../selected-asset-list/selected-asset-list.component";
+import { MatCheckbox } from "@angular/material/checkbox";
+import { MatIconButton, MatButton } from "@angular/material/button";
+import { MatInput } from "@angular/material/input";
+import { MatIcon } from "@angular/material/icon";
+import { FileChooserComponent } from "../../../../../common/util/file-chooser/file-chooser/file-chooser.component";
+import { MatFormField, MatLabel, MatSuffix, MatError } from "@angular/material/form-field";
+
+import { ModalHeaderComponent } from "../../../../../common/util/modal-header/modal-header.component";
 
 @Component({
-   selector: "em-import-asset-dialog",
-   templateUrl: "./import-asset-dialog.component.html",
-   styleUrls: ["./import-asset-dialog.component.scss"],
-   encapsulation: ViewEncapsulation.None,
-   host: { // eslint-disable-line @angular-eslint/no-host-metadata-property
-      "class": "import-asset-dialog"
-   }
+    selector: "em-import-asset-dialog",
+    templateUrl: "./import-asset-dialog.component.html",
+    styleUrls: ["./import-asset-dialog.component.scss"],
+    encapsulation: ViewEncapsulation.None,
+    imports: [ModalHeaderComponent, MatDialogContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, FileChooserComponent, MatIcon, MatSuffix, MatError, MatInput, MatIconButton, MatCheckbox, SelectedAssetListComponent, RequiredAssetListComponent, MatProgressBar, MatDialogActions, MatButton]
 })
 export class ImportAssetDialogComponent implements OnDestroy {
+   @HostBinding("class") hostClass = "import-asset-dialog";
    uploadForm: UntypedFormGroup;
    importForm: UntypedFormGroup;
    selected: RequiredAssetModel[] = [];

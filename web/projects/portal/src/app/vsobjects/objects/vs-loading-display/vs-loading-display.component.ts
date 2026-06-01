@@ -26,10 +26,12 @@ import {
    OnDestroy
 } from "@angular/core";
 
+
 @Component({
-   selector: "vs-loading-display",
-   templateUrl: "vs-loading-display.component.html",
-   styleUrls: ["vs-loading-display.component.scss"]
+    selector: "vs-loading-display",
+    templateUrl: "vs-loading-display.component.html",
+    styleUrls: ["vs-loading-display.component.scss"],
+    imports: []
 })
 export class VSLoadingDisplay implements AfterViewInit, OnDestroy {
    @Input() message: string;

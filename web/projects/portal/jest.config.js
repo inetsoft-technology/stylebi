@@ -23,4 +23,9 @@ module.exports = {
       "<rootDir>/projects/portal/**/*(*.)@(spec|test).[tj]s?(x)",
       "<rootDir>/projects/shared/**/*(*.)@(spec|test).[tj]s?(x)",
    ],
+   // Runs after the test environment (including @angular/compiler) is set up.
+   // Used for patches that import Angular components (not allowed in setupFiles).
+   setupFilesAfterEnv: [
+      "<rootDir>/projects/portal/src/jest-setup-after-env.ts",
+   ],
 };

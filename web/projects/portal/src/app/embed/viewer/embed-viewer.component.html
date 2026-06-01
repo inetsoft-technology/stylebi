@@ -1,49 +1,55 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2025  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2025  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 
 <div #embedViewer class="embed-viewer"
-     [class.data-tip-pop-component-visible]="dataTipPopComponentVisible"
-     [style.width.px]="width ? width : null"
-     [style.height.px]="height ? height : null">
-  <viewer-app #viewerApp *ngIf="assetId && connected"
-              [style.visibility]="showError ? 'hidden' : 'visible'"
-              [assetId]="assetId"
-              [queryParameters]="queryParams"
-              [hideToolbar]="hideToolbar"
-              [hideMiniToolbar]="hideMiniToolbar"
-              [globalLoadingIndicator]="globalLoadingIndicator || hideLoadingIndicator"
-              [viewerOffsetFunc]="getViewerOffsetFunc()"
-              [embedViewer]="true"
-              (onEmbedError)="onEmbedError($event)"
-              (onLoadingStateChanged)="onLoadingStateChanged($event)"
-              (onDataTipPopComponentVisible)="onDataTipPopComponentVisible($event)"
-              (onViewerSizeChanged)="onViewerSizeChanged($event)">
-  </viewer-app>
-  <div *ngIf="showError" class="error-viewer txt-danger">
-    <span class="error-label">
-      _#(viewer.viewsheet.error)
-    </span>
-  </div>
+  [class.data-tip-pop-component-visible]="dataTipPopComponentVisible"
+  [style.width.px]="width ? width : null"
+  [style.height.px]="height ? height : null">
+  @if (assetId && connected) {
+    <viewer-app #viewerApp
+      [style.visibility]="showError ? 'hidden' : 'visible'"
+      [assetId]="assetId"
+      [queryParameters]="queryParams"
+      [hideToolbar]="hideToolbar"
+      [hideMiniToolbar]="hideMiniToolbar"
+      [globalLoadingIndicator]="globalLoadingIndicator || hideLoadingIndicator"
+      [viewerOffsetFunc]="getViewerOffsetFunc()"
+      [embedViewer]="true"
+      (onEmbedError)="onEmbedError($event)"
+      (onLoadingStateChanged)="onLoadingStateChanged($event)"
+      (onDataTipPopComponentVisible)="onDataTipPopComponentVisible($event)"
+      (onViewerSizeChanged)="onViewerSizeChanged($event)">
+    </viewer-app>
+  }
+  @if (showError) {
+    <div class="error-viewer txt-danger">
+      <span class="error-label">
+        _#(viewer.viewsheet.error)
+      </span>
+    </div>
+  }
 
-  <vs-loading-display *ngIf="globalLoadingIndicator && loading && !hideLoadingIndicator"
-                      [allowInteraction]="true"
-                      [justShowIcon]="true">
-  </vs-loading-display>
+  @if (globalLoadingIndicator && loading && !hideLoadingIndicator) {
+    <vs-loading-display
+      [allowInteraction]="true"
+      [justShowIcon]="true">
+    </vs-loading-display>
+  }
 </div>
 
 <dl-download-target (downloadStarted)="downloadStarted($event)"></dl-download-target>

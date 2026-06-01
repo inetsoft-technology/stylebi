@@ -22,6 +22,9 @@ import {
 import { FormatInfoModel } from "../../common/data/format-info-model";
 import { StyleConstants } from "../../common/util/style-constants";
 import { BaseHrefService } from "../../common/services/base-href.service";
+import { ColorDropdown } from "../../widget/color-picker/color-dropdown.component";
+
+import { BorderStylePane } from "./border-style-pane.component";
 
 const borderSelectState = {
    borderTop: false, borderLeft: false,
@@ -29,9 +32,10 @@ const borderSelectState = {
 };
 
 @Component({
-   selector: "binding-border-pane",
-   styleUrls: ["binding-border-pane.component.scss"],
-   templateUrl: "binding-border-pane.component.html"
+    selector: "binding-border-pane",
+    styleUrls: ["binding-border-pane.component.scss"],
+    templateUrl: "binding-border-pane.component.html",
+    imports: [BorderStylePane, ColorDropdown]
 })
 export class BindingBorderPane implements AfterViewInit, OnChanges {
    @Input() formatModel: FormatInfoModel;

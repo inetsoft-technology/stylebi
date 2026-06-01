@@ -1,52 +1,60 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <div class="card p-1">
   <nav aria-label="breadcrumb" role="navigation"
-       [ngbTooltip]="breadcrumbTooltip"
-       triggers="mouseenter:mouseleave" placement="right">
+    [ngbTooltip]="breadcrumbTooltip"
+    triggers="mouseenter:mouseleave" placement="right">
     <ol class="breadcrumb mb-0">
-      <li *ngFor="let folder of browserView?.path; last as isLast"
+      @for (folder of browserView?.path; track folder; let isLast = $last) {
+        <li
           class="breadcrumb-item"
           [class.active]="isLast">
           <span [class.action-style]="!isLast"
-                (click)="isLast || openFolder(folder.path, folder.type)">{{getFolderName(folder)}}
+            (click)="isLast || openFolder(folder.path, folder.type)">{{getFolderName(folder)}}
           </span>
-      </li>
+        </li>
+      }
     </ol>
   </nav>
-  <div class="list-group list-group-flush files-browser my-1" *ngIf="!!browserView">
-    <div class="list-group-item list-group-item-action px-1" *ngFor="let folder of browserView.folders"
-         [class.active]="isItemSelected(folder, true)"
-         (click)="selectFolder(folder)">
-      <div class="truncate-parent justify-content-between">
-        <div class="truncate-text d-flex align-items-center">
-          <span class="truncate-text ps-1">
-            <div class="d-flex align-items-center">
-              <i class="{{getFolderIcon(folder)}}"></i>
-              <span class="px-1"> {{getFolderName(folder)}} </span>
+  @if (!!browserView) {
+    <div class="list-group list-group-flush files-browser my-1">
+      @for (folder of browserView.folders; track folder) {
+        <div class="list-group-item list-group-item-action px-1"
+          [class.active]="isItemSelected(folder, true)"
+          (click)="selectFolder(folder)">
+          <div class="truncate-parent justify-content-between">
+            <div class="truncate-text d-flex align-items-center">
+              <span class="truncate-text ps-1">
+                <div class="d-flex align-items-center">
+                  <i class="{{getFolderIcon(folder)}}"></i>
+                  <span class="px-1"> {{getFolderName(folder)}} </span>
+                </div>
+              </span>
             </div>
-          </span>
+            @if (folder?.path === '/') {
+              <i
+                class="forward-icon cursor-pointer truncate-addon"
+                (click)="openFolder(folder.path, folder.type); $event.stopPropagation()">
+              </i>
+            }
+          </div>
         </div>
-        <i *ngIf="folder?.path === '/'"
-           class="forward-icon cursor-pointer truncate-addon"
-           (click)="openFolder(folder.path, folder.type); $event.stopPropagation()">
-        </i>
-      </div>
+      }
     </div>
-  </div>
+  }
 </div>

@@ -1,55 +1,61 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <mat-card class="mat-elevation-z0" [class.empty-file-list]="(!value || !value.length) && !header">
-  <mat-card-header *ngIf="header">{{ header }}</mat-card-header>
-  <mat-card-content *ngIf="value && value.length">
-    <mat-list *ngIf="!uploading && displayList">
-      <ng-container *ngFor="let file of value">
-        <mat-list-item role="listitem">
-          <div class="fileListItem">
-            <span class="fileItemText">{{ file.name }}</span>
-              <button mat-icon-button (click)="removeFile(file)">
-                <mat-icon fontSet="ineticons" fontIcon="trash-icon"></mat-icon>
-              </button>
-            </div>
-        </mat-list-item>
-        <mat-divider [inset]="true"></mat-divider>
-      </ng-container>
-    </mat-list>
-    <ng-container *ngIf="!uploading && !displayList">
-      <form>
-        <mat-form-field class="file-item-input">
-          <input type="text" matInput [value]="getDisplayValueStr()"  readonly/>
-        </mat-form-field>
-      </form>
-    </ng-container>
-    <ng-container *ngIf="uploading">
-      <div>_#(Uploading)...</div>
-      <mat-progress-bar mode="determinate" [value]="progress"></mat-progress-bar>
-    </ng-container>
-  </mat-card-content>
+  @if (header) {
+    <mat-card-header>{{ header }}</mat-card-header>
+  }
+  @if (value && value.length) {
+    <mat-card-content>
+      @if (!uploading && displayList) {
+        <mat-list>
+          @for (file of value; track file) {
+            <mat-list-item role="listitem">
+              <div class="fileListItem">
+                <span class="fileItemText">{{ file.name }}</span>
+                <button mat-icon-button (click)="removeFile(file)">
+                  <mat-icon fontSet="ineticons" fontIcon="trash-icon"></mat-icon>
+                </button>
+              </div>
+            </mat-list-item>
+            <mat-divider [inset]="true"></mat-divider>
+          }
+        </mat-list>
+      }
+      @if (!uploading && !displayList) {
+        <form>
+          <mat-form-field class="file-item-input">
+            <input type="text" matInput [value]="getDisplayValueStr()"  readonly/>
+          </mat-form-field>
+        </form>
+      }
+      @if (uploading) {
+        <div>_#(Uploading)...</div>
+        <mat-progress-bar mode="determinate" [value]="progress"></mat-progress-bar>
+      }
+    </mat-card-content>
+  }
   <mat-card-actions>
     <input #browseFile type="file" [accept]="accept" hidden multiple (change)="addFiles($event)"/>
     <button
       mat-stroked-button
       (click)="browseFile.value = null; browseFile.click()"
       [disabled]="uploading || disabled"
-    >
+      >
       {{selectButtonLabel}}
     </button>
     <ng-content></ng-content>

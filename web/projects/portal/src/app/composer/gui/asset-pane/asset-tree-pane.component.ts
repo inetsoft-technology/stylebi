@@ -86,12 +86,13 @@ const ASSET_ENTRY_BANNED_CHARS_MESSAGE = "_#(js:composer.sheet.checkSpeChar)";
 const START_WITH_CHART_DIGIT_MESSAGE = "_#(js:asset.tree.checkStart)";
 
 @Component({
-   selector: "asset-tree-pane",
-   templateUrl: "asset-tree-pane.component.html",
-   providers: [{
-      provide: ContextProvider,
-      useFactory: ComposerContextProviderFactory
-   }]
+    selector: "asset-tree-pane",
+    templateUrl: "asset-tree-pane.component.html",
+    providers: [{
+            provide: ContextProvider,
+            useFactory: ComposerContextProviderFactory
+        }],
+    imports: [AssetTreeComponent]
 })
 export class AssetTreePane implements OnChanges, OnInit {
    @HostBinding("hidden")

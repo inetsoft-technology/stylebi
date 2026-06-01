@@ -18,11 +18,16 @@
 import { Component, Input, OnInit, Output, EventEmitter } from "@angular/core";
 import { Tool } from "../../../../../../../shared/util/tool";
 import * as V from "../../../../common/data/visual-frame-model";
+import { LinearColorDropdown } from "./linear-color-dropdown.component";
+import { GradientColorEditor } from "./gradient-color-editor.component";
+import { FormsModule } from "@angular/forms";
+
 
 @Component({
-   selector: "linear-color-pane",
-   templateUrl: "linear-color-pane.component.html",
-   styleUrls: ["linear-color-pane.component.scss"]
+    selector: "linear-color-pane",
+    templateUrl: "linear-color-pane.component.html",
+    styleUrls: ["linear-color-pane.component.scss"],
+    imports: [FormsModule, GradientColorEditor, LinearColorDropdown]
 })
 export class LinearColorPane implements OnInit {
    @Input() frame: V.ColorFrameModel = new V.GradientColorModel();

@@ -23,16 +23,16 @@
   $foreground: map-get($theme, foreground);
 
   .mat-mdc-card-header {
-    color: mat.get-color-from-palette($foreground, secondary-text);
+    color: mat.m2-get-color-from-palette($foreground, secondary-text);
   }
 }
 
 @mixin multi-file-chooser-typography($config) {
-  $font-family: mat.font-family($config);
+  $font-family: mat.m2-font-family($config);
 
   .mat-mdc-card-header {
-    font-family: mat.font-family($config, body-2);
-    font-size: mat.font-size($config, body-2);
-    font-weight: mat.font-weight($config, body-2);
+    font-family: mat.m2-font-family($config, body-2);
+    font-size: mat.m2-font-size($config, body-2);
+    font-weight: mat.m2-font-weight($config, body-2);
   }
 }

@@ -17,12 +17,21 @@
  */
 import { Component, EventEmitter, Input, OnInit, Output } from "@angular/core";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
-import { UntypedFormControl, UntypedFormGroup, Validators } from "@angular/forms";
+import { UntypedFormControl, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { FormValidators } from "../../../../../shared/util/form-validators";
 
+import { DefaultFocusDirective } from "../../widget/directive/default-focus.directive";
+import { BlockMouseDirective } from "../../widget/mouse-event/block-mouse.directive";
+
 @Component({
-   selector: "name-input-dialog",
-   templateUrl: "name-input-dialog.component.html",
+    selector: "name-input-dialog",
+    templateUrl: "name-input-dialog.component.html",
+    imports: [
+    BlockMouseDirective,
+    FormsModule,
+    ReactiveFormsModule,
+    DefaultFocusDirective
+]
 })
 export class NameInputDialog implements OnInit {
    @Input() title: string = "_#(js:Input Name)";

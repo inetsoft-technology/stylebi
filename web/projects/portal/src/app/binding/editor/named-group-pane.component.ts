@@ -26,11 +26,14 @@ import { TreeNodeModel } from "../../widget/tree/tree-node-model";
 import { GroupCondition } from "../data/named-group-info";
 import { NameInputDialog } from "./name-input-dialog.component";
 import { ComponentTool } from "../../common/util/component-tool";
+import { NgIf } from "@angular/common";
 
 @Component({
-   selector: "named-group-pane",
-   templateUrl: "named-group-pane.component.html",
-   styleUrls: ["named-group-pane.component.scss"],
+    selector: "named-group-pane",
+    templateUrl: "named-group-pane.component.html",
+    styleUrls: ["named-group-pane.component.scss"],
+    standalone: true,
+    imports: [NgIf, TreeComponent],
 })
 
 export class NamedGroupPane implements OnChanges {

@@ -31,8 +31,8 @@ describe("alpha dropdown component unit case", () => {
    beforeEach(() => {
       debounceService = { debounce: jest.fn() };
       TestBed.configureTestingModule({
-         imports: [DropDownTestModule, ReactiveFormsModule, FormsModule, NgbModule],
-         declarations: [AlphaDropdown, FixedDropdownDirective],
+         imports: [DropDownTestModule, ReactiveFormsModule, FormsModule, NgbModule, AlphaDropdown, FixedDropdownDirective],
+         
          providers: [
             NgbModal,
             {

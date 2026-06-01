@@ -91,7 +91,9 @@ function setMockTreeValues(dataOutputPaneModel): DataOutputPaneModel {
 }
 
 @Component({
+   standalone: true,
    selector: "test-app",
+   imports: [DataOutputPane],
    template: `<data-output-pane [model]="mockModel">
                  </data-output-pane>`
 })
@@ -124,15 +126,24 @@ describe("Data Output Pane Test", () => {
 
       TestBed.configureTestingModule({
          imports: [
-            ReactiveFormsModule, FormsModule, NgbModule, DropDownTestModule,
-            HttpClientTestingModule
+            ReactiveFormsModule,
+            FormsModule,
+            NgbModule,
+            DropDownTestModule,
+            HttpClientTestingModule,
+            TestApp,
+            DataOutputPane,
+            TreeDropdownComponent,
+            TreeComponent,
+            TreeNodeComponent,
+            FormulaEditorDialog,
+            ScriptPane,
+            NewAggrDialog,
+            MessageDialog,
+            TreeSearchPipe,
+            FixedDropdownDirective,
          ],
-         declarations: [
-            TestApp, DataOutputPane, TreeDropdownComponent,
-            TreeComponent, TreeNodeComponent,
-            FormulaEditorDialog, ScriptPane, NewAggrDialog, MessageDialog,
-            TreeSearchPipe, FixedDropdownDirective
-         ],
+         
          providers: [
             {provide: DragService, useValue: dragService},
             {provide: DataTreeValidatorService, useValue: treeService}

@@ -18,10 +18,14 @@
 import { Component, Input } from "@angular/core";
 import { TextPaneModel } from "../../data/vs/text-pane-model";
 import { ComboMode } from "../../../widget/dynamic-combo-box/dynamic-combo-box-model";
+import { FormsModule } from "@angular/forms";
+import { DynamicComboBox } from "../../../widget/dynamic-combo-box/dynamic-combo-box.component";
+
 
 @Component({
-   selector: "text-pane",
-   templateUrl: "text-pane.component.html"
+    selector: "text-pane",
+    templateUrl: "text-pane.component.html",
+    imports: [DynamicComboBox, FormsModule]
 })
 export class TextPane {
    @Input() model: TextPaneModel;

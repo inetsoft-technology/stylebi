@@ -38,13 +38,19 @@ describe("Parameter Table Unit Test", () => {
    beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule
-         ],
-         declarations: [
-            ReplaceAllPipe, ParameterTable, AddParameterDialog, EnterSubmitDirective,
+            FormsModule,
+            ReactiveFormsModule,
+            NgbModule,
+            ReplaceAllPipe,
+            ParameterTable,
+            AddParameterDialog,
+            EnterSubmitDirective,
             DateValueEditorComponent,
-            TimeValueEditorComponent, TimeInstantValueEditorComponent, TimepickerComponent,
+            TimeValueEditorComponent,
+            TimeInstantValueEditorComponent,
+            TimepickerComponent,
          ],
+         
          schemas: [ NO_ERRORS_SCHEMA ]
       });
       TestBed.compileComponents();

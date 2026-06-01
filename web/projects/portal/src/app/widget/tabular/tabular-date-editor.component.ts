@@ -16,10 +16,16 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, EventEmitter, Input, OnInit, Output } from "@angular/core";
+import { TimeValueEditorComponent } from "../date-type-editor/time-value-editor.component";
+import { DateValueEditorComponent } from "../date-type-editor/date-value-editor.component";
+import { FormsModule } from "@angular/forms";
+import { TimeInstantValueEditorComponent } from "../date-type-editor/time-instant-value-editor.component";
+
 
 @Component({
-   selector: "tabular-date-editor",
-   templateUrl: "tabular-date-editor.component.html"
+    selector: "tabular-date-editor",
+    templateUrl: "tabular-date-editor.component.html",
+    imports: [TimeInstantValueEditorComponent, FormsModule, DateValueEditorComponent, TimeValueEditorComponent]
 })
 export class TabularDateEditor implements OnInit {
    @Input() value: string;

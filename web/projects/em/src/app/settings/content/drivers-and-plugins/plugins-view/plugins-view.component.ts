@@ -26,10 +26,10 @@ import {
    OnInit,
    ViewChild
 } from "@angular/core";
-import { MatDialog, MatDialogRef } from "@angular/material/dialog";
+import { MatDialog, MatDialogRef, MatDialogTitle, MatDialogContent, MatDialogActions, MatDialogClose } from "@angular/material/dialog";
 import { MatSnackBar, MatSnackBarConfig } from "@angular/material/snack-bar";
-import { MatSort } from "@angular/material/sort";
-import { MatTableDataSource } from "@angular/material/table";
+import { MatSort, MatSortHeader } from "@angular/material/sort";
+import { MatTableDataSource, MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow } from "@angular/material/table";
 import { Observable, throwError } from "rxjs";
 import { catchError, finalize } from "rxjs/operators";
 import { StompClientConnection } from "../../../../../../../shared/stomp/stomp-client-connection";
@@ -38,13 +38,19 @@ import { PluginModel, PluginsModel } from "../../../../../../../shared/util/mode
 import { Tool } from "../../../../../../../shared/util/tool";
 import { StagedFileChooserComponent } from "../../../../common/util/file-chooser/staged-file-chooser/staged-file-chooser.component";
 import { CreateDriverDialogComponent } from "./create-driver-dialog/create-driver-dialog.component";
+import { MatCheckbox } from "@angular/material/checkbox";
+import { MatCard, MatCardContent, MatCardActions } from "@angular/material/card";
+import { MatProgressBar } from "@angular/material/progress-bar";
+import { MatButton } from "@angular/material/button";
+
 
 const PLUGIN_URI = "../api/em/settings/content/plugins";
 
 @Component({
-   selector: "em-plugins-view",
-   templateUrl: "./plugins-view.component.html",
-   styleUrls: ["./plugins-view.component.scss"]
+    selector: "em-plugins-view",
+    templateUrl: "./plugins-view.component.html",
+    styleUrls: ["./plugins-view.component.scss"],
+    imports: [StagedFileChooserComponent, MatButton, MatProgressBar, MatCard, MatCardContent, MatTable, MatSort, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCheckbox, MatCellDef, MatCell, MatSortHeader, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, MatCardActions]
 })
 export class PluginsViewComponent implements OnInit, AfterViewInit, OnDestroy {
    @ViewChild("fileChooser") fileChooser: StagedFileChooserComponent;
@@ -243,8 +249,9 @@ export class PluginsViewComponent implements OnInit, AfterViewInit, OnDestroy {
 }
 
 @Component({
-   selector: "em-uninstall-dialog",
-   templateUrl: "uninstall-dialog.html"
+    selector: "em-uninstall-dialog",
+    templateUrl: "uninstall-dialog.html",
+    imports: [MatDialogTitle, MatDialogContent, MatDialogActions, MatButton, MatDialogClose]
 })
 export class UninstallDialog {
    constructor(public dialogRef: MatDialogRef<UninstallDialog>) {

@@ -35,7 +35,8 @@ import { ContextProvider } from "../../../../vsobjects/context-provider.service"
 const SLIDER_PROPERTY_URI: string = "composer/vs/slider-property-dialog-model/";
 
 @Directive({
-   selector: "[cSliderActionHandler]"
+    selector: "[cSliderActionHandler]",
+    standalone: true
 })
 export class SliderActionHandlerDirective extends AbstractActionHandler implements OnDestroy {
    @Input() model: VSSliderModel;

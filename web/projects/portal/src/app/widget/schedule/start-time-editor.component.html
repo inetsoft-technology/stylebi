@@ -1,88 +1,99 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <ng-container [formGroup]="form">
-  <div class="form-row-float-label row" [class.single-option]="!timeRangeEnabled" *ngIf="startTimeEnabled">
-    <div class="col-auto select-type-option">
-      <input
-        class="form-check-input"
-        type="radio"
-        name="selectedType"
-        formControlName="selectedType"
-        value="START_TIME"
-        (change)="fireStartTimeChanged()"
-      />
-    </div>
-    <div class="col-auto">
-      <div class="form-floating">
-        <ngb-timepicker
-          [spinners]="false"
-          [meridian]="showMeridian"
-          formControlName="startTime"
-        >
-        </ngb-timepicker>
-        <label class="time-label">_#(Start Time)</label>
+  @if (startTimeEnabled) {
+    <div class="form-row-float-label row" [class.single-option]="!timeRangeEnabled">
+      <div class="col-auto select-type-option">
+        <input
+          class="form-check-input"
+          type="radio"
+          name="selectedType"
+          formControlName="selectedType"
+          value="START_TIME"
+          (change)="fireStartTimeChanged()"
+          />
       </div>
+      <div class="col-auto">
+        <div class="form-floating">
+          <ngb-timepicker
+            [spinners]="false"
+            [meridian]="showMeridian"
+            formControlName="startTime"
+            >
+          </ngb-timepicker>
+          <label class="time-label">_#(Start Time)</label>
+        </div>
+      </div>
+      @if (timeZoneName) {
+        <div class="col-auto">
+          <div class="mt-2 ms-2">{{ timeZoneName + (serverTimeZone ? " (_#(em.scheduler.servertimezone))" : "")}}</div>
+        </div>
+      }
     </div>
-    <div class="col-auto" *ngIf="timeZoneName">
-      <div class="mt-2 ms-2">{{ timeZoneName + (serverTimeZone ? " (_#(em.scheduler.servertimezone))" : "")}}</div>
-    </div>
-  </div>
+  }
   <div class="form-row-float-label row">
     <div class="col-auto">
       <ng-content></ng-content>
     </div>
   </div>
-  <div class="form-row-float-label row time-range-row" [class.single-option]="!startTimeEnabled" *ngIf="timeRangeEnabled">
-    <div class="col-auto select-type-option">
-      <input
-        class="form-check-input"
-        type="radio"
-        name="selectedType"
-        formControlName="selectedType"
-        value="TIME_RANGE"
-        (change)="fireStartTimeChanged()"
-      />
-    </div>
-    <div class="col-auto">
-      <div class="form-floating time-range-input">
-        <select
-          class="form-control"
-          formControlName="timeRange"
-          [compareWith]="compareTimeRange"
+  @if (timeRangeEnabled) {
+    <div class="form-row-float-label row time-range-row" [class.single-option]="!startTimeEnabled">
+      <div class="col-auto select-type-option">
+        <input
+          class="form-check-input"
+          type="radio"
+          name="selectedType"
+          formControlName="selectedType"
+          value="TIME_RANGE"
           (change)="fireStartTimeChanged()"
-        >
-          <option
-            *ngFor="let range of timeRanges"
-            [ngValue]="range"
-          >
-            {{range.label}}
-          </option>
-        </select>
-        <label>_#(Time Range)</label>
+          />
+      </div>
+      <div class="col-auto">
+        <div class="form-floating time-range-input">
+          <select
+            class="form-control"
+            formControlName="timeRange"
+            [compareWith]="compareTimeRange"
+            (change)="fireStartTimeChanged()"
+            >
+            @for (range of timeRanges; track range) {
+              <option
+                [ngValue]="range"
+                >
+                {{range.label}}
+              </option>
+            }
+          </select>
+          <label>_#(Time Range)</label>
+        </div>
       </div>
     </div>
-  </div>
-  <div class="alert alert-danger"
-       *ngIf="form.controls.startTime?.invalid && timeRangeEnabled||
-       !!timeRanges && timeRanges.length != 0 && form.controls.timeRange?.invalid && timeRangeEnabled">
-    _#(viewer.schedule.condition.startTimeValid)
-  </div>
-  <div class="alert alert-danger" *ngIf="!startTimeSelected() && (!timeRanges || timeRanges.length == 0)">
-    _#(viewer.schedule.condition.timeRangeRequired)
-  </div>
+  }
+  @if (form.controls.startTime?.invalid && timeRangeEnabled||
+    !!timeRanges && timeRanges.length != 0 && form.controls.timeRange?.invalid && timeRangeEnabled) {
+    <div class="alert alert-danger"
+      >
+      _#(viewer.schedule.condition.startTimeValid)
+    </div>
+  }
+  @if (!startTimeSelected() && (!timeRanges || timeRanges.length == 0)) {
+    <div class="alert alert-danger">
+      _#(viewer.schedule.condition.timeRangeRequired)
+    </div>
+  }
 </ng-container>

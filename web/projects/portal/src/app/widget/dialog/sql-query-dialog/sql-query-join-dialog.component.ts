@@ -21,10 +21,15 @@ import { AssetUtil } from "../../../binding/util/asset-util";
 import { AssetEntry } from "../../../../../../shared/data/asset-entry";
 import { Tool } from "../../../../../../shared/util/tool";
 import { JoinItem } from "../../../composer/data/ws/join-item";
+import { FormsModule } from "@angular/forms";
+
+import { EnterSubmitDirective } from "../../directive/enter-submit.directive";
+import { ModalHeaderComponent } from "../../modal-header/modal-header.component";
 
 @Component({
-   selector: "sql-query-join-dialog",
-   templateUrl: "sql-query-join-dialog.component.html"
+    selector: "sql-query-join-dialog",
+    templateUrl: "sql-query-join-dialog.component.html",
+    imports: [ModalHeaderComponent, EnterSubmitDirective, FormsModule]
 })
 export class SQLQueryJoinDialog implements OnInit, OnDestroy {
    @Input() joins: JoinItem[];

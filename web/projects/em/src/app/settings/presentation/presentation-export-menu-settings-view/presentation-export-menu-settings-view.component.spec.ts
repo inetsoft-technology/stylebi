@@ -45,13 +45,9 @@ describe("PresentationExportMenuSettingsViewComponent", () => {
             MatInputModule,
             MatSelectModule,
             MatDividerModule,
-            MatCheckboxModule
-         ],
-         declarations: [
-            PresentationExportMenuSettingsViewComponent,
-            ExportMenuOptionsViewComponent
-         ]
-      })
+            MatCheckboxModule,
+            PresentationExportMenuSettingsViewComponent, ExportMenuOptionsViewComponent]
+         })
          .compileComponents();
    }));
 

@@ -19,7 +19,8 @@ import { CdkScrollable } from "@angular/cdk/overlay";
 import { Directive, ElementRef, Input } from "@angular/core";
 
 @Directive({
-   selector: "[emNavigationScrollableItem]"
+    selector: "[emNavigationScrollableItem]",
+    standalone: true
 })
 export class NavigationScrollableItemDirective {
    @Input() emNavigationScrollableItem: string;

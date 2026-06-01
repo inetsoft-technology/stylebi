@@ -23,17 +23,10 @@ import {
    ViewChild,
    ViewEncapsulation
 } from "@angular/core";
-import {
-   AbstractControl,
-   FormGroup,
-   UntypedFormBuilder,
-   ValidationErrors,
-   ValidatorFn,
-   Validators
-} from "@angular/forms";
-import { MAT_DIALOG_DATA, MatDialogRef } from "@angular/material/dialog";
+import { AbstractControl, FormGroup, UntypedFormBuilder, ValidationErrors, ValidatorFn, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
+import { MAT_DIALOG_DATA, MatDialogRef, MatDialogContent } from "@angular/material/dialog";
 import { MatSnackBar } from "@angular/material/snack-bar";
-import { MatStepper, StepState } from "@angular/material/stepper";
+import { MatStepper, StepState, MatStep, MatStepperNext, MatStepperIcon } from "@angular/material/stepper";
 import { config, Observable, throwError } from "rxjs";
 import {
    catchError,
@@ -48,6 +41,18 @@ import {
 } from "rxjs/operators";
 import { Tool } from "../../../../../../../../shared/util/tool";
 import { DriverList } from "./driver-list";
+import { LoadingSpinnerComponent } from "../../../../../common/util/loading-spinner/loading-spinner.component";
+import { MatProgressSpinner } from "@angular/material/progress-spinner";
+import { MatOption } from "@angular/material/core";
+import { MatAutocompleteTrigger, MatAutocomplete } from "@angular/material/autocomplete";
+import { MatInput } from "@angular/material/input";
+import { MatError, MatFormField, MatLabel, MatHint } from "@angular/material/form-field";
+import { MatIcon } from "@angular/material/icon";
+import { MatIconButton, MatButton } from "@angular/material/button";
+
+import { MatList, MatListItem, MatSelectionList, MatListOption } from "@angular/material/list";
+import { MatRadioGroup, MatRadioButton } from "@angular/material/radio";
+import { ModalHeaderComponent } from "../../../../../common/util/modal-header/modal-header.component";
 
 interface UploadFilesResponse {
    identifier: string;
@@ -59,10 +64,11 @@ interface MavenSearchResponse {
 }
 
 @Component({
-   selector: "em-create-driver-dialog",
-   templateUrl: "./create-driver-dialog.component.html",
-   styleUrls: ["./create-driver-dialog.component.scss"],
-   encapsulation: ViewEncapsulation.None
+    selector: "em-create-driver-dialog",
+    templateUrl: "./create-driver-dialog.component.html",
+    styleUrls: ["./create-driver-dialog.component.scss"],
+    encapsulation: ViewEncapsulation.None,
+    imports: [ModalHeaderComponent, MatDialogContent, MatStepper, MatStep, FormsModule, ReactiveFormsModule, MatRadioGroup, MatRadioButton, MatList, MatListItem, MatIconButton, MatIcon, MatError, MatButton, MatFormField, MatLabel, MatInput, MatAutocompleteTrigger, MatHint, MatAutocomplete, MatOption, MatProgressSpinner, MatSelectionList, MatListOption, MatStepperNext, MatStepperIcon, LoadingSpinnerComponent]
 })
 export class CreateDriverDialogComponent implements OnInit {
    @ViewChild("stepper") stepper: MatStepper;

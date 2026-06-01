@@ -1,59 +1,59 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <div class="container-fluid" [ngClass]="getContainerClass()">
   <div class="row">
     <div class="col-10">
       <vpm-condition-item-pane [provider]="provider"
-                               [fields]="fields" [datasource]="provider?.datasource"
-                               [(condition)]="condition">
+        [fields]="fields" [datasource]="provider?.datasource"
+        [(condition)]="condition">
       </vpm-condition-item-pane>
     </div>
     <div class="col-2">
       <div class="form-check">
         <label class="form-check-label not_check_id">
           <input type="checkbox"
-                 class="form-check-input"
-                 [(ngModel)]="conjunction.isNot"
-                 [disabled]="conditionList.length == 0"
-                 (ngModelChange)="conjunctionChanged()">
+            class="form-check-input"
+            [(ngModel)]="conjunction.isNot"
+            [disabled]="conditionList.length == 0"
+            (ngModelChange)="conjunctionChanged()">
           {{'_#(Not)'}}
         </label>
       </div>
       <div class="form-check">
         <label class="form-check-label">
           <input type="radio" name="vpm-andOrButtons-{{uniquePageId}}"
-                 class="form-check-input"
-                 [(ngModel)]="conjunction.conjunction"
-                 [value]="ConjunctionTypes.AND"
-                 [disabled]="conditionList.length == 0"
-                 (ngModelChange)="conjunctionChanged()">
-           {{'_#(And)'}}
+            class="form-check-input"
+            [(ngModel)]="conjunction.conjunction"
+            [value]="ConjunctionTypes.AND"
+            [disabled]="conditionList.length == 0"
+            (ngModelChange)="conjunctionChanged()">
+          {{'_#(And)'}}
         </label>
       </div>
       <div class="form-check">
         <label class="form-check-label">
           <input type="radio" name="vpm-andOrButtons-{{uniquePageId}}"
-                 class="form-check-input"
-                 [(ngModel)]="conjunction.conjunction"
-                 [value]="ConjunctionTypes.OR"
-                 [disabled]="conditionList.length == 0"
-                 (ngModelChange)="conjunctionChanged()">
-           {{'_#(Or)'}}
+            class="form-check-input"
+            [(ngModel)]="conjunction.conjunction"
+            [value]="ConjunctionTypes.OR"
+            [disabled]="conditionList.length == 0"
+            (ngModelChange)="conjunctionChanged()">
+          {{'_#(Or)'}}
         </label>
       </div>
     </div>
@@ -61,51 +61,57 @@
   <div class="row condition-list-pane">
     <div class="col-10">
       <div class="bordered-box bd-gray" [ngClass]="getConditionListBoxClass()">
-        <div *ngFor="let item of conditionList; let even = even; let i = index;"
-             class="unhighlightable"
-             [class.bg-selected]="selectedIndex == i" (click)="conditionItemSelected(i)">
-          <div *ngIf="even">
-            {{item | clauseToString}}
+        @for (item of conditionList; track item; let even = $even; let i = $index) {
+          <div
+            class="unhighlightable"
+            [class.bg-selected]="selectedIndex == i" (click)="conditionItemSelected(i)">
+            @if (even) {
+              <div>
+                {{item | clauseToString}}
+              </div>
+            }
+            @if (!even) {
+              <div>
+                {{item | conjunctionToString}}
+              </div>
+            }
           </div>
-          <div *ngIf="!even">
-            {{item | conjunctionToString}}
-          </div>
-        </div>
+        }
       </div>
     </div>
     <div class="col-2 btn-container-vertical">
       <button type="button" class="btn btn-primary btn-sm"
-                (click)="insert()"
-                [disabled]="!isConditionValid(condition)">
-          {{buttonText}}
+        (click)="insert()"
+        [disabled]="!isConditionValid(condition)">
+        {{buttonText}}
       </button>
       <button type="button" class="btn btn-secondary btn-sm"
-                (click)="modify()"
-                [disabled]="modifyDisable()">
-          _#(Modify)
+        (click)="modify()"
+        [disabled]="modifyDisable()">
+        _#(Modify)
       </button>
       <button type="button" class="btn btn-secondary btn-sm" (click)="deleteCondition()"
-              [disabled]="selectedIndex == null || selectedIndex % 2 !== 0">
+        [disabled]="selectedIndex == null || selectedIndex % 2 !== 0">
         _#(Delete)
       </button>
       <button type="button" class="btn btn-secondary btn-sm" (click)="clear()"
-              [disabled]="conditionList == null || conditionList.length === 0">
+        [disabled]="conditionList == null || conditionList.length === 0">
         _#(Clear)
       </button>
       <button type="button" class="btn btn-secondary btn-sm" (click)="indent()"
-              [disabled]="!canIndent()">
+        [disabled]="!canIndent()">
         _#(Indent)
       </button>
       <button type="button" class="btn btn-secondary btn-sm" (click)="unindent()"
-              [disabled]="!canUnindent()">
+        [disabled]="!canUnindent()">
         _#(Unindent)
       </button>
       <button type="button" class="btn btn-secondary btn-sm" (click)="up()"
-              [disabled]="!canMoveUp()">
+        [disabled]="!canMoveUp()">
         _#(Move Up)
       </button>
       <button type="button" class="btn btn-secondary btn-sm" (click)="down()"
-              [disabled]="!canMoveDown()">
+        [disabled]="!canMoveDown()">
         _#(Move Down)
       </button>
     </div>

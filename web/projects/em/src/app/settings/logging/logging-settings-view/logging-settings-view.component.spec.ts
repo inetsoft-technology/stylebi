@@ -26,9 +26,9 @@ import { MatSelectModule } from "@angular/material/select";
 import { LoggingSettingsViewComponent } from "./logging-settings-view.component";
 import { NoopAnimationsModule } from "@angular/platform-browser/animations";
 import { HttpClientTestingModule } from "@angular/common/http/testing";
-import { DownloadModule } from "../../../../../../shared/download/download.module";
+import { DownloadTargetComponent } from "../../../../../../shared/download/download-target.component";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
-import { TableViewModule } from "../../../common/util/table/table-view.module";
+import { TableView } from "../../../common/util/table/table-view.component";
 import { LoggingLevelTableComponent } from "../logging-level-table/logging-level-table.component";
 import { AppInfoService } from "../../../../../../shared/util/app-info.service";
 
@@ -38,8 +38,8 @@ describe("LoggingSettingsViewComponent", () => {
 
    beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
-         declarations: [LoggingSettingsViewComponent, LoggingLevelTableComponent],
          imports: [
+            LoggingSettingsViewComponent, LoggingLevelTableComponent,
             NoopAnimationsModule,
             MatFormFieldModule,
             MatCheckboxModule,
@@ -48,11 +48,11 @@ describe("LoggingSettingsViewComponent", () => {
             MatCardModule,
             MatDividerModule,
             HttpClientTestingModule,
-            DownloadModule,
+            DownloadTargetComponent,
             FormsModule,
             ReactiveFormsModule,
             MatButtonModule,
-            TableViewModule
+            TableView
          ],
          providers: [
             AppInfoService

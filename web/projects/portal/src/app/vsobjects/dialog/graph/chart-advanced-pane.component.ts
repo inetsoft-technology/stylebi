@@ -22,13 +22,17 @@ import { Tool } from "../../../../../../shared/util/tool";
 import { TargetInfo } from "../../../widget/target/target-info";
 import { ChartConfig } from "../../../common/util/chart-config";
 import { GraphTypes } from "../../../common/graph-types";
-import { FormControl, UntypedFormGroup } from "@angular/forms";
+import { FormControl, UntypedFormGroup, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { FormValidators } from "../../../../../../shared/util/form-validators";
+import { ChartTargetLinesPane } from "../../../graph/dialog/chart-target-lines-pane.component";
+import { ChartPlotOptionsPaneComponent } from "../../../graph/dialog/chart-plot-options-pane.component";
+
 
 @Component({
-   selector: "chart-advanced-pane",
-   templateUrl: "chart-advanced-pane.component.html",
-   styleUrls: ["chart-advanced-pane.component.scss"]
+    selector: "chart-advanced-pane",
+    templateUrl: "chart-advanced-pane.component.html",
+    styleUrls: ["chart-advanced-pane.component.scss"],
+    imports: [FormsModule, ReactiveFormsModule, ChartPlotOptionsPaneComponent, ChartTargetLinesPane]
 })
 export class ChartAdvancedPane implements OnInit {
    @Input() model: ChartAdvancedPaneModel;

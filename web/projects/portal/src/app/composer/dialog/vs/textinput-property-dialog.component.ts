@@ -22,10 +22,36 @@ import { ScriptPaneTreeModel } from "../../../widget/dialog/script-pane/script-p
 import { UIContextService } from "../../../common/services/ui-context.service";
 import { PropertyDialogService } from "../../../vsobjects/util/property-dialog.service";
 import { PropertyDialog } from "./property-dialog.component";
+import { ApplyButtonComponent } from "../../../widget/slide-out/apply-button.component";
+import { ClickableScriptPane } from "./clickable-script-pane.component";
+import { InputLabelPane } from "./input-label-pane.component";
+import { TextInputColumnOptionPane } from "./textinput-column-option-pane.component";
+import { DataInputPane } from "./data-input-pane.component";
+import { TextInputGeneralPane } from "./textinput-general-pane.component";
+import { NgbNav, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavContent, NgbNavOutlet } from "@ng-bootstrap/ng-bootstrap";
+import { EnterSubmitDirective } from "../../../widget/directive/enter-submit.directive";
+
+import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
 
 @Component({
-   selector: "textinput-property-dialog",
-   templateUrl: "textinput-property-dialog.component.html",
+    selector: "textinput-property-dialog",
+    templateUrl: "textinput-property-dialog.component.html",
+    imports: [
+    ModalHeaderComponent,
+    EnterSubmitDirective,
+    NgbNav,
+    NgbNavItem,
+    NgbNavLink,
+    NgbNavLinkBase,
+    NgbNavContent,
+    TextInputGeneralPane,
+    DataInputPane,
+    TextInputColumnOptionPane,
+    InputLabelPane,
+    ClickableScriptPane,
+    NgbNavOutlet,
+    ApplyButtonComponent
+]
 })
 export class TextInputPropertyDialog extends PropertyDialog implements OnInit {
    @Input() model: TextInputPropertyDialogModel;

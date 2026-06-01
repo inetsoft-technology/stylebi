@@ -30,7 +30,9 @@ import { TreeComponent } from "../../../widget/tree/tree.component";
 import { SelectionTreeColumnsPane } from "./selection-tree-columns-pane.component";
 
 @Component({
+   standalone: true,
    selector: "test-app",
+   imports: [SelectionTreeColumnsPane],
    template: `<selection-tree-columns-pane [model]="mockModel" >
                  </selection-tree-columns-pane>`
 })
@@ -60,10 +62,8 @@ describe("selection tree columns pane unit case", () => {
       dataTreeValidatorService = { validateTreeNode: jest.fn() };
 
       TestBed.configureTestingModule({
-         imports: [NgbModule, ReactiveFormsModule, FormsModule],
-         declarations: [
-            TestApp, SelectionTreeColumnsPane, TreeComponent, TreeNodeComponent, TreeSearchPipe
-         ],
+         imports: [NgbModule, ReactiveFormsModule, FormsModule, TestApp, SelectionTreeColumnsPane, TreeComponent, TreeNodeComponent, TreeSearchPipe],
+         
          providers: [
             {provide: ChangeDetectorRef, useValue: changeDetectorRef},
             {provide: NgbModal, useValue: modalService},

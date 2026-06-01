@@ -17,11 +17,15 @@
  */
 import { Component, Input, Output, EventEmitter, ChangeDetectorRef } from "@angular/core";
 import { DebounceService } from "../services/debounce.service";
+import { DisableDropDirective } from "../directive/disable-drop.directive";
+import { FormsModule } from "@angular/forms";
+import { BlockMouseDirective } from "../mouse-event/block-mouse.directive";
 
 @Component({
-   selector: "alpha-dropdown",
-   templateUrl: "alpha-dropdown.component.html",
-   styleUrls: ["./alpha-dropdown.component.scss"]
+    selector: "alpha-dropdown",
+    templateUrl: "alpha-dropdown.component.html",
+    styleUrls: ["./alpha-dropdown.component.scss"],
+    imports: [BlockMouseDirective, FormsModule, DisableDropDirective]
 })
 export class AlphaDropdown {
    @Input() alpha: number = 100;

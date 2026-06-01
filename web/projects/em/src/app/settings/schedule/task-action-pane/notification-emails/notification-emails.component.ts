@@ -16,7 +16,11 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, EventEmitter, Input, OnInit, Output } from "@angular/core";
-import { UntypedFormControl } from "@angular/forms";
+import { UntypedFormControl, FormsModule, ReactiveFormsModule } from "@angular/forms";
+import { EmailPickerComponent } from "../../../email-picker/email-picker.component";
+
+import { MatCheckbox } from "@angular/material/checkbox";
+import { MatCard, MatCardHeader, MatCardTitle, MatCardContent } from "@angular/material/card";
 
 export interface NotificationEmails {
    valid: boolean;
@@ -27,9 +31,10 @@ export interface NotificationEmails {
 }
 
 @Component({
-   selector: "em-notification-emails",
-   templateUrl: "./notification-emails.component.html",
-   styleUrls: ["./notification-emails.component.scss"]
+    selector: "em-notification-emails",
+    templateUrl: "./notification-emails.component.html",
+    styleUrls: ["./notification-emails.component.scss"],
+    imports: [MatCard, MatCardHeader, MatCardTitle, MatCheckbox, FormsModule, MatCardContent, EmailPickerComponent, ReactiveFormsModule]
 })
 export class NotificationEmailsComponent implements OnInit {
    @Input() enabled: boolean = false;

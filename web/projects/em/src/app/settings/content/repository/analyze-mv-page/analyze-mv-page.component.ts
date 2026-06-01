@@ -37,14 +37,24 @@ import { SecurityEnabledEvent } from "../../../security/security-settings-page/s
 import { MVManagementModel } from "../../materialized-views/mv-management-view/mv-management-model";
 import { MvExceptionsDialogComponent } from "../mv-exceptions-dialog/mv-exceptions-dialog.component";
 import { RepositoryTreeNode } from "../repository-tree-node";
+import { LoadingSpinnerComponent } from "../../../../common/util/loading-spinner/loading-spinner.component";
+import { MatCheckbox } from "@angular/material/checkbox";
+import { MatOption } from "@angular/material/core";
+import { FormsModule } from "@angular/forms";
+import { MatSelect } from "@angular/material/select";
+import { MatFormField, MatLabel } from "@angular/material/form-field";
+import { MatCard, MatCardTitle, MatCardContent } from "@angular/material/card";
+import { TableView } from "../../../../common/util/table/table-view.component";
+
 
 const MATERIALIZATION_NO_MVS_MESSAGE = "_#(js:viewer.viewsheet.materialization.noMVs)";
 const MATERIALIZATION_NO_ASSETS_MESSAGE = "_#(js:viewer.viewsheet.materialization.noAssets)";
 
 @Component({
-   selector: "em-analyze-mv-page",
-   templateUrl: "./analyze-mv-page.component.html",
-   styleUrls: ["./analyze-mv-page.component.scss"]
+    selector: "em-analyze-mv-page",
+    templateUrl: "./analyze-mv-page.component.html",
+    styleUrls: ["./analyze-mv-page.component.scss"],
+    imports: [TableView, MatCard, MatCardTitle, MatCardContent, MatFormField, MatSelect, FormsModule, MatOption, MatCheckbox, MatLabel, LoadingSpinnerComponent]
 })
 export class AnalyzeMvPageComponent implements OnInit, OnDestroy {
    @Input() nodesToAnalyze: RepositoryTreeNode[];

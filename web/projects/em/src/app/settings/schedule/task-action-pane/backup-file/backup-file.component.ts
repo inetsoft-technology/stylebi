@@ -17,7 +17,7 @@
  */
 import { HttpClient, HttpErrorResponse } from "@angular/common/http";
 import { Component, EventEmitter, Input, OnDestroy, Output } from "@angular/core";
-import { UntypedFormBuilder, UntypedFormGroup, Validators } from "@angular/forms";
+import { UntypedFormBuilder, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { MatDialog } from "@angular/material/dialog";
 import { MatSnackBar } from "@angular/material/snack-bar";
 import { DomSanitizer } from "@angular/platform-browser";
@@ -29,7 +29,7 @@ import { RepositoryEditorModel } from "../../../../../../../shared/util/model/re
 import { Tool } from "../../../../../../../shared/util/tool";
 import { MessageDialog, MessageDialogType } from "../../../../common/util/message-dialog";
 import { FlatTreeNode } from "../../../../common/util/tree/flat-tree-model";
-import { FlatTreeSelectNodeEvent } from "../../../../common/util/tree/flat-tree-view.component";
+import { FlatTreeSelectNodeEvent, FlatTreeViewComponent } from "../../../../common/util/tree/flat-tree-view.component";
 import { ContentRepositoryService } from "../../../content/repository/content-repository-page/content-repository.service";
 import { ExportAssetsService, ExportStatusModel } from "../../../content/repository/import-export/export-assets.service";
 import {
@@ -40,6 +40,15 @@ import { RepositoryTreeDataSource } from "../../../content/repository/repository
 import { RepositoryFlatNode, RepositoryTreeNode } from "../../../content/repository/repository-tree-node";
 import { ServerPathInfoModel } from "../../../../../../../portal/src/app/vsobjects/model/server-path-info-model";
 import { convertToKey, removeOrganization } from "../../../security/users/identity-id";
+import { MatIcon } from "@angular/material/icon";
+import { MatList, MatListItem } from "@angular/material/list";
+import { MatMiniFabButton } from "@angular/material/button";
+import { MatProgressBar } from "@angular/material/progress-bar";
+import { MatInput } from "@angular/material/input";
+import { MatFormField, MatError, MatLabel } from "@angular/material/form-field";
+import { AsyncPipe } from "@angular/common";
+import { MatCheckbox } from "@angular/material/checkbox";
+import { MatCard, MatCardHeader, MatCardTitle, MatCardContent } from "@angular/material/card";
 
 export interface BackupPathsSave {
    valid: boolean;
@@ -54,12 +63,13 @@ export interface BackupPathsSave {
 }
 
 @Component({
-   selector: "em-backup-file",
-   templateUrl: "./backup-file.component.html",
-   styleUrls: ["./backup-file.component.scss"],
-   providers: [
-      RepositoryTreeDataSource
-   ]
+    selector: "em-backup-file",
+    templateUrl: "./backup-file.component.html",
+    styleUrls: ["./backup-file.component.scss"],
+    providers: [
+        RepositoryTreeDataSource
+    ],
+    imports: [MatCard, MatCardHeader, MatCardTitle, MatCheckbox, FormsModule, MatCardContent, ReactiveFormsModule, MatFormField, MatInput, MatError, MatLabel, MatProgressBar, FlatTreeViewComponent, MatMiniFabButton, MatList, MatListItem, MatIcon, AsyncPipe]
 })
 export class BackupFileComponent implements OnDestroy {
    @Input() enabled = true;

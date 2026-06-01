@@ -1,26 +1,26 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <dynamic-image-pane [model]="model.dynamicImagePaneModel" [variableValues]="variableValues"
-                    [layoutObject]="layoutObject" [vsId]="runtimeId">
+  [layoutObject]="layoutObject" [vsId]="runtimeId">
 </dynamic-image-pane>
 <image-scale-pane [model]="model.imageScalePaneModel" [selectedImage]="selectedImagePath"
-                  [runtimeId]="runtimeId" [animateGif]="animateGif"
-                  [previewEnabled]="previewEnabled()">
+  [runtimeId]="runtimeId" [animateGif]="animateGif"
+  [previewEnabled]="previewEnabled()">
 </image-scale-pane>
 <form ngNoForm (submit)="$event.preventDefault()" class="container-fluid">
   <fieldset>
@@ -29,16 +29,18 @@
       <div class="col form-floating">
         <select class="form-control" [(ngModel)]="model.popComponent" [disabled]="layoutObject">
           <option value="">_#(None)</option>
-          <option *ngFor="let component of model.popComponents" [title]="component" value={{component}}>
-            {{component | truncate}}
-          </option>
+          @for (component of model.popComponents; track component) {
+            <option [title]="component" value={{component}}>
+              {{component | truncate}}
+            </option>
+          }
         </select>
         <label><span>_#(Pop Component)</span></label>
       </div>
       <div class="col">
         <div class="form-floating">
           <alpha-dropdown [disabled]="!model.popComponent || layoutObject"
-                          [(alpha)]="model.alpha" (alphaInvalid)="changeAlphaWarning($event)">
+            [(alpha)]="model.alpha" (alphaInvalid)="changeAlphaWarning($event)">
           </alpha-dropdown>
           <label>_#(Alpha)</label>
         </div>
@@ -47,19 +49,25 @@
     <div class="form-row-float-label row">
       <div class="col form-floating">
         <select class="form-control" [(ngModel)]="model.popLocation"
-                [disabled]="layoutObject"
-                placeholder="_#(Pop Location)">
-          <option *ngFor="let component of getKeys()" [title]="popService.getPopLocationLabel(component)" [value]="component">
-            {{popService.getPopLocationLabel(component) | truncate}}
-          </option>
+          [disabled]="layoutObject"
+          placeholder="_#(Pop Location)">
+          @for (component of getKeys(); track component) {
+            <option [title]="popService.getPopLocationLabel(component)" [value]="component">
+              {{popService.getPopLocationLabel(component) | truncate}}
+            </option>
+          }
         </select>
         <label><span>_#(Pop Location)</span></label>
       </div>
     </div>
   </fieldset>
-  <div *ngIf="alphaInvalid" class="alert alert-danger">
-    _#(viewer.flash.format.invalidTransparencyError)
-  </div>
+  @if (alphaInvalid) {
+    <div class="alert alert-danger">
+      _#(viewer.flash.format.invalidTransparencyError)
+    </div>
+  }
 </form>
-<notifications *ngIf="objectAddRemoved" class="warning-message" [timeout]="0"
-               message="_#(viewer.dialog.viewsheetModified)"></notifications>
+@if (objectAddRemoved) {
+  <notifications class="warning-message" [timeout]="0"
+  message="_#(viewer.dialog.viewsheetModified)"></notifications>
+}

@@ -17,10 +17,13 @@
  */
 import { Component, Input, Output, EventEmitter } from "@angular/core";
 
+import { FixedDropdownDirective } from "../../../../widget/fixed-dropdown/fixed-dropdown.directive";
+
 @Component({
-   selector: "linear-color-dropdown",
-   templateUrl: "linear-color-dropdown.component.html",
-   styleUrls: ["linear-color-dropdown.component.scss"]
+    selector: "linear-color-dropdown",
+    templateUrl: "linear-color-dropdown.component.html",
+    styleUrls: ["linear-color-dropdown.component.scss"],
+    imports: [FixedDropdownDirective]
 })
 export class LinearColorDropdown {
    @Input() colorFrame: string;

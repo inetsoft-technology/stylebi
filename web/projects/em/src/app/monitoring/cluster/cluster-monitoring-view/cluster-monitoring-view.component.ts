@@ -20,11 +20,13 @@ import { Component, EventEmitter, Input, Output } from "@angular/core";
 import { TableInfo } from "../../../common/util/table/table-info";
 import { TableModel } from "../../../common/util/table/table-model";
 import { ReportClusterNodeModel } from "../cluster-monitoring-model/report-cluster-node-model";
+import { TableView } from "../../../common/util/table/table-view.component";
 
 @Component({
-  selector: "em-cluster-monitoring-view",
-  templateUrl: "./cluster-monitoring-view.component.html",
-  styleUrls: ["./cluster-monitoring-view.component.scss"]
+    selector: "em-cluster-monitoring-view",
+    templateUrl: "./cluster-monitoring-view.component.html",
+    styleUrls: ["./cluster-monitoring-view.component.scss"],
+    imports: [TableView]
 })
 export class ClusterMonitoringViewComponent {
    @Input() dataSource: ReportClusterNodeModel[];

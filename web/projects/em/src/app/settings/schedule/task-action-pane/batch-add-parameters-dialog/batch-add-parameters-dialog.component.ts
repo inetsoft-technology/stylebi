@@ -17,19 +17,22 @@
  */
 import { HttpClient } from "@angular/common/http";
 import { Component, Inject, OnInit } from "@angular/core";
-import { MAT_DIALOG_DATA, MatDialog, MatDialogRef } from "@angular/material/dialog";
+import { MAT_DIALOG_DATA, MatDialog, MatDialogRef, MatDialogContent, MatDialogActions } from "@angular/material/dialog";
 import { MatSnackBar } from "@angular/material/snack-bar";
 import { AddParameterDialogModel } from "../../../../../../../shared/schedule/model/add-parameter-dialog-model";
-import { Parameters } from "../../parameter-table/parameter-table.component";
+import { Parameters, ParameterTableComponent } from "../../parameter-table/parameter-table.component";
+import { MatButton } from "@angular/material/button";
+import { ModalHeaderComponent } from "../../../../common/util/modal-header/modal-header.component";
 
 export interface BatchAddParametersDialogResult {
    parameters: AddParameterDialogModel[];
 }
 
 @Component({
-   selector: "em-batch-add-parameters-dialog",
-   templateUrl: "./batch-add-parameters-dialog.component.html",
-   styleUrls: ["./batch-add-parameters-dialog.component.scss"]
+    selector: "em-batch-add-parameters-dialog",
+    templateUrl: "./batch-add-parameters-dialog.component.html",
+    styleUrls: ["./batch-add-parameters-dialog.component.scss"],
+    imports: [ModalHeaderComponent, MatDialogContent, ParameterTableComponent, MatDialogActions, MatButton]
 })
 export class BatchAddParametersDialogComponent implements OnInit {
    parameters: AddParameterDialogModel[];

@@ -759,6 +759,101 @@ public class ConditionTest {
    }
 
    @Test
+   void dateIn_nextYear_matchesNextYear() {
+      Condition cond = new Condition(XSchema.DATE);
+      cond.setOperation(XCondition.DATE_IN);
+      cond.addValue("next year");
+
+      Calendar cal = Calendar.getInstance();
+      cal.set(Calendar.MONTH, Calendar.JUNE);
+      cal.set(Calendar.DAY_OF_MONTH, 15);
+      cal.set(Calendar.HOUR_OF_DAY, 12);
+      cal.set(Calendar.MINUTE, 0);
+      cal.set(Calendar.SECOND, 0);
+      cal.set(Calendar.MILLISECOND, 0);
+      cal.add(Calendar.YEAR, 1);
+      assertTrue(cond.evaluate(cal.getTime()));
+   }
+
+   @Test
+   void dateIn_nextYear_doesNotMatchCurrentYear() {
+      Condition cond = new Condition(XSchema.DATE);
+      cond.setOperation(XCondition.DATE_IN);
+      cond.addValue("next year");
+
+      Calendar cal = Calendar.getInstance();
+      cal.set(Calendar.MONTH, Calendar.JUNE);
+      cal.set(Calendar.DAY_OF_MONTH, 15);
+      cal.set(Calendar.HOUR_OF_DAY, 12);
+      cal.set(Calendar.MINUTE, 0);
+      cal.set(Calendar.SECOND, 0);
+      cal.set(Calendar.MILLISECOND, 0);
+      assertFalse(cond.evaluate(cal.getTime()));
+   }
+
+   @Test
+   void dateIn_nextMonth_matchesNextMonth() {
+      Condition cond = new Condition(XSchema.DATE);
+      cond.setOperation(XCondition.DATE_IN);
+      cond.addValue("next month");
+
+      Calendar cal = Calendar.getInstance();
+      cal.set(Calendar.DAY_OF_MONTH, 15);
+      cal.set(Calendar.HOUR_OF_DAY, 12);
+      cal.set(Calendar.MINUTE, 0);
+      cal.set(Calendar.SECOND, 0);
+      cal.set(Calendar.MILLISECOND, 0);
+      cal.add(Calendar.MONTH, 1);
+      assertTrue(cond.evaluate(cal.getTime()));
+   }
+
+   @Test
+   void dateIn_nextMonth_doesNotMatchCurrentMonth() {
+      Condition cond = new Condition(XSchema.DATE);
+      cond.setOperation(XCondition.DATE_IN);
+      cond.addValue("next month");
+
+      Calendar cal = Calendar.getInstance();
+      cal.set(Calendar.DAY_OF_MONTH, 15);
+      cal.set(Calendar.HOUR_OF_DAY, 12);
+      cal.set(Calendar.MINUTE, 0);
+      cal.set(Calendar.SECOND, 0);
+      cal.set(Calendar.MILLISECOND, 0);
+      assertFalse(cond.evaluate(cal.getTime()));
+   }
+
+   @Test
+   void dateIn_nextWeek_matchesNextWeek() {
+      Condition cond = new Condition(XSchema.DATE);
+      cond.setOperation(XCondition.DATE_IN);
+      cond.addValue("next week");
+
+      Calendar cal = Calendar.getInstance();
+      cal.set(Calendar.DAY_OF_WEEK, Calendar.WEDNESDAY);
+      cal.set(Calendar.HOUR_OF_DAY, 12);
+      cal.set(Calendar.MINUTE, 0);
+      cal.set(Calendar.SECOND, 0);
+      cal.set(Calendar.MILLISECOND, 0);
+      cal.add(Calendar.WEEK_OF_YEAR, 1);
+      assertTrue(cond.evaluate(cal.getTime()));
+   }
+
+   @Test
+   void dateIn_nextWeek_doesNotMatchCurrentWeek() {
+      Condition cond = new Condition(XSchema.DATE);
+      cond.setOperation(XCondition.DATE_IN);
+      cond.addValue("next week");
+
+      Calendar cal = Calendar.getInstance();
+      cal.set(Calendar.DAY_OF_WEEK, Calendar.WEDNESDAY);
+      cal.set(Calendar.HOUR_OF_DAY, 12);
+      cal.set(Calendar.MINUTE, 0);
+      cal.set(Calendar.SECOND, 0);
+      cal.set(Calendar.MILLISECOND, 0);
+      assertFalse(cond.evaluate(cal.getTime()));
+   }
+
+   @Test
    void dateIn_nullValue_returnsFalse() {
       Condition cond = new Condition(XSchema.DATE);
       cond.setOperation(XCondition.DATE_IN);

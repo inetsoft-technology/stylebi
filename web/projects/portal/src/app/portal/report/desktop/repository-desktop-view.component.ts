@@ -30,11 +30,13 @@ import { RepositoryEntry } from "../../../../../../shared/data/repository-entry"
 import { SplitPane } from "../../../widget/split-pane/split-pane.component";
 import { TreeNodeModel } from "../../../widget/tree/tree-node-model";
 import { ReportTabModel } from "../report-tab-model";
+import { RepositoryTreeViewComponent } from "../tree/repository-tree-view.component";
 
 @Component({
-   selector: "p-repository-desktop-view",
-   templateUrl: "./repository-desktop-view.component.html",
-   styleUrls: ["./repository-desktop-view.component.scss"]
+    selector: "p-repository-desktop-view",
+    templateUrl: "./repository-desktop-view.component.html",
+    styleUrls: ["./repository-desktop-view.component.scss"],
+    imports: [SplitPane, RepositoryTreeViewComponent]
 })
 export class RepositoryDesktopViewComponent implements OnInit, AfterViewInit, OnChanges {
    @Input() model: ReportTabModel;

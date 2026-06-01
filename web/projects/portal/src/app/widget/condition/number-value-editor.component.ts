@@ -16,10 +16,12 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, EventEmitter, Input, Output } from "@angular/core";
+import { FormsModule } from "@angular/forms";
 
 @Component({
-   selector: "number-value-editor",
-   templateUrl: "number-value-editor.component.html"
+    selector: "number-value-editor",
+    templateUrl: "number-value-editor.component.html",
+    imports: [FormsModule]
 })
 export class NumberValueEditor {
    @Input() type: string;

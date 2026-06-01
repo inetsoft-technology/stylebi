@@ -27,7 +27,7 @@ import { ChartBindingModel } from "../data/chart/chart-binding-model";
 import { CrosstabBindingModel } from "../data/table/crosstab-binding-model";
 import { TableBindingModel } from "../data/table/table-binding-model";
 import { BindingService } from "../services/binding.service";
-import { SidebarTab } from "../widget/binding-tree/data-editor-tab-pane.component";
+import { SidebarTab, DataEditorTabPane } from "../widget/binding-tree/data-editor-tab-pane.component";
 import { FormatsPane } from "./formats-pane.component";
 import { NotificationsComponent } from "../../widget/notifications/notifications.component";
 import { NgbModal, NgbModalOptions } from "@ng-bootstrap/ng-bootstrap";
@@ -35,13 +35,29 @@ import { ConsoleDialogComponent } from "../../widget/console-dialog/console-dial
 import { ConsoleMessage } from "../../widget/console-dialog/console-message";
 import { Tool } from "../../../../../shared/util/tool";
 import { ModelService } from "../../widget/services/model.service";
+import { StatusBar } from "../../status-bar/status-bar.component";
+import { CalcDataPane } from "./table/calc-data-pane.component";
+import { CrosstabDataPane } from "./table/crosstab-data-pane.component";
+import { TableDataPane } from "./table/table-data-pane.component";
+import { ChartDataPane } from "./chart/chart-data-pane.component";
+import { CalcOptionPane } from "./table/calc-option-pane.component";
+import { CrosstabOption } from "./table/crosstab-option.component";
+import { TableOption } from "./table/table-option.component";
+import { AestheticPane } from "./chart/aesthetic/aesthetic-pane.component";
+import { ChartHighLowPane } from "./chart/chart-high-low-pane.component";
+import { ChartEditorToolbar } from "./chart/chart-editor-toolbar.component";
+import { DataEditorBindingTree } from "../widget/binding-tree/data-editor-binding-tree.component";
+import { SplitPane } from "../../widget/split-pane/split-pane.component";
+import { EditorTitleBar } from "./editor-title-bar.component";
+import { NgClass } from "@angular/common";
 
 const GET_MESSAGE_LEVELS_URI = "../api/composer/console-dialog/get-message-levels/";
 
 @Component({
-   selector: "binding-editor",
-   templateUrl: "binding-editor.component.html",
-   styleUrls: ["binding-editor.component.scss"]
+    selector: "binding-editor",
+    templateUrl: "binding-editor.component.html",
+    styleUrls: ["binding-editor.component.scss"],
+    imports: [EditorTitleBar, NgClass, SplitPane, DataEditorTabPane, FormatsPane, DataEditorBindingTree, ChartEditorToolbar, ChartHighLowPane, AestheticPane, TableOption, CrosstabOption, CalcOptionPane, ChartDataPane, TableDataPane, CrosstabDataPane, CalcDataPane, StatusBar, NotificationsComponent, ConsoleDialogComponent]
 })
 export class BindingEditor implements OnInit, AfterViewInit, OnDestroy {
    @Input() objectModel: any;

@@ -20,13 +20,16 @@ import { Component, EventEmitter, Input, Output } from "@angular/core";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { ComponentTool } from "../../../../../../../../common/util/component-tool";
 import { GraphNodeModel } from "../../../../../../model/datasources/database/physical-model/graph/graph-node-model";
+import { FormsModule } from "@angular/forms";
+import { ModalHeaderComponent } from "../../../../../../../../widget/modal-header/modal-header.component";
 
 const CHECK_TABLE_ALIAS_URI = "../api/data/datasource/query/table/alias/check";
 
 @Component({
-   selector: "query-table-properties-dialog",
-   templateUrl: "./query-table-properties-dialog.component.html",
-   styleUrls: ["./query-table-properties-dialog.component.scss"]
+    selector: "query-table-properties-dialog",
+    templateUrl: "./query-table-properties-dialog.component.html",
+    styleUrls: ["./query-table-properties-dialog.component.scss"],
+    imports: [ModalHeaderComponent, FormsModule]
 })
 export class QueryTablePropertiesDialogComponent {
    @Input() newAlias: string;

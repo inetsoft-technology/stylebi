@@ -16,11 +16,14 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, EventEmitter, Input, Output } from "@angular/core";
+import { LineComboBox } from "./line-combo-box.component";
+
 
 @Component({
-   selector: "static-line-editor",
-   templateUrl: "static-line-editor.component.html",
-   styleUrls: ["combined-visual-pane.scss"]
+    selector: "static-line-editor",
+    templateUrl: "static-line-editor.component.html",
+    styleUrls: ["combined-visual-pane.scss"],
+    imports: [LineComboBox]
 })
 export class StaticLineEditor {
    @Input() aggrName: string;

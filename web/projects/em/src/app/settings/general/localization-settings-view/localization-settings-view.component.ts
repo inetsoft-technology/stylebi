@@ -21,8 +21,8 @@ import { Component, EventEmitter, Input, OnInit, Output, ViewChild } from "@angu
 import { MatDialog, MatDialogConfig } from "@angular/material/dialog";
 import { MatPaginator } from "@angular/material/paginator";
 import { MatSnackBar } from "@angular/material/snack-bar";
-import { MatSort, Sort } from "@angular/material/sort";
-import { MatTableDataSource } from "@angular/material/table";
+import { MatSort, Sort, MatSortHeader } from "@angular/material/sort";
+import { MatTableDataSource, MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow } from "@angular/material/table";
 import { GeneralSettingsChanges } from "../general-settings-page/general-settings-page.component";
 import {
    LocalizationModel,
@@ -33,6 +33,12 @@ import { Searchable } from "../../../searchable";
 import { DownloadService } from "../../../../../../shared/download/download.service";
 import { GeneralSettingsType } from "../general-settings-page/general-settings-type.enum";
 import { ContextHelp } from "../../../context-help";
+import { MatCheckbox } from "@angular/material/checkbox";
+import { MatIcon } from "@angular/material/icon";
+import { MatTooltip } from "@angular/material/tooltip";
+import { MatMiniFabButton, MatButton } from "@angular/material/button";
+import { MatCard, MatCardTitle, MatCardContent, MatCardActions } from "@angular/material/card";
+
 
 @Searchable({
    route: "/settings/general#localization",
@@ -44,9 +50,10 @@ import { ContextHelp } from "../../../context-help";
    link: "EMGeneralLocalization"
 })
 @Component({
-   selector: "em-localization-settings-view",
-   templateUrl: "./localization-settings-view.component.html",
-   styleUrls: ["./localization-settings-view.component.scss"]
+    selector: "em-localization-settings-view",
+    templateUrl: "./localization-settings-view.component.html",
+    styleUrls: ["./localization-settings-view.component.scss"],
+    imports: [MatCard, MatCardTitle, MatMiniFabButton, MatTooltip, MatIcon, MatCardContent, MatTable, MatSort, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCheckbox, MatCellDef, MatCell, MatSortHeader, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, MatPaginator, MatCardActions, MatButton]
 })
 export class LocalizationSettingsViewComponent implements OnInit {
    @Output() modelChanged = new EventEmitter<GeneralSettingsChanges>();

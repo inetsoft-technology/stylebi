@@ -18,10 +18,13 @@
 import { Component, Input } from "@angular/core";
 import { DynamicImagePaneModel } from "../../data/vs/dynamic-image-pane-model";
 import { ComboMode } from "../../../widget/dynamic-combo-box/dynamic-combo-box-model";
+import { DynamicComboBox } from "../../../widget/dynamic-combo-box/dynamic-combo-box.component";
+import { FormsModule } from "@angular/forms";
 
 @Component({
-   selector: "dynamic-image-pane",
-   templateUrl: "dynamic-image-pane.component.html",
+    selector: "dynamic-image-pane",
+    templateUrl: "dynamic-image-pane.component.html",
+    imports: [FormsModule, DynamicComboBox]
 })
 export class DynamicImagePane {
    @Input() model: DynamicImagePaneModel;

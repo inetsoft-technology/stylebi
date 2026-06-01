@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import {HttpClient, HttpErrorResponse} from "@angular/common/http";
+import { HttpClient, HttpErrorResponse } from "@angular/common/http";
 import {Component, EventEmitter, Input, OnChanges, Output, SimpleChanges} from "@angular/core";
 import { MatDialog, MatDialogConfig } from "@angular/material/dialog";
 import { Observable, of as observableOf, Subject, throwError } from "rxjs";
@@ -33,11 +33,14 @@ import {
 } from "./edit-identity-pane.model";
 import {catchError, finalize } from "rxjs/operators";
 import {Tool} from "../../../../../../../shared/util/tool";
+import { EditIdentityViewComponent } from "../edit-identity-view/edit-identity-view.component";
+import { AsyncPipe } from "@angular/common";
 
 @Component({
-   selector: "em-edit-identity-pane",
-   templateUrl: "./edit-identity-pane.component.html",
-   styleUrls: ["./edit-identity-pane.component.scss"]
+    selector: "em-edit-identity-pane",
+    templateUrl: "./edit-identity-pane.component.html",
+    styleUrls: ["./edit-identity-pane.component.scss"],
+    imports: [EditIdentityViewComponent, AsyncPipe]
 })
 export class EditIdentityPaneComponent implements OnChanges {
    @Input() selectedIdentity: SecurityTreeNode;

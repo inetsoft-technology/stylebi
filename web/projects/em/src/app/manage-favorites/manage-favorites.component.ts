@@ -23,6 +23,11 @@ import { Favorite } from "../favorites/favorite";
 import { FavoritesService } from "../favorites/favorites.service";
 import { PageHeaderService } from "../page-header/page-header.service";
 import { Searchable } from "../searchable";
+import { MatIcon } from "@angular/material/icon";
+import { MatIconButton } from "@angular/material/button";
+import { MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow } from "@angular/material/table";
+import { MatCard, MatCardContent } from "@angular/material/card";
+import { MatToolbar } from "@angular/material/toolbar";
 
 @Searchable({
    route: "/favorites",
@@ -34,9 +39,10 @@ import { Searchable } from "../searchable";
    link: "EMFavorites"
 })
 @Component({
-   selector: "em-manage-favorites",
-   templateUrl: "./manage-favorites.component.html",
-   styleUrls: ["./manage-favorites.component.scss"]
+    selector: "em-manage-favorites",
+    templateUrl: "./manage-favorites.component.html",
+    styleUrls: ["./manage-favorites.component.scss"],
+    imports: [MatToolbar, MatCard, MatCardContent, MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatIconButton, MatIcon, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow]
 })
 export class ManageFavoritesComponent implements OnInit, OnDestroy {
    favorites = new BehaviorSubject<Favorite[]>([]);

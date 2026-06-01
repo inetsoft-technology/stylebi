@@ -54,11 +54,8 @@ describe("DashboardsSettingsSortableTableViewComponent", () => {
             MatCheckboxModule,
             MatSnackBarModule,
             MatIconModule,
-            MatTableModule
-         ],
-         declarations: [
-            DashboardsSettingsSortableTableViewComponent
-         ],
+            MatTableModule,
+            DashboardsSettingsSortableTableViewComponent],
          schemas: [NO_ERRORS_SCHEMA]
       })
          .compileComponents();

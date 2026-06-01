@@ -72,8 +72,8 @@ describe("VSGauge", () => {
       dropdownService = { open: jest.fn() };
       contextProvider = {};
       viewDataService = {};
-      dataTipService = { isDataTip: jest.fn() };
-      popComponentService = { isPopComponent: jest.fn() };
+      dataTipService = { isDataTip: jest.fn(), isCurrentDataTip: jest.fn(), isDataTipVisible: jest.fn(), getVSObjectId: jest.fn(), isFrozen: jest.fn(), hideDataTip: jest.fn(), dataTipName: null, dataTipY: 0, dataTipX: 0, dataTipAlpha: 1, viewerOffset: {width: 0, height: 0} };
+      popComponentService = { isPopComponent: jest.fn(), getPopComponent: jest.fn(), isCurrentPopComponent: jest.fn(), registerPopComponentChild: jest.fn(), clearPopViewerOffset: jest.fn(), getTriggerPopInfo: jest.fn(), getPopInfo: jest.fn(), getPopLocation: jest.fn(), popY: 0, popX: 0, popAlpha: 1, viewerOffset: {width: 0, height: 0}, componentRegistered: new Subject<{name: string, parent: string}>() };
       modelService = { sendModel: jest.fn() };
       router = {
          navigate: jest.fn(),
@@ -85,11 +85,10 @@ describe("VSGauge", () => {
 
       TestBed.configureTestingModule({
          imports: [
-            HttpClientTestingModule
+            HttpClientTestingModule,
+            VSGauge,
          ],
-         declarations: [
-            VSGauge
-         ],
+         
          schemas: [NO_ERRORS_SCHEMA],
          providers: [
             {provide: ViewsheetClientService, useValue: viewsheetClient},

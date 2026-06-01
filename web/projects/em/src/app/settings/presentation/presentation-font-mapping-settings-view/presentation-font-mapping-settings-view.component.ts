@@ -19,8 +19,8 @@ import { SelectionModel } from "@angular/cdk/collections";
 import { Component, EventEmitter, Input, OnInit, Output, ViewChild } from "@angular/core";
 import { MatDialog } from "@angular/material/dialog";
 import { MatPaginator, PageEvent } from "@angular/material/paginator";
-import { MatSort, Sort } from "@angular/material/sort";
-import { MatTableDataSource } from "@angular/material/table";
+import { MatSort, Sort, MatSortHeader } from "@angular/material/sort";
+import { MatTableDataSource, MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow } from "@angular/material/table";
 import { Observable } from "rxjs";
 import { Searchable } from "../../../searchable";
 import { PresentationSettingsType } from "../presentation-settings-view/presentation-settings-type.enum";
@@ -32,6 +32,9 @@ import {
    PresentationFontMappingSettingsModel
 } from "./presentation-font-mapping-settings-model";
 import { ContextHelp } from "../../../context-help";
+import { MatButton } from "@angular/material/button";
+import { MatCheckbox } from "@angular/material/checkbox";
+import { MatCard, MatCardTitle, MatCardContent, MatCardActions } from "@angular/material/card";
 
 @Searchable({
    route: "/settings/presentation/settings#font-mapping",
@@ -43,9 +46,10 @@ import { ContextHelp } from "../../../context-help";
    link: "EMPresentationFontMapping"
 })
 @Component({
-   selector: "em-presentation-font-mapping-settings-view",
-   templateUrl: "./presentation-font-mapping-settings-view.component.html",
-   styleUrls: ["./presentation-font-mapping-settings-view.component.scss"]
+    selector: "em-presentation-font-mapping-settings-view",
+    templateUrl: "./presentation-font-mapping-settings-view.component.html",
+    styleUrls: ["./presentation-font-mapping-settings-view.component.scss"],
+    imports: [MatCard, MatCardTitle, MatCardContent, MatTable, MatSort, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCheckbox, MatCellDef, MatCell, MatSortHeader, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, MatPaginator, MatCardActions, MatButton]
 })
 export class PresentationFontMappingSettingsViewComponent implements OnInit {
    @ViewChild(MatPaginator, { static: true }) paginator: MatPaginator;

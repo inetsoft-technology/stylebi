@@ -52,6 +52,12 @@ import { DRAG_TABLE_ID } from "../ws-composite-table-sidebar-pane.component";
 import { ConcatenationDropEvent } from "./concatenation-drop-event";
 import { ComponentTool } from "../../../../../common/util/component-tool";
 import { WsChangeService } from "../ws-change.service";
+import { NumberToArrayPipe } from "../../../../../widget/pipe/number-to-array.pipe";
+import { ConcatenationPaneDropTargetComponent } from "./concatenation-pane-drop-target.component";
+import { ConcatenatedTableThumbnailComponent } from "./concatenated-table-thumbnail.component";
+import { ConcatRelationDescriptorComponent } from "./concat-relation-descriptor.component";
+import { ConcatRelationConnectorComponent } from "./concat-relation-connector.component";
+import { NgClass, AsyncPipe } from "@angular/common";
 
 export const CONCAT_REORDER_SUBTABLE_ID: string = "reorder subtable";
 const CONCAT_ADD_TABLE_URI: string = "/events/composer/worksheet/concatenate/add-table";
@@ -60,10 +66,11 @@ const DELETE_SUBTABLE_URI: string = "/events/ws/joins/delete-sub-table";
 const REORDER_SUBTABLES_URI = "/events/composer/worksheet/reorder-subtables";
 
 @Component({
-   selector: "ws-concatenation-editor-pane",
-   templateUrl: "ws-concatenation-editor-pane.component.html",
-   styleUrls: ["ws-concatenation-editor-pane.component.scss"],
-   changeDetection: ChangeDetectionStrategy.OnPush
+    selector: "ws-concatenation-editor-pane",
+    templateUrl: "ws-concatenation-editor-pane.component.html",
+    styleUrls: ["ws-concatenation-editor-pane.component.scss"],
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    imports: [ConcatRelationConnectorComponent, ConcatRelationDescriptorComponent, ConcatenatedTableThumbnailComponent, NgClass, ConcatenationPaneDropTargetComponent, AsyncPipe, NumberToArrayPipe]
 })
 export class WSConcatenationEditorPane implements OnChanges, OnInit, OnDestroy {
    @Input() worksheet: Worksheet;

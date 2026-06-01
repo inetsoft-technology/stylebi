@@ -1,43 +1,59 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <div class="loading-container viewsheet-loading-container" [class.allow-interaction]="allowInteraction">
-  <div class="viewsheet-loading-icon" *ngIf="showIcon">
-    <div *ngIf="!justShowIcon && preparingData" class="loading-message prepare-label">_#(vs.mv.prepare)</div>
-    <div *ngIf="!justShowIcon && !!message" class="loading-message message-label">{{message}}</div>
-    <i class="loading-icon--spin icon-size-xlarge loading-icon" aria-hidden="true"
-       [class.icon-4x]="!assemblyLoading"
-       [class.icon-2x]="assemblyLoading"></i>
-    <div *ngIf="!justShowIcon" class="loading-btns-container" [style.justify-content]="getBtnsPosition()">
-        <button class="btn btn-primary" *ngIf="!!runtimeId && showSwitchToMeta"
-                         (click)="switchToMetaMode()"
-                         [disabled]="switchingToMeta">
-          {{switchingToMeta ? "_#(Switching to metadata)" : "_#(Use Metadata)"}}
-        </button>
-        <button class="btn btn-primary" *ngIf="!!runtimeId && showCancelLoading"
-                (click)="cancelViewsheetLoading()"
-                [disabled]="loadingCanceled">
-          {{loadingCanceled ? "_#(common.viewsheet.canceling)" : "_#(Cancel)"}}
-        </button>
+  @if (showIcon) {
+    <div class="viewsheet-loading-icon">
+      @if (!justShowIcon && preparingData) {
+        <div class="loading-message prepare-label">_#(vs.mv.prepare)</div>
+      }
+      @if (!justShowIcon && !!message) {
+        <div class="loading-message message-label">{{message}}</div>
+      }
+      <i class="loading-icon--spin icon-size-xlarge loading-icon" aria-hidden="true"
+        [class.icon-4x]="!assemblyLoading"
+      [class.icon-2x]="assemblyLoading"></i>
+      @if (!justShowIcon) {
+        <div class="loading-btns-container" [style.justify-content]="getBtnsPosition()">
+          @if (!!runtimeId && showSwitchToMeta) {
+            <button class="btn btn-primary"
+              (click)="switchToMetaMode()"
+              [disabled]="switchingToMeta">
+              {{switchingToMeta ? "_#(Switching to metadata)" : "_#(Use Metadata)"}}
+            </button>
+          }
+          @if (!!runtimeId && showCancelLoading) {
+            <button class="btn btn-primary"
+              (click)="cancelViewsheetLoading()"
+              [disabled]="loadingCanceled">
+              {{loadingCanceled ? "_#(common.viewsheet.canceling)" : "_#(Cancel)"}}
+            </button>
+          }
+        </div>
+      }
+      @if (!!mvHintMessage && !!runtimeId && !justShowIcon && showCancelLoading) {
+        <div
+          class="loading-message materialize-hint-label">
+          <span class="px-3">{{mvHintMessage}}</span>
+        </div>
+      }
+      @if (!message && !preparingData) {
+        <span class="visually-hidden">_#(Loading)</span>
+      }
     </div>
-    <div *ngIf="!!mvHintMessage && !!runtimeId && !justShowIcon && showCancelLoading"
-         class="loading-message materialize-hint-label">
-      <span class="px-3">{{mvHintMessage}}</span>
-    </div>
-    <span class="visually-hidden" *ngIf="!message && !preparingData">_#(Loading)</span>
-  </div>
+  }
 </div>

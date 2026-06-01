@@ -47,20 +47,56 @@ public class DataSpace implements AutoCloseable {
     */
    @Autowired
    public DataSpace(BlobStorageManager blobStorageManager) {
-      this(blobStorageManager.<Metadata>getStorage("dataSpace", true));
-   }
-
-   private DataSpace(BlobStorage<Metadata> blobStorage) {
-      this.blobStorage = blobStorage;
+      this.blobStorageManager = blobStorageManager;
       listeners = new ListenerTree();
 
-      if(blobStorage != null) {
-         blobStorage.addListener(listeners);
+      BlobStorage<Metadata> storage = blobStorageManager.<Metadata>getStorage("dataSpace", true);
+      this.blobStorage = storage;
+
+      if(storage != null) {
+         storage.addListener(listeners);
       }
 
       String home = ConfigurationContext.getContext().getHome()
          .trim().replace('\\', '/').replace("//", "/");
       homePath = home.endsWith("/") ? home.substring(0, home.length() - 1) : home;
+   }
+
+   /**
+    * Gets the current live blob storage for the data space, refreshing it if the inner
+    * key-value storage has been evicted from the {@link inetsoft.storage.KeyValueStorageManager}
+    * cache.
+    */
+   private BlobStorage<Metadata> storage() {
+      if(blobStorage != null && blobStorage.isClosed()) {
+         synchronized(this) {
+            BlobStorage<Metadata> old = blobStorage;
+
+            if(old != null && old.isClosed()) {
+               BlobStorage<Metadata> fresh = blobStorageManager.<Metadata>getStorage("dataSpace", false);
+
+               if(fresh == null) {
+                  LOG.error("Failed to obtain a fresh DataSpace blob storage after eviction");
+                  return blobStorage;
+               }
+
+               fresh.addListener(listeners);
+               blobStorage = fresh;
+
+               // Explicitly close the old BlobStorage to shut down its eventExecutor thread.
+               // Its inner KeyValueStorage was already closed (by LRU eviction), so
+               // BlobStorageManager's removal listener skipped close(); we must do it here.
+               try {
+                  old.close();
+               }
+               catch(Exception e) {
+                  LOG.warn("Failed to close stale DataSpace blob storage", e);
+               }
+            }
+         }
+      }
+
+      return blobStorage;
    }
 
    @Override
@@ -145,7 +181,7 @@ public class DataSpace implements AutoCloseable {
       String path = getPath(dir, file);
 
       try {
-         return blobStorage.getLength(path);
+         return storage().getLength(path);
       }
       catch(FileNotFoundException ignore) {
          return 0L;
@@ -164,7 +200,7 @@ public class DataSpace implements AutoCloseable {
       String path = getPath(dir, file);
 
       try {
-         return blobStorage.getInputStream(path);
+         return storage().getInputStream(path);
       }
       catch(FileNotFoundException | NoSuchFileException ignore) {
          return null;
@@ -223,7 +259,7 @@ public class DataSpace implements AutoCloseable {
    public String[] list(String dir) {
       String path = sanitizePathComponent(dir);
       String prefix = path == null || path.isEmpty() ? "" : path + "/";
-      return blobStorage.stream()
+      return storage().stream()
          .map(Blob::getPath)
          .filter(p -> isChildPath(prefix, p))
          .map(p -> p.substring(prefix.length()))
@@ -242,7 +278,7 @@ public class DataSpace implements AutoCloseable {
          return true;
       }
 
-      return blobStorage.isDirectory(sanitizePathComponent(path));
+      return storage().isDirectory(sanitizePathComponent(path));
    }
 
    /**
@@ -280,7 +316,7 @@ public class DataSpace implements AutoCloseable {
     * @return true if path exists
     */
    public boolean exists(String dir, String file) {
-      return blobStorage.exists(getPath(dir, file));
+      return storage().exists(getPath(dir, file));
    }
 
    /**
@@ -305,8 +341,8 @@ public class DataSpace implements AutoCloseable {
       }
 
       try {
-         if(blobStorage.exists(path)) {
-            blobStorage.delete(path);
+         if(storage().exists(path)) {
+            storage().delete(path);
          }
 
          return true;
@@ -331,8 +367,12 @@ public class DataSpace implements AutoCloseable {
    }
 
    private boolean renameRecursively(String oldPath, String newPath) {
-      if(isDirectory(oldPath)) {
-         for(String child : list(oldPath)) {
+      boolean isDir = isDirectory(oldPath);
+
+      if(isDir) {
+         String[] children = list(oldPath);
+
+         for(String child : children) {
             String ochild = oldPath.isEmpty() ? child : oldPath + "/" + child;
             String nchild = newPath.isEmpty() ? child : newPath + "/" + child;
 
@@ -343,7 +383,7 @@ public class DataSpace implements AutoCloseable {
       }
 
       try {
-         blobStorage.rename(oldPath, newPath);
+         storage().rename(oldPath, newPath);
          return true;
       }
       catch(FileNotFoundException ignore) {
@@ -362,7 +402,7 @@ public class DataSpace implements AutoCloseable {
     * @return String[] containing org scoped paths
     */
    public String[] getOrgScopedPaths(Organization oorg) {
-      return blobStorage.paths().filter(p -> p.equals("portal/" + oorg.getId()) ||
+      return storage().paths().filter(p -> p.equals("portal/" + oorg.getId()) ||
          p.startsWith("portal/" + oorg.getId() + "/") || p.startsWith(oorg.getId() + "__") ||
          p.equals(oorg.getId()) || p.startsWith(oorg.getId() + "/") ||
          p.startsWith("sreeUserData/") &&
@@ -395,7 +435,7 @@ public class DataSpace implements AutoCloseable {
       }
 
       try {
-         blobStorage.copy(oldPath, newPath);
+         storage().copy(oldPath, newPath);
          return true;
       }
       catch(FileNotFoundException ignore) {
@@ -409,7 +449,7 @@ public class DataSpace implements AutoCloseable {
    }
 
    public String listBlobs() throws IOException {
-      return blobStorage.listBlobs();
+      return storage().listBlobs();
    }
 
    /**
@@ -424,7 +464,7 @@ public class DataSpace implements AutoCloseable {
       String path = getPath(dir, file);
 
       try {
-         return blobStorage.getLastModified(path).toEpochMilli();
+         return storage().getLastModified(path).toEpochMilli();
       }
       catch(FileNotFoundException ignore) {
          return 0L;
@@ -442,7 +482,7 @@ public class DataSpace implements AutoCloseable {
       String sanitized = sanitizePathComponent(path);
 
       try {
-         blobStorage.createDirectory(sanitized, new Metadata());
+         storage().createDirectory(sanitized, new Metadata());
          return true;
       }
       catch(IOException e) {
@@ -485,11 +525,15 @@ public class DataSpace implements AutoCloseable {
     * Dispose the data space.
     */
    public void dispose() {
-      try {
-         blobStorage.close();
-      }
-      catch(Exception e) {
-         LOG.warn("Failed to close blob storage", e);
+      BlobStorage<Metadata> s = blobStorage;
+
+      if(s != null) {
+         try {
+            s.close();
+         }
+         catch(Exception e) {
+            LOG.warn("Failed to close blob storage", e);
+         }
       }
    }
 
@@ -537,7 +581,8 @@ public class DataSpace implements AutoCloseable {
       return path.startsWith(prefix) && path.indexOf('/', prefix.length()) < 0;
    }
 
-   private final BlobStorage<Metadata> blobStorage;
+   private volatile BlobStorage<Metadata> blobStorage;
+   private final BlobStorageManager blobStorageManager;
    private final String homePath;
    private final ListenerTree listeners;
 
@@ -600,7 +645,7 @@ public class DataSpace implements AutoCloseable {
 
    public final class TransactionImpl implements Transaction {
       TransactionImpl() {
-         tx = blobStorage.beginTransaction();
+         tx = storage().beginTransaction();
       }
 
       public OutputStream newStream(String dir, String file) throws IOException {

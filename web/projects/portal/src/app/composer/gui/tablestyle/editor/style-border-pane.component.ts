@@ -19,10 +19,15 @@ import { Component, EventEmitter, Input, OnChanges, OnInit, Output, SimpleChange
 import { TableStyleUtil } from "../../../../common/util/table-style-util";
 import {StyleConstants} from "../../../../common/util/style-constants";
 
+import { FixedDropdownDirective } from "../../../../widget/fixed-dropdown/fixed-dropdown.directive";
+
 @Component({
-   selector: "style-border-pane",
-   templateUrl: "style-border-pane.component.html",
-   styleUrls: ["table-style-format-pane.component.scss"],
+    selector: "style-border-pane",
+    templateUrl: "style-border-pane.component.html",
+    styleUrls: ["table-style-format-pane.component.scss"],
+    imports: [
+    FixedDropdownDirective
+]
 })
 export class StyleBorderPaneComponent implements OnInit, OnChanges {
    @Input() borderStyle: number = StyleConstants.THIN_LINE;

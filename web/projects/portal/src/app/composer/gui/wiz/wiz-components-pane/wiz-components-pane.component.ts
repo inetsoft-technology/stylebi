@@ -17,6 +17,7 @@
  */
 import { HttpClient, HttpParams } from "@angular/common/http";
 import { Component, HostBinding, Input, OnChanges, OnDestroy, OnInit, SimpleChanges } from "@angular/core";
+import { NgIf } from "@angular/common";
 import { Subscription } from "rxjs";
 import { AssetType } from "../../../../../../../shared/data/asset-type";
 import { AssemblyActionGroup } from "../../../../common/action/assembly-action-group";
@@ -24,12 +25,15 @@ import { ActionsContextmenuComponent } from "../../../../widget/fixed-dropdown/a
 import { DropdownOptions } from "../../../../widget/fixed-dropdown/dropdown-options";
 import { FixedDropdownService } from "../../../../widget/fixed-dropdown/fixed-dropdown.service";
 import { TreeNodeModel } from "../../../../widget/tree/tree-node-model";
+import { TreeComponent } from "../../../../widget/tree/tree.component";
 import { WizService } from "../services/wiz.service";
 
 @Component({
    selector: "wiz-components-pane",
    templateUrl: "./wiz-components-pane.component.html",
-   styleUrls: ["./wiz-components-pane.component.scss"]
+   styleUrls: ["./wiz-components-pane.component.scss"],
+   standalone: true,
+   imports: [NgIf, TreeComponent]
 })
 export class WizComponentsPane implements OnInit, OnChanges, OnDestroy {
    @HostBinding("hidden")

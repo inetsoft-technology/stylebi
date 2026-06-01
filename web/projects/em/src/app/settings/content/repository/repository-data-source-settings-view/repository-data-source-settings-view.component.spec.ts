@@ -26,7 +26,7 @@ import { MatInputModule } from "@angular/material/input";
 import { MatSelectModule } from "@angular/material/select";
 import { MatSnackBarModule } from "@angular/material/snack-bar";
 import { NoopAnimationsModule } from "@angular/platform-browser/animations";
-import { FileChooserModule } from "../../../../common/util/file-chooser/file-chooser.module";
+import { FileChooserComponent } from "../../../../common/util/file-chooser/file-chooser/file-chooser.component";
 import { RepositoryDataSourceSettingsViewComponent } from "./repository-data-source-settings-view.component";
 
 describe("RepositoryDataSourceSettingsViewComponent", () => {
@@ -46,11 +46,8 @@ describe("RepositoryDataSourceSettingsViewComponent", () => {
             MatOptionModule,
             MatSelectModule,
             MatSnackBarModule,
-            FileChooserModule
-         ],
-         declarations: [
-            RepositoryDataSourceSettingsViewComponent
-         ],
+            FileChooserComponent,
+            RepositoryDataSourceSettingsViewComponent],
          schemas: [
             NO_ERRORS_SCHEMA
          ]

@@ -16,15 +16,12 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { of } from "rxjs";
+import * as stompClientModule from "./stomp-client";
 import { StompClientService } from "./stomp-client.service";
 
-// Mock StompClient so tests don't open real WebSocket connections.
-jest.mock("./stomp-client", () => ({
-   StompClient: jest.fn().mockImplementation(() => ({
-      connect: jest.fn().mockReturnValue(of({ transport: "websocket" })),
-      reloadOnFailure: false
-   }))
-}));
+// setupFilesAfterEnv eagerly loads StompClientService (and its StompClient import) before
+// jest.mock hoisting can intercept it. Use jest.spyOn on the shared exports object instead,
+// which mutates the same reference that StompClientService already holds.
 
 function makeService() {
    const zone = { runOutsideAngular: jest.fn((fn: () => any) => fn()) } as any;
@@ -38,11 +35,15 @@ describe("StompClientService", () => {
    let service: StompClientService;
 
    beforeEach(() => {
+      jest.spyOn(stompClientModule, "StompClient" as any).mockImplementation(() => ({
+         connect: jest.fn().mockReturnValue(of({ transport: "websocket" })),
+         reloadOnFailure: false
+      }));
       service = makeService();
    });
 
    afterEach(() => {
-      jest.clearAllMocks();
+      jest.restoreAllMocks();
    });
 
    // ── whenDisconnected / reconnectError ─────────────────────────────────────
@@ -75,22 +76,18 @@ describe("StompClientService", () => {
    });
 
    it("connect() reuses the existing StompClient for the same endpoint", () => {
-      const { StompClient } = require("./stomp-client");
-
       service.connect("../vs-events");
       service.connect("../vs-events");
 
       // StompClient constructor should have been called only once for the same endpoint
-      expect(StompClient).toHaveBeenCalledTimes(1);
+      expect(stompClientModule.StompClient).toHaveBeenCalledTimes(1);
    });
 
    it("connect() creates separate clients for different endpoints", () => {
-      const { StompClient } = require("./stomp-client");
-
       service.connect("../vs-events");
       service.connect("../repo-events");
 
-      expect(StompClient).toHaveBeenCalledTimes(2);
+      expect(stompClientModule.StompClient).toHaveBeenCalledTimes(2);
    });
 
    // ── reloadOnFailure ────────────────────────────────────────────────────────
@@ -100,13 +97,10 @@ describe("StompClientService", () => {
    });
 
    it("reloadOnFailure setter propagates to all connected clients", () => {
-      // Connect to create a client, then set the property
       const connection = service.connect("../vs-events");
-      let client: any;
-      connection.subscribe(c => { client = c; });
+      connection.subscribe();
 
-      const { StompClient } = require("./stomp-client");
-      const mockInstance = StompClient.mock.results[0].value;
+      const mockInstance = (stompClientModule.StompClient as jest.Mock).mock.results[0].value;
 
       service.reloadOnFailure = true;
 

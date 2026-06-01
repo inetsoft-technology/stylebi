@@ -43,11 +43,13 @@ describe("Combined Color Pane Unit Test", () => {
    beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule
+            FormsModule,
+            ReactiveFormsModule,
+            NgbModule,
+            CombinedColorPane,
+            StaticColorEditor,
          ],
-         declarations: [
-            CombinedColorPane, StaticColorEditor
-         ],
+         
          schemas: [NO_ERRORS_SCHEMA]
       }).compileComponents();
    }));

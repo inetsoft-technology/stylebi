@@ -90,13 +90,22 @@ describe("Screens Pane Test", () => {
    beforeEach(() => {
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule
+            FormsModule,
+            ReactiveFormsModule,
+            NgbModule,
+            ScreensPane,
+            ViewsheetPrintLayoutDialog,
+            ViewsheetDeviceLayoutDialog,
+            GenericSelectableList,
+            ScreenSizeDialog,
+            EnterSubmitDirective,
+            LargeFormFieldComponent,
+            ModalHeaderComponent,
+            StandardDialogComponent,
+            DialogContentDirective,
+            DialogButtonsDirective,
          ],
-         declarations: [
-            ScreensPane, ViewsheetPrintLayoutDialog, ViewsheetDeviceLayoutDialog,
-            GenericSelectableList, ScreenSizeDialog, EnterSubmitDirective, LargeFormFieldComponent, ModalHeaderComponent,
-            StandardDialogComponent, DialogContentDirective, DialogButtonsDirective
-         ],
+         
          providers: [
             NgbModal
          ],

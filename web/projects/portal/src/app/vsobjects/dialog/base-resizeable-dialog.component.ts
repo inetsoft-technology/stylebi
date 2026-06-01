@@ -18,8 +18,9 @@
 import { AfterViewInit, Component, ElementRef, Input, Renderer2 } from "@angular/core";
 
 @Component({
-   selector: "base-resizeable-dialog",
-   templateUrl: "./base-resizeable-dialog.component.html"
+    selector: "base-resizeable-dialog",
+    templateUrl: "./base-resizeable-dialog.component.html",
+    standalone: true
 })
 export class BaseResizeableDialogComponent implements AfterViewInit {
    @Input() resizeable: boolean = true;

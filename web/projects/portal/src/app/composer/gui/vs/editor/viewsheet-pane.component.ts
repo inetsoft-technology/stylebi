@@ -109,7 +109,7 @@ import { ConsoleDialogComponent } from "../../../../widget/console-dialog/consol
 import { ConsoleMessage } from "../../../../widget/console-dialog/console-message";
 import { VariableInputDialogModel } from "../../../../widget/dialog/variable-input-dialog/variable-input-dialog-model";
 import { VariableInputDialog } from "../../../../widget/dialog/variable-input-dialog/variable-input-dialog.component";
-import { SelectionBoxEvent } from "../../../../widget/directive/selection-box.directive";
+import { SelectionBoxEvent, SelectionBoxDirective } from "../../../../widget/directive/selection-box.directive";
 import { DomService } from "../../../../widget/dom-service/dom.service";
 import { InteractContainerDirective } from "../../../../widget/interact/interact-container.directive";
 import { NotificationsComponent } from "../../../../widget/notifications/notifications.component";
@@ -154,42 +154,58 @@ import { VSDependencyChangedCommand } from "../../../../vsobjects/command/vs-dep
 import { RefreshWizFiltersCommand } from "../../../../vsobjects/command/refresh-wiz-filters-command";
 import { WizService } from "../../wiz/services/wiz.service";
 import { LayoutUtil } from "../../../../vsobjects/util/layout-util";
+import { VSSavingDisplay } from "../../../../vsobjects/objects/vs-loading-display/vs-saving-display.component";
+import { VSLoadingDisplay } from "../../../../vsobjects/objects/vs-loading-display/vs-loading-display.component";
+import { FormsModule } from "@angular/forms";
+import { StatusBar } from "../../../../status-bar/status-bar.component";
+import { PlaceholderDragElement } from "../../../../widget/placeholder-drag-element/placeholder-drag-element.component";
+import { LayoutPane } from "../layouts/layout-pane.component";
+import { ComposerSelectionContainerChildren } from "../objects/selection/composer-selection-container-children.component";
+import { EditableObjectContainer } from "./editable-object-container.component";
+import { ActionsContextmenuAnchorDirective } from "../../../../widget/fixed-dropdown/actions-contextmenu-anchor.directive";
+import { Rulers } from "../../../../widget/rulers/rulers.component";
+import { MobileToolbarComponent } from "./mobile-toolbar.component";
+import { NgStyle } from "@angular/common";
+import { OutOfZoneDirective } from "../../../../widget/directive/out-of-zone.directive";
 
 const COLLECT_PARAMS_URI = "/events/vs/collectParameters";
 
 @Component({
-   selector: "viewsheet-pane",
-   templateUrl: "viewsheet-pane.component.html",
-   styleUrls: ["viewsheet-pane.component.scss"],
-   providers: [
-      DataTipService,
-      AdhocFilterService,
-      PopComponentService,
-      SelectionContainerChildrenService,
-      ViewsheetClientService,
-      VSChartService,
-      ComposerVsSearchService,
-      DebounceService,
-      {
-         provide: ContextProvider,
-         useFactory: ComposerContextProviderFactory
-      },
-      {
-         provide: DialogService,
-         useFactory: ComposerDialogServiceFactory,
-         deps: [NgbModal, SlideOutService, Injector, UIContextService]
-      },
-      AssemblyActionFactory,
-      {
-         provide: DndService,
-         useClass: VSDndService,
-         deps: [ModelService, NgbModal, ViewsheetClientService]
-      },
-      {
-         provide: ChartService,
-         useExisting: VSChartService
-      }
-   ]
+    selector: "viewsheet-pane",
+    templateUrl: "viewsheet-pane.component.html",
+    styleUrls: ["viewsheet-pane.component.scss"],
+    providers: [
+        DataTipService,
+        AdhocFilterService,
+        PopComponentService,
+        SelectionContainerChildrenService,
+        ViewsheetClientService,
+        VSChartService,
+        ComposerVsSearchService,
+        DebounceService,
+        {
+            provide: ContextProvider,
+            useFactory: ComposerContextProviderFactory
+        },
+        {
+            provide: DialogService,
+            useFactory: ComposerDialogServiceFactory,
+            deps: [NgbModal, SlideOutService, Injector, UIContextService]
+        },
+        AssemblyActionFactory,
+        {
+            provide: DndService,
+            useClass: VSDndService,
+            deps: [ModelService, NgbModal, ViewsheetClientService]
+        },
+        {
+            provide: ChartService,
+            useExisting: VSChartService
+        },
+        VSBindingTreeService,
+        ChatService
+    ],
+    imports: [OutOfZoneDirective, MobileToolbarComponent, Rulers, SelectionBoxDirective, ActionsContextmenuAnchorDirective, InteractContainerDirective, NgStyle, EditableObjectContainer, ComposerSelectionContainerChildren, LayoutPane, PlaceholderDragElement, StatusBar, FormsModule, VSLoadingDisplay, VSSavingDisplay, NotificationsComponent, VariableInputDialog, ConsoleDialogComponent]
 })
 export class VSPane extends CommandProcessor implements OnInit, OnDestroy, AfterViewInit {
    _vs: Viewsheet;

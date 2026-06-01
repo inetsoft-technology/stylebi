@@ -23,13 +23,16 @@ import {
    Input,
    ViewChild
 } from "@angular/core";
+import { NgClass } from "@angular/common";
+import { ResizedDirective } from "../../../../../shared/resize-event/resized.directive";
 
 declare const window;
 
 @Component({
-   selector: "w-ruler",
-   templateUrl: "ruler.component.html",
-   styleUrls: ["ruler.component.scss"]
+    selector: "w-ruler",
+    templateUrl: "ruler.component.html",
+    styleUrls: ["ruler.component.scss"],
+    imports: [ResizedDirective, NgClass]
 })
 export class Ruler implements AfterViewInit {
    @Input() horizontal: boolean = true;

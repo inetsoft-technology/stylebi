@@ -17,10 +17,14 @@
  */
 import { Component, Input } from "@angular/core";
 import { VSFormatPaneModel } from "../model/vs-format-pane-model";
+import { NgSwitch, NgSwitchCase, NgFor, NgSwitchDefault } from "@angular/common";
+import { FormsModule } from "@angular/forms";
 
 @Component({
-   selector: "vs-format-pane",
-   templateUrl: "vs-format-pane.component.html"
+    selector: "vs-format-pane",
+    templateUrl: "vs-format-pane.component.html",
+    standalone: true,
+    imports: [FormsModule, NgSwitch, NgSwitchCase, NgFor, NgSwitchDefault]
 })
 export class VSFormatPane {
    @Input() presenter: string[];

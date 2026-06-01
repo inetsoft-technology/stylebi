@@ -17,7 +17,7 @@
  */
 import { HttpClient, HttpParams } from "@angular/common/http";
 import { Component, OnInit, ViewChild } from "@angular/core";
-import { UntypedFormBuilder, UntypedFormGroup, Validators } from "@angular/forms";
+import { UntypedFormBuilder, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { ActivatedRoute, ParamMap, Router } from "@angular/router";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { switchMap } from "rxjs/operators";
@@ -43,6 +43,10 @@ import { Tool } from "../../../../../../shared/util/tool";
 import { ComponentTool } from "../../../common/util/component-tool";
 import { GuiTool } from "../../../common/util/gui-tool";
 import { NotificationsComponent } from "../../../widget/notifications/notifications.component";
+import { TaskOptionsPane } from "./options/task-options-pane.component";
+import { TaskActionPane } from "./actions/task-action-pane.component";
+import { TaskConditionPane } from "./conditions/task-condition-pane.component";
+
 
 const EDIT_TASKS_URI = "../api/portal/schedule/edit";
 const SAVE_TASKS_URI = "../api/portal/schedule/save";
@@ -50,9 +54,10 @@ const SAVE_TASK_MESSAGE = "_#(js:em.schedule.task.saveSuccess)";
 const REMOVE_TASKS_URI = "../api/portal/schedule/remove";
 
 @Component({
-   selector: "p-schedule-task-editor",
-   templateUrl: "./schedule-task-editor.component.html",
-   styleUrls: ["./schedule-task-editor.component.scss"]
+    selector: "p-schedule-task-editor",
+    templateUrl: "./schedule-task-editor.component.html",
+    styleUrls: ["./schedule-task-editor.component.scss"],
+    imports: [FormsModule, ReactiveFormsModule, TaskConditionPane, TaskActionPane, TaskOptionsPane, NotificationsComponent]
 })
 export class ScheduleTaskEditorComponent implements OnInit {
    @ViewChild("notifications") notifications: NotificationsComponent;

@@ -1,56 +1,68 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
-<div *ngIf="!editable">
-  <ng-container *ngIf="!searchable">
-    <ng-container *ngTemplateOutlet="select"></ng-container>
-  </ng-container>
-  <ng-container *ngIf="searchable">
-    <div class="input-group">
-      <ng-container  *ngIf="!searching">
-        <ng-container *ngTemplateOutlet="select"></ng-container>
-      </ng-container>
-      <div class="dropdown tags-search-dropdown" *ngIf="searching">
-        <input #searchControl type="text" class="form-control tags-search-input" [(ngModel)]="searchTerm" (ngModelChange)="onSearchChanged()"
-               (keyup.escape)="searching = false" data-toggle="dropdown" aria-haspopup="true" aria-expanded="true" aria-label="_#(Search)"
-               placeholder="_#(Search)"/>
-        <div class="dropdown-menu" [class.show]="!!searchResults && !!searchResults.length">
-          <button class="dropdown-item" type="button" *ngFor="let result of searchResults"
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
+@if (!editable) {
+  <div>
+    @if (!searchable) {
+      <ng-container *ngTemplateOutlet="select"></ng-container>
+    }
+    @if (searchable) {
+      <div class="input-group">
+        @if (!searching) {
+          <ng-container *ngTemplateOutlet="select"></ng-container>
+        }
+        @if (searching) {
+          <div class="dropdown tags-search-dropdown">
+            <input #searchControl type="text" class="form-control tags-search-input" [(ngModel)]="searchTerm" (ngModelChange)="onSearchChanged()"
+              (keyup.escape)="searching = false" data-toggle="dropdown" aria-haspopup="true" aria-expanded="true" aria-label="_#(Search)"
+              placeholder="_#(Search)"/>
+            <div class="dropdown-menu" [class.show]="!!searchResults && !!searchResults.length">
+              @for (result of searchResults; track result) {
+                <button class="dropdown-item" type="button"
                   (click)="selectSearchResult(result.tag)"
-                  [class.active]="result.tag === value">{{result.label}}</button>
+                [class.active]="result.tag === value">{{result.label}}</button>
+              }
+            </div>
+          </div>
+        }
+        <span class="input-group-btn">
+          <button type="button" title="_#(Search)" class="btn btn-default"
+            [class.active]="searching" (click)="toggleSearch()">
+            <i class="tags-search-button" [class.search-icon]="!searching"
+            [class.close-icon]="searching"></i></button>
+          </span>
         </div>
-      </div>
-      <span class="input-group-btn">
-        <button type="button" title="_#(Search)" class="btn btn-default"
-                [class.active]="searching" (click)="toggleSearch()">
-          <i class="tags-search-button" [class.search-icon]="!searching"
-             [class.close-icon]="searching"></i></button>
-      </span>
+      }
+      @if (valueControl.getError('required')) {
+        <div>
+          <div class="alert alert-danger">_#(select.enter.value)</div>
+        </div>
+      }
     </div>
-  </ng-container>
-  <div *ngIf="valueControl.getError('required')">
-    <div class="alert alert-danger">_#(select.enter.value)</div>
-  </div>
-</div>
-<ng-template #select>
-  <select class="form-control" [(ngModel)]="value" [formControl]="valueControl">
-    <option *ngFor="let label of labels; let i = index" [value]="tags[i]">{{label}}</option>
-  </select>
-</ng-template>
+  }
+  <ng-template #select>
+    <select class="form-control" [(ngModel)]="value" [formControl]="valueControl">
+      @for (label of labels; track label; let i = $index) {
+        <option [value]="tags[i]">{{label}}</option>
+      }
+    </select>
+  </ng-template>
 
-<tabular-text-editor *ngIf="editable" [(value)]="value" (valueChange)="valueChange.emit($event)" [enabled]="enabled"
-                     [required]="required" (validChange)="validChange.emit($event)"></tabular-text-editor>
+  @if (editable) {
+    <tabular-text-editor [(value)]="value" (valueChange)="valueChange.emit($event)" [enabled]="enabled"
+    [required]="required" (validChange)="validChange.emit($event)"></tabular-text-editor>
+  }

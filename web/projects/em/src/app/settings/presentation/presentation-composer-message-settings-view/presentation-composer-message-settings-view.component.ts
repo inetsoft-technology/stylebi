@@ -16,20 +16,25 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, EventEmitter, Input, Output } from "@angular/core";
-import { UntypedFormBuilder, UntypedFormGroup } from "@angular/forms";
+import { UntypedFormBuilder, UntypedFormGroup, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { PresentationSettingsChanges } from "../presentation-settings-view/presentation-settings-view.component";
 import { PresentationComposerMessageSettingsModel } from "./presentation-composer-message-settings-model";
 import { PresentationSettingsType } from "../presentation-settings-view/presentation-settings-type.enum";
 import { ContextHelp } from "../../../context-help";
+import { MatInput } from "@angular/material/input";
+import { MatFormField, MatLabel } from "@angular/material/form-field";
+import { MatCard, MatCardTitle, MatCardContent } from "@angular/material/card";
+
 
 @ContextHelp({
   route: "/settings/presentation/settings#composer-message",
   link: "EMComposerMessages"
 })
 @Component({
-  selector: "em-presentation-composer-message-settings-view",
-  templateUrl: "./presentation-composer-message-settings-view.component.html",
-  styleUrls: ["./presentation-composer-message-settings-view.component.scss"]
+    selector: "em-presentation-composer-message-settings-view",
+    templateUrl: "./presentation-composer-message-settings-view.component.html",
+    styleUrls: ["./presentation-composer-message-settings-view.component.scss"],
+    imports: [MatCard, MatCardTitle, MatCardContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatInput]
 })
 export class PresentationComposerMessageSettingsViewComponent {
   @Input() set model(model: PresentationComposerMessageSettingsModel) {

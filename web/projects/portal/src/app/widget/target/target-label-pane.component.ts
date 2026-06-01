@@ -25,9 +25,12 @@ import { Tool } from "../../../../../shared/util/tool";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { ComponentTool } from "../../common/util/component-tool";
 
+import { FormsModule } from "@angular/forms";
+
 @Component({
-   selector: "target-label-pane",
-   templateUrl: "target-label-pane.component.html"
+    selector: "target-label-pane",
+    templateUrl: "target-label-pane.component.html",
+    imports: [FixedDropdownDirective, FormsModule]
 })
 export class TargetLabelPane {
    @Input() label: string = "";

@@ -17,15 +17,17 @@
  */
 import { Component, EventEmitter, Input, OnInit, Output } from "@angular/core";
 import { Observable } from "rxjs";
-import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
+import { NgbModal, NgbTooltip } from "@ng-bootstrap/ng-bootstrap";
 import { ComponentTool } from "../../../../../../common/util/component-tool";
 import { AssetItem } from "../../../../model/datasources/database/asset-item";
 import { DataModelBrowserViewModel } from "../../../../model/data-model-browser-view-model";
 
+
 @Component({
-  selector: "data-models-browser",
-  templateUrl: "./data-model-folder-browser.component.html",
-  styleUrls: ["./data-model-folder-browser.component.scss"]
+    selector: "data-models-browser",
+    templateUrl: "./data-model-folder-browser.component.html",
+    styleUrls: ["./data-model-folder-browser.component.scss"],
+    imports: [NgbTooltip]
 })
 export class DataModelFolderBrowserComponent implements OnInit {
   @Input() browserView: DataModelBrowserViewModel;

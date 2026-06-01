@@ -19,12 +19,14 @@ import { FlatTreeControl } from "@angular/cdk/tree";
 import { HttpErrorResponse } from "@angular/common/http";
 import { Component, EventEmitter, OnInit, Output } from "@angular/core";
 import { MatSnackBar } from "@angular/material/snack-bar";
-import { MatTreeFlatDataSource, MatTreeFlattener } from "@angular/material/tree";
+import { MatTreeFlatDataSource, MatTreeFlattener, MatTree, MatTreeNodeDef, MatTreeNode, MatTreeNodeToggle, MatTreeNodePadding } from "@angular/material/tree";
 import { Observable, of as observableOf, throwError } from "rxjs";
 import { catchError } from "rxjs/operators";
 import { ActionTreeNode } from "../action-tree-node";
 import { SecurityActionService } from "../security-action.service";
 import { Tool } from "../../../../../../../shared/util/tool";
+import { MatIcon } from "@angular/material/icon";
+import { MatIconButton } from "@angular/material/button";
 
 export class ActionFlatTreeNode {
    constructor(public expandable: boolean, public type: string, public resource: string,
@@ -33,9 +35,10 @@ export class ActionFlatTreeNode {
 }
 
 @Component({
-   selector: "em-security-actions-tree",
-   templateUrl: "./security-actions-tree.component.html",
-   styleUrls: ["./security-actions-tree.component.scss"]
+    selector: "em-security-actions-tree",
+    templateUrl: "./security-actions-tree.component.html",
+    styleUrls: ["./security-actions-tree.component.scss"],
+    imports: [MatTree, MatTreeNodeDef, MatTreeNode, MatTreeNodeToggle, MatTreeNodePadding, MatIconButton, MatIcon]
 })
 export class SecurityActionsTreeComponent implements OnInit {
    @Output() actionSelected = new EventEmitter<ActionTreeNode>();

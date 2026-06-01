@@ -196,26 +196,40 @@ public class ConfigurationContext implements AutoCloseable {
          throw new ShutdownException();
       }
 
+      // Fast path: already cached.
+      Object existing = beanCache.getIfPresent(type);
+
+      if(existing != null && existing != MISSING_BEAN) {
+         return type.cast(existing);
+      }
+
       if(IN_CACHE_LOAD.get()) {
-         Object cached = beanCache.getIfPresent(type);
-
-         if(cached != null && cached != MISSING_BEAN) {
-            return type.cast(cached);
-         }
-
+         // This thread is already inside getSpringBean — bypass the cache entirely to prevent
+         // re-entrant ConcurrentHashMap.compute() on the same thread (which deadlocks).
          return applicationContext.getBean(type);
       }
 
-      return type.cast(beanCache.get(type, t -> {
-         IN_CACHE_LOAD.set(true);
+      // Slow path: call applicationContext.getBean() WITHOUT holding the Caffeine/
+      // ConcurrentHashMap bin lock.  Caffeine's Cache.get(key, loader) holds that lock for
+      // the entire loader duration, which can be minutes when a @Lazy bean's @PostConstruct
+      // blocks on async cluster work (e.g. LocalKeyValueStorage waits up to 3 min for the
+      // initial data load).  A background thread calling getSpringBean for any bean whose
+      // Class happens to hash to the same bin would deadlock until the timeout fires.
+      //
+      // Spring singleton beans are safe to retrieve concurrently — getBean() is idempotent
+      // and thread-safe, so two concurrent cache-miss threads both get the same instance.
+      IN_CACHE_LOAD.set(true);
+      T bean;
 
-         try {
-            return applicationContext.getBean(t);
-         }
-         finally {
-            IN_CACHE_LOAD.remove();
-         }
-      }));
+      try {
+         bean = applicationContext.getBean(type);
+      }
+      finally {
+         IN_CACHE_LOAD.remove();
+      }
+
+      beanCache.put(type, bean);
+      return bean;
    }
 
    /**
@@ -228,13 +242,15 @@ public class ConfigurationContext implements AutoCloseable {
          return null;
       }
 
+      // Fast path: already cached (including MISSING_BEAN sentinel).
+      Object existing = beanCache.getIfPresent(type);
+
+      if(existing != null) {
+         return existing == MISSING_BEAN ? null : type.cast(existing);
+      }
+
       if(IN_CACHE_LOAD.get()) {
-         Object cached = beanCache.getIfPresent(type);
-
-         if(cached != null) {
-            return cached == MISSING_BEAN ? null : type.cast(cached);
-         }
-
+         // Re-entrant call on the same thread — bypass the cache.
          try {
             return applicationContext.getBean(type);
          }
@@ -243,21 +259,23 @@ public class ConfigurationContext implements AutoCloseable {
          }
       }
 
-      Object cached = beanCache.get(type, t -> {
-         IN_CACHE_LOAD.set(true);
+      // Slow path: retrieve from Spring WITHOUT holding the Caffeine bin lock.
+      // See getSpringBean() for the full explanation.
+      IN_CACHE_LOAD.set(true);
+      Object bean;
 
-         try {
-            return applicationContext.getBean(t);
-         }
-         catch(NoSuchBeanDefinitionException e) {
-            return MISSING_BEAN;
-         }
-         finally {
-            IN_CACHE_LOAD.remove();
-         }
-      });
+      try {
+         bean = applicationContext.getBean(type);
+      }
+      catch(NoSuchBeanDefinitionException e) {
+         bean = MISSING_BEAN;
+      }
+      finally {
+         IN_CACHE_LOAD.remove();
+      }
 
-      return cached == MISSING_BEAN ? null : type.cast(cached);
+      beanCache.put(type, bean);
+      return bean == MISSING_BEAN ? null : type.cast(bean);
    }
 
    public Object getSpringBean(String name) {

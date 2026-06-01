@@ -1,63 +1,71 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <w-standard-dialog [title]="edit ? '_#(Edit Folder)' : '_#(Create Folder)'"
-                   (onClose)="closeDialog()"
-                   [submitOnEnter]="isValid"
-                   (onSubmit)="okClicked()">
+  (onClose)="closeDialog()"
+  [submitOnEnter]="isValid"
+  (onSubmit)="okClicked()">
   <ng-template wDialogContent>
     <div class="mt-2">
       <form ngNoForm class="container-fluid">
         <div class="form-row-float-label form-row">
           <div class="form-floating col">
             <input class="form-control" type="text" [formControl]="nameControl"
-                   placeholder="_#(Folder Name)"
-                   [class.is-invalid]="!nameControl.valid && nameControl.dirty"/>
+              placeholder="_#(Folder Name)"
+              [class.is-invalid]="!nameControl.valid && nameControl.dirty"/>
             <label>_#(Folder Name)</label>
-            <span class="invalid-feedback"
-                  *ngIf="nameControl.getError('required')">
-              _#(enter.name)
-            </span>
-            <span class="invalid-feedback"
-                  *ngIf="nameControl.getError('assetEntryBannedCharacters')">
-              _#(repository.tree.SpecialChar)
-            </span>
-            <span class="invalid-feedback"
-                  *ngIf="!nameControl.getError('assetEntryBannedCharacters') &&
-                  nameControl.getError('assetNameStartWithCharDigit')">
-              _#(common.autodrill.parameter.name.startCharDigitError)
-            </span>
-            <span class="invalid-feedback"
-                  *ngIf="nameControl.getError('endsWithPeriod')">
-              _#(name.end.period)
-            </span>
+            @if (nameControl.getError('required')) {
+              <span class="invalid-feedback"
+                >
+                _#(enter.name)
+              </span>
+            }
+            @if (nameControl.getError('assetEntryBannedCharacters')) {
+              <span class="invalid-feedback"
+                >
+                _#(repository.tree.SpecialChar)
+              </span>
+            }
+            @if (!nameControl.getError('assetEntryBannedCharacters') &&
+              nameControl.getError('assetNameStartWithCharDigit')) {
+              <span class="invalid-feedback"
+                >
+                _#(common.autodrill.parameter.name.startCharDigitError)
+              </span>
+            }
+            @if (nameControl.getError('endsWithPeriod')) {
+              <span class="invalid-feedback"
+                >
+                _#(name.end.period)
+              </span>
+            }
           </div>
         </div>
         <div class="form-row-float-label form-row">
           <div class="form-floating col">
             <input class="form-control" type="text" [(ngModel)]="alias"
-                   placeholder="_#(Alias)"/>
+              placeholder="_#(Alias)"/>
             <label>_#(Alias)</label>
           </div>
         </div>
         <div class="form-row-float-label form-row">
           <div class="form-floating col">
             <textarea class="form-control" type="text" [(ngModel)]="description"
-                      placeholder="_#(Description)"></textarea>
+            placeholder="_#(Description)"></textarea>
             <label>_#(Description)</label>
           </div>
         </div>

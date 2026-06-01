@@ -96,11 +96,15 @@ describe("Table Style Pane unit test", () => {
    beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule
+            FormsModule,
+            ReactiveFormsModule,
+            NgbModule,
+            TableStylePane,
+            TreeComponent,
+            TreeNodeComponent,
+            TreeSearchPipe,
          ],
-         declarations: [
-            TableStylePane, TreeComponent, TreeNodeComponent, TreeSearchPipe
-         ],
+         
          providers: [
             ChangeDetectorRef, DragService
          ],

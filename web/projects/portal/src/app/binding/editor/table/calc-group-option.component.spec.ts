@@ -39,6 +39,7 @@ import { VSCalcTableEditorService } from "../../services/table/vs-calc-table-edi
 import { CalcGroupOption } from "./calc-group-option.component";
 
 @Component({
+   standalone: true,
    selector: "test-app",
    template: `
      <calc-group-option [cellBinding]="cellBinding"
@@ -147,11 +148,11 @@ describe("Calc Group Option Unit Test", () => {
          imports: [
             FormsModule,
             NgbModule,
-            HttpClientTestingModule
+            HttpClientTestingModule,
+            CalcGroupOption,
+            TestApp,
          ],
-         declarations: [
-            CalcGroupOption, TestApp
-         ], // declare the test component
+          // declare the test component
          providers: [
             {provide: VSCalcTableEditorService, useValue: editorService},
             {provide: DateLevelExamplesService, useValue: dateLevelExamplesService},

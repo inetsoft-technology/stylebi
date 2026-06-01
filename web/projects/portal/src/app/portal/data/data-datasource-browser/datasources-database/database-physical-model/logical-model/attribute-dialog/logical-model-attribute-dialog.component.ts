@@ -17,19 +17,22 @@
  */
 import { HttpClient } from "@angular/common/http";
 import { Component, EventEmitter, Input, OnInit, Output, ViewChild, ElementRef, AfterViewInit } from "@angular/core";
-import { AbstractControl, UntypedFormControl, UntypedFormGroup, Validators } from "@angular/forms";
+import { AbstractControl, UntypedFormControl, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { PhysicalTableTreeComponent } from "./physical-table-tree/physical-table-tree.component";
 import { EntityModel } from "../../../../../model/datasources/database/physical-model/logical-model/entity-model";
 import { TreeNodeModel } from "../../../../../../../widget/tree/tree-node-model";
 import { AttributeModel } from "../../../../../model/datasources/database/physical-model/logical-model/attribute-model";
 import { GetModelEvent } from "../../../../../model/datasources/database/events/get-model-event";
 
+import { ModalHeaderComponent } from "../../../../../../../widget/modal-header/modal-header.component";
+
 const TABLES_URI: string = "../api/data/logicalModel/tables/nodes";
 
 @Component({
-   selector: "logical-model-attribute-dialog",
-   templateUrl: "logical-model-attribute-dialog.component.html",
-   styleUrls: ["logical-model-attribute-dialog.component.scss"]
+    selector: "logical-model-attribute-dialog",
+    templateUrl: "logical-model-attribute-dialog.component.html",
+    styleUrls: ["logical-model-attribute-dialog.component.scss"],
+    imports: [ModalHeaderComponent, FormsModule, ReactiveFormsModule, PhysicalTableTreeComponent]
 })
 export class LogicalModelAttributeDialog implements OnInit, AfterViewInit {
    @ViewChild("physicalTree") tree: PhysicalTableTreeComponent;

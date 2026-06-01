@@ -20,11 +20,17 @@ import { ColorMode } from "./color-mode.enum";
 import { ColorPalette } from "./color-classes";
 import { DefaultPalette } from "./default-palette";
 import { GradientColor } from "../../common/data/base-format-model";
+import { GradientColorPicker } from "./gradient-color-picker.component";
+import { ColorPicker } from "./color-picker.component";
+import { FormsModule } from "@angular/forms";
+
+import { BlockMouseDirective } from "../mouse-event/block-mouse.directive";
 
 @Component({
-   selector: "color-editor",
-   templateUrl: "color-editor.component.html",
-   styleUrls: ["color-editor.component.scss"]
+    selector: "color-editor",
+    templateUrl: "color-editor.component.html",
+    styleUrls: ["color-editor.component.scss"],
+    imports: [BlockMouseDirective, FormsModule, ColorPicker, GradientColorPicker]
 })
 export class ColorEditor {
    ColorMode = ColorMode;

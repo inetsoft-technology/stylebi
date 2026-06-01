@@ -45,12 +45,18 @@ describe("Add Repository Folder  Dialog Unit Test", () => {
    beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule, HttpClientTestingModule
+            FormsModule,
+            ReactiveFormsModule,
+            NgbModule,
+            HttpClientTestingModule,
+            AddRepositoryFolderDialog,
+            StandardDialogComponent,
+            EnterSubmitDirective,
+            DialogContentDirective,
+            DialogButtonsDirective,
+            ModalHeaderComponent,
          ],
-         declarations: [
-            AddRepositoryFolderDialog, StandardDialogComponent,
-            EnterSubmitDirective, DialogContentDirective, DialogButtonsDirective, ModalHeaderComponent
-         ],
+         
          providers: [
             {
                provide: NgbModal, useValue: ngbService

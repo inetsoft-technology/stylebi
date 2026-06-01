@@ -22,13 +22,26 @@ import {
    EventEmitter,
    Input
 } from "@angular/core";
-import { UntypedFormControl, UntypedFormGroup, Validators } from "@angular/forms";
+import { UntypedFormControl, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { VSBookmarkInfoModel, VSBookmarkType } from "../model/vs-bookmark-info-model";
 import { FormValidators } from "../../../../../shared/util/form-validators";
+import { EnterClickDirective } from "../../widget/directive/enter-click.directive";
+import { InputTrimDirective } from "../../widget/directive/input-trim.directive";
+import { EnterSubmitDirective } from "../../widget/directive/enter-submit.directive";
+
+import { ModalHeaderComponent } from "../../widget/modal-header/modal-header.component";
 
 @Component({
-  selector: "bookmark-property-dialog",
-  templateUrl: "bookmark-property-dialog.component.html",
+    selector: "bookmark-property-dialog",
+    templateUrl: "bookmark-property-dialog.component.html",
+    imports: [
+    ModalHeaderComponent,
+    EnterSubmitDirective,
+    FormsModule,
+    ReactiveFormsModule,
+    InputTrimDirective,
+    EnterClickDirective
+]
 })
 export class BookmarkPropertyDialog implements OnInit {
    @Input() model: VSBookmarkInfoModel;

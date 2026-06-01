@@ -20,11 +20,13 @@
       "sourceRoot": "projects/portal/src",
       "architect": {
         "build": {
-          "builder": "@angular-devkit/build-angular:browser",
+          "builder": "@angular/build:application",
           "options": {
-            "outputPath": "target/generated-resources/ng/inetsoft/web/resources/app",
+            "outputPath": {
+              "base": "target/generated-resources/ng/inetsoft/web/resources/app",
+              "browser": ""
+            },
             "index": "projects/portal/src/index.html",
-            "main": "projects/portal/src/main.ts",
             "allowedCommonJsDependencies": [
               "codemirror",
               "lodash",
@@ -32,6 +34,7 @@
             ],
             "polyfills": [
               "zone.js",
+              "@angular/localize/init",
               "projects/portal/src/polyfills.ts"
             ],
             "tsConfig": "projects/portal/tsconfig.app.json",
@@ -56,7 +59,8 @@
               "node_modules/@inetsoft-technology/ai-assistant/dist/web-component/ai-assistant.umd.js",
               "node_modules/@inetsoft-technology/stylebi-wiz-portal/dist/web-component/stylebi-wiz-portal.umd.cjs",
               "node_modules/@inetsoft-technology/stylebi-wiz-ai-chat/dist/web-component/stylebi-wiz-ai-chat.umd.cjs"
-            ]
+            ],
+            "browser": "projects/portal/src/main.ts"
           },
           "configurations": {
             "production": {
@@ -69,13 +73,10 @@
               "optimization": true,
               "outputHashing": "bundles",
               "sourceMap": false,
-              "namedChunks" : false,
-              "vendorChunk" : false
+              "namedChunks": false
             },
             "development": {
-              "buildOptimizer": false,
               "optimization": false,
-              "vendorChunk": true,
               "extractLicenses": false,
               "sourceMap": true,
               "namedChunks": true
@@ -84,7 +85,7 @@
           "defaultConfiguration": "production"
         },
         "serve": {
-          "builder": "@angular-devkit/build-angular:dev-server",
+          "builder": "@angular/build:dev-server",
           "configurations": {
             "production": {
               "buildTarget": "portal:build:production"
@@ -96,7 +97,7 @@
           "defaultConfiguration": "development"
         },
         "extract-i18n": {
-          "builder": "@angular-devkit/build-angular:extract-i18n",
+          "builder": "@angular/build:extract-i18n",
           "options": {
             "buildTarget": "portal:build"
           }
@@ -107,12 +108,14 @@
             "ci": true,
             "maxWorkers": 4,
             "silent": true,
+            "zoneless": false,
             "reporters": [
               "default",
               "jest-junit"
             ],
             "setupFiles": [
-              "jest-canvas-mock"
+              "jest-canvas-mock",
+              "<rootDir>/projects/portal/src/jest-setup.ts"
             ],
             "testPathIgnorePatterns": [
               "\\.tl\\.spec\\.ts$"
@@ -144,11 +147,13 @@
       "prefix": "em",
       "architect": {
         "build": {
-          "builder": "@angular-devkit/build-angular:browser",
+          "builder": "@angular/build:application",
           "options": {
-            "outputPath": "target/generated-resources/ng/inetsoft/web/resources/em",
+            "outputPath": {
+              "base": "target/generated-resources/ng/inetsoft/web/resources/em",
+              "browser": ""
+            },
             "index": "projects/em/src/index.html",
-            "main": "projects/em/src/main.ts",
             "allowedCommonJsDependencies": [
               "codemirror",
               "lodash",
@@ -156,13 +161,14 @@
             ],
             "polyfills": [
               "zone.js",
+              "@angular/localize/init",
               "projects/em/src/polyfills.ts"
             ],
             "tsConfig": "projects/em/tsconfig.app.json",
             "inlineStyleLanguage": "scss",
             "assets": [
               "projects/em/src/favicon.ico",
-              "projects/em/src/assets"
+              "projects/em/src/assets",
             ],
             "styles": [
               "projects/em/src/styles.scss"
@@ -179,7 +185,8 @@
               "node_modules/tern/lib/infer.js",
               "node_modules/@inetsoft-technology/ai-assistant/dist/web-component/ai-assistant.umd.js",
               "node_modules/@inetsoft-technology/stylebi-wiz-portal/dist/web-component/stylebi-wiz-portal.umd.cjs"
-            ]
+            ],
+            "browser": "projects/em/src/main.ts"
           },
           "configurations": {
             "production": {
@@ -192,13 +199,10 @@
               "optimization": true,
               "outputHashing": "bundles",
               "sourceMap": false,
-              "namedChunks" : false,
-              "vendorChunk" : false
+              "namedChunks": false
             },
             "development": {
-              "buildOptimizer": false,
               "optimization": false,
-              "vendorChunk": true,
               "extractLicenses": false,
               "sourceMap": true,
               "namedChunks": true
@@ -207,7 +211,7 @@
           "defaultConfiguration": "production"
         },
         "serve": {
-          "builder": "@angular-devkit/build-angular:dev-server",
+          "builder": "@angular/build:dev-server",
           "configurations": {
             "production": {
               "buildTarget": "em:build:production"
@@ -219,7 +223,7 @@
           "defaultConfiguration": "development"
         },
         "extract-i18n": {
-          "builder": "@angular-devkit/build-angular:extract-i18n",
+          "builder": "@angular/build:extract-i18n",
           "options": {
             "buildTarget": "em:build"
           }
@@ -230,6 +234,7 @@
             "ci": true,
             "maxWorkers": 4,
             "silent": true,
+            "zoneless": false,
             "reporters": [
               "default",
               "jest-junit"
@@ -265,11 +270,13 @@
       "prefix": "app",
       "architect": {
         "build": {
-          "builder": "@angular-devkit/build-angular:browser",
+          "builder": "@angular/build:application",
           "options": {
-            "outputPath": "target/generated-resources/ng/inetsoft/web/resources/elements",
+            "outputPath": {
+              "base": "target/generated-resources/ng/inetsoft/web/resources/elements",
+              "browser": ""
+            },
             "index": "projects/portal/src/index.html",
-            "main": "projects/portal/src/main-elements.ts",
             "allowedCommonJsDependencies": [
               "codemirror",
               "lodash",
@@ -277,6 +284,7 @@
             ],
             "polyfills": [
               "zone.js",
+              "@angular/localize/init",
               "projects/portal/src/polyfills.ts"
             ],
             "tsConfig": "projects/portal/tsconfig.app.json",
@@ -299,7 +307,8 @@
               "node_modules/tern/lib/comment.js",
               "node_modules/tern/lib/infer.js",
               "node_modules/@inetsoft-technology/ai-assistant/dist/web-component/ai-assistant.umd.js"
-            ]
+            ],
+            "browser": "projects/portal/src/main-elements.ts"
           },
           "configurations": {
             "production": {
@@ -312,13 +321,10 @@
               "optimization": true,
               "outputHashing": "bundles",
               "sourceMap": false,
-              "namedChunks" : false,
-              "vendorChunk" : false
+              "namedChunks": false
             },
             "development": {
-              "buildOptimizer": false,
               "optimization": false,
-              "vendorChunk": false,
               "extractLicenses": false,
               "sourceMap": true,
               "namedChunks": true
@@ -327,7 +333,7 @@
           "defaultConfiguration": "production"
         },
         "serve": {
-          "builder": "@angular-devkit/build-angular:dev-server",
+          "builder": "@angular/build:dev-server",
           "configurations": {
             "production": {
               "buildTarget": "elements:build:production"
@@ -339,7 +345,7 @@
           "defaultConfiguration": "development"
         },
         "extract-i18n": {
-          "builder": "@angular-devkit/build-angular:extract-i18n",
+          "builder": "@angular/build:extract-i18n",
           "options": {
             "buildTarget": "elements:build"
           }
@@ -358,11 +364,13 @@
       "prefix": "app",
       "architect": {
         "build": {
-          "builder": "@angular-devkit/build-angular:browser",
+          "builder": "@angular/build:application",
           "options": {
-            "outputPath": "target/generated-resources/ng/inetsoft/web/resources/viewer-element",
+            "outputPath": {
+              "base": "target/generated-resources/ng/inetsoft/web/resources/viewer-element",
+              "browser": ""
+            },
             "index": "projects/portal/src/index.html",
-            "main": "projects/portal/src/main-viewer-element.ts",
             "allowedCommonJsDependencies": [
               "codemirror",
               "lodash",
@@ -370,6 +378,7 @@
             ],
             "polyfills": [
               "zone.js",
+              "@angular/localize/init",
               "projects/portal/src/polyfills.ts"
             ],
             "tsConfig": "projects/portal/tsconfig.app.json",
@@ -392,7 +401,8 @@
               "node_modules/tern/lib/comment.js",
               "node_modules/tern/lib/infer.js",
               "node_modules/@inetsoft-technology/ai-assistant/dist/web-component/ai-assistant.umd.js"
-            ]
+            ],
+            "browser": "projects/portal/src/main-viewer-element.ts"
           },
           "configurations": {
             "production": {
@@ -405,13 +415,10 @@
               "optimization": true,
               "outputHashing": "bundles",
               "sourceMap": false,
-              "namedChunks" : false,
-              "vendorChunk" : false
+              "namedChunks": false
             },
             "development": {
-              "buildOptimizer": false,
               "optimization": false,
-              "vendorChunk": false,
               "extractLicenses": false,
               "sourceMap": true,
               "namedChunks": true
@@ -420,7 +427,7 @@
           "defaultConfiguration": "production"
         },
         "serve": {
-          "builder": "@angular-devkit/build-angular:dev-server",
+          "builder": "@angular/build:dev-server",
           "configurations": {
             "production": {
               "buildTarget": "viewer-element:build:production"
@@ -432,12 +439,38 @@
           "defaultConfiguration": "development"
         },
         "extract-i18n": {
-          "builder": "@angular-devkit/build-angular:extract-i18n",
+          "builder": "@angular/build:extract-i18n",
           "options": {
             "buildTarget": "viewer-element:build"
           }
         }
       }
+    }
+  },
+  "schematics": {
+    "@schematics/angular:component": {
+      "type": "component"
+    },
+    "@schematics/angular:directive": {
+      "type": "directive"
+    },
+    "@schematics/angular:service": {
+      "type": "service"
+    },
+    "@schematics/angular:guard": {
+      "typeSeparator": "."
+    },
+    "@schematics/angular:interceptor": {
+      "typeSeparator": "."
+    },
+    "@schematics/angular:module": {
+      "typeSeparator": "."
+    },
+    "@schematics/angular:pipe": {
+      "typeSeparator": "."
+    },
+    "@schematics/angular:resolver": {
+      "typeSeparator": "."
     }
   }
 }

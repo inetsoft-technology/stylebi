@@ -1,29 +1,29 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <div class="theme-list-panel">
   <mat-toolbar class="toolbar-raised-button theme-toolbar">
-    <ng-container *ngIf="collapseToolbar">
+    @if (collapseToolbar) {
       <span class="toolbar-spacer"></span>
       <button mat-icon-button title="_#(Menu)" [matMenuTriggerFor]="toolbarMenu">
         <mat-icon fontSet="ineticons" fontIcon="menu-sandwich-icon"></mat-icon>
       </button>
-    </ng-container>
-    <ng-container *ngIf="!collapseToolbar">
+    }
+    @if (!collapseToolbar) {
       <button mat-icon-button title="_#(New)" (click)="createTheme()">
         <mat-icon fontSet="ineticons" fontIcon="shape-plus-icon"></mat-icon>
       </button>
@@ -33,19 +33,23 @@
       <button mat-icon-button title="_#(Download)" (click)="downloadTheme()" [disabled]="!selectedTheme || (selectedTheme.global && !isSiteAdmin && isMultiTenant)">
         <mat-icon fontSet="ineticons" fontIcon="export-icon"></mat-icon>
       </button>
-    </ng-container>
+    }
   </mat-toolbar>
   <div class="theme-list" emTopScroll>
     <div class="theme-list__container">
       <mat-action-list class="flat-tree">
-        <div *ngFor="let theme of themes" class="flat-tree-node" [class.selected]="theme.id == selectedTheme?.id">
-          <a
-            mat-list-item
-            (click)="onThemeSelected(theme.id)">
-            {{theme.name}}
-            <mat-icon *ngIf="isDefaultTheme(theme)" fontSet="ineticons" class="default-theme-icon" fontIcon="select-single-icon"></mat-icon>
-          </a>
-        </div>
+        @for (theme of themes; track theme) {
+          <div class="flat-tree-node" [class.selected]="theme.id == selectedTheme?.id">
+            <a
+              mat-list-item
+              (click)="onThemeSelected(theme.id)">
+              {{theme.name}}
+              @if (isDefaultTheme(theme)) {
+                <mat-icon fontSet="ineticons" class="default-theme-icon" fontIcon="select-single-icon"></mat-icon>
+              }
+            </a>
+          </div>
+        }
       </mat-action-list>
     </div>
   </div>

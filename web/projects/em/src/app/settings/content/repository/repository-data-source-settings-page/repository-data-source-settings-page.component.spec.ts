@@ -33,7 +33,7 @@ import { StompClientService } from "../../../../../../../shared/stomp/stomp-clie
 import { NEVER, of as observableOf } from "rxjs";
 import { DatabaseDefinitionModel } from "../../../../../../../shared/util/model/database-definition-model";
 import { DatasourceDatabaseType } from "../../../../../../../shared/util/model/datasource-database-type";
-import { ResourcePermissionModule } from "../../../security/resource-permission/resource-permission.module";
+import { ResourcePermissionComponent } from "../../../security/resource-permission/resource-permission.component";
 import { RepositoryDataSourceSettingsViewComponent } from "../repository-data-source-settings-view/repository-data-source-settings-view.component";
 import { RepositoryDataSourceSettingsPageComponent } from "./repository-data-source-settings-page.component";
 
@@ -60,11 +60,10 @@ describe("RepositoryDataSourceSettingsPageComponent", () => {
 
    beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
-         imports: [MatCardModule, MatTabsModule, ResourcePermissionModule, MatSnackBarModule,
+         imports: [MatCardModule, MatTabsModule, ResourcePermissionComponent, MatSnackBarModule,
             NoopAnimationsModule, FormsModule, ReactiveFormsModule, HttpClientTestingModule,
-            MatCheckboxModule, MatSelectModule, MatOptionModule, MatFormFieldModule, MatInputModule],
-         declarations: [RepositoryDataSourceSettingsPageComponent,
-            RepositoryDataSourceSettingsViewComponent],
+            MatCheckboxModule, MatSelectModule, MatOptionModule, MatFormFieldModule, MatInputModule,
+            RepositoryDataSourceSettingsPageComponent, RepositoryDataSourceSettingsViewComponent],
          providers: [
             { provide: StompClientService, useValue: stompClientService }
          ],

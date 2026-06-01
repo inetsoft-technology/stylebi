@@ -17,7 +17,7 @@
  */
 import { HttpClient, HttpParams } from "@angular/common/http";
 import { Component, EventEmitter, Input, OnInit, Output } from "@angular/core";
-import { UntypedFormControl, UntypedFormGroup, Validators } from "@angular/forms";
+import { UntypedFormControl, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { createAssetEntry } from "../../../../../../../shared/data/asset-entry";
 import { RepositoryEntry } from "../../../../../../../shared/data/repository-entry";
@@ -33,14 +33,19 @@ import { PortalModelService } from "../../../services/portal-model.service";
 import { ScheduleAlertModel } from "../../model/schedule-alert-model";
 import { SelectDashboardDialog } from "../select-dashboard-dialog/select-dashboard-dialog.component";
 import { ScheduleTaskDialogModel } from "../../../../../../../shared/schedule/model/schedule-task-dialog-model";
+import { NotificationsComponent } from "../../../../widget/notifications/notifications.component";
+import { EditableTableComponent } from "../editable-table/editable-table.component";
+import { ActionAccordion } from "./action-accordian/action-accordion.component";
+
 
 const ACTION_URI = "../api/portal/schedule/task/action";
 const EMAIL_AUTO_COMPLETE_KEY = LocalStorage.MAIL_HISTORY_KEY;
 
 @Component({
-   selector: "task-action-pane",
-   templateUrl: "task-action-pane.component.html",
-   styleUrls: ["task-action-pane.component.scss"]
+    selector: "task-action-pane",
+    templateUrl: "task-action-pane.component.html",
+    styleUrls: ["task-action-pane.component.scss"],
+    imports: [FormsModule, ReactiveFormsModule, ActionAccordion, EditableTableComponent, NotificationsComponent]
 })
 export class TaskActionPane implements OnInit {
    @Input() executeAsGroup: boolean;

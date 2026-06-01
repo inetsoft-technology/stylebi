@@ -31,7 +31,7 @@ import {
 } from "@angular/core";
 import { Observable, Subscription } from "rxjs";
 import { debounceTime, distinctUntilChanged, map } from "rxjs/operators";
-import { NgbDatepicker, NgbDateStruct, NgbModal } from "@ng-bootstrap/ng-bootstrap";
+import { NgbDatepicker, NgbDateStruct, NgbModal, NgbTypeahead } from "@ng-bootstrap/ng-bootstrap";
 import { DateTypeFormatter } from "../../../../../../shared/util/date-type-formatter";
 import { ComponentTool } from "../../../common/util/component-tool";
 import { GuiTool } from "../../../common/util/gui-tool";
@@ -55,6 +55,16 @@ import dayjs from "dayjs";
 import timezone from "dayjs/plugin/timezone";
 import toObject from "dayjs/plugin/toObject";
 import customParseFormat from "dayjs/plugin/customParseFormat";
+import { BlockMouseDirective } from "../../../widget/mouse-event/block-mouse.directive";
+import { DefaultFocusDirective } from "../../../widget/directive/default-focus.directive";
+import { CdkVirtualScrollViewport, CdkFixedSizeVirtualScroll, CdkVirtualForOf } from "@angular/cdk/scrolling";
+import { EnterClickDirective } from "../../../widget/directive/enter-click.directive";
+import { FormsModule } from "@angular/forms";
+import { SafeFontDirective } from "../../directives/safe-font.directive";
+import { VSPopComponentDirective } from "../data-tip/vs-pop-component.directive";
+import { VSDataTipDirective } from "../data-tip/vs-data-tip.directive";
+import { VSInputLabelWrapper } from "../input-label-wrapper/vs-input-label-wrapper.component";
+
 
 enum FocusRegions {
    NONE,
@@ -72,9 +82,10 @@ dayjs.extend(toObject);
 dayjs.extend(customParseFormat);
 
 @Component({
-   selector: "vs-combo-box",
-   templateUrl: "vs-combo-box.component.html",
-   styleUrls: ["vs-combo-box.component.scss"]
+    selector: "vs-combo-box",
+    templateUrl: "vs-combo-box.component.html",
+    styleUrls: ["vs-combo-box.component.scss"],
+    imports: [VSInputLabelWrapper, VSDataTipDirective, VSPopComponentDirective, SafeFontDirective, FormsModule, FixedDropdownDirective, NgbTypeahead, EnterClickDirective, CdkVirtualScrollViewport, CdkFixedSizeVirtualScroll, CdkVirtualForOf, NgbDatepicker, DefaultFocusDirective, BlockMouseDirective]
 })
 export class VSComboBox extends NavigationComponent<VSComboBoxModel> implements OnChanges, OnDestroy, OnInit {
    @Input() set model(value: VSComboBoxModel) {

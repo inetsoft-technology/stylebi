@@ -24,11 +24,16 @@ import { IdentityType } from "../../../../../../../shared/data/identity-type";
 import { Tool } from "../../../../../../../shared/util/tool";
 import { ExpandStringDirective } from "../../../../widget/expand-string/expand-string.directive";
 import { SearchComparator } from "../../../../widget/tree/search-comparator";
+import { FormsModule } from "@angular/forms";
+import { EnterSubmitDirective } from "../../../../widget/directive/enter-submit.directive";
+import { HelpLinkDirective } from "../../../../widget/help-link/help-link.directive";
+import { EnterClickDirective } from "../../../../widget/directive/enter-click.directive";
 
 @Component({
-   selector: "execute-as-dialog",
-   templateUrl: "execute-as-dialog.component.html",
-   styleUrls: ["execute-as-dialog.component.scss"]
+    selector: "execute-as-dialog",
+    templateUrl: "execute-as-dialog.component.html",
+    styleUrls: ["execute-as-dialog.component.scss"],
+    imports: [EnterClickDirective, HelpLinkDirective, EnterSubmitDirective, IdentityTreeComponent, FormsModule]
 })
 export class ExecuteAsDialog {
    @Input() type: number;

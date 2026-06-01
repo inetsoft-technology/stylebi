@@ -27,7 +27,7 @@ import {
    TemplateRef,
    ViewChild
 } from "@angular/core";
-import { UntypedFormControl, UntypedFormGroup, Validators } from "@angular/forms";
+import { UntypedFormControl, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { AssemblyActionGroup } from "../../common/action/assembly-action-group";
 import { AggregateRef } from "../../common/data/aggregate-ref";
@@ -55,6 +55,11 @@ import { BaseResizeableDialogComponent } from "../../vsobjects/dialog/base-resiz
 import { FormulaField } from "../../common/data/formula-field";
 import { Subscription } from "rxjs";
 import { DynamicDate } from "../../portal/schedule/schedule-task-editor/dynamic-date";
+import { NewAggrDialog } from "../dialog/new-aggr-dialog/new-aggr-dialog.component";
+import { InputTrimDirective } from "../directive/input-trim.directive";
+
+import { BlockMouseDirective } from "../mouse-event/block-mouse.directive";
+import { ModalHeaderComponent } from "../modal-header/modal-header.component";
 
 const DATE_PARTS: any[] = [
    { label: "_#(js:Year)", data: "year" },
@@ -79,9 +84,10 @@ const DATE_TIME_PARTS: any[] = [
    { label: "_#(js:SecondOfMinute)", data: "second" }];
 
 @Component({
-   selector: "formula-editor-dialog",
-   templateUrl: "formula-editor-dialog.component.html",
-   styleUrls: ["formula-editor-dialog.component.scss"]
+    selector: "formula-editor-dialog",
+    templateUrl: "formula-editor-dialog.component.html",
+    styleUrls: ["formula-editor-dialog.component.scss"],
+    imports: [ModalHeaderComponent, BlockMouseDirective, FormsModule, ReactiveFormsModule, InputTrimDirective, ScriptPane, NewAggrDialog]
 })
 export class FormulaEditorDialog extends BaseResizeableDialogComponent implements
    OnInit, OnDestroy, AfterViewInit

@@ -18,10 +18,13 @@
 import { Component, Input } from "@angular/core";
 import { ValueMode } from "../../../widget/dynamic-combo-box/dynamic-combo-box-model";
 import { GaugeAdvancedPaneModel } from "../../data/vs/gauge-advanced-pane-model";
+import { FormsModule } from "@angular/forms";
+import { RangePane } from "./range-pane.component";
 
 @Component({
-   selector: "gauge-advanced-pane",
-   templateUrl: "gauge-advanced-pane.component.html",
+    selector: "gauge-advanced-pane",
+    templateUrl: "gauge-advanced-pane.component.html",
+    imports: [RangePane, FormsModule]
 })
 export class GaugeAdvancedPane {
    @Input() model: GaugeAdvancedPaneModel;

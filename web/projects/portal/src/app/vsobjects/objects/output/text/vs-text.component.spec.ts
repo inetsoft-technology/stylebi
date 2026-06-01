@@ -91,9 +91,10 @@ describe("VS Text Component Unit Test", () => {
             ReactiveFormsModule,
             FormsModule,
             NgbModule,
-            HttpClientTestingModule
+            HttpClientTestingModule,
+            VSText,
          ],
-         declarations: [ VSText ],
+         
          schemas: [NO_ERRORS_SCHEMA],
          providers: [
             { provide: ViewsheetClientService, useValue: viewsheetClientService },

@@ -20,11 +20,15 @@ import { NgbDatepickerConfig } from "@ng-bootstrap/ng-bootstrap";
 import { DateTypeFormatter } from "../../../../../shared/util/date-type-formatter";
 import { TimeInstant } from "../../common/data/time-instant";
 import { DateTimeChangeType } from "./date-time-change-type";
+import { FormsModule } from "@angular/forms";
+
+import { BlockMouseDirective } from "../mouse-event/block-mouse.directive";
 
 @Component({
-   selector: "date-picker",
-   templateUrl: "./date-picker.component.html",
-   styleUrls: ["./date-picker.component.scss"]
+    selector: "date-picker",
+    templateUrl: "./date-picker.component.html",
+    styleUrls: ["./date-picker.component.scss"],
+    imports: [BlockMouseDirective, FormsModule]
 })
 export class DatePickerComponent {
    @Input() promptTime: boolean = false;

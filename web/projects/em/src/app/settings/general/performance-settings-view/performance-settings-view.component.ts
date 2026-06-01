@@ -18,11 +18,16 @@
 import { Component, EventEmitter, Input, OnInit, Output } from "@angular/core";
 import { FormValidators } from "../../../../../../shared/util/form-validators";
 import { PerformanceSettingsModel } from "./performance-settings-model";
-import { UntypedFormBuilder, UntypedFormGroup, Validators } from "@angular/forms";
+import { UntypedFormBuilder, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { GeneralSettingsChanges } from "../general-settings-page/general-settings-page.component";
 import { Searchable } from "../../../searchable";
 import { GeneralSettingsType } from "../general-settings-page/general-settings-type.enum";
 import { ContextHelp } from "../../../context-help";
+import { MatCheckbox } from "@angular/material/checkbox";
+import { MatInput } from "@angular/material/input";
+import { MatFormField, MatLabel, MatError } from "@angular/material/form-field";
+
+import { MatCard, MatCardTitle, MatCardContent } from "@angular/material/card";
 
 @Searchable({
    route: "/settings/general#performance",
@@ -34,9 +39,10 @@ import { ContextHelp } from "../../../context-help";
    link: "EMGeneralPerformance"
 })
 @Component({
-   selector: "em-performance-settings-view",
-   templateUrl: "./performance-settings-view.component.html",
-   styleUrls: ["./performance-settings-view.component.scss"]
+    selector: "em-performance-settings-view",
+    templateUrl: "./performance-settings-view.component.html",
+    styleUrls: ["./performance-settings-view.component.scss"],
+    imports: [MatCard, MatCardTitle, MatCardContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatInput, MatError, MatCheckbox]
 })
 export class PerformanceSettingsViewComponent {
    @Output() modelChanged = new EventEmitter<GeneralSettingsChanges>();

@@ -99,6 +99,16 @@ import { GraphTypes } from "../../../common/graph-types";
 import { FullScreenService } from "../../../common/services/full-screen.service";
 import { Dimension } from "../../../common/data/dimension";
 import { VSTabService } from "../../util/vs-tab.service";
+import { VSLoadingDisplay } from "../vs-loading-display/vs-loading-display.component";
+import { VSAnnotation } from "../annotation/vs-annotation.component";
+import { VSPreviewTable } from "../table/vs-preview-table.component";
+import { VSHiddenAnnotation } from "../annotation/vs-hidden-annotation.component";
+import { OutOfZoneDirective } from "../../../widget/directive/out-of-zone.directive";
+import { VSTitle } from "../title/vs-title.component";
+import { TooltipDirective } from "../../../widget/tooltip/tooltip.directive";
+import { VSPopComponentDirective } from "../data-tip/vs-pop-component.directive";
+import { VSDataTipDirective } from "../data-tip/vs-data-tip.directive";
+
 
 const CHART_AREAS_URI: string = "/events/vschart/areas";
 const CHART_PLOT_RESIZE_URL: string = "/events/vschart/resize-plot";
@@ -114,9 +124,10 @@ const CHART_DETAIL_FORMAT_URI: string = "../vschart/showdetails/format-model";
 const CHART_WIZARD_CHANGE_TITLE_URL = "/events/vswizard/preview/changeDescription";
 
 @Component({
-   selector: "vs-chart",
-   templateUrl: "vs-chart.component.html",
-   styleUrls: ["vs-chart.component.scss"]
+    selector: "vs-chart",
+    templateUrl: "vs-chart.component.html",
+    styleUrls: ["vs-chart.component.scss"],
+    imports: [VSDataTipDirective, VSPopComponentDirective, TooltipDirective, VSTitle, ChartArea, OutOfZoneDirective, VSHiddenAnnotation, VSPreviewTable, VSAnnotation, VSLoadingDisplay]
 })
 export class VSChart extends AbstractVSObject<VSChartModel>
    implements OnInit, OnDestroy, SelectableObject

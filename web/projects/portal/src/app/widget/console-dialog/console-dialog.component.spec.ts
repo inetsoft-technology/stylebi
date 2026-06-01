@@ -32,10 +32,13 @@ describe("ConsoleDialogComponent", () => {
    beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
-            HttpClientModule
+            HttpClientModule,
+            ConsoleDialogComponent,
+            StandardDialogComponent,
+            DialogContentDirective,
+            DialogButtonsDirective,
          ],
-         declarations: [ConsoleDialogComponent, StandardDialogComponent,
-            DialogContentDirective, DialogButtonsDirective],
+         
          providers: [
             {
                provide: ModelService

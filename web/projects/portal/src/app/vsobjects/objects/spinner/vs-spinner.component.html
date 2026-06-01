@@ -1,74 +1,80 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
-<vs-input-label-wrapper *ngIf="model"
-                        [labelModel]="model.labelModel"
-                        [labelSelected]="model.labelSelected"
-                        [disabled]="!model.enabled"
-                        [style.display]="getVisible() ? null : 'none'"
-                        [class.fade-assembly]="!viewer && !model.visible"
-                        [style.top.px]="viewer || embeddedVS ? model.objectFormat.top : null"
-                        [style.left.px]="viewer || embeddedVS ? model.objectFormat.left : null"
-                        [style.position]="viewer || embeddedVS ? 'absolute' : 'relative'"
-                        [style.width.px]="model.objectFormat.width"
-                        [objectHeight]="model.objectFormat.height"
-                        contentOverflow="visible"
-                        [style.z-index]="viewer ? model.objectFormat.zIndex : null"
-                        [style.background-color]="model.objectFormat.background"
-                        [style.border-bottom]="model.objectFormat.border.bottom"
-                        [style.border-top]="model.objectFormat.border.top"
-                        [style.border-left]="model.objectFormat.border.left"
-                        [style.border-right]="model.objectFormat.border.right"
-                        [style.border-radius.px]="model.objectFormat.roundCorner"
-                        VSDataTip [dataTipName]="getAssemblyName()"
-                        VSPopComponent [popComponentName]="getAssemblyName()" [popContainerName]="model.container"
-                        [popZIndex]="model.objectFormat.zIndex"
-                        (selectLabel)="selectLabel($event)">
-  <div class="vs-spinner" (click)="clearLabelSelection()">
-    <input *ngIf="!showLabel && model"
-           (click)="onClick($event)"
-           (blur)="onBlur($event)"
-           (keyup.enter)="onBlur($event)"
-           type="number"
-           [step]="model.increment"
-           [(ngModel)]="model.value"
-           [class.disable-actions-fade]="!model.enabled"
-           [class.move-handle]="(selected || inSelectedGroupContainer) && !viewer"
-           [style.text-align]="model.objectFormat.hAlign"
-           [style.padding]="getTextVerticalPosition()"
-           [safeFont]="model.objectFormat.font"
-           [style.background]="model.objectFormat.background"
-           [style.color]="model.objectFormat.foreground"
-           [style.text-decoration]="model.objectFormat.decoration"
-           [style.white-space]="model.objectFormat.wrapping.whiteSpace"
-           [style.word-wrap]="model.objectFormat.wrapping.wordWrap"
-           [style.overflow]="model.objectFormat.wrapping.overflow"
-           (mouseleave)="showLabel = true"
-           (mousedown)="$event.stopPropagation()">
-    <div *ngIf="showLabel && model" class="text-label"
-         [style.background-color]="model.objectFormat.background"
-         [style.justify-content]="model.objectFormat.justifyContent"
-         [style.align-items]="model.objectFormat.alignItems"
-         [style.color]="model.objectFormat.foreground"
-         [style.text-decoration]="model.objectFormat.decoration"
-         [safeFont]="model.objectFormat.font"
-         (mouseenter)="showLabel = false"
-         >
-      {{model.currentLabel}}
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
+@if (model) {
+  <vs-input-label-wrapper
+    [labelModel]="model.labelModel"
+    [labelSelected]="model.labelSelected"
+    [disabled]="!model.enabled"
+    [style.display]="getVisible() ? null : 'none'"
+    [class.fade-assembly]="!viewer && !model.visible"
+    [style.top.px]="viewer || embeddedVS ? model.objectFormat.top : null"
+    [style.left.px]="viewer || embeddedVS ? model.objectFormat.left : null"
+    [style.position]="viewer || embeddedVS ? 'absolute' : 'relative'"
+    [style.width.px]="model.objectFormat.width"
+    [objectHeight]="model.objectFormat.height"
+    contentOverflow="visible"
+    [style.z-index]="viewer ? model.objectFormat.zIndex : null"
+    [style.background-color]="model.objectFormat.background"
+    [style.border-bottom]="model.objectFormat.border.bottom"
+    [style.border-top]="model.objectFormat.border.top"
+    [style.border-left]="model.objectFormat.border.left"
+    [style.border-right]="model.objectFormat.border.right"
+    [style.border-radius.px]="model.objectFormat.roundCorner"
+    VSDataTip [dataTipName]="getAssemblyName()"
+    VSPopComponent [popComponentName]="getAssemblyName()" [popContainerName]="model.container"
+    [popZIndex]="model.objectFormat.zIndex"
+    (selectLabel)="selectLabel($event)">
+    <div class="vs-spinner" (click)="clearLabelSelection()">
+      @if (!showLabel && model) {
+        <input
+          (click)="onClick($event)"
+          (blur)="onBlur($event)"
+          (keyup.enter)="onBlur($event)"
+          type="number"
+          [step]="model.increment"
+          [(ngModel)]="model.value"
+          [class.disable-actions-fade]="!model.enabled"
+          [class.move-handle]="(selected || inSelectedGroupContainer) && !viewer"
+          [style.text-align]="model.objectFormat.hAlign"
+          [style.padding]="getTextVerticalPosition()"
+          [safeFont]="model.objectFormat.font"
+          [style.background]="model.objectFormat.background"
+          [style.color]="model.objectFormat.foreground"
+          [style.text-decoration]="model.objectFormat.decoration"
+          [style.white-space]="model.objectFormat.wrapping.whiteSpace"
+          [style.word-wrap]="model.objectFormat.wrapping.wordWrap"
+          [style.overflow]="model.objectFormat.wrapping.overflow"
+          (mouseleave)="showLabel = true"
+          (mousedown)="$event.stopPropagation()">
+      }
+      @if (showLabel && model) {
+        <div class="text-label"
+          [style.background-color]="model.objectFormat.background"
+          [style.justify-content]="model.objectFormat.justifyContent"
+          [style.align-items]="model.objectFormat.alignItems"
+          [style.color]="model.objectFormat.foreground"
+          [style.text-decoration]="model.objectFormat.decoration"
+          [safeFont]="model.objectFormat.font"
+          (mouseenter)="showLabel = false"
+          >
+          {{model.currentLabel}}
+        </div>
+      }
     </div>
-  </div>
-</vs-input-label-wrapper>
+  </vs-input-label-wrapper>
+}

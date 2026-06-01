@@ -1,41 +1,43 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <mat-card appearance="outlined" class="select-report">
   <mat-card-content [formGroup]="form">
     <mat-form-field appearance="outline" color="accent">
       <mat-label>_#(Select Schedule Task)</mat-label>
       <mat-select placeholder="_#(Select Schedule Task)" (blur)="onTouched()"
-                  name="someName"
-                  formControlName="selectedTaskName"
-                  (valueChange)="onChange($event)">
+        name="someName"
+        formControlName="selectedTaskName"
+        (valueChange)="onChange($event)">
         <mat-option class="mat-option-text">_#(None)</mat-option>
         <mat-tree [dataSource]="dataSource" [treeControl]="treeControl" class="select-report-tree">
           <mat-tree-node *matTreeNodeDef="let node" matTreeNodeToggle matTreeNodePadding>
             <button mat-icon-button disabled></button>
-            <mat-option class="mat-option-text" [value]="getTaskName(node.task)" *ngIf="!node.folder">
-              <mat-icon fontSet="ineticons" class="icon-size-medium margin-unset " fontIcon="file-icon">
-              </mat-icon>
-              {{getOrgParsedLabel(node.name)}}
-            </mat-option>
-            <ng-container *ngIf="node.folder">
+            @if (!node.folder) {
+              <mat-option class="mat-option-text" [value]="getTaskName(node.task)">
+                <mat-icon fontSet="ineticons" class="icon-size-medium margin-unset " fontIcon="file-icon">
+                </mat-icon>
+                {{getOrgParsedLabel(node.name)}}
+              </mat-option>
+            }
+            @if (node.folder) {
               <mat-icon fontSet="ineticons" class="icon-size-medium" fontIcon="folder-icon"></mat-icon>
               <span>{{getOrgParsedLabel(node.name)}}</span>
-            </ng-container>
+            }
           </mat-tree-node>
           <mat-tree-node *matTreeNodeDef="let node; when: hasChild" matTreeNodePadding>
             <button mat-icon-button matTreeNodeToggle [attr.aria-label]="'toggle ' + node.name">
@@ -49,8 +51,12 @@
           </mat-tree-node>
         </mat-tree>
       </mat-select>
-      <mat-error *ngIf="form.controls.selectedTaskName?.errors?.required">_#(em.scheduleBatchAction.taskRequired)</mat-error>
-      <mat-error *ngIf="form.controls.selectedTaskName?.errors?.notExists">{{notExistsMessage()}}</mat-error>
+      @if (form.controls.selectedTaskName?.errors?.required) {
+        <mat-error>_#(em.scheduleBatchAction.taskRequired)</mat-error>
+      }
+      @if (form.controls.selectedTaskName?.errors?.notExists) {
+        <mat-error>{{notExistsMessage()}}</mat-error>
+      }
     </mat-form-field>
   </mat-card-content>
 </mat-card>

@@ -26,11 +26,24 @@ import { TreeNodeModel } from "../tree/tree-node-model";
 import { FormulaType } from "../../common/data/formula-type";
 import { ComponentTool } from "../../common/util/component-tool";
 import { FormulaEditorDialogModel } from "../formula-editor/formula-editor-dialog-model";
+import { TreeComponent } from "../tree/tree.component";
+import { BlockMouseDirective } from "../mouse-event/block-mouse.directive";
+import { FormsModule } from "@angular/forms";
+import { TooltipIfDirective } from "../tooltip/tooltip-if.directive";
+import { NgClass } from "@angular/common";
 
 @Component({
-   selector: "dynamic-combo-box",
-   templateUrl: "dynamic-combo-box.component.html",
-   styleUrls: ["./dynamic-combo-box.component.scss"],
+    selector: "dynamic-combo-box",
+    templateUrl: "dynamic-combo-box.component.html",
+    styleUrls: ["./dynamic-combo-box.component.scss"],
+    imports: [
+    TooltipIfDirective,
+    NgClass,
+    FixedDropdownDirective,
+    FormsModule,
+    BlockMouseDirective,
+    TreeComponent
+]
 })
 export class DynamicComboBox implements OnInit, OnChanges {
    public ComboMode = ComboMode;

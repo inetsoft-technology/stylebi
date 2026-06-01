@@ -157,8 +157,8 @@ describe("Selection List Cell Test", () => {
       vsSelectionComponent.getMarginSize.mockImplementation(() => 0);
 
       TestBed.configureTestingModule({
-         imports: [ BrowserModule, HttpClientTestingModule, FormsModule, NgbModule ],
-         declarations: [ SelectionListCell, InteractableDirective ],
+         imports: [ BrowserModule, HttpClientTestingModule, FormsModule, NgbModule,
+            SelectionListCell, InteractableDirective ],
          providers: [
             { provide: VSSelection, useValue: vsSelectionComponent },
             { provide: Renderer2, useValue: renderer },
@@ -663,6 +663,7 @@ describe("Selection List Cell Test", () => {
       // expect(listCell.styles).toBeFalsy();
       expect(listCell.styles["border-bottom-width"]).toBe("2px");
       expect(listCell.styles["border-bottom-style"]).toBe("solid");
-      expect(listCell.styles["border-bottom-color"]).toBe("#ff00ff");
+      // jsdom 26+ normalizes hex colors to rgb() form when read back from styles.
+      expect(listCell.styles["border-bottom-color"]).toBe("rgb(255, 0, 255)");
    });
 });

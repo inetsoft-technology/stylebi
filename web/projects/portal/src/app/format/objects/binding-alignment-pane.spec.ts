@@ -33,8 +33,8 @@ describe("Binding Alignment Pane Unit Test", () => {
    let alignmentPane: BindingAlignmentPane;
    beforeEach(() => {
       TestBed.configureTestingModule({
-         imports: [ReactiveFormsModule, FormsModule, NgbModule],
-         declarations: [BindingAlignmentPane],
+         imports: [ReactiveFormsModule, FormsModule, NgbModule, BindingAlignmentPane],
+         
       }).compileComponents();
 
       fixture = TestBed.createComponent(BindingAlignmentPane);

@@ -20,10 +20,21 @@ import { DefaultPalette } from "../../../widget/color-picker/default-palette";
 import { ValueMode } from "../../../widget/dynamic-combo-box/dynamic-combo-box-model";
 import { RangePaneModel } from "../../data/vs/range-pane-model";
 import { RangePaneValueModel } from "../../data/vs/range-pane-value-model";
+import { DynamicComboBox } from "../../../widget/dynamic-combo-box/dynamic-combo-box.component";
+import { ExpandStringDirective } from "../../../widget/expand-string/expand-string.directive";
+
+import { ColorEditor } from "../../../widget/color-picker/color-editor.component";
+import { FormsModule } from "@angular/forms";
 
 @Component({
-   selector: "range-pane",
-   templateUrl: "range-pane.component.html",
+    selector: "range-pane",
+    templateUrl: "range-pane.component.html",
+    imports: [
+    FormsModule,
+    ColorEditor,
+    ExpandStringDirective,
+    DynamicComboBox
+]
 })
 export class RangePane implements OnChanges {
    @Input() model: RangePaneModel;

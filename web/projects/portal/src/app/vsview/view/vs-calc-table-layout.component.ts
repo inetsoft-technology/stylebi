@@ -16,21 +16,22 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import {
-   ChangeDetectorRef,
-   AfterViewChecked,
-   Component,
-   Inject,
-   EventEmitter,
-   HostListener,
-   Input,
-   NgZone,
-   Renderer2,
-   ViewChild,
-   ElementRef,
-   ChangeDetectionStrategy,
-   Output
+  ChangeDetectorRef,
+  AfterViewChecked,
+  Component,
+  Inject,
+  EventEmitter,
+  HostListener,
+  Input,
+  NgZone,
+  Renderer2,
+  ViewChild,
+  ElementRef,
+  ChangeDetectionStrategy,
+  Output,
+  DOCUMENT
 } from "@angular/core";
-import { DOCUMENT } from "@angular/common";
+import { NgStyle } from "@angular/common";
 import { AiAssistantService } from "../../../../../shared/ai-assistant/ai-assistant.service";
 import { GetCellBindingCommand } from "../../binding/command/get-cell-binding-command";
 import { GetCellScriptCommand } from "../../binding/command/get-cell-script-command";
@@ -52,12 +53,16 @@ import { VSObjectModel } from "../../vsobjects/model/vs-object-model";
 import { GuiTool } from "../../common/util/gui-tool";
 import { AssemblyLoadingCommand } from "../../vsobjects/command/assembly-loading-command";
 import { ClearAssemblyLoadingCommand } from "../../vsobjects/command/clear-assembly-loading-command";
+import { VSLoadingDisplay } from "../../vsobjects/objects/vs-loading-display/vs-loading-display.component";
+import { CalcTableCellComponent } from "./calc-table-cell.component";
+import { OutOfZoneDirective } from "../../widget/directive/out-of-zone.directive";
 
 @Component({
-   selector: "vs-calc-table-layout",
-   templateUrl: "vs-calc-table-layout.component.html",
-   styleUrls: ["vs-calc-table-layout.component.scss"],
-   changeDetection: ChangeDetectionStrategy.OnPush
+    selector: "vs-calc-table-layout",
+    templateUrl: "vs-calc-table-layout.component.html",
+    styleUrls: ["vs-calc-table-layout.component.scss"],
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    imports: [OutOfZoneDirective, NgStyle, CalcTableCellComponent, VSLoadingDisplay]
 })
 export class CalcTableLayoutPane extends CommandProcessor implements AfterViewChecked {
    @Output() calcTableLayout = new EventEmitter<CalcTableLayout>();

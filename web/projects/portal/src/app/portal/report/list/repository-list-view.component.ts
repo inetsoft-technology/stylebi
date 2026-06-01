@@ -18,11 +18,14 @@
 import { Component, EventEmitter, Input, OnInit, Output } from "@angular/core";
 import { RepositoryEntry } from "../../../../../../shared/data/repository-entry";
 import { TreeNodeModel } from "../../../widget/tree/tree-node-model";
+import { RepositoryListComponent } from "../../../widget/repository-tree/repository-list.component";
+
 
 @Component({
-   selector: "p-repository-list-view",
-   templateUrl: "./repository-list-view.component.html",
-   styleUrls: ["./repository-list-view.component.scss"]
+    selector: "p-repository-list-view",
+    templateUrl: "./repository-list-view.component.html",
+    styleUrls: ["./repository-list-view.component.scss"],
+    imports: [RepositoryListComponent]
 })
 export class RepositoryListViewComponent implements OnInit {
    @Input() rootNode: TreeNodeModel;

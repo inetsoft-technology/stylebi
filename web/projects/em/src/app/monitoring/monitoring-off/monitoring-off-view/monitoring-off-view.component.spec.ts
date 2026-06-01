@@ -34,8 +34,7 @@ describe("MonitoringOffViewComponent", () => {
             CommonModule,
             MatCardModule,
             HttpClientTestingModule,
-         ],
-         declarations: [MonitoringOffViewComponent],
+            MonitoringOffViewComponent],
          schemas: [NO_ERRORS_SCHEMA]
       }).compileComponents();
    });

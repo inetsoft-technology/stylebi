@@ -27,7 +27,8 @@ import {
  * Directive that brings focused (mouse hover) elements to a given z-index value.
  */
 @Directive({
-   selector: "[ZIndexDirective]"
+    selector: "[ZIndexDirective]",
+    standalone: true
 })
 export class ZIndexDirective implements OnInit {
    // The non-focused z-index of the host component

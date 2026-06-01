@@ -17,10 +17,14 @@
  */
 import { Component, EventEmitter, Input, Output } from "@angular/core";
 
+import { DynamicComboBox } from "../../../widget/dynamic-combo-box/dynamic-combo-box.component";
+import { FormsModule } from "@angular/forms";
+
 @Component({
-   selector: "date-comparison-share-pane",
-   templateUrl: "./date-comparison-share-pane.component.html",
-   styleUrls: ["./date-comparison-share-pane.component.scss"]
+    selector: "date-comparison-share-pane",
+    templateUrl: "./date-comparison-share-pane.component.html",
+    styleUrls: ["./date-comparison-share-pane.component.scss"],
+    imports: [FormsModule, DynamicComboBox]
 })
 export class DateComparisonSharePaneComponent {
    @Input() isShareDateComparison: boolean;

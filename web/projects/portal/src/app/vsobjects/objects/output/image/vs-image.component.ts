@@ -45,11 +45,19 @@ import { ShowHyperlinkService } from "../../../show-hyperlink.service";
 import { DataTipService } from "../../data-tip/data-tip.service";
 import { PopComponentService } from "../../data-tip/pop-component.service";
 import { AbstractImageComponent } from "../abstract-image";
+import { VSLoadingDisplay } from "../../vs-loading-display/vs-loading-display.component";
+import { VSAnnotation } from "../../annotation/vs-annotation.component";
+import { VSHiddenAnnotation } from "../../annotation/vs-hidden-annotation.component";
+import { TooltipDirective } from "../../../../widget/tooltip/tooltip.directive";
+import { VSPopComponentDirective } from "../../data-tip/vs-pop-component.directive";
+import { VSDataTipDirective } from "../../data-tip/vs-data-tip.directive";
+import { NgStyle } from "@angular/common";
 
 @Component({
-   selector: "vs-image",
-   templateUrl: "vs-image.component.html",
-   styleUrls: ["vs-image.component.scss"]
+    selector: "vs-image",
+    templateUrl: "vs-image.component.html",
+    styleUrls: ["vs-image.component.scss"],
+    imports: [VSDataTipDirective, VSPopComponentDirective, TooltipDirective, NgStyle, VSHiddenAnnotation, VSAnnotation, VSLoadingDisplay]
 })
 export class VSImage extends AbstractImageComponent<VSImageModel>
    implements OnInit, OnChanges, OnDestroy

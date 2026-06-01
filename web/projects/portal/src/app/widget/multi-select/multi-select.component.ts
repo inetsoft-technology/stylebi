@@ -16,11 +16,15 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, Input, Output, EventEmitter } from "@angular/core";
+import { FormsModule } from "@angular/forms";
+
+import { FixedDropdownDirective } from "../fixed-dropdown/fixed-dropdown.directive";
 
 @Component({
-   selector: "multi-select",
-   templateUrl: "multi-select.component.html",
-   styleUrls: ["multi-select.component.scss"]
+    selector: "multi-select",
+    templateUrl: "multi-select.component.html",
+    styleUrls: ["multi-select.component.scss"],
+    imports: [FixedDropdownDirective, FormsModule]
 })
 export class MultiSelect {
    @Input() items: any[] = [];

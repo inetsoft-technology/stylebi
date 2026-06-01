@@ -17,10 +17,13 @@
  */
 import { Component, EventEmitter, Input, Output } from "@angular/core";
 
+import { ModalHeaderComponent } from "../../../../../../../../widget/modal-header/modal-header.component";
+
 @Component({
-   selector: "browse-field-values-dialog",
-   templateUrl: "./browse-field-values-dialog.component.html",
-   styleUrls: ["./browse-field-values-dialog.component.scss"]
+    selector: "browse-field-values-dialog",
+    templateUrl: "./browse-field-values-dialog.component.html",
+    styleUrls: ["./browse-field-values-dialog.component.scss"],
+    imports: [ModalHeaderComponent]
 })
 export class BrowseFieldValuesDialogComponent {
    @Input() title: string;

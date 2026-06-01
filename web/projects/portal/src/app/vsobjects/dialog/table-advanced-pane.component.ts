@@ -17,10 +17,17 @@
  */
 import { Component, Input } from "@angular/core";
 import { TableAdvancedPaneModel } from "../model/table-advanced-pane-model";
+import { TipPane } from "./graph/tip-pane.component";
+
+import { FormsModule } from "@angular/forms";
 
 @Component({
-   selector: "table-advanced-pane",
-   templateUrl: "table-advanced-pane.component.html",
+    selector: "table-advanced-pane",
+    templateUrl: "table-advanced-pane.component.html",
+    imports: [
+    FormsModule,
+    TipPane
+]
 })
 export class TableAdvancedPane {
    @Input() model: TableAdvancedPaneModel;

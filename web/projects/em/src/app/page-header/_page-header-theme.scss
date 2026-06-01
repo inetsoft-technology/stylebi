@@ -28,25 +28,25 @@
 
   .em-header-toolbar {
     @if $is-dark {
-      background-color: mat.get-color-from-palette($primary, 80);
-      color: mat.get-color-from-palette($foreground, secondary-text);
+      background-color: mat.m2-get-color-from-palette($primary, 80);
+      color: mat.m2-get-color-from-palette($foreground, secondary-text);
     }
     @else {
-      background-color: mat.get-color-from-palette($primary, 50);
-      color: mat.get-color-from-palette($primary);
+      background-color: mat.m2-get-color-from-palette($primary, 50);
+      color: mat.m2-get-color-from-palette($primary);
     }
 
     height: 40px !important;
 
     button {
-      color: mat.get-color-from-palette($foreground, secondary-text);
+      color: mat.m2-get-color-from-palette($foreground, secondary-text);
 
       &:hover {
         @if $is-dark {
-          color: mat.get-color-from-palette($accent);
+          color: mat.m2-get-color-from-palette($accent);
         }
         @else {
-          color: mat.get-color-from-palette($primary);
+          color: mat.m2-get-color-from-palette($primary);
         }
       }
     }

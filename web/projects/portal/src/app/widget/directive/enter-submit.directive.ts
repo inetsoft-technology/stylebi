@@ -28,7 +28,8 @@ import {
 } from "@angular/core";
 
 @Directive({
-   selector: "[enterSubmit]"
+    selector: "[enterSubmit]",
+    standalone: true
 })
 export class EnterSubmitDirective implements AfterContentInit, OnDestroy {
    @Input() enterSubmit: (() => boolean) | boolean;

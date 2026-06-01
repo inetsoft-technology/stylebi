@@ -28,6 +28,10 @@ import { Secured } from "../../../secured";
 import { MonitoringDataService } from "../../monitoring-data.service";
 import { LogMonitoringModel } from "../log-monitoring-model";
 import { LogViewLinks } from "../log-view-links";
+import { LogMonitoringViewComponent } from "../log-monitoring-view/log-monitoring-view.component";
+import { MatIcon } from "@angular/material/icon";
+import { MatCard, MatCardTitle } from "@angular/material/card";
+import { AsyncPipe } from "@angular/common";
 
 const GET_LOGVIEWER_MODEL_URL = "../em/monitoring/logviewer/all-logs";
 const AUTO_REFRESH_LOG_URL = "/logviewer/auto_refresh/";
@@ -56,9 +60,10 @@ const DEFAULT_VIEW_VALUES: LogMonitoringModel = {
    link: "EMMonitoringLog"
 })
 @Component({
-   selector: "em-log-monitoring-page",
-   templateUrl: "./log-monitoring-page.component.html",
-   styleUrls: ["./log-monitoring-page.component.scss"]
+    selector: "em-log-monitoring-page",
+    templateUrl: "./log-monitoring-page.component.html",
+    styleUrls: ["./log-monitoring-page.component.scss"],
+    imports: [MatCard, MatCardTitle, MatIcon, LogMonitoringViewComponent, AsyncPipe]
 })
 export class LogMonitoringPageComponent implements OnInit, OnDestroy {
    fluentdLogging = false;

@@ -39,12 +39,8 @@ describe("StartTimeEditorComponent", () => {
             MatFormFieldModule,
             MatInputModule,
             MatRadioModule,
-            MatSelectModule
-         ],
-         declarations: [
-            StartTimeEditorComponent,
-            TimePickerComponent
-         ],
+            MatSelectModule,
+            StartTimeEditorComponent, TimePickerComponent],
          schemas: [
             NO_ERRORS_SCHEMA
          ]

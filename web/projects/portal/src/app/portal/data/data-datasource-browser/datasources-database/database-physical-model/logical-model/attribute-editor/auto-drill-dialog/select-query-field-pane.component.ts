@@ -20,10 +20,13 @@ import {
    QueryFieldModel
 } from "../../../../../../model/datasources/database/query/query-field-model";
 
+import { FormsModule } from "@angular/forms";
+
 @Component({
-   selector: "select-query-field-pane",
-   templateUrl: "select-query-field-pane.component.html",
-   styleUrls: ["select-query-field-pane.component.scss"]
+    selector: "select-query-field-pane",
+    templateUrl: "select-query-field-pane.component.html",
+    styleUrls: ["select-query-field-pane.component.scss"],
+    imports: [FormsModule]
 })
 export class SelectQueryFieldPaneComponent {
    @Input() fields: QueryFieldModel[];

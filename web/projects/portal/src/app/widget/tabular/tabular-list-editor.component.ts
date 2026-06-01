@@ -16,11 +16,24 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, EventEmitter, Input, OnInit, Output } from "@angular/core";
+import { TabularAutocompleteEditor } from "./tabular-autocomplete-editor.component";
+import { TabularTagsEditor } from "./tabular-tags-editor.component";
+import { TabularFileEditor } from "./tabular-file-editor.component";
+import { TabularQueryParameterEditor } from "./tabular-query-parameter-editor.component";
+import { TabularHttpParameterEditorComponent } from "./tabular-http-parameter-editor.component";
+import { TabularDateEditor } from "./tabular-date-editor.component";
+import { TabularColumnDefinitionEditor } from "./tabular-column-definition-editor.component";
+import { TabularNumberEditor } from "./tabular-number-editor.component";
+import { TabularBooleanEditor } from "./tabular-boolean-editor.component";
+import { TabularTextEditor } from "./tabular-text-editor.component";
+import { FormsModule } from "@angular/forms";
+
 
 @Component({
-   selector: "tabular-list-editor",
-   templateUrl: "tabular-list-editor.component.html",
-   styleUrls: ["tabular-list-editor.component.scss"]
+    selector: "tabular-list-editor",
+    templateUrl: "tabular-list-editor.component.html",
+    styleUrls: ["tabular-list-editor.component.scss"],
+    imports: [FormsModule, TabularTextEditor, TabularBooleanEditor, TabularNumberEditor, TabularColumnDefinitionEditor, TabularDateEditor, TabularHttpParameterEditorComponent, TabularQueryParameterEditor, TabularFileEditor, TabularTagsEditor, TabularAutocompleteEditor]
 })
 export class TabularListEditor implements OnInit {
    @Input() value: any[];

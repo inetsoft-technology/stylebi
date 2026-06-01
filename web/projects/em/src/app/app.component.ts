@@ -26,8 +26,8 @@ import {
    ViewChild,
    ViewContainerRef
 } from "@angular/core";
-import { MatDialog, MatDialogRef } from "@angular/material/dialog";
-import { NavigationError, Router } from "@angular/router";
+import { MatDialog, MatDialogRef, MatDialogContent, MatDialogActions, MatDialogClose } from "@angular/material/dialog";
+import { NavigationError, Router, RouterOutlet } from "@angular/router";
 import { Subscription } from "rxjs";
 import { filter } from "rxjs/operators";
 import { SsoHeartbeatDispatcherService } from "../../../shared/sso/sso-heartbeat-dispatcher.service";
@@ -42,11 +42,16 @@ import { CurrentUserService } from "../../../shared/util/current-user.service";
 import { OrganizationDropdownService } from "./navbar/organization-dropdown.service";
 import { TopScrollService } from "./top-scroll/top-scroll.service";
 import { SessionExpirationDialog } from "./widget/dialog/session-expiration-dialog/session-expiration-dialog.component";
+import { MatButton } from "@angular/material/button";
+import { DownloadTargetComponent } from "../../../shared/download/download-target.component";
+import { AiAssistantPanelComponent } from "../../../shared/ai-assistant/ai-assistant-panel.component";
+import { NavbarComponent } from "./navbar/navbar.component";
 
 @Component({
-   selector: "em-root",
-   templateUrl: "./app.component.html",
-   styleUrls: ["./app.component.scss"]
+    selector: "em-root",
+    templateUrl: "./app.component.html",
+    styleUrls: ["./app.component.scss"],
+    imports: [NavbarComponent, RouterOutlet, AiAssistantPanelComponent, DownloadTargetComponent, MatDialogContent, MatDialogActions, MatButton, MatDialogClose]
 })
 export class AppComponent implements OnInit, OnDestroy {
    @ViewChild("notificationDialog", { static: true }) notificationDialog: TemplateRef<any>;

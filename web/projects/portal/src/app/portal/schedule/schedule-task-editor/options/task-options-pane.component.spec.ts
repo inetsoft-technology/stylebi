@@ -24,10 +24,11 @@ import {
    Output,
    ViewChild
 } from "@angular/core";
+import { AsyncPipe, NgClass, NgFor, NgIf, NgStyle } from "@angular/common";
 import { ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormBuilder, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { By } from "@angular/platform-browser";
-import { NgbModal, NgbModule } from "@ng-bootstrap/ng-bootstrap";
+import { NgbInputDatepicker, NgbModal, NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { BehaviorSubject } from "rxjs";
 import { TaskOptionsPaneModel } from "../../../../../../../shared/schedule/model/task-options-pane-model";
 import { ScheduleUsersService } from "../../../../../../../shared/schedule/schedule-users.service";
@@ -36,7 +37,8 @@ import { TaskOptionsPane } from "./task-options-pane.component";
 
 @Component({
    selector: "execute-as-dialog",
-   template: "<div></div>"
+   template: "<div></div>",
+   standalone: true
 })
 class ExecuteAsDialog {
    @Output() onCommit: EventEmitter<{name: string, type: number}> =
@@ -44,10 +46,11 @@ class ExecuteAsDialog {
    @Output() onCancel: EventEmitter<string> = new EventEmitter<string>();
 }
 
-
 @Component({
    selector: "test-app",
-   template: `<task-options-pane [model]="model" [taskName]="taskName" [parentForm]="form"></task-options-pane>`
+   template: `<task-options-pane [model]="model" [taskName]="taskName" [parentForm]="form"></task-options-pane>`,
+   standalone: true,
+   imports: [TaskOptionsPane]
 })
 class TestApp {
    @ViewChild(TaskOptionsPane, {static: false}) optionPane: TaskOptionsPane;
@@ -95,14 +98,16 @@ describe("task options pane componnet unit case: ", () => {
       http = { open: jest.fn() };
 
       TestBed.configureTestingModule({
-         imports: [ReactiveFormsModule, FormsModule, NgbModule, HttpClientTestingModule],
-         declarations: [TestApp, TaskOptionsPane, ExecuteAsDialog],
+         imports: [ReactiveFormsModule, FormsModule, NgbModule, HttpClientTestingModule, TestApp, TaskOptionsPane, ExecuteAsDialog],
+
          providers: [
             {provide: NgbModal, useValue: modalService},
             {provide: ScheduleUsersService, useValue: scheduleUsersService}
          ],
          schemas: [NO_ERRORS_SCHEMA]
-      }).compileComponents();
+      });
+      TestBed.overrideComponent(TaskOptionsPane, { set: { imports: [NgIf, NgFor, NgClass, NgStyle, AsyncPipe, FormsModule, ReactiveFormsModule, NgbInputDatepicker] } });
+      TestBed.compileComponents();
 
       fixture = TestBed.createComponent(TestApp);
       fixture.detectChanges();

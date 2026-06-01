@@ -36,10 +36,11 @@ describe("Static Size Pane Unit Test", () => {
    beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule
-         ],
-         declarations: [
-            StaticSizePane, Slider
+            FormsModule,
+            ReactiveFormsModule,
+            NgbModule,
+            StaticSizePane,
+            Slider,
          ]
       }).compileComponents();
    }));

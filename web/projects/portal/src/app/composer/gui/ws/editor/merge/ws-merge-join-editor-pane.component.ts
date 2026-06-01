@@ -41,6 +41,8 @@ import { WSMergeAddJoinTableEvent } from "../../socket/ws-join/ws-merge-add-join
 import { DRAG_TABLE_ID } from "../ws-composite-table-sidebar-pane.component";
 import { ComponentTool } from "../../../../../common/util/component-tool";
 import { WsChangeService } from "../ws-change.service";
+import { MergeJoinSubtableComponent } from "./merge-join-subtable.component";
+import { NgClass, AsyncPipe } from "@angular/common";
 
 const ADD_JOIN_TABLE_URI: string = "/events/composer/worksheet/add-join-table";
 const REORDER_JOIN_TABLE_DRAG_KEY: string = "reorder-join-table";
@@ -55,10 +57,11 @@ class MergeJoinDropInfo {
 }
 
 @Component({
-   selector: "ws-merge-join-editor-pane",
-   templateUrl: "ws-merge-join-editor-pane.component.html",
-   styleUrls: ["ws-merge-join-editor-pane.component.scss"],
-   changeDetection: ChangeDetectionStrategy.OnPush
+    selector: "ws-merge-join-editor-pane",
+    templateUrl: "ws-merge-join-editor-pane.component.html",
+    styleUrls: ["ws-merge-join-editor-pane.component.scss"],
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    imports: [MergeJoinSubtableComponent, NgClass, AsyncPipe]
 })
 export class WSMergeJoinEditorPaneComponent implements OnDestroy, OnInit {
    @Input() worksheet: Worksheet;

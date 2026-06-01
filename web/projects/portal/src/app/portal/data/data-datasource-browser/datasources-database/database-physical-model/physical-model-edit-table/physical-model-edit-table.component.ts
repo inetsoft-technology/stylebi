@@ -18,11 +18,14 @@
 import { Component, EventEmitter, Input, Output } from "@angular/core";
 import { PhysicalModelDefinition } from "../../../../model/datasources/database/physical-model/physical-model-definition";
 import { PhysicalTableModel } from "../../../../model/datasources/database/physical-model/physical-table-model";
+import { PhysicalTableJoinsComponent } from "./physical-table-joins/physical-table-joins.component";
+
 
 @Component({
-   selector: "physical-model-edit-table",
-   templateUrl: "physical-model-edit-table.component.html",
-   styleUrls: ["physical-model-edit-table.component.scss"]
+    selector: "physical-model-edit-table",
+    templateUrl: "physical-model-edit-table.component.html",
+    styleUrls: ["physical-model-edit-table.component.scss"],
+    imports: [PhysicalTableJoinsComponent]
 })
 export class PhysicalModelEditTableComponent {
    @Input() physicalModel: PhysicalModelDefinition;

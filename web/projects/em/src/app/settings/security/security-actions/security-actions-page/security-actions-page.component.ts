@@ -26,6 +26,11 @@ import { ActionTreeNode } from "../action-tree-node";
 import { MessageDialog, MessageDialogType } from "../../../../common/util/message-dialog";
 import { MatDialog } from "@angular/material/dialog";
 import { SecurityActionsTreeComponent } from "../security-actions-tree/security-actions-tree.component";
+import { SecurityActionsPermissionsComponent } from "../security-actions-permissions/security-actions-permissions.component";
+import { MatButton } from "@angular/material/button";
+
+import { TopScrollDirective } from "../../../../top-scroll/top-scroll.directive";
+import { MatDrawerContainer, MatDrawer, MatDrawerContent } from "@angular/material/sidenav";
 
 const SMALL_WIDTH_BREAKPOINT = 720;
 
@@ -43,9 +48,10 @@ const SMALL_WIDTH_BREAKPOINT = 720;
    link: "EMSettingsSecurityActions"
 })
 @Component({
-   selector: "em-security-actions-page",
-   templateUrl: "./security-actions-page.component.html",
-   styleUrls: ["./security-actions-page.component.scss"]
+    selector: "em-security-actions-page",
+    templateUrl: "./security-actions-page.component.html",
+    styleUrls: ["./security-actions-page.component.scss"],
+    imports: [MatDrawerContainer, MatDrawer, TopScrollDirective, SecurityActionsTreeComponent, MatButton, MatDrawerContent, SecurityActionsPermissionsComponent]
 })
 export class SecurityActionsPageComponent implements OnInit {
    @ViewChild(SecurityActionsTreeComponent, { static: true }) tree: SecurityActionsTreeComponent;

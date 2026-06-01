@@ -37,11 +37,25 @@ import { VSTextModel } from "../../../vsobjects/model/output/vs-text-model";
 import { FollowDirection } from "../wizard-pane/follow-direction";
 import { DragMoveStartOptions } from "../wizard-pane/drag-move-start-options";
 import { SelectableObject } from "../../../vsobjects/objects/selectable-object";
+import { MiniToolbar } from "../../../vsobjects/objects/mini-toolbar/mini-toolbar.component";
+import { VSText } from "../../../vsobjects/objects/output/text/vs-text.component";
+import { VSTable } from "../../../vsobjects/objects/table/vs-table.component";
+import { VSSelection } from "../../../vsobjects/objects/selection/vs-selection.component";
+import { VSRangeSlider } from "../../../vsobjects/objects/range-slider/vs-range-slider.component";
+import { VSImage } from "../../../vsobjects/objects/output/image/vs-image.component";
+import { VSGauge } from "../../../vsobjects/objects/output/gauge/vs-gauge.component";
+import { VSCrosstab } from "../../../vsobjects/objects/table/vs-crosstab.component";
+import { VSChart } from "../../../vsobjects/objects/chart/vs-chart.component";
+import { VSCalendar } from "../../../vsobjects/objects/calendar/vs-calendar.component";
+
+import { OutOfZoneDirective } from "../../../widget/directive/out-of-zone.directive";
+import { InteractableDirective } from "../../../widget/interact/interactable.directive";
 
 @Component({
-   selector: "vs-wizard-object",
-   templateUrl: "./vs-wizard-object.component.html",
-   styleUrls: ["./vs-wizard-object.component.scss"]
+    selector: "vs-wizard-object",
+    templateUrl: "./vs-wizard-object.component.html",
+    styleUrls: ["./vs-wizard-object.component.scss"],
+    imports: [InteractableDirective, OutOfZoneDirective, VSCalendar, VSChart, VSCrosstab, VSGauge, VSImage, VSRangeSlider, VSSelection, VSTable, VSText, MiniToolbar]
 })
 export class VsWizardObjectComponent implements OnInit, OnDestroy {
    @Input() vsObject: VSObjectModel;

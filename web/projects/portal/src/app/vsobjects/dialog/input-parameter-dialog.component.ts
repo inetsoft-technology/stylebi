@@ -16,8 +16,8 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { ChangeDetectorRef, Component, EventEmitter, Input, OnInit, Output } from "@angular/core";
-import { UntypedFormControl, UntypedFormGroup, Validators, ValidatorFn } from "@angular/forms";
-import { NgbDateParserFormatter, NgbDateStruct } from "@ng-bootstrap/ng-bootstrap";
+import { UntypedFormControl, UntypedFormGroup, Validators, ValidatorFn, FormsModule, ReactiveFormsModule } from "@angular/forms";
+import { NgbDateParserFormatter, NgbDateStruct, NgbDropdown, NgbDropdownToggle, NgbDropdownMenu, NgbInputDatepicker } from "@ng-bootstrap/ng-bootstrap";
 import { AssetEntry } from "../../../../../shared/data/asset-entry";
 import { DataRef } from "../../common/data/data-ref";
 import { XSchema } from "../../common/data/xschema";
@@ -26,11 +26,16 @@ import { FormValidators } from "../../../../../shared/util/form-validators";
 import { InputParameterDialogModel } from "../model/input-parameter-dialog-model";
 import { Tool } from "../../../../../shared/util/tool";
 import { debounceTime, distinctUntilChanged } from "rxjs/operators";
+import { InputTrimDirective } from "../../widget/directive/input-trim.directive";
+import { EnterSubmitDirective } from "../../widget/directive/enter-submit.directive";
+import { NgIf, NgSwitch, NgClass, NgFor, NgSwitchCase } from "@angular/common";
+import { ModalHeaderComponent } from "../../widget/modal-header/modal-header.component";
 
 @Component({
-   selector: "input-parameter-dialog",
-   templateUrl: "input-parameter-dialog.component.html",
-   styleUrls: ["./input-parameter-dialog.component.scss"]
+    selector: "input-parameter-dialog",
+    templateUrl: "input-parameter-dialog.component.html",
+    styleUrls: ["./input-parameter-dialog.component.scss"],
+    imports: [ModalHeaderComponent, NgIf, EnterSubmitDirective, FormsModule, NgSwitch, ReactiveFormsModule, NgbDropdown, InputTrimDirective, NgbDropdownToggle, NgbDropdownMenu, NgClass, NgFor, NgSwitchCase, NgbInputDatepicker]
 })
 export class InputParameterDialog implements OnInit {
    @Input() fields: DataRef[];

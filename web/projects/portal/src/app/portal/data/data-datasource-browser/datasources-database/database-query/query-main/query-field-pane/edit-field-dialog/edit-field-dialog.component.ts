@@ -22,14 +22,19 @@ import { ComponentTool } from "../../../../../../../../common/util/component-too
 import { GuiTool } from "../../../../../../../../common/util/gui-tool";
 import { TreeNodeModel } from "../../../../../../../../widget/tree/tree-node-model";
 import { DataQueryModelService, getFieldFullName } from "../../../data-query-model.service";
+import { FormsModule } from "@angular/forms";
+import { TreeComponent } from "../../../../../../../../widget/tree/tree.component";
+
+import { ModalHeaderComponent } from "../../../../../../../../widget/modal-header/modal-header.component";
 
 const QUERY_FIELDS_TREE_URI = "../api/data/datasource/query/data-source-fields-tree";
 const QUERY_EXPRESSION_CHECK_URI = "../api/data/datasource/query/expression/check";
 
 @Component({
-   selector: "edit-field-dialog",
-   templateUrl: "./edit-field-dialog.component.html",
-   styleUrls: ["./edit-field-dialog.component.scss"]
+    selector: "edit-field-dialog",
+    templateUrl: "./edit-field-dialog.component.html",
+    styleUrls: ["./edit-field-dialog.component.scss"],
+    imports: [ModalHeaderComponent, TreeComponent, FormsModule]
 })
 export class EditFieldDialogComponent implements OnInit {
    @Input() title: string;

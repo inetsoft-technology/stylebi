@@ -39,12 +39,19 @@ describe("ValueInputField Unit Test", () => {
    beforeEach(() => {
       TestBed.configureTestingModule({
          imports: [
-            DropDownTestModule, ReactiveFormsModule, FormsModule, NgbModule
+            DropDownTestModule,
+            ReactiveFormsModule,
+            FormsModule,
+            NgbModule,
+            ValueInputField,
+            TargetComboBox,
+            FixedDropdownDirective,
+            TreeComponent,
+            TreeSearchPipe,
+            TreeNodeComponent,
+            DynamicComboBox,
          ],
-         declarations: [
-            ValueInputField, TargetComboBox, FixedDropdownDirective,
-            TreeComponent, TreeSearchPipe, TreeNodeComponent, DynamicComboBox
-         ],
+         
          providers: [ NgbModal ],
          schemas: [NO_ERRORS_SCHEMA]
       }).compileComponents();

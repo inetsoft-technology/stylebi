@@ -26,7 +26,7 @@ import { HttpClient, HttpParams } from "@angular/common/http";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { ComponentTool } from "../../../../common/util/component-tool";
 import { DataNotificationsComponent } from "../../data-notifications.component";
-import { UntypedFormControl, UntypedFormGroup, Validators } from "@angular/forms";
+import { UntypedFormControl, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { FormValidators } from "../../../../../../../shared/util/form-validators";
 import { TreeNodeModel } from "../../../../widget/tree/tree-node-model";
 import { AssetConstants } from "../../../../common/data/asset-constants";
@@ -66,6 +66,11 @@ import { CubeHierDimensionModel } from "../../model/datasources/database/cube/xm
 import { CubeModel } from "../../model/datasources/database/cube/xmla/cube-model";
 import { XCubeMemberModel } from "../../model/datasources/database/cube/xcube-member-model";
 import { CanComponentDeactivate } from "../../../../../../../shared/util/guard/can-component-deactivate";
+import { AttributeFormattingPane } from "../datasources-database/database-physical-model/logical-model/attribute-editor/format-dialog/attribute-formatting-pane.component";
+import { DropdownView } from "../../../../widget/dropdown-view/dropdown-view.component";
+import { LoadingIndicatorPaneComponent } from "../datasources-database/common-components/loading-indicator-pane/loading-indicator-pane.component";
+import { TreeComponent } from "../../../../widget/tree/tree.component";
+
 
 const XMLA_DATASOURCE_URI: string = "../api/portal/data/datasource/xmla/";
 const FORMAT_STRING_URI: string = "../api/data/logicalModel/attribute/format";
@@ -77,9 +82,10 @@ interface CubeNode {
 }
 
 @Component({
-   selector: "datasources-xmla",
-   templateUrl: "datasources-xmla.component.html",
-   styleUrls: ["datasources-xmla.component.scss"]
+    selector: "datasources-xmla",
+    templateUrl: "datasources-xmla.component.html",
+    styleUrls: ["datasources-xmla.component.scss"],
+    imports: [FormsModule, ReactiveFormsModule, FixedDropdownDirective, TreeComponent, LoadingIndicatorPaneComponent, DropdownView, AttributeFormattingPane, DataNotificationsComponent]
 })
 export class DatasourcesXmlaComponent implements OnInit, OnDestroy, CanComponentDeactivate {
    @ViewChild("dataNotifications") dataNotifications: DataNotificationsComponent;

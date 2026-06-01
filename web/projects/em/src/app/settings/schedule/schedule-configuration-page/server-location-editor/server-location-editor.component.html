@@ -1,20 +1,20 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <em-modal-header [cshid]="'EMSettingsScheduleSettings'" [title]="'_#(Server Location)'">
 </em-modal-header>
 <div class="server-location-editor" mat-dialog-content [formGroup]="form">
@@ -24,28 +24,38 @@
         <mat-form-field>
           <mat-label>_#(Label)</mat-label>
           <input matInput formControlName="label" placeholder="_#(Label)"/>
-          <mat-error *ngIf="form.controls.label?.errors?.required">_#(em.schedule.serverLocation.labelRequired)</mat-error>
-          <mat-error *ngIf="form.controls.label?.errors?.duplicateName">_#(em.schedule.serverLocation.duplicateLabel)</mat-error>
+          @if (form.controls.label?.errors?.required) {
+            <mat-error>_#(em.schedule.serverLocation.labelRequired)</mat-error>
+          }
+          @if (form.controls.label?.errors?.duplicateName) {
+            <mat-error>_#(em.schedule.serverLocation.duplicateLabel)</mat-error>
+          }
         </mat-form-field>
         <mat-form-field>
           <mat-label>_#(Path)</mat-label>
           <input matInput formControlName="path" placeholder="_#(Path)"/>
-          <mat-error *ngIf="form.controls.path?.errors?.required">_#(em.schedule.serverLocation.pathRequired)</mat-error>
-          <mat-error *ngIf="form.controls.path?.errors?.duplicatePath">_#(em.schedule.serverLocation.duplicatePath)</mat-error>
+          @if (form.controls.path?.errors?.required) {
+            <mat-error>_#(em.schedule.serverLocation.pathRequired)</mat-error>
+          }
+          @if (form.controls.path?.errors?.duplicatePath) {
+            <mat-error>_#(em.schedule.serverLocation.duplicatePath)</mat-error>
+          }
         </mat-form-field>
         <div>
           <mat-checkbox formControlName="ftp" (change)="toggleFtp($event)">_#(FTP/SFTP)</mat-checkbox>
         </div>
         <div>
-          <mat-checkbox *ngIf="cloudSecrets" formControlName="useSecretId">_#(Use Secret ID)</mat-checkbox>
+          @if (cloudSecrets) {
+            <mat-checkbox formControlName="useSecretId">_#(Use Secret ID)</mat-checkbox>
+          }
         </div>
-        <ng-container *ngIf="cloudSecrets && form.controls.useSecretId?.value">
+        @if (cloudSecrets && form.controls.useSecretId?.value) {
           <mat-form-field>
             <mat-label>_#(Secret ID)</mat-label>
             <input matInput formControlName="secretId" placeholder="_#(Secret ID)"/>
           </mat-form-field>
-        </ng-container>
-        <ng-container *ngIf="!cloudSecrets || !form.controls.useSecretId?.value">
+        }
+        @if (!cloudSecrets || !form.controls.useSecretId?.value) {
           <mat-form-field>
             <mat-label>_#(Username)</mat-label>
             <input matInput formControlName="username" placeholder="_#(Username)"/>
@@ -54,7 +64,7 @@
             <mat-label>_#(Password)</mat-label>
             <input matInput type="password" formControlName="password" placeholder="_#(Password)"/>
           </mat-form-field>
-        </ng-container>
+        }
       </mat-card-content>
     </mat-card>
   </div>

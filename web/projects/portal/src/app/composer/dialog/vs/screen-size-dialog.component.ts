@@ -16,14 +16,18 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, Input, Output, EventEmitter, OnInit } from "@angular/core";
-import { UntypedFormControl, UntypedFormGroup, Validators } from "@angular/forms";
+import { UntypedFormControl, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { FormValidators } from "../../../../../../shared/util/form-validators";
 import { ScreenSizeDialogModel } from "../../data/vs/screen-size-dialog-model";
 import { Tool } from "../../../../../../shared/util/tool";
+import { EnterSubmitDirective } from "../../../widget/directive/enter-submit.directive";
+
+import { ModalHeaderComponent } from "../../../widget/modal-header/modal-header.component";
 
 @Component({
-   selector: "screen-size-dialog",
-   templateUrl: "screen-size-dialog.component.html"
+    selector: "screen-size-dialog",
+    templateUrl: "screen-size-dialog.component.html",
+    imports: [ModalHeaderComponent, EnterSubmitDirective, FormsModule, ReactiveFormsModule]
 })
 export class ScreenSizeDialog implements OnInit {
    @Input() index: number;

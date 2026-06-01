@@ -47,8 +47,7 @@ describe("Range Slider Size Pane Component Unit Test:", () => {
 
    beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
-         imports: [ReactiveFormsModule, FormsModule, NgbModule],
-         declarations: [RangeSliderSizePane]
+         imports: [ReactiveFormsModule, FormsModule, NgbModule, RangeSliderSizePane]
       });
       TestBed.compileComponents();
 

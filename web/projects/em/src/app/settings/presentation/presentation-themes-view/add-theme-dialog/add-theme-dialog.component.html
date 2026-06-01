@@ -1,35 +1,43 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <em-modal-header [cshid]="'EMThemes'" [title]="'_#(Web Theme)'">
 </em-modal-header>
 <mat-dialog-content [formGroup]="form" class="mat-typography">
   <mat-form-field appearance="outline" color="accent">
     <mat-label>_#(Name)</mat-label>
     <input matInput formControlName="name" placeholder="_#(Name)"/>
-    <mat-error *ngIf="form.controls.name?.errors?.required">_#(em.laf.theme.nameRequired)</mat-error>
-    <mat-error *ngIf="form.controls.name?.errors?.duplicateName">_#(em.laf.theme.duplicateName)</mat-error>
-    <mat-error *ngIf="form.controls.name?.errors?.containsSpecialCharsForName">_#(common.sree.internal.invalidCharInName)</mat-error>
+    @if (form.controls.name?.errors?.required) {
+      <mat-error>_#(em.laf.theme.nameRequired)</mat-error>
+    }
+    @if (form.controls.name?.errors?.duplicateName) {
+      <mat-error>_#(em.laf.theme.duplicateName)</mat-error>
+    }
+    @if (form.controls.name?.errors?.containsSpecialCharsForName) {
+      <mat-error>_#(common.sree.internal.invalidCharInName)</mat-error>
+    }
   </mat-form-field>
   <mat-form-field appearance="outline" color="accent">
     <mat-label>_#(Theme JAR File)</mat-label>
     <em-file-chooser formControlName="jar" placeholder="_#(Theme JAR File)" accept=".jar"></em-file-chooser>
     <mat-icon matSuffix fontSet="ineticons" fontIcon="folder-open-icon"></mat-icon>
-    <mat-error *ngIf="form.controls.jar?.errors?.required">_#(em.laf.theme.jarRequired)</mat-error>
+    @if (form.controls.jar?.errors?.required) {
+      <mat-error>_#(em.laf.theme.jarRequired)</mat-error>
+    }
   </mat-form-field>
 </mat-dialog-content>
 <mat-dialog-actions>

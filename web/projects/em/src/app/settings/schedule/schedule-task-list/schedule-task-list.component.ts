@@ -42,11 +42,11 @@ import { ErrorStateMatcher } from "@angular/material/core";
 import { MatDialog } from "@angular/material/dialog";
 import { MatPaginator } from "@angular/material/paginator";
 import { MatSnackBar } from "@angular/material/snack-bar";
-import { MatSort } from "@angular/material/sort";
-import { MatTableDataSource } from "@angular/material/table";
+import { MatSort, MatSortHeader } from "@angular/material/sort";
+import { MatTableDataSource, MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow } from "@angular/material/table";
 import { MatTreeFlatDataSource, MatTreeFlattener } from "@angular/material/tree";
 import { DomSanitizer, SafeResourceUrl } from "@angular/platform-browser";
-import { ActivatedRoute, ParamMap, Router } from "@angular/router";
+import { ActivatedRoute, ParamMap, Router, RouterLink } from "@angular/router";
 import { Observable, of as observableOf, Subject, throwError, timer } from "rxjs";
 import { catchError, finalize, map, takeUntil, tap } from "rxjs/operators";
 import { AuthorizationService } from "../../../authorization/authorization.service";
@@ -84,6 +84,20 @@ import { ScheduleFolderTreeAction } from "../schedule-folder-tree/schedule-folde
 import { ScheduleFolderTreeComponent } from "../schedule-folder-tree/schedule-folder-tree.component";
 import { EmScheduleChangeService } from "./em-schedule-change.service";
 import { ScheduleTaskDragService } from "./schedule-task-drag.service";
+import { MatProgressSpinner } from "@angular/material/progress-spinner";
+import { ResizedDirective } from "../../../../../../shared/resize-event/resized.directive";
+import { LoadingSpinnerComponent } from "../../../common/util/loading-spinner/loading-spinner.component";
+import { MatList, MatListItem } from "@angular/material/list";
+import { MatCheckbox } from "@angular/material/checkbox";
+
+import { MatDrawerContainer, MatDrawer, MatDrawerContent } from "@angular/material/sidenav";
+import { MatMenu, MatMenuItem, MatMenuTrigger } from "@angular/material/menu";
+import { MatInput } from "@angular/material/input";
+import { MatFormField, MatLabel } from "@angular/material/form-field";
+import { MatIcon } from "@angular/material/icon";
+import { MatTooltip } from "@angular/material/tooltip";
+import { MatIconButton, MatButton } from "@angular/material/button";
+import { MatCard, MatCardHeader, MatCardContent, MatCardActions } from "@angular/material/card";
 
 const GET_SCHEDULED_TASKS_URI = "../api/em/schedule/scheduled-tasks";
 const NEW_TASKS_URI = "../api/em/schedule/new";
@@ -128,20 +142,21 @@ export enum DistributionType {
    link: "EMSettingsScheduleTaskList"
 })
 @Component({
-   selector: "em-schedule-task-list",
-   templateUrl: "./schedule-task-list.component.html",
-   styleUrls: ["./schedule-task-list.component.scss"],
-   animations: [
-      trigger("detailExpand", [
-         state("collapsed", style({height: "0px", minHeight: "0"})),
-         state("expanded", style({height: "*"})),
-         transition("expanded <=> collapsed", animate("225ms cubic-bezier(0.4, 0.0, 0.2, 1)")),
-      ]),
-   ],
-   providers: [
-      EmScheduleChangeService,
-      ScheduleTaskDragService
-   ]
+    selector: "em-schedule-task-list",
+    templateUrl: "./schedule-task-list.component.html",
+    styleUrls: ["./schedule-task-list.component.scss"],
+    animations: [
+        trigger("detailExpand", [
+            state("collapsed", style({ height: "0px", minHeight: "0" })),
+            state("expanded", style({ height: "*" })),
+            transition("expanded <=> collapsed", animate("225ms cubic-bezier(0.4, 0.0, 0.2, 1)")),
+        ]),
+    ],
+    providers: [
+        EmScheduleChangeService,
+        ScheduleTaskDragService
+    ],
+    imports: [MatCard, MatCardHeader, MatIconButton, MatTooltip, MatIcon, MatFormField, MatLabel, MatInput, MatMenu, MatMenuItem, MatMenuTrigger, MatCardContent, MatDrawerContainer, MatDrawer, ScheduleFolderTreeComponent, MatDrawerContent, MatTable, MatSort, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCheckbox, MatCellDef, MatCell, MatSortHeader, RouterLink, MatList, MatListItem, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, MatPaginator, LoadingSpinnerComponent, MatCardActions, MatButton, ResizedDirective, MatProgressSpinner]
 })
 export class ScheduleTaskListComponent implements OnInit, AfterViewInit, OnDestroy {
    @ViewChild("chartDiv", { static: false }) chartDiv: ElementRef;

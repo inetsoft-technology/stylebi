@@ -28,7 +28,7 @@ import { MatInputModule } from "@angular/material/input";
 import { MatSnackBarModule } from "@angular/material/snack-bar";
 import { NoopAnimationsModule } from "@angular/platform-browser/animations";
 import { ScheduleUsersService } from "../../../../../../shared/schedule/schedule-users.service";
-import { EmailPickerModule } from "../../email-picker/email-picker.module";
+import { EmailPickerComponent } from "../../email-picker/email-picker.component";
 import { ScheduleCycleOptionsPaneComponent } from "./schedule-cycle-options-pane.component";
 import { BehaviorSubject } from "rxjs";
 
@@ -56,11 +56,8 @@ describe("ScheduleCycleOptionsPaneComponent", () => {
             MatFormFieldModule,
             MatInputModule,
             MatSnackBarModule,
-            EmailPickerModule
-         ],
-         declarations: [
-            ScheduleCycleOptionsPaneComponent
-         ],
+            EmailPickerComponent,
+            ScheduleCycleOptionsPaneComponent],
          providers: [
             { provide: ScheduleUsersService, useValue: scheduleUsersService}
          ],

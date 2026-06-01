@@ -53,14 +53,20 @@ import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { NavigationKeys } from "../navigation-keys";
 import { FocusObjectEventModel } from "../../model/focus-object-event-model";
 import { Observable, Subject, Subscription } from "rxjs";
+import { VSSelection } from "./vs-selection.component";
+import { VSRangeSlider } from "../range-slider/vs-range-slider.component";
+import { CurrentSelection } from "./current-selection.component";
+import { OutOfZoneDirective } from "../../../widget/directive/out-of-zone.directive";
+
 
 const INSERT_CHILD_URI = "/events/viewsheet/selectionContainer/insertChild/";
 const CHECK_TRAP_URI = "../api/viewsheet/objects/checkSelectionTrap";
 
 @Component({
-   selector: "vs-selection-container-children",
-   templateUrl: "vs-selection-container-children.component.html",
-   styleUrls: ["vs-selection-container-children.component.scss"]
+    selector: "vs-selection-container-children",
+    templateUrl: "vs-selection-container-children.component.html",
+    styleUrls: ["vs-selection-container-children.component.scss"],
+    imports: [OutOfZoneDirective, CurrentSelection, VSRangeSlider, VSSelection]
 })
 export class VSSelectionContainerChildren extends CommandProcessor implements OnInit {
    @Input() vsInfo: ViewsheetInfo;

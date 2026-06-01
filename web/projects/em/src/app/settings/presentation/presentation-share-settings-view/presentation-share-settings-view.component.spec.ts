@@ -33,11 +33,8 @@ describe("PresentationShareSettingsViewComponent", () => {
             NoopAnimationsModule,
             ReactiveFormsModule,
             MatCheckboxModule,
-            MatInputModule
-         ],
-         declarations: [
-            PresentationShareSettingsViewComponent
-         ],
+            MatInputModule,
+            PresentationShareSettingsViewComponent],
          schemas: [
             NO_ERRORS_SCHEMA
          ]

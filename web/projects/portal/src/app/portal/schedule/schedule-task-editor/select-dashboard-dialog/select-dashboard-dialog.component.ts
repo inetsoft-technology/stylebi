@@ -29,10 +29,13 @@ import { RepositoryEntryType } from "../../../../../../../shared/data/repository
 import { RepositoryTreeComponent } from "../../../../widget/repository-tree/repository-tree.component";
 import { RepositoryTreeService } from "../../../../widget/repository-tree/repository-tree.service";
 import { TreeNodeModel } from "../../../../widget/tree/tree-node-model";
+import { EnterSubmitDirective } from "../../../../widget/directive/enter-submit.directive";
+import { ModalHeaderComponent } from "../../../../widget/modal-header/modal-header.component";
 
 @Component({
-   selector: "select-dashboard-dialog",
-   templateUrl: "select-dashboard-dialog.component.html"
+    selector: "select-dashboard-dialog",
+    templateUrl: "select-dashboard-dialog.component.html",
+    imports: [ModalHeaderComponent, EnterSubmitDirective, RepositoryTreeComponent]
 })
 export class SelectDashboardDialog implements OnInit {
    @Input() path: string;

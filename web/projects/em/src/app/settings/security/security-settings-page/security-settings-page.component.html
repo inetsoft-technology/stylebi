@@ -1,102 +1,132 @@
 <!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+~ This file is part of StyleBI.
+~ Copyright (C) 2024  InetSoft Technology
+~
+~ This program is free software: you can redistribute it and/or modify
+~ it under the terms of the GNU Affero General Public License as published by
+~ the Free Software Foundation, either version 3 of the License, or
+~ (at your option) any later version.
+~
+~ This program is distributed in the hope that it will be useful,
+~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+~ GNU Affero General Public License for more details.
+~
+~ You should have received a copy of the GNU Affero General Public License
+~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
 <div class="page-container">
   <div class="security-nav mat-elevation-z2">
-    <div class="button-row" *ngIf="!isOrgAdminOnly">
+    @if (!isOrgAdminOnly) {
       <div class="button-row">
-        <mat-slide-toggle *ngIf="isRefreshed"
-          [checked]="securityEnabled"
-          [disabled]="securityToggleDisabled"
-          (change)="toggleSecurityEnabled($event)"
-        >
-          _#(Enable Security)
-        </mat-slide-toggle>
-      </div>
-    <div class="button-row" *ngIf="enterprise">
-      <div>
-        <mat-slide-toggle *ngIf="isRefreshed"
-                          [checked]="multiTenancyEnabled"
-                          [disabled]="multiTenancyToggleDisabled || !securityEnabled || ldapProviderUsed"
-                          (change)="toggleEnterpriseToggle($event)">
-          _#(Enable Multi-Tenancy)
-          <mat-hint class="multitenancy-disabled-hint" *ngIf="(!multiTenancyToggleDisabled && securityEnabled) && ldapProviderUsed">
-            _#(em.security.multitenant.ldapNotCompatible)
-          </mat-hint>
-        </mat-slide-toggle>
-      </div>
-    </div>
-      <div class="button-row" *ngIf="enterprise">
-        <mat-form-field *ngIf="multiTenancyEnabled">
-          <mat-label>_#(Pass Organization by)</mat-label>
-          <mat-select [(value)]="passOrgIdAs" (valueChange)="updatePassOption($event)" [disabled]="cloudPlatform">
-            <mat-option *ngFor="let passOption of orgIDPassOptions;" [value]=passOption>{{passOptionLabel(passOption)}}</mat-option>
-          </mat-select>
-        </mat-form-field>
-        <div>
-          <mat-slide-toggle [checked]="selfSignupEnabled"
-                            [disabled]="securityToggleDisabled || !securityEnabled "
-                            (change)="toggleSelfSignupEnabled($event)">
-            _#(Enable Self Signup)
-          </mat-slide-toggle>
+        <div class="button-row">
+          @if (isRefreshed) {
+            <mat-slide-toggle
+              [checked]="securityEnabled"
+              [disabled]="securityToggleDisabled"
+              (change)="toggleSecurityEnabled($event)"
+              >
+              _#(Enable Security)
+            </mat-slide-toggle>
+          }
         </div>
+        @if (enterprise) {
+          <div class="button-row">
+            <div>
+              @if (isRefreshed) {
+                <mat-slide-toggle
+                  [checked]="multiTenancyEnabled"
+                  [disabled]="multiTenancyToggleDisabled || !securityEnabled || ldapProviderUsed"
+                  (change)="toggleEnterpriseToggle($event)">
+                  _#(Enable Multi-Tenancy)
+                  @if ((!multiTenancyToggleDisabled && securityEnabled) && ldapProviderUsed) {
+                    <mat-hint class="multitenancy-disabled-hint">
+                      _#(em.security.multitenant.ldapNotCompatible)
+                    </mat-hint>
+                  }
+                </mat-slide-toggle>
+              }
+            </div>
+          </div>
+        }
+        @if (enterprise) {
+          <div class="button-row">
+            @if (multiTenancyEnabled) {
+              <mat-form-field>
+                <mat-label>_#(Pass Organization by)</mat-label>
+                <mat-select [(value)]="passOrgIdAs" (valueChange)="updatePassOption($event)" [disabled]="cloudPlatform">
+                  @for (passOption of orgIDPassOptions; track passOption) {
+                    <mat-option [value]=passOption>{{passOptionLabel(passOption)}}</mat-option>
+                  }
+                </mat-select>
+              </mat-form-field>
+            }
+            <div>
+              <mat-slide-toggle [checked]="selfSignupEnabled"
+                [disabled]="securityToggleDisabled || !securityEnabled "
+                (change)="toggleSelfSignupEnabled($event)">
+                _#(Enable Self Signup)
+              </mat-slide-toggle>
+            </div>
+          </div>
+        }
       </div>
-    </div>
-    <div class="tab-container" *ngIf="securityEnabled && isRefreshed">
-      <nav mat-tab-nav-bar mat-stretch-tabs class="nav-tab" [tabPanel]="tabPanel">
-        <a mat-tab-link label="securityLabel" *ngIf="securityProvidersVisible"
-           [routerLink]="orgLoading ? null : ['/settings/security/provider']"
-           routerLinkActive #providerActive="routerLinkActive"
-           [active]="providerActive.isActive"
-           [disabled]="orgLoading">
-          _#(Security Providers)
-        </a>
-        <a mat-tab-link label="usersLabel" *ngIf="usersVisible"
-           [routerLink]="orgLoading ? null : ['/settings/security/users']"
-           routerLinkActive #usersActive="routerLinkActive"
-           [active]="usersActive.isActive"
-           [disabled]="orgLoading">
-          _#(Users)
-        </a>
-        <a mat-tab-link label="actionsLabel" *ngIf="actionsVisible"
-           [routerLink]="orgLoading ? null : ['/settings/security/actions']"
-           routerLinkActive #actionsActive="routerLinkActive"
-           [active]="actionsActive.isActive"
-           [disabled]="orgLoading">
-        _#(Actions)
-        </a>
-        <a mat-tab-link *ngIf="ssoVisible"
-           [routerLink]="orgLoading ? null : ['/settings/security/sso']"
-           routerLinkActive #ssoActive="routerLinkActive"
-           [active]="ssoActive.isActive"
-           [disabled]="orgLoading">
-          _#(em.security.sso)
-        </a>
-        <a mat-tab-link *ngIf="googleSsoVisible"
-           [routerLink]="orgLoading ? null : ['/settings/security/googleSignIn']"
-           routerLinkActive #googleActive="routerLinkActive"
-           [active]="googleActive.isActive"
-           [disabled]="orgLoading">
-          _#(Sign In With Google)
-        </a>
-      </nav>
-    </div>
+    }
+    @if (securityEnabled && isRefreshed) {
+      <div class="tab-container">
+        <nav mat-tab-nav-bar mat-stretch-tabs class="nav-tab" [tabPanel]="tabPanel">
+          @if (securityProvidersVisible) {
+            <a mat-tab-link label="securityLabel"
+              [routerLink]="orgLoading ? null : ['/settings/security/provider']"
+              routerLinkActive #providerActive="routerLinkActive"
+              [active]="providerActive.isActive"
+              [disabled]="orgLoading">
+              _#(Security Providers)
+            </a>
+          }
+          @if (usersVisible) {
+            <a mat-tab-link label="usersLabel"
+              [routerLink]="orgLoading ? null : ['/settings/security/users']"
+              routerLinkActive #usersActive="routerLinkActive"
+              [active]="usersActive.isActive"
+              [disabled]="orgLoading">
+              _#(Users)
+            </a>
+          }
+          @if (actionsVisible) {
+            <a mat-tab-link label="actionsLabel"
+              [routerLink]="orgLoading ? null : ['/settings/security/actions']"
+              routerLinkActive #actionsActive="routerLinkActive"
+              [active]="actionsActive.isActive"
+              [disabled]="orgLoading">
+              _#(Actions)
+            </a>
+          }
+          @if (ssoVisible) {
+            <a mat-tab-link
+              [routerLink]="orgLoading ? null : ['/settings/security/sso']"
+              routerLinkActive #ssoActive="routerLinkActive"
+              [active]="ssoActive.isActive"
+              [disabled]="orgLoading">
+              _#(em.security.sso)
+            </a>
+          }
+          @if (googleSsoVisible) {
+            <a mat-tab-link
+              [routerLink]="orgLoading ? null : ['/settings/security/googleSignIn']"
+              routerLinkActive #googleActive="routerLinkActive"
+              [active]="googleActive.isActive"
+              [disabled]="orgLoading">
+              _#(Sign In With Google)
+            </a>
+          }
+        </nav>
+      </div>
+    }
   </div>
   <mat-tab-nav-panel class="content-container" #tabPanel>
-    <router-outlet *ngIf="securityEnabled && isRefreshed"></router-outlet>
+    @if (securityEnabled && isRefreshed) {
+      <router-outlet></router-outlet>
+    }
   </mat-tab-nav-panel>
 </div>

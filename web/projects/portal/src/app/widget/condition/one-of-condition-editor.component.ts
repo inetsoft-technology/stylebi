@@ -37,11 +37,15 @@ import { DataRef } from "../../common/data/data-ref";
 import { XSchema } from "../../common/data/xschema";
 import { TreeNodeModel } from "../tree/tree-node-model";
 import { ConditionFieldComboModel } from "./condition-field-combo-model";
+import { ConditionValuePipe } from "./condition-value.pipe";
+
+import { ConditionEditor } from "./condition-editor.component";
 
 @Component({
-   selector: "one-of-condition-editor",
-   templateUrl: "one-of-condition-editor.component.html",
-   styleUrls: ["one-of-condition-editor.component.scss"]
+    selector: "one-of-condition-editor",
+    templateUrl: "one-of-condition-editor.component.html",
+    styleUrls: ["one-of-condition-editor.component.scss"],
+    imports: [ConditionEditor, ConditionValuePipe]
 })
 export class OneOfConditionEditor implements OnInit, OnChanges {
    public XSchema = XSchema;

@@ -51,8 +51,8 @@ describe("line prop pane component unit case", () => {
 
    beforeEach(() => {
       TestBed.configureTestingModule({
-         imports: [DropDownTestModule, ReactiveFormsModule, FormsModule, NgbModule],
-         declarations: [LinePropPane, ColorEditor, StyleDropdown, ColorPicker, ColorPane, DynamicComboBox, TargetComboBox, TreeComponent, TreeNodeComponent, TreeDropdownComponent, FixedDropdownDirective, TreeSearchPipe, TooltipDirective],
+         imports: [DropDownTestModule, ReactiveFormsModule, FormsModule, NgbModule, LinePropPane, ColorEditor, StyleDropdown, ColorPicker, ColorPane, DynamicComboBox, TargetComboBox, TreeComponent, TreeNodeComponent, TreeDropdownComponent, FixedDropdownDirective, TreeSearchPipe, TooltipDirective],
+         
          schemas: [NO_ERRORS_SCHEMA]
       }).compileComponents();
 

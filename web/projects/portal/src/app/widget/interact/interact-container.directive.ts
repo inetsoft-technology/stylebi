@@ -30,8 +30,9 @@ import { InteractService } from "./interact.service";
 import { Point } from "../../common/data/point";
 
 @Directive({
-   selector: "[wInteractContainer]",
-   providers: [InteractService]
+    selector: "[wInteractContainer]",
+    providers: [InteractService],
+    standalone: true
 })
 export class InteractContainerDirective implements OnChanges, OnDestroy {
    // whether sub-elements are tethered

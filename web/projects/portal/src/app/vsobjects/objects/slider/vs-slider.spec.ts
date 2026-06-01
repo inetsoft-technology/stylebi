@@ -75,11 +75,12 @@ describe("VSSlider Unit Tests", () => {
       TestBed.configureTestingModule({
          imports: [
             CommonModule,
-            NgbModule
+            NgbModule,
+            VSSlider,
+            VSPopComponentDirective,
+            SafeFontDirective,
          ],
-         declarations: [
-            VSSlider, VSPopComponentDirective, SafeFontDirective
-         ],
+         
          schemas: [NO_ERRORS_SCHEMA],
          providers: [
             { provide: StompClientService, useValue: stompClient },

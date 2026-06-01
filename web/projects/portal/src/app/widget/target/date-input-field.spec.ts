@@ -38,12 +38,19 @@ describe("Date Input Field Unit Case: ", () =>  {
    beforeEach(() => {
       TestBed.configureTestingModule({
          imports: [
-            DropDownTestModule, ReactiveFormsModule, FormsModule, NgbModule
+            DropDownTestModule,
+            ReactiveFormsModule,
+            FormsModule,
+            NgbModule,
+            DateInputField,
+            DynamicComboBox,
+            TargetComboBox,
+            FixedDropdownDirective,
+            TreeComponent,
+            TreeSearchPipe,
+            TreeNodeComponent,
          ],
-         declarations: [
-            DateInputField, DynamicComboBox, TargetComboBox, FixedDropdownDirective, TreeComponent,
-            TreeSearchPipe, TreeNodeComponent
-         ],
+         
          providers: [NgbModal],
          schemas: [NO_ERRORS_SCHEMA]
       }).compileComponents();

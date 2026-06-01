@@ -23,11 +23,11 @@ import {
    OnInit,
    Output
 } from "@angular/core";
-import { UntypedFormGroup, AbstractControl, UntypedFormControl, Validators } from "@angular/forms";
+import { UntypedFormGroup, AbstractControl, UntypedFormControl, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { AttributeModel } from "../../../../../model/datasources/database/physical-model/logical-model/attribute-model";
 import { Tool } from "../../../../../../../../../../shared/util/tool";
 import { FormulaEditorService } from "../../../../../../../widget/formula-editor/formula-editor.service";
-import { NgbDropdown, NgbModal } from "@ng-bootstrap/ng-bootstrap";
+import { NgbDropdown, NgbModal, NgbDropdownToggle, NgbDropdownMenu } from "@ng-bootstrap/ng-bootstrap";
 import { HttpClient } from "@angular/common/http";
 import { TreeNodeModel } from "../../../../../../../widget/tree/tree-node-model";
 import { XSchema } from "../../../../../../../common/data/xschema";
@@ -39,15 +39,20 @@ import { GetModelEvent } from "../../../../../model/datasources/database/events/
 import { FormValidators } from "../../../../../../../../../../shared/util/form-validators";
 import { Subscription } from "rxjs";
 import { EntityModel } from "../../../../../model/datasources/database/physical-model/logical-model/entity-model";
+import { AttributeFormattingPane } from "./format-dialog/attribute-formatting-pane.component";
+import { DropdownView } from "../../../../../../../widget/dropdown-view/dropdown-view.component";
+import { TreeDropdownComponent } from "../../../../../../../widget/tree/tree-dropdown.component";
+
 
 const COLUMNS_URI: string = "../api/data/logicalModel/tables/nodes";
 const FORMAT_STRING_URI: string = "../api/data/logicalModel/attribute/format";
 
 @Component({
-   selector: "logical-model-attribute-editor",
-   templateUrl: "logical-model-attribute-editor.component.html",
-   styleUrls: ["logical-model-attribute-editor.component.scss",
-      "../../../../../../../widget/tree/tree-dropdown.component.scss"]
+    selector: "logical-model-attribute-editor",
+    templateUrl: "logical-model-attribute-editor.component.html",
+    styleUrls: ["logical-model-attribute-editor.component.scss",
+        "../../../../../../../widget/tree/tree-dropdown.component.scss"],
+    imports: [FormsModule, ReactiveFormsModule, TreeDropdownComponent, DropdownView, AttributeFormattingPane, NgbDropdown, NgbDropdownToggle, NgbDropdownMenu]
 })
 export class LogicalModelAttributeEditor implements OnInit, OnDestroy {
    @Input() databaseName: string;

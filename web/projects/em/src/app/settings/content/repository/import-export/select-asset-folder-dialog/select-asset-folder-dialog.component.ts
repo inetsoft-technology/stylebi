@@ -18,11 +18,8 @@
 import { Component, Input, OnDestroy } from "@angular/core";
 import { RepositoryTreeDataSource } from "../../repository-tree-data-source";
 import { RepositoryFlatNode, RepositoryTreeNode } from "../../repository-tree-node";
-import { MatDialog, MatDialogRef } from "@angular/material/dialog";
-import {
-   FlatTreeContextMenuEvent,
-   FlatTreeSelectNodeEvent
-} from "../../../../../common/util/tree/flat-tree-view.component";
+import { MatDialog, MatDialogRef, MatDialogContent, MatDialogActions } from "@angular/material/dialog";
+import { FlatTreeContextMenuEvent, FlatTreeSelectNodeEvent, FlatTreeViewComponent } from "../../../../../common/util/tree/flat-tree-view.component";
 import { RepositoryEntryType } from "../../../../../../../../shared/data/repository-entry-type.enum";
 import { SelectAssetFolderDataSource } from "./select-asset-folder-data-source.service";
 import { ContentRepositoryService } from "../../content-repository-page/content-repository.service";
@@ -31,12 +28,17 @@ import { catchError, map, takeUntil } from "rxjs/operators";
 import { Observable, Subject } from "rxjs";
 import { Tool } from "../../../../../../../../shared/util/tool";
 import { TreeSelectionEvent } from "../../content-repository-page/content-repository-page.component";
+import { MatButton } from "@angular/material/button";
+import { MatProgressBar } from "@angular/material/progress-bar";
+
+import { ModalHeaderComponent } from "../../../../../common/util/modal-header/modal-header.component";
 
 @Component({
-   selector: "em-select-asset-folder-dialog",
-   templateUrl: "./select-asset-folder-dialog.component.html",
-   styleUrls: ["./select-asset-folder-dialog.component.scss"],
-   providers: [ SelectAssetFolderDataSource ]
+    selector: "em-select-asset-folder-dialog",
+    templateUrl: "./select-asset-folder-dialog.component.html",
+    styleUrls: ["./select-asset-folder-dialog.component.scss"],
+    providers: [SelectAssetFolderDataSource],
+    imports: [ModalHeaderComponent, MatDialogContent, FlatTreeViewComponent, MatProgressBar, MatDialogActions, MatButton]
 })
 export class SelectAssetFolderDialogComponent implements OnDestroy {
    @Input() defaultSelectedNode: RepositoryFlatNode;

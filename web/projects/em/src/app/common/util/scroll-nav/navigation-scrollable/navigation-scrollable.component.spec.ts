@@ -27,11 +27,8 @@ describe("NavigationScrollableComponent", () => {
    beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
-            ScrollingModule
-         ],
-         declarations: [
-            NavigationScrollableComponent
-         ],
+            ScrollingModule,
+            NavigationScrollableComponent],
          schemas: [
             NO_ERRORS_SCHEMA
          ]

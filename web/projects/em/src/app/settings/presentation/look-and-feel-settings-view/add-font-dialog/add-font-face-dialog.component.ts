@@ -16,17 +16,25 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import {Component, Inject} from "@angular/core";
-import {AbstractControl, UntypedFormBuilder, UntypedFormGroup, Validators} from "@angular/forms";
-import {MAT_DIALOG_DATA, MatDialogRef} from "@angular/material/dialog";
+import { AbstractControl, UntypedFormBuilder, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
+import { MAT_DIALOG_DATA, MatDialogRef, MatDialogContent, MatDialogActions, MatDialogClose } from "@angular/material/dialog";
 import {AddFontFaceDialogData} from "../add-font-face-dialog-data";
 import {UserFontModel} from "../user-font-model";
 import {FormValidators} from "../../../../../../../shared/util/form-validators";
 import {FileData} from "../../../../../../../shared/util/model/file-data";
+import { MatButton } from "@angular/material/button";
+import { MatIcon } from "@angular/material/icon";
+import { FileChooserComponent } from "../../../../common/util/file-chooser/file-chooser/file-chooser.component";
+
+import { MatInput } from "@angular/material/input";
+import { MatFormField, MatLabel, MatError, MatSuffix } from "@angular/material/form-field";
+import { ModalHeaderComponent } from "../../../../common/util/modal-header/modal-header.component";
 
 @Component({
-   selector: "em-add-font-face-dialog",
-   templateUrl: "./add-font-face-dialog.component.html",
-   styleUrls: ["./add-font-face-dialog.component.scss"]
+    selector: "em-add-font-face-dialog",
+    templateUrl: "./add-font-face-dialog.component.html",
+    styleUrls: ["./add-font-face-dialog.component.scss"],
+    imports: [ModalHeaderComponent, MatDialogContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatInput, MatError, FileChooserComponent, MatIcon, MatSuffix, MatDialogActions, MatButton, MatDialogClose]
 })
 export class AddFontFaceDialogComponent {
    form: UntypedFormGroup;

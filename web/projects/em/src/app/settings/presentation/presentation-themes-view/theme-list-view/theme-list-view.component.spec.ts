@@ -29,11 +29,8 @@ describe("ThemeListViewComponent", () => {
       await TestBed.configureTestingModule({
          imports: [
             NoopAnimationsModule,
-            MatMenuModule
-         ],
-         declarations: [
-            ThemeListViewComponent
-         ],
+            MatMenuModule,
+            ThemeListViewComponent],
          schemas: [
             NO_ERRORS_SCHEMA
          ]

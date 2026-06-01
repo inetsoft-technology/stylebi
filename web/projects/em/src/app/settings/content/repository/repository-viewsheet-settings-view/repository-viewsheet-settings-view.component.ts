@@ -17,17 +17,22 @@
  */
 import { Component, EventEmitter, Input, Output, ViewChild } from "@angular/core";
 import { AnalyzeMvPageComponent } from "../analyze-mv-page/analyze-mv-page.component";
-import { RepositorySheetSettingsChange } from "../repository-sheet-settings-view/repository-sheet-settings-view.component";
+import { RepositorySheetSettingsChange, RepositorySheetSettingsViewComponent } from "../repository-sheet-settings-view/repository-sheet-settings-view.component";
 import { RepositorySheetSettingsModel } from "../repository-worksheet-settings-page/repository-sheet-settings.model";
 import { Tool } from "../../../../../../../shared/util/tool";
 import { RepositoryTreeNode } from "../repository-tree-node";
-import { MatTab, MatTabChangeEvent } from "@angular/material/tabs";
+import { MatTab, MatTabChangeEvent, MatTabGroup, MatTabContent } from "@angular/material/tabs";
 import { COPY_PASTE_CONTEXT_REPOSITORY } from "../../../security/resource-permission/copy-paste-context";
+import { MatButton } from "@angular/material/button";
+import { ResourcePermissionComponent } from "../../../security/resource-permission/resource-permission.component";
+import { EditorPanelComponent } from "../../../../common/util/editor-panel/editor-panel.component";
+
 
 @Component({
-   selector: "em-repository-viewsheet-settings-view",
-   templateUrl: "./repository-viewsheet-settings-view.component.html",
-   styleUrls: ["./repository-viewsheet-settings-view.component.scss"]
+    selector: "em-repository-viewsheet-settings-view",
+    templateUrl: "./repository-viewsheet-settings-view.component.html",
+    styleUrls: ["./repository-viewsheet-settings-view.component.scss"],
+    imports: [EditorPanelComponent, MatTabGroup, MatTab, MatTabContent, RepositorySheetSettingsViewComponent, ResourcePermissionComponent, AnalyzeMvPageComponent, MatButton]
 })
 export class RepositoryViewsheetSettingsViewComponent {
    @Input() selectedTab = 0;

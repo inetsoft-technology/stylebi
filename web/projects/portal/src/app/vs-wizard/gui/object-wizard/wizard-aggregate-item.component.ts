@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, Input, OnInit, Output, EventEmitter, ViewChild } from "@angular/core";
-import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
+import { NgbModal, NgbTooltip } from "@ng-bootstrap/ng-bootstrap";
 import { BAggregateRef } from "../../../binding/data/b-aggregate-ref";
 import { CalculateRef } from "../../../binding/data/calculate-ref";
 import { ComponentTool } from "../../../common/util/component-tool";
@@ -30,11 +30,16 @@ import { ModelService } from "../../../widget/services/model.service";
 import { VSWizardBindingTreeService } from "../../services/vs-wizard-binding-tree.service";
 import { VSWizardItem } from "./wizard-item.component";
 import { XSchema } from "../../../common/data/xschema";
+import { FormattingPane } from "../../../format/objects/formatting-pane.component";
+import { FixedDropdownDirective } from "../../../widget/fixed-dropdown/fixed-dropdown.directive";
+import { DynamicComboBox } from "../../../widget/dynamic-combo-box/dynamic-combo-box.component";
+
 
 @Component({
-   selector: "wizard-aggregate-item",
-   templateUrl: "./wizard-aggregate-item.component.html",
-   styleUrls: ["./wizard-aggregate-item.component.scss", "./wizard-group-item.component.scss"]
+    selector: "wizard-aggregate-item",
+    templateUrl: "./wizard-aggregate-item.component.html",
+    styleUrls: ["./wizard-aggregate-item.component.scss", "./wizard-group-item.component.scss"],
+    imports: [NgbTooltip, DynamicComboBox, FixedDropdownDirective, FormattingPane]
 })
 export class VSWizardAggregateItem extends VSWizardItem<BAggregateRef> implements OnInit {
    @Input() showName: boolean;

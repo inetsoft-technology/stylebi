@@ -34,11 +34,16 @@ import { UIContextService } from "../../common/services/ui-context.service";
 import { XConstants } from "../../common/util/xconstants";
 import { ProfileTableDataEvent } from "../model/profile-table-data-event";
 import { TableDataEvent } from "../../widget/simple-table/table-data-event";
+import { SimpleTableComponent } from "../../widget/simple-table/simple-table.component";
+import { FormsModule } from "@angular/forms";
+import { NgIf } from "@angular/common";
 
 @Component({
-  selector: "profiling-data-pane",
-  templateUrl: "./profiling-data-pane.component.html",
-  styleUrls: ["./profiling-data-pane.component.scss"]
+    selector: "profiling-data-pane",
+    templateUrl: "./profiling-data-pane.component.html",
+    styleUrls: ["./profiling-data-pane.component.scss"],
+    standalone: true,
+    imports: [NgIf, FormsModule, SimpleTableComponent]
 })
 export class ProfilingDataPaneComponent {
   @Input() chartUrl: string;

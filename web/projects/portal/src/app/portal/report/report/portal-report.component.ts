@@ -23,10 +23,12 @@ import { filter, map } from "rxjs/operators";
 import { RepositoryTreeService } from "../../../widget/repository-tree/repository-tree.service";
 import { HideNavService } from "../../services/hide-nav.service";
 
+
 @Component({
-   selector: "p-portal-report",
-   templateUrl: "./portal-report.component.html",
-   styleUrls: ["./portal-report.component.scss"]
+    selector: "p-portal-report",
+    templateUrl: "./portal-report.component.html",
+    styleUrls: ["./portal-report.component.scss"],
+    imports: []
 })
 export class PortalReportComponent implements OnInit, OnDestroy {
    contentSource: SafeResourceUrl;

@@ -33,10 +33,17 @@ import { AggregateDialog, LabelDGroup } from "./aggregate-dialog.component";
 import { DateRangeRef } from "../../../common/data/date-range-ref";
 import { DateLevelExamplesService } from "../../../common/services/date-level-examples.service";
 import { SummaryAttrUtil } from "../../../binding/util/summary-attr-util";
+import { DynamicComboBox } from "../../../widget/dynamic-combo-box/dynamic-combo-box.component";
+import { FormsModule } from "@angular/forms";
+
 
 @Component({
-   selector: "aggregate-pane",
-   templateUrl: "aggregate-pane.component.html",
+    selector: "aggregate-pane",
+    templateUrl: "aggregate-pane.component.html",
+    imports: [
+    FormsModule,
+    DynamicComboBox
+]
 })
 export class AggregatePane {
    @Input() trapFields: ColumnRef[] = [];

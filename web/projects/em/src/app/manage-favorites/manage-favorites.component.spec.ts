@@ -34,11 +34,8 @@ describe("ManageFavoritesComponent", () => {
 
       TestBed.configureTestingModule({
          imports: [
-            MaterialTestingModule
-         ],
-         declarations: [
-            ManageFavoritesComponent
-         ],
+            MaterialTestingModule,
+            ManageFavoritesComponent],
          providers: [
             { provide: FavoritesService, useValue: favoritesService }
          ],
