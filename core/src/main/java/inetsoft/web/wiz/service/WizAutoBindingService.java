@@ -315,6 +315,11 @@ public class WizAutoBindingService {
          if(fc.getOrder() != null) {
             dim.setOrder(fc.getOrder());
          }
+
+         if(fc instanceof DimensionFieldInfo dimFc && dimFc.getDateGroupLevel() != null) {
+            dim.setDateLevelValue(String.valueOf(
+               WizVsService.getDateGroupLevel(dimFc.getDateGroupLevel())));
+         }
       }
       else if(ref instanceof VSChartAggregateRef agg) {
          if(fc instanceof MeasureFieldInfo meaFc) {
