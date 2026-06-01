@@ -726,6 +726,22 @@ public class VSDataSet extends AbstractDataSet implements AttributeDataSet {
          val = hmap3.getInt(col);
       }
 
+      // Fallback: when using Java post-aggregation (SummaryFilter), the column header in the
+      // TableLens is the pre-aggregation column name (e.g. "Product:Total") rather than the
+      // full aggregate name (e.g. "Sum(Product:Total)"). Try looking up the inner column name
+      // extracted from the aggregate formula.
+      // hmap3 (CUBE ref names) is intentionally not checked here: CUBE data sources aggregate
+      // server-side and never go through SummaryFilter, so this path is unreachable for CUBE cols.
+      if(val == HEADER_MAP_DEFAULT_VALUE && isAggregateColumn(col)) {
+         int open = col.indexOf('(');
+         String inner = col.substring(open + 1, col.length() - 1);
+         val = hmap.getInt(inner);
+
+         if(val == HEADER_MAP_DEFAULT_VALUE) {
+            val = hmap2.getInt(inner);
+         }
+      }
+
       idx0 = val == HEADER_MAP_DEFAULT_VALUE ? -1 : val;
       idx0 = idx0 >= ccount ? -1 : idx0;
       return idx0;
