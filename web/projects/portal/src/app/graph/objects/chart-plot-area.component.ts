@@ -195,6 +195,8 @@ export class ChartPlotArea extends ChartObjectAreaBase<Plot> implements OnChange
    }
 
    private emitTooltip(regions: ChartRegion[], primary?: ChartRegion): void {
+      // A snap-selected primary (nearest the cursor) wins over the default
+      // lowest-index ordering used for plain hover.
       if(primary && primary.tipIdx >= 0) {
          this.showTooltip.emit({ tipIndex: primary.tipIdx, region: primary });
          return;
@@ -355,9 +357,13 @@ export class ChartPlotArea extends ChartObjectAreaBase<Plot> implements OnChange
          }
 
          const bounds = this.regionBoundsX(region);
-         const width = bounds ? bounds.width : 0;
-         candidates.push({ region, centerX: bounds ? bounds.centerX : eventX, width });
-         minWidth = Math.min(minWidth, width);
+
+         if(!bounds) {
+            continue;
+         }
+
+         candidates.push({ region, centerX: bounds.centerX, width: bounds.width });
+         minWidth = Math.min(minWidth, bounds.width);
       }
 
       let best: { region: ChartRegion, centerX: number } = null;

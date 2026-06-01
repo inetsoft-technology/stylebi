@@ -439,9 +439,10 @@ describe("ChartPlotArea Integration Tests", () => {
       const fixture = TestBed.createComponent(TestApp);
       const debugEl = fixture.debugElement.query(By.css("chart-plot-area"));
       const component: ChartPlotArea = debugEl.componentInstance;
-      jest.spyOn(component, "getSrc").mockImplementation(() => "");
+      vi.spyOn(component, "getSrc").mockImplementation(() => "");
       fixture.detectChanges();
 
+      // Pass both indices directly to exercise X-distance selection in isolation.
       // region 9 centerX ~53.5 (x 44-63), region 0 centerX ~348.5 (x 339-358).
       const left = (component as any).findPrimarySnapRegion([0, 9], 55, 200);
       expect(left.region.index).toBe(9);
@@ -454,7 +455,7 @@ describe("ChartPlotArea Integration Tests", () => {
       const fixture = TestBed.createComponent(TestApp);
       const debugEl = fixture.debugElement.query(By.css("chart-plot-area"));
       const component: ChartPlotArea = debugEl.componentInstance;
-      jest.spyOn(component, "getSrc").mockImplementation(() => "");
+      vi.spyOn(component, "getSrc").mockImplementation(() => "");
       fixture.detectChanges();
 
       const regions: any[] = component.chartObject.regions;
