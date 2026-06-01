@@ -1085,6 +1085,25 @@ public class WizAutoBindingService {
          // Forward the newly created autoBindingRuntimeId so the client can use the fast
          // path on subsequent changeType calls instead of triggering another full autoBinding.
          result.setAutoBindingRuntimeId(resp.getAutoBindingRuntimeId());
+
+         // Populate headers/rows for data insight (same as the fast path below).
+         if(result.getAssemblyName() != null) {
+            try {
+               String fallbackRuntimeId = !Tool.isEmptyString(result.getRuntimeId())
+                  ? result.getRuntimeId() : wizRuntimeId;
+               CreateViewsheetResult dataResult = wizVsService.fetchAssemblyData(
+                  fallbackRuntimeId, result.getAssemblyName(), user);
+               result.setHeaders(dataResult.getHeaders());
+               result.setRows(dataResult.getRows());
+               result.setHasData(dataResult.getHasData());
+               result.setTruncated(dataResult.getTruncated());
+            }
+            catch(Exception e) {
+               LOG.warn("changeType fallback: failed to fetch assembly data for insight (non-critical): {}", e.getMessage());
+               LOG.debug("changeType fallback: fetch assembly data stack trace", e);
+            }
+         }
+
          return result;
       }
 
@@ -1143,6 +1162,24 @@ public class WizAutoBindingService {
 
       // Echo the autoBindingRuntimeId back so the client can reuse it on the next call.
       result.setAutoBindingRuntimeId(autoBindingRuntimeId);
+
+      // Populate headers/rows so the caller can generate data insight.
+      // createViewsheetSkipExecution omits row data for speed; fetch it here separately.
+      if(result.getAssemblyName() != null) {
+         try {
+            CreateViewsheetResult dataResult = wizVsService.fetchAssemblyData(
+               result.getRuntimeId(), result.getAssemblyName(), user);
+            result.setHeaders(dataResult.getHeaders());
+            result.setRows(dataResult.getRows());
+            result.setHasData(dataResult.getHasData());
+            result.setTruncated(dataResult.getTruncated());
+         }
+         catch(Exception e) {
+            LOG.warn("changeType: failed to fetch assembly data for insight (non-critical): {}", e.getMessage());
+            LOG.debug("changeType: fetch assembly data stack trace", e);
+         }
+      }
+
       return result;
    }
 

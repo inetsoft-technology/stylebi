@@ -278,7 +278,7 @@ public class WizVsService {
             else {
                result = executeAndExtract(rvs, assembly);
                boolean metadataMode = rvs.getViewsheet().getViewsheetInfo().isMetadata();
-               result.setHasData(!metadataMode && result.getRows() != null && !result.getRows().isEmpty());
+               result.setHasData(computeHasData(metadataMode, result));
             }
 
             result.setBinding(binding);
@@ -529,6 +529,37 @@ public class WizVsService {
       else {
          return new CreateViewsheetResult();
       }
+   }
+
+   /**
+    * Executes the sandbox for an existing assembly and returns headers/rows/hasData.
+    * Called after {@code createViewsheetSkipExecution} to lazily populate row data
+    * (e.g. for data insight generation on a type switch).
+    */
+   CreateViewsheetResult fetchAssemblyData(String runtimeId, String assemblyName,
+                                           Principal user) throws Exception
+   {
+      RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, user);
+
+      if(rvs == null) {
+         return new CreateViewsheetResult();
+      }
+
+      Viewsheet vs = rvs.getViewsheet();
+      VSAssembly assembly = vs.getAssembly(assemblyName);
+
+      if(assembly == null) {
+         return new CreateViewsheetResult();
+      }
+
+      CreateViewsheetResult result = executeAndExtract(rvs, assembly);
+      boolean metadataMode = vs.getViewsheetInfo().isMetadata();
+      result.setHasData(computeHasData(metadataMode, result));
+      return result;
+   }
+
+   private static boolean computeHasData(boolean metadataMode, CreateViewsheetResult result) {
+      return !metadataMode && result.getRows() != null && !result.getRows().isEmpty();
    }
 
    private record SourceContext(VisualizationConfig config, AssetEntry sourceWs,
