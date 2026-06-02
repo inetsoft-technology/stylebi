@@ -371,7 +371,8 @@ public abstract class Legend extends BoundedContainer {
          double itemh = item0 == null ? 20 : item0.getPreferredHeight();
 
          contentW = w;
-         contentH = getItems().length * itemh;
+         // bottom inset so the last row's symbol isn't flush with the border when scrolled
+         contentH = getItems().length * itemh + GAP;
          contentX = x;
          contentY = title != null ?
             y + h - title.getSize().getHeight() - GAP - contentH :
