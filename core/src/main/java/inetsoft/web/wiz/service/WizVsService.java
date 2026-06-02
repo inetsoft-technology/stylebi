@@ -2231,8 +2231,12 @@ public class WizVsService {
             if(dim.getDateGroupLevel() != null) {
                int dateLevel = getDateGroupLevel(dim.getDateGroupLevel());
                String fullName = DateRangeRef.getName(dim.getField(), dateLevel);
-               DataRef innerRef = colRef instanceof ColumnRef colRefCast
-                  ? colRefCast.getDataRef() : colRef;
+               DataRef innerRef = colRef;
+
+               if(colRef instanceof ColumnRef) {
+                  innerRef = ((ColumnRef) colRef).getDataRef();
+               }
+
                DateRangeRef rangeRef = new DateRangeRef(fullName, innerRef, dateLevel);
 
                if(colRef instanceof ColumnRef origCol) {
