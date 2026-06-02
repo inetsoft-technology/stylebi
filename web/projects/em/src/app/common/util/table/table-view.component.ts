@@ -27,7 +27,7 @@ import { MatExpansionPanel, MatExpansionPanelHeader, MatExpansionPanelTitle } fr
 import { MatButton } from "@angular/material/button";
 import { MatError } from "@angular/material/form-field";
 import { MatCard, MatCardTitle, MatCardContent, MatCardActions } from "@angular/material/card";
-import { NgTemplateOutlet, NgIf} from "@angular/common";
+import { NgTemplateOutlet, NgIf } from "@angular/common";
 
 export enum TableAction {
    DELETE, EDIT, ADD

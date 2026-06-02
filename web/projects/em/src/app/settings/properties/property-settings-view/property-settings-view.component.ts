@@ -35,7 +35,7 @@ import { MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, Ma
 import { TopScrollDirective } from "../../../top-scroll/top-scroll.directive";
 import { MatIcon } from "@angular/material/icon";
 import { MatIconButton, MatMiniFabButton } from "@angular/material/button";
-import { AsyncPipe, NgIf} from "@angular/common";
+import { AsyncPipe, NgIf } from "@angular/common";
 import { MatFormField, MatLabel, MatSuffix } from "@angular/material/form-field";
 
 export interface PropertySetting {

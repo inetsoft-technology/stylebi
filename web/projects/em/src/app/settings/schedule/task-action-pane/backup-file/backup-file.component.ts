@@ -46,7 +46,7 @@ import { MatMiniFabButton } from "@angular/material/button";
 import { MatProgressBar } from "@angular/material/progress-bar";
 import { MatInput } from "@angular/material/input";
 import { MatFormField, MatError, MatLabel } from "@angular/material/form-field";
-import { AsyncPipe, NgIf} from "@angular/common";
+import { AsyncPipe, NgIf } from "@angular/common";
 import { MatCheckbox } from "@angular/material/checkbox";
 import { MatCard, MatCardHeader, MatCardTitle, MatCardContent } from "@angular/material/card";
 

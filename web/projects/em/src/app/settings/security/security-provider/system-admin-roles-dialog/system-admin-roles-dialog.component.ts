@@ -28,7 +28,7 @@ import { convertToKey, IdentityId } from "../../users/identity-id";
 import { MatDivider } from "@angular/material/divider";
 import { MatList, MatListItem } from "@angular/material/list";
 import { MatOption } from "@angular/material/core";
-import { AsyncPipe, NgIf} from "@angular/common";
+import { AsyncPipe, NgIf } from "@angular/common";
 import { MatIcon } from "@angular/material/icon";
 import { MatIconButton, MatButton } from "@angular/material/button";
 import { MatAutocompleteTrigger, MatAutocomplete } from "@angular/material/autocomplete";

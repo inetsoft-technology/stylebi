@@ -26,7 +26,7 @@ import { MatError } from "@angular/material/form-field";
 import { MatIcon } from "@angular/material/icon";
 import { MatIconButton, MatButton } from "@angular/material/button";
 import { MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow } from "@angular/material/table";
-import { TitleCasePipe, NgIf} from "@angular/common";
+import { TitleCasePipe, NgIf } from "@angular/common";
 import { MatCard, MatCardHeader, MatCardTitle, MatCardContent, MatCardActions } from "@angular/material/card";
 
 export interface Parameters {

@@ -96,7 +96,7 @@
               <mat-error *ngIf="form.controls['value'].errors && form.controls['value'].errors['integerInRange']">
                 _#(em.common.param.number.outNegativeRange)
               </mat-error>
-              <mat-error *ngIf="form.controls['value'].errors && form.controls['value'].errors">
+              <mat-error *ngIf="form.controls['value'].errors && !form.controls['value'].errors['integerInRange']">
                 _#(em.common.param.numberInvalid)
               </mat-error>
             </mat-form-field>

@@ -42,7 +42,7 @@ import { MatDatepickerInput, MatDatepickerToggle, MatDatepicker } from "@angular
 import { MatInput } from "@angular/material/input";
 import { MatFormField, MatLabel, MatSuffix, MatError } from "@angular/material/form-field";
 import { MatCheckbox } from "@angular/material/checkbox";
-import { AsyncPipe, NgIf} from "@angular/common";
+import { AsyncPipe, NgIf } from "@angular/common";
 import { MatSlideToggle } from "@angular/material/slide-toggle";
 
 export interface TaskOptionChanges {

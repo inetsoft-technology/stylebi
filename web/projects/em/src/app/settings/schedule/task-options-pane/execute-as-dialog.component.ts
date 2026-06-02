@@ -23,7 +23,7 @@ import { Observable } from "rxjs";
 import { map, startWith } from "rxjs/operators";
 import {convertToKey, IdentityId} from "../../security/users/identity-id";
 import { MatButton } from "@angular/material/button";
-import { AsyncPipe, NgIf} from "@angular/common";
+import { AsyncPipe, NgIf } from "@angular/common";
 import { MatAutocompleteTrigger, MatAutocomplete } from "@angular/material/autocomplete";
 import { MatInput } from "@angular/material/input";
 import { MatOption } from "@angular/material/core";

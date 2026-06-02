@@ -48,7 +48,7 @@ import { MatIconButton } from "@angular/material/button";
 import { MatInput } from "@angular/material/input";
 import { MatFormField, MatLabel, MatSuffix, MatError } from "@angular/material/form-field";
 import { MatCard, MatCardTitle, MatCardContent } from "@angular/material/card";
-import { NgTemplateOutlet, NgIf} from "@angular/common";
+import { NgTemplateOutlet, NgIf } from "@angular/common";
 
 const EM_DARK_VAR_NAME = "--inet-em-dark";
 const EM_PRIMARY_PREFIX = "--inet-em-primary-";
