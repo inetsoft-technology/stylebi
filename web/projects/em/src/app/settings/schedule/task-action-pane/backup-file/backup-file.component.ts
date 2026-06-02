@@ -188,6 +188,7 @@ export class BackupFileComponent implements OnDestroy {
    ngOnDestroy() {
       this.selectSubscription.unsubscribe();
       this.destroy$.next();
+      this.destroy$.complete();
    }
 
    public get selectedNodes(): RepositoryFlatNode[] {

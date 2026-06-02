@@ -95,7 +95,7 @@ export class RepositoryDataSourceFolderSettingsViewComponent implements OnInit, 
 
    ngOnDestroy(): void {
       this.destroy$.next();
-      this.destroy$.unsubscribe();
+      this.destroy$.complete();
    }
 
    ngOnChanges(changes: SimpleChanges): void {

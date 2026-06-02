@@ -171,8 +171,8 @@ export class ContentRepositoryPageComponent implements OnInit, OnDestroy {
 
    ngOnDestroy() {
       this.destroy$.next();
-      this.destroy$.unsubscribe();
-      this.editorModel.unsubscribe();
+      this.destroy$.complete();
+      this.editorModel.complete();
       this.service.clearSelectedNodes();
    }
 

@@ -94,7 +94,7 @@ export class SettingsSidenavComponent implements OnInit, OnDestroy {
 
    ngOnDestroy(): void {
       this.destroy$.next();
-      this.destroy$.unsubscribe();
+      this.destroy$.complete();
 
       if(this.loadingSub) {
          this.loadingSub.unsubscribe();

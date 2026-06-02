@@ -145,7 +145,7 @@ export class EmailListDialogComponent implements OnInit, OnDestroy {
    }
 
    ngOnDestroy() {
-      this.searchTextchanges$.unsubscribe();
+      this.searchTextchanges$.complete();
    }
 
    close() {
