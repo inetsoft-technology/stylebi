@@ -399,6 +399,11 @@ export class ScriptPane implements AfterViewInit, AfterViewChecked, OnInit, OnDe
 
                   this.ternServer?.complete(cm);
                   const completion = cm.state.completionActive;
+
+                  if(!completion) {
+                     return;
+                  }
+
                   const pick = completion.pick;
                   const select = completion.select;
                   completion.pick = function(data, i) {
