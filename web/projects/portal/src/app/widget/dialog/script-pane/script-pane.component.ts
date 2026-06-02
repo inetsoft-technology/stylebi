@@ -311,27 +311,30 @@ export class ScriptPane implements AfterViewInit, AfterViewChecked, OnInit, OnDe
                completeSingle: false
             };
             config.extraKeys = {
-               "Ctrl-O": (cm) => this.ternServer.showDocs(cm, cm.getCursor()),
-               "Ctrl-Space": (cm) => this.ternServer.complete(cm),
-               "Alt-/": (cm) => this.ternServer.complete(cm),
+               "Ctrl-O": (cm) => this.ternServer?.showDocs(cm, cm.getCursor()),
+               "Ctrl-Space": (cm) => this.ternServer?.complete(cm),
+               "Alt-/": (cm) => this.ternServer?.complete(cm),
                "Ctrl-/": "toggleComment"
             };
 
             const defs = this.codemirrorService.getEcmaScriptDefs();
-            delete (defs[0]["Date"]["prototype"]).toJSON;
 
-            if(this.scriptDefinitions) {
-               defs.push(this.scriptDefinitions);
+            if(defs) {
+               delete (defs[0]["Date"]["prototype"]).toJSON;
+
+               if(this.scriptDefinitions) {
+                  defs.push(this.scriptDefinitions);
+               }
+
+               this.ternServer = this.codemirrorService.createTernServer({
+                  defs: defs,
+                  useWorker: false,
+                  queryOptions: {completions: {guess: false}}
+               });
+
+               this.ternServer.options.typeTip = this.docTooltip;
+               this.ternServer.options.hintDelay = 17000;
             }
-
-            this.ternServer = this.codemirrorService.createTernServer({
-               defs: defs,
-               useWorker: false,
-               queryOptions: {completions: {guess: false}}
-            });
-
-            this.ternServer.options.typeTip = this.docTooltip;
-            this.ternServer.options.hintDelay = 17000;
          }
 
          this.codemirrorInstance = this.codemirrorService.createCodeMirrorInstance(
