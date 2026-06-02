@@ -140,7 +140,7 @@ export class OrganizationDropdownService implements OnDestroy  {
 
    ngOnDestroy(): void {
       if(!!this.refreshSubject) {
-         this.refreshSubject.unsubscribe();
+         this.refreshSubject.complete();
          this.refreshSubject = null;
       }
 
