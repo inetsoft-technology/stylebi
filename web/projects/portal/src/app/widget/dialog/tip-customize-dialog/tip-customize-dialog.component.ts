@@ -48,32 +48,58 @@ export class TipCustomizeDialog implements OnChanges {
    }
 
    private initForm(): void {
+      const combinedActive = this.model.combinedTip &&
+         this.model.customRB != "CUSTOM" && this.model.customRB != "NONE";
+      const snapDisabled = this.model.customRB == "NONE" || !this.model.snapSupported;
+
       this.form = new UntypedFormGroup({
          customRB: new UntypedFormControl(this.model.customRB),
-         customTip: new UntypedFormControl({value: this.model.customTip, disabled: this.model.customRB != "CUSTOM" },
+         customTip: new UntypedFormControl(
+            {value: this.model.customTip, disabled: this.model.customRB != "CUSTOM"},
             [Validators.required]),
          combinedTip: new UntypedFormControl({
-            value: this.model.combinedTip && this.model.customRB != "CUSTOM" && this.model.customRB != "NONE",
-            disabled: this.model.customRB == "CUSTOM" || this.model.customRB == "NONE" || !this.model.lineChart}),
+            value: combinedActive,
+            disabled: this.model.customRB == "CUSTOM" || this.model.customRB == "NONE" || !this.model.combinedSupported}),
+         tooltipStyle: new UntypedFormControl(this.model.tooltipStyle || "DEFAULT"),
+         snapTooltip: new UntypedFormControl({
+            value: !!this.model.snapTooltip && !snapDisabled,
+            disabled: snapDisabled}),
       });
 
       this.form.get("customRB").valueChanges.subscribe(custom => {
+         const snap = this.form.get("snapTooltip");
+
          if(custom == "CUSTOM") {
             this.form.get("customTip").enable();
             this.form.get("combinedTip").disable();
             this.form.get("combinedTip").setValue(false);
+            if(this.model.snapSupported) {
+               snap.enable();
+            }
          }
          else if(custom == "NONE") {
             this.form.get("customTip").disable();
             this.form.get("combinedTip").disable();
             this.form.get("combinedTip").setValue(false);
+            snap.disable();
+            snap.setValue(false);
          }
          else {
             this.form.get("customTip").disable();
-
-            if(this.model.lineChart) {
+            if(this.model.combinedSupported) {
                this.form.get("combinedTip").enable();
             }
+            if(this.model.snapSupported) {
+               snap.enable();
+            }
+         }
+      });
+
+      this.form.get("combinedTip").valueChanges.subscribe(combined => {
+         if(combined && this.model.snapSupported) {
+            const snap = this.form.get("snapTooltip");
+            snap.enable();
+            snap.setValue(true);
          }
       });
 
@@ -82,6 +108,8 @@ export class TipCustomizeDialog implements OnChanges {
          this.model.customRB = value["customRB"];
          this.model.customTip = value["customTip"];
          this.model.combinedTip = value["combinedTip"];
+         this.model.tooltipStyle = value["tooltipStyle"];
+         this.model.snapTooltip = value["snapTooltip"];
       });
    }
 

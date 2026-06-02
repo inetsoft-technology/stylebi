@@ -18,9 +18,12 @@
 export interface TipCustomizeDialogModel {
    customRB: "DEFAULT"|"CUSTOM"|"NONE";
    combinedTip: boolean;
-   lineChart: boolean;
+   combinedSupported?: boolean;
    customTip: string;
    dataRefList: String[];
    availableTipValues: String[];
    chart?: boolean;
+   tooltipStyle?: "DEFAULT"|"CARD";
+   snapTooltip?: boolean;
+   snapSupported?: boolean;
 }
