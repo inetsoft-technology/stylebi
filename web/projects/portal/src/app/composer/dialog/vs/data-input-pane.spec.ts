@@ -166,7 +166,7 @@ describe("Data Input Pane Test", () => {
    });
 
    //Bug #19833
-   it("should input page number on popup table page", () => new Promise<void>((done) => {
+   it("should input page number on popup table page", async () => {
       dataInputPane = <DataInputPane>fixture.componentInstance;
       dataInputPane.model = createModel();
       dataInputPane.model.rowValue = "1";
@@ -191,24 +191,24 @@ describe("Data Input Pane Test", () => {
       fixture.debugElement.query(By.css("span.edit-icon")).nativeElement.click();
       fixture.detectChanges();
 
-      fixture.whenStable().then(() => {
-         let fixedDropdown = document.getElementsByTagName("fixed-dropdown")[0];
-         let pageInput = fixedDropdown.getElementsByTagName("input")[0];
-         let beforeBtns = fixedDropdown.getElementsByTagName("button");
-         expect(beforeBtns[0].disabled).toBeTruthy();
-         expect(beforeBtns[1].disabled).toBeTruthy();
+      await fixture.whenStable();
+      fixture.detectChanges();
 
-         pageInput.value = "2";
-         fixture.componentInstance.updatePopupTablePage(new KeyboardEvent("keydown", {key: "enter"}), 2);
-         fixture.detectChanges();
-         expect(pageInput.getAttribute("ng-reflect-model")).toBe("2");
-         expect(beforeBtns[0].disabled).toBeFalsy();
-         expect(beforeBtns[1].disabled).toBeFalsy();
-         let id = fixedDropdown.getElementsByTagName("td")[4].textContent;
-         expect(id.trim()).toBe("11");
-         done();
-      });
-   }));
+      let fixedDropdown = document.getElementsByTagName("fixed-dropdown")[0];
+      let pageInput = fixedDropdown.getElementsByTagName("input")[0];
+      let beforeBtns = fixedDropdown.getElementsByTagName("button");
+      expect(beforeBtns[0].disabled).toBeTruthy();
+      expect(beforeBtns[1].disabled).toBeTruthy();
+
+      pageInput.value = "2";
+      fixture.componentInstance.updatePopupTablePage(new KeyboardEvent("keydown", {key: "enter"}), 2);
+      fixture.detectChanges();
+      expect(pageInput.getAttribute("ng-reflect-model")).toBe("2");
+      expect(beforeBtns[0].disabled).toBeFalsy();
+      expect(beforeBtns[1].disabled).toBeFalsy();
+      let id = fixedDropdown.getElementsByTagName("td")[4].textContent;
+      expect(id.trim()).toBe("11");
+   });
 
    it("row should update when change to expression", () => {
       let model = createModel();
