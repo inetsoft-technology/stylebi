@@ -26,12 +26,8 @@
   <mat-form-field [formGroup]="form" appearance="outline" color="accent">
     <mat-label>_#(Name)</mat-label>
     <input matInput formControlName="taskName" (input)="taskChanged = true">
-    @if (form.controls.taskName?.errors?.required) {
-      <mat-error>_#(em.schedule.task.nameRequired)</mat-error>
-    }
-    @if (form.controls.taskName?.errors?.invalidTaskName) {
-      <mat-error>_#(em.schedule.task.nameInvalid)</mat-error>
-    }
+    <mat-error *ngIf="form.controls.taskName?.errors?.required">_#(em.schedule.task.nameRequired)</mat-error>
+    <mat-error *ngIf="form.controls.taskName?.errors?.invalidTaskName">_#(em.schedule.task.nameInvalid)</mat-error>
   </mat-form-field>
   <mat-tab-group>
     <mat-tab label="_#(Conditions)">

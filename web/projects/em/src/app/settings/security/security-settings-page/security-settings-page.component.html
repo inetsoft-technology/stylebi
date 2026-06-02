@@ -39,11 +39,9 @@
                   [disabled]="multiTenancyToggleDisabled || !securityEnabled || ldapProviderUsed"
                   (change)="toggleEnterpriseToggle($event)">
                   _#(Enable Multi-Tenancy)
-                  @if ((!multiTenancyToggleDisabled && securityEnabled) && ldapProviderUsed) {
-                    <mat-hint class="multitenancy-disabled-hint">
-                      _#(em.security.multitenant.ldapNotCompatible)
-                    </mat-hint>
-                  }
+                  <mat-hint *ngIf="(!multiTenancyToggleDisabled && securityEnabled) && ldapProviderUsed" class="multitenancy-disabled-hint">
+                    _#(em.security.multitenant.ldapNotCompatible)
+                  </mat-hint>
                 </mat-slide-toggle>
               }
             </div>

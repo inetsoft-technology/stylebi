@@ -58,12 +58,8 @@
           </mat-tree-node>
         </mat-tree>
       </mat-select>
-      @if (form.controls.dashboardSelected?.errors?.required) {
-        <mat-error>_#(em.scheduleRepletAction.dashboardRequired)</mat-error>
-      }
-      @if (form.controls.dashboardSelected?.errors?.notExists) {
-        <mat-error>{{notExistsMessage()}}</mat-error>
-      }
+      <mat-error *ngIf="form.controls.dashboardSelected?.errors?.required">_#(em.scheduleRepletAction.dashboardRequired)</mat-error>
+      <mat-error *ngIf="form.controls.dashboardSelected?.errors?.notExists">{{notExistsMessage()}}</mat-error>
     </mat-form-field>
     <table mat-table [dataSource]="bookmarksDB">
       <ng-container matColumnDef="bookmark">
@@ -77,9 +73,7 @@
               }
             </mat-select>
           </mat-form-field>
-          @if (selectedBookmarks[i].name == null) {
-            <mat-error>{{bookmarkNotExistsMessage(selectedBookmarks[i].label)}}</mat-error>
-          }
+          <mat-error *ngIf="selectedBookmarks[i].name == null">{{bookmarkNotExistsMessage(selectedBookmarks[i].label)}}</mat-error>
         </td>
       </ng-container>
       <ng-container matColumnDef="actions">
@@ -94,9 +88,7 @@
       <tr mat-header-row *matHeaderRowDef="columnsToDisplay"></tr>
       <tr mat-row *matRowDef="let element; columns: columnsToDisplay;"></tr>
     </table>
-    @if (duplicateBookmark) {
-      <mat-error>_#(em.scheduler.actions.bookmarkDuplicate)</mat-error>
-    }
+    <mat-error *ngIf="duplicateBookmark">_#(em.scheduler.actions.bookmarkDuplicate)</mat-error>
     <button mat-mini-fab color="accent"  title="_#(Add Tooltip Bookmark)" (click)="addBookmark()" aria-label="_#(Add Bookmark)"
       [disabled]="!bookmarks || bookmarks.value.length == 0">
       <mat-icon fontSet="ineticons" fontIcon="shape-plus-icon"></mat-icon>

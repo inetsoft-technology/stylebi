@@ -31,12 +31,13 @@ import { MatHint, MatError } from "@angular/material/form-field";
 import { TimePickerComponent } from "../time-picker/time-picker.component";
 import { DatepickerComponent } from "../../../../common/util/datepicker/datepicker.component";
 import { MatCard, MatCardContent } from "@angular/material/card";
+import { NgIf } from "@angular/common";
 
 @Component({
     selector: "em-run-once-condition-editor",
     templateUrl: "./run-once-condition-editor.component.html",
     styleUrls: ["./run-once-condition-editor.component.scss"],
-    imports: [MatCard, MatCardContent, FormsModule, ReactiveFormsModule, DatepickerComponent, TimePickerComponent, MatHint, MatError, TimeZoneSelectComponent]
+    imports: [NgIf, MatCard, MatCardContent, FormsModule, ReactiveFormsModule, DatepickerComponent, TimePickerComponent, MatHint, MatError, TimeZoneSelectComponent]
 })
 export class RunOnceConditionEditorComponent implements OnInit {
    @Input() timeZoneOptions: TimeZoneModel[];

@@ -21,29 +21,19 @@
   <mat-form-field appearance="outline" color="accent">
     <mat-label>_#(Tab)</mat-label>
     <input matInput formControlName="tab" placeholder="_#(Tab)"/>
-    @if (form.controls.tab?.errors?.required) {
-      <mat-error>_#(em.portal.integration.tabNameError)</mat-error>
-    }
-    @if (form.controls.tab?.errors?.duplicateName) {
-      <mat-error>_#(em.portal.integration.tabNameDuplicate)</mat-error>
-    }
-    @if (form.controls.tab?.errors?.assetNameStartWithCharDigit) {
-      <mat-error>
-        _#(em.portal.integration.tabName.startWithAlphanumeric)
-      </mat-error>
-    }
-    @if (form.controls.tab?.errors?.containsSpecialCharsForName && !form.controls.tab?.errors?.assetNameStartWithCharDigit) {
-      <mat-error>
-        _#(em.portal.integration.tabNameInvalidChar)
-      </mat-error>
-    }
+    <mat-error *ngIf="form.controls.tab?.errors?.required">_#(em.portal.integration.tabNameError)</mat-error>
+    <mat-error *ngIf="form.controls.tab?.errors?.duplicateName">_#(em.portal.integration.tabNameDuplicate)</mat-error>
+    <mat-error *ngIf="form.controls.tab?.errors?.assetNameStartWithCharDigit">
+      _#(em.portal.integration.tabName.startWithAlphanumeric)
+    </mat-error>
+    <mat-error *ngIf="form.controls.tab?.errors?.containsSpecialCharsForName && !form.controls.tab?.errors?.assetNameStartWithCharDigit">
+      _#(em.portal.integration.tabNameInvalidChar)
+    </mat-error>
   </mat-form-field>
   <mat-form-field appearance="outline" color="accent">
     <mat-label>_#(URI)</mat-label>
     <input matInput type="url" formControlName="uri" placeholder="_#(URI)"/>
-    @if (form.controls.uri?.errors?.required) {
-      <mat-error>_#(em.portal.integration.tabURIError)</mat-error>
-    }
+    <mat-error *ngIf="form.controls.uri?.errors?.required">_#(em.portal.integration.tabURIError)</mat-error>
   </mat-form-field>
 </div>
 <div mat-dialog-actions>

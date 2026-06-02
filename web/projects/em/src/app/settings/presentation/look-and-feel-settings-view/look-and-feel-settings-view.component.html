@@ -50,12 +50,8 @@
                 >
               </em-file-chooser>
               <mat-icon matSuffix fontSet="ineticons" fontIcon="folder-open-icon"></mat-icon>
-              @if (form.errors?.logoFileRequired) {
-                <mat-error>_#(em.laf.logoFileRequired)</mat-error>
-              }
-              @if (form.errors?.logoFileType) {
-                <mat-error>_#(em.laf.logoFileType)</mat-error>
-              }
+              <mat-error *ngIf="form.errors?.logoFileRequired">_#(em.laf.logoFileRequired)</mat-error>
+              <mat-error *ngIf="form.errors?.logoFileType">_#(em.laf.logoFileType)</mat-error>
             </mat-form-field>
           }
         </div>
@@ -74,12 +70,8 @@
                 >
               </em-file-chooser>
               <mat-icon matSuffix fontSet="ineticons" fontIcon="folder-open-icon"></mat-icon>
-              @if (form.errors?.faviconFileRequired) {
-                <mat-error>_#(em.laf.faviconFileRequired)</mat-error>
-              }
-              @if (form.errors?.faviconFileType) {
-                <mat-error>_#(em.laf.faviconFileType)</mat-error>
-              }
+              <mat-error *ngIf="form.errors?.faviconFileRequired">_#(em.laf.faviconFileRequired)</mat-error>
+              <mat-error *ngIf="form.errors?.faviconFileType">_#(em.laf.faviconFileType)</mat-error>
             </mat-form-field>
           }
         </div>
@@ -98,9 +90,7 @@
                 >
               </em-file-chooser>
               <mat-icon matSuffix fontSet="ineticons" fontIcon="folder-open-icon"></mat-icon>
-              @if (form.errors?.viewsheetFileRequired) {
-                <mat-error>_#(em.laf.viewsheetFileRequired)</mat-error>
-              }
+              <mat-error *ngIf="form.errors?.viewsheetFileRequired">_#(em.laf.viewsheetFileRequired)</mat-error>
             </mat-form-field>
           }
         </div>

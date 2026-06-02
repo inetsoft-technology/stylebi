@@ -21,22 +21,14 @@
   <mat-form-field appearance="outline" color="accent">
     <mat-label>_#(TrueType Font)</mat-label>
     <input matInput formControlName="trueTypeFont" placeholder="_#(TrueType Font)"/>
-    @if (form.controls.trueTypeFont?.errors?.required) {
-      <mat-error>_#(em.pdfMap.nameEmpty)</mat-error>
-    }
-    @if (form.controls.trueTypeFont?.errors?.illegalStr) {
-      <mat-error>_#(em.pdfMap.invalidCharacter)</mat-error>
-    }
+    <mat-error *ngIf="form.controls.trueTypeFont?.errors?.required">_#(em.pdfMap.nameEmpty)</mat-error>
+    <mat-error *ngIf="form.controls.trueTypeFont?.errors?.illegalStr">_#(em.pdfMap.invalidCharacter)</mat-error>
   </mat-form-field>
   <mat-form-field appearance="outline" color="accent">
     <mat-label>_#(CID Font)</mat-label>
     <input matInput formControlName="cidFont" placeholder="_#(CID Font)"/>
-    @if (form.controls.cidFont?.errors?.required) {
-      <mat-error>_#(em.pdfMap.nameEmpty)</mat-error>
-    }
-    @if (form.controls.cidFont?.errors?.illegalStr) {
-      <mat-error>_#(em.pdfMap.invalidCharacter)</mat-error>
-    }
+    <mat-error *ngIf="form.controls.cidFont?.errors?.required">_#(em.pdfMap.nameEmpty)</mat-error>
+    <mat-error *ngIf="form.controls.cidFont?.errors?.illegalStr">_#(em.pdfMap.invalidCharacter)</mat-error>
   </mat-form-field>
 </div>
 <div mat-dialog-actions>

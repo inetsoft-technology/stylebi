@@ -41,13 +41,14 @@ import { MatIcon } from "@angular/material/icon";
 import { MatIconButton } from "@angular/material/button";
 import { MatInput } from "@angular/material/input";
 import { MatFormField, MatLabel, MatSuffix, MatError } from "@angular/material/form-field";
+import { NgIf } from "@angular/common";
 
 
 @Component({
     selector: "em-dynamic-combo-box",
     templateUrl: "./dynamic-combo-box.component.html",
     styleUrls: ["./dynamic-combo-box.component.scss"],
-    imports: [FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatInput, MatAutocompleteTrigger, MatIconButton, MatSuffix, MatMenuTrigger, MatIcon, MatError, MatAutocomplete, MatOption, MatMenu, MatMenuItem, MatMenuContent, DateTimePickerComponent]
+    imports: [NgIf, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatInput, MatAutocompleteTrigger, MatIconButton, MatSuffix, MatMenuTrigger, MatIcon, MatError, MatAutocomplete, MatOption, MatMenu, MatMenuItem, MatMenuContent, DateTimePickerComponent]
 })
 export class DynamicComboBoxComponent implements OnInit {
    public ComboMode = ComboMode;

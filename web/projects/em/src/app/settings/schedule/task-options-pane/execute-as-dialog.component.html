@@ -35,16 +35,12 @@
           <mat-option [value]="id.name">{{id.name}}</mat-option>
         }
       </mat-autocomplete>
-      @if (form.controls['idName'].errors && form.controls['idName'].errors['invalidUser']) {
-        <mat-error>
-          _#(Invalid user)
-        </mat-error>
-      }
-      @if (form.controls['idName'].errors && form.controls['idName'].errors['invalidGroup']) {
-        <mat-error>
-          _#(Invalid group)
-        </mat-error>
-      }
+      <mat-error *ngIf="form.controls['idName'].errors && form.controls['idName'].errors['invalidUser']">
+        _#(Invalid user)
+      </mat-error>
+      <mat-error *ngIf="form.controls['idName'].errors && form.controls['idName'].errors['invalidGroup']">
+        _#(Invalid group)
+      </mat-error>
     </mat-form-field>
   </form>
 </div>

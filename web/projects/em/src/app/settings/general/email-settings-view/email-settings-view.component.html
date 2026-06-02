@@ -24,12 +24,8 @@
           <mat-form-field appearance="outline" color="accent">
             <mat-label>_#(Mail Host [SMTP])</mat-label>
             <input matInput placeholder="_#(Mail Host [SMTP])" formControlName="smtpHost">
-            @if (form.controls.smtpHost?.errors?.required) {
-              <mat-error>_#(em.mail.hostRequired)</mat-error>
-            }
-            @if (form.controls.smtpHost?.errors?.pattern) {
-              <mat-error>_#(em.mail.hostInvalid)</mat-error>
-            }
+            <mat-error *ngIf="form.controls.smtpHost?.errors?.required">_#(em.mail.hostRequired)</mat-error>
+            <mat-error *ngIf="form.controls.smtpHost?.errors?.pattern">_#(em.mail.hostInvalid)</mat-error>
           </mat-form-field>
           <mat-checkbox class="mat-checkbox-field" formControlName="ssl">
             _#(Secure SMTP)

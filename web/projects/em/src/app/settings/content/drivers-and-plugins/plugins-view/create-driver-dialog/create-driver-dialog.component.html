@@ -39,9 +39,7 @@
               }
             </mat-list>
             <input #uploadFileInput type="file" accept="application/java-archive" hidden multiple (change)="addDriverFiles($event)"/>
-            @if (uploadForm.errors?.uploadFilesRequired) {
-              <mat-error>_#(em.data.databases.driver.uploadFilesRequired)</mat-error>
-            }
+            <mat-error *ngIf="uploadForm.errors?.uploadFilesRequired">_#(em.data.databases.driver.uploadFilesRequired)</mat-error>
             <button mat-raised-button style="margin-top: 4px;" (click)="uploadFileInput.value = null; uploadFileInput.click()" [disabled]="uploadForm.controls['uploadType']?.value !== 'upload'">_#(Select)</button>
           </div>
           <mat-radio-button class="align-button" value="maven">_#(Maven)</mat-radio-button>
@@ -49,15 +47,9 @@
             <mat-form-field appearance="outline" color="accent">
               <mat-label>_#(em.data.databases.driver.mavenCoord)</mat-label>
               <input matInput placeholder="_#(em.data.databases.driver.mavenCoord)" formControlName="mavenCoord" [matAutocomplete]="mavenComplete">
-              @if (uploadForm.controls['mavenCoord']?.errors?.required) {
-                <mat-error>_#(em.data.databases.driver.mavenCoordRequired)</mat-error>
-              }
-              @if (uploadForm.controls['mavenCoord']?.errors?.pattern) {
-                <mat-error>_#(em.data.databases.driver.mavenCoordInvalid)</mat-error>
-              }
-              @if (!uploadForm.controls['mavenCoord']?.errors?.required || uploadForm.controls['mavenCoord']?.pristine) {
-                <mat-hint>_#(em.data.databases.driver.mavenCoordHint)</mat-hint>
-              }
+              <mat-error *ngIf="uploadForm.controls['mavenCoord']?.errors?.required">_#(em.data.databases.driver.mavenCoordRequired)</mat-error>
+              <mat-error *ngIf="uploadForm.controls['mavenCoord']?.errors?.pattern">_#(em.data.databases.driver.mavenCoordInvalid)</mat-error>
+              <mat-hint *ngIf="!uploadForm.controls['mavenCoord']?.errors?.required || uploadForm.controls['mavenCoord']?.pristine">_#(em.data.databases.driver.mavenCoordHint)</mat-hint>
             </mat-form-field>
             <mat-autocomplete #mavenComplete="matAutocomplete">
               @if (searching) {
@@ -86,9 +78,7 @@
             <mat-list-option [value]="driver">{{driver}}</mat-list-option>
           }
         </mat-selection-list>
-        @if (driverForm.controls['drivers']?.errors?.required) {
-          <mat-error>_#(em.data.databases.driver.driversRequired)</mat-error>
-        }
+        <mat-error *ngIf="driverForm.controls['drivers']?.errors?.required">_#(em.data.databases.driver.driversRequired)</mat-error>
       </div>
       <div class="step-buttons">
         <button mat-raised-button color="primary" type="button" matStepperNext [disabled]="driverForm.invalid || driverForm.pristine">_#(Next)</button>
@@ -102,31 +92,21 @@
           <mat-label>_#(em.data.databases.driver.pluginId)</mat-label>
           <input matInput placeholder="_#(em.data.databases.driver.pluginId)" formControlName="pluginId">
           <mat-hint>_#(em.data.databases.driver.pluginIdHint)</mat-hint>
-          @if (pluginForm.controls['pluginId']?.errors?.required) {
-            <mat-error>_#(em.data.databases.driver.pluginIdRequired)</mat-error>
-          }
-          @if (pluginForm.controls['pluginId']?.errors?.pluginExists) {
-            <mat-error>_#(em.data.databases.driver.pluginIdExists)</mat-error>
-          }
+          <mat-error *ngIf="pluginForm.controls['pluginId']?.errors?.required">_#(em.data.databases.driver.pluginIdRequired)</mat-error>
+          <mat-error *ngIf="pluginForm.controls['pluginId']?.errors?.pluginExists">_#(em.data.databases.driver.pluginIdExists)</mat-error>
         </mat-form-field>
         <mat-form-field appearance="outline" color="accent">
           <mat-label>_#(em.data.databases.driver.pluginName)</mat-label>
           <input matInput placeholder="_#(em.data.databases.driver.pluginName)" formControlName="pluginName">
           <mat-hint>_#(em.data.databases.driver.pluginNameHint)</mat-hint>
-          @if (pluginForm.controls['pluginName']?.errors?.required) {
-            <mat-error>_#(em.data.databases.driver.pluginNameRequired)</mat-error>
-          }
+          <mat-error *ngIf="pluginForm.controls['pluginName']?.errors?.required">_#(em.data.databases.driver.pluginNameRequired)</mat-error>
         </mat-form-field>
         <mat-form-field appearance="outline" color="accent">
           <mat-label>_#(em.data.databases.driver.pluginVersion)</mat-label>
           <input matInput placeholder="_#(em.data.databases.driver.pluginVersion)" formControlName="pluginVersion">
           <mat-hint [innerHTML]="'_#(em.data.databases.driver.pluginVersionHint)'"></mat-hint>
-          @if (pluginForm.controls['pluginVersion']?.errors?.required) {
-            <mat-error>_#(em.data.databases.driver.pluginVersionRequired)</mat-error>
-          }
-          @if (pluginForm.controls['pluginVersion']?.errors?.pattern) {
-            <mat-error>_#(em.data.databases.driver.pluginVersionInvalid)</mat-error>
-          }
+          <mat-error *ngIf="pluginForm.controls['pluginVersion']?.errors?.required">_#(em.data.databases.driver.pluginVersionRequired)</mat-error>
+          <mat-error *ngIf="pluginForm.controls['pluginVersion']?.errors?.pattern">_#(em.data.databases.driver.pluginVersionInvalid)</mat-error>
         </mat-form-field>
       </div>
       <div class="step-buttons">

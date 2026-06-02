@@ -33,9 +33,7 @@
           (clickCell)="clickCell.emit($event)">
         </em-regular-table>
       }
-      @if (emptyErrorVisible) {
-        <mat-error class="empty-error-message">{{emptyError}}</mat-error>
-      }
+      <mat-error *ngIf="emptyErrorVisible" class="empty-error-message">{{emptyError}}</mat-error>
     </mat-card-content>
     @if (tableInfo.selectionEnabled && hasButtons()) {
       <mat-card-actions class="button-row">
@@ -80,9 +78,7 @@
             (clickCell)="clickCell.emit($event)">
           </em-regular-table>
         }
-        @if (emptyErrorVisible) {
-          <mat-error class="empty-error-message">{{emptyError}}</mat-error>
-        }
+        <mat-error *ngIf="emptyErrorVisible" class="empty-error-message">{{emptyError}}</mat-error>
       </mat-card-content>
       @if (tableInfo.selectionEnabled) {
         <mat-card-actions class="button-row">

@@ -31,9 +31,7 @@
           cdkTextareaAutosize [cdkAutosizeMaxRows]="15" [cdkAutosizeMinRows]="6"
           [readonly]="!editMode">
         </textarea>
-        @if (!editMode) {
-          <mat-hint align="end">_#(Preview)</mat-hint>
-        }
+        <mat-hint *ngIf="!editMode" align="end">_#(Preview)</mat-hint>
       </mat-form-field>
     </mat-card-content>
     <em-loading-spinner [loading]="loading"></em-loading-spinner>

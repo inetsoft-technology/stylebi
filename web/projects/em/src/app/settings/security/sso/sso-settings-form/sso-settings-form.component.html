@@ -21,11 +21,9 @@
       <mat-form-field>
         <mat-label>{{labels[formControlName]}}</mat-label>
         <input matInput [formControlName]="formControlName">
-        @if (form.controls[formControlName]?.errors?.required) {
-          <mat-error>
-            _#(enter.value)
-          </mat-error>
-        }
+        <mat-error *ngIf="form.controls[formControlName]?.errors?.required">
+          _#(enter.value)
+        </mat-error>
       </mat-form-field>
     }
   </form>

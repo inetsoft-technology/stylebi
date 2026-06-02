@@ -48,7 +48,7 @@ import { MatIconButton } from "@angular/material/button";
 import { MatInput } from "@angular/material/input";
 import { MatFormField, MatLabel, MatSuffix, MatError } from "@angular/material/form-field";
 import { MatCard, MatCardTitle, MatCardContent } from "@angular/material/card";
-import { NgTemplateOutlet } from "@angular/common";
+import { NgTemplateOutlet, NgIf } from "@angular/common";
 
 const EM_DARK_VAR_NAME = "--inet-em-dark";
 const EM_PRIMARY_PREFIX = "--inet-em-primary-";
@@ -61,7 +61,7 @@ const EM_DARK_TEXT_VAR = "var(--inet-em-dark-primary-text)";
     selector: "em-theme-css-view",
     templateUrl: "./theme-css-view.component.html",
     styleUrls: ["./theme-css-view.component.scss"],
-    imports: [MatCard, FormsModule, ReactiveFormsModule, MatCardTitle, MatCardContent, MatFormField, MatLabel, MatInput, MatIconButton, MatSuffix, MatIcon, MatTable, MatSort, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, NgTemplateOutlet, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, MatSlideToggle, ColorPickerDirective, MatRadioGroup, MatRadioButton, MatError]
+    imports: [NgIf, MatCard, FormsModule, ReactiveFormsModule, MatCardTitle, MatCardContent, MatFormField, MatLabel, MatInput, MatIconButton, MatSuffix, MatIcon, MatTable, MatSort, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, NgTemplateOutlet, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, MatSlideToggle, ColorPickerDirective, MatRadioGroup, MatRadioButton, MatError]
 })
 export class ThemeCssViewComponent implements OnInit, OnDestroy, OnChanges {
    @Input() get theme(): CustomThemeModel {

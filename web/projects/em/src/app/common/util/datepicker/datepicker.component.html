@@ -16,19 +16,14 @@
 ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -->
 <mat-form-field [formGroup]="form" appearance="outline" color="accent">
-  @if (isVisibleLabel) {
-    <mat-label>_#(Date)</mat-label>
-  }
+  <mat-label *ngIf="isVisibleLabel">_#(Date)</mat-label>
   <input class="date-picker-input" matInput [matDatepicker]="picker" placeholder="_#(Date)"
     formControlName="date" name="date" required>
   <mat-datepicker-toggle matSuffix [for]="picker">
     <mat-icon matDatepickerToggleIcon fontSet="ineticons" fontIcon="calendar-icon"></mat-icon>
   </mat-datepicker-toggle>
   <mat-datepicker #picker></mat-datepicker>
-  @if (form && form.controls['date'].errors
-    && form.controls['date'].errors['required']) {
-    <mat-error>
-      _#(em.schedule.condition.dateRequired)
-    </mat-error>
-  }
+  <mat-error *ngIf="form && form.controls['date'].errors && form.controls['date'].errors['required']">
+    _#(em.schedule.condition.dateRequired)
+  </mat-error>
 </mat-form-field>

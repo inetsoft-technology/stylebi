@@ -25,9 +25,7 @@
         <mat-option [value]="type.key">{{type.value}}</mat-option>
       }
     </mat-select>
-    @if (form.controls.dataSource?.errors?.duplicateName) {
-      <mat-error>_#(em.dataSource.duplicateType)</mat-error>
-    }
+    <mat-error *ngIf="form.controls.dataSource?.errors?.duplicateName">_#(em.dataSource.duplicateType)</mat-error>
   </mat-form-field>
 </div>
 <div mat-dialog-actions>

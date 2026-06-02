@@ -28,6 +28,7 @@ import { MatDatepickerInput, MatDatepickerToggle, MatDatepickerToggleIcon, MatDa
 import { MatInput } from "@angular/material/input";
 
 import { MatFormField, MatLabel, MatSuffix, MatError } from "@angular/material/form-field";
+import { NgIf } from "@angular/common";
 
 dayjs.extend(customParseFormat);
 
@@ -52,6 +53,7 @@ export const DEFAULT_FORMATS = {
         { provide: MAT_DATE_FORMATS, useValue: DEFAULT_FORMATS },
     ],
     imports: [
+    NgIf,
     MatFormField,
     FormsModule,
     ReactiveFormsModule,
