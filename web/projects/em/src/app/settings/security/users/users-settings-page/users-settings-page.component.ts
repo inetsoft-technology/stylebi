@@ -547,13 +547,13 @@ export class UsersSettingsPageComponent implements OnInit, OnDestroy {
    }
 
    private getSameTypeNode0(type: number): SecurityTreeNodeModel {
-      if(type == IdentityType.ROLE && this.model.roles.children.length != 0) {
+      if(type == IdentityType.ROLE && this.model.roles?.children?.length) {
          return this.model.roles.children[0];
       }
-      else if(type == IdentityType.GROUP && this.model.groups.children.length != 0) {
+      else if(type == IdentityType.GROUP && this.model.groups?.children?.length) {
          return this.model.groups.children[0];
       }
-      else if(type == IdentityType.USER && this.model.users.children.length != 0) {
+      else if(type == IdentityType.USER && this.model.users?.children?.length) {
          return this.model.users.children[0];
       }
 
