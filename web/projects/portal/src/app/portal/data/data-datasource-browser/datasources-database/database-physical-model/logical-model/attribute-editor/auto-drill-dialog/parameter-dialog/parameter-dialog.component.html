@@ -16,25 +16,28 @@
 ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -->
 <modal-header [title]="'_#(Parameter)'"
-  [cshid]="'AutoDrillPortal'"
-  (onCancel)="close()">
+              [cshid]="'AutoDrillPortal'"
+              (onCancel)="close()">
 </modal-header>
 @if (model && form) {
-  <div class="modal-body">
-    <form [formGroup]="form">
+  <div class="modal-body parameter-dialog">
+    <form [formGroup]="form" class="parameter-dialog__form">
       <div class="shell-form-group form-floating">
-        <input #inputFocus class="form-control" type="text" formControlName="name"
-          [class.is-invalid]="!nameControl.valid"
-          [(ngModel)]="variable"
-          [ngClass]="{'input-transparent border-0': variables && variables.length > 0}"/>
-        @if (variables && variables.length > 0) {
-          <select class="form-control"
-            formControlName="name" [(ngModel)]="variable">
-            @for (_variable of variables; track _variable) {
-              <option [value]="_variable">{{_variable}}</option>
-            }
-          </select>
-        }
+        <div class="input-group">
+          <input #inputFocus class="form-control" type="text" formControlName="name"
+                 [class.is-invalid]="!nameControl.valid"
+                 [(ngModel)]="variable"/>
+          @if (parameterNameSelectOptions.length > 0) {
+            <custom-select class="parameter-name-picker"
+                           [options]="parameterNameSelectOptions"
+                           [ngModel]="variable"
+                           [ngModelOptions]="{standalone: true}"
+                           (selectionChange)="selectVariable($event)"
+                           ariaLabel="_#(Parameter Name)"
+                           placeholder="_#(Select)">
+            </custom-select>
+          }
+        </div>
         <label><span>_#(Parameter Name)</span></label>
         @if (!nameControl.valid) {
           <span class="invalid-feedback">
@@ -42,21 +45,21 @@
           </span>
         }
       </div>
-      <div class="form-group">
+      <div class="shell-form-group parameter-dialog__source-row">
         <div class="form-check form-check-inline">
           <input class="form-check-input" type="radio"
-            [ngModel]="source"
-            (ngModelChange)="updateParamType($event)"
-            [value]="SourceType.FIELD"
-            [ngModelOptions]="{standalone: true}">
+                 [ngModel]="source"
+                 (ngModelChange)="updateParamType($event)"
+                 [value]="SourceType.FIELD"
+                 [ngModelOptions]="{standalone: true}">
           <label class="form-check-label">_#(Field)</label>
         </div>
         <div class="form-check form-check-inline">
           <input class="form-check-input" type="radio"
-            [ngModel]="source"
-            (ngModelChange)="updateParamType($event)"
-            [value]="SourceType.CONSTANT"
-            [ngModelOptions]="{standalone: true}">
+                 [ngModel]="source"
+                 (ngModelChange)="updateParamType($event)"
+                 [value]="SourceType.CONSTANT"
+                 [ngModelOptions]="{standalone: true}">
           <label class="form-check-label">_#(Constant)</label>
         </div>
       </div>
@@ -80,7 +83,7 @@
         </div>
       }
       @if (source == SourceType.CONSTANT) {
-        <div class="form-group" [class.g-0]="model.type == XSchema.BOOLEAN">
+        <div class="shell-form-group" [class.g-0]="model.type == XSchema.BOOLEAN">
           @if (model.type == XSchema.BOOLEAN) {
             <div class="form-check form-check-inline">
               <label class="form-check-label value-for-parameter-label">
@@ -133,16 +136,16 @@
               }
               <label><span>_#(Parameter Value)</span></label>
               @if (valueControl.getError('required')) {
-                <div class="alert alert-danger">
+                <div class="shell-alert shell-alert--danger">
                 _#(data.logicalmodel.drillParameterFieldRequired)</div>
               }
               @if (valueControl.getError('maxLength')) {
-                <div class="alert alert-danger">
+                <div class="shell-alert shell-alert--danger">
                   _#(data.logicalmodel.drillParameterFieldMaxLength)
                 </div>
               }
               @if (isInValidTypeRange()) {
-                <div class="alert alert-danger">
+                <div class="shell-alert shell-alert--danger">
                   _#(data.logicalmodel.drillParameterFieldMaxLength)
                 </div>
               }
@@ -151,7 +154,7 @@
           @if (!valueControl.getError('required')
             && !isInValidTypeRange() && !valueControl.getError('maxLength')
             && !isValidDataTypeValue(model.field, model.type)) {
-            <div class="alert alert-danger">
+            <div class="shell-alert shell-alert--danger parameter-dialog__inline-alert">
             _#(data.logicalmodel.drillParameterNumberInvalid)</div>
           }
         </div>

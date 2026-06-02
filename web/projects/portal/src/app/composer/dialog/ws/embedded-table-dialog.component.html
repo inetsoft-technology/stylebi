@@ -16,12 +16,12 @@
 ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -->
 <modal-header [title]="'_#(Embedded Table)'" (onCancel)="cancelChanges()"
-  [cshid]="'EmbeddedTable'">
+              [cshid]="'EmbeddedTable'">
 </modal-header>
 <div class="modal-body" [enterSubmit]="formValid" (onEnter)="saveChanges()">
   @if (model) {
     <form [formGroup]="form" class="container-fluid">
-      <div class="form-row-float-label row">
+      <div class="shell-form-row--field row">
         <div class="col form-floating">
           <input type="text" id="tableName" trim class="form-control" formControlName="name"
             placeholder="_#(Name)">
@@ -50,12 +50,12 @@
           }
         </div>
       </div>
-      <div class="form-row-float-label row">
-        <div class="col form-floating">
+      <div class="shell-form-row--field row">
+        <div class="col d-flex flex-column">
+          <label class="form-label">_#(Rows)</label>
           <number-stepper formControlName="rows" [min]="0" [max]="10000"
-                        [invalid]="!!(form.controls['rows'].errors && !form.controls['rows'].pristine)">
-        </number-stepper>
-          <label><span>_#(Rows)</span></label>
+                          [invalid]="!!(form.controls['rows'].errors && !form.controls['rows'].pristine)">
+          </number-stepper>
         </div>
         <div class="col-12">
           @if (form.controls['rows'].errors && !form.controls['rows'].pristine) {
@@ -66,12 +66,12 @@
           }
         </div>
       </div>
-      <div class="form-row-float-label row">
-        <div class="col form-floating">
+      <div class="shell-form-row--field row">
+        <div class="col d-flex flex-column">
+          <label class="form-label">_#(Columns)</label>
           <number-stepper formControlName="cols" [min]="0" [max]="1000"
-                        [invalid]="!form.controls['cols'].valid && !form.controls['cols'].pristine">
-        </number-stepper>
-          <label><span>_#(Columns)</span></label>
+                          [invalid]="!form.controls['cols'].valid && !form.controls['cols'].pristine">
+          </number-stepper>
         </div>
         <div class="col-12">
           @if (form.controls['cols'].errors && !form.controls['cols'].pristine) {

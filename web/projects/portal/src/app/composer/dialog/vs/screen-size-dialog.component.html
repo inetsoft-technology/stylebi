@@ -22,7 +22,7 @@
 @if (form && model) {
   <div class="modal-body" [enterSubmit]="formValid" (onEnter)="saveChanges()">
     <form [formGroup]="form" class="container-fluid">
-      <div class="form-row-float-label row">
+      <div class="shell-form-row--field row">
         <label class="col-2 col-sm-2">_#(Label):</label>
         <div class="col-sm-10 col-10">
           <input type="text" class="form-control" formControlName="label" [(ngModel)]="model.label">
@@ -38,13 +38,13 @@
           }
         </div>
       </div>
-      <div class="form-row-float-label row">
+      <div class="shell-form-row--field row">
         <label class="col-2 col-sm-2">_#(Description):</label>
         <div class="col-sm-10 col-10">
           <textarea class="form-control" [(ngModel)]="model.description" [ngModelOptions]="{standalone: true}"></textarea>
         </div>
       </div>
-      <div class="form-row-float-label row">
+      <div class="shell-form-row--field row">
         <label class="col-auto align-self-center">_#(Width):</label>
         <div class="col-auto">
           <number-stepper formControlName="widthRangeStart"
@@ -53,7 +53,7 @@
                         (valueChange)="model.minWidth = $event">
         </number-stepper>
         </div>
-        <label class="col-sm-1 col-1" style="padding-top: 7px;">_#(to)</label>
+        <label class="col-auto align-self-center">_#(to)</label>
         <div class="col-auto">
           <number-stepper formControlName="widthRangeEnd"
                         [min]="0" [max]="2147483647"
@@ -61,8 +61,7 @@
                         (valueChange)="model.maxWidth = $event">
         </number-stepper>
         </div>
-        <label class="col-auto" style="padding-top: 7px;">_#(px)</label>
-        <div class="col-10 offset-2">
+        <div class="col-12">
           @if (form.controls['widthRangeStart'].errors && form.controls['widthRangeStart'].errors['required']) {
             <div class="shell-alert shell-alert--danger">
               <strong>_#(Error)</strong> _#(layout.device.screenFromWidthCheck)

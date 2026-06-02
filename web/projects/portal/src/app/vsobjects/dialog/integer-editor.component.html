@@ -16,29 +16,29 @@
 ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -->
 <form [formGroup]="form" class="container-fluid">
-  <div class="row form-row-float-label">
-    <div class="col form-floating">
+  <div class="row shell-form-row--field">
+    <div class="col d-flex flex-column">
+      <label class="form-label">_#(Minimum)</label>
       <number-stepper formControlName="min"
                       (valueChange)="model.minimum = $event"
                       [invalid]="!!form.get('min').errors">
       </number-stepper>
-      <label>_#(Minimum)</label>
     </div>
   </div>
-  <div class="row form-row-float-label">
-    <div class="col form-floating">
+  <div class="row shell-form-row--field">
+    <div class="col d-flex flex-column">
+      <label class="form-label">_#(Maximum)</label>
       <number-stepper formControlName="max"
                       (valueChange)="model.maximum = $event"
                       [invalid]="!!form.get('max').errors">
       </number-stepper>
-      <label>_#(Maximum)</label>
     </div>
   </div>
-  <div class="row form-row-float-label">
+  <div class="row shell-form-row--field">
     <div class="col form-floating">
-      <textarea class="form-control" [(ngModel)]="model.errorMessage"
-      [ngModelOptions]="{standalone: true}" placeholder="_#(Error Message)"></textarea>
-      <label>_#(Error Message)</label>
+        <textarea class="form-control" [(ngModel)]="model.errorMessage"
+                  [ngModelOptions]="{standalone: true}" placeholder="_#(Error Message)"></textarea>
+        <label>_#(Error Message)</label>
     </div>
   </div>
   @if (form.hasError('greaterThan')) {

@@ -16,16 +16,15 @@
 ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -->
 <modal-header [title]="'_#(Add Expression)'"
-  [cshid]="'AddExpression'"
-  (onCancel)="cancel()">
+              [helpURL]="scriptHelpUrl"
+              (onCancel)="cancel()">
 </modal-header>
-<div class="modal-body">
-  <form [formGroup]="form">
-    <div class="container-fluid form-group">
-      <div class="row form-row-float-label">
+<div class="modal-body logical-model-expression-dialog">
+  <form [formGroup]="form" class="logical-model-expression-dialog__form">
+    <div class="logical-model-expression-dialog__top-row">
         <div class="form-floating logical-model-expression-dialog__field">
           <input type="text" class="form-control" formControlName="name"
-            [class.is-invalid]="!nameControl.valid">
+                 [class.is-invalid]="!nameControl.valid">
           <label>_#(Expression Name)</label>
           @if (nameControl.getError('required')) {
             <span class="invalid-feedback">
@@ -45,20 +44,19 @@
             </span>
           }
         </div>
-      </div>
     </div>
     <div class="shell-form-group">
       <div class="script-container">
-        <script-pane [sql]="true" [expression]="expression"
-          (expressionChange)="updateExpression($event)"
-          [columnTreeRoot]="columnTreeRoot"
-          [columnTreeEnabled]="!!columnTreeRoot"
-          [functionTreeRoot]="functionTreeRoot"
-          [functionTreeEnabled]="!!functionTreeRoot"
-          [operatorTreeRoot]="operatorTreeRoot"
-          [required]="true"
-          [cursor]="cursor"
-          [preventEscape]="true">
+        <script-pane [sql]="true" [showHelp]="false" [expression]="expression"
+                     (expressionChange)="updateExpression($event)"
+                     [columnTreeRoot]="columnTreeRoot"
+                     [columnTreeEnabled]="!!columnTreeRoot"
+                     [functionTreeRoot]="functionTreeRoot"
+                     [functionTreeEnabled]="!!functionTreeRoot"
+                     [operatorTreeRoot]="operatorTreeRoot"
+                     [required]="true"
+                     [cursor]="cursor"
+                     [preventEscape]="true">
         </script-pane>
       </div>
     </div>
@@ -66,7 +64,7 @@
 </div>
 <div class="modal-footer">
   <button type="button" class="btn btn-primary" (click)="ok()"
-    [disabled]="!form.valid || expression == null || expression.length == 0">_#(OK)
+          [disabled]="!form.valid || expression == null || expression.length == 0">_#(OK)
   </button>
   <button type="button" class="btn btn-secondary" data-dismiss="modal" (click)="cancel()">_#(Cancel)
   </button>

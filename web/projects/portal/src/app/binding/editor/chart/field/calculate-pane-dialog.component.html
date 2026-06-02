@@ -21,8 +21,8 @@
 @if (calculator) {
   <div class="modal-body" blockMouse>
     <div class="container form-container">
-      <div class="row form-row-float-label">
-        <div class="col d-flex flex-column">
+      <div class="row shell-form-row--field">
+        <div class="col">
           <div class="form-floating">
             <custom-select [options]="calcTypeOptions"
                            id="calculateClassType"
@@ -48,7 +48,7 @@
       <!--Percent-->
       @if (calculator.classType === 'PERCENT') {
         <div>
-          <div class="row form-row-float-label">
+          <div class="row shell-form-row--field">
             <div class="col d-flex flex-column">
               <div class="form-floating">
                <custom-select [options]="percentageOfOptions"
@@ -61,7 +61,7 @@
             </div>
           </div>
           @if (supportPercentageDirection) {
-            <div class="row form-row-float-label">
+            <div class="row shell-form-row--field">
               <div class="col d-flex flex-column">
                 <div class="form-floating">
                   <dynamic-combo-box [valueOnly]="!isVs"
@@ -80,7 +80,7 @@
       <!--Change Calculation-->
       @if (calculator.classType === 'CHANGE') {
         <div>
-          <div class="row form-row-float-label">
+          <div class="row shell-form-row--field">
             <div class="col d-flex flex-column">
               <div class="form-floating">
                 <custom-select [options]="valueOfOptions"
@@ -92,7 +92,7 @@
               </div>
             </div>
           </div>
-          <div class="row form-row-float-label">
+          <div class="row shell-form-row--field">
             <div class="col d-flex flex-column">
               <div class="form-floating">
                <custom-select [options]="fromOptions"
@@ -109,7 +109,7 @@
       <!--Running total-->
       @if (hasAggregate) {
         <div>
-          <div  class="row form-row-float-label">
+          <div  class="row shell-form-row--field">
             <div class="col d-flex flex-column">
               <div class="form-floating">
                <custom-select [options]="aggregateOptions"
@@ -121,13 +121,11 @@
             </div>
           </div>
           @if (npVisible) {
-            <div  class="row form-row-float-label">
+            <div  class="row shell-form-row--field">
               <div class="col d-flex flex-column">
-                <div class="form-floating">
-                  <number-stepper [(ngModel)]="n" [min]="1" [invalid]="!isNValid()">
+                <label class="form-label">{{npLabel}}</label>
+                <number-stepper [(ngModel)]="n" [min]="1" [invalid]="!isNValid()">
              </number-stepper>
-                  <label><span>{{npLabel}}</span></label>
-                </div>
               </div>
             </div>
           }
@@ -136,7 +134,7 @@
       <!--Value of Calculation-->
       @if (calculator.classType === 'VALUE') {
         <div>
-          <div class="row form-row-float-label">
+          <div class="row shell-form-row--field">
             <div class="col d-flex flex-column">
               <div class="form-floating">
                <custom-select [options]="valueOfOptions"
@@ -147,7 +145,7 @@
               </div>
             </div>
           </div>
-          <div class="row form-row-float-label">
+          <div class="row shell-form-row--field">
             <div class="col d-flex flex-column">
               <div class="form-floating">
                <custom-select [options]="fromOptions"
@@ -167,7 +165,7 @@
       }
       @if (calculator.classType === 'RUNNINGTOTAL' || calculator.classType === 'COMPOUNDGROWTH') {
         <div
-          class="row form-row-float-label">
+          class="row shell-form-row--field">
           <div class="col d-flex flex-column">
             <div class="form-floating">
              <custom-select [options]="breakByOptions"
@@ -181,7 +179,7 @@
       }
       @if ((calculator.classType === 'RUNNINGTOTAL' || calculator.classType === 'COMPOUNDGROWTH') && !!resetOptsData) {
         <div
-          class="row form-row-float-label">
+          class="row shell-form-row--field">
           <div class="col d-flex flex-column">
             <div class="form-floating">
             <custom-select [options]="resetOptions"
@@ -196,7 +194,7 @@
       <!--Moving-->
       @if (calculator.classType === 'MOVING') {
         @if (crosstab) {
-          <div class="row form-row-float-label">
+          <div class="row shell-form-row--field">
             <div class="col d-flex flex-column">
               <div class="form-floating">
                <custom-select [options]="movingDimensionOptions"
@@ -208,24 +206,20 @@
             </div>
           </div>
         }
-        <div class="row form-row-float-label">
+        <div class="row shell-form-row--field">
           <div class="col d-flex flex-column">
-            <div class="form-floating">
-              <number-stepper [(ngModel)]="movingCalculator.previous" [min]="0">
+            <label class="form-label">_#(Previous)</label>
+            <number-stepper [(ngModel)]="movingCalculator.previous" [min]="0">
              </number-stepper>
-              <label><span>_#(Previous)</span></label>
-            </div>
           </div>
           <div class="col d-flex flex-column">
-            <div class="form-floating">
-              <number-stepper [(ngModel)]="movingCalculator.next" [min]="0">
+            <label class="form-label">_#(Next)</label>
+            <number-stepper [(ngModel)]="movingCalculator.next" [min]="0">
              </number-stepper>
-              <label><span>_#(Next)</span></label>
-            </div>
           </div>
         </div>
-        <div class="row form-row-float-label">
-          <div class="col d-flex flex-column">
+        <div class="row shell-form-row--field">
+          <div class="col">
             <div class="form-check">
               <input type="checkbox" class="form-check-input" id="currentValue"
                 [(ngModel)]="movingCalculator.includeCurrentValue"/>
@@ -234,7 +228,7 @@
               </label>
             </div>
           </div>
-          <div class="col d-flex flex-column">
+          <div class="col">
             <div class="form-check">
               <input type="checkbox" class="form-check-input" id="null"
                 [(ngModel)]="movingCalculator.nullIfNoEnoughValue"/>

@@ -37,6 +37,7 @@
               @for (file of uploadForm.controls['uploadFiles']?.value; track file; let i = $index) {
                 <a class="driver-wizard__list-item unhighlightable"
                   [class.selected]="selectedDriverFiles.indexOf(i) >= 0"
+                  [attr.title]="file.name"
                   (click)="selectDriverFile($event, i)">
                   {{ file. name }}
                 </a>
@@ -46,7 +47,7 @@
           <div class="driver-wizard__side-actions driver-wizard__upload-actions">
             <input #uploadFileInput type="file" accept="application/java-archive" hidden multiple (change)="addDriverFiles($event)">
             <button type="button" class="btn btn-secondary" (click)="uploadFileInput.value = null; uploadFileInput.click()" [disabled]="uploadForm.controls['uploadType']?.value !== 'upload'">_#(Add)</button>
-            <button type="button" class="btn btn-secondary" (click)="removeDriverFiles()" [disabled]="uploadForm.controls['uploadType']?.value !== 'upload' || selectedDriverFiles.length === 0">_#(Remove)</button>
+            <button type="button" class="btn btn-default" (click)="removeDriverFiles()" [disabled]="uploadForm.controls['uploadType']?.value !== 'upload' || selectedDriverFiles.length === 0">_#(Remove)</button>
           </div>
         </div>
         @if (uploadForm.errors?.uploadFilesRequired) {
@@ -65,7 +66,7 @@
             </div>
           </div>
         </div>
-        <div class="row form-row-float-label field-row mb-1">
+        <div class="driver-wizard__field form-floating">
           <div class="col form-floating">
             <input class="form-control" type="text" formControlName="mavenCoord"
               [class.is-invalid]="uploadForm.controls['mavenCoord'].invalid"
@@ -78,11 +79,11 @@
             @if (uploadForm.controls['mavenCoord']?.errors?.pattern) {
               <span class="invalid-feedback">_#(em.data.databases.driver.mavenCoordInvalid)</span>
             }
-            @if (!uploadForm.controls['mavenCoord']?.errors?.required || uploadForm.controls['mavenCoord']?.pristine) {
-              <span class="helper-text">_#(em.data.databases.driver.mavenCoordHint)</span>
-            }
           </div>
         </div>
+        @if (!uploadForm.controls['mavenCoord']?.errors?.required || uploadForm.controls['mavenCoord']?.pristine) {
+          <div class="driver-wizard__hint">_#(em.data.databases.driver.mavenCoordHint)</div>
+        }
       </div>
     </div>
   }
@@ -169,5 +170,5 @@
   <button type="button" class="btn btn-primary" (click)="next()" [disabled]="isNextDisabled()">
     {{ step === 'plugin' ? '_#(Finish)' : '_#(Next)' }}
   </button>
-  <button type="button" class="btn btn-secondary" data-dismiss="modal" (click)="cancel()">_#(Cancel)</button>
+  <button type="button" class="btn btn-default" data-dismiss="modal" (click)="cancel()">_#(Cancel)</button>
 </div>

@@ -26,33 +26,32 @@
   <fieldset class="mt-0">
     <legend>_#(Insert)</legend>
     <div class="container">
-      <div class="row form-row-float-label">
+      <div class="row shell-form-row--field">
         <div class="col">
           <div class="form-check">
             <input class="form-check-input" type="radio" id="rows" name="insert" value="true"
-              [(ngModel)]="insertRadio">
+                   [(ngModel)]="insertRadio">
             <label class="form-check-label" for="rows">_#(Rows)</label>
           </div>
         </div>
         <div class="col">
           <div class="form-check">
             <input class="form-check-input" type="radio" id="columns" name="insert" value="false"
-              [(ngModel)]="insertRadio">
+                   [(ngModel)]="insertRadio">
             <label class="form-check-label" for="columns">_#(Columns)</label>
           </div>
         </div>
       </div>
-      <div class="row form-row-float-label">
-        <div class="col-auto form-floating">
+      <div class="row shell-form-row--field">
+        <div class="col-auto d-flex flex-column">
+          <label class="form-label">_#(Number)</label>
           <number-stepper [(ngModel)]="num" [min]="1">
           </number-stepper>
-          <label><span>_#(Number)</span></label>
         </div>
       </div>
       @if (num <= 0) {
-        <div class="shell-alert shell-alert--danger warning"
-          >
-          _#(viewer.flash.rankWizard.enterPositiveInt)
+        <div class="shell-alert shell-alert--danger warning">
+           _#(viewer.flash.rankWizard.enterPositiveInt)
         </div>
       }
     </div>

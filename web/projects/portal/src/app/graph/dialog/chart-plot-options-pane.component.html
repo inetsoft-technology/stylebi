@@ -18,7 +18,7 @@
 <div [formGroup]="form">
   <fieldset>
     <legend>_#(Plot)</legend>
-    <div class="form-row-float-label row">
+    <div class="shell-form-row--field row">
       <div class="col">
         <color-dropdown [(color)]="model.backgroundColor" label="_#(Background)"
           [enabled]="model.backgroundEnabled"
@@ -60,38 +60,42 @@
   @if ((model.bandingXVisible || model.bandingYVisible) && model.lineTabVisible) {
     <fieldset>
       <legend>_#(Banding)</legend>
-      <div class="form-row-float-label row">
+      <div class="shell-form-row--field row">
         @if (model.bandingXVisible) {
           <div class="banding-container col">
-            <div class="form-floating">
-              <color-dropdown [(color)]="model.bandingXColor"
-                [isBg]="true" [transEnabled]="true"
-              [enabled]="model.hasXDimension"></color-dropdown>
-              <label>_#(X)</label>
+            <div class="d-flex flex-column">
+               <label class="form-label">_#(X)</label>
+               <div class="banding-color-wrap">
+                  <color-dropdown [(color)]="model.bandingXColor"
+                                  [isBg]="true" [transEnabled]="true"
+                                  [enabled]="model.hasXDimension"></color-dropdown>
+               </div>
             </div>
             <div class="ms-1 d-flex flex-column">
+              <label class="form-label">_#(Size)</label>
               <number-stepper formControlName="bandingXSize" [min]="0"
                                (valueChange)="model.bandingXSize = $event"
                                [invalid]="form.controls['bandingXSize']?.invalid">
                </number-stepper>
-              <label><span>_#(Size)</span></label>
             </div>
           </div>
         }
         @if (model.bandingYVisible) {
           <div class="banding-container col">
-            <div class="form-floating">
-              <color-dropdown [(color)]="model.bandingYColor"
-                [isBg]="true" [transEnabled]="true"
-              [enabled]="model.hasYDimension"></color-dropdown>
-              <label>_#(Y)</label>
+            <div class="d-flex flex-column">
+               <label class="form-label">_#(Y)</label>
+               <div class="banding-color-wrap">
+                  <color-dropdown [(color)]="model.bandingYColor"
+                                  [isBg]="true" [transEnabled]="true"
+                                  [enabled]="model.hasYDimension"></color-dropdown>
+               </div>
             </div>
             <div class="ms-1 d-flex flex-column">
+              <label class="form-label">_#(Size)</label>
               <number-stepper formControlName="bandingYSize" [min]="0"
                                (valueChange)="model.bandingYSize = $event"
                                [invalid]="form.controls['bandingYSize']?.invalid">
                </number-stepper>
-              <label><span>_#(Size)</span></label>
             </div>
           </div>
         }
@@ -109,44 +113,32 @@
     </fieldset>
   }
 
-  @if (model.showValuesVisible || model.stackValuesVisible || model.explodedPieVisible || model.showReferenceLineVisible || model.keepElementInPlotVisible || model.polygonColorVisible || model.showPointsVisible || model.applyAestheticsToSourceVisible) {
+  @if (model.showValuesVisible || model.stackValuesVisible || model.explodedPieVisible || model.showReferenceLineVisible || model.keepElementInPlotVisible || model.polygonColorVisible || model.showPointsVisible || model.applyAestheticsToSourceVisible || model.barCornerRadiusVisible || model.nodeCornerRadiusVisible) {
     <fieldset>
       <legend>_#(Plot Options)</legend>
-      <div class="form-row-float-label row">
+      <div class="shell-form-row shell-form-row--checkbox gap-3">
         @if (model.showValuesVisible) {
-          <div class="checkbox col-auto">
-            <div class="form-check">
-              <input type="checkbox" class="form-check-input" [(ngModel)]="model.showValues"
-                [ngModelOptions]="{standalone: true}"
-                [disabled]="!model.showValuesEnabled" id="showValues">
-              <label class="form-check-label" for="showValues">
-                _#(Show Values)
-              </label>
-            </div>
+          <div class="form-check mb-0">
+            <input type="checkbox" class="form-check-input" [(ngModel)]="model.showValues"
+              [ngModelOptions]="{standalone: true}"
+              [disabled]="!model.showValuesEnabled" id="showValues">
+            <label class="form-check-label" for="showValues">_#(Show Values)</label>
           </div>
         }
         @if (model.stackValuesVisible) {
-          <div class="checkbox col-auto">
-            <div class="form-check">
-              <input type="checkbox" class="form-check-input" [(ngModel)]="model.stackValues"
-                [ngModelOptions]="{standalone: true}" id="stackValue"
-                [disabled]="!model.showValues || !model.stackValuesEnabled">
-              <label class="form-check-label" for="stackValue">
-                _#(Stack Value)
-              </label>
-            </div>
+          <div class="form-check mb-0">
+            <input type="checkbox" class="form-check-input" [(ngModel)]="model.stackValues"
+              [ngModelOptions]="{standalone: true}" id="stackValue"
+              [disabled]="!model.showValues || !model.stackValuesEnabled">
+            <label class="form-check-label" for="stackValue">_#(Stack Value)</label>
           </div>
         }
         @if (model.explodedPieVisible) {
-          <div class="checkbox col-auto">
-            <div class="form-check">
-              <input type="checkbox" class="form-check-input" id="explodePie"
-                [(ngModel)]="model.explodedPie"
-                [ngModelOptions]="{standalone: true}">
-              <label class="form-check-label" for="explodePie">
-                _#(Explode Pie)
-              </label>
-            </div>
+          <div class="form-check mb-0">
+            <input type="checkbox" class="form-check-input" id="explodePie"
+              [(ngModel)]="model.explodedPie"
+              [ngModelOptions]="{standalone: true}">
+            <label class="form-check-label" for="explodePie">_#(Explode Pie)</label>
           </div>
         }
         @if (model.explodedPieVisible) {
@@ -160,113 +152,94 @@
           </div>
         }
         @if (model.showReferenceLineVisible) {
-          <div class="checkbox col-auto">
-            <div class="form-check">
-              <input type="checkbox" class="form-check-input" id="showRef"
-                [(ngModel)]="model.showReferenceLine"
-                [ngModelOptions]="{standalone: true}">
-              <label class="form-check-label" for="showRef">
-                _#(Show Reference Line)
-              </label>
-            </div>
+          <div class="form-check mb-0">
+            <input type="checkbox" class="form-check-input" id="showRef"
+              [(ngModel)]="model.showReferenceLine"
+              [ngModelOptions]="{standalone: true}">
+            <label class="form-check-label" for="showRef">
+               _#(Show Reference Line)
+            </label>
           </div>
         }
         @if (model.keepElementInPlotVisible) {
-          <div class="checkbox col-auto">
-            <div class="form-check">
-              <input type="checkbox" class="form-check-input" id="keepInPlot"
-                [(ngModel)]="model.keepElementInPlot"
-                [ngModelOptions]="{standalone: true}">
-              <label class="form-check-label" for="keepInPlot">
-                _#(Keep Element in Plot)
-              </label>
-            </div>
+          <div class="form-check mb-0">
+            <input type="checkbox" class="form-check-input" id="keepInPlot"
+              [(ngModel)]="model.keepElementInPlot"
+              [ngModelOptions]="{standalone: true}">
+            <label class="form-check-label" for="keepInPlot">
+               _#(Keep Element in Plot)
+            </label>
           </div>
         }
         @if (model.polygonColorVisible) {
-          <div class="checkbox col-auto">
-            <div class="form-check">
-              <input type="checkbox" class="form-check-input"
-                [(ngModel)]="model.polygonColor" id="showColorInMap"
-                [ngModelOptions]="{standalone: true}">
-              <label class="form-check-label" for="showColorInMap">
-                _#(Always Show Color in Map)
-              </label>
-            </div>
+          <div class="form-check mb-0">
+            <input type="checkbox" class="form-check-input"
+              [(ngModel)]="model.polygonColor" id="showColorInMap"
+              [ngModelOptions]="{standalone: true}">
+            <label class="form-check-label" for="showColorInMap">
+               _#(Always Show Color in Map)
+            </label>
           </div>
         }
         @if (model.showPointsVisible) {
-          <div class="checkbox col-auto">
-            <div class="form-check">
-              <input type="checkbox" class="form-check-input"
-                [(ngModel)]="model.showPoints" id="showPoints"
-                [ngModelOptions]="{standalone: true}">
-              <label class="form-check-label" for="showPoints">
-                {{model.showPointsLabel}}
-              </label>
-            </div>
+          <div class="form-check mb-0">
+            <input type="checkbox" class="form-check-input"
+              [(ngModel)]="model.showPoints" id="showPoints"
+              [ngModelOptions]="{standalone: true}">
+            <label class="form-check-label" for="showPoints">
+               {{model.showPointsLabel}}
+            </label>
           </div>
         }
         @if (model.showPointsVisible && model.showPointsLabel == '_#(Show Lines)') {
-          <div class="checkbox col-auto"
-            >
-            <div class="form-check">
-              <input type="checkbox" class="form-check-input"
-                [(ngModel)]="model.oneLine" id="oneLine"
-                [disabled]="!model.showPoints"
-                [ngModelOptions]="{standalone: true}">
-              <label class="form-check-label" for="oneLine">
-                _#(As One Line)
-              </label>
-            </div>
+          <div class="form-check mb-0">
+            <input type="checkbox" class="form-check-input"
+              [(ngModel)]="model.oneLine" id="oneLine"
+              [disabled]="!model.showPoints"
+              [ngModelOptions]="{standalone: true}">
+            <label class="form-check-label" for="oneLine">
+               _#(As One Line)
+            </label>
           </div>
         }
         @if (model.includeParentLabelsVisible) {
-          <div class="checkbox col-auto">
-            <div class="form-check">
-              <input type="checkbox" class="form-check-input"
-                [(ngModel)]="model.includeParentLabels" id="includeParents"
-                [ngModelOptions]="{standalone: true}">
-              <label class="form-check-label" for="includeParents">
-                _#(Include Parent Labels)
-              </label>
-            </div>
+          <div class="form-check mb-0">
+            <input type="checkbox" class="form-check-input"
+              [(ngModel)]="model.includeParentLabels" id="includeParents"
+              [ngModelOptions]="{standalone: true}">
+            <label class="form-check-label" for="includeParents">
+               _#(Include Parent Labels)
+            </label>
           </div>
         }
         @if (model.applyAestheticsToSourceVisible) {
-          <div class="checkbox col-auto">
-            <div class="form-check">
-              <input type="checkbox" class="form-check-input"
-                [(ngModel)]="model.applyAestheticsToSource" id="includeParents"
-                [ngModelOptions]="{standalone: true}">
-              <label class="form-check-label" for="includeParents">
-                _#(Apply Aesthetics to Source Nodes)
-              </label>
-            </div>
+          <div class="form-check mb-0">
+            <input type="checkbox" class="form-check-input"
+              [(ngModel)]="model.applyAestheticsToSource" id="includeParents"
+              [ngModelOptions]="{standalone: true}">
+            <label class="form-check-label" for="includeParents">
+               _#(Apply Aesthetics to Source Nodes)
+            </label>
           </div>
         }
         @if (model.fillGapWithDashVisible) {
-          <div class="checkbox col-auto">
-            <div class="form-check">
-              <input type="checkbox" class="form-check-input"
-                [(ngModel)]="model.fillGapWithDash" id="fillGapWithDash"
-                [ngModelOptions]="{standalone: true}">
-              <label class="form-check-label" for="fillGapWithDash">
-                _#(Fill Missing Data with Dash Line)
-              </label>
-            </div>
+          <div class="form-check mb-0">
+            <input type="checkbox" class="form-check-input"
+              [(ngModel)]="model.fillGapWithDash" id="fillGapWithDash"
+              [ngModelOptions]="{standalone: true}">
+            <label class="form-check-label" for="fillGapWithDash">
+               _#(Fill Missing Data with Dash Line)
+            </label>
           </div>
         }
         @if (model.smoothLinesVisible) {
-          <div class="checkbox col-auto">
-            <div class="form-check">
-              <input type="checkbox" class="form-check-input"
-                [(ngModel)]="model.smoothLines" id="smoothLines"
-                [ngModelOptions]="{standalone: true}">
-              <label class="form-check-label" for="smoothLines">
-                _#(Smooth Lines)
-              </label>
-            </div>
+          <div class="form-check mb-0">
+            <input type="checkbox" class="form-check-input"
+              [(ngModel)]="model.smoothLines" id="smoothLines"
+              [ngModelOptions]="{standalone: true}">
+            <label class="form-check-label" for="smoothLines">
+               _#(Smooth Lines)
+            </label>
           </div>
         }
         @if (model.treeLayoutVisible) {
@@ -291,7 +264,7 @@
         }
       </div>
       @if (model.barCornerRadiusVisible) {
-        <div class="form-row-float-label row">
+        <div class="shell-form-row--field row">
           <div class="col-auto form-floating">
             <number-stepper formControlName="barCornerRadius" [min]="0" [max]="0.5" [step]="0.05"
                            (valueChange)="model.barCornerRadius = $event"
@@ -313,11 +286,27 @@
           }
         </div>
       }
+      @if (model.nodeCornerRadiusVisible) {
+        <div class="shell-form-row--field row">
+          <div class="col-auto form-floating">
+            <number-stepper formControlName="nodeCornerRadius" [min]="0" [max]="0.5" [step]="0.05"
+                           (valueChange)="model.nodeCornerRadius = $event"
+                           [invalid]="form.controls['nodeCornerRadius']?.invalid">
+           </number-stepper>
+            <label><span>_#(Node Corner Radius)</span></label>
+          </div>
+        </div>
+      }
     </fieldset>
   }
   @if (form.controls['barCornerRadius']?.errors && model.barCornerRadius != null) {
     <div class="shell-alert shell-alert--danger error">
       _#(viewer.viewsheet.chart.barCornerRadius.rangeWarning)
+    </div>
+  }
+  @if (form.controls['nodeCornerRadius']?.errors && model.nodeCornerRadius != null) {
+    <div class="shell-alert shell-alert--danger error">
+      _#(viewer.viewsheet.chart.nodeCornerRadius.rangeWarning)
     </div>
   }
   @if (form.controls['pieRatio']?.errors && model.pieRatio != null) {
@@ -333,7 +322,7 @@
   @if (model.contourEnabled) {
     <fieldset>
       <legend>_#(Density Contour)</legend>
-      <div class="form-row-float-label row">
+      <div class="shell-form-row--field row">
         <div class="col-3 form-floating">
           <number-stepper formControlName="contourLevels" [min]="1"
                            (valueChange)="model.contourLevels = $event"
@@ -388,7 +377,7 @@
   @if (model.fillTimeVisible) {
     <fieldset>
       <legend>Time-Series</legend>
-      <div class="form-row-float-label row">
+      <div class="shell-form-row--field row">
         <div class="checkbox col-auto">
           <div class="form-check">
             <input type="checkbox" class="form-check-input" id="fillTime"
@@ -426,7 +415,7 @@
   @if (model.webMapVisible) {
     <fieldset>
       <legend>Web Map</legend>
-      <div class="form-row-float-label row">
+      <div class="shell-form-row--field row">
         <div class="checkbox col-auto">
           <div class="form-check">
             <input type="checkbox" class="form-check-input" id="webMap"

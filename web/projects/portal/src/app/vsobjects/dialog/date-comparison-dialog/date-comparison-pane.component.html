@@ -49,7 +49,7 @@
   <form class="container-fluid">
     <fieldset>
       <legend>_#(Display)</legend>
-      <div class="form-row-float-label row">
+      <div class="row shell-form-row--field">
         <div class="col-11 d-flex justify-content-between">
           @for (option of comparisonOption; track option; let i = $index) {
             <div class="option form-check">
@@ -66,7 +66,7 @@
         </div>
       </div>
       @if (showAsFacet()) {
-        <div class="form-row-float-label row">
+        <div class="row shell-form-row--field">
           <div class="col-1">
             <div class="form-check check-box-container">
               <input type="checkbox" class="form-check-input"
@@ -80,7 +80,7 @@
         </div>
       }
       @if (isOnlyShowRecentDateVisible()) {
-        <div class="form-row-float-label row">
+        <div class="row shell-form-row--field">
           <div class="col-1">
             <div class="form-check check-box-container">
               <input type="checkbox" class="form-check-input"
@@ -94,7 +94,7 @@
         </div>
       }
       <!-- @dcColorRemove
-      <div class="form-row-float-label row" *ngIf="isChart()">
+      <div class="shell-form-row--field row" *ngIf="isChart()">
         <div class="col-11 d-flex">
           <label class="form-check-label" >
             _#(date.comparison.colorPalette)

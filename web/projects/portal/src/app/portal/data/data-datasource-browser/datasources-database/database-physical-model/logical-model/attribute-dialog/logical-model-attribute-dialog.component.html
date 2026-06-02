@@ -16,34 +16,49 @@
 ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -->
 <modal-header [title]="'_#(Add Attributes)'"
-  [cshid]="'AddAttributes'"
-  (onCancel)="cancel()">
+              [cshid]="'AddAttributes'"
+              (onCancel)="cancel()">
 </modal-header>
 <div class="modal-body logical-model-attribute-dialog">
-  <form [formGroup]="form">
-    <div class="form-group form-floating">
-      <select #selectFocus class="form-control"
-        formControlName="parent"
-        [class.is-invalid]="!!parentControl.errors"
-        (ngModelChange)="entityChange($event)">
-        @for (entity of entities; track entity; let i = $index) {
-          <option [value]="i">{{ entity.name }}</option>
-        }
-      </select>
+  <form [formGroup]="form" class="logical-model-attribute-dialog__form">
+    <div class="shell-form-group form-floating" #entityDropdown="ngbDropdown" ngbDropdown [autoClose]="true">
+      <input #entityTrigger type="text" class="form-control input-dropdown"
+             [class.input-dropdown--open]="entityDropdown.isOpen()"
+             [value]="selectedEntityName"
+             [class.is-invalid]="!!parentControl.errors"
+             [disabled]="parentControl.disabled"
+             readonly
+             ngbDropdownToggle
+             #selectFocus>
+      <div class="dropdown-caret icon-size-small"
+           [class.chevron-down-icon]="!entityDropdown.isOpen()"
+           [class.chevron-up-icon]="entityDropdown.isOpen()"></div>
       <label><span>_#(data.logicalmodel.parentEntity)</span></label>
       @if (parentControl.getError('required')) {
         <span class="invalid-feedback">
           _#(data.logicalmodel.parentEntityRequired)
         </span>
       }
+      <div ngbDropdownMenu class="dropdown-pane logical-model-attribute-dialog__dropdown-menu"
+           [style.width.px]="entityTrigger.offsetWidth"
+           [style.min-width.px]="entityTrigger.offsetWidth">
+        @for (entity of entities; track entity; let i = $index) {
+          <button type="button"
+                  class="dropdown-item logical-model-attribute-dialog__dropdown-item"
+                  [class.selected]="parent === i"
+                  (click)="selectEntity(i, entityDropdown)">
+            {{ entity.name }}
+          </button>
+        }
+      </div>
     </div>
     <div class="shell-form-group">
       <div class="form-floating">
-        <div class="card">
-          <div class="physical-table-tree p-2">
+        <div class="logical-model-attribute-dialog__tree-shell">
+          <div class="physical-table-tree">
             @if (!!tablesRoot) {
               <physical-table-tree #physicalTree
-                [root]="tablesRoot" (nodesSelected)="select($event)">
+                                   [root]="tablesRoot" (nodesSelected)="select($event)">
               </physical-table-tree>
             }
           </div>

@@ -18,7 +18,7 @@
 import { HttpClient } from "@angular/common/http";
 import { Component, EventEmitter, Input, OnInit, Output, ViewChild, ElementRef, AfterViewInit } from "@angular/core";
 import { AbstractControl, UntypedFormControl, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from "@angular/forms";
-import { NgbDropdown } from "@ng-bootstrap/ng-bootstrap";
+import { NgbDropdown, NgbDropdownToggle, NgbDropdownMenu } from "@ng-bootstrap/ng-bootstrap";
 import { PhysicalTableTreeComponent } from "./physical-table-tree/physical-table-tree.component";
 import { EntityModel } from "../../../../../model/datasources/database/physical-model/logical-model/entity-model";
 import { TreeNodeModel } from "../../../../../../../widget/tree/tree-node-model";
@@ -33,7 +33,7 @@ const TABLES_URI: string = "../api/data/logicalModel/tables/nodes";
     selector: "logical-model-attribute-dialog",
     templateUrl: "logical-model-attribute-dialog.component.html",
     styleUrls: ["logical-model-attribute-dialog.component.scss"],
-    imports: [ModalHeaderComponent, FormsModule, ReactiveFormsModule, PhysicalTableTreeComponent]
+    imports: [ModalHeaderComponent, FormsModule, ReactiveFormsModule, PhysicalTableTreeComponent, NgbDropdown, NgbDropdownToggle, NgbDropdownMenu]
 })
 export class LogicalModelAttributeDialog implements OnInit, AfterViewInit {
    @ViewChild("physicalTree") tree: PhysicalTableTreeComponent;

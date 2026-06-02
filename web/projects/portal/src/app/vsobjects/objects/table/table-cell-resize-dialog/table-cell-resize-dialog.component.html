@@ -19,33 +19,31 @@
 </modal-header>
 
 <div class="modal-body"
-  [enterSubmit]="true"
-  (onEnter)="ok()">
+     [enterSubmit]="true"
+     (onEnter)="ok()">
   @if (form) {
     <form [formGroup]="form" class="container-fluid">
-      <div class="form-row-float-label row">
-        <div class="form-floating col">
+      <div class="shell-form-row--field row">
+        <div class="col d-flex flex-column">
+          <label class="form-label">_#(Cell Width)</label>
           <number-stepper formControlName="cellWidth" [min]="0"
-                        [invalid]="!!cellWidth.errors">
-        </number-stepper>
-          <label>_#(Cell Width)</label>
+                          [invalid]="!!cellWidth.errors">
+          </number-stepper>
           @if (cellWidth.errors) {
-            <div
-              class="alert alert-danger">
+            <div class="shell-alert shell-alert--danger">
               _#(composer.vs.table.cellSize.error)
             </div>
           }
         </div>
       </div>
-      <div class="form-row-float-label row">
-        <div class="form-floating col">
+      <div class="shell-form-row--field row">
+        <div class="col d-flex flex-column">
+          <label class="form-label">_#(Cell Height)</label>
           <number-stepper formControlName="cellHeight" [min]="0"
-                        [invalid]="!!cellHeight.errors">
-        </number-stepper>
-          <label>_#(Cell Height)</label>
+                          [invalid]="!!cellHeight.errors">
+          </number-stepper>
           @if (cellHeight.errors) {
-            <div
-              class="alert alert-danger">
+            <div class="shell-alert shell-alert--danger">
               _#(composer.vs.table.cellSize.error)
             </div>
           }

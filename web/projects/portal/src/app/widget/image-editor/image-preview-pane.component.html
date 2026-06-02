@@ -16,18 +16,18 @@
 ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -->
 <div class="container-fluid">
-  <div class="row form-row-float-label">
+  <div class="row shell-form-row--field">
     <div class="col-12 col-sm-6">
       <div class="text-truncate">_#(Select an Image)</div>
-      <div class="bordered-box bd-gray">
+      <div class="bordered-box image-preview-pane__tree-surface">
         <tree [root]="model.imageTree" [showRoot]="false" [selectedNodes]="selectedNodes"
-        (nodesSelected)="selectImage($event[0])"></tree>
+              (nodesSelected)="selectImage($event[0])"></tree>
       </div>
     </div>
     <div class="col-12 col-sm-6">
       <span>_#(Image Path): {{selectedImageNode.label ? selectedImageNode.label : "emptyimage.gif" }}</span>
-      <div contenteditable="false" tabindex="1" class="bordered-box bd-gray"
-        [style.background-color]="blackBackground ? 'black' : 'transparent'">
+      <div contenteditable="false" tabindex="1" class="bordered-box image-preview-pane__preview-surface"
+           [style.background-color]="blackBackground ? 'black' : 'transparent'">
         <div>
           <img [src]="imageSrc" [style.opacity]="getAlpha()">
         </div>
@@ -38,10 +38,9 @@
     <div class="col row">
       <notifications #notifications [timeout]="5000"></notifications>
       <div class="col-auto">
-        <button type="button" class="btn btn-default" (click)="openUpload()">_#(Upload)
-          <input class="hidden-input col-10" type="file" id="imageInput" name="imageInput"
-            accept=".jpg,.gif,.png,.svg,.tif,.tiff" (change)="fileChanged($event)" hidden #uploadInput/>
-        </button>
+        <button type="button" class="btn btn-default" (click)="openUpload()">_#(Upload)</button>
+        <input type="file" id="imageInput" name="imageInput"
+               accept=".jpg,.gif,.png,.svg,.tif,.tiff" (change)="fileChanged($event)" hidden #uploadInput/>
       </div>
       <div class="col-auto">
         <button type="button" class="btn btn-default" (click)="deleteUpload()"

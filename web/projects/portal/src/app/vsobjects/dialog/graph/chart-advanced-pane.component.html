@@ -19,61 +19,53 @@
   <form [formGroup]="form" (submit)="$event.preventDefault()" class="container-fluid">
     <fieldset>
       <legend>_#(Chart Options)</legend>
-      <div class="form-row-float-label row">
+      <div class="shell-form-row shell-form-row--checkbox gap-3">
         <div class="form-check">
-          <div class="form-check">
-            <input type="checkbox" class="form-check-input" id="glossy"
-              [disabled]="!model.glossyEffectSupported || (model.sparklineSupported && model.sparkline)"
-              [(ngModel)]="model.glossyEffect" [ngModelOptions]="{standalone: true}">
-            <label class="form-check-label" for="glossy">
-              _#(Glossy Effect)
-            </label>
-          </div>
+          <input type="checkbox" class="form-check-input" id="glossy"
+                 [disabled]="!model.glossyEffectSupported || (model.sparklineSupported && model.sparkline)"
+                 [(ngModel)]="model.glossyEffect" [ngModelOptions]="{standalone: true}">
+          <label class="form-check-label" for="glossy">
+            _#(Glossy Effect)
+          </label>
         </div>
         @if (model.adhocVisible && !viewer) {
           <div class="form-check">
-            <div class="form-check">
-              <input type="checkbox" class="form-check-input" id="sparkline"
-                [disabled]="!model.sparklineSupported" [(ngModel)]="model.sparkline"
-                [ngModelOptions]="{standalone: true}">
-              <label class="form-check-label" for="sparkline">
-                _#(Sparkline)
-              </label>
-            </div>
+            <input type="checkbox" class="form-check-input" id="sparkline"
+                   [disabled]="!model.sparklineSupported" [(ngModel)]="model.sparkline"
+                   [ngModelOptions]="{standalone: true}">
+            <label class="form-check-label" for="sparkline">
+              _#(Sparkline)
+            </label>
           </div>
         }
         @if (model.adhocVisible && !viewer) {
           <div class="form-check">
-            <div class="form-check">
-              <input type="checkbox" class="form-check-input" id="adhoc"
-                [(ngModel)]="model.enableAdhocEditing" [ngModelOptions]="{standalone: true}">
-              <label class="form-check-label" for="adhoc">
-                _#(Enable Ad Hoc Editing)
-              </label>
-            </div>
+            <input type="checkbox" class="form-check-input" id="adhoc"
+                   [(ngModel)]="model.enableAdhocEditing" [ngModelOptions]="{standalone: true}">
+            <label class="form-check-label" for="adhoc">
+              _#(Enable Ad Hoc Editing)
+            </label>
           </div>
         }
         @if (model.adhocVisible && !viewer) {
           <div class="form-check">
-            <div class="form-check">
-              <input type="checkbox" class="form-check-input" id="drilling"
-                [(ngModel)]="model.enableDrilling" [disabled]="isMekko()"
-                [ngModelOptions]="{standalone: true}">
-              <label class="form-check-label" for="drilling">
-                _#(Enable Drilling)
-              </label>
-            </div>
+            <input type="checkbox" class="form-check-input" id="drilling"
+                   [(ngModel)]="model.enableDrilling" [disabled]="isMekko()"
+                   [ngModelOptions]="{standalone: true}">
+            <label class="form-check-label" for="drilling">
+              _#(Enable Drilling)
+            </label>
           </div>
         }
       </div>
       @if (model.sortOthersLastEnabled || model.rankPerGroupLabel) {
-        <div class="form-row-float-label row">
+        <div class="row shell-form-row--field">
           @if (model.sortOthersLastEnabled) {
-            <div class="form-check">
+            <div class="checkbox col-3">
               <div class="form-check">
                 <input type="checkbox" class="form-check-input" id="sortOthers"
-                  [(ngModel)]="model.sortOthersLast"
-                  [ngModelOptions]="{standalone: true}">
+                       [(ngModel)]="model.sortOthersLast"
+                       [ngModelOptions]="{standalone: true}">
                 <label class="form-check-label" for="sortOthers">
                   _#(Sort Others Last)
                 </label>
@@ -84,8 +76,8 @@
             <div class="checkbox col-auto">
               <div class="form-check">
                 <input type="checkbox" class="form-check-input" id="rankPerGroup"
-                  [(ngModel)]="model.rankPerGroup"
-                  [ngModelOptions]="{standalone: true}">
+                       [(ngModel)]="model.rankPerGroup"
+                       [ngModelOptions]="{standalone: true}">
                 <label class="form-check-label" for="rankPerGroup">{{model.rankPerGroupLabel}}</label>
               </div>
             </div>
@@ -93,12 +85,12 @@
         </div>
       }
       @if (!viewer && model.dateComparisonSupport) {
-        <div class="form-row-float-label row">
+        <div class="row shell-form-row--field">
           <div class="checkbox col-auto">
             <div class="form-check">
               <input type="checkbox" class="form-check-input" id="dateComparison"
-                [(ngModel)]="model.dateComparisonEnabled"
-                [ngModelOptions]="{standalone: true}">
+                     [(ngModel)]="model.dateComparisonEnabled"
+                     [ngModelOptions]="{standalone: true}">
               <label class="form-check-label" for="dateComparison">
                 _#(Enable Date Comparison)
               </label>
@@ -108,13 +100,13 @@
       }
     </fieldset>
     <chart-plot-options-pane [model]="model.chartPlotOptionsPaneModel"
-      [form]="form.controls['chartPlotOptionsPaneForm']">
+                             [form]="form.controls['chartPlotOptionsPaneForm']">
     </chart-plot-options-pane>
     <chart-target-lines-pane [variables]="variables"
-      [model]="model.chartTargetLinesPaneModel"
-      [vsId]="vsId"
-      [assetId]="assetId"
-      [chartType]="chartType">
+                             [model]="model.chartTargetLinesPaneModel"
+                             [vsId]="vsId"
+                             [assetId]="assetId"
+                             [chartType]="chartType">
     </chart-target-lines-pane>
   </form>
 </div>

@@ -21,8 +21,9 @@
 </modal-header>
 <div class="modal-body">
   <form [formGroup]="rangeForm" class="container-fluid">
-    <div class="form-row-float-label row">
-      <div class="col form-floating">
+    <div class="shell-form-row--field row">
+      <div class="col d-flex flex-column">
+        <label class="form-label">_#(From)</label>
         @if (!isDateType) {
           <number-stepper formControlName="min"
                         [inputmode]="'decimal'"
@@ -35,7 +36,6 @@
         @if (isDateType && timeIncrement === 't') {
           <input type="datetime-local" class="form-control" formControlName="min">
         }
-        <label>_#(From)</label>
         @if (rangeForm.get('min')?.errors?.['required']) {
           <div class="shell-alert shell-alert--danger">_#(composer.bandPanel.fromCheck)</div>
         }
@@ -53,8 +53,9 @@
         }
       </div>
     </div>
-    <div class="form-row-float-label row">
-      <div class="col form-floating">
+    <div class="shell-form-row--field row">
+      <div class="col d-flex flex-column">
+        <label class="form-label">_#(To)</label>
         @if (!isDateType) {
           <number-stepper formControlName="max"
                         [inputmode]="'decimal'"
@@ -67,7 +68,6 @@
         @if (isDateType && timeIncrement === 't') {
           <input type="datetime-local" class="form-control" formControlName="max">
         }
-        <label>_#(To)</label>
         @if (rangeForm.get('max')?.errors?.['required']) {
           <div class="shell-alert shell-alert--danger">_#(composer.bandPanel.toCheck)</div>
         }

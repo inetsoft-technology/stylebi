@@ -16,24 +16,23 @@
 ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -->
 <modal-header [title]="'_#(Table Properties)'"
-  (onCancel)="cancel()"
-  [cshid]="'SettingTableQueryandDisplayProperties'">
+   (onCancel)="cancel()"
+   [cshid]="'SettingTableQueryandDisplayProperties'">
 </modal-header>
 
 <div class="modal-body" [enterSubmit]="formValid" (onEnter)="ok()">
   @if (form) {
     <form [formGroup]="form" class="container-fluid">
       <fieldset>
-        <div class="form-row-float-label row">
+        <div class="shell-form-row--field row">
           <div class="col form-floating">
             <input type="text" class="form-control" formControlName="newName" defaultFocus trim
-              placeholder="_#(Name)">
+                   placeholder="_#(Name)">
             <label><span>_#(Name)</span></label>
           </div>
         </div>
         @if (form.controls['newName'].errors && form.controls['newName'].errors['required']) {
-          <div
-            class="shell-alert shell-alert--danger">
+          <div class="shell-alert shell-alert--danger">
             _#(designer.chartProp.specifyTargetName)
           </div>
         }
@@ -44,25 +43,24 @@
           </div>
         }
         @if (form.controls['newName'].errors && form.controls['newName'].errors['exists']) {
-          <div
-            class="shell-alert shell-alert--danger">
+          <div class="shell-alert shell-alert--danger">
             _#(viewer.worksheet.Grouping.nameAlready)
           </div>
         }
-        <div class="form-row-float-label row">
+        <div class="shell-form-row--field row">
           <div class="col form-floating">
             <textarea class="form-control" formControlName="description"
-            placeholder="_#(Description)"></textarea>
+                      placeholder="_#(Description)"></textarea>
             <label><span>_#(Description)</span></label>
           </div>
         </div>
         @if (form.controls['rowCount']) {
-          <div class="form-row-float-label row">
-            <div class="col form-floating">
+          <div class="shell-form-row--field row">
+            <div class="col d-flex flex-column">
+              <label class="form-label">_#(Row Count)</label>
               <number-stepper formControlName="rowCount" [min]="0"
-                          [invalid]="!!form.controls['rowCount'].errors">
-          </number-stepper>
-              <label><span>_#(Row Count)</span></label>
+                              [invalid]="!!form.controls['rowCount'].errors">
+              </number-stepper>
             </div>
             @if (form.controls['rowCount'].errors) {
               <div class="shell-alert shell-alert--danger w-100">
@@ -71,12 +69,12 @@
             }
           </div>
         }
-        <div class="form-row-float-label row">
-          <div class="col form-floating">
+        <div class="shell-form-row--field row">
+          <div class="col d-flex flex-column">
+            <label class="form-label">_#(Max Rows)</label>
             <number-stepper formControlName="maxRows" [min]="0"
-                          [invalid]="!!form.controls['maxRows'].errors">
-          </number-stepper>
-            <label><span>_#(Max Rows)</span></label>
+                            [invalid]="!!form.controls['maxRows'].errors">
+            </number-stepper>
           </div>
         </div>
         @if (form.controls['maxRows'].errors) {
@@ -84,20 +82,20 @@
             _#(viewer.worksheet.Grouping.positiveNumber)
           </div>
         }
-        <div class="form-row-float-label row">
+        <div class="shell-form-row--field row">
           <div class="col-auto">
-            <div class="form-check">
-              <input type="checkbox" class="form-check-input" id="visibleInVS"
-                formControlName="visibleInViewsheet">
-              <label class="form-check-label" for="visibleInVS">
-                _#(Visible in Viewsheet)
-              </label>
-            </div>
+              <div class="form-check">
+                <input type="checkbox" class="form-check-input" id="visibleInVS"
+                       formControlName="visibleInViewsheet">
+                <label class="form-check-label" for="visibleInVS">
+                  _#(Visible in Viewsheet)
+                </label>
+              </div>
           </div>
           <div class="col-auto">
             <div class="form-check">
               <input type="checkbox" class="form-check-input" id="distinctVal"
-                formControlName="returnDistinctValues">
+                     formControlName="returnDistinctValues">
               <label class="form-check-label" for="distinctVal">
                 _#(Return Distinct Values)
               </label>
@@ -110,7 +108,7 @@
               <div>_#(viewer.dialog.sqlMergeable)</div>
               <div class="form-check">
                 <input type="checkbox" class="form-check-input" id="mergeSQL"
-                  formControlName="mergeSql">
+                       formControlName="mergeSql">
                 <label class="form-check-label" for="mergeSQL">
                   _#(Merge SQL)
                 </label>
@@ -122,7 +120,7 @@
               <div>_#(viewer.worksheet.Grouping.notSqlMergeable)</div>
               <div class="form-check">
                 <input type="checkbox" class="form-check-input" id="mergeIf"
-                  formControlName="mergeSql">
+                       formControlName="mergeSql">
                 <label class="form-check-label" for="mergeIf">
                   _#(viewer.worksheet.Grouping.tableBecomes)
                 </label>

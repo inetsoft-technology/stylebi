@@ -108,73 +108,69 @@
   @if (linear || timeSeries && !outer) {
     <fieldset>
       <legend>_#(Scale)</legend>
-      <div class="form-row-float-label row max-min-fields">
+      <div class="shell-form-row--field row gap-3">
         @if (linear) {
-          <div class="col-auto mb-1 form-floating" [ngClass]="{ 'has-error' : !form.controls['minimum'].valid}"
-            >
+          <div class="col-auto d-flex flex-column">
+            <label class="form-label">_#(Minimum)</label>
             <number-stepper formControlName="minimum"
-                        (valueChange)="model.minimum = $event"
-                        [inputmode]="'decimal'"
-                        [invalid]="!!form.controls['minimum'].errors">
-        </number-stepper>
-            <label><span>_#(Minimum)</span></label>
-            @if (this.form.controls['minimum']?.errors && this.form.controls['minimum'].errors['lessThanEqualToZero']) {
+                            (valueChange)="model.minimum = $event"
+                            [inputmode]="'decimal'"
+                            [invalid]="!!form.controls['minimum'].errors">
+            </number-stepper>
+            @if (form.controls['minimum']?.errors?.['lessThanEqualToZero']) {
               <div class="shell-alert shell-alert--danger">_#(min.greater.zero)</div>
             }
-            @if (form.controls['minimum'].errors && form.controls['minimum'].errors['integerInRange']) {
+            @if (form.controls['minimum']?.errors?.['integerInRange']) {
               <div class="shell-alert shell-alert--danger">_#(component.out.range)</div>
             }
           </div>
         }
         @if (linear) {
-          <div class="col-auto mb-1 form-floating" [ngClass]="{ 'has-error' : !form.controls['maximum'].valid}"
-            >
+          <div class="col-auto d-flex flex-column">
+            <label class="form-label">_#(Maximum)</label>
             <number-stepper formControlName="maximum"
-                        (valueChange)="model.maximum = $event"
-                        [inputmode]="'decimal'"
-                        [invalid]="!!form.controls['maximum'].errors || (!!model.maximum && !minmaxValid)">
-        </number-stepper>
-            <label><span>_#(Maximum)</span></label>
-            @if (this.form.controls['maximum']?.errors && this.form.controls['maximum'].errors['lessThanEqualToZero']) {
+                            (valueChange)="model.maximum = $event"
+                            [inputmode]="'decimal'"
+                            [invalid]="!!form.controls['maximum'].errors || (!!model.maximum && !minmaxValid)">
+            </number-stepper>
+            @if (form.controls['maximum']?.errors?.['lessThanEqualToZero']) {
               <div class="shell-alert shell-alert--danger">_#(max.greater.zero)</div>
             }
-            @if (!!this.model.maximum && !this.minmaxValid) {
+            @if (!!model.maximum && !minmaxValid) {
               <div class="shell-alert shell-alert--danger">_#(viewer.viewsheet.numberRange.maxMinWarning)</div>
             }
-            @if (this.form.controls['maximum']?.errors && this.form.controls['maximum'].errors['integerInRange']) {
-              <div
-              class="shell-alert shell-alert--danger">_#(component.out.range)</div>
+            @if (form.controls['maximum']?.errors?.['integerInRange']) {
+              <div class="shell-alert shell-alert--danger">_#(component.out.range)</div>
             }
           </div>
         }
+      </div>
+      <div class="shell-form-row--field row gap-3">
         @if (linear || timeSeries && !outer) {
-          <div class="col-auto mb-1 form-floating" [ngClass]="{ 'has-error' : !form.controls['majorIncrement'].valid}"
-            >
+          <div class="col-auto d-flex flex-column">
+            <label class="form-label">_#(Major Increment)</label>
             <number-stepper formControlName="majorIncrement"
-                        (valueChange)="model.increment = $event"
-                        [inputmode]="'decimal'"
-                        [invalid]="!!form.controls['majorIncrement'].errors || (!!model.increment && !incrementValid)">
-        </number-stepper>
-            <label><span>_#(Major Increment)</span></label>
-            @if (this.form.controls['majorIncrement']?.errors && this.form.controls['majorIncrement'].errors['lessThanEqualToZero']) {
-              <div
-              class="shell-alert shell-alert--danger">_#(viewer.viewsheet.numberRange.notzeroWarning)</div>
+                            (valueChange)="model.increment = $event"
+                            [inputmode]="'decimal'"
+                            [invalid]="!!form.controls['majorIncrement'].errors || (!!model.increment && !incrementValid)">
+            </number-stepper>
+            @if (form.controls['majorIncrement']?.errors?.['lessThanEqualToZero']) {
+              <div class="shell-alert shell-alert--danger">_#(viewer.viewsheet.numberRange.notzeroWarning)</div>
             }
-            @if (!!this.model.increment && !this.incrementValid) {
+            @if (!!model.increment && !incrementValid) {
               <div class="shell-alert shell-alert--danger">_#(viewer.viewsheet.numberRange.incrementWarning)</div>
             }
           </div>
         }
         @if (linear) {
-          <div class="col-auto mb-1 form-floating" [ngClass]="{ 'has-error' : !form.controls['minorIncrement'].valid}"
-            >
+          <div class="col-auto d-flex flex-column">
+            <label class="form-label">_#(Minor Increment)</label>
             <number-stepper formControlName="minorIncrement"
-                        (valueChange)="model.minorIncrement = $event"
-                        [inputmode]="'decimal'"
-                        [invalid]="!!form.controls['minorIncrement'].errors">
-        </number-stepper>
-            <label><span>_#(Minor Increment)</span></label>
-            @if (form.controls['minorIncrement'].errors && form.controls['minorIncrement'].errors['lessThanEqualToZero']) {
+                            (valueChange)="model.minorIncrement = $event"
+                            [inputmode]="'decimal'"
+                            [invalid]="!!form.controls['minorIncrement'].errors">
+            </number-stepper>
+            @if (form.controls['minorIncrement']?.errors?.['lessThanEqualToZero']) {
               <div class="shell-alert shell-alert--danger">_#(viewer.viewsheet.numberRange.notzeroWarning)</div>
             }
           </div>

@@ -22,11 +22,11 @@
 @if (model && form) {
   <div class="modal-body" [enterSubmit]="enterSubmit" (onEnter)="ok()">
     <form [formGroup]="form">
-      <div class="form-row-float-label row">
+      <div class="add-parameter-dialog__row row">
         <div class="col">
           <div class="form-floating">
             <div class="input-group">
-              <input class="form-control" type="text" placeholder="_#(Parameter Name)"
+              <input class="form-control" type="text"
                 [(ngModel)]="model.name" formControlName="name"
                 [class.is-invalid]="!form.controls['name'].valid"/>
               @if (parameterNameSelectOptions.length > 0) {
@@ -53,7 +53,7 @@
           </div>
         </div>
       </div>
-      <div class="form-row-float-label row">
+      <div class="add-parameter-dialog__row row">
         <div class="col">
           <div class="form-floating">
             <custom-select [options]="typeSelectOptions" formControlName="type"></custom-select>
@@ -70,7 +70,7 @@
         </div>
       </div>
       @if (isSupportDynamic() && !model.array) {
-        <div class="form-row-float-label row">
+        <div class="add-parameter-dialog__row row">
           @if (!model.array) {
             <div class="col">
               <div class="form-floating">
@@ -96,7 +96,7 @@
         </div>
       }
       @if (!isSupportDynamic() && !model.array) {
-        <div class="form-row-float-label row">
+        <div class="add-parameter-dialog__option-row row">
           @if (model.type == XSchema.BOOLEAN && !model.array) {
             <div class="col-auto">
               <label class="form-check-label">_#(Value):</label>
@@ -152,7 +152,7 @@
           }
         </div>
       }
-      <div class="form-row-float-label row">
+      <div class="add-parameter-dialog__row row">
         @if (model.array) {
           <div class="col">
             <div class="form-floating">
@@ -172,5 +172,5 @@
 }
 <div class="modal-footer">
   <button type="button" class="btn btn-primary" (click)="ok()" [disabled]="!form.valid || !verifyDynamicValue()" #okButton>_#(OK)</button>
-  <button type="button" class="btn btn-default" data-dismiss="modal" (click)="close()">_#(Cancel)</button>
+  <button type="button" class="btn btn-default" (click)="close()">_#(Cancel)</button>
 </div>
