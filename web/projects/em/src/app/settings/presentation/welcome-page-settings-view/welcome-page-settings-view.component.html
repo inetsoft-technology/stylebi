@@ -35,11 +35,9 @@
               appearance="outline" color="accent">
               <mat-label>_#(URI)</mat-label>
               <input matInput formControlName="source" (keyup)="updateSource($event.target.value)">
-              @if (form.controls['source'].errors && form.controls['source'].errors['required']) {
-                <mat-error>
-                  _#(em.portalTheme.welcomePage.invalidURI)
-                </mat-error>
-              }
+              <mat-error *ngIf="form.controls['source'].errors && form.controls['source'].errors['required']">
+                _#(em.portalTheme.welcomePage.invalidURI)
+              </mat-error>
             </mat-form-field>
           }
           <mat-radio-button [value]="WelcomeType.RESOURCE"
@@ -50,11 +48,9 @@
               appearance="outline" color="accent">
               <mat-label>_#(Resource)</mat-label>
               <input matInput formControlName="source" (input)="updateSource($event.target.value)">
-              @if (form.controls['source'].errors && form.controls['source'].errors['required']) {
-                <mat-error>
-                  _#(em.portalTheme.welcomePage.invalidResource)
-                </mat-error>
-              }
+              <mat-error *ngIf="form.controls['source'].errors && form.controls['source'].errors['required']">
+                _#(em.portalTheme.welcomePage.invalidResource)
+              </mat-error>
             </mat-form-field>
           }
         </mat-radio-group>

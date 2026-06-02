@@ -62,8 +62,5 @@
       <div [innerHTML]="'_#(composer.vs.scriptHelp2)'"></div>
     </div>
   </div>
-  @if (expressionMissing) {
-    <mat-error>_#(common.condition.expressionNull)</mat-error>
-  }
+  <mat-error *ngIf="expressionMissing">_#(common.condition.expressionNull)</mat-error>
 </div>
-

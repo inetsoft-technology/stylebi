@@ -49,23 +49,15 @@
               <mat-label>_#(Max Log File Size)(KB)</mat-label>
               <input matInput type="number" placeholder="_#(max.log.size)"
                 formControlName="maxLogSize">
-              @if (form.get('fileSettings').get('maxLogSize').errors?.required) {
-                <mat-error>_#(common.invalidNumber)</mat-error>
-              }
-              @if (form.get('fileSettings').get('maxLogSize').errors?.min) {
-                <mat-error>_#(common.forbiddenNegativeNumber)</mat-error>
-              }
+              <mat-error *ngIf="form.get('fileSettings').get('maxLogSize').errors?.required">_#(common.invalidNumber)</mat-error>
+              <mat-error *ngIf="form.get('fileSettings').get('maxLogSize').errors?.min">_#(common.forbiddenNegativeNumber)</mat-error>
             </mat-form-field>
             <mat-form-field appearance="outline" color="accent">
               <mat-label>_#(BackUp Log File Count)</mat-label>
               <input matInput type="number" placeholder="_#(num.log.files)"
                 formControlName="count">
-              @if (form.get('fileSettings').get('count').errors?.required) {
-                <mat-error>_#(common.invalidNumber)</mat-error>
-              }
-              @if (form.get('fileSettings').get('count').errors?.min) {
-                <mat-error>_#(common.forbiddenNegativeNumber)</mat-error>
-              }
+              <mat-error *ngIf="form.get('fileSettings').get('count').errors?.required">_#(common.invalidNumber)</mat-error>
+              <mat-error *ngIf="form.get('fileSettings').get('count').errors?.min">_#(common.forbiddenNegativeNumber)</mat-error>
             </mat-form-field>
           </ng-container>
         }
@@ -74,32 +66,20 @@
             <mat-form-field appearance="outline" color="accent">
               <mat-label>_#(Host)</mat-label>
               <input matInput placeholder="_#(Host)" formControlName="host">
-              @if (form.get('fluentdSettings').get('host').errors?.required) {
-                <mat-error>_#(em.common.log.fluentd.hostRequired)</mat-error>
-              }
+              <mat-error *ngIf="form.get('fluentdSettings').get('host').errors?.required">_#(em.common.log.fluentd.hostRequired)</mat-error>
             </mat-form-field>
             <mat-form-field appearance="outline" color="accent">
               <mat-label>_#(Port)</mat-label>
               <input matInput type="number" placeholder="_#(Port)" formControlName="port">
-              @if (form.get('fluentdSettings').get('port').errors?.required) {
-                <mat-error>_#(em.common.log.fluentd.portRequired)</mat-error>
-              }
-              @if (form.get('fluentdSettings').get('port').errors?.min) {
-                <mat-error>_#(em.common.log.fluentd.portInvalid)</mat-error>
-              }
-              @if (form.get('fluentdSettings').get('port').errors?.max) {
-                <mat-error>_#(em.common.log.fluentd.portInvalid)</mat-error>
-              }
+              <mat-error *ngIf="form.get('fluentdSettings').get('port').errors?.required">_#(em.common.log.fluentd.portRequired)</mat-error>
+              <mat-error *ngIf="form.get('fluentdSettings').get('port').errors?.min">_#(em.common.log.fluentd.portInvalid)</mat-error>
+              <mat-error *ngIf="form.get('fluentdSettings').get('port').errors?.max">_#(em.common.log.fluentd.portInvalid)</mat-error>
             </mat-form-field>
             <mat-form-field appearance="outline" color="accent">
               <mat-label>_#(em.common.log.fluentd.connectTimeout)</mat-label>
               <input matInput type="number" placeholder="_#(em.common.log.fluentd.connectTimeout)" formControlName="connectTimeout">
-              @if (form.get('fluentdSettings').get('connectTimeout').errors?.required) {
-                <mat-error>_#(em.common.log.fluentd.connectTimeoutRequired)</mat-error>
-              }
-              @if (form.get('fluentdSettings').get('connectTimeout').errors?.min) {
-                <mat-error>_#(em.common.log.fluentd.connectTimeoutInvalid)</mat-error>
-              }
+              <mat-error *ngIf="form.get('fluentdSettings').get('connectTimeout').errors?.required">_#(em.common.log.fluentd.connectTimeoutRequired)</mat-error>
+              <mat-error *ngIf="form.get('fluentdSettings').get('connectTimeout').errors?.min">_#(em.common.log.fluentd.connectTimeoutInvalid)</mat-error>
             </mat-form-field>
             <mat-checkbox class="mat-checkbox-field" formControlName="securityEnabled">
               _#(em.common.log.fluentd.securityEnabled)
@@ -107,9 +87,7 @@
             <mat-form-field appearance="outline" color="accent">
               <mat-label>_#(em.common.log.fluentd.sharedKey)</mat-label>
               <input matInput type="password" placeholder="_#(em.common.log.fluentd.sharedKey)" formControlName="sharedKey">
-              @if (form.get('fluentdSettings').get('sharedKey').errors?.required) {
-                <mat-error>_#(em.common.log.fluentd.sharedKeyRequired)</mat-error>
-              }
+              <mat-error *ngIf="form.get('fluentdSettings').get('sharedKey').errors?.required">_#(em.common.log.fluentd.sharedKeyRequired)</mat-error>
             </mat-form-field>
             <mat-checkbox class="mat-checkbox-field" formControlName="userAuthenticationEnabled">
               _#(em.common.log.fluentd.userAuthenticationEnabled)
@@ -117,16 +95,12 @@
             <mat-form-field appearance="outline" color="accent">
               <mat-label>_#(Username)</mat-label>
               <input matInput placeholder="_#(Username)" formControlName="username">
-              @if (form.get('fluentdSettings').get('username').errors?.required) {
-                <mat-error>_#(em.common.log.fluentd.usernameRequired)</mat-error>
-              }
+              <mat-error *ngIf="form.get('fluentdSettings').get('username').errors?.required">_#(em.common.log.fluentd.usernameRequired)</mat-error>
             </mat-form-field>
             <mat-form-field appearance="outline" color="accent">
               <mat-label>_#(Password)</mat-label>
               <input matInput type="password" placeholder="_#(Password)" formControlName="password">
-              @if (form.get('fluentdSettings').get('password').errors?.required) {
-                <mat-error>_#(em.common.log.fluentd.passwordRequired)</mat-error>
-              }
+              <mat-error *ngIf="form.get('fluentdSettings').get('password').errors?.required">_#(em.common.log.fluentd.passwordRequired)</mat-error>
             </mat-form-field>
             <mat-checkbox class="mat-checkbox-field" formControlName="tlsEnabled">
               _#(em.common.log.fluentd.tlsEnabled)

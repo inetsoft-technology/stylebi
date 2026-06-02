@@ -27,12 +27,13 @@ import { MatIconButton, MatButton } from "@angular/material/button";
 import { MatInput } from "@angular/material/input";
 import { MatFormField, MatSuffix, MatLabel, MatError } from "@angular/material/form-field";
 import { MatCard, MatCardTitle, MatCardContent, MatCardActions } from "@angular/material/card";
+import { NgIf } from "@angular/common";
 
 @Component({
     selector: "em-change-password-form",
     templateUrl: "./change-password-form.component.html",
     styleUrls: ["./change-password-form.component.scss"],
-    imports: [MatCard, MatCardTitle, MatCardContent, FormsModule, ReactiveFormsModule, MatFormField, MatInput, MatIconButton, MatSuffix, MatIcon, MatLabel, MatError, MatCardActions, MatButton]
+    imports: [NgIf, MatCard, MatCardTitle, MatCardContent, FormsModule, ReactiveFormsModule, MatFormField, MatInput, MatIconButton, MatSuffix, MatIcon, MatLabel, MatError, MatCardActions, MatButton]
 })
 export class ChangePasswordFormComponent implements OnInit {
    @Input()

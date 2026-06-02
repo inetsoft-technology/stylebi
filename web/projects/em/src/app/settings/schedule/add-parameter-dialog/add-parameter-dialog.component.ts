@@ -45,12 +45,14 @@ import { MatFormField, MatLabel, MatError } from "@angular/material/form-field";
 import { MatRadioGroup, MatRadioButton } from "@angular/material/radio";
 
 import { ModalHeaderComponent } from "../../../common/util/modal-header/modal-header.component";
+import { NgIf } from "@angular/common";
 
 @Component({
     selector: "em-add-parameter-dialog",
     templateUrl: "./add-parameter-dialog.component.html",
     styleUrls: ["./add-parameter-dialog.component.scss"],
     imports: [
+    NgIf,
     ModalHeaderComponent,
     MatRadioGroup,
     FormsModule,

@@ -54,7 +54,7 @@ import { MatIcon } from "@angular/material/icon";
 import { MatIconButton, MatMiniFabButton } from "@angular/material/button";
 import { MatTree, MatTreeNodeDef, MatTreeNode, MatTreeNodeToggle, MatTreeNodePadding } from "@angular/material/tree";
 import { MatProgressBar } from "@angular/material/progress-bar";
-import { AsyncPipe } from "@angular/common";
+import { AsyncPipe, NgIf} from "@angular/common";
 import { MatOption } from "@angular/material/core";
 import { MatSelect } from "@angular/material/select";
 import { MatFormField, MatLabel, MatError } from "@angular/material/form-field";
@@ -123,7 +123,7 @@ export class ViewsheetDataSource extends FlatTreeDataSource<ViewsheetFlatNode, V
     selector: "em-viewsheet-action-editor",
     templateUrl: "./viewsheet-action-editor.component.html",
     styleUrls: ["./viewsheet-action-editor.component.scss"],
-    imports: [MatCard, MatCardContent, MatFormField, FormsModule, ReactiveFormsModule, MatLabel, MatSelect, MatOption, MatProgressBar, MatTree, MatTreeNodeDef, MatTreeNode, MatTreeNodeToggle, MatTreeNodePadding, MatIconButton, MatIcon, MatError, MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, MatMiniFabButton, NotificationEmailsComponent, DeliveryEmailsComponent, ServerSaveComponent, ParameterTableComponent, ScheduleAlertsComponent, AsyncPipe]
+    imports: [NgIf, MatCard, MatCardContent, MatFormField, FormsModule, ReactiveFormsModule, MatLabel, MatSelect, MatOption, MatProgressBar, MatTree, MatTreeNodeDef, MatTreeNode, MatTreeNodeToggle, MatTreeNodePadding, MatIconButton, MatIcon, MatError, MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, MatMiniFabButton, NotificationEmailsComponent, DeliveryEmailsComponent, ServerSaveComponent, ParameterTableComponent, ScheduleAlertsComponent, AsyncPipe]
 })
 export class ViewsheetActionEditorComponent implements OnInit, AfterContentChecked {
    @Output() modelChanged = new EventEmitter<TaskActionChanges>();

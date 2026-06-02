@@ -29,7 +29,7 @@ import { MatButton, MatIconButton } from "@angular/material/button";
 import { MatOption } from "@angular/material/core";
 import { MatAutocompleteTrigger, MatAutocomplete } from "@angular/material/autocomplete";
 import { MatCheckbox } from "@angular/material/checkbox";
-import { AsyncPipe } from "@angular/common";
+import { AsyncPipe, NgIf} from "@angular/common";
 import { MatInput } from "@angular/material/input";
 import { MatFormField, MatLabel, MatHint, MatError, MatSuffix } from "@angular/material/form-field";
 import { MatCard, MatCardContent } from "@angular/material/card";
@@ -52,7 +52,7 @@ const HASH_ALGORITHMS: string[] = ["BCRYPT", "MD2", "MD4", "MD5",
     selector: "em-database-provider-view",
     templateUrl: "./database-provider-view.component.html",
     styleUrls: ["./database-provider-view.component.scss"],
-    imports: [FormsModule, ReactiveFormsModule, MatCard, MatCardContent, MatFormField, MatLabel, MatInput, MatHint, MatError, MatCheckbox, MatAutocompleteTrigger, MatAutocomplete, MatOption, MatButton, QueryItemViewComponent, MatIconButton, MatSuffix, MatIcon, AsyncPipe]
+    imports: [NgIf, FormsModule, ReactiveFormsModule, MatCard, MatCardContent, MatFormField, MatLabel, MatInput, MatHint, MatError, MatCheckbox, MatAutocompleteTrigger, MatAutocomplete, MatOption, MatButton, QueryItemViewComponent, MatIconButton, MatSuffix, MatIcon, AsyncPipe]
 })
 export class DatabaseProviderViewComponent implements OnInit, OnDestroy {
    @Input() form: UntypedFormGroup;

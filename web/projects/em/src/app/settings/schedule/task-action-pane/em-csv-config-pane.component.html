@@ -47,11 +47,9 @@
             <mat-divider></mat-divider>
           }
         </mat-list>
-        @if (csvConfigModel?.selectedAssemblies && !csvConfigModel?.selectedAssemblies.length) {
-          <mat-error>
-            _#(vs.export.csv.AssemblyRequired)
-          </mat-error>
-        }
+        <mat-error *ngIf="csvConfigModel?.selectedAssemblies && !csvConfigModel?.selectedAssemblies.length">
+          _#(vs.export.csv.AssemblyRequired)
+        </mat-error>
       }
     </mat-card-content>
   </mat-card>

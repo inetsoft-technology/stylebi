@@ -36,16 +36,12 @@
             >
             <mat-icon fontSet="ineticons" fontIcon="help-question-mark-icon"></mat-icon>
           </a>
-          @if (form.controls.googleChat?.errors?.urlRequired) {
-            <mat-error>
-              _#(em.settings.share.googleChatUrlRequired)
-            </mat-error>
-          }
-          @if (form.controls.googleChat?.errors?.invalidPrefix) {
-            <mat-error>
-              _#(em.settings.share.googleChatUrlInvalid)
-            </mat-error>
-          }
+          <mat-error *ngIf="form.controls.googleChat?.errors?.urlRequired">
+            _#(em.settings.share.googleChatUrlRequired)
+          </mat-error>
+          <mat-error *ngIf="form.controls.googleChat?.errors?.invalidPrefix">
+            _#(em.settings.share.googleChatUrlInvalid)
+          </mat-error>
         </mat-form-field>
       </ng-container>
       <ng-container formGroupName="slack">
@@ -60,45 +56,33 @@
             >
             <mat-icon fontSet="ineticons" fontIcon="help-question-mark-icon"></mat-icon>
           </a>
-          @if (form.controls.slack?.errors?.urlRequired) {
-            <mat-error>
-              _#(em.settings.share.slackUrlRequired)
-            </mat-error>
-          }
-          @if (form.controls.slack?.errors?.invalidPrefix) {
-            <mat-error>
-              _#(em.settings.share.slackUrlInvalid)
-            </mat-error>
-          }
+          <mat-error *ngIf="form.controls.slack?.errors?.urlRequired">
+            _#(em.settings.share.slackUrlRequired)
+          </mat-error>
+          <mat-error *ngIf="form.controls.slack?.errors?.invalidPrefix">
+            _#(em.settings.share.slackUrlInvalid)
+          </mat-error>
         </mat-form-field>
       </ng-container>
       <mat-form-field appearance="outline" color="accent">
         <mat-label>_#(em.settings.share.openGraphSiteName)</mat-label>
         <input matInput formControlName="openGraphSiteName" placeholder="_#(em.settings.share.openGraphSiteName)" type="text"/>
-        @if (form.controls.openGraphSiteName?.errors?.required) {
-          <mat-error>_#(em.settings.share.openGraphSiteNameRequired)</mat-error>
-        }
+        <mat-error *ngIf="form.controls.openGraphSiteName?.errors?.required">_#(em.settings.share.openGraphSiteNameRequired)</mat-error>
       </mat-form-field>
       <mat-form-field appearance="outline" color="accent">
         <mat-label>_#(em.settings.share.openGraphTitle)</mat-label>
         <input matInput formControlName="openGraphTitle" placeholder="_#(em.settings.share.openGraphTitle)" type="text"/>
-        @if (form.controls.openGraphTitle?.errors?.required) {
-          <mat-error>_#(em.settings.share.openGraphTitleRequired)</mat-error>
-        }
+        <mat-error *ngIf="form.controls.openGraphTitle?.errors?.required">_#(em.settings.share.openGraphTitleRequired)</mat-error>
       </mat-form-field>
       <mat-form-field appearance="outline" color="accent">
         <mat-label>_#(em.settings.share.openGraphImageUrl)</mat-label>
         <input matInput formControlName="openGraphImageUrl" placeholder="_#(em.settings.share.openGraphImageUrl)" type="url"/>
-        @if (form.controls.openGraphImageUrl?.errors?.required) {
-          <mat-error>_#(em.settings.share.openGraphImageUrlRequired)</mat-error>
-        }
+        <mat-error *ngIf="form.controls.openGraphImageUrl?.errors?.required">_#(em.settings.share.openGraphImageUrlRequired)</mat-error>
       </mat-form-field>
       <mat-form-field appearance="outline" color="accent">
         <mat-label>_#(em.settings.share.openGraphDescription)</mat-label>
         <textarea matInput formControlName="openGraphDescription" placeholder="_#(em.settings.share.openGraphDescription)"></textarea>
-        @if (form.controls.openGraphDescription?.errors?.required) {
-          <mat-error>_#(em.settings.share.openGraphDescriptionRequired)</mat-error>
-        }
+        <mat-error *ngIf="form.controls.openGraphDescription?.errors?.required">_#(em.settings.share.openGraphDescriptionRequired)</mat-error>
       </mat-form-field>
     </mat-card-content>
   }

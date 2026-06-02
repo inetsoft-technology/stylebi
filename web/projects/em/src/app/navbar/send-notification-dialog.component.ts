@@ -24,6 +24,7 @@ import { MatButton } from "@angular/material/button";
 import { MatInput } from "@angular/material/input";
 import { MatFormField, MatLabel, MatError } from "@angular/material/form-field";
 import { ModalHeaderComponent } from "../common/util/modal-header/modal-header.component";
+import { NgIf } from "@angular/common";
 
 @Secured({
    route: "/notification",
@@ -34,7 +35,7 @@ import { ModalHeaderComponent } from "../common/util/modal-header/modal-header.c
     selector: "em-send-notification-dialog",
     templateUrl: "./send-notification-dialog.component.html",
     styleUrls: ["./send-notification-dialog.component.scss"],
-    imports: [ModalHeaderComponent, MatDialogContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatInput, MatError, MatDialogActions, MatButton, MatDialogClose]
+    imports: [NgIf, ModalHeaderComponent, MatDialogContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatInput, MatError, MatDialogActions, MatButton, MatDialogClose]
 })
 export class SendNotificationDialogComponent implements OnInit {
    form: UntypedFormGroup;

@@ -32,13 +32,14 @@ import { MatFormField, MatLabel, MatError } from "@angular/material/form-field";
 import { EmailPickerComponent } from "../../email-picker/email-picker.component";
 import { MatCheckbox } from "@angular/material/checkbox";
 import { MatCard, MatCardHeader, MatCardTitle, MatCardContent } from "@angular/material/card";
+import { NgIf } from "@angular/common";
 
 
 @Component({
     selector: "em-schedule-cycle-options-pane",
     templateUrl: "./schedule-cycle-options-pane.component.html",
     styleUrls: ["./schedule-cycle-options-pane.component.scss"],
-    imports: [FormsModule, ReactiveFormsModule, MatCard, MatCardHeader, MatCardTitle, MatCheckbox, MatCardContent, EmailPickerComponent, MatFormField, MatLabel, MatInput, MatError]
+    imports: [NgIf, FormsModule, ReactiveFormsModule, MatCard, MatCardHeader, MatCardTitle, MatCheckbox, MatCardContent, EmailPickerComponent, MatFormField, MatLabel, MatInput, MatError]
 })
 export class ScheduleCycleOptionsPaneComponent implements OnInit {
    @Input() info: CycleInfo;

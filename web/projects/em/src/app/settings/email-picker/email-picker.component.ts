@@ -41,6 +41,7 @@ import { MatIconButton, MatButton } from "@angular/material/button";
 
 import { MatInput } from "@angular/material/input";
 import { MatFormField, MatLabel, MatSuffix, MatError } from "@angular/material/form-field";
+import { NgIf } from "@angular/common";
 
 const SCHEDULE_CHECK_MAIL_URL = "../api/em/settings/schedule/check-mail";
 
@@ -61,7 +62,7 @@ export const EMAIL_PICKER_VALIDATOR: any = {
     templateUrl: "./email-picker.component.html",
     styleUrls: ["./email-picker.component.scss"],
     providers: [EMAIL_PICKER_VALUE_ACCESSOR, EMAIL_PICKER_VALIDATOR],
-    imports: [MatFormField, MatLabel, MatInput, FormsModule, ReactiveFormsModule, MatIconButton, MatSuffix, MatIcon, MatError, MatButton]
+    imports: [NgIf, MatFormField, MatLabel, MatInput, FormsModule, ReactiveFormsModule, MatIconButton, MatSuffix, MatIcon, MatError, MatButton]
 })
 export class EmailPickerComponent implements ControlValueAccessor, Validator, OnInit, OnChanges {
    @Input() required = false;

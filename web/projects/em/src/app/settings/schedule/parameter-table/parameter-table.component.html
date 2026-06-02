@@ -57,9 +57,7 @@
       <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
       <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
     </table>
-    @if (missingParameters) {
-      <mat-error>_#(Required Parameters):&nbsp;{{missingParameters}}</mat-error>
-    }
+    <mat-error *ngIf="missingParameters">_#(Required Parameters):&nbsp;{{missingParameters}}</mat-error>
   </mat-card-content>
   <mat-card-actions>
     <button mat-button (click)="openParameterDialog()">_#(Add)</button>

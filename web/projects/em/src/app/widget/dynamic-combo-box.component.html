@@ -38,11 +38,9 @@
             <mat-icon fontSet="ineticons" fontIcon="calendar-icon"></mat-icon>
           </button>
         }
-        @if (hasError) {
-          <mat-error>
-            {{getErrorMessage()}}
-          </mat-error>
-        }
+        <mat-error *ngIf="hasError">
+          {{getErrorMessage()}}
+        </mat-error>
       </mat-form-field>
     }
     @if (type == ComboMode.VALUE && mode == ValueMode.NUMBER && !array) {
@@ -56,11 +54,9 @@
             <mat-icon fontSet="ineticons" class="icon-size-medium" fontIcon="function-and-variable-icon"></mat-icon>
           </button>
         }
-        @if (hasError) {
-          <mat-error>
-            {{getErrorMessage()}}
-          </mat-error>
-        }
+        <mat-error *ngIf="hasError">
+          {{getErrorMessage()}}
+        </mat-error>
       </mat-form-field>
     }
     @if (type == ComboMode.EXPRESSION) {

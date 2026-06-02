@@ -53,6 +53,7 @@ import { MatIconButton, MatButton } from "@angular/material/button";
 import { MatList, MatListItem, MatSelectionList, MatListOption } from "@angular/material/list";
 import { MatRadioGroup, MatRadioButton } from "@angular/material/radio";
 import { ModalHeaderComponent } from "../../../../../common/util/modal-header/modal-header.component";
+import { NgIf } from "@angular/common";
 
 interface UploadFilesResponse {
    identifier: string;
@@ -68,7 +69,7 @@ interface MavenSearchResponse {
     templateUrl: "./create-driver-dialog.component.html",
     styleUrls: ["./create-driver-dialog.component.scss"],
     encapsulation: ViewEncapsulation.None,
-    imports: [ModalHeaderComponent, MatDialogContent, MatStepper, MatStep, FormsModule, ReactiveFormsModule, MatRadioGroup, MatRadioButton, MatList, MatListItem, MatIconButton, MatIcon, MatError, MatButton, MatFormField, MatLabel, MatInput, MatAutocompleteTrigger, MatHint, MatAutocomplete, MatOption, MatProgressSpinner, MatSelectionList, MatListOption, MatStepperNext, MatStepperIcon, LoadingSpinnerComponent]
+    imports: [NgIf, ModalHeaderComponent, MatDialogContent, MatStepper, MatStep, FormsModule, ReactiveFormsModule, MatRadioGroup, MatRadioButton, MatList, MatListItem, MatIconButton, MatIcon, MatError, MatButton, MatFormField, MatLabel, MatInput, MatAutocompleteTrigger, MatHint, MatAutocomplete, MatOption, MatProgressSpinner, MatSelectionList, MatListOption, MatStepperNext, MatStepperIcon, LoadingSpinnerComponent]
 })
 export class CreateDriverDialogComponent implements OnInit {
    @ViewChild("stepper") stepper: MatStepper;

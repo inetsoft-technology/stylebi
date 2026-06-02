@@ -43,6 +43,7 @@ import { MatAutocompleteTrigger, MatAutocomplete } from "@angular/material/autoc
 import { MatInput } from "@angular/material/input";
 import { MatFormField, MatSuffix, MatError } from "@angular/material/form-field";
 import { ModalHeaderComponent } from "../../../common/util/modal-header/modal-header.component";
+import { NgIf } from "@angular/common";
 
 export interface EmailListDialogData {
    emails: string[];
@@ -68,7 +69,7 @@ export class EmailFlatNode {
     selector: "em-email-list-dialog",
     templateUrl: "./email-list-dialog.component.html",
     styleUrls: ["./email-list-dialog.component.scss"],
-    imports: [ModalHeaderComponent, MatDialogContent, FormsModule, ReactiveFormsModule, MatFormField, MatInput, MatAutocompleteTrigger, MatIconButton, MatSuffix, MatIcon, MatError, MatAutocomplete, MatTree, MatTreeNodeDef, MatTreeNode, MatTreeNodeToggle, MatTreeNodePadding, MatOption, MatList, MatListItem, MatListItemIcon, MatDivider, MatDialogActions, MatButton, MatDialogClose]
+    imports: [NgIf, ModalHeaderComponent, MatDialogContent, FormsModule, ReactiveFormsModule, MatFormField, MatInput, MatAutocompleteTrigger, MatIconButton, MatSuffix, MatIcon, MatError, MatAutocomplete, MatTree, MatTreeNodeDef, MatTreeNode, MatTreeNodeToggle, MatTreeNodePadding, MatOption, MatList, MatListItem, MatListItemIcon, MatDivider, MatDialogActions, MatButton, MatDialogClose]
 })
 export class EmailListDialogComponent implements OnInit, OnDestroy {
    autocompleteEmails = true;

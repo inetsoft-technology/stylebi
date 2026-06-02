@@ -36,12 +36,13 @@ import { MatInput } from "@angular/material/input";
 import { MatFormField, MatLabel, MatError } from "@angular/material/form-field";
 import { MatCard, MatCardContent } from "@angular/material/card";
 import { EditorPanelComponent } from "../../../../common/util/editor-panel/editor-panel.component";
+import { NgIf } from "@angular/common";
 
 @Component({
     selector: "em-authentication-provider-detail-view",
     templateUrl: "./authentication-provider-detail-view.component.html",
     styleUrls: ["./authentication-provider-detail-view.component.scss"],
-    imports: [EditorPanelComponent, FormsModule, ReactiveFormsModule, MatCard, MatCardContent, MatFormField, MatLabel, MatInput, MatError, MatSelect, MatOption, CustomProviderViewComponent, LdapProviderViewComponent, DatabaseProviderViewComponent]
+    imports: [NgIf, EditorPanelComponent, FormsModule, ReactiveFormsModule, MatCard, MatCardContent, MatFormField, MatLabel, MatInput, MatError, MatSelect, MatOption, CustomProviderViewComponent, LdapProviderViewComponent, DatabaseProviderViewComponent]
 })
 export class AuthenticationProviderDetailViewComponent implements OnInit, OnDestroy {
    SecurityProviderType = SecurityProviderType;

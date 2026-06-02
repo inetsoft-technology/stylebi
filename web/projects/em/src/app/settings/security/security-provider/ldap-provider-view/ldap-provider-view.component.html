@@ -33,11 +33,9 @@
             <mat-label>_#(LDAP Protocol)</mat-label>
             <input matInput placeholder="_#(LDAP Protocol)" formControlName="protocol" required>
             <mat-hint>_#(em.security.ldap.protocolDesc)</mat-hint>
-            @if (ldapForm.controls['protocol']?.errors?.required) {
-              <mat-error>
-                _#(em.security.ldap.protocolRequired)
-              </mat-error>
-            }
+            <mat-error *ngIf="ldapForm.controls['protocol']?.errors?.required">
+              _#(em.security.ldap.protocolRequired)
+            </mat-error>
           </mat-form-field>
         </div>
         <div class="flex-row">
@@ -48,21 +46,17 @@
             <mat-label>_#(Host Name)</mat-label>
             <input matInput placeholder="_#(Host Name)" formControlName="hostName" required>
             <mat-hint>_#(em.security.ldap.hostNameDesc)</mat-hint>
-            @if (ldapForm.controls['hostName']?.errors?.required) {
-              <mat-error>
-                _#(em.security.ldap.hostNameRequired)
-              </mat-error>
-            }
+            <mat-error *ngIf="ldapForm.controls['hostName']?.errors?.required">
+              _#(em.security.ldap.hostNameRequired)
+            </mat-error>
           </mat-form-field>
           <mat-form-field appearance="outline" color="accent">
             <mat-label>_#(Host Port)</mat-label>
             <input matInput type="number" placeholder="_#(Host Port)" formControlName="hostPort" required>
             <mat-hint>_#(em.security.ldap.hostPortDesc)</mat-hint>
-            @if (ldapForm.controls['hostPort']?.errors?.required) {
-              <mat-error>
-                _#(em.security.ldap.hostPortRequired)
-              </mat-error>
-            }
+            <mat-error *ngIf="ldapForm.controls['hostPort']?.errors?.required">
+              _#(em.security.ldap.hostPortRequired)
+            </mat-error>
           </mat-form-field>
         </div>
         <div class="flex-row">
@@ -70,11 +64,9 @@
             <mat-label>_#(Root DN)</mat-label>
             <input matInput placeholder="_#(Root DN)" formControlName="rootDN" required>
             <mat-hint>_#(em.security.ldap.rootDNDesc)</mat-hint>
-            @if (ldapForm.controls['rootDN']?.errors?.required) {
-              <mat-error>
-                _#(em.security.ldap.rootDNRequired)
-              </mat-error>
-            }
+            <mat-error *ngIf="ldapForm.controls['rootDN']?.errors?.required">
+              _#(em.security.ldap.rootDNRequired)
+            </mat-error>
           </mat-form-field>
         </div>
         @if (isCloudSecrets) {
@@ -90,11 +82,9 @@
               <mat-label>_#(Secret ID)</mat-label>
               <input matInput placeholder="_#(Secret ID)" formControlName="secretId" required>
               <mat-hint>_#(em.security.database.secretIdDesc)</mat-hint>
-              @if (ldapForm.controls['secretId']?.errors?.required) {
-                <mat-error>
-                  _#(em.security.database.secretIdRequired)
-                </mat-error>
-              }
+              <mat-error *ngIf="ldapForm.controls['secretId']?.errors?.required">
+                _#(em.security.database.secretIdRequired)
+              </mat-error>
             </mat-form-field>
           </div>
         }
@@ -104,11 +94,9 @@
               <mat-label>_#(Administrator ID)</mat-label>
               <input matInput placeholder="_#(Administrator ID)" formControlName="adminID" required>
               <mat-hint>_#(em.security.ldap.adminIDDesc)</mat-hint>
-              @if (ldapForm.controls['adminID']?.errors?.required) {
-                <mat-error>
-                  _#(em.security.ldap.adminIDRequired)
-                </mat-error>
-              }
+              <mat-error *ngIf="ldapForm.controls['adminID']?.errors?.required">
+                _#(em.security.ldap.adminIDRequired)
+              </mat-error>
             </mat-form-field>
           </div>
         }
@@ -118,21 +106,17 @@
               <mat-label>_#(Password)</mat-label>
               <input matInput type="password" placeholder="_#(Password)" formControlName="password" required>
               <mat-hint>_#(em.security.ldap.passwordDesc)</mat-hint>
-              @if (ldapForm.controls['password']?.errors?.required) {
-                <mat-error>
-                  _#(em.security.ldap.passwordRequired)
-                </mat-error>
-              }
+              <mat-error *ngIf="ldapForm.controls['password']?.errors?.required">
+                _#(em.security.ldap.passwordRequired)
+              </mat-error>
             </mat-form-field>
             <mat-form-field appearance="outline" color="accent">
               <mat-label>_#(Verify Password)</mat-label>
               <input matInput type="password" placeholder="_#(Verify Password)" formControlName="confirmPassword"
                 [errorStateMatcher]="errorStateMatcher" required>
-              @if (ldapForm.errors?.passwordsMatch) {
-                <mat-error>
-                  _#(em.securityLdapProp.pwdMatch)
-                </mat-error>
-              }
+              <mat-error *ngIf="ldapForm.errors?.passwordsMatch">
+                _#(em.securityLdapProp.pwdMatch)
+              </mat-error>
             </mat-form-field>
           </div>
         }
