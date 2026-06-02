@@ -326,6 +326,12 @@ public abstract class DatasourcesBaseService {
       boolean newSourcePermission = false;
       boolean folderPermission;
 
+      if(!StringUtils.isEmpty(folder) && !"/".equals(folder) &&
+         dataSourceRegistry.getDataSourceFolder(folder) == null)
+      {
+         throw new FileNotFoundException("Parent folder does not exist: " + folder);
+      }
+
       if(StringUtils.isEmpty(folder) || "/".equals(folder)) {
          folderPermission = securityEngine.checkPermission(
             principal, ResourceType.DATA_SOURCE_FOLDER, "/", ResourceAction.WRITE);
