@@ -669,12 +669,22 @@ public class WorksheetConstructionModel {
 
          SourceInfo that = (SourceInfo) o;
          return Objects.equals(type, that.type) && Objects.equals(path, that.path) &&
-            Objects.equals(catalog, that.catalog) && Objects.equals(schema, that.schema);
+            equalsNullEmpty(catalog, that.catalog) && equalsNullEmpty(schema, that.schema);
+      }
+
+      // Treat null and empty string as equivalent so that callers who omit
+      // catalog/schema (null) are considered equal to callers who send "" (empty string).
+      private static boolean equalsNullEmpty(String a, String b) {
+         String na = a == null ? "" : a;
+         String nb = b == null ? "" : b;
+         return na.equals(nb);
       }
 
       @Override
       public int hashCode() {
-         return Objects.hash(type, path, catalog, schema);
+         String nc = catalog == null ? "" : catalog;
+         String ns = schema == null ? "" : schema;
+         return Objects.hash(type, path, nc, ns);
       }
 
       public String getType() {
