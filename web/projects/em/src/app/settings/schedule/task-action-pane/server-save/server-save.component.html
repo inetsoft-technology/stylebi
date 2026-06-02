@@ -35,9 +35,7 @@
                     <mat-option [value]="format.type">{{format.label}}</mat-option>
                   }
                 </mat-select>
-                @if (!element.format) {
-                  <mat-error>_#(em.schedule.action.formatRequired)</mat-error>
-                }
+                <mat-error *ngIf="!element.format">_#(em.schedule.action.formatRequired)</mat-error>
               </mat-form-field>
             </div>
           </td>
@@ -75,27 +73,19 @@
                             <mat-option [value]="location.path">{{location.label}}</mat-option>
                           }
                         </mat-select>
-                        @if (!element.locationPath) {
-                          <mat-error>_#(em.schedule.action.serverLocationRequired)</mat-error>
-                        }
+                        <mat-error *ngIf="!element.locationPath">_#(em.schedule.action.serverLocationRequired)</mat-error>
                       </mat-form-field>
                     }
                   </ng-container>
                   <ng-container formArrayName="paths">
                     <mat-form-field appearance="outline" color="accent">
                       <input type="text" matInput [formControlName]="i" (change)="updatePathForm(i)" placeholder="_#(Path)" [required]="true"/>
-                      @if (!element.filePath) {
-                        <mat-error>
-                        _#(em.schedule.action.pathRequired)</mat-error>
-                      }
-                      @if (!!element.filePath && getPathErrors(i)['relativePath']) {
-                        <mat-error>
-                        _#(em.schedule.action.pathMustBeRelative)</mat-error>
-                      }
-                      @if (!!element.filePath && getPathErrors(i)['directoryPath']) {
-                        <mat-error>
-                        _#(em.schedule.action.pathIsDirectory)</mat-error>
-                      }
+                      <mat-error *ngIf="!element.filePath">
+                      _#(em.schedule.action.pathRequired)</mat-error>
+                      <mat-error *ngIf="!!element.filePath && getPathErrors(i)['relativePath']">
+                      _#(em.schedule.action.pathMustBeRelative)</mat-error>
+                      <mat-error *ngIf="!!element.filePath && getPathErrors(i)['directoryPath']">
+                      _#(em.schedule.action.pathIsDirectory)</mat-error>
                     </mat-form-field>
                   </ng-container>
                   @if (!hasLocations && element.ftp && element.useCredential) {
@@ -143,15 +133,9 @@
         <tr mat-header-row *matHeaderRowDef="columnsToDisplay"></tr>
         <tr mat-row *matRowDef="let element; columns: columnsToDisplay;"></tr>
       </table>
-      @if (!files || !files.length) {
-        <mat-error>_#(em.schedule.action.filesRequired)</mat-error>
-      }
-      @if (findDuplicate) {
-        <mat-error>_#(em.scheduler.actions.diskFileDuplicate)</mat-error>
-      }
-      @if (findDuplicateFormat) {
-        <mat-error>_#(em.schedule.task.action.duplicateFormat)</mat-error>
-      }
+      <mat-error *ngIf="!files || !files.length">_#(em.schedule.action.filesRequired)</mat-error>
+      <mat-error *ngIf="findDuplicate">_#(em.scheduler.actions.diskFileDuplicate)</mat-error>
+      <mat-error *ngIf="findDuplicateFormat">_#(em.schedule.task.action.duplicateFormat)</mat-error>
       <button mat-mini-fab color="accent" [disabled]="!this.formats || this.formats.length == 0" (click)="addFile()" title="_#(schedule.add.server.save.tooltip)" aria-label="_#(Add File)">
         <mat-icon fontSet="ineticons" fontIcon="shape-plus-icon"></mat-icon>
       </button>

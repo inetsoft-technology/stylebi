@@ -27,20 +27,16 @@
       <mat-option value="max.cell.size">_#(Max Cell Size)</mat-option>
       <mat-option value="max.user.count">_#(Max User Count)</mat-option>
     </mat-select>
-    @if (form.controls.propertyName?.errors?.required) {
-      <mat-error>
-        _#(em.organization.emptyPropertyName)
-      </mat-error>
-    }
+    <mat-error *ngIf="form.controls.propertyName?.errors?.required">
+      _#(em.organization.emptyPropertyName)
+    </mat-error>
   </mat-form-field>
   <mat-form-field class="full-width" appearance="outline" color="accent">
     <mat-label>_#(Property Value)</mat-label>
     <input matInput type="number" formControlName="propertyValue" (input)="propertyValueChange()">
-    @if (form.controls['propertyValue'].errors && form.controls['propertyValue'].errors['required']) {
-      <mat-error>
-        _#(em.organization.emptyPropertyValue)
-      </mat-error>
-    }
+    <mat-error *ngIf="form.controls['propertyValue'].errors && form.controls['propertyValue'].errors['required']">
+      _#(em.organization.emptyPropertyValue)
+    </mat-error>
   </mat-form-field>
 </div>
 <div>

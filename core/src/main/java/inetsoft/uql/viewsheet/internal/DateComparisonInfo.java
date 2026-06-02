@@ -1526,11 +1526,28 @@ public class DateComparisonInfo implements Cloneable, XMLSerializable {
    {
       int contextCalendarLevel = getCalendarLevel(contextLevel);
       boolean contextLevelIsQuarter = contextLevel ==  XConstants.QUARTER_DATE_GROUP;
+      Calendar rangeStartYearCal = getCalendar();
 
       while(rangeStartCal.before(rangeEndCal) || rangeStartCal.equals(rangeEndCal)) {
-         ConditionItem item = getConditionItemFromDateRangeAndInterval(ref, contextLevel,
-            dcInterval.getLevel(), dcInterval.getGranularity(), rangeEndCal.getTime(), toDate);
+         int contextYear = rangeEndCal.get(Calendar.YEAR);
+         Date[] range = getIntervalDateRange(contextLevel, dcInterval.getLevel(),
+            dcInterval.getGranularity(), rangeEndCal.getTime(), toDate);
          setToNextIntervalStart(rangeEndCal, contextCalendarLevel, contextLevelIsQuarter, false, alignWeek());
+
+         // Skip conditions whose range start overflows into a later year than the context month.
+         // e.g. "week 5 of December 2020" starts Jan 2021 — that overflow causes spurious labels.
+         if(range == null || range[0] == null) {
+            continue;
+         }
+
+         rangeStartYearCal.setTime(range[0]);
+
+         if(rangeStartYearCal.get(Calendar.YEAR) > contextYear) {
+            continue;
+         }
+
+         ConditionItem item = (range[1] == null || !alignWeek() && range[0].after(range[1]))
+            ? null : createDateRangeCondition(ref, range[0], range[1]);
 
          if(item == null) {
             continue;
@@ -1673,7 +1690,6 @@ public class DateComparisonInfo implements Cloneable, XMLSerializable {
          calendar.add(calendarPeriodLevel, -(quarterCalendar ? 3 : 1));
       }
 
-      setDateToEndOfPeriod(calendar, periodLevel);
       setDateToLevelStart(calendar, dcInterval.getContextLevel());
       appendRangeToDateConditions(endDateCalendar, calendar, dcInterval.getContextLevel(),
                                   toDate, conditionList, ref);

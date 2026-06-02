@@ -191,8 +191,12 @@ describe("Data Input Pane Test", () => {
       fixture.debugElement.query(By.css("span.edit-icon")).nativeElement.click();
       fixture.detectChanges();
 
+      // Wait for zone stability: Angular's NgZone triggers applicationRef.tick() when
+      // the zone is stable. The tick renders the dynamically-created FixedDropdownComponent
+      // and the @if(popupTable) content in the ng-template #dropdownMenu embedded view.
+      // Real setTimeout(0) timers (listenerTick from ngOnInit, onOpen from ngAfterViewInit)
+      // fire in registration order; after both settle the zone stabilises and resolves here.
       await fixture.whenStable();
-      fixture.detectChanges();
 
       let fixedDropdown = document.getElementsByTagName("fixed-dropdown")[0];
       let pageInput = fixedDropdown.getElementsByTagName("input")[0];
@@ -203,6 +207,11 @@ describe("Data Input Pane Test", () => {
       pageInput.value = "2";
       fixture.componentInstance.updatePopupTablePage(new KeyboardEvent("keydown", {key: "enter"}), 2);
       fixture.detectChanges();
+
+      // Wait for zone stability again so applicationRef.tick() propagates the page change
+      // into the embedded view (updating [ngModel] and [disabled] bindings).
+      await fixture.whenStable();
+
       expect(pageInput.getAttribute("ng-reflect-model")).toBe("2");
       expect(beforeBtns[0].disabled).toBeFalsy();
       expect(beforeBtns[1].disabled).toBeFalsy();

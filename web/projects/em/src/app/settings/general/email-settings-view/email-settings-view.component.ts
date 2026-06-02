@@ -43,6 +43,7 @@ import { MatInput } from "@angular/material/input";
 import { MatFormField, MatLabel, MatError, MatSuffix } from "@angular/material/form-field";
 
 import { MatCard, MatCardTitle, MatCardContent, MatCardActions } from "@angular/material/card";
+import { NgIf } from "@angular/common";
 
 @Searchable({
    route: "/settings/general#email",
@@ -57,7 +58,7 @@ import { MatCard, MatCardTitle, MatCardContent, MatCardActions } from "@angular/
     selector: "em-email-settings-view",
     templateUrl: "./email-settings-view.component.html",
     styleUrls: ["./email-settings-view.component.scss"],
-    imports: [MatCard, MatCardTitle, MatCardContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatInput, MatError, MatCheckbox, MatSelect, MatOption, MatIcon, MatSuffix, MatCardActions, MatButton]
+    imports: [NgIf, MatCard, MatCardTitle, MatCardContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatInput, MatError, MatCheckbox, MatSelect, MatOption, MatIcon, MatSuffix, MatCardActions, MatButton]
 })
 export class EmailSettingsViewComponent implements OnDestroy {
    @Output() modelChanged = new EventEmitter<GeneralSettingsChanges>();

@@ -25,21 +25,17 @@
               <mat-label>_#(Driver)</mat-label>
               <input matInput placeholder="_#(Driver)" formControlName="driver" required>
               <mat-hint>_#(em.security.database.driverDesc)</mat-hint>
-              @if (dbForm.controls['driver']?.errors?.required) {
-                <mat-error>
-                  _#(em.security.database.driverRequired)
-                </mat-error>
-              }
+              <mat-error *ngIf="dbForm.controls['driver']?.errors?.required">
+                _#(em.security.database.driverRequired)
+              </mat-error>
             </mat-form-field>
             <mat-form-field appearance="outline" color="accent">
               <mat-label>_#(URL)</mat-label>
               <input matInput placeholder="_#(URL)" formControlName="url" required>
               <mat-hint>_#(em.security.database.urlDesc)</mat-hint>
-              @if (dbForm.controls['url']?.errors?.required) {
-                <mat-error>
-                  _#(em.security.database.urlRequired)
-                </mat-error>
-              }
+              <mat-error *ngIf="dbForm.controls['url']?.errors?.required">
+                _#(em.security.database.urlRequired)
+              </mat-error>
             </mat-form-field>
           </div>
           <div class="flex-row">
@@ -62,11 +58,9 @@
                     <mat-label>_#(Secret ID)</mat-label>
                     <input matInput placeholder="_#(Secret ID)" formControlName="secretId" required>
                     <mat-hint>_#(em.security.database.secretIdDesc)</mat-hint>
-                    @if (dbForm.controls['secretId']?.errors?.required) {
-                      <mat-error>
-                        _#(em.security.database.secretIdRequired)
-                      </mat-error>
-                    }
+                    <mat-error *ngIf="dbForm.controls['secretId']?.errors?.required">
+                      _#(em.security.database.secretIdRequired)
+                    </mat-error>
                   </mat-form-field>
                 </div>
               }
@@ -76,21 +70,17 @@
                     <mat-label>_#(User)</mat-label>
                     <input matInput placeholder="_#(User)" formControlName="user" required>
                     <mat-hint>_#(em.security.database.userDesc)</mat-hint>
-                    @if (dbForm.controls['user']?.errors?.required) {
-                      <mat-error>
-                        _#(em.security.database.userRequired)
-                      </mat-error>
-                    }
+                    <mat-error *ngIf="dbForm.controls['user']?.errors?.required">
+                      _#(em.security.database.userRequired)
+                    </mat-error>
                   </mat-form-field>
                   <mat-form-field appearance="outline" color="accent">
                     <mat-label>_#(Password)</mat-label>
                     <input matInput type="password" placeholder="_#(Password)" formControlName="password" required>
                     <mat-hint>_#(em.security.database.passwordDesc)</mat-hint>
-                    @if (dbForm.controls['password']?.errors?.required) {
-                      <mat-error>
-                        _#(em.security.database.passwordRequired)
-                      </mat-error>
-                    }
+                    <mat-error *ngIf="dbForm.controls['password']?.errors?.required">
+                      _#(em.security.database.passwordRequired)
+                    </mat-error>
                   </mat-form-field>
                 </div>
               }
@@ -111,11 +101,9 @@
                   </mat-option>
                 }
               </mat-autocomplete>
-              @if (dbForm.controls.hashAlgorithm.errors && dbForm.controls.hashAlgorithm.errors.unsupported) {
-                <mat-error>
-                  _#(em.security.database.hashAlgorithmUnsupported)
-                </mat-error>
-              }
+              <mat-error *ngIf="dbForm.controls.hashAlgorithm.errors && dbForm.controls.hashAlgorithm.errors.unsupported">
+                _#(em.security.database.hashAlgorithmUnsupported)
+              </mat-error>
             </mat-form-field>
             <mat-checkbox class="mat-checkbox-field salt-checkbox" formControlName="appendSalt">_#(Append Salt)</mat-checkbox>
           </div>

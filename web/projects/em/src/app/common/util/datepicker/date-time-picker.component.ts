@@ -23,12 +23,20 @@ import { FormsModule } from "@angular/forms";
 import { MatInput } from "@angular/material/input";
 import { MatFormField, MatLabel } from "@angular/material/form-field";
 import { MatCalendar } from "@angular/material/datepicker";
+import { DateAdapter, MAT_DATE_FORMATS, MAT_NATIVE_DATE_FORMATS } from "@angular/material/core";
+import { CustomNativeDateAdapter } from "./custom-native-date-adapter.service";
+import { FirstDayOfWeekService } from "../../../../../../portal/src/app/common/services/first-day-of-week.service";
 
 
 @Component({
     selector: "em-date-time-picker",
     templateUrl: "date-time-picker.component.html",
     styleUrls: ["date-time-picker.component.scss"],
+    providers: [
+        { provide: DateAdapter, useClass: CustomNativeDateAdapter },
+        { provide: MAT_DATE_FORMATS, useValue: MAT_NATIVE_DATE_FORMATS },
+        FirstDayOfWeekService,
+    ],
     imports: [MatCalendar, MatFormField, MatLabel, MatInput, FormsModule]
 })
 export class DateTimePickerComponent implements OnInit {

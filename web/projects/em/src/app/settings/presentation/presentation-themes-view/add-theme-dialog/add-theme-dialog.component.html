@@ -21,23 +21,15 @@
   <mat-form-field appearance="outline" color="accent">
     <mat-label>_#(Name)</mat-label>
     <input matInput formControlName="name" placeholder="_#(Name)"/>
-    @if (form.controls.name?.errors?.required) {
-      <mat-error>_#(em.laf.theme.nameRequired)</mat-error>
-    }
-    @if (form.controls.name?.errors?.duplicateName) {
-      <mat-error>_#(em.laf.theme.duplicateName)</mat-error>
-    }
-    @if (form.controls.name?.errors?.containsSpecialCharsForName) {
-      <mat-error>_#(common.sree.internal.invalidCharInName)</mat-error>
-    }
+    <mat-error *ngIf="form.controls.name?.errors?.required">_#(em.laf.theme.nameRequired)</mat-error>
+    <mat-error *ngIf="form.controls.name?.errors?.duplicateName">_#(em.laf.theme.duplicateName)</mat-error>
+    <mat-error *ngIf="form.controls.name?.errors?.containsSpecialCharsForName">_#(common.sree.internal.invalidCharInName)</mat-error>
   </mat-form-field>
   <mat-form-field appearance="outline" color="accent">
     <mat-label>_#(Theme JAR File)</mat-label>
     <em-file-chooser formControlName="jar" placeholder="_#(Theme JAR File)" accept=".jar"></em-file-chooser>
     <mat-icon matSuffix fontSet="ineticons" fontIcon="folder-open-icon"></mat-icon>
-    @if (form.controls.jar?.errors?.required) {
-      <mat-error>_#(em.laf.theme.jarRequired)</mat-error>
-    }
+    <mat-error *ngIf="form.controls.jar?.errors?.required">_#(em.laf.theme.jarRequired)</mat-error>
   </mat-form-field>
 </mat-dialog-content>
 <mat-dialog-actions>

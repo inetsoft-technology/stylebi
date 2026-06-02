@@ -53,12 +53,13 @@ import { MatInput } from "@angular/material/input";
 import { MatFormField, MatLabel, MatError, MatSuffix } from "@angular/material/form-field";
 
 import { MatCard, MatCardTitle, MatCardContent } from "@angular/material/card";
+import { NgIf } from "@angular/common";
 
 @Component({
     selector: "em-data-space-file-settings-view",
     templateUrl: "./data-space-file-settings-view.component.html",
     styleUrls: ["./data-space-file-settings-view.component.scss"],
-    imports: [EditorPanelComponent, MatCard, MatCardTitle, MatCardContent, MatFormField, MatLabel, MatInput, FormsModule, ReactiveFormsModule, MatError, FileChooserComponent, MatIcon, MatSuffix, TextFileContentViewComponent, MatButton]
+    imports: [NgIf, EditorPanelComponent, MatCard, MatCardTitle, MatCardContent, MatFormField, MatLabel, MatInput, FormsModule, ReactiveFormsModule, MatError, FileChooserComponent, MatIcon, MatSuffix, TextFileContentViewComponent, MatButton]
 })
 export class DataSpaceFileSettingsViewComponent implements OnInit, OnChanges, OnDestroy {
    @ViewChild("textContent") textContent: TextFileContentViewComponent;

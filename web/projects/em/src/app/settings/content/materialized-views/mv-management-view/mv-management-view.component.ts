@@ -166,7 +166,7 @@ export class MvManagementViewComponent implements OnInit, OnDestroy {
 
    ngOnDestroy(): void {
       this.destroy$.next();
-      this.destroy$.unsubscribe();
+      this.destroy$.complete();
    }
 
    selectionChanged(selection: SelectionModel<TableModel>): void {

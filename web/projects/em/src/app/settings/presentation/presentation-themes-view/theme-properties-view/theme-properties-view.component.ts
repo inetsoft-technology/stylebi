@@ -29,13 +29,14 @@ import { FileChooserComponent } from "../../../../common/util/file-chooser/file-
 import { MatInput } from "@angular/material/input";
 import { MatFormField, MatLabel, MatError, MatSuffix } from "@angular/material/form-field";
 import { MatCard, MatCardContent } from "@angular/material/card";
+import { NgIf } from "@angular/common";
 
 
 @Component({
     selector: "em-theme-properties-view",
     templateUrl: "./theme-properties-view.component.html",
     styleUrls: ["./theme-properties-view.component.scss"],
-    imports: [MatCard, MatCardContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatInput, MatError, FileChooserComponent, MatIcon, MatSuffix, MatCheckbox]
+    imports: [NgIf, MatCard, MatCardContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatInput, MatError, FileChooserComponent, MatIcon, MatSuffix, MatCheckbox]
 })
 export class ThemePropertiesViewComponent implements OnInit, OnDestroy {
    @Input() get isMultiTenant(): boolean {
@@ -128,7 +129,7 @@ export class ThemePropertiesViewComponent implements OnInit, OnDestroy {
 
    ngOnDestroy(): void {
       this.destroy$.next();
-      this.destroy$.unsubscribe();
+      this.destroy$.complete();
    }
 
    get defaultThemeGlobalLable(): string {

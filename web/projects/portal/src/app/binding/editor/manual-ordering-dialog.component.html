@@ -20,19 +20,17 @@
 </modal-header>
 <div class="modal-body" blockMouse>
   <w-large-form-field>
-    @if (manualOrders) {
-      <div class="manual-order-list bordered-box bd-gray" largeFieldElement>
-        <ul>
-          @for (manualOrder of manualOrders5000; track manualOrder; let i = $index) {
-            <li
-              class="non-editable-text"
-              [class.selected]="selIndex==i" (click)="selIndex=i">
-              {{getLabel(manualOrder)}}
-            </li>
-          }
-        </ul>
-      </div>
-    }
+    <div *ngIf="manualOrders" class="manual-order-list bordered-box bd-gray" largeFieldElement>
+      <ul>
+        @for (manualOrder of manualOrders5000; track manualOrder; let i = $index) {
+          <li
+            class="non-editable-text"
+            [class.selected]="selIndex==i" (click)="selIndex=i">
+            {{getLabel(manualOrder)}}
+          </li>
+        }
+      </ul>
+    </div>
     <ng-container largeFieldButtons>
       <button class="btn btn-default manual-ordering-up-btn" (click)="upClick($event)"
       [disabled]="selIndex<=0">_#(Up)</button>

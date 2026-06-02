@@ -22,12 +22,13 @@ import { DefaultFocusDirective } from "../../widget/directive/default-focus.dire
 import { LargeFormFieldComponent } from "../../widget/large-form-field/large-form-field.component";
 import { BlockMouseDirective } from "../../widget/mouse-event/block-mouse.directive";
 import { ModalHeaderComponent } from "../../widget/modal-header/modal-header.component";
+import { NgIf } from "@angular/common";
 
 @Component({
     selector: "manual-ordering-dialog",
     templateUrl: "manual-ordering-dialog.component.html",
     styleUrls: ["manual-ordering-dialog.component.scss"],
-    imports: [ModalHeaderComponent, BlockMouseDirective, LargeFormFieldComponent, DefaultFocusDirective]
+    imports: [NgIf, ModalHeaderComponent, BlockMouseDirective, LargeFormFieldComponent, DefaultFocusDirective]
 })
 export class ManualOrderingDialog implements OnChanges {
    @Input() manualOrders: string[];

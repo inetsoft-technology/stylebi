@@ -45,12 +45,8 @@
         <mat-form-field appearance="outline" color="accent">
           <mat-label>_#(Folder Name)</mat-label>
           <input matInput [readonly]="!canEdit" placeholder="_#(Folder Name)" [formControl]="nameControl">
-          @if (nameControl?.errors?.required) {
-            <mat-error>_#(enter.name)</mat-error>
-          }
-          @if (nameControl?.errors?.containsSpecialCharsForName) {
-            <mat-error>_#(common.sree.internal.invalidCharInName)</mat-error>
-          }
+          <mat-error *ngIf="nameControl?.errors?.required">_#(enter.name)</mat-error>
+          <mat-error *ngIf="nameControl?.errors?.containsSpecialCharsForName">_#(common.sree.internal.invalidCharInName)</mat-error>
         </mat-form-field>
       </div>
     </mat-card-content>

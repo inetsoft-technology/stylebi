@@ -98,7 +98,7 @@ export class MonitoringSidenavComponent implements OnInit, OnDestroy {
 
    ngOnDestroy(): void {
       this.destroy$.next();
-      this.destroy$.unsubscribe();
+      this.destroy$.complete();
    }
 
    isScreenSmall(): boolean {

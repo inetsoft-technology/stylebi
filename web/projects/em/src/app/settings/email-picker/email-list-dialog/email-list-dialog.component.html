@@ -27,9 +27,7 @@
         (click)="addEmail()" [disabled]="form.invalid || !form.controls.email?.value">
         <mat-icon fontSet="ineticons" class="icon-size-medium" fontIcon="add-icon"></mat-icon>
       </button>
-      @if (form.controls.email?.errors?.email) {
-        <mat-error>_#(em.schedule.action.invalidEmail)</mat-error>
-      }
+      <mat-error *ngIf="form.controls.email?.errors?.email">_#(em.schedule.action.invalidEmail)</mat-error>
     </mat-form-field>
     <mat-autocomplete #auto="matAutocomplete" (optionSelected)="onSelection($event)">
       <mat-tree [dataSource]="dataSource" [treeControl]="treeControl" class="select-user-tree">

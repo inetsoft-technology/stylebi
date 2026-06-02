@@ -26,6 +26,7 @@ import { MatInput } from "@angular/material/input";
 import { MatFormField, MatLabel, MatError } from "@angular/material/form-field";
 import { MatRadioGroup, MatRadioButton } from "@angular/material/radio";
 import { MatCard, MatCardTitle, MatCardContent } from "@angular/material/card";
+import { NgIf } from "@angular/common";
 
 
 @Searchable({
@@ -41,7 +42,7 @@ import { MatCard, MatCardTitle, MatCardContent } from "@angular/material/card";
     selector: "em-welcome-page-settings-view",
     templateUrl: "./welcome-page-settings-view.component.html",
     styleUrls: ["./welcome-page-settings-view.component.scss"],
-    imports: [MatCard, MatCardTitle, MatCardContent, FormsModule, ReactiveFormsModule, MatRadioGroup, MatRadioButton, MatFormField, MatLabel, MatInput, MatError]
+    imports: [NgIf, MatCard, MatCardTitle, MatCardContent, FormsModule, ReactiveFormsModule, MatRadioGroup, MatRadioButton, MatFormField, MatLabel, MatInput, MatError]
 })
 export class WelcomePageSettingsViewComponent {
    @Output() modelChanged = new EventEmitter<PresentationSettingsChanges>();

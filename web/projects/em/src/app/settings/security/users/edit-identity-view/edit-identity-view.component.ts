@@ -56,6 +56,7 @@ import { MatInput } from "@angular/material/input";
 import { MatFormField, MatLabel, MatError, MatSuffix } from "@angular/material/form-field";
 import { EditorPanelComponent } from "../../../../common/util/editor-panel/editor-panel.component";
 import { MatCheckbox } from "@angular/material/checkbox";
+import { NgIf } from "@angular/common";
 
 
 interface IdentityTheme {
@@ -71,7 +72,7 @@ interface IdentityThemeList {
     selector: "em-edit-identity-view",
     templateUrl: "./edit-identity-view.component.html",
     styleUrls: ["./edit-identity-view.component.scss"],
-    imports: [FormsModule, ReactiveFormsModule, MatCheckbox, EditorPanelComponent, MatFormField, MatLabel, MatInput, MatError, EmailPickerComponent, MatSelect, MatOption, MatIconButton, MatSuffix, MatIcon, IdentityTablesPaneComponent]
+    imports: [NgIf, FormsModule, ReactiveFormsModule, MatCheckbox, EditorPanelComponent, MatFormField, MatLabel, MatInput, MatError, EmailPickerComponent, MatSelect, MatOption, MatIconButton, MatSuffix, MatIcon, IdentityTablesPaneComponent]
 })
 export class EditIdentityViewComponent implements OnInit, OnChanges, OnDestroy {
    _model: EditIdentityPaneModel;

@@ -32,12 +32,13 @@ import { MatInput } from "@angular/material/input";
 import { TimePickerComponent } from "../time-picker/time-picker.component";
 import { MatLabel, MatHint, MatError, MatFormField } from "@angular/material/form-field";
 import { MatCard, MatCardContent } from "@angular/material/card";
+import { NgIf } from "@angular/common";
 
 @Component({
     selector: "em-hourly-condition-editor",
     templateUrl: "./hourly-condition-editor.component.html",
     styleUrls: ["./hourly-condition-editor.component.scss"],
-    imports: [MatCard, MatCardContent, FormsModule, ReactiveFormsModule, MatLabel, TimePickerComponent, MatHint, MatError, TimeZoneSelectComponent, MatFormField, MatInput, MatSelect, MatOption]
+    imports: [NgIf, MatCard, MatCardContent, FormsModule, ReactiveFormsModule, MatLabel, TimePickerComponent, MatHint, MatError, TimeZoneSelectComponent, MatFormField, MatInput, MatSelect, MatOption]
 })
 export class HourlyConditionEditorComponent implements OnInit {
    @Input() showMeridian: boolean;

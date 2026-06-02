@@ -40,6 +40,7 @@ import { MatCheckbox } from "@angular/material/checkbox";
 import { MatInput } from "@angular/material/input";
 import { MatFormField, MatLabel, MatError } from "@angular/material/form-field";
 import { ModalHeaderComponent } from "../../../../../common/util/modal-header/modal-header.component";
+import { NgIf } from "@angular/common";
 
 export interface ExportAssetDialogData {
    selectedNodes: FlatTreeNode<RepositoryTreeNode>[];
@@ -50,7 +51,8 @@ export interface ExportAssetDialogData {
     templateUrl: "./export-asset-dialog.component.html",
     styleUrls: ["./export-asset-dialog.component.scss"],
     encapsulation: ViewEncapsulation.None,
-    imports: [ModalHeaderComponent, MatDialogContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatInput, MatError, MatCheckbox, SelectedAssetListComponent, MatButton, RequiredAssetListComponent, MatProgressBar]
+    providers: [ExportAssetsService],
+    imports: [NgIf, ModalHeaderComponent, MatDialogContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatInput, MatError, MatCheckbox, SelectedAssetListComponent, MatButton, RequiredAssetListComponent, MatProgressBar]
 })
 export class ExportAssetDialogComponent implements OnInit {
    @HostBinding("class") hostClass = "export-asset-dialog";

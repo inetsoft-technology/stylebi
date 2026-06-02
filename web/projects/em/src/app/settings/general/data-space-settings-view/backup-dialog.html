@@ -24,21 +24,15 @@
         id="dataspace" placeholder="_#(Data Space)">
       <mat-icon matSuffix fontSet="ineticons" fontIcon="shape-cross-icon"
       (click)="form.controls['dataspace'].setValue('')"></mat-icon>
-      @if (dataspaceControl.errors && dataspaceControl.errors?.required) {
-        <mat-error>
-          _#(em.common.filesName.specify)
-        </mat-error>
-      }
-      @if (dataspaceControl.errors && dataspaceControl.errors?.containsInvalidForFileAndXML) {
-        <mat-error>
-          _#(common.sree.internal.invalidCharInName)
-        </mat-error>
-      }
-      @if (dataspaceControl?.errors?.whiteSpace) {
-        <mat-error>
-          _#(em.dataspace.whitespaceError)
-        </mat-error>
-      }
+      <mat-error *ngIf="dataspaceControl.errors && dataspaceControl.errors?.required">
+        _#(em.common.filesName.specify)
+      </mat-error>
+      <mat-error *ngIf="dataspaceControl.errors && dataspaceControl.errors?.containsInvalidForFileAndXML">
+        _#(common.sree.internal.invalidCharInName)
+      </mat-error>
+      <mat-error *ngIf="dataspaceControl?.errors?.whiteSpace">
+        _#(em.dataspace.whitespaceError)
+      </mat-error>
     </mat-form-field>
   </form>
 </section>

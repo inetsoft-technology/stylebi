@@ -21,35 +21,33 @@
   [assemblyName]="assemblyName" [columnTreeRoot]="columnTreeRoot"
   [submitOnChange]="model.submitOnChange || !model.showSubmitCheckbox"
   [scriptDefinitions]="scriptDefinitions">
-  @if (showEnabledGroup) {
-    <form class="container-fluid" [formGroup]="form" generalProp>
-      <div class="shell-form-row--field row">
-        <div class="col-8">
-          <div class="form-floating">
-            <dynamic-combo-box [mode]="mode" [values]="enabledValues" [variables]="variableValues"
-              [(value)]="model.enabled" [disable]="layoutObject" [vsId]="vsId"
-              [assemblyName]="assemblyName" [columnTreeRoot]="columnTreeRoot"
-              [isCondition]="true"
-              [functionTreeRoot]="functionTreeRoot"
-              [operatorTreeRoot]="operatorTreeRoot"
-              [scriptDefinitions]="scriptDefinitions">
-            </dynamic-combo-box>
-            <label>_#(Enabled)</label>
+  <form *ngIf="showEnabledGroup" class="container-fluid" [formGroup]="form" generalProp>
+    <div class="shell-form-row--field row">
+      <div class="col-8">
+        <div class="form-floating">
+          <dynamic-combo-box [mode]="mode" [values]="enabledValues" [variables]="variableValues"
+            [(value)]="model.enabled" [disable]="layoutObject" [vsId]="vsId"
+            [assemblyName]="assemblyName" [columnTreeRoot]="columnTreeRoot"
+            [isCondition]="true"
+            [functionTreeRoot]="functionTreeRoot"
+            [operatorTreeRoot]="operatorTreeRoot"
+            [scriptDefinitions]="scriptDefinitions">
+          </dynamic-combo-box>
+          <label>_#(Enabled)</label>
+        </div>
+      </div>
+      @if (model.showSubmitCheckbox) {
+        <div class="col-4">
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="submit"
+              [ngModelOptions]="{standalone: true}"
+              [(ngModel)]="model.submitOnChange" [disabled]="layoutObject">
+            <label class="form-check-label" for="submit">
+              <span>_#(Submit on Change)</span>
+            </label>
           </div>
         </div>
-        @if (model.showSubmitCheckbox) {
-          <div class="col-4">
-            <div class="form-check">
-              <input class="form-check-input" type="checkbox" id="submit"
-                [ngModelOptions]="{standalone: true}"
-                [(ngModel)]="model.submitOnChange" [disabled]="layoutObject">
-              <label class="form-check-label" for="submit">
-                <span>_#(Submit on Change)</span>
-              </label>
-            </div>
-          </div>
-        }
-      </div>
-    </form>
-  }
+      }
+    </div>
+  </form>
 </basic-general-pane>

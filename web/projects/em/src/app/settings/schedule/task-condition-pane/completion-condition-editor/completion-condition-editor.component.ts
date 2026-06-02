@@ -27,12 +27,13 @@ import { MatOption } from "@angular/material/core";
 import { MatSelect } from "@angular/material/select";
 import { MatFormField, MatLabel, MatError, MatSuffix } from "@angular/material/form-field";
 import { MatCard, MatCardContent } from "@angular/material/card";
+import { NgIf } from "@angular/common";
 
 @Component({
     selector: "em-completion-condition-editor",
     templateUrl: "./completion-condition-editor.component.html",
     styleUrls: ["./completion-condition-editor.component.scss"],
-    imports: [MatCard, MatCardContent, MatFormField, FormsModule, ReactiveFormsModule, MatLabel, MatSelect, MatOption, MatError, MatProgressSpinner, MatSuffix]
+    imports: [NgIf, MatCard, MatCardContent, MatFormField, FormsModule, ReactiveFormsModule, MatLabel, MatSelect, MatOption, MatError, MatProgressSpinner, MatSuffix]
 })
 export class CompletionConditionEditorComponent implements OnInit {
    @Input() originalTaskName: string = null;

@@ -31,15 +31,9 @@
                 <mat-form-field appearance="outline" color="accent">
                   <mat-label>_#(Name)</mat-label>
                   <input matInput placeholder="_#(Name)" formControlName="name">
-                  @if (form.controls['name'] && form.controls['name'].errors && form.controls['name'].errors['required']) {
-                    <mat-error>_#(viewer.nameEmpty)</mat-error>
-                  }
-                  @if (form.controls['name'] && form.controls['name'].errors && form.controls['name'].errors['containsSpecialCharsForName']) {
-                    <mat-error>_#(viewer.nameSpecialChar)</mat-error>
-                  }
-                  @if (form.controls['name'] && form.controls['name'].errors && form.controls['name'].errors['notWhiteSpace']) {
-                    <mat-error>_#(viewer.whiteSpace)</mat-error>
-                  }
+                  <mat-error *ngIf="form.controls['name'] && form.controls['name'].errors && form.controls['name'].errors['required']">_#(viewer.nameEmpty)</mat-error>
+                  <mat-error *ngIf="form.controls['name'] && form.controls['name'].errors && form.controls['name'].errors['containsSpecialCharsForName']">_#(viewer.nameSpecialChar)</mat-error>
+                  <mat-error *ngIf="form.controls['name'] && form.controls['name'].errors && form.controls['name'].errors['notWhiteSpace']">_#(viewer.whiteSpace)</mat-error>
                 </mat-form-field>
                 <mat-form-field appearance="outline" color="accent">
                   <mat-label>_#(Description)</mat-label>
@@ -82,9 +76,7 @@
                       </mat-tree-node>
                     </mat-tree>
                   </mat-select>
-                  @if (form.controls['viewsheet'] && form.controls['viewsheet'].errors && form.controls['viewsheet'].errors['required']) {
-                    <mat-error>_#(viewer.viewsheet.nameEmpty)</mat-error>
-                  }
+                  <mat-error *ngIf="form.controls['viewsheet'] && form.controls['viewsheet'].errors && form.controls['viewsheet'].errors['required']">_#(viewer.viewsheet.nameEmpty)</mat-error>
                 </mat-form-field>
                 @if (global && model.visible) {
                   <mat-slide-toggle formControlName="enable">_#(Enable)</mat-slide-toggle>

@@ -28,6 +28,7 @@ import { MatButton } from "@angular/material/button";
 import { MatInput } from "@angular/material/input";
 import { MatFormField, MatLabel, MatError } from "@angular/material/form-field";
 import { ModalHeaderComponent } from "../../../common/util/modal-header/modal-header.component";
+import { NgIf } from "@angular/common";
 
 const TASK_FOLDER_CHECK_DUPLICATE_URI: string = "../api/em/schedule/rename/checkDuplicate";
 
@@ -35,7 +36,7 @@ const TASK_FOLDER_CHECK_DUPLICATE_URI: string = "../api/em/schedule/rename/check
     selector: "em-edit-task-folder-dialog",
     templateUrl: "./edit-task-folder-dialog.component.html",
     styleUrls: ["./edit-task-folder-dialog.component.scss"],
-    imports: [ModalHeaderComponent, MatDialogContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatInput, MatError, MatDialogActions, MatButton]
+    imports: [NgIf, ModalHeaderComponent, MatDialogContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatInput, MatError, MatDialogActions, MatButton]
 })
 export class EditTaskFolderDialogComponent implements OnInit{
    model: EditTaskFolderDialogModel;

@@ -26,12 +26,10 @@
         <mat-hint class="start-time start-time-hint">HH:mm {{ timeZoneLabel }}</mat-hint>
       </div>
     }
-    @if (startTimeEnabled && form.controls.startTime.enabled && !form.controls.startTime?.valid) {
-      <mat-error class="start-time-error"
-        >
-        _#(viewer.schedule.condition.startTimeValid)
-      </mat-error>
-    }
+    <mat-error *ngIf="startTimeEnabled && form.controls.startTime.enabled && !form.controls.startTime?.valid" class="start-time-error"
+      >
+      _#(viewer.schedule.condition.startTimeValid)
+    </mat-error>
     <ng-content></ng-content>
     @if (timeRangeEnabled) {
       <div class="start-time-option" [class.single-option]="!startTimeEnabled">
@@ -42,13 +40,9 @@
               <mat-option [value]="range">{{range.label}}</mat-option>
             }
           </mat-select>
-          @if (!timeRanges || timeRanges.length == 0) {
-            <mat-error>_#(viewer.schedule.condition.timeRangeRequired)</mat-error>
-          }
-          @if (!!timeRanges && timeRanges.length != 0 && form.controls.timeRange?.invalid) {
-            <mat-error>
-            _#(viewer.schedule.condition.startTimeValid)</mat-error>
-          }
+          <mat-error *ngIf="!timeRanges || timeRanges.length == 0">_#(viewer.schedule.condition.timeRangeRequired)</mat-error>
+          <mat-error *ngIf="!!timeRanges && timeRanges.length != 0 && form.controls.timeRange?.invalid">
+          _#(viewer.schedule.condition.startTimeValid)</mat-error>
         </mat-form-field>
       </div>
     }

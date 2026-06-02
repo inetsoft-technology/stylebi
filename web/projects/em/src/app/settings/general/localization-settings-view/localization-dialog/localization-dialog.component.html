@@ -24,9 +24,7 @@
       placeholder="_#(Language Code)"
       maxLength="2"
       #lang [value]="lang.value.toLowerCase()">
-    @if (form.controls['language'].errors) {
-      <mat-error>_#(em.localeAdd.codeInvalid)</mat-error>
-    }
+    <mat-error *ngIf="form.controls['language'].errors">_#(em.localeAdd.codeInvalid)</mat-error>
   </mat-form-field>
 
   <mat-form-field appearance="outline" class="full-width" color="accent" >
@@ -35,17 +33,13 @@
       placeholder="_#(Country Code)"
       maxLength="2"
       #country [value]="country.value.toUpperCase()">
-    @if (form.controls['country'].errors) {
-      <mat-error>_#(em.locale.countryCodeInvalid)</mat-error>
-    }
+    <mat-error *ngIf="form.controls['country'].errors">_#(em.locale.countryCodeInvalid)</mat-error>
   </mat-form-field>
 
   <mat-form-field appearance="outline" class="full-width" color="accent">
     <mat-label>_#(Locale Label)</mat-label>
     <input matInput formControlName="label" placeholder="_#(Locale Label)">
-    @if (form.controls['label'].errors) {
-      <mat-error>_#(em.localeAdd.localelabelInvalid)</mat-error>
-    }
+    <mat-error *ngIf="form.controls['label'].errors">_#(em.localeAdd.localelabelInvalid)</mat-error>
   </mat-form-field>
 </div>
 <div mat-dialog-actions>

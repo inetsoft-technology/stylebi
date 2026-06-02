@@ -42,6 +42,7 @@ import { MatInput } from "@angular/material/input";
 import { MatFormField, MatLabel, MatError } from "@angular/material/form-field";
 import { MatCard, MatCardContent } from "@angular/material/card";
 import { ModalHeaderComponent } from "../../../../common/util/modal-header/modal-header.component";
+import { NgIf } from "@angular/common";
 
 export class RestoreAssetFlatNode extends FlatTreeNode<RestoreAssetTreeModel> {
    constructor(public expandable: boolean, public id: string, public name: string,
@@ -109,6 +110,7 @@ const RECOVER_AUTO_SAVE_ENTRY: string = "../api/em/content/repository/autosave/r
     templateUrl: "./restore-asset-dialog.component.html",
     styleUrls: ["./restore-asset-dialog.component.scss"],
     imports: [
+    NgIf,
     ModalHeaderComponent,
     MatDialogContent,
     FormsModule,

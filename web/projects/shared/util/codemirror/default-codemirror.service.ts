@@ -41,7 +41,11 @@ import { CodemirrorService, TokenType } from "./codemirror.service";
 })
 export class DefaultCodemirrorService extends CodemirrorService {
    createTernServer(options: object): object {
-      return new CodeMirror.TernServer(options);
+      // esbuild's __toESM() snapshots the CJS exports at import time, so TernServer
+      // (added by the tern side-effect import after the snapshot) is absent from the
+      // namespace wrapper. Access via .default, which is the live CJS exports reference.
+      const CM: any = (CodeMirror as any).default || CodeMirror;
+      return new CM.TernServer(options);
    }
 
    getEcmaScriptDefs(): object[] {

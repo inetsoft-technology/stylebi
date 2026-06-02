@@ -29,12 +29,8 @@
         <mat-form-field appearance="outline" color="accent">
           <mat-label>_#(Sender)</mat-label>
           <input type="email" matInput formControlName="sender" placeholder="_#(Sender)" (change)="fireDeliveryChanged()"/>
-          @if (form.controls.sender?.errors?.required) {
-            <mat-error>_#(em.schedule.action.emailRequired)</mat-error>
-          }
-          @if (form.controls.sender?.errors?.email) {
-            <mat-error>_#(em.schedule.action.invalidEmail)</mat-error>
-          }
+          <mat-error *ngIf="form.controls.sender?.errors?.required">_#(em.schedule.action.emailRequired)</mat-error>
+          <mat-error *ngIf="form.controls.sender?.errors?.email">_#(em.schedule.action.invalidEmail)</mat-error>
         </mat-form-field>
         <em-email-picker formControlName="recipients"
           [isEmailBrowserEnabled]="emailBrowserEnabled"
@@ -72,9 +68,7 @@
               <mat-option [value]="format.type">{{format.label}}</mat-option>
             }
           </mat-select>
-          @if (form.controls.format?.errors?.required) {
-            <mat-error>_#(em.schedule.action.formatRequired)</mat-error>
-          }
+          <mat-error *ngIf="form.controls.format?.errors?.required">_#(em.schedule.action.formatRequired)</mat-error>
         </mat-form-field>
         @if (dataSizeOptionVisible) {
           <mat-radio-group class="flex-col left-padding" formControlName="emailMatchLayout"
@@ -128,9 +122,7 @@
               <mat-form-field appearance="outline" color="accent">
                 <mat-label>_#(Verify Password)</mat-label>
                 <input type="password" matInput formControlName="verifyZipPassword" placeholder="_#(Verify Password)" [errorStateMatcher]="errorStateMatcher" (change)="fireDeliveryChanged()"/>
-                @if (form.errors?.passwordsMatch) {
-                  <mat-error>_#(em.schedule.action.zipPasswordMatch)</mat-error>
-                }
+                <mat-error *ngIf="form.errors?.passwordsMatch">_#(em.schedule.action.zipPasswordMatch)</mat-error>
               </mat-form-field>
             }
           </div>
@@ -145,9 +137,7 @@
         <mat-form-field appearance="outline" color="accent">
           <mat-label>_#(Attachment Name)</mat-label>
           <input type="text" matInput formControlName="attachment" placeholder="_#(Attachment Name)" (change)="fireDeliveryChanged()"/>
-          @if (form.controls.attachment?.errors?.containsInvalidWindowsChars) {
-            <mat-error>_#(em.common.fileName.invalid)</mat-error>
-          }
+          <mat-error *ngIf="form.controls.attachment?.errors?.containsInvalidWindowsChars">_#(em.common.fileName.invalid)</mat-error>
         </mat-form-field>
         @if (!isIE) {
           <mat-form-field appearance="outline" color="accent" class="message-field">

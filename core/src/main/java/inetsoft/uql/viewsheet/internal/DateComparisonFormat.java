@@ -150,6 +150,27 @@ public class DateComparisonFormat extends Format {
             }
          }
 
+         // Remove orphaned cells (no current-year data) using the same heuristic as
+         // DateComparisonUtil.computeValidParts(). An empty validParts set means either
+         // no data, MergePartCell period without a date value, or per-part real-date
+         // layout — in all those cases no filtering is applied.
+         Set<Object> orphanedCells = new HashSet<>();
+         Set<Object> validParts = DateComparisonUtil.computeValidParts(data, dateCol, partCol, null);
+
+         if(!validParts.isEmpty()) {
+            Iterator<Map.Entry<Object, Set<Date>>> it = partDates.entrySet().iterator();
+
+            while(it.hasNext()) {
+               Map.Entry<Object, Set<Date>> entry = it.next();
+
+               if(!validParts.contains(entry.getKey())) {
+                  orphanedCells.add(entry.getKey());
+                  it.remove();
+               }
+            }
+         }
+
+         this.orphanedCells = orphanedCells;
          this.partDates = partDates;
          this.partDates2 = partDates2;
          fixDisplayShortDate();
@@ -198,6 +219,7 @@ public class DateComparisonFormat extends Format {
    public void setGraphDataSelector(GraphtDataSelector selector) {
       this.selector = selector;
       partDates = null;
+      orphanedCells = new HashSet<>();
    }
 
    /**
@@ -262,6 +284,12 @@ public class DateComparisonFormat extends Format {
                                boolean onlyShowMostRecentDate)
    {
       initPartDate();
+
+      // Orphaned cells have no current-year data — suppress their labels entirely.
+      if(orphanedCells != null && orphanedCells.contains(obj)) {
+         return toAppendTo;
+      }
+
       Set<Date> dates = partDates.get(obj);
       dates = dates == null ? partDates2.get(obj) : dates;
       Format dateFmt = format != null ?
@@ -419,6 +447,7 @@ public class DateComparisonFormat extends Format {
 
    private Map<Object, Set<Date>> partDates;
    private Map<Object, Set<Date>> partDates2;
+   private Set<Object> orphanedCells = new HashSet<>();
    private Map<Object, Format> preferFormat;
    private int datePart;
    private DataSet data;
