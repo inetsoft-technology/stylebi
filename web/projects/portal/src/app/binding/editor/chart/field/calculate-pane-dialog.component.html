@@ -51,14 +51,11 @@
           <div class="row form-row-float-label">
             <div class="col d-flex flex-column">
               <div class="form-floating">
-                <select class="form-control" [(ngModel)]="percOfValue" placeholder="_#(calculationOf)" id="percOfValue">
-                  @for (perc of percDims; track perc) {
-                    <option [value]="perc.data" [attr.title]="perc.description"
-                      >
-                      {{perc.label}}
-                    </option>
-                  }
-                </select>
+               <custom-select [options]="percentageOfOptions"
+                              [(ngModel)]="percOfValue"
+                              placeholder="_#(calculationOf)"
+                              id="percOfValue">
+               </custom-select>
                 <label for="percOfValue"><span>_#(calculationOf)</span></label>
               </div>
             </div>
@@ -86,15 +83,11 @@
           <div class="row form-row-float-label">
             <div class="col d-flex flex-column">
               <div class="form-floating">
-                <select class="form-control" [(ngModel)]="changeColumn" id="changeColumn"
-                  placeholder="_#(Value of)">
-                  @for (value of valueOfDatas; track value) {
-                    <option [value]="value.data" [attr.title]="value.description"
-                      >
-                      {{value.label}}
-                    </option>
-                  }
-                </select>
+                <custom-select [options]="valueOfOptions"
+                               [(ngModel)]="changeColumn"
+                               id="changeColumn"
+                               placeholder="_#(Value of)">
+                </custom-select>
                 <label for="changeColumn"><span>_#(Value of)</span></label>
               </div>
             </div>
@@ -102,14 +95,11 @@
           <div class="row form-row-float-label">
             <div class="col d-flex flex-column">
               <div class="form-floating">
-                <select class="form-control" [(ngModel)]="changeCalculator.from"
-                  placeholder="_#(From)" id="calculatorFrom">
-                  @for (from of fromDatas; track from) {
-                    <option [value]="from.data">
-                      {{from.label}}
-                    </option>
-                  }
-                </select>
+               <custom-select [options]="fromOptions"
+                              [(ngModel)]="changeCalculator.from"
+                              placeholder="_#(From)"
+                              id="calculatorFrom">
+               </custom-select>
                 <label for="calculatorFrom"><span>_#(From)</span></label>
               </div>
             </div>
@@ -122,14 +112,10 @@
           <div  class="row form-row-float-label">
             <div class="col d-flex flex-column">
               <div class="form-floating">
-                <select class="form-control" [(ngModel)]="aggregateCalculator.aggregate"
-                  placeholder="_#(Aggregate)">
-                  @for (aggr of aggregateDatas; track aggr) {
-                    <option [value]="aggr.formulaName">
-                      {{aggr.label}}
-                    </option>
-                  }
-                </select>
+               <custom-select [options]="aggregateOptions"
+                              [(ngModel)]="aggregateCalculator.aggregate"
+                              placeholder="_#(Aggregate)">
+               </custom-select>
                 <label><span>_#(Aggregate)</span></label>
               </div>
             </div>
@@ -153,15 +139,10 @@
           <div class="row form-row-float-label">
             <div class="col d-flex flex-column">
               <div class="form-floating">
-                <select class="form-control" [(ngModel)]="valueOfColumn"
-                  placeholder="_#(Value of)">
-                  @for (value of valueOfDatas; track value) {
-                    <option [value]="value.data" [attr.title]="value.description"
-                      >
-                      {{value.label}}
-                    </option>
-                  }
-                </select>
+               <custom-select [options]="valueOfOptions"
+                              [(ngModel)]="valueOfColumn"
+                              placeholder="_#(Value of)">
+               </custom-select>
                 <label><span>_#(Value of)</span></label>
               </div>
             </div>
@@ -169,14 +150,10 @@
           <div class="row form-row-float-label">
             <div class="col d-flex flex-column">
               <div class="form-floating">
-                <select class="form-control" [(ngModel)]="valueOfCalculator.from"
-                  placeholder="_#(From)">
-                  @for (from of fromDatas; track from) {
-                    <option [value]="from.data">
-                      {{from.label}}
-                    </option>
-                  }
-                </select>
+               <custom-select [options]="fromOptions"
+                              [(ngModel)]="valueOfCalculator.from"
+                              placeholder="_#(From)">
+               </custom-select>
                 <label><span>_#(From)</span></label>
               </div>
             </div>
@@ -193,13 +170,10 @@
           class="row form-row-float-label">
           <div class="col d-flex flex-column">
             <div class="form-floating">
-              <select class="form-control" [(ngModel)]="breakBy" placeholder="_#(Break By)">
-                @for (dim of breakByDims; track dim) {
-                  <option [value]="dim.data">
-                    {{dim.label}}
-                  </option>
-                }
-              </select>
+             <custom-select [options]="breakByOptions"
+                            [(ngModel)]="breakBy"
+                            placeholder="_#(Break By)">
+             </custom-select>
               <label><span>_#(Break By)</span></label>
             </div>
           </div>
@@ -210,14 +184,10 @@
           class="row form-row-float-label">
           <div class="col d-flex flex-column">
             <div class="form-floating">
-              <select class="form-control" [(ngModel)]="runningTotalCalculator.resetLevel"
-                placeholder="_#(Reset at)">
-                @for (reset of resetOptsData; track reset) {
-                  <option [value]="reset.data">
-                    {{reset.label}}
-                  </option>
-                }
-              </select>
+            <custom-select [options]="resetOptions"
+                           [(ngModel)]="runningTotalCalculator.resetLevel"
+                           placeholder="_#(Reset at)">
+            </custom-select>
               <label><span>_#(Reset at)</span></label>
             </div>
           </div>
@@ -229,14 +199,10 @@
           <div class="row form-row-float-label">
             <div class="col d-flex flex-column">
               <div class="form-floating">
-                <select class="form-control" [(ngModel)]="movingCalculator.innerDim"
-                  placeholder="_#(Moving Of)">
-                  @for (dim of movingDims; track dim) {
-                    <option [value]="dim.data">
-                      {{dim.label}}
-                    </option>
-                  }
-                </select>
+               <custom-select [options]="movingDimensionOptions"
+                              [(ngModel)]="movingCalculator.innerDim"
+                              placeholder="_#(Moving Of)">
+               </custom-select>
                 <label><span>_#(calculationOf)</span></label>
               </div>
             </div>
