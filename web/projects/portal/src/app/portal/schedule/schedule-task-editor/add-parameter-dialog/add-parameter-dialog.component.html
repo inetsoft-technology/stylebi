@@ -25,21 +25,22 @@
       <div class="form-row-float-label row">
         <div class="col">
           <div class="form-floating">
-            <input class="form-control" type="text" placeholder="_#(Parameter Name)"
-                 [ngClass]="{'input-transparent': parameterNames && parameterNames.length > 0,
-                             'hideText' : parameterNames && parameterNames.includes(model.name)}"
-              [(ngModel)]="model.name" formControlName="name"
-              [class.is-invalid]="!form.controls['name'].valid"/>
+            <div class="input-group">
+              <input class="form-control" type="text" placeholder="_#(Parameter Name)"
+                [(ngModel)]="model.name" formControlName="name"
+                [class.is-invalid]="!form.controls['name'].valid"/>
+              @if (parameterNameSelectOptions.length > 0) {
+                <custom-select class="parameter-name-picker"
+                               [options]="parameterNameSelectOptions"
+                               [ngModel]="selectedParameterName"
+                               [ngModelOptions]="{standalone: true}"
+                               (selectionChange)="selectParameterName($event)"
+                               ariaLabel="_#(Parameter Name)"
+                               placeholder="_#(Select)">
+                </custom-select>
+              }
+            </div>
             <label>_#(Parameter Name)</label>
-            @if (parameterNames && parameterNames.length > 0) {
-              <select class="form-control"
-                [(ngModel)]="model.name" formControlName="name">
-                <option></option>
-                @for (name of parameterNames; track name) {
-                  <option [value]="name">{{name}}</option>
-                }
-              </select>
-            }
             @if (form && form.controls['name'].errors
               && form.controls['name'].errors['required']) {
               <span class="invalid-feedback">_#(parameter.name.emptyValid)</span>
