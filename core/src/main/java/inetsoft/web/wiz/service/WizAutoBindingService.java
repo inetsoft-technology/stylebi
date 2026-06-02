@@ -86,8 +86,10 @@ public class WizAutoBindingService {
 
       if(Tool.isEmptyString(autoBindingRuntimeId)) {
          Viewsheet.WizInfo wizInfo = new Viewsheet.WizInfo(true, null, null);
+         // worksheetId is an AssetEntry identifier (from GenerateWsService's toIdentifier()),
+         // not a bare path — parse it rather than passing it as the path argument.
          AssetEntry wsEntry = !Tool.isEmptyString(worksheetId)
-            ? new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.WORKSHEET, worksheetId, null)
+            ? AssetEntry.createAssetEntry(worksheetId)
             : null;
          autoBindingRuntimeId = viewsheetService.openTemporaryViewsheet(null, wsEntry, user, wizInfo);
          createdAutoBindingRvs = true;
@@ -105,8 +107,7 @@ public class WizAutoBindingService {
          List<ColumnRef> worksheetColumns = new ArrayList<>();
 
          if(!Tool.isEmptyString(worksheetId)) {
-            AssetEntry wsEntry = new AssetEntry(
-               AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.WORKSHEET, worksheetId, null);
+            AssetEntry wsEntry = AssetEntry.createAssetEntry(worksheetId);
 
             try {
                AbstractSheet sheet = engine.getSheet(wsEntry, user, true, AssetContent.ALL);
@@ -140,7 +141,15 @@ public class WizAutoBindingService {
             .collect(Collectors.toMap(SimpleFieldInfo::getField, f -> f, (a, b) -> a));
 
          final String tableNameFinal = tableName;
-         AssetEntry[] entries = worksheetColumns.stream()
+         // When the caller specifies fieldConfigs, bind ONLY those fields. Otherwise join-key
+         // columns (added to the worksheet to satisfy the join, but not requested) leak in as
+         // spurious Sum() measures. With no fieldConfigs, fall back to all worksheet columns.
+         List<ColumnRef> bindColumns = configMap.isEmpty()
+            ? worksheetColumns
+            : worksheetColumns.stream()
+                 .filter(c -> configMap.containsKey(c.getAttribute()))
+                 .collect(Collectors.toList());
+         AssetEntry[] entries = bindColumns.stream()
             .map(col -> buildEntryFromColumn(col, worksheetId, tableNameFinal))
             .toArray(AssetEntry[]::new);
 

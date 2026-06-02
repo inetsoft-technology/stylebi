@@ -480,8 +480,9 @@ public class WizVsService {
       AssetEntry sourceWs;
 
       try {
-         sourceWs = new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.WORKSHEET,
-                                   config.getData().getSource(), null);
+         // config.getData().getSource() is a worksheet IDENTIFIER (AssetEntry.toIdentifier()),
+         // not a bare path — parse it rather than treating it as a path.
+         sourceWs = AssetEntry.createAssetEntry(config.getData().getSource());
       }
       catch(Exception e) {
          throw new IllegalArgumentException("Datasource is invalid", e);
