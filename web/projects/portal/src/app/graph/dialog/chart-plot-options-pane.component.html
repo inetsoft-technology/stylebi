@@ -257,6 +257,29 @@
             </div>
           </div>
         }
+        @if (model.smoothLinesVisible) {
+          <div class="checkbox col-auto">
+            <div class="form-check">
+              <input type="checkbox" class="form-check-input"
+                [(ngModel)]="model.smoothLines" id="smoothLines"
+                [ngModelOptions]="{standalone: true}">
+              <label class="form-check-label" for="smoothLines">
+                _#(Smooth Lines)
+              </label>
+            </div>
+          </div>
+        }
+        @if (model.treeLayoutVisible) {
+          <div class="col-auto form-floating">
+            <custom-select class="tree-layout" id="treeLayout"
+                           [options]="treeLayoutOptions"
+                           [(ngModel)]="model.treeLayout"
+                           [ngModelOptions]="{standalone: true}"
+                           ariaLabel="_#(Layout Direction)">
+            </custom-select>
+            <label><span>_#(Layout Direction)</span></label>
+          </div>
+        }
         @if (model.wordCloud) {
           <div class="col-auto form-floating">
             <number-stepper formControlName="fontScale" [min]="1" [max]="5" [step]="0.1"
