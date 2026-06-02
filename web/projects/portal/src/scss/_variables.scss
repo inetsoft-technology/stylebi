@@ -15,6 +15,9 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+@use 'sass:meta';
+@use 'sass:color';
+
 /***
  * Theming override section begin
  */
@@ -139,7 +142,7 @@ $sqrt2: 1.41421356;
 :root {
   // font
   --inet-font-size-base: 13px;
-  --inet-font-family: #{inspect($inet-font-name)};
+  --inet-font-family: #{meta.inspect($inet-font-name)};
   --inet-text-color: #212529;
   --inet-icon-color: #{$inet-default-icon-color};
 
@@ -294,11 +297,11 @@ $sqrt2: 1.41421356;
   --inet-button-light-hover-border-color: #dcdcdc;
 
   // auto generated colors
-  --inet-light-color-light: #{lighten($inet-text-light, 10%)};
-  --inet-light-color-dark: #{darken($inet-text-light, 10%)};
+  --inet-light-color-light: #{color.adjust($inet-text-light, $lightness: 10%)};
+  --inet-light-color-dark: #{color.adjust($inet-text-light, $lightness: -10%)};
 
-  --inet-dark-color-light: #{lighten($inet-text-dark, 10%)};
-  --inet-dark-color-dark: #{darken($inet-text-dark, 10%)};
+  --inet-dark-color-light: #{color.adjust($inet-text-dark, $lightness: 10%)};
+  --inet-dark-color-dark: #{color.adjust($inet-text-dark, $lightness: -10%)};
 
   --inet-primary-color-light: #{$primary-light};
   --inet-primary-color-dark: #{$primary-dark};
@@ -307,10 +310,10 @@ $sqrt2: 1.41421356;
   --inet-secondary-color-dark: #{$secondary-dark};
 
   --inet-third-color-light: #{$third-color-light};
-  --inet-third-color-dark: #{darken($third-color, 10%)};
+  --inet-third-color-dark: #{color.adjust($third-color, $lightness: -10%)};
 
-  --inet-fourth-color-light: #{lighten($fourth-color, 10%)};
-  --inet-fourth-color-dark: #{darken($fourth-color, 10%)};
+  --inet-fourth-color-light: #{color.adjust($fourth-color, $lightness: 10%)};
+  --inet-fourth-color-dark: #{color.adjust($fourth-color, $lightness: -10%)};
 
   --inet-success-color-light: #f8fdef;
   --inet-success-color-dark: #727f5a;
