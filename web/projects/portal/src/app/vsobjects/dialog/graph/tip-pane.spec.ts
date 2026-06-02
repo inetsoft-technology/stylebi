@@ -50,8 +50,6 @@ let createModel: () => TipPaneModel = () => {
       tipCustomizeDialogModel: <TipCustomizeDialogModel> {
          customRB: "DEFAULT",
          combinedTip: false,
-         lineChat: false,
-         lineChart: false,
          customTip: "",
          dataRefList: [],
          combinedSupported: false,
