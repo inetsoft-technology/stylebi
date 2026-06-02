@@ -50,6 +50,7 @@ export interface ExportAssetDialogData {
     templateUrl: "./export-asset-dialog.component.html",
     styleUrls: ["./export-asset-dialog.component.scss"],
     encapsulation: ViewEncapsulation.None,
+    providers: [ExportAssetsService],
     imports: [ModalHeaderComponent, MatDialogContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatInput, MatError, MatCheckbox, SelectedAssetListComponent, MatButton, RequiredAssetListComponent, MatProgressBar]
 })
 export class ExportAssetDialogComponent implements OnInit {
