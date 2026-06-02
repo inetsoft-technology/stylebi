@@ -31,7 +31,7 @@ export class MVChangeService implements OnDestroy {
   }
 
    ngOnDestroy() {
-      this._changed.unsubscribe();
+      this._changed.complete();
       this.disconnectSocket();
    }
 

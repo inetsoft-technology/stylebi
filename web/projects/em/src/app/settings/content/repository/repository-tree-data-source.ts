@@ -140,9 +140,9 @@ export class RepositoryTreeDataSource
    }
 
    ngOnDestroy() {
-      this._data.unsubscribe();
-      this._loading.unsubscribe();
-      this._changed.unsubscribe();
+      this._data.complete();
+      this._loading.complete();
+      this._changed.complete();
       this.disconnectSocket();
    }
 
