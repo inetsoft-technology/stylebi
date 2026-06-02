@@ -329,7 +329,8 @@ public abstract class DatasourcesBaseService {
       if(!StringUtils.isEmpty(folder) && !"/".equals(folder) &&
          dataSourceRegistry.getDataSourceFolder(folder) == null)
       {
-         throw new FileNotFoundException("Parent folder does not exist: " + folder);
+         throw new MessageException(
+            Catalog.getCatalog().getString("data.datasources.invalidParentFolder"));
       }
 
       if(StringUtils.isEmpty(folder) || "/".equals(folder)) {
