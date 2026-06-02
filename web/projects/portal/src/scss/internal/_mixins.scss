@@ -15,6 +15,8 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+@use 'sass:list';
+
 @mixin background-image($img-path) {
   background-image: url("#{$img-path}");
 }
@@ -39,8 +41,8 @@
 
 /* pass a list of class names and set the z-index on each. z-index: 1..n; */
 @mixin set-z-index($stacking-order) {
-  @for $i from 1 through length($stacking-order) {
-    $class-name: nth($stacking-order, $i);
+  @for $i from 1 through list.length($stacking-order) {
+    $class-name: list.nth($stacking-order, $i);
 
     .#{$class-name} {
       z-index: #{$i}
@@ -49,8 +51,8 @@
 }
 
 @mixin set-z-index-selector($stacking-order, $startIndex: 1) {
-  @for $i from 1 through length($stacking-order) {
-    $selector: nth($stacking-order, $i);
+  @for $i from 1 through list.length($stacking-order) {
+    $selector: list.nth($stacking-order, $i);
 
     #{$selector} {
       z-index: #{$startIndex + $i - 1}
