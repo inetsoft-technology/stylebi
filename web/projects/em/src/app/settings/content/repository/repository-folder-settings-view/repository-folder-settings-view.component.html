@@ -34,31 +34,21 @@
                   <mat-form-field appearance="outline" color="accent">
                     <mat-label>_#(Folder Name)</mat-label>
                     <input matInput placeholder="_#(Folder Name)" formControlName="folderName">
-                    @if (form.controls['folderName'] && form.controls['folderName'].errors && form.controls['folderName'].errors['required']) {
-                      <mat-error>
-                        _#(viewer.nameValid)
-                      </mat-error>
-                    }
-                    @if (form.controls['folderName'] && form.controls['folderName'].errors && form.controls['folderName'].errors['assetEntryBannedCharacters']) {
-                      <mat-error>
-                        _#(composer.sheet.checkSpeChar)
-                      </mat-error>
-                    }
-                    @if (form.controls['folderName'] && form.controls['folderName'].errors && form.controls['folderName'].errors['assetNameStartWithCharDigit']) {
-                      <mat-error>
-                        _#(asset.tree.checkStart)
-                      </mat-error>
-                    }
-                    @if (!alert && form.controls['folderName'] && form.controls['folderName'].errors && form.controls['folderName'].errors['assetNameMyReports']) {
-                      <mat-error>
-                        _#(viewer.viewsheet.nameReserved) _#(and) _#(em.common.folders.nameAlert)
-                      </mat-error>
-                    }
-                    @if (alert && form.controls['folderName'] && form.controls['folderName'].errors && form.controls['folderName'].errors['duplicateName']) {
-                      <mat-error>
-                        _#(em.common.folder.nameDuplicate) _#(and) _#(em.repletFolderName.existAlert2)
-                      </mat-error>
-                    }
+                    <mat-error *ngIf="form.controls['folderName'] && form.controls['folderName'].errors && form.controls['folderName'].errors['required']">
+                      _#(viewer.nameValid)
+                    </mat-error>
+                    <mat-error *ngIf="form.controls['folderName'] && form.controls['folderName'].errors && form.controls['folderName'].errors['assetEntryBannedCharacters']">
+                      _#(composer.sheet.checkSpeChar)
+                    </mat-error>
+                    <mat-error *ngIf="form.controls['folderName'] && form.controls['folderName'].errors && form.controls['folderName'].errors['assetNameStartWithCharDigit']">
+                      _#(asset.tree.checkStart)
+                    </mat-error>
+                    <mat-error *ngIf="!alert && form.controls['folderName'] && form.controls['folderName'].errors && form.controls['folderName'].errors['assetNameMyReports']">
+                      _#(viewer.viewsheet.nameReserved) _#(and) _#(em.common.folders.nameAlert)
+                    </mat-error>
+                    <mat-error *ngIf="alert && form.controls['folderName'] && form.controls['folderName'].errors && form.controls['folderName'].errors['duplicateName']">
+                      _#(em.common.folder.nameDuplicate) _#(and) _#(em.repletFolderName.existAlert2)
+                    </mat-error>
                   </mat-form-field>
                   @if (!isWSFolder) {
                     <mat-form-field appearance="outline" color="accent">

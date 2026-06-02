@@ -30,21 +30,15 @@
         <mat-label>_#(Parameter Name)</mat-label>
         <input type="text" matInput placeholder="_#(Parameter Name)" formControlName="name"
           [matAutocomplete]="parameterNameAutocomplete">
-        @if (form.controls['name'].errors && form.controls['name'].errors['required']) {
-          <mat-error>
-            _#(parameter.name.emptyValid)
-          </mat-error>
-        }
-        @if (form.controls['name'].errors && form.controls['name'].errors['duplicateName']) {
-          <mat-error>
-            _#(parameter.name.duplicate)
-          </mat-error>
-        }
-        @if (form.controls['name'].errors && form.controls['name'].errors['variableSpecialCharacters']) {
-          <mat-error>
-            _#(parameter.name.characterValid)
-          </mat-error>
-        }
+        <mat-error *ngIf="form.controls['name'].errors && form.controls['name'].errors['required']">
+          _#(parameter.name.emptyValid)
+        </mat-error>
+        <mat-error *ngIf="form.controls['name'].errors && form.controls['name'].errors['duplicateName']">
+          _#(parameter.name.duplicate)
+        </mat-error>
+        <mat-error *ngIf="form.controls['name'].errors && form.controls['name'].errors['variableSpecialCharacters']">
+          _#(parameter.name.characterValid)
+        </mat-error>
       </mat-form-field>
       <mat-autocomplete #parameterNameAutocomplete="matAutocomplete">
         @for (name of parameterNames; track name) {
@@ -99,16 +93,12 @@
             <mat-form-field appearance="outline" color="accent">
               <mat-label>_#(Value)</mat-label>
               <input type="number" matInput formControlName="value" placeholder="_#(Value)">
-              @if (form.controls['value'].errors && form.controls['value'].errors['integerInRange']) {
-                <mat-error>
-                  _#(em.common.param.number.outNegativeRange)
-                </mat-error>
-              }
-              @if (form.controls['value'].errors && form.controls['value'].errors) {
-                <mat-error>
-                  _#(em.common.param.numberInvalid)
-                </mat-error>
-              }
+              <mat-error *ngIf="form.controls['value'].errors && form.controls['value'].errors['integerInRange']">
+                _#(em.common.param.number.outNegativeRange)
+              </mat-error>
+              <mat-error *ngIf="form.controls['value'].errors && !form.controls['value'].errors['integerInRange']">
+                _#(em.common.param.numberInvalid)
+              </mat-error>
             </mat-form-field>
           }
         }
@@ -116,16 +106,12 @@
           <mat-form-field appearance="outline" color="accent">
             <mat-label>_#(Value)</mat-label>
             <input type="text" matInput formControlName="value">
-            @if (form.controls['value'].errors && form.controls['value'].errors['required']) {
-              <mat-error>
-                _#(parameter.value.emptyValid)
-              </mat-error>
-            }
-            @if (form.controls['value'].errors && !form.controls['value'].errors['required']) {
-              <mat-error>
-                _#(common.value.invalid)
-              </mat-error>
-            }
+            <mat-error *ngIf="form.controls['value'].errors && form.controls['value'].errors['required']">
+              _#(parameter.value.emptyValid)
+            </mat-error>
+            <mat-error *ngIf="form.controls['value'].errors && !form.controls['value'].errors['required']">
+              _#(common.value.invalid)
+            </mat-error>
           </mat-form-field>
         }
       }

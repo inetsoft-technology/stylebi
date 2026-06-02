@@ -27,12 +27,13 @@ import { MatCard, MatCardContent } from "@angular/material/card";
 import { MatCheckbox } from "@angular/material/checkbox";
 import { MatInput } from "@angular/material/input";
 import { MatFormField, MatLabel, MatError } from "@angular/material/form-field";
+import { NgIf } from "@angular/common";
 
 @Component({
     selector: "em-csv-config-pane",
     templateUrl: "./em-csv-config-pane.component.html",
     styleUrls: ["./em-csv-config-pane.component.scss"],
-    imports: [MatFormField, MatLabel, MatInput, FormsModule, MatCheckbox, MatCard, MatCardContent, MatLine, MatList, MatListItem, MatDivider, MatError]
+    imports: [NgIf, MatFormField, MatLabel, MatInput, FormsModule, MatCheckbox, MatCard, MatCardContent, MatLine, MatList, MatListItem, MatDivider, MatError]
 })
 export class EmCSVConfigPaneComponent implements OnInit{
    @Input() csvConfigModel: CSVConfigModel = new CSVConfigModel();

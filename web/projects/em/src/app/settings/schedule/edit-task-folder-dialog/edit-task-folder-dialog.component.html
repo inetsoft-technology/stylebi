@@ -20,21 +20,13 @@
   <mat-form-field subscriptSizing="dynamic" appearance="outline" color="accent">
     <mat-label>_#(Folder Name)</mat-label>
     <input matInput formControlName="folderName" autofocus/>
-    @if (form.controls.folderName?.errors?.required) {
-      <mat-error>_#(viewer.nameValid)</mat-error>
-    }
-    @if (form.controls.folderName?.errors?.invalidTaskName) {
-      <mat-error>
-        _#(schedule.task.name.invalid)
-      </mat-error>
-    }
+    <mat-error *ngIf="form.controls.folderName?.errors?.required">_#(viewer.nameValid)</mat-error>
+    <mat-error *ngIf="form.controls.folderName?.errors?.invalidTaskName">
+      _#(schedule.task.name.invalid)
+    </mat-error>
   </mat-form-field>
-  @if (unchanged) {
-    <mat-error>_#(Name is unchanged)</mat-error>
-  }
-  @if (duplicate) {
-    <mat-error>_#(Duplicate Name)</mat-error>
-  }
+  <mat-error *ngIf="unchanged">_#(Name is unchanged)</mat-error>
+  <mat-error *ngIf="duplicate">_#(Duplicate Name)</mat-error>
 </div>
 <div mat-dialog-actions>
   <button mat-raised-button color="primary" (click)="submit()" [disabled]="form.invalid">_#(OK)</button>

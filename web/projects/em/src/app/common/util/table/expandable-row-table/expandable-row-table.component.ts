@@ -136,7 +136,7 @@ export class ExpandableRowTableComponent<T extends TableModel> extends RegularTa
 
    ngOnDestroy(): void {
       this.destroy$.next();
-      this.destroy$.unsubscribe();
+      this.destroy$.complete();
    }
 
    get showExpandTable(): boolean {

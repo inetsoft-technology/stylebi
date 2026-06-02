@@ -27,12 +27,8 @@
     <mat-form-field floatLabel="always" appearance="outline" color="accent">
       <mat-label>_#(Name)</mat-label>
       <input matInput placeholder="_#(Name)" [formControl]="name">
-      @if (name.errors && name.errors['required']) {
-        <mat-error>_#(binding.nameInput.isEmpty)</mat-error>
-      }
-      @if (name.errors && name.errors['containsSpecialCharsForName']) {
-        <mat-error>_#(designer.property.anyCharErrorPrefix)</mat-error>
-      }
+      <mat-error *ngIf="name.errors && name.errors['required']">_#(binding.nameInput.isEmpty)</mat-error>
+      <mat-error *ngIf="name.errors && name.errors['containsSpecialCharsForName']">_#(designer.property.anyCharErrorPrefix)</mat-error>
     </mat-form-field>
     <mat-tab-group>
       <mat-tab label="_#(Conditions)">

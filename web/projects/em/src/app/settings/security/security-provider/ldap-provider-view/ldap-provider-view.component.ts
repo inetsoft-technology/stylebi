@@ -39,6 +39,7 @@ import { MatInput } from "@angular/material/input";
 import { MatSelect } from "@angular/material/select";
 import { MatFormField, MatLabel, MatHint, MatError, MatSuffix } from "@angular/material/form-field";
 import { MatCard, MatCardContent, MatCardActions } from "@angular/material/card";
+import { NgIf } from "@angular/common";
 
 
 @Component({
@@ -296,6 +297,7 @@ export class LdapProviderViewComponent implements OnInit, OnDestroy {
     selector: "em-ldap-query-result",
     templateUrl: "ldap-query-result.html",
     imports: [
+    NgIf,
     MatList,
     MatListItem
 ]

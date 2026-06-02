@@ -40,9 +40,7 @@
       <mat-form-field appearance="outline" color="accent">
         <mat-label>_#(Name):</mat-label>
         <input matInput placeholder="_#(Name)" formControlName="name" (change)="onFormChanged()">
-        @if (form.controls.name?.errors?.required) {
-          <mat-error>_#(enter.name)</mat-error>
-        }
+        <mat-error *ngIf="form.controls.name?.errors?.required">_#(enter.name)</mat-error>
       </mat-form-field>
     }
     @if (isOrganizationFieldVisible()) {
@@ -53,9 +51,7 @@
             <mat-option [value]="org">{{org}}</mat-option>
           }
         </mat-select>
-        @if (form.controls.orgName?.errors?.required) {
-          <mat-error>_#(add.log.selectOneOrg)</mat-error>
-        }
+        <mat-error *ngIf="form.controls.orgName?.errors?.required">_#(add.log.selectOneOrg)</mat-error>
       </mat-form-field>
     }
     <mat-form-field appearance="outline" color="accent">

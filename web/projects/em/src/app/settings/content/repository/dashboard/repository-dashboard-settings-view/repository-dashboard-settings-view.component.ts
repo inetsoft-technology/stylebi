@@ -48,6 +48,7 @@ import { MatFormField, MatLabel, MatError } from "@angular/material/form-field";
 import { MatCard, MatCardContent } from "@angular/material/card";
 import { MatTabGroup, MatTab } from "@angular/material/tabs";
 import { EditorPanelComponent } from "../../../../../common/util/editor-panel/editor-panel.component";
+import { NgIf } from "@angular/common";
 
 
 @Component({
@@ -55,7 +56,7 @@ import { EditorPanelComponent } from "../../../../../common/util/editor-panel/ed
     templateUrl: "./repository-dashboard-settings-view.component.html",
     styleUrls: ["./repository-dashboard-settings-view.component.scss"],
     encapsulation: ViewEncapsulation.None,
-    imports: [EditorPanelComponent, MatTabGroup, MatTab, MatCard, MatCardContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatInput, MatError, MatSelect, MatOption, MatTree, MatTreeNodeDef, MatTreeNode, MatTreeNodeToggle, MatTreeNodePadding, MatIconButton, MatIcon, MatProgressBar, MatSlideToggle, ResourcePermissionComponent]
+    imports: [NgIf, EditorPanelComponent, MatTabGroup, MatTab, MatCard, MatCardContent, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatInput, MatError, MatSelect, MatOption, MatTree, MatTreeNodeDef, MatTreeNode, MatTreeNodeToggle, MatTreeNodePadding, MatIconButton, MatIcon, MatProgressBar, MatSlideToggle, ResourcePermissionComponent]
 })
 export class RepositoryDashboardSettingsViewComponent implements OnChanges, OnInit, OnDestroy, AfterContentChecked {
    @Input() model: RepositoryDashboardSettingsModel;
@@ -132,7 +133,7 @@ export class RepositoryDashboardSettingsViewComponent implements OnChanges, OnIn
 
    ngOnDestroy() {
       this.destroy$.next();
-      this.destroy$.unsubscribe();
+      this.destroy$.complete();
    }
 
    ngAfterContentChecked() {

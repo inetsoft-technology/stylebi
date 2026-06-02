@@ -19,13 +19,14 @@ import { Component, Input, OnChanges, SimpleChanges } from "@angular/core";
 import { UntypedFormGroup, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { MatInput } from "@angular/material/input";
 import { MatFormField, MatLabel, MatError } from "@angular/material/form-field";
+import { NgIf } from "@angular/common";
 
 
 @Component({
     selector: "em-sso-settings-form",
     templateUrl: "./sso-settings-form.component.html",
     styleUrls: ["./sso-settings-form.component.scss"],
-    imports: [FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatInput, MatError]
+    imports: [NgIf, FormsModule, ReactiveFormsModule, MatFormField, MatLabel, MatInput, MatError]
 })
 export class SSOSettingsFormComponent implements OnChanges {
    @Input() public form: UntypedFormGroup;

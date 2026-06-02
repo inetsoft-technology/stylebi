@@ -187,12 +187,8 @@
         } @else {
           <mat-form-field appearance="outline" color="accent" class="css-value-form-field" subscriptSizing="dynamic">
             <input matInput type="text" [formControlName]="row.name"/>
-            @if (form.controls[row.name].errors && form.controls[row.name].errors['pattern']) {
-              <mat-error>_#(em.presentation.lookAndFeel.css.invalidCssValue)</mat-error>
-            }
-            @if (form.controls[row.name].errors && form.controls[row.name].errors['notColor']) {
-              <mat-error>_#(em.presentation.lookAndFeel.css.invalidCssColor)</mat-error>
-            }
+            <mat-error *ngIf="form.controls[row.name].errors && form.controls[row.name].errors['pattern']">_#(em.presentation.lookAndFeel.css.invalidCssValue)</mat-error>
+            <mat-error *ngIf="form.controls[row.name].errors && form.controls[row.name].errors['notColor']">_#(em.presentation.lookAndFeel.css.invalidCssColor)</mat-error>
           </mat-form-field>
         }
       }

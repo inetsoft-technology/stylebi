@@ -42,7 +42,7 @@ import { MatDatepickerInput, MatDatepickerToggle, MatDatepicker } from "@angular
 import { MatInput } from "@angular/material/input";
 import { MatFormField, MatLabel, MatSuffix, MatError } from "@angular/material/form-field";
 import { MatCheckbox } from "@angular/material/checkbox";
-import { AsyncPipe } from "@angular/common";
+import { AsyncPipe, NgIf } from "@angular/common";
 import { MatSlideToggle } from "@angular/material/slide-toggle";
 
 export interface TaskOptionChanges {
@@ -66,7 +66,7 @@ export class GroupErrorState implements ErrorStateMatcher {
     templateUrl: "./task-options-pane.component.html",
     styleUrls: ["./task-options-pane.component.scss"],
     providers: [DateTimeService],
-    imports: [FormsModule, ReactiveFormsModule, MatSlideToggle, MatCheckbox, MatFormField, MatLabel, MatInput, MatDatepickerInput, MatDatepickerToggle, MatSuffix, MatDatepicker, MatError, MatButton, TimeZoneSelectComponent, MatSelect, MatOption, MatAutocompleteTrigger, MatAutocomplete, MatProgressSpinner, MatIconButton, MatTooltip, MatIcon, AsyncPipe]
+    imports: [NgIf, FormsModule, ReactiveFormsModule, MatSlideToggle, MatCheckbox, MatFormField, MatLabel, MatInput, MatDatepickerInput, MatDatepickerToggle, MatSuffix, MatDatepicker, MatError, MatButton, TimeZoneSelectComponent, MatSelect, MatOption, MatAutocompleteTrigger, MatAutocomplete, MatProgressSpinner, MatIconButton, MatTooltip, MatIcon, AsyncPipe]
 })
 export class TaskOptionsPane {
    @Input() timeZoneOptions: TimeZoneModel[];
@@ -145,7 +145,7 @@ export class TaskOptionsPane {
    {
       this.optionsForm = fb.group(
          {
-            taskEnabled: [true],
+            taskEnabled: [false],
             deleteIfNotScheduledToRun: [false],
             startDate: [new Date()],
             endDate: [new Date()],
@@ -201,6 +201,10 @@ export class TaskOptionsPane {
                }
             })
          );
+   }
+
+   get showOptions(): boolean {
+      return !!this.optionsForm.get("taskEnabled").value;
    }
 
    fireModelChanged(): void {

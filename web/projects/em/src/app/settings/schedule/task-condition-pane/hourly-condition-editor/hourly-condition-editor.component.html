@@ -25,11 +25,9 @@
         </em-time-picker>
         <mat-hint class="mat-form-field-wrapper time-content-item">HH:mm {{ timeZoneLabel }}</mat-hint>
       </div>
-      @if (form.controls.startTime?.errors) {
-        <mat-error>
-          _#(viewer.schedule.condition.startTimeValid)
-        </mat-error>
-      }
+      <mat-error *ngIf="form.controls.startTime?.errors">
+        _#(viewer.schedule.condition.startTimeValid)
+      </mat-error>
     </div>
     <div appearance="outline" color="accent" class="time-container">
       <div class="time-content">
@@ -39,16 +37,12 @@
         </em-time-picker>
         <mat-hint class="mat-form-field-wrapper time-content-item">HH:mm {{ timeZoneLabel }}</mat-hint>
       </div>
-      @if (form.controls.endTime?.errors) {
-        <mat-error>
-          _#(viewer.schedule.condition.endTimeValid)
-        </mat-error>
-      }
-      @if (form.errors?.timeChronological) {
-        <mat-error>
-          _#(viewer.schedule.condition.startEndValid)
-        </mat-error>
-      }
+      <mat-error *ngIf="form.controls.endTime?.errors">
+        _#(viewer.schedule.condition.endTimeValid)
+      </mat-error>
+      <mat-error *ngIf="form.errors?.timeChronological">
+        _#(viewer.schedule.condition.startEndValid)
+      </mat-error>
     </div>
     <em-time-zone-select formControlName="timeZone"
       [timeZoneOptions]="timeZoneOptions"

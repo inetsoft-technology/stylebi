@@ -29,7 +29,8 @@
     },
     "types": [
       "geojson",
-      "node"
+      "node",
+      "vitest/globals"
     ]
   },
   "angularCompilerOptions": {

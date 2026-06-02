@@ -22,6 +22,7 @@ import { DateTypeFormatter } from "../../../../../../shared/util/date-type-forma
 import { MatInput } from "@angular/material/input";
 import { MatFormField, MatLabel, MatError } from "@angular/material/form-field";
 import { DatepickerComponent } from "../../../common/util/datepicker/datepicker.component";
+import { NgIf } from "@angular/common";
 
 
 export const DATE_TIME_ACCESSOR: any = {
@@ -35,7 +36,7 @@ export const DATE_TIME_ACCESSOR: any = {
     templateUrl: "./date-time-editor.component.html",
     styleUrls: ["./date-time-editor.component.scss"],
     providers: [DATE_TIME_ACCESSOR],
-    imports: [DatepickerComponent, MatFormField, MatLabel, MatInput, FormsModule, MatError]
+    imports: [NgIf, DatepickerComponent, MatFormField, MatLabel, MatInput, FormsModule, MatError]
 })
 export class DateTimeEditorComponent implements ControlValueAccessor {
    @Input() type: string;

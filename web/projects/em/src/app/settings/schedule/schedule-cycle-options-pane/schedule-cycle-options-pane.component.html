@@ -85,17 +85,12 @@
             <mat-label>_#(Threshold)</mat-label>
             <input type="number" matInput placeholder="_#(Threshold)"
               formControlName="threshold" min="0" (ngModelChange)="onInfoChanged()">
-            @if (form.controls['threshold'] && form.controls['threshold'].errors && form.controls['threshold'].errors['required']) {
-              <mat-error>
-                _#(em.scheduler.cycle.thresholdEmpty)
-              </mat-error>
-            }
-            @if (form.controls['threshold'] && form.controls['threshold'].errors && !form.controls['threshold'].errors['required'] &&
-              (form.controls['threshold'].errors['lessThanEqualToZero'] || form.controls['threshold'].errors['isInteger'])) {
-              <mat-error>
-                _#(em.scheduler.cycle.thresholdPositive)
-              </mat-error>
-            }
+            <mat-error *ngIf="form.controls['threshold'] && form.controls['threshold'].errors && form.controls['threshold'].errors['required']">
+              _#(em.scheduler.cycle.thresholdEmpty)
+            </mat-error>
+            <mat-error *ngIf="form.controls['threshold'] && form.controls['threshold'].errors && !form.controls['threshold'].errors['required'] && (form.controls['threshold'].errors['lessThanEqualToZero'] || form.controls['threshold'].errors['isInteger'])">
+              _#(em.scheduler.cycle.thresholdPositive)
+            </mat-error>
           </mat-form-field>
           <em-email-picker formControlName="exceedEmail" [required]="true"
             [users]="emailUsers"

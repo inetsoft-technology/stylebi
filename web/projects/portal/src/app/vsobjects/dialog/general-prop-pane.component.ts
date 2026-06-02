@@ -23,11 +23,13 @@ import { GeneralPropPaneModel } from "../model/general-prop-pane-model";
 import { DynamicComboBox } from "../../widget/dynamic-combo-box/dynamic-combo-box.component";
 
 import { BasicGeneralPane } from "./basic-general-pane.component";
+import { NgIf } from "@angular/common";
 
 @Component({
     selector: "general-prop-pane",
     templateUrl: "general-prop-pane.component.html",
     imports: [
+    NgIf,
     BasicGeneralPane,
     FormsModule,
     ReactiveFormsModule,

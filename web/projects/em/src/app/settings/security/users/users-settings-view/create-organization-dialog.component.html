@@ -58,12 +58,8 @@
           <mat-icon fontSet="ineticons" class="icon-size-small"
           [fontIcon]="showPassword ? 'eye-off-icon' : 'eye-icon'"></mat-icon>
         </button>
-        @if (passwordControl.errors?.required) {
-          <mat-error>_#(js:Password is required)</mat-error>
-        }
-        @if (passwordControl.errors?.passwordComplexity) {
-          <mat-error>_#(viewer.password.pwdRule)</mat-error>
-        }
+        <mat-error *ngIf="passwordControl.errors?.required">_#(js:Password is required)</mat-error>
+        <mat-error *ngIf="passwordControl.errors?.passwordComplexity">_#(viewer.password.pwdRule)</mat-error>
       </mat-form-field>
     }
   </div>

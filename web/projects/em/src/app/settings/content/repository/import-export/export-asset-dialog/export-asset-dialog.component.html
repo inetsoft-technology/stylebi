@@ -23,12 +23,8 @@
       <mat-form-field appearance="outline" color="accent">
         <mat-label>_#(JAR File Name)</mat-label>
         <input matInput formControlName="fileName" placeholder="_#(JAR File Name)"/>
-        @if (form.controls.fileName?.errors?.required) {
-          <mat-error>_#(designer.common.nameFieldCannotBeEmpty)</mat-error>
-        }
-        @if (form.controls.fileName?.errors?.containsInvalidWindowsChars) {
-          <mat-error>_#(em.common.fileName.invalid)</mat-error>
-        }
+        <mat-error *ngIf="form.controls.fileName?.errors?.required">_#(designer.common.nameFieldCannotBeEmpty)</mat-error>
+        <mat-error *ngIf="form.controls.fileName?.errors?.containsInvalidWindowsChars">_#(em.common.fileName.invalid)</mat-error>
       </mat-form-field>
       <mat-checkbox formControlName="overwrite">_#(import.overwrite.files)</mat-checkbox>
     </div>
