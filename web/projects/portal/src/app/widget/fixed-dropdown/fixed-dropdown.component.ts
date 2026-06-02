@@ -55,7 +55,8 @@ export class FixedDropdownComponent implements OnInit, AfterViewInit, OnDestroy 
    private listenerTick: any;
    private dropdownPosition: Point;
    private mobile = GuiTool.isMobileDevice();
-   private opacity: number;
+   // Initially have opacity 0 to prevent showing the viewport repositioning.
+   private opacity: number = 0;
 
    constructor(protected elementRef: ElementRef,
                protected renderer: Renderer2,
@@ -66,8 +67,6 @@ export class FixedDropdownComponent implements OnInit, AfterViewInit, OnDestroy 
    }
 
    ngOnInit() {
-      // Initially have opacity 0 to prevent showing the viewport repositioning.
-      this.opacity = 0;
       // Wait a tick as the event that may have triggered the dynamic creation of this
       // component may not have bubbled to the document layer yet
       this.listenerTick = setTimeout(

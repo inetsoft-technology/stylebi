@@ -395,6 +395,46 @@ describe("ChartPlotArea Integration Tests", () => {
       done();
    }));
 
+   it("clears stale snap state when the Plot reference is replaced", () => {
+      const fixture = TestBed.createComponent(TestApp);
+      const debugEl = fixture.debugElement.query(By.css("chart-plot-area"));
+      const component: ChartPlotArea = debugEl.componentInstance;
+      vi.spyOn(component, "getSrc").mockImplementation(() => "");
+      fixture.detectChanges();
+      const oldPlot = component.chartObject;
+      // Pretend a prior hover seeded the snap cache and a prior click left
+      // a selection that still references the now-stale Plot.
+      (component as any).snapXTicksFor = oldPlot;
+      component.chartSelection = {
+         chartObject: oldPlot,
+         regions: [oldPlot.regions[0]]
+      } as any;
+      const clearSnapSpy = vi.spyOn(component as any, "clearSnapGuideline");
+      const drawRegionsSpy = vi.spyOn(ChartTool, "drawRegions");
+      // Swap in a new Plot reference (chart-type rebuild / data refresh).
+      const newPlot: Plot = { ...oldPlot } as Plot;
+      component.chartObject = newPlot;
+      expect(clearSnapSpy).toHaveBeenCalled();
+      expect((component as any).snapXTicksFor).toBeNull();
+      // Stale-selection branch must not paint synchronously.
+      expect(drawRegionsSpy).not.toHaveBeenCalled();
+      drawRegionsSpy.mockRestore();
+   });
+
+   it("leaves snap state untouched when updateChartObject is called with no oldObj", () => {
+      const fixture = TestBed.createComponent(TestApp);
+      const debugEl = fixture.debugElement.query(By.css("chart-plot-area"));
+      const component: ChartPlotArea = debugEl.componentInstance;
+      vi.spyOn(component, "getSrc").mockImplementation(() => "");
+      fixture.detectChanges();
+      (component as any).snapXTicksFor = component.chartObject;
+      const clearSnapSpy = vi.spyOn(component as any, "clearSnapGuideline");
+      // Scroll-debounce path: updateChartObject() is called with no argument.
+      component.updateChartObject();
+      expect(clearSnapSpy).not.toHaveBeenCalled();
+      expect((component as any).snapXTicksFor).toBe(component.chartObject);
+   });
+
    it.skip("should be able to select regions", () => {
       let fixture = TestBed.createComponent(TestApp);
       let testComponent = fixture.componentInstance;
