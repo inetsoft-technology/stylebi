@@ -260,9 +260,11 @@
 // inetsoft-form-field-outline-typography commented out below in case we really need such
 // extra customization
 .mat-mdc-form-field {
-  // prevent the float label from not showing when density is low
-  mdc-textfield.$minimum-height-for-filled-label: 34px;
   @include mat.form-field-density(-5); // -5 is currently the smallest density
+  // At density -5 the container height (36px) is below Angular Material's 52px threshold,
+  // which causes --mat-form-field-filled-label-display to be set to none. Override to keep
+  // floating labels visible in filled-appearance form fields.
+  --mat-form-field-filled-label-display: block;
 
   &.mat-form-field-appearance-outline:not(.mat-mdc-paginator-page-size-select) {
     padding-bottom: .75em;
