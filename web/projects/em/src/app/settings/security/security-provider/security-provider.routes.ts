@@ -25,18 +25,23 @@ import { SecurityProviderPageComponent } from "./security-provider-page/security
 
 export const SECURITY_PROVIDER_ROUTES: Routes = [
    {
-      path: "show-authorization-provider",
-      component: AuthorizationProviderDetailPageComponent,
-      canDeactivate: [canComponentDeactivate]
-   },
-   {
-      path: "show-authentication-provider",
-      component: AuthenticationProviderDetailPageComponent,
-      canDeactivate: [canComponentDeactivate]
-   },
-   {
       path: "",
-      component: SecurityProviderPageComponent,
-      providers: [SecurityProviderService, ErrorHandlerService]
+      providers: [SecurityProviderService, ErrorHandlerService],
+      children: [
+         {
+            path: "show-authorization-provider",
+            component: AuthorizationProviderDetailPageComponent,
+            canDeactivate: [canComponentDeactivate]
+         },
+         {
+            path: "show-authentication-provider",
+            component: AuthenticationProviderDetailPageComponent,
+            canDeactivate: [canComponentDeactivate]
+         },
+         {
+            path: "",
+            component: SecurityProviderPageComponent
+         }
+      ]
    }
 ];
