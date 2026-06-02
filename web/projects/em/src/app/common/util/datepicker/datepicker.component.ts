@@ -21,6 +21,7 @@ import { DateAdapter, MAT_DATE_FORMATS } from "@angular/material/core";
 import { DateTypeFormatter } from "../../../../../../shared/util/date-type-formatter";
 import { Subscription } from "rxjs";
 import { DayjsDateAdapter } from "./dayjs-date-adapter.service";
+import { FirstDayOfWeekService } from "../../../../../../portal/src/app/common/services/first-day-of-week.service";
 import dayjs from "dayjs";
 import customParseFormat from "dayjs/plugin/customParseFormat";
 import { MatIcon } from "@angular/material/icon";
@@ -51,6 +52,7 @@ export const DEFAULT_FORMATS = {
     providers: [
         { provide: DateAdapter, useClass: DayjsDateAdapter },
         { provide: MAT_DATE_FORMATS, useValue: DEFAULT_FORMATS },
+        FirstDayOfWeekService,
     ],
     imports: [
     NgIf,
