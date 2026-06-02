@@ -367,7 +367,7 @@ export class ScriptPane implements AfterViewInit, AfterViewChecked, OnInit, OnDe
 
          if(!this.sql) {
             this.codemirrorInstance.on(
-               "cursorActivity", (cm) => this.ternServer.updateArgHints(cm));
+               "cursorActivity", (cm) => this.ternServer?.updateArgHints(cm));
          }
 
          this.codemirrorInstance.on("inputRead", (cm, changeObj) => {
@@ -397,7 +397,7 @@ export class ScriptPane implements AfterViewInit, AfterViewChecked, OnInit, OnDe
                      this.cancelAutocomplete = null;
                   }
 
-                  this.ternServer.complete(cm);
+                  this.ternServer?.complete(cm);
                   const completion = cm.state.completionActive;
                   const pick = completion.pick;
                   const select = completion.select;
@@ -422,7 +422,7 @@ export class ScriptPane implements AfterViewInit, AfterViewChecked, OnInit, OnDe
                }
                else {
                   this.delayAutocomplete(() => {
-                     this.ternServer.complete(cm);
+                     this.ternServer?.complete(cm);
                   });
                }
             }

@@ -17,9 +17,11 @@
  */
 import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { ComponentFixture, TestBed } from "@angular/core/testing";
+import { of } from "rxjs";
 import { CodemirrorService } from "../../../../../../shared/util/codemirror/codemirror.service";
 import { FormulaFunctionAnalyzerService } from "./formula-function-analyzer.service";
 import { HelpUrlService } from "../../help-link/help-url.service";
+import { ScriptSettingsService } from "./script-settings.service";
 import { ScriptPane } from "./script-pane.component";
 
 describe("ScriptPane", () => {
@@ -47,7 +49,11 @@ describe("ScriptPane", () => {
    beforeEach(() => {
       TestBed.configureTestingModule({
          imports: [ScriptPane],
-         providers: [FormulaFunctionAnalyzerService, HelpUrlService],
+         providers: [
+            FormulaFunctionAnalyzerService,
+            { provide: HelpUrlService, useValue: { getScriptHelpUrl: () => of(""), getHelpUrl: () => of("") } },
+            { provide: ScriptSettingsService, useValue: { isCursorTop: () => of(false) } }
+         ],
          schemas: [NO_ERRORS_SCHEMA]
       });
    });
