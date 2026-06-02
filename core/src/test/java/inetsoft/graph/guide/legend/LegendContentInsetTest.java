@@ -98,19 +98,24 @@ class LegendContentInsetTest {
          Legend legend = (Legend) group.getVisual(i);
          Rectangle2D content = legend.getContentPreferredBounds();
          double lastRowBottom = Double.MAX_VALUE;
+         boolean foundItem = false;
 
          for(LegendItem[] row : legend.getItems()) {
             for(LegendItem it : row) {
                if(it != null) {
                   lastRowBottom = Math.min(lastRowBottom, it.getBounds().getY());
+                  foundItem = true;
                }
             }
          }
 
-         // content bottom must sit below the last row by at least a few px (the bottom inset)
+         assertTrue(foundItem, "legend[" + i + "] has no items — test misconfigured");
+
+         // Y increases upward here, so content.getY() is the bottom edge. it must sit below
+         // the last row by ~GAP (4); 3.5 absorbs floating-point rounding.
          assertTrue(lastRowBottom - content.getY() >= 3.5,
             "legend[" + i + "] missing bottom inset: lastRowBottom=" + lastRowBottom
-               + " contentBottom=" + content.getY());
+               + " contentBottomEdge=" + content.getY());
       }
    }
 }
