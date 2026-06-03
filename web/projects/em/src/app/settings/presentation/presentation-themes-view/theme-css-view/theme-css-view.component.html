@@ -24,16 +24,12 @@
       <mat-form-field color="accent" class="flex-row full-width">
         <mat-label>_#(Filter)</mat-label>
         <input matInput #portalSearch placeholder="_#(Filter)" (keyup)="filterTable($event.target.value, true)">
-        @if (portalSearch.value) {
-          <button mat-icon-button matSuffix
-            title="_#(Clear)" aria-label="_#(Clear)"
-            (click)="portalSearch.value=''; filterTable(portalSearch.value, true)">
-            <mat-icon fontSet="ineticons" fontIcon="shape-cross-icon"></mat-icon>
-          </button>
-        }
-        @if (!portalSearch.value) {
-          <mat-icon matSuffix fontSet="ineticons" fontIcon="search-icon"></mat-icon>
-        }
+        <button mat-icon-button matSuffix *ngIf="portalSearch.value"
+          title="_#(Clear)" aria-label="_#(Clear)"
+          (click)="portalSearch.value=''; filterTable(portalSearch.value, true)">
+          <mat-icon fontSet="ineticons" fontIcon="shape-cross-icon"></mat-icon>
+        </button>
+        <mat-icon matSuffix *ngIf="!portalSearch.value" fontSet="ineticons" fontIcon="search-icon"></mat-icon>
       </mat-form-field>
       <div class="table-container flex-col">
         <table mat-table [dataSource]="portalCssDataSource" matSort [trackBy]="trackByFn">
@@ -114,16 +110,12 @@
       <mat-form-field color="accent" class="flex-row full-width">
         <mat-label>_#(Filter)</mat-label>
         <input matInput #emSearch placeholder="_#(Filter)" (keyup)="filterTable($event.target.value, false)">
-        @if (emSearch.value) {
-          <button mat-icon-button matSuffix
-            title="_#(Clear)" aria-label="_#(Clear)"
-            (click)="emSearch.value=''; filterTable(emSearch.value, false)">
-            <mat-icon fontSet="ineticons" fontIcon="shape-cross-icon"></mat-icon>
-          </button>
-        }
-        @if (!emSearch.value) {
-          <mat-icon matSuffix fontSet="ineticons" fontIcon="search-icon"></mat-icon>
-        }
+        <button mat-icon-button matSuffix *ngIf="emSearch.value"
+          title="_#(Clear)" aria-label="_#(Clear)"
+          (click)="emSearch.value=''; filterTable(emSearch.value, false)">
+          <mat-icon fontSet="ineticons" fontIcon="shape-cross-icon"></mat-icon>
+        </button>
+        <mat-icon matSuffix *ngIf="!emSearch.value" fontSet="ineticons" fontIcon="search-icon"></mat-icon>
       </mat-form-field>
       <div class="table-container flex-col">
         <table mat-table [dataSource]="emCssDataSource" matSort>
