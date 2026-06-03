@@ -106,7 +106,7 @@ class TileCleaner {
    private boolean isNullScaleValue(Scale scale, int idx) {
       if(scale instanceof CategoricalScale) {
          Object[] vals = scale.getValues();
-         return idx < vals.length && vals[idx] == null;
+         return vals != null && idx < vals.length && vals[idx] == null;
       }
 
       return false;
