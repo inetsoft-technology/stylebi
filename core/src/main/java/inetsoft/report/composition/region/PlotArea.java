@@ -3923,9 +3923,13 @@ public class PlotArea extends GridContainerArea implements GraphComponentArea, R
     * @return true if need display measure name for stack total tooltip.
     */
    private boolean showMeasureTotal() {
+      if(chartInfo == null) {
+         return false;
+      }
+
       List<ChartAggregateRef> list = chartInfo.getAestheticAggregateRefs(true);
 
-      return chartInfo != null && chartInfo.isCombinedToolTip() && chartInfo.supportsCombinedTooltip() &&
+      return chartInfo.isCombinedToolTip() && chartInfo.supportsCombinedTooltip() &&
          !chartInfo.isSeparatedGraph() &&
          !GraphTypeUtil.isStackMeasures(this.chartInfo, null) && list.size() > 1;
    }

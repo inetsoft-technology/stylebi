@@ -53,6 +53,8 @@ class ChangeChartTypeCombinedTooltipTest {
    @Test
    void switchToUnsupportingTypeKeepsCombinedTooltip() {
       assertPreserved(GraphTypes.CHART_LINE_STACK, GraphTypes.CHART_PIE);
+      assertPreserved(GraphTypes.CHART_LINE, GraphTypes.CHART_POINT);
+      assertPreserved(GraphTypes.CHART_LINE_STACK, GraphTypes.CHART_RADAR);
    }
 
    @Test
