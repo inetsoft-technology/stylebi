@@ -245,7 +245,6 @@ const CONFIRM_MESSAGE = {
         LineAnchorService,
         ResizeHandlerService,
         ClipboardService,
-        ComposerRecentService,
         ScriptService,
         ShowHyperlinkService,
         MiniToolbarService,
