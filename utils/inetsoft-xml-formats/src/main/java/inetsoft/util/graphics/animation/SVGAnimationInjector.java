@@ -108,10 +108,29 @@ public final class SVGAnimationInjector {
                cx = ex; cy = ey;
             }
          }
+         else if("c".equals(c)) {
+            // Relative cubic: control points and endpoint are offsets from the current point.
+            for(int j = 0; j + 5 < args.size(); j += 6) {
+               double c1x = cx + args.get(j), c1y = cy + args.get(j + 1);
+               double c2x = cx + args.get(j + 2), c2y = cy + args.get(j + 3);
+               double ex = cx + args.get(j + 4), ey = cy + args.get(j + 5);
+               totalLen += cubicLen(cx, cy, c1x, c1y, c2x, c2y, ex, ey);
+               cx = ex; cy = ey;
+            }
+         }
          else if("Q".equals(c)) {
             for(int j = 0; j + 3 < args.size(); j += 4) {
                double c1x = args.get(j), c1y = args.get(j + 1);
                double ex = args.get(j + 2), ey = args.get(j + 3);
+               totalLen += quadLen(cx, cy, c1x, c1y, ex, ey);
+               cx = ex; cy = ey;
+            }
+         }
+         else if("q".equals(c)) {
+            // Relative quadratic: control point and endpoint are offsets from the current point.
+            for(int j = 0; j + 3 < args.size(); j += 4) {
+               double c1x = cx + args.get(j), c1y = cy + args.get(j + 1);
+               double ex = cx + args.get(j + 2), ey = cy + args.get(j + 3);
                totalLen += quadLen(cx, cy, c1x, c1y, ex, ey);
                cx = ex; cy = ey;
             }
@@ -126,7 +145,8 @@ public final class SVGAnimationInjector {
    }
 
    // Sub-segments per curve when flattening to arc length. 32 keeps the polyline deficit
-   // well under a pixel for chart-scale curves, within the +2 margin at the call site.
+   // well under a pixel for chart-scale curves, within the +2 margin that
+   // SVGAnimationDOMInjector.applyLineDrawAnimation adds to this length for the dasharray.
    private static final int CURVE_FLATTEN_STEPS = 32;
 
    /** Arc length of a cubic Bezier, approximated by summing CURVE_FLATTEN_STEPS chords. */
