@@ -136,6 +136,7 @@
           @for (axis of model.axes; track trackByFn($index, axis)) {
             <chart-axis-area
               [wTooltip]="tooltipString"
+              [tooltipCSS]="tooltipCSS"
               [followCursor]="true"
               [waitTime]="0"
               [disableTooltipOnMousedown]="false"
@@ -182,6 +183,7 @@
               [hasEmptyPlotLinkModel]="!!model.emptyPlotLinkModel"
               [previewMode]="previewMode"
               [wTooltip]="tooltipString"
+              [tooltipCSS]="tooltipCSS"
               [followCursor]="true"
               [selected]="selected"
               [waitTime]="0"
@@ -270,6 +272,7 @@
                   [urlPrefix]="urlPrefix"
                   [maxHeight]="getLegendContentHeight(legend, legendObject)"
                   [wTooltip]="tooltipString"
+                  [tooltipCSS]="tooltipCSS"
                   [followCursor]="true"
                   [waitTime]="0"
                   [disableTooltipOnMousedown]="false"
