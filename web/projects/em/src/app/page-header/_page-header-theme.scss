@@ -28,11 +28,11 @@
 
   .em-header-toolbar {
     @if $is-dark {
-      background-color: mat.m2-get-color-from-palette($primary, 80);
+      --mat-toolbar-container-background-color: #{mat.m2-get-color-from-palette($primary, 80)};
       color: mat.m2-get-color-from-palette($foreground, secondary-text);
     }
     @else {
-      background-color: mat.m2-get-color-from-palette($primary, 50);
+      --mat-toolbar-container-background-color: #{mat.m2-get-color-from-palette($primary, 50)};
       color: mat.m2-get-color-from-palette($primary);
     }
 
