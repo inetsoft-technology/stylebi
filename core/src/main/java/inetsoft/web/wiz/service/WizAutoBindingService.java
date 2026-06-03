@@ -230,6 +230,15 @@ public class WizAutoBindingService {
          resp.setPrimary(primary);
          resp.setAutoBindingRuntimeId(autoBindingRuntimeId);
          resp.setVisualizationResult(visualizationResult);
+         resp.setCandidates(buildChartTypeCandidates(recommendations));
+
+         // Tell the caller when a requested type could not be honored, so it can explain the
+         // substitution to the user instead of the swap happening silently.
+         if(vizType != null && primary != null && !requestedTypeAvailable(vizType, model)) {
+            resp.setSelectionNote(
+               "Requested chart type '" + vizType + "' is not feasible for this data; used '" +
+               primary.getVisualizationType() + "' instead.");
+         }
 
          succeeded = true;
          return resp;
@@ -958,6 +967,117 @@ public class WizAutoBindingService {
 
    private boolean isChartVizType(String vizType) {
       return vizType != null && !NON_CHART_VIZ_TYPES.contains(vizType);
+   }
+
+   /**
+    * Flattens the recommendation list into a feasibility-filtered, named chart-type menu (highest
+    * fit first). Chart candidates and their scores come from each {@link VSChartRecommendation}'s
+    * prefInfos; table/crosstab/gauge/text appear once each when feasible. Scores are normalized to
+    * [0,1] for ordering only. Every entry is a type the recommender found feasible for the fields.
+    */
+   private List<ChartTypeCandidate> buildChartTypeCandidates(List<VSObjectRecommendation> recommendations) {
+      if(recommendations == null || recommendations.isEmpty()) {
+         return Collections.emptyList();
+      }
+
+      // type name -> best raw score seen for that type (preserve first-seen order for ties)
+      Map<String, Integer> best = new LinkedHashMap<>();
+
+      for(VSObjectRecommendation rec : recommendations) {
+         if(rec instanceof VSChartRecommendation vcr) {
+            List<ChartCombinationUtil.ScoredInfo> prefInfos = vcr.getPrefInfos();
+
+            if(prefInfos != null) {
+               for(ChartCombinationUtil.ScoredInfo si : prefInfos) {
+                  String type = getChartTypeString(si.getInfo().getChartType());
+
+                  if(type != null) {
+                     best.merge(type, si.getScore(), Math::max);
+                  }
+               }
+            }
+         }
+         else if(rec instanceof VSCrosstabRecommendation cr && cr.getCrosstabInfo() != null) {
+            best.putIfAbsent("crosstab", 0);
+         }
+         else if(rec instanceof VSTableRecommendation) {
+            best.putIfAbsent("table", 0);
+         }
+         else if(rec instanceof VSGaugeRecommendation gr && gr.getDataRef() != null) {
+            best.putIfAbsent("gauge", 0);
+         }
+         else if(rec instanceof VSTextRecommendation tr && tr.getDataRef() != null) {
+            best.putIfAbsent("text", 0);
+         }
+      }
+
+      if(best.isEmpty()) {
+         return Collections.emptyList();
+      }
+
+      int max = best.values().stream().mapToInt(Integer::intValue).max().orElse(0);
+      double denom = max > 0 ? max : 1.0;
+
+      return best.entrySet().stream()
+         .map(e -> new ChartTypeCandidate(e.getKey(), Math.round((e.getValue() / denom) * 100.0) / 100.0))
+         .sorted(Comparator.comparingDouble(ChartTypeCandidate::getScore).reversed())
+         .collect(Collectors.toList());
+   }
+
+   /**
+    * Side-effect-free check of whether {@code vizType} is satisfiable by some recommendation.
+    * Mirrors {@link #findRecByType} (including the donut/area aliasing in {@link #chartTypeMatches})
+    * but, unlike findRecByType, does not mutate any {@code selectedIndex}. Used only to decide
+    * whether a requested type was honored, so a substitution can be reported.
+    */
+   private boolean requestedTypeAvailable(String vizType, VSRecommendationModel model) {
+      if(vizType == null || model == null) {
+         return false;
+      }
+
+      for(VSObjectRecommendation rec : model.getRecommendationList()) {
+         if(isChartVizType(vizType) && rec instanceof VSChartRecommendation cr) {
+            List<ChartCombinationUtil.ScoredInfo> prefInfos = cr.getPrefInfos();
+
+            if(prefInfos != null) {
+               for(ChartCombinationUtil.ScoredInfo si : prefInfos) {
+                  if(chartTypeMatches(vizType, si.getInfo())) {
+                     return true;
+                  }
+               }
+            }
+
+            List<ChartInfo> chartInfos = cr.getChartInfos();
+
+            if(chartInfos != null) {
+               for(ChartInfo ci : chartInfos) {
+                  if(chartTypeMatches(vizType, ci)) {
+                     return true;
+                  }
+               }
+            }
+         }
+         else if("crosstab".equals(vizType) && rec instanceof VSCrosstabRecommendation cr) {
+            if(cr.getCrosstabInfo() != null) {
+               return true;
+            }
+         }
+         else if("table".equals(vizType) && rec instanceof VSTableRecommendation) {
+            return true;
+         }
+         else if("gauge".equals(vizType) && rec instanceof VSGaugeRecommendation gr) {
+            if(gr.getDataRef() != null) {
+               return true;
+            }
+         }
+         else if("text".equals(vizType) && rec instanceof VSTextRecommendation tr) {
+            if(tr.getDataRef() != null) {
+               return true;
+            }
+         }
+      }
+
+      return false;
    }
 
    // ── Chart type string mapping (inverse of WizVsService.getChartType) ─────────
