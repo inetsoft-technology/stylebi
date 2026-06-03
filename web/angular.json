@@ -72,7 +72,7 @@
               "budgets": [
                 {
                   "type": "anyComponentStyle",
-                  "maximumWarning" : "7kb"
+                  "maximumWarning": "7kb"
                 }
               ],
               "optimization": true,
@@ -127,7 +127,12 @@
             ],
             "reporters": [
               "default",
-              ["junit", { "outputFile": "junit.xml" }]
+              [
+                "junit",
+                {
+                  "outputFile": "junit.xml"
+                }
+              ]
             ]
           }
         },
@@ -149,7 +154,12 @@
             ],
             "reporters": [
               "default",
-              ["junit", { "outputFile": "junit-tl.xml" }]
+              [
+                "junit",
+                {
+                  "outputFile": "junit-tl.xml"
+                }
+              ]
             ]
           }
         },
@@ -202,7 +212,9 @@
             "inlineStyleLanguage": "scss",
             "stylePreprocessorOptions": {
               "sass": {
-                "silenceDeprecations": ["import"]
+                "silenceDeprecations": [
+                  "import"
+                ]
               }
             },
             "assets": [
@@ -231,7 +243,7 @@
               "budgets": [
                 {
                   "type": "anyComponentStyle",
-                  "maximumWarning" : "7kb"
+                  "maximumWarning": "7kb"
                 }
               ],
               "optimization": true,
@@ -284,7 +296,12 @@
             ],
             "reporters": [
               "default",
-              ["junit", { "outputFile": "junit.xml" }]
+              [
+                "junit",
+                {
+                  "outputFile": "junit.xml"
+                }
+              ]
             ]
           }
         },
@@ -294,6 +311,32 @@
             "lintFilePatterns": [
               "projects/em/**/*.ts",
               "projects/em/**/*.html"
+            ]
+          }
+        },
+        "test-tl": {
+          "builder": "@angular/build:unit-test",
+          "options": {
+            "buildTarget": "em:build:development",
+            "runner": "vitest",
+            "runnerConfig": true,
+            "tsConfig": "projects/em/tsconfig.spec.json",
+            "include": [
+              "**/*.tl.spec.ts",
+              "../../shared/**/*.tl.spec.ts"
+            ],
+            "setupFiles": [
+              "vitest-bootstrap.ts",
+              "projects/em/src/vitest-setup-tl.ts"
+            ],
+            "reporters": [
+              "default",
+              [
+                "junit",
+                {
+                  "outputFile": "junit-tl.xml"
+                }
+              ]
             ]
           }
         }
@@ -356,7 +399,7 @@
               "budgets": [
                 {
                   "type": "anyComponentStyle",
-                  "maximumWarning" : "7kb"
+                  "maximumWarning": "7kb"
                 }
               ],
               "optimization": true,
@@ -450,7 +493,7 @@
               "budgets": [
                 {
                   "type": "anyComponentStyle",
-                  "maximumWarning" : "7kb"
+                  "maximumWarning": "7kb"
                 }
               ],
               "optimization": true,
