@@ -424,6 +424,42 @@ class ChartToolTipTest {
    }
 
    @Test
+   void ganttCardGroupsOnlyDatesAtTier2WhenManyDims() {
+      // Multi-dim gantt: the innermost Y dim headlines (tier-1), Start/End/
+      // Milestone group at tier-2 as core interval data, and the outer Y dim, X
+      // dim, and color aesthetic all drop to tier-3 as secondary context. Row
+      // order and tier2GroupSize match what PlotArea emits for the card layout.
+      IndexedSet<String> palette = new IndexedSet<>();
+      ChartToolTip tip = new ChartToolTip();
+      tip.setStyle(ChartInfo.TooltipStyle.CARD);
+      tip.addTooltip(palette.put("DataGroup(city)"), palette.put("A"));
+      tip.addTooltip(palette.put("orderdate"), palette.put("2000-10-05"));
+      tip.addTooltip(palette.put("end"), palette.put("2000-10-15"));
+      tip.addTooltip(palette.put("milestone"), palette.put("2000-10-10"));
+      tip.addTooltip(palette.put("reseller"), palette.put("true"));
+      tip.addTooltip(palette.put("state"), palette.put("TX"));
+      tip.addTooltip(palette.put("product_name"), palette.put("WebCalendar"));
+      tip.setGroupedTiers(true);
+      tip.setTier2GroupSize(3);
+
+      String out = tip.getTooltip(palette);
+
+      assertTrue(out.contains("<div class=\"tt-tier-1\">DataGroup(city):&nbsp;A"),
+                 "Innermost Y dim is the tier-1 headline");
+      assertTrue(out.contains("<div class=\"tt-tier-2\">orderdate:&nbsp;2000-10-05"));
+      assertTrue(out.contains("<div class=\"tt-tier-2\">end:&nbsp;2000-10-15"));
+      assertTrue(out.contains("<div class=\"tt-tier-2\">milestone:&nbsp;2000-10-10"),
+                 "All three date measures group at tier-2");
+      assertTrue(out.contains("<div class=\"tt-tier-3\">reseller:&nbsp;true"),
+                 "Outer Y dim is secondary context at tier-3");
+      assertTrue(out.contains("<div class=\"tt-tier-3\">state:&nbsp;TX"),
+                 "X dim is secondary context at tier-3");
+      assertTrue(out.contains("<div class=\"tt-tier-3\">product_name:&nbsp;WebCalendar"),
+                 "Aesthetic dim is secondary context at tier-3");
+      assertFalse(out.contains("tt-tier-4"));
+   }
+
+   @Test
    void uniformTierCardRendersAllRowsAtSameTier() {
       // Scatter with no identity dim: the measures are coordinates of equal
       // weight, so every row renders at the same tier with no headline.

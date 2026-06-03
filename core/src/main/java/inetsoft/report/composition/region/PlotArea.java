@@ -1421,11 +1421,17 @@ public class PlotArea extends GridContainerArea implements GraphComponentArea, R
          boolean isGantt = GraphTypes.isGantt(chartInfo.getChartType());
          boolean isCandleOrStock = chartInfo instanceof CandleChartInfo;
          boolean isScatter = isScatterPlot(chartInfo);
+         // Innermost Y dim for the gantt card layout; null off-card or when no Y dim.
+         String ganttHeadline = null;
 
          // Gantt: Y-axis is the "row" axis that distinguishes bars, so list
          // Y dims ahead of X dims regardless of binding order in the element.
          if(isGantt) {
             dims = ganttDimsYFirst(dims, chartInfo);
+
+            if(chartInfo.getTooltipStyle() == ChartInfo.TooltipStyle.CARD) {
+               ganttHeadline = ganttInnermostYDim(chartInfo, allfields);
+            }
          }
          // Scatter: the categorical color/shape aesthetic identifies each point,
          // but it lives in an aesthetic frame rather than element.getDims(). Lift
@@ -1456,9 +1462,24 @@ public class PlotArea extends GridContainerArea implements GraphComponentArea, R
                measures, (CandleChartInfo) chartInfo);
          }
 
-         String[][] cols = cardMeasureFirst
-            ? new String[][] {tipMeasures, dims, others}
-            : new String[][] {dims, measures, others};
+         String[][] cols;
+
+         if(cardMeasureFirst) {
+            cols = new String[][] {tipMeasures, dims, others};
+         }
+         // Gantt card: innermost Y dim headlines, the date measures group at
+         // tier-2, and the remaining grouping dims drop to tier-3 below.
+         else if(ganttHeadline != null) {
+            cols = new String[][] {
+               new String[]{ ganttHeadline },
+               measures,
+               ganttContextDims(dims, ganttHeadline),
+               others
+            };
+         }
+         else {
+            cols = new String[][] {dims, measures, others};
+         }
          HashSet<String> added = new HashSet<>();
          Object[] arr = new Object[list.size()];
 
@@ -1582,14 +1603,13 @@ public class PlotArea extends GridContainerArea implements GraphComponentArea, R
          }
 
          // Gantt and scatter present values of equal importance, not a headline
-         // measure. When a real identity dim leads (Gantt task / scatter color
-         // dim) it becomes the tier-1 headline and the values group at tier-2;
-         // a scatter with no identity dim renders every row at a uniform tier
-         // (like the flat default tooltip). Sized here, before appendInfo adds
-         // aesthetics, so only structural rows join the tier-2 group.
-         if(chartInfo.getTooltipStyle() == ChartInfo.TooltipStyle.CARD &&
-            (isGantt || isScatter))
-         {
+         // measure. Sized here, before appendInfo adds aesthetics, so only
+         // structural rows join the tier-2 group.
+         //
+         // Scatter: the color/shape identity dim (if any) leads at tier-1 and the
+         // co-equal coordinate measures + remaining dims group at tier-2; with no
+         // identity dim every row renders at a uniform tier (flat default tooltip).
+         if(chartInfo.getTooltipStyle() == ChartInfo.TooltipStyle.CARD && isScatter) {
             boolean hasIdentityDim = Arrays.stream(dims)
                .anyMatch(d -> d != null && allfields.contains(d));
 
@@ -1598,7 +1618,20 @@ public class PlotArea extends GridContainerArea implements GraphComponentArea, R
                tooltip.setGroupedTiers(true);
                tooltip.setTier2GroupSize(Math.max(0, structuralPairs - 1));
             }
-            else if(isScatter) {
+            else {
+               tooltip.setUniformTier(true);
+            }
+         }
+         // Gantt: the innermost Y dim identifies the hovered bar (tier-1 headline)
+         // and only the Start/End/Milestone dates group at tier-2 as core interval
+         // data; outer Y dims, X dims, and aesthetics fall to tier-3. With no Y dim
+         // there is no bar identity, so render every row at a uniform tier.
+         else if(chartInfo.getTooltipStyle() == ChartInfo.TooltipStyle.CARD && isGantt) {
+            if(ganttHeadline != null) {
+               tooltip.setGroupedTiers(true);
+               tooltip.setTier2GroupSize(measurePairs);
+            }
+            else {
                tooltip.setUniformTier(true);
             }
          }
@@ -2168,6 +2201,38 @@ public class PlotArea extends GridContainerArea implements GraphComponentArea, R
 
       head.addAll(tail);
       return head.toArray(new String[0]);
+   }
+
+   // The innermost (plot-adjacent) Y dim identifies the hovered bar, so it leads
+   // the gantt card tooltip as the tier-1 headline. That is the last RTYField,
+   // which is the inner-most coordinate dimension. Returns null when no Y dim
+   // renders, so the caller falls back to a uniform tier with no headline.
+   static String ganttInnermostYDim(ChartInfo chartInfo, Set<String> allfields) {
+      ChartRef[] yfields = chartInfo.getRTYFields();
+
+      for(int i = yfields.length - 1; i >= 0; i--) {
+         String name = GraphUtil.getName(yfields[i]);
+
+         if(name != null && allfields.contains(name)) {
+            return name;
+         }
+      }
+
+      return null;
+   }
+
+   // Grouping dims minus the headline, preserving ganttDimsYFirst order (outer Y
+   // dims, then X dims) — these render at tier-3 as secondary context.
+   static String[] ganttContextDims(String[] orderedDims, String headline) {
+      List<String> rest = new ArrayList<>(orderedDims.length);
+
+      for(String d : orderedDims) {
+         if(!Objects.equals(d, headline)) {
+            rest.add(d);
+         }
+      }
+
+      return rest.toArray(new String[0]);
    }
 
    private Map<String, ArrayList<Integer>> getRowValuePointMap(List<VisualObject> vos) {
