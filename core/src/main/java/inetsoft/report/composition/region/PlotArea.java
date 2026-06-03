@@ -285,8 +285,8 @@ public class PlotArea extends GridContainerArea implements GraphComponentArea, R
       Map pointValueMap = null; // maps point values to pointVO indexes in the vos list
       Map textValueMap = null; // maps text value indexes to textVO indexes in the vos list
 
-      if(chartInfo != null && chartInfo.isCombinedToolTip() && chartInfo.getToolTip() == null &&
-         !chartInfo.isMultiStyles())
+      if(chartInfo != null && chartInfo.isCombinedToolTip() && chartInfo.supportsCombinedTooltip() &&
+         chartInfo.getToolTip() == null && !chartInfo.isMultiStyles())
       {
          pointValueMap = getRowValuePointMap(vos);
          textValueMap  = getRowValueTextMap(vos);
@@ -3925,7 +3925,8 @@ public class PlotArea extends GridContainerArea implements GraphComponentArea, R
    private boolean showMeasureTotal() {
       List<ChartAggregateRef> list = chartInfo.getAestheticAggregateRefs(true);
 
-      return chartInfo != null && chartInfo.isCombinedToolTip() && !chartInfo.isSeparatedGraph() &&
+      return chartInfo != null && chartInfo.isCombinedToolTip() && chartInfo.supportsCombinedTooltip() &&
+         !chartInfo.isSeparatedGraph() &&
          !GraphTypeUtil.isStackMeasures(this.chartInfo, null) && list.size() > 1;
    }
 

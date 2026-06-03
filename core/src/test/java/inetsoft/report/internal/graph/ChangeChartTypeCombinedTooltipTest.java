@@ -29,8 +29,10 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * A chart-type change must keep the combined-tooltip design value for any type
- * that still supports it (line/area/bar) and drop it for types that do not.
+ * A chart-type change must preserve the combined-tooltip design value across every
+ * type switch, matching snap-tooltip. Rendering is gated by supportsCombinedTooltip(),
+ * so a value retained on an unsupported type stays dormant and is restored when the
+ * chart is switched back to a supporting type.
  */
 @SreeHome
 @Tag("core")
@@ -49,18 +51,26 @@ class ChangeChartTypeCombinedTooltipTest {
    }
 
    @Test
-   void switchToUnsupportingTypeClearsCombinedTooltip() {
-      assertCleared(GraphTypes.CHART_LINE_STACK, GraphTypes.CHART_PIE);
+   void switchToUnsupportingTypeKeepsCombinedTooltip() {
+      assertPreserved(GraphTypes.CHART_LINE_STACK, GraphTypes.CHART_PIE);
+   }
+
+   @Test
+   void roundTripThroughUnsupportingTypeKeepsCombinedTooltip() {
+      VSChartInfo info = new VSChartInfo();
+      info.setChartType(GraphTypes.CHART_BAR);
+      info.setCombinedToolTipValue(true);
+
+      new ChangeChartTypeProcessor(GraphTypes.CHART_BAR, GraphTypes.CHART_POINT, null, info).process();
+      new ChangeChartTypeProcessor(GraphTypes.CHART_POINT, GraphTypes.CHART_LINE, null, info).process();
+
+      assertTrue(info.getCombinedToolTipValue(),
+                 "combined tooltip must survive bar -> point -> line");
    }
 
    private static void assertPreserved(int oldType, int newType) {
       assertTrue(changeType(oldType, newType),
                  "combined tooltip must survive " + oldType + " -> " + newType);
-   }
-
-   private static void assertCleared(int oldType, int newType) {
-      assertFalse(changeType(oldType, newType),
-                  "combined tooltip must be cleared for " + oldType + " -> " + newType);
    }
 
    private static boolean changeType(int oldType, int newType) {
