@@ -231,6 +231,7 @@ public class WizAutoBindingService {
          resp.setAutoBindingRuntimeId(autoBindingRuntimeId);
          resp.setVisualizationResult(visualizationResult);
          resp.setCandidates(buildChartTypeCandidates(recommendations));
+         resp.setFieldCardinalities(buildFieldCardinalities(entries));
 
          // Tell the caller when a requested type could not be honored, so it can explain the
          // substitution to the user instead of the swap happening silently.
@@ -1022,6 +1023,35 @@ public class WizAutoBindingService {
          .map(e -> new ChartTypeCandidate(e.getKey(), Math.round((e.getValue() / denom) * 100.0) / 100.0))
          .sorted(Comparator.comparingDouble(ChartTypeCandidate::getScore).reversed())
          .collect(Collectors.toList());
+   }
+
+   /**
+    * Collects the distinct-value counts the recommender sampled onto the selected dimension entries
+    * (set by {@code WizardRecommenderUtil.refreshCardinalityAndHierarchy} during recommend()), keyed
+    * by the same field name the client binds with. Skips entries without a cardinality property
+    * (date dimensions, measures, or field sets too large for the recommender to sample).
+    */
+   private Map<String, Integer> buildFieldCardinalities(AssetEntry[] entries) {
+      Map<String, Integer> out = new LinkedHashMap<>();
+
+      if(entries == null) {
+         return out;
+      }
+
+      for(AssetEntry entry : entries) {
+         String card = entry.getProperty("cardinality");
+
+         if(card != null) {
+            try {
+               out.put(WizardRecommenderUtil.getFieldName(entry), Integer.parseInt(card));
+            }
+            catch(NumberFormatException ignore) {
+               // non-numeric cardinality property; skip
+            }
+         }
+      }
+
+      return out;
    }
 
    /**

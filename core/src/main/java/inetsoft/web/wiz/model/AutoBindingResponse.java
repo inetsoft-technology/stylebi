@@ -20,6 +20,7 @@ package inetsoft.web.wiz.model;
 import inetsoft.web.vswizard.model.recommender.VSObjectRecommendation;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * Response body for {@code POST /api/wiz/viewsheet/autoBinding}.
@@ -73,6 +74,14 @@ public class AutoBindingResponse {
       this.selectionNote = selectionNote;
    }
 
+   public Map<String, Integer> getFieldCardinalities() {
+      return fieldCardinalities;
+   }
+
+   public void setFieldCardinalities(Map<String, Integer> fieldCardinalities) {
+      this.fieldCardinalities = fieldCardinalities;
+   }
+
    /**
     * All candidate visualizations: charts ordered by vsWizard score, then table (always),
     * crosstab (only when both dimensions and measures are present),
@@ -114,4 +123,12 @@ public class AutoBindingResponse {
     * the requested type was honored or none was requested.
     */
    private String selectionNote;
+
+   /**
+    * Distinct-value counts (cardinality) for the selected non-date dimension fields, keyed by field
+    * name. Lets the caller spot high-cardinality dimensions (e.g. 600 cities) and switch to top-N
+    * ranking or a roll-up instead of an unreadable chart. Empty when cardinality was not computed
+    * (the recommender only samples it for field sets of 9 or fewer) or no such dimension was bound.
+    */
+   private Map<String, Integer> fieldCardinalities;
 }
