@@ -399,6 +399,11 @@ public class DatabaseDatasourcesService {
       if(dataSource == null) {
          // Create the dataSource - path is the parent folder's path
          fullName = fullName.startsWith("/") ? fullName.substring(1) : fullName;
+
+         if(!fullName.isEmpty() && registry.getDataSourceFolder(fullName) == null) {
+            return new ConnectionStatus("Invalid Folder");
+         }
+
          fullName += !fullName.isEmpty() ? "/" + name : name;
 
          if(registry.getDataSourceFolder(fullName) != null) {

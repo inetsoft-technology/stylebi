@@ -1,4 +1,4 @@
-/*!
+/*
  * This file is part of StyleBI.
  * Copyright (C) 2024  InetSoft Technology
  *
@@ -15,22 +15,15 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-/*
-  Items in here are compiled into the styles bundle and cannot be overridden.
-  To have the option to override, please use global.scss and its imports
-*/
+import { TestBed } from "@angular/core/testing";
+import { HttpClientTestingModule } from "@angular/common/http/testing";
+import { DataTreeValidatorService } from "./data-tree-validator.service";
 
-// These are global imports which are meant for internal use and not to be overridden
-@use "scss/internal/moving-resize";
-@use 'scss/internal/dialog';
-@use 'scss/internal/html-override';
-@use 'scss/internal/mixins';
-@use 'scss/internal/directives';
-@use 'scss/internal/layout';
-@use 'scss/internal/ckeditor';
-
-@import 'codemirror/lib/codemirror.css';
-@import 'codemirror/addon/hint/show-hint.css';
-@import 'codemirror/addon/dialog/dialog.css';
-@import 'codemirror/addon/tern/tern.css';
-@import 'codemirror/addon/fold/foldgutter.css';
+describe("DataTreeValidatorService", () => {
+   it("should be injectable from root without explicit providers", () => {
+      TestBed.configureTestingModule({
+         imports: [HttpClientTestingModule]
+      });
+      expect(() => TestBed.inject(DataTreeValidatorService)).not.toThrow();
+   });
+});

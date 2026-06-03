@@ -17,6 +17,7 @@
  */
 @use "sass:math";
 @use 'sass:color';
+@use 'sass:map';
 @use 'sass:meta';
 @use '@angular/material' as mat;
 @use '@material/textfield' as mdc-textfield;
@@ -51,13 +52,20 @@
 @import './app/common/util/mat-ckeditor/mat-ckeditor-theme';
 
 @mixin em-app-theme($theme) {
-  $primary: map-get($theme, primary);
-  $accent: map-get($theme, accent);
-  $warn: map-get($theme, warn);
-  $background: map-get($theme, background);
-  $foreground: map-get($theme, foreground);
-  $is-dark-theme: map-get($theme, is-dark);
-  $on-surface: if($is-dark-theme, #fff, #000);
+  $primary: map.get($theme, primary);
+  $accent: map.get($theme, accent);
+  $warn: map.get($theme, warn);
+  $background: map.get($theme, background);
+  $foreground: map.get($theme, foreground);
+  $is-dark-theme: map.get($theme, is-dark);
+  $on-surface: #000;
+  $divider-opacity: 0.12;
+  $checkbox-disabled-color: #b0b0b0;
+  @if $is-dark-theme {
+    $on-surface: #fff;
+    $divider-opacity: 0.3;
+    $checkbox-disabled-color: #686868;
+  }
 
   .em-app-background {
     background: mat.m2-get-color-from-palette($background, background);
@@ -86,7 +94,7 @@
   }
 
   .mat-mdc-card.group-card {
-    border: 1px solid mat.m2-get-color-from-palette($foreground, divider, if($is-dark-theme, 0.3, 0.12));
+    border: 1px solid mat.m2-get-color-from-palette($foreground, divider, $divider-opacity);
   }
 
   .mat-mdc-card {
@@ -147,20 +155,20 @@
   .mat-mdc-checkbox {
     &.mat-primary {
       --mat-checkbox-selected-checkmark-color: #{mat.m2-get-contrast-color-from-palette($primary, 500)};
-      --mat-checkbox-disabled-selected-icon-color: #{if($is-dark-theme, #686868, #b0b0b0)};
-      --mat-checkbox-disabled-unselected-icon-color: #{if($is-dark-theme, #686868, #b0b0b0)};
+      --mat-checkbox-disabled-selected-icon-color: #{$checkbox-disabled-color};
+      --mat-checkbox-disabled-unselected-icon-color: #{$checkbox-disabled-color};
     }
 
     &.mat-accent {
       --mat-checkbox-selected-checkmark-color: #{mat.m2-get-contrast-color-from-palette($accent, 500)};
-      --mat-checkbox-disabled-selected-icon-color: #{if($is-dark-theme, #686868, #b0b0b0)};
-      --mat-checkbox-disabled-unselected-icon-color: #{if($is-dark-theme, #686868, #b0b0b0)};
+      --mat-checkbox-disabled-selected-icon-color: #{$checkbox-disabled-color};
+      --mat-checkbox-disabled-unselected-icon-color: #{$checkbox-disabled-color};
     }
   }
 
   // normal
   .mdc-text-field--outlined:not(.mdc-text-field--focused):not(.mdc-text-field--invalid) {
-    @include mdc-notched-outline.color(rgba($on-surface, if($is-dark-theme, 0.3, 0.12)));
+    @include mdc-notched-outline.color(rgba($on-surface, $divider-opacity));
 
     &:hover {
       @include mdc-notched-outline.stroke-width(2px);
@@ -260,9 +268,11 @@
 // inetsoft-form-field-outline-typography commented out below in case we really need such
 // extra customization
 .mat-mdc-form-field {
-  // prevent the float label from not showing when density is low
-  mdc-textfield.$minimum-height-for-filled-label: 34px;
   @include mat.form-field-density(-5); // -5 is currently the smallest density
+  // At density -5 the container height (36px) is below Angular Material's 52px threshold,
+  // which causes --mat-form-field-filled-label-display to be set to none. Override to keep
+  // floating labels visible in filled-appearance form fields.
+  --mat-form-field-filled-label-display: block;
 
   &.mat-form-field-appearance-outline:not(.mat-mdc-paginator-page-size-select) {
     padding-bottom: .75em;

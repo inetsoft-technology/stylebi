@@ -15,6 +15,8 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+@use 'mixins' as *;
+
 $stacking-order: (
         ".fixed-dropdown",
         w-tooltip
@@ -387,7 +389,12 @@ $stacking-order: (
 
 .dependency-type-overlay-container {
   padding: 0 4px;
-  @extend .unhighlightable;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  -khtml-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
 }
 
 .physical-graph-type-overlay-container {

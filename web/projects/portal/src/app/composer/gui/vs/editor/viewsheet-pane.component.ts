@@ -199,7 +199,6 @@ const COLLECT_PARAMS_URI = "/events/vs/collectParameters";
             provide: ChartService,
             useExisting: VSChartService
         },
-        VSBindingTreeService,
         ChatService
     ],
     imports: [OutOfZoneDirective, MobileToolbarComponent, Rulers, SelectionBoxDirective, ActionsContextmenuAnchorDirective, InteractContainerDirective, NgStyle, EditableObjectContainer, ComposerSelectionContainerChildren, LayoutPane, PlaceholderDragElement, StatusBar, FormsModule, VSLoadingDisplay, VSSavingDisplay, NotificationsComponent, VariableInputDialog, ConsoleDialogComponent, CustomSelectComponent]
@@ -1290,7 +1289,9 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
          return;
       }
 
-      this.treeService.resetTreeModel(command.treeModel, false);
+      if(this.vs?.isFocused) {
+         this.treeService.resetTreeModel(command.treeModel, false);
+      }
    }
 
    /**

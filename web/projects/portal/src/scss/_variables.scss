@@ -15,6 +15,13 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+@use 'sass:meta';
+@use 'sass:color';
+
+/***
+ * Theming override section begin
+ */
+
 // if themed, need to ensure font available on server
 $inet-font-name: Inter, Roboto, -apple-system, system-ui, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif !default;
 
@@ -228,7 +235,7 @@ $sqrt2: 1.41421356;
   // font
   // Runtime body/app text size. Intentionally independent from Bootstrap's compile-time $font-size-base.
   --inet-font-size-base: 13px;
-  --inet-font-family: #{inspect($inet-font-name)};
+  --inet-font-family: #{meta.inspect($inet-font-name)};
   --inet-text-color: #{$shell-text-default};
   --inet-icon-color: #{$inet-default-icon-color};
   --inet-text-strong-color: #{$shell-text-strong};
@@ -410,11 +417,11 @@ $sqrt2: 1.41421356;
   --inet-button-light-hover-border-color: var(--inet-default-border-color);
 
   // auto generated colors
-  --inet-light-color-light: #{lighten($inet-text-light, 10%)};
-  --inet-light-color-dark: #{darken($inet-text-light, 10%)};
+  --inet-light-color-light: #{color.adjust($inet-text-light, $lightness: 10%)};
+  --inet-light-color-dark: #{color.adjust($inet-text-light, $lightness: -10%)};
 
-  --inet-dark-color-light: #{lighten($inet-text-dark, 10%)};
-  --inet-dark-color-dark: #{darken($inet-text-dark, 10%)};
+  --inet-dark-color-light: #{color.adjust($inet-text-dark, $lightness: 10%)};
+  --inet-dark-color-dark: #{color.adjust($inet-text-dark, $lightness: -10%)};
 
   --inet-primary-color-light: #{$primary-light};
   --inet-primary-color-dark: #{$primary-dark};

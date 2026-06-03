@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-@import "../../../../scss/internal/mixins";
+@use "../../../../scss/internal/mixins" as *;
 
 $stacking-order: (
   right-top-table,
