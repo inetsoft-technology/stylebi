@@ -109,7 +109,7 @@ export class AppComponent implements OnInit, OnDestroy {
          this.subscription.add(connection.subscribe(
             "/user/create-org-status-changed",
             (message) => this.zone.run(
-               () => this.showEditOrgMessage(JSON.parse(message.frame.body)))));
+               () => this.showEditOrgMessage(message.frame.body))));
 
          this.subscription.add(connection.subscribe(
             "/user/current-org-changed",
