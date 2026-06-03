@@ -183,6 +183,12 @@ public class WizAutoBindingService {
             // the same full setup (calc field registration, format, legend, temp assembly cleanup).
             if(selectedRec != null) {
                primaryAssembly = refreshVisualizationBinding(selectedRec, rvs, user);
+
+               // The recommender rebuilds dimensions without the temp chart's ranking/aggregate
+               // config, so re-apply fieldConfigs to the RENDERED binding before it executes.
+               if(primaryAssembly instanceof ChartVSAssembly chartAsm && chartAsm.getVSChartInfo() != null) {
+                  applyFieldConfigs(chartAsm.getVSChartInfo(), configMap);
+               }
             }
          }
 
