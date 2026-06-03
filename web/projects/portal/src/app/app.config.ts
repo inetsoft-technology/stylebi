@@ -22,6 +22,8 @@ import { provideAnimations } from "@angular/platform-browser/animations";
 import { routes } from "./app.routes";
 import { SsoHeartbeatService } from "../../../shared/sso/sso-heartbeat.service";
 import { SsoHeartbeatInterceptor } from "../../../shared/sso/sso-heartbeat-interceptor";
+import { DefaultCodemirrorService } from "../../../shared/util/codemirror/default-codemirror.service";
+import { CodemirrorService } from "../../../shared/util/codemirror/codemirror.service";
 import { CsrfInterceptor } from "./common/services/csrf-interceptor";
 import { DateLevelExamplesService } from "./common/services/date-level-examples.service";
 import { FirstDayOfWeekService } from "./common/services/first-day-of-week.service";
@@ -57,6 +59,7 @@ export const appConfig: ApplicationConfig = {
       ModelService,
       DebounceService,
       DomService,
+      { provide: CodemirrorService, useClass: DefaultCodemirrorService },
       { provide: UrlSerializer, useClass: StandardUrlSerializer },
       { provide: HTTP_INTERCEPTORS, useClass: HttpDebounceInterceptor, multi: true },
       { provide: HTTP_INTERCEPTORS, useClass: HttpParamsCodecInterceptor, multi: true },

@@ -32,7 +32,9 @@ import { ComponentTool } from "../../common/util/component-tool";
 const GET_PARAMETERS_URI = "../api/vs/bindingtree/getConnectionParameters";
 const SET_CONNECTION_VARIABLES = "../api/composer/asset_tree/set-connection-variables";
 
-@Injectable()
+@Injectable({
+   providedIn: "root"
+})
 export class DataTreeValidatorService {
    constructor(private modelService: ModelService,
                private modalService: NgbModal)
