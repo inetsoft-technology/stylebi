@@ -1421,7 +1421,7 @@ public class PlotArea extends GridContainerArea implements GraphComponentArea, R
          boolean isGantt = GraphTypes.isGantt(chartInfo.getChartType());
          boolean isCandleOrStock = chartInfo instanceof CandleChartInfo;
          boolean isScatter = isScatterPlot(chartInfo);
-         // Innermost Y dim for the gantt card layout; null off-card or when no Y dim.
+         // Innermost Y dim that headlines the gantt card; null for non-card style or no Y dim.
          String ganttHeadline = null;
 
          // Gantt: Y-axis is the "row" axis that distinguishes bars, so list
@@ -2221,8 +2221,8 @@ public class PlotArea extends GridContainerArea implements GraphComponentArea, R
       return null;
    }
 
-   // Grouping dims minus the headline, preserving ganttDimsYFirst order (outer Y
-   // dims, then X dims) — these render at tier-3 as secondary context.
+   // Grouping dims minus the headline, for tier-3 context. Caller passes dims in
+   // ganttDimsYFirst order (outer Y dims, then X dims); that order is preserved here.
    static String[] ganttContextDims(String[] orderedDims, String headline) {
       List<String> rest = new ArrayList<>(orderedDims.length);
 

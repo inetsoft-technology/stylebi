@@ -174,6 +174,29 @@ class PlotAreaGanttDimsTest {
       assertFalse(out.contains("tt-tier-4"));
    }
 
+   @Test
+   void ganttCardNoYDimRendersUniformTier() {
+      // No Y dim → ganttInnermostYDim returns null → the card falls back to a
+      // uniform tier: every row at the same tier with no headline, mirroring the
+      // getToolTip fallback. Uniform tier renders all rows at tier-2.
+      ChartInfo info = chartInfoWithY();
+      assertNull(PlotArea.ganttInnermostYDim(info, Set.of("orderdate", "end")));
+
+      IndexedSet<String> palette = new IndexedSet<>();
+      ChartToolTip tip = new ChartToolTip();
+      tip.setStyle(ChartInfo.TooltipStyle.CARD);
+      tip.addTooltip(palette.put("orderdate"), palette.put("2000-10-05"));
+      tip.addTooltip(palette.put("end"), palette.put("2000-10-15"));
+      tip.setUniformTier(true);
+
+      String out = tip.getTooltip(palette);
+
+      assertTrue(out.contains("<div class=\"tt-tier-2\">orderdate:&nbsp;2000-10-05"));
+      assertTrue(out.contains("<div class=\"tt-tier-2\">end:&nbsp;2000-10-15"));
+      assertFalse(out.contains("tt-tier-1"), "No headline div when no Y dim");
+      assertFalse(out.contains("tt-tier-3"), "Uniform tier keeps every row equal");
+   }
+
    private static ChartInfo chartInfoWithY(String... yFullNames) {
       ChartRef[] refs = new ChartRef[yFullNames.length];
 

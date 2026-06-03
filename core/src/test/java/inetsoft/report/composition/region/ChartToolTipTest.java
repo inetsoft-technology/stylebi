@@ -440,7 +440,7 @@ class ChartToolTipTest {
       tip.addTooltip(palette.put("state"), palette.put("TX"));
       tip.addTooltip(palette.put("product_name"), palette.put("WebCalendar"));
       tip.setGroupedTiers(true);
-      tip.setTier2GroupSize(3);
+      tip.setTier2GroupSize(3); // measurePairs when an interval bar renders Start + End + Milestone
 
       String out = tip.getTooltip(palette);
 
@@ -456,6 +456,34 @@ class ChartToolTipTest {
                  "X dim is secondary context at tier-3");
       assertTrue(out.contains("<div class=\"tt-tier-3\">product_name:&nbsp;WebCalendar"),
                  "Aesthetic dim is secondary context at tier-3");
+      assertFalse(out.contains("tt-tier-4"));
+   }
+
+   @Test
+   void ganttCardMilestonePointGroupsOnlyMilestoneAtTier2() {
+      // A milestone point exposes only Milestone via getVars(), so measurePairs == 1:
+      // the innermost Y dim headlines and Milestone alone sits at tier-2, with the
+      // outer Y dim and X dim at tier-3. Guards the per-element tier-2 sizing.
+      IndexedSet<String> palette = new IndexedSet<>();
+      ChartToolTip tip = new ChartToolTip();
+      tip.setStyle(ChartInfo.TooltipStyle.CARD);
+      tip.addTooltip(palette.put("DataGroup(city)"), palette.put("A"));
+      tip.addTooltip(palette.put("milestone"), palette.put("2000-10-10"));
+      tip.addTooltip(palette.put("reseller"), palette.put("true"));
+      tip.addTooltip(palette.put("state"), palette.put("TX"));
+      tip.setGroupedTiers(true);
+      tip.setTier2GroupSize(1); // measurePairs for a milestone point
+
+      String out = tip.getTooltip(palette);
+
+      assertTrue(out.contains("<div class=\"tt-tier-1\">DataGroup(city):&nbsp;A"),
+                 "Innermost Y dim is the tier-1 headline");
+      assertTrue(out.contains("<div class=\"tt-tier-2\">milestone:&nbsp;2000-10-10"),
+                 "Milestone alone groups at tier-2 for a milestone point");
+      assertTrue(out.contains("<div class=\"tt-tier-3\">reseller:&nbsp;true"),
+                 "Outer Y dim drops to tier-3");
+      assertTrue(out.contains("<div class=\"tt-tier-3\">state:&nbsp;TX"),
+                 "X dim drops to tier-3");
       assertFalse(out.contains("tt-tier-4"));
    }
 
