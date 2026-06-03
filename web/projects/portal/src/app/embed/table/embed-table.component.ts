@@ -59,8 +59,13 @@ import {
    ActionsContextmenuComponent
 } from "../../widget/fixed-dropdown/actions-contextmenu.component";
 import { FixedDropdownService } from "../../widget/fixed-dropdown/fixed-dropdown.service";
-import { EMBED_TABLE_URL_MATCHER } from "./app-routing.module";
+import { EMBED_TABLE_URL_MATCHER } from "./embed-table.routes";
 import { DownloadService } from "../../../../../shared/download/download.service";
+import { DownloadTargetComponent } from "../../../../../shared/download/download-target.component";
+import { ResizedDirective } from "../../../../../shared/resize-event/resized.directive";
+import { VSTable } from "../../vsobjects/objects/table/vs-table.component";
+import { MiniToolbar } from "../../vsobjects/objects/mini-toolbar/mini-toolbar.component";
+import { InteractContainerDirective } from "../../widget/interact/interact-container.directive";
 import { TooltipService } from "../../widget/tooltip/tooltip.service";
 import { ShadowDomService } from "../shadow-dom.service";
 import { ShowHyperlinkService } from "../../vsobjects/show-hyperlink.service";
@@ -81,10 +86,11 @@ const COLLECT_PARAMS_URI: string = "/events/vs/collectParameters";
 declare const window: any;
 
 @Component({
-   selector: "embed-table",
-   templateUrl: "./embed-table.component.html",
-   styleUrls: ["./embed-table.component.scss"],
-   providers: [
+    imports: [DownloadTargetComponent, ResizedDirective, VSTable, MiniToolbar, InteractContainerDirective],
+    selector: "embed-table",
+    templateUrl: "./embed-table.component.html",
+    styleUrls: ["./embed-table.component.scss"],
+    providers: [
       ViewsheetClientService,
       DownloadService,
       TooltipService,
@@ -162,7 +168,8 @@ export class EmbedTableComponent extends CommandProcessor implements OnInit, OnD
       // custom element url
       if(this.url) {
          const tree = this.router.parseUrl(this.url);
-         const result = EMBED_TABLE_URL_MATCHER(tree.root?.children?.primary?.segments);
+         const segments = tree.root?.children?.primary?.segments ?? tree.root?.segments;
+         const result = EMBED_TABLE_URL_MATCHER(segments);
          this.assetId = result.posParams?.assetId?.path;
          this.assemblyName = result.posParams?.assemblyName?.path;
          this.inputRuntimeId = result.posParams?.runtimeId?.path;

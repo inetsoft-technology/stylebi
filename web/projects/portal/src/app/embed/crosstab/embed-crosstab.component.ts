@@ -59,8 +59,13 @@ import {
    ActionsContextmenuComponent
 } from "../../widget/fixed-dropdown/actions-contextmenu.component";
 import { FixedDropdownService } from "../../widget/fixed-dropdown/fixed-dropdown.service";
-import { EMBED_CROSSTAB_URL_MATCHER } from "./app-routing.module";
+import { EMBED_CROSSTAB_URL_MATCHER } from "./embed-crosstab.routes";
 import { DownloadService } from "../../../../../shared/download/download.service";
+import { DownloadTargetComponent } from "../../../../../shared/download/download-target.component";
+import { ResizedDirective } from "../../../../../shared/resize-event/resized.directive";
+import { VSCrosstab } from "../../vsobjects/objects/table/vs-crosstab.component";
+import { MiniToolbar } from "../../vsobjects/objects/mini-toolbar/mini-toolbar.component";
+import { InteractContainerDirective } from "../../widget/interact/interact-container.directive";
 import { TooltipService } from "../../widget/tooltip/tooltip.service";
 import { ShadowDomService } from "../shadow-dom.service";
 import { ShowHyperlinkService } from "../../vsobjects/show-hyperlink.service";
@@ -81,10 +86,11 @@ const COLLECT_PARAMS_URI: string = "/events/vs/collectParameters";
 declare const window: any;
 
 @Component({
-   selector: "embed-crosstab",
-   templateUrl: "./embed-crosstab.component.html",
-   styleUrls: ["./embed-crosstab.component.scss"],
-   providers: [
+    imports: [DownloadTargetComponent, ResizedDirective, VSCrosstab, MiniToolbar, InteractContainerDirective],
+    selector: "embed-crosstab",
+    templateUrl: "./embed-crosstab.component.html",
+    styleUrls: ["./embed-crosstab.component.scss"],
+    providers: [
       ViewsheetClientService,
       DownloadService,
       TooltipService,
@@ -162,7 +168,8 @@ export class EmbedCrosstabComponent extends CommandProcessor implements OnInit, 
       // custom element url
       if(this.url) {
          const tree = this.router.parseUrl(this.url);
-         const result = EMBED_CROSSTAB_URL_MATCHER(tree.root?.children?.primary?.segments);
+         const segments = tree.root?.children?.primary?.segments ?? tree.root?.segments;
+         const result = EMBED_CROSSTAB_URL_MATCHER(segments);
          this.assetId = result.posParams?.assetId?.path;
          this.assemblyName = result.posParams?.assemblyName?.path;
          this.inputRuntimeId = result.posParams?.runtimeId?.path;

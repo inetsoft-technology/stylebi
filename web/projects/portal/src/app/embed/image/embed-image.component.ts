@@ -58,8 +58,12 @@ import {
    ActionsContextmenuComponent
 } from "../../widget/fixed-dropdown/actions-contextmenu.component";
 import { FixedDropdownService } from "../../widget/fixed-dropdown/fixed-dropdown.service";
-import { EMBED_IMAGE_URL_MATCHER } from "./app-routing.module";
+import { EMBED_IMAGE_URL_MATCHER } from "./embed-image.routes";
 import { TooltipService } from "../../widget/tooltip/tooltip.service";
+import { ResizedDirective } from "../../../../../shared/resize-event/resized.directive";
+import { VSImage } from "../../vsobjects/objects/output/image/vs-image.component";
+import { MiniToolbar } from "../../vsobjects/objects/mini-toolbar/mini-toolbar.component";
+import { InteractContainerDirective } from "../../widget/interact/interact-container.directive";
 import { ShadowDomService } from "../shadow-dom.service";
 import { ShowHyperlinkService } from "../../vsobjects/show-hyperlink.service";
 import { CollectParametersCommand } from "../../vsobjects/command/collect-parameters-command";
@@ -79,10 +83,11 @@ const COLLECT_PARAMS_URI: string = "/events/vs/collectParameters";
 declare const window: any;
 
 @Component({
-   selector: "embed-image",
-   templateUrl: "./embed-image.component.html",
-   styleUrls: ["./embed-image.component.scss"],
-   providers: [
+    imports: [ResizedDirective, VSImage, MiniToolbar, InteractContainerDirective],
+    selector: "embed-image",
+    templateUrl: "./embed-image.component.html",
+    styleUrls: ["./embed-image.component.scss"],
+    providers: [
       ViewsheetClientService,
       TooltipService,
       NgbModal,
@@ -156,7 +161,8 @@ export class EmbedImageComponent extends CommandProcessor implements OnInit, OnD
    ngOnInit(): void {
       if(this.url) {
          const tree = this.router.parseUrl(this.url);
-         const result = EMBED_IMAGE_URL_MATCHER(tree.root?.children?.primary?.segments);
+         const segments = tree.root?.children?.primary?.segments ?? tree.root?.segments;
+         const result = EMBED_IMAGE_URL_MATCHER(segments);
          this.assetId = result.posParams?.assetId?.path;
          this.assemblyName = result.posParams?.assemblyName?.path;
          this.inputRuntimeId = result.posParams?.runtimeId?.path;

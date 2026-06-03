@@ -160,7 +160,8 @@ export class EmbedViewerComponent implements OnInit, OnDestroy, AfterViewInit {
       // custom element url
       if(this.url) {
          const tree = this.router.parseUrl(this.url);
-         const result = EMBED_VIEWER_URL_MATCHER(tree.root?.children?.primary?.segments);
+         const segments = tree.root?.children?.primary?.segments ?? tree.root?.segments;
+         const result = EMBED_VIEWER_URL_MATCHER(segments);
          this.assetId = result.posParams?.assetId?.path;
          this.queryParams = new Map();
          this.queryParams.set("disableParameterSheet", ["true"]);

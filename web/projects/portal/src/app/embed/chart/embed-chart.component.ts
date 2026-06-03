@@ -149,6 +149,7 @@ export class EmbedChartComponent extends CommandProcessor implements OnInit, OnD
                private cdRef: ChangeDetectorRef)
    {
       super(viewsheetClient, zone, true);
+      console.log("==================chart: ");
       shadowDomService.addShadowRootHost(injector, viewContainerRef.element?.nativeElement);
       showHyperlinkService.inEmbed = true;
    }
@@ -167,14 +168,16 @@ export class EmbedChartComponent extends CommandProcessor implements OnInit, OnD
 
    ngOnInit(): void {
       // custom element url
+      console.log("==================url: " + this.url);
       if(this.url) {
          const tree = this.router.parseUrl(this.url);
-         const result = EMBED_CHART_URL_MATCHER(tree.root?.children?.primary?.segments);
+         const segments = tree.root?.children?.primary?.segments ?? tree.root?.segments;
+         const result = EMBED_CHART_URL_MATCHER(segments);
          this.assetId = result.posParams?.assetId?.path;
          this.assemblyName = result.posParams?.assemblyName?.path;
          this.inputRuntimeId = result.posParams?.runtimeId?.path;
          this.queryParams = tree.queryParams;
-
+         console.log("============result", result, tree.queryParams);
          this.subscriptions.add(
             (window.inetsoftConnected as BehaviorSubject<boolean>).subscribe((connected) => {
                if(!this.connected && connected) {
@@ -255,7 +258,7 @@ export class EmbedChartComponent extends CommandProcessor implements OnInit, OnD
    processSetRuntimeIdCommand(command: SetRuntimeIdCommand): void {
       this.viewsheetClient.runtimeId = command.runtimeId;
       this.runtimeId = command.runtimeId;
-
+      console.log("============processSetRuntimeIdCommand", command);
       // A newly opened embedded assembly may need an explicit refresh to apply the
       // requested assembly size after the runtime is established.
       if(this.assemblyName && !this.inputRuntimeId) {

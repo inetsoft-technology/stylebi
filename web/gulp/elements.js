@@ -21,21 +21,33 @@ const sass = require("gulp-dart-sass");
 const postcss = require("gulp-postcss");
 const replace = require("gulp-replace");
 const cssnano = require("cssnano");
+const through = require("through2");
 
 const scriptFiles = [
-   "target/generated-resources/ng/inetsoft/web/resources/elements/runtime.*.js",
-   "target/generated-resources/ng/inetsoft/web/resources/elements/polyfills.*.js",
-   "target/generated-resources/ng/inetsoft/web/resources/elements/scripts.*.js",
-   "target/generated-resources/ng/inetsoft/web/resources/elements/main.*.js"
+   "target/generated-resources/ng/inetsoft/web/resources/elements/polyfills-*.js",
+   "target/generated-resources/ng/inetsoft/web/resources/elements/scripts-*.js",
+   "target/generated-resources/ng/inetsoft/web/resources/elements/main-*.js"
 ];
 
 const cssFiles = [
    "target/generated-resources/gulp/inetsoft/web/resources/app/global.css",
-   "target/generated-resources/ng/inetsoft/web/resources/elements/styles.*.css"
+   "target/generated-resources/ng/inetsoft/web/resources/elements/styles-*.css"
 ];
+
+// Wrap each file's content in an IIFE to prevent variable name collisions
+const wrapInIIFE = function() {
+   return through.obj(function(file, encoding, callback) {
+      if(file.isBuffer()) {
+         const content = file.contents.toString(encoding);
+         file.contents = Buffer.from(`(function(){${content}})();\n`, encoding);
+      }
+      callback(null, file);
+   });
+};
 
 gulp.task("elements:scripts", function () {
    return gulp.src(scriptFiles)
+      .pipe(wrapInIIFE())
       .pipe(concat("elements.js"))
       .pipe(gulp.dest("target/generated-resources/gulp/inetsoft/web/resources/app/"));
 });
