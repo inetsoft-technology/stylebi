@@ -78,7 +78,7 @@ public class WizAutoBindingService {
    {
       List<SimpleFieldInfo> fieldConfigs = request.getFieldConfigs() != null
          ? request.getFieldConfigs() : Collections.emptyList();
-      String worksheetId = request.getWorksheetId();
+      String worksheetPath = request.getWorksheetPath();
 
       // Phase 1: resolve or create the recommendation RVS.
       String autoBindingRuntimeId = request.getAutoBindingRuntimeId();
@@ -86,10 +86,8 @@ public class WizAutoBindingService {
 
       if(Tool.isEmptyString(autoBindingRuntimeId)) {
          Viewsheet.WizInfo wizInfo = new Viewsheet.WizInfo(true, null, null);
-         // worksheetId is an AssetEntry identifier (from GenerateWsService's toIdentifier()),
-         // not a bare path — parse it rather than passing it as the path argument.
-         AssetEntry wsEntry = !Tool.isEmptyString(worksheetId)
-            ? AssetEntry.createAssetEntry(worksheetId)
+         AssetEntry wsEntry = !Tool.isEmptyString(worksheetPath)
+            ? new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.WORKSHEET, worksheetPath, null)
             : null;
          autoBindingRuntimeId = viewsheetService.openTemporaryViewsheet(null, wsEntry, user, wizInfo);
          createdAutoBindingRvs = true;
@@ -106,8 +104,9 @@ public class WizAutoBindingService {
          String tableName = null;
          List<ColumnRef> worksheetColumns = new ArrayList<>();
 
-         if(!Tool.isEmptyString(worksheetId)) {
-            AssetEntry wsEntry = AssetEntry.createAssetEntry(worksheetId);
+         if(!Tool.isEmptyString(worksheetPath)) {
+            AssetEntry wsEntry = new AssetEntry(
+               AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.WORKSHEET, worksheetPath, null);
 
             try {
                AbstractSheet sheet = engine.getSheet(wsEntry, user, true, AssetContent.ALL);
@@ -132,7 +131,7 @@ public class WizAutoBindingService {
                }
             }
             catch(Exception e) {
-               LOG.warn("Failed to load worksheet '{}': {}", worksheetId, e.getMessage());
+               LOG.warn("Failed to load worksheet '{}': {}", worksheetPath, e.getMessage());
             }
          }
 
@@ -150,7 +149,7 @@ public class WizAutoBindingService {
                  .filter(c -> configMap.containsKey(c.getAttribute()))
                  .collect(Collectors.toList());
          AssetEntry[] entries = bindColumns.stream()
-            .map(col -> buildEntryFromColumn(col, worksheetId, tableNameFinal))
+            .map(col -> buildEntryFromColumn(col, worksheetPath, tableNameFinal))
             .toArray(AssetEntry[]::new);
 
          bindingHandler.updateTemporaryFields(rvs, entries, tempInfo);
@@ -189,10 +188,10 @@ public class WizAutoBindingService {
          // Phase 3: place primary into the output viewsheet.
          CreateViewsheetResult visualizationResult = null;
 
-         if(selectedRec != null && !Tool.isEmptyString(worksheetId)) {
+         if(selectedRec != null && !Tool.isEmptyString(worksheetPath)) {
             VisualizationConfig sourceConfig = new VisualizationConfig();
             VisualizationConfig.DataSource ds = new VisualizationConfig.DataSource();
-            ds.setSource(worksheetId);
+            ds.setSource(worksheetPath);
             sourceConfig.setData(ds);
 
             CreateVisualizationModel vsModel = new CreateVisualizationModel();
@@ -219,7 +218,7 @@ public class WizAutoBindingService {
          }
 
          // Phase 4: build response.
-         RecommendedVisualization primary = recommendationToVisualization(selectedRec, entries, worksheetId);
+         RecommendedVisualization primary = recommendationToVisualization(selectedRec, entries, worksheetPath);
          AutoBindingResponse resp = new AutoBindingResponse();
          resp.setRecommendations(recommendations);
          resp.setPrimary(primary);
@@ -380,7 +379,7 @@ public class WizAutoBindingService {
 
    private RecommendedVisualization buildTableVisualization(ColumnSelection columns,
                                                             AssetEntry[] entries,
-                                                            String worksheetId)
+                                                            String worksheetPath)
    {
       TableBinding binding = new TableBinding();
 
@@ -402,7 +401,7 @@ public class WizAutoBindingService {
 
       RecommendedVisualization rec = new RecommendedVisualization();
       rec.setVisualizationType("table");
-      rec.setConfig(wrapInConfig(binding, worksheetId));
+      rec.setConfig(wrapInConfig(binding, worksheetPath));
       return rec;
    }
 
@@ -477,7 +476,7 @@ public class WizAutoBindingService {
 
    // ── ChartInfo → VisualizationConfig (design doc §4.4) ───────────────────────
 
-   private VisualizationConfig convertToChartConfig(ChartInfo info, String worksheetId) {
+   private VisualizationConfig convertToChartConfig(ChartInfo info, String worksheetPath) {
       ChartBinding binding = new ChartBinding();
 
       List<SimpleFieldInfo> x = chartRefsToFieldInfos(info.getXFields());
@@ -511,7 +510,7 @@ public class WizAutoBindingService {
          binding.setText(chartRefToFieldInfo(info.getTextField().getDataRef()));
       }
 
-      return wrapInConfig(binding, worksheetId);
+      return wrapInConfig(binding, worksheetPath);
    }
 
    private List<SimpleFieldInfo> chartRefsToFieldInfos(ChartRef[] refs) {
@@ -778,7 +777,7 @@ public class WizAutoBindingService {
    /** Converts a selected recommendation to a {@link RecommendedVisualization} for the client response. */
    private RecommendedVisualization recommendationToVisualization(VSObjectRecommendation rec,
                                                                    AssetEntry[] entries,
-                                                                   String worksheetId)
+                                                                   String worksheetPath)
    {
       if(rec == null) {
          return null;
@@ -786,18 +785,18 @@ public class WizAutoBindingService {
 
       if(rec instanceof VSChartRecommendation vcr) {
          ChartInfo info = getSelectedChartInfo(vcr);
-         return info != null ? toRecommendedVisualization(info, worksheetId) : null;
+         return info != null ? toRecommendedVisualization(info, worksheetPath) : null;
       }
 
       if(rec instanceof VSCrosstabRecommendation cr && cr.getCrosstabInfo() != null) {
          RecommendedVisualization rv = new RecommendedVisualization();
          rv.setVisualizationType("crosstab");
-         rv.setConfig(wrapInConfig(crosstabInfoToBinding(cr.getCrosstabInfo()), worksheetId));
+         rv.setConfig(wrapInConfig(crosstabInfoToBinding(cr.getCrosstabInfo()), worksheetPath));
          return rv;
       }
 
       if(rec instanceof VSTableRecommendation tr) {
-         return buildTableVisualization(tr.getColumns(), entries, worksheetId);
+         return buildTableVisualization(tr.getColumns(), entries, worksheetPath);
       }
 
       if(rec instanceof VSOutputRecommendation out) {
@@ -806,7 +805,7 @@ public class WizAutoBindingService {
          ob.setField(dataRefToMeasureFieldInfo(out.getDataRef()));
          RecommendedVisualization rv = new RecommendedVisualization();
          rv.setVisualizationType(vizType);
-         rv.setConfig(wrapInConfig(ob, worksheetId));
+         rv.setConfig(wrapInConfig(ob, worksheetPath));
          return rv;
       }
 
@@ -865,7 +864,7 @@ public class WizAutoBindingService {
    private static final Set<String> CROSSTAB_ROLES = Set.of("rows", "cols", "aggregates");
    private static final Set<String> TABLE_ROLES = Set.of("details");
 
-   private RecommendedVisualization toRecommendedVisualization(ChartInfo info, String worksheetId) {
+   private RecommendedVisualization toRecommendedVisualization(ChartInfo info, String worksheetPath) {
       String vizType = getChartTypeString(info.getChartType());
 
       if(vizType == null) {
@@ -874,7 +873,7 @@ public class WizAutoBindingService {
 
       RecommendedVisualization rec = new RecommendedVisualization();
       rec.setVisualizationType(vizType);
-      rec.setConfig(convertToChartConfig(info, worksheetId));
+      rec.setConfig(convertToChartConfig(info, worksheetPath));
       return rec;
    }
 
@@ -1036,13 +1035,13 @@ public class WizAutoBindingService {
 
    // ── VisualizationConfig wrapper ───────────────────────────────────────────────
 
-   private VisualizationConfig wrapInConfig(BindingInfo binding, String worksheetId) {
+   private VisualizationConfig wrapInConfig(BindingInfo binding, String worksheetPath) {
       VisualizationConfig config = new VisualizationConfig();
       config.setBindingInfo(binding);
 
-      if(!Tool.isEmptyString(worksheetId)) {
+      if(!Tool.isEmptyString(worksheetPath)) {
          VisualizationConfig.DataSource ds = new VisualizationConfig.DataSource();
-         ds.setSource(worksheetId);
+         ds.setSource(worksheetPath);
          config.setData(ds);
       }
 
@@ -1065,7 +1064,7 @@ public class WizAutoBindingService {
       String autoBindingRuntimeId = request.getAutoBindingRuntimeId();
       String visualizationType = request.getVisualizationType();
       String wizRuntimeId = request.getWizRuntimeId();
-      String worksheetId = request.getWorksheetId();
+      String worksheetPath = request.getWorksheetPath();
       String viewsheetIdentifier = request.getViewsheetIdentifier();
 
       // 1. Try to get the recommendation model stored by a prior autoBinding call.
@@ -1095,7 +1094,7 @@ public class WizAutoBindingService {
       // 2. Model missing — fall back to full autoBinding (handles placement too).
       if(model == null) {
          AutoBindingRequest fallback = new AutoBindingRequest();
-         fallback.setWorksheetId(worksheetId);
+         fallback.setWorksheetPath(worksheetPath);
          fallback.setVisualizationType(visualizationType);
          // Do not forward autoBindingRuntimeId: if it was non-empty but invalid (expired RVS),
          // autoBindingInternal() would skip creating a new RVS and fail on the same dead id again.
@@ -1147,9 +1146,9 @@ public class WizAutoBindingService {
          }
       }
 
-      if(selectedRec == null || Tool.isEmptyString(worksheetId) || Tool.isEmptyString(wizRuntimeId)) {
-         LOG.warn("changeType skipped: selectedRec={}, worksheetId='{}', wizRuntimeId='{}'",
-                  selectedRec, worksheetId, wizRuntimeId);
+      if(selectedRec == null || Tool.isEmptyString(worksheetPath) || Tool.isEmptyString(wizRuntimeId)) {
+         LOG.warn("changeType skipped: selectedRec={}, worksheetPath='{}', wizRuntimeId='{}'",
+                  selectedRec, worksheetPath, wizRuntimeId);
          return new CreateViewsheetResult();
       }
 
@@ -1164,7 +1163,7 @@ public class WizAutoBindingService {
       // 4. Place the new primary in wizRuntimeId without executing the sandbox.
       VisualizationConfig sourceConfig = new VisualizationConfig();
       VisualizationConfig.DataSource ds = new VisualizationConfig.DataSource();
-      ds.setSource(worksheetId);
+      ds.setSource(worksheetPath);
       sourceConfig.setData(ds);
 
       CreateVisualizationModel vsModel = new CreateVisualizationModel();
