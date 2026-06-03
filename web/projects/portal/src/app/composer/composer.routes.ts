@@ -44,6 +44,7 @@ import { composerResolver } from "./services/composer-resolver.service";
 import { SelectionContainerChildrenService } from "../vsobjects/objects/selection/services/selection-container-children.service";
 import { VSTrapService } from "../vsobjects/util/vs-trap.service";
 import { WsChangeService } from "./gui/ws/editor/ws-change.service";
+import { DataQueryModelService } from "../portal/data/data-datasource-browser/datasources-database/database-query/data-query-model.service";
 
 export const composerRoutes: Routes = [
    {
@@ -78,6 +79,7 @@ export const composerRoutes: Routes = [
          { provide: CodemirrorService, useClass: DefaultCodemirrorService },
          ChatService,
          { provide: CHAT_API_KEY, useValue: "5ba3fdd5c666d426648af5c9/default" },
+         DataQueryModelService,
       ]
    }
 ];
