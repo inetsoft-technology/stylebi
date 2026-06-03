@@ -97,16 +97,22 @@ public final class SVGAnimationInjector {
             }
          }
          else if("C".equals(c)) {
+            // Sum sampled sub-segments, not the chord: a curve's arc length exceeds the
+            // straight start→end distance, and underestimating it truncates the dashoffset
+            // draw-on (the tail falls into the dash gap) on smooth lines.
             for(int j = 0; j + 5 < args.size(); j += 6) {
+               double c1x = args.get(j), c1y = args.get(j + 1);
+               double c2x = args.get(j + 2), c2y = args.get(j + 3);
                double ex = args.get(j + 4), ey = args.get(j + 5);
-               totalLen += Math.hypot(ex - cx, ey - cy);
+               totalLen += cubicLen(cx, cy, c1x, c1y, c2x, c2y, ex, ey);
                cx = ex; cy = ey;
             }
          }
          else if("Q".equals(c)) {
             for(int j = 0; j + 3 < args.size(); j += 4) {
+               double c1x = args.get(j), c1y = args.get(j + 1);
                double ex = args.get(j + 2), ey = args.get(j + 3);
-               totalLen += Math.hypot(ex - cx, ey - cy);
+               totalLen += quadLen(cx, cy, c1x, c1y, ex, ey);
                cx = ex; cy = ey;
             }
          }
@@ -117,6 +123,46 @@ public final class SVGAnimationInjector {
       }
 
       return totalLen;
+   }
+
+   // Sub-segments per curve when flattening to arc length. 32 keeps the polyline deficit
+   // well under a pixel for chart-scale curves, within the +2 margin at the call site.
+   private static final int CURVE_FLATTEN_STEPS = 32;
+
+   /** Arc length of a cubic Bezier, approximated by summing CURVE_FLATTEN_STEPS chords. */
+   private static double cubicLen(double x0, double y0, double x1, double y1,
+                                  double x2, double y2, double x3, double y3)
+   {
+      double len = 0, px = x0, py = y0;
+
+      for(int i = 1; i <= CURVE_FLATTEN_STEPS; i++) {
+         double t = (double) i / CURVE_FLATTEN_STEPS, u = 1 - t;
+         double a = u * u * u, b = 3 * u * u * t, c = 3 * u * t * t, d = t * t * t;
+         double nx = a * x0 + b * x1 + c * x2 + d * x3;
+         double ny = a * y0 + b * y1 + c * y2 + d * y3;
+         len += Math.hypot(nx - px, ny - py);
+         px = nx; py = ny;
+      }
+
+      return len;
+   }
+
+   /** Arc length of a quadratic Bezier, approximated by summing CURVE_FLATTEN_STEPS chords. */
+   private static double quadLen(double x0, double y0, double x1, double y1,
+                                 double x2, double y2)
+   {
+      double len = 0, px = x0, py = y0;
+
+      for(int i = 1; i <= CURVE_FLATTEN_STEPS; i++) {
+         double t = (double) i / CURVE_FLATTEN_STEPS, u = 1 - t;
+         double a = u * u, b = 2 * u * t, c = t * t;
+         double nx = a * x0 + b * x1 + c * x2;
+         double ny = a * y0 + b * y1 + c * y2;
+         len += Math.hypot(nx - px, ny - py);
+         px = nx; py = ny;
+      }
+
+      return len;
    }
 
    /**
