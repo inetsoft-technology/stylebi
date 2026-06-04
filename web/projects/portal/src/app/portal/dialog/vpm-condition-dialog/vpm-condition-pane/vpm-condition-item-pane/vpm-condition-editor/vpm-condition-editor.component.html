@@ -16,7 +16,7 @@
 ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -->
 <div class="editor-container">
-  <div [class.primary-condition-editor]="primaryValue">
+  <div class="editor-container__value" [class.primary-condition-editor]="primaryValue">
     @if (value.type == ClauseValueTypes.VALUE) {
       <div class="editor-container__field">
         <vpm-value-editor [operation]="operation"
@@ -39,7 +39,7 @@
       </div>
     }
     @if (value.type == ClauseValueTypes.EXPRESSION) {
-      <div class="editor-container__field">
+      <div class="editor-container__field editor-container__field--expression">
         <vpm-value-editor [dataFunction]="dataFunction"
           [enableBrowseData]="enableBrowseData"
           [(value)]="value.expression"
@@ -62,7 +62,7 @@
       </div>
     }
     @if (value.type == ClauseValueTypes.SUBQUERY) {
-      <div>
+      <div class="editor-container__field">
         <vpm-subquery-editor [model]="value" [datasource]="datasource" [isWSQuery]="isWSQuery"
           (valueChange)="conditionSubQueryValueChanged($event)">
         </vpm-subquery-editor>
@@ -70,19 +70,17 @@
     }
   </div>
   <div class="editor-container__type-picker" keyboardNav="true">
-    <span>
-      <button id="simple-btn-keyboard-nav"
-        class="btn btn-light editor-container__type-button no-caret"
-        [fixedDropdown]="dropdownMenu" title="_#(Change Value Type)">
-        <i class="value-type-list-icon icon-size-small align-middle"></i>
-      </button>
-    </span>
+    <button id="simple-btn-keyboard-nav"
+      class="btn btn-light editor-container__type-button no-caret"
+      [fixedDropdown]="dropdownMenu" title="_#(Change Value Type)">
+      <i class="value-type-list-icon icon-size-small align-middle"></i>
+    </button>
   </div>
 </div>
 <ng-template #dropdownMenu>
   <ul role="menu" class="dropdown-pane custom-select-menu editor-container__type-menu">
     @for (type of valueTypes; track type) {
-      <li class="dropdown-item" (click)="selectType(type)"
+      <li class="dropdown-item custom-select-option editor-container__type-option" (click)="selectType(type)"
         role="menuitem" [class.selected]="value.type == type">
         {{type | clauseValueTypeToString}}
       </li>

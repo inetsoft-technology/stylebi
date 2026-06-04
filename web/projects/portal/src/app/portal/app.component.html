@@ -29,8 +29,7 @@
       </div>
       <ul class="navbar-nav">
         <li class="nav-item portal-nav-item bb-highlight-filler home"
-          [class.disabled]="!model.homeVisible"
-          [style.margin-right.em]="1.5">
+          [class.disabled]="!model.homeVisible">
           <a class="nav-link nav-icon nav-icon-size" [attr.href]="model.homeLink" title="_#(Home)">
             <i class="home-icon nav-icon-size portal-toolbar-icon"></i>
             <span class="visually-hidden">_#(Home)</span>
@@ -49,31 +48,29 @@
             </a>
           </li>
         } @else {
-          <li [title]="getDashboardTabTooltip()">
-            <div class="nav-item portal-nav-item"
-              [class.disabled]="!getTab(PortalTabs.DASHBOARD)"
-              [class.bb-highlight-filler]="!isTabSelected(PortalTabs.DASHBOARD)"
-              [class.bb-highlight-primary]="isTabSelected(PortalTabs.DASHBOARD)">
-              <a class="nav-link nav-icon nav-icon-size" routerLink="{{getTab(PortalTabs.DASHBOARD)?.uri}}"
-                routerLinkActive="active">
-                <i class="viewsheet-book-icon nav-icon-size portal-toolbar-icon"></i>
-                <span class="visually-hidden">_#(Dashboard)</span>
-              </a>
-            </div>
+          <li class="nav-item portal-nav-item"
+            [title]="getDashboardTabTooltip()"
+            [class.disabled]="!getTab(PortalTabs.DASHBOARD)"
+            [class.bb-highlight-filler]="!isTabSelected(PortalTabs.DASHBOARD)"
+            [class.bb-highlight-primary]="isTabSelected(PortalTabs.DASHBOARD)">
+            <a class="nav-link nav-icon nav-icon-size" routerLink="{{getTab(PortalTabs.DASHBOARD)?.uri}}"
+              routerLinkActive="active">
+              <i class="viewsheet-book-icon nav-icon-size portal-toolbar-icon"></i>
+              <span class="visually-hidden">_#(Dashboard)</span>
+            </a>
           </li>
         }
         @if (reportTabFirst) {
-          <li [title]="getDashboardTabTooltip()">
-            <div class="nav-item portal-nav-item"
-              [class.disabled]="!getTab(PortalTabs.DASHBOARD)"
-              [class.bb-highlight-filler]="!isTabSelected(PortalTabs.DASHBOARD)"
-              [class.bb-highlight-primary]="isTabSelected(PortalTabs.DASHBOARD)">
-              <a class="nav-link nav-icon nav-icon-size" routerLink="{{getTab(PortalTabs.DASHBOARD)?.uri}}"
-                routerLinkActive="active">
-                <i class="viewsheet-book-icon nav-icon-size portal-toolbar-icon"></i>
-                <span class="visually-hidden">_#(Dashboard)</span>
-              </a>
-            </div>
+          <li class="nav-item portal-nav-item"
+            [title]="getDashboardTabTooltip()"
+            [class.disabled]="!getTab(PortalTabs.DASHBOARD)"
+            [class.bb-highlight-filler]="!isTabSelected(PortalTabs.DASHBOARD)"
+            [class.bb-highlight-primary]="isTabSelected(PortalTabs.DASHBOARD)">
+            <a class="nav-link nav-icon nav-icon-size" routerLink="{{getTab(PortalTabs.DASHBOARD)?.uri}}"
+              routerLinkActive="active">
+              <i class="viewsheet-book-icon nav-icon-size portal-toolbar-icon"></i>
+              <span class="visually-hidden">_#(Dashboard)</span>
+            </a>
           </li>
         } @else {
           <li class="nav-item portal-nav-item"
@@ -85,6 +82,19 @@
               routerLinkActive="active" title="_#(Repository)">
               <i class="field-tree-icon nav-icon-size portal-toolbar-icon"></i>
               <span class="visually-hidden">_#(Repository)</span>
+            </a>
+          </li>
+        }
+        @if (!mobile) {
+          <li [title]="getScheduleTabTooltip()"
+            class="nav-item portal-nav-item"
+            [class.disabled]="!getTab(PortalTabs.SCHEDULE)"
+            [class.bb-highlight-filler]="!isTabSelected(PortalTabs.SCHEDULE)"
+            [class.bb-highlight-primary]="isTabSelected(PortalTabs.SCHEDULE)">
+            <a class="nav-link nav-icon nav-icon-size" routerLink="{{getTab(PortalTabs.SCHEDULE)?.uri}}"
+              routerLinkActive="active" aria-label="_#(Schedule)">
+              <i class="datetime-field-icon nav-icon-size portal-toolbar-icon" aria-hidden="true"></i>
+              <span class="visually-hidden">_#(Schedule)</span>
             </a>
           </li>
         }
@@ -150,71 +160,19 @@
             </ng-template>
           </li>
         }
-        @if (dataTabFirst) {
-          @if (!mobile) {
-            <li
-              [title]="getScheduleTabTooltip()">
-              <div class="nav-item portal-nav-item"
-                [class.disabled]="!getTab(PortalTabs.SCHEDULE)"
-                [class.bb-highlight-filler]="!isTabSelected(PortalTabs.SCHEDULE)"
-                [class.bb-highlight-primary]="isTabSelected(PortalTabs.SCHEDULE)">
-                <a class="nav-link nav-icon nav-icon-size" routerLink="{{getTab(PortalTabs.SCHEDULE)?.uri}}"
-                  routerLinkActive="active" aria-label="_#(Schedule)">
-                  <i class="database-icon nav-icon-size portal-toolbar-icon" aria-hidden="true"></i>
-                  <span class="visually-hidden">_#(Schedule)</span>
-                </a>
-              </div>
-            </li>
-          }
-        } @else {
-          @if (!mobile) {
-            <li [title]="getDataTabTooltip()">
-              <div class="nav-item portal-nav-item"
-                [class.disabled]="!getTab(PortalTabs.DATA)"
-                [class.bb-highlight-filler]="!isTabSelected(PortalTabs.DATA)"
-                [class.bb-highlight-primary]="isTabSelected(PortalTabs.DATA)">
-                <a class="nav-link nav-icon nav-icon-size"
-                  routerLink="{{getTab(PortalTabs.DATA)?.uri}}"
-                  routerLinkActive="active" aria-label="_#(Data)">
-                  <i class="database-icon nav-icon-size portal-toolbar-icon" aria-hidden="true"></i>
-                  <span class="visually-hidden">Data</span>
-                </a>
-              </div>
-            </li>
-          }
-        }
-        @if (dataTabFirst) {
-          @if (!mobile) {
-            <li [title]="getDataTabTooltip()">
-              <div class="nav-item portal-nav-item"
-                [class.disabled]="!getTab(PortalTabs.DATA)"
-                [class.bb-highlight-filler]="!isTabSelected(PortalTabs.DATA)"
-                [class.bb-highlight-primary]="isTabSelected(PortalTabs.DATA)">
-                <a class="nav-link nav-icon nav-icon-size"
-                  routerLink="{{getTab(PortalTabs.DATA)?.uri}}"
-                  routerLinkActive="active" aria-label="_#(Data)">
-                  <i class="database-icon nav-icon-size portal-toolbar-icon" aria-hidden="true"></i>
-                  <span class="visually-hidden">Data</span>
-                </a>
-              </div>
-            </li>
-          }
-        } @else {
-          @if (!mobile) {
-            <li
-              [title]="getScheduleTabTooltip()">
-              <div class="nav-item portal-nav-item"
-                [class.disabled]="!getTab(PortalTabs.SCHEDULE)"
-                [class.bb-highlight-filler]="!isTabSelected(PortalTabs.SCHEDULE)"
-                [class.bb-highlight-primary]="isTabSelected(PortalTabs.SCHEDULE)">
-                <a class="nav-link nav-icon nav-icon-size" routerLink="{{getTab(PortalTabs.SCHEDULE)?.uri}}"
-                  routerLinkActive="active" aria-label="_#(Schedule)">
-                  <i class="database-icon nav-icon-size portal-toolbar-icon" aria-hidden="true"></i>
-                  <span class="visually-hidden">_#(Schedule)</span>
-                </a>
-              </div>
-            </li>
-          }
+        @if (!mobile) {
+          <li [title]="getDataTabTooltip()"
+            class="nav-item portal-nav-item"
+            [class.disabled]="!getTab(PortalTabs.DATA)"
+            [class.bb-highlight-filler]="!isTabSelected(PortalTabs.DATA)"
+            [class.bb-highlight-primary]="isTabSelected(PortalTabs.DATA)">
+            <a class="nav-link nav-icon nav-icon-size"
+              routerLink="{{getTab(PortalTabs.DATA)?.uri}}"
+              routerLinkActive="active" aria-label="_#(Data)">
+              <i class="database-icon nav-icon-size portal-toolbar-icon" aria-hidden="true"></i>
+              <span class="visually-hidden">Data</span>
+            </a>
+          </li>
         }
         @if (!mobile && model.aiAssistantVisible) {
           <li class="nav-item portal-nav-item bb-highlight-filler">

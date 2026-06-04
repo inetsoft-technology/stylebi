@@ -106,18 +106,25 @@
                   }
                   @default {
                     <div>
-                      <div #dropdown="ngbDropdown" ngbDropdown [autoClose]="'outside'">
+                      <div #dropdown="ngbDropdown" ngbDropdown [autoClose]="'outside'" class="asset-link-dropdown">
                         <div class="form-floating">
                           <input type="text" readonly [value]="selectedNodePath"
+                            [class.input-dropdown--open]="dropdown.isOpen()"
                             [class.is-invalid]="!isValid()"
-                            placeholder="_#(Link)" class="form-control input-dropdown" ngbDropdownToggle>
+                            placeholder="_#(Link)"
+                            class="form-control input-dropdown asset-link-trigger"
+                            ngbDropdownToggle>
                           <label>_#(Link)</label>
                           @if (isAssetLink() && !model.assetLinkPath) {
                             <span class="invalid-feedback">
                               _#(viewer.dialog.hyperlink.linkValid)
                             </span>
                           }
-                          <div class="dropdown-arrow icon-size-small"></div>
+                          <i class="custom-select-trigger__icon dropdown-caret icon-color-default"
+                             [class.chevron-up-icon]="dropdown.isOpen()"
+                             [class.chevron-down-icon]="!dropdown.isOpen()"
+                             aria-hidden="true">
+                          </i>
                         </div>
                         <div ngbDropdownMenu class="tree-dropdown-menu custom-select-menu dropdown-pane">
                           <repository-tree [root]="rootNode" [selector]="selector"

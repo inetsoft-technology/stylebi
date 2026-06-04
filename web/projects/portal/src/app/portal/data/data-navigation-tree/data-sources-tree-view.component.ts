@@ -17,6 +17,8 @@
  */
 import { HttpClient, HttpParams } from "@angular/common/http";
 import { Component, ElementRef, NgZone, OnDestroy, OnInit, ViewChild } from "@angular/core";
+import { FormsModule } from "@angular/forms";
+import { EnterClickDirective } from "../../../widget/directive/enter-click.directive";
 import { ActivatedRoute, NavigationEnd, ParamMap, Router } from "@angular/router";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { Observable, of, Subscription } from "rxjs";
@@ -124,7 +126,7 @@ interface TreeSectionState {
     templateUrl: "data-sources-tree-view.component.html",
     styleUrls: ["data-sources-tree-view.component.scss"],
     providers: [ViewsheetClientService, AssetClientService],
-    imports: [TreeComponent, DataNotificationsComponent]
+    imports: [FormsModule, EnterClickDirective, TreeComponent, DataNotificationsComponent]
 })
 export class DataSourcesTreeViewComponent extends CommandProcessor implements OnInit, OnDestroy {
    @ViewChild(TreeComponent) tree: TreeComponent;

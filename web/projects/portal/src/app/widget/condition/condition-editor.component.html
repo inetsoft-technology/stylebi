@@ -15,76 +15,79 @@
 ~ You should have received a copy of the GNU Affero General Public License
 ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -->
-<div class="editor-container">
-  @if (operation == ConditionOperation.TOP_N || operation == ConditionOperation.BOTTOM_N) {
-    <div class="form-group"
-      >
-      <top-n-editor [field]="field" [fields]="fieldsModel.list" [type]="value.type"
-        [(value)]="value.value" (valueChange)="valueChanged()"
-      [variablesFunction]="variablesFunction"></top-n-editor>
-    </div>
-  } @else {
-    @if (value.type == ConditionValueType.VALUE) {
-      <div class="form-group">
-        <value-editor [field]="field" [operation]="operation"
-          [dataFunction]="dataFunction"
-          [type]="field ? field.dataType : XSchema.STRING"
-          [enableBrowseData]="enableBrowseData"
-          (addValue)="addValue.emit($event)"
-          (openBrowse)="closeDropDown()"
-          [value]="value.value" [values]="getSelectValues()"
-          [isOneOf]="isOneOf"
-          (valueChange)="conditionValueChanged($event)"
-          (valueChanges)="conditionValuesChanged($event)">
-        </value-editor>
+<div class="editor-container"
+     [class.editor-container--field-value]="value?.type === ConditionValueType.FIELD">
+  <div class="editor-container__main">
+    @if (operation == ConditionOperation.TOP_N || operation == ConditionOperation.BOTTOM_N) {
+      <div class="shell-form-group">
+        <top-n-editor [field]="field" [fields]="fieldsModel.list" [type]="value.type"
+          [(value)]="value.value" (valueChange)="valueChanged()"
+        [variablesFunction]="variablesFunction"></top-n-editor>
       </div>
+    } @else {
+      @if (value.type == ConditionValueType.VALUE) {
+        <div class="shell-form-group">
+          <value-editor [field]="field" [operation]="operation"
+            [dataFunction]="dataFunction"
+            [type]="field ? field.dataType : XSchema.STRING"
+            [enableBrowseData]="enableBrowseData"
+            (addValue)="addValue.emit($event)"
+            (openBrowse)="closeDropDown()"
+            [value]="value.value" [values]="getSelectValues()"
+            [isOneOf]="isOneOf"
+            (valueChange)="conditionValueChanged($event)"
+            (valueChanges)="conditionValuesChanged($event)">
+          </value-editor>
+        </div>
+      }
+      @if (value.type == ConditionValueType.VARIABLE) {
+        <div class="shell-form-group">
+          <variable-editor [(value)]="value.value" (valueChange)="valueChanged()"
+            [showUseList]="showUseList" [useList]="!!value.choiceQuery"
+            (updateChoiceQuery)="updateChoiceQuery($event)"
+          [variablesFunction]="variablesFunction"></variable-editor>
+        </div>
+      }
+      @if (value.type == ConditionValueType.EXPRESSION) {
+        <div class="shell-form-group">
+          <expression-editor [columnTreeFunction]="columnTreeFunction"
+            [scriptDefinitionsFunction]="scriptDefinitionsFunction"
+            [isHighlight]="isHighlight" [vsId]="vsId"
+            [expressionTypes]="expressionTypes" [isVSContext]="isVSContext"
+            [(value)]="value.value" (valueChange)="conditionValueChanged($event)"
+            [showOriginalName]="showOriginalName"
+            class="condition-expression-editor">
+          </expression-editor>
+        </div>
+      }
+      @if (value.type == ConditionValueType.FIELD) {
+        <div class="shell-form-group">
+          <field-editor [fieldsModel]="fieldsModel" [grayedOutFields]="grayedOutFields"
+            [(value)]="value.value"
+            [showOriginalName]="showOriginalName"
+          (valueChange)="valueChanged()"></field-editor>
+        </div>
+      }
+      @if (value.type == ConditionValueType.SUBQUERY) {
+        <div class="shell-form-group">
+          <subquery-editor [subqueryTables]="subqueryTables" [(value)]="value.value"
+            [showOriginalName]="showOriginalName"
+          (valueChange)="valueChanged()"></subquery-editor>
+        </div>
+      }
+      @if (value.type == ConditionValueType.SESSION_DATA) {
+        <div class="shell-form-group">
+          <session-data-editor [(value)]="value.value" (valueChange)="valueChanged()">
+          </session-data-editor>
+        </div>
+      }
     }
-    @if (value.type == ConditionValueType.VARIABLE) {
-      <div class="form-group">
-        <variable-editor [(value)]="value.value" (valueChange)="valueChanged()"
-          [showUseList]="showUseList" [useList]="!!value.choiceQuery"
-          (updateChoiceQuery)="updateChoiceQuery($event)"
-        [variablesFunction]="variablesFunction"></variable-editor>
-      </div>
-    }
-    @if (value.type == ConditionValueType.EXPRESSION) {
-      <div class="form-group">
-        <expression-editor [columnTreeFunction]="columnTreeFunction"
-          [scriptDefinitionsFunction]="scriptDefinitionsFunction"
-          [isHighlight]="isHighlight" [vsId]="vsId"
-          [expressionTypes]="expressionTypes" [isVSContext]="isVSContext"
-          [(value)]="value.value" (valueChange)="conditionValueChanged($event)"
-          [showOriginalName]="showOriginalName"
-          class="editor-container__type-toggle">
-        </expression-editor>
-      </div>
-    }
-    @if (value.type == ConditionValueType.FIELD) {
-      <div class="form-group">
-        <field-editor [fieldsModel]="fieldsModel" [grayedOutFields]="grayedOutFields"
-          [(value)]="value.value"
-          [showOriginalName]="showOriginalName"
-        (valueChange)="valueChanged()"></field-editor>
-      </div>
-    }
-    @if (value.type == ConditionValueType.SUBQUERY) {
-      <div class="form-group">
-        <subquery-editor [subqueryTables]="subqueryTables" [(value)]="value.value"
-          [showOriginalName]="showOriginalName"
-        (valueChange)="valueChanged()"></subquery-editor>
-      </div>
-    }
-    @if (value.type == ConditionValueType.SESSION_DATA) {
-      <div class="form-group">
-        <session-data-editor [(value)]="value.value" (valueChange)="valueChanged()">
-        </session-data-editor>
-      </div>
-    }
-  }
+  </div>
   @if (!!field && !field.fakeNone) {
     <div class="editor-container__type-toggle" keyboardNav="true">
       <div id="simple-btn-keyboard-nav"
         class="value-type-list-icon btn btn-sm btn-light"
+        [class.editor-container__type-button--open]="dropdownOpen"
         [fixedDropdown]="dropdownMenu"
         (openChange)="openChange($event)"
         title="_#(Change Value Type)">

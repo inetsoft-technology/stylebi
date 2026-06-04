@@ -16,14 +16,24 @@
 ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -->
 <div [class.disabled]="isNullSelectedBorder()">
-  <button #dropdown class="form-control dropdown-toggle" [disabled]="isNullSelectedBorder()"
-    [fixedDropdown]="dropdownMenu" [style.white-space]="'nowrap'" data-test="border-style-dropdown">
+  <button #dropdown
+          class="form-control custom-select-trigger border-style-trigger no-caret"
+          [class.border-style-trigger--open]="open"
+          [disabled]="isNullSelectedBorder()"
+          [fixedDropdown]="dropdownMenu"
+          [style.white-space]="'nowrap'"
+          (openChange)="handleOpenChange($event)"
+          data-test="border-style-dropdown">
     @if (!cssClass) {
       <span class="line-label border-style-trigger__content">{{label}}</span>
     }
     @if (cssClass) {
-      <div [class]="'line-display ' + cssClass"></div>
+      <div [class]="'line-display border-style-trigger__content ' + cssClass"></div>
     }
+    <i class="border-style-trigger__icon dropdown-caret icon-color-default"
+       [class.chevron-up-icon]="open"
+       [class.chevron-down-icon]="!open"
+       aria-hidden="true"></i>
   </button>
 </div>
 <ng-template #dropdownMenu>

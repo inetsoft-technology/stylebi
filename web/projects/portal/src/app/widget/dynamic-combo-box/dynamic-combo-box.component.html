@@ -20,15 +20,24 @@
     <ng-container [class.disable-actions]="disable">
       @if (!editable && mode == ValueMode.TEXT) {
         <div draggable="true"
+          #valueTrigger
           tooltipIf [disableTooltipIf]="!!tooltip"
-          class="display-style bd-gray form-control" [ngClass]="getInputClass(value)"
-          [class.span-as-dropdown]="isValuesDefinedAndNotEmpty()"
-          [class.custom-select]="isValuesDefinedAndNotEmpty()"
+          class="display-style custom-select-trigger dynamic-combo-box__trigger form-control"
+          [ngClass]="getInputClass(value)"
+          [class.is-open]="valueDropdownOpen"
           [class.disabled]="disable"
+          [attr.tabindex]="disable ? -1 : 0"
           [fixedDropdown]="selectOnClick ? null : valueDropdownMenu"
+          (openChange)="handleValueDropdownOpenChange($event)"
           dropdownPlacement="bottom" [attr.title]="tooltip"
           [autoClose]="!asTree" [disabled]="disable">
-          {{getCurrentValue()}}&nbsp;
+          <span class="dynamic-combo-box__display-text custom-select-trigger__text">{{getCurrentValue()}}&nbsp;</span>
+          @if (isValuesDefinedAndNotEmpty()) {
+            <i class="dynamic-combo-box__display-icon custom-select-trigger__icon dropdown-caret icon-color-default"
+              aria-hidden="true"
+              [class.chevron-down-icon]="!valueDropdownOpen"
+              [class.chevron-up-icon]="valueDropdownOpen"></i>
+          }
         </div>
       }
       @if (editable && mode == ValueMode.TEXT) {
