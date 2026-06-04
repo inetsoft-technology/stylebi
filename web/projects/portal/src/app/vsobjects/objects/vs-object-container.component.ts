@@ -263,6 +263,14 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
          (!!model.container && this.dataTipService.isDataTipVisible(model.container));
    }
 
+   isFilterInMaxModeView(model: VSObjectModel): boolean {
+      if(!this.viewer || !(<any> model).adhocFilter) {
+         return false;
+      }
+
+      return !!this.vsInfo?.vsObjects.find(v => v["maxMode"]);
+   }
+
    isMiniToolbarVisible(model: VSObjectModel): boolean {
       if(model.containerType === "VSSelectionContainer" ||
          (<any> model).dropdown || (<any> model).dropdownCalendar)
