@@ -18,10 +18,13 @@
 package inetsoft.report.composition.region;
 
 import inetsoft.uql.viewsheet.graph.ChartInfo;
+import inetsoft.uql.viewsheet.graph.ChartRef;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 @Tag("core")
 class ChartToolTipTest {
@@ -306,6 +309,50 @@ class ChartToolTipTest {
       assertTrue(out.contains("<div class=\"tt-tier-3\">bullOrbear:&nbsp;Bullish"),
                  "Aesthetic dims past the OHL group drop to tier-3");
       assertFalse(out.contains("tt-tier-4"), "Tiers must cap at 3");
+   }
+
+   @Test
+   void candleHeaderPicksXDimNotYDim() {
+      // X=Week(date) dim, Y=bullOrbear dim. The header must be the X period dim,
+      // never the Y grouping dim, regardless of element.getDims() order.
+      String[] dims = { "bullOrbear", "Week(date)" }; // Y-dim first (the bug case)
+      ChartRef[] xfields = { dimRef("Week(date)") };
+      assertEquals("Week(date)", PlotArea.candleHeaderDim(xfields, dims));
+   }
+
+   @Test
+   void candleHeaderPicksInnermostXDim() {
+      String[] dims = { "Year", "Week(date)", "bullOrbear" };
+      ChartRef[] xfields = { dimRef("Year"), dimRef("Week(date)") };
+      assertEquals("Week(date)", PlotArea.candleHeaderDim(xfields, dims));
+   }
+
+   @Test
+   void candleHeaderSkipsMeasureXFields() {
+      // A measure on X is not a period identifier; fall through to the X dimension.
+      String[] dims = { "bullOrbear", "Week(date)" };
+      ChartRef[] xfields = { measureRef(), dimRef("Week(date)") };
+      assertEquals("Week(date)", PlotArea.candleHeaderDim(xfields, dims));
+   }
+
+   @Test
+   void candleHeaderFallsBackToFirstDimWhenNoXDim() {
+      String[] dims = { "bullOrbear" };
+      ChartRef[] xfields = {}; // X has only measures or nothing
+      assertEquals("bullOrbear", PlotArea.candleHeaderDim(xfields, dims));
+   }
+
+   private static ChartRef dimRef(String name) {
+      ChartRef ref = mock(ChartRef.class);
+      when(ref.isMeasure()).thenReturn(false);
+      when(ref.getFullName()).thenReturn(name);
+      return ref;
+   }
+
+   private static ChartRef measureRef() {
+      ChartRef ref = mock(ChartRef.class);
+      when(ref.isMeasure()).thenReturn(true);
+      return ref;
    }
 
    @Test

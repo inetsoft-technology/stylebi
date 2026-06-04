@@ -1660,9 +1660,11 @@ public class PlotArea extends GridContainerArea implements GraphComponentArea, R
             }
          }
 
-         // Lift only dims[0]; nested X-dims stay as regular rows (matches captureCombinedCardHeader).
+         // Lift the X-axis period dim (e.g. the date), not dims[0]; a Y-axis
+         // grouping dim like bullOrbear must not steal the subtitle slot.
          if(candleCardLayout && dims.length > 0) {
-            applyCandleCardHeader(tooltip, dims[0], tipMeasures);
+            applyCandleCardHeader(tooltip, candleHeaderDim(chartInfo.getRTXFields(), dims),
+                                  tipMeasures);
          }
          else if(cardMeasureFirst && dims.length > 0) {
             if(groupMeasuresAtTier2(measures, full2NoCalcNames.keySet(), measurePairs)) {
@@ -1867,6 +1869,30 @@ public class PlotArea extends GridContainerArea implements GraphComponentArea, R
 
    private String nameOf(ChartRef ref) {
       return ref == null ? null : GraphUtil.getName(ref);
+   }
+
+   // The X-axis period dim (e.g. the date) headlines as the tier-1 subtitle; Y-axis
+   // and other grouping dims stay as tier-3 context. Picks the innermost X dimension
+   // so nested categorical X still resolves to the per-candle period. Falls back to
+   // dims[0] when no X dimension is present in the tooltip dims.
+   static String candleHeaderDim(ChartRef[] xfields, String[] dims) {
+      String xDim = null;
+
+      for(ChartRef ref : xfields) {
+         if(ref != null && !GraphUtil.isMeasure(ref)) {
+            xDim = GraphUtil.getName(ref);
+         }
+      }
+
+      if(xDim != null) {
+         for(String d : dims) {
+            if(xDim.equals(d)) {
+               return xDim;
+            }
+         }
+      }
+
+      return dims[0];
    }
 
    // Set X-dim as header (solo-card-with-header renders it as tier-1 subtitle); group OHL at tier-2.
