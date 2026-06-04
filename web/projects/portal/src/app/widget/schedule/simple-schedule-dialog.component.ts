@@ -254,7 +254,7 @@ export class SimpleScheduleDialog implements OnInit, OnDestroy {
          this.timeZoneId = this.model.timeZoneOptions[0].timeZoneId;
          this.form.get("timeZone").setValue(this.timeZoneId);
          this.model.timeConditionModel.timeZone = this.timeZoneId;
-         this.timeZoneLabel = new Date().toTimeString().match(/\((.+)\)/)?.[1] ?? "";
+         this.timeZoneLabel = new Date().toTimeString().match(/\((.+)\)/)?.[1] || null;
          this.model.timeConditionModel.timeZoneLabel = this.timeZoneLabel;
       }
 
@@ -619,7 +619,7 @@ export class SimpleScheduleDialog implements OnInit, OnDestroy {
       this.form.get("startTime").setValue(this.startTimeData);
 
       if (tz == this.model.timeZoneOptions[0]) {
-         this.timeZoneLabel = new Date().toTimeString().match(/\((.+)\)/)?.[1] ?? "";
+         this.timeZoneLabel = new Date().toTimeString().match(/\((.+)\)/)?.[1] || null;
       }
       else {
          this.timeZoneLabel = tz.label;
