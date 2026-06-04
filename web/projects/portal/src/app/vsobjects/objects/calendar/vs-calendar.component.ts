@@ -324,7 +324,7 @@ export class VSCalendar extends NavigationComponent<VSCalendarModel>
       let selection1: string;
       let selection2: string;
 
-      if(this._model.doubleCalendar && this.calendar2) {
+      if(this._model.doubleCalendar && this.calendar1 && this.calendar2) {
          if(this._model.period) {
             selection1 = this.calendar1.getSelectionString();
             selection2 = this.calendar2.getSelectionString();
@@ -350,7 +350,7 @@ export class VSCalendar extends NavigationComponent<VSCalendarModel>
             }
          }
       }
-      else if(!!this.calendar1 && typeof this.calendar1.getSelectionString === "function") {
+      else if(this.calendar1) {
          selectionString = this.calendar1.getSelectionString();
       }
 

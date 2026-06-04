@@ -19,6 +19,7 @@
 import "@testing-library/jest-dom/vitest";
 import { ApplicationRef, Directive, provideNgReflectAttributes } from "@angular/core";
 import { ComponentFixture, ComponentFixtureAutoDetect, TestBed } from "@angular/core/testing";
+import { afterEach } from "vitest";
 
 // A no-op standalone directive used as a placeholder for undefined dep slots caused by
 // circular ESM imports. Angular's TestBed will accept this without crashing.
@@ -211,6 +212,10 @@ TestBed.compileComponents = function() {
       }
    });
 } as typeof TestBed.compileComponents;
+
+afterEach(() => {
+   _configuredModuleDefs.length = 0;
+});
 
 // Specific circular-import patches for component pairs where the template uses the missing
 // class directly. The generic placeholder is not sufficient here because templates reference

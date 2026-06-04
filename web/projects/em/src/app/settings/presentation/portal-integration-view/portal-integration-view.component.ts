@@ -35,6 +35,7 @@ import { MatMiniFabButton, MatIconButton } from "@angular/material/button";
 import { FormsModule } from "@angular/forms";
 import { MatCheckbox } from "@angular/material/checkbox";
 import { MatCard, MatCardTitle, MatCardContent, MatCardSubtitle } from "@angular/material/card";
+import { PortalTabs } from "../../../../../../portal/src/app/portal/portal-tab";
 
 
 @Searchable({
@@ -66,11 +67,11 @@ export class PortalIntegrationViewComponent {
    get leftNavTabs(): Array<{tab: PortalTabModel, modelIndex: number}> {
       return (this.model?.tabs || [])
          .map((tab, i) => ({tab, modelIndex: i}))
-         .filter(({tab}) => tab.name !== "Data");
+         .filter(({tab}) => tab.name !== PortalTabs.DATA);
    }
 
    get dataTab(): {tab: PortalTabModel, modelIndex: number} | null {
-      const i = (this.model?.tabs || []).findIndex(t => t.name === "Data");
+      const i = (this.model?.tabs || []).findIndex(t => t.name === PortalTabs.DATA);
       return i >= 0 ? {tab: this.model.tabs[i], modelIndex: i} : null;
    }
 
@@ -81,7 +82,7 @@ export class PortalIntegrationViewComponent {
    moveDownDisabled(index: number): boolean {
       return index == this.model.tabs.length - 1 ||
          !this.model.tabs[index].editable && this.model.tabs[index + 1].editable ||
-         this.model.tabs[index + 1]?.name === "Data";
+         this.model.tabs[index + 1]?.name === PortalTabs.DATA;
    }
 
    moveUp(index: number) {
