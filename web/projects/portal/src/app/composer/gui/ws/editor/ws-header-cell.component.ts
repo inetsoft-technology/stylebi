@@ -132,6 +132,7 @@ export class WSHeaderCell implements OnInit, OnChanges, AfterViewInit {
          this.updateColumnCaption();
          this.updateColumnSourceFields();
          this.updateDisplayName();
+         this.initButtons();
 
          if(this.table instanceof BoundTableAssembly) {
             this.isRest = (this.table as BoundTableAssembly).info.sourceInfo.rest;
