@@ -266,6 +266,9 @@ public abstract class VSAQuery {
 
       List<ConditionListWrapper> conds = new ArrayList<>();
       AggregateInfo ainfo = table.getAggregateInfo();
+      // capture before mirror creation — the mirror may have an empty AggregateInfo
+      // even when the underlying table is aggregated, causing isAggregate() to return false
+      boolean originalAggregated = ainfo != null && ainfo.isAggregated();
 
       if(ainfo != null && !ainfo.isEmpty()) {
          ColumnSelection columns = new ColumnSelection();
@@ -311,6 +314,10 @@ public abstract class VSAQuery {
       Worksheet ws = table.getWorksheet();
 
       if(ws != null) {
+         // Register the configured table (which may have chart's AggregateInfo set by
+         // createTableAssembly) so that MirrorTableAssembly.update() finds this version
+         // rather than the original unmodified VS table from the WorksheetWrapper. (75263)
+         ws.addAssembly(table);
          String mname = table.getName() + "_mirror";
          MirrorTableAssembly mirror = new MirrorTableAssembly(ws, mname, table);
          ws.addAssembly(mirror); // need to add to ws for MV transformation. (54096)
@@ -367,7 +374,7 @@ public abstract class VSAQuery {
          }
       }
 
-      if(table.isAggregate() || hasCubeMeasure) {
+      if(table.isAggregate() || originalAggregated || hasCubeMeasure) {
          ConditionListWrapper c = table.getPostRuntimeConditionList();
 
          if(c != null && !c.isEmpty()) {
