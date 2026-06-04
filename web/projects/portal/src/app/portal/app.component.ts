@@ -76,7 +76,6 @@ export class PortalAppComponent implements OnInit, OnDestroy {
    model: PortalModel;
    portalTabs: PortalTab[];
    customPortalTabs: PortalTab[];
-   reportTabFirst: boolean = true;
    hideNav: boolean;
    logoSrc: string = "../portal/logo";
    mobile: boolean;
@@ -181,7 +180,6 @@ export class PortalAppComponent implements OnInit, OnDestroy {
 
       this.portalTabsService.getPortalTabs().subscribe((portalTabs) => {
          this.portalTabs = portalTabs;
-         this.setTabOrder();
          this.checkDefaultTab();
       });
 
@@ -252,16 +250,8 @@ export class PortalAppComponent implements OnInit, OnDestroy {
       }
    }
 
-   setTabOrder(): void {
-      if(!!this.portalTabs) {
-         const reportIndex = this.portalTabs.findIndex(t =>
-            t.name == PortalTabs.REPORT || t.name == PortalTabs.VIEWER);
-         const dashboardIndex = this.portalTabs.findIndex(t => t.name == PortalTabs.DASHBOARD);
-         this.reportTabFirst = dashboardIndex < 0 || reportIndex >= 0 && reportIndex <= dashboardIndex;
-      }
-      else {
-         this.reportTabFirst = true;
-      }
+   get leftNavTabs(): PortalTab[] {
+      return (this.portalTabs || []).filter(t => t.name !== PortalTabs.DATA && !t.custom);
    }
 
    checkDefaultTab(): void {

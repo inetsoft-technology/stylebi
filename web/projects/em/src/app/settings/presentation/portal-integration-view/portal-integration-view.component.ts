@@ -63,13 +63,25 @@ export class PortalIntegrationViewComponent {
    constructor(private dialog: MatDialog) {
    }
 
+   get leftNavTabs(): Array<{tab: PortalTabModel, modelIndex: number}> {
+      return (this.model?.tabs || [])
+         .map((tab, i) => ({tab, modelIndex: i}))
+         .filter(({tab}) => tab.name !== "Data");
+   }
+
+   get dataTab(): {tab: PortalTabModel, modelIndex: number} | null {
+      const i = (this.model?.tabs || []).findIndex(t => t.name === "Data");
+      return i >= 0 ? {tab: this.model.tabs[i], modelIndex: i} : null;
+   }
+
    moveUpDisabled(index: number): boolean {
       return index == 0 || this.model.tabs[index].editable && !this.model.tabs[index - 1].editable;
    }
 
    moveDownDisabled(index: number): boolean {
       return index == this.model.tabs.length - 1 ||
-         !this.model.tabs[index].editable && this.model.tabs[index + 1].editable;
+         !this.model.tabs[index].editable && this.model.tabs[index + 1].editable ||
+         this.model.tabs[index + 1]?.name === "Data";
    }
 
    moveUp(index: number) {

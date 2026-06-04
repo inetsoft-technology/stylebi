@@ -35,68 +35,44 @@
             <span class="visually-hidden">_#(Home)</span>
           </a>
         </li>
-        @if (reportTabFirst) {
-          <li class="nav-item portal-nav-item"
-            [class.disabled]="!getTab(PortalTabs.REPORT) && !getTab(PortalTabs.VIEWER)"
-            [class.bb-highlight-filler]="!isTabSelected(PortalTabs.REPORT) && !isTabSelected(PortalTabs.VIEWER)"
-            [class.bb-highlight-primary]="isTabSelected(PortalTabs.REPORT) || isTabSelected(PortalTabs.VIEWER)">
-            <a class="nav-link nav-icon nav-icon-size"
-              routerLink="{{getTab(PortalTabs.VIEWER) ? getTab(PortalTabs.VIEWER)?.uri : getTab(PortalTabs.REPORT)?.uri}}"
-              routerLinkActive="active" title="_#(Repository)">
-              <i class="field-tree-icon nav-icon-size portal-toolbar-icon"></i>
-              <span class="visually-hidden">_#(Repository)</span>
-            </a>
-          </li>
-        } @else {
-          <li class="nav-item portal-nav-item"
-            [title]="getDashboardTabTooltip()"
-            [class.disabled]="!getTab(PortalTabs.DASHBOARD)"
-            [class.bb-highlight-filler]="!isTabSelected(PortalTabs.DASHBOARD)"
-            [class.bb-highlight-primary]="isTabSelected(PortalTabs.DASHBOARD)">
-            <a class="nav-link nav-icon nav-icon-size" routerLink="{{getTab(PortalTabs.DASHBOARD)?.uri}}"
-              routerLinkActive="active">
-              <i class="viewsheet-book-icon nav-icon-size portal-toolbar-icon"></i>
-              <span class="visually-hidden">_#(Dashboard)</span>
-            </a>
-          </li>
-        }
-        @if (reportTabFirst) {
-          <li class="nav-item portal-nav-item"
-            [title]="getDashboardTabTooltip()"
-            [class.disabled]="!getTab(PortalTabs.DASHBOARD)"
-            [class.bb-highlight-filler]="!isTabSelected(PortalTabs.DASHBOARD)"
-            [class.bb-highlight-primary]="isTabSelected(PortalTabs.DASHBOARD)">
-            <a class="nav-link nav-icon nav-icon-size" routerLink="{{getTab(PortalTabs.DASHBOARD)?.uri}}"
-              routerLinkActive="active">
-              <i class="viewsheet-book-icon nav-icon-size portal-toolbar-icon"></i>
-              <span class="visually-hidden">_#(Dashboard)</span>
-            </a>
-          </li>
-        } @else {
-          <li class="nav-item portal-nav-item"
-            [class.disabled]="!getTab(PortalTabs.REPORT) && !getTab(PortalTabs.VIEWER)"
-            [class.bb-highlight-filler]="!isTabSelected(PortalTabs.REPORT) && !isTabSelected(PortalTabs.VIEWER)"
-            [class.bb-highlight-primary]="isTabSelected(PortalTabs.REPORT) || isTabSelected(PortalTabs.VIEWER)">
-            <a class="nav-link nav-icon nav-icon-size"
-              routerLink="{{getTab(PortalTabs.VIEWER) ? getTab(PortalTabs.VIEWER)?.uri : getTab(PortalTabs.REPORT)?.uri}}"
-              routerLinkActive="active" title="_#(Repository)">
-              <i class="field-tree-icon nav-icon-size portal-toolbar-icon"></i>
-              <span class="visually-hidden">_#(Repository)</span>
-            </a>
-          </li>
-        }
-        @if (!mobile) {
-          <li [title]="getScheduleTabTooltip()"
-            class="nav-item portal-nav-item"
-            [class.disabled]="!getTab(PortalTabs.SCHEDULE)"
-            [class.bb-highlight-filler]="!isTabSelected(PortalTabs.SCHEDULE)"
-            [class.bb-highlight-primary]="isTabSelected(PortalTabs.SCHEDULE)">
-            <a class="nav-link nav-icon nav-icon-size" routerLink="{{getTab(PortalTabs.SCHEDULE)?.uri}}"
-              routerLinkActive="active" aria-label="_#(Schedule)">
-              <i class="datetime-field-icon nav-icon-size portal-toolbar-icon" aria-hidden="true"></i>
-              <span class="visually-hidden">_#(Schedule)</span>
-            </a>
-          </li>
+        @for (tab of leftNavTabs; track tab.name) {
+          @if (tab.name === PortalTabs.REPORT || tab.name === PortalTabs.VIEWER) {
+            <li class="nav-item portal-nav-item"
+              [class.disabled]="!getTab(PortalTabs.REPORT) && !getTab(PortalTabs.VIEWER)"
+              [class.bb-highlight-filler]="!isTabSelected(PortalTabs.REPORT) && !isTabSelected(PortalTabs.VIEWER)"
+              [class.bb-highlight-primary]="isTabSelected(PortalTabs.REPORT) || isTabSelected(PortalTabs.VIEWER)">
+              <a class="nav-link nav-icon nav-icon-size"
+                routerLink="{{getTab(PortalTabs.VIEWER) ? getTab(PortalTabs.VIEWER)?.uri : getTab(PortalTabs.REPORT)?.uri}}"
+                routerLinkActive="active" title="_#(Repository)">
+                <i class="field-tree-icon nav-icon-size portal-toolbar-icon"></i>
+                <span class="visually-hidden">_#(Repository)</span>
+              </a>
+            </li>
+          } @else if (tab.name === PortalTabs.DASHBOARD) {
+            <li class="nav-item portal-nav-item"
+              [title]="getDashboardTabTooltip()"
+              [class.disabled]="!getTab(PortalTabs.DASHBOARD)"
+              [class.bb-highlight-filler]="!isTabSelected(PortalTabs.DASHBOARD)"
+              [class.bb-highlight-primary]="isTabSelected(PortalTabs.DASHBOARD)">
+              <a class="nav-link nav-icon nav-icon-size" routerLink="{{getTab(PortalTabs.DASHBOARD)?.uri}}"
+                routerLinkActive="active">
+                <i class="viewsheet-book-icon nav-icon-size portal-toolbar-icon"></i>
+                <span class="visually-hidden">_#(Dashboard)</span>
+              </a>
+            </li>
+          } @else if (tab.name === PortalTabs.SCHEDULE && !mobile) {
+            <li [title]="getScheduleTabTooltip()"
+              class="nav-item portal-nav-item"
+              [class.disabled]="!getTab(PortalTabs.SCHEDULE)"
+              [class.bb-highlight-filler]="!isTabSelected(PortalTabs.SCHEDULE)"
+              [class.bb-highlight-primary]="isTabSelected(PortalTabs.SCHEDULE)">
+              <a class="nav-link nav-icon nav-icon-size" routerLink="{{getTab(PortalTabs.SCHEDULE)?.uri}}"
+                routerLinkActive="active" aria-label="_#(Schedule)">
+                <i class="datetime-field-icon nav-icon-size portal-toolbar-icon" aria-hidden="true"></i>
+                <span class="visually-hidden">_#(Schedule)</span>
+              </a>
+            </li>
+          }
         }
         @if (customPortalTabs && customPortalTabs.length > 0) {
           <li
