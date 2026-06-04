@@ -119,16 +119,30 @@ function _readAngularDef(cls: any, prop: "ɵcmp" | "ɵmod"): any {
    }
 }
 
-function _scrubDeps(cls: any, visited: Set<any>, fallback: any) {
+function _hasPendingComponentResource(cls: any): boolean {
+   try {
+      void cls?.ɵcmp;
+      return false;
+   } catch(e) {
+      if(_isPendingComponentResourceError(e)) {
+         return true;
+      }
+
+      throw e;
+   }
+}
+
+function _scrubDeps(cls: any, visited: Set<any>, fallback: any): boolean {
    if (!cls || visited.has(cls)) {
-      return;
+      return false;
    }
    visited.add(cls);
 
+   let needsPostCompileScrub = _hasPendingComponentResource(cls);
    const cmpDef = _readAngularDef(cls, "ɵcmp");
    const modDef = _readAngularDef(cls, "ɵmod");
    if (!cmpDef && !modDef) {
-      return;
+      return needsPostCompileScrub;
    }
    if (cmpDef) {
       const raw = typeof cmpDef.dependencies === "function"
@@ -139,7 +153,8 @@ function _scrubDeps(cls: any, visited: Set<any>, fallback: any) {
             if (raw[i] === undefined || raw[i] === null) {
                raw[i] = fallback;
             } else {
-               _scrubDeps(raw[i], visited, fallback);
+               needsPostCompileScrub = _scrubDeps(raw[i], visited, fallback) ||
+                  needsPostCompileScrub;
             }
          }
       }
@@ -152,16 +167,20 @@ function _scrubDeps(cls: any, visited: Set<any>, fallback: any) {
                if (raw[i] === undefined || raw[i] === null) {
                   raw[i] = fallback;
                } else {
-                  _scrubDeps(raw[i], visited, fallback);
+                  needsPostCompileScrub = _scrubDeps(raw[i], visited, fallback) ||
+                     needsPostCompileScrub;
                }
             }
          }
       }
    }
+
+   return needsPostCompileScrub;
 }
 
-function _scrubTestingModuleDef(moduleDef: any) {
+function _scrubTestingModuleDef(moduleDef: any): boolean {
    const _visited = new Set<any>();
+   let needsPostCompileScrub = false;
    const _scrubArray = (arr: any[] | undefined) => {
       if (!Array.isArray(arr)) {
          return;
@@ -170,15 +189,21 @@ function _scrubTestingModuleDef(moduleDef: any) {
          if (Array.isArray(item)) {
             _scrubArray(item);
          } else if (item) {
-            _scrubDeps(item, _visited, _CircularDepPlaceholder);
+            needsPostCompileScrub = _scrubDeps(item, _visited, _CircularDepPlaceholder) ||
+               needsPostCompileScrub;
          }
       }
    };
    _scrubArray(moduleDef?.imports);
    _scrubArray(moduleDef?.declarations);
+   return needsPostCompileScrub;
 }
 
 const _configuredModuleDefs: any[] = [];
+
+function _clearConfiguredModuleDefs() {
+   _configuredModuleDefs.length = 0;
+}
 
 // Patch configureTestingModule to:
 //   1. Inject provideNgReflectAttributes() for legacy ng-reflect-* assertions
@@ -197,15 +222,18 @@ TestBed.configureTestingModule = function(moduleDef: any) {
       { provide: ComponentFixtureAutoDetect, useValue: false },
       ...(moduleDef.providers ?? []),
    ];
-   _configuredModuleDefs.push(moduleDef);
-   _scrubTestingModuleDef(moduleDef);
+   if(_scrubTestingModuleDef(moduleDef)) {
+      _configuredModuleDefs.push(moduleDef);
+   }
    return _originalConfigureTestingModule(moduleDef);
 } as typeof TestBed.configureTestingModule;
 
 const _originalCompileComponents = TestBed.compileComponents.bind(TestBed);
 TestBed.compileComponents = function() {
    return Promise.resolve(_originalCompileComponents()).then(() => {
-      _patchKnownCircularDeps();
+      if(_configuredModuleDefs.length > 0) {
+         _patchKnownCircularDeps();
+      }
 
       while(_configuredModuleDefs.length > 0) {
          _scrubTestingModuleDef(_configuredModuleDefs.shift());
@@ -213,8 +241,14 @@ TestBed.compileComponents = function() {
    });
 } as typeof TestBed.compileComponents;
 
+const _originalResetTestingModule = TestBed.resetTestingModule.bind(TestBed);
+TestBed.resetTestingModule = function() {
+   _clearConfiguredModuleDefs();
+   return _originalResetTestingModule();
+} as typeof TestBed.resetTestingModule;
+
 afterEach(() => {
-   _configuredModuleDefs.length = 0;
+   _clearConfiguredModuleDefs();
 });
 
 // Specific circular-import patches for component pairs where the template uses the missing
@@ -279,8 +313,6 @@ function _patchKnownCircularDeps() {
    _patchCircularDeps(MonthCalendar, VSCalendar);
    _patchCircularDeps(YearCalendar, VSCalendar);
 }
-
-_patchKnownCircularDeps();
 
 // NOTE: MSW is intentionally NOT started here for the main portal test suite.
 // Under the old Jest setup, setup-jest.ts (which had MSW) was only wired to

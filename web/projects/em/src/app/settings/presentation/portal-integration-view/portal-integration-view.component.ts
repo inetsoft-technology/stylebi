@@ -67,22 +67,24 @@ export class PortalIntegrationViewComponent {
    get leftNavTabs(): Array<{tab: PortalTabModel, modelIndex: number}> {
       return (this.model?.tabs || [])
          .map((tab, i) => ({tab, modelIndex: i}))
-         .filter(({tab}) => tab.name !== PortalTabs.DATA);
+         .filter(({tab}) => !this.isDataTab(tab));
    }
 
    get dataTab(): {tab: PortalTabModel, modelIndex: number} | null {
-      const i = (this.model?.tabs || []).findIndex(t => t.name === PortalTabs.DATA);
+      const i = (this.model?.tabs || []).findIndex(t => this.isDataTab(t));
       return i >= 0 ? {tab: this.model.tabs[i], modelIndex: i} : null;
    }
 
    moveUpDisabled(index: number): boolean {
-      return index == 0 || this.model.tabs[index].editable && !this.model.tabs[index - 1].editable;
+      const previousTab = this.model.tabs[index - 1];
+      return index == 0 ||
+         this.model.tabs[index].editable && !previousTab.editable && !this.isDataTab(previousTab);
    }
 
    moveDownDisabled(index: number): boolean {
       return index == this.model.tabs.length - 1 ||
          !this.model.tabs[index].editable && this.model.tabs[index + 1].editable ||
-         this.model.tabs[index + 1]?.name === PortalTabs.DATA;
+         this.isDataTab(this.model.tabs[index + 1]);
    }
 
    moveUp(index: number) {
@@ -139,5 +141,9 @@ export class PortalIntegrationViewComponent {
          modelType: PresentationSettingsType.PORTAL_INTEGRATION_SETTINGS_MODEL,
          valid: true
       });
+   }
+
+   private isDataTab(tab?: PortalTabModel): boolean {
+      return tab?.name === PortalTabs.DATA;
    }
 }
