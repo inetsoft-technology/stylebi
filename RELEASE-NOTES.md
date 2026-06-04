@@ -1,16 +1,12 @@
 # StyleBI v1.1 Release Notes
 
-*Generated: June 3, 2026*
-
 ## Overview
 
 StyleBI v1.1 delivers a new AI Assistant, significant chart enhancements, improved dashboard authoring tools, enhanced security controls, and a versioned documentation system. Below is a summary of the major new capabilities.
 
----
-
 ## Upgrade Notes
 
-The following changes may affect existing installations or user workflows when upgrading to v1.1.
+The following changes may affect existing installations or user workflows when upgrading to v1.1. These notes cover upgrading from StyleBI v1.0 to v1.1.
 
 **3D Chart Styles Removed:**
 3D Bar and 3D Pie chart styles are no longer supported. Any dashboards using these styles will automatically render using their 2D equivalents. No manual migration is required, but you may wish to review affected dashboards to confirm the updated appearance meets your needs.
@@ -25,12 +21,10 @@ The default JDBC fetch size has been changed to 10,000 rows per batch. This prev
 The permission required to materialize assets has been corrected from ADMIN to WRITE. Administrators should review existing permission assignments to ensure access is granted to the intended users and roles.
 
 **Dashboard Toolbar Button Labels Renamed:**
-The 'Previous' and 'Next' buttons in 'Dashboard Toolbar Options' have been renamed to 'Undo' and 'Redo'. 
+The 'Previous' and 'Next' buttons in 'Dashboard Toolbar Options' have been renamed to 'Undo' and 'Redo'.
 
 **Slider `labelVisible` Script Property Fix:**
 The `labelVisible` script property on slider components previously targeted tick labels instead of the component label. This has been corrected. Existing scripts that used this property to control tick label visibility should be reviewed and updated.
-
----
 
 ## What's New
 
@@ -39,8 +33,6 @@ The `labelVisible` script property on slider components previously targeted tick
 An AI Assistant panel is now available throughout the product. The Assistant can answer natural-language questions about the current environment and help with analysis tasks.
 
 The panel can be collapsed, expanded, and resized by dragging. Organizations can customize it with a custom title, vendor name, and logo, and it automatically picks up the User Portal and Enterprise Manager color scheme. Administrators can control access to the AI Assistant using a dedicated permission in Set Security Actions.
-
----
 
 ### Charts
 
@@ -61,11 +53,6 @@ A new 'Symbol Size' property lets you control the size of legend marker icons in
 
 **Tooltip on Click:**
 A new 'On click only' tooltip option for charts and tables makes tooltips appear only when a user clicks a data point or cell, rather than on hover.
-
-**3D Chart Styles Removed:**
-3D bar and 3D pie chart styles have been removed. Existing dashboards that used these styles will automatically display using their 2D equivalents.
-
----
 
 ### Dashboard & Visual Composer
 
@@ -90,8 +77,6 @@ Filter components expose a new 'Compatible Tables' property that controls which 
 **Query Execution Time in Preview:**
 When previewing query results or table data in the Visual Composer, the elapsed query execution time is now displayed, making it easier to identify slow queries during development.
 
----
-
 ### Scheduling
 
 **Copy Scheduled Tasks:**
@@ -99,8 +84,6 @@ Scheduled tasks can now be duplicated with a single action, making it easy to cr
 
 **Schedule Move Task:**
 A new Schedule Move Task type is available for programmatically relocating dashboard assets on a schedule.
-
----
 
 ### Data & Queries
 
@@ -110,16 +93,9 @@ Radio Button, Check Box, and Combo Box components now include a 'Format Date Val
 **Switch to Manual Input for Group Dimensions:**
 When grouping Data Worksheet data by dimension, a new 'Switch To Manual Input' option allows group members to be specified directly rather than detected automatically.
 
-**Improved JDBC Performance:**
-The default JDBC fetch size is now 10,000 rows per batch, preventing entire large tables from being loaded into memory during query execution.
-
----
-
 ### Drill-Down and Hyperlinks
 
 Drill-Down Into Data configuration now exposes additional hyperlink types, and drill-down actions can now send a parameter value directly to a form component (such as a Text Input or Combo Box) in the target dashboard — enabling tightly coupled drill-through workflows.
-
----
 
 ### Security & Administration
 
@@ -135,13 +111,9 @@ The following connectors are now clearly marked as Enterprise Edition only: Face
 **Refresh Metadata Button:**
 Over 60 data source configuration pages now include a 'Refresh Metadata' button, allowing schema and column information to be reloaded without leaving the configuration dialog.
 
----
-
 ### Scripting
 
 Sixteen new script properties are available for controlling axis and data label positioning. Additional new server properties include `axis.labelOnSecondaryAxis`, `script.cursor.top`, and `em.home.link`.
-
----
 
 ### Documentation
 
