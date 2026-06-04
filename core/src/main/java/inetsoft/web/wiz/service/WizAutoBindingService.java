@@ -78,7 +78,7 @@ public class WizAutoBindingService {
    {
       List<SimpleFieldInfo> fieldConfigs = request.getFieldConfigs() != null
          ? request.getFieldConfigs() : Collections.emptyList();
-      String worksheetPath = request.getWorksheetPath();
+       String worksheetPath = request.getWorksheetPath();
 
       // Phase 1: resolve or create the recommendation RVS.
       String autoBindingRuntimeId = request.getAutoBindingRuntimeId();
@@ -140,14 +140,22 @@ public class WizAutoBindingService {
             .collect(Collectors.toMap(SimpleFieldInfo::getField, f -> f, (a, b) -> a));
 
          final String tableNameFinal = tableName;
-         // When the caller specifies fieldConfigs, bind ONLY those fields. Otherwise join-key
-         // columns (added to the worksheet to satisfy the join, but not requested) leak in as
-         // spurious Sum() measures. With no fieldConfigs, fall back to all worksheet columns.
-         List<ColumnRef> bindColumns = configMap.isEmpty()
-            ? worksheetColumns
-            : worksheetColumns.stream()
-                 .filter(c -> configMap.containsKey(c.getAttribute()))
-                 .collect(Collectors.toList());
+         List<WorksheetColumnInfo> vizFields = request.getVisualizationUsedFields();
+         List<ColumnRef> bindColumns;
+
+         if(vizFields != null && !vizFields.isEmpty()) {
+            Set<String> vizFieldNames = vizFields.stream()
+               .map(col -> col.getAlias() != null && !col.getAlias().isEmpty()
+                  ? col.getAlias() : col.getName())
+               .collect(Collectors.toSet());
+            bindColumns = worksheetColumns.stream()
+               .filter(c -> vizFieldNames.contains(c.getAttribute()))
+               .collect(Collectors.toList());
+         }
+         else {
+            bindColumns = worksheetColumns;
+         }
+
          AssetEntry[] entries = bindColumns.stream()
             .map(col -> buildEntryFromColumn(col, worksheetPath, tableNameFinal))
             .toArray(AssetEntry[]::new);

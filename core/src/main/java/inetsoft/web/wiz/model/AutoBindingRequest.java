@@ -20,6 +20,7 @@ package inetsoft.web.wiz.model;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 import java.util.List;
+import inetsoft.web.wiz.model.WorksheetColumnInfo;
 
 /**
  * Request body for {@code POST /api/wiz/viewsheet/autoBinding}.
@@ -75,12 +76,21 @@ public class AutoBindingRequest {
     */
    private String visualizationType;
    /**
-    * Per-field configurations from the LLM.
-    * Uses the existing {@link SimpleFieldInfo} polymorphic hierarchy:
-    * {@code fieldType:"dimension"} → {@link DimensionFieldInfo},
-    * {@code fieldType:"measure"} → {@link MeasureFieldInfo}.
+    * Field configuration preferences (formerly "fieldConfigs").
+    * Carries optional per-field semantic annotations produced by the LLM
+    * (aggregateFormula, dateGroupLevel, ranking, etc.).  These are applied on top of
+    * the columns selected by {@link #visualizationUsedFields}; they do NOT drive
+    * which columns are bound — that is controlled exclusively by {@code visualizationUsedFields}.
     */
    private List<SimpleFieldInfo> fieldConfigs;
+
+   /**
+    * Columns to bind, derived from the primary worksheet table assembly and reconciled with
+    * {@code selectFieldMappings}.  When non-empty, autoBinding filters the worksheet's
+    * {@code columnSelection} to exactly these columns (matched by {@code alias ?? name}).
+    * Takes precedence over {@link #fieldConfigs} for column selection.
+    */
+   private List<WorksheetColumnInfo> visualizationUsedFields;
    /**
     * Optional explicit slot assignments; may be null or empty.
     */
@@ -114,6 +124,14 @@ public class AutoBindingRequest {
 
    public void setViewsheetIdentifier(String viewsheetIdentifier) {
       this.viewsheetIdentifier = viewsheetIdentifier;
+   }
+
+   public List<WorksheetColumnInfo> getVisualizationUsedFields() {
+      return visualizationUsedFields;
+   }
+
+   public void setVisualizationUsedFields(List<WorksheetColumnInfo> visualizationUsedFields) {
+      this.visualizationUsedFields = visualizationUsedFields;
    }
 
    /**
