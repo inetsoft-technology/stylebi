@@ -186,23 +186,6 @@
     }
   }
 
-  // float label colors on focus
-  .mat-mdc-form-field.mat-primary {
-    .mdc-text-field--focused:not(.mdc-text-field--disabled):not(.mdc-text-field--invalid) {
-      .mdc-floating-label {
-        color: mat.m2-get-color-from-palette($primary, 500, 0);
-      }
-    }
-  }
-
-  .mat-mdc-form-field.mat-accent {
-    .mdc-text-field--focused:not(.mdc-text-field--disabled):not(.mdc-text-field--invalid) {
-      .mdc-floating-label {
-        color: mat.m2-get-color-from-palette($accent, 500, 0);
-      }
-    }
-  }
-
   .mat-mdc-form-field-hint {
     color: rgba($on-surface, if($is-dark-theme, 0.7, 0.6));
   }
