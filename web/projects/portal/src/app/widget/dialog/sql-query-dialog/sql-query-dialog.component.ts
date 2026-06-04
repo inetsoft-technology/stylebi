@@ -72,6 +72,7 @@ const CLEAR_MODEL_URI = "../api/composer/ws/sql-query-dialog/clear";
     selector: "sql-query-dialog",
     templateUrl: "sql-query-dialog.component.html",
     styleUrls: ["sql-query-dialog.component.scss"],
+    providers: [DataQueryModelService],
     imports: [ModalHeaderComponent, EnterSubmitDirective, FormsModule, ReactiveFormsModule, InputTrimDirective, SimpleQueryPaneComponent, DatabaseQueryComponent, ApplyButtonComponent, CustomSelectComponent]
 })
 export class SQLQueryDialog implements OnInit {

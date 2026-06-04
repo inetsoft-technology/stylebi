@@ -18,7 +18,7 @@
 import { HttpClient, HttpParams } from "@angular/common/http";
 import {
    AfterViewInit, Component, ElementRef, EventEmitter, HostBinding, HostListener, Input,
-   Output, ViewChild,
+   Optional, Output, ViewChild,
 } from "@angular/core";
 import { NgbModal, NgbModalOptions } from "@ng-bootstrap/ng-bootstrap";
 import { AssemblyActionGroup } from "../../../../../../common/action/assembly-action-group";
@@ -80,7 +80,7 @@ export class JoinNodeGraphComponent implements AfterViewInit {
    constructor(private nodeGraph: ElementRef,
                private modalService: NgbModal,
                private http: HttpClient,
-               private physicalModelService: DataPhysicalModelService,
+               @Optional() private physicalModelService: DataPhysicalModelService,
                private readonly fixedDropdownService: FixedDropdownService)
    {
    }
@@ -340,6 +340,10 @@ export class JoinNodeGraphComponent implements AfterViewInit {
    }
 
    private showAliasDialog(oldAlias?: string): void {
+      if(!this.physicalModelService) {
+         return;
+      }
+
       const dialog = ComponentTool.showDialog(this.modalService, InputNameDialog, (alias) => {
          let params = new HttpParams()
             .set("runtimeId", this.runtimeId)
