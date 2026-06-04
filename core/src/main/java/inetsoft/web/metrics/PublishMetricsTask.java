@@ -65,6 +65,10 @@ public class PublishMetricsTask implements Runnable, Serializable {
          total += map.getOrDefault(node, 0d);
       }
 
+      if(count == 0) {
+         return;
+      }
+
       total = total / count;
       publishMetric(total);
    }
