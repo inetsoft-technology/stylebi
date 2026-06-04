@@ -1872,22 +1872,21 @@ public class PlotArea extends GridContainerArea implements GraphComponentArea, R
    }
 
    // The X-axis period dim (e.g. the date) headlines as the tier-1 subtitle; Y-axis
-   // and other grouping dims stay as tier-3 context. Picks the innermost X dimension
-   // so nested categorical X still resolves to the per-candle period. Falls back to
-   // dims[0] when no X dimension is present in the tooltip dims.
+   // and other grouping dims stay as tier-3 context. Scans X fields inner-to-outer
+   // and returns the most granular one that actually reached the tooltip dims, so
+   // nested categorical X resolves to the per-candle period. Falls back to dims[0]
+   // only when no X dimension reached the tooltip dims.
    static String candleHeaderDim(ChartRef[] xfields, String[] dims) {
-      String xDim = null;
+      Set<String> dimSet = new HashSet<>(Arrays.asList(dims));
 
-      for(ChartRef ref : xfields) {
+      for(int i = xfields.length - 1; i >= 0; i--) {
+         ChartRef ref = xfields[i];
+
          if(ref != null && !GraphUtil.isMeasure(ref)) {
-            xDim = GraphUtil.getName(ref);
-         }
-      }
+            String name = GraphUtil.getName(ref);
 
-      if(xDim != null) {
-         for(String d : dims) {
-            if(xDim.equals(d)) {
-               return xDim;
+            if(name != null && dimSet.contains(name)) {
+               return name;
             }
          }
       }

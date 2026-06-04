@@ -328,6 +328,15 @@ class ChartToolTipTest {
    }
 
    @Test
+   void candleHeaderFallsBackToOuterXDimWhenInnermostAbsent() {
+      // Week(date) is innermost in xfields but never reached the tooltip dims;
+      // promote the next-outer X dim (Year), never the Y-axis dim.
+      String[] dims = { "bullOrbear", "Year" };
+      ChartRef[] xfields = { dimRef("Year"), dimRef("Week(date)") };
+      assertEquals("Year", PlotArea.candleHeaderDim(xfields, dims));
+   }
+
+   @Test
    void candleHeaderSkipsMeasureXFields() {
       // A measure on X is not a period identifier; fall through to the X dimension.
       String[] dims = { "bullOrbear", "Week(date)" };
