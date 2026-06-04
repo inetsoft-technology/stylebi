@@ -29,6 +29,8 @@ import inetsoft.web.wiz.model.CloseViewsheetRequest;
 import inetsoft.web.wiz.model.OpenViewsheetResult;
 import inetsoft.web.wiz.service.WizVisualizationService;
 import jakarta.validation.Valid;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
@@ -125,6 +127,5 @@ public class ViewsheetRuntimeController {
    }
 
    private final ViewsheetService viewsheetService;
-   private static final org.slf4j.Logger log =
-      org.slf4j.LoggerFactory.getLogger(ViewsheetRuntimeController.class);
+   private static final Logger log = LoggerFactory.getLogger(ViewsheetRuntimeController.class);
 }
