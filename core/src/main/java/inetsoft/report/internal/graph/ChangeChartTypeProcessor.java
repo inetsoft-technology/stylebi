@@ -284,15 +284,6 @@ public class ChangeChartTypeProcessor extends ChangeChartProcessor {
          else {
             info.setChartType(newType);
 
-            if(info instanceof  VSChartInfo) {
-               // clear combined tooltip for types that don't support it; mirrors supportsCombinedTooltip()
-               if(!GraphTypes.isLine(newType) && !GraphTypes.isArea(newType) &&
-                  !GraphTypes.isBar(newType))
-               {
-                  ((VSChartInfo) info).setCombinedToolTipValue(false);
-               }
-            }
-
             // if it's waterfall, only keep one measure in chart info
             if(GraphTypes.isWaterfall(newType)) {
                checkMeasureRefs(info);
